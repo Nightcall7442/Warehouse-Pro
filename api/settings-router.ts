@@ -1,0 +1,93 @@
+import { z } from "zod";
+import { createRouter, adminQuery, authedQuery } from "./middleware";
+import { getDb } from "./queries/connection";
+import { settings } from "@db/schema";
+import { eq } from "drizzle-orm";
+import { cache, CacheKeys, CacheTTL } from "./lib/cache";
+import { sanitizeString, isSafeUrl } from "./lib/sanitize";
+
+export const settingsRouter = createRouter({
+  get: authedQuery.query(async ({ ctx }) => {
+    const cacheKey = CacheKeys.tenantSettings(ctx.tenant.id);
+    const cached = cache.get(cacheKey);
+    if (cached) return cached;
+
+    const [row] = await getDb().select({
+      id: settings.id, tenantId: settings.tenantId, companyName: settings.companyName,
+      currency: settings.currency, currencySymbol: settings.currencySymbol,
+      symbolPosition: settings.symbolPosition, defaultReorderPoint: settings.defaultReorderPoint,
+      lowStockThreshold: settings.lowStockThreshold, companyAddress: settings.companyAddress,
+      companyPhone: settings.companyPhone, companyInn: settings.companyInn,
+      companyDirector: settings.companyDirector, companyBank: settings.companyBank,
+      companyBankAccount: settings.companyBankAccount, companyMfo: settings.companyMfo,
+      logoUrl: settings.logoUrl, createdAt: settings.createdAt, updatedAt: settings.updatedAt,
+    }).from(settings).where(eq(settings.tenantId, ctx.tenant.id)).limit(1);
+    const result = row ?? null;
+    cache.set(cacheKey, result, CacheTTL.settings);
+    return result;
+  }),
+
+  // Branding endpoint — lightweight, cached, for mobile app
+  branding: authedQuery.query(async ({ ctx }) => {
+    const cacheKey = CacheKeys.tenantSettings(ctx.tenant.id) + ":branding";
+    const cached = cache.get(cacheKey);
+    if (cached) return cached;
+
+    const [row] = await getDb().select({
+      companyName: settings.companyName,
+      logoUrl: settings.logoUrl,
+      currency: settings.currency,
+      currencySymbol: settings.currencySymbol,
+    }).from(settings).where(eq(settings.tenantId, ctx.tenant.id)).limit(1);
+    const result = row ?? { companyName: "Warehouse Pro", logoUrl: null, currency: "UZS", currencySymbol: "сум" };
+    cache.set(cacheKey, result, CacheTTL.branding);
+    return result;
+  }),
+
+  update: adminQuery
+    .input(z.object({
+      companyName:         z.string().min(1).max(255).optional(),
+      currency:            z.string().max(10).optional(),
+      currencySymbol:      z.string().max(10).optional(),
+      symbolPosition:      z.enum(["before", "after"]).optional(),
+      defaultReorderPoint: z.string().optional(),
+      lowStockThreshold:   z.string().optional(),
+      companyAddress:      z.string().optional(),
+      companyPhone:        z.string().max(50).optional(),
+      companyInn:          z.string().optional(),
+      companyDirector:     z.string().optional(),
+      companyBank:         z.string().optional(),
+      companyBankAccount:  z.string().optional(),
+      companyMfo:          z.string().optional(),
+      logoUrl:             z.string().optional().nullable(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db       = getDb();
+      const tenantId = ctx.tenant.id;
+
+      // Sanitize string inputs
+      const sanitized: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(input)) {
+        if (key === "logoUrl" && typeof value === "string") {
+          sanitized[key] = isSafeUrl(value) ? value : null;
+        } else if (typeof value === "string") {
+          sanitized[key] = sanitizeString(value);
+        } else {
+          sanitized[key] = value;
+        }
+      }
+
+      const [existing] = await db.select().from(settings).where(eq(settings.tenantId, tenantId)).limit(1);
+
+      if (existing) {
+        await db.update(settings).set({ ...sanitized, updatedAt: new Date() }).where(eq(settings.tenantId, tenantId));
+      } else {
+        await db.insert(settings).values({ tenantId, ...sanitized });
+      }
+
+      // Invalidate all settings caches for this tenant
+      cache.invalidatePrefix(`settings:${tenantId}`);
+
+      return { success: true };
+    }),
+});

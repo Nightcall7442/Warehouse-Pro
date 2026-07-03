@@ -1,0 +1,170 @@
+import { useState } from "react";
+import { useSearchParams, Link, useNavigate } from "react-router";
+import { trpc } from "@/providers/trpc";
+import { useTranslate } from "@/i18n";
+import { Lock, Loader2, ArrowLeft, CheckCircle2, Eye, EyeOff } from "lucide-react";
+
+export default function ResetPassword() {
+  const tr = useTranslate();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const token = searchParams.get("token") ?? "";
+
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [showPw, setShowPw] = useState(false);
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState("");
+
+  const resetPassword = trpc.auth.confirmPasswordReset.useMutation({
+    onSuccess: () => setDone(true),
+    onError: (e) => setError(e.message),
+  });
+
+  if (!token) {
+    return (
+      <div style={{ display: "flex", minHeight: "100vh", background: "var(--color-canvas)", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ textAlign: "center", padding: 24 }}>
+          <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--color-text-primary)", marginBottom: 8 }}>
+            {tr("Неверная ссылка", "Noto'g'ri havola")}
+          </h1>
+          <p style={{ fontSize: 14, color: "var(--color-text-secondary)", marginBottom: 16 }}>
+            {tr("Ссылка для сброса пароля отсутствует или истекла.", "Parolni tiklash havolasi mavjud em yoki muddati tugagan.")}
+          </p>
+          <Link to="/forgot-password" style={{ color: "var(--color-primary)", fontSize: 14, fontWeight: 600 }}>
+            {tr("Запросить новую ссылку", "Yangi havola so'rash")}
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+
+    if (password.length < 8) {
+      setError(tr("Пароль должен быть не менее 8 символов", "Parol kamida 8 ta belgi bo'lishi kerak"));
+      return;
+    }
+    if (password !== confirm) {
+      setError(tr("Пароли не совпадают", "Parollar mos kelmaydi"));
+      return;
+    }
+
+    resetPassword.mutate({ token, newPassword: password });
+  };
+
+  return (
+    <div style={{ display: "flex", minHeight: "100vh", background: "var(--color-canvas)", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ width: "100%", maxWidth: 400, padding: "0 24px" }}>
+        <Link to="/login" style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--color-text-secondary)", fontSize: 13, textDecoration: "none", marginBottom: 24 }}>
+          <ArrowLeft size={14} /> {tr("Назад к входу", "Orqaga")}
+        </Link>
+
+        <div style={{ background: "var(--color-surface)", borderRadius: 16, border: "1px solid var(--color-border)", padding: "32px 28px" }}>
+          {done ? (
+            <div style={{ textAlign: "center" }}>
+              <div style={{ width: 48, height: 48, borderRadius: 12, background: "var(--color-success-subtle)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+                <CheckCircle2 size={24} style={{ color: "var(--color-success)" }} />
+              </div>
+              <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--color-text-primary)", marginBottom: 8 }}>
+                {tr("Пароль обновлён", "Parol yangilandi")}
+              </h1>
+              <p style={{ fontSize: 14, color: "var(--color-text-secondary)", marginBottom: 24 }}>
+                {tr("Теперь войдите с новым паролом.", "Endi yangi parol bilan kiring.")}
+              </p>
+              <button
+                onClick={() => navigate("/login")}
+                style={{ padding: "10px 24px", background: "var(--color-primary)", color: "#fff", borderRadius: 8, fontSize: 14, fontWeight: 600, border: "none", cursor: "pointer" }}
+              >
+                {tr("Войти", "Kirish")}
+              </button>
+            </div>
+          ) : (
+            <>
+              <div style={{ textAlign: "center", marginBottom: 24 }}>
+                <div style={{ width: 48, height: 48, borderRadius: 12, background: "var(--color-primary-subtle)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+                  <Lock size={24} style={{ color: "var(--color-primary)" }} />
+                </div>
+                <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--color-text-primary)", marginBottom: 8 }}>
+                  {tr("Новый пароль", "Yangi parol")}
+                </h1>
+                <p style={{ fontSize: 14, color: "var(--color-text-secondary)" }}>
+                  {tr("Введите новый пароль для вашего аккаунта.", "Hisobingiz uchun yangi parolni kiriting.")}
+                </p>
+              </div>
+
+              <form onSubmit={handleSubmit}>
+                <div style={{ marginBottom: 14 }}>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--color-text-secondary)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>
+                    {tr("НОВЫЙ ПАРОЛЬ", "YANGI PAROL")}
+                  </label>
+                  <div style={{ position: "relative" }}>
+                    <input
+                      type={showPw ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      required
+                      autoFocus
+                      minLength={8}
+                      style={{
+                        width: "100%", padding: "10px 36px 10px 12px", borderRadius: 8,
+                        border: "1px solid var(--color-border)", background: "var(--color-surface-light)",
+                        color: "var(--color-text-primary)", fontSize: 14, outline: "none",
+                        boxSizing: "border-box",
+                      }}
+                    />
+                    <button type="button" onClick={() => setShowPw(!showPw)} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--color-text-tertiary)" }}>
+                      {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--color-text-secondary)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>
+                    {tr("ПОДТВЕРДИТЕ ПАРОЛЬ", "PAROLNI TASDIQLANG")}
+                  </label>
+                  <input
+                    type={showPw ? "text" : "password"}
+                    value={confirm}
+                    onChange={(e) => setConfirm(e.target.value)}
+                    placeholder="••••••••"
+                    required
+                    minLength={8}
+                    style={{
+                      width: "100%", padding: "10px 12px", borderRadius: 8,
+                      border: "1px solid var(--color-border)", background: "var(--color-surface-light)",
+                      color: "var(--color-text-primary)", fontSize: 14, outline: "none",
+                      boxSizing: "border-box",
+                    }}
+                  />
+                </div>
+
+                {error && (
+                  <p style={{ fontSize: 13, color: "var(--color-danger)", marginBottom: 12 }}>{error}</p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={resetPassword.isPending || !password || !confirm}
+                  style={{
+                    width: "100%", padding: "10px 0", borderRadius: 8,
+                    background: "var(--color-primary)", color: "#fff", border: "none",
+                    fontSize: 14, fontWeight: 600, cursor: resetPassword.isPending ? "wait" : "pointer",
+                    opacity: resetPassword.isPending || !password || !confirm ? 0.6 : 1,
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                  }}
+                >
+                  {resetPassword.isPending && <Loader2 size={16} className="animate-spin" />}
+                  {tr("Сохранить пароль", "Parolni saqlash")}
+                </button>
+              </form>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
