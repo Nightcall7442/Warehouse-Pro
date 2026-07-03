@@ -4,7 +4,7 @@ RUN apk add --no-cache dumb-init
 FROM base AS builder
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm ci --legacy-peer-deps
 COPY tsconfig.json tsconfig.app.json tsconfig.node.json tsconfig.server.json ./
 COPY vite.config.ts vitest.config.ts eslint.config.js postcss.config.js tailwind.config.js drizzle.config.ts index.html ./
 COPY api/ api/
@@ -21,7 +21,7 @@ WORKDIR /app
 RUN addgroup -g 1001 -S appgroup && adduser -S appuser -u 1001 -G appgroup
 COPY --from=builder --chown=appuser:appgroup /app/dist ./dist
 COPY --from=builder --chown=appuser:appgroup /app/package.json /app/package-lock.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+RUN npm ci --omit=dev --legacy-peer-deps && npm cache clean --force
 COPY --from=builder --chown=appuser:appgroup /app/db ./db
 USER appuser
 ENV NODE_ENV=production
