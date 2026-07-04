@@ -47,7 +47,7 @@ export default function Register() {
   const navigate = useNavigate();
   const { refresh } = useAuth();
 
-  const registerMutation = trpc.auth.register.useMutation({
+  const registerMutation = trpc.tenant.register.useMutation({
     onSuccess: async () => { await refresh(); navigate("/"); },
     onError:   (e)       => setError(e.message || tr("Ошибка регистрации","Ro'yxatdan o'tishda xatolik")),
   });
@@ -59,7 +59,12 @@ export default function Register() {
       setError(tr("Заполните все поля","Barcha maydonlarni to'ldiring")); return;
     }
     if (form.password.length < 8) { setError(tr("Пароль слишком короткий","Parol juda qisqa")); return; }
-    registerMutation.mutate(form as any);
+    registerMutation.mutate({
+      orgName: form.companyName,
+      name: form.name,
+      email: form.email,
+      password: form.password,
+    });
   };
 
   const STEPS = [
