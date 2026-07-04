@@ -7,7 +7,7 @@ import {
   Building2, Search, Power, Zap, RefreshCw,
   Users, ShoppingCart, TrendingUp, ArrowLeft,
   Plus, Calendar, Lock, ChevronRight, BarChart3, Package,
-  Store, Shield, XCircle,
+  Store, Shield, XCircle, User, Mail, Key, Save, Loader2,
 } from "lucide-react";
 import { PremiumSelect } from "@/components/PremiumSelect";
 
@@ -487,6 +487,129 @@ function TenantDetail({ tenantId, onBack }: { tenantId: number; onBack: () => vo
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// Профиль суперадмина — изменение логина и пароля
+// ══════════════════════════════════════════════════════════════════════════════
+function AdminProfile() {
+  const { data: user } = trpc.user.me.useQuery();
+  const utils = trpc.useUtils();
+
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [currentPw, setCurrentPw] = useState("");
+  const [newPw, setNewPw] = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
+  const [showPwSection, setShowPwSection] = useState(false);
+  const [initialized, setInitialized] = useState(false);
+
+  // Инициализация полей из данных пользователя
+  if (user && !initialized) {
+    setName(user.name ?? "");
+    setEmail(user.email ?? "");
+    setPhone(user.phone ?? "");
+    setInitialized(true);
+  }
+
+  const updateProfile = trpc.user.updateMe.useMutation({
+    onSuccess: () => { utils.user.me.invalidate(); notify.success("Профиль обновлён"); },
+    onError: (e) => notify.error(e.message),
+  });
+
+  const changePassword = trpc.user.changePassword.useMutation({
+    onSuccess: () => { notify.success("Пароль изменён"); setCurrentPw(""); setNewPw(""); setConfirmPw(""); setShowPwSection(false); },
+    onError: (e) => notify.error(e.message),
+  });
+
+  const handleProfileSave = () => {
+    if (!name.trim()) { notify.error("Имя обязательно"); return; }
+    updateProfile.mutate({ name: name.trim(), phone: phone.trim() || undefined });
+  };
+
+  const handlePasswordChange = () => {
+    if (!currentPw) { notify.error("Введите текущий пароль"); return; }
+    if (newPw.length < 8) { notify.error("Пароль минимум 8 символов"); return; }
+    if (newPw !== confirmPw) { notify.error("Пароли не совпадают"); return; }
+    changePassword.mutate({ currentPassword: currentPw, newPassword: newPw });
+  };
+
+  return (
+    <div className="panel p-5 space-y-6">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+          <User size={20} className="text-primary" />
+        </div>
+        <div>
+          <h2 className="font-semibold text-text-primary">Мой профиль</h2>
+          <p className="text-xs text-text-secondary">{user?.role} · {user?.email}</p>
+        </div>
+      </div>
+
+      {/* Основная информация */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">ИМЯ *</label>
+          <input className="input-field w-full" value={name} onChange={e => setName(e.target.value)} />
+        </div>
+        <div>
+          <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">EMAIL</label>
+          <input className="input-field w-full" value={email} disabled style={{ opacity: 0.6 }} />
+          <p className="text-[10px] text-text-tertiary mt-1">Email нельзя изменить</p>
+        </div>
+        <div>
+          <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">ТЕЛЕФОН</label>
+          <input className="input-field w-full" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+998..." />
+        </div>
+      </div>
+
+      <button
+        onClick={handleProfileSave}
+        disabled={updateProfile.isPending}
+        className="btn-primary flex items-center gap-2 text-sm py-2"
+      >
+        {updateProfile.isPending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+        Сохранить
+      </button>
+
+      {/* Смена пароля */}
+      <div className="border-t pt-5" style={{ borderColor: "var(--color-border-subtle)" }}>
+        <button
+          onClick={() => setShowPwSection(!showPwSection)}
+          className="flex items-center gap-2 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
+        >
+          <Key size={16} />
+          {showPwSection ? "Скрыть" : "Изменить пароль"}
+        </button>
+
+        {showPwSection && (
+          <div className="mt-4 space-y-3 max-w-md">
+            <div>
+              <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">ТЕКУЩИЙ ПАРОЛЬ</label>
+              <input type="password" className="input-field w-full" value={currentPw} onChange={e => setCurrentPw(e.target.value)} />
+            </div>
+            <div>
+              <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">НОВЫЙ ПАРОЛЬ</label>
+              <input type="password" className="input-field w-full" value={newPw} onChange={e => setNewPw(e.target.value)} minLength={8} />
+            </div>
+            <div>
+              <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">ПОДТВЕРДИТЕ</label>
+              <input type="password" className="input-field w-full" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} />
+            </div>
+            <button
+              onClick={handlePasswordChange}
+              disabled={changePassword.isPending}
+              className="btn-primary flex items-center gap-2 text-sm py-2"
+            >
+              {changePassword.isPending ? <Loader2 size={14} className="animate-spin" /> : <Key size={14} />}
+              Изменить пароль
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // Главная страница SuperAdmin
 // ══════════════════════════════════════════════════════════════════════════════
 export default function SuperAdmin() {
@@ -554,6 +677,9 @@ export default function SuperAdmin() {
 
       {/* Глобальная статистика */}
       <PlatformStats />
+
+      {/* Профиль суперадмина */}
+      <AdminProfile />
 
       {/* Фильтры */}
       <div className="flex flex-wrap gap-3 items-center">
