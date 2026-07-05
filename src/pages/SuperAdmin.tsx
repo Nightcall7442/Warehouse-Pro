@@ -22,9 +22,10 @@ type TenantRow = {
 
 // ── Утилиты ──────────────────────────────────────────────────────────────────
 const PLAN_STYLE: Record<string, string> = {
-  trial: "bg-warning/15 text-warning border-warning/30",
-  basic: "bg-info/15 text-info border-info/30",
-  pro:   "bg-success/15 text-success border-success/30",
+  trial:     "bg-warning/15 text-warning border-warning/30",
+  basic:     "bg-info/15 text-info border-info/30",
+  pro:       "bg-success/15 text-success border-success/30",
+  exclusive: "bg-purple-100 text-purple-700 border-purple-300",
 };
 const STATUS_STYLE: Record<string, string> = {
   active:    "bg-success/15 text-success border-success/30",
@@ -89,7 +90,7 @@ function PlatformStats() {
         <div className="panel p-4 col-span-2 lg:col-span-4">
           <p className="text-xs text-text-secondary font-label mb-3">По тарифам</p>
           <div className="flex gap-4 flex-wrap">
-            {(["trial", "basic", "pro"] as const).map(plan => (
+            {(["trial", "basic", "pro", "exclusive"] as const).map(plan => (
               <div key={plan} className="flex items-center gap-2">
                 <span className={`status-badge ${PLAN_STYLE[plan]}`}>{plan.toUpperCase()}</span>
                 <span className="font-data text-lg font-bold text-text-primary">
@@ -116,7 +117,7 @@ function PlatformStats() {
 function CreateTenantModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [form, setForm] = useState({
     orgName: "", ownerName: "", ownerEmail: "",
-    ownerPassword: "", plan: "trial" as "trial" | "basic" | "pro", trialDays: 14,
+    ownerPassword: "", plan: "trial" as "trial" | "basic" | "pro" | "exclusive", trialDays: 14,
   });
 
   const create = trpc.tenant.create.useMutation({
@@ -161,8 +162,8 @@ function CreateTenantModal({ onClose, onCreated }: { onClose: () => void; onCrea
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-text-secondary font-label mb-1 block">Тариф</label>
-              <PremiumSelect value={form.plan} onChange={v => setForm(p => ({ ...p, plan: v as "trial" | "basic" | "pro" }))}
-                options={[{value:"trial",label:"Trial"},{value:"basic",label:"Basic"},{value:"pro",label:"Pro"}]}
+              <PremiumSelect value={form.plan} onChange={v => setForm(p => ({ ...p, plan: v as "trial" | "basic" | "pro" | "exclusive" }))}
+                options={[{value:"trial",label:"Trial"},{value:"basic",label:"Basic"},{value:"pro",label:"Pro"},{value:"exclusive",label:"Exclusive"}]}
                 width="100%" />
             </div>
             {form.plan === "trial" && (
@@ -203,7 +204,7 @@ function TenantDetail({ tenantId, onBack }: { tenantId: number; onBack: () => vo
   const [showExt,   setShowExt]   = useState(false);
   const [planDays,  setPlanDays]  = useState(30);
   const [showPlan,  setShowPlan]  = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<"trial"|"basic"|"pro">("basic");
+  const [selectedPlan, setSelectedPlan] = useState<"trial"|"basic"|"pro"|"exclusive">("basic");
 
   const invalidate = () => { refetch(); utils.tenant.list.invalidate(); utils.tenant.platformStats.invalidate(); };
 
@@ -359,8 +360,8 @@ function TenantDetail({ tenantId, onBack }: { tenantId: number; onBack: () => vo
           {/* Изменить план */}
           {showPlan ? (
             <div className="flex items-center gap-2">
-              <PremiumSelect value={selectedPlan} onChange={v => setSelectedPlan(v as unknown as "trial" | "basic" | "pro")}
-                options={[{value:"trial",label:"Trial"},{value:"basic",label:"Basic"},{value:"pro",label:"Pro"}]}
+              <PremiumSelect value={selectedPlan} onChange={v => setSelectedPlan(v as unknown as "trial" | "basic" | "pro" | "exclusive")}
+                options={[{value:"trial",label:"Trial"},{value:"basic",label:"Basic"},{value:"pro",label:"Pro"},{value:"exclusive",label:"Exclusive"}]}
                 width="120px" />
               <input type="number" min="1" max="3650" value={planDays}
                 onChange={e => setPlanDays(Number(e.target.value))}
@@ -693,7 +694,7 @@ export default function SuperAdmin() {
           />
         </div>
         <PremiumSelect value={filterPlan} onChange={setFilterPlan}
-          options={[{value:"all",label:"Все тарифы"},{value:"trial",label:"Trial"},{value:"basic",label:"Basic"},{value:"pro",label:"Pro"}]}
+          options={[{value:"all",label:"Все тарифы"},{value:"trial",label:"Trial"},{value:"basic",label:"Basic"},{value:"pro",label:"Pro"},{value:"exclusive",label:"Exclusive"}]}
           width="140px" />
         <PremiumSelect value={filterStatus} onChange={setFilterStatus}
           options={[{value:"all",label:"Все статусы"},{value:"active",label:"Active"},{value:"suspended",label:"Suspended"}]}
