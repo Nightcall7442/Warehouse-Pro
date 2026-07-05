@@ -26,29 +26,60 @@ const ROLE_LABELS: Record<string, { ru: string; uz: string }> = {
   courier:      { ru: "Доставщик",      uz: "Yetkazib beruvchi" },
 };
 
-// ── Форма приглашения ─────────────────────────────────────────────────────────
+// ── Форма создания пользователя ────────────────────────────────────────────────
 function InviteForm({ onDone, lang }: { onDone: () => void; lang: "ru" | "uz" }) {
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
-  const [d, setD] = useState({ email: "", role: "agent" });
+  const [d, setD] = useState({ name: "", email: "", password: "", role: "agent" });
+  const [showPw, setShowPw] = useState(false);
 
-  const invite = trpc.invite.send.useMutation({
+  const createUser = trpc.tenant.inviteUser.useMutation({
     onSuccess: () => {
-      notify.success(t("Приглашение отправлено", "Taklif yuborildi"));
+      notify.success(t("Пользователь создан", "Foydalanuvchi yaratildi"));
       onDone();
     },
     onError: (e) => notify.error(e.message),
   });
 
+  const handleSubmit = () => {
+    if (!d.name || !d.email || !d.password) {
+      notify.error(t("Заполните все поля", "Barcha maydonlarni to'ldiring"));
+      return;
+    }
+    if (d.password.length < 8) {
+      notify.error(t("Пароль минимум 8 символов", "Parol kamida 8 ta belgi"));
+      return;
+    }
+    createUser.mutate({
+      name: d.name,
+      email: d.email,
+      password: d.password,
+      role: d.role as "operator" | "agent" | "supervisor" | "merchandiser",
+    });
+  };
+
   return (
     <div className="panel p-5 space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="font-display text-base text-text-primary">
-          {t("Пригласить пользователя", "Foydalanuvchi taklif qilish")}
+          {t("Создать пользователя", "Foydalanuvchi yaratish")}
         </h2>
         <button onClick={onDone} className="btn-ghost p-1.5"><X size={18} /></button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">
+            {t("ИМЯ *", "ISM *")}
+          </label>
+          <input
+            type="text"
+            className="input-field w-full"
+            placeholder={t("Иван Иванов", "Ism Familiya")}
+            value={d.name}
+            onChange={e => setD(p => ({ ...p, name: e.target.value }))}
+            autoFocus
+          />
+        </div>
         <div>
           <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">
             EMAIL *
@@ -59,8 +90,29 @@ function InviteForm({ onDone, lang }: { onDone: () => void; lang: "ru" | "uz" })
             placeholder="agent@company.com"
             value={d.email}
             onChange={e => setD(p => ({ ...p, email: e.target.value }))}
-            autoFocus
           />
+        </div>
+        <div>
+          <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">
+            {t("ПАРОЛЬ *", "PAROL *")}
+          </label>
+          <div className="relative">
+            <input
+              type={showPw ? "text" : "password"}
+              className="input-field w-full pr-10"
+              placeholder="Минимум 8 символов"
+              value={d.password}
+              onChange={e => setD(p => ({ ...p, password: e.target.value }))}
+              minLength={8}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPw(!showPw)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-secondary"
+            >
+              {showPw ? "👁" : "👁‍🗨"}
+            </button>
+          </div>
         </div>
         <div>
           <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">
@@ -75,18 +127,18 @@ function InviteForm({ onDone, lang }: { onDone: () => void; lang: "ru" | "uz" })
 
       <p className="text-xs" style={{ color: "var(--color-text-tertiary)" }}>
         {t(
-          "Пользователь получит письмо со ссылкой для регистрации",
-          "Foydalanuvchi ro'yxatdan o'tish havolasi bilan xat oladi"
+          "Пользователь сможет войти сразу с указанным паролем",
+          "Foydalanuvchi darhol kiritilgan parol bilan kirishi mumkin"
         )}
       </p>
 
       <button
-        onClick={() => d.email && invite.mutate({ email: d.email, role: d.role as "operator" | "agent" | "supervisor" | "merchandiser" | "courier" })}
-        disabled={invite.isPending || !d.email}
+        onClick={handleSubmit}
+        disabled={createUser.isPending || !d.email || !d.name || !d.password}
         className="btn-primary flex items-center gap-2 disabled:opacity-40"
       >
-        {invite.isPending && <Loader2 size={14} className="animate-spin" />}
-        {t("Отправить приглашение", "Taklif yuborish")}
+        {createUser.isPending && <Loader2 size={14} className="animate-spin" />}
+        {t("Создать пользователя", "Foydalanuvchi yaratish")}
       </button>
     </div>
   );
@@ -231,7 +283,7 @@ export default function Users() {
             className="btn-primary flex items-center gap-2"
           >
             <UserPlus size={16} />
-            <span className="hidden sm:inline">{t("Пригласить", "Taklif qilish")}</span>
+            <span className="hidden sm:inline">{t("Создать", "Yaratish")}</span>
           </button>
         </div>
       </div>
