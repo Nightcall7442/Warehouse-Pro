@@ -107,6 +107,13 @@ export const tenantBrandingRouter = createRouter({
       appName:        z.string().min(1).max(255).optional(),
       supportEmail:   z.string().email().optional().nullable(),
       supportPhone:   z.string().max(50).optional(),
+      // White-label extensions
+      customDomain:   z.string().max(255).optional().nullable(),
+      faviconUrl:     z.string().max(500).optional().nullable(),
+      loginTitle:     z.string().max(100).optional(),
+      loginSubtitle:  z.string().max(255).optional(),
+      footerText:     z.string().max(500).optional(),
+      mobileTheme:    z.enum(["light", "dark", "auto"]).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();

@@ -187,11 +187,57 @@ export type OrderItem       = typeof orderItems.$inferSelect;
 export type InsertOrderItem = typeof orderItems.$inferInsert;
 
 // ============================================
+// WAREHOUSES (multi-warehouse support)
+// ============================================
+export const warehouses = mysqlTable("warehouses", {
+  id:          serial("id").primaryKey(),
+  tenantId:    bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id),
+  name:        varchar("name", { length: 255 }).notNull(),
+  address:     varchar("address", { length: 500 }),
+  city:        varchar("city", { length: 100 }),
+  isDefault:   boolean("is_default").default(false).notNull(),
+  status:      varchar("status", { length: 20 }).default("active").notNull(),
+  createdAt:   timestamp("created_at").defaultNow().notNull(),
+  updatedAt:   timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
+}, (t) => ({
+  tenantIdx: index("idx_warehouses_tenant").on(t.tenantId),
+}));
+
+export type Warehouse       = typeof warehouses.$inferSelect;
+export type InsertWarehouse = typeof warehouses.$inferInsert;
+
+// ============================================
+// STOCK TRANSFERS (inter-warehouse)
+// ============================================
+export const stockTransfers = mysqlTable("stock_transfers", {
+  id:            serial("id").primaryKey(),
+  tenantId:      bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id),
+  fromWarehouseId: bigint("from_warehouse_id", { mode: "number", unsigned: true }).notNull().references(() => warehouses.id),
+  toWarehouseId:   bigint("to_warehouse_id", { mode: "number", unsigned: true }).notNull().references(() => warehouses.id),
+  productId:     bigint("product_id", { mode: "number", unsigned: true }).notNull().references(() => products.id),
+  quantity:      decimal("quantity", { precision: 12, scale: 2 }).notNull(),
+  status:        varchar("status", { length: 20 }).default("pending").notNull(),
+  notes:         text("notes"),
+  createdBy:     bigint("created_by", { mode: "number", unsigned: true }).references(() => users.id),
+  createdAt:     timestamp("created_at").defaultNow().notNull(),
+  completedAt:   timestamp("completed_at"),
+}, (t) => ({
+  tenantIdx:   index("idx_transfers_tenant").on(t.tenantId),
+  fromIdx:     index("idx_transfers_from").on(t.fromWarehouseId),
+  toIdx:       index("idx_transfers_to").on(t.toWarehouseId),
+  statusIdx:   index("idx_transfers_status").on(t.status),
+}));
+
+export type StockTransfer       = typeof stockTransfers.$inferSelect;
+export type InsertStockTransfer = typeof stockTransfers.$inferInsert;
+
+// ============================================
 // WAREHOUSE STOCK
 // ============================================
 export const warehouseStock = mysqlTable("warehouse_stock", {
   id:           serial("id").primaryKey(),
   tenantId:     bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id),
+  warehouseId:  bigint("warehouse_id", { mode: "number", unsigned: true }).references(() => warehouses.id),
   productId:    bigint("product_id", { mode: "number", unsigned: true }).notNull().references(() => products.id),
   currentStock: decimal("current_stock", { precision: 12, scale: 2 }).default("0.00").notNull(),
   reserved:     decimal("reserved", { precision: 12, scale: 2 }).default("0.00").notNull(),
@@ -200,6 +246,7 @@ export const warehouseStock = mysqlTable("warehouse_stock", {
 }, (t) => ({
   productPerTenant: uniqueIndex("uq_stock_product_tenant").on(t.productId, t.tenantId),
   tenantIdx:        index("idx_stock_tenant").on(t.tenantId),
+  warehouseIdx:     index("idx_stock_warehouse").on(t.warehouseId),
 }));
 
 export type WarehouseStock       = typeof warehouseStock.$inferSelect;
@@ -468,6 +515,13 @@ export const tenantBranding = mysqlTable("tenant_branding", {
   appName:       varchar("app_name", { length: 255 }).default("Warehouse Pro"),
   supportEmail:  varchar("support_email", { length: 320 }),
   supportPhone:  varchar("support_phone", { length: 50 }),
+  // White-label extensions
+  customDomain:  varchar("custom_domain", { length: 255 }),
+  faviconUrl:    varchar("favicon_url", { length: 500 }),
+  loginTitle:    varchar("login_title", { length: 100 }),
+  loginSubtitle: varchar("login_subtitle", { length: 255 }),
+  footerText:    varchar("footer_text", { length: 500 }),
+  mobileTheme:   varchar("mobile_theme", { length: 10 }).default("auto"),
   createdAt:     timestamp("created_at").defaultNow().notNull(),
   updatedAt:     timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
 }, (t) => ({
