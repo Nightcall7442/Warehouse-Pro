@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from "react-router";
 import { useCurrency } from "@/hooks/useCurrency";
-import { useRef, useState } from "react";
+import { useRef, useState, useMemo } from "react";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { useConfirm } from "@/components/ConfirmDialog";
@@ -10,6 +10,7 @@ import {
   ArrowLeft, Store, Phone, MapPin, Edit2, Plus,
   AlertCircle, Loader2, CheckCircle2, X, Trash2, ChevronRight, Camera,
 } from "lucide-react";
+import { PremiumSelect } from "@/components/PremiumSelect";
 
 const STATUS_COLORS: Record<string, string> = {
   new: "#6b6ef5", processing: "#f0a840", completed: "#22c47a", cancelled: "#f06565",
@@ -114,6 +115,8 @@ export default function ShopDetail() {
   const utils = trpc.useUtils();
 
   const { data: shop, isLoading } = trpc.shop.getById.useQuery({ id: Number(id) }, { enabled: !!id });
+  const { data: usersData } = trpc.user.list.useQuery({ page: 1, pageSize: 100 });
+  const agents = useMemo(() => (usersData?.data ?? []).filter((u: { role: string }) => u.role === "agent"), [usersData?.data]);
 
   const uploadPhoto = trpc.shop.uploadPhoto.useMutation({
     onSuccess: () => { utils.shop.getById.invalidate({ id: Number(id) }); notify.success(t("Фото обновлено", "Rasm yangilandi")); },
@@ -196,6 +199,22 @@ export default function ShopDetail() {
                   onChange={e => setEditData((d: Record<string, unknown>) => ({ ...d, [f.key]: e.target.value }))} />
               ))}
             </div>
+            {agents.length > 0 && (
+              <div>
+                <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">
+                  {t("АГЕНТ", "AGENT")}
+                </label>
+                <PremiumSelect
+                  value={String((shop as Record<string, unknown>).agentId ?? "")}
+                  onChange={v => setEditData((d: Record<string, unknown>) => ({ ...d, agentId: v ? Number(v) : null }))}
+                  options={[
+                    { value: "", label: t("Без агента", "Agentsiz") },
+                    ...agents.map((a: { id: number; name: string }) => ({ value: String(a.id), label: a.name })),
+                  ]}
+                  width="100%"
+                />
+              </div>
+            )}
             <div className="flex gap-2">
               <button onClick={() => updateShop.mutate({ id: shop.id, ...editData })}
                 disabled={updateShop.isPending}
