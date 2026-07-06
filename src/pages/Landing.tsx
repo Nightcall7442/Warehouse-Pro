@@ -1243,6 +1243,7 @@ function Settings({ size = 24, className = "" }: { size?: number; className?: st
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function DashboardPreview() {
+  const tr = useTranslate();
   return (
     <div className="space-y-3 animate-fade-in">
       <div className="grid grid-cols-4 gap-2.5">
@@ -1303,6 +1304,7 @@ function DashboardPreview() {
 }
 
 function MapPreview() {
+  const tr = useTranslate();
   return (
     <div className="h-[360px] rounded-xl relative overflow-hidden border border-gray-200/30 bg-[#e8e4df]">
       {/* Map background */}
@@ -1407,6 +1409,7 @@ function MapPreview() {
 }
 
 function MobilePreview() {
+  const tr = useTranslate();
   return (
     <div className="flex justify-center py-4">
       <div className="w-56 h-[380px] rounded-[2.5rem] bg-gradient-to-b from-gray-50 to-gray-100 border-[3px] border-gray-300 overflow-hidden shadow-2xl shadow-gray-900/10 relative">
@@ -1447,6 +1450,7 @@ function MobilePreview() {
 }
 
 function AnalyticsPreview() {
+  const tr = useTranslate();
   return (
     <div className="grid grid-cols-2 gap-3">
       <div className="p-4 rounded-xl bg-gradient-to-br from-gray-50/80 to-white border border-gray-200/30">

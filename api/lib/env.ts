@@ -42,6 +42,7 @@ export const env = {
   stripeWebhookSecret:    optional("STRIPE_WEBHOOK_SECRET"),
   stripeBasicPriceId:     optional("STRIPE_BASIC_PRICE_ID"),
   stripeProPriceId:       optional("STRIPE_PRO_PRICE_ID"),
+  stripeExclusivePriceId: optional("STRIPE_EXCLUSIVE_PRICE_ID"),
 
   // SMTP
   smtpHost:    optional("SMTP_HOST"),

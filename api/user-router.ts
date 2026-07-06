@@ -21,6 +21,9 @@ export const userRouter = createRouter({
     .query(async ({ input, ctx }) => {
       const db       = getDb();
       const tenantId = ctx.tenant!.id;
+      const page     = input?.page ?? 1;
+      const pageSize = input?.pageSize ?? 25;
+      const offset   = (page - 1) * pageSize;
 
       const conditions = [eq(users.tenantId, tenantId)];
       if (input?.search) conditions.push(like(users.name, `%${sanitizeSearch(input.search)}%`));
