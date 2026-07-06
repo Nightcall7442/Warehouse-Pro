@@ -1,4 +1,4 @@
-const CACHE = "warehouse-pro-v1";
+const CACHE = "warehouse-pro-v2";
 const OFFLINE_URLS = ["/", "/manifest.json"];
 
 self.addEventListener("install", e => {
