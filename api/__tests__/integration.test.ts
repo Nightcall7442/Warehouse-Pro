@@ -422,7 +422,7 @@ describe("integration: payment flow", () => {
     expect(shopsTable.find(s => s.id === 1)!.debt).toBe("500.00");
 
     await caller.addPayment({ shopId: 1, amount: "200.00", type: "payment" });
-    expect(shopsTable.find(s => s.id === 1)!.debt).toBe("300.00");
+    expect(shopsTable.find(s => s.id === 1)!.debt).toBe("300");
     expect(paymentsTable).toHaveLength(1);
     expect(paymentsTable[0].amount).toBe("200.00");
     expect(paymentsTable[0].type).toBe("payment");

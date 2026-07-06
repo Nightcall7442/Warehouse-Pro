@@ -269,7 +269,7 @@ function makeMockDb() {
 let mockDb: ReturnType<typeof makeMockDb>;
 vi.mock("../queries/connection", () => ({ getDb: () => mockDb }));
 
-const mockCache = { data: new Map<string, unknown>(), get(k: string) { return this.data.get(k); }, set(k: string, v: unknown) { this.data.set(k, v); }, delete(k: string) { this.data.delete(k); }, clear() { this.data.clear(); } };
+const mockCache = { data: new Map<string, unknown>(), get(k: string) { return this.data.get(k); }, set(k: string, v: unknown) { this.data.set(k, v); }, delete(k: string) { this.data.delete(k); }, clear() { this.data.clear(); }, invalidatePrefix(prefix: string) { for (const k of this.data.keys()) { if (k.startsWith(prefix)) this.data.delete(k); } } };
 vi.mock("../lib/cache", () => ({ cache: mockCache, CacheKeys: { smartAlerts: (t: number, u: number) => `sa:${t}:${u}` }, CacheTTL: { shops: 60 } }));
 
 function makeCtx(tenantId: number, userId: number, role = "operator"): any {
@@ -278,7 +278,7 @@ function makeCtx(tenantId: number, userId: number, role = "operator"): any {
     resHeaders: new Headers(),
     user: { id: userId, tenantId, role, status: "active" as const, name: "Test", email: "t@t.com", passwordHash: "x", avatar: null, phone: null, createdAt: new Date(), updatedAt: new Date(), lastSignInAt: new Date() },
     tenant: { id: tenantId, slug: "test", name: "Test Co", plan: "trial" as const, status: "active" as const, createdAt: new Date(), updatedAt: new Date() },
-    db: null as unknown,
+    db: mockDb,
   };
 }
 

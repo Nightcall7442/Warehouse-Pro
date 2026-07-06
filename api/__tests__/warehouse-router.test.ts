@@ -136,6 +136,7 @@ function makeMockDb() {
       limit: (n: number) => wrap(arr.slice(0, n)),
       offset: (n: number) => wrap(arr.slice(n)),
       orderBy: () => wrap(arr),
+      for: () => wrap(arr),
     });
     const api: unknown = {
       from(ref: unknown) { currentTable = tableOf(ref); return api; },

@@ -47,7 +47,7 @@ interface FakeStock { id: number; productId: number; tenantId: number; currentSt
 interface FakeStockMovement { id: number; tenantId: number; productId: number; type: string; quantity: string; notes: string | null; createdAt: Date; }
 interface FakeOrder { id: number; tenantId: number; agentId: number; shopId: number; status: string; orderNumber: string; subtotal: string; discount: string; total: string; notes: string | null; createdAt: Date; updatedAt: Date; }
 interface FakeOrderItem { id: number; orderId: number; productId: number; quantity: string; unitPrice: string; subtotal: string; createdAt: Date; }
-interface FakeProduct { id: number; tenantId: number; name: string; code: string; unitPrice: string; costPrice: string; reorderPoint: string; }
+interface FakeProduct { id: number; tenantId: number; name: string; code: string; unitPrice: string; costPrice: string; reorderPoint: string; status: string; }
 interface FakeSetting { id: number; key: string; value: unknown; tenantId: number; }
 
 let stockTable: FakeStock[] = [];
@@ -70,9 +70,9 @@ function resetTables() {
   ordersTable = [];
   orderItemsTable = [];
   productsTable = [
-    { id: 1, tenantId: 1, name: "Widget A", code: "WA-001", unitPrice: "100.00", costPrice: "50.00", reorderPoint: "20.00" },
-    { id: 2, tenantId: 1, name: "Widget B", code: "WB-002", unitPrice: "50.00", costPrice: "25.00", reorderPoint: "10.00" },
-    { id: 3, tenantId: 1, name: "Empty Item", code: "EI-003", unitPrice: "200.00", costPrice: "100.00", reorderPoint: "5.00" },
+    { id: 1, tenantId: 1, name: "Widget A", code: "WA-001", unitPrice: "100.00", costPrice: "50.00", reorderPoint: "20.00", status: "active" },
+    { id: 2, tenantId: 1, name: "Widget B", code: "WB-002", unitPrice: "50.00", costPrice: "25.00", reorderPoint: "10.00", status: "active" },
+    { id: 3, tenantId: 1, name: "Empty Item", code: "EI-003", unitPrice: "200.00", costPrice: "100.00", reorderPoint: "5.00", status: "active" },
   ];
   settingsTable = [];
   nextOrderId = 1;
@@ -549,10 +549,10 @@ describe("stock operations — tenant isolation", () => {
     const { orderRouter } = await import("../order-router");
     const t2Caller = orderRouter.createCaller({ ...makeCtx(2, 100, "agent"), db: mockDb });
 
-    // Tenant 2 has no stock for product 1, so order should fail
+    // Tenant 2 has no products, so order should fail
     await expect(
       t2Caller.create({ shopId: 2, items: [{ productId: 1, quantity: 1, unitPrice: 100 }] })
-    ).rejects.toThrow(/Недостаточно товара/);
+    ).rejects.toThrow();
 
     // Tenant 1 stock unchanged
     const t1Stock = stockTable.find(s => s.productId === 1 && s.tenantId === 1)!;

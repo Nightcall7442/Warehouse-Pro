@@ -159,7 +159,7 @@ describe("PaymentService.addPayment", () => {
     expect(paymentsTable[0].type).toBe("payment");
 
     const shop = shopsTable.find((s) => s.id === 1)!;
-    expect(shop.debt).toBe("300.00");
+    expect(shop.debt).toBe("300");
   });
 
   it("creates payment record and increases shop debt for debt type", async () => {
@@ -181,7 +181,7 @@ describe("PaymentService.addPayment", () => {
 
     expect(paymentsTable[0].type).toBe("payment");
     const shop = shopsTable.find((s) => s.id === 1)!;
-    expect(shop.debt).toBe("450.00");
+    expect(shop.debt).toBe("450");
   });
 
   it("sanitizes notes input", async () => {

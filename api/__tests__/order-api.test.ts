@@ -40,7 +40,7 @@ vi.mock("../lib/feature-gating", () => ({
   checkSubscriptionAccess: vi.fn(async () => true),
 }));
 
-import { orders, orderItems, warehouseStock, shops, users } from "@db/schema";
+import { orders, orderItems, warehouseStock, shops, users, products } from "@db/schema";
 
 // ── Fake tables ──────────────────────────────────────────────────────────────
 interface FakeOrder { id: number; tenantId: number; agentId: number; shopId: number; status: string; orderNumber: string; subtotal: string; discount: string; total: string; notes: string | null; createdAt: Date; updatedAt: Date; }
@@ -48,12 +48,14 @@ interface FakeOrderItem { id: number; orderId: number; productId: number; quanti
 interface FakeStock { id: number; productId: number; tenantId: number; currentStock: string; reserved: string; available: string; updatedAt: Date; }
 interface FakeShop { id: number; tenantId: number; name: string; }
 interface FakeUser { id: number; tenantId: number; name: string; email: string; role: string; }
+interface FakeProduct { id: number; tenantId: number; name: string; unitPrice: string; status: string; }
 
 let ordersTable: FakeOrder[] = [];
 let orderItemsTable: FakeOrderItem[] = [];
 let stockTable: FakeStock[] = [];
 let shopsTable: FakeShop[] = [];
 let usersTable: FakeUser[] = [];
+let productsTable: FakeProduct[] = [];
 let nextOrderId = 1;
 let nextItemId = 1;
 
@@ -74,6 +76,10 @@ function resetTables() {
     { id: 1, tenantId: 1, name: "Operator", email: "op@test.com", role: "operator" },
     { id: 100, tenantId: 2, name: "Agent T2", email: "a1@t2.com", role: "agent" },
   ];
+  productsTable = [
+    { id: 1, tenantId: 1, name: "Widget A", unitPrice: "100.00", status: "active" },
+    { id: 2, tenantId: 1, name: "Widget B", unitPrice: "50.00", status: "active" },
+  ];
   nextOrderId = 1;
   nextItemId = 1;
 }
@@ -84,6 +90,7 @@ function tableOf(ref: unknown): string {
   if (ref === warehouseStock) return "warehouseStock";
   if (ref === shops) return "shops";
   if (ref === users) return "users";
+  if (ref === products) return "products";
   return "other";
 }
 
@@ -93,6 +100,7 @@ function rowsFor(table: string): unknown[] {
   if (table === "warehouseStock") return stockTable;
   if (table === "shops") return shopsTable;
   if (table === "users") return usersTable;
+  if (table === "products") return productsTable;
   return [];
 }
 
@@ -102,6 +110,7 @@ for (const [field, col] of Object.entries(orderItems)) columnToFieldName.set(col
 for (const [field, col] of Object.entries(warehouseStock)) columnToFieldName.set(col, field);
 for (const [field, col] of Object.entries(shops)) columnToFieldName.set(col, field);
 for (const [field, col] of Object.entries(users)) columnToFieldName.set(col, field);
+for (const [field, col] of Object.entries(products)) columnToFieldName.set(col, field);
 
 function evalCond(row: unknown, cond: unknown): boolean {
   if (!cond || typeof cond !== "object") return true;

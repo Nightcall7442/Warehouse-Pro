@@ -16,7 +16,7 @@ vi.mock("drizzle-orm", () => {
   };
 });
 
-import { orders, orderItems, warehouseStock, shops, users } from "@db/schema";
+import { orders, orderItems, warehouseStock, shops, users, products } from "@db/schema";
 
 type FakeOrder = {
   id: number; tenantId: number; orderNumber: string; shopId: number;
@@ -33,12 +33,14 @@ type FakeStock = {
 };
 type FakeShop = { id: number; tenantId: number; name: string };
 type FakeUser = { id: number; tenantId: number; name: string };
+type FakeProduct = { id: number; tenantId: number; name: string; unitPrice: string; status: string };
 
 let ordersTable: FakeOrder[] = [];
 let orderItemsTable: FakeOrderItem[] = [];
 let stockTable: FakeStock[] = [];
 let shopsTable: FakeShop[] = [];
 let usersTable: FakeUser[] = [];
+let productsTable: FakeProduct[] = [];
 let nextOrderId = 1;
 let nextItemId = 1;
 
@@ -51,6 +53,10 @@ function resetTables() {
   ];
   shopsTable = [{ id: 1, tenantId: 1, name: "Shop Alpha" }];
   usersTable = [{ id: 10, tenantId: 1, name: "Agent One" }];
+  productsTable = [
+    { id: 1, tenantId: 1, name: "Product 1", unitPrice: "100.00", status: "active" },
+    { id: 2, tenantId: 1, name: "Product 2", unitPrice: "200.00", status: "active" },
+  ];
   nextOrderId = 1;
   nextItemId = 1;
 }
@@ -61,6 +67,7 @@ function tableOf(ref: unknown): string {
   if (ref === warehouseStock) return "warehouseStock";
   if (ref === shops) return "shops";
   if (ref === users) return "users";
+  if (ref === products) return "products";
   return "other";
 }
 
@@ -68,6 +75,7 @@ function rowsFor(table: string): unknown[] {
   const map: Record<string, unknown[]> = {
     orders: ordersTable, orderItems: orderItemsTable,
     warehouseStock: stockTable, shops: shopsTable, users: usersTable,
+    products: productsTable,
   };
   return map[table] ?? [];
 }
@@ -78,6 +86,7 @@ for (const [field, col] of Object.entries(orderItems)) colToField.set(col, field
 for (const [field, col] of Object.entries(warehouseStock)) colToField.set(col, field);
 for (const [field, col] of Object.entries(shops)) colToField.set(col, field);
 for (const [field, col] of Object.entries(users)) colToField.set(col, field);
+for (const [field, col] of Object.entries(products)) colToField.set(col, field);
 
 function evalCond(row: unknown, cond: unknown): boolean {
   if (!cond || typeof cond !== "object") return true;

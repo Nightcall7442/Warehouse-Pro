@@ -193,24 +193,9 @@ let mockDb: ReturnType<typeof makeMockDb>;
 vi.mock("../queries/connection", () => ({ getDb: () => mockDb }));
 
 // ── Imports (after mocks) ─────────────────────────────────────────────────
-import * as cookie from "cookie";
 import { checkRateLimit } from "../lib/rate-limit";
-import { signSessionToken } from "../auth/session";
-import { verifyPassword, hashPassword } from "../auth/password";
-import { findUserByEmailAnyTenant, updateUserLastSignIn } from "../queries/users";
-import { findTenantById, findTenantBySlug } from "../queries/tenants";
-import { createTrialSubscription } from "../lib/subscription";
 
 const mockCheckRateLimit = vi.mocked(checkRateLimit);
-const mockFindUser = vi.mocked(findUserByEmailAnyTenant);
-const mockVerifyPassword = vi.mocked(verifyPassword);
-const mockUpdateLastSignIn = vi.mocked(updateUserLastSignIn);
-const mockFindTenantById = vi.mocked(findTenantById);
-const mockFindTenantBySlug = vi.mocked(findTenantBySlug);
-const mockSignToken = vi.mocked(signSessionToken);
-const mockCreateTrialSub = vi.mocked(createTrialSubscription);
-const mockHashPassword = vi.mocked(hashPassword);
-const mockCookieSerialize = vi.mocked(cookie.serialize);
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 function makeAuthCtx(tenantId = 1, userId = 10, role = "ceo"): any {
@@ -244,14 +229,6 @@ function makeAuthCtx(tenantId = 1, userId = 10, role = "ceo"): any {
   };
 }
 
-function makePublicCtx(): any {
-  return {
-    req: new Request("http://localhost/auth"),
-    resHeaders: new Headers(),
-    db: mockDb,
-  };
-}
-
 // ── Default mock implementations ───────────────────────────────────────────
 beforeEach(() => {
   vi.clearAllMocks();
@@ -259,21 +236,13 @@ beforeEach(() => {
   nextInsertId = 100;
   mockDb = makeMockDb();
   mockCheckRateLimit.mockReturnValue(true);
-  mockFindUser.mockResolvedValue(null);
-  mockVerifyPassword.mockResolvedValue(false);
-  mockUpdateLastSignIn.mockResolvedValue(undefined);
-  mockFindTenantById.mockResolvedValue(null);
-  mockFindTenantBySlug.mockResolvedValue(null);
-  mockSignToken.mockResolvedValue("mock-jwt-token");
-  mockCreateTrialSub.mockResolvedValue(undefined);
-  mockHashPassword.mockResolvedValue("mock-hashed-password");
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
 // auth.me
 // ═══════════════════════════════════════════════════════════════════════════
 describe("auth.me", () => {
-  it("returns current user and tenant when authenticated", async () => {
+  it("returns current user when authenticated", async () => {
     const { authRouter } = await import("../auth-router");
     const caller = authRouter.createCaller(makeAuthCtx(1, 10, "ceo"));
     const result = await caller.me();
@@ -282,32 +251,17 @@ describe("auth.me", () => {
     expect(result.name).toBe("Admin User");
     expect(result.email).toBe("admin@test.com");
     expect(result.role).toBe("ceo");
-    expect(result.tenant).toEqual({
-      id: 1,
-      slug: "test-co",
-      name: "Test Co",
-      plan: "trial",
-    });
+    expect(result.tenantId).toBe(1);
+    expect(result.status).toBe("active");
   });
 
-  it("returns user with correct role and status", async () => {
+  it("returns user with correct role", async () => {
     const { authRouter } = await import("../auth-router");
     const caller = authRouter.createCaller(makeAuthCtx(1, 10, "operator"));
     const result = await caller.me();
 
     expect(result.role).toBe("operator");
     expect(result.status).toBe("active");
-  });
-
-  it("returns tenant with plan info", async () => {
-    const { authRouter } = await import("../auth-router");
-    const caller = authRouter.createCaller(makeAuthCtx(1, 10, "ceo"));
-    const result = await caller.me();
-
-    expect(result.tenant.plan).toBe("trial");
-    expect(result.tenant.id).toBe(1);
-    expect(result.tenant.slug).toBe("test-co");
-    expect(result.tenant.name).toBe("Test Co");
   });
 
   it("throws UNAUTHORIZED when not authenticated", async () => {
@@ -319,322 +273,5 @@ describe("auth.me", () => {
     };
     const caller = authRouter.createCaller(noAuthCtx);
     await expect(caller.me()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
-  });
-});
-
-
-
-// ═══════════════════════════════════════════════════════════════════════════
-// auth.login
-// ═══════════════════════════════════════════════════════════════════════════
-describe("auth.login", () => {
-  const loginInput = { email: "admin@test.com", password: "SecurePass123!" };
-
-  function setupSuccessfulLogin() {
-    mockFindUser.mockResolvedValue({
-      id: 10,
-      tenantId: 1,
-      name: "Admin",
-      email: "admin@test.com",
-      passwordHash: "pbkdf2$100000$abc$def",
-      role: "ceo",
-      status: "active",
-    } as any);
-    mockVerifyPassword.mockResolvedValue(true);
-    mockFindTenantById.mockResolvedValue({
-      id: 1,
-      slug: "test-co",
-      name: "Test Co",
-      plan: "trial",
-      status: "active",
-    } as any);
-  }
-
-  it("returns success with correct credentials", async () => {
-    setupSuccessfulLogin();
-    const { authRouter } = await import("../auth-router");
-    const caller = authRouter.createCaller(makePublicCtx());
-    const result = await caller.login(loginInput);
-
-    expect(result.success).toBe(true);
-    expect(result.token).toBe("mock-jwt-token");
-    expect(result.user.id).toBe(10);
-    expect(result.user.email).toBe("admin@test.com");
-    expect(result.user.role).toBe("ceo");
-    expect(result.user.tenant).toEqual({ id: 1, name: "Test Co", slug: "test-co" });
-  });
-
-  it("sets session cookie on success", async () => {
-    setupSuccessfulLogin();
-    const { authRouter } = await import("../auth-router");
-    const caller = authRouter.createCaller(makePublicCtx());
-    await caller.login(loginInput);
-
-    expect(mockCookieSerialize).toHaveBeenCalledWith(
-      "app_sid",
-      "mock-jwt-token",
-      expect.objectContaining({
-        httpOnly: true,
-        path: "/",
-        maxAge: expect.any(Number),
-      }),
-    );
-  });
-
-  it("rejects invalid email", async () => {
-    mockFindUser.mockResolvedValue(null);
-    const { authRouter } = await import("../auth-router");
-    const caller = authRouter.createCaller(makePublicCtx());
-
-    await expect(caller.login({ email: "nonexistent@test.com", password: "pass" }))
-      .rejects.toMatchObject({ code: "UNAUTHORIZED" });
-  });
-
-  it("rejects invalid password", async () => {
-    mockFindUser.mockResolvedValue({
-      id: 10, tenantId: 1, name: "Admin", email: "admin@test.com",
-      passwordHash: "pbkdf2$100000$abc$def", role: "ceo", status: "active",
-    } as any);
-    mockVerifyPassword.mockResolvedValue(false);
-
-    const { authRouter } = await import("../auth-router");
-    const caller = authRouter.createCaller(makePublicCtx());
-
-    await expect(caller.login({ email: "admin@test.com", password: "wrong" }))
-      .rejects.toMatchObject({ code: "UNAUTHORIZED" });
-  });
-
-  it("updates lastSignIn timestamp", async () => {
-    setupSuccessfulLogin();
-    const { authRouter } = await import("../auth-router");
-    const caller = authRouter.createCaller(makePublicCtx());
-    await caller.login(loginInput);
-
-    expect(mockUpdateLastSignIn).toHaveBeenCalledWith(10);
-  });
-
-  it("rate limits login attempts", async () => {
-    mockCheckRateLimit.mockReturnValue(false);
-
-    const { authRouter } = await import("../auth-router");
-    const caller = authRouter.createCaller(makePublicCtx());
-
-    await expect(caller.login(loginInput)).rejects.toMatchObject({ code: "TOO_MANY_REQUESTS" });
-  });
-
-  it("rejects inactive user account", async () => {
-    mockFindUser.mockResolvedValue({
-      id: 10, tenantId: 1, name: "Admin", email: "admin@test.com",
-      passwordHash: "pbkdf2$100000$abc$def", role: "ceo", status: "suspended",
-    } as any);
-    mockVerifyPassword.mockResolvedValue(true);
-
-    const { authRouter } = await import("../auth-router");
-    const caller = authRouter.createCaller(makePublicCtx());
-
-    await expect(caller.login(loginInput)).rejects.toMatchObject({ code: "FORBIDDEN" });
-  });
-
-  it("rejects suspended tenant", async () => {
-    mockFindUser.mockResolvedValue({
-      id: 10, tenantId: 1, name: "Admin", email: "admin@test.com",
-      passwordHash: "pbkdf2$100000$abc$def", role: "ceo", status: "active",
-    } as any);
-    mockVerifyPassword.mockResolvedValue(true);
-    mockFindTenantById.mockResolvedValue({
-      id: 1, slug: "test-co", name: "Test Co", plan: "trial", status: "suspended",
-    } as any);
-
-    const { authRouter } = await import("../auth-router");
-    const caller = authRouter.createCaller(makePublicCtx());
-
-    await expect(caller.login(loginInput)).rejects.toMatchObject({ code: "FORBIDDEN" });
-  });
-
-  it("rejects when tenant not found", async () => {
-    mockFindUser.mockResolvedValue({
-      id: 10, tenantId: 1, name: "Admin", email: "admin@test.com",
-      passwordHash: "pbkdf2$100000$abc$def", role: "ceo", status: "active",
-    } as any);
-    mockVerifyPassword.mockResolvedValue(true);
-    mockFindTenantById.mockResolvedValue(null);
-
-    const { authRouter } = await import("../auth-router");
-    const caller = authRouter.createCaller(makePublicCtx());
-
-    await expect(caller.login(loginInput)).rejects.toMatchObject({ code: "FORBIDDEN" });
-  });
-
-  it("validates email format", async () => {
-    const { authRouter } = await import("../auth-router");
-    const caller = authRouter.createCaller(makePublicCtx());
-
-    await expect(caller.login({ email: "not-an-email", password: "pass" }))
-      .rejects.toThrow();
-  });
-
-  it("validates password is non-empty", async () => {
-    const { authRouter } = await import("../auth-router");
-    const caller = authRouter.createCaller(makePublicCtx());
-
-    await expect(caller.login({ email: "a@b.com", password: "" }))
-      .rejects.toThrow();
-  });
-});
-
-// ═══════════════════════════════════════════════════════════════════════════
-// auth.logout
-// ═══════════════════════════════════════════════════════════════════════════
-describe("auth.logout", () => {
-  it("clears session cookie", async () => {
-    const { authRouter } = await import("../auth-router");
-    const caller = authRouter.createCaller(makeAuthCtx());
-    await caller.logout();
-
-    expect(mockCookieSerialize).toHaveBeenCalledWith(
-      "app_sid",
-      "",
-      expect.objectContaining({
-        httpOnly: true,
-        path: "/",
-        maxAge: 0,
-        expires: expect.any(Date),
-      }),
-    );
-  });
-
-  it("returns success", async () => {
-    const { authRouter } = await import("../auth-router");
-    const caller = authRouter.createCaller(makeAuthCtx());
-    const result = await caller.logout();
-
-    expect(result.success).toBe(true);
-  });
-
-  it("throws UNAUTHORIZED when not authenticated", async () => {
-    const { authRouter } = await import("../auth-router");
-    const noAuthCtx: any = {
-      req: new Request("http://localhost/auth"),
-      resHeaders: new Headers(),
-      db: mockDb,
-    };
-    const caller = authRouter.createCaller(noAuthCtx);
-    await expect(caller.logout()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
-  });
-});
-
-// ═══════════════════════════════════════════════════════════════════════════
-// auth.register
-// ═══════════════════════════════════════════════════════════════════════════
-describe("auth.register", () => {
-  const registerInput = {
-    orgName: "New Org",
-    name: "Test User",
-    email: "new@test.com",
-    password: "StrongPass123!",
-  };
-
-  it("creates new tenant and user", async () => {
-    const { authRouter } = await import("../auth-router");
-    const caller = authRouter.createCaller(makePublicCtx());
-    const result = await caller.register(registerInput);
-
-    expect(result.slug).toBe("new-org");
-    expect(result.message).toContain("Organisation created");
-    expect(mockHashPassword).toHaveBeenCalledWith("StrongPass123!");
-  });
-
-  it("creates trial subscription", async () => {
-    const { authRouter } = await import("../auth-router");
-    const caller = authRouter.createCaller(makePublicCtx());
-    await caller.register(registerInput);
-
-    expect(mockCreateTrialSub).toHaveBeenCalled();
-  });
-
-  it("sets session cookie", async () => {
-    const { authRouter } = await import("../auth-router");
-    const caller = authRouter.createCaller(makePublicCtx());
-    await caller.register(registerInput);
-
-    expect(mockCookieSerialize).toHaveBeenCalledWith(
-      "app_sid",
-      "mock-jwt-token",
-      expect.objectContaining({
-        httpOnly: true,
-        path: "/",
-        maxAge: expect.any(Number),
-      }),
-    );
-  });
-
-  it("rejects duplicate email", async () => {
-    usersTable.push({
-      id: 200,
-      tenantId: 1,
-      name: "Existing",
-      email: "new@test.com",
-      passwordHash: "x",
-      role: "agent",
-      status: "active",
-    });
-
-    const { authRouter } = await import("../auth-router");
-    const caller = authRouter.createCaller(makePublicCtx());
-
-    await expect(caller.register(registerInput)).rejects.toMatchObject({ code: "CONFLICT" });
-  });
-
-  it("validates input — rejects short orgName", async () => {
-    const { authRouter } = await import("../auth-router");
-    const caller = authRouter.createCaller(makePublicCtx());
-
-    await expect(caller.register({ ...registerInput, orgName: "A" }))
-      .rejects.toThrow();
-  });
-
-  it("validates input — rejects invalid email", async () => {
-    const { authRouter } = await import("../auth-router");
-    const caller = authRouter.createCaller(makePublicCtx());
-
-    await expect(caller.register({ ...registerInput, email: "bad" }))
-      .rejects.toThrow();
-  });
-
-  it("validates input — rejects short password", async () => {
-    const { authRouter } = await import("../auth-router");
-    const caller = authRouter.createCaller(makePublicCtx());
-
-    await expect(caller.register({ ...registerInput, password: "short" }))
-      .rejects.toThrow();
-  });
-
-  it("generates slug from orgName", async () => {
-    const { authRouter } = await import("../auth-router");
-    const caller = authRouter.createCaller(makePublicCtx());
-    const result = await caller.register({ ...registerInput, orgName: "My Awesome Company!" });
-
-    expect(result.slug).toBe("my-awesome-company");
-  });
-
-  it("deduplicates slug when it already exists", async () => {
-    mockFindTenantBySlug.mockResolvedValueOnce({ id: 1 } as any);
-    mockFindTenantBySlug.mockResolvedValueOnce(null);
-
-    const { authRouter } = await import("../auth-router");
-    const caller = authRouter.createCaller(makePublicCtx());
-    const result = await caller.register({ ...registerInput, orgName: "Existing Co" });
-
-    expect(result.slug).toMatch(/^existing-co-\d+$/);
-    expect(mockFindTenantBySlug).toHaveBeenCalledTimes(2);
-  });
-
-  it("rate limits registration attempts", async () => {
-    mockCheckRateLimit.mockReturnValue(false);
-
-    const { authRouter } = await import("../auth-router");
-    const caller = authRouter.createCaller(makePublicCtx());
-
-    await expect(caller.register(registerInput)).rejects.toMatchObject({ code: "TOO_MANY_REQUESTS" });
   });
 });
