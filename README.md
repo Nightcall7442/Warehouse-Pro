@@ -1,6 +1,6 @@
 # Warehouse Pro — Multi-Tenant WMS
 
-Full-stack TypeScript warehouse management system with multi-tenancy, role-based access control, and real-time capabilities.
+Full-stack TypeScript warehouse management system with multi-tenancy, role-based access control, and real-time capabilities. Updated 2026-07-07.
 
 ---
 
