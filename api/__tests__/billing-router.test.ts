@@ -82,7 +82,7 @@ function resetTables() {
       trialEndsAt: new Date(Date.now() + 7 * 86_400_000),
       planExpiresAt: null,
       maxUsers: 5,
-      maxProducts: 1000,
+      maxProducts: 50,
       maxOrdersMonth: null,
       ownerEmail: "owner@test.com",
       ownerPhone: "+998901234567",
@@ -365,7 +365,7 @@ describe("billing.status", () => {
     const result = await caller.status();
 
     expect(result.limits.maxUsers).toBe(5);
-    expect(result.limits.maxProducts).toBe(1000);
+    expect(result.limits.maxProducts).toBe(50);
     expect(result.limits.maxOrdersMonth).toBeNull();
   });
 

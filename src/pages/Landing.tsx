@@ -998,7 +998,7 @@ export default function Landing() {
                 period: tr("сум/мес", "so'm/oy"),
                 features: [
                   tr("До 5 пользователей", "5 tagacha foydalanuvchi"),
-                  tr("До 1 000 товаров", "1 000 tagacha mahsulot"),
+                  tr("До 50 товаров", "50 tagacha mahsulot"),
                   tr("Управление складом", "Omborni boshqarish"),
                   tr("Базовая аналитика (остатки, движения)", "Asosiy tahlil (qoldiqlar, harakatlar)"),
                   tr("Создание и обработка заказов", "Buyurtmalar yaratish va qayta ishlash"),
@@ -1014,7 +1014,7 @@ export default function Landing() {
                 period: tr("сум/мес", "so'm/oy"),
                 features: [
                   tr("До 20 пользователей", "20 tagacha foydalanuvchi"),
-                  tr("До 10 000 товаров", "10 000 tagacha mahsulot"),
+                  tr("До 100 товаров", "100 tagacha mahsulot"),
                   tr("Всё из Basic", "Basic dagi hammasi"),
                   tr("Полная аналитика (20+ отчётов, графики, P&L)", "To'liq tahlil (20+ hisobot, grafiklar, P&L)"),
                   tr("GPS-трекинг агентов и курьеров", "Agentlar va kuryerlarning GPS kuzatuvi"),
