@@ -5,7 +5,8 @@ import { useCurrency } from "@/hooks/useCurrency";
 import {
   BarChart3, TrendingUp, Package, Truck, RefreshCw,
   ArrowUpRight, ArrowDownRight, Minus, Layers,
-  Download, FileSpreadsheet, FileText,
+  Download, FileSpreadsheet, FileText, ShoppingCart,
+  DollarSign, AlertTriangle,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -15,16 +16,26 @@ import { exportToExcel, exportToPDF, buildExcelSheets, buildPDFHtml, type Report
 
 const COLORS = ["#6366f1", "#8b5cf6", "#a78bfa", "#c4b5fd", "#ddd6fe", "#ede9fe", "#22c55e", "#f59e0b"];
 
+const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
+const THEME = {
+  primary: "var(--color-primary)", success: "var(--color-success)",
+  warning: "var(--color-warning)", danger: "var(--color-danger)",
+  surface: "var(--color-surface)", surfaceLight: "var(--color-surface-light)",
+  textPrimary: "var(--color-text-primary)", textSecondary: "var(--color-text-secondary)",
+  textTertiary: "var(--color-text-tertiary)", border: "var(--color-border-subtle)",
+};
+const SHADOW = "0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)";
+
 function ChartTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
     <div className="glass-panel p-3 text-xs" style={{ backdropFilter: "blur(16px)" }}>
-      <p className="font-medium mb-1.5" style={{ color: "var(--color-text-secondary)" }}>{label}</p>
+      <p className="font-medium mb-1.5" style={{ color: THEME.textSecondary }}>{label}</p>
       {payload.map((p: any, i: number) => (
         <div key={i} className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full" style={{ background: p.color }} />
-          <span style={{ color: "var(--color-text-secondary)" }}>{p.name}:</span>
-          <span className="font-semibold" style={{ color: "var(--color-text-primary)" }}>
+          <span style={{ color: THEME.textSecondary }}>{p.name}:</span>
+          <span className="font-semibold" style={{ color: THEME.textPrimary }}>
             {typeof p.value === "number" ? p.value.toLocaleString("ru") : p.value}
           </span>
         </div>
@@ -33,17 +44,54 @@ function ChartTooltip({ active, payload, label }: any) {
   );
 }
 
-function StatCard({ label, value, sub, icon: Icon, color }: {
-  label: string; value: string | number; sub?: string; icon: any; color: string;
+function KpiCard({ label, value, delta, icon, gradient, delay }: {
+  label: string; value: string; delta?: number | null;
+  icon: React.ReactNode; gradient: string; delay: number;
 }) {
+  const isPositive = delta !== null && delta !== undefined && delta > 0;
+  const isNegative = delta !== null && delta !== undefined && delta < 0;
   return (
-    <div className="panel p-4">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-[11px] font-label" style={{ color: "var(--color-text-tertiary)" }}>{label}</span>
-        <Icon size={15} style={{ color }} />
+    <div style={{
+      background: THEME.surface, borderRadius: "20px", padding: "24px",
+      boxShadow: SHADOW, position: "relative", overflow: "hidden",
+      animation: `slideUp ${0.5 + delay}s ease forwards`,
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
+        <span style={{ fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: THEME.textTertiary }}>
+          {label}
+        </span>
+        <div style={{ width: "44px", height: "44px", borderRadius: "12px", background: gradient, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {icon}
+        </div>
       </div>
-      <div className="text-2xl font-bold font-data" style={{ color: "var(--color-text-primary)" }}>{value}</div>
-      {sub && <p className="text-[11px] mt-1" style={{ color: "var(--color-text-tertiary)" }}>{sub}</p>}
+      <div style={{ fontFamily: F.display, fontSize: "32px", fontWeight: 700, color: THEME.textPrimary, lineHeight: 1, letterSpacing: "-0.03em" }}>
+        {value}
+      </div>
+      {delta !== null && delta !== undefined && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: "4px", marginTop: "10px",
+          fontSize: "12px", fontWeight: 600, fontFamily: F.body,
+          color: isPositive ? "var(--color-success)" : isNegative ? "var(--color-danger)" : THEME.textTertiary,
+        }}>
+          {isPositive ? <ArrowUpRight size={14} /> : isNegative ? <ArrowDownRight size={14} /> : <Minus size={14} />}
+          {Math.abs(delta).toFixed(1)}%
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ChartPanel({ title, children, delay = 0 }: { title: string; children: React.ReactNode; delay?: number }) {
+  return (
+    <div style={{
+      background: THEME.surface, borderRadius: "20px", padding: "28px",
+      boxShadow: SHADOW, position: "relative", overflow: "hidden",
+      animation: `slideUp ${0.6 + delay}s ease forwards`,
+    }}>
+      <h2 style={{ fontFamily: F.display, fontSize: "16px", fontWeight: 600, color: THEME.textPrimary, margin: "0 0 20px" }}>
+        {title}
+      </h2>
+      {children}
     </div>
   );
 }
@@ -173,20 +221,17 @@ export default function WarehouseReports() {
 
       {/* Summary KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        <StatCard label={t("Общая стоимость", "Umumiy qiymat")} value={fmt(totalValue)} icon={Package} color="#6366f1" sub={t("по себестоимости", "xarajat bo'yicha")} />
-        <StatCard label={t("Розничная", "Chakana")} value={fmt(totalRetail)} icon={TrendingUp} color="#22c55e" sub={t("по продаже", "sotish bo'yicha")} />
-        <StatCard label={t("Маржа", "Marja")} value={fmt(margin)} icon={ArrowUpRight} color={margin >= 0 ? "#22c55e" : "#ef4444"} sub={`${((margin / (totalValue || 1)) * 100).toFixed(1)}%`} />
-        <StatCard label={t("Единицы", "Birliklar")} value={totalUnits.toLocaleString("ru")} icon={Layers} color="#f59e0b" />
-        <StatCard label={t("Низкие остатки", "Kam qoldiq")} value={lowStockTotal} icon={Minus} color={lowStockTotal > 0 ? "#ef4444" : "#22c55e"} sub={t("товаров ниже порога", "mahsulotlar chegaradan past)")} />
+        <KpiCard label={t("Общая стоимость", "Umumiy qiymat")} value={fmt(totalValue)} icon={<Package size={20} color="#fff" />} gradient="linear-gradient(135deg, #6366f1, #8b5cf6)" delay={0} />
+        <KpiCard label={t("Розничная", "Chakana")} value={fmt(totalRetail)} icon={<TrendingUp size={20} color="#fff" />} gradient="linear-gradient(135deg, #22c55e, #16a34a)" delay={0.1} />
+        <KpiCard label={t("Маржа", "Marja")} value={fmt(margin)} delta={totalValue > 0 ? (margin / totalValue) * 100 : null} icon={<ArrowUpRight size={20} color="#fff" />} gradient={margin >= 0 ? "linear-gradient(135deg, #22c55e, #16a34a)" : "linear-gradient(135deg, #ef4444, #dc2626)"} delay={0.2} />
+        <KpiCard label={t("Единицы", "Birliklar")} value={totalUnits.toLocaleString("ru")} icon={<Layers size={20} color="#fff" />} gradient="linear-gradient(135deg, #f59e0b, #d97706)" delay={0.3} />
+        <KpiCard label={t("Низкие остатки", "Kam qoldiq")} value={String(lowStockTotal)} icon={<AlertTriangle size={20} color="#fff" />} gradient={lowStockTotal > 0 ? "linear-gradient(135deg, #ef4444, #dc2626)" : "linear-gradient(135deg, #22c55e, #16a34a)"} delay={0.4} />
       </div>
 
       {/* Charts Row 1 */}
       <div className="grid lg:grid-cols-2 gap-4">
         {/* Stock by category bar chart */}
-        <div className="panel p-5">
-          <h3 className="font-semibold text-sm mb-4" style={{ color: "var(--color-text-primary)" }}>
-            {t("Остатки по категориям", "Kategoriyalar bo'yicha qoldiq")}
-          </h3>
+        <ChartPanel title={t("Остатки по категориям", "Kategoriyalar bo'yicha qoldiq")}>
           <div style={{ height: 280 }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={byCategory?.slice(0, 8)} layout="vertical" margin={{ left: 80, right: 20 }}>
@@ -198,13 +243,10 @@ export default function WarehouseReports() {
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        </ChartPanel>
 
         {/* Category pie chart */}
-        <div className="panel p-5">
-          <h3 className="font-semibold text-sm mb-4" style={{ color: "var(--color-text-primary)" }}>
-            {t("Доля категорий", "Kategoriya ulushi")}
-          </h3>
+        <ChartPanel title={t("Доля категорий", "Kategoriya ulushi")}>
           <div className="flex items-center gap-6">
             <div style={{ width: 200, height: 200, flexShrink: 0 }}>
               <ResponsiveContainer width="100%" height="100%">
@@ -230,14 +272,11 @@ export default function WarehouseReports() {
               ))}
             </div>
           </div>
-        </div>
+        </ChartPanel>
       </div>
 
       {/* Movement trends */}
-      <div className="panel p-5">
-        <h3 className="font-semibold text-sm mb-4" style={{ color: "var(--color-text-primary)" }}>
-          {t("Движение товаров", "Mahsulot harakati")} — {t(`за ${days} дней`, `${days} kun ichida`)}
-        </h3>
+      <ChartPanel title={`${t("Движение товаров", "Mahsulot harakati")} — ${t(`за ${days} дней`, `${days} kun ichida`)}`}>
         <div style={{ height: 280 }}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={trends} margin={{ left: 0, right: 10 }}>
@@ -251,15 +290,12 @@ export default function WarehouseReports() {
             </LineChart>
           </ResponsiveContainer>
         </div>
-      </div>
+      </ChartPanel>
 
       {/* Charts Row 2 */}
       <div className="grid lg:grid-cols-2 gap-4">
         {/* Arrival costs */}
-        <div className="panel p-5">
-          <h3 className="font-semibold text-sm mb-4" style={{ color: "var(--color-text-primary)" }}>
-            {t("Расходы на доставку", "Yetkazish xarajatlari")}
-          </h3>
+        <ChartPanel title={t("Расходы на доставку", "Yetkazish xarajatlari")}>
           {arrivalData?.summary ? (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
@@ -303,13 +339,10 @@ export default function WarehouseReports() {
               {t("Нет данных за период", "Davr uchun ma'lumot yo'q")}
             </p>
           )}
-        </div>
+        </ChartPanel>
 
         {/* Top products by value */}
-        <div className="panel p-5">
-          <h3 className="font-semibold text-sm mb-4" style={{ color: "var(--color-text-primary)" }}>
-            {t("Топ товаров по стоимости", "Qiymat bo'yicha TOP mahsulotlar")}
-          </h3>
+        <ChartPanel title={t("Топ товаров по стоимости", "Qiymat bo'yicha TOP mahsulotlar")}>
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
@@ -339,14 +372,11 @@ export default function WarehouseReports() {
               </tbody>
             </table>
           </div>
-        </div>
+        </ChartPanel>
       </div>
 
       {/* Turnover */}
-      <div className="panel p-5">
-        <h3 className="font-semibold text-sm mb-4" style={{ color: "var(--color-text-primary)" }}>
-          {t("Оборачиваемость", "Aylanma")} — {t(`за ${days} дней`, `${days} kun ichida`)}
-        </h3>
+      <ChartPanel title={`${t("Оборачиваемость", "Aylanma")} — ${t(`за ${days} дней`, `${days} kun ichida`)}`}>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
@@ -380,7 +410,7 @@ export default function WarehouseReports() {
             </tbody>
           </table>
         </div>
-      </div>
+      </ChartPanel>
     </div>
   );
 }
