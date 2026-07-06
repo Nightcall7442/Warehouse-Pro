@@ -6,8 +6,57 @@ import { notify } from "@/lib/toast";
 import { exportToExcel, formatShopsForExport } from "@/lib/excel";
 import { ExcelImport } from "@/components/ExcelImport";
 import { useNavigate } from "react-router";
-import { Search, Plus, Store, MapPin, Phone, Camera, Loader2, X, ChevronRight, AlertCircle, FileDown, Upload } from "lucide-react";
+import { Search, Plus, Store, MapPin, Phone, Camera, Loader2, X, ChevronRight, AlertCircle, FileDown, Upload, Users, TrendingUp, DollarSign, ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
 import { PremiumSelect } from "@/components/PremiumSelect";
+
+/* ── Premium Design Constants ── */
+const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
+const COLORS = {
+  primary: "var(--color-primary)", success: "var(--color-success)",
+  warning: "var(--color-warning)", danger: "var(--color-danger)",
+  surface: "var(--color-surface)", surfaceLight: "var(--color-surface-light)",
+  textPrimary: "var(--color-text-primary)", textSecondary: "var(--color-text-secondary)",
+  textTertiary: "var(--color-text-tertiary)", border: "var(--color-border-subtle)",
+};
+const SHADOW = "0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)";
+
+/* ── KpiCard Component ── */
+function KpiCard({ label, value, delta, icon, gradient, delay }: {
+  label: string; value: string; delta: number | null;
+  icon: React.ReactNode; gradient: string; delay: number;
+}) {
+  const isPositive = delta !== null && delta > 0;
+  const isNegative = delta !== null && delta < 0;
+  return (
+    <div style={{
+      background: COLORS.surface, borderRadius: "20px", padding: "24px",
+      boxShadow: SHADOW, position: "relative", overflow: "hidden",
+      animation: `slideUp ${0.5 + delay}s ease forwards`,
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
+        <span style={{ fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: COLORS.textTertiary }}>
+          {label}
+        </span>
+        <div style={{ width: "44px", height: "44px", borderRadius: "12px", background: gradient, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {icon}
+        </div>
+      </div>
+      <div style={{ fontFamily: F.display, fontSize: "32px", fontWeight: 700, color: COLORS.textPrimary, lineHeight: 1, letterSpacing: "-0.03em" }}>
+        {value}
+      </div>
+      {delta !== null && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: "4px", marginTop: "10px",
+          fontSize: "12px", fontWeight: 600, fontFamily: F.body,
+          color: isPositive ? "var(--color-success)" : isNegative ? "var(--color-danger)" : COLORS.textTertiary,
+        }}>
+          {isPositive ? <ArrowUpRight size={14} /> : isNegative ? <ArrowDownRight size={14} /> : <Minus size={14} />}
+          {Math.abs(delta).toFixed(1)}%
+        </div>
+      )}
+    </div>
+  );
+}
 
 // Photo upload for shops list cards
 function ShopPhoto({ shopId, photoUrl, size="md" }: { shopId:number; photoUrl?:string|null; size?:"sm"|"md"|"lg" }) {
@@ -54,25 +103,43 @@ function ShopForm({ onSave, onCancel, isPending, lang, agents }: { onSave:(d:Sho
     const r=new FileReader(); r.onload=()=>setPhoto(r.result as string); r.readAsDataURL(file);
   };
   return (
-    <div className="panel p-5">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="font-display text-lg font-semibold text-text-primary">{t("Новый магазин","Yangi do'kon")}</h2>
-        <button onClick={onCancel}><X size={18} className="text-text-secondary"/></button>
+    <div style={{
+      background: COLORS.surface, borderRadius: "20px", padding: "24px",
+      boxShadow: SHADOW,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
+        <h2 style={{ fontFamily: F.display, fontSize: "18px", fontWeight: 600, color: COLORS.textPrimary, margin: 0 }}>
+          {t("Новый магазин","Yangi do'kon")}
+        </h2>
+        <button onClick={onCancel} style={{ background: "none", border: "none", cursor: "pointer", padding: "4px" }}>
+          <X size={18} style={{ color: COLORS.textSecondary }}/>
+        </button>
       </div>
-      <div className="flex gap-4">
+      <div style={{ display: "flex", gap: "20px" }}>
         {/* Photo */}
-        <div className="flex-shrink-0">
+        <div style={{ flexShrink: 0 }}>
           <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handlePhoto}/>
-          <div className="w-20 h-20 rounded-xl overflow-hidden flex items-center justify-center cursor-pointer relative group border border-border-subtle"
-            style={{background:"color-mix(in srgb, var(--color-primary) 8%, transparent)"}} onClick={()=>fileRef.current?.click()}>
-            {photo?<img src={photo} alt="" className="w-full h-full object-cover"/>:<Store size={28} className="text-primary"/>}
-            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 rounded-xl">
-              <Camera size={16} color="#fff"/><span className="text-white text-[9px]">{t("Фото","Rasm")}</span>
+          <div style={{
+            width: "80px", height: "80px", borderRadius: "16px", overflow: "hidden",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: "pointer", position: "relative", border: `1px solid ${COLORS.border}`,
+            background: "color-mix(in srgb, var(--color-primary) 8%, transparent)",
+          }} onClick={()=>fileRef.current?.click()}>
+            {photo?<img src={photo} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<Store size={28} style={{color:COLORS.primary}}/>}
+            <div style={{
+              position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)",
+              opacity: 0, display: "flex", flexDirection: "column", alignItems: "center",
+              justifyContent: "center", gap: "4px", borderRadius: "16px",
+              transition: "opacity 0.2s",
+            }} className="group-hover:opacity-100">
+              <Camera size={16} color="#fff"/><span style={{color:"#fff",fontSize:"9px"}}>{t("Фото","Rasm")}</span>
             </div>
           </div>
-          <p className="text-[10px] text-text-secondary text-center mt-1">{t("Фото магазина","Do'kon rasmi")}</p>
+          <p style={{ fontSize: "10px", color: COLORS.textSecondary, textAlign: "center", marginTop: "4px" }}>
+            {t("Фото магазина","Do'kon rasmi")}
+          </p>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 flex-1">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "12px", flex: 1 }}>
           <input className="input-field" placeholder={t("Название *","Nomi *")} value={d.name} onChange={e=>setD({...d,name:e.target.value})}/>
           <input className="input-field" placeholder={t("Владелец","Egasi")} value={d.ownerName} onChange={e=>setD({...d,ownerName:e.target.value})}/>
           <input className="input-field" placeholder={t("Телефон","Telefon")} value={d.phone} onChange={e=>setD({...d,phone:e.target.value})}/>
@@ -84,10 +151,10 @@ function ShopForm({ onSave, onCancel, isPending, lang, agents }: { onSave:(d:Sho
               options={[{value:"",label:t("— Агент —","— Agent —")},...(agents??[]).map((a:AgentOption)=>({value:String(a.id),label:String(a.name)}))]}
               width="100%" />
           )}
-          <textarea className="input-field sm:col-span-2 resize-none" rows={2} placeholder={t("Заметки","Izoh")} value={d.notes} onChange={e=>setD({...d,notes:e.target.value})}/>
+          <textarea className="input-field resize-none" style={{gridColumn:"span 2"}} rows={2} placeholder={t("Заметки","Izoh")} value={d.notes} onChange={e=>setD({...d,notes:e.target.value})}/>
         </div>
       </div>
-      <div className="flex gap-2 mt-4">
+      <div style={{ display: "flex", gap: "12px", marginTop: "20px" }}>
         <button onClick={()=>d.name&&onSave({...d,agentId:d.agentId?Number(d.agentId):undefined,photoUrl:photo??undefined} as ShopFormData)}
           disabled={isPending} className="btn-primary flex-1 sm:flex-none flex items-center justify-center gap-2">
           {isPending&&<Loader2 size={14} className="animate-spin"/>}{t("Сохранить","Saqlash")}
@@ -100,34 +167,55 @@ function ShopForm({ onSave, onCancel, isPending, lang, agents }: { onSave:(d:Sho
 
 // Shop card
 interface ShopCardData { id: number; name: string; ownerName: string | null; phone: string | null; city: string | null; district: string | null; status: string; debt: string | null; photoUrl: string | null; agentName: string | null; }
-const ShopCard = memo(function ShopCard({ s, onClick, lang, fmt }: { s:ShopCardData; onClick:()=>void; lang:string; fmt:(v: number | string | null | undefined, opts?: { decimals?: number }) => string }) {
+const ShopCard = memo(function ShopCard({ s, onClick, lang, fmt, delay }: { s:ShopCardData; onClick:()=>void; lang:string; fmt:(v: number | string | null | undefined, opts?: { decimals?: number }) => string; delay:number }) {
   const t = (ru:string,uz:string) => lang==="uz"?uz:ru;
   const hasDebt = Number(s.debt??0) > 0;
   return (
-    <div className="panel panel-hover p-4 flex items-center gap-4" onClick={onClick}>
+    <div style={{
+      background: COLORS.surface, borderRadius: "20px", padding: "20px",
+      boxShadow: SHADOW, display: "flex", alignItems: "center", gap: "16px",
+      cursor: "pointer", transition: "transform 0.2s, box-shadow 0.2s",
+      animation: `slideUp ${0.4 + delay}s ease forwards`,
+    }}
+    onClick={onClick}
+    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = "translateY(-2px)"; (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 20px rgba(0,0,0,0.08)"; }}
+    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = "translateY(0)"; (e.currentTarget as HTMLElement).style.boxShadow = SHADOW; }}
+    >
       <ShopPhoto shopId={s.id} photoUrl={s.photoUrl} size="lg"/>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <p className="font-display font-semibold text-text-primary text-base truncate">{s.name}</p>
-            {s.ownerName&&<p className="text-xs text-text-secondary mt-0.5 truncate">{s.ownerName}</p>}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "8px" }}>
+          <div style={{ minWidth: 0 }}>
+            <p style={{ fontFamily: F.display, fontWeight: 600, color: COLORS.textPrimary, fontSize: "16px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", margin: 0 }}>
+              {s.name}
+            </p>
+            {s.ownerName&&<p style={{ fontSize: "12px", color: COLORS.textSecondary, marginTop: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", margin: 0 }}>
+              {s.ownerName}
+            </p>}
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {hasDebt&&<span className="inline-flex items-center gap-1 text-xs font-data font-semibold px-2 py-0.5 rounded-full bg-danger/15 text-danger"><AlertCircle size={11}/>{fmt(s.debt,{decimals:0})}</span>}
-            <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${s.status==="active"?"bg-success/15 text-success":"bg-surface-light text-text-secondary"}`}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+            {hasDebt&&<span style={{
+              display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "12px", fontWeight: 600,
+              padding: "2px 8px", borderRadius: "9999px", background: "color-mix(in srgb, var(--color-danger) 15%, transparent)",
+              color: "var(--color-danger)", fontFamily: F.body,
+            }}><AlertCircle size={11}/>{fmt(s.debt,{decimals:0})}</span>}
+            <span style={{
+              fontSize: "10px", padding: "2px 8px", borderRadius: "9999px", fontWeight: 500,
+              background: s.status==="active" ? "color-mix(in srgb, var(--color-success) 15%, transparent)" : COLORS.surfaceLight,
+              color: s.status==="active" ? "var(--color-success)" : COLORS.textSecondary,
+            }}>
               {s.status==="active"?t("Актив","Aktiv"):t("Неактив","Noaktiv")}
             </span>
-            <ChevronRight size={16} className="text-text-secondary"/>
+            <ChevronRight size={16} style={{ color: COLORS.textSecondary }}/>
           </div>
         </div>
-        <div className="flex items-center gap-3 mt-2 flex-wrap">
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "8px", flexWrap: "wrap" }}>
           {(s.city||s.district)&&(
-            <span className="inline-flex items-center gap-1 text-[11px] text-text-secondary">
+            <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", color: COLORS.textSecondary }}>
               <MapPin size={10}/>{[s.city,s.district].filter(Boolean).join(", ")}
             </span>
           )}
-          {s.phone&&<span className="inline-flex items-center gap-1 text-[11px] text-text-secondary"><Phone size={10}/>{s.phone}</span>}
-          {s.agentName&&<span className="ml-auto text-[11px] text-text-secondary">👤 {s.agentName}</span>}
+          {s.phone&&<span style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", color: COLORS.textSecondary }}><Phone size={10}/>{s.phone}</span>}
+          {s.agentName&&<span style={{ marginLeft: "auto", fontSize: "11px", color: COLORS.textSecondary }}>👤 {s.agentName}</span>}
         </div>
       </div>
     </div>
@@ -160,17 +248,67 @@ export default function Shops() {
     onError:(e)=>notify.error(e.message),
   });
 
+  // Compute KPI stats from data
+  const kpiStats = useMemo(() => {
+    const shops = data?.data ?? [];
+    const total = data?.total ?? 0;
+    const activeCount = shops.filter((s: any) => s.status === "active").length;
+    const debtCount = shops.filter((s: any) => Number(s.debt ?? 0) > 0).length;
+    const totalDebt = shops.reduce((sum: number, s: any) => sum + Number(s.debt ?? 0), 0);
+    return { total, activeCount, debtCount, totalDebt };
+  }, [data]);
+
+  // Loading skeleton
+  if (isLoading && !data) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ height: "28px", width: "200px", borderRadius: "8px", background: COLORS.surfaceLight, marginBottom: "8px" }} />
+            <div style={{ height: "16px", width: "260px", borderRadius: "6px", background: COLORS.surfaceLight }} />
+          </div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
+          {[0, 1, 2, 3].map(i => (
+            <div key={i} style={{ height: "140px", borderRadius: "20px", background: COLORS.surfaceLight, animation: `slideUp ${0.4 + i * 0.05}s ease forwards` }} />
+          ))}
+        </div>
+        {Array.from({length:4}).map((_,i) => (
+          <div key={i} style={{ height: "96px", borderRadius: "20px", background: COLORS.surfaceLight, animation: `slideUp ${0.4 + i * 0.05}s ease forwards` }} />
+        ))}
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="font-display text-2xl font-bold text-text-primary tracking-tight">{t("Магазины","Do'konlar")}</h1>
-        <div className="flex items-center gap-2">
+    <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
+        <div>
+          <h1 style={{ fontFamily: F.display, fontSize: "24px", fontWeight: 700, color: COLORS.textPrimary, letterSpacing: "-0.025em", margin: 0 }}>
+            {t("Магазины","Do'konlar")}
+          </h1>
+          <p style={{ fontSize: "13px", color: COLORS.textSecondary, margin: "4px 0 0" }}>
+            {t("Управление точками продаж","Savdo nuqtalarini boshqarish")}
+          </p>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <button onClick={() => data?.data && exportToExcel(formatShopsForExport(data.data), "shops-export", "Магазины", t("Список магазинов", "Do'konlar ro'yxati"))}
-            className="btn-secondary flex items-center gap-2 text-sm py-2 px-4">
-            <FileDown size={15} /> Excel
+            style={{
+              display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
+              fontSize: "13px", fontWeight: 500, fontFamily: F.body, borderRadius: "10px",
+              border: `1px solid ${COLORS.border}`, cursor: "pointer",
+              background: COLORS.surface, color: COLORS.textSecondary,
+            }}>
+            <FileDown size={14} /> Excel
           </button>
-          <button onClick={()=>setShowImport(v=>!v)} className="btn-secondary flex items-center gap-2 text-sm py-2">
-            <Upload size={15}/><span className="hidden sm:inline">{t("Импорт","Import")}</span>
+          <button onClick={()=>setShowImport(v=>!v)} style={{
+            display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
+            fontSize: "13px", fontWeight: 500, fontFamily: F.body, borderRadius: "10px",
+            border: `1px solid ${COLORS.border}`, cursor: "pointer",
+            background: COLORS.surface, color: COLORS.textSecondary,
+          }}>
+            <Upload size={14}/><span className="hidden sm:inline">{t("Импорт","Import")}</span>
           </button>
           <button onClick={()=>setShowForm(!showForm)} className="btn-primary flex items-center gap-2">
             <Plus size={16}/><span className="hidden sm:inline">{t("Добавить","Qo'shish")}</span>
@@ -182,11 +320,50 @@ export default function Shops() {
 
       {showImport&&<ExcelImport type="shops" onDone={()=>{setShowImport(false);utils.shop.list.invalidate();}} onCancel={()=>setShowImport(false)}/>}
 
+      {/* KPI Cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
+        <KpiCard
+          label={t("ВСЕГО МАГАЗИНОВ","JAMI DO'KONLAR")}
+          value={String(kpiStats.total)}
+          delta={null}
+          icon={<Store size={20} color="#fff" />}
+          gradient="linear-gradient(135deg, #6366F1, #8B5CF6)"
+          delay={0}
+        />
+        <KpiCard
+          label={t("АКТИВНЫЕ","FAOLLAR")}
+          value={String(kpiStats.activeCount)}
+          delta={null}
+          icon={<Users size={20} color="#fff" />}
+          gradient="linear-gradient(135deg, #16a34a, #22c47a)"
+          delay={0.05}
+        />
+        <KpiCard
+          label={t("С ДОЛГОМ","QARZDOR")}
+          value={String(kpiStats.debtCount)}
+          delta={null}
+          icon={<AlertCircle size={20} color="#fff" />}
+          gradient="linear-gradient(135deg, #F97316, #EA580C)"
+          delay={0.1}
+        />
+        <KpiCard
+          label={t("ОБЩИЙ ДОЛГ","UMUMIY QARZ")}
+          value={fmt(kpiStats.totalDebt, { decimals: 0 })}
+          delta={null}
+          icon={<DollarSign size={20} color="#fff" />}
+          gradient="linear-gradient(135deg, #EF4444, #DC2626)"
+          delay={0.15}
+        />
+      </div>
+
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-2">
-        <div className="relative flex-1">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary"/>
-          <input className="input-field pl-10 w-full" placeholder={t("Поиск магазинов…","Do'kon qidirish…")} value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}}/>
+      <div style={{
+        background: COLORS.surface, borderRadius: "16px", padding: "16px 20px",
+        boxShadow: SHADOW, display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap",
+      }}>
+        <div style={{ position: "relative", flex: 1, minWidth: "200px" }}>
+          <Search size={16} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: COLORS.textSecondary }}/>
+          <input className="input-field" style={{ paddingLeft: "40px", width: "100%" }} placeholder={t("Поиск магазинов…","Do'kon qidirish…")} value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}}/>
         </div>
         {agents.length > 0 && (
           <PremiumSelect value={agentFilter??""} onChange={v=>{setAgentFilter(v||undefined);setPage(1);}}
@@ -216,25 +393,27 @@ export default function Shops() {
 
       {/* City/district breadcrumb */}
       {(city||district)&&(
-        <div className="flex items-center gap-2 text-sm text-text-secondary">
-          <MapPin size={14} className="text-primary"/>
-          <span>{city&&<strong className="text-text-primary">{city}</strong>}</span>
-          {district&&<><span>›</span><strong className="text-text-primary">{district}</strong></>}
-          <span className="text-text-secondary">({data?.total??0} {t("магазинов","do'kon")})</span>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: COLORS.textSecondary }}>
+          <MapPin size={14} style={{ color: COLORS.primary }}/>
+          <span>{city&&<strong style={{ color: COLORS.textPrimary }}>{city}</strong>}</span>
+          {district&&<><span>›</span><strong style={{ color: COLORS.textPrimary }}>{district}</strong></>}
+          <span style={{ color: COLORS.textSecondary }}>({data?.total??0} {t("магазинов","do'kon")})</span>
         </div>
       )}
 
       {/* Cards */}
-      <div className="space-y-3">
-        {isLoading?Array.from({length:4}).map((_,i)=><div key={i} className="h-24 bg-surface-light animate-pulse rounded-xl"/>)
-          :data?.data.length===0?<p className="text-center text-text-secondary py-12 text-sm">{t("Нет магазинов","Do'kon yo'q")}</p>
-          :data?.data.map((s: any)=><ShopCard key={s.id} s={s} lang={lang} fmt={fmt} onClick={()=>navigate(`/shops/${s.id}`)}/>)}
+      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+        {isLoading?Array.from({length:4}).map((_,i)=>(
+          <div key={i} style={{ height: "96px", borderRadius: "20px", background: COLORS.surfaceLight, animation: `slideUp ${0.4 + i * 0.05}s ease forwards` }}/>
+        ))
+          :data?.data.length===0?<p style={{ textAlign: "center", color: COLORS.textSecondary, padding: "48px 0", fontSize: "14px" }}>{t("Нет магазинов","Do'kon yo'q")}</p>
+          :data?.data.map((s: any, i: number)=><ShopCard key={s.id} s={s} lang={lang} fmt={fmt} delay={i*0.03} onClick={()=>navigate(`/shops/${s.id}`)}/>)}
       </div>
 
       {data&&data.total>25&&(
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-text-secondary">{data.total} {t("всего","jami")}</span>
-          <div className="flex gap-2">
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={{ fontSize: "13px", color: COLORS.textSecondary }}>{data.total} {t("всего","jami")}</span>
+          <div style={{ display: "flex", gap: "8px" }}>
             <button onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1} className="btn-secondary py-1 px-3 text-sm disabled:opacity-40">{t("Назад","Orqaga")}</button>
             <button onClick={()=>setPage(p=>p+1)} disabled={page*25>=data.total} className="btn-secondary py-1 px-3 text-sm disabled:opacity-40">{t("Далее","Keyingi")}</button>
           </div>

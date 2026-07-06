@@ -1,13 +1,87 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { notify } from "@/lib/toast";
 import { exportToExcel, formatUsersForExport } from "@/lib/excel";
 import { useConfirm } from "@/components/ConfirmDialog";
-import { Search, UserPlus, Loader2, Power, KeyRound, X, FileDown } from "lucide-react";
+import {
+  Search, UserPlus, Loader2, Power, KeyRound, X, FileDown,
+  Users as UsersIcon, UserCheck, UserX, ArrowUpRight, ArrowDownRight, Minus,
+} from "lucide-react";
 import { format } from "date-fns";
 import { PremiumSelect } from "@/components/PremiumSelect";
 
+/* ── Premium design tokens ─────────────────────────────────────────────────── */
+const F = {
+  display: "'DM Sans', -apple-system, sans-serif",
+  body: "'DM Sans', -apple-system, sans-serif",
+};
+const COLORS = {
+  primary: "var(--color-primary)",
+  success: "var(--color-success)",
+  warning: "var(--color-warning)",
+  danger: "var(--color-danger)",
+  surface: "var(--color-surface)",
+  surfaceLight: "var(--color-surface-light)",
+  textPrimary: "var(--color-text-primary)",
+  textSecondary: "var(--color-text-secondary)",
+  textTertiary: "var(--color-text-tertiary)",
+  border: "var(--color-border-subtle)",
+};
+const SHADOW = "0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)";
+
+/* ── KPI Card ──────────────────────────────────────────────────────────────── */
+function KpiCard({
+  label, value, delta, icon, gradient, delay,
+}: {
+  label: string; value: string; delta: number | null;
+  icon: React.ReactNode; gradient: string; delay: number;
+}) {
+  const isPositive = delta !== null && delta > 0;
+  const isNegative = delta !== null && delta < 0;
+  return (
+    <div style={{
+      background: COLORS.surface, borderRadius: "20px", padding: "24px",
+      boxShadow: SHADOW, position: "relative", overflow: "hidden",
+      animation: `slideUp ${0.5 + delay}s ease forwards`,
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
+        <span style={{ fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: COLORS.textTertiary }}>
+          {label}
+        </span>
+        <div style={{ width: "44px", height: "44px", borderRadius: "12px", background: gradient, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {icon}
+        </div>
+      </div>
+      <div style={{ fontFamily: F.display, fontSize: "32px", fontWeight: 700, color: COLORS.textPrimary, lineHeight: 1, letterSpacing: "-0.03em" }}>
+        {value}
+      </div>
+      {delta !== null && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: "4px", marginTop: "10px",
+          fontSize: "12px", fontWeight: 600, fontFamily: F.body,
+          color: isPositive ? "var(--color-success)" : isNegative ? "var(--color-danger)" : COLORS.textTertiary,
+        }}>
+          {isPositive ? <ArrowUpRight size={14} /> : isNegative ? <ArrowDownRight size={14} /> : <Minus size={14} />}
+          {Math.abs(delta).toFixed(1)}%
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Table styles ──────────────────────────────────────────────────────────── */
+const thStyle: React.CSSProperties = {
+  fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase",
+  letterSpacing: "0.08em", color: COLORS.textTertiary, padding: "12px 16px",
+  borderBottom: `1px solid ${COLORS.border}`, textAlign: "left",
+};
+const tdStyle: React.CSSProperties = {
+  padding: "14px 16px", borderBottom: `1px solid ${COLORS.border}`,
+  fontSize: "14px", fontFamily: F.body, color: COLORS.textPrimary,
+};
+
+/* ── Role config ───────────────────────────────────────────────────────────── */
 const ROLE_COLORS: Record<string, string> = {
   ceo:          "bg-primary/15 text-primary border-primary/30",
   operator:     "bg-info/15 text-info border-info/30",
@@ -26,9 +100,9 @@ const ROLE_LABELS: Record<string, { ru: string; uz: string }> = {
   courier:      { ru: "Доставщик",      uz: "Yetkazib beruvchi" },
 };
 
-// ── Форма создания пользователя ────────────────────────────────────────────────
+/* ── Invite Form ───────────────────────────────────────────────────────────── */
 function InviteForm({ onDone, lang }: { onDone: () => void; lang: "ru" | "uz" }) {
-  const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
+  const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
   const [d, setD] = useState({ name: "", email: "", password: "", role: "agent" });
   const [showPw, setShowPw] = useState(false);
 
@@ -58,9 +132,12 @@ function InviteForm({ onDone, lang }: { onDone: () => void; lang: "ru" | "uz" })
   };
 
   return (
-    <div className="panel p-5 space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="font-display text-base text-text-primary">
+    <div style={{
+      background: COLORS.surface, borderRadius: "20px", padding: "24px",
+      boxShadow: SHADOW, display: "flex", flexDirection: "column", gap: "16px",
+    }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <h2 style={{ fontFamily: F.display, fontSize: "16px", fontWeight: 600, color: COLORS.textPrimary, margin: 0 }}>
           {t("Создать пользователя", "Foydalanuvchi yaratish")}
         </h2>
         <button onClick={onDone} className="btn-ghost p-1.5"><X size={18} /></button>
@@ -120,12 +197,12 @@ function InviteForm({ onDone, lang }: { onDone: () => void; lang: "ru" | "uz" })
           </label>
           <PremiumSelect value={d.role}
             onChange={v => setD(p => ({ ...p, role: v }))}
-            options={Object.entries(ROLE_LABELS).filter(([k]) => k !== "ceo").map(([k, v]) => ({value:k,label:lang === "uz" ? v.uz : v.ru}))}
+            options={Object.entries(ROLE_LABELS).filter(([k]) => k !== "ceo").map(([k, v]) => ({ value: k, label: lang === "uz" ? v.uz : v.ru }))}
             width="100%" />
         </div>
       </div>
 
-      <p className="text-xs" style={{ color: "var(--color-text-tertiary)" }}>
+      <p style={{ fontSize: "12px", color: COLORS.textTertiary, fontFamily: F.body }}>
         {t(
           "Пользователь сможет войти сразу с указанным паролем",
           "Foydalanuvchi darhol kiritilgan parol bilan kirishi mumkin"
@@ -144,11 +221,11 @@ function InviteForm({ onDone, lang }: { onDone: () => void; lang: "ru" | "uz" })
   );
 }
 
-// ── Модальное окно сброса пароля ──────────────────────────────────────────────
+/* ── Reset Password Modal ──────────────────────────────────────────────────── */
 function ResetPasswordModal({ userId, userName, onClose, lang }: {
   userId: number; userName: string; onClose: () => void; lang: "ru" | "uz";
 }) {
-  const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
+  const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
   const [pw, setPw] = useState("");
   const reset = trpc.user.resetPassword.useMutation({
     onSuccess: () => {
@@ -161,9 +238,13 @@ function ResetPasswordModal({ userId, userName, onClose, lang }: {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }}>
-      <div className="relative panel p-6 w-full max-w-sm space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="font-display text-base text-text-primary">
+      <div style={{
+        background: COLORS.surface, borderRadius: "20px", padding: "24px",
+        boxShadow: "0 24px 48px rgba(0,0,0,0.18)", width: "100%", maxWidth: "400px",
+        display: "flex", flexDirection: "column", gap: "16px",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <h2 style={{ fontFamily: F.display, fontSize: "16px", fontWeight: 600, color: COLORS.textPrimary, margin: 0 }}>
             {t("Сброс пароля", "Parolni tiklash")} — {userName}
           </h2>
           <button onClick={onClose} className="btn-ghost p-1.5"><X size={18} /></button>
@@ -199,58 +280,66 @@ function ResetPasswordModal({ userId, userName, onClose, lang }: {
   );
 }
 
-// ── Главная страница ──────────────────────────────────────────────────────────
+/* ── Main ──────────────────────────────────────────────────────────────────── */
 export default function Users() {
-  const [page,   setPage]   = useState(1);
+  const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
-  const [role,   setRole]   = useState("");
+  const [role, setRole] = useState("");
   const [showInvite, setShowInvite] = useState(false);
-  const [resetUser,  setResetUser]  = useState<{ id: number; name: string } | null>(null);
+  const [resetUser, setResetUser] = useState<{ id: number; name: string } | null>(null);
   const { lang } = useLang();
-  const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
+  const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
 
   const { data, isLoading } = trpc.user.list.useQuery({
     page, pageSize: 25,
     search: search || undefined,
-    role:   role   || undefined,
+    role: role || undefined,
   }) as { data: any; isLoading: boolean };
-  const utils              = trpc.useUtils();
+  const utils = trpc.useUtils();
   const { confirm, dialog } = useConfirm();
 
   const updateUser = trpc.user.update.useMutation({
     onSuccess: () => { utils.user.list.invalidate(); notify.success(t("Пользователь обновлён", "Foydalanuvchi yangilandi")); },
-    onError:   (e) => notify.error(e.message),
+    onError: (e) => notify.error(e.message),
   });
 
   const deactivate = trpc.user.deactivate.useMutation({
     onSuccess: () => { utils.user.list.invalidate(); notify.success(t("Пользователь деактивирован", "Foydalanuvchi deaktiv qilindi")); },
-    onError:   (e) => notify.error(e.message),
+    onError: (e) => notify.error(e.message),
   });
 
   const handleDeactivate = async (id: number, name: string) => {
     const ok = await confirm({
-      title:       t(`Деактивировать ${name}?`, `${name}ni o'chirish?`),
-      message:     t(
+      title: t(`Деактивировать ${name}?`, `${name}ni o'chirish?`),
+      message: t(
         "Пользователь потеряет доступ к системе. Можно восстановить позже.",
         "Foydalanuvchi tizimga kirishdan mahrum bo'ladi. Keyinroq tiklash mumkin."
       ),
       confirmText: t("Деактивировать", "O'chirish"),
-      danger:      true,
+      danger: true,
     });
     if (ok) deactivate.mutate({ id });
   };
 
-  const TABLE_HEADERS = [
-    t("ИМЯ",          "ISM"),
-    t("EMAIL",        "EMAIL"),
-    t("РОЛЬ",         "LAVOZIM"),
-    t("СТАТУС",       "HOLAT"),
-    t("ПОСЛЕДНИЙ ВХОД","SO'NGGI KIRISH"),
-    "",
-  ];
+  /* ── Derived stats ─────────────────────────────────────────────────────── */
+  const stats = useMemo(() => {
+    const list = data?.data ?? [];
+    return {
+      total: data?.total ?? 0,
+      active: list.filter((u: any) => u.status === "active").length,
+      inactive: list.filter((u: any) => u.status !== "active").length,
+    };
+  }, [data]);
 
   return (
-    <div className="space-y-4 animate-fade-up">
+    <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+      <style>{`
+        @keyframes slideUp {
+          from { opacity: 0; transform: translateY(12px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
+
       {dialog}
       {resetUser && (
         <ResetPasswordModal
@@ -261,22 +350,28 @@ export default function Users() {
         />
       )}
 
-      {/* Заголовок */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
+      {/* ── Header ───────────────────────────────────────────────────────── */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
         <div>
-          <h1 className="font-display text-2xl font-bold text-text-primary tracking-tight">
+          <h1 style={{ fontFamily: F.display, fontSize: "24px", fontWeight: 700, color: COLORS.textPrimary, letterSpacing: "-0.025em", margin: 0 }}>
             {t("Пользователи", "Foydalanuvchilar")}
           </h1>
           {data && (
-            <p className="text-xs mt-0.5" style={{ color: "var(--color-text-tertiary)" }}>
+            <p style={{ fontSize: "13px", color: COLORS.textSecondary, margin: "4px 0 0", fontFamily: F.body }}>
               {data.total} {t("пользователей", "ta foydalanuvchi")}
             </p>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => data?.data && exportToExcel(formatUsersForExport(data.data), "users-export", "Пользователи", t("Список пользователей", "Foydalanuvchilar ro'yxati"))}
-            className="btn-secondary flex items-center gap-2 text-sm py-2 px-4">
-            <FileDown size={15} /> Excel
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <button
+            onClick={() => data?.data && exportToExcel(formatUsersForExport(data.data), "users-export", "Пользователи", t("Список пользователей", "Foydalanuvchilar ro'yxati"))}
+            style={{
+              display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
+              fontSize: "13px", fontWeight: 500, fontFamily: F.body, borderRadius: "10px",
+              border: `1px solid ${COLORS.border}`, cursor: "pointer",
+              background: COLORS.surface, color: COLORS.textSecondary,
+            }}>
+            <FileDown size={14} /> Excel
           </button>
           <button
             onClick={() => setShowInvite(v => !v)}
@@ -288,7 +383,37 @@ export default function Users() {
         </div>
       </div>
 
-      {/* Форма приглашения */}
+      {/* ── KPI Cards ────────────────────────────────────────────────────── */}
+      {!isLoading && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
+          <KpiCard
+            label={t("ВСЕГО", "JAMI")}
+            value={String(stats.total)}
+            delta={null}
+            icon={<UsersIcon size={20} color="#fff" />}
+            gradient="linear-gradient(135deg, #6366F1, #8B5CF6)"
+            delay={0}
+          />
+          <KpiCard
+            label={t("АКТИВНЫЕ", "FAOLLAR")}
+            value={String(stats.active)}
+            delta={null}
+            icon={<UserCheck size={20} color="#fff" />}
+            gradient="linear-gradient(135deg, #16a34a, #22c47a)"
+            delay={0.05}
+          />
+          <KpiCard
+            label={t("НЕАКТИВНЫЕ", "NOFAOLLAR")}
+            value={String(stats.inactive)}
+            delta={null}
+            icon={<UserX size={20} color="#fff" />}
+            gradient="linear-gradient(135deg, #EF4444, #DC2626)"
+            delay={0.1}
+          />
+        </div>
+      )}
+
+      {/* ── Invite Form ──────────────────────────────────────────────────── */}
       {showInvite && (
         <InviteForm
           lang={lang}
@@ -296,133 +421,155 @@ export default function Users() {
         />
       )}
 
-      {/* Фильтры */}
-      <div className="flex flex-wrap gap-2">
-        <div className="relative flex-1 min-w-[180px] max-w-xs">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
+      {/* ── Filters ──────────────────────────────────────────────────────── */}
+      <div style={{
+        display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap",
+        background: COLORS.surface, borderRadius: "16px", padding: "16px 20px",
+        boxShadow: SHADOW,
+      }}>
+        <div style={{ position: "relative", flex: "1 1 180px", maxWidth: "320px" }}>
+          <Search size={15} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: COLORS.textSecondary }} />
           <input
-            className="input-field pl-9 w-full"
+            className="input-field w-full"
+            style={{ paddingLeft: "36px" }}
             placeholder={t("Поиск пользователей…", "Foydalanuvchi qidirish…")}
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
         </div>
         <PremiumSelect value={role} onChange={v => setRole(v)}
-          options={[{value:"",label:t("Все роли", "Barcha lavozimlar")},...Object.entries(ROLE_LABELS).map(([k,v])=>({value:k,label:lang==="uz"?v.uz:v.ru}))]}
+          options={[{ value: "", label: t("Все роли", "Barcha lavozimlar") }, ...Object.entries(ROLE_LABELS).map(([k, v]) => ({ value: k, label: lang === "uz" ? v.uz : v.ru }))]}
           width="200px" />
       </div>
 
-      {/* Таблица */}
-      <div className="panel overflow-x-auto">
-        <table className="data-table">
-          <thead>
-            <tr>
-              {TABLE_HEADERS.map((h, i) => (
-                <th key={i}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading
-              ? Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={i}>
-                    <td colSpan={6}>
-                      <div className="h-4 bg-surface-light animate-pulse rounded" />
-                    </td>
-                  </tr>
-                ))
-              : data?.data.length === 0
-              ? (
-                <tr>
-                  <td colSpan={6} className="text-center py-12 text-text-secondary text-sm">
-                    {t("Пользователи не найдены", "Foydalanuvchilar topilmadi")}
-                  </td>
-                </tr>
-              )
-              : data?.data.map((u: any) => (
-                  <tr key={u.id}>
-                    {/* Имя */}
-                    <td>
-                      <div className="flex items-center gap-2.5">
-                        <div
-                          className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-bold"
-                          style={{ background: "color-mix(in srgb, var(--color-primary) 12%, transparent)", color: "var(--color-primary)" }}
-                        >
-                          {u.name?.[0]?.toUpperCase()}
-                        </div>
-                        <span className="text-sm font-medium text-text-primary">{u.name}</span>
-                      </div>
-                    </td>
-                    {/* Email */}
-                    <td className="text-text-secondary">{u.email}</td>
-                    {/* Роль */}
-                    <td>
-                      <span className={`status-badge ${ROLE_COLORS[u.role] ?? ""}`}>
-                        {ROLE_LABELS[u.role]?.[lang] ?? u.role}
-                      </span>
-                    </td>
-                    {/* Статус */}
-                    <td>
-                      <span className={`status-badge ${
-                        u.status === "active"
-                          ? "bg-success/15 text-success border-success/30"
-                          : "bg-danger/15 text-danger border-danger/30"
-                      }`}>
-                        {u.status === "active"
-                          ? t("Активен", "Faol")
-                          : t("Неактивен", "Faol emas")}
-                      </span>
-                    </td>
-                    {/* Последний вход */}
-                    <td className="text-text-secondary text-xs font-data">
-                      {u.lastSignInAt
-                        ? format(new Date(u.lastSignInAt), "dd.MM.yyyy HH:mm")
-                        : t("Не входил", "Kirmagan")}
-                    </td>
-                    {/* Действия */}
-                    <td>
-                      <div className="flex gap-1">
-                        <button
-                          title={t("Сбросить пароль", "Parolni tiklash")}
-                          onClick={() => setResetUser({ id: u.id, name: u.name })}
-                          className="btn-secondary p-1.5"
-                        >
-                          <KeyRound size={14} />
-                        </button>
-                        {u.status === "active" ? (
-                          <button
-                            title={t("Деактивировать", "O'chirish")}
-                            onClick={() => handleDeactivate(u.id, u.name)}
-                            className="btn-secondary p-1.5 text-danger"
-                            style={{ borderColor: "color-mix(in srgb, var(--color-danger) 30%, transparent)" }}
-                          >
-                            <Power size={14} />
-                          </button>
-                        ) : (
-                          <button
-                            title={t("Активировать", "Faollashtirish")}
-                            onClick={() => updateUser.mutate({ id: u.id, status: "active" })}
-                            className="btn-secondary p-1.5 text-success"
-                            style={{ borderColor: "color-mix(in srgb, var(--color-success) 30%, transparent)" }}
-                          >
-                            <Power size={14} />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
+      {/* ── Table ─────────────────────────────────────────────────────────── */}
+      <div style={{
+        background: COLORS.surface, borderRadius: "20px", padding: "0",
+        boxShadow: SHADOW, overflow: "hidden",
+      }}>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
+            <thead>
+              <tr>
+                {[
+                  t("ИМЯ", "ISM"),
+                  t("EMAIL", "EMAIL"),
+                  t("РОЛЬ", "LAVOZIM"),
+                  t("СТАТУС", "HOLAT"),
+                  t("ПОСЛЕДНИЙ ВХОД", "SO'NGGI KIRISH"),
+                  "",
+                ].map((h, i) => (
+                  <th key={i} style={thStyle}>{h}</th>
                 ))}
-          </tbody>
-        </table>
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading
+                ? Array.from({ length: 5 }).map((_, i) => (
+                    <tr key={i}>
+                      <td colSpan={6} style={{ padding: "14px 16px" }}>
+                        <div style={{ height: "16px", borderRadius: "6px", background: COLORS.surfaceLight, animation: `slideUp ${0.4 + i * 0.05}s ease forwards` }} />
+                      </td>
+                    </tr>
+                  ))
+                : data?.data.length === 0
+                ? (
+                  <tr>
+                    <td colSpan={6} style={{ ...tdStyle, textAlign: "center", padding: "48px 16px", color: COLORS.textSecondary, fontSize: "14px" }}>
+                      {t("Пользователи не найдены", "Foydalanuvchilar topilmadi")}
+                    </td>
+                  </tr>
+                )
+                : data?.data.map((u: any) => (
+                    <tr key={u.id} style={{ transition: "background 0.15s" }}
+                      onMouseEnter={e => (e.currentTarget.style.background = "rgba(99,102,241,0.02)")}
+                      onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                      {/* Имя */}
+                      <td style={tdStyle}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                          <div style={{
+                            width: "32px", height: "32px", borderRadius: "10px", flexShrink: 0,
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            fontSize: "12px", fontWeight: 700,
+                            background: "color-mix(in srgb, var(--color-primary) 12%, transparent)",
+                            color: "var(--color-primary)",
+                          }}>
+                            {u.name?.[0]?.toUpperCase()}
+                          </div>
+                          <span style={{ fontSize: "14px", fontWeight: 500, fontFamily: F.body }}>{u.name}</span>
+                        </div>
+                      </td>
+                      {/* Email */}
+                      <td style={{ ...tdStyle, color: COLORS.textSecondary }}>{u.email}</td>
+                      {/* Роль */}
+                      <td style={tdStyle}>
+                        <span className={`status-badge ${ROLE_COLORS[u.role] ?? ""}`}>
+                          {ROLE_LABELS[u.role]?.[lang] ?? u.role}
+                        </span>
+                      </td>
+                      {/* Статус */}
+                      <td style={tdStyle}>
+                        <span className={`status-badge ${
+                          u.status === "active"
+                            ? "bg-success/15 text-success border-success/30"
+                            : "bg-danger/15 text-danger border-danger/30"
+                        }`}>
+                          {u.status === "active"
+                            ? t("Активен", "Faol")
+                            : t("Неактивен", "Faol emas")}
+                        </span>
+                      </td>
+                      {/* Последний вход */}
+                      <td style={{ ...tdStyle, fontSize: "13px", color: COLORS.textSecondary }}>
+                        {u.lastSignInAt
+                          ? format(new Date(u.lastSignInAt), "dd.MM.yyyy HH:mm")
+                          : t("Не входил", "Kirmagan")}
+                      </td>
+                      {/* Действия */}
+                      <td style={tdStyle}>
+                        <div style={{ display: "flex", gap: "4px" }}>
+                          <button
+                            title={t("Сбросить пароль", "Parolni tiklash")}
+                            onClick={() => setResetUser({ id: u.id, name: u.name })}
+                            className="btn-secondary p-1.5"
+                          >
+                            <KeyRound size={14} />
+                          </button>
+                          {u.status === "active" ? (
+                            <button
+                              title={t("Деактивировать", "O'chirish")}
+                              onClick={() => handleDeactivate(u.id, u.name)}
+                              className="btn-secondary p-1.5 text-danger"
+                              style={{ borderColor: "color-mix(in srgb, var(--color-danger) 30%, transparent)" }}
+                            >
+                              <Power size={14} />
+                            </button>
+                          ) : (
+                            <button
+                              title={t("Активировать", "Faollashtirish")}
+                              onClick={() => updateUser.mutate({ id: u.id, status: "active" })}
+                              className="btn-secondary p-1.5 text-success"
+                              style={{ borderColor: "color-mix(in srgb, var(--color-success) 30%, transparent)" }}
+                            >
+                              <Power size={14} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {/* Пагинация */}
+      {/* ── Pagination ────────────────────────────────────────────────────── */}
       {data && data.total > 25 && (
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-text-secondary">
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={{ fontSize: "13px", color: COLORS.textSecondary, fontFamily: F.body }}>
             {data.total} {t("всего", "jami")}
           </span>
-          <div className="flex gap-2">
+          <div style={{ display: "flex", gap: "8px" }}>
             <button
               onClick={() => setPage(p => Math.max(1, p - 1))}
               disabled={page === 1}

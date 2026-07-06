@@ -1,16 +1,63 @@
-import { memo, useCallback, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { trpc } from "@/providers/trpc";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useLang } from "@/i18n";
 import { format } from "date-fns";
-import { Plus, X, Search, FileDown, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
+import {
+  Plus, X, Search, FileDown, ChevronDown, ChevronUp, Loader2,
+  ArrowUpRight, ArrowDownRight, Minus, Truck, Package, CheckCircle2, Clock,
+} from "lucide-react";
 import { exportToExcel, formatArrivalsForExport } from "@/lib/excel";
 import { notify } from "@/lib/toast";
 import { PremiumSelect } from "@/components/PremiumSelect";
 
 const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
+const COLORS = {
+  primary: "var(--color-primary)", success: "var(--color-success)",
+  warning: "var(--color-warning)", danger: "var(--color-danger)",
+  surface: "var(--color-surface)", surfaceLight: "var(--color-surface-light)",
+  textPrimary: "var(--color-text-primary)", textSecondary: "var(--color-text-secondary)",
+  textTertiary: "var(--color-text-tertiary)", border: "var(--color-border-subtle)",
+};
 const SHADOW = "0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)";
+
+function KpiCard({ label, value, delta, icon, gradient, delay }: {
+  label: string; value: string; delta: number | null;
+  icon: React.ReactNode; gradient: string; delay: number;
+}) {
+  const isPositive = delta !== null && delta > 0;
+  const isNegative = delta !== null && delta < 0;
+  return (
+    <div style={{
+      background: COLORS.surface, borderRadius: "20px", padding: "24px",
+      boxShadow: SHADOW, position: "relative", overflow: "hidden",
+      animation: `slideUp ${0.5 + delay}s ease forwards`,
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
+        <span style={{ fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: COLORS.textTertiary }}>
+          {label}
+        </span>
+        <div style={{ width: "44px", height: "44px", borderRadius: "12px", background: gradient, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {icon}
+        </div>
+      </div>
+      <div style={{ fontFamily: F.display, fontSize: "32px", fontWeight: 700, color: COLORS.textPrimary, lineHeight: 1, letterSpacing: "-0.03em" }}>
+        {value}
+      </div>
+      {delta !== null && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: "4px", marginTop: "10px",
+          fontSize: "12px", fontWeight: 600, fontFamily: F.body,
+          color: isPositive ? "var(--color-success)" : isNegative ? "var(--color-danger)" : COLORS.textTertiary,
+        }}>
+          {isPositive ? <ArrowUpRight size={14} /> : isNegative ? <ArrowDownRight size={14} /> : <Minus size={14} />}
+          {Math.abs(delta).toFixed(1)}%
+        </div>
+      )}
+    </div>
+  );
+}
 
 const UNIT_LABELS: Record<string, string> = { kg: "кг", l: "л", pcs: "шт", box: "ящ", pack: "упак", m: "м" };
 function unitLabel(unit: string | undefined): string { return UNIT_LABELS[unit ?? "pcs"] ?? "шт"; }
@@ -220,7 +267,7 @@ function ArrivalReceipt({ arrival }: { arrival: { id: number } }) {
 
   return (
     <div>
-      <button onClick={() => setOpen(v => !v)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 20px", border: "none", background: "transparent", cursor: "pointer", color: "var(--color-text-tertiary)", fontSize: "12px", fontFamily: F.body }}>
+      <button onClick={() => setOpen(v => !v)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 20px", border: "none", background: "transparent", cursor: "pointer", color: COLORS.textTertiary, fontSize: "12px", fontFamily: F.body }}>
         <span>{t("Накладная", "Hujjat")}</span>
         {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
       </button>
@@ -229,7 +276,7 @@ function ArrivalReceipt({ arrival }: { arrival: { id: number } }) {
           <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
             <thead>
               <tr>{[t("Товар", "Mahsulot"), t("Код", "Kod"), t("Кол-во", "Miqdor"), t("Состояние", "Holat")].map(h => (
-                <th key={h} style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-text-tertiary)", padding: "8px 12px", textAlign: "left", borderBottom: "1px solid var(--color-border-subtle)" }}>{h}</th>
+                <th key={h} style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: COLORS.textTertiary, padding: "8px 12px", textAlign: "left", borderBottom: `1px solid ${COLORS.border}` }}>{h}</th>
               ))}</tr>
             </thead>
             <tbody>
@@ -237,10 +284,10 @@ function ArrivalReceipt({ arrival }: { arrival: { id: number } }) {
                 const item = raw as Record<string, unknown>;
                 return (
                 <tr key={i}>
-                  <td style={{ padding: "10px 12px", fontSize: "13px", color: "var(--color-text-primary)", borderBottom: "1px solid var(--color-border-subtle)" }}>{String(item.productName)}</td>
-                  <td style={{ padding: "10px 12px", fontSize: "12px", color: "var(--color-text-tertiary)", borderBottom: "1px solid var(--color-border-subtle)" }}>{String(item.productCode)}</td>
-                  <td style={{ padding: "10px 12px", fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary)", borderBottom: "1px solid var(--color-border-subtle)" }}>{Number(item.quantity).toFixed(2)}</td>
-                  <td style={{ padding: "10px 12px", fontSize: "13px", color: "var(--color-text-secondary)", borderBottom: "1px solid var(--color-border-subtle)" }}>{String(item.condition ?? "—")}</td>
+                  <td style={{ padding: "10px 12px", fontSize: "13px", color: COLORS.textPrimary, borderBottom: `1px solid ${COLORS.border}` }}>{String(item.productName)}</td>
+                  <td style={{ padding: "10px 12px", fontSize: "12px", color: COLORS.textTertiary, borderBottom: `1px solid ${COLORS.border}` }}>{String(item.productCode)}</td>
+                  <td style={{ padding: "10px 12px", fontSize: "13px", fontWeight: 600, color: COLORS.textPrimary, borderBottom: `1px solid ${COLORS.border}` }}>{Number(item.quantity).toFixed(2)}</td>
+                  <td style={{ padding: "10px 12px", fontSize: "13px", color: COLORS.textSecondary, borderBottom: `1px solid ${COLORS.border}` }}>{String(item.condition ?? "—")}</td>
                 </tr>
                 );
               })}
@@ -275,31 +322,123 @@ export default function Arrivals() {
     onError: (e) => notify.error(e.message),
   });
 
+  const arrivals = data?.data ?? [];
+  const kpis = useMemo(() => {
+    const total = arrivals.length;
+    const totalExpenses = arrivals.reduce((s: number, a: any) => s + Number(a.totalExpense ?? 0), 0);
+    const completed = arrivals.filter((a: any) => a.status === "completed").length;
+    const pending = arrivals.filter((a: any) => a.status === "pending").length;
+    return { total, totalExpenses, completed, pending };
+  }, [arrivals]);
+
+  const thStyle: React.CSSProperties = {
+    fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase",
+    letterSpacing: "0.08em", color: COLORS.textTertiary, padding: "14px 16px",
+    borderBottom: `1px solid ${COLORS.border}`, textAlign: "left",
+  };
+  const tdStyle: React.CSSProperties = {
+    padding: "14px 16px", borderBottom: `1px solid ${COLORS.border}`,
+    fontSize: "13px", fontFamily: F.body, color: COLORS.textPrimary,
+  };
+
+  if (isLoading) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ height: "28px", width: "200px", borderRadius: "8px", background: COLORS.surfaceLight, marginBottom: "8px" }} />
+            <div style={{ height: "16px", width: "280px", borderRadius: "6px", background: COLORS.surfaceLight }} />
+          </div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
+          {[0, 1, 2, 3].map(i => (
+            <div key={i} style={{ height: "140px", borderRadius: "20px", background: COLORS.surfaceLight, animation: `slideUp ${0.4 + i * 0.05}s ease forwards` }} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20, padding: "24px 0" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
       {showForm && <ArrivalForm onSave={(d: any) => createMutation.mutate(d)} onClose={() => setShowForm(false)} isPending={createMutation.isPending} />}
 
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, padding: "0 24px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
         <div>
-          <h1 style={{ fontSize: "26px", fontWeight: 800, color: "var(--color-text-primary)", margin: 0, letterSpacing: "-0.02em" }}>{t("Приходы", "Kelishlar")}</h1>
-          <p style={{ fontSize: "13px", color: "var(--color-text-tertiary)", margin: "4px 0 0" }}>{t("Поступление товаров на склад", "Omborga mahsulot kelishi")}</p>
+          <h1 style={{ fontFamily: F.display, fontSize: "24px", fontWeight: 700, color: COLORS.textPrimary, letterSpacing: "-0.025em", margin: 0 }}>
+            {t("Приходы", "Kelishlar")}
+          </h1>
+          <p style={{ fontSize: "13px", color: COLORS.textSecondary, margin: "4px 0 0" }}>
+            {t("Поступление товаров на склад", "Omborga mahsulot kelishi")}
+          </p>
         </div>
-        <div style={{ display: "flex", gap: 10 }}>
-          <button onClick={() => all?.data && exportToExcel(formatArrivalsForExport(all.data), "arrivals")} style={{ padding: "10px 16px", borderRadius: "12px", fontSize: "13px", fontWeight: 500, fontFamily: F.body, color: "var(--color-text-secondary)", border: "none", cursor: "pointer", background: "var(--color-surface-light)", display: "flex", alignItems: "center", gap: 6 }}>
-            <FileDown size={15} /> Excel
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <button onClick={() => all?.data && exportToExcel(formatArrivalsForExport(all.data), "arrivals")} style={{
+            display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
+            fontSize: "13px", fontWeight: 500, fontFamily: F.body, borderRadius: "10px",
+            border: `1px solid ${COLORS.border}`, cursor: "pointer",
+            background: COLORS.surface, color: COLORS.textSecondary,
+          }}>
+            <FileDown size={14} /> Excel
           </button>
-          <button onClick={() => setShowForm(true)} style={{ padding: "10px 20px", borderRadius: "12px", fontSize: "13px", fontWeight: 600, fontFamily: F.body, color: "#fff", border: "none", cursor: "pointer", background: "linear-gradient(135deg, #6366f1, #8b5cf6)", boxShadow: "0 4px 16px rgba(99,102,241,0.3)", display: "flex", alignItems: "center", gap: 6 }}>
-            <Plus size={16} /> {t("Новый приход", "Yangi kelish")}
+          <button onClick={() => setShowForm(true)} style={{
+            display: "flex", alignItems: "center", gap: "6px", padding: "8px 16px",
+            fontSize: "13px", fontWeight: 600, fontFamily: F.body, borderRadius: "10px",
+            border: "none", cursor: "pointer", color: "#fff",
+            background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+            boxShadow: "0 4px 16px rgba(99,102,241,0.3)",
+          }}>
+            <Plus size={15} /> {t("Новый приход", "Yangi kelish")}
           </button>
         </div>
       </div>
 
+      {/* KPI Cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
+        <KpiCard
+          label={t("ВСЕГО ПРИХОДОВ", "JAMI KELISHLAR")}
+          value={String(kpis.total)}
+          delta={null}
+          icon={<Package size={20} color="#fff" />}
+          gradient="linear-gradient(135deg, #6366F1, #8B5CF6)"
+          delay={0}
+        />
+        <KpiCard
+          label={t("РАСХОДЫ", "XARAJATLAR")}
+          value={fmt(kpis.totalExpenses)}
+          delta={null}
+          icon={<Truck size={20} color="#fff" />}
+          gradient="linear-gradient(135deg, #F97316, #EA580C)"
+          delay={0.05}
+        />
+        <KpiCard
+          label={t("ЗАВЕРШЕНЫ", "YAKUNLANDI")}
+          value={String(kpis.completed)}
+          delta={null}
+          icon={<CheckCircle2 size={20} color="#fff" />}
+          gradient="linear-gradient(135deg, #16a34a, #22c47a)"
+          delay={0.1}
+        />
+        <KpiCard
+          label={t("ОЖИДАНИЕ", "KUTILMOQDA")}
+          value={String(kpis.pending)}
+          delta={null}
+          icon={<Clock size={20} color="#fff" />}
+          gradient="linear-gradient(135deg, #F59E0B, #D97706)"
+          delay={0.15}
+        />
+      </div>
+
       {/* Filters */}
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", padding: "0 24px" }}>
+      <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
         <div style={{ position: "relative", flex: 1, minWidth: 180 }}>
-          <Search size={15} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--color-text-tertiary)" }} />
-          <input style={{ padding: "10px 14px 10px 36px", borderRadius: "12px", fontSize: "13px", background: "var(--color-surface-light)", border: "none", color: "var(--color-text-primary)", outline: "none", width: "100%", fontFamily: F.body }} placeholder={t("Поиск приходов…", "Kelishlarni qidirish…")} value={search} onChange={e => setSearch(e.target.value)} />
+          <Search size={15} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: COLORS.textTertiary }} />
+          <input style={{
+            padding: "10px 14px 10px 36px", borderRadius: "12px", fontSize: "13px",
+            background: COLORS.surfaceLight, border: "none", color: COLORS.textPrimary,
+            outline: "none", width: "100%", fontFamily: F.body,
+          }} placeholder={t("Поиск приходов…", "Kelishlarni qidirish…")} value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <PremiumSelect value={status} onChange={v => { setStatus(v); setPage(1); }}
           options={[{ value: "", label: t("Все статусы", "Barcha holatlar") }, { value: "pending", label: t("Ожидает", "Kutilmoqda") }, { value: "unloading", label: t("Разгрузка", "Tushirilmoqda") }, { value: "completed", label: t("Завершён", "Yakunlandi") }]}
@@ -307,31 +446,31 @@ export default function Arrivals() {
       </div>
 
       {/* Table */}
-      <div style={{ background: "var(--color-surface)", borderRadius: "20px", boxShadow: SHADOW, overflow: "hidden", margin: "0 24px" }}>
+      <div style={{ background: COLORS.surface, borderRadius: "20px", boxShadow: SHADOW, overflow: "hidden", animation: "slideUp 0.5s ease forwards" }}>
         <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
           <thead>
             <tr>
               {[t("ПРИХОД", "KELISH"), t("ДАТА", "SANA"), t("МАШИНА", "MASHINA"), t("ВОДИТЕЛЬ", "HAYDOVCHI"), t("РАСХОДЫ", "XARAJAT"), t("СТАТУС", "HOLAT")].map(h => (
-                <th key={h} style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-text-tertiary)", padding: "14px 16px", textAlign: "left", borderBottom: "1px solid var(--color-border-subtle)", fontFamily: F.body }}>{h}</th>
+                <th key={h} style={thStyle}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {isLoading ? Array.from({ length: 5 }).map((_, i) => (
-              <tr key={i}><td colSpan={6} style={{ padding: "16px" }}><div style={{ height: 16, background: "var(--color-surface-light)", borderRadius: 8, width: "60%" }} /></td></tr>
-            )) : (data?.data ?? []).length === 0 ? (
-              <tr><td colSpan={6} style={{ textAlign: "center", padding: "48px 16px", color: "var(--color-text-tertiary)", fontSize: "14px" }}>{t("Нет приходов", "Kelishlar yo'q")}</td></tr>
-            ) : (data?.data ?? []).map((a: any) => (
+              <tr key={i}><td colSpan={6} style={{ padding: "16px" }}><div style={{ height: 16, background: COLORS.surfaceLight, borderRadius: 8, width: "60%" }} /></td></tr>
+            )) : arrivals.length === 0 ? (
+              <tr><td colSpan={6} style={{ textAlign: "center", padding: "48px 16px", color: COLORS.textTertiary, fontSize: "14px" }}>{t("Нет приходов", "Kelishlar yo'q")}</td></tr>
+            ) : arrivals.map((a: any) => (
               <tr key={a.id} style={{ transition: "background 0.15s" }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(99,102,241,0.02)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
-                <td style={{ padding: "14px 16px", fontSize: "13px", fontWeight: 500, color: "var(--color-text-primary)", borderBottom: "1px solid var(--color-border-subtle)" }}>{a.arrivalNumber}</td>
-                <td style={{ padding: "14px 16px", fontSize: "13px", color: "var(--color-text-secondary)", borderBottom: "1px solid var(--color-border-subtle)" }}>{a.arrivalDate ? format(new Date(a.arrivalDate), "dd.MM.yyyy") : "—"}</td>
-                <td style={{ padding: "14px 16px", fontSize: "13px", color: "var(--color-text-secondary)", borderBottom: "1px solid var(--color-border-subtle)" }}>{a.truckId ?? "—"}</td>
-                <td style={{ padding: "14px 16px", fontSize: "13px", color: "var(--color-text-secondary)", borderBottom: "1px solid var(--color-border-subtle)" }}>{a.driverName ?? "—"}</td>
-                <td style={{ padding: "14px 16px", fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary)", borderBottom: "1px solid var(--color-border-subtle)" }}>{fmt(a.totalExpense ?? 0)}</td>
-                <td style={{ padding: "14px 16px", borderBottom: "1px solid var(--color-border-subtle)" }}>
+                <td style={{ ...tdStyle, fontWeight: 500 }}>{a.arrivalNumber}</td>
+                <td style={{ ...tdStyle, color: COLORS.textSecondary }}>{a.arrivalDate ? format(new Date(a.arrivalDate), "dd.MM.yyyy") : "—"}</td>
+                <td style={{ ...tdStyle, color: COLORS.textSecondary }}>{a.truckId ?? "—"}</td>
+                <td style={{ ...tdStyle, color: COLORS.textSecondary }}>{a.driverName ?? "—"}</td>
+                <td style={{ ...tdStyle, fontWeight: 600 }}>{fmt(a.totalExpense ?? 0)}</td>
+                <td style={{ borderBottom: `1px solid ${COLORS.border}` }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <StatusBadge status={a.status ?? "pending"} lang={lang as "ru" | "uz"} />
-                    {a.status === "pending" && <button onClick={() => updateStatus.mutate({ id: a.id, status: "unloading" })} style={{ padding: "6px 12px", borderRadius: "8px", fontSize: "11px", fontWeight: 600, fontFamily: F.body, color: "var(--color-primary)", background: "rgba(99,102,241,0.08)", border: "none", cursor: "pointer" }}>{t("Разгрузка", "Tushirish")}</button>}
+                    {a.status === "pending" && <button onClick={() => updateStatus.mutate({ id: a.id, status: "unloading" })} style={{ padding: "6px 12px", borderRadius: "8px", fontSize: "11px", fontWeight: 600, fontFamily: F.body, color: COLORS.primary, background: "rgba(99,102,241,0.08)", border: "none", cursor: "pointer" }}>{t("Разгрузка", "Tushirish")}</button>}
                     {a.status === "unloading" && <button onClick={() => updateStatus.mutate({ id: a.id, status: "completed" })} style={{ padding: "6px 12px", borderRadius: "8px", fontSize: "11px", fontWeight: 600, fontFamily: F.body, color: "#fff", background: "linear-gradient(135deg, #6366f1, #8b5cf6)", border: "none", cursor: "pointer" }}>{t("Завершить", "Yakunlash")}</button>}
                   </div>
                 </td>
@@ -349,11 +488,19 @@ export default function Arrivals() {
 
       {/* Pagination */}
       {data && data.total > 25 && (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px" }}>
-          <span style={{ fontSize: "13px", color: "var(--color-text-secondary)" }}>{data.total} {t("всего", "jami")}</span>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={{ fontSize: "13px", color: COLORS.textSecondary }}>{data.total} {t("всего", "jami")}</span>
           <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} style={{ padding: "8px 16px", borderRadius: "10px", fontSize: "13px", fontFamily: F.body, color: "var(--color-text-secondary)", border: "none", cursor: "pointer", background: "var(--color-surface-light)", opacity: page === 1 ? 0.5 : 1 }}>{t("Назад", "Orqaga")}</button>
-            <button onClick={() => setPage(p => p + 1)} disabled={page * 25 >= data.total} style={{ padding: "8px 16px", borderRadius: "10px", fontSize: "13px", fontFamily: F.body, color: "var(--color-text-secondary)", border: "none", cursor: "pointer", background: "var(--color-surface-light)", opacity: page * 25 >= data.total ? 0.5 : 1 }}>{t("Далее", "Keyingi")}</button>
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} style={{
+              padding: "8px 16px", borderRadius: "10px", fontSize: "13px", fontFamily: F.body,
+              color: COLORS.textSecondary, border: "none", cursor: "pointer",
+              background: COLORS.surfaceLight, opacity: page === 1 ? 0.5 : 1,
+            }}>{t("Назад", "Orqaga")}</button>
+            <button onClick={() => setPage(p => p + 1)} disabled={page * 25 >= data.total} style={{
+              padding: "8px 16px", borderRadius: "10px", fontSize: "13px", fontFamily: F.body,
+              color: COLORS.textSecondary, border: "none", cursor: "pointer",
+              background: COLORS.surfaceLight, opacity: page * 25 >= data.total ? 0.5 : 1,
+            }}>{t("Далее", "Keyingi")}</button>
           </div>
         </div>
       )}

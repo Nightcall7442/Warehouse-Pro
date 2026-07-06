@@ -1,16 +1,31 @@
-import { memo, useCallback, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import { useCurrency } from "@/hooks/useCurrency";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { notify } from "@/lib/toast";
 import { useNavigate } from "react-router";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Search, Plus, FileDown, ChevronRight, Store, User } from "lucide-react";
+import {
+  Search, Plus, FileDown, ChevronRight, Store, User,
+  ShoppingCart, Clock, CheckCircle2, XCircle, DollarSign,
+  ArrowUpRight, ArrowDownRight, Minus,
+} from "lucide-react";
 import { format } from "date-fns";
 import { exportToExcel, formatOrdersForExport } from "@/lib/excel";
 import { PremiumSelect } from "@/components/PremiumSelect";
 
-// Status config — одно место для цветов и лейблов
+/* ─── Premium Design Constants ─── */
+const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
+const COLORS = {
+  primary: "var(--color-primary)", success: "var(--color-success)",
+  warning: "var(--color-warning)", danger: "var(--color-danger)",
+  surface: "var(--color-surface)", surfaceLight: "var(--color-surface-light)",
+  textPrimary: "var(--color-text-primary)", textSecondary: "var(--color-text-secondary)",
+  textTertiary: "var(--color-text-tertiary)", border: "var(--color-border-subtle)",
+};
+const SHADOW = "0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)";
+
+/* ─── Status Config ─── */
 const STATUS: Record<string, { ru: string; uz: string; dot: string; bg: string; text: string; border: string }> = {
   new:        { ru: "Новый",       uz: "Yangi",         dot: "#6366f1", bg: "bg-info/10",    text: "text-info",    border: "border-info/25" },
   processing: { ru: "В обработке", uz: "Jarayonda",     dot: "#f59e0b", bg: "bg-warning/10", text: "text-warning", border: "border-warning/25" },
@@ -18,11 +33,55 @@ const STATUS: Record<string, { ru: string; uz: string; dot: string; bg: string; 
   cancelled:  { ru: "Отменён",     uz: "Bekor qilindi", dot: "#ef4444", bg: "bg-danger/10",  text: "text-danger",  border: "border-danger/25" },
 };
 
+/* ─── Premium KpiCard Component ─── */
+function KpiCard({ label, value, delta, icon, gradient, delay }: {
+  label: string; value: string; delta: number | null;
+  icon: React.ReactNode; gradient: string; delay: number;
+}) {
+  const isPositive = delta !== null && delta > 0;
+  const isNegative = delta !== null && delta < 0;
+  return (
+    <div style={{
+      background: COLORS.surface, borderRadius: "20px", padding: "24px",
+      boxShadow: SHADOW, position: "relative", overflow: "hidden",
+      animation: `slideUp ${0.5 + delay}s ease forwards`,
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
+        <span style={{ fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: COLORS.textTertiary }}>
+          {label}
+        </span>
+        <div style={{ width: "44px", height: "44px", borderRadius: "12px", background: gradient, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {icon}
+        </div>
+      </div>
+      <div style={{ fontFamily: F.display, fontSize: "32px", fontWeight: 700, color: COLORS.textPrimary, lineHeight: 1, letterSpacing: "-0.03em" }}>
+        {value}
+      </div>
+      {delta !== null && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: "4px", marginTop: "10px",
+          fontSize: "12px", fontWeight: 600, fontFamily: F.body,
+          color: isPositive ? "var(--color-success)" : isNegative ? "var(--color-danger)" : COLORS.textTertiary,
+        }}>
+          {isPositive ? <ArrowUpRight size={14} /> : isNegative ? <ArrowDownRight size={14} /> : <Minus size={14} />}
+          {Math.abs(delta).toFixed(1)}%
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Status Badge ─── */
 const StatusBadge = memo(function StatusBadge({ status, lang }: { status: string; lang: "ru" | "uz" }) {
   const s = STATUS[status] ?? STATUS.new;
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium border ${s.bg} ${s.text} ${s.border}`}>
-      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: s.dot }} />
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: "6px",
+      padding: "4px 10px", borderRadius: "9999px", fontSize: "11px", fontWeight: 500,
+      fontFamily: F.body, border: `1px solid ${s.dot}25`,
+      background: `${s.dot}15`, color: s.dot,
+    }}>
+      <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: s.dot, flexShrink: 0 }} />
       {lang === "uz" ? s.uz : s.ru}
     </span>
   );
@@ -60,31 +119,123 @@ export default function Orders() {
 
   const handleNewOrder = useCallback(() => navigate("/orders/new"), [navigate]);
 
+  /* ─── Compute KPI stats from allOrders ─── */
+  const stats = useMemo(() => {
+    const orders = allOrders?.data ?? [];
+    const total = orders.length;
+    const newCount = orders.filter(o => o.status === "new").length;
+    const processingCount = orders.filter(o => o.status === "processing").length;
+    const completedCount = orders.filter(o => o.status === "completed").length;
+    const cancelledCount = orders.filter(o => o.status === "cancelled").length;
+    const totalRevenue = orders.reduce((sum, o) => sum + (o.total ?? 0), 0);
+    return { total, newCount, processingCount, completedCount, cancelledCount, totalRevenue };
+  }, [allOrders?.data]);
+
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <h1 className="font-display text-2xl font-bold text-text-primary tracking-tight">
-          {t("Заказы", "Buyurtmalar")}
-        </h1>
-        <div className="flex gap-2">
-          <button onClick={handleExport} className="btn-secondary flex items-center gap-2 text-sm py-2">
-            <FileDown size={15} />
-            <span className="hidden sm:inline">Excel</span>
+    <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+      {/* ─── Header ─── */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
+        <div>
+          <h1 style={{ fontFamily: F.display, fontSize: "24px", fontWeight: 700, color: COLORS.textPrimary, letterSpacing: "-0.025em", margin: 0 }}>
+            {t("Заказы", "Buyurtmalar")}
+          </h1>
+          <p style={{ fontSize: "13px", color: COLORS.textSecondary, margin: "4px 0 0" }}>
+            {t("Управление заказами и отслеживание статусов", "Buyurtmalarni boshqarish va holatni kuzatish")}
+            {data && (
+              <span style={{ marginLeft: "8px", fontSize: "12px", color: COLORS.textTertiary }}>
+                {data.total} {t("всего", "jami")}
+              </span>
+            )}
+          </p>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <button onClick={handleExport} style={{
+            display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
+            fontSize: "13px", fontWeight: 500, fontFamily: F.body, borderRadius: "10px",
+            border: `1px solid ${COLORS.border}`, cursor: "pointer",
+            background: COLORS.surface, color: COLORS.textSecondary,
+          }}>
+            <FileDown size={14} /> Excel
           </button>
-          <button onClick={handleNewOrder} className="btn-primary flex items-center gap-2">
+          <button onClick={handleNewOrder} style={{
+            display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
+            fontSize: "13px", fontWeight: 600, fontFamily: F.body, borderRadius: "10px",
+            border: "none", cursor: "pointer", transition: "all 0.2s",
+            background: "linear-gradient(135deg, var(--color-primary), var(--color-primary))",
+            color: "#fff", boxShadow: "0 2px 8px rgba(99,102,241,0.3)",
+          }}>
             <Plus size={16} />
-            <span className="hidden sm:inline">{t("Новый заказ", "Yangi buyurtma")}</span>
+            <span>{t("Новый заказ", "Yangi buyurtma")}</span>
           </button>
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex gap-2 flex-wrap">
-        <div className="relative flex-1 min-w-[160px]">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
+      {/* ─── KPI Cards ─── */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
+        <KpiCard
+          label={t("ВСЕГО ЗАКАЗОВ", "JAMI BUYURTMA")}
+          value={stats.total.toLocaleString()}
+          delta={null}
+          icon={<ShoppingCart size={20} color="#fff" />}
+          gradient="linear-gradient(135deg, #6366F1, #8B5CF6)"
+          delay={0}
+        />
+        <KpiCard
+          label={t("НОВЫЕ", "YANGI")}
+          value={stats.newCount.toLocaleString()}
+          delta={null}
+          icon={<Clock size={20} color="#fff" />}
+          gradient="linear-gradient(135deg, #3B82F6, #2563EB)"
+          delay={0.05}
+        />
+        <KpiCard
+          label={t("В РАБОТЕ", "JARAYONDA")}
+          value={stats.processingCount.toLocaleString()}
+          delta={null}
+          icon={<Clock size={20} color="#fff" />}
+          gradient="linear-gradient(135deg, #F59E0B, #D97706)"
+          delay={0.1}
+        />
+        <KpiCard
+          label={t("ВЫПОЛНЕНЫ", "BAJARILDI")}
+          value={stats.completedCount.toLocaleString()}
+          delta={null}
+          icon={<CheckCircle2 size={20} color="#fff" />}
+          gradient="linear-gradient(135deg, #10B981, #059669)"
+          delay={0.15}
+        />
+        <KpiCard
+          label={t("ОТМЕНЕНЫ", "BEKOR QILINDI")}
+          value={stats.cancelledCount.toLocaleString()}
+          delta={null}
+          icon={<XCircle size={20} color="#fff" />}
+          gradient="linear-gradient(135deg, #EF4444, #DC2626)"
+          delay={0.2}
+        />
+        <KpiCard
+          label={t("ВЫРУЧКА", "TUSHUM")}
+          value={fmt(stats.totalRevenue)}
+          delta={null}
+          icon={<DollarSign size={20} color="#fff" />}
+          gradient="linear-gradient(135deg, #16a34a, #22c47a)"
+          delay={0.25}
+        />
+      </div>
+
+      {/* ─── Filters ─── */}
+      <div style={{
+        display: "flex", gap: "12px", flexWrap: "wrap",
+        background: COLORS.surface, borderRadius: "16px", padding: "16px 20px",
+        boxShadow: SHADOW,
+      }}>
+        <div style={{ position: "relative", flex: "1 1 160px" }}>
+          <Search size={15} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: COLORS.textSecondary }} />
           <input
-            className="input-field pl-9 w-full"
+            style={{
+              width: "100%", padding: "10px 12px 10px 36px", fontSize: "13px", fontFamily: F.body,
+              borderRadius: "10px", border: `1px solid ${COLORS.border}`,
+              background: COLORS.surfaceLight, color: COLORS.textPrimary, outline: "none",
+            }}
             placeholder={t("Поиск заказов…", "Buyurtma qidirish…")}
             value={search}
             onChange={e => { setSearch(e.target.value); setPage(1); }}
@@ -95,55 +246,56 @@ export default function Orders() {
           width="180px" />
       </div>
 
-      {/* Mobile cards */}
+      {/* ─── Mobile Cards ─── */}
       {isMobile ? (
-        <div className="space-y-2.5">
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
           {isLoading
             ? Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="h-[88px] bg-surface-light animate-pulse rounded-xl" />
+                <div key={i} style={{ height: "88px", borderRadius: "16px", background: COLORS.surfaceLight, animation: `slideUp ${0.4 + i * 0.05}s ease forwards` }} />
               ))
             : data?.data.length === 0
-            ? <p className="text-center text-text-secondary py-14 text-sm">{t("Нет заказов", "Buyurtma yo'q")}</p>
+            ? <p style={{ textAlign: "center", color: COLORS.textSecondary, padding: "56px 0", fontSize: "13px", fontFamily: F.body }}>{t("Нет заказов", "Buyurtma yo'q")}</p>
             : data?.data.map(o => {
                 const s = STATUS[o.status] ?? STATUS.new;
                 return (
                   <div
                     key={o.id}
-                    className="panel p-0 overflow-hidden cursor-pointer active:scale-[0.99] transition-transform"
+                    style={{
+                      background: COLORS.surface, borderRadius: "16px", overflow: "hidden",
+                      cursor: "pointer", boxShadow: SHADOW, transition: "transform 0.15s",
+                      animation: `slideUp ${0.4 + 0.02}s ease forwards`,
+                    }}
                     onClick={() => navigate(`/orders/${o.id}`)}
                   >
-                    {/* Color accent strip based on status */}
-                    <div className="flex">
-                      <div className="w-1 flex-shrink-0 rounded-l-xl" style={{ background: s.dot }} />
-                      <div className="flex-1 p-3.5">
-                        {/* Top row */}
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="font-data text-sm font-semibold text-text-primary">
+                    <div style={{ display: "flex" }}>
+                      <div style={{ width: "4px", flexShrink: 0, borderRadius: "16px 0 0 16px", background: s.dot }} />
+                      <div style={{ flex: 1, padding: "14px 16px" }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+                          <span style={{ fontFamily: F.display, fontSize: "14px", fontWeight: 600, color: COLORS.textPrimary }}>
                             {o.orderNumber}
                           </span>
                           <StatusBadge status={o.status} lang={lang} />
                         </div>
-                        {/* Bottom row */}
-                        <div className="flex items-end justify-between">
-                          <div className="space-y-0.5">
-                            <div className="flex items-center gap-1.5">
-                              <Store size={11} className="text-text-secondary flex-shrink-0" />
-                              <span className="text-[13px] text-text-primary truncate max-w-[160px]">
+                        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                              <Store size={12} style={{ color: COLORS.textSecondary, flexShrink: 0 }} />
+                              <span style={{ fontSize: "13px", color: COLORS.textPrimary, maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                 {o.shopName ?? "—"}
                               </span>
                             </div>
-                            <div className="flex items-center gap-1.5">
-                              <User size={11} className="text-text-secondary flex-shrink-0" />
-                              <span className="text-xs text-text-secondary">
+                            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                              <User size={12} style={{ color: COLORS.textSecondary, flexShrink: 0 }} />
+                              <span style={{ fontSize: "12px", color: COLORS.textSecondary }}>
                                 {o.agentName ?? "—"} · {o.createdAt ? format(new Date(o.createdAt), "d MMM") : ""}
                               </span>
                             </div>
                           </div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-data text-base font-bold text-text-primary">
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                            <span style={{ fontFamily: F.display, fontSize: "16px", fontWeight: 700, color: COLORS.textPrimary }}>
                               {fmt(o.total)}
                             </span>
-                            <ChevronRight size={15} className="text-text-secondary" />
+                            <ChevronRight size={15} style={{ color: COLORS.textSecondary }} />
                           </div>
                         </div>
                       </div>
@@ -153,11 +305,14 @@ export default function Orders() {
               })}
         </div>
       ) : (
-        /* Desktop table */
-        <div className="panel overflow-x-auto">
-          <table className="w-full">
+        /* ─── Desktop Table ─── */
+        <div style={{
+          background: COLORS.surface, borderRadius: "20px", overflow: "hidden",
+          boxShadow: SHADOW,
+        }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
-              <tr className="bg-surface-light">
+              <tr style={{ background: COLORS.surfaceLight }}>
                 {[
                   t("ЗАКАЗ",  "BUYURTMA"),
                   t("ДАТА",   "SANA"),
@@ -167,7 +322,12 @@ export default function Orders() {
                   t("СТАТУС", "HOLAT"),
                   t("ДЕЙСТВИЯ","AMALLAR"),
                 ].map(h => (
-                  <th key={h} className="text-left px-4 py-3 font-h3 text-text-secondary text-[11px] tracking-wider">
+                  <th key={h} style={{
+                    textAlign: "left", padding: "12px 16px",
+                    fontFamily: F.display, fontSize: "10px", fontWeight: 600,
+                    textTransform: "uppercase", letterSpacing: "0.08em",
+                    color: COLORS.textTertiary, borderBottom: `1px solid ${COLORS.border}`,
+                  }}>
                     {h}
                   </th>
                 ))}
@@ -176,42 +336,56 @@ export default function Orders() {
             <tbody>
               {isLoading
                 ? Array.from({ length: 5 }).map((_, i) => (
-                    <tr key={i} className="border-b border-border-subtle">
-                      <td colSpan={7} className="px-4 py-4">
-                        <div className="h-4 bg-surface-light animate-pulse rounded" />
+                    <tr key={i} style={{ borderBottom: `1px solid ${COLORS.border}` }}>
+                      <td colSpan={7} style={{ padding: "16px" }}>
+                        <div style={{ height: "16px", borderRadius: "6px", background: COLORS.surfaceLight, animation: `slideUp ${0.4 + i * 0.05}s ease forwards` }} />
                       </td>
                     </tr>
                   ))
                 : data?.data.length === 0
-                ? <tr><td colSpan={7} className="px-4 py-14 text-center text-text-secondary text-sm">{t("Нет заказов", "Buyurtma yo'q")}</td></tr>
+                ? <tr><td colSpan={7} style={{ padding: "56px 16px", textAlign: "center", color: COLORS.textSecondary, fontSize: "13px", fontFamily: F.body }}>{t("Нет заказов", "Buyurtma yo'q")}</td></tr>
                 : data?.data.map(o => (
                     <tr
                       key={o.id}
-                      className="border-b border-border-subtle hover:bg-surface-light/50 cursor-pointer"
+                      style={{
+                        borderBottom: `1px solid ${COLORS.border}`,
+                        cursor: "pointer", transition: "background 0.15s",
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.background = `${COLORS.surfaceLight}80`)}
+                      onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
                       onClick={() => navigate(`/orders/${o.id}`)}
                     >
-                      <td className="px-4 py-3 font-data text-sm font-medium text-primary">{o.orderNumber}</td>
-                      <td className="px-4 py-3 text-sm text-text-secondary">
+                      <td style={{ padding: "14px 16px", fontFamily: F.display, fontSize: "13px", fontWeight: 600, color: COLORS.primary }}>{o.orderNumber}</td>
+                      <td style={{ padding: "14px 16px", fontSize: "13px", color: COLORS.textSecondary }}>
                         {o.createdAt ? format(new Date(o.createdAt), "dd.MM.yyyy") : ""}
                       </td>
-                      <td className="px-4 py-3 text-sm text-text-primary">{o.shopName ?? "—"}</td>
-                      <td className="px-4 py-3 text-sm text-text-secondary">{o.agentName ?? "—"}</td>
-                      <td className="px-4 py-3 font-data text-sm font-semibold text-text-primary">{fmt(o.total)}</td>
-                      <td className="px-4 py-3">
+                      <td style={{ padding: "14px 16px", fontSize: "13px", color: COLORS.textPrimary }}>{o.shopName ?? "—"}</td>
+                      <td style={{ padding: "14px 16px", fontSize: "13px", color: COLORS.textSecondary }}>{o.agentName ?? "—"}</td>
+                      <td style={{ padding: "14px 16px", fontFamily: F.display, fontSize: "13px", fontWeight: 600, color: COLORS.textPrimary }}>{fmt(o.total)}</td>
+                      <td style={{ padding: "14px 16px" }}>
                         <StatusBadge status={o.status} lang={lang} />
                       </td>
-                      <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                      <td style={{ padding: "14px 16px" }} onClick={e => e.stopPropagation()}>
                         {o.status === "new" && (
-                          <div className="flex gap-1">
+                          <div style={{ display: "flex", gap: "6px" }}>
                             <button
                               onClick={() => updateStatus.mutate({ id: o.id, status: "processing" })}
-                              className="btn-secondary py-1 px-2 text-xs"
+                              style={{
+                                padding: "4px 10px", fontSize: "11px", fontWeight: 500, fontFamily: F.body,
+                                borderRadius: "8px", border: `1px solid ${COLORS.border}`, cursor: "pointer",
+                                background: COLORS.surface, color: COLORS.textSecondary,
+                              }}
                             >
                               {t("В работу", "Jarayonga")}
                             </button>
                             <button
                               onClick={() => updateStatus.mutate({ id: o.id, status: "completed" })}
-                              className="btn-primary py-1 px-2 text-xs"
+                              style={{
+                                padding: "4px 10px", fontSize: "11px", fontWeight: 600, fontFamily: F.body,
+                                borderRadius: "8px", border: "none", cursor: "pointer",
+                                background: "linear-gradient(135deg, var(--color-primary), var(--color-primary))",
+                                color: "#fff",
+                              }}
                             >
                               {t("Выполнен", "Bajarildi")}
                             </button>
@@ -225,14 +399,25 @@ export default function Orders() {
         </div>
       )}
 
+      {/* ─── Pagination ─── */}
       {data && data.total > 25 && (
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-text-secondary">{data.total} {t("всего", "jami")}</span>
-          <div className="flex gap-2">
-            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="btn-secondary py-1 px-3 text-sm disabled:opacity-40">
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={{ fontSize: "13px", color: COLORS.textSecondary, fontFamily: F.body }}>{data.total} {t("всего", "jami")}</span>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} style={{
+              padding: "6px 12px", fontSize: "13px", fontFamily: F.body, borderRadius: "8px",
+              border: `1px solid ${COLORS.border}`, cursor: "pointer",
+              background: COLORS.surface, color: COLORS.textSecondary,
+              opacity: page === 1 ? 0.4 : 1,
+            }}>
               {t("Назад", "Orqaga")}
             </button>
-            <button onClick={() => setPage(p => p + 1)} disabled={page * 25 >= data.total} className="btn-secondary py-1 px-3 text-sm disabled:opacity-40">
+            <button onClick={() => setPage(p => p + 1)} disabled={page * 25 >= data.total} style={{
+              padding: "6px 12px", fontSize: "13px", fontFamily: F.body, borderRadius: "8px",
+              border: `1px solid ${COLORS.border}`, cursor: "pointer",
+              background: COLORS.surface, color: COLORS.textSecondary,
+              opacity: page * 25 >= data.total ? 0.4 : 1,
+            }}>
               {t("Далее", "Keyingi")}
             </button>
           </div>

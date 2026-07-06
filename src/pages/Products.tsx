@@ -4,9 +4,61 @@ import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { notify } from "@/lib/toast";
 import { useNavigate } from "react-router";
-import { Search, Plus, Package, X, Upload, Camera, Loader2, Tag, Scale } from "lucide-react";
+import {
+  Search, Plus, Package, X, Upload, Camera, Loader2, Tag, Scale,
+  ArrowUpRight, ArrowDownRight, Minus, Box, AlertTriangle, BarChart3
+} from "lucide-react";
 import { ExcelImport } from "@/components/ExcelImport";
 import { PremiumSelect } from "@/components/PremiumSelect";
+
+// Premium Design Constants
+const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
+const COLORS = {
+  primary: "var(--color-primary)", success: "var(--color-success)",
+  warning: "var(--color-warning)", danger: "var(--color-danger)",
+  surface: "var(--color-surface)", surfaceLight: "var(--color-surface-light)",
+  textPrimary: "var(--color-text-primary)", textSecondary: "var(--color-text-secondary)",
+  textTertiary: "var(--color-text-tertiary)", border: "var(--color-border-subtle)",
+};
+const SHADOW = "0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)";
+
+// Premium KpiCard Component
+function KpiCard({ label, value, delta, icon, gradient, delay }: {
+  label: string; value: string; delta: number | null;
+  icon: React.ReactNode; gradient: string; delay: number;
+}) {
+  const isPositive = delta !== null && delta > 0;
+  const isNegative = delta !== null && delta < 0;
+  return (
+    <div style={{
+      background: COLORS.surface, borderRadius: "20px", padding: "24px",
+      boxShadow: SHADOW, position: "relative", overflow: "hidden",
+      animation: `slideUp ${0.5 + delay}s ease forwards`,
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
+        <span style={{ fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: COLORS.textTertiary }}>
+          {label}
+        </span>
+        <div style={{ width: "44px", height: "44px", borderRadius: "12px", background: gradient, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {icon}
+        </div>
+      </div>
+      <div style={{ fontFamily: F.display, fontSize: "32px", fontWeight: 700, color: COLORS.textPrimary, lineHeight: 1, letterSpacing: "-0.03em" }}>
+        {value}
+      </div>
+      {delta !== null && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: "4px", marginTop: "10px",
+          fontSize: "12px", fontWeight: 600, fontFamily: F.body,
+          color: isPositive ? "var(--color-success)" : isNegative ? "var(--color-danger)" : COLORS.textTertiary,
+        }}>
+          {isPositive ? <ArrowUpRight size={14} /> : isNegative ? <ArrowDownRight size={14} /> : <Minus size={14} />}
+          {Math.abs(delta).toFixed(1)}%
+        </div>
+      )}
+    </div>
+  );
+}
 
 const UNITS = [
   { value: "kg",   ru: "кг",       uz: "kg" },
@@ -65,23 +117,41 @@ function ProductForm({ onSave, onCancel, isPending, lang }: { onSave: (d: Record
     const r = new FileReader(); r.onload = () => setPhoto(r.result as string); r.readAsDataURL(file);
   };
   return (
-    <div className="panel p-5">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="font-display text-lg font-semibold text-text-primary">{t("Новый товар","Yangi mahsulot")}</h2>
-        <button onClick={onCancel}><X size={18} className="text-text-secondary"/></button>
+    <div style={{
+      background: COLORS.surface, borderRadius: "20px", padding: "24px",
+      boxShadow: SHADOW, animation: "slideUp 0.5s ease forwards",
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+        <h2 style={{ fontFamily: F.display, fontSize: "16px", fontWeight: 600, color: COLORS.textPrimary, margin: 0 }}>
+          {t("Новый товар","Yangi mahsulot")}
+        </h2>
+        <button onClick={onCancel} style={{ background: "none", border: "none", cursor: "pointer", padding: "4px" }}>
+          <X size={18} style={{ color: COLORS.textSecondary }} />
+        </button>
       </div>
-      <div className="flex gap-4">
-        <div className="flex-shrink-0">
-          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handlePhoto}/>
-          <div className="w-20 h-20 rounded-xl overflow-hidden flex items-center justify-center cursor-pointer relative group border border-border-subtle"
-            style={{background:"color-mix(in srgb, var(--color-primary) 8%, transparent)"}} onClick={()=>fileRef.current?.click()}>
-            {photo ? <img src={photo} alt="" className="w-full h-full object-cover"/> : <Package size={28} className="text-primary"/>}
-            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 rounded-xl">
-              <Camera size={16} color="#fff"/><span className="text-white text-[9px]">{t("Фото","Rasm")}</span>
+      <div style={{ display: "flex", gap: "16px" }}>
+        <div style={{ flexShrink: 0 }}>
+          <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handlePhoto}/>
+          <div style={{
+            width: "80px", height: "80px", borderRadius: "16px", overflow: "hidden",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: "pointer", position: "relative",
+            background: "color-mix(in srgb, var(--color-primary) 8%, transparent)",
+            border: "1px solid var(--color-border-subtle)",
+          }} onClick={()=>fileRef.current?.click()}>
+            {photo ? <img src={photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }}/> : <Package size={28} style={{ color: COLORS.primary }}/>}
+            <div style={{
+              position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)",
+              opacity: 0, display: "flex", flexDirection: "column",
+              alignItems: "center", justifyContent: "center", gap: "4px",
+              transition: "opacity 0.2s", borderRadius: "16px",
+            }}>
+              <Camera size={16} color="#fff"/>
+              <span style={{ color: "#fff", fontSize: "9px" }}>{t("Фото","Rasm")}</span>
             </div>
           </div>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 flex-1">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px", flex: 1 }}>
           <input className="input-field" placeholder={t("Код *","Kod *")} value={d.code} onChange={e=>setD({...d,code:e.target.value})}/>
           <input className="input-field" placeholder={t("Штрих-код (необязательно)","Shtrix-kod (ixtiyoriy)")} value={d.barcode} onChange={e=>setD({...d,barcode:e.target.value})}/>
           <input className="input-field" placeholder={t("Название *","Nomi *")} value={d.name} onChange={e=>setD({...d,name:e.target.value})}/>
@@ -96,7 +166,7 @@ function ProductForm({ onSave, onCancel, isPending, lang }: { onSave: (d: Record
           <input className="input-field sm:col-span-2" placeholder={t("Описание","Tavsif")} value={d.description} onChange={e=>setD({...d,description:e.target.value})}/>
         </div>
       </div>
-      <div className="flex gap-2 mt-4">
+      <div style={{ display: "flex", gap: "8px", marginTop: "16px" }}>
         <button onClick={()=>d.code&&d.name&&d.unitPrice&&onSave({...d,photoUrl:photo??undefined})} disabled={isPending}
           className="btn-primary flex-1 sm:flex-none flex items-center justify-center gap-2">
           {isPending&&<Loader2 size={14} className="animate-spin"/>}{t("Сохранить","Saqlash")}
@@ -112,23 +182,71 @@ const ProductCard = memo(function ProductCard({ p, onClick, lang, fmt }: { p: an
   const low = Number(p.available??0) < Number(p.reorderPoint);
   const u = unitLabel(p.unit as string, lang);
   return (
-    <div className="panel panel-hover p-4 flex items-center gap-4" onClick={onClick}>
+    <div
+      style={{
+        background: COLORS.surface, borderRadius: "16px", padding: "16px",
+        boxShadow: SHADOW, display: "flex", alignItems: "center", gap: "16px",
+        cursor: "pointer", transition: "all 0.2s", border: "1px solid transparent",
+      }}
+      onClick={onClick}
+      onMouseEnter={e => {
+        e.currentTarget.style.border = `1px solid ${COLORS.primary}`;
+        e.currentTarget.style.transform = "translateY(-2px)";
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.border = "1px solid transparent";
+        e.currentTarget.style.transform = "translateY(0)";
+      }}
+    >
       <ProductPhoto productId={p.id as number} photoUrl={p.photoUrl as string} size="lg"/>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="font-display font-semibold text-text-primary text-base truncate">{String(p.name)}</p>
-            <p className="font-data text-text-secondary text-xs mt-0.5">{String(p.code)}</p>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
+          <div style={{ minWidth: 0 }}>
+            <p style={{ fontFamily: F.display, fontWeight: 600, color: COLORS.textPrimary, fontSize: "16px", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {String(p.name)}
+            </p>
+            <p style={{ fontFamily: F.body, color: COLORS.textSecondary, fontSize: "12px", margin: "4px 0 0" }}>
+              {String(p.code)}
+            </p>
           </div>
-          <div className="text-right flex-shrink-0">
-            <p className="font-data text-lg font-bold text-primary">{fmt(String(p.unitPrice),{decimals:2})}</p>
-            {Number(p.costPrice)>0&&<p className="text-[11px] text-text-secondary">{t("себест.","tannarx")} {fmt(String(p.costPrice),{decimals:2})}</p>}
+          <div style={{ textAlign: "right", flexShrink: 0 }}>
+            <p style={{ fontFamily: F.display, fontSize: "18px", fontWeight: 700, color: COLORS.primary, margin: 0 }}>
+              {fmt(String(p.unitPrice),{decimals:2})}
+            </p>
+            {Number(p.costPrice)>0 && (
+              <p style={{ fontSize: "11px", color: COLORS.textSecondary, margin: "2px 0 0" }}>
+                {t("себест.","tannarx")} {fmt(String(p.costPrice),{decimals:2})}
+              </p>
+            )}
           </div>
         </div>
-        <div className="flex items-center gap-2 mt-2 flex-wrap">
-          {p.category&&<span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-surface-light text-text-secondary"><Tag size={10}/>{String(p.category)}</span>}
-          {Number(p.unitWeight)>0&&<span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-surface-light text-text-secondary"><Scale size={10}/>1 {u} = {Number(p.unitWeight).toFixed(2)} {t("кг","kg")}</span>}
-          <span className={`ml-auto text-xs font-data font-semibold px-2 py-0.5 rounded-full ${low?"bg-danger/15 text-danger":"bg-success/15 text-success"}`}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "12px", flexWrap: "wrap" }}>
+          {p.category && (
+            <span style={{
+              display: "inline-flex", alignItems: "center", gap: "4px",
+              fontSize: "11px", padding: "2px 8px", borderRadius: "6px",
+              background: COLORS.surfaceLight, color: COLORS.textSecondary,
+              fontFamily: F.body,
+            }}>
+              <Tag size={10}/>{String(p.category)}
+            </span>
+          )}
+          {Number(p.unitWeight)>0 && (
+            <span style={{
+              display: "inline-flex", alignItems: "center", gap: "4px",
+              fontSize: "11px", padding: "2px 8px", borderRadius: "6px",
+              background: COLORS.surfaceLight, color: COLORS.textSecondary,
+              fontFamily: F.body,
+            }}>
+              <Scale size={10}/>1 {u} = {Number(p.unitWeight).toFixed(2)} {t("кг","kg")}
+            </span>
+          )}
+          <span style={{
+            marginLeft: "auto", fontSize: "12px", fontFamily: F.body, fontWeight: 600,
+            padding: "2px 8px", borderRadius: "6px",
+            background: low ? "rgba(220,38,38,0.15)" : "rgba(22,163,74,0.15)",
+            color: low ? "var(--color-danger)" : "var(--color-success)",
+          }}>
             {Number(p.available??0).toFixed(0)} {u}
           </span>
         </div>
@@ -155,43 +273,187 @@ export default function Products() {
   });
   const t = useCallback((ru:string,uz:string) => lang==="uz"?uz:ru, [lang]);
 
+  // Calculate stats for KPI cards
+  const totalCount = data?.total ?? 0;
+  const lowStockCount = data?.data?.filter((p: any) => Number(p.available ?? 0) < Number(p.reorderPoint)).length ?? 0;
+  const categoryCount = categories?.length ?? 0;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="font-display text-2xl font-bold text-text-primary tracking-tight">{t("Товары","Mahsulotlar")}</h1>
-        <div className="flex gap-2">
-          <button onClick={()=>setShowImport(v=>!v)} className="btn-secondary flex items-center gap-2 text-sm py-2"><Upload size={15}/><span className="hidden sm:inline">{t("Импорт","Import")}</span></button>
-          <button onClick={()=>setShowForm(!showForm)} className="btn-primary flex items-center gap-2"><Plus size={16}/><span className="hidden sm:inline">{t("Добавить","Qo'shish")}</span></button>
+    <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
+        <div>
+          <h1 style={{ fontFamily: F.display, fontSize: "24px", fontWeight: 700, color: COLORS.textPrimary, letterSpacing: "-0.025em", margin: 0 }}>
+            {t("Товары","Mahsulotlar")}
+          </h1>
+          <p style={{ fontSize: "13px", color: COLORS.textSecondary, margin: "4px 0 0" }}>
+            {t("Управление каталогом товаров","Mahsulotlar katalogini boshqarish")}
+          </p>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <button
+            onClick={()=>setShowImport(v=>!v)}
+            style={{
+              display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
+              fontSize: "13px", fontWeight: 500, fontFamily: F.body, borderRadius: "10px",
+              border: `1px solid ${COLORS.border}`, cursor: "pointer",
+              background: COLORS.surface, color: COLORS.textSecondary,
+            }}
+          >
+            <Upload size={14}/><span className="hidden sm:inline">{t("Импорт","Import")}</span>
+          </button>
+          <button
+            onClick={()=>setShowForm(!showForm)}
+            style={{
+              display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
+              fontSize: "13px", fontWeight: 500, fontFamily: F.body, borderRadius: "10px",
+              border: "none", cursor: "pointer",
+              background: "linear-gradient(135deg, #6366F1, #8B5CF6)", color: "#fff",
+              boxShadow: "0 2px 8px rgba(99,102,241,0.3)",
+            }}
+          >
+            <Plus size={14}/><span className="hidden sm:inline">{t("Добавить","Qo'shish")}</span>
+          </button>
         </div>
       </div>
-      {showImport&&<ExcelImport type="products" onDone={()=>{setShowImport(false);utils.product.list.invalidate();}} onCancel={()=>setShowImport(false)}/>}
-      {showForm&&<ProductForm isPending={createMutation.isPending} lang={lang} onSave={d=>createMutation.mutate(d as any)} onCancel={()=>setShowForm(false)}/>}
-      <div className="flex flex-col sm:flex-row gap-2">
-        <div className="relative flex-1">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary"/>
-          <input className="input-field pl-10 w-full" placeholder={t("Поиск товаров…","Mahsulot qidirish…")} value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}}/>
+
+      {/* Import Section */}
+      {showImport && <ExcelImport type="products" onDone={()=>{setShowImport(false);utils.product.list.invalidate();}} onCancel={()=>setShowImport(false)}/>}
+
+      {/* Form Section */}
+      {showForm && <ProductForm isPending={createMutation.isPending} lang={lang} onSave={d=>createMutation.mutate(d as any)} onCancel={()=>setShowForm(false)}/>}
+
+      {/* KPI Cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
+        <KpiCard
+          label={t("ВСЕГО ТОВАРОВ", "JAMI MAHSULOTLAR")}
+          value={String(totalCount)}
+          delta={null}
+          icon={<Box size={20} color="#fff" />}
+          gradient="linear-gradient(135deg, #6366F1, #8B5CF6)"
+          delay={0}
+        />
+        <KpiCard
+          label={t("С КАТЕГОРИЯМИ", "KATEGORIYALI")}
+          value={String(categoryCount)}
+          delta={null}
+          icon={<Tag size={20} color="#fff" />}
+          gradient="linear-gradient(135deg, #16a34a, #22c47a)"
+          delay={0.05}
+        />
+        <KpiCard
+          label={t("НИЗКИЙ ОСТАТОК", "KAM QOLDIQ")}
+          value={String(lowStockCount)}
+          delta={lowStockCount > 0 ? -100 : 0}
+          icon={<AlertTriangle size={20} color="#fff" />}
+          gradient="linear-gradient(135deg, #F97316, #EA580C)"
+          delay={0.1}
+        />
+        <KpiCard
+          label={t("СЕССИЯ", "SEANS")}
+          value={`p.${page}`}
+          delta={null}
+          icon={<BarChart3 size={20} color="#fff" />}
+          gradient="linear-gradient(135deg, #8B5CF6, #A855F7)"
+          delay={0.15}
+        />
+      </div>
+
+      {/* Search and Filter */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+        <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+          <div style={{ position: "relative", flex: 1, minWidth: "200px" }}>
+            <Search size={16} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: COLORS.textSecondary }}/>
+            <input
+              className="input-field"
+              style={{ paddingLeft: "36px", width: "100%" }}
+              placeholder={t("Поиск товаров…","Mahsulot qidirish…")}
+              value={search}
+              onChange={e=>{setSearch(e.target.value);setPage(1);}}
+            />
+          </div>
+          {!!categories?.length && (
+            <PremiumSelect
+              value={category??""}
+              onChange={v=>{setCategory(v||undefined);setPage(1);}}
+              options={[{value:"",label:t("Все категории","Barcha kategoriyalar")},...(categories??[]).map(c=>({value:String(c),label:String(c)}))]}
+              width="200px"
+            />
+          )}
         </div>
-        {!!categories?.length&&(
-          <PremiumSelect value={category??""} onChange={v=>{setCategory(v||undefined);setPage(1);}}
-            options={[{value:"",label:t("Все категории","Barcha kategoriyalar")},...(categories??[]).map(c=>({value:String(c),label:String(c)}))]}
-            width="200px" />
+      </div>
+
+      {/* Product List */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+        {isLoading ? (
+          Array.from({length:5}).map((_,i) => (
+            <div key={i} style={{
+              height: "120px", borderRadius: "16px",
+              background: COLORS.surfaceLight, animation: `slideUp ${0.4 + i * 0.05}s ease forwards`,
+            }}/>
+          ))
+        ) : data?.data.length === 0 ? (
+          <div style={{
+            background: COLORS.surface, borderRadius: "20px", padding: "48px",
+            boxShadow: SHADOW, textAlign: "center",
+          }}>
+            <Package size={48} style={{ color: COLORS.textTertiary, margin: "0 auto 16px" }} />
+            <p style={{ color: COLORS.textSecondary, fontSize: "14px", margin: 0 }}>
+              {t("Нет товаров","Mahsulot yo'q")}
+            </p>
+          </div>
+        ) : (
+          data?.data.map((p: any) => (
+            <ProductCard key={p.id} p={p} lang={lang} fmt={fmt} onClick={()=>navigate(`/products/${p.id}`)}/>
+          ))
         )}
       </div>
-      <div className="space-y-3">
-        {isLoading ? Array.from({length:5}).map((_,i)=><div key={i} className="h-24 bg-surface-light animate-pulse rounded-xl"/>)
-          : data?.data.length===0 ? <p className="text-center text-text-secondary py-12 text-sm">{t("Нет товаров","Mahsulot yo'q")}</p>
-          : data?.data.map((p: any)=><ProductCard key={p.id} p={p} lang={lang} fmt={fmt} onClick={()=>navigate(`/products/${p.id}`)}/>)}
-      </div>
-      {data&&data.total>25&&(
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-text-secondary">{data.total} {t("всего","jami")}</span>
-          <div className="flex gap-2">
-            <button onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1} className="btn-secondary py-1 px-3 text-sm disabled:opacity-40">{t("Назад","Orqaga")}</button>
-            <button onClick={()=>setPage(p=>p+1)} disabled={page*25>=data.total} className="btn-secondary py-1 px-3 text-sm disabled:opacity-40">{t("Далее","Keyingi")}</button>
+
+      {/* Pagination */}
+      {data && data.total > 25 && (
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          background: COLORS.surface, borderRadius: "16px", padding: "16px 20px",
+          boxShadow: SHADOW,
+        }}>
+          <span style={{ fontSize: "13px", color: COLORS.textSecondary, fontFamily: F.body }}>
+            {data.total} {t("всего","jami")}
+          </span>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button
+              onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1}
+              style={{
+                padding: "8px 16px", fontSize: "13px", fontWeight: 500, fontFamily: F.body,
+                borderRadius: "8px", border: `1px solid ${COLORS.border}`, cursor: "pointer",
+                background: COLORS.surface, color: page===1 ? COLORS.textTertiary : COLORS.textPrimary,
+                opacity: page===1 ? 0.5 : 1,
+              }}
+            >
+              {t("Назад","Orqaga")}
+            </button>
+            <button
+              onClick={()=>setPage(p=>p+1)} disabled={page*25>=data.total}
+              style={{
+                padding: "8px 16px", fontSize: "13px", fontWeight: 500, fontFamily: F.body,
+                borderRadius: "8px", border: "none", cursor: "pointer",
+                background: "linear-gradient(135deg, #6366F1, #8B5CF6)", color: "#fff",
+                boxShadow: "0 2px 8px rgba(99,102,241,0.3)",
+                opacity: page*25>=data.total ? 0.5 : 1,
+              }}
+            >
+              {t("Далее","Keyingi")}
+            </button>
           </div>
         </div>
       )}
+
+      {/* SlideUp Animation Keyframes */}
+      <style>{`
+        @keyframes slideUp {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
     </div>
   );
 }
