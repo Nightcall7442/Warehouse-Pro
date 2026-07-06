@@ -18,14 +18,16 @@ export const billingRouter = createRouter({
       .where(eq(tenants.id, tenantId)).limit(1);
     if (!tenant) throw new TRPCError({ code: "NOT_FOUND" });
 
-    const plan      = PLANS[tenant.plan];
+    // Handle legacy "trial" plan — map to "basic"
+    const planKey = (tenant.plan === "trial" ? "basic" : tenant.plan) as PlanKey;
+    const plan      = PLANS[planKey] ?? PLANS.basic;
     const now       = new Date();
     const trialEnds = tenant.trialEndsAt;
     const planEnds  = tenant.planExpiresAt;
 
     const trialActive  = trialEnds && trialEnds > now;
     const planActive   = planEnds  && planEnds  > now;
-    const isExpired    = !trialActive && !planActive && tenant.plan !== "pro";
+    const isExpired    = !trialActive && !planActive && tenant.plan !== "basic";
 
     // Current usage
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -75,7 +77,7 @@ export const billingRouter = createRouter({
 
   /** Request upgrade — creates a pending request for super-admin to process */
   requestUpgrade: adminQuery
-    .input(z.object({ plan: z.enum(["basic", "pro"]) }))
+    .input(z.object({ plan: z.enum(["basic", "pro", "exclusive"]) }))
     .mutation(async ({ input, ctx }) => {
       // In production: integrate with payment gateway (Payme, Click, Uzum Pay)
       // For now: mark tenant as pending upgrade and notify admin via Telegram

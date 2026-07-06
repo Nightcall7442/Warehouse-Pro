@@ -38,7 +38,7 @@ export const stripeRouter = createRouter({
 
   /** Create Stripe Checkout session for upgrade */
   createCheckoutSession: adminQuery
-    .input(z.object({ plan: z.enum(["basic", "pro"]) }))
+    .input(z.object({ plan: z.enum(["basic", "pro", "exclusive"]) }))
     .mutation(async ({ input, ctx }) => {
       const stripe   = getStripe();
       const sub      = await getOrCreateSubscription(ctx.tenant.id);

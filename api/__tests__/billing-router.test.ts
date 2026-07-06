@@ -265,8 +265,8 @@ describe("billing.status", () => {
     expect(result.trialActive).toBeFalsy();
   });
 
-  it("returns isExpired: true when both dates are past and plan is not pro", async () => {
-    tenantsTable[0].plan = "basic";
+  it("returns isExpired: true when both dates are past and plan is not basic", async () => {
+    tenantsTable[0].plan = "pro";
     tenantsTable[0].trialEndsAt = new Date("2020-01-01");
     tenantsTable[0].planExpiresAt = new Date("2020-01-01");
 
@@ -279,8 +279,8 @@ describe("billing.status", () => {
     expect(result.planActive).toBeFalsy();
   });
 
-  it("returns isExpired: false when plan is pro (unlimited)", async () => {
-    tenantsTable[0].plan = "pro";
+  it("returns isExpired: false when plan is basic (trial period)", async () => {
+    tenantsTable[0].plan = "basic";
     tenantsTable[0].trialEndsAt = new Date("2020-01-01");
     tenantsTable[0].planExpiresAt = new Date("2020-01-01");
 
