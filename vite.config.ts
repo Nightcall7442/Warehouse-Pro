@@ -75,5 +75,15 @@ export default defineConfig({
   build: {
     outDir:      path.resolve(__dirname, "dist/public"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "vendor-react":    ["react", "react-dom", "react-router"],
+          "vendor-charts":   ["recharts"],
+          "vendor-xlsx":     ["xlsx"],
+          "vendor-ui":       ["@radix-ui/react-dialog", "@radix-ui/react-select", "@radix-ui/react-popover", "@radix-ui/react-dropdown-menu"],
+        },
+      },
+    },
   },
 });
