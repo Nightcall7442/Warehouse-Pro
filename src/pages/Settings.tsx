@@ -7,7 +7,7 @@ import { notify } from "@/lib/toast";
 import {
   User, Bell, Building2, Loader2,
   Send, CheckCircle2, XCircle, Moon,
-  Upload,
+  Upload, Database, RefreshCw, AlertTriangle,
 } from "lucide-react";
 import { PremiumSelect } from "@/components/PremiumSelect";
 
@@ -303,11 +303,164 @@ function AppearanceSettings() {
   );
 }
 
+// ── 1С Интеграция ─────────────────────────────────────────────────────────────
+function OneCSettings() {
+  const { lang } = useLang();
+  const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
+  const utils = trpc.useUtils();
+
+  const { data: health, isLoading: healthLoading } = trpc.onec.health.useQuery();
+  const { data: status } = trpc.onec.status.useQuery();
+
+  const syncProducts = trpc.onec.syncProducts.useMutation({
+    onSuccess: (r) => { notify.success(t(`Синхронизировано: ${r.synced} товаров`, `Sinxronizatsiya: ${r.synced} mahsulot`)); },
+    onError: (e) => notify.error(e.message),
+  });
+
+  return (
+    <div className="space-y-6">
+      {/* Статус соединения */}
+      <div>
+        <p className="font-label text-[10px] text-text-secondary tracking-wider mb-3">
+          {t("СТАТУС СОЕДИНЕНИЯ", "ULANISH HOLATI")}
+        </p>
+        <div className="flex items-center gap-3 px-4 py-3 rounded-lg"
+          style={{
+            background: health?.healthy ? "var(--color-success-subtle)" : "var(--color-danger-subtle)",
+            border: `1px solid ${health?.healthy ? "color-mix(in srgb, var(--color-success) 25%, transparent)" : "color-mix(in srgb, var(--color-danger) 25%, transparent)"}`,
+          }}>
+          {healthLoading ? (
+            <Loader2 size={18} className="text-text-secondary animate-spin" />
+          ) : health?.healthy ? (
+            <CheckCircle2 size={18} className="text-success flex-shrink-0" />
+          ) : (
+            <XCircle size={18} className="text-danger flex-shrink-0" />
+          )}
+          <div className="flex-1">
+            <p className="text-sm font-medium text-text-primary">
+              {health?.healthy
+                ? t("1С Bridge подключён", "1C Bridge ulangan")
+                : t("1С Bridge не подключён", "1C Bridge ulanmagan")}
+            </p>
+            <p className="text-xs text-text-secondary mt-0.5">
+              {health?.healthy
+                ? t("Соединение активно", "Ulanish faol")
+                : health?.error ?? t("Проверьте настройки подключения", "Ulanish sozlamalarini tekshiring")}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Настройки подключения */}
+      <div>
+        <p className="font-label text-[10px] text-text-secondary tracking-wider mb-3">
+          {t("НАСТРОЙКИ ПОДКЛЮЧЕНИЯ", "ULANISH SOZLAMALARI")}
+        </p>
+        <div className="space-y-3">
+          <div className="p-4 rounded-lg" style={{ background: "var(--color-surface-light)" }}>
+            <p className="text-xs text-text-secondary mb-2">
+              {t("Для подключения 1С:Предприятие необходим Bridge-сервер.", "1C:Predpriyatiye bilan ulanish uchun Bridge server kerak.")}
+            </p>
+            <p className="text-xs text-text-secondary">
+              {t("Установите переменные окружения на сервере:", "Serverda muhit o'zgaruvchilarini o'rnating:")}
+            </p>
+            <pre className="mt-2 p-3 rounded-lg text-xs font-mono overflow-x-auto"
+              style={{ background: "var(--color-surface)", border: "1px solid var(--color-border-subtle)" }}>
+{`ONEC_BRIDGE_URL=http://bridge-server:8080
+ONEC_USERNAME=your_user
+ONEC_PASSWORD=your_password
+ONEC_WEBHOOK_SECRET=your_secret`}
+            </pre>
+          </div>
+
+          <div className="p-4 rounded-lg" style={{ background: "var(--color-surface-light)" }}>
+            <p className="text-xs text-text-secondary mb-2">
+              {t("Webhook URL для 1С (настройте в 1С:Предприятие):", "1C uchun webhook URL (1C:Predpriyatoyedagi sozlamalarda):")}
+            </p>
+            <pre className="mt-2 p-3 rounded-lg text-xs font-mono overflow-x-auto"
+              style={{ background: "var(--color-surface)", border: "1px solid var(--color-border-subtle)" }}>
+{`Оплата: https://www.warehouse-pro.uz/api/webhooks/1c/payment
+Остатки: https://www.warehouse-pro.uz/api/webhooks/1c/stock`}
+            </pre>
+          </div>
+        </div>
+      </div>
+
+      {/* Синхронизация */}
+      <div>
+        <p className="font-label text-[10px] text-text-secondary tracking-wider mb-3">
+          {t("СИНХРОНИЗАЦИЯ", "SINXRONIZATSIYA")}
+        </p>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between p-4 rounded-lg" style={{ background: "var(--color-surface-light)" }}>
+            <div>
+              <p className="text-sm font-medium text-text-primary">{t("Товары из 1С", "1C dan mahsulotlar")}</p>
+              <p className="text-xs text-text-secondary mt-0.5">
+                {t("Загрузить товары, цены и остатки из 1С", "1C dan mahsulotlar, narxlar va qoldiqlarni yuklash")}
+              </p>
+            </div>
+            <button
+              onClick={() => syncProducts.mutate()}
+              disabled={syncProducts.isPending || !health?.healthy}
+              className="btn-primary flex items-center gap-2 text-sm disabled:opacity-40"
+            >
+              {syncProducts.isPending ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+              {t("Синхронизировать", "Sinxronlashtirish")}
+            </button>
+          </div>
+
+          {status && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 rounded-lg" style={{ background: "var(--color-surface-light)" }}>
+                <p className="text-[10px] text-text-secondary tracking-wider mb-1">
+                  {t("ПОСЛЕДНЯЯ СИНХРОНИЗАЦИЯ", "OXIRGI SINXRONIZATSIYA")}
+                </p>
+                <p className="text-sm font-medium text-text-primary">
+                  {status.lastProductSync
+                    ? new Date(status.lastProductSync).toLocaleString("ru")
+                    : t("Не выполнялась", "Bajarilmagan")}
+                </p>
+              </div>
+              <div className="p-3 rounded-lg" style={{ background: "var(--color-surface-light)" }}>
+                <p className="text-[10px] text-text-secondary tracking-wider mb-1">
+                  {t("ОШИБКИ", "XATOLIKLAR")}
+                </p>
+                <p className={`text-sm font-medium ${status.errors > 0 ? "text-danger" : "text-success"}`}>
+                  {status.errors ?? 0}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Документация */}
+      <div className="p-4 rounded-lg" style={{ background: "var(--color-surface-light)" }}>
+        <div className="flex items-start gap-3">
+          <AlertTriangle size={16} className="text-amber-500 mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-text-primary mb-1">
+              {t("Важно", "Muhim")}
+            </p>
+            <p className="text-xs text-text-secondary leading-relaxed">
+              {t(
+                "Для работы интеграции необходим Bridge-сервер, который связывает 1С:Предприятие с Warehouse Pro. Обратитесь к поставщику 1С для настройки Bridge.",
+                "Integratsiya uchun 1C:Predpriyatiye ni Warehouse Pro bilan bog'laydigan Bridge server kerak. Bridge ni sozlash uchun 1C yetkazib beruvchisiga murojaat qiling."
+              )}
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Секции ────────────────────────────────────────────────────────────────────
 const SECTIONS = [
   { key: "profile",    iconRu: "Профиль",    iconUz: "Profil",        Icon: User,      Comp: ProfileSettings    },
   { key: "company",   iconRu: "Компания",   iconUz: "Kompaniya",     Icon: Building2, Comp: CompanySettings    },
   { key: "telegram",  iconRu: "Telegram",   iconUz: "Telegram",      Icon: Bell,      Comp: TelegramSettings   },
+  { key: "onec",      iconRu: "1С",         iconUz: "1C",            Icon: Database,  Comp: OneCSettings       },
   { key: "appearance",iconRu: "Внешний вид",iconUz: "Ko'rinish",     Icon: Moon,      Comp: AppearanceSettings },
 ];
 
