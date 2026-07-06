@@ -124,7 +124,7 @@ export const AuthController = {
     let newUserId!: number;
     await db.transaction(async (tx) => {
       const [tenantResult] = await tx.insert(tenants).values({
-        slug, name: input.orgName, plan: "trial", status: "active",
+        slug, name: input.orgName, plan: "basic", status: "active",
       });
       const tenantId = Number(tenantResult.insertId);
       const [userResult] = await tx.insert(users).values({

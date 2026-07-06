@@ -110,8 +110,9 @@ export default function BillingSettings() {
         <h2 className="font-label text-text-secondary tracking-wider text-xs mb-4">ТАРИФЫ</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[
-            { key: "basic", name: "Basic",  price: "$99/мес",  highlight: false },
-            { key: "pro",   name: "Pro",    price: "$249/мес", highlight: true  },
+            { key: "basic",     name: "Basic",     price: "299 000 сум/мес",  highlight: false },
+            { key: "pro",       name: "Pro",       price: "599 000 сум/мес",  highlight: true  },
+            { key: "exclusive", name: "Exclusive", price: "1 299 000 сум/мес", highlight: false },
           ].map(plan => {
             const isCurrent = sub.plan === plan.key && sub.isActive;
             const features  = PLAN_FEATURES[plan.key] ?? [];
@@ -141,7 +142,7 @@ export default function BillingSettings() {
                   </div>
                 ) : (
                   <button
-                    onClick={() => checkout.mutate({ plan: plan.key as "basic" | "pro" })}
+                    onClick={() => checkout.mutate({ plan: plan.key as "basic" | "pro" | "exclusive" })}
                     disabled={checkout.isPending}
                     className="btn-primary w-full flex items-center justify-center gap-2 py-2 text-sm"
                   >

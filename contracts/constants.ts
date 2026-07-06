@@ -17,28 +17,28 @@ export const Paths = {
 // router (USD).  Currency-specific pricing lives in each router.
 
 export const PLANS = {
-  trial: {
-    name:           "Trial",
-    nameUz:         "Sinov muddati",
-    nameRu:         "Пробный период",
-    maxUsers:       3,
-    maxProducts:    50,
-    maxOrdersMonth: 100,
-    durationDays:   14,
-  },
   basic: {
     name:           "Basic",
-    nameUz:         "Asosiy",
-    nameRu:         "Базовый",
-    maxUsers:       10,
-    maxProducts:    200,
-    maxOrdersMonth: 500,
+    nameUz:         "Basic",
+    nameRu:         "Basic",
+    maxUsers:       5,
+    maxProducts:    1000,
+    maxOrdersMonth: null as number | null,
     durationDays:   30,
   },
   pro: {
-    name:           "Professional",
-    nameUz:         "Professional",
-    nameRu:         "Профессиональный",
+    name:           "Pro",
+    nameUz:         "Pro",
+    nameRu:         "Pro",
+    maxUsers:       20,
+    maxProducts:    10000,
+    maxOrdersMonth: null as number | null,
+    durationDays:   30,
+  },
+  exclusive: {
+    name:           "Exclusive",
+    nameUz:         "Exclusive",
+    nameRu:         "Exclusive",
     maxUsers:       null as number | null,
     maxProducts:    null as number | null,
     maxOrdersMonth: null as number | null,
@@ -50,7 +50,7 @@ export type PlanKey = keyof typeof PLANS;
 
 /** UZS prices — used by billing-router for local payment providers (Payme, Click, Uzum Pay) */
 export const PLAN_PRICES_UZS: Record<PlanKey, number> = {
-  trial: 0,
-  basic: 49_000,
-  pro:   149_000,
+  basic:     299_000,
+  pro:       599_000,
+  exclusive: 1_299_000,
 };

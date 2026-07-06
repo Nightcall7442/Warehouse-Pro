@@ -20,12 +20,12 @@ export interface TenantCreateInput {
   ownerName: string;
   ownerEmail: string;
   ownerPassword: string;
-  plan?: "trial" | "basic" | "pro";
+  plan?: "basic" | "pro" | "exclusive";
   trialDays?: number;
 }
 
 export interface TenantUpdateInput {
-  plan?: "trial" | "basic" | "pro";
+  plan?: "basic" | "pro" | "exclusive";
   status?: "active" | "suspended";
   expiryDays?: number;
   trialDays?: number;
@@ -45,10 +45,8 @@ export const TenantService = {
     const passwordHash = await hashPassword(data.ownerPassword);
     const trialDays = data.trialDays ?? 14;
     const trialEndsAt = new Date(Date.now() + trialDays * 86_400_000);
-    const plan = data.plan ?? "trial";
-    const planExpiresAt = plan !== "trial"
-      ? new Date(Date.now() + 30 * 86_400_000)
-      : null;
+    const plan = data.plan ?? "basic";
+    const planExpiresAt = new Date(Date.now() + 30 * 86_400_000);
 
     let tenantId: number;
     await db.transaction(async (tx) => {

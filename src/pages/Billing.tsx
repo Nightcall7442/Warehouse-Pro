@@ -564,9 +564,9 @@ export default function BillingPage() {
                 </div>
 
                 {/* CTA Button */}
-                {!current && plan.key !== "trial" && (
+                {!current && (
                   <button
-                    onClick={() => upgrade.mutate({ plan: plan.key as "basic" | "pro" })}
+                    onClick={() => upgrade.mutate({ plan: plan.key as "basic" | "pro" | "exclusive" })}
                     disabled={upgrade.isPending}
                     style={{
                       width: "100%",
