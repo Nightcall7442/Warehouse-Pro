@@ -1,7 +1,7 @@
 import { orders, users, dailyPlans, agentLocations, subscriptions } from "@db/schema";
 import { eq, and, sql, gte, desc } from "drizzle-orm";
 import { subDays, format } from "date-fns";
-import { cache, CacheKeys, CacheTTL } from "../lib/cache";
+import { cache, CacheTTL } from "../lib/cache";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 

@@ -1,6 +1,6 @@
 import { nanoid } from "nanoid";
 
-type Level = "info" | "warn" | "error";
+type Level = "debug" | "info" | "warn" | "error";
 
 const SENSITIVE_KEYS = new Set([
   "password", "secret", "token", "authorization", "cookie",
@@ -43,6 +43,7 @@ function emit(level: Level, message: string, meta?: Record<string, unknown>) {
 }
 
 export const logger = {
+  debug: (message: string, meta?: Record<string, unknown>) => emit("debug", message, meta),
   info:  (message: string, meta?: Record<string, unknown>) => emit("info", message, meta),
   warn:  (message: string, meta?: Record<string, unknown>) => emit("warn", message, meta),
   error: (message: string, meta?: Record<string, unknown>) => emit("error", message, meta),

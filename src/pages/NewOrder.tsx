@@ -32,7 +32,7 @@ const UNIT_LABELS: Record<string, { ru: string; uz: string; short: string }> = {
 
 function unitLabel(unit: string | undefined, lang: "ru" | "uz"): string {
   const e = UNIT_LABELS[unit ?? "pcs"];
-  return e ? (lang === "uz" ? e.short : e.short) : (unit ?? "шт");
+  return e ? (lang === "uz" ? e.uz : e.ru) : (unit ?? "шт");
 }
 
 const EMPTY_ITEM: OrderItem = {

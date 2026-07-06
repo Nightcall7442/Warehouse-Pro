@@ -94,8 +94,9 @@ export const OrderService = {
     const orderNumber = `ORD-${raw.slice(0, 12).toUpperCase()}`;
 
     let orderId: number;
+    let orderTotal: number;
     try {
-      orderId = await db.transaction(async (tx) => {
+      const txResult = await db.transaction(async (tx) => {
       // #FIX1: Look up prices from the database, never trust client
       const productIds = input.items.map(i => i.productId);
       const productRows = await tx.select({ id: products.id, unitPrice: products.unitPrice })
@@ -179,11 +180,14 @@ export const OrderService = {
         `);
       }
 
-      return id;
+      return { id, total };
     });
-    } catch (err: any) {
+      orderId = txResult.id;
+      orderTotal = txResult.total;
+    } catch (err: unknown) {
       // Handle idempotency key race condition (MySQL error 23000 = duplicate entry)
-      if (input.idempotencyKey && err?.code === "ER_DUP_ENTRY") {
+      const code = err && typeof err === "object" && "code" in err ? (err as { code?: string }).code : undefined;
+      if (input.idempotencyKey && code === "ER_DUP_ENTRY") {
         const [existing] = await db.select({ id: orders.id, orderNumber: orders.orderNumber })
           .from(orders)
           .where(and(eq(orders.tenantId, tenantId), eq(orders.idempotencyKey, input.idempotencyKey)))
@@ -209,7 +213,7 @@ export const OrderService = {
           userId: op.id,
           type: "order",
           title: `Новый заказ ${orderNumber}`,
-          message: `${shop?.name ?? "Магазин"} — ${total.toLocaleString("ru")} сум`,
+          message: `${shop?.name ?? "Магазин"} — ${orderTotal.toLocaleString("ru")} сум`,
           link: `/orders/${orderId}`,
         });
       }

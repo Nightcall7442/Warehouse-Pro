@@ -55,11 +55,14 @@ export function getDb(): DrizzleInstance {
       ...(remote ? { ssl: { rejectUnauthorized: false } } : {}),
     });
 
-    instance = drizzle(pool as any, {
+    // NOTE: drizzle-orm's generic inference doesn't fully resolve when `schema`
+    // and `relations` are merged into one object (known upstream limitation).
+    // The runtime shape is correct; only the inferred type needs a nudge here.
+    instance = drizzle(pool, {
       schema: fullSchema,
       mode: "default",
       logger: !env.isProduction,
-    }) as DrizzleInstance;
+    }) as unknown as DrizzleInstance;
   }
   return instance;
 }

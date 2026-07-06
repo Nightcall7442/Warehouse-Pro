@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { UserService } from "../services/UserService";
 import type { TrpcContext } from "../context";
-import type { UserCreateInput, UserUpdateInput } from "../services/UserService";
+import type { UserCreateInput, UserUpdateInput, UserListFilters } from "../services/UserService";
 
 function mapError(err: unknown): never {
   const msg = err instanceof Error ? err.message : "Unknown error";
@@ -9,7 +9,7 @@ function mapError(err: unknown): never {
 }
 
 export const UserController = {
-  async list(ctx: TrpcContext, input?: { page?: number; pageSize?: number; search?: string; role?: string }) {
+  async list(ctx: TrpcContext, input?: UserListFilters) {
     try {
       return await UserService.list(ctx.db, ctx.tenant!.id, input);
     } catch (err) {

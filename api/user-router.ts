@@ -8,6 +8,7 @@ import { TRPCError } from "@trpc/server";
 import { checkRateLimit, getClientIp } from "./lib/rate-limit";
 import { sanitizeSearch } from "./lib/sanitize";
 import { recordAudit } from "./services/audit-log";
+import { ROLES } from "@contracts/types";
 
 export const userRouter = createRouter({
   list: adminQuery
@@ -15,18 +16,15 @@ export const userRouter = createRouter({
       page:     z.number().default(1),
       pageSize: z.number().default(25),
       search:   z.string().optional(),
-      role:     z.string().optional(),
+      role:     z.enum(ROLES).optional(),
     }).optional())
     .query(async ({ input, ctx }) => {
       const db       = getDb();
-      const tenantId = ctx.tenant.id;
-      const page     = input?.page ?? 1;
-      const pageSize = input?.pageSize ?? 25;
-      const offset   = (page - 1) * pageSize;
+      const tenantId = ctx.tenant!.id;
 
       const conditions = [eq(users.tenantId, tenantId)];
       if (input?.search) conditions.push(like(users.name, `%${sanitizeSearch(input.search)}%`));
-      if (input?.role)   conditions.push(eq(users.role, input.role as any));
+      if (input?.role)   conditions.push(eq(users.role, input.role));
       const where = and(...conditions);
 
       const [data, countResult] = await Promise.all([

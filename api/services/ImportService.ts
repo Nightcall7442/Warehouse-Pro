@@ -1,4 +1,3 @@
-import { TRPCError } from "@trpc/server";
 import { getDb } from "../queries/connection";
 import { products, shops, warehouseStock } from "@db/schema";
 import { eq, and } from "drizzle-orm";
@@ -47,8 +46,6 @@ function parseRow(cells: (string | number | null)[], colMap: Record<string, numb
   }
   return row;
 }
-
-type Db = ReturnType<typeof getDb>;
 
 export const ImportService = {
   parseCSV(csvText: string, type: "products" | "shops"): { headers: string[]; rows: ParsedRow[] } {

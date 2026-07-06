@@ -10,7 +10,7 @@ import { env } from "../lib/env";
 import { logger } from "../lib/logger";
 import type { Context } from "hono";
 
-export function registerStripeWebhook(app: Hono<any>) {
+export function registerStripeWebhook(app: Hono) {
   app.post("/api/webhooks/stripe", async (c: Context) => {
     const signature = c.req.header("stripe-signature");
     if (!signature) return c.json({ error: "No signature" }, 400);

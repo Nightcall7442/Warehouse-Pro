@@ -7,7 +7,6 @@
 import "dotenv/config";
 import { getDb } from "../api/queries/connection";
 import * as schema from "./schema";
-import { eq } from "drizzle-orm";
 import { hashPassword } from "../api/auth/password";
 
 const PLACEHOLDER_PHOTO =
@@ -193,7 +192,7 @@ async function seed() {
   const supervisorId = Number(supR.insertId);
 
   // Merchandisers (2)
-  const [merch1R] = await db.insert(schema.users).values({
+  await db.insert(schema.users).values({
     tenantId,
     name: "Қурбонов Аброр",
     email: "merch1@demo-uz.uz",
@@ -202,7 +201,7 @@ async function seed() {
     status: "active",
     lastSignInAt: new Date(),
   });
-  const [merch2R] = await db.insert(schema.users).values({
+  await db.insert(schema.users).values({
     tenantId,
     name: "Холматова Малика",
     email: "merch2@demo-uz.uz",
@@ -211,8 +210,8 @@ async function seed() {
     status: "active",
     lastSignInAt: new Date(),
   });
-  const merchandiser1Id = Number(merch1R.insertId);
-  const merchandiser2Id = Number(merch2R.insertId);
+  // NOTE: merchandiser demo data is currently minimal — unlike agents, no shop
+  // assignments or visit_reports are seeded for this role yet.
 
   // Couriers (2)
   const [c1R] = await db.insert(schema.users).values({

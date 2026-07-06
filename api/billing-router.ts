@@ -6,6 +6,7 @@ import { tenants, users, orders, products } from "@db/schema";
 import { eq, and, sql, gte } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { PLANS, PLAN_PRICES_UZS, type PlanKey } from "../contracts/constants";
+import { logger } from "./lib/logger";
 
 export const billingRouter = createRouter({
   /** Current tenant subscription status */
@@ -91,7 +92,13 @@ export const billingRouter = createRouter({
         plan.name,
         PLAN_PRICES_UZS[input.plan].toLocaleString("ru-RU"),
         tenant.ownerPhone ?? tenant.ownerEmail ?? "не указан"
-      )).catch(() => {});
+      )).catch((err) => {
+        logger.error("Failed to notify admin about plan upgrade request", {
+          tenantId: tenant.id,
+          plan: input.plan,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
 
       return {
         success: true,

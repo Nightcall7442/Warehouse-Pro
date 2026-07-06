@@ -1,7 +1,8 @@
 export type * from "../db/schema";
 export * from "./errors";
 
-export type Role = "superadmin" | "ceo" | "operator" | "agent" | "supervisor" | "merchandiser" | "courier";
+export const ROLES = ["superadmin", "ceo", "operator", "agent", "supervisor", "merchandiser", "courier"] as const;
+export type Role = (typeof ROLES)[number];
 
 // ── Money branded type for decimal precision ──────────────────────────────────
 export type Money = string & { readonly __brand: unique symbol };

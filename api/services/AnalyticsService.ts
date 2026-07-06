@@ -2,9 +2,7 @@ import { getDb } from "../queries/connection";
 import { orders, orderItems, products, shops, users, dailyPlans, arrivals } from "@db/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { MS_PER_DAY } from "../lib/constants";
-import { cache, CacheKeys, CacheTTL } from "../lib/cache";
-
-type Db = ReturnType<typeof getDb>;
+import { cache, CacheTTL } from "../lib/cache";
 
 type DateRange = { dateFrom?: string; dateTo?: string };
 

@@ -3,6 +3,7 @@ import { eq, like, and, sql, desc } from "drizzle-orm";
 import { hashPassword, verifyPassword } from "../auth/password";
 import { sanitizeString, sanitizeSearch } from "../lib/sanitize";
 import { cache, CacheKeys, CacheTTL } from "../lib/cache";
+import type { Role } from "@contracts/types";
 
 type DrizzleInstance = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -10,7 +11,7 @@ export interface UserListFilters {
   page?: number;
   pageSize?: number;
   search?: string;
-  role?: string;
+  role?: Role;
 }
 
 export interface UserCreateInput {
@@ -40,7 +41,7 @@ export const UserService = {
 
     const conditions = [eq(users.tenantId, tenantId)];
     if (filters?.search) conditions.push(like(users.name, `%${sanitizeSearch(filters.search)}%`));
-    if (filters?.role) conditions.push(eq(users.role, filters.role as any));
+    if (filters?.role) conditions.push(eq(users.role, filters.role));
     const where = and(...conditions);
 
     const [data, countResult] = await Promise.all([

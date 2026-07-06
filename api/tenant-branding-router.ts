@@ -35,8 +35,17 @@ function generateCSSVariables(branding: {
   --brand-logo-url: url('${logoUrl}');
   --brand-company: '${company}';
   --brand-app: '${app}';
-}`;
+ }`;
 }
+
+type BrandingRow = {
+  primaryColor: string | null;
+  secondaryColor: string | null;
+  accentColor: string | null;
+  logoUrl: string | null;
+  companyName: string | null;
+  appName: string | null;
+};
 
 export const tenantBrandingRouter = createRouter({
   /** Get branding for current tenant (cached) */
@@ -68,7 +77,7 @@ export const tenantBrandingRouter = createRouter({
   cssVariables: authedQuery.query(async ({ ctx }) => {
     const branding = await (async () => {
       const cacheKey = CacheKeys.tenantBranding(ctx.tenant.id);
-      const cached = cache.get<Record<string, unknown>>(cacheKey);
+      const cached = cache.get<BrandingRow>(cacheKey);
       if (cached) return cached;
 
       const db = getDb();
@@ -78,7 +87,7 @@ export const tenantBrandingRouter = createRouter({
     })();
 
     return {
-      css: generateCSSVariables(branding as any),
+      css: generateCSSVariables(branding),
       variables: {
         primary:   branding.primaryColor ?? "#2563eb",
         secondary: branding.secondaryColor ?? "#1e40af",

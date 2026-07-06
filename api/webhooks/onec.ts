@@ -7,7 +7,7 @@ import { logger } from "../lib/logger";
 import { env } from "../lib/env";
 import { safeEqual } from "../lib/safe-compare";
 
-const app = new Hono();
+const app = new Hono<{ Variables: { validatedBody: Record<string, unknown> } }>();
 
 // ── Auth: global secret + validate tenantId exists ───────────────────────────
 app.use("/*", async (c, next) => {
@@ -29,7 +29,7 @@ app.use("/*", async (c, next) => {
       return c.json({ error: "Invalid tenant" }, 403);
     }
     // Re-inject validated body so downstream handlers don't re-parse
-    (c as any).validatedBody = body;
+    c.set("validatedBody", body);
   } catch {
     return c.json({ error: "Invalid request" }, 400);
   }
@@ -39,10 +39,11 @@ app.use("/*", async (c, next) => {
 
 app.post("/payment", async (c) => {
   try {
-    const body = (c as any).validatedBody ?? await c.req.json();
-    const { tenantId, shopExternalId, amount, reference } = body;
+    const body = c.get("validatedBody") ?? await c.req.json();
+    const { tenantId: tenantIdRaw, shopExternalId, amount, reference } = body;
 
-    if (!shopExternalId || amount == null) {
+    const tenantId = Number(tenantIdRaw);
+    if (!Number.isFinite(tenantId) || typeof shopExternalId !== "string" || amount == null) {
       return c.json({ error: "Missing required fields" }, 400);
     }
 
@@ -100,10 +101,11 @@ app.post("/payment", async (c) => {
 
 app.post("/stock", async (c) => {
   try {
-    const body = (c as any).validatedBody ?? await c.req.json();
-    const { tenantId, productExternalId, quantity } = body;
+    const body = c.get("validatedBody") ?? await c.req.json();
+    const { tenantId: tenantIdRaw, productExternalId, quantity } = body;
 
-    if (!productExternalId || quantity == null) {
+    const tenantId = Number(tenantIdRaw);
+    if (!Number.isFinite(tenantId) || typeof productExternalId !== "string" || quantity == null) {
       return c.json({ error: "Missing required fields" }, 400);
     }
 

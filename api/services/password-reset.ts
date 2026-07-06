@@ -4,7 +4,6 @@ import { eq, and, gt, isNull } from "drizzle-orm";
 import { hashPassword } from "../auth/password";
 import { sendEmail } from "../lib/mailer";
 import { logger } from "../lib/logger";
-import { env } from "../lib/env";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 

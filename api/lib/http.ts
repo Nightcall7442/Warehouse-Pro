@@ -1,7 +1,8 @@
-interface RequestConfig extends RequestInit {
+interface RequestConfig extends Omit<RequestInit, "body"> {
   baseUrl?: string;
   params?: Record<string, string | number>;
   timeout?: number;
+  body?: unknown;
 }
 
 export class HttpClient {
@@ -72,6 +73,6 @@ export class HttpClient {
   }
 
   post<T>(url: string, body?: unknown, config?: RequestConfig) {
-    return this.request<T>(url, { ...config, method: "POST", body: body as any });
+    return this.request<T>(url, { ...config, method: "POST", body });
   }
 }

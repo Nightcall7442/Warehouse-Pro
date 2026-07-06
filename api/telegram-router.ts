@@ -4,6 +4,7 @@ import { createRouter, authedQuery, adminQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { users } from "@db/schema";
 import { env } from "./lib/env";
+import type { Role } from "@contracts/types";
 
 // ── Core send function ───────────────────────────────────────────────────────
 async function sendTelegram(chatId: string, text: string): Promise<boolean> {
@@ -35,12 +36,12 @@ export async function notifyUserById(userId: number, message: string) {
 }
 
 export async function notifyTenantRole(
-  tenantId: number, role: string, message: string
+  tenantId: number, role: Role, message: string
 ) {
   const db     = getDb();
   const targets = await db.select({ id: users.id, chatId: users.telegramChatId })
     .from(users)
-    .where(and(eq(users.tenantId, tenantId), eq(users.role, role as any)));
+    .where(and(eq(users.tenantId, tenantId), eq(users.role, role)));
   const withChat = targets.filter(u => u.chatId);
   await Promise.all(withChat.map(u => sendTelegram(u.chatId!, message)));
 }
