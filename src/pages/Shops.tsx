@@ -144,10 +144,11 @@ export default function Shops() {
   const [search,setSearch] = useState("");
   const [city,setCity]     = useState<string|undefined>(undefined);
   const [district,setDistrict] = useState<string|undefined>(undefined);
+  const [agentFilter,setAgentFilter] = useState<string|undefined>(undefined);
   const [showForm,setShowForm] = useState(false);
   const [showImport,setShowImport] = useState(false);
 
-  const {data,isLoading}   = trpc.shop.list.useQuery({page,pageSize:25,search:search||undefined,city,district}) as { data: any; isLoading: boolean };
+  const {data,isLoading}   = trpc.shop.list.useQuery({page,pageSize:25,search:search||undefined,city,district,agentId:agentFilter?Number(agentFilter):undefined}) as { data: any; isLoading: boolean };
   const {data:cities}      = trpc.shop.cities.useQuery();
   const {data:districts}   = trpc.shop.districts.useQuery({city});
   const {data:usersData}   = trpc.user.list.useQuery({page:1,pageSize:100});
@@ -187,6 +188,11 @@ export default function Shops() {
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary"/>
           <input className="input-field pl-10 w-full" placeholder={t("Поиск магазинов…","Do'kon qidirish…")} value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}}/>
         </div>
+        {agents.length > 0 && (
+          <PremiumSelect value={agentFilter??""} onChange={v=>{setAgentFilter(v||undefined);setPage(1);}}
+            options={[{value:"",label:t("Все агенты","Barcha agentlar"),...(agents??[]).map((a:{id:number;name:string})=>({value:String(a.id),label:a.name}))}]}
+            width="180px" />
+        )}
         {(!!cities?.length || !!districts?.length) && (
           <div style={{ display: "flex", gap: "8px" }}>
             {!!cities?.length && (
@@ -201,8 +207,8 @@ export default function Shops() {
             )}
           </div>
         )}
-        {(city||district)&&(
-          <button onClick={()=>{setCity(undefined);setDistrict(undefined);setPage(1);}} className="btn-secondary text-sm px-3 flex items-center gap-1">
+        {(city||district||agentFilter)&&(
+          <button onClick={()=>{setCity(undefined);setDistrict(undefined);setAgentFilter(undefined);setPage(1);}} className="btn-secondary text-sm px-3 flex items-center gap-1">
             <X size={14}/>{t("Сбросить","Tozalash")}
           </button>
         )}
