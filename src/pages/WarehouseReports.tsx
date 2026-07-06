@@ -326,8 +326,8 @@ export default function WarehouseReports() {
                   <tr key={p.productId} style={{ borderBottom: "1px solid var(--color-border-subtle)" }}>
                     <td className="py-2 font-data" style={{ color: "var(--color-text-tertiary)" }}>{i + 1}</td>
                     <td className="py-2">
-                      <div className="font-medium" style={{ color: "var(--color-text-primary)" }}>{p.productName}</div>
-                      <div style={{ color: "var(--color-text-tertiary)" }}>{p.productCode}</div>
+                      <div className="font-medium" style={{ color: "var(--color-text-primary)" }}>{p.productName ?? "—"}</div>
+                      <div style={{ color: "var(--color-text-tertiary)" }}>{p.productCode ?? ""}</div>
                     </td>
                     <td className="py-2 text-right font-data">{Number(p.currentStock ?? 0).toLocaleString("ru")} {p.unit}</td>
                     <td className="py-2 text-right font-data font-semibold">{fmt(Number(p.costValue ?? 0))}</td>
@@ -365,8 +365,8 @@ export default function WarehouseReports() {
                 return (
                   <tr key={p.productId} style={{ borderBottom: "1px solid var(--color-border-subtle)" }}>
                     <td className="py-2">
-                      <div className="font-medium" style={{ color: "var(--color-text-primary)" }}>{p.productName}</div>
-                      <div style={{ color: "var(--color-text-tertiary)" }}>{p.productCode}</div>
+                      <div className="font-medium" style={{ color: "var(--color-text-primary)" }}>{p.productName ?? "—"}</div>
+                      <div style={{ color: "var(--color-text-tertiary)" }}>{p.productCode ?? ""}</div>
                     </td>
                     <td className="py-2 text-right font-data">{Number(p.currentStock ?? 0).toLocaleString("ru")}</td>
                     <td className="py-2 text-right font-data font-semibold">{Number(p.soldQty).toLocaleString("ru")}</td>

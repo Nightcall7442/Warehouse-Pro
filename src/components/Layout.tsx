@@ -105,8 +105,8 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
             <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--color-primary)" }}>{role}</span>
           </div>
         </div>
-        {user?.tenant && (
-          <p className="text-[11px] text-text-secondary mt-1.5 truncate">{user.tenant.name}</p>
+        {user?.email && (
+          <p className="text-[11px] text-text-secondary mt-1.5 truncate">{user.email}</p>
         )}
       </div>
 
