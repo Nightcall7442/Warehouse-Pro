@@ -731,7 +731,7 @@ export default function NewOrder() {
       </div>
 
       {/* Sticky CTA */}
-      <div className="sticky bottom-20 md:bottom-4 mt-6">
+      <div className="mt-6" style={{ marginBottom: "calc(60px + env(safe-area-inset-bottom, 0px) + 16px)" }}>
         <button
           onClick={handleNext}
           disabled={!canNext() || createOrder.isPending}
