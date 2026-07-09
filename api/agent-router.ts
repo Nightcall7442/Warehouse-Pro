@@ -38,6 +38,19 @@ export const agentRouter = createRouter({
       .limit(500);
   }),
 
+  // Agent: list all shops in tenant (for order creation, shop picker)
+  myShops: agentQuery.query(async ({ ctx }) => {
+    return getDb().select({
+      id: shops.id, name: shops.name, ownerName: shops.ownerName,
+      phone: shops.phone, address: shops.address, city: shops.city,
+      district: shops.district, photoUrl: shops.photoUrl, status: shops.status,
+      debt: shops.debt, gpsLat: shops.gpsLat, gpsLng: shops.gpsLng,
+    })
+      .from(shops)
+      .where(and(eq(shops.tenantId, ctx.tenant.id), eq(shops.status, "active")))
+      .limit(500);
+  }),
+
   saveLocation: agentQuery
     .input(z.object({ lat: z.string(), lng: z.string(), accuracy: z.string().optional() }))
     .mutation(async ({ input, ctx }) => {
