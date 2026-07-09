@@ -70,12 +70,37 @@ async function parseFile(base64: string, filename: string): Promise<{ headers: s
   }
 
   // CSV
+  // Proper CSV parser that handles quoted fields with commas inside
+  function parseCsvLine(line: string): string[] {
+    const result: string[] = [];
+    let current = "";
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQuotes && line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (ch === "," && !inQuotes) {
+        result.push(current.trim());
+        current = "";
+      } else {
+        current += ch;
+      }
+    }
+    result.push(current.trim());
+    return result;
+  }
+
   const decoded = Buffer.from(base64, "base64").toString("utf-8");
   const lines = decoded.replace(/\r\n/g, "\n").split("\n").filter(Boolean);
   if (lines.length === 0) throw new TRPCError({ code: "BAD_REQUEST", message: "Файл пуст" });
   const firstLine = lines[0].replace(/^\uFEFF/, "");
-  const headers = firstLine.split(",").map(h => h.trim().replace(/^"|"$/g, ""));
-  const rows = lines.slice(1).map(line => line.split(",").map(c => c.trim().replace(/^"|"$/g, "")));
+  const headers = parseCsvLine(firstLine).map(h => h.replace(/^"|"$/g, ""));
+  const rows = lines.slice(1).map(line => parseCsvLine(line).map(c => c.replace(/^"|"$/g, "")));
   return { headers, rows };
 }
 
