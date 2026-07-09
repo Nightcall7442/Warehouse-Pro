@@ -3,7 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { createRouter, operatorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { products, shops, warehouseStock } from "@db/schema";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 type ParsedRow = Record<string, string | number | null>;
 
@@ -234,20 +234,9 @@ export const importRouter = createRouter({
           });
         }
 
-        // Check existing codes
-        const codes = parsedRows.map(r => r.code);
-        const existingRows = await db.select({ code: products.code })
-          .from(products)
-          .where(and(eq(products.tenantId, tenantId), inArray(products.code, codes)));
-        const existingCodes = new Set(existingRows.map(r => r.code));
-
-        const toInsert = parsedRows.filter(r => {
-          if (existingCodes.has(r.code)) { skipped.push(`${r.code} — уже существует`); return false; }
-          return true;
-        });
-
+        // Insert all rows — duplicates handled by unique constraint catch
         await db.transaction(async (tx) => {
-          for (const row of toInsert) {
+          for (const row of parsedRows) {
             try {
               const [r] = await tx.insert(products).values({
                 tenantId, code: row.code, name: row.name, barcode: row.barcode,
@@ -262,7 +251,12 @@ export const importRouter = createRouter({
               });
               success++;
             } catch (err: unknown) {
-              errors.push(`Строка ${row.rowNum}: ${err instanceof Error ? err.message : String(err)}`);
+              const msg = err instanceof Error ? err.message : String(err);
+              if (msg.includes("Duplicate") || msg.includes("duplicate") || msg.includes("uq_product")) {
+                skipped.push(`${row.code} — уже существует`);
+              } else {
+                errors.push(`Строка ${row.rowNum}: ${msg}`);
+              }
             }
           }
         });
