@@ -23,12 +23,11 @@ function generateApiKey(): { raw: string; hash: string; prefix: string } {
 
 export const apiKeyRouter = createRouter({
   /** List all API keys for current tenant */
-  list: authedQuery(async ({ ctx }) => {
+  list: authedQuery.query(async ({ ctx }) => {
     const db = getDb();
     const rows = await db.select().from(apiKeys)
       .where(eq(apiKeys.tenantId, ctx.user.tenantId))
       .orderBy(desc(apiKeys.createdAt));
-    // Never return the hash — only prefix
     return rows.map(r => ({ ...r, keyHash: undefined, keyPrefix: r.keyPrefix + "…" }));
   }),
 
