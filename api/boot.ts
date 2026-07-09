@@ -10,6 +10,7 @@ import { createContext } from "./context";
 import { env } from "./lib/env";
 import { registerStripeWebhook } from "./webhooks/stripe";
 import onecWebhooks from "./webhooks/onec";
+import publicApi from "./public-api";
 import { createSSEResponse } from "./sse-router";
 import { authenticateRequest } from "./auth";
 import { cache } from "./lib/cache";
@@ -82,6 +83,9 @@ registerStripeWebhook(app);
 // ── 1C webhook (receives payments & stock updates) ───────────────────────────
 app.use("/api/webhooks/1c/*", bodyLimit({ maxSize: 256 * 1024 })); // 256 KB max
 app.route("/api/webhooks/1c", onecWebhooks);
+
+// ── Public REST API (Exclusive tier) ─────────────────────────────────────────
+app.route("/api/v1", publicApi);
 
 // ── Cron: trial ending reminders ─────────────────────────────────────────────
 app.get("/api/cron/trial-reminders", async (c) => {

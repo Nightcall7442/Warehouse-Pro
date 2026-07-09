@@ -246,7 +246,7 @@ function ErrorDetailModal({ errorId, onClose }: { errorId: string; onClose: () =
             <>
               <div style={{ padding: "16px", borderRadius: "12px", background: COLORS.surfaceLight }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "8px" }}>
-                  <span style={{ fontFamily: F.display, fontSize: "24px", fontWeight: 900, fontFamily: "monospace", color: statusColor(error.statusCode) }}>{error.statusCode}</span>
+                  <span style={{ fontFamily: "monospace", fontSize: "24px", fontWeight: 900, color: statusColor(error.statusCode) }}>{error.statusCode}</span>
                   <span style={{ fontFamily: F.display, fontSize: "14px", fontWeight: 600, color: COLORS.textPrimary }}>{error.code}</span>
                 </div>
                 <p style={{ fontSize: "13px", color: COLORS.textSecondary, fontFamily: F.body }}>{error.message}</p>

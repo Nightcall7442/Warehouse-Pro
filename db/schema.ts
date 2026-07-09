@@ -641,3 +641,27 @@ export const passwordResetTokens = mysqlTable("password_reset_tokens", {
 
 export type PasswordResetToken    = typeof passwordResetTokens.$inferSelect;
 export type InsertPasswordResetToken = typeof passwordResetTokens.$inferInsert;
+
+// ============================================
+// API KEYS — public REST API access (Exclusive tier)
+// ============================================
+export const apiKeys = mysqlTable("api_keys", {
+  id:          serial("id").primaryKey(),
+  tenantId:    bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id),
+  name:        varchar("name", { length: 100 }).notNull(),
+  keyHash:     varchar("key_hash", { length: 64 }).notNull(),
+  keyPrefix:   varchar("key_prefix", { length: 12 }).notNull(),   // first 8 chars for display: "wp_live_..."
+  scopes:      varchar("scopes", { length: 500 }).default("read").notNull(), // comma-separated: read,write,orders,products,stock
+  rateLimit:   integer("rate_limit").default(100).notNull(),       // requests per minute
+  lastUsedAt:  timestamp("last_used_at"),
+  expiresAt:   timestamp("expires_at"),
+  status:      varchar("status", { length: 20 }).default("active").notNull(),
+  createdAt:   timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  tenantIdx:  index("idx_apikey_tenant").on(t.tenantId),
+  keyIdx:     uniqueIndex("uq_apikey_hash").on(t.keyHash),
+  prefixIdx:  index("idx_apikey_prefix").on(t.keyPrefix),
+}));
+
+export type ApiKey       = typeof apiKeys.$inferSelect;
+export type InsertApiKey = typeof apiKeys.$inferInsert;

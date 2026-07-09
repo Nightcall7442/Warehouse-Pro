@@ -26,6 +26,7 @@ import { systemRouter }       from "./system-router";
 import { auditRouter }        from "./audit-router";
 import { warehouseReportsRouter } from "./warehouse-reports-router";
 import { warehouseMultiRouter } from "./warehouse-multi-router";
+import { apiKeyRouter } from "./api-key-router";
 import { createRouter, publicQuery } from "./middleware";
 
 export const appRouter = createRouter({
@@ -58,6 +59,7 @@ export const appRouter = createRouter({
   audit:        auditRouter,
   warehouseReports: warehouseReportsRouter,
   warehouseMulti: warehouseMultiRouter,
+  apiKey:       apiKeyRouter,
 });
 
 export type AppRouter = typeof appRouter;
