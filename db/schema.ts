@@ -23,7 +23,7 @@ export const tenants = mysqlTable("tenants", {
   id:            serial("id").primaryKey(),
   slug:          varchar("slug", { length: 100 }).notNull().unique(),
   name:          varchar("name", { length: 255 }).notNull(),
-  plan:          mysqlEnum("plan", ["trial", "basic", "pro"]).default("trial").notNull(),
+  plan:          mysqlEnum("plan", ["trial", "basic", "pro", "exclusive"]).default("trial").notNull(),
   status:        mysqlEnum("status", ["active", "suspended"]).default("active").notNull(),
   // Billing
   trialEndsAt:   timestamp("trial_ends_at"),
@@ -449,7 +449,7 @@ export const subscriptions = mysqlTable("subscriptions", {
   tenantId:             bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id).unique(),
   stripeSubscriptionId: varchar("stripe_subscription_id", { length: 255 }),
   stripeCustomerId:     varchar("stripe_customer_id", { length: 255 }),
-  plan:                 mysqlEnum("plan", ["trial", "basic", "pro"]).default("trial").notNull(),
+  plan:                 mysqlEnum("plan", ["trial", "basic", "pro", "exclusive"]).default("trial").notNull(),
   status:               mysqlEnum("status", ["trialing", "active", "past_due", "canceled", "incomplete"]).default("trialing").notNull(),
   trialEndsAt:          timestamp("trial_ends_at"),
   currentPeriodEnds:    timestamp("current_period_ends"),

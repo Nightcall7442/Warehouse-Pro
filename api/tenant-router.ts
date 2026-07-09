@@ -207,7 +207,7 @@ export const tenantRouter = createRouter({
       ownerName:     z.string().min(2).max(100),
       ownerEmail:    z.string().email(),
       ownerPassword: z.string().min(8),
-      plan:          z.enum(["trial", "basic", "pro"]).default("trial"),
+      plan:          z.enum(["trial", "basic", "pro", "exclusive"]).default("trial"),
       trialDays:     z.number().min(1).max(365).default(14),
     }))
     .mutation(async ({ input }) => {
@@ -255,7 +255,7 @@ export const tenantRouter = createRouter({
   updatePlan: superAdminQuery
     .input(z.object({
       tenantId:   z.number(),
-      plan:       z.enum(["trial", "basic", "pro"]),
+      plan:       z.enum(["trial", "basic", "pro", "exclusive"]),
       expiryDays: z.number().min(1).max(3650).default(30),
     }))
     .mutation(async ({ input }) => {
