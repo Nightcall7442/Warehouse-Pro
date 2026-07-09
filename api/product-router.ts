@@ -226,7 +226,7 @@ export const productRouter = createRouter({
       return result[0] ?? null;
     }),
 
-  categories: operatorQuery.query(async ({ ctx }) => {
+  categories: agentQuery.query(async ({ ctx }) => {
     const tenantId = ctx.tenant.id;
     const cacheKey = CacheKeys.productCategories(tenantId);
     const cached = cache.get<string[]>(cacheKey);
