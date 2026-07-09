@@ -151,7 +151,7 @@ const PlanCompletion = memo(function PlanCompletion({ data, t }: { data: unknown
 
 // ── Agent Card (for Agents tab) ───────────────────────────────────────────────
 const MEDALS = ["🥇", "🥈", "🥉"];
-const MEDAL_COLORS = ["#F59E0B", "#94A3B8", "#F97316"];
+const MEDAL_COLORS = ["var(--color-warning)", "#94A3B8", "var(--color-warning)"];
 
 const AgentCard = memo(function AgentCard({ agent: a, rank, fmt, days }: { agent: unknown; rank: number; fmt: (v: string | number) => string; days: number }) {
   const agent = a as Record<string, unknown>;
@@ -311,8 +311,8 @@ export default function Reports() {
                   <YAxis tick={{ fill: COLORS.textTertiary, fontSize: 11, fontFamily: F.body }} axisLine={false} tickLine={false} />
                   <Tooltip contentStyle={{ background: COLORS.surface, border: "none", borderRadius: 12, boxShadow: "0 4px 24px rgba(0,0,0,0.08)" }} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Line type="monotone" dataKey="visits" stroke="#6366f1" strokeWidth={2.5} dot={false} name={t("Визиты", "Tashriflar")} />
-                  <Line type="monotone" dataKey="orders" stroke="#10b981" strokeWidth={2.5} dot={false} name={t("Заказы", "Buyurtmalar")} />
+                  <Line type="monotone" dataKey="visits" stroke="var(--color-primary)" strokeWidth={2.5} dot={false} name={t("Визиты", "Tashriflar")} />
+                  <Line type="monotone" dataKey="orders" stroke="var(--color-success)" strokeWidth={2.5} dot={false} name={t("Заказы", "Buyurtmalar")} />
                 </LineChart>
               </ResponsiveContainer>
             </ChartPanel>
@@ -366,7 +366,7 @@ export default function Reports() {
                   <Tooltip contentStyle={{ background: COLORS.surface, border: "none", borderRadius: 12, boxShadow: "0 4px 24px rgba(0,0,0,0.08)" }} cursor={{ fill: COLORS.surfaceLight }} />
                   <Bar dataKey="revenue" name={t("Выручка", "Tushum")} radius={[8, 8, 0, 0]} maxBarSize={56}>
                     {shopChartData.map((_, i) => (
-                      <Cell key={i} fill={i === 0 ? "#6366F1" : `rgba(99,102,241,${0.6 - i * 0.05})`} />
+                      <Cell key={i} fill={i === 0 ? "var(--color-primary)" : `rgba(99,102,241,${0.6 - i * 0.05})`} />
                     ))}
                   </Bar>
                 </BarChart>

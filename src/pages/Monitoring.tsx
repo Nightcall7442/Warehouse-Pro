@@ -71,7 +71,7 @@ function ChartTooltip({ active, payload, label }: any) {
       {payload.map((p: any, i: number) => (
         <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "16px", marginTop: "4px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: p.color ?? "#6366F1" }} />
+            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: p.color ?? "var(--color-primary)" }} />
             <span style={{ fontSize: "12px", color: COLORS.textSecondary }}>{p.name}</span>
           </div>
           <span style={{ fontSize: "13px", fontWeight: 600, color: COLORS.textPrimary, fontFamily: F.display }}>

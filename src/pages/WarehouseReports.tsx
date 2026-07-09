@@ -14,7 +14,7 @@ import {
 } from "recharts";
 import { exportToExcel, exportToPDF, buildExcelSheets, buildPDFHtml, type ReportData } from "@/lib/export";
 
-const COLORS = ["#6366f1", "#8b5cf6", "#a78bfa", "#c4b5fd", "#ddd6fe", "#ede9fe", "#22c55e", "#f59e0b"];
+const COLORS = ["var(--color-primary)", "var(--color-primary-muted)", "var(--color-primary-muted)", "#c4b5fd", "#ddd6fe", "#ede9fe", "var(--color-success)", "var(--color-warning)"];
 
 const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
 const THEME = {
@@ -239,7 +239,7 @@ export default function WarehouseReports() {
                 <XAxis type="number" tick={{ fontSize: 10, fill: "var(--color-text-tertiary)" }} />
                 <YAxis dataKey="category" type="category" tick={{ fontSize: 11, fill: "var(--color-text-secondary)" }} width={75} />
                 <Tooltip content={<ChartTooltip />} />
-                <Bar dataKey="totalValue" name={t("Стоимость", "Qiymat")} fill="#6366f1" radius={[0, 4, 4, 0]} />
+                <Bar dataKey="totalValue" name={t("Стоимость", "Qiymat")} fill="var(--color-primary)" radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -285,8 +285,8 @@ export default function WarehouseReports() {
               <YAxis tick={{ fontSize: 10, fill: "var(--color-text-tertiary)" }} />
               <Tooltip content={<ChartTooltip />} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Line type="monotone" dataKey="inQty" name={t("Приход", "Kirish")} stroke="#22c55e" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="outQty" name={t("Расход", "Chiqish")} stroke="#ef4444" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="inQty" name={t("Приход", "Kirish")} stroke="var(--color-success)" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="outQty" name={t("Расход", "Chiqish")} stroke="var(--color-danger)" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -314,8 +314,8 @@ export default function WarehouseReports() {
               </div>
               <div className="space-y-2">
                 {[
-                  { label: t("Топливо", "Yoqilg'i"), value: Number(arrivalData.summary.totalFuelCost ?? 0), color: "#f59e0b" },
-                  { label: t("Платные дороги", "Pullik yo'llar"), value: Number(arrivalData.summary.totalTollCost ?? 0), color: "#6366f1" },
+                  { label: t("Топливо", "Yoqilg'i"), value: Number(arrivalData.summary.totalFuelCost ?? 0), color: "var(--color-warning)" },
+                  { label: t("Платные дороги", "Pullik yo'llar"), value: Number(arrivalData.summary.totalTollCost ?? 0), color: "var(--color-primary)" },
                   { label: t("Прочее", "Boshqa"), value: Number(arrivalData.summary.totalOtherCost ?? 0), color: "#a1a1aa" },
                 ].map(c => (
                   <div key={c.label} className="flex items-center justify-between text-xs">

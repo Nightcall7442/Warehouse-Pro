@@ -29,6 +29,8 @@ async function seed() {
   console.log("🌱 Seeding Warehouse Pro database...\n");
   console.log("Clearing existing data...");
 
+  await db.delete(schema.auditLog);
+  await db.delete(schema.passwordResetTokens);
   await db.delete(schema.visitReports);
   await db.delete(schema.billingEvents);
   await db.delete(schema.subscriptions);

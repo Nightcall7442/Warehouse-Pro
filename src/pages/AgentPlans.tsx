@@ -12,9 +12,9 @@ import {
 import { useNavigate } from "react-router";
 
 const STATUS_CONFIG = {
-  visited: { ru: "Посещён",         uz: "Borildi",              color: "text-success", border: "border-success", dot: "#22c47a" },
-  planned: { ru: "Запланирован",    uz: "Rejalashtirilgan",     color: "text-info",    border: "border-primary", dot: "#5b9cf5" },
-  skipped: { ru: "Пропущен",        uz: "O'tkazildi",           color: "text-warning", border: "border-warning", dot: "#f0a840" },
+  visited: { ru: "Посещён",         uz: "Borildi",              color: "text-success", border: "border-success", dot: "var(--color-success)" },
+  planned: { ru: "Запланирован",    uz: "Rejalashtirilgan",     color: "text-info",    border: "border-primary", dot: "var(--color-info)" },
+  skipped: { ru: "Пропущен",        uz: "O'tkazildi",           color: "text-warning", border: "border-warning", dot: "var(--color-warning)" },
 } as const;
 
 const STATUS_ICON = {

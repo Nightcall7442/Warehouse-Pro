@@ -90,7 +90,7 @@ export default function Login() {
             borderRadius: 24, background: "rgba(255,255,255,0.1)", backdropFilter: "blur(8px)",
             border: "1px solid rgba(255,255,255,0.15)", marginBottom: 32, alignSelf: "flex-start",
           }}>
-            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 8px rgba(74,222,128,0.5)" }} />
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--color-success)", boxShadow: "0 0 8px rgba(74,222,128,0.5)" }} />
             <span style={{ fontSize: "11px", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "rgba(255,255,255,0.9)" }}>
               {tr("Система управления складом", "Ombor boshqaruv tizimi")}
             </span>
@@ -125,7 +125,7 @@ export default function Login() {
         <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "13px", color: "rgba(255,255,255,0.5)", zIndex: 1 }}>
           <p>© 2025 Warehouse Pro</p>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#4ade80" }} />
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--color-success)" }} />
             <span>v2.5.0</span>
           </div>
         </div>
@@ -213,7 +213,7 @@ export default function Login() {
               {error && (
                 <div style={{
                   display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderRadius: 12,
-                  background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.15)", fontSize: "13px", fontWeight: 500, color: "#dc2626",
+                  background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.15)", fontSize: "13px", fontWeight: 500, color: "var(--color-danger)",
                 }}>
                   <AlertCircle size={16} />
                   <span>{error}</span>

@@ -110,7 +110,7 @@ function ChartTooltip({ active, payload, label, fmt }: {
       {payload.map((p) => (
         <div key={p.dataKey} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "16px", marginTop: "4px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: p.fill ?? p.stroke ?? "#6366F1" }} />
+            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: p.fill ?? p.stroke ?? "var(--color-primary)" }} />
             <span style={{ fontSize: "12px", color: COLORS.textSecondary }}>{p.name}</span>
           </div>
           <span style={{ fontSize: "13px", fontWeight: 600, color: COLORS.textPrimary, fontFamily: F.display }}>
@@ -531,23 +531,23 @@ export default function PnL() {
                   iconSize={8}
                   wrapperStyle={{ fontSize: "12px", fontFamily: F.body, paddingTop: "12px" }}
                 />
-                <Bar dataKey="revenue" name={t("Выручка", "Tushum")} fill="#6366F1" radius={[4, 4, 0, 0]} opacity={0.85} />
-                <Bar dataKey="cogs" name="COGS" fill="#F97316" radius={[4, 4, 0, 0]} opacity={0.85} />
+                <Bar dataKey="revenue" name={t("Выручка", "Tushum")} fill="var(--color-primary)" radius={[4, 4, 0, 0]} opacity={0.85} />
+                <Bar dataKey="cogs" name="COGS" fill="var(--color-warning)" radius={[4, 4, 0, 0]} opacity={0.85} />
                 <Line
                   dataKey="grossProfit"
                   name={t("Вал. прибыль", "Yalpi foyda")}
-                  stroke="#10B981"
+                  stroke="var(--color-success)"
                   strokeWidth={2.5}
-                  dot={{ r: 4, fill: "#10B981", stroke: COLORS.surface, strokeWidth: 2 }}
+                  dot={{ r: 4, fill: "var(--color-success)", stroke: COLORS.surface, strokeWidth: 2 }}
                   activeDot={{ r: 6 }}
                 />
                 <Line
                   dataKey="netProfit"
                   name={t("Чист. прибыль", "Toza foyda")}
-                  stroke="#8B5CF6"
+                  stroke="var(--color-primary-muted)"
                   strokeWidth={2}
                   strokeDasharray="5 5"
-                  dot={{ r: 3, fill: "#8B5CF6", stroke: COLORS.surface, strokeWidth: 2 }}
+                  dot={{ r: 3, fill: "var(--color-primary-muted)", stroke: COLORS.surface, strokeWidth: 2 }}
                 />
                 <ReferenceLine y={0} stroke={COLORS.border} strokeDasharray="3 3" />
               </ComposedChart>

@@ -45,7 +45,7 @@ Full-stack TypeScript warehouse management system with multi-tenancy, role-based
 
 ```bash
 git clone https://github.com/Nightcall7442/Warehouse-Pro.git
-cd Warehouse-Pro/warehouse-pro-web/web
+cd Warehouse-Pro
 cp .env.example .env
 npm install --legacy-peer-deps
 ```

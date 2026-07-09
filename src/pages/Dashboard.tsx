@@ -20,9 +20,9 @@ import { SparklineCard } from "@/components/SparklineCard";
 type Range = "7d" | "30d" | "month";
 
 const STATUS_COLOR: Record<string, string> = {
-  new:        "#6366F1",
-  processing: "#F59E0B",
-  completed:  "#10B981",
+  new:        "var(--color-primary)",
+  processing: "var(--color-warning)",
+  completed:  "var(--color-success)",
   cancelled:  "#EF4444",
 };
 const STATUS_LABEL: Record<string, { ru: string; uz: string }> = {
@@ -185,7 +185,7 @@ export default function Dashboard() {
           {(alerts as any[]).slice(0, 4).map((alert: any, i: any) => {
             const colors: Record<string, { bg: string; border: string; icon: string }> = {
               info:    { bg: "rgba(59,130,246,0.08)", border: "rgba(59,130,246,0.2)", icon: "#3B82F6" },
-              warning: { bg: "rgba(245,158,11,0.08)", border: "rgba(245,158,11,0.2)", icon: "#F59E0B" },
+              warning: { bg: "rgba(245,158,11,0.08)", border: "rgba(245,158,11,0.2)", icon: "var(--color-warning)" },
               danger:  { bg: "rgba(220,38,38,0.08)", border: "rgba(220,38,38,0.2)", icon: "#DC2626" },
             };
             const c = colors[alert.severity] || colors.info;
@@ -246,12 +246,12 @@ export default function Dashboard() {
               <AreaChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="gRevenueApple" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#6366F1" stopOpacity={0.25} />
-                    <stop offset="100%" stopColor="#6366F1" stopOpacity={0} />
+                    <stop offset="0%" stopColor="var(--color-primary)" stopOpacity={0.25} />
+                    <stop offset="100%" stopColor="var(--color-primary)" stopOpacity={0} />
                   </linearGradient>
                   <linearGradient id="gOrdersApple" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#10B981" stopOpacity={0.2} />
-                    <stop offset="100%" stopColor="#10B981" stopOpacity={0} />
+                    <stop offset="0%" stopColor="var(--color-success)" stopOpacity={0.2} />
+                    <stop offset="100%" stopColor="var(--color-success)" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <XAxis
@@ -282,23 +282,23 @@ export default function Dashboard() {
                   yAxisId="left"
                   type="monotone"
                   dataKey="revenue"
-                  stroke="#6366F1"
+                  stroke="var(--color-primary)"
                   strokeWidth={2.5}
                   fill="url(#gRevenueApple)"
                   name={t("Выручка", "Tushum")}
                   dot={false}
-                  activeDot={{ r: 5, fill: "#6366F1", stroke: "#fff", strokeWidth: 2 }}
+                  activeDot={{ r: 5, fill: "var(--color-primary)", stroke: "#fff", strokeWidth: 2 }}
                 />
                 <Area
                   yAxisId="right"
                   type="monotone"
                   dataKey="orders"
-                  stroke="#10B981"
+                  stroke="var(--color-success)"
                   strokeWidth={2.5}
                   fill="url(#gOrdersApple)"
                   name={t("Заказы", "Buyurtmalar")}
                   dot={false}
-                  activeDot={{ r: 5, fill: "#10B981", stroke: "#fff", strokeWidth: 2 }}
+                  activeDot={{ r: 5, fill: "var(--color-success)", stroke: "#fff", strokeWidth: 2 }}
                 />
               </AreaChart>
             </ResponsiveContainer>

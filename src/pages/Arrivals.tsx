@@ -63,9 +63,9 @@ const UNIT_LABELS: Record<string, string> = { kg: "кг", l: "л", pcs: "шт", 
 function unitLabel(unit: string | undefined): string { return UNIT_LABELS[unit ?? "pcs"] ?? "шт"; }
 
 const STATUS: Record<string, { ru: string; uz: string; color: string }> = {
-  pending:   { ru: "Ожидает", uz: "Kutilmoqda", color: "#F59E0B" },
-  unloading: { ru: "Разгрузка", uz: "Tushirilmoqda", color: "#3B82F6" },
-  completed: { ru: "Завершён", uz: "Yakunlandi", color: "#10B981" },
+  pending:   { ru: "Ожидает", uz: "Kutilmoqda", color: "var(--color-warning)" },
+  unloading: { ru: "Разгрузка", uz: "Tushirilmoqda", color: "var(--color-info)" },
+  completed: { ru: "Завершён", uz: "Yakunlandi", color: "var(--color-success)" },
 };
 
 const StatusBadge = memo(function StatusBadge({ status, lang }: { status: string; lang: "ru" | "uz" }) {
@@ -216,7 +216,7 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
                     </div>
                     <div className="flex justify-end">
                       {items.length > 1 && (
-                        <button onClick={() => removeItem(i)} className="w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:bg-red-50" style={{ border: "none", background: "transparent", color: "#dc2626", cursor: "pointer" }}>
+                        <button onClick={() => removeItem(i)} className="w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:bg-red-50" style={{ border: "none", background: "transparent", color: "var(--color-danger)", cursor: "pointer" }}>
                           <X size={14} />
                         </button>
                       )}

@@ -3,7 +3,12 @@ import { env } from "./env";
 import { logger } from "./logger";
 
 function getTransporter() {
+  const isProd = process.env.NODE_ENV === "production";
   if (!env.smtpHost || env.smtpHost.startsWith("dev-insecure")) {
+    if (isProd) {
+      logger.error("SMTP_HOST is not configured in production — emails will not be delivered. Set SMTP_HOST, SMTP_USER, SMTP_PASS env vars.");
+      throw new Error("SMTP not configured: set SMTP_HOST in production");
+    }
     // Dev: use Ethereal preview URLs (console.log the URL)
     return nodemailer.createTransport({
       host: "smtp.ethereal.email",
@@ -27,16 +32,22 @@ interface SendEmailOpts {
 }
 
 export async function sendEmail(opts: SendEmailOpts): Promise<void> {
-  const transporter = getTransporter();
-  const info = await transporter.sendMail({
-    from:    env.smtpFrom,
-    to:      opts.to,
-    subject: opts.subject,
-    html:    opts.html,
-    text:    opts.text ?? opts.html.replace(/<[^>]+>/g, ""),
-  });
-  if (!env.smtpHost || env.smtpHost.startsWith("dev-insecure")) {
-    logger.debug("Mail preview (dev)", { url: nodemailer.getTestMessageUrl(info) });
+  const isProd = process.env.NODE_ENV === "production";
+  try {
+    const transporter = getTransporter();
+    const info = await transporter.sendMail({
+      from:    env.smtpFrom,
+      to:      opts.to,
+      subject: opts.subject,
+      html:    opts.html,
+      text:    opts.text ?? opts.html.replace(/<[^>]+>/g, ""),
+    });
+    if (!env.smtpHost || env.smtpHost.startsWith("dev-insecure")) {
+      logger.debug("Mail preview (dev)", { url: nodemailer.getTestMessageUrl(info) });
+    }
+  } catch (err) {
+    logger.error("Failed to send email", { to: opts.to, subject: opts.subject, error: err instanceof Error ? err.message : String(err) });
+    if (isProd) throw err; // Re-throw in production so callers know it failed
   }
 }
 

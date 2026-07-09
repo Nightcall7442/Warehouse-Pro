@@ -14,9 +14,9 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { notify } from "@/lib/toast";
 
 const MOVE_TYPE: Record<string, { icon: any; labelRu: string; labelUz: string; color: string; sign: string }> = {
-  in:         { icon: TrendingUp,   labelRu: "Приход",       labelUz: "Kirim",       color: "#16a34a", sign: "+" },
-  out:        { icon: TrendingDown,  labelRu: "Расход",       labelUz: "Chiqim",      color: "#dc2626", sign: "−" },
-  adjustment: { icon: ArrowUpDown,  labelRu: "Корректировка", labelUz: "Tuzatish",   color: "#d97706", sign: "±" },
+  in:         { icon: TrendingUp,   labelRu: "Приход",       labelUz: "Kirim",       color: "var(--color-success)", sign: "+" },
+  out:        { icon: TrendingDown,  labelRu: "Расход",       labelUz: "Chiqim",      color: "var(--color-danger)", sign: "−" },
+  adjustment: { icon: ArrowUpDown,  labelRu: "Корректировка", labelUz: "Tuzatish",   color: "var(--color-warning)", sign: "±" },
 };
 
 const UNIT_LABELS: Record<string, [string, string]> = {
@@ -41,9 +41,9 @@ function AdjustModal({ productId, productName, currentStock, onSave, onClose, is
   const [notes, setNotes] = useState("");
 
   const types = [
-    { value: "in" as const, icon: TrendingUp, labelRu: "Приход", labelUz: "Kirim", color: "#16a34a", descRu: "Добавить на склад", descUz: "Omborga qo'shish" },
-    { value: "out" as const, icon: TrendingDown, labelRu: "Расход", labelUz: "Chiqim", color: "#dc2626", descRu: "Списать со склада", descUz: "Ombordan chiqarish" },
-    { value: "adjustment" as const, icon: ArrowUpDown, labelRu: "Корректировка", labelUz: "Tuzatish", color: "#d97706", descRu: "Установить точное кол-во", descUz: "Aniq miqdorni o'rnatish" },
+    { value: "in" as const, icon: TrendingUp, labelRu: "Приход", labelUz: "Kirim", color: "var(--color-success)", descRu: "Добавить на склад", descUz: "Omborga qo'shish" },
+    { value: "out" as const, icon: TrendingDown, labelRu: "Расход", labelUz: "Chiqim", color: "var(--color-danger)", descRu: "Списать со склада", descUz: "Ombordan chiqarish" },
+    { value: "adjustment" as const, icon: ArrowUpDown, labelRu: "Корректировка", labelUz: "Tuzatish", color: "var(--color-warning)", descRu: "Установить точное кол-во", descUz: "Aniq miqdorni o'rnatish" },
   ];
 
   const currentType = types.find(t => t.value === type)!;
@@ -127,7 +127,7 @@ function AdjustModal({ productId, productName, currentStock, onSave, onClose, is
               <span className="text-xs" style={{ color: "var(--color-text-tertiary)" }}>
                 {t("Новый остаток", "Yangi qoldiq")}
               </span>
-              <span className="text-sm font-bold" style={{ color: newStock >= 0 ? "#16a34a" : "#dc2626", fontFamily: "'DM Sans', sans-serif" }}>
+              <span className="text-sm font-bold" style={{ color: newStock >= 0 ? "var(--color-success)" : "var(--color-danger)", fontFamily: "'DM Sans', sans-serif" }}>
                 {newStock.toFixed(2)} кг
               </span>
             </div>
@@ -395,7 +395,7 @@ export default function Warehouse() {
                 <AlertTriangle size={18} color="#fff" />
               </div>
               <p className="text-sm" style={{ color: "var(--color-text-primary)" }}>
-                <b style={{ color: "#dc2626" }}>{lowCount}</b> {t("товаров ниже порога — отмечены красным", "ta mahsulot chegaradan past")}
+                <b style={{ color: "var(--color-danger)" }}>{lowCount}</b> {t("товаров ниже порога — отмечены красным", "ta mahsulot chegaradan past")}
               </p>
             </div>
           )}
@@ -424,11 +424,11 @@ export default function Warehouse() {
                       <div key={item.id} className="rounded-2xl overflow-hidden"
                         style={{ background: "var(--color-surface)", boxShadow: "0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03)" }}>
                         <div className="flex">
-                          {low && <div className="w-1.5 flex-shrink-0" style={{ background: "#dc2626" }} />}
+                          {low && <div className="w-1.5 flex-shrink-0" style={{ background: "var(--color-danger)" }} />}
                           <div className="flex-1 p-5">
                             <div className="flex items-center justify-between mb-3">
                               <div className="flex items-center gap-2">
-                                {low && <AlertTriangle size={14} color="#dc2626" />}
+                                {low && <AlertTriangle size={14} color="var(--color-danger)" />}
                                 <p className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>{item.productName}</p>
                               </div>
                               <button onClick={() => setAdjusting({ id: item.productId, name: item.productName ?? "", stock: Number(item.currentStock ?? 0) })}
@@ -443,7 +443,7 @@ export default function Warehouse() {
                                 { label: t("Всего", "Jami"), val: item.currentStock, danger: false },
                               ].map(col => (
                                 <div key={col.label}>
-                                  <p className="text-lg font-bold" style={{ color: col.danger ? "#dc2626" : "var(--color-text-primary)", fontFamily: "'DM Sans', sans-serif" }}>
+                                  <p className="text-lg font-bold" style={{ color: col.danger ? "var(--color-danger)" : "var(--color-text-primary)", fontFamily: "'DM Sans', sans-serif" }}>
                                     {Number(col.val ?? 0).toFixed(0)}
                                   </p>
                                   <p className="text-[10px] mt-0.5" style={{ color: "var(--color-text-tertiary)" }}>{col.label}</p>
@@ -489,7 +489,7 @@ export default function Warehouse() {
                           <tr key={item.id} style={low ? { background: "rgba(220,38,38,0.03)" } : undefined}>
                             <td className="px-5 py-3.5" style={{ borderBottom: "1px solid var(--color-border-subtle)" }}>
                               <div className="flex items-center gap-2.5">
-                                {low && <AlertTriangle size={13} color="#dc2626" />}
+                                {low && <AlertTriangle size={13} color="var(--color-danger)" />}
                                 <span className="text-sm font-medium" style={{ color: "var(--color-text-primary)" }}>{item.productName}</span>
                               </div>
                             </td>
@@ -499,7 +499,7 @@ export default function Warehouse() {
                             <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-secondary)", borderBottom: "1px solid var(--color-border-subtle)" }}>
                               {item.category ?? "—"}
                             </td>
-                            <td className="px-5 py-3.5 text-sm font-bold" style={{ color: low ? "#dc2626" : "var(--color-text-primary)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border-subtle)" }}>
+                            <td className="px-5 py-3.5 text-sm font-bold" style={{ color: low ? "var(--color-danger)" : "var(--color-text-primary)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border-subtle)" }}>
                               {Number(item.available ?? 0).toFixed(2)} {unitLabel(item.unit ?? undefined, lang)}
                             </td>
                             <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-secondary)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border-subtle)" }}>
@@ -563,7 +563,7 @@ export default function Warehouse() {
           ) : !deadStockItems?.length ? (
             <div className="text-center py-16">
               <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: "rgba(34,197,94,0.1)" }}>
-                <Package size={28} color="#16a34a" />
+                <Package size={28} color="var(--color-success)" />
               </div>
               <p className="text-sm font-medium" style={{ color: "var(--color-text-primary)" }}>
                 {t("Нет мёртвого стока", "O'lik stok yo'q")}
@@ -580,7 +580,7 @@ export default function Warehouse() {
                 const isWarning = days > 30;
                 const bgColor = isUrgent ? "rgba(220,38,38,0.06)" : isWarning ? "rgba(245,158,11,0.06)" : "var(--color-surface)";
                 const borderColor = isUrgent ? "rgba(220,38,38,0.15)" : isWarning ? "rgba(245,158,11,0.15)" : "var(--color-border-subtle)";
-                const badgeColor = isUrgent ? "#dc2626" : isWarning ? "#d97706" : "#6366f1";
+                const badgeColor = isUrgent ? "var(--color-danger)" : isWarning ? "var(--color-warning)" : "var(--color-primary)";
                 return (
                   <div key={item.productId} className="rounded-2xl p-4" style={{ background: bgColor, boxShadow: `inset 0 0 0 1px ${borderColor}`, animation: `slideUp ${0.3 + i * 0.05}s ease forwards` }}>
                     <div className="flex items-center justify-between mb-2">
@@ -623,7 +623,7 @@ export default function Warehouse() {
                     const isUrgent = days > 90;
                     const isWarning = days > 30;
                     const rowBg = isUrgent ? "rgba(220,38,38,0.04)" : isWarning ? "rgba(245,158,11,0.04)" : undefined;
-                    const badgeColor = isUrgent ? "#dc2626" : isWarning ? "#d97706" : "#6366f1";
+                    const badgeColor = isUrgent ? "var(--color-danger)" : isWarning ? "var(--color-warning)" : "var(--color-primary)";
                     return (
                       <tr key={item.productId} style={{ background: rowBg }}>
                         <td className="px-5 py-3.5 text-sm font-medium" style={{ color: "var(--color-text-primary)", borderBottom: "1px solid var(--color-border-subtle)" }}>
@@ -676,7 +676,7 @@ export default function Warehouse() {
           {!reorderSuggestions?.length ? (
             <div className="text-center py-16">
               <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: "rgba(34,197,94,0.1)" }}>
-                <ShoppingCart size={28} color="#16a34a" />
+                <ShoppingCart size={28} color="var(--color-success)" />
               </div>
               <p className="text-sm font-medium" style={{ color: "var(--color-text-primary)" }}>
                 {t("Все товары в наличии", "Barcha mahsulotlar mavjud")}
@@ -691,7 +691,7 @@ export default function Warehouse() {
                 const daysLeft = Number(item.daysUntilStockout ?? 999);
                 const isUrgent = daysLeft <= 3;
                 const isWarning = daysLeft <= 7;
-                const badgeColor = isUrgent ? "#dc2626" : isWarning ? "#d97706" : "#6366f1";
+                const badgeColor = isUrgent ? "var(--color-danger)" : isWarning ? "var(--color-warning)" : "var(--color-primary)";
                 return (
                   <div key={item.productId} className="rounded-2xl overflow-hidden" style={{ animation: `slideUp ${0.3 + i * 0.05}s ease forwards` }}>
                     <div className="flex">
@@ -731,13 +731,13 @@ export default function Warehouse() {
                     const daysLeft = Number(item.daysUntilStockout ?? 999);
                     const isUrgent = daysLeft <= 3;
                     const isWarning = daysLeft <= 7;
-                    const badgeColor = isUrgent ? "#dc2626" : isWarning ? "#d97706" : "#6366f1";
+                    const badgeColor = isUrgent ? "var(--color-danger)" : isWarning ? "var(--color-warning)" : "var(--color-primary)";
                     const rowBg = isUrgent ? "rgba(220,38,38,0.04)" : isWarning ? "rgba(245,158,11,0.04)" : undefined;
                     return (
                       <tr key={item.productId} style={{ background: rowBg }}>
                         <td className="px-5 py-3.5 text-sm font-medium" style={{ color: "var(--color-text-primary)", borderBottom: "1px solid var(--color-border-subtle)" }}>
                           <div className="flex items-center gap-2">
-                            {isUrgent && <AlertTriangle size={13} color="#dc2626" />}
+                            {isUrgent && <AlertTriangle size={13} color="var(--color-danger)" />}
                             {item.productName}
                           </div>
                         </td>

@@ -13,7 +13,7 @@ import {
 import { PremiumSelect } from "@/components/PremiumSelect";
 
 const STATUS_COLORS: Record<string, string> = {
-  new: "#6b6ef5", processing: "#f0a840", completed: "#22c47a", cancelled: "#f06565",
+  new: "#6b6ef5", processing: "var(--color-warning)", completed: "var(--color-success)", cancelled: "var(--color-danger)",
 };
 const STATUS_LABELS: Record<string, { ru: string; uz: string }> = {
   new:        { ru: "Новый",       uz: "Yangi"         },

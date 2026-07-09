@@ -18,9 +18,9 @@ const PLAN_STATUS: Record<string, {
   labelRu: string; labelUz: string;
   dotColor: string; textClass: string;
 }> = {
-  visited: { icon: CheckCircle2, labelRu: "Посещён",  labelUz: "Borildi",    dotColor: "#22c47a", textClass: "text-success" },
-  skipped: { icon: Clock,        labelRu: "Пропущен", labelUz: "O'tkazildi", dotColor: "#f0a840", textClass: "text-warning" },
-  planned: { icon: Calendar,     labelRu: "Запланирован", labelUz: "Rejalashtirilgan", dotColor: "#5b9cf5", textClass: "text-info" },
+  visited: { icon: CheckCircle2, labelRu: "Посещён",  labelUz: "Borildi",    dotColor: "var(--color-success)", textClass: "text-success" },
+  skipped: { icon: Clock,        labelRu: "Пропущен", labelUz: "O'tkazildi", dotColor: "var(--color-warning)", textClass: "text-warning" },
+  planned: { icon: Calendar,     labelRu: "Запланирован", labelUz: "Rejalashtirilgan", dotColor: "var(--color-info)", textClass: "text-info" },
 };
 
 // ── KPI карточка ──────────────────────────────────────────────────────────────

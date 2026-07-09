@@ -1282,7 +1282,7 @@ function DashboardPreview() {
         <div className="p-4 rounded-xl bg-gradient-to-br from-gray-50/80 to-white border border-gray-200/30">
           <div className="text-[9px] text-gray-400 uppercase tracking-wider mb-3 font-semibold">{tr("Статусы", "Holatlar")}</div>
           <div className="space-y-3">
-            {[{ l: tr("Новые", "Yangi"), v: 23, c: "#8b5cf6" }, { l: tr("В работе", "Jarayonda"), v: 15, c: "#f59e0b" }, { l: tr("Выполнены", "Bajarildi"), v: 89, c: "#10b981" }].map((s) => (
+            {[{ l: tr("Новые", "Yangi"), v: 23, c: "var(--color-primary-muted)" }, { l: tr("В работе", "Jarayonda"), v: 15, c: "var(--color-warning)" }, { l: tr("Выполнены", "Bajarildi"), v: 89, c: "var(--color-success)" }].map((s) => (
               <div key={s.l}>
                 <div className="flex justify-between text-[11px] mb-1">
                   <div className="flex items-center gap-1.5">
@@ -1316,20 +1316,20 @@ function MapPreview() {
         <path d="M0,270 L600,270" stroke="#fff" strokeWidth="3" fill="none" opacity="0.55" />
         <path d="M150,0 L150,360" stroke="#fff" strokeWidth="3" fill="none" opacity="0.55" />
         <path d="M450,0 L450,360" stroke="#fff" strokeWidth="3" fill="none" opacity="0.55" />
-        <rect x="85" y="55" width="50" height="28" rx="2" fill="#c9c4bc" opacity="0.45" />
-        <rect x="160" y="55" width="35" height="24" rx="2" fill="#c9c4bc" opacity="0.45" />
-        <rect x="310" y="55" width="45" height="26" rx="2" fill="#c9c4bc" opacity="0.45" />
-        <rect x="85" y="195" width="45" height="30" rx="2" fill="#c9c4bc" opacity="0.45" />
-        <rect x="310" y="195" width="50" height="28" rx="2" fill="#c9c4bc" opacity="0.45" />
-        <rect x="460" y="100" width="70" height="50" rx="8" fill="#b8d4a8" opacity="0.4" />
-        <rect x="60" y="290" width="60" height="40" rx="8" fill="#b8d4a8" opacity="0.4" />
+        <rect x="85" y="55" width="50" height="28" rx="2" fill="var(--color-text-tertiary)" opacity="0.45" />
+        <rect x="160" y="55" width="35" height="24" rx="2" fill="var(--color-text-tertiary)" opacity="0.45" />
+        <rect x="310" y="55" width="45" height="26" rx="2" fill="var(--color-text-tertiary)" opacity="0.45" />
+        <rect x="85" y="195" width="45" height="30" rx="2" fill="var(--color-text-tertiary)" opacity="0.45" />
+        <rect x="310" y="195" width="50" height="28" rx="2" fill="var(--color-text-tertiary)" opacity="0.45" />
+        <rect x="460" y="100" width="70" height="50" rx="8" fill="var(--color-success-subtle)" opacity="0.4" />
+        <rect x="60" y="290" width="60" height="40" rx="8" fill="var(--color-success-subtle)" opacity="0.4" />
         <ellipse cx="520" cy="290" rx="45" ry="25" fill="#a8c8d8" opacity="0.3" />
       </svg>
       {/* Route */}
       <svg className="absolute inset-0 w-full h-full pointer-events-none z-10" viewBox="0 0 600 360">
         <defs>
           <linearGradient id="routeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#8b5cf6" />
+            <stop offset="0%" stopColor="var(--color-primary-muted)" />
             <stop offset="100%" stopColor="#06b6d4" />
           </linearGradient>
         </defs>

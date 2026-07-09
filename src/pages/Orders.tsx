@@ -27,10 +27,10 @@ const SHADOW = "0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)";
 
 /* ─── Status Config ─── */
 const STATUS: Record<string, { ru: string; uz: string; dot: string; bg: string; text: string; border: string }> = {
-  new:        { ru: "Новый",       uz: "Yangi",         dot: "#6366f1", bg: "bg-info/10",    text: "text-info",    border: "border-info/25" },
-  processing: { ru: "В обработке", uz: "Jarayonda",     dot: "#f59e0b", bg: "bg-warning/10", text: "text-warning", border: "border-warning/25" },
-  completed:  { ru: "Выполнен",    uz: "Bajarildi",     dot: "#10b981", bg: "bg-success/10", text: "text-success", border: "border-success/25" },
-  cancelled:  { ru: "Отменён",     uz: "Bekor qilindi", dot: "#ef4444", bg: "bg-danger/10",  text: "text-danger",  border: "border-danger/25" },
+  new:        { ru: "Новый",       uz: "Yangi",         dot: "var(--color-primary)", bg: "bg-info/10",    text: "text-info",    border: "border-info/25" },
+  processing: { ru: "В обработке", uz: "Jarayonda",     dot: "var(--color-warning)", bg: "bg-warning/10", text: "text-warning", border: "border-warning/25" },
+  completed:  { ru: "Выполнен",    uz: "Bajarildi",     dot: "var(--color-success)", bg: "bg-success/10", text: "text-success", border: "border-success/25" },
+  cancelled:  { ru: "Отменён",     uz: "Bekor qilindi", dot: "var(--color-danger)", bg: "bg-danger/10",  text: "text-danger",  border: "border-danger/25" },
 };
 
 /* ─── Premium KpiCard Component ─── */
