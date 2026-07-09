@@ -54,12 +54,11 @@ function parseRow(cells: (string | number | null)[], colMap: Record<string, numb
 }
 
 /** Parse file (CSV or XLSX) into headers + rows */
-function parseFile(base64: string, filename: string): { headers: string[]; rows: (string | number | null)[][] } {
+async function parseFile(base64: string, filename: string): Promise<{ headers: string[]; rows: (string | number | null)[][] }> {
   const isXlsx = filename.toLowerCase().endsWith(".xlsx") || filename.toLowerCase().endsWith(".xls");
 
   if (isXlsx) {
-    // XLSX — use xlsx library (dynamic import for server)
-    const XLSX = require("xlsx");
+    const XLSX = await import("xlsx");
     const buf = Buffer.from(base64, "base64");
     const wb = XLSX.read(buf, { type: "buffer" });
     const sheet = wb.Sheets[wb.SheetNames[0]];
@@ -111,9 +110,9 @@ export const importRouter = createRouter({
       base64: z.string(),
       filename: z.string(),
     }))
-    .mutation(({ input }) => {
+    .mutation(async ({ input }) => {
       try {
-        const { headers, rows } = parseFile(input.base64, input.filename);
+        const { headers, rows } = await parseFile(input.base64, input.filename);
         const mapping = input.type === "products"
           ? mapColumns(headers, PRODUCT_COLUMNS)
           : mapColumns(headers, SHOP_COLUMNS);
@@ -136,7 +135,7 @@ export const importRouter = createRouter({
       const tenantId = ctx.tenant.id;
       const db = getDb();
 
-      const { headers, rows: dataRows } = parseFile(input.base64, input.filename);
+      const { headers, rows: dataRows } = await parseFile(input.base64, input.filename);
       const mapping = input.type === "products"
         ? mapColumns(headers, PRODUCT_COLUMNS)
         : mapColumns(headers, SHOP_COLUMNS);
