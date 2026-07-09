@@ -1323,14 +1323,14 @@ function MapPreview() {
         <rect x="310" y="195" width="50" height="28" rx="2" fill="var(--color-text-tertiary)" opacity="0.45" />
         <rect x="460" y="100" width="70" height="50" rx="8" fill="var(--color-success-subtle)" opacity="0.4" />
         <rect x="60" y="290" width="60" height="40" rx="8" fill="var(--color-success-subtle)" opacity="0.4" />
-        <ellipse cx="520" cy="290" rx="45" ry="25" fill="#a8c8d8" opacity="0.3" />
+        <ellipse cx="520" cy="290" rx="45" ry="25" fill="var(--color-info)" opacity="0.3" />
       </svg>
       {/* Route */}
       <svg className="absolute inset-0 w-full h-full pointer-events-none z-10" viewBox="0 0 600 360">
         <defs>
           <linearGradient id="routeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="var(--color-primary-muted)" />
-            <stop offset="100%" stopColor="#06b6d4" />
+            <stop offset="100%" stopColor="var(--color-info)" />
           </linearGradient>
         </defs>
         <path d="M140,120 L180,120 L180,160 L260,160 L260,200 L320,200 L320,160 L380,160 L380,220 L320,220 L320,280 L260,280"

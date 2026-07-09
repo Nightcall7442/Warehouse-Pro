@@ -435,7 +435,7 @@ export default function Monitoring() {
           >
             <div style={{
               width: "6px", height: "6px", borderRadius: "50%",
-              background: autoRefresh ? COLORS.success : "#9ca3af",
+              background: autoRefresh ? COLORS.success : "var(--color-text-tertiary)",
               animation: autoRefresh ? "pulse 2s infinite" : undefined,
             }} />
             {autoRefresh ? "Live" : "Paused"}

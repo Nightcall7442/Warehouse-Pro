@@ -23,7 +23,7 @@ const STATUS_COLOR: Record<string, string> = {
   new:        "var(--color-primary)",
   processing: "var(--color-warning)",
   completed:  "var(--color-success)",
-  cancelled:  "#EF4444",
+  cancelled:  "var(--color-danger)",
 };
 const STATUS_LABEL: Record<string, { ru: string; uz: string }> = {
   new:        { ru: "Новые",       uz: "Yangi"         },
@@ -184,9 +184,9 @@ export default function Dashboard() {
         }}>
           {(alerts as any[]).slice(0, 4).map((alert: any, i: any) => {
             const colors: Record<string, { bg: string; border: string; icon: string }> = {
-              info:    { bg: "rgba(59,130,246,0.08)", border: "rgba(59,130,246,0.2)", icon: "#3B82F6" },
+              info:    { bg: "rgba(59,130,246,0.08)", border: "rgba(59,130,246,0.2)", icon: "var(--color-info)" },
               warning: { bg: "rgba(245,158,11,0.08)", border: "rgba(245,158,11,0.2)", icon: "var(--color-warning)" },
-              danger:  { bg: "rgba(220,38,38,0.08)", border: "rgba(220,38,38,0.2)", icon: "#DC2626" },
+              danger:  { bg: "rgba(220,38,38,0.08)", border: "rgba(220,38,38,0.2)", icon: "var(--color-danger)" },
             };
             const c = colors[alert.severity] || colors.info;
             return (

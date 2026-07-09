@@ -81,7 +81,7 @@ export default function SupervisorTracking() {
         if (!lat || !lng) return;
 
         const online = isOnline(loc.createdAt);
-        const color = online ? "var(--color-success)" : "#9399a8";
+        const color = online ? "var(--color-success)" : "var(--color-text-tertiary)";
         const initial = (loc.agentName ?? "A")[0].toUpperCase();
 
         const placemark = new window.ymaps.Placemark(

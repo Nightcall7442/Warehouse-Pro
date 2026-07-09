@@ -14,7 +14,7 @@ import {
 } from "recharts";
 import { exportToExcel, exportToPDF, buildExcelSheets, buildPDFHtml, type ReportData } from "@/lib/export";
 
-const COLORS = ["var(--color-primary)", "var(--color-primary-muted)", "var(--color-primary-muted)", "#c4b5fd", "#ddd6fe", "#ede9fe", "var(--color-success)", "var(--color-warning)"];
+const COLORS = ["var(--color-primary)", "var(--color-primary-muted)", "var(--color-primary-muted)", "var(--color-primary-muted)", "var(--color-primary-subtle)", "var(--color-primary-subtle)", "var(--color-success)", "var(--color-warning)"];
 
 const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
 const THEME = {
@@ -316,7 +316,7 @@ export default function WarehouseReports() {
                 {[
                   { label: t("Топливо", "Yoqilg'i"), value: Number(arrivalData.summary.totalFuelCost ?? 0), color: "var(--color-warning)" },
                   { label: t("Платные дороги", "Pullik yo'llar"), value: Number(arrivalData.summary.totalTollCost ?? 0), color: "var(--color-primary)" },
-                  { label: t("Прочее", "Boshqa"), value: Number(arrivalData.summary.totalOtherCost ?? 0), color: "#a1a1aa" },
+                  { label: t("Прочее", "Boshqa"), value: Number(arrivalData.summary.totalOtherCost ?? 0), color: "var(--color-text-tertiary)" },
                 ].map(c => (
                   <div key={c.label} className="flex items-center justify-between text-xs">
                     <div className="flex items-center gap-2">

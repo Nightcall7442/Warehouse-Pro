@@ -151,7 +151,7 @@ const PlanCompletion = memo(function PlanCompletion({ data, t }: { data: unknown
 
 // ── Agent Card (for Agents tab) ───────────────────────────────────────────────
 const MEDALS = ["🥇", "🥈", "🥉"];
-const MEDAL_COLORS = ["var(--color-warning)", "#94A3B8", "var(--color-warning)"];
+const MEDAL_COLORS = ["var(--color-warning)", "var(--color-text-tertiary)", "var(--color-warning)"];
 
 const AgentCard = memo(function AgentCard({ agent: a, rank, fmt, days }: { agent: unknown; rank: number; fmt: (v: string | number) => string; days: number }) {
   const agent = a as Record<string, unknown>;

@@ -57,7 +57,7 @@ function planStatus(t: TenantRow): { label: string; color: string } {
 const PLAN_COLORS: Record<string, { fg: string; bg: string }> = {
   basic:     { fg: COLORS.info,    bg: "rgba(37,99,235,0.12)" },
   pro:       { fg: COLORS.success, bg: "rgba(22,163,74,0.12)" },
-  exclusive: { fg: "#a78bfa",      bg: "rgba(167,139,250,0.12)" },
+  exclusive: { fg: "var(--color-primary-muted)",      bg: "rgba(167,139,250,0.12)" },
 };
 const STATUS_COLORS: Record<string, { fg: string; bg: string }> = {
   active:    { fg: COLORS.success, bg: "rgba(22,163,74,0.12)" },
@@ -98,7 +98,7 @@ function Section({ title, icon: Icon, children, delay = 0 }: {
   title: string; icon: any; children: React.ReactNode; delay?: number;
 }) {
   return (
-    <div style={{ background: COLORS.surface, borderRadius: "20px", overflow: "hidden", boxShadow: SHADOW }}>
+    <div style={{ background: COLORS.surface, borderRadius: "20px", boxShadow: SHADOW }}>
       <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", gap: "10px", borderBottom: `1px solid ${COLORS.border}` }}>
         <div style={{ width: "28px", height: "28px", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(124,127,245,0.1)", color: COLORS.primary }}>
           <Icon size={14} />
@@ -376,10 +376,10 @@ function TenantDetail({ tenantId, onBack }: { tenantId: number; onBack: () => vo
               <div key={m.month} style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                 <span style={{ width: "72px", fontSize: "12px", color: COLORS.textSecondary, fontFamily: F.body }}>{m.month}</span>
                 <div style={{ flex: 1, height: "6px", borderRadius: "3px", background: COLORS.surfaceLight, overflow: "hidden" }}>
-                  <div style={{ height: "100%", borderRadius: "3px", background: "linear-gradient(90deg, var(--color-primary), var(--color-primary-hover))", width: `${Math.min(100, (m.orders / Math.max(...monthlyOrders.map(x => x.orders))) * 100)}%` }} />
+                  <div style={{ height: "100%", borderRadius: "3px", background: "linear-gradient(90deg, var(--color-primary), var(--color-primary-hover))", width: `${Math.min(100, ((m.orders ?? 0) / Math.max(1, ...monthlyOrders.map(x => x.orders ?? 0))) * 100)}%` }} />
                 </div>
-                <span style={{ width: "40px", textAlign: "right", fontSize: "12px", fontWeight: 600, color: COLORS.textPrimary }}>{m.orders}</span>
-                <span style={{ width: "100px", textAlign: "right", fontSize: "11px", color: COLORS.textTertiary }}>{money(m.revenue)} сум</span>
+                <span style={{ width: "40px", textAlign: "right", fontSize: "12px", fontWeight: 600, color: COLORS.textPrimary }}>{m.orders ?? 0}</span>
+                <span style={{ width: "100px", textAlign: "right", fontSize: "11px", color: COLORS.textTertiary }}>{money(Number(m.revenue ?? 0))} сум</span>
               </div>
             ))}
           </div>
