@@ -3,7 +3,7 @@
  * Only superadmin and ceo can manage API keys.
  */
 import { z } from "zod";
-import { router, authedQuery } from "./middleware";
+import { createRouter, authedQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { apiKeys } from "../db/schema";
 import { eq, and, desc } from "drizzle-orm";
@@ -21,7 +21,7 @@ function generateApiKey(): { raw: string; hash: string; prefix: string } {
   return { raw, hash: hashKey(raw), prefix: raw.slice(0, 12) };
 }
 
-export const apiKeyRouter = router({
+export const apiKeyRouter = createRouter({
   /** List all API keys for current tenant */
   list: authedQuery(async ({ ctx }) => {
     const db = getDb();
