@@ -652,7 +652,7 @@ export const apiKeys = mysqlTable("api_keys", {
   keyHash:     varchar("key_hash", { length: 64 }).notNull(),
   keyPrefix:   varchar("key_prefix", { length: 12 }).notNull(),   // first 8 chars for display: "wp_live_..."
   scopes:      varchar("scopes", { length: 500 }).default("read").notNull(), // comma-separated: read,write,orders,products,stock
-  rateLimit:   integer("rate_limit").default(100).notNull(),       // requests per minute
+  rateLimit:   int("rate_limit").default(100).notNull(),       // requests per minute
   lastUsedAt:  timestamp("last_used_at"),
   expiresAt:   timestamp("expires_at"),
   status:      varchar("status", { length: 20 }).default("active").notNull(),
