@@ -7,11 +7,23 @@ import {
   Building2, Search, Power, Zap, RefreshCw,
   Users, ShoppingCart, TrendingUp, ArrowLeft,
   Plus, Calendar, Lock, ChevronRight, BarChart3, Package,
-  Store, Shield, XCircle, User, Mail, Key, Save, Loader2,
+  Store, Shield, XCircle, User, Key, Save, Loader2,
 } from "lucide-react";
 import { PremiumSelect } from "@/components/PremiumSelect";
 
-// ── Типы ─────────────────────────────────────────────────────────────────────
+// ── Premium design tokens ─────────────────────────────────────────────────────
+const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
+const COLORS = {
+  primary: "var(--color-primary)", success: "var(--color-success)",
+  warning: "var(--color-warning)", danger: "var(--color-danger)",
+  surface: "var(--color-surface)", surfaceLight: "var(--color-surface-light)",
+  textPrimary: "var(--color-text-primary)", textSecondary: "var(--color-text-secondary)",
+  textTertiary: "var(--color-text-tertiary)", border: "var(--color-border-subtle)",
+  info: "var(--color-info)",
+};
+const SHADOW = "0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 type TenantRow = {
   id: number; name: string; slug: string;
   plan: string; status: string; createdAt: Date;
@@ -20,783 +32,523 @@ type TenantRow = {
   userCount: number; orderCount: number; orderTotal: number;
 };
 
-// ── Утилиты ──────────────────────────────────────────────────────────────────
-const PLAN_STYLE: Record<string, string> = {
-  basic:     "bg-info/15 text-info border-info/30",
-  pro:       "bg-success/15 text-success border-success/30",
-  exclusive: "bg-purple-100 text-purple-700 border-purple-300",
-};
-const STATUS_STYLE: Record<string, string> = {
-  active:    "bg-success/15 text-success border-success/30",
-  suspended: "bg-danger/15 text-danger border-danger/30",
-};
-
+// ── Helpers ───────────────────────────────────────────────────────────────────
 function fmt(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
-  if (n >= 1_000)     return (n / 1_000).toFixed(1) + "K";
+  if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
   return String(n);
 }
 function money(n: number): string {
   return new Intl.NumberFormat("ru").format(Math.round(n));
 }
 function planStatus(t: TenantRow): { label: string; color: string } {
-  // Показываем статус trial-периода если есть trialEndsAt
   if (t.trialEndsAt) {
     const d = differenceInDays(new Date(t.trialEndsAt), new Date());
-    if (d < 0) return { label: "Trial истёк", color: "text-danger" };
-    return { label: `Trial ${d}д.`, color: d < 3 ? "text-warning" : "text-info" };
+    if (d < 0) return { label: "Trial истёк", color: COLORS.danger };
+    return { label: `Trial ${d}д.`, color: d < 3 ? COLORS.warning : COLORS.info };
   }
-  // Показываем статус плана
   const expires = t.planExpiresAt ? new Date(t.planExpiresAt) : null;
-  if (!expires) return { label: "Без лимита", color: "text-text-secondary" };
+  if (!expires) return { label: "Без лимита", color: COLORS.textSecondary };
   const d = differenceInDays(expires, new Date());
-  if (d < 0) return { label: "Истёк", color: "text-danger" };
-  return { label: `${d} дн.`, color: d < 7 ? "text-warning" : "text-success" };
+  if (d < 0) return { label: "Истёк", color: COLORS.danger };
+  return { label: `${d} дн.`, color: d < 7 ? COLORS.warning : COLORS.success };
+}
+
+const PLAN_COLORS: Record<string, { fg: string; bg: string }> = {
+  basic:     { fg: COLORS.info,    bg: "rgba(37,99,235,0.12)" },
+  pro:       { fg: COLORS.success, bg: "rgba(22,163,74,0.12)" },
+  exclusive: { fg: "#a78bfa",      bg: "rgba(167,139,250,0.12)" },
+};
+const STATUS_COLORS: Record<string, { fg: string; bg: string }> = {
+  active:    { fg: COLORS.success, bg: "rgba(22,163,74,0.12)" },
+  suspended: { fg: COLORS.danger,  bg: "rgba(220,38,38,0.12)" },
+};
+
+function PlanBadge({ plan }: { plan: string }) {
+  const c = PLAN_COLORS[plan] ?? PLAN_COLORS.basic;
+  return <span style={{ display: "inline-flex", alignItems: "center", padding: "3px 10px", borderRadius: "20px", fontSize: "10px", fontWeight: 700, fontFamily: F.body, color: c.fg, background: c.bg, letterSpacing: "0.04em" }}>{plan.toUpperCase()}</span>;
+}
+function StatusBadge({ status }: { status: string }) {
+  const c = STATUS_COLORS[status] ?? STATUS_COLORS.active;
+  return <span style={{ display: "inline-flex", alignItems: "center", padding: "3px 10px", borderRadius: "20px", fontSize: "10px", fontWeight: 700, fontFamily: F.body, color: c.fg, background: c.bg, letterSpacing: "0.04em" }}>{status.toUpperCase()}</span>;
+}
+
+// ── Premium KPI Card ──────────────────────────────────────────────────────────
+function KpiCard({ label, value, icon: Icon, gradient, loading }: {
+  label: string; value: string | number; icon: any; gradient: string; loading?: boolean;
+}) {
+  return (
+    <div style={{ background: COLORS.surface, borderRadius: "20px", padding: "24px", boxShadow: SHADOW, position: "relative", overflow: "hidden" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
+        <span style={{ fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: COLORS.textTertiary }}>{label}</span>
+        <div style={{ width: "44px", height: "44px", borderRadius: "12px", background: gradient, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Icon size={20} color="#fff" />
+        </div>
+      </div>
+      {loading
+        ? <div style={{ height: "32px", borderRadius: "8px", background: COLORS.surfaceLight, animation: "pulse 1.5s infinite" }} />
+        : <div style={{ fontFamily: F.display, fontSize: "32px", fontWeight: 700, color: COLORS.textPrimary, lineHeight: 1, letterSpacing: "-0.03em" }}>{value}</div>
+      }
+    </div>
+  );
+}
+
+// ── Premium Section ───────────────────────────────────────────────────────────
+function Section({ title, icon: Icon, children, delay = 0 }: {
+  title: string; icon: any; children: React.ReactNode; delay?: number;
+}) {
+  return (
+    <div style={{ background: COLORS.surface, borderRadius: "20px", overflow: "hidden", boxShadow: SHADOW }}>
+      <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", gap: "10px", borderBottom: `1px solid ${COLORS.border}` }}>
+        <div style={{ width: "28px", height: "28px", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(124,127,245,0.1)", color: COLORS.primary }}>
+          <Icon size={14} />
+        </div>
+        <h3 style={{ fontFamily: F.display, fontSize: "13px", fontWeight: 600, color: COLORS.textPrimary }}>{title}</h3>
+      </div>
+      <div style={{ padding: "20px" }}>{children}</div>
+    </div>
+  );
+}
+
+// ── Premium Modal ─────────────────────────────────────────────────────────────
+function Modal({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }} onClick={onClose}>
+      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }} />
+      <div style={{ position: "relative", width: "100%", maxWidth: "480px", background: COLORS.surface, borderRadius: "20px", border: `1px solid ${COLORS.border}`, boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)", overflow: "hidden" }} onClick={e => e.stopPropagation()}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function Input({ label, ...props }: { label: string } & React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <div>
+      <label style={{ fontFamily: F.body, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: COLORS.textTertiary, display: "block", marginBottom: "6px" }}>{label}</label>
+      <input {...props} style={{ width: "100%", padding: "10px 14px", borderRadius: "12px", border: `1px solid ${COLORS.border}`, background: COLORS.surfaceLight, color: COLORS.textPrimary, fontFamily: F.body, fontSize: "13px", outline: "none", transition: "border-color 0.2s", ...props.style }} />
+    </div>
+  );
+}
+
+function BtnPrimary({ children, disabled, onClick, style: s }: { children: React.ReactNode; disabled?: boolean; onClick?: () => void; style?: React.CSSProperties }) {
+  return (
+    <button onClick={onClick} disabled={disabled} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px", padding: "10px 20px", borderRadius: "12px", fontSize: "13px", fontWeight: 600, fontFamily: F.body, color: "#fff", background: "linear-gradient(135deg, var(--color-primary), var(--color-primary-hover))", border: "none", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1, transition: "all 0.2s", ...s }}>
+      {children}
+    </button>
+  );
+}
+
+function BtnSecondary({ children, onClick, style: s }: { children: React.ReactNode; onClick?: () => void; style?: React.CSSProperties }) {
+  return (
+    <button onClick={onClick} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px", padding: "10px 20px", borderRadius: "12px", fontSize: "13px", fontWeight: 600, fontFamily: F.body, color: COLORS.textSecondary, background: COLORS.surface, border: `1px solid ${COLORS.border}`, cursor: "pointer", transition: "all 0.2s", ...s }}>
+      {children}
+    </button>
+  );
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Статистика платформы
+// Platform Stats
 // ══════════════════════════════════════════════════════════════════════════════
 function PlatformStats() {
   const { data: stats, isLoading } = trpc.tenant.platformStats.useQuery();
-
   const cards = [
-    { label: "Всего организаций", value: stats?.tenants ?? 0,              icon: Building2,    color: "indigo" },
-    { label: "Пользователей",     value: stats?.users   ?? 0,              icon: Users,        color: "blue"   },
-    { label: "Заказов",           value: stats?.orders  ?? 0,              icon: ShoppingCart, color: "green"  },
-    { label: "Выручка (total)",   value: money(stats?.revenue ?? 0) + " сум", icon: TrendingUp,  color: "amber",  raw: true as boolean },
+    { label: "Организаций", value: stats?.tenants ?? 0, icon: Building2, gradient: "linear-gradient(135deg, #6366F1, #8B5CF6)" },
+    { label: "Пользователей", value: stats?.users ?? 0, icon: Users, gradient: "linear-gradient(135deg, #3B82F6, #2563EB)" },
+    { label: "Заказов", value: fmt(stats?.orders ?? 0), icon: ShoppingCart, gradient: "linear-gradient(135deg, #22C55E, #16A34A)" },
+    { label: "Выручка", value: money(stats?.revenue ?? 0) + " сум", icon: TrendingUp, gradient: "linear-gradient(135deg, #F59E0B, #D97706)" },
   ];
-
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-      {cards.map(c => (
-        <div key={c.label} className="kpi-card">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs text-text-secondary font-label">{c.label}</span>
-            <div className={`kpi-icon-box kpi-icon-${c.color}`}>
-              <c.icon size={16} />
-            </div>
-          </div>
-          {isLoading
-            ? <div className="h-7 bg-surface-light animate-pulse rounded" />
-            : <p className="font-data text-2xl font-bold text-text-primary">
-                {(c as { raw?: boolean }).raw ? c.value : fmt(c.value as unknown as number)}
-              </p>
-          }
-        </div>
-      ))}
-      {/* По тарифам */}
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
+      {cards.map(c => <KpiCard key={c.label} label={c.label} value={c.value} icon={c.icon} gradient={c.gradient} loading={isLoading} />)}
       {stats && (
-        <div className="panel p-4 col-span-2 lg:col-span-4">
-          <p className="text-xs text-text-secondary font-label mb-3">По тарифам</p>
-          <div className="flex gap-4 flex-wrap">
+        <Section title="По тарифам" icon={BarChart3}>
+          <div style={{ display: "flex", gap: "20px", flexWrap: "wrap", alignItems: "center" }}>
             {(["basic", "pro", "exclusive"] as const).map(plan => (
-              <div key={plan} className="flex items-center gap-2">
-                <span className={`status-badge ${PLAN_STYLE[plan]}`}>{plan.toUpperCase()}</span>
-                <span className="font-data text-lg font-bold text-text-primary">
-                  {stats.byPlan[plan] ?? 0}
-                </span>
+              <div key={plan} style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <PlanBadge plan={plan} />
+                <span style={{ fontFamily: F.display, fontSize: "20px", fontWeight: 700, color: COLORS.textPrimary }}>{stats.byPlan[plan] ?? 0}</span>
               </div>
             ))}
-            <div className="ml-auto flex items-center gap-2">
-              <span className={`status-badge ${STATUS_STYLE.suspended}`}>Suspended</span>
-              <span className="font-data text-lg font-bold text-text-primary">
-                {stats.byStatus.suspended ?? 0}
-              </span>
+            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "10px" }}>
+              <StatusBadge status="suspended" />
+              <span style={{ fontFamily: F.display, fontSize: "20px", fontWeight: 700, color: COLORS.textPrimary }}>{stats.byStatus.suspended ?? 0}</span>
             </div>
           </div>
-        </div>
+        </Section>
       )}
     </div>
   );
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Модальное окно создания тенанта
+// Create Tenant Modal
 // ══════════════════════════════════════════════════════════════════════════════
 function CreateTenantModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const [form, setForm] = useState({
-    orgName: "", ownerName: "", ownerEmail: "",
-    ownerPassword: "", plan: "basic" as "basic" | "pro" | "exclusive", trialDays: 14,
-  });
-
+  const [form, setForm] = useState({ orgName: "", ownerName: "", ownerEmail: "", ownerPassword: "", plan: "basic" as "basic" | "pro" | "exclusive", trialDays: 14 });
   const create = trpc.tenant.create.useMutation({
     onSuccess: (d) => { notify.success(`Создан: ${d.slug}`); onCreated(); onClose(); },
-    onError:   (e) => notify.error(e.message),
+    onError: (e) => notify.error(e.message),
   });
-
-  const f = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
-    setForm(p => ({ ...p, [k]: e.target.value }));
-
+  const f = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm(p => ({ ...p, [k]: e.target.value }));
   return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="panel p-6 w-full max-w-md space-y-4" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between">
-          <h2 className="font-display text-lg font-bold text-text-primary flex items-center gap-2">
-            <Plus size={18} className="text-primary" /> Новая организация
-          </h2>
-          <button onClick={onClose} className="text-text-secondary hover:text-text-primary">
-            <XCircle size={20} />
-          </button>
+    <Modal onClose={onClose}>
+      <div style={{ padding: "24px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "24px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <div style={{ width: "40px", height: "40px", borderRadius: "12px", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(124,127,245,0.1)", color: COLORS.primary }}><Plus size={20} /></div>
+            <div>
+              <h2 style={{ fontFamily: F.display, fontSize: "16px", fontWeight: 700, color: COLORS.textPrimary }}>Новая организация</h2>
+              <p style={{ fontSize: "12px", color: COLORS.textTertiary }}>Создайте тенант и владельца</p>
+            </div>
+          </div>
+          <button onClick={onClose} style={{ padding: "8px", borderRadius: "8px", background: "none", border: "none", cursor: "pointer", color: COLORS.textSecondary }}><XCircle size={20} /></button>
         </div>
-
-        <div className="space-y-3">
-          <div>
-            <label className="text-xs text-text-secondary font-label mb-1 block">Название компании</label>
-            <input className="input-field w-full" placeholder="ООО Ромашка" value={form.orgName} onChange={f("orgName")} />
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <Input label="Название компании" placeholder="ООО Ромашка" value={form.orgName} onChange={f("orgName")} />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+            <Input label="Имя владельца" placeholder="Иван Петров" value={form.ownerName} onChange={f("ownerName")} />
+            <Input label="Email" type="email" placeholder="owner@..." value={form.ownerEmail} onChange={f("ownerEmail")} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <Input label="Пароль" type="password" placeholder="мин. 8 символов" value={form.ownerPassword} onChange={f("ownerPassword")} />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
             <div>
-              <label className="text-xs text-text-secondary font-label mb-1 block">Имя владельца</label>
-              <input className="input-field w-full" placeholder="Иван Петров" value={form.ownerName} onChange={f("ownerName")} />
+              <label style={{ fontFamily: F.body, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: COLORS.textTertiary, display: "block", marginBottom: "6px" }}>Тариф</label>
+              <PremiumSelect value={form.plan} onChange={v => setForm(p => ({ ...p, plan: v as any }))} options={[{ value: "basic", label: "Basic" }, { value: "pro", label: "Pro" }, { value: "exclusive", label: "Exclusive" }]} width="100%" />
             </div>
-            <div>
-              <label className="text-xs text-text-secondary font-label mb-1 block">Email</label>
-              <input className="input-field w-full" type="email" placeholder="owner@..." value={form.ownerEmail} onChange={f("ownerEmail")} />
-            </div>
-          </div>
-          <div>
-            <label className="text-xs text-text-secondary font-label mb-1 block">Пароль</label>
-            <input className="input-field w-full" type="password" placeholder="мин. 8 символов" value={form.ownerPassword} onChange={f("ownerPassword")} />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs text-text-secondary font-label mb-1 block">Тариф</label>
-              <PremiumSelect value={form.plan} onChange={v => setForm(p => ({ ...p, plan: v as "basic" | "pro" | "exclusive" }))}
-                options={[{value:"basic",label:"Basic"},{value:"pro",label:"Pro"},{value:"exclusive",label:"Exclusive"}]}
-                width="100%" />
-            </div>
-            <div>
-              <label className="text-xs text-text-secondary font-label mb-1 block">Trial дней</label>
-              <input className="input-field w-full" type="number" min="0" max="365"
-                value={form.trialDays} onChange={e => setForm(p => ({ ...p, trialDays: Number(e.target.value) }))} />
-            </div>
+            <Input label="Trial дней" type="number" min="0" max="365" value={String(form.trialDays)} onChange={e => setForm(p => ({ ...p, trialDays: Number(e.target.value) }))} />
           </div>
         </div>
-
-        <div className="flex gap-2 pt-2">
-          <button onClick={onClose} className="btn-secondary flex-1">Отмена</button>
-          <button
-            onClick={() => create.mutate(form)}
-            disabled={create.isPending || !form.orgName || !form.ownerEmail || !form.ownerPassword}
-            className="btn-primary flex-1 disabled:opacity-50"
-          >
+        <div style={{ display: "flex", gap: "12px", marginTop: "24px" }}>
+          <BtnSecondary onClick={onClose} style={{ flex: 1 }}>Отмена</BtnSecondary>
+          <BtnPrimary onClick={() => create.mutate(form)} disabled={create.isPending || !form.orgName || !form.ownerEmail || !form.ownerPassword} style={{ flex: 1 }}>
             {create.isPending ? "Создаём…" : "Создать"}
-          </button>
+          </BtnPrimary>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Детальная страница тенанта
+// Tenant Detail
 // ══════════════════════════════════════════════════════════════════════════════
 function TenantDetail({ tenantId, onBack }: { tenantId: number; onBack: () => void }) {
   const { data, isLoading, refetch } = trpc.tenant.getDetail.useQuery({ tenantId });
-  const utils    = trpc.useUtils();
+  const utils = trpc.useUtils();
   const { confirm, dialog } = useConfirm();
-  const [resetPwd,  setResetPwd]  = useState<{ userId: number; name: string } | null>(null);
-  const [newPwd,    setNewPwd]    = useState("");
-  const [extDays,   setExtDays]   = useState(14);
-  const [showExt,   setShowExt]   = useState(false);
-  const [planDays,  setPlanDays]  = useState(30);
-  const [showPlan,  setShowPlan]  = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<"basic"|"pro"|"exclusive">("basic");
+  const [resetPwd, setResetPwd] = useState<{ userId: number; name: string } | null>(null);
+  const [newPwd, setNewPwd] = useState("");
+  const [extDays, setExtDays] = useState(14);
+  const [showExt, setShowExt] = useState(false);
+  const [planDays, setPlanDays] = useState(30);
+  const [showPlan, setShowPlan] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<"basic" | "pro" | "exclusive">("basic");
 
   const invalidate = () => { refetch(); utils.tenant.list.invalidate(); utils.tenant.platformStats.invalidate(); };
+  const updatePlan = trpc.tenant.updatePlan.useMutation({ onSuccess: () => { invalidate(); notify.success("Тариф обновлён"); setShowPlan(false); }, onError: (e) => notify.error(e.message) });
+  const setStatus = trpc.tenant.setStatus.useMutation({ onSuccess: () => { invalidate(); notify.success("Статус обновлён"); }, onError: (e) => notify.error(e.message) });
+  const extendTrial = trpc.tenant.extendTrial.useMutation({ onSuccess: (r) => { invalidate(); notify.success(`Trial продлён до ${format(new Date(r.trialEndsAt), "dd.MM.yyyy")}`); setShowExt(false); }, onError: (e) => notify.error(e.message) });
+  const resetPassword = trpc.tenant.resetOwnerPassword.useMutation({ onSuccess: () => { notify.success("Пароль сброшен"); setResetPwd(null); setNewPwd(""); }, onError: (e) => notify.error(e.message) });
 
-  const updatePlan = trpc.tenant.updatePlan.useMutation({
-    onSuccess: () => { invalidate(); notify.success("Тариф обновлён"); setShowPlan(false); },
-    onError:   (e) => notify.error(e.message),
-  });
-  const setStatus = trpc.tenant.setStatus.useMutation({
-    onSuccess: () => { invalidate(); notify.success("Статус обновлён"); },
-    onError:   (e) => notify.error(e.message),
-  });
-  const extendTrial = trpc.tenant.extendTrial.useMutation({
-    onSuccess: (r) => {
-      invalidate();
-      notify.success(`Trial продлён до ${format(new Date(r.trialEndsAt), "dd.MM.yyyy")}`);
-      setShowExt(false);
-    },
-    onError: (e) => notify.error(e.message),
-  });
-  const resetPassword = trpc.tenant.resetOwnerPassword.useMutation({
-    onSuccess: () => { notify.success("Пароль сброшен"); setResetPwd(null); setNewPwd(""); },
-    onError:   (e) => notify.error(e.message),
-  });
-
-  if (isLoading) return (
-    <div className="space-y-4">
-      {[...Array(4)].map((_, i) => <div key={i} className="panel p-5 h-20 animate-pulse bg-surface-light" />)}
-    </div>
-  );
-
-  if (!data) return <div className="panel p-8 text-center text-text-secondary">Тенант не найден</div>;
+  if (isLoading) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "40vh" }}><div style={{ width: "32px", height: "32px", borderRadius: "50%", border: `3px solid ${COLORS.border}`, borderTopColor: COLORS.primary, animation: "spin 1s linear infinite" }} /></div>;
+  if (!data) return <div style={{ padding: "48px", textAlign: "center", color: COLORS.textTertiary }}>Тенант не найден</div>;
 
   const { tenant, subscription: subArr, users: tenantUsers, stats, monthlyOrders } = data;
   const subscription = Array.isArray(subArr) ? subArr[0] : subArr;
   const ts = planStatus({ ...tenant, userCount: 0, orderCount: 0, orderTotal: 0 } as TenantRow);
 
-  return (
-    <div className="space-y-5">
-      {dialog}
+  const metricCards = [
+    { label: "Пользователей", value: tenantUsers.length, icon: Users, gradient: "linear-gradient(135deg, #3B82F6, #2563EB)" },
+    { label: "Заказов", value: fmt(stats.orders), icon: ShoppingCart, gradient: "linear-gradient(135deg, #22C55E, #16A34A)" },
+    { label: "Товаров", value: fmt(stats.products), icon: Package, gradient: "linear-gradient(135deg, #6366F1, #8B5CF6)" },
+    { label: "Магазинов", value: fmt(stats.shops), icon: Store, gradient: "linear-gradient(135deg, #F59E0B, #D97706)" },
+  ];
 
-      {/* Сброс пароля модалка */}
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+      {dialog}
       {resetPwd && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="panel p-6 w-full max-w-sm space-y-4">
-            <h3 className="font-display text-base font-bold text-text-primary flex items-center gap-2">
-              <Lock size={16} className="text-warning" /> Сбросить пароль — {resetPwd.name}
-            </h3>
-            <input
-              className="input-field w-full"
-              type="password"
-              placeholder="Новый пароль (мин. 8)"
-              value={newPwd}
-              onChange={e => setNewPwd(e.target.value)}
-            />
-            <div className="flex gap-2">
-              <button onClick={() => { setResetPwd(null); setNewPwd(""); }} className="btn-secondary flex-1">Отмена</button>
-              <button
-                disabled={newPwd.length < 8 || resetPassword.isPending}
-                onClick={() => resetPassword.mutate({ tenantId, userId: resetPwd.userId, newPassword: newPwd })}
-                className="btn-primary flex-1 disabled:opacity-50"
-              >
-                {resetPassword.isPending ? "…" : "Сохранить"}
-              </button>
+        <Modal onClose={() => { setResetPwd(null); setNewPwd(""); }}>
+          <div style={{ padding: "24px" }}>
+            <h3 style={{ fontFamily: F.display, fontSize: "15px", fontWeight: 700, color: COLORS.textPrimary, display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}><Lock size={16} style={{ color: COLORS.warning }} /> Сбросить пароль — {resetPwd.name}</h3>
+            <Input label="Новый пароль" type="password" placeholder="мин. 8 символов" value={newPwd} onChange={e => setNewPwd(e.target.value)} />
+            <div style={{ display: "flex", gap: "12px", marginTop: "20px" }}>
+              <BtnSecondary onClick={() => { setResetPwd(null); setNewPwd(""); }} style={{ flex: 1 }}>Отмена</BtnSecondary>
+              <BtnPrimary onClick={() => resetPassword.mutate({ tenantId, userId: resetPwd.userId, newPassword: newPwd })} disabled={newPwd.length < 8 || resetPassword.isPending} style={{ flex: 1 }}>{resetPassword.isPending ? "…" : "Сохранить"}</BtnPrimary>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
 
-      {/* Шапка */}
-      <div className="panel p-5">
-        <div className="flex items-center gap-3">
-          <button onClick={onBack} className="btn-secondary p-2">
-            <ArrowLeft size={16} />
-          </button>
-          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-            <span className="text-lg font-bold text-primary">{tenant.name[0].toUpperCase()}</span>
-          </div>
-          <div>
-            <h2 className="font-display text-lg font-bold text-text-primary">{tenant.name}</h2>
-            <p className="text-xs text-text-secondary font-data">{tenant.slug} · {tenant.ownerEmail}</p>
-          </div>
-          <div className="ml-auto flex items-center gap-2">
-            <span className={`status-badge ${PLAN_STYLE[tenant.plan]}`}>{tenant.plan.toUpperCase()}</span>
-            <span className={`status-badge ${STATUS_STYLE[tenant.status]}`}>{tenant.status.toUpperCase()}</span>
-          </div>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+        <button onClick={onBack} style={{ padding: "8px", borderRadius: "10px", background: COLORS.surface, border: `1px solid ${COLORS.border}`, cursor: "pointer", color: COLORS.textSecondary }}><ArrowLeft size={16} /></button>
+        <div style={{ width: "44px", height: "44px", borderRadius: "14px", background: "rgba(124,127,245,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <span style={{ fontSize: "18px", fontWeight: 700, color: COLORS.primary }}>{tenant.name[0].toUpperCase()}</span>
         </div>
+        <div style={{ flex: 1 }}>
+          <h2 style={{ fontFamily: F.display, fontSize: "18px", fontWeight: 700, color: COLORS.textPrimary }}>{tenant.name}</h2>
+          <p style={{ fontSize: "12px", color: COLORS.textTertiary }}>{tenant.slug} · {tenant.ownerEmail}</p>
+        </div>
+        <div style={{ display: "flex", gap: "8px" }}><PlanBadge plan={tenant.plan} /><StatusBadge status={tenant.status} /></div>
       </div>
 
-      {/* Метрики */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {[
-          { label: "Пользователей",  value: tenantUsers.length,  icon: Users,        color: "text-info"    },
-          { label: "Заказов",        value: stats.orders,         icon: ShoppingCart, color: "text-success" },
-          { label: "Товаров",        value: stats.products,       icon: Package,      color: "text-primary" },
-          { label: "Магазинов",      value: stats.shops,          icon: Store,        color: "text-warning" },
-        ].map(c => (
-          <div key={c.label} className="panel p-4 text-center">
-            <c.icon size={18} className={`mx-auto mb-1 ${c.color}`} />
-            <p className="font-data text-2xl font-bold text-text-primary">{fmt(c.value)}</p>
-            <p className="text-[10px] text-text-secondary font-label">{c.label}</p>
-          </div>
-        ))}
+      {/* Metrics */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "16px" }}>
+        {metricCards.map(c => <KpiCard key={c.label} label={c.label} value={c.value} icon={c.icon} gradient={c.gradient} />)}
       </div>
 
-      {/* Подписка */}
-      <div className="panel p-5 space-y-4">
-        <h3 className="font-h2 text-sm font-semibold text-text-primary flex items-center gap-2">
-          <Shield size={15} className="text-primary" /> Подписка
-        </h3>
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
-          <div>
-            <p className="text-xs text-text-secondary">Тариф</p>
-            <p className={`font-semibold mt-0.5 ${ts.color}`}>{tenant.plan.toUpperCase()}</p>
-          </div>
-          <div>
-            <p className="text-xs text-text-secondary">Осталось</p>
-            <p className={`font-semibold mt-0.5 ${ts.color}`}>{ts.label}</p>
-          </div>
-          {tenant.trialEndsAt && (
-            <div>
-              <p className="text-xs text-text-secondary">Trial до</p>
-              <p className="font-semibold mt-0.5 text-text-primary">
-                {format(new Date(tenant.trialEndsAt), "dd.MM.yyyy")}
-              </p>
+      {/* Subscription */}
+      <Section title="Подписка" icon={Shield}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "20px" }}>
+          {[
+            { label: "Тариф", value: tenant.plan.toUpperCase(), color: ts.color },
+            { label: "Осталось", value: ts.label, color: ts.color },
+            tenant.trialEndsAt ? { label: "Trial до", value: format(new Date(tenant.trialEndsAt), "dd.MM.yyyy"), color: COLORS.textPrimary } : null,
+            tenant.planExpiresAt ? { label: "Тариф до", value: format(new Date(tenant.planExpiresAt), "dd.MM.yyyy"), color: COLORS.textPrimary } : null,
+            subscription ? { label: "Stripe", value: subscription.status, color: COLORS.textPrimary } : null,
+          ].filter(Boolean).map((item, i) => item && (
+            <div key={i}>
+              <p style={{ fontSize: "11px", color: COLORS.textTertiary, marginBottom: "4px" }}>{item.label}</p>
+              <p style={{ fontFamily: F.display, fontSize: "15px", fontWeight: 600, color: item.color }}>{item.value}</p>
             </div>
-          )}
-          {tenant.planExpiresAt && (
-            <div>
-              <p className="text-xs text-text-secondary">Тариф до</p>
-              <p className="font-semibold mt-0.5 text-text-primary">
-                {format(new Date(tenant.planExpiresAt), "dd.MM.yyyy")}
-              </p>
-            </div>
-          )}
-          {subscription && (
-            <>
-              <div>
-                <p className="text-xs text-text-secondary">Stripe статус</p>
-                <p className="font-semibold mt-0.5 text-text-primary">{subscription.status}</p>
-              </div>
-              <div>
-                <p className="text-xs text-text-secondary">Customer ID</p>
-                <p className="font-data text-xs mt-0.5 text-text-secondary truncate">
-                  {(subscription as any)?.stripeCustomerId ?? "—"}
-                </p>
-              </div>
-            </>
-          )}
+          ))}
         </div>
-
-        {/* Действия с подпиской */}
-        <div className="flex flex-wrap gap-2 pt-2 border-t border-border-subtle">
-          {/* Изменить план */}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", marginTop: "20px", paddingTop: "16px", borderTop: `1px solid ${COLORS.border}` }}>
           {showPlan ? (
-            <div className="flex items-center gap-2">
-              <PremiumSelect value={selectedPlan} onChange={v => setSelectedPlan(v as unknown as "basic" | "pro" | "exclusive")}
-                options={[{value:"basic",label:"Basic"},{value:"pro",label:"Pro"},{value:"exclusive",label:"Exclusive"}]}
-                width="120px" />
-              <input type="number" min="1" max="3650" value={planDays}
-                onChange={e => setPlanDays(Number(e.target.value))}
-                className="input-field py-1.5 text-xs w-24" placeholder="дней" />
-              <button
-                onClick={() => updatePlan.mutate({ tenantId, plan: selectedPlan, expiryDays: planDays })}
-                disabled={updatePlan.isPending}
-                className="btn-primary py-1.5 px-3 text-xs disabled:opacity-50"
-              >
-                {updatePlan.isPending ? "…" : "Сохранить"}
-              </button>
-              <button onClick={() => setShowPlan(false)} className="btn-secondary py-1.5 px-3 text-xs">✕</button>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <PremiumSelect value={selectedPlan} onChange={v => setSelectedPlan(v as any)} options={[{ value: "basic", label: "Basic" }, { value: "pro", label: "Pro" }, { value: "exclusive", label: "Exclusive" }]} width="120px" />
+              <input type="number" min="1" max="3650" value={planDays} onChange={e => setPlanDays(Number(e.target.value))} style={{ width: "80px", padding: "6px 10px", borderRadius: "8px", border: `1px solid ${COLORS.border}`, background: COLORS.surfaceLight, color: COLORS.textPrimary, fontSize: "12px" }} />
+              <BtnPrimary onClick={() => updatePlan.mutate({ tenantId, plan: selectedPlan, expiryDays: planDays })} disabled={updatePlan.isPending} style={{ padding: "6px 14px", fontSize: "12px" }}>{updatePlan.isPending ? "…" : "Сохранить"}</BtnPrimary>
+              <BtnSecondary onClick={() => setShowPlan(false)} style={{ padding: "6px 10px", fontSize: "12px" }}>✕</BtnSecondary>
             </div>
           ) : (
-            <button onClick={() => setShowPlan(true)} className="btn-secondary py-1.5 px-3 text-xs flex items-center gap-1.5">
-              <Zap size={13} /> Изменить тариф
-            </button>
+            <BtnSecondary onClick={() => setShowPlan(true)} style={{ padding: "6px 14px", fontSize: "12px" }}><Zap size={13} /> Изменить тариф</BtnSecondary>
           )}
-
-          {/* Продлить trial */}
           {showExt ? (
-            <div className="flex items-center gap-2">
-              <input type="number" min="1" max="365" value={extDays}
-                onChange={e => setExtDays(Number(e.target.value))}
-                className="input-field py-1.5 text-xs w-24" placeholder="дней" />
-              <button
-                onClick={() => extendTrial.mutate({ tenantId, days: extDays })}
-                disabled={extendTrial.isPending}
-                className="btn-primary py-1.5 px-3 text-xs disabled:opacity-50"
-              >
-                {extendTrial.isPending ? "…" : "Продлить"}
-              </button>
-              <button onClick={() => setShowExt(false)} className="btn-secondary py-1.5 px-3 text-xs">✕</button>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <input type="number" min="1" max="365" value={extDays} onChange={e => setExtDays(Number(e.target.value))} style={{ width: "80px", padding: "6px 10px", borderRadius: "8px", border: `1px solid ${COLORS.border}`, background: COLORS.surfaceLight, color: COLORS.textPrimary, fontSize: "12px" }} />
+              <BtnPrimary onClick={() => extendTrial.mutate({ tenantId, days: extDays })} disabled={extendTrial.isPending} style={{ padding: "6px 14px", fontSize: "12px" }}>{extendTrial.isPending ? "…" : "Продлить"}</BtnPrimary>
+              <BtnSecondary onClick={() => setShowExt(false)} style={{ padding: "6px 10px", fontSize: "12px" }}>✕</BtnSecondary>
             </div>
           ) : (
-            <button onClick={() => setShowExt(true)} className="btn-secondary py-1.5 px-3 text-xs flex items-center gap-1.5">
-              <Calendar size={13} /> Продлить trial
-            </button>
+            <BtnSecondary onClick={() => setShowExt(true)} style={{ padding: "6px 14px", fontSize: "12px" }}><Calendar size={13} /> Продлить trial</BtnSecondary>
           )}
-
-          {/* Suspend/Activate */}
-          <button
-            onClick={async () => {
-              const next = tenant.status === "active" ? "suspended" : "active";
-              const ok = await confirm({
-                title:   next === "suspended" ? `Приостановить "${tenant.name}"?` : `Активировать "${tenant.name}"?`,
-                message: next === "suspended" ? "Все пользователи потеряют доступ." : "Пользователи снова смогут войти.",
-                confirmText: next === "suspended" ? "Приостановить" : "Активировать",
-                danger: next === "suspended",
-              });
-              if (ok) setStatus.mutate({ tenantId, status: next });
-            }}
-            className={`py-1.5 px-3 text-xs btn-secondary flex items-center gap-1.5
-              ${tenant.status === "active" ? "text-danger border-danger/30" : "text-success border-success/30"}`}
-          >
-            <Power size={13} />
-            {tenant.status === "active" ? "Приостановить" : "Активировать"}
-          </button>
+          <BtnSecondary onClick={async () => {
+            const next = tenant.status === "active" ? "suspended" : "active";
+            const ok = await confirm({ title: next === "suspended" ? `Приостановить "${tenant.name}"?` : `Активировать "${tenant.name}"?`, message: next === "suspended" ? "Все пользователи потеряют доступ." : "Пользователи снова смогут войти.", confirmText: next === "suspended" ? "Приостановить" : "Активировать", danger: next === "suspended" });
+            if (ok) setStatus.mutate({ tenantId, status: next });
+          }} style={{ padding: "6px 14px", fontSize: "12px", color: tenant.status === "active" ? COLORS.danger : COLORS.success, borderColor: tenant.status === "active" ? "rgba(220,38,38,0.3)" : "rgba(22,163,74,0.3)" }}>
+            <Power size={13} /> {tenant.status === "active" ? "Приостановить" : "Активировать"}
+          </BtnSecondary>
         </div>
-      </div>
+      </Section>
 
-      {/* Пользователи */}
-      <div className="panel overflow-hidden">
-        <div className="px-5 py-3 border-b border-border-subtle">
-          <h3 className="font-h2 text-sm font-semibold text-text-primary flex items-center gap-2">
-            <Users size={15} className="text-info" /> Пользователи ({tenantUsers.length})
-          </h3>
-        </div>
-        <div className="divide-y divide-border-subtle">
-          {tenantUsers.map(u => (
-            <div key={u.id} className="px-5 py-3 flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-surface-light flex items-center justify-center">
-                <span className="text-xs font-bold text-text-secondary">{u.name[0]}</span>
+      {/* Users */}
+      <Section title={`Пользователи (${tenantUsers.length})`} icon={Users}>
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          {tenantUsers.map((u, i) => (
+            <div key={u.id} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px 0", borderTop: i > 0 ? `1px solid ${COLORS.border}` : undefined }}>
+              <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: COLORS.surfaceLight, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <span style={{ fontSize: "13px", fontWeight: 700, color: COLORS.textSecondary }}>{u.name[0]}</span>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-text-primary truncate">{u.name}</p>
-                <p className="text-xs text-text-secondary truncate">{u.email}</p>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: "13px", fontWeight: 500, color: COLORS.textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.name}</p>
+                <p style={{ fontSize: "11px", color: COLORS.textTertiary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.email}</p>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <span className="text-xs text-text-secondary font-label px-2 py-0.5 bg-surface-light rounded">
-                  {u.role}
-                </span>
-                <span className={`status-badge text-[10px] py-0.5 ${STATUS_STYLE[u.status]}`}>
-                  {u.status}
-                </span>
-                <button
-                  onClick={() => setResetPwd({ userId: u.id, name: u.name })}
-                  className="btn-secondary p-1.5 text-warning border-warning/30"
-                  title="Сбросить пароль"
-                >
-                  <Lock size={12} />
-                </button>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+                <span style={{ fontSize: "10px", color: COLORS.textTertiary, padding: "2px 8px", borderRadius: "6px", background: COLORS.surfaceLight }}>{u.role}</span>
+                <StatusBadge status={u.status} />
+                <button onClick={() => setResetPwd({ userId: u.id, name: u.name })} style={{ padding: "6px", borderRadius: "6px", background: "none", border: `1px solid ${COLORS.border}`, cursor: "pointer", color: COLORS.warning }} title="Сбросить пароль"><Lock size={12} /></button>
               </div>
             </div>
           ))}
         </div>
-      </div>
+      </Section>
 
-      {/* История заказов по месяцам */}
+      {/* Monthly Orders */}
       {monthlyOrders.length > 0 && (
-        <div className="panel p-5">
-          <h3 className="font-h2 text-sm font-semibold text-text-primary flex items-center gap-2 mb-3">
-            <BarChart3 size={15} className="text-success" /> Заказы по месяцам
-          </h3>
-          <div className="space-y-2">
+        <Section title="Заказы по месяцам" icon={BarChart3}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
             {monthlyOrders.map(m => (
-              <div key={m.month} className="flex items-center gap-3 text-sm">
-                <span className="w-20 font-data text-text-secondary text-xs">{m.month}</span>
-                <div className="flex-1 h-1.5 bg-surface-light rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-primary rounded-full"
-                    style={{ width: `${Math.min(100, (m.orders / Math.max(...monthlyOrders.map(x => x.orders))) * 100)}%` }}
-                  />
+              <div key={m.month} style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <span style={{ width: "72px", fontSize: "12px", color: COLORS.textSecondary, fontFamily: F.body }}>{m.month}</span>
+                <div style={{ flex: 1, height: "6px", borderRadius: "3px", background: COLORS.surfaceLight, overflow: "hidden" }}>
+                  <div style={{ height: "100%", borderRadius: "3px", background: "linear-gradient(90deg, var(--color-primary), var(--color-primary-hover))", width: `${Math.min(100, (m.orders / Math.max(...monthlyOrders.map(x => x.orders))) * 100)}%` }} />
                 </div>
-                <span className="w-10 text-right font-data text-text-primary text-xs">{m.orders}</span>
-                <span className="w-24 text-right font-data text-text-secondary text-xs">{money(m.revenue)} сум</span>
+                <span style={{ width: "40px", textAlign: "right", fontSize: "12px", fontWeight: 600, color: COLORS.textPrimary }}>{m.orders}</span>
+                <span style={{ width: "100px", textAlign: "right", fontSize: "11px", color: COLORS.textTertiary }}>{money(m.revenue)} сум</span>
               </div>
             ))}
           </div>
-        </div>
+        </Section>
       )}
     </div>
   );
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Профиль суперадмина — изменение логина и пароля
+// Admin Profile
 // ══════════════════════════════════════════════════════════════════════════════
 function AdminProfile() {
   const { data: user } = trpc.user.me.useQuery();
   const utils = trpc.useUtils();
-
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [currentPw, setCurrentPw] = useState("");
   const [newPw, setNewPw] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
   const [showPwSection, setShowPwSection] = useState(false);
   const [initialized, setInitialized] = useState(false);
+  if (user && !initialized) { setName(user.name ?? ""); setPhone(user.phone ?? ""); setInitialized(true); }
 
-  // Инициализация полей из данных пользователя
-  if (user && !initialized) {
-    setName(user.name ?? "");
-    setEmail(user.email ?? "");
-    setPhone(user.phone ?? "");
-    setInitialized(true);
-  }
-
-  const updateProfile = trpc.user.updateMe.useMutation({
-    onSuccess: () => { utils.user.me.invalidate(); notify.success("Профиль обновлён"); },
-    onError: (e) => notify.error(e.message),
-  });
-
-  const changePassword = trpc.user.changePassword.useMutation({
-    onSuccess: () => { notify.success("Пароль изменён"); setCurrentPw(""); setNewPw(""); setConfirmPw(""); setShowPwSection(false); },
-    onError: (e) => notify.error(e.message),
-  });
-
-  const handleProfileSave = () => {
-    if (!name.trim()) { notify.error("Имя обязательно"); return; }
-    updateProfile.mutate({ name: name.trim(), phone: phone.trim() || undefined });
-  };
-
-  const handlePasswordChange = () => {
-    if (!currentPw) { notify.error("Введите текущий пароль"); return; }
-    if (newPw.length < 8) { notify.error("Пароль минимум 8 символов"); return; }
-    if (newPw !== confirmPw) { notify.error("Пароли не совпадают"); return; }
-    changePassword.mutate({ currentPassword: currentPw, newPassword: newPw });
-  };
+  const updateProfile = trpc.user.updateMe.useMutation({ onSuccess: () => { utils.user.me.invalidate(); notify.success("Профиль обновлён"); }, onError: (e) => notify.error(e.message) });
+  const changePassword = trpc.user.changePassword.useMutation({ onSuccess: () => { notify.success("Пароль изменён"); setCurrentPw(""); setNewPw(""); setConfirmPw(""); setShowPwSection(false); }, onError: (e) => notify.error(e.message) });
 
   return (
-    <div className="panel p-5 space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-          <User size={20} className="text-primary" />
-        </div>
+    <Section title="Мой профиль" icon={User}>
+      <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "24px" }}>
+        <div style={{ width: "48px", height: "48px", borderRadius: "14px", background: "rgba(124,127,245,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}><User size={22} style={{ color: COLORS.primary }} /></div>
         <div>
-          <h2 className="font-semibold text-text-primary">Мой профиль</h2>
-          <p className="text-xs text-text-secondary">{user?.role} · {user?.email}</p>
+          <p style={{ fontFamily: F.display, fontSize: "15px", fontWeight: 600, color: COLORS.textPrimary }}>{user?.name}</p>
+          <p style={{ fontSize: "12px", color: COLORS.textTertiary }}>{user?.role} · {user?.email}</p>
         </div>
       </div>
-
-      {/* Основная информация */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">ИМЯ *</label>
-          <input className="input-field w-full" value={name} onChange={e => setName(e.target.value)} />
-        </div>
-        <div>
-          <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">EMAIL</label>
-          <input className="input-field w-full" value={email} disabled style={{ opacity: 0.6 }} />
-          <p className="text-[10px] text-text-tertiary mt-1">Email нельзя изменить</p>
-        </div>
-        <div>
-          <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">ТЕЛЕФОН</label>
-          <input className="input-field w-full" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+998..." />
-        </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+        <Input label="Имя" value={name} onChange={e => setName(e.target.value)} />
+        <Input label="Телефон" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+998..." />
       </div>
-
-      <button
-        onClick={handleProfileSave}
-        disabled={updateProfile.isPending}
-        className="btn-primary flex items-center gap-2 text-sm py-2"
-      >
-        {updateProfile.isPending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-        Сохранить
-      </button>
-
-      {/* Смена пароля */}
-      <div className="border-t pt-5" style={{ borderColor: "var(--color-border-subtle)" }}>
-        <button
-          onClick={() => setShowPwSection(!showPwSection)}
-          className="flex items-center gap-2 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
-        >
-          <Key size={16} />
-          {showPwSection ? "Скрыть" : "Изменить пароль"}
+      <BtnPrimary onClick={() => { if (!name.trim()) { notify.error("Имя обязательно"); return; } updateProfile.mutate({ name: name.trim(), phone: phone.trim() || undefined }); }} disabled={updateProfile.isPending} style={{ marginTop: "16px" }}>
+        {updateProfile.isPending ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <Save size={14} />} Сохранить
+      </BtnPrimary>
+      <div style={{ marginTop: "24px", paddingTop: "20px", borderTop: `1px solid ${COLORS.border}` }}>
+        <button onClick={() => setShowPwSection(!showPwSection)} style={{ display: "flex", alignItems: "center", gap: "8px", background: "none", border: "none", cursor: "pointer", color: COLORS.textSecondary, fontSize: "13px", fontWeight: 500, fontFamily: F.body }}>
+          <Key size={16} /> {showPwSection ? "Скрыть" : "Изменить пароль"}
         </button>
-
         {showPwSection && (
-          <div className="mt-4 space-y-3 max-w-md">
-            <div>
-              <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">ТЕКУЩИЙ ПАРОЛЬ</label>
-              <input type="password" className="input-field w-full" value={currentPw} onChange={e => setCurrentPw(e.target.value)} />
-            </div>
-            <div>
-              <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">НОВЫЙ ПАРОЛЬ</label>
-              <input type="password" className="input-field w-full" value={newPw} onChange={e => setNewPw(e.target.value)} minLength={8} />
-            </div>
-            <div>
-              <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">ПОДТВЕРДИТЕ</label>
-              <input type="password" className="input-field w-full" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} />
-            </div>
-            <button
-              onClick={handlePasswordChange}
-              disabled={changePassword.isPending}
-              className="btn-primary flex items-center gap-2 text-sm py-2"
-            >
-              {changePassword.isPending ? <Loader2 size={14} className="animate-spin" /> : <Key size={14} />}
-              Изменить пароль
-            </button>
+          <div style={{ marginTop: "16px", display: "flex", flexDirection: "column", gap: "12px", maxWidth: "400px" }}>
+            <Input label="Текущий пароль" type="password" value={currentPw} onChange={e => setCurrentPw(e.target.value)} />
+            <Input label="Новый пароль" type="password" value={newPw} onChange={e => setNewPw(e.target.value)} minLength={8} />
+            <Input label="Подтвердите" type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} />
+            <BtnPrimary onClick={() => { if (!currentPw) { notify.error("Введите текущий пароль"); return; } if (newPw.length < 8) { notify.error("Пароль минимум 8 символов"); return; } if (newPw !== confirmPw) { notify.error("Пароли не совпадают"); return; } changePassword.mutate({ currentPassword: currentPw, newPassword: newPw }); }} disabled={changePassword.isPending}>
+              {changePassword.isPending ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <Key size={14} />} Изменить пароль
+            </BtnPrimary>
           </div>
         )}
       </div>
-    </div>
+    </Section>
   );
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Главная страница SuperAdmin
+// Main SuperAdmin Page
 // ══════════════════════════════════════════════════════════════════════════════
 export default function SuperAdmin() {
-  const [search,       setSearch]       = useState("");
-  const [selectedId,   setSelectedId]   = useState<number | null>(null);
-  const [showCreate,   setShowCreate]   = useState(false);
-  const [filterPlan,   setFilterPlan]   = useState<string>("all");
-  const [filterStatus, setFilterStatus] = useState<string>("all");
-
+  const [search, setSearch] = useState("");
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [filterPlan, setFilterPlan] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");
   const { data: allTenants, isLoading, refetch } = trpc.tenant.list.useQuery();
   const utils = trpc.useUtils();
   const { confirm, dialog } = useConfirm();
+  const invalidate = () => { utils.tenant.list.invalidate(); utils.tenant.platformStats.invalidate(); };
+  const setStatus = trpc.tenant.setStatus.useMutation({ onSuccess: () => { invalidate(); notify.success("Статус обновлён"); }, onError: (e) => notify.error(e.message) });
 
-  const invalidate = () => {
-    utils.tenant.list.invalidate();
-    utils.tenant.platformStats.invalidate();
-  };
-
-  const setStatus = trpc.tenant.setStatus.useMutation({
-    onSuccess: () => { invalidate(); notify.success("Статус обновлён"); },
-    onError:   (e) => notify.error(e.message),
-  });
-
-  // Если открыт детальный вид
-  if (selectedId !== null) {
-    return <TenantDetail tenantId={selectedId} onBack={() => setSelectedId(null)} />;
-  }
+  if (selectedId !== null) return <TenantDetail tenantId={selectedId} onBack={() => setSelectedId(null)} />;
 
   const tenants = (allTenants ?? []).filter(t => {
     const q = search.toLowerCase();
-    const matchSearch = !q || t.name.toLowerCase().includes(q) || t.slug.includes(q) || (t.ownerEmail ?? "").toLowerCase().includes(q);
-    const matchPlan   = filterPlan   === "all" || t.plan   === filterPlan;
-    const matchStatus = filterStatus === "all" || t.status === filterStatus;
-    return matchSearch && matchPlan && matchStatus;
+    return (!q || t.name.toLowerCase().includes(q) || t.slug.includes(q) || (t.ownerEmail ?? "").toLowerCase().includes(q)) && (filterPlan === "all" || t.plan === filterPlan) && (filterStatus === "all" || t.status === filterStatus);
   });
 
   return (
-    <div className="space-y-5">
+    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
       {dialog}
-      {showCreate && (
-        <CreateTenantModal
-          onClose={() => setShowCreate(false)}
-          onCreated={invalidate}
-        />
-      )}
+      {showCreate && <CreateTenantModal onClose={() => setShowCreate(false)} onCreated={invalidate} />}
 
-      {/* Заголовок */}
-      <div className="panel p-5 border-l-4 border-primary">
-        <div className="flex items-center gap-3">
-          <Zap size={22} className="text-primary" />
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{ width: "44px", height: "44px", borderRadius: "14px", background: "linear-gradient(135deg, #6366F1, #8B5CF6)", display: "flex", alignItems: "center", justifyContent: "center" }}><Zap size={22} color="#fff" /></div>
           <div>
-            <h1 className="font-display text-xl font-bold text-text-primary">Super Admin</h1>
-            <p className="text-sm text-text-secondary">Управление платформой</p>
+            <h1 style={{ fontFamily: F.display, fontSize: "24px", fontWeight: 700, color: COLORS.textPrimary, letterSpacing: "-0.02em" }}>Super Admin</h1>
+            <p style={{ fontSize: "13px", color: COLORS.textSecondary }}>Управление платформой</p>
           </div>
-          <div className="ml-auto flex items-center gap-2">
-            <button onClick={() => refetch()} className="btn-secondary py-1.5 px-3 text-xs flex items-center gap-1.5">
-              <RefreshCw size={13} /> Обновить
-            </button>
-            <button onClick={() => setShowCreate(true)} className="btn-primary py-1.5 px-3 text-xs flex items-center gap-1.5">
-              <Plus size={13} /> Создать
-            </button>
-          </div>
+        </div>
+        <div style={{ display: "flex", gap: "8px" }}>
+          <BtnSecondary onClick={() => refetch()} style={{ padding: "8px 16px", fontSize: "12px" }}><RefreshCw size={13} /> Обновить</BtnSecondary>
+          <BtnPrimary onClick={() => setShowCreate(true)} style={{ padding: "8px 16px", fontSize: "12px" }}><Plus size={13} /> Создать</BtnPrimary>
         </div>
       </div>
 
-      {/* Глобальная статистика */}
+      {/* Stats */}
       <PlatformStats />
 
-      {/* Профиль суперадмина */}
+      {/* Profile */}
       <AdminProfile />
 
-      {/* Фильтры */}
-      <div className="flex flex-wrap gap-3 items-center">
-        <div className="relative flex-1 min-w-48">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-          <input
-            className="input-field pl-9 w-full"
-            placeholder="Поиск по имени, slug, email…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
+      {/* Filters */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", alignItems: "center" }}>
+        <div style={{ position: "relative", flex: 1, minWidth: "200px" }}>
+          <Search size={15} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: COLORS.textTertiary }} />
+          <input placeholder="Поиск по имени, slug, email…" value={search} onChange={e => setSearch(e.target.value)} style={{ width: "100%", padding: "10px 14px 10px 38px", borderRadius: "12px", border: `1px solid ${COLORS.border}`, background: COLORS.surfaceLight, color: COLORS.textPrimary, fontFamily: F.body, fontSize: "13px", outline: "none" }} />
         </div>
-        <PremiumSelect value={filterPlan} onChange={setFilterPlan}
-          options={[{value:"all",label:"Все тарифы"},{value:"basic",label:"Basic"},{value:"pro",label:"Pro"},{value:"exclusive",label:"Exclusive"}]}
-          width="140px" />
-        <PremiumSelect value={filterStatus} onChange={setFilterStatus}
-          options={[{value:"all",label:"Все статусы"},{value:"active",label:"Active"},{value:"suspended",label:"Suspended"}]}
-          width="140px" />
-        <span className="text-xs text-text-secondary font-label ml-auto">
-          {tenants.length} из {allTenants?.length ?? 0}
-        </span>
+        <PremiumSelect value={filterPlan} onChange={setFilterPlan} options={[{ value: "all", label: "Все тарифы" }, { value: "basic", label: "Basic" }, { value: "pro", label: "Pro" }, { value: "exclusive", label: "Exclusive" }]} width="140px" />
+        <PremiumSelect value={filterStatus} onChange={setFilterStatus} options={[{ value: "all", label: "Все статусы" }, { value: "active", label: "Active" }, { value: "suspended", label: "Suspended" }]} width="140px" />
+        <span style={{ fontSize: "12px", color: COLORS.textTertiary, marginLeft: "auto" }}>{tenants.length} из {allTenants?.length ?? 0}</span>
       </div>
 
-      {/* Таблица */}
-      <div className="panel overflow-x-auto">
-        <table className="w-full min-w-[900px]">
-          <thead>
-            <tr className="bg-surface-light border-b border-border-subtle">
-              {["Организация", "Тариф", "Статус", "Осталось", "Юзеров", "Заказов", "Выручка", "Создана", ""].map(h => (
-                <th key={h} className="text-left px-4 py-3 font-label text-text-secondary text-xs tracking-wide">
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading
-              ? [...Array(5)].map((_, i) => (
-                  <tr key={i} className="border-b border-border-subtle">
-                    <td colSpan={9} className="px-4 py-4">
-                      <div className="h-4 bg-surface-light animate-pulse rounded" />
+      {/* Table */}
+      <div style={{ background: COLORS.surface, borderRadius: "20px", boxShadow: SHADOW, overflow: "hidden" }}>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", minWidth: "900px", fontSize: "13px", fontFamily: F.body }}>
+            <thead>
+              <tr style={{ borderBottom: `1px solid ${COLORS.border}` }}>
+                {["Организация", "Тариф", "Статус", "Осталось", "Юзеров", "Заказов", "Выручка", "Создана", ""].map(h => (
+                  <th key={h} style={{ fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", padding: "14px 16px", textAlign: "left", color: COLORS.textTertiary }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading ? [...Array(5)].map((_, i) => (
+                <tr key={i} style={{ borderBottom: `1px solid ${COLORS.border}` }}>
+                  <td colSpan={9} style={{ padding: "16px" }}><div style={{ height: "16px", borderRadius: "8px", background: COLORS.surfaceLight, animation: "pulse 1.5s infinite" }} /></td>
+                </tr>
+              )) : tenants.length === 0 ? (
+                <tr><td colSpan={9} style={{ padding: "64px 16px", textAlign: "center", color: COLORS.textTertiary }}><Building2 size={32} style={{ margin: "0 auto 8px", opacity: 0.3 }} /><p style={{ fontSize: "13px" }}>Нет организаций</p></td></tr>
+              ) : tenants.map(t => {
+                const ts = planStatus(t);
+                return (
+                  <tr key={t.id} style={{ borderBottom: `1px solid ${COLORS.border}`, cursor: "pointer", transition: "background 0.15s" }} onClick={() => setSelectedId(t.id)} onMouseEnter={e => (e.currentTarget.style.background = COLORS.surfaceLight)} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                    <td style={{ padding: "12px 16px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                        <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: "rgba(124,127,245,0.1)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><span style={{ fontSize: "14px", fontWeight: 700, color: COLORS.primary }}>{t.name[0].toUpperCase()}</span></div>
+                        <div><p style={{ fontSize: "13px", fontWeight: 500, color: COLORS.textPrimary }}>{t.name}</p><p style={{ fontSize: "10px", color: COLORS.textTertiary }}>{t.slug}</p></div>
+                      </div>
+                    </td>
+                    <td style={{ padding: "12px 16px" }}><PlanBadge plan={t.plan} /></td>
+                    <td style={{ padding: "12px 16px" }}><StatusBadge status={t.status} /></td>
+                    <td style={{ padding: "12px 16px", fontSize: "12px", fontWeight: 600, color: ts.color }}>{ts.label}</td>
+                    <td style={{ padding: "12px 16px", fontSize: "13px", fontWeight: 600, color: COLORS.textPrimary }}>{t.userCount}</td>
+                    <td style={{ padding: "12px 16px", fontSize: "13px", fontWeight: 600, color: COLORS.textPrimary }}>{fmt(t.orderCount)}</td>
+                    <td style={{ padding: "12px 16px", fontSize: "13px", color: COLORS.textSecondary }}>{money(t.orderTotal)} сум</td>
+                    <td style={{ padding: "12px 16px", fontSize: "11px", color: COLORS.textTertiary }}>{format(new Date(t.createdAt), "dd.MM.yy")}</td>
+                    <td style={{ padding: "12px 16px" }} onClick={e => e.stopPropagation()}>
+                      <div style={{ display: "flex", gap: "6px" }}>
+                        <button onClick={async e => { e.stopPropagation(); const next = t.status === "active" ? "suspended" : "active"; const ok = await confirm({ title: next === "suspended" ? `Приостановить "${t.name}"?` : `Активировать "${t.name}"?`, message: next === "suspended" ? "Все пользователи потеряют доступ." : "Пользователи снова смогут войти.", confirmText: next === "suspended" ? "Приостановить" : "Активировать", danger: next === "suspended" }); if (ok) setStatus.mutate({ tenantId: t.id, status: next }); }} style={{ padding: "6px", borderRadius: "8px", background: "none", border: `1px solid ${COLORS.border}`, cursor: "pointer", color: t.status === "active" ? COLORS.danger : COLORS.success }} title={t.status === "active" ? "Приостановить" : "Активировать"}><Power size={13} /></button>
+                        <button onClick={e => { e.stopPropagation(); setSelectedId(t.id); }} style={{ padding: "6px", borderRadius: "8px", background: "none", border: `1px solid ${COLORS.border}`, cursor: "pointer", color: COLORS.textTertiary }} title="Подробнее"><ChevronRight size={13} /></button>
+                      </div>
                     </td>
                   </tr>
-                ))
-              : tenants.length === 0
-                ? (
-                  <tr>
-                    <td colSpan={9} className="px-4 py-16 text-center text-text-secondary text-sm">
-                      <Building2 size={32} className="mx-auto mb-2 opacity-30" />
-                      Нет организаций
-                    </td>
-                  </tr>
-                )
-                : tenants.map(t => {
-                    const ts = planStatus(t);
-                    return (
-                      <tr key={t.id}
-                        className="border-b border-border-subtle hover:bg-surface-light/40 cursor-pointer"
-                        onClick={() => setSelectedId(t.id)}
-                      >
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                              <span className="text-sm font-bold text-primary">{t.name[0].toUpperCase()}</span>
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium text-text-primary">{t.name}</p>
-                              <p className="text-[10px] text-text-secondary font-data">{t.slug}</p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`status-badge ${PLAN_STYLE[t.plan]}`}>{t.plan.toUpperCase()}</span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`status-badge ${STATUS_STYLE[t.status]}`}>{t.status.toUpperCase()}</span>
-                        </td>
-                        <td className={`px-4 py-3 text-xs font-semibold ${ts.color}`}>{ts.label}</td>
-                        <td className="px-4 py-3 font-data text-sm text-text-primary">{t.userCount}</td>
-                        <td className="px-4 py-3 font-data text-sm text-text-primary">{fmt(t.orderCount)}</td>
-                        <td className="px-4 py-3 font-data text-sm text-text-primary">{money(t.orderTotal)} сум</td>
-                        <td className="px-4 py-3 text-xs text-text-secondary">
-                          {format(new Date(t.createdAt), "dd.MM.yy")}
-                        </td>
-                        <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                          <div className="flex items-center gap-1">
-                            <button
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                const next = t.status === "active" ? "suspended" : "active";
-                                const ok = await confirm({
-                                  title: next === "suspended" ? `Приостановить "${t.name}"?` : `Активировать "${t.name}"?`,
-                                  message: next === "suspended" ? "Все пользователи потеряют доступ." : "Пользователи снова смогут войти.",
-                                  confirmText: next === "suspended" ? "Приостановить" : "Активировать",
-                                  danger: next === "suspended",
-                                });
-                                if (ok) setStatus.mutate({ tenantId: t.id, status: next });
-                              }}
-                              className={`btn-secondary p-1.5 ${t.status === "active" ? "text-danger border-danger/30" : "text-success border-success/30"}`}
-                              title={t.status === "active" ? "Приостановить" : "Активировать"}
-                            >
-                              <Power size={13} />
-                            </button>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setSelectedId(t.id); }}
-                              className="btn-secondary p-1.5"
-                              title="Подробнее"
-                            >
-                              <ChevronRight size={13} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-            }
-          </tbody>
-        </table>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
