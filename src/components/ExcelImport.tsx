@@ -107,13 +107,13 @@ export function ExcelImport({ type, onDone, onCancel }: Props) {
   };
 
   return (
-    <div style={{ background: "#ffffff", borderRadius: "20px", padding: "24px", boxShadow: "0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)" }}>
+    <div style={{ background: "var(--color-surface, #ffffff)", borderRadius: "20px", padding: "24px", boxShadow: "0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
-        <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 700, color: "#111827" }}>
+        <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 700, color: "var(--color-text-primary, #111827)" }}>
           Импорт {typeLabel}
         </h2>
-        <button onClick={onCancel} style={{ padding: "8px", borderRadius: "8px", background: "none", border: "none", cursor: "pointer", color: "#6b7280" }}>
+        <button onClick={onCancel} style={{ padding: "8px", borderRadius: "8px", background: "none", border: "none", cursor: "pointer", color: "var(--color-text-secondary, #6b7280)" }}>
           <X size={18} />
         </button>
       </div>
@@ -122,10 +122,10 @@ export function ExcelImport({ type, onDone, onCancel }: Props) {
       <div style={{ padding: "16px", borderRadius: "12px", background: "rgba(37,99,235,0.08)", border: "1px solid rgba(37,99,235,0.2)", display: "flex", alignItems: "flex-start", gap: "12px", marginBottom: "20px" }}>
         <FileSpreadsheet size={18} style={{ color: "#60a5fa", flexShrink: 0, marginTop: "2px" }} />
         <div>
-          <p style={{ fontSize: "13px", color: "#111827", margin: 0 }}>
+          <p style={{ fontSize: "13px", color: "var(--color-text-primary, #111827)", margin: 0 }}>
             Скачайте шаблон, заполните данные и загрузите файл обратно.
           </p>
-          <p style={{ fontSize: "11px", color: "#6b7280", marginTop: "4px", margin: "4px 0 0" }}>
+          <p style={{ fontSize: "11px", color: "var(--color-text-secondary, #6b7280)", marginTop: "4px", margin: "4px 0 0" }}>
             Поддерживаемые форматы: <b>.xlsx</b>, <b>.xls</b>, <b>.csv</b>
           </p>
           <button onClick={handleDownloadTemplate} style={{ display: "inline-flex", alignItems: "center", gap: "6px", marginTop: "8px", padding: "6px 12px", borderRadius: "8px", fontSize: "12px", fontWeight: 600, color: "#60a5fa", background: "rgba(37,99,235,0.1)", border: "none", cursor: "pointer" }}>
@@ -137,7 +137,7 @@ export function ExcelImport({ type, onDone, onCancel }: Props) {
       {/* File drop zone */}
       <div
         style={{
-          border: `2px dashed ${preview.length > 0 ? "rgba(22,163,74,0.5)" : "#f3f4f6"}`,
+          border: `2px dashed ${preview.length > 0 ? "rgba(22,163,74,0.5)" : "var(--color-border, #f3f4f6)"}`,
           borderRadius: "12px", padding: "32px", textAlign: "center", cursor: "pointer",
           transition: "all 0.2s", background: preview.length > 0 ? "rgba(22,163,74,0.05)" : "transparent",
         }}
@@ -151,14 +151,14 @@ export function ExcelImport({ type, onDone, onCancel }: Props) {
           <>
             <CheckCircle2 size={32} style={{ margin: "0 auto 8px", color: "#4ade80" }} />
             <p style={{ fontSize: "14px", fontWeight: 600, color: "#4ade80" }}>{fileName}</p>
-            <p style={{ fontSize: "12px", color: "#6b7280", marginTop: "4px" }}>{totalRows} строк для импорта</p>
-            <p style={{ fontSize: "11px", color: "#9ca3af", marginTop: "4px" }}>Нажмите чтобы заменить файл</p>
+            <p style={{ fontSize: "12px", color: "var(--color-text-secondary, #6b7280)", marginTop: "4px" }}>{totalRows} строк для импорта</p>
+            <p style={{ fontSize: "11px", color: "var(--color-text-tertiary, #9ca3af)", marginTop: "4px" }}>Нажмите чтобы заменить файл</p>
           </>
         ) : (
           <>
-            <Upload size={32} style={{ margin: "0 auto 8px", color: "#9ca3af" }} />
-            <p style={{ fontSize: "14px", color: "#111827" }}>Перетащите .xlsx / .csv файл</p>
-            <p style={{ fontSize: "12px", color: "#9ca3af", marginTop: "4px" }}>или нажмите для выбора</p>
+            <Upload size={32} style={{ margin: "0 auto 8px", color: "var(--color-text-tertiary, #9ca3af)" }} />
+            <p style={{ fontSize: "14px", color: "var(--color-text-primary, #111827)" }}>Перетащите .xlsx / .csv файл</p>
+            <p style={{ fontSize: "12px", color: "var(--color-text-tertiary, #9ca3af)", marginTop: "4px" }}>или нажмите для выбора</p>
           </>
         )}
       </div>
@@ -170,7 +170,7 @@ export function ExcelImport({ type, onDone, onCancel }: Props) {
             <thead>
               <tr style={{ borderBottom: "1px solid #f3f4f6" }}>
                 {headers.map(h => (
-                  <th key={h} style={{ textAlign: "left", padding: "8px 10px", fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em", fontSize: "10px" }}>{h}</th>
+                  <th key={h} style={{ textAlign: "left", padding: "8px 10px", fontWeight: 600, color: "var(--color-text-tertiary, #9ca3af)", textTransform: "uppercase", letterSpacing: "0.05em", fontSize: "10px" }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -178,12 +178,12 @@ export function ExcelImport({ type, onDone, onCancel }: Props) {
               {preview.map((row, i) => (
                 <tr key={i} style={{ borderBottom: "1px solid #f3f4f6" }}>
                   {headers.map(h => (
-                    <td key={h} style={{ padding: "6px 10px", color: "#111827" }}>{String(row[h] ?? "")}</td>
+                    <td key={h} style={{ padding: "6px 10px", color: "var(--color-text-primary, #111827)" }}>{String(row[h] ?? "")}</td>
                   ))}
                 </tr>
               ))}
               {totalRows > 5 && (
-                <tr><td colSpan={headers.length} style={{ padding: "8px 10px", textAlign: "center", color: "#9ca3af", fontSize: "11px" }}>... и ещё {totalRows - 5} строк</td></tr>
+                <tr><td colSpan={headers.length} style={{ padding: "8px 10px", textAlign: "center", color: "var(--color-text-tertiary, #9ca3af)", fontSize: "11px" }}>... и ещё {totalRows - 5} строк</td></tr>
               )}
             </tbody>
           </table>
@@ -208,7 +208,7 @@ export function ExcelImport({ type, onDone, onCancel }: Props) {
           {importing ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <Upload size={14} />}
           {importing ? "Импортирую..." : `Импортировать${totalRows > 0 ? ` ${totalRows} строк` : ""}`}
         </button>
-        <button onClick={onCancel} style={{ padding: "10px 20px", borderRadius: "12px", fontSize: "13px", fontWeight: 600, color: "#6b7280", background: "#ffffff", border: "1px solid #f3f4f6", cursor: "pointer" }}>
+        <button onClick={onCancel} style={{ padding: "10px 20px", borderRadius: "12px", fontSize: "13px", fontWeight: 600, color: "var(--color-text-secondary, #6b7280)", background: "var(--color-surface, #ffffff)", border: "1px solid #f3f4f6", cursor: "pointer" }}>
           Отмена
         </button>
       </div>

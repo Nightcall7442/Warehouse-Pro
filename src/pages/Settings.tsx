@@ -46,7 +46,7 @@ function TelegramSettings() {
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="px-4 py-3 rounded-lg space-y-2 text-sm" style={{ background: "#f8f9fb" }}>
+          <div className="px-4 py-3 rounded-lg space-y-2 text-sm" style={{ background: "var(--color-surface-light, #f8f9fb)" }}>
             <p className="font-medium text-text-primary">{t("Как подключить:", "Qanday ulash:")}</p>
             <ol className="list-decimal list-inside space-y-1.5 text-text-secondary">
               <li>{t("Откройте Telegram → найдите", "Telegramni oching →")} <code className="px-1 rounded text-primary" style={{ background: "#eff6ff" }}>@userinfobot</code></li>
@@ -136,7 +136,7 @@ function CompanySettings() {
         <div className="flex items-center gap-4">
           <div
             className="w-16 h-16 rounded-xl flex items-center justify-center overflow-hidden cursor-pointer border-2 border-dashed transition-colors hover:border-primary"
-            style={{ borderColor: "#e5e7eb", background: "#f8f9fb" }}
+            style={{ borderColor: "var(--color-border, #e5e7eb)", background: "var(--color-surface-light, #f8f9fb)" }}
             onClick={() => logoRef.current?.click()}
           >
             {form.logoUrl
@@ -147,7 +147,7 @@ function CompanySettings() {
             <button onClick={() => logoRef.current?.click()} className="btn-secondary text-sm flex items-center gap-2">
               <Upload size={14} />{t("Загрузить", "Yuklash")}
             </button>
-            <p className="text-xs mt-1" style={{ color: "#9ca3af" }}>
+            <p className="text-xs mt-1" style={{ color: "var(--color-text-tertiary, #9ca3af)" }}>
               {t("PNG, JPG — макс. 1 МБ", "PNG, JPG — maks. 1 MB")}
             </p>
           </div>
@@ -357,7 +357,7 @@ function OneCSettings() {
           {t("НАСТРОЙКИ ПОДКЛЮЧЕНИЯ", "ULANISH SOZLAMALARI")}
         </p>
         <div className="space-y-3">
-          <div className="p-4 rounded-lg" style={{ background: "#f8f9fb" }}>
+          <div className="p-4 rounded-lg" style={{ background: "var(--color-surface-light, #f8f9fb)" }}>
             <p className="text-xs text-text-secondary mb-2">
               {t("Для подключения 1С:Предприятие необходим Bridge-сервер.", "1C:Predpriyatiye bilan ulanish uchun Bridge server kerak.")}
             </p>
@@ -365,7 +365,7 @@ function OneCSettings() {
               {t("Установите переменные окружения на сервере:", "Serverda muhit o'zgaruvchilarini o'rnating:")}
             </p>
             <pre className="mt-2 p-3 rounded-lg text-xs font-mono overflow-x-auto"
-              style={{ background: "#ffffff", border: "1px solid #f3f4f6" }}>
+              style={{ background: "var(--color-surface, #ffffff)", border: "1px solid #f3f4f6" }}>
 {`ONEC_BRIDGE_URL=http://bridge-server:8080
 ONEC_USERNAME=your_user
 ONEC_PASSWORD=your_password
@@ -373,12 +373,12 @@ ONEC_WEBHOOK_SECRET=your_secret`}
             </pre>
           </div>
 
-          <div className="p-4 rounded-lg" style={{ background: "#f8f9fb" }}>
+          <div className="p-4 rounded-lg" style={{ background: "var(--color-surface-light, #f8f9fb)" }}>
             <p className="text-xs text-text-secondary mb-2">
               {t("Webhook URL для 1С (настройте в 1С:Предприятие):", "1C uchun webhook URL (1C:Predpriyatoyedagi sozlamalarda):")}
             </p>
             <pre className="mt-2 p-3 rounded-lg text-xs font-mono overflow-x-auto"
-              style={{ background: "#ffffff", border: "1px solid #f3f4f6" }}>
+              style={{ background: "var(--color-surface, #ffffff)", border: "1px solid #f3f4f6" }}>
 {`Оплата: https://www.warehouse-pro.uz/api/webhooks/1c/payment
 Остатки: https://www.warehouse-pro.uz/api/webhooks/1c/stock`}
             </pre>
@@ -392,7 +392,7 @@ ONEC_WEBHOOK_SECRET=your_secret`}
           {t("СИНХРОНИЗАЦИЯ", "SINXRONIZATSIYA")}
         </p>
         <div className="space-y-3">
-          <div className="flex items-center justify-between p-4 rounded-lg" style={{ background: "#f8f9fb" }}>
+          <div className="flex items-center justify-between p-4 rounded-lg" style={{ background: "var(--color-surface-light, #f8f9fb)" }}>
             <div>
               <p className="text-sm font-medium text-text-primary">{t("Товары из 1С", "1C dan mahsulotlar")}</p>
               <p className="text-xs text-text-secondary mt-0.5">
@@ -411,7 +411,7 @@ ONEC_WEBHOOK_SECRET=your_secret`}
 
           {status && (
             <div className="grid grid-cols-2 gap-3">
-              <div className="p-3 rounded-lg" style={{ background: "#f8f9fb" }}>
+              <div className="p-3 rounded-lg" style={{ background: "var(--color-surface-light, #f8f9fb)" }}>
                 <p className="text-[10px] text-text-secondary tracking-wider mb-1">
                   {t("ПОСЛЕДНЯЯ СИНХРОНИЗАЦИЯ", "OXIRGI SINXRONIZATSIYA")}
                 </p>
@@ -421,7 +421,7 @@ ONEC_WEBHOOK_SECRET=your_secret`}
                     : t("Не выполнялась", "Bajarilmagan")}
                 </p>
               </div>
-              <div className="p-3 rounded-lg" style={{ background: "#f8f9fb" }}>
+              <div className="p-3 rounded-lg" style={{ background: "var(--color-surface-light, #f8f9fb)" }}>
                 <p className="text-[10px] text-text-secondary tracking-wider mb-1">
                   {t("ОШИБКИ", "XATOLIKLAR")}
                 </p>
@@ -435,7 +435,7 @@ ONEC_WEBHOOK_SECRET=your_secret`}
       </div>
 
       {/* Документация */}
-      <div className="p-4 rounded-lg" style={{ background: "#f8f9fb" }}>
+      <div className="p-4 rounded-lg" style={{ background: "var(--color-surface-light, #f8f9fb)" }}>
         <div className="flex items-start gap-3">
           <AlertTriangle size={16} className="text-amber-500 mt-0.5 flex-shrink-0" />
           <div>

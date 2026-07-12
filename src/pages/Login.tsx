@@ -54,7 +54,7 @@ export default function Login() {
   if (user) return null;
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "#f0f2f5" }}>
+    <div style={{ display: "flex", minHeight: "100vh", background: "var(--color-canvas, #f0f2f5)" }}>
 
       {/* ── Left panel (branding) ── */}
       <div style={{
@@ -156,10 +156,10 @@ export default function Login() {
 
             {/* Header */}
             <div style={{ marginBottom: 36 }}>
-              <h2 style={{ fontFamily: F.display, fontSize: "32px", fontWeight: 700, color: "#111827", margin: "0 0 8px", letterSpacing: "-0.02em" }}>
+              <h2 style={{ fontFamily: F.display, fontSize: "32px", fontWeight: 700, color: "var(--color-text-primary, #111827)", margin: "0 0 8px", letterSpacing: "-0.02em" }}>
                 {tr("Добро пожаловать", "Xush kelibsiz")}
               </h2>
-              <p style={{ fontSize: "15px", color: "#6b7280", margin: 0 }}>
+              <p style={{ fontSize: "15px", color: "var(--color-text-secondary, #6b7280)", margin: 0 }}>
                 {tr("Войдите в свой аккаунт", "Hisobingizga kiring")}
               </p>
             </div>
@@ -167,13 +167,13 @@ export default function Login() {
             <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
               {/* Email */}
               <div>
-                <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#111827", marginBottom: 8 }}>Email</label>
+                <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary, #111827)", marginBottom: 8 }}>Email</label>
                 <div style={{ position: "relative" }}>
-                  <Mail size={18} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#9ca3af", pointerEvents: "none" }} />
+                  <Mail size={18} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--color-text-tertiary, #9ca3af)", pointerEvents: "none" }} />
                   <input type="email" style={{
                     width: "100%", padding: "14px 14px 14px 44px", borderRadius: 14,
-                    fontSize: "15px", fontFamily: F.body, color: "#111827",
-                    background: "#f8f9fb", border: "2px solid transparent",
+                    fontSize: "15px", fontFamily: F.body, color: "var(--color-text-primary, #111827)",
+                    background: "var(--color-surface-light, #f8f9fb)", border: "2px solid transparent",
                     outline: "none", transition: "all 0.2s ease",
                   }} placeholder="you@company.com" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" disabled={isPending}
                     onFocus={e => { e.currentTarget.style.borderColor = "#818cf8"; e.currentTarget.style.boxShadow = "0 0 0 4px rgba(129,140,248,.10)"; }}
@@ -184,19 +184,19 @@ export default function Login() {
 
               {/* Password */}
               <div>
-                <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#111827", marginBottom: 8 }}>{tr("Пароль", "Parol")}</label>
+                <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary, #111827)", marginBottom: 8 }}>{tr("Пароль", "Parol")}</label>
                 <div style={{ position: "relative" }}>
-                  <Lock size={18} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#9ca3af", pointerEvents: "none" }} />
+                  <Lock size={18} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--color-text-tertiary, #9ca3af)", pointerEvents: "none" }} />
                   <input type={showPw ? "text" : "password"} style={{
                     width: "100%", padding: "14px 48px 14px 44px", borderRadius: 14,
-                    fontSize: "15px", fontFamily: F.body, color: "#111827",
-                    background: "#f8f9fb", border: "2px solid transparent",
+                    fontSize: "15px", fontFamily: F.body, color: "var(--color-text-primary, #111827)",
+                    background: "var(--color-surface-light, #f8f9fb)", border: "2px solid transparent",
                     outline: "none", transition: "all 0.2s ease",
                   }} placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" disabled={isPending}
                     onFocus={e => { e.currentTarget.style.borderColor = "#818cf8"; e.currentTarget.style.boxShadow = "0 0 0 4px rgba(129,140,248,.10)"; }}
                     onBlur={e => { e.currentTarget.style.borderColor = "transparent"; e.currentTarget.style.boxShadow = "none"; }}
                   />
-                  <button type="button" onClick={() => setShowPw(!showPw)} style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 0 }} tabIndex={-1}>
+                  <button type="button" onClick={() => setShowPw(!showPw)} style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--color-text-tertiary, #9ca3af)", padding: 0 }} tabIndex={-1}>
                     {showPw ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
@@ -237,7 +237,7 @@ export default function Login() {
 
             {/* Register */}
             <div style={{ marginTop: 32, paddingTop: 24, borderTop: "1px solid #f3f4f6", textAlign: "center" }}>
-              <p style={{ fontSize: "14px", color: "#6b7280", margin: 0 }}>
+              <p style={{ fontSize: "14px", color: "var(--color-text-secondary, #6b7280)", margin: 0 }}>
                 {tr("Нет аккаунта?", "Hisobingiz yo'qmi?")}{" "}
                 <Link to="/register" style={{ fontWeight: 600, color: "#818cf8", textDecoration: "none" }}>
                   {tr("Создать", "Yaratish")}

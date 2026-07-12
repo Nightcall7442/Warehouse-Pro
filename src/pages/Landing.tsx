@@ -1316,11 +1316,11 @@ function MapPreview() {
         <path d="M0,270 L600,270" stroke="#fff" strokeWidth="3" fill="none" opacity="0.55" />
         <path d="M150,0 L150,360" stroke="#fff" strokeWidth="3" fill="none" opacity="0.55" />
         <path d="M450,0 L450,360" stroke="#fff" strokeWidth="3" fill="none" opacity="0.55" />
-        <rect x="85" y="55" width="50" height="28" rx="2" fill="#9ca3af" opacity="0.45" />
-        <rect x="160" y="55" width="35" height="24" rx="2" fill="#9ca3af" opacity="0.45" />
-        <rect x="310" y="55" width="45" height="26" rx="2" fill="#9ca3af" opacity="0.45" />
-        <rect x="85" y="195" width="45" height="30" rx="2" fill="#9ca3af" opacity="0.45" />
-        <rect x="310" y="195" width="50" height="28" rx="2" fill="#9ca3af" opacity="0.45" />
+        <rect x="85" y="55" width="50" height="28" rx="2" fill="var(--color-text-tertiary, #9ca3af)" opacity="0.45" />
+        <rect x="160" y="55" width="35" height="24" rx="2" fill="var(--color-text-tertiary, #9ca3af)" opacity="0.45" />
+        <rect x="310" y="55" width="45" height="26" rx="2" fill="var(--color-text-tertiary, #9ca3af)" opacity="0.45" />
+        <rect x="85" y="195" width="45" height="30" rx="2" fill="var(--color-text-tertiary, #9ca3af)" opacity="0.45" />
+        <rect x="310" y="195" width="50" height="28" rx="2" fill="var(--color-text-tertiary, #9ca3af)" opacity="0.45" />
         <rect x="460" y="100" width="70" height="50" rx="8" fill="rgba(74,222,128,.10)" opacity="0.4" />
         <rect x="60" y="290" width="60" height="40" rx="8" fill="rgba(74,222,128,.10)" opacity="0.4" />
         <ellipse cx="520" cy="290" rx="45" ry="25" fill="#60a5fa" opacity="0.3" />

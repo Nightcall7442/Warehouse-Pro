@@ -146,20 +146,20 @@ export default function SupervisorPlans() {
       <div className="flex items-center gap-3">
         <button onClick={() => setDate(d => subDays(d, 1))}
           className="w-10 h-10 flex items-center justify-center rounded-xl border hover:bg-surface-light transition-colors"
-          style={{ borderColor: "#e5e7eb" }}>
+          style={{ borderColor: "var(--color-border, #e5e7eb)" }}>
           <ChevronLeft size={18} />
         </button>
         <div className="flex-1 panel p-3 text-center">
           <p className="font-semibold text-text-primary capitalize">
             {format(date, "EEEE", { locale: lang === "ru" ? dateRu : undefined })}
           </p>
-          <p className="font-label text-[11px] tracking-wider mt-0.5" style={{ color: "#9ca3af" }}>
+          <p className="font-label text-[11px] tracking-wider mt-0.5" style={{ color: "var(--color-text-tertiary, #9ca3af)" }}>
             {format(date, "d MMMM yyyy", { locale: lang === "ru" ? dateRu : undefined })}
           </p>
         </div>
         <button onClick={() => setDate(d => addDays(d, 1))}
           className="w-10 h-10 flex items-center justify-center rounded-xl border hover:bg-surface-light transition-colors"
-          style={{ borderColor: "#e5e7eb" }}>
+          style={{ borderColor: "var(--color-border, #e5e7eb)" }}>
           <ChevronRight size={18} />
         </button>
       </div>
@@ -173,10 +173,10 @@ export default function SupervisorPlans() {
 
         {total > 0 && (
           <div className="flex items-center gap-2 ml-auto">
-            <span className="text-sm font-data" style={{ color: "#6b7280" }}>
+            <span className="text-sm font-data" style={{ color: "var(--color-text-secondary, #6b7280)" }}>
               {visited}/{total}
             </span>
-            <div className="w-28 h-2 rounded-full overflow-hidden" style={{ background: "#f8f9fb" }}>
+            <div className="w-28 h-2 rounded-full overflow-hidden" style={{ background: "var(--color-surface-light, #f8f9fb)" }}>
               <div className="h-full rounded-full transition-all duration-500"
                 style={{ width: `${pct}%`, background: progressColor }} />
             </div>

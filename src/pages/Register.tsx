@@ -22,7 +22,7 @@ function PasswordStrength({ password }: { password: string }) {
   return (
     <div className="mt-2 space-y-1.5">
       <div className="flex items-center justify-between">
-        <div className="h-1.5 flex-1 rounded-full overflow-hidden mr-3" style={{ background: "#f8f9fb" }}>
+        <div className="h-1.5 flex-1 rounded-full overflow-hidden mr-3" style={{ background: "var(--color-surface-light, #f8f9fb)" }}>
           <div className="h-full rounded-full transition-all duration-400" style={{ width: `${bar}%`, background: color }} />
         </div>
         <span className="text-xs font-medium flex-shrink-0" style={{ color }}>{label}</span>
@@ -31,7 +31,7 @@ function PasswordStrength({ password }: { password: string }) {
         {checks.map(c => (
           <div key={c.label} className="flex items-center gap-1">
             <div className={`w-1.5 h-1.5 rounded-full ${c.pass ? "bg-success" : "bg-border-subtle"}`} />
-            <span className="text-[10px]" style={{ color: c.pass ? "#4ade80" : "#9ca3af" }}>{c.label}</span>
+            <span className="text-[10px]" style={{ color: c.pass ? "#4ade80" : "var(--color-text-tertiary, #9ca3af)" }}>{c.label}</span>
           </div>
         ))}
       </div>
@@ -74,11 +74,11 @@ export default function Register() {
   ];
 
   return (
-    <div className="min-h-screen flex" style={{ background: "#f0f2f5" }}>
+    <div className="min-h-screen flex" style={{ background: "var(--color-canvas, #f0f2f5)" }}>
 
       {/* ── Левая панель ── */}
       <div className="hidden lg:flex flex-col justify-between w-[52%] p-12 relative overflow-hidden"
-        style={{ background: "#ffffff" }}>
+        style={{ background: "var(--color-surface, #ffffff)" }}>
         {/* Сетка */}
         <div className="absolute inset-0 pointer-events-none opacity-[0.03]"
           style={{
@@ -119,7 +119,7 @@ export default function Register() {
                 </div>
                 <div>
                   <p className="font-medium text-text-primary">{s.title}</p>
-                  <p className="text-sm mt-0.5" style={{ color: "#6b7280" }}>{s.desc}</p>
+                  <p className="text-sm mt-0.5" style={{ color: "var(--color-text-secondary, #6b7280)" }}>{s.desc}</p>
                 </div>
               </div>
             ))}
@@ -132,7 +132,7 @@ export default function Register() {
           </div>
         </div>
 
-        <p className="relative text-xs" style={{ color: "#9ca3af" }}>© 2025 Warehouse Pro</p>
+        <p className="relative text-xs" style={{ color: "var(--color-text-tertiary, #9ca3af)" }}>© 2025 Warehouse Pro</p>
       </div>
 
       {/* ── Форма ── */}
@@ -150,7 +150,7 @@ export default function Register() {
         <div className="w-full max-w-[380px]">
           <div className="mb-8">
             <h2 className="font-display text-2xl text-text-primary mb-1.5">{tr("Создать организацию","Tashkilot yaratish")}</h2>
-            <p className="text-sm" style={{ color: "#6b7280" }}>
+            <p className="text-sm" style={{ color: "var(--color-text-secondary, #6b7280)" }}>
               {tr("Уже есть аккаунт?","Hisobingiz bormi?")}{" "}
               <Link to="/login" className="font-medium hover:underline" style={{ color: "#818cf8" }}>{tr("Войти","Kirish")}</Link>
             </p>
@@ -163,7 +163,7 @@ export default function Register() {
               { key: "email",       type: "email",    placeholder: "you@company.com",        label: tr("Email","Email")             },
             ].map(f => (
               <div key={f.key} className="space-y-1.5">
-                <label className="block text-xs font-medium" style={{ color: "#6b7280" }}>{f.label}</label>
+                <label className="block text-xs font-medium" style={{ color: "var(--color-text-secondary, #6b7280)" }}>{f.label}</label>
                 <input type={f.type} className="input-field" placeholder={f.placeholder}
                   value={(form as unknown as Record<string, string>)[f.key]}
                   onChange={e => setForm({ ...form, [f.key]: e.target.value })}
@@ -172,7 +172,7 @@ export default function Register() {
             ))}
 
             <div className="space-y-1.5">
-              <label className="block text-xs font-medium" style={{ color: "#6b7280" }}>{tr("Пароль","Parol")}</label>
+              <label className="block text-xs font-medium" style={{ color: "var(--color-text-secondary, #6b7280)" }}>{tr("Пароль","Parol")}</label>
               <div className="relative">
                 <input type={showPw ? "text" : "password"} className="input-field pr-10"
                   placeholder={tr("Минимум 8 символов","Kamida 8 belgi")}
@@ -181,7 +181,7 @@ export default function Register() {
                   disabled={registerMutation.isPending} />
                 <button type="button" onClick={() => setShowPw(!showPw)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors" tabIndex={-1}
-                  style={{ color: "#9ca3af" }}>
+                  style={{ color: "var(--color-text-tertiary, #9ca3af)" }}>
                   {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
                 </button>
               </div>
@@ -205,7 +205,7 @@ export default function Register() {
                 : tr("Создать аккаунт →","Hisob yaratish →")}
             </button>
 
-            <p className="text-xs text-center" style={{ color: "#9ca3af" }}>
+            <p className="text-xs text-center" style={{ color: "var(--color-text-tertiary, #9ca3af)" }}>
               {tr("Нажимая «Создать», вы принимаете условия использования","«Yaratish»ni bosib, foydalanish shartlarini qabul qilasiz")}
             </p>
           </form>

@@ -39,7 +39,7 @@ function AgentKpi({ label, value, icon: Icon, color = "indigo" }: {
         <p className="font-data text-2xl font-bold leading-none text-text-primary">
           {value}
         </p>
-        <p className="font-label text-[10px] tracking-wider mt-1.5" style={{ color: "#9ca3af" }}>
+        <p className="font-label text-[10px] tracking-wider mt-1.5" style={{ color: "var(--color-text-tertiary, #9ca3af)" }}>
           {label}
         </p>
       </div>
@@ -91,8 +91,8 @@ function PlanCard({ plan, onDone, onSkip, isPending }: {
         </div>
         {(plan.shopAddress || plan.shopCity) && (
           <div className="flex items-center gap-1 mt-0.5">
-            <MapPin size={10} style={{ color: "#9ca3af" }} className="flex-shrink-0" />
-            <p className="text-xs truncate" style={{ color: "#9ca3af" }}>
+            <MapPin size={10} style={{ color: "var(--color-text-tertiary, #9ca3af)" }} className="flex-shrink-0" />
+            <p className="text-xs truncate" style={{ color: "var(--color-text-tertiary, #9ca3af)" }}>
               {[plan.shopAddress, plan.shopCity].filter(Boolean).join(", ")}
             </p>
           </div>
@@ -106,7 +106,7 @@ function PlanCard({ plan, onDone, onSkip, isPending }: {
             onClick={onSkip}
             disabled={isPending}
             className="btn-ghost py-1 px-2 text-xs"
-            style={{ color: "#6b7280" }}
+            style={{ color: "var(--color-text-secondary, #6b7280)" }}
             title={t("Пропустить", "O'tkazib yuborish")}
           >
             <Clock size={13} />
@@ -169,7 +169,7 @@ export default function AgentDashboard() {
           <h1 className="font-display text-2xl font-bold text-text-primary tracking-tight">
             {t("Мой день", "Mening kunim")}
           </h1>
-          <p className="text-xs mt-0.5 capitalize" style={{ color: "#9ca3af" }}>
+          <p className="text-xs mt-0.5 capitalize" style={{ color: "var(--color-text-tertiary, #9ca3af)" }}>
             {format(new Date(), "EEEE, d MMMM", { locale: lang === "ru" ? dateRu : undefined })}
           </p>
         </div>
@@ -208,7 +208,7 @@ export default function AgentDashboard() {
       {/* ── Прогресс плана ── */}
       <div className="panel p-4">
         <div className="flex items-center justify-between mb-3.5">
-          <span className="font-label text-[10px] tracking-wider" style={{ color: "#9ca3af" }}>
+          <span className="font-label text-[10px] tracking-wider" style={{ color: "var(--color-text-tertiary, #9ca3af)" }}>
             {t("ПЛАН ВИЗИТОВ", "TASHRIF REJASI")}
           </span>
           {todaySkipped > 0 && (
@@ -224,7 +224,7 @@ export default function AgentDashboard() {
             <p className="font-data text-lg font-bold text-text-primary leading-none">
               {todayVisited} / {todayPlanned}
             </p>
-            <p className="text-xs mt-1.5" style={{ color: "#9ca3af" }}>
+            <p className="text-xs mt-1.5" style={{ color: "var(--color-text-tertiary, #9ca3af)" }}>
               {todayPlanned === 0
                 ? t("На сегодня визитов нет", "Bugun tashrif yo'q")
                 : pct === 100
@@ -273,7 +273,7 @@ export default function AgentDashboard() {
             <button
               onClick={() => navigate("/agent/plans")}
               className="flex items-center gap-1 text-xs"
-              style={{ color: "#9ca3af" }}
+              style={{ color: "var(--color-text-tertiary, #9ca3af)" }}
             >
               {t("Все планы", "Barcha rejalar")}
               <ChevronRight size={12} />
@@ -300,12 +300,12 @@ export default function AgentDashboard() {
             <p className="text-sm text-text-secondary">
               {t("На сегодня визитов нет", "Bugun tashrif yo'q")}
             </p>
-            <p className="text-xs mt-1" style={{ color: "#9ca3af" }}>
+            <p className="text-xs mt-1" style={{ color: "var(--color-text-tertiary, #9ca3af)" }}>
               {t("Супервайзер ещё не назначил маршрут", "Supervisor yo'l haritasini hali tayinlamadi")}
             </p>
           </div>
         ) : (
-          <div className="divide-y" style={{ borderColor: "#f3f4f6" }}>
+          <div className="divide-y" style={{ borderColor: "var(--color-border, #f3f4f6)" }}>
             {/* Сначала запланированные, потом остальные */}
             {[
               ...( plans?.filter(p => p.status === "planned") ?? []),

@@ -18,11 +18,11 @@ const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -
 const COLORS = {
   primary: "#818cf8", success: "#4ade80",
   warning: "#fbbf24", danger: "#f87171",
-  surface: "#ffffff", surfaceLight: "#f8f9fb",
-  textPrimary: "#111827", textSecondary: "#6b7280",
-  textTertiary: "#9ca3af", border: "#f3f4f6",
+  surface: "var(--color-surface, #ffffff)", surfaceLight: "var(--color-surface-light, #f8f9fb)",
+  textPrimary: "var(--color-text-primary, #111827)", textSecondary: "var(--color-text-secondary, #6b7280)",
+  textTertiary: "var(--color-text-tertiary, #9ca3af)", border: "var(--color-border, #f3f4f6)",
 };
-const SHADOW = "0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04)";
+const SHADOW = "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04))";
 
 // Premium KpiCard Component
 function KpiCard({ label, value, delta, icon, gradient, delay }: {

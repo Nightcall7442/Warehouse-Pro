@@ -56,8 +56,8 @@ function Steps({ current, labels }: { current: number; labels: string[] }) {
                 display: "flex", alignItems: "center", justifyContent: "center",
                 fontSize: "13px", fontWeight: 700, fontFamily: "'DM Sans', sans-serif",
                 transition: "all 0.3s ease",
-                background: done ? "#818cf8" : active ? "#eff6ff" : "#f8f9fb",
-                color: done ? "#fff" : active ? "#818cf8" : "#9ca3af",
+                background: done ? "#818cf8" : active ? "#eff6ff" : "var(--color-surface-light, #f8f9fb)",
+                color: done ? "#fff" : active ? "#818cf8" : "var(--color-text-tertiary, #9ca3af)",
                 boxShadow: done ? "0 4px 12px rgba(129,140,248,0.3)" : active ? "0 0 0 3px rgba(129,140,248,.15)" : "none",
               }}>
                 {done ? <CheckCircle2 size={18} /> : step}
@@ -65,7 +65,7 @@ function Steps({ current, labels }: { current: number; labels: string[] }) {
               <span style={{
                 fontSize: "10px", fontWeight: 600, letterSpacing: "0.08em",
                 fontFamily: "'DM Sans', sans-serif", textTransform: "uppercase",
-                color: active ? "#818cf8" : done ? "#818cf8" : "#9ca3af",
+                color: active ? "#818cf8" : done ? "#818cf8" : "var(--color-text-tertiary, #9ca3af)",
               }}>
                 {label}
               </span>
@@ -74,7 +74,7 @@ function Steps({ current, labels }: { current: number; labels: string[] }) {
               <div style={{
                 flex: 1, height: "2px", margin: "0 8px", marginBottom: "20px",
                 borderRadius: "1px", transition: "all 0.3s ease",
-                background: step < current ? "#818cf8" : "#f3f4f6",
+                background: step < current ? "#818cf8" : "var(--color-border, #f3f4f6)",
               }} />
             )}
           </div>
@@ -126,10 +126,10 @@ function StepShop({
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
       {/* Заголовок */}
       <div>
-        <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "20px", fontWeight: 700, color: "#111827", margin: "0 0 4px", letterSpacing: "-0.02em" }}>
+        <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "20px", fontWeight: 700, color: "var(--color-text-primary, #111827)", margin: "0 0 4px", letterSpacing: "-0.02em" }}>
           {t("Выберите магазин", "Do'kon tanlang")}
         </h2>
-        <p style={{ fontSize: "13px", color: "#9ca3af", margin: 0 }}>
+        <p style={{ fontSize: "13px", color: "var(--color-text-tertiary, #9ca3af)", margin: 0 }}>
           {t("Для которого оформляем заказ", "Buyurtma uchun do'kon")}
         </p>
       </div>
@@ -140,8 +140,8 @@ function StepShop({
           <button onClick={() => setSelectedCity(null)} style={{
             flexShrink: 0, padding: "8px 18px", borderRadius: "24px", fontSize: "13px", fontWeight: 600,
             fontFamily: "'DM Sans', sans-serif", cursor: "pointer", transition: "all 0.25s ease",
-            background: !selectedCity ? "linear-gradient(135deg, #818cf8, #6366f1)" : "#f8f9fb",
-            color: !selectedCity ? "#fff" : "#6b7280",
+            background: !selectedCity ? "linear-gradient(135deg, #818cf8, #6366f1)" : "var(--color-surface-light, #f8f9fb)",
+            color: !selectedCity ? "#fff" : "var(--color-text-secondary, #6b7280)",
             border: "none", boxShadow: !selectedCity ? "0 4px 12px rgba(129,140,248,0.3)" : "none",
           }}>
             {t("Все", "Barchasi")}
@@ -150,8 +150,8 @@ function StepShop({
             <button key={city} onClick={() => setSelectedCity(selectedCity === city ? null : city)} style={{
               flexShrink: 0, padding: "8px 18px", borderRadius: "24px", fontSize: "13px", fontWeight: 600,
               fontFamily: "'DM Sans', sans-serif", cursor: "pointer", transition: "all 0.25s ease",
-              background: selectedCity === city ? "linear-gradient(135deg, #818cf8, #6366f1)" : "#f8f9fb",
-              color: selectedCity === city ? "#fff" : "#6b7280",
+              background: selectedCity === city ? "linear-gradient(135deg, #818cf8, #6366f1)" : "var(--color-surface-light, #f8f9fb)",
+              color: selectedCity === city ? "#fff" : "var(--color-text-secondary, #6b7280)",
               border: "none", boxShadow: selectedCity === city ? "0 4px 12px rgba(129,140,248,0.3)" : "none",
             }}>
               {city}
@@ -162,25 +162,25 @@ function StepShop({
 
       {/* Поиск */}
       <div style={{ position: "relative" }}>
-        <Search size={16} style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", color: "#9ca3af", pointerEvents: "none" }} />
+        <Search size={16} style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", color: "var(--color-text-tertiary, #9ca3af)", pointerEvents: "none" }} />
         <input
           style={{
             width: "100%", padding: "12px 14px 12px 42px", borderRadius: "14px",
-            background: "#f8f9fb", border: "2px solid transparent",
-            fontSize: "14px", fontFamily: "'DM Sans', sans-serif", color: "#111827",
+            background: "var(--color-surface-light, #f8f9fb)", border: "2px solid transparent",
+            fontSize: "14px", fontFamily: "'DM Sans', sans-serif", color: "var(--color-text-primary, #111827)",
             outline: "none", transition: "all 0.2s ease",
           }}
           placeholder={t("Поиск магазинов…", "Do'kon qidirish…")}
           value={search}
           onChange={e => setSearch(e.target.value)}
-          onFocus={e => { e.currentTarget.style.borderColor = "#818cf8"; e.currentTarget.style.boxShadow = "0 0 0 4px rgba(129,140,248,0.1)"; e.currentTarget.style.background = "#ffffff"; }}
-          onBlur={e => { e.currentTarget.style.borderColor = "transparent"; e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.background = "#f8f9fb"; }}
+          onFocus={e => { e.currentTarget.style.borderColor = "#818cf8"; e.currentTarget.style.boxShadow = "0 0 0 4px rgba(129,140,248,0.1)"; e.currentTarget.style.background = "var(--color-surface, #ffffff)"; }}
+          onBlur={e => { e.currentTarget.style.borderColor = "transparent"; e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.background = "var(--color-surface-light, #f8f9fb)"; }}
         />
       </div>
 
       {/* Счётчик */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <p style={{ fontSize: "12px", color: "#9ca3af", fontFamily: "'DM Sans', sans-serif", margin: 0 }}>
+        <p style={{ fontSize: "12px", color: "var(--color-text-tertiary, #9ca3af)", fontFamily: "'DM Sans', sans-serif", margin: 0 }}>
           {filtered?.length ?? 0} {t("магазинов", "do'kon")}
         </p>
         {selectedCity && (
@@ -197,7 +197,7 @@ function StepShop({
       {isLoading ? (
         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} style={{ height: "72px", background: "#f8f9fb", borderRadius: "16px" }} className="animate-pulse" />
+            <div key={i} style={{ height: "72px", background: "var(--color-surface-light, #f8f9fb)", borderRadius: "16px" }} className="animate-pulse" />
           ))}
         </div>
       ) : filtered?.length === 0 ? (
@@ -205,14 +205,14 @@ function StepShop({
           <div style={{
             width: "64px", height: "64px", borderRadius: "24px", display: "flex",
             alignItems: "center", justifyContent: "center", margin: "0 auto 12px",
-            background: "#f8f9fb",
+            background: "var(--color-surface-light, #f8f9fb)",
           }}>
-            <Store size={28} style={{ color: "#9ca3af", opacity: 0.4 }} />
+            <Store size={28} style={{ color: "var(--color-text-tertiary, #9ca3af)", opacity: 0.4 }} />
           </div>
-          <p style={{ fontSize: "14px", fontWeight: 500, color: "#6b7280", margin: "0 0 4px" }}>
+          <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--color-text-secondary, #6b7280)", margin: "0 0 4px" }}>
             {selectedCity ? t("Нет магазинов в этом городе", "Bu shaharda do'kon yo'q") : t("Магазины не найдены", "Do'kon topilmadi")}
           </p>
-          <p style={{ fontSize: "12px", color: "#9ca3af" }}>
+          <p style={{ fontSize: "12px", color: "var(--color-text-tertiary, #9ca3af)" }}>
             {t("Попробуйте другой фильтр", "Boshqa filtringizni sinab ko'ring")}
           </p>
         </div>
@@ -226,7 +226,7 @@ function StepShop({
                 width: "100%", padding: "16px", textAlign: "left", display: "flex", alignItems: "center", gap: "14px",
                 borderRadius: "16px", cursor: "pointer", transition: "all 0.25s cubic-bezier(0.25,0.46,0.45,0.94)",
                 border: shopId === shop.id ? "2px solid #818cf8" : "2px solid transparent",
-                background: shopId === shop.id ? "#eff6ff" : "#ffffff",
+                background: shopId === shop.id ? "#eff6ff" : "var(--color-surface, #ffffff)",
                 boxShadow: shopId === shop.id
                   ? "0 4px 16px rgba(129,140,248,0.12)"
                   : "0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04)",
@@ -235,16 +235,16 @@ function StepShop({
               <div style={{
                 width: "44px", height: "44px", borderRadius: "12px", display: "flex",
                 alignItems: "center", justifyContent: "center", flexShrink: 0,
-                background: shopId === shop.id ? "linear-gradient(135deg, #818cf8, #6366f1)" : "#f8f9fb",
+                background: shopId === shop.id ? "linear-gradient(135deg, #818cf8, #6366f1)" : "var(--color-surface-light, #f8f9fb)",
                 boxShadow: shopId === shop.id ? "0 4px 12px rgba(129,140,248,0.25)" : "none",
               }}>
-                <Store size={20} style={{ color: shopId === shop.id ? "#fff" : "#6b7280" }} />
+                <Store size={20} style={{ color: shopId === shop.id ? "#fff" : "var(--color-text-secondary, #6b7280)" }} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: "14px", color: "#111827", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <p style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: "14px", color: "var(--color-text-primary, #111827)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {shop.name}
                 </p>
-                <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px", color: "#6b7280", margin: "3px 0 0" }}>
+                <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px", color: "var(--color-text-secondary, #6b7280)", margin: "3px 0 0" }}>
                   {shop.ownerName ?? "—"}
                   {shop.district ? ` · ${shop.district}` : ""}
                   {shop.city ? `, ${shop.city}` : ""}
@@ -352,7 +352,7 @@ function StepItems({
 
         {/* Поиск */}
         <div style={{ position: "relative", marginBottom: "12px" }}>
-          <Search size={14} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "#9ca3af", pointerEvents: "none" }} />
+          <Search size={14} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "var(--color-text-tertiary, #9ca3af)", pointerEvents: "none" }} />
           <input
             className="input-field"
             style={{ paddingLeft: "36px", width: "100%" }}
@@ -373,7 +373,7 @@ function StepItems({
                 style={{
                   display: "flex", alignItems: "center", gap: "12px", padding: "12px 14px",
                   borderRadius: "12px", cursor: "pointer", transition: "all 0.15s ease",
-                  background: inCart ? "#eff6ff" : "#ffffff",
+                  background: inCart ? "#eff6ff" : "var(--color-surface, #ffffff)",
                   border: inCart ? "1px solid rgba(129,140,248,.30)" : "1px solid #f3f4f6",
                 }}
                 onClick={() => addToCart(product)}
@@ -381,15 +381,15 @@ function StepItems({
                 <div style={{
                   width: "40px", height: "40px", borderRadius: "10px", display: "flex",
                   alignItems: "center", justifyContent: "center", flexShrink: 0,
-                  background: inCart ? "rgba(129,140,248,.15)" : "#f8f9fb",
+                  background: inCart ? "rgba(129,140,248,.15)" : "var(--color-surface-light, #f8f9fb)",
                 }}>
-                  <Package size={18} style={{ color: inCart ? "#818cf8" : "#9ca3af" }} />
+                  <Package size={18} style={{ color: inCart ? "#818cf8" : "var(--color-text-tertiary, #9ca3af)" }} />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontWeight: 500, fontSize: "13px", color: "#111827", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <p style={{ fontWeight: 500, fontSize: "13px", color: "var(--color-text-primary, #111827)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {product.name}
                   </p>
-                  <p style={{ fontSize: "11px", color: "#6b7280", margin: "2px 0 0" }}>
+                  <p style={{ fontSize: "11px", color: "var(--color-text-secondary, #6b7280)", margin: "2px 0 0" }}>
                     {fmt(product.unitPrice)}/{unitLabel(product.unit, lang)}
                     {lowStock && <span style={{ color: "#fbbf24", marginLeft: "8px" }}>⚠</span>}
                   </p>
@@ -403,7 +403,7 @@ function StepItems({
                   </span>
                 ) : (
                   <span style={{
-                    background: "#f8f9fb", color: "#6b7280",
+                    background: "var(--color-surface-light, #f8f9fb)", color: "var(--color-text-secondary, #6b7280)",
                     borderRadius: "8px", padding: "4px 10px", fontSize: "12px", fontWeight: 500,
                   }}>
                     + {t("Добавить", "Qo'shish")}
@@ -417,12 +417,12 @@ function StepItems({
 
       {/* ── Корзина ── */}
       <div style={{
-        background: "#ffffff", borderRadius: "24px", padding: "20px",
-        boxShadow: "0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04)",
+        background: "var(--color-surface, #ffffff)", borderRadius: "24px", padding: "20px",
+        boxShadow: "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06))",
         position: "sticky", top: "20px",
       }}>
         <div className="flex items-center justify-between mb-4">
-          <h3 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600, color: "#111827", margin: 0 }}>
+          <h3 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600, color: "var(--color-text-primary, #111827)", margin: 0 }}>
             {t("Корзина", "Savat")} ({validItems.length})
           </h3>
           {validItems.length > 0 && (
@@ -436,7 +436,7 @@ function StepItems({
         </div>
 
         {validItems.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "40px 0", color: "#9ca3af" }}>
+          <div style={{ textAlign: "center", padding: "40px 0", color: "var(--color-text-tertiary, #9ca3af)" }}>
             <ShoppingCart size={32} style={{ margin: "0 auto 8px", opacity: 0.3 }} />
             <p style={{ fontSize: "13px" }}>{t("Корзина пуста", "Savat bo'sh")}</p>
             <p style={{ fontSize: "11px", marginTop: "4px" }}>{t("Нажмите на товар чтобы добавить", "Mahsulotni bosib qo'shing")}</p>
@@ -447,32 +447,32 @@ function StepItems({
               {validItems.map((item) => (
                 <div key={item.productId} style={{
                   display: "flex", alignItems: "center", gap: "10px", padding: "10px",
-                  borderRadius: "10px", background: "#f8f9fb",
+                  borderRadius: "10px", background: "var(--color-surface-light, #f8f9fb)",
                 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: "12px", fontWeight: 500, color: "#111827", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <p style={{ fontSize: "12px", fontWeight: 500, color: "var(--color-text-primary, #111827)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {item.productName}
                     </p>
-                    <p style={{ fontSize: "11px", color: "#6b7280", margin: "2px 0 0" }}>
+                    <p style={{ fontSize: "11px", color: "var(--color-text-secondary, #6b7280)", margin: "2px 0 0" }}>
                       {fmt(item.unitPrice)}/{unitLabel(item.unit, lang)}
                     </p>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                     <button onClick={() => updateQuantity(item.productId, -1)} style={{
                       width: "24px", height: "24px", borderRadius: "6px", border: "1px solid #e5e7eb",
-                      background: "#ffffff", display: "flex", alignItems: "center", justifyContent: "center",
-                      cursor: "pointer", fontSize: "14px", color: "#6b7280",
+                      background: "var(--color-surface, #ffffff)", display: "flex", alignItems: "center", justifyContent: "center",
+                      cursor: "pointer", fontSize: "14px", color: "var(--color-text-secondary, #6b7280)",
                     }}>−</button>
-                    <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 600, color: "#111827", minWidth: "20px", textAlign: "center" }}>
+                    <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary, #111827)", minWidth: "20px", textAlign: "center" }}>
                       {item.quantity}
                     </span>
                     <button onClick={() => updateQuantity(item.productId, 1)} style={{
                       width: "24px", height: "24px", borderRadius: "6px", border: "1px solid #e5e7eb",
-                      background: "#ffffff", display: "flex", alignItems: "center", justifyContent: "center",
-                      cursor: "pointer", fontSize: "14px", color: "#6b7280",
+                      background: "var(--color-surface, #ffffff)", display: "flex", alignItems: "center", justifyContent: "center",
+                      cursor: "pointer", fontSize: "14px", color: "var(--color-text-secondary, #6b7280)",
                     }}>+</button>
                   </div>
-                  <span style={{ fontSize: "12px", fontWeight: 600, color: "#111827", minWidth: "60px", textAlign: "right" }}>
+                  <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--color-text-primary, #111827)", minWidth: "60px", textAlign: "right" }}>
                     {fmt((Number(item.unitPrice) * Number(item.quantity)).toFixed(0))}
                   </span>
                 </div>
@@ -482,17 +482,17 @@ function StepItems({
             {/* Итого */}
             <div style={{ borderTop: "1px solid #f3f4f6", paddingTop: "12px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
-                <span style={{ fontSize: "13px", color: "#6b7280" }}>{t("Подитого", "Jami")}</span>
-                <span style={{ fontSize: "13px", fontWeight: 500, color: "#111827" }}>{fmt(subtotal.toFixed(0))}</span>
+                <span style={{ fontSize: "13px", color: "var(--color-text-secondary, #6b7280)" }}>{t("Подитого", "Jami")}</span>
+                <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--color-text-primary, #111827)" }}>{fmt(subtotal.toFixed(0))}</span>
               </div>
               {totalWeightKg > 0 && (
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
-                  <span style={{ fontSize: "13px", color: "#6b7280" }}>{t("Вес", "Og'irlik")}</span>
-                  <span style={{ fontSize: "13px", fontWeight: 500, color: "#111827" }}>{totalWeightKg.toFixed(1)} кг</span>
+                  <span style={{ fontSize: "13px", color: "var(--color-text-secondary, #6b7280)" }}>{t("Вес", "Og'irlik")}</span>
+                  <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--color-text-primary, #111827)" }}>{totalWeightKg.toFixed(1)} кг</span>
                 </div>
               )}
               <div style={{ display: "flex", justifyContent: "space-between", paddingTop: "8px", borderTop: "1px solid #f3f4f6" }}>
-                <span style={{ fontSize: "15px", fontWeight: 700, color: "#111827" }}>{t("ИТОГО", "JAMI")}</span>
+                <span style={{ fontSize: "15px", fontWeight: 700, color: "var(--color-text-primary, #111827)" }}>{t("ИТОГО", "JAMI")}</span>
                 <span style={{ fontSize: "15px", fontWeight: 700, color: "#818cf8" }}>{fmt(subtotal.toFixed(0))}</span>
               </div>
             </div>
@@ -684,7 +684,7 @@ export default function NewOrder() {
         <button
           onClick={() => step > 1 ? setStep(s => s - 1) : navigate(-1)}
           className="w-9 h-9 flex items-center justify-center rounded-lg border btn-ghost flex-shrink-0"
-          style={{ borderColor: "#e5e7eb" }}
+          style={{ borderColor: "var(--color-border, #e5e7eb)" }}
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
             <path d="M10 3L5 8l5 5"/>

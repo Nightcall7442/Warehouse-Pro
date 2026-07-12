@@ -20,24 +20,24 @@ export default function ForgotPassword() {
   };
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "#f0f2f5", alignItems: "center", justifyContent: "center" }}>
+    <div style={{ display: "flex", minHeight: "100vh", background: "var(--color-canvas, #f0f2f5)", alignItems: "center", justifyContent: "center" }}>
       <div style={{ width: "100%", maxWidth: 400, padding: "0 24px" }}>
         {/* Back to login */}
-        <Link to="/login" style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#6b7280", fontSize: 13, textDecoration: "none", marginBottom: 24 }}>
+        <Link to="/login" style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--color-text-secondary, #6b7280)", fontSize: 13, textDecoration: "none", marginBottom: 24 }}>
           <ArrowLeft size={14} /> {tr("Назад к входу", "Orqaga")}
         </Link>
 
-        <div style={{ background: "#ffffff", borderRadius: 16, border: "1px solid #e5e7eb", padding: "32px 28px" }}>
+        <div style={{ background: "var(--color-surface, #ffffff)", borderRadius: 16, border: "1px solid #e5e7eb", padding: "32px 28px" }}>
           {sent ? (
             /* Success state */
             <div style={{ textAlign: "center" }}>
               <div style={{ width: 48, height: 48, borderRadius: 12, background: "rgba(74,222,128,.10)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
                 <CheckCircle2 size={24} style={{ color: "#4ade80" }} />
               </div>
-              <h1 style={{ fontSize: 20, fontWeight: 700, color: "#111827", marginBottom: 8 }}>
+              <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--color-text-primary, #111827)", marginBottom: 8 }}>
                 {tr("Письмо отправлено", "Xabar yuborildi")}
               </h1>
-              <p style={{ fontSize: 14, color: "#6b7280", lineHeight: 1.6, marginBottom: 24 }}>
+              <p style={{ fontSize: 14, color: "var(--color-text-secondary, #6b7280)", lineHeight: 1.6, marginBottom: 24 }}>
                 {tr(
                   "Если аккаунт с таким email существует, вы получите письмо со ссылкой для сброса пароля.",
                   "Agar shu email bilan hisob mavjud bo'lsa, parolni tiklash havolasi bilan xabar olasiz."
@@ -54,17 +54,17 @@ export default function ForgotPassword() {
                 <div style={{ width: 48, height: 48, borderRadius: 12, background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
                   <Mail size={24} style={{ color: "#818cf8" }} />
                 </div>
-                <h1 style={{ fontSize: 20, fontWeight: 700, color: "#111827", marginBottom: 8 }}>
+                <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--color-text-primary, #111827)", marginBottom: 8 }}>
                   {tr("Забыли пароль?", "Parolni unutdingizmi?")}
                 </h1>
-                <p style={{ fontSize: 14, color: "#6b7280" }}>
+                <p style={{ fontSize: 14, color: "var(--color-text-secondary, #6b7280)" }}>
                   {tr("Введите email — мы отправим ссылку для сброса.", "Emailni kiriting — tiklash havolasini yuboramiz.")}
                 </p>
               </div>
 
               <form onSubmit={handleSubmit}>
                 <div style={{ marginBottom: 16 }}>
-                  <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--color-text-secondary, #6b7280)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>
                     EMAIL
                   </label>
                   <input
@@ -76,8 +76,8 @@ export default function ForgotPassword() {
                     autoFocus
                     style={{
                       width: "100%", padding: "10px 12px", borderRadius: 8,
-                      border: "1px solid #e5e7eb", background: "#f8f9fb",
-                      color: "#111827", fontSize: 14, outline: "none",
+                      border: "1px solid #e5e7eb", background: "var(--color-surface-light, #f8f9fb)",
+                      color: "var(--color-text-primary, #111827)", fontSize: 14, outline: "none",
                       boxSizing: "border-box",
                     }}
                   />

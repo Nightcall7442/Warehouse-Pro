@@ -266,7 +266,7 @@ export default function ShopDetail() {
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <p className="font-label text-[10px] tracking-wider mb-1"
-              style={{ color: hasDebt ? "#f87171" : "#9ca3af" }}>
+              style={{ color: hasDebt ? "#f87171" : "var(--color-text-tertiary, #9ca3af)" }}>
               {t("ТЕКУЩИЙ ДОЛГ", "JORIY QARZ")}
             </p>
             <div className="flex items-center gap-2">
@@ -323,7 +323,7 @@ export default function ShopDetail() {
               {t("ЗАКАЗЫ МАГАЗИНА", "DO'KON BUYURTMALARI")}
             </p>
           </div>
-          <div className="divide-y" style={{ borderColor: "#f3f4f6" }}>
+          <div className="divide-y" style={{ borderColor: "var(--color-border, #f3f4f6)" }}>
             {shop.recentOrders.slice(0, 10).map((o: { id: number; orderNumber: string; status: string; total: string; createdAt: string | Date }) => (
               <div key={o.id}
                 className="flex items-center gap-3 px-5 py-3.5 cursor-pointer hover:bg-surface-light/40 transition-colors"

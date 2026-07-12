@@ -17,11 +17,11 @@ const COLORS = {
   success: "#4ade80",
   warning: "#fbbf24",
   danger: "#f87171",
-  surface: "#ffffff",
-  surfaceDark: "#f8f9fb",
-  textPrimary: "#111827",
-  textSecondary: "#6b7280",
-  textTertiary: "#9ca3af",
+  surface: "var(--color-surface, #ffffff)",
+  surfaceDark: "var(--color-surface-light, #f8f9fb)",
+  textPrimary: "var(--color-text-primary, #111827)",
+  textSecondary: "var(--color-text-secondary, #6b7280)",
+  textTertiary: "var(--color-text-tertiary, #9ca3af)",
 };
 
 const FONTS = {

@@ -66,7 +66,7 @@ export default function AgentPlans() {
         <button
           onClick={() => setDate(d => subDays(d, 1))}
           className="w-10 h-10 flex items-center justify-center rounded-xl border transition-colors hover:bg-surface-light"
-          style={{ borderColor: "#e5e7eb" }}
+          style={{ borderColor: "var(--color-border, #e5e7eb)" }}
         >
           <ChevronLeft size={18} />
         </button>
@@ -74,14 +74,14 @@ export default function AgentPlans() {
           <p className="font-semibold text-text-primary capitalize">
             {format(date, "EEEE", { locale: lang === "ru" ? dateRu : undefined })}
           </p>
-          <p className="font-label text-[11px] tracking-wider mt-0.5" style={{ color: "#9ca3af" }}>
+          <p className="font-label text-[11px] tracking-wider mt-0.5" style={{ color: "var(--color-text-tertiary, #9ca3af)" }}>
             {format(date, "d MMMM yyyy", { locale: lang === "ru" ? dateRu : undefined })}
           </p>
         </div>
         <button
           onClick={() => setDate(d => addDays(d, 1))}
           className="w-10 h-10 flex items-center justify-center rounded-xl border transition-colors hover:bg-surface-light"
-          style={{ borderColor: "#e5e7eb" }}
+          style={{ borderColor: "var(--color-border, #e5e7eb)" }}
         >
           <ChevronRight size={18} />
         </button>
@@ -91,7 +91,7 @@ export default function AgentPlans() {
       {total > 0 && (
         <div className="panel p-4">
           <div className="flex items-center justify-between mb-2.5">
-            <span className="font-label text-[10px] tracking-wider" style={{ color: "#9ca3af" }}>
+            <span className="font-label text-[10px] tracking-wider" style={{ color: "var(--color-text-tertiary, #9ca3af)" }}>
               {t("ПРОГРЕСС ДНЯ", "KUNLIK PROGRESS")}
             </span>
             <div className="flex items-center gap-2">
@@ -103,7 +103,7 @@ export default function AgentPlans() {
               </span>
             </div>
           </div>
-          <div className="h-2 rounded-full overflow-hidden" style={{ background: "#f8f9fb" }}>
+          <div className="h-2 rounded-full overflow-hidden" style={{ background: "var(--color-surface-light, #f8f9fb)" }}>
             <div
               className="h-full rounded-full transition-all duration-500"
               style={{ width: `${pct}%`, background: progressColor }}
@@ -130,7 +130,7 @@ export default function AgentPlans() {
           <p className="text-text-secondary text-sm">
             {t("На этот день визитов нет", "Bu kun uchun tashrif yo'q")}
           </p>
-          <p className="text-xs" style={{ color: "#9ca3af" }}>
+          <p className="text-xs" style={{ color: "var(--color-text-tertiary, #9ca3af)" }}>
             {t("Супервайзер ещё не назначил маршрут", "Supervisor yo'l haritasini hali tayinlamadi")}
           </p>
         </div>
@@ -156,7 +156,7 @@ export default function AgentPlans() {
                       {/* Номер */}
                       <div
                         className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold"
-                        style={{ background: "#f8f9fb", color: "#6b7280" }}
+                        style={{ background: "var(--color-surface-light, #f8f9fb)", color: "var(--color-text-secondary, #6b7280)" }}
                       >
                         {idx + 1}
                       </div>
@@ -175,7 +175,7 @@ export default function AgentPlans() {
 
                         {/* Адрес */}
                         {plan.shopAddress && (
-                          <div className="flex items-center gap-1 text-xs mb-1" style={{ color: "#9ca3af" }}>
+                          <div className="flex items-center gap-1 text-xs mb-1" style={{ color: "var(--color-text-tertiary, #9ca3af)" }}>
                             <MapPin size={11} className="flex-shrink-0" />
                             <span className="truncate">{plan.shopAddress}</span>
                           </div>
@@ -191,7 +191,7 @@ export default function AgentPlans() {
 
                         {/* Заметки */}
                         {plan.notes && (
-                          <p className="text-xs italic mt-1" style={{ color: "#9ca3af" }}>
+                          <p className="text-xs italic mt-1" style={{ color: "var(--color-text-tertiary, #9ca3af)" }}>
                             «{plan.notes}»
                           </p>
                         )}
