@@ -9,7 +9,7 @@ export function Skeleton({ className }: SkeletonProps) {
   return (
     <div
       className={cn("animate-pulse rounded-lg", className)}
-      style={{ background: "var(--color-surface-light)" }}
+      style={{ background: "#f3f4f6" }}
     />
   );
 }
@@ -17,8 +17,8 @@ export function Skeleton({ className }: SkeletonProps) {
 // Карточка KPI (4 штуки в ряд)
 export function SkeletonKpi() {
   return (
-    <div className="kpi-card space-y-3">
-      <div className="flex justify-between">
+    <div className="kpi-card" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between" }}>
         <Skeleton className="h-3 w-20" />
         <Skeleton className="h-8 w-8 rounded-lg" />
       </div>
@@ -37,7 +37,7 @@ export function SkeletonRow({ cols = 5 }: { cols?: number }) {
   return (
     <tr>
       {widths.map((w, i) => (
-        <td key={i} className="px-4 py-3">
+        <td key={i} style={{ padding: "12px 16px" }}>
           <Skeleton className="h-4" style={{ width: w } as React.CSSProperties} />
         </td>
       ))}
@@ -48,9 +48,9 @@ export function SkeletonRow({ cols = 5 }: { cols?: number }) {
 // Таблица целиком
 export function SkeletonTable({ rows = 5, cols = 5 }: { rows?: number; cols?: number }) {
   return (
-    <div className="panel overflow-hidden">
-      <div className="h-10 bg-surface-light border-b" style={{ borderColor: "var(--color-border)" }} />
-      <table className="w-full">
+    <div className="panel" style={{ overflow: "hidden" }}>
+      <div style={{ height: "40px", background: "#f8f9fb", borderBottom: "1px solid #f3f4f6" }} />
+      <table style={{ width: "100%" }}>
         <tbody>
           {Array.from({ length: rows }).map((_, i) => (
             <SkeletonRow key={i} cols={cols} />
@@ -64,17 +64,17 @@ export function SkeletonTable({ rows = 5, cols = 5 }: { rows?: number; cols?: nu
 // Мобильная карточка
 export function SkeletonCard({ lines = 2 }: { lines?: number }) {
   return (
-    <div className="panel p-4 space-y-3">
-      <div className="flex items-center gap-3">
-        <Skeleton className="w-10 h-10 rounded-xl flex-shrink-0" />
-        <div className="flex-1 space-y-2">
-          <Skeleton className="h-4 w-2/3" />
-          <Skeleton className="h-3 w-1/2" />
+    <div className="panel" style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+        <Skeleton style={{ width: "40px", height: "40px", borderRadius: "12px", flexShrink: 0 }} />
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "8px" }}>
+          <Skeleton className="h-4" style={{ width: "66%" }} />
+          <Skeleton className="h-3" style={{ width: "50%" }} />
         </div>
-        <Skeleton className="h-6 w-16 rounded-full" />
+        <Skeleton style={{ width: "64px", height: "24px", borderRadius: "12px" }} />
       </div>
-      {lines > 2 && <Skeleton className="h-3 w-full" />}
-      {lines > 3 && <Skeleton className="h-3 w-4/5" />}
+      {lines > 2 && <Skeleton className="h-3" style={{ width: "100%" }} />}
+      {lines > 3 && <Skeleton className="h-3" style={{ width: "80%" }} />}
     </div>
   );
 }
@@ -82,7 +82,7 @@ export function SkeletonCard({ lines = 2 }: { lines?: number }) {
 // Карточки KPI x4
 export function SkeletonKpiGrid() {
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px" }}>
       {Array.from({ length: 4 }).map((_, i) => <SkeletonKpi key={i} />)}
     </div>
   );
@@ -91,10 +91,10 @@ export function SkeletonKpiGrid() {
 // Страница-заглушка при загрузке
 export function SkeletonPage() {
   return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <Skeleton className="h-8 w-44" />
-        <Skeleton className="h-9 w-28 rounded-lg" />
+    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <Skeleton style={{ height: "28px", width: "176px" }} />
+        <Skeleton style={{ height: "36px", width: "112px", borderRadius: "10px" }} />
       </div>
       <SkeletonKpiGrid />
       <SkeletonTable rows={6} cols={5} />

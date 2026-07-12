@@ -41,25 +41,30 @@ export function TrialBanner() {
   if (!message) return null;
 
   return (
-    <div className={`w-full px-4 py-2.5 flex items-center gap-3 text-sm ${
-      urgent
-        ? "bg-danger text-white"
-        : "bg-warning/15 text-warning border-b border-warning/30"
-    }`}>
-      <AlertTriangle size={16} className="flex-shrink-0"/>
-      <span className="flex-1">{message}</span>
+    <div style={{
+      width: "100%", padding: "10px 16px", display: "flex", alignItems: "center", gap: "12px",
+      fontSize: "13px", fontFamily: "'DM Sans', sans-serif",
+      background: urgent ? "#f87171" : "#fffbeb",
+      color: urgent ? "#fff" : "#d97706",
+      borderBottom: urgent ? "none" : "1px solid rgba(217,119,6,0.2)",
+    }}>
+      <AlertTriangle size={16} style={{ flexShrink: 0 }}/>
+      <span style={{ flex: 1 }}>{message}</span>
       <button
         onClick={() => navigate("/settings/billing")}
-        className={`flex items-center gap-1.5 font-label text-xs px-3 py-1.5 rounded transition-colors flex-shrink-0 ${
-          urgent
-            ? "bg-white/20 hover:bg-white/30 text-white"
-            : "bg-warning text-white hover:bg-warning/90"
-        }`}
+        style={{
+          display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", fontWeight: 600,
+          padding: "6px 12px", borderRadius: "6px", border: "none", cursor: "pointer",
+          fontFamily: "'DM Sans', sans-serif",
+          background: urgent ? "rgba(255,255,255,0.2)" : "#fbbf24",
+          color: urgent ? "#fff" : "#fff",
+          flexShrink: 0,
+        }}
       >
         <Zap size={12}/>Подключить
       </button>
       {!urgent && (
-        <button onClick={() => setDismissed(true)} className="text-current opacity-60 hover:opacity-100 flex-shrink-0">
+        <button onClick={() => setDismissed(true)} style={{ background: "none", border: "none", cursor: "pointer", color: "inherit", opacity: 0.6, flexShrink: 0 }}>
           <X size={16}/>
         </button>
       )}

@@ -43,58 +43,66 @@ export function GlobalSearch() {
   if (!open) return (
     <button
       onClick={() => setOpen(true)}
-      className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded border border-border-custom text-text-secondary text-sm hover:border-primary/40 hover:text-text-primary transition-colors"
+      style={{
+        display: "none", alignItems: "center", gap: "8px",
+        padding: "6px 12px", borderRadius: "8px", border: "1px solid #e5e7eb",
+        background: "transparent", color: "#6b7280", fontSize: "13px",
+        fontFamily: "'DM Sans', sans-serif", cursor: "pointer",
+      }}
+      className="hidden md:flex"
     >
       <Search size={14}/>
       <span>{tr("Поиск…","Qidirish…")}</span>
-      <span className="ml-2 font-label text-[10px] bg-surface-light px-1.5 py-0.5 rounded">⌘K</span>
+      <span style={{ marginLeft: "8px", fontSize: "10px", fontWeight: 600, background: "#f8f9fb", padding: "2px 6px", borderRadius: "4px" }}>⌘K</span>
     </button>
   );
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[10vh] px-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setOpen(false)}/>
-      <div className="relative w-full max-w-lg bg-surface border border-border-custom rounded-xl shadow-2xl overflow-hidden">
+    <div style={{ position: "fixed", inset: 0, zIndex: 100, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: "10vh", padding: "16px" }}>
+      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }} onClick={() => setOpen(false)}/>
+      <div style={{ position: "relative", width: "100%", maxWidth: "540px", background: "#ffffff", border: "1px solid #f3f4f6", borderRadius: "14px", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.15)", overflow: "hidden" }}>
         {/* Input */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-border-custom">
-          <Search size={18} className="text-text-secondary flex-shrink-0"/>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", borderBottom: "1px solid #f3f4f6" }}>
+          <Search size={18} style={{ color: "#9ca3af", flexShrink: 0 }}/>
           <input
             ref={inputRef}
-            className="flex-1 bg-transparent text-text-primary placeholder-text-secondary outline-none text-base"
+            style={{ flex: 1, background: "transparent", color: "#111827", border: "none", outline: "none", fontSize: "14px", fontFamily: "'DM Sans', sans-serif" }}
             placeholder={tr("Поиск магазинов, товаров, заказов…","Do'kon, mahsulot, buyurtma qidirish…")}
             value={query}
             onChange={e => setQuery(e.target.value)}
           />
-          <button onClick={() => setOpen(false)}>
-            <X size={16} className="text-text-secondary hover:text-text-primary"/>
+          <button onClick={() => setOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af" }}>
+            <X size={16}/>
           </button>
         </div>
 
         {/* Results */}
-        <div className="max-h-[60vh] overflow-y-auto">
+        <div style={{ maxHeight: "60vh", overflowY: "auto" }}>
           {query.length < 2 ? (
-            <div className="px-4 py-8 text-center text-text-secondary text-sm">
+            <div style={{ padding: "32px 16px", textAlign: "center", color: "#6b7280", fontSize: "13px" }}>
               {tr("Введите минимум 2 символа для поиска","Qidirish uchun kamida 2 belgi kiriting")}
             </div>
           ) : !hasResults ? (
-            <div className="px-4 py-8 text-center text-text-secondary text-sm">
+            <div style={{ padding: "32px 16px", textAlign: "center", color: "#6b7280", fontSize: "13px" }}>
               {tr("Ничего не найдено по","Hech narsa topilmadi:")} "<b>{query}</b>"
             </div>
           ) : (
             <>
               {(shops?.data?.length ?? 0) > 0 && (
                 <div>
-                  <p className="px-4 py-2 font-label text-[10px] text-text-secondary tracking-wider bg-surface-light">{tr("МАГАЗИНЫ","DO'KONLAR")}</p>
+                  <p style={{ padding: "8px 16px", fontSize: "10px", fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.08em", background: "#f8f9fb" }}>{tr("МАГАЗИНЫ","DO'KONLAR")}</p>
                   {shops!.data.map((s: any) => (
                     <button key={s.id} onClick={() => go(`/shops/${s.id}`)}
-                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-surface-light text-left border-b border-border-subtle/50">
-                      <Store size={16} className="text-primary flex-shrink-0"/>
+                      style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", borderBottom: "1px solid #f3f4f6", textAlign: "left", background: "transparent", border: "none", cursor: "pointer", borderBottomLeftRadius: "8px", borderBottomRightRadius: "8px" }}
+                      onMouseEnter={e => (e.currentTarget.style.background = "#f8f9fb")}
+                      onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                      <Store size={16} style={{ color: "#818cf8", flexShrink: 0 }}/>
                       <div>
-                        <p className="text-sm text-text-primary">{s.name}</p>
-                        <p className="text-xs text-text-secondary">{s.city ?? ""} · {s.ownerName ?? ""}</p>
+                        <p style={{ fontSize: "13px", color: "#111827", margin: 0 }}>{s.name}</p>
+                        <p style={{ fontSize: "11px", color: "#6b7280", margin: "2px 0 0" }}>{s.city ?? ""} · {s.ownerName ?? ""}</p>
                       </div>
                       {Number(s.debt ?? 0) > 0 && (
-                        <span className="ml-auto text-xs font-data text-danger">{Number(s.debt).toLocaleString()} {tr("сум","so'm")}</span>
+                        <span style={{ marginLeft: "auto", fontSize: "11px", color: "#f87171", fontWeight: 500 }}>{Number(s.debt).toLocaleString()} {tr("сум","so'm")}</span>
                       )}
                     </button>
                   ))}
@@ -103,16 +111,18 @@ export function GlobalSearch() {
 
               {(products?.data?.length ?? 0) > 0 && (
                 <div>
-                  <p className="px-4 py-2 font-label text-[10px] text-text-secondary tracking-wider bg-surface-light">{tr("ТОВАРЫ","MAHSULOTLAR")}</p>
+                  <p style={{ padding: "8px 16px", fontSize: "10px", fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.08em", background: "#f8f9fb" }}>{tr("ТОВАРЫ","MAHSULOTLAR")}</p>
                   {products!.data.map((p: any) => (
                     <button key={p.id} onClick={() => go(`/products/${p.id}`)}
-                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-surface-light text-left border-b border-border-subtle/50">
-                      <Package size={16} className="text-primary flex-shrink-0"/>
+                      style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", borderBottom: "1px solid #f3f4f6", textAlign: "left", background: "transparent", border: "none", cursor: "pointer" }}
+                      onMouseEnter={e => (e.currentTarget.style.background = "#f8f9fb")}
+                      onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                      <Package size={16} style={{ color: "#818cf8", flexShrink: 0 }}/>
                       <div>
-                        <p className="text-sm text-text-primary">{p.name}</p>
-                        <p className="text-xs text-text-secondary">{p.code} · {p.category ?? ""}</p>
+                        <p style={{ fontSize: "13px", color: "#111827", margin: 0 }}>{p.name}</p>
+                        <p style={{ fontSize: "11px", color: "#6b7280", margin: "2px 0 0" }}>{p.code} · {p.category ?? ""}</p>
                       </div>
-                      <span className="ml-auto text-xs font-data text-text-secondary">{Number(p.unitPrice).toFixed(2)} {tr("сум/кг","so'm/kg")}</span>
+                      <span style={{ marginLeft: "auto", fontSize: "11px", color: "#6b7280", fontWeight: 500 }}>{Number(p.unitPrice).toFixed(2)} {tr("сум/кг","so'm/kg")}</span>
                     </button>
                   ))}
                 </div>
@@ -120,16 +130,18 @@ export function GlobalSearch() {
 
               {(orders?.data?.length ?? 0) > 0 && (
                 <div>
-                  <p className="px-4 py-2 font-label text-[10px] text-text-secondary tracking-wider bg-surface-light">{tr("ЗАКАЗЫ","BUYURTMALAR")}</p>
+                  <p style={{ padding: "8px 16px", fontSize: "10px", fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.08em", background: "#f8f9fb" }}>{tr("ЗАКАЗЫ","BUYURTMALAR")}</p>
                   {orders!.data.map((o: any) => (
                     <button key={o.id} onClick={() => go(`/orders/${o.id}`)}
-                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-surface-light text-left border-b border-border-subtle/50">
-                      <ClipboardList size={16} className="text-primary flex-shrink-0"/>
+                      style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", borderBottom: "1px solid #f3f4f6", textAlign: "left", background: "transparent", border: "none", cursor: "pointer" }}
+                      onMouseEnter={e => (e.currentTarget.style.background = "#f8f9fb")}
+                      onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                      <ClipboardList size={16} style={{ color: "#818cf8", flexShrink: 0 }}/>
                       <div>
-                        <p className="text-sm font-data text-text-primary">{o.orderNumber}</p>
-                        <p className="text-xs text-text-secondary">{o.shopName ?? ""} · {o.status}</p>
+                        <p style={{ fontSize: "13px", color: "#111827", margin: 0, fontWeight: 500 }}>{o.orderNumber}</p>
+                        <p style={{ fontSize: "11px", color: "#6b7280", margin: "2px 0 0" }}>{o.shopName ?? ""} · {o.status}</p>
                       </div>
-                      <span className="ml-auto text-xs font-data text-text-primary">{Number(o.total).toLocaleString()} {tr("сум","so'm")}</span>
+                      <span style={{ marginLeft: "auto", fontSize: "11px", color: "#111827", fontWeight: 600 }}>{Number(o.total).toLocaleString()} {tr("сум","so'm")}</span>
                     </button>
                   ))}
                 </div>
@@ -138,9 +150,9 @@ export function GlobalSearch() {
           )}
         </div>
 
-        <div className="px-4 py-2 border-t border-border-custom bg-surface-light">
-          <p className="text-[10px] font-label text-text-secondary">
-            <kbd className="bg-surface border border-border-custom px-1 rounded text-[10px]">↑↓</kbd> {tr("навигация","navigatsiya")} · <kbd className="bg-surface border border-border-custom px-1 rounded text-[10px]">Esc</kbd> {tr("закрыть","yopish")}
+        <div style={{ padding: "8px 16px", borderTop: "1px solid #f3f4f6", background: "#f8f9fb" }}>
+          <p style={{ fontSize: "10px", color: "#9ca3af" }}>
+            <kbd style={{ background: "#ffffff", border: "1px solid #e5e7eb", padding: "1px 4px", borderRadius: "3px", fontSize: "10px" }}>↑↓</kbd> {tr("навигация","navigatsiya")} · <kbd style={{ background: "#ffffff", border: "1px solid #e5e7eb", padding: "1px 4px", borderRadius: "3px", fontSize: "10px" }}>Esc</kbd> {tr("закрыть","yopish")}
           </p>
         </div>
       </div>
