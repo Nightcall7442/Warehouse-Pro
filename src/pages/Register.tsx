@@ -74,7 +74,7 @@ export default function Register() {
   ];
 
   return (
-    <div className="min-h-screen flex" style={{ background: "var(--color-canvas, #f0f2f5)" }}>
+    <div className="min-h-screen flex" style={{ background: "var(--color-canvas, #ffffff)" }}>
 
       {/* ── Левая панель ── */}
       <div className="hidden lg:flex flex-col justify-between w-[52%] p-12 relative overflow-hidden"

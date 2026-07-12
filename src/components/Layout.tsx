@@ -350,7 +350,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   if (isLoading || !user) return null;
 
   return (
-    <div className="min-h-screen" style={{ background: "var(--color-canvas, #f0f2f5)" }}>
+    <div className="min-h-screen" style={{ background: "var(--color-canvas, #ffffff)" }}>
       <MobileHeader onMenuClick={openDrawer} unreadCount={unreadCount} />
       <MobileDrawer open={drawerOpen} onClose={closeDrawer} unreadCount={unreadCount} />
 

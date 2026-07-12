@@ -244,7 +244,7 @@ export default function Onboarding() {
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-12"
-      style={{ background: "var(--color-canvas, #f0f2f5)" }}>
+      style={{ background: "var(--color-canvas, #ffffff)" }}>
       <div className="w-full max-w-lg">
 
         {/* Лого */}

@@ -54,7 +54,7 @@ export default function Login() {
   if (user) return null;
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "var(--color-canvas, #f0f2f5)" }}>
+    <div style={{ display: "flex", minHeight: "100vh", background: "var(--color-canvas, #ffffff)" }}>
 
       {/* ── Left panel (branding) ── */}
       <div style={{
