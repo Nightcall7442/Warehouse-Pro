@@ -1,4 +1,5 @@
 import { memo, useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { AlertTriangle, X } from "lucide-react";
 
 interface Props {
@@ -11,14 +12,13 @@ interface Props {
 }
 
 export const ConfirmDialog = memo(function ConfirmDialog({ title, message, confirmText = "Confirm", danger = false, onConfirm, onCancel }: Props) {
-  // Prevent body scroll when dialog is open
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = prev; };
   }, []);
 
-  return (
+  const content = (
     <div style={{
       position: "fixed",
       inset: 0,
@@ -28,7 +28,6 @@ export const ConfirmDialog = memo(function ConfirmDialog({ title, message, confi
       justifyContent: "center",
       padding: "16px",
     }}>
-      {/* Backdrop */}
       <div
         style={{
           position: "absolute",
@@ -38,7 +37,6 @@ export const ConfirmDialog = memo(function ConfirmDialog({ title, message, confi
         }}
         onClick={onCancel}
       />
-      {/* Dialog */}
       <div
         style={{
           position: "relative",
@@ -81,6 +79,8 @@ export const ConfirmDialog = memo(function ConfirmDialog({ title, message, confi
       </div>
     </div>
   );
+
+  return createPortal(content, document.body);
 });
 
 // Hook for easy use
