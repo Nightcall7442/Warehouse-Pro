@@ -150,3 +150,32 @@ export const PageHeader = memo(function PageHeader({ title, subtitle, actions }:
     </div>
   );
 });
+
+/* ─── Period picker ─── */
+export const PeriodPicker = memo(function PeriodPicker({ days, onChange }: { days: number; onChange: (d: number) => void }) {
+  const items = [{ d: 7, label: "7 дней" }, { d: 30, label: "30 дней" }, { d: 90, label: "90 дней" }];
+  return (
+    <div style={{ display: "inline-flex", background: "var(--color-surface-light, #f3f4f6)", borderRadius: "10px", padding: "3px", gap: "2px" }}>
+      {items.map(r => (
+        <button key={r.d} onClick={() => onChange(r.d)} style={{ padding: "6px 14px", fontSize: "12px", fontWeight: 600, fontFamily: "'DM Sans', sans-serif", borderRadius: "8px", border: "none", cursor: "pointer", background: days === r.d ? "var(--color-surface, #ffffff)" : "transparent", color: days === r.d ? "var(--color-text-primary, #111827)" : "var(--color-text-secondary, #6b7280)", boxShadow: days === r.d ? "0 1px 3px rgba(0,0,0,.08)" : "none", transition: "all 0.15s" }}>
+          {r.label}
+        </button>
+      ))}
+    </div>
+  );
+});
+
+/* ─── Chart panel ─── */
+export const ChartPanel = memo(function ChartPanel({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <Card>
+      <SectionTitle title={title} />
+      <div style={{ marginTop: "16px" }}>{children}</div>
+    </Card>
+  );
+});
+
+/* ─── Glass panel ─── */
+export const GlassPanel = memo(function GlassPanel({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+  return <Card style={style}>{children}</Card>;
+});
