@@ -84,7 +84,7 @@ export const tenantRouter = createRouter({
       name:     z.string().min(2).max(100),
       email:    z.string().email(),
       password: z.string().min(8),
-      role:     z.enum(["operator", "agent", "supervisor", "merchandiser"]),
+      role:     z.enum(["ceo", "operator", "agent", "supervisor", "merchandiser", "courier"]),
     }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();

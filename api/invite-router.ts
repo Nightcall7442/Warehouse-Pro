@@ -16,7 +16,7 @@ export const inviteRouter = createRouter({
   send: adminQuery
     .input(z.object({
       email: z.string().email(),
-      role:  z.enum(["operator", "agent", "supervisor", "merchandiser", "courier"]),
+      role:  z.enum(["ceo", "operator", "agent", "supervisor", "merchandiser", "courier"]),
     }))
     .mutation(async ({ input, ctx }) => {
       const db       = getDb();

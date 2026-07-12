@@ -6,7 +6,7 @@ export const orderRouter = createRouter({
   list: agentQuery
     .input(z.object({
       page:     z.number().int().min(1).default(1),
-      pageSize: z.number().int().min(1).max(100).default(25),
+      pageSize: z.number().int().min(1).max(1000).default(25),
       search:   z.string().max(200).optional(),
       status:   z.enum(["new", "processing", "completed", "cancelled"]).optional(),
       agentId:  z.number().int().positive().optional(),

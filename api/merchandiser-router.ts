@@ -25,7 +25,7 @@ export const merchandiserRouter = createRouter({
     .input(z.object({
       shopId: z.number().int().positive(),
       page: z.number().int().min(1).default(1),
-      pageSize: z.number().int().min(1).max(100).default(25),
+      pageSize: z.number().int().min(1).max(1000).default(25),
     }))
     .query(async ({ input, ctx }) => {
       return MerchandiserService.getReportsByShop(ctx.db, ctx.tenant.id, input.shopId, {
@@ -39,7 +39,7 @@ export const merchandiserRouter = createRouter({
       dateFrom: z.string(),
       dateTo: z.string(),
       page: z.number().int().min(1).default(1),
-      pageSize: z.number().int().min(1).max(100).default(25),
+      pageSize: z.number().int().min(1).max(1000).default(25),
     }))
     .query(async ({ input, ctx }) => {
       return MerchandiserService.getReportsByDateRange(ctx.db, ctx.tenant.id, input.dateFrom, input.dateTo, {
