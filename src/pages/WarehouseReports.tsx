@@ -18,13 +18,13 @@ const COLORS = ["var(--color-primary)", "var(--color-primary-muted)", "var(--col
 
 const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
 const THEME = {
-  primary: "var(--color-primary)", success: "var(--color-success)",
-  warning: "var(--color-warning)", danger: "var(--color-danger)",
-  surface: "var(--color-surface)", surfaceLight: "var(--color-surface-light)",
-  textPrimary: "var(--color-text-primary)", textSecondary: "var(--color-text-secondary)",
-  textTertiary: "var(--color-text-tertiary)", border: "var(--color-border-subtle)",
+  primary: "#818cf8", success: "#4ade80",
+  warning: "#fbbf24", danger: "#f87171",
+  surface: "#ffffff", surfaceLight: "#f8f9fb",
+  textPrimary: "#111827", textSecondary: "#6b7280",
+  textTertiary: "#9ca3af", border: "#f3f4f6",
 };
-const SHADOW = "0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)";
+const SHADOW = "0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04)";
 
 function ChartTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
@@ -52,26 +52,25 @@ function KpiCard({ label, value, delta, icon, gradient, delay }: {
   const isNegative = delta !== null && delta !== undefined && delta < 0;
   return (
     <div style={{
-      background: THEME.surface, borderRadius: "20px", padding: "24px",
+      background: THEME.surface, borderRadius: "20px", padding: "22px",
       boxShadow: SHADOW, position: "relative", overflow: "hidden",
-      animation: `slideUp ${0.5 + delay}s ease forwards`,
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
         <span style={{ fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: THEME.textTertiary }}>
           {label}
         </span>
-        <div style={{ width: "44px", height: "44px", borderRadius: "12px", background: gradient, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ width: "40px", height: "40px", borderRadius: "12px", background: gradient, display: "flex", alignItems: "center", justifyContent: "center" }}>
           {icon}
         </div>
       </div>
-      <div style={{ fontFamily: F.display, fontSize: "32px", fontWeight: 700, color: THEME.textPrimary, lineHeight: 1, letterSpacing: "-0.03em" }}>
+      <div style={{ fontFamily: F.display, fontSize: "28px", fontWeight: 700, color: THEME.textPrimary, lineHeight: 1, letterSpacing: "-0.03em" }}>
         {value}
       </div>
       {delta !== null && delta !== undefined && (
         <div style={{
           display: "flex", alignItems: "center", gap: "4px", marginTop: "10px",
           fontSize: "12px", fontWeight: 600, fontFamily: F.body,
-          color: isPositive ? "var(--color-success)" : isNegative ? "var(--color-danger)" : THEME.textTertiary,
+          color: isPositive ? "#4ade80" : isNegative ? "#f87171" : THEME.textTertiary,
         }}>
           {isPositive ? <ArrowUpRight size={14} /> : isNegative ? <ArrowDownRight size={14} /> : <Minus size={14} />}
           {Math.abs(delta).toFixed(1)}%
@@ -84,9 +83,8 @@ function KpiCard({ label, value, delta, icon, gradient, delay }: {
 function ChartPanel({ title, children, delay = 0 }: { title: string; children: React.ReactNode; delay?: number }) {
   return (
     <div style={{
-      background: THEME.surface, borderRadius: "20px", padding: "28px",
+      background: THEME.surface, borderRadius: "20px", padding: "24px",
       boxShadow: SHADOW, position: "relative", overflow: "hidden",
-      animation: `slideUp ${0.6 + delay}s ease forwards`,
     }}>
       <h2 style={{ fontFamily: F.display, fontSize: "16px", fontWeight: 600, color: THEME.textPrimary, margin: "0 0 20px" }}>
         {title}
@@ -221,11 +219,11 @@ export default function WarehouseReports() {
 
       {/* Summary KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        <KpiCard label={t("Общая стоимость", "Umumiy qiymat")} value={fmt(totalValue)} icon={<Package size={20} color="#fff" />} gradient="linear-gradient(135deg, #6366f1, #8b5cf6)" delay={0} />
-        <KpiCard label={t("Розничная", "Chakana")} value={fmt(totalRetail)} icon={<TrendingUp size={20} color="#fff" />} gradient="linear-gradient(135deg, #22c55e, #16a34a)" delay={0.1} />
-        <KpiCard label={t("Маржа", "Marja")} value={fmt(margin)} delta={totalValue > 0 ? (margin / totalValue) * 100 : null} icon={<ArrowUpRight size={20} color="#fff" />} gradient={margin >= 0 ? "linear-gradient(135deg, #22c55e, #16a34a)" : "linear-gradient(135deg, #ef4444, #dc2626)"} delay={0.2} />
-        <KpiCard label={t("Единицы", "Birliklar")} value={totalUnits.toLocaleString("ru")} icon={<Layers size={20} color="#fff" />} gradient="linear-gradient(135deg, #f59e0b, #d97706)" delay={0.3} />
-        <KpiCard label={t("Низкие остатки", "Kam qoldiq")} value={String(lowStockTotal)} icon={<AlertTriangle size={20} color="#fff" />} gradient={lowStockTotal > 0 ? "linear-gradient(135deg, #ef4444, #dc2626)" : "linear-gradient(135deg, #22c55e, #16a34a)"} delay={0.4} />
+        <KpiCard label={t("Общая стоимость", "Umumiy qiymat")} value={fmt(totalValue)} icon={<Package size={20} color="#fff" />} gradient="linear-gradient(135deg, var(--kpi-indigo), var(--kpi-indigo))" delay={0} />
+        <KpiCard label={t("Розничная", "Chakana")} value={fmt(totalRetail)} icon={<TrendingUp size={20} color="#fff" />} gradient="linear-gradient(135deg, var(--kpi-green), var(--kpi-green))" delay={0.1} />
+        <KpiCard label={t("Маржа", "Marja")} value={fmt(margin)} delta={totalValue > 0 ? (margin / totalValue) * 100 : null} icon={<ArrowUpRight size={20} color="#fff" />} gradient={margin >= 0 ? "linear-gradient(135deg, var(--kpi-green), var(--kpi-green))" : "linear-gradient(135deg, var(--kpi-red), var(--kpi-red))"} delay={0.2} />
+        <KpiCard label={t("Единицы", "Birliklar")} value={totalUnits.toLocaleString("ru")} icon={<Layers size={20} color="#fff" />} gradient="linear-gradient(135deg, var(--kpi-amber), var(--kpi-amber))" delay={0.3} />
+        <KpiCard label={t("Низкие остатки", "Kam qoldiq")} value={String(lowStockTotal)} icon={<AlertTriangle size={20} color="#fff" />} gradient={lowStockTotal > 0 ? "linear-gradient(135deg, var(--kpi-red), var(--kpi-red))" : "linear-gradient(135deg, var(--kpi-green), var(--kpi-green))"} delay={0.4} />
       </div>
 
       {/* Charts Row 1 */}

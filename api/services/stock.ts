@@ -119,7 +119,12 @@ export const StockService = {
           ), sql`\n`)} ELSE 0 END,
           reserved = reserved - CASE ${sql.join(items.map(i =>
             sql`WHEN product_id = ${i.productId} THEN ${i.quantity}`
-          ), sql`\n`)} ELSE 0 END
+          ), sql`\n`)} ELSE 0 END,
+          available = (current_stock - CASE ${sql.join(items.map(i =>
+            sql`WHEN product_id = ${i.productId} THEN ${i.quantity}`
+          ), sql`\n`)} ELSE 0 END) - (reserved - CASE ${sql.join(items.map(i =>
+            sql`WHEN product_id = ${i.productId} THEN ${i.quantity}`
+          ), sql`\n`)} ELSE 0 END)
         WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
           AND tenant_id = ${tenantId}
       `);

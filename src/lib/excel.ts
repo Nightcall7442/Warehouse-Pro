@@ -262,6 +262,22 @@ export function formatShopsForExport(shops: any[]) {
   }));
 }
 
+export function formatProductsForExport(products: any[]) {
+  return products.map(p => ({
+    "Код":         p.code ?? "",
+    "Штрихкод":    p.barcode ?? "",
+    "Название":    p.name ?? "",
+    "Категория":   p.category ?? "",
+    "Ед.":         p.unit ?? "",
+    "Вес (кг)":    Number(p.unitWeight ?? 0).toFixed(3),
+    "Себестоимость": Number(p.costPrice ?? 0).toFixed(2),
+    "Цена":        Number(p.unitPrice ?? 0).toFixed(2),
+    "Остаток":     Number(p.currentStock ?? 0).toFixed(2),
+    "Мин. остаток": Number(p.reorderPoint ?? 0).toFixed(0),
+    "Статус":      p.status ?? "",
+  }));
+}
+
 export function formatUsersForExport(users: any[]) {
   return users.map(u => ({
     "Имя":         u.name ?? "",

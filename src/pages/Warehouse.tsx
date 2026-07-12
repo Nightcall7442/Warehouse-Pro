@@ -29,9 +29,17 @@ function unitLabel(unit: string | undefined, lang: "ru" | "uz"): string {
   return e ? (lang === "uz" ? e[1] : e[0]) : (unit ?? "шт");
 }
 
+/** Convert stock quantity to kg using unitWeight. If unitWeight=0, assume already in kg */
+function toKg(stock: number | string, unitWeight: number | string | null): number {
+  const qty = Number(stock ?? 0);
+  const w = Number(unitWeight ?? 0);
+  return w > 0 ? qty * w : qty;
+}
+
 // ── Premium adjust modal ─────────────────────────────────────────────────────
-function AdjustModal({ productId, productName, currentStock, onSave, onClose, isPending }: {
+function AdjustModal({ productId, productName, currentStock, unit, unitWeight, onSave, onClose, isPending }: {
   productId: number; productName: string; currentStock: number;
+  unit: string; unitWeight: number;
   onSave: (d: unknown) => void; onClose: () => void; isPending: boolean;
 }) {
   const { lang } = useLang();
@@ -49,6 +57,8 @@ function AdjustModal({ productId, productName, currentStock, onSave, onClose, is
   const currentType = types.find(t => t.value === type)!;
   const numQty = Number(qty) || 0;
   const newStock = type === "in" ? currentStock + numQty : type === "out" ? currentStock - numQty : numQty;
+  const unitLabel = unit === "kg" ? "кг" : unit === "l" ? "л" : unit === "pcs" ? "шт" : unit === "box" ? "ящ" : unit === "pack" ? "упак" : unit === "м" ? "м" : unit;
+  const previewWeightKg = unitWeight > 0 ? (numQty * unitWeight).toFixed(1) : null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
@@ -77,7 +87,8 @@ function AdjustModal({ productId, productName, currentStock, onSave, onClose, is
             {t("Текущий остаток", "Joriy qoldiq")}
           </span>
           <span className="ml-auto text-sm font-bold" style={{ color: "var(--color-text-primary)", fontFamily: "'DM Sans', sans-serif" }}>
-            {currentStock.toFixed(2)} кг
+            {currentStock.toFixed(2)} {unitLabel}
+            {unitWeight > 0 && <span className="text-xs font-normal" style={{ color: "var(--color-text-tertiary)" }}> ({toKg(currentStock, unitWeight).toFixed(1)} кг)</span>}
           </span>
         </div>
 
@@ -114,7 +125,7 @@ function AdjustModal({ productId, productName, currentStock, onSave, onClose, is
         {/* Quantity input */}
         <div>
           <label className="text-[10px] font-semibold tracking-wider uppercase mb-2 block" style={{ color: "var(--color-text-tertiary)", fontFamily: "'DM Sans', sans-serif" }}>
-            {t("КОЛИЧЕСТВО (КГ)", "MIQDOR (KG)")}
+            {t(`КОЛИЧЕСТВО (${unitLabel.toUpperCase()})`, `MIQDOR (${unitLabel.toUpperCase()})`)}
           </label>
           <input type="number" step="0.01" min="0" autoFocus
             className="w-full px-4 py-3 rounded-xl text-xl font-bold outline-none transition-all"
@@ -128,7 +139,18 @@ function AdjustModal({ productId, productName, currentStock, onSave, onClose, is
                 {t("Новый остаток", "Yangi qoldiq")}
               </span>
               <span className="text-sm font-bold" style={{ color: newStock >= 0 ? "var(--color-success)" : "var(--color-danger)", fontFamily: "'DM Sans', sans-serif" }}>
-                {newStock.toFixed(2)} кг
+                {newStock.toFixed(2)} {unitLabel}
+                {unitWeight > 0 && <span className="text-xs font-normal" style={{ color: "var(--color-text-tertiary)" }}> ({toKg(newStock, unitWeight).toFixed(1)} кг)</span>}
+              </span>
+            </div>
+          )}
+          {numQty > 0 && previewWeightKg && (
+            <div className="flex items-center justify-between mt-1 px-1">
+              <span className="text-xs" style={{ color: "var(--color-text-tertiary)" }}>
+                {t("Вес", "Og'irlik")}
+              </span>
+              <span className="text-xs font-medium" style={{ color: "var(--color-text-secondary)" }}>
+                {previewWeightKg} кг
               </span>
             </div>
           )}
@@ -203,7 +225,7 @@ function MovementHistory({ productId, productName }: { productId: number; produc
                 const Icon = mt.icon;
                 return (
                   <div key={m.id} className="flex items-start gap-3 py-3 px-4 rounded-xl"
-                    style={{ background: "var(--color-surface-light)", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+                    style={{ background: "var(--color-surface-light)", boxShadow: "0 2px 8px rgba(180,175,165,.18)" }}>
                     <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
                       style={{ background: `${mt.color}15` }}>
                       <Icon size={14} style={{ color: mt.color }} />
@@ -249,7 +271,7 @@ export default function Warehouse() {
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
 
   const [search, setSearch] = useState("");
-  const [adjusting, setAdjusting] = useState<{ id: number; name: string; stock: number } | null>(null);
+  const [adjusting, setAdjusting] = useState<{ id: number; name: string; stock: number; unit: string; unitWeight: number } | null>(null);
   const [activeTab, setActiveTab] = useState<"stock" | "deadstock" | "reorder">("stock");
   const [deadStockDays, setDeadStockDays] = useState(30);
 
@@ -265,6 +287,18 @@ export default function Warehouse() {
       utils.warehouse.list.invalidate();
       setAdjusting(null);
       notify.success(t("Сток обновлён", "Stok yangilandi"));
+    },
+    onError: (e) => notify.error(e.message),
+  });
+
+  const backfillMutation = trpc.warehouse.backfillStock.useMutation({
+    onSuccess: (result) => {
+      utils.warehouse.list.invalidate();
+      if (result.created > 0) {
+        notify.success(t(`Создано ${result.created} строк стока`, `${result.created} ta stok satiri yaratildi`));
+      } else {
+        notify.success(t("Все товары уже имеют строки стока", "Barcha mahsulotlar allaqachon stokka ega"));
+      }
     },
     onError: (e) => notify.error(e.message),
   });
@@ -293,6 +327,8 @@ export default function Warehouse() {
           productId={adjusting.id}
           productName={adjusting.name}
           currentStock={adjusting.stock}
+          unit={adjusting.unit}
+          unitWeight={adjusting.unitWeight}
           onSave={d => adjustMutation.mutate(d as Parameters<typeof adjustMutation.mutate>[0])}
           onClose={() => setAdjusting(null)}
           isPending={adjustMutation.isPending}
@@ -312,6 +348,16 @@ export default function Warehouse() {
         <div style={{ display: "flex", gap: "8px" }}>
           {activeTab === "stock" && (
             <>
+              <button onClick={() => backfillMutation.mutate()} disabled={backfillMutation.isPending}
+                className="flex items-center gap-2 text-sm py-2.5 px-4 rounded-xl font-medium transition-all"
+                style={{
+                  background: "var(--color-surface-light)", color: "var(--color-text-secondary)",
+                  border: "1px solid var(--color-border-subtle)", cursor: "pointer",
+                  opacity: backfillMutation.isPending ? 0.5 : 1,
+                }}>
+                {backfillMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Package size={14} />}
+                {t("Добить стоки", "Stoklarni to'ldirish")}
+              </button>
               <button onClick={() => data?.data && exportToExcel(formatWarehouseForExport(data.data), "warehouse-stock", "Склад", t("Остатки склада", "Ombor qoldiqlari"))}
                 className="flex items-center gap-2 text-sm py-2.5 px-5 rounded-xl font-medium transition-all"
                 style={{ background: "linear-gradient(135deg, #6366F1, #8B5CF6)", color: "#fff", boxShadow: "0 4px 16px rgba(99,102,241,0.3)" }}>
@@ -370,7 +416,7 @@ export default function Warehouse() {
             style={{
               background: activeTab === tab.key ? "var(--color-surface)" : "transparent",
               color: activeTab === tab.key ? "var(--color-text-primary)" : "var(--color-text-tertiary)",
-              boxShadow: activeTab === tab.key ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
+              boxShadow: activeTab === tab.key ? "0 4px 12px -4px rgba(180,175,165,.20)" : "none",
             }}>
             {tab.label}
             {tab.count > 0 && (
@@ -422,7 +468,7 @@ export default function Warehouse() {
                     const low = Number(item.available ?? 0) < Number(item.reorderPoint ?? 0);
                     return (
                       <div key={item.id} className="rounded-2xl overflow-hidden"
-                        style={{ background: "var(--color-surface)", boxShadow: "0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03)" }}>
+                        style={{ background: "var(--color-surface)", boxShadow: "0 8px 24px -6px rgba(180,175,165,.25)" }}>
                         <div className="flex">
                           {low && <div className="w-1.5 flex-shrink-0" style={{ background: "var(--color-danger)" }} />}
                           <div className="flex-1 p-5">
@@ -431,20 +477,20 @@ export default function Warehouse() {
                                 {low && <AlertTriangle size={14} color="var(--color-danger)" />}
                                 <p className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>{item.productName}</p>
                               </div>
-                              <button onClick={() => setAdjusting({ id: item.productId, name: item.productName ?? "", stock: Number(item.currentStock ?? 0) })}
+                              <button onClick={() => setAdjusting({ id: item.productId, name: item.productName ?? "", stock: Number(item.currentStock ?? 0), unit: item.unit ?? "pcs", unitWeight: Number(item.unitWeight ?? 0) })}
                                 className="text-xs py-1.5 px-3 rounded-lg transition-colors" style={{ color: "var(--color-primary)", background: "rgba(99,102,241,0.08)" }}>
                                 {t("Скорр.", "Tuzatish")}
                               </button>
                             </div>
                             <div className="grid grid-cols-3 gap-3">
                               {[
-                                { label: t("Доступно", "Mavjud"), val: item.available, danger: low },
-                                { label: t("Резерв", "Zahira"), val: item.reserved, danger: false },
-                                { label: t("Всего", "Jami"), val: item.currentStock, danger: false },
+                                { label: t("Доступно", "Mavjud"), val: item.available, unit: item.unit, danger: low },
+                                { label: t("Резерв", "Zahira"), val: item.reserved, unit: item.unit, danger: false },
+                                { label: t("Всего", "Jami"), val: item.currentStock, unit: item.unit, danger: false },
                               ].map(col => (
                                 <div key={col.label}>
                                   <p className="text-lg font-bold" style={{ color: col.danger ? "var(--color-danger)" : "var(--color-text-primary)", fontFamily: "'DM Sans', sans-serif" }}>
-                                    {Number(col.val ?? 0).toFixed(0)}
+                                    {Number(col.val ?? 0).toFixed(0)} <span className="text-xs font-normal" style={{ color: "var(--color-text-tertiary)" }}>{unitLabel(col.unit, lang)}</span>
                                   </p>
                                   <p className="text-[10px] mt-0.5" style={{ color: "var(--color-text-tertiary)" }}>{col.label}</p>
                                 </div>
@@ -458,12 +504,12 @@ export default function Warehouse() {
             </div>
           ) : (
             <div className="rounded-2xl overflow-hidden"
-              style={{ background: "var(--color-surface)", boxShadow: "0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)" }}>
+              style={{ background: "var(--color-surface)", boxShadow: "0 8px 24px -6px rgba(180,175,165,.25)" }}>
               <table className="w-full" style={{ borderCollapse: "separate", borderSpacing: 0 }}>
                 <thead>
                   <tr>
                     {[t("ТОВАР","MAHSULOT"), t("КОД","KOD"), t("КАТЕГОРИЯ","KATEGORIYA"),
-                      t("ДОСТУПНО","MAVJUD"), t("РЕЗЕРВ","ZAHIRA"), t("ВСЕГО","JAMI"),
+                      t("ДОСТУПНО","MAVJUD"), t("ВЕС","OG'IRLIK"), t("РЕЗЕРВ","ZAHIRA"), t("ВСЕГО","JAMI"),
                       t("ПОРОГ","CHEGARA"), ""].map(h => (
                       <th key={h} className="text-left px-5 py-3 text-[10px] font-semibold tracking-wider uppercase"
                         style={{ color: "var(--color-text-tertiary)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border-subtle)" }}>
@@ -475,12 +521,12 @@ export default function Warehouse() {
                 <tbody>
                   {isLoading
                     ? Array.from({ length: 5 }).map((_, i) => (
-                        <tr key={i}><td colSpan={8} className="px-5 py-4">
+                        <tr key={i}><td colSpan={9} className="px-5 py-4">
                           <div className="h-5 rounded-lg animate-pulse" style={{ background: "var(--color-surface-light)" }} />
                         </td></tr>
                       ))
                     : data?.data.length === 0
-                    ? <tr><td colSpan={8} className="text-center py-16 text-sm" style={{ color: "var(--color-text-tertiary)" }}>
+                    ? <tr><td colSpan={9} className="text-center py-16 text-sm" style={{ color: "var(--color-text-tertiary)" }}>
                         {t("Нет товаров на складе","Omborda mahsulot yo'q")}
                       </td></tr>
                     : data?.data.map((item: any) => {
@@ -503,6 +549,9 @@ export default function Warehouse() {
                               {Number(item.available ?? 0).toFixed(2)} {unitLabel(item.unit ?? undefined, lang)}
                             </td>
                             <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-secondary)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border-subtle)" }}>
+                              {toKg(item.available, item.unitWeight).toFixed(1)} кг
+                            </td>
+                            <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-secondary)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border-subtle)" }}>
                               {Number(item.reserved ?? 0).toFixed(2)} {unitLabel(item.unit ?? undefined, lang)}
                             </td>
                             <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-primary)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border-subtle)" }}>
@@ -512,7 +561,7 @@ export default function Warehouse() {
                               {Number(item.reorderPoint ?? 0).toFixed(0)} {unitLabel(item.unit ?? undefined, lang)}
                             </td>
                             <td className="px-5 py-3.5" style={{ borderBottom: "1px solid var(--color-border-subtle)" }}>
-                              <button onClick={() => setAdjusting({ id: item.productId, name: item.productName ?? "", stock: Number(item.currentStock ?? 0) })}
+                              <button onClick={() => setAdjusting({ id: item.productId, name: item.productName ?? "", stock: Number(item.currentStock ?? 0), unit: item.unit ?? "pcs", unitWeight: Number(item.unitWeight ?? 0) })}
                                 className="text-xs py-1.5 px-3 rounded-lg transition-all"
                                 style={{ color: "var(--color-primary)", background: "rgba(99,102,241,0.08)" }}>
                                 {t("Скорректировать", "Tuzatish")}
@@ -605,7 +654,7 @@ export default function Warehouse() {
               })}
             </div>
           ) : (
-            <div className="rounded-2xl overflow-hidden" style={{ background: "var(--color-surface)", boxShadow: "0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)" }}>
+            <div className="rounded-2xl overflow-hidden" style={{ background: "var(--color-surface)", boxShadow: "0 8px 24px -6px rgba(180,175,165,.25)" }}>
               <table className="w-full" style={{ borderCollapse: "separate", borderSpacing: 0 }}>
                 <thead>
                   <tr>
@@ -714,7 +763,7 @@ export default function Warehouse() {
               })}
             </div>
           ) : (
-            <div className="rounded-2xl overflow-hidden" style={{ background: "var(--color-surface)", boxShadow: "0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)" }}>
+            <div className="rounded-2xl overflow-hidden" style={{ background: "var(--color-surface)", boxShadow: "0 8px 24px -6px rgba(180,175,165,.25)" }}>
               <table className="w-full" style={{ borderCollapse: "separate", borderSpacing: 0 }}>
                 <thead>
                   <tr>

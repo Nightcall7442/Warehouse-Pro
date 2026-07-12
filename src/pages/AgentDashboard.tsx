@@ -11,6 +11,9 @@ import {
   CheckCircle2, Clock, Calendar, MapPin,
   ChevronRight, AlertCircle, Navigation,
 } from "lucide-react";
+import { ProgressRing } from "@/components/ProgressRing";
+import { KpiIcon } from "@/components/KpiIcon";
+import type { KpiColor } from "@/components/KpiIcon";
 
 // ── Статусы визитов ───────────────────────────────────────────────────────────
 const PLAN_STATUS: Record<string, {
@@ -27,13 +30,11 @@ const PLAN_STATUS: Record<string, {
 function AgentKpi({ label, value, icon: Icon, color = "indigo" }: {
   label: string; value: string | number;
   icon: React.ComponentType<{ size?: number; className?: string }>;
-  color?: "indigo" | "blue" | "teal" | "green" | "amber" | "orange" | "red" | "pink" | "purple";
+  color?: KpiColor;
 }) {
   return (
     <div className="kpi-card flex flex-col gap-3 hover-lift">
-      <div className={`kpi-icon-box kpi-icon-${color}`}>
-        <Icon size={17} />
-      </div>
+      <KpiIcon icon={Icon} color={color} />
       <div>
         <p className="font-data text-2xl font-bold leading-none text-text-primary">
           {value}
@@ -218,9 +219,7 @@ export default function AgentDashboard() {
         </div>
 
         <div className="flex items-center gap-4">
-          <div className="progress-ring" style={{ "--ring-pct": `${pct}%`, "--ring-color": progressColor } as React.CSSProperties}>
-            <span className="progress-ring-label">{pct}%</span>
-          </div>
+          <ProgressRing value={pct} color={progressColor} label={`${pct}%`} />
           <div>
             <p className="font-data text-lg font-bold text-text-primary leading-none">
               {todayVisited} / {todayPlanned}

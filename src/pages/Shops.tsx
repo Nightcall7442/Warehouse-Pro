@@ -6,8 +6,9 @@ import { notify } from "@/lib/toast";
 import { exportToExcel, formatShopsForExport } from "@/lib/excel";
 import { ExcelImport } from "@/components/ExcelImport";
 import { useNavigate } from "react-router";
-import { Search, Plus, Store, MapPin, Phone, Camera, Loader2, X, ChevronRight, AlertCircle, FileDown, Upload, Users, TrendingUp, DollarSign, ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
+import { Search, Plus, Store, MapPin, Phone, Camera, Loader2, X, ChevronRight, AlertCircle, FileDown, Upload, Users, TrendingUp, DollarSign, ArrowUpRight, ArrowDownRight, Minus, Trash2, CheckSquare, Square } from "lucide-react";
 import { PremiumSelect } from "@/components/PremiumSelect";
+import { useConfirm } from "@/components/ConfirmDialog";
 
 /* ── Premium Design Constants ── */
 const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
@@ -18,7 +19,7 @@ const COLORS = {
   textPrimary: "var(--color-text-primary)", textSecondary: "var(--color-text-secondary)",
   textTertiary: "var(--color-text-tertiary)", border: "var(--color-border-subtle)",
 };
-const SHADOW = "0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)";
+const SHADOW = "0 8px 24px -6px rgba(180,175,165,.25)";
 
 /* ── KpiCard Component ── */
 function KpiCard({ label, value, delta, icon, gradient, delay }: {
@@ -29,7 +30,7 @@ function KpiCard({ label, value, delta, icon, gradient, delay }: {
   const isNegative = delta !== null && delta < 0;
   return (
     <div style={{
-      background: COLORS.surface, borderRadius: "20px", padding: "24px",
+      background: COLORS.surface, borderRadius: "24px", padding: "24px",
       boxShadow: SHADOW, position: "relative", overflow: "hidden",
       animation: `slideUp ${0.5 + delay}s ease forwards`,
     }}>
@@ -104,7 +105,7 @@ function ShopForm({ onSave, onCancel, isPending, lang, agents }: { onSave:(d:Sho
   };
   return (
     <div style={{
-      background: COLORS.surface, borderRadius: "20px", padding: "24px",
+      background: COLORS.surface, borderRadius: "24px", padding: "24px",
       boxShadow: SHADOW,
     }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
@@ -167,20 +168,32 @@ function ShopForm({ onSave, onCancel, isPending, lang, agents }: { onSave:(d:Sho
 
 // Shop card
 interface ShopCardData { id: number; name: string; ownerName: string | null; phone: string | null; city: string | null; district: string | null; status: string; debt: string | null; photoUrl: string | null; agentName: string | null; }
-const ShopCard = memo(function ShopCard({ s, onClick, lang, fmt, delay }: { s:ShopCardData; onClick:()=>void; lang:string; fmt:(v: number | string | null | undefined, opts?: { decimals?: number }) => string; delay:number }) {
+const ShopCard = memo(function ShopCard({ s, onClick, selected, onToggleSelect, lang, fmt, delay }: { s:ShopCardData; onClick:()=>void; selected?:boolean; onToggleSelect?:()=>void; lang:string; fmt:(v: number | string | null | undefined, opts?: { decimals?: number }) => string; delay:number }) {
   const t = (ru:string,uz:string) => lang==="uz"?uz:ru;
   const hasDebt = Number(s.debt??0) > 0;
   return (
     <div style={{
-      background: COLORS.surface, borderRadius: "20px", padding: "20px",
+      background: COLORS.surface, borderRadius: "24px", padding: "20px",
       boxShadow: SHADOW, display: "flex", alignItems: "center", gap: "16px",
       cursor: "pointer", transition: "transform 0.2s, box-shadow 0.2s",
       animation: `slideUp ${0.4 + delay}s ease forwards`,
+      border: selected ? `2px solid ${COLORS.primary}` : "2px solid transparent",
     }}
     onClick={onClick}
     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = "translateY(-2px)"; (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 20px rgba(0,0,0,0.08)"; }}
     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = "translateY(0)"; (e.currentTarget as HTMLElement).style.boxShadow = SHADOW; }}
     >
+      {onToggleSelect && (
+        <button
+          onClick={e => { e.stopPropagation(); onToggleSelect(); }}
+          style={{ background: "none", border: "none", cursor: "pointer", padding: 0, flexShrink: 0, display: "flex" }}
+        >
+          {selected
+            ? <CheckSquare size={20} style={{ color: COLORS.primary }} />
+            : <Square size={20} style={{ color: COLORS.textTertiary }} />
+          }
+        </button>
+      )}
       <ShopPhoto shopId={s.id} photoUrl={s.photoUrl} size="lg"/>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "8px" }}>
@@ -235,6 +248,7 @@ export default function Shops() {
   const [agentFilter,setAgentFilter] = useState<string|undefined>(undefined);
   const [showForm,setShowForm] = useState(false);
   const [showImport,setShowImport] = useState(false);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
 
   const {data,isLoading}   = trpc.shop.list.useQuery({page,pageSize:25,search:search||undefined,city,district,agentId:agentFilter?Number(agentFilter):undefined}) as { data: any; isLoading: boolean };
   const {data:cities}      = trpc.shop.cities.useQuery();
@@ -247,6 +261,11 @@ export default function Shops() {
     onSuccess:()=>{ utils.shop.list.invalidate(); utils.shop.cities.invalidate(); setShowForm(false); notify.success("Магазин добавлен"); },
     onError:(e)=>notify.error(e.message),
   });
+  const deleteMutation = trpc.shop.delete.useMutation({
+    onSuccess:()=>{ utils.shop.list.invalidate(); setSelected(new Set()); notify.success("Магазины удалены"); },
+    onError:(e)=>notify.error(e.message),
+  });
+  const { confirm, dialog } = useConfirm();
 
   // Compute KPI stats from data
   const kpiStats = useMemo(() => {
@@ -257,6 +276,41 @@ export default function Shops() {
     const totalDebt = shops.reduce((sum: number, s: any) => sum + Number(s.debt ?? 0), 0);
     return { total, activeCount, debtCount, totalDebt };
   }, [data]);
+
+  const allVisibleIds = useMemo(() => (data?.data ?? []).map((s: any) => s.id as number), [data]);
+  const allSelected = allVisibleIds.length > 0 && allVisibleIds.every(id => selected.has(id));
+
+  const toggleSelect = useCallback((id: number) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback(() => {
+    if (allSelected) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(allVisibleIds));
+    }
+  }, [allSelected, allVisibleIds]);
+
+  const handleBulkDelete = async () => {
+    const count = selected.size;
+    if (count === 0) return;
+    const ok = await confirm({
+      title: t(`Удалить ${count} магазинов?`, `${count} ta do'kon o'chirilsinmi?`),
+      message: t("Данные будут удалены безвозвратно.", "Ma'lumotlar qaytarib bo'lmaydigan tarzda o'chiriladi."),
+      confirmText: t("Удалить", "O'chirish"),
+      danger: true,
+    });
+    if (ok) {
+      for (const id of selected) {
+        await deleteMutation.mutateAsync({ id });
+      }
+    }
+  };
 
   // Loading skeleton
   if (isLoading && !data) {
@@ -270,11 +324,11 @@ export default function Shops() {
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
           {[0, 1, 2, 3].map(i => (
-            <div key={i} style={{ height: "140px", borderRadius: "20px", background: COLORS.surfaceLight, animation: `slideUp ${0.4 + i * 0.05}s ease forwards` }} />
+            <div key={i} style={{ height: "140px", borderRadius: "24px", background: COLORS.surfaceLight, animation: `slideUp ${0.4 + i * 0.05}s ease forwards` }} />
           ))}
         </div>
         {Array.from({length:4}).map((_,i) => (
-          <div key={i} style={{ height: "96px", borderRadius: "20px", background: COLORS.surfaceLight, animation: `slideUp ${0.4 + i * 0.05}s ease forwards` }} />
+          <div key={i} style={{ height: "96px", borderRadius: "24px", background: COLORS.surfaceLight, animation: `slideUp ${0.4 + i * 0.05}s ease forwards` }} />
         ))}
       </div>
     );
@@ -282,6 +336,7 @@ export default function Shops() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+      {dialog}
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
         <div>
@@ -401,13 +456,59 @@ export default function Shops() {
         </div>
       )}
 
+      {/* Selection bar */}
+      {selected.size > 0 && (
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "12px 20px", borderRadius: "14px",
+          background: "color-mix(in srgb, var(--color-primary) 8%, var(--color-surface))",
+          border: "1px solid color-mix(in srgb, var(--color-primary) 20%, transparent)",
+        }}>
+          <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-primary)" }}>
+            {selected.size} {t("выбрано","tanlangan")}
+          </span>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button onClick={()=>setSelected(new Set())} className="btn-secondary text-xs py-1.5 px-3">
+              {t("Сбросить","Bekor qilish")}
+            </button>
+            <button onClick={handleBulkDelete} disabled={deleteMutation.isPending}
+              style={{
+                display: "flex", alignItems: "center", gap: "5px", padding: "6px 14px",
+                fontSize: "12px", fontWeight: 600, borderRadius: "8px",
+                border: "none", cursor: "pointer", color: "#fff",
+                background: "var(--color-danger)", opacity: deleteMutation.isPending ? 0.5 : 1,
+              }}>
+              <Trash2 size={13} />{t("Удалить","O'chirish")}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Select all */}
+      {data && data.data.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <button onClick={toggleSelectAll}
+            style={{ background: "none", border: "none", cursor: "pointer", padding: "4px", display: "flex", alignItems: "center", gap: "6px" }}>
+            {allSelected
+              ? <CheckSquare size={16} style={{ color: COLORS.primary }} />
+              : <Square size={16} style={{ color: COLORS.textTertiary }} />
+            }
+            <span style={{ fontSize: "12px", color: COLORS.textSecondary }}>{t("Выбрать все","Barchasini tanlash")}</span>
+          </button>
+        </div>
+      )}
+
       {/* Cards */}
       <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
         {isLoading?Array.from({length:4}).map((_,i)=>(
-          <div key={i} style={{ height: "96px", borderRadius: "20px", background: COLORS.surfaceLight, animation: `slideUp ${0.4 + i * 0.05}s ease forwards` }}/>
+          <div key={i} style={{ height: "96px", borderRadius: "24px", background: COLORS.surfaceLight, animation: `slideUp ${0.4 + i * 0.05}s ease forwards` }}/>
         ))
           :data?.data.length===0?<p style={{ textAlign: "center", color: COLORS.textSecondary, padding: "48px 0", fontSize: "14px" }}>{t("Нет магазинов","Do'kon yo'q")}</p>
-          :data?.data.map((s: any, i: number)=><ShopCard key={s.id} s={s} lang={lang} fmt={fmt} delay={i*0.03} onClick={()=>navigate(`/shops/${s.id}`)}/>)}
+          :data?.data.map((s: any, i: number)=><ShopCard key={s.id} s={s} lang={lang} fmt={fmt} delay={i*0.03}
+            onClick={()=>navigate(`/shops/${s.id}`)}
+            selected={selected.has(s.id)}
+            onToggleSelect={()=>toggleSelect(s.id)}
+          />)}
       </div>
 
       {data&&data.total>25&&(

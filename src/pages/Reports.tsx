@@ -12,16 +12,17 @@ import {
   LayoutDashboard, ShoppingCart, Award, Package, BarChart3,
 } from "lucide-react";
 import { exportToExcel, formatAgentsForExport } from "@/lib/excel";
+import { ProgressRing } from "@/components/ProgressRing";
 
 const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
 const COLORS = {
-  primary: "var(--color-primary)", success: "var(--color-success)",
-  warning: "var(--color-warning)", danger: "var(--color-danger)",
-  surface: "var(--color-surface)", surfaceLight: "var(--color-surface-light)",
-  textPrimary: "var(--color-text-primary)", textSecondary: "var(--color-text-secondary)",
-  textTertiary: "var(--color-text-tertiary)", border: "var(--color-border-subtle)",
+  primary: "#818cf8", success: "#4ade80",
+  warning: "#fbbf24", danger: "#f87171",
+  surface: "#ffffff", surfaceLight: "#f8f9fb",
+  textPrimary: "#111827", textSecondary: "#6b7280",
+  textTertiary: "#9ca3af", border: "#f3f4f6",
 };
-const SHADOW = "0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)";
+const SHADOW = "0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04)";
 
 type TabKey = "overview" | "sales" | "agents";
 
@@ -32,19 +33,18 @@ const KpiCard = memo(function KpiCard({ label, value, sub, icon, gradient, delay
 }) {
   return (
     <div style={{
-      background: COLORS.surface, borderRadius: "20px", padding: "24px",
+      background: COLORS.surface, borderRadius: "20px", padding: "22px",
       boxShadow: SHADOW, position: "relative", overflow: "hidden",
-      animation: `slideUp ${0.5 + delay}s ease forwards`,
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
         <span style={{ fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: COLORS.textTertiary }}>
           {label}
         </span>
-        <div style={{ width: "44px", height: "44px", borderRadius: "12px", background: gradient, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ width: "40px", height: "40px", borderRadius: "12px", background: gradient, display: "flex", alignItems: "center", justifyContent: "center" }}>
           {icon}
         </div>
       </div>
-      <div style={{ fontFamily: F.display, fontSize: "32px", fontWeight: 700, color: COLORS.textPrimary, lineHeight: 1, letterSpacing: "-0.03em" }}>
+      <div style={{ fontFamily: F.display, fontSize: "28px", fontWeight: 700, color: COLORS.textPrimary, lineHeight: 1, letterSpacing: "-0.03em" }}>
         {value}
       </div>
       {sub && (
@@ -60,7 +60,7 @@ const KpiCard = memo(function KpiCard({ label, value, sub, icon, gradient, delay
 const ChartPanel = memo(function ChartPanel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div style={{
-      background: COLORS.surface, borderRadius: "20px", padding: "28px",
+      background: COLORS.surface, borderRadius: "20px", padding: "24px",
       boxShadow: SHADOW, position: "relative", overflow: "hidden",
     }}>
       <h2 style={{ fontFamily: F.display, fontSize: "16px", fontWeight: 600, color: COLORS.textPrimary, margin: "0 0 20px" }}>
@@ -294,10 +294,10 @@ export default function Reports() {
             </div>
           ) : summary && (
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <KpiCard label={t("АГЕНТОВ", "AGENTLAR")} value={String(summary.totalAgents)} sub={`${summary.activeNow} ${t("онлайн", "onlayn")}`} icon={<Users size={20} color="#fff" />} gradient="linear-gradient(135deg, #A855F7, #7C3AED)" delay={0} />
-              <KpiCard label={t("ВИЗИТЫ", "TASHRIFLAR")} value={String(summary.visitsToday)} icon={<MapPin size={20} color="#fff" />} gradient="linear-gradient(135deg, #14B8A6, #06B6D4)" delay={0.05} />
-              <KpiCard label={`${t("ЗАКАЗЫ", "BUYURTMA")} ${days}д`} value={String(summary.ordersMonth)} sub={`≈${summary.avgOrdersPerAgent}/${t("агент", "agent")}`} icon={<ClipboardList size={20} color="#fff" />} gradient="linear-gradient(135deg, #F97316, #EF4444)" delay={0.1} />
-              <KpiCard label={`${t("ВЫРУЧКА", "TUSHUM")} ${days}д`} value={fmt(summary.revenueMonth)} icon={<TrendingUp size={20} color="#fff" />} gradient="linear-gradient(135deg, #22C55E, #16A34A)" delay={0.15} />
+              <KpiCard label={t("АГЕНТОВ", "AGENTLAR")} value={String(summary.totalAgents)} sub={`${summary.activeNow} ${t("онлайн", "onlayn")}`} icon={<Users size={20} color="#fff" />} gradient="linear-gradient(135deg, var(--kpi-purple), var(--kpi-purple))" delay={0} />
+              <KpiCard label={t("ВИЗИТЫ", "TASHRIFLAR")} value={String(summary.visitsToday)} icon={<MapPin size={20} color="#fff" />} gradient="linear-gradient(135deg, var(--kpi-teal), var(--kpi-teal))" delay={0.05} />
+              <KpiCard label={`${t("ЗАКАЗЫ", "BUYURTMA")} ${days}д`} value={String(summary.ordersMonth)} sub={`≈${summary.avgOrdersPerAgent}/${t("агент", "agent")}`} icon={<ClipboardList size={20} color="#fff" />} gradient="linear-gradient(135deg, var(--kpi-orange), var(--kpi-orange))" delay={0.1} />
+              <KpiCard label={`${t("ВЫРУЧКА", "TUSHUM")} ${days}д`} value={fmt(summary.revenueMonth)} icon={<TrendingUp size={20} color="#fff" />} gradient="linear-gradient(135deg, var(--kpi-green), var(--kpi-green))" delay={0.15} />
             </div>
           )}
 
@@ -332,9 +332,7 @@ export default function Reports() {
                 const ringColor = pct >= 80 ? "var(--color-success)" : pct >= 50 ? "var(--color-warning)" : "var(--color-danger)";
                 return (
                   <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "20px", paddingBottom: "20px", borderBottom: `1px solid ${COLORS.border}` }}>
-                    <div className="progress-ring" style={{ "--ring-pct": `${pct}%`, "--ring-color": ringColor } as React.CSSProperties}>
-                      <span className="progress-ring-label">{pct}%</span>
-                    </div>
+                    <ProgressRing value={pct} color={ringColor} label={`${pct}%`} />
                     <div>
                       <p style={{ fontSize: "13px", fontWeight: 500, color: COLORS.textPrimary, margin: 0 }}>{totalVisited} {t("из", "dan")} {totalPlanned} {t("выполнено", "bajarildi")}</p>
                       <p style={{ fontSize: "11px", color: COLORS.textTertiary, margin: "4px 0 0" }}>{t("все агенты", "barcha agentlar")}</p>
@@ -363,11 +361,12 @@ export default function Reports() {
                   <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} vertical={false} />
                   <XAxis dataKey="name" tick={{ fill: COLORS.textTertiary, fontSize: 11, fontFamily: F.body }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fill: COLORS.textTertiary, fontSize: 11, fontFamily: F.body }} axisLine={false} tickLine={false} tickFormatter={v => fmt(v, true)} />
-                  <Tooltip contentStyle={{ background: COLORS.surface, border: "none", borderRadius: 12, boxShadow: "0 4px 24px rgba(0,0,0,0.08)" }} cursor={{ fill: COLORS.surfaceLight }} />
-                  <Bar dataKey="revenue" name={t("Выручка", "Tushum")} radius={[8, 8, 0, 0]} maxBarSize={56}>
-                    {shopChartData.map((_, i) => (
-                      <Cell key={i} fill={i === 0 ? "var(--color-primary)" : `rgba(99,102,241,${0.6 - i * 0.05})`} />
-                    ))}
+                  <Tooltip contentStyle={{ background: COLORS.surface, border: "none", borderRadius: 12, boxShadow: "0 8px 24px -6px rgba(180,175,165,.30)" }} cursor={{ fill: COLORS.surfaceLight }} />
+                  <Bar dataKey="revenue" name={t("Выручка", "Tushum")} radius={[6, 6, 0, 0]} maxBarSize={48}>
+                    {shopChartData.map((_, i) => {
+                      const palette = ["var(--kpi-indigo)", "var(--kpi-teal)", "var(--kpi-coral)", "var(--kpi-amber)", "var(--kpi-blue)", "var(--kpi-purple)", "var(--kpi-green)"];
+                      return <Cell key={i} fill={palette[i % palette.length]} />;
+                    })}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -434,7 +433,7 @@ export default function Reports() {
           {/* Summary */}
           <GlassPanel style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 24px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-              <div style={{ width: "40px", height: "40px", borderRadius: "12px", background: "linear-gradient(135deg, #A855F7, #7C3AED)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ width: "40px", height: "40px", borderRadius: "12px", background: "var(--kpi-purple)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <Award size={18} color="#fff" />
               </div>
               <div>

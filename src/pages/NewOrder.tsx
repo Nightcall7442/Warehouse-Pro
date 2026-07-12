@@ -203,7 +203,7 @@ function StepShop({
       ) : filtered?.length === 0 ? (
         <div style={{ textAlign: "center", padding: "48px 0" }}>
           <div style={{
-            width: "64px", height: "64px", borderRadius: "20px", display: "flex",
+            width: "64px", height: "64px", borderRadius: "24px", display: "flex",
             alignItems: "center", justifyContent: "center", margin: "0 auto 12px",
             background: "var(--color-surface-light)",
           }}>
@@ -229,7 +229,7 @@ function StepShop({
                 background: shopId === shop.id ? "color-mix(in srgb, var(--color-primary) 4%, var(--color-surface))" : "var(--color-surface)",
                 boxShadow: shopId === shop.id
                   ? "0 4px 16px rgba(99,102,241,0.12)"
-                  : "0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03)",
+                  : "0 8px 24px -6px rgba(180,175,165,.25)",
               }}
             >
               <div style={{
@@ -417,8 +417,8 @@ function StepItems({
 
       {/* ── Корзина ── */}
       <div style={{
-        background: "var(--color-surface)", borderRadius: "20px", padding: "20px",
-        boxShadow: "0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)",
+        background: "var(--color-surface)", borderRadius: "24px", padding: "20px",
+        boxShadow: "0 8px 24px -6px rgba(180,175,165,.25)",
         position: "sticky", top: "20px",
       }}>
         <div className="flex items-center justify-between mb-4">

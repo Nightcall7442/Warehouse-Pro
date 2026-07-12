@@ -20,7 +20,7 @@ const COLORS = {
   textPrimary: "var(--color-text-primary)", textSecondary: "var(--color-text-secondary)",
   textTertiary: "var(--color-text-tertiary)", border: "var(--color-border-subtle)",
 };
-const SHADOW = "0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)";
+const SHADOW = "0 8px 24px -6px rgba(180,175,165,.25)";
 
 function KpiCard({ label, value, delta, icon, gradient, delay }: {
   label: string; value: string; delta: number | null;
@@ -30,7 +30,7 @@ function KpiCard({ label, value, delta, icon, gradient, delay }: {
   const isNegative = delta !== null && delta < 0;
   return (
     <div style={{
-      background: COLORS.surface, borderRadius: "20px", padding: "24px",
+      background: COLORS.surface, borderRadius: "24px", padding: "24px",
       boxShadow: SHADOW, position: "relative", overflow: "hidden",
       animation: `slideUp ${0.5 + delay}s ease forwards`,
     }}>
@@ -73,7 +73,7 @@ const StatusBadge = memo(function StatusBadge({ status, lang }: { status: string
   return (
     <span style={{
       display: "inline-flex", alignItems: "center", gap: "6px", padding: "4px 12px",
-      borderRadius: "20px", fontSize: "11px", fontWeight: 600,
+      borderRadius: "24px", fontSize: "11px", fontWeight: 600,
       background: `${s.color}12`, color: s.color, fontFamily: F.body,
     }}>
       <span style={{ width: 6, height: 6, borderRadius: "50%", background: s.color }} />
@@ -352,7 +352,7 @@ export default function Arrivals() {
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
           {[0, 1, 2, 3].map(i => (
-            <div key={i} style={{ height: "140px", borderRadius: "20px", background: COLORS.surfaceLight, animation: `slideUp ${0.4 + i * 0.05}s ease forwards` }} />
+            <div key={i} style={{ height: "140px", borderRadius: "24px", background: COLORS.surfaceLight, animation: `slideUp ${0.4 + i * 0.05}s ease forwards` }} />
           ))}
         </div>
       </div>
@@ -446,7 +446,7 @@ export default function Arrivals() {
       </div>
 
       {/* Table */}
-      <div style={{ background: COLORS.surface, borderRadius: "20px", boxShadow: SHADOW, overflow: "hidden", animation: "slideUp 0.5s ease forwards" }}>
+      <div style={{ background: COLORS.surface, borderRadius: "24px", boxShadow: SHADOW, overflow: "hidden", animation: "slideUp 0.5s ease forwards" }}>
         <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
           <thead>
             <tr>

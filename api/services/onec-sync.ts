@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { getDb } from "../queries/connection";
-import { products, orders, orderItems } from "@db/schema";
+import { products, orders, orderItems, warehouseStock, idMappings } from "@db/schema";
 import { getBridge } from "../lib/onec-bridge";
 import { OneCMapper } from "./onec-mapper";
 import { mapProduct1C, mapOrder1C, mapUnit } from "./onec-transform";
@@ -23,6 +23,9 @@ export class OneCSyncService {
         $top: "500",
         $select: "Ref_Key,Code,Description,Price,Unit",
       });
+
+      // Collect all 1C external IDs from the response
+      const externalIds = new Set(items.map(i => i.Ref_Key));
 
       for (const item of items) {
         try {
@@ -51,6 +54,11 @@ export class OneCSyncService {
                 category: mapped.category,
               });
 
+            await db.insert(warehouseStock).values({
+              tenantId, productId: Number(result.insertId),
+              currentStock: "0.00", reserved: "0.00", available: "0.00",
+            });
+
             await OneCMapper.upsert(db, tenantId, "product", item.Ref_Key, Number(result.insertId));
           }
           synced++;
@@ -63,7 +71,25 @@ export class OneCSyncService {
         }
       }
 
-      logger.info(`Product sync completed: ${synced} synced, ${errors} errors`, {
+      // Deactivate products that no longer exist in 1C
+      const allMappings = await OneCMapper.getAll(db, tenantId, "product");
+      const staleIds: number[] = [];
+      for (const mapping of allMappings) {
+        if (!externalIds.has(mapping.externalId)) {
+          staleIds.push(mapping.internalId);
+        }
+      }
+      if (staleIds.length > 0) {
+        await db.update(products)
+          .set({ status: "inactive" })
+          .where(and(
+            eq(products.tenantId, tenantId),
+            inArray(products.id, staleIds),
+          ));
+        logger.info(`Deactivated ${staleIds.length} products removed from 1C`, { tenantId });
+      }
+
+      logger.info(`Product sync completed: ${synced} synced, ${errors} errors, ${staleIds.length} deactivated`, {
         tenantId,
       });
       await updateSyncStatus(tenantId, "product", "from1c", "completed", synced);
@@ -89,7 +115,15 @@ export class OneCSyncService {
       const order = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
       if (!order[0]) throw new Error(`Order ${orderId} not found`);
 
-      const items = await db.select().from(orderItems).where(eq(orderItems.orderId, orderId));
+      const items = await db.select({
+        productId: orderItems.productId,
+        quantity: orderItems.quantity,
+        unitPrice: orderItems.unitPrice,
+        unit: products.unit,
+        unitWeight: products.unitWeight,
+      }).from(orderItems)
+        .leftJoin(products, eq(orderItems.productId, products.id))
+        .where(eq(orderItems.orderId, orderId));
       const shopExternalId = await OneCMapper.getExternalId(db, tenantId, "shop", order[0].shopId);
 
       if (!shopExternalId) {
@@ -104,6 +138,8 @@ export class OneCSyncService {
             productExternalId,
             quantity: Number(item.quantity),
             unitPrice: Number(item.unitPrice),
+            unitWeight: Number(item.unitWeight ?? 0),
+            unit: item.unit ?? "pcs",
           });
         }
       }

@@ -21,7 +21,7 @@ const COLORS = {
   textTertiary: "var(--color-text-tertiary)", border: "var(--color-border-subtle)",
   info: "var(--color-info)",
 };
-const SHADOW = "0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)";
+const SHADOW = "0 8px 24px -6px rgba(180,175,165,.25)";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type TenantRow = {
@@ -66,11 +66,11 @@ const STATUS_COLORS: Record<string, { fg: string; bg: string }> = {
 
 function PlanBadge({ plan }: { plan: string }) {
   const c = PLAN_COLORS[plan] ?? PLAN_COLORS.basic;
-  return <span style={{ display: "inline-flex", alignItems: "center", padding: "3px 10px", borderRadius: "20px", fontSize: "10px", fontWeight: 700, fontFamily: F.body, color: c.fg, background: c.bg, letterSpacing: "0.04em" }}>{plan.toUpperCase()}</span>;
+  return <span style={{ display: "inline-flex", alignItems: "center", padding: "3px 10px", borderRadius: "24px", fontSize: "10px", fontWeight: 700, fontFamily: F.body, color: c.fg, background: c.bg, letterSpacing: "0.04em" }}>{plan.toUpperCase()}</span>;
 }
 function StatusBadge({ status }: { status: string }) {
   const c = STATUS_COLORS[status] ?? STATUS_COLORS.active;
-  return <span style={{ display: "inline-flex", alignItems: "center", padding: "3px 10px", borderRadius: "20px", fontSize: "10px", fontWeight: 700, fontFamily: F.body, color: c.fg, background: c.bg, letterSpacing: "0.04em" }}>{status.toUpperCase()}</span>;
+  return <span style={{ display: "inline-flex", alignItems: "center", padding: "3px 10px", borderRadius: "24px", fontSize: "10px", fontWeight: 700, fontFamily: F.body, color: c.fg, background: c.bg, letterSpacing: "0.04em" }}>{status.toUpperCase()}</span>;
 }
 
 // ── Premium KPI Card ──────────────────────────────────────────────────────────
@@ -78,7 +78,7 @@ function KpiCard({ label, value, icon: Icon, gradient, loading }: {
   label: string; value: string | number; icon: any; gradient: string; loading?: boolean;
 }) {
   return (
-    <div style={{ background: COLORS.surface, borderRadius: "20px", padding: "24px", boxShadow: SHADOW, position: "relative", overflow: "hidden" }}>
+    <div style={{ background: COLORS.surface, borderRadius: "24px", padding: "24px", boxShadow: SHADOW, position: "relative", overflow: "hidden" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
         <span style={{ fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: COLORS.textTertiary }}>{label}</span>
         <div style={{ width: "44px", height: "44px", borderRadius: "12px", background: gradient, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -98,7 +98,7 @@ function Section({ title, icon: Icon, children, delay = 0 }: {
   title: string; icon: any; children: React.ReactNode; delay?: number;
 }) {
   return (
-    <div style={{ background: COLORS.surface, borderRadius: "20px", boxShadow: SHADOW }}>
+    <div style={{ background: COLORS.surface, borderRadius: "24px", boxShadow: SHADOW }}>
       <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", gap: "10px", borderBottom: `1px solid ${COLORS.border}` }}>
         <div style={{ width: "28px", height: "28px", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(124,127,245,0.1)", color: COLORS.primary }}>
           <Icon size={14} />
@@ -115,7 +115,7 @@ function Modal({ onClose, children }: { onClose: () => void; children: React.Rea
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }} onClick={onClose}>
       <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }} />
-      <div style={{ position: "relative", width: "100%", maxWidth: "480px", background: COLORS.surface, borderRadius: "20px", border: `1px solid ${COLORS.border}`, boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)", overflow: "hidden" }} onClick={e => e.stopPropagation()}>
+      <div style={{ position: "relative", width: "100%", maxWidth: "480px", background: COLORS.surface, borderRadius: "24px", border: `1px solid ${COLORS.border}`, boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)", overflow: "hidden" }} onClick={e => e.stopPropagation()}>
         {children}
       </div>
     </div>
@@ -503,7 +503,7 @@ export default function SuperAdmin() {
       </div>
 
       {/* Table */}
-      <div style={{ background: COLORS.surface, borderRadius: "20px", boxShadow: SHADOW, overflow: "hidden" }}>
+      <div style={{ background: COLORS.surface, borderRadius: "24px", boxShadow: SHADOW, overflow: "hidden" }}>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", minWidth: "900px", fontSize: "13px", fontFamily: F.body }}>
             <thead>

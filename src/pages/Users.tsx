@@ -28,7 +28,7 @@ const COLORS = {
   textTertiary: "var(--color-text-tertiary)",
   border: "var(--color-border-subtle)",
 };
-const SHADOW = "0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)";
+const SHADOW = "0 8px 24px -6px rgba(180,175,165,.25)";
 
 /* ── KPI Card ──────────────────────────────────────────────────────────────── */
 function KpiCard({
@@ -41,7 +41,7 @@ function KpiCard({
   const isNegative = delta !== null && delta < 0;
   return (
     <div style={{
-      background: COLORS.surface, borderRadius: "20px", padding: "24px",
+      background: COLORS.surface, borderRadius: "24px", padding: "24px",
       boxShadow: SHADOW, position: "relative", overflow: "hidden",
       animation: `slideUp ${0.5 + delay}s ease forwards`,
     }}>
@@ -133,7 +133,7 @@ function InviteForm({ onDone, lang }: { onDone: () => void; lang: "ru" | "uz" })
 
   return (
     <div style={{
-      background: COLORS.surface, borderRadius: "20px", padding: "24px",
+      background: COLORS.surface, borderRadius: "24px", padding: "24px",
       boxShadow: SHADOW, display: "flex", flexDirection: "column", gap: "16px",
     }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -239,7 +239,7 @@ function ResetPasswordModal({ userId, userName, onClose, lang }: {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }}>
       <div style={{
-        background: COLORS.surface, borderRadius: "20px", padding: "24px",
+        background: COLORS.surface, borderRadius: "24px", padding: "24px",
         boxShadow: "0 24px 48px rgba(0,0,0,0.18)", width: "100%", maxWidth: "400px",
         display: "flex", flexDirection: "column", gap: "16px",
       }}>
@@ -444,7 +444,7 @@ export default function Users() {
 
       {/* ── Table ─────────────────────────────────────────────────────────── */}
       <div style={{
-        background: COLORS.surface, borderRadius: "20px", padding: "0",
+        background: COLORS.surface, borderRadius: "24px", padding: "0",
         boxShadow: SHADOW, overflow: "hidden",
       }}>
         <div style={{ overflowX: "auto" }}>

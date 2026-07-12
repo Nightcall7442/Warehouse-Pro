@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createRouter, courierQuery, operatorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { orders, shops, users, payments, notifications } from "@db/schema";
+import { orders, shops, users, payments, notifications, orderItems, products, warehouseStock } from "@db/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { sseBus } from "./lib/sse";
 import { logger } from "./lib/logger";
@@ -18,6 +18,12 @@ export const courierRouter = createRouter({
         status: orders.status,
         deliveryStatus: orders.deliveryStatus,
         total: orders.total,
+        totalWeightKg: sql<string>`COALESCE((
+          SELECT SUM(CAST(oi.quantity AS DECIMAL) * CAST(COALESCE(p.unit_weight, '1') AS DECIMAL))
+          FROM ${orderItems} oi
+          LEFT JOIN ${products} p ON p.id = oi.product_id
+          WHERE oi.order_id = ${orders.id}
+        ), 0)`,
         shopName: shops.name,
         shopAddress: shops.address,
         shopCity: shops.city,

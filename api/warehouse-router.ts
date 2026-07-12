@@ -29,7 +29,8 @@ export const warehouseRouter = createRouter({
           currentStock: warehouseStock.currentStock, reserved: warehouseStock.reserved,
           available: warehouseStock.available, productName: products.name,
           productCode: products.code, category: products.category,
-          unit: products.unit, unitPrice: products.unitPrice, costPrice: products.costPrice, reorderPoint: products.reorderPoint,
+          unit: products.unit, unitWeight: products.unitWeight,
+          unitPrice: products.unitPrice, costPrice: products.costPrice, reorderPoint: products.reorderPoint,
         })
           .from(warehouseStock)
           .leftJoin(products, eq(warehouseStock.productId, products.id))
@@ -38,7 +39,7 @@ export const warehouseRouter = createRouter({
           .from(warehouseStock).leftJoin(products, eq(warehouseStock.productId, products.id)).where(where),
         db.select({
           totalSKUs:     sql<number>`count(*)`,
-          totalWeight:   sql<string>`COALESCE(SUM(${warehouseStock.currentStock}), 0)`,
+          totalWeight:   sql<string>`COALESCE(SUM(CAST(${warehouseStock.currentStock} AS DECIMAL) * CAST(COALESCE(${products.unitWeight}, '0') AS DECIMAL)), 0)`,
           lowStockCount: sql<number>`count(CASE WHEN ${warehouseStock.available} < ${products.reorderPoint} THEN 1 END)`,
         }).from(warehouseStock).leftJoin(products, eq(warehouseStock.productId, products.id)).where(eq(warehouseStock.tenantId, tenantId)),
       ]);
@@ -198,4 +199,35 @@ export const warehouseRouter = createRouter({
       };
     });
   }),
+
+  /** Create missing warehouse_stock rows for products that don't have one */
+  backfillStock: operatorQuery
+    .mutation(async ({ ctx }) => {
+      const db       = getDb();
+      const tenantId = ctx.tenant.id;
+
+      // Find products without a warehouseStock row
+      const missing = await db.execute(sql`
+        SELECT p.id
+        FROM products p
+        LEFT JOIN warehouse_stock ws ON ws.product_id = p.id AND ws.tenant_id = ${tenantId}
+        WHERE p.tenant_id = ${tenantId}
+          AND ws.id IS NULL
+      `);
+
+      const rows = (missing as any).rows ?? missing;
+      if (rows.length === 0) return { created: 0 };
+
+      await db.insert(warehouseStock).values(
+        rows.map((r: any) => ({
+          tenantId,
+          productId: Number(r.id),
+          currentStock: "0.00",
+          reserved: "0.00",
+          available: "0.00",
+        }))
+      );
+
+      return { created: rows.length };
+    }),
 });

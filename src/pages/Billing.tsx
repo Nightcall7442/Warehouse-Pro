@@ -30,10 +30,10 @@ const FONTS = {
 };
 
 const SHADOWS = {
-  sm: "0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06)",
-  md: "0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -2px rgba(0,0,0,0.05)",
-  lg: "0 10px 15px -3px rgba(0,0,0,0.06), 0 4px 6px -4px rgba(0,0,0,0.05)",
-  xl: "0 20px 25px -5px rgba(0,0,0,0.08), 0 8px 10px -6px rgba(0,0,0,0.04)",
+  sm: "0 2px 8px rgba(180,175,165,.18)",
+  md: "0 8px 24px -6px rgba(180,175,165,.25)",
+  lg: "0 14px 34px -14px rgba(180,175,165,.35)",
+  xl: "0 20px 50px -16px rgba(180,175,165,.40)",
   glow: (color: string, intensity = 0.15) =>
     `0 0 30px rgba(${color === "primary" ? "99,102,241" : color === "success" ? "16,185,129" : color === "warning" ? "245,158,11" : "239,68,68"},${intensity})`,
 };
@@ -285,7 +285,7 @@ export default function BillingPage() {
       <div style={{
         position: "relative",
         overflow: "hidden",
-        borderRadius: "20px",
+        borderRadius: "24px",
         padding: "28px",
         background: isExpired ? GRADIENTS.heroExpired : GRADIENTS.hero,
         boxShadow: isExpired
@@ -361,7 +361,7 @@ export default function BillingPage() {
 
       {/* ── Usage Section ─────────────────────────────────────────────────── */}
       <div style={{
-        borderRadius: "20px",
+        borderRadius: "24px",
         padding: "28px",
         background: GRADIENTS.card,
         boxShadow: SHADOWS.md,
@@ -408,7 +408,7 @@ export default function BillingPage() {
                 key={plan.key}
                 style={{
                   position: "relative",
-                  borderRadius: "20px",
+                  borderRadius: "24px",
                   padding: "24px",
                   display: "flex",
                   flexDirection: "column",
@@ -625,7 +625,7 @@ export default function BillingPage() {
 
       {/* ── Payment Methods ───────────────────────────────────────────────── */}
       <div style={{
-        borderRadius: "20px",
+        borderRadius: "24px",
         padding: "24px",
         background: GRADIENTS.card,
         boxShadow: SHADOWS.md,

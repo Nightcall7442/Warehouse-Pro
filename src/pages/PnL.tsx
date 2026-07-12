@@ -8,6 +8,7 @@ import {
   FileDown, FileSpreadsheet, TrendingUp, DollarSign,
   Truck, Package, ShoppingCart, Minus, ArrowUpRight, ArrowDownRight,
 } from "lucide-react";
+import { ProgressRing } from "@/components/ProgressRing";
 import {
   Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, Legend, ComposedChart, Line, ReferenceLine,
@@ -17,13 +18,13 @@ type Range = "7d" | "30d" | "90d" | "12m" | "ytd" | "custom";
 
 const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
 const COLORS = {
-  primary: "var(--color-primary)", success: "var(--color-success)",
-  warning: "var(--color-warning)", danger: "var(--color-danger)",
-  surface: "var(--color-surface)", surfaceLight: "var(--color-surface-light)",
-  textPrimary: "var(--color-text-primary)", textSecondary: "var(--color-text-secondary)",
-  textTertiary: "var(--color-text-tertiary)", border: "var(--color-border-subtle)",
+  primary: "#818cf8", success: "#4ade80",
+  warning: "#fbbf24", danger: "#f87171",
+  surface: "#ffffff", surfaceLight: "#f8f9fb",
+  textPrimary: "#111827", textSecondary: "#6b7280",
+  textTertiary: "#9ca3af", border: "#f3f4f6",
 };
-const SHADOW = "0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)";
+const SHADOW = "0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04)";
 
 function DateInput({ value, onChange, label }: { value: string; onChange: (v: string) => void; label: string }) {
   return (
@@ -54,26 +55,25 @@ function KpiCard({ label, value, delta, icon, gradient, delay }: {
   const isNegative = delta !== null && delta < 0;
   return (
     <div style={{
-      background: COLORS.surface, borderRadius: "20px", padding: "24px",
+      background: COLORS.surface, borderRadius: "20px", padding: "22px",
       boxShadow: SHADOW, position: "relative", overflow: "hidden",
-      animation: `slideUp ${0.5 + delay}s ease forwards`,
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
         <span style={{ fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: COLORS.textTertiary }}>
           {label}
         </span>
-        <div style={{ width: "44px", height: "44px", borderRadius: "12px", background: gradient, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ width: "40px", height: "40px", borderRadius: "12px", background: gradient, display: "flex", alignItems: "center", justifyContent: "center" }}>
           {icon}
         </div>
       </div>
-      <div style={{ fontFamily: F.display, fontSize: "32px", fontWeight: 700, color: COLORS.textPrimary, lineHeight: 1, letterSpacing: "-0.03em" }}>
+      <div style={{ fontFamily: F.display, fontSize: "28px", fontWeight: 700, color: COLORS.textPrimary, lineHeight: 1, letterSpacing: "-0.03em" }}>
         {value}
       </div>
       {delta !== null && (
         <div style={{
           display: "flex", alignItems: "center", gap: "4px", marginTop: "10px",
           fontSize: "12px", fontWeight: 600, fontFamily: F.body,
-          color: isPositive ? "var(--color-success)" : isNegative ? "var(--color-danger)" : COLORS.textTertiary,
+          color: isPositive ? "#4ade80" : isNegative ? "#f87171" : COLORS.textTertiary,
         }}>
           {isPositive ? <ArrowUpRight size={14} /> : isNegative ? <ArrowDownRight size={14} /> : <Minus size={14} />}
           {Math.abs(delta).toFixed(1)}%
@@ -338,7 +338,7 @@ export default function PnL() {
           value={fmt(current?.revenue ?? 0)}
           delta={deltas?.revenue ?? null}
           icon={<TrendingUp size={20} color="#fff" />}
-          gradient="linear-gradient(135deg, #16a34a, #22c47a)"
+          gradient="linear-gradient(135deg, var(--kpi-green), var(--kpi-green))"
           delay={0}
         />
         <KpiCard
@@ -346,7 +346,7 @@ export default function PnL() {
           value={fmt(current?.cogs ?? 0)}
           delta={deltas?.cogs ?? null}
           icon={<Package size={20} color="#fff" />}
-          gradient="linear-gradient(135deg, #F97316, #EA580C)"
+          gradient="linear-gradient(135deg, var(--kpi-orange), var(--kpi-orange))"
           delay={0.05}
         />
         <KpiCard
@@ -354,7 +354,7 @@ export default function PnL() {
           value={fmt(current?.grossProfit ?? 0)}
           delta={deltas?.grossProfit ?? null}
           icon={<DollarSign size={20} color="#fff" />}
-          gradient={(current?.grossProfit ?? 0) >= 0 ? "linear-gradient(135deg, #6366F1, #8B5CF6)" : "linear-gradient(135deg, #DC2626, #EF4444)"}
+          gradient={(current?.grossProfit ?? 0) >= 0 ? "linear-gradient(135deg, var(--kpi-indigo), var(--kpi-indigo))" : "linear-gradient(135deg, var(--kpi-red), var(--kpi-red))"}
           delay={0.1}
         />
         <KpiCard
@@ -362,7 +362,7 @@ export default function PnL() {
           value={fmt(current?.operatingExpenses ?? 0)}
           delta={deltas?.operatingExpenses ?? null}
           icon={<Truck size={20} color="#fff" />}
-          gradient="linear-gradient(135deg, #EF4444, #DC2626)"
+          gradient="linear-gradient(135deg, var(--kpi-red), var(--kpi-red))"
           delay={0.15}
         />
         <KpiCard
@@ -370,7 +370,7 @@ export default function PnL() {
           value={fmt(current?.netProfit ?? 0)}
           delta={deltas?.netProfit ?? null}
           icon={<ShoppingCart size={20} color="#fff" />}
-          gradient={(current?.netProfit ?? 0) >= 0 ? "linear-gradient(135deg, #10B981, #059669)" : "linear-gradient(135deg, #DC2626, #B91C1C)"}
+          gradient={(current?.netProfit ?? 0) >= 0 ? "linear-gradient(135deg, var(--kpi-teal), var(--kpi-teal))" : "linear-gradient(135deg, var(--kpi-red), var(--kpi-red))"}
           delay={0.2}
         />
       </div>
@@ -379,7 +379,7 @@ export default function PnL() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "16px" }}>
         {/* Gross Margin Ring */}
         <div style={{
-          background: COLORS.surface, borderRadius: "20px", padding: "24px",
+          background: COLORS.surface, borderRadius: "24px", padding: "24px",
           boxShadow: SHADOW, display: "flex", alignItems: "center", gap: "16px",
         }}>
           {(() => {
@@ -387,9 +387,7 @@ export default function PnL() {
             const ringColor = pct >= 20 ? "var(--color-success)" : pct >= 10 ? "var(--color-warning)" : "var(--color-danger)";
             const ringPct = Math.max(0, Math.min(100, pct));
             return (
-              <div className="progress-ring" style={{ "--ring-pct": `${ringPct}%`, "--ring-color": ringColor, "--ring-size": "80px" } as React.CSSProperties}>
-                <span className="progress-ring-label" style={{ fontSize: 16 }}>{pct.toFixed(0)}%</span>
-              </div>
+              <ProgressRing value={ringPct} color={ringColor} size={80} strokeWidth={6} label={`${pct.toFixed(0)}%`} />
             );
           })()}
           <div>
@@ -406,7 +404,7 @@ export default function PnL() {
 
         {/* Net Margin Ring */}
         <div style={{
-          background: COLORS.surface, borderRadius: "20px", padding: "24px",
+          background: COLORS.surface, borderRadius: "24px", padding: "24px",
           boxShadow: SHADOW, display: "flex", alignItems: "center", gap: "16px",
         }}>
           {(() => {
@@ -414,9 +412,7 @@ export default function PnL() {
             const ringColor = pct >= 15 ? "var(--color-success)" : pct >= 5 ? "var(--color-warning)" : "var(--color-danger)";
             const ringPct = Math.max(0, Math.min(100, pct));
             return (
-              <div className="progress-ring" style={{ "--ring-pct": `${ringPct}%`, "--ring-color": ringColor, "--ring-size": "80px" } as React.CSSProperties}>
-                <span className="progress-ring-label" style={{ fontSize: 16 }}>{pct.toFixed(0)}%</span>
-              </div>
+              <ProgressRing value={ringPct} color={ringColor} size={80} strokeWidth={6} label={`${pct.toFixed(0)}%`} />
             );
           })()}
           <div>
@@ -433,7 +429,7 @@ export default function PnL() {
 
         {/* COGS % Ring */}
         <div style={{
-          background: COLORS.surface, borderRadius: "20px", padding: "24px",
+          background: COLORS.surface, borderRadius: "24px", padding: "24px",
           boxShadow: SHADOW, display: "flex", alignItems: "center", gap: "16px",
         }}>
           {(() => {
@@ -441,9 +437,7 @@ export default function PnL() {
             const ringColor = pct <= 60 ? "var(--color-success)" : pct <= 80 ? "var(--color-warning)" : "var(--color-danger)";
             const ringPct = Math.max(0, Math.min(100, pct));
             return (
-              <div className="progress-ring" style={{ "--ring-pct": `${ringPct}%`, "--ring-color": ringColor, "--ring-size": "80px" } as React.CSSProperties}>
-                <span className="progress-ring-label" style={{ fontSize: 16 }}>{pct.toFixed(0)}%</span>
-              </div>
+              <ProgressRing value={ringPct} color={ringColor} size={80} strokeWidth={6} label={`${pct.toFixed(0)}%`} />
             );
           })()}
           <div>
@@ -460,7 +454,7 @@ export default function PnL() {
       {/* Period Comparison */}
       {data?.previous && (
         <div style={{
-          background: COLORS.surface, borderRadius: "20px", padding: "24px",
+          background: COLORS.surface, borderRadius: "24px", padding: "24px",
           boxShadow: SHADOW,
         }}>
           <h2 style={{ fontFamily: F.display, fontSize: "16px", fontWeight: 600, color: COLORS.textPrimary, margin: "0 0 16px" }}>
@@ -505,7 +499,7 @@ export default function PnL() {
 
       {/* Monthly Trend Chart */}
       {chartData.length > 0 && (
-        <div style={{ background: COLORS.surface, borderRadius: "20px", padding: "24px", boxShadow: SHADOW }}>
+        <div style={{ background: COLORS.surface, borderRadius: "24px", padding: "24px", boxShadow: SHADOW }}>
           <h2 style={{ fontFamily: F.display, fontSize: "16px", fontWeight: 600, color: COLORS.textPrimary, margin: "0 0 20px" }}>
             {lang === "uz" ? "Oylik trend" : "Месячный тренд"}
           </h2>
@@ -557,7 +551,7 @@ export default function PnL() {
       )}
 
       {/* Products with COGS */}
-      <div style={{ background: COLORS.surface, borderRadius: "20px", padding: "24px", boxShadow: SHADOW }}>
+      <div style={{ background: COLORS.surface, borderRadius: "24px", padding: "24px", boxShadow: SHADOW }}>
         <h2 style={{ fontFamily: F.display, fontSize: "16px", fontWeight: 600, color: COLORS.textPrimary, margin: "0 0 16px" }}>
           {lang === "uz" ? "Mahsulotlar bo'yicha foyda" : "Прибыль по товарам"}
         </h2>
@@ -619,7 +613,7 @@ export default function PnL() {
       </div>
 
       {/* Transport Expenses */}
-      <div style={{ background: COLORS.surface, borderRadius: "20px", padding: "24px", boxShadow: SHADOW }}>
+      <div style={{ background: COLORS.surface, borderRadius: "24px", padding: "24px", boxShadow: SHADOW }}>
         <h2 style={{ fontFamily: F.display, fontSize: "16px", fontWeight: 600, color: COLORS.textPrimary, margin: "0 0 16px" }}>
           {lang === "uz" ? "Transport xarajatlari" : "Расходы на транспорт"}
         </h2>

@@ -17,7 +17,8 @@ const PRODUCT_COLUMNS: Record<string, string> = {
   "ед. измерения": "unit", "unit": "unit", "единица": "unit",
   "вес (кг)": "unitWeight", "weight": "unitWeight", "unitweight": "unitWeight", "вес": "unitWeight",
   "штрихкод": "barcode", "barcode": "barcode", "баркод": "barcode",
-  "мин. остаток": "reorderPoint", "reorder": "reorderPoint", "reorderpoint": "reorderPoint", "остаток": "reorderPoint",
+  "мин. остаток": "reorderPoint", "reorder": "reorderPoint", "reorderpoint": "reorderPoint",
+  "остаток на складе": "initialStock", "stock": "initialStock", "количество": "initialStock", "qty": "initialStock", "кол-во": "initialStock", "остаток": "initialStock",
   "описание": "description", "description": "description",
   "фото": "photoUrl", "photo": "photoUrl", "photoUrl": "photoUrl", "фото url": "photoUrl", "image": "photoUrl", "картинка": "photoUrl",
 };
@@ -110,13 +111,13 @@ export const importRouter = createRouter({
     .input(z.object({ type: z.enum(["products", "shops"]) }))
     .query(({ input }) => {
       const headers = input.type === "products"
-        ? ["Код", "Штрихкод", "Название", "Категория", "Себестоимость (сум)", "Цена продажи (сум)", "Ед. измерения", "Вес (кг)", "Мин. остаток", "Описание", "Фото URL"]
+        ? ["Код", "Штрихкод", "Название", "Категория", "Себестоимость (сум)", "Цена продажи (сум)", "Ед. измерения", "Вес (кг)", "Мин. остаток", "Остаток на складе", "Описание", "Фото URL"]
         : ["Название", "Владелец", "Телефон", "Город", "Район", "Адрес", "Долг", "Широта", "Долгота", "Примечания"];
 
       const examples = input.type === "products"
         ? [
-            ["TOM-001", "4780123456789", "Помидоры свежие", "Овощи", "8500", "12000", "kg", "1.000", "50", "Первый сорт, свежий урожай", ""],
-            ["OGU-001", "4780123456790", "Огурцы тепличные", "Овощи", "7200", "10500", "kg", "1.000", "40", "Тепличные, хрустящие", ""],
+            ["TOM-001", "4780123456789", "Помидоры свежие", "Овощи", "8500", "12000", "kg", "1.000", "50", "100", "Первый сорт, свежий урожай", ""],
+            ["OGU-001", "4780123456790", "Огурцы тепличные", "Овощи", "7200", "10500", "kg", "1.000", "40", "80", "Тепличные, хрустящие", ""],
             ["KAP-001", "4780123456791", "Капуста белокочанная", "Овощи", "3500", "5500", "kg", "1.000", "60", "Свежая капуста", ""],
             ["MOR-001", "4780123456792", "Морковь мытая", "Овощи", "4200", "6800", "kg", "1.000", "45", "Мытая, высший сорт", ""],
             ["LUK-001", "4780123456793", "Лук репчатый", "Овощи", "2800", "4500", "kg", "1.000", "80", "Репчатый, желтый", ""],
@@ -229,7 +230,8 @@ export const importRouter = createRouter({
         const parsedRows: Array<{
           rowNum: number; name: string; code: string; barcode?: string;
           category?: string; costPrice: string; unitPrice: string; unit: string;
-          unitWeight: string; reorderPoint: string; description?: string; photoUrl?: string;
+          unitWeight: string; reorderPoint: string; initialStock: string;
+          description?: string; photoUrl?: string;
         }> = [];
 
         for (let i = 0; i < dataRows.length; i++) {
@@ -254,6 +256,7 @@ export const importRouter = createRouter({
             unit,
             unitWeight: String(Number(String(row.unitWeight ?? "0").replace(/[^\d.]/g, "")) || 0),
             reorderPoint: String(Number(row.reorderPoint ?? 10) || 10),
+            initialStock: String(Number(String(row.initialStock ?? "0").replace(/[^\d.]/g, "")) || 0),
             description: String(row.description ?? "").trim() || undefined,
             photoUrl: String(row.photoUrl ?? "").trim() || undefined,
           });
@@ -272,7 +275,8 @@ export const importRouter = createRouter({
               });
               await tx.insert(warehouseStock).values({
                 tenantId, productId: Number(r.insertId),
-                currentStock: "0.00", reserved: "0.00", available: "0.00",
+                currentStock: row.initialStock, reserved: "0.00",
+                available: row.initialStock,
               });
               success++;
             } catch (err: unknown) {

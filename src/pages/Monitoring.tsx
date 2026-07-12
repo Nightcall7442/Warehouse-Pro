@@ -25,7 +25,7 @@ const COLORS = {
   textTertiary: "var(--color-text-tertiary)", border: "var(--color-border-subtle)",
   info: "var(--color-info)",
 };
-const SHADOW = "0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)";
+const SHADOW = "0 8px 24px -6px rgba(180,175,165,.25)";
 
 // ── Keyframes ─────────────────────────────────────────────────────────────────
 const slideUpKeyframe = `
@@ -97,7 +97,7 @@ function Badge({ status, label }: { status: string; label: string }) {
   return (
     <span style={{
       display: "inline-flex", alignItems: "center", gap: "6px", padding: "4px 10px",
-      borderRadius: "20px", fontSize: "11px", fontWeight: 600, fontFamily: F.body,
+      borderRadius: "24px", fontSize: "11px", fontWeight: 600, fontFamily: F.body,
       color: s.fg, background: s.bg,
     }}>
       <Icon size={12} /> {label}
@@ -114,7 +114,7 @@ function KpiCard({ label, value, delta, sub, icon: Icon, gradient, delay }: {
   const isNegative = delta !== null && delta !== undefined && delta < 0;
   return (
     <div style={{
-      background: COLORS.surface, borderRadius: "20px", padding: "24px",
+      background: COLORS.surface, borderRadius: "24px", padding: "24px",
       boxShadow: SHADOW, position: "relative", overflow: "hidden",
       animation: `slideUp ${0.5 + delay}s ease forwards`,
     }}>
@@ -151,7 +151,7 @@ function Section({ title, icon: Icon, children, className = "", actions, delay =
 }) {
   return (
     <div style={{
-      background: COLORS.surface, borderRadius: "20px", overflow: "hidden",
+      background: COLORS.surface, borderRadius: "24px", overflow: "hidden",
       boxShadow: SHADOW, animation: `slideUp ${0.5 + delay}s ease forwards`,
     }}>
       <div style={{
@@ -208,7 +208,7 @@ function ErrorDetailModal({ errorId, onClose }: { errorId: string; onClose: () =
       <div
         style={{
           position: "relative", width: "100%", maxWidth: "640px", maxHeight: "85vh",
-          background: COLORS.surface, borderRadius: "20px", border: `1px solid ${COLORS.border}`,
+          background: COLORS.surface, borderRadius: "24px", border: `1px solid ${COLORS.border}`,
           boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)", overflow: "hidden", display: "flex", flexDirection: "column",
         }}
         onClick={(e) => e.stopPropagation()}
@@ -472,12 +472,12 @@ export default function Monitoring() {
 
       {/* KPI Row */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "16px" }}>
-        <KpiCard label="RPS" value={data?.requests.rps ?? "0.0"} delta={null} sub="запросов/сек" icon={Zap} gradient="linear-gradient(135deg, #6366F1, #8B5CF6)" delay={0} />
-        <KpiCard label="Avg" value={`${data?.requests.avgResponseTime ?? 0}мс`} delta={null} sub="среднее время" icon={Timer} gradient="linear-gradient(135deg, #22C55E, #16A34A)" delay={0.1} />
-        <KpiCard label="P95" value={`${data?.requests.p95 ?? 0}мс`} delta={null} sub="95-й перцентиль" icon={Gauge} gradient="linear-gradient(135deg, #3B82F6, #2563EB)" delay={0.2} />
-        <KpiCard label="P99" value={`${data?.requests.p99 ?? 0}мс`} delta={null} sub="99-й перцентиль" icon={Gauge} gradient="linear-gradient(135deg, #F59E0B, #D97706)" delay={0.3} />
-        <KpiCard label="Ошибки" value={data?.requests.errorRate ?? "0.0%"} delta={null} sub={`${data?.requests.windowErrors ?? 0} за мин`} icon={AlertCircle} gradient={Number(data?.requests.errorRate) > 5 ? "linear-gradient(135deg, #EF4444, #DC2626)" : "linear-gradient(135deg, #22C55E, #16A34A)"} delay={0.4} />
-        <KpiCard label="Uptime" value={data?.server.uptimeFormatted ?? "—"} delta={null} sub={data?.server.environment} icon={Clock} gradient="linear-gradient(135deg, #6366F1, #8B5CF6)" delay={0.5} />
+        <KpiCard label="RPS" value={data?.requests.rps ?? "0.0"} delta={null} sub="запросов/сек" icon={Zap} gradient="linear-gradient(135deg, var(--kpi-indigo), var(--kpi-indigo))" delay={0} />
+        <KpiCard label="Avg" value={`${data?.requests.avgResponseTime ?? 0}мс`} delta={null} sub="среднее время" icon={Timer} gradient="linear-gradient(135deg, var(--kpi-green), var(--kpi-green))" delay={0.1} />
+        <KpiCard label="P95" value={`${data?.requests.p95 ?? 0}мс`} delta={null} sub="95-й перцентиль" icon={Gauge} gradient="linear-gradient(135deg, var(--kpi-blue), var(--kpi-blue))" delay={0.2} />
+        <KpiCard label="P99" value={`${data?.requests.p99 ?? 0}мс`} delta={null} sub="99-й перцентиль" icon={Gauge} gradient="linear-gradient(135deg, var(--kpi-amber), var(--kpi-amber))" delay={0.3} />
+        <KpiCard label="Ошибки" value={data?.requests.errorRate ?? "0.0%"} delta={null} sub={`${data?.requests.windowErrors ?? 0} за мин`} icon={AlertCircle} gradient={Number(data?.requests.errorRate) > 5 ? "linear-gradient(135deg, var(--kpi-red), var(--kpi-red))" : "linear-gradient(135deg, var(--kpi-green), var(--kpi-green))"} delay={0.4} />
+        <KpiCard label="Uptime" value={data?.server.uptimeFormatted ?? "—"} delta={null} sub={data?.server.environment} icon={Clock} gradient="linear-gradient(135deg, var(--kpi-indigo), var(--kpi-indigo))" delay={0.5} />
       </div>
 
       {/* Charts */}

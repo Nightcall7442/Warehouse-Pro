@@ -23,7 +23,7 @@ const COLORS = {
   textPrimary: "var(--color-text-primary)", textSecondary: "var(--color-text-secondary)",
   textTertiary: "var(--color-text-tertiary)", border: "var(--color-border-subtle)",
 };
-const SHADOW = "0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)";
+const SHADOW = "0 8px 24px -6px rgba(180,175,165,.25)";
 
 /* ─── Status Config ─── */
 const STATUS: Record<string, { ru: string; uz: string; dot: string; bg: string; text: string; border: string }> = {
@@ -42,7 +42,7 @@ function KpiCard({ label, value, delta, icon, gradient, delay }: {
   const isNegative = delta !== null && delta < 0;
   return (
     <div style={{
-      background: COLORS.surface, borderRadius: "20px", padding: "24px",
+      background: COLORS.surface, borderRadius: "24px", padding: "24px",
       boxShadow: SHADOW, position: "relative", overflow: "hidden",
       animation: `slideUp ${0.5 + delay}s ease forwards`,
     }}>
@@ -307,7 +307,7 @@ export default function Orders() {
       ) : (
         /* ─── Desktop Table ─── */
         <div style={{
-          background: COLORS.surface, borderRadius: "20px", overflow: "hidden",
+          background: COLORS.surface, borderRadius: "24px", overflow: "hidden",
           boxShadow: SHADOW,
         }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>

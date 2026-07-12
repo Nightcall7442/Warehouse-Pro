@@ -1,4 +1,4 @@
-import { memo, useCallback, useRef, useState } from "react";
+import { memo, useCallback, useMemo, useRef, useState } from "react";
 import { useCurrency } from "@/hooks/useCurrency";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
@@ -6,10 +6,12 @@ import { notify } from "@/lib/toast";
 import { useNavigate } from "react-router";
 import {
   Search, Plus, Package, X, Upload, Camera, Loader2, Tag, Scale,
-  ArrowUpRight, ArrowDownRight, Minus, Box, AlertTriangle, BarChart3
+  ArrowUpRight, ArrowDownRight, Minus, Box, AlertTriangle, BarChart3, Trash2, CheckSquare, Square, FileDown
 } from "lucide-react";
 import { ExcelImport } from "@/components/ExcelImport";
 import { PremiumSelect } from "@/components/PremiumSelect";
+import { useConfirm } from "@/components/ConfirmDialog";
+import { exportToExcel, formatProductsForExport } from "@/lib/excel";
 
 // Premium Design Constants
 const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
@@ -20,7 +22,7 @@ const COLORS = {
   textPrimary: "var(--color-text-primary)", textSecondary: "var(--color-text-secondary)",
   textTertiary: "var(--color-text-tertiary)", border: "var(--color-border-subtle)",
 };
-const SHADOW = "0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)";
+const SHADOW = "0 8px 24px -6px rgba(180,175,165,.25)";
 
 // Premium KpiCard Component
 function KpiCard({ label, value, delta, icon, gradient, delay }: {
@@ -31,7 +33,7 @@ function KpiCard({ label, value, delta, icon, gradient, delay }: {
   const isNegative = delta !== null && delta < 0;
   return (
     <div style={{
-      background: COLORS.surface, borderRadius: "20px", padding: "24px",
+      background: COLORS.surface, borderRadius: "24px", padding: "24px",
       boxShadow: SHADOW, position: "relative", overflow: "hidden",
       animation: `slideUp ${0.5 + delay}s ease forwards`,
     }}>
@@ -118,7 +120,7 @@ function ProductForm({ onSave, onCancel, isPending, lang }: { onSave: (d: Record
   };
   return (
     <div style={{
-      background: COLORS.surface, borderRadius: "20px", padding: "24px",
+      background: COLORS.surface, borderRadius: "24px", padding: "24px",
       boxShadow: SHADOW, animation: "slideUp 0.5s ease forwards",
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
@@ -177,7 +179,7 @@ function ProductForm({ onSave, onCancel, isPending, lang }: { onSave: (d: Record
   );
 }
 
-const ProductCard = memo(function ProductCard({ p, onClick, lang, fmt }: { p: any; onClick:()=>void; lang:string; fmt: (v: string | number, opts?: Record<string, unknown>) => string }) {
+const ProductCard = memo(function ProductCard({ p, onClick, onDelete, selected, onToggleSelect, lang, fmt }: { p: any; onClick:()=>void; onDelete:(id:number)=>void; selected?:boolean; onToggleSelect?:()=>void; lang:string; fmt: (v: string | number, opts?: Record<string, unknown>) => string }) {
   const t = (ru:string,uz:string) => lang==="uz"?uz:ru;
   const low = Number(p.available??0) < Number(p.reorderPoint);
   const u = unitLabel(p.unit as string, lang);
@@ -186,18 +188,28 @@ const ProductCard = memo(function ProductCard({ p, onClick, lang, fmt }: { p: an
       style={{
         background: COLORS.surface, borderRadius: "16px", padding: "16px",
         boxShadow: SHADOW, display: "flex", alignItems: "center", gap: "16px",
-        cursor: "pointer", transition: "all 0.2s", border: "1px solid transparent",
+        cursor: "pointer", transition: "all 0.2s",
+        border: selected ? `2px solid ${COLORS.primary}` : "2px solid transparent",
       }}
       onClick={onClick}
       onMouseEnter={e => {
-        e.currentTarget.style.border = `1px solid ${COLORS.primary}`;
         e.currentTarget.style.transform = "translateY(-2px)";
       }}
       onMouseLeave={e => {
-        e.currentTarget.style.border = "1px solid transparent";
         e.currentTarget.style.transform = "translateY(0)";
       }}
     >
+      {onToggleSelect && (
+        <button
+          onClick={e => { e.stopPropagation(); onToggleSelect(); }}
+          style={{ background: "none", border: "none", cursor: "pointer", padding: 0, flexShrink: 0, display: "flex" }}
+        >
+          {selected
+            ? <CheckSquare size={20} style={{ color: COLORS.primary }} />
+            : <Square size={20} style={{ color: COLORS.textTertiary }} />
+          }
+        </button>
+      )}
       <ProductPhoto productId={p.id as number} photoUrl={p.photoUrl as string} size="lg"/>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
@@ -249,6 +261,20 @@ const ProductCard = memo(function ProductCard({ p, onClick, lang, fmt }: { p: an
           }}>
             {Number(p.available??0).toFixed(0)} {u}
           </span>
+          <button
+            onClick={e => { e.stopPropagation(); onDelete(Number(p.id)); }}
+            style={{
+              width: "28px", height: "28px", borderRadius: "8px", border: "none",
+              background: "rgba(220,38,38,0.1)", cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              transition: "all 0.15s", flexShrink: 0,
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = "rgba(220,38,38,0.2)"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "rgba(220,38,38,0.1)"; }}
+            title={t("Удалить","O'chirish")}
+          >
+            <Trash2 size={13} style={{ color: "var(--color-danger)" }} />
+          </button>
         </div>
       </div>
     </div>
@@ -263,6 +289,7 @@ export default function Products() {
   const [category,setCategory] = useState<string|undefined>(undefined);
   const [showForm,setShowForm] = useState(false);
   const [showImport,setShowImport] = useState(false);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
   const navigate             = useNavigate();
   const {data,isLoading}     = trpc.product.list.useQuery({page,pageSize:25,search:search||undefined,category}) as { data: any; isLoading: boolean };
   const {data:categories}    = trpc.product.categories.useQuery();
@@ -271,6 +298,11 @@ export default function Products() {
     onSuccess:()=>{ utils.product.list.invalidate(); setShowForm(false); notify.success("Товар добавлен"); },
     onError:(e)=>notify.error(e.message),
   });
+  const deleteMutation       = trpc.product.delete.useMutation({
+    onSuccess:()=>{ utils.product.list.invalidate(); notify.success("Товар удалён"); },
+    onError:(e)=>notify.error(e.message),
+  });
+  const { confirm, dialog }  = useConfirm();
   const t = useCallback((ru:string,uz:string) => lang==="uz"?uz:ru, [lang]);
 
   // Calculate stats for KPI cards
@@ -278,8 +310,54 @@ export default function Products() {
   const lowStockCount = data?.data?.filter((p: any) => Number(p.available ?? 0) < Number(p.reorderPoint)).length ?? 0;
   const categoryCount = categories?.length ?? 0;
 
+  const handleDelete = async (id: number, name: string) => {
+    const ok = await confirm({
+      title: t("Удалить товар?", "Mahsulot o'chirilsinmi?"),
+      message: t(`«${name}» будет удалён навсегда.`, `«${name}» doimiy o'chiriladi.`),
+      confirmText: t("Удалить", "O'chirish"),
+      danger: true,
+    });
+    if (ok) deleteMutation.mutate({ id });
+  };
+
+  const allVisibleIds = useMemo(() => (data?.data ?? []).map((p: any) => p.id as number), [data]);
+  const allSelected = allVisibleIds.length > 0 && allVisibleIds.every(id => selected.has(id));
+
+  const toggleSelect = useCallback((id: number) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback(() => {
+    if (allSelected) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(allVisibleIds));
+    }
+  }, [allSelected, allVisibleIds]);
+
+  const handleBulkDelete = async () => {
+    const count = selected.size;
+    if (count === 0) return;
+    const ok = await confirm({
+      title: t(`Удалить ${count} товаров?`, `${count} ta mahsulot o'chirilsinmi?`),
+      message: t("Данные будут удалены безвозвратно.", "Ma'lumotlar qaytarib bo'lmaydigan tarzda o'chiriladi."),
+      confirmText: t("Удалить", "O'chirish"),
+      danger: true,
+    });
+    if (ok) {
+      for (const id of selected) {
+        await deleteMutation.mutateAsync({ id });
+      }
+    }
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+      {dialog}
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
         <div>
@@ -301,6 +379,17 @@ export default function Products() {
             }}
           >
             <Upload size={14}/><span className="hidden sm:inline">{t("Импорт","Import")}</span>
+          </button>
+          <button
+            onClick={()=>data?.data && exportToExcel(formatProductsForExport(data.data), "products-export", "Товары", t("Список товаров", "Mahsulotlar ro'yxati"))}
+            style={{
+              display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
+              fontSize: "13px", fontWeight: 500, fontFamily: F.body, borderRadius: "10px",
+              border: `1px solid ${COLORS.border}`, cursor: "pointer",
+              background: COLORS.surface, color: COLORS.textSecondary,
+            }}
+          >
+            <FileDown size={14}/><span className="hidden sm:inline">Excel</span>
           </button>
           <button
             onClick={()=>setShowForm(!showForm)}
@@ -383,6 +472,48 @@ export default function Products() {
         </div>
       </div>
 
+      {/* Selection bar */}
+      {selected.size > 0 && (
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "12px 20px", borderRadius: "14px",
+          background: "color-mix(in srgb, var(--color-primary) 8%, var(--color-surface))",
+          border: "1px solid color-mix(in srgb, var(--color-primary) 20%, transparent)",
+        }}>
+          <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-primary)" }}>
+            {selected.size} {t("выбрано","tanlangan")}
+          </span>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button onClick={()=>setSelected(new Set())} className="btn-secondary text-xs py-1.5 px-3">
+              {t("Сбросить","Bekor qilish")}
+            </button>
+            <button onClick={handleBulkDelete} disabled={deleteMutation.isPending}
+              style={{
+                display: "flex", alignItems: "center", gap: "5px", padding: "6px 14px",
+                fontSize: "12px", fontWeight: 600, borderRadius: "8px",
+                border: "none", cursor: "pointer", color: "#fff",
+                background: "var(--color-danger)", opacity: deleteMutation.isPending ? 0.5 : 1,
+              }}>
+              <Trash2 size={13} />{t("Удалить","O'chirish")}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Select all */}
+      {data && data.data.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <button onClick={toggleSelectAll}
+            style={{ background: "none", border: "none", cursor: "pointer", padding: "4px", display: "flex", alignItems: "center", gap: "6px" }}>
+            {allSelected
+              ? <CheckSquare size={16} style={{ color: COLORS.primary }} />
+              : <Square size={16} style={{ color: COLORS.textTertiary }} />
+            }
+            <span style={{ fontSize: "12px", color: COLORS.textSecondary }}>{t("Выбрать все","Barchasini tanlash")}</span>
+          </button>
+        </div>
+      )}
+
       {/* Product List */}
       <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
         {isLoading ? (
@@ -394,7 +525,7 @@ export default function Products() {
           ))
         ) : data?.data.length === 0 ? (
           <div style={{
-            background: COLORS.surface, borderRadius: "20px", padding: "48px",
+            background: COLORS.surface, borderRadius: "24px", padding: "48px",
             boxShadow: SHADOW, textAlign: "center",
           }}>
             <Package size={48} style={{ color: COLORS.textTertiary, margin: "0 auto 16px" }} />
@@ -404,7 +535,12 @@ export default function Products() {
           </div>
         ) : (
           data?.data.map((p: any) => (
-            <ProductCard key={p.id} p={p} lang={lang} fmt={fmt} onClick={()=>navigate(`/products/${p.id}`)}/>
+            <ProductCard key={p.id} p={p} lang={lang} fmt={fmt}
+              onClick={()=>navigate(`/products/${p.id}`)}
+              onDelete={(id)=>handleDelete(id, String(p.name))}
+              selected={selected.has(p.id)}
+              onToggleSelect={()=>toggleSelect(p.id)}
+            />
           ))
         )}
       </div>

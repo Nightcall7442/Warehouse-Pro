@@ -40,6 +40,8 @@ export interface OrderWP {
     productExternalId: string;
     quantity: number;
     unitPrice: number;
+    unitWeight: number;
+    unit: string;
   }>;
 }
 
@@ -48,11 +50,16 @@ export function mapOrder1C(order: OrderWP) {
     Number: order.orderNumber,
     Date: to1CDate(order.createdAt),
     Контрагент_Key: order.shopExternalId,
-    Товары: order.items.map((item) => ({
-      Номенклатура_Key: item.productExternalId,
-      Количество: item.quantity,
-      Цена: normalizeMoney(item.unitPrice),
-    })),
+    Товары: order.items.map((item) => {
+      // Всегда конвертируем в кг: количество × вес 1 единицы
+      // Если unitWeight не задан — считаем что единица уже в кг (×1)
+      const quantityInKg = item.quantity * (item.unitWeight || 1);
+      return {
+        Номенклатура_Key: item.productExternalId,
+        Количество: Math.round(quantityInKg * 1000) / 1000,
+        Цена: normalizeMoney(item.unitPrice),
+      };
+    }),
   };
 }
 

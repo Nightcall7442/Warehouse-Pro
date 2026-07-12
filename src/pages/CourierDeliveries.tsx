@@ -200,6 +200,7 @@ function DeliveryCard({
     id: number;
     orderNumber: string;
     total: string;
+    totalWeightKg: string;
     shopName: string | null;
     shopAddress: string | null;
     shopCity: string | null;
@@ -229,6 +230,12 @@ function DeliveryCard({
         </p>
       )}
       <p className="font-data text-sm">{fmt(order.total)}</p>
+      {Number(order.totalWeightKg ?? 0) > 0 && (
+        <p className="text-xs text-text-secondary flex items-center gap-1">
+          <Package size={12} />
+          {Number(order.totalWeightKg).toFixed(1)} кг
+        </p>
+      )}
 
       <div className="flex gap-2">
         {order.shopAddress && (
