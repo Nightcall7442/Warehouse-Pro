@@ -165,7 +165,7 @@ function GlowCard({ children, className = "" }: { children: ReactNode; className
       <div className="absolute -inset-px rounded-[1.25rem] bg-gradient-to-br from-violet-400/0 via-violet-400/10 to-indigo-400/0 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
       <div
         className="absolute inset-0 rounded-[1.25rem] opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
-        style={{ background: `radial-gradient(400px circle at ${mousePos.x}px ${mousePos.y}px, rgba(139,92,246,0.06), transparent 50%)` }}
+        style={{ background: `radial-gradient(400px circle at ${mousePos.x}px ${mousePos.y}px, rgba(167,139,250,0.06), transparent 50%)` }}
       />
       {children}
     </div>
@@ -274,7 +274,7 @@ function MeshGradient() {
       <div
         className="absolute w-[800px] h-[800px] rounded-full blur-[180px] opacity-20"
         style={{
-          background: "radial-gradient(circle, rgba(139,92,246,0.4), rgba(99,102,241,0.2), transparent)",
+          background: "radial-gradient(circle, rgba(167,139,250,0.4), rgba(129,140,248,0.2), transparent)",
           left: `${30 + Math.sin(time) * 10}%`,
           top: `${10 + Math.cos(time * 0.7) * 8}%`,
           transform: "translate(-50%, -50%)",
@@ -390,9 +390,9 @@ function AnimatedBox() {
   }, []);
   return (
     <svg width="60" height="60" viewBox="0 0 60 60" fill="none" style={{ transform: `rotate(${rotate}deg)` }}>
-      <rect x="10" y="10" width="40" height="40" rx="8" stroke="rgba(139,92,246,0.3)" strokeWidth="1.5" fill="rgba(139,92,246,0.03)" />
-      <rect x="18" y="18" width="24" height="24" rx="4" stroke="rgba(139,92,246,0.5)" strokeWidth="1" fill="rgba(139,92,246,0.05)" />
-      <circle cx="30" cy="30" r="4" fill="rgba(139,92,246,0.6)" />
+      <rect x="10" y="10" width="40" height="40" rx="8" stroke="rgba(167,139,250,0.3)" strokeWidth="1.5" fill="rgba(167,139,250,0.03)" />
+      <rect x="18" y="18" width="24" height="24" rx="4" stroke="rgba(167,139,250,0.5)" strokeWidth="1" fill="rgba(167,139,250,0.05)" />
+      <circle cx="30" cy="30" r="4" fill="rgba(167,139,250,0.6)" />
     </svg>
   );
 }
@@ -1109,7 +1109,7 @@ export default function Landing() {
             <div className="relative rounded-3xl overflow-hidden">
               {/* Background */}
               <div className="absolute inset-0 bg-gradient-to-br from-gray-900 via-gray-900 to-violet-950" />
-              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(139,92,246,0.15),transparent_50%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(167,139,250,0.15),transparent_50%)]" />
               <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(6,182,212,0.1),transparent_50%)]" />
               {/* Decorative elements */}
               <div className="absolute top-0 right-0 w-96 h-96 bg-violet-600/10 rounded-full blur-[100px]" />
@@ -1273,7 +1273,7 @@ function DashboardPreview() {
                 className="flex-1 rounded-t transition-all duration-700 hover:opacity-100"
                 style={{
                   height: `${h}%`,
-                  background: `linear-gradient(to top, rgba(139,92,246,${i === 11 ? 0.8 : 0.2}), rgba(99,102,241,${i === 11 ? 0.5 : 0.05}))`,
+                  background: `linear-gradient(to top, rgba(167,139,250,${i === 11 ? 0.8 : 0.2}), rgba(129,140,248,${i === 11 ? 0.5 : 0.05}))`,
                 }}
               />
             ))}
@@ -1282,7 +1282,7 @@ function DashboardPreview() {
         <div className="p-4 rounded-xl bg-gradient-to-br from-gray-50/80 to-white border border-gray-200/30">
           <div className="text-[9px] text-gray-400 uppercase tracking-wider mb-3 font-semibold">{tr("Статусы", "Holatlar")}</div>
           <div className="space-y-3">
-            {[{ l: tr("Новые", "Yangi"), v: 23, c: "var(--color-primary-muted)" }, { l: tr("В работе", "Jarayonda"), v: 15, c: "var(--color-warning)" }, { l: tr("Выполнены", "Bajarildi"), v: 89, c: "var(--color-success)" }].map((s) => (
+            {[{ l: tr("Новые", "Yangi"), v: 23, c: "#c7c9f8" }, { l: tr("В работе", "Jarayonda"), v: 15, c: "#fbbf24" }, { l: tr("Выполнены", "Bajarildi"), v: 89, c: "#4ade80" }].map((s) => (
               <div key={s.l}>
                 <div className="flex justify-between text-[11px] mb-1">
                   <div className="flex items-center gap-1.5">
@@ -1316,21 +1316,21 @@ function MapPreview() {
         <path d="M0,270 L600,270" stroke="#fff" strokeWidth="3" fill="none" opacity="0.55" />
         <path d="M150,0 L150,360" stroke="#fff" strokeWidth="3" fill="none" opacity="0.55" />
         <path d="M450,0 L450,360" stroke="#fff" strokeWidth="3" fill="none" opacity="0.55" />
-        <rect x="85" y="55" width="50" height="28" rx="2" fill="var(--color-text-tertiary)" opacity="0.45" />
-        <rect x="160" y="55" width="35" height="24" rx="2" fill="var(--color-text-tertiary)" opacity="0.45" />
-        <rect x="310" y="55" width="45" height="26" rx="2" fill="var(--color-text-tertiary)" opacity="0.45" />
-        <rect x="85" y="195" width="45" height="30" rx="2" fill="var(--color-text-tertiary)" opacity="0.45" />
-        <rect x="310" y="195" width="50" height="28" rx="2" fill="var(--color-text-tertiary)" opacity="0.45" />
-        <rect x="460" y="100" width="70" height="50" rx="8" fill="var(--color-success-subtle)" opacity="0.4" />
-        <rect x="60" y="290" width="60" height="40" rx="8" fill="var(--color-success-subtle)" opacity="0.4" />
-        <ellipse cx="520" cy="290" rx="45" ry="25" fill="var(--color-info)" opacity="0.3" />
+        <rect x="85" y="55" width="50" height="28" rx="2" fill="#9ca3af" opacity="0.45" />
+        <rect x="160" y="55" width="35" height="24" rx="2" fill="#9ca3af" opacity="0.45" />
+        <rect x="310" y="55" width="45" height="26" rx="2" fill="#9ca3af" opacity="0.45" />
+        <rect x="85" y="195" width="45" height="30" rx="2" fill="#9ca3af" opacity="0.45" />
+        <rect x="310" y="195" width="50" height="28" rx="2" fill="#9ca3af" opacity="0.45" />
+        <rect x="460" y="100" width="70" height="50" rx="8" fill="rgba(74,222,128,.10)" opacity="0.4" />
+        <rect x="60" y="290" width="60" height="40" rx="8" fill="rgba(74,222,128,.10)" opacity="0.4" />
+        <ellipse cx="520" cy="290" rx="45" ry="25" fill="#60a5fa" opacity="0.3" />
       </svg>
       {/* Route */}
       <svg className="absolute inset-0 w-full h-full pointer-events-none z-10" viewBox="0 0 600 360">
         <defs>
           <linearGradient id="routeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="var(--color-primary-muted)" />
-            <stop offset="100%" stopColor="var(--color-info)" />
+            <stop offset="0%" stopColor="#c7c9f8" />
+            <stop offset="100%" stopColor="#60a5fa" />
           </linearGradient>
         </defs>
         <path d="M140,120 L180,120 L180,160 L260,160 L260,200 L320,200 L320,160 L380,160 L380,220 L320,220 L320,280 L260,280"

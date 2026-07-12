@@ -74,7 +74,7 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
   return (
     <div className="flex flex-col h-full glass-sidebar sidebar-collapse-transition">
       {/* Logo */}
-      <div className="h-[60px] flex items-center px-5 gap-3 sidebar-premium-logo" style={{ borderBottom: "1px solid var(--color-border)" }}>
+      <div className="h-[60px] flex items-center px-5 gap-3 sidebar-premium-logo" style={{ borderBottom: "1px solid #e5e7eb" }}>
         <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 gradient-primary animate-gradient" style={{ backgroundSize: "200% 200%" }}>
           <Warehouse size={16} color="#fff" />
         </div>
@@ -87,22 +87,22 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
       </div>
 
       {/* Search */}
-      <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--color-border)" }}>
+      <div className="px-4 py-3" style={{ borderBottom: "1px solid #e5e7eb" }}>
         <GlobalSearch />
       </div>
 
       {/* User info */}
-      <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--color-border)" }}>
+      <div className="px-4 py-3" style={{ borderBottom: "1px solid #e5e7eb" }}>
         <div className="flex items-center gap-2.5">
           <div
             className="avatar-premium w-9 h-9 text-xs font-bold"
-            style={{ background: "color-mix(in srgb, var(--color-primary) 12%, transparent)", color: "var(--color-primary)" }}
+            style={{ background: "rgba(129,140,248,.12)", color: "#818cf8" }}
           >
             {(user?.name ?? "U")[0].toUpperCase()}
           </div>
           <div className="min-w-0">
             <p className="text-[13px] font-semibold text-text-primary truncate leading-tight">{user?.name ?? "User"}</p>
-            <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--color-primary)" }}>{role}</span>
+            <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "#818cf8" }}>{role}</span>
           </div>
         </div>
         {user?.email && (
@@ -130,7 +130,7 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
       </nav>
 
       {/* Bottom actions */}
-      <div className="p-4 space-y-2" style={{ borderTop: "1px solid var(--color-border)" }}>
+      <div className="p-4 space-y-2" style={{ borderTop: "1px solid #e5e7eb" }}>
         {/* Notifications button */}
         <button
           onClick={() => { navigate("/notifications"); onClose?.(); }}
@@ -280,13 +280,13 @@ const BottomNav = memo(function BottomNav() {
               key={item.path}
               onClick={() => navigate(item.path)}
               className="flex-1 flex flex-col items-center justify-center gap-[3px] transition-colors relative"
-              style={{ color: isActive ? "var(--color-primary)" : "var(--color-text-secondary)" }}
+              style={{ color: isActive ? "#818cf8" : "#6b7280" }}
             >
               {/* Active pill indicator */}
               {isActive && (
                 <span
                   className="absolute top-1.5 left-1/2 -translate-x-1/2 w-5 h-[3px] rounded-full"
-                  style={{ background: "var(--color-primary)" }}
+                  style={{ background: "#818cf8" }}
                 />
               )}
               {Icon && <Icon size={22} />}

@@ -128,7 +128,7 @@ const PlanCompletion = memo(function PlanCompletion({ data, t }: { data: unknown
       {data.map((a) => {
         const agent = a as Record<string, unknown>;
         const pct = Math.min(100, Math.round(Number(agent.pct ?? 0)));
-        const color = pct >= 80 ? "var(--color-success)" : pct >= 50 ? "var(--color-warning)" : "var(--color-danger)";
+        const color = pct >= 80 ? "#4ade80" : pct >= 50 ? "#fbbf24" : "#f87171";
         return (
           <div key={String(agent.agentId)}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
@@ -151,7 +151,7 @@ const PlanCompletion = memo(function PlanCompletion({ data, t }: { data: unknown
 
 // ── Agent Card (for Agents tab) ───────────────────────────────────────────────
 const MEDALS = ["🥇", "🥈", "🥉"];
-const MEDAL_COLORS = ["var(--color-warning)", "var(--color-text-tertiary)", "var(--color-warning)"];
+const MEDAL_COLORS = ["#fbbf24", "#9ca3af", "#fbbf24"];
 
 const AgentCard = memo(function AgentCard({ agent: a, rank, fmt, days }: { agent: unknown; rank: number; fmt: (v: string | number) => string; days: number }) {
   const agent = a as Record<string, unknown>;
@@ -159,9 +159,9 @@ const AgentCard = memo(function AgentCard({ agent: a, rank, fmt, days }: { agent
   return (
     <div style={{
       display: "flex", alignItems: "center", gap: "16px", padding: "18px 20px",
-      borderRadius: "16px", background: isTop3 ? "color-mix(in srgb, var(--color-primary) 4%, var(--color-surface))" : COLORS.surface,
+      borderRadius: "16px", background: isTop3 ? "#eff6ff" : COLORS.surface,
       boxShadow: isTop3 ? "0 2px 8px rgba(0,0,0,0.06)" : "0 1px 3px rgba(0,0,0,0.03)",
-      border: isTop3 ? "1px solid color-mix(in srgb, var(--color-primary) 15%, transparent)" : "none",
+      border: isTop3 ? "1px solid rgba(129,140,248,.15)" : "none",
     }}>
       {/* Rank */}
       <div style={{
@@ -190,7 +190,7 @@ const AgentCard = memo(function AgentCard({ agent: a, rank, fmt, days }: { agent
 
       {/* Revenue */}
       <div style={{ textAlign: "right" }}>
-        <p style={{ fontFamily: F.body, fontSize: "16px", fontWeight: 700, color: "var(--color-primary)", margin: 0 }}>
+        <p style={{ fontFamily: F.body, fontSize: "16px", fontWeight: 700, color: "#818cf8", margin: 0 }}>
           {fmt(agent.revenue as string | number)}
         </p>
         <p style={{ fontSize: "11px", color: COLORS.textTertiary, margin: "2px 0 0" }}>выручка</p>
@@ -311,8 +311,8 @@ export default function Reports() {
                   <YAxis tick={{ fill: COLORS.textTertiary, fontSize: 11, fontFamily: F.body }} axisLine={false} tickLine={false} />
                   <Tooltip contentStyle={{ background: COLORS.surface, border: "none", borderRadius: 12, boxShadow: "0 4px 24px rgba(0,0,0,0.08)" }} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Line type="monotone" dataKey="visits" stroke="var(--color-primary)" strokeWidth={2.5} dot={false} name={t("Визиты", "Tashriflar")} />
-                  <Line type="monotone" dataKey="orders" stroke="var(--color-success)" strokeWidth={2.5} dot={false} name={t("Заказы", "Buyurtmalar")} />
+                  <Line type="monotone" dataKey="visits" stroke="#818cf8" strokeWidth={2.5} dot={false} name={t("Визиты", "Tashriflar")} />
+                  <Line type="monotone" dataKey="orders" stroke="#4ade80" strokeWidth={2.5} dot={false} name={t("Заказы", "Buyurtmalar")} />
                 </LineChart>
               </ResponsiveContainer>
             </ChartPanel>
@@ -329,7 +329,7 @@ export default function Reports() {
                 const totalVisited = plans.reduce((s, p) => s + Number(p.visited ?? 0), 0);
                 const totalPlanned = plans.reduce((s, p) => s + Number(p.total ?? 0), 0);
                 const pct = totalPlanned > 0 ? Math.round((totalVisited / totalPlanned) * 100) : 0;
-                const ringColor = pct >= 80 ? "var(--color-success)" : pct >= 50 ? "var(--color-warning)" : "var(--color-danger)";
+                const ringColor = pct >= 80 ? "#4ade80" : pct >= 50 ? "#fbbf24" : "#f87171";
                 return (
                   <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "20px", paddingBottom: "20px", borderBottom: `1px solid ${COLORS.border}` }}>
                     <ProgressRing value={pct} color={ringColor} label={`${pct}%`} />
@@ -361,7 +361,7 @@ export default function Reports() {
                   <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} vertical={false} />
                   <XAxis dataKey="name" tick={{ fill: COLORS.textTertiary, fontSize: 11, fontFamily: F.body }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fill: COLORS.textTertiary, fontSize: 11, fontFamily: F.body }} axisLine={false} tickLine={false} tickFormatter={v => fmt(v, true)} />
-                  <Tooltip contentStyle={{ background: COLORS.surface, border: "none", borderRadius: 12, boxShadow: "0 8px 24px -6px rgba(180,175,165,.30)" }} cursor={{ fill: COLORS.surfaceLight }} />
+                  <Tooltip contentStyle={{ background: COLORS.surface, border: "none", borderRadius: 12, boxShadow: "0 4px 12px rgba(0,0,0,.08)" }} cursor={{ fill: COLORS.surfaceLight }} />
                   <Bar dataKey="revenue" name={t("Выручка", "Tushum")} radius={[6, 6, 0, 0]} maxBarSize={48}>
                     {shopChartData.map((_, i) => {
                       const palette = ["var(--kpi-indigo)", "var(--kpi-teal)", "var(--kpi-coral)", "var(--kpi-amber)", "var(--kpi-blue)", "var(--kpi-purple)", "var(--kpi-green)"];
@@ -398,7 +398,7 @@ export default function Reports() {
                     {topProds.map((p, i) => {
                       const share = totalRevenue > 0 ? (Number(p.totalRevenue) / totalRevenue) * 100 : 0;
                       return (
-                        <tr key={i} style={{ transition: "background 0.15s" }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(99,102,241,0.02)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                        <tr key={i} style={{ transition: "background 0.15s" }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(129,140,248,0.02)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
                           <td style={tdStyle}>
                             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                               <Package size={14} style={{ color: COLORS.primary, flexShrink: 0 }} />

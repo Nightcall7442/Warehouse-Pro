@@ -13,13 +13,13 @@ import { useConfirm } from "@/components/ConfirmDialog";
 /* ── Premium Design Constants ── */
 const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
 const COLORS = {
-  primary: "var(--color-primary)", success: "var(--color-success)",
-  warning: "var(--color-warning)", danger: "var(--color-danger)",
-  surface: "var(--color-surface)", surfaceLight: "var(--color-surface-light)",
-  textPrimary: "var(--color-text-primary)", textSecondary: "var(--color-text-secondary)",
-  textTertiary: "var(--color-text-tertiary)", border: "var(--color-border-subtle)",
+  primary: "#818cf8", success: "#4ade80",
+  warning: "#fbbf24", danger: "#f87171",
+  surface: "#ffffff", surfaceLight: "#f8f9fb",
+  textPrimary: "#111827", textSecondary: "#6b7280",
+  textTertiary: "#9ca3af", border: "#f3f4f6",
 };
-const SHADOW = "0 8px 24px -6px rgba(180,175,165,.25)";
+const SHADOW = "0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04)";
 
 /* ── KpiCard Component ── */
 function KpiCard({ label, value, delta, icon, gradient, delay }: {
@@ -49,7 +49,7 @@ function KpiCard({ label, value, delta, icon, gradient, delay }: {
         <div style={{
           display: "flex", alignItems: "center", gap: "4px", marginTop: "10px",
           fontSize: "12px", fontWeight: 600, fontFamily: F.body,
-          color: isPositive ? "var(--color-success)" : isNegative ? "var(--color-danger)" : COLORS.textTertiary,
+          color: isPositive ? "#4ade80" : isNegative ? "#f87171" : COLORS.textTertiary,
         }}>
           {isPositive ? <ArrowUpRight size={14} /> : isNegative ? <ArrowDownRight size={14} /> : <Minus size={14} />}
           {Math.abs(delta).toFixed(1)}%
@@ -77,7 +77,7 @@ function ShopPhoto({ shopId, photoUrl, size="md" }: { shopId:number; photoUrl?:s
   return (
     <div className="relative group" onClick={e=>e.stopPropagation()}>
       <div className={`${dim} rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0 cursor-pointer border border-border-subtle`}
-        style={{background:"color-mix(in srgb, var(--color-primary) 8%, transparent)"}} onClick={()=>fileRef.current?.click()}>
+        style={{background:"rgba(129,140,248,.08)"}} onClick={()=>fileRef.current?.click()}>
         {upload.isPending?<Loader2 size={iconSize} className="text-primary animate-spin"/>
           :photoUrl?<img src={photoUrl} alt="" className="w-full h-full object-cover" loading="lazy"/>
           :<Store size={iconSize} className="text-primary"/>}
@@ -124,7 +124,7 @@ function ShopForm({ onSave, onCancel, isPending, lang, agents }: { onSave:(d:Sho
             width: "80px", height: "80px", borderRadius: "16px", overflow: "hidden",
             display: "flex", alignItems: "center", justifyContent: "center",
             cursor: "pointer", position: "relative", border: `1px solid ${COLORS.border}`,
-            background: "color-mix(in srgb, var(--color-primary) 8%, transparent)",
+            background: "rgba(129,140,248,.08)",
           }} onClick={()=>fileRef.current?.click()}>
             {photo?<img src={photo} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<Store size={28} style={{color:COLORS.primary}}/>}
             <div style={{
@@ -208,13 +208,13 @@ const ShopCard = memo(function ShopCard({ s, onClick, selected, onToggleSelect, 
           <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
             {hasDebt&&<span style={{
               display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "12px", fontWeight: 600,
-              padding: "2px 8px", borderRadius: "9999px", background: "color-mix(in srgb, var(--color-danger) 15%, transparent)",
-              color: "var(--color-danger)", fontFamily: F.body,
+              padding: "2px 8px", borderRadius: "9999px", background: "rgba(248,113,113,.15)",
+              color: "#f87171", fontFamily: F.body,
             }}><AlertCircle size={11}/>{fmt(s.debt,{decimals:0})}</span>}
             <span style={{
               fontSize: "10px", padding: "2px 8px", borderRadius: "9999px", fontWeight: 500,
-              background: s.status==="active" ? "color-mix(in srgb, var(--color-success) 15%, transparent)" : COLORS.surfaceLight,
-              color: s.status==="active" ? "var(--color-success)" : COLORS.textSecondary,
+              background: s.status==="active" ? "rgba(74,222,128,.15)" : COLORS.surfaceLight,
+              color: s.status==="active" ? "#4ade80" : COLORS.textSecondary,
             }}>
               {s.status==="active"?t("Актив","Aktiv"):t("Неактив","Noaktiv")}
             </span>
@@ -382,7 +382,7 @@ export default function Shops() {
           value={String(kpiStats.total)}
           delta={null}
           icon={<Store size={20} color="#fff" />}
-          gradient="linear-gradient(135deg, #6366F1, #8B5CF6)"
+          gradient="linear-gradient(135deg, #818cf8, #6366f1)"
           delay={0}
         />
         <KpiCard
@@ -398,7 +398,7 @@ export default function Shops() {
           value={String(kpiStats.debtCount)}
           delta={null}
           icon={<AlertCircle size={20} color="#fff" />}
-          gradient="linear-gradient(135deg, #F97316, #EA580C)"
+          gradient="linear-gradient(135deg, #fb923c, #f97316)"
           delay={0.1}
         />
         <KpiCard
@@ -406,7 +406,7 @@ export default function Shops() {
           value={fmt(kpiStats.totalDebt, { decimals: 0 })}
           delta={null}
           icon={<DollarSign size={20} color="#fff" />}
-          gradient="linear-gradient(135deg, #EF4444, #DC2626)"
+          gradient="linear-gradient(135deg, #f87171, #ef4444)"
           delay={0.15}
         />
       </div>
@@ -461,10 +461,10 @@ export default function Shops() {
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
           padding: "12px 20px", borderRadius: "14px",
-          background: "color-mix(in srgb, var(--color-primary) 8%, var(--color-surface))",
-          border: "1px solid color-mix(in srgb, var(--color-primary) 20%, transparent)",
+          background: "#eff6ff",
+          border: "1px solid rgba(129,140,248,.20)",
         }}>
-          <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-primary)" }}>
+          <span style={{ fontSize: "13px", fontWeight: 600, color: "#818cf8" }}>
             {selected.size} {t("выбрано","tanlangan")}
           </span>
           <div style={{ display: "flex", gap: "8px" }}>
@@ -476,7 +476,7 @@ export default function Shops() {
                 display: "flex", alignItems: "center", gap: "5px", padding: "6px 14px",
                 fontSize: "12px", fontWeight: 600, borderRadius: "8px",
                 border: "none", cursor: "pointer", color: "#fff",
-                background: "var(--color-danger)", opacity: deleteMutation.isPending ? 0.5 : 1,
+                background: "#f87171", opacity: deleteMutation.isPending ? 0.5 : 1,
               }}>
               <Trash2 size={13} />{t("Удалить","O'chirish")}
             </button>

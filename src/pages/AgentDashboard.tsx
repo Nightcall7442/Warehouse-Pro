@@ -21,9 +21,9 @@ const PLAN_STATUS: Record<string, {
   labelRu: string; labelUz: string;
   dotColor: string; textClass: string;
 }> = {
-  visited: { icon: CheckCircle2, labelRu: "Посещён",  labelUz: "Borildi",    dotColor: "var(--color-success)", textClass: "text-success" },
-  skipped: { icon: Clock,        labelRu: "Пропущен", labelUz: "O'tkazildi", dotColor: "var(--color-warning)", textClass: "text-warning" },
-  planned: { icon: Calendar,     labelRu: "Запланирован", labelUz: "Rejalashtirilgan", dotColor: "var(--color-info)", textClass: "text-info" },
+  visited: { icon: CheckCircle2, labelRu: "Посещён",  labelUz: "Borildi",    dotColor: "#4ade80", textClass: "text-success" },
+  skipped: { icon: Clock,        labelRu: "Пропущен", labelUz: "O'tkazildi", dotColor: "#fbbf24", textClass: "text-warning" },
+  planned: { icon: Calendar,     labelRu: "Запланирован", labelUz: "Rejalashtirilgan", dotColor: "#60a5fa", textClass: "text-info" },
 };
 
 // ── KPI карточка ──────────────────────────────────────────────────────────────
@@ -39,7 +39,7 @@ function AgentKpi({ label, value, icon: Icon, color = "indigo" }: {
         <p className="font-data text-2xl font-bold leading-none text-text-primary">
           {value}
         </p>
-        <p className="font-label text-[10px] tracking-wider mt-1.5" style={{ color: "var(--color-text-tertiary)" }}>
+        <p className="font-label text-[10px] tracking-wider mt-1.5" style={{ color: "#9ca3af" }}>
           {label}
         </p>
       </div>
@@ -82,7 +82,7 @@ function PlanCard({ plan, onDone, onSkip, isPending }: {
           {hasDebt && (
             <span
               className="flex items-center gap-1 text-[10px] font-data font-semibold px-1.5 py-0.5 rounded flex-shrink-0"
-              style={{ background: "var(--color-danger-subtle)", color: "var(--color-danger)" }}
+              style={{ background: "#fee2e2", color: "#f87171" }}
             >
               <AlertCircle size={9} />
               {fmt(plan.shopDebt)}
@@ -91,8 +91,8 @@ function PlanCard({ plan, onDone, onSkip, isPending }: {
         </div>
         {(plan.shopAddress || plan.shopCity) && (
           <div className="flex items-center gap-1 mt-0.5">
-            <MapPin size={10} style={{ color: "var(--color-text-tertiary)" }} className="flex-shrink-0" />
-            <p className="text-xs truncate" style={{ color: "var(--color-text-tertiary)" }}>
+            <MapPin size={10} style={{ color: "#9ca3af" }} className="flex-shrink-0" />
+            <p className="text-xs truncate" style={{ color: "#9ca3af" }}>
               {[plan.shopAddress, plan.shopCity].filter(Boolean).join(", ")}
             </p>
           </div>
@@ -106,7 +106,7 @@ function PlanCard({ plan, onDone, onSkip, isPending }: {
             onClick={onSkip}
             disabled={isPending}
             className="btn-ghost py-1 px-2 text-xs"
-            style={{ color: "var(--color-text-secondary)" }}
+            style={{ color: "#6b7280" }}
             title={t("Пропустить", "O'tkazib yuborish")}
           >
             <Clock size={13} />
@@ -151,7 +151,7 @@ export default function AgentDashboard() {
   const todaySkipped = plans?.filter(p => p.status === "skipped").length ?? 0;
   const todayPlanned = plans?.length ?? 0;
   const pct          = todayPlanned > 0 ? Math.round((todayVisited / todayPlanned) * 100) : 0;
-  const progressColor = pct >= 80 ? "var(--color-success)" : pct >= 40 ? "var(--color-warning)" : "var(--color-primary)";
+  const progressColor = pct >= 80 ? "#4ade80" : pct >= 40 ? "#fbbf24" : "#818cf8";
 
   const greeting = getGreeting(t);
 
@@ -163,13 +163,13 @@ export default function AgentDashboard() {
       {/* ── Шапка ── */}
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-xs font-medium mb-0.5" style={{ color: "var(--color-primary)" }}>
+          <p className="text-xs font-medium mb-0.5" style={{ color: "#818cf8" }}>
             {greeting}{firstName ? `, ${firstName}` : ""}
           </p>
           <h1 className="font-display text-2xl font-bold text-text-primary tracking-tight">
             {t("Мой день", "Mening kunim")}
           </h1>
-          <p className="text-xs mt-0.5 capitalize" style={{ color: "var(--color-text-tertiary)" }}>
+          <p className="text-xs mt-0.5 capitalize" style={{ color: "#9ca3af" }}>
             {format(new Date(), "EEEE, d MMMM", { locale: lang === "ru" ? dateRu : undefined })}
           </p>
         </div>
@@ -208,11 +208,11 @@ export default function AgentDashboard() {
       {/* ── Прогресс плана ── */}
       <div className="panel p-4">
         <div className="flex items-center justify-between mb-3.5">
-          <span className="font-label text-[10px] tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>
+          <span className="font-label text-[10px] tracking-wider" style={{ color: "#9ca3af" }}>
             {t("ПЛАН ВИЗИТОВ", "TASHRIF REJASI")}
           </span>
           {todaySkipped > 0 && (
-            <span className="text-xs font-data" style={{ color: "var(--color-warning)" }}>
+            <span className="text-xs font-data" style={{ color: "#fbbf24" }}>
               {todaySkipped} {t("пропущено", "o'tkazildi")}
             </span>
           )}
@@ -224,7 +224,7 @@ export default function AgentDashboard() {
             <p className="font-data text-lg font-bold text-text-primary leading-none">
               {todayVisited} / {todayPlanned}
             </p>
-            <p className="text-xs mt-1.5" style={{ color: "var(--color-text-tertiary)" }}>
+            <p className="text-xs mt-1.5" style={{ color: "#9ca3af" }}>
               {todayPlanned === 0
                 ? t("На сегодня визитов нет", "Bugun tashrif yo'q")
                 : pct === 100
@@ -264,16 +264,16 @@ export default function AgentDashboard() {
         {/* Заголовок */}
         <div
           className="px-4 py-3 flex items-center justify-between"
-          style={{ borderBottom: "1px solid var(--color-border-subtle)" }}
+          style={{ borderBottom: "1px solid #f3f4f6" }}
         >
-          <span className="font-label text-[10px] tracking-wider" style={{ color: "var(--color-primary)" }}>
+          <span className="font-label text-[10px] tracking-wider" style={{ color: "#818cf8" }}>
             {t("СЕГОДНЯШНИЕ ВИЗИТЫ", "BUGUNGI TASHRIFLAR")}
           </span>
           {todayPlanned > 0 && (
             <button
               onClick={() => navigate("/agent/plans")}
               className="flex items-center gap-1 text-xs"
-              style={{ color: "var(--color-text-tertiary)" }}
+              style={{ color: "#9ca3af" }}
             >
               {t("Все планы", "Barcha rejalar")}
               <ChevronRight size={12} />
@@ -300,12 +300,12 @@ export default function AgentDashboard() {
             <p className="text-sm text-text-secondary">
               {t("На сегодня визитов нет", "Bugun tashrif yo'q")}
             </p>
-            <p className="text-xs mt-1" style={{ color: "var(--color-text-tertiary)" }}>
+            <p className="text-xs mt-1" style={{ color: "#9ca3af" }}>
               {t("Супервайзер ещё не назначил маршрут", "Supervisor yo'l haritasini hali tayinlamadi")}
             </p>
           </div>
         ) : (
-          <div className="divide-y" style={{ borderColor: "var(--color-border-subtle)" }}>
+          <div className="divide-y" style={{ borderColor: "#f3f4f6" }}>
             {/* Сначала запланированные, потом остальные */}
             {[
               ...( plans?.filter(p => p.status === "planned") ?? []),

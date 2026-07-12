@@ -12,9 +12,9 @@ import {
 import { useNavigate } from "react-router";
 
 const STATUS_CONFIG = {
-  visited: { ru: "Посещён",         uz: "Borildi",              color: "text-success", border: "border-success", dot: "var(--color-success)" },
-  planned: { ru: "Запланирован",    uz: "Rejalashtirilgan",     color: "text-info",    border: "border-primary", dot: "var(--color-info)" },
-  skipped: { ru: "Пропущен",        uz: "O'tkazildi",           color: "text-warning", border: "border-warning", dot: "var(--color-warning)" },
+  visited: { ru: "Посещён",         uz: "Borildi",              color: "text-success", border: "border-success", dot: "#4ade80" },
+  planned: { ru: "Запланирован",    uz: "Rejalashtirilgan",     color: "text-info",    border: "border-primary", dot: "#60a5fa" },
+  skipped: { ru: "Пропущен",        uz: "O'tkazildi",           color: "text-warning", border: "border-warning", dot: "#fbbf24" },
 } as const;
 
 const STATUS_ICON = {
@@ -43,7 +43,7 @@ export default function AgentPlans() {
   const visited = plans?.filter(p => p.status === "visited").length ?? 0;
   const total   = plans?.length ?? 0;
   const pct     = total > 0 ? Math.round((visited / total) * 100) : 0;
-  const progressColor = pct === 100 ? "var(--color-success)" : pct >= 60 ? "var(--color-warning)" : "var(--color-primary)";
+  const progressColor = pct === 100 ? "#4ade80" : pct >= 60 ? "#fbbf24" : "#818cf8";
 
   return (
     <div className="space-y-4 max-w-lg mx-auto animate-fade-up">
@@ -55,7 +55,7 @@ export default function AgentPlans() {
         </h1>
         {isToday && (
           <span className="font-label text-[10px] px-2.5 py-1 rounded-full tracking-wider"
-            style={{ background: "var(--color-primary-subtle)", color: "var(--color-primary)" }}>
+            style={{ background: "#eff6ff", color: "#818cf8" }}>
             {t("СЕГОДНЯ", "BUGUN")}
           </span>
         )}
@@ -66,7 +66,7 @@ export default function AgentPlans() {
         <button
           onClick={() => setDate(d => subDays(d, 1))}
           className="w-10 h-10 flex items-center justify-center rounded-xl border transition-colors hover:bg-surface-light"
-          style={{ borderColor: "var(--color-border)" }}
+          style={{ borderColor: "#e5e7eb" }}
         >
           <ChevronLeft size={18} />
         </button>
@@ -74,14 +74,14 @@ export default function AgentPlans() {
           <p className="font-semibold text-text-primary capitalize">
             {format(date, "EEEE", { locale: lang === "ru" ? dateRu : undefined })}
           </p>
-          <p className="font-label text-[11px] tracking-wider mt-0.5" style={{ color: "var(--color-text-tertiary)" }}>
+          <p className="font-label text-[11px] tracking-wider mt-0.5" style={{ color: "#9ca3af" }}>
             {format(date, "d MMMM yyyy", { locale: lang === "ru" ? dateRu : undefined })}
           </p>
         </div>
         <button
           onClick={() => setDate(d => addDays(d, 1))}
           className="w-10 h-10 flex items-center justify-center rounded-xl border transition-colors hover:bg-surface-light"
-          style={{ borderColor: "var(--color-border)" }}
+          style={{ borderColor: "#e5e7eb" }}
         >
           <ChevronRight size={18} />
         </button>
@@ -91,7 +91,7 @@ export default function AgentPlans() {
       {total > 0 && (
         <div className="panel p-4">
           <div className="flex items-center justify-between mb-2.5">
-            <span className="font-label text-[10px] tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>
+            <span className="font-label text-[10px] tracking-wider" style={{ color: "#9ca3af" }}>
               {t("ПРОГРЕСС ДНЯ", "KUNLIK PROGRESS")}
             </span>
             <div className="flex items-center gap-2">
@@ -103,7 +103,7 @@ export default function AgentPlans() {
               </span>
             </div>
           </div>
-          <div className="h-2 rounded-full overflow-hidden" style={{ background: "var(--color-surface-light)" }}>
+          <div className="h-2 rounded-full overflow-hidden" style={{ background: "#f8f9fb" }}>
             <div
               className="h-full rounded-full transition-all duration-500"
               style={{ width: `${pct}%`, background: progressColor }}
@@ -130,7 +130,7 @@ export default function AgentPlans() {
           <p className="text-text-secondary text-sm">
             {t("На этот день визитов нет", "Bu kun uchun tashrif yo'q")}
           </p>
-          <p className="text-xs" style={{ color: "var(--color-text-tertiary)" }}>
+          <p className="text-xs" style={{ color: "#9ca3af" }}>
             {t("Супервайзер ещё не назначил маршрут", "Supervisor yo'l haritasini hali tayinlamadi")}
           </p>
         </div>
@@ -156,7 +156,7 @@ export default function AgentPlans() {
                       {/* Номер */}
                       <div
                         className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold"
-                        style={{ background: "var(--color-surface-light)", color: "var(--color-text-secondary)" }}
+                        style={{ background: "#f8f9fb", color: "#6b7280" }}
                       >
                         {idx + 1}
                       </div>
@@ -175,7 +175,7 @@ export default function AgentPlans() {
 
                         {/* Адрес */}
                         {plan.shopAddress && (
-                          <div className="flex items-center gap-1 text-xs mb-1" style={{ color: "var(--color-text-tertiary)" }}>
+                          <div className="flex items-center gap-1 text-xs mb-1" style={{ color: "#9ca3af" }}>
                             <MapPin size={11} className="flex-shrink-0" />
                             <span className="truncate">{plan.shopAddress}</span>
                           </div>
@@ -191,7 +191,7 @@ export default function AgentPlans() {
 
                         {/* Заметки */}
                         {plan.notes && (
-                          <p className="text-xs italic mt-1" style={{ color: "var(--color-text-tertiary)" }}>
+                          <p className="text-xs italic mt-1" style={{ color: "#9ca3af" }}>
                             «{plan.notes}»
                           </p>
                         )}

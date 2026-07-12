@@ -17,18 +17,18 @@ const F = {
   body: "'DM Sans', -apple-system, sans-serif",
 };
 const COLORS = {
-  primary: "var(--color-primary)",
-  success: "var(--color-success)",
-  warning: "var(--color-warning)",
-  danger: "var(--color-danger)",
-  surface: "var(--color-surface)",
-  surfaceLight: "var(--color-surface-light)",
-  textPrimary: "var(--color-text-primary)",
-  textSecondary: "var(--color-text-secondary)",
-  textTertiary: "var(--color-text-tertiary)",
-  border: "var(--color-border-subtle)",
+  primary: "#818cf8",
+  success: "#4ade80",
+  warning: "#fbbf24",
+  danger: "#f87171",
+  surface: "#ffffff",
+  surfaceLight: "#f8f9fb",
+  textPrimary: "#111827",
+  textSecondary: "#6b7280",
+  textTertiary: "#9ca3af",
+  border: "#f3f4f6",
 };
-const SHADOW = "0 8px 24px -6px rgba(180,175,165,.25)";
+const SHADOW = "0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04)";
 
 /* ── KPI Card ──────────────────────────────────────────────────────────────── */
 function KpiCard({
@@ -60,7 +60,7 @@ function KpiCard({
         <div style={{
           display: "flex", alignItems: "center", gap: "4px", marginTop: "10px",
           fontSize: "12px", fontWeight: 600, fontFamily: F.body,
-          color: isPositive ? "var(--color-success)" : isNegative ? "var(--color-danger)" : COLORS.textTertiary,
+          color: isPositive ? "#4ade80" : isNegative ? "#f87171" : COLORS.textTertiary,
         }}>
           {isPositive ? <ArrowUpRight size={14} /> : isNegative ? <ArrowDownRight size={14} /> : <Minus size={14} />}
           {Math.abs(delta).toFixed(1)}%
@@ -391,7 +391,7 @@ export default function Users() {
             value={String(stats.total)}
             delta={null}
             icon={<UsersIcon size={20} color="#fff" />}
-            gradient="linear-gradient(135deg, #6366F1, #8B5CF6)"
+            gradient="linear-gradient(135deg, #818cf8, #6366f1)"
             delay={0}
           />
           <KpiCard
@@ -407,7 +407,7 @@ export default function Users() {
             value={String(stats.inactive)}
             delta={null}
             icon={<UserX size={20} color="#fff" />}
-            gradient="linear-gradient(135deg, #EF4444, #DC2626)"
+            gradient="linear-gradient(135deg, #f87171, #ef4444)"
             delay={0.1}
           />
         </div>
@@ -482,7 +482,7 @@ export default function Users() {
                 )
                 : data?.data.map((u: any) => (
                     <tr key={u.id} style={{ transition: "background 0.15s" }}
-                      onMouseEnter={e => (e.currentTarget.style.background = "rgba(99,102,241,0.02)")}
+                      onMouseEnter={e => (e.currentTarget.style.background = "rgba(129,140,248,0.02)")}
                       onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
                       {/* Имя */}
                       <td style={tdStyle}>
@@ -491,8 +491,8 @@ export default function Users() {
                             width: "32px", height: "32px", borderRadius: "10px", flexShrink: 0,
                             display: "flex", alignItems: "center", justifyContent: "center",
                             fontSize: "12px", fontWeight: 700,
-                            background: "color-mix(in srgb, var(--color-primary) 12%, transparent)",
-                            color: "var(--color-primary)",
+                            background: "rgba(129,140,248,.12)",
+                            color: "#818cf8",
                           }}>
                             {u.name?.[0]?.toUpperCase()}
                           </div>
@@ -540,7 +540,7 @@ export default function Users() {
                               title={t("Деактивировать", "O'chirish")}
                               onClick={() => handleDeactivate(u.id, u.name)}
                               className="btn-secondary p-1.5 text-danger"
-                              style={{ borderColor: "color-mix(in srgb, var(--color-danger) 30%, transparent)" }}
+                              style={{ borderColor: "rgba(248,113,113,.30)" }}
                             >
                               <Power size={14} />
                             </button>
@@ -549,7 +549,7 @@ export default function Users() {
                               title={t("Активировать", "Faollashtirish")}
                               onClick={() => updateUser.mutate({ id: u.id, status: "active" })}
                               className="btn-secondary p-1.5 text-success"
-                              style={{ borderColor: "color-mix(in srgb, var(--color-success) 30%, transparent)" }}
+                              style={{ borderColor: "rgba(74,222,128,.30)" }}
                             >
                               <Power size={14} />
                             </button>

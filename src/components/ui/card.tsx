@@ -11,8 +11,8 @@ function Card({ className, ...props }: React.ComponentProps<"div">) {
         className
       )}
       style={{
-        background: "var(--color-surface)",
-        boxShadow: "0 8px 24px -6px rgba(180,175,165,.25)",
+        background: "#ffffff",
+        boxShadow: "0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04)",
       }}
       {...props}
     />
@@ -47,7 +47,7 @@ function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card-description"
       className={cn("text-sm", className)}
-      style={{ color: "var(--color-text-tertiary)" }}
+      style={{ color: "#9ca3af" }}
       {...props}
     />
   )

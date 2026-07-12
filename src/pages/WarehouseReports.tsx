@@ -14,7 +14,7 @@ import {
 } from "recharts";
 import { exportToExcel, exportToPDF, buildExcelSheets, buildPDFHtml, type ReportData } from "@/lib/export";
 
-const COLORS = ["var(--color-primary)", "var(--color-primary-muted)", "var(--color-primary-muted)", "var(--color-primary-muted)", "var(--color-primary-subtle)", "var(--color-primary-subtle)", "var(--color-success)", "var(--color-warning)"];
+const COLORS = ["#818cf8", "#c7c9f8", "#c7c9f8", "#c7c9f8", "#eff6ff", "#eff6ff", "#4ade80", "#fbbf24"];
 
 const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
 const THEME = {
@@ -180,7 +180,7 @@ export default function WarehouseReports() {
           <h1 className="font-display text-2xl font-bold text-text-primary tracking-tight">
             {t("Отчёты по складу", "Ombor hisobotlari")}
           </h1>
-          <p className="text-xs mt-0.5" style={{ color: "var(--color-text-secondary)" }}>
+          <p className="text-xs mt-0.5" style={{ color: "#6b7280" }}>
             {t("Аналитика остатков, движения и логистики", "Qoldiq, harakat va logistika tahlili")}
           </p>
         </div>
@@ -233,11 +233,11 @@ export default function WarehouseReports() {
           <div style={{ height: 280 }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={byCategory?.slice(0, 8)} layout="vertical" margin={{ left: 80, right: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-subtle)" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 10, fill: "var(--color-text-tertiary)" }} />
-                <YAxis dataKey="category" type="category" tick={{ fontSize: 11, fill: "var(--color-text-secondary)" }} width={75} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" horizontal={false} />
+                <XAxis type="number" tick={{ fontSize: 10, fill: "#9ca3af" }} />
+                <YAxis dataKey="category" type="category" tick={{ fontSize: 11, fill: "#6b7280" }} width={75} />
                 <Tooltip content={<ChartTooltip />} />
-                <Bar dataKey="totalValue" name={t("Стоимость", "Qiymat")} fill="var(--color-primary)" radius={[0, 4, 4, 0]} />
+                <Bar dataKey="totalValue" name={t("Стоимость", "Qiymat")} fill="#818cf8" radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -261,9 +261,9 @@ export default function WarehouseReports() {
                 <div key={d.name} className="flex items-center justify-between text-xs">
                   <div className="flex items-center gap-2">
                     <div className="w-2.5 h-2.5 rounded" style={{ background: COLORS[i % COLORS.length] }} />
-                    <span style={{ color: "var(--color-text-secondary)" }}>{d.name}</span>
+                    <span style={{ color: "#6b7280" }}>{d.name}</span>
                   </div>
-                  <span className="font-semibold" style={{ color: "var(--color-text-primary)" }}>
+                  <span className="font-semibold" style={{ color: "#111827" }}>
                     {fmt(d.value)}
                   </span>
                 </div>
@@ -278,13 +278,13 @@ export default function WarehouseReports() {
         <div style={{ height: 280 }}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={trends} margin={{ left: 0, right: 10 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-subtle)" />
-              <XAxis dataKey="date" tick={{ fontSize: 10, fill: "var(--color-text-tertiary)" }} />
-              <YAxis tick={{ fontSize: 10, fill: "var(--color-text-tertiary)" }} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+              <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#9ca3af" }} />
+              <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} />
               <Tooltip content={<ChartTooltip />} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Line type="monotone" dataKey="inQty" name={t("Приход", "Kirish")} stroke="var(--color-success)" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="outQty" name={t("Расход", "Chiqish")} stroke="var(--color-danger)" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="inQty" name={t("Приход", "Kirish")} stroke="#4ade80" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="outQty" name={t("Расход", "Chiqish")} stroke="#f87171" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -297,14 +297,14 @@ export default function WarehouseReports() {
           {arrivalData?.summary ? (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 rounded-xl" style={{ background: "var(--color-surface-light)" }}>
-                  <div className="text-[10px] font-label uppercase" style={{ color: "var(--color-text-tertiary)" }}>
+                <div className="p-3 rounded-xl" style={{ background: "#f8f9fb" }}>
+                  <div className="text-[10px] font-label uppercase" style={{ color: "#9ca3af" }}>
                     {t("Приходы", "Kirimlar")}
                   </div>
                   <div className="text-xl font-bold mt-1">{Number(arrivalData.summary.totalArrivals)}</div>
                 </div>
-                <div className="p-3 rounded-xl" style={{ background: "var(--color-surface-light)" }}>
-                  <div className="text-[10px] font-label uppercase" style={{ color: "var(--color-text-tertiary)" }}>
+                <div className="p-3 rounded-xl" style={{ background: "#f8f9fb" }}>
+                  <div className="text-[10px] font-label uppercase" style={{ color: "#9ca3af" }}>
                     {t("Единицы", "Birliklar")}
                   </div>
                   <div className="text-xl font-bold mt-1">{Number(arrivalData.summary.totalUnits ?? 0).toLocaleString("ru")}</div>
@@ -312,28 +312,28 @@ export default function WarehouseReports() {
               </div>
               <div className="space-y-2">
                 {[
-                  { label: t("Топливо", "Yoqilg'i"), value: Number(arrivalData.summary.totalFuelCost ?? 0), color: "var(--color-warning)" },
-                  { label: t("Платные дороги", "Pullik yo'llar"), value: Number(arrivalData.summary.totalTollCost ?? 0), color: "var(--color-primary)" },
-                  { label: t("Прочее", "Boshqa"), value: Number(arrivalData.summary.totalOtherCost ?? 0), color: "var(--color-text-tertiary)" },
+                  { label: t("Топливо", "Yoqilg'i"), value: Number(arrivalData.summary.totalFuelCost ?? 0), color: "#fbbf24" },
+                  { label: t("Платные дороги", "Pullik yo'llar"), value: Number(arrivalData.summary.totalTollCost ?? 0), color: "#818cf8" },
+                  { label: t("Прочее", "Boshqa"), value: Number(arrivalData.summary.totalOtherCost ?? 0), color: "#9ca3af" },
                 ].map(c => (
                   <div key={c.label} className="flex items-center justify-between text-xs">
                     <div className="flex items-center gap-2">
                       <div className="w-2.5 h-2.5 rounded" style={{ background: c.color }} />
-                      <span style={{ color: "var(--color-text-secondary)" }}>{c.label}</span>
+                      <span style={{ color: "#6b7280" }}>{c.label}</span>
                     </div>
                     <span className="font-semibold">{fmt(c.value)}</span>
                   </div>
                 ))}
               </div>
-              <div className="pt-2 border-t" style={{ borderColor: "var(--color-border-subtle)" }}>
+              <div className="pt-2 border-t" style={{ borderColor: "#f3f4f6" }}>
                 <div className="flex items-center justify-between text-sm font-semibold">
-                  <span style={{ color: "var(--color-text-primary)" }}>{t("Итого", "Jami")}</span>
+                  <span style={{ color: "#111827" }}>{t("Итого", "Jami")}</span>
                   <span>{fmt(Number(arrivalData.summary.totalExpense ?? 0))}</span>
                 </div>
               </div>
             </div>
           ) : (
-            <p className="text-xs text-center py-8" style={{ color: "var(--color-text-tertiary)" }}>
+            <p className="text-xs text-center py-8" style={{ color: "#9ca3af" }}>
               {t("Нет данных за период", "Davr uchun ma'lumot yo'q")}
             </p>
           )}
@@ -344,25 +344,25 @@ export default function WarehouseReports() {
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr style={{ borderBottom: "1px solid var(--color-border-subtle)" }}>
-                  <th className="text-left py-2 font-label" style={{ color: "var(--color-text-tertiary)" }}>#</th>
-                  <th className="text-left py-2 font-label" style={{ color: "var(--color-text-tertiary)" }}>{t("Товар", "Mahsulot")}</th>
-                  <th className="text-right py-2 font-label" style={{ color: "var(--color-text-tertiary)" }}>{t("Остаток", "Qoldiq")}</th>
-                  <th className="text-right py-2 font-label" style={{ color: "var(--color-text-tertiary)" }}>{t("Стоимость", "Qiymat")}</th>
-                  <th className="text-right py-2 font-label" style={{ color: "var(--color-text-tertiary)" }}>{t("Маржа", "Marja")}</th>
+                <tr style={{ borderBottom: "1px solid #f3f4f6" }}>
+                  <th className="text-left py-2 font-label" style={{ color: "#9ca3af" }}>#</th>
+                  <th className="text-left py-2 font-label" style={{ color: "#9ca3af" }}>{t("Товар", "Mahsulot")}</th>
+                  <th className="text-right py-2 font-label" style={{ color: "#9ca3af" }}>{t("Остаток", "Qoldiq")}</th>
+                  <th className="text-right py-2 font-label" style={{ color: "#9ca3af" }}>{t("Стоимость", "Qiymat")}</th>
+                  <th className="text-right py-2 font-label" style={{ color: "#9ca3af" }}>{t("Маржа", "Marja")}</th>
                 </tr>
               </thead>
               <tbody>
                 {topByValue?.map((p, i) => (
-                  <tr key={p.productId} style={{ borderBottom: "1px solid var(--color-border-subtle)" }}>
-                    <td className="py-2 font-data" style={{ color: "var(--color-text-tertiary)" }}>{i + 1}</td>
+                  <tr key={p.productId} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                    <td className="py-2 font-data" style={{ color: "#9ca3af" }}>{i + 1}</td>
                     <td className="py-2">
-                      <div className="font-medium" style={{ color: "var(--color-text-primary)" }}>{p.productName ?? "—"}</div>
-                      <div style={{ color: "var(--color-text-tertiary)" }}>{p.productCode ?? ""}</div>
+                      <div className="font-medium" style={{ color: "#111827" }}>{p.productName ?? "—"}</div>
+                      <div style={{ color: "#9ca3af" }}>{p.productCode ?? ""}</div>
                     </td>
                     <td className="py-2 text-right font-data">{Number(p.currentStock ?? 0).toLocaleString("ru")} {p.unit}</td>
                     <td className="py-2 text-right font-data font-semibold">{fmt(Number(p.costValue ?? 0))}</td>
-                    <td className="py-2 text-right font-data" style={{ color: Number(p.margin ?? 0) >= 0 ? "var(--color-success)" : "var(--color-danger)" }}>
+                    <td className="py-2 text-right font-data" style={{ color: Number(p.margin ?? 0) >= 0 ? "#4ade80" : "#f87171" }}>
                       {fmt(Number(p.margin ?? 0))}
                     </td>
                   </tr>
@@ -378,28 +378,28 @@ export default function WarehouseReports() {
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
-              <tr style={{ borderBottom: "1px solid var(--color-border-subtle)" }}>
-                <th className="text-left py-2 font-label" style={{ color: "var(--color-text-tertiary)" }}>{t("Товар", "Mahsulot")}</th>
-                <th className="text-right py-2 font-label" style={{ color: "var(--color-text-tertiary)" }}>{t("Остаток", "Qoldiq")}</th>
-                <th className="text-right py-2 font-label" style={{ color: "var(--color-text-tertiary)" }}>{t("Продано", "Sotilgan")}</th>
-                <th className="text-right py-2 font-label" style={{ color: "var(--color-text-tertiary)" }}>{t("Коэфф.", "Koeff.")}</th>
-                <th className="text-right py-2 font-label" style={{ color: "var(--color-text-tertiary)" }}>{t("Дней до продажи", "Sotishgacha kun")}</th>
+              <tr style={{ borderBottom: "1px solid #f3f4f6" }}>
+                <th className="text-left py-2 font-label" style={{ color: "#9ca3af" }}>{t("Товар", "Mahsulot")}</th>
+                <th className="text-right py-2 font-label" style={{ color: "#9ca3af" }}>{t("Остаток", "Qoldiq")}</th>
+                <th className="text-right py-2 font-label" style={{ color: "#9ca3af" }}>{t("Продано", "Sotilgan")}</th>
+                <th className="text-right py-2 font-label" style={{ color: "#9ca3af" }}>{t("Коэфф.", "Koeff.")}</th>
+                <th className="text-right py-2 font-label" style={{ color: "#9ca3af" }}>{t("Дней до продажи", "Sotishgacha kun")}</th>
               </tr>
             </thead>
             <tbody>
               {turnoverData?.map((p) => {
                 const rate = Number(p.turnoverRate);
-                const color = rate >= 2 ? "var(--color-success)" : rate >= 1 ? "var(--color-warning)" : "var(--color-text-secondary)";
+                const color = rate >= 2 ? "#4ade80" : rate >= 1 ? "#fbbf24" : "#6b7280";
                 return (
-                  <tr key={p.productId} style={{ borderBottom: "1px solid var(--color-border-subtle)" }}>
+                  <tr key={p.productId} style={{ borderBottom: "1px solid #f3f4f6" }}>
                     <td className="py-2">
-                      <div className="font-medium" style={{ color: "var(--color-text-primary)" }}>{p.productName ?? "—"}</div>
-                      <div style={{ color: "var(--color-text-tertiary)" }}>{p.productCode ?? ""}</div>
+                      <div className="font-medium" style={{ color: "#111827" }}>{p.productName ?? "—"}</div>
+                      <div style={{ color: "#9ca3af" }}>{p.productCode ?? ""}</div>
                     </td>
                     <td className="py-2 text-right font-data">{Number(p.currentStock ?? 0).toLocaleString("ru")}</td>
                     <td className="py-2 text-right font-data font-semibold">{Number(p.soldQty).toLocaleString("ru")}</td>
                     <td className="py-2 text-right font-data font-bold" style={{ color }}>{p.turnoverRate}x</td>
-                    <td className="py-2 text-right font-data" style={{ color: p.daysToSell < 7 ? "var(--color-danger)" : p.daysToSell < 14 ? "var(--color-warning)" : "var(--color-text-secondary)" }}>
+                    <td className="py-2 text-right font-data" style={{ color: p.daysToSell < 7 ? "#f87171" : p.daysToSell < 14 ? "#fbbf24" : "#6b7280" }}>
                       {p.daysToSell < 999 ? p.daysToSell : "—"}
                     </td>
                   </tr>

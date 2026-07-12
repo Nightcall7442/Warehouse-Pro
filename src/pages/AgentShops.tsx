@@ -60,7 +60,7 @@ function AddShopModal({ onClose }: { onClose: () => void }) {
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
       style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }}
     >
-      <div className="w-full sm:max-w-md bg-[var(--color-surface)] rounded-t-2xl sm:rounded-2xl shadow-2xl p-5 space-y-4">
+      <div className="w-full sm:max-w-md bg-[#ffffff] rounded-t-2xl sm:rounded-2xl shadow-2xl p-5 space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
           <h2 className="font-display text-lg text-text-primary">
@@ -287,7 +287,7 @@ export default function AgentShops() {
             <div className="flex items-start gap-3">
               <div
                 className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
-                style={{ background: "color-mix(in srgb, var(--color-primary) 10%, transparent)" }}
+                style={{ background: "rgba(129,140,248,.10)" }}
               >
                 <Store size={19} className="text-primary" />
               </div>
@@ -300,7 +300,7 @@ export default function AgentShops() {
                   </div>
                   {Number(shop.debt ?? 0) > 0 && (
                     <div className="flex items-center gap-1 flex-shrink-0 px-2 py-1 rounded-lg"
-                      style={{ background: "color-mix(in srgb, var(--color-danger) 10%, transparent)" }}>
+                      style={{ background: "rgba(248,113,113,.10)" }}>
                       <AlertCircle size={13} className="text-danger" />
                       <span className="text-sm font-data text-danger">{fmt(shop.debt)}</span>
                     </div>

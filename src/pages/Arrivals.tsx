@@ -14,13 +14,13 @@ import { PremiumSelect } from "@/components/PremiumSelect";
 
 const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
 const COLORS = {
-  primary: "var(--color-primary)", success: "var(--color-success)",
-  warning: "var(--color-warning)", danger: "var(--color-danger)",
-  surface: "var(--color-surface)", surfaceLight: "var(--color-surface-light)",
-  textPrimary: "var(--color-text-primary)", textSecondary: "var(--color-text-secondary)",
-  textTertiary: "var(--color-text-tertiary)", border: "var(--color-border-subtle)",
+  primary: "#818cf8", success: "#4ade80",
+  warning: "#fbbf24", danger: "#f87171",
+  surface: "#ffffff", surfaceLight: "#f8f9fb",
+  textPrimary: "#111827", textSecondary: "#6b7280",
+  textTertiary: "#9ca3af", border: "#f3f4f6",
 };
-const SHADOW = "0 8px 24px -6px rgba(180,175,165,.25)";
+const SHADOW = "0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04)";
 
 function KpiCard({ label, value, delta, icon, gradient, delay }: {
   label: string; value: string; delta: number | null;
@@ -49,7 +49,7 @@ function KpiCard({ label, value, delta, icon, gradient, delay }: {
         <div style={{
           display: "flex", alignItems: "center", gap: "4px", marginTop: "10px",
           fontSize: "12px", fontWeight: 600, fontFamily: F.body,
-          color: isPositive ? "var(--color-success)" : isNegative ? "var(--color-danger)" : COLORS.textTertiary,
+          color: isPositive ? "#4ade80" : isNegative ? "#f87171" : COLORS.textTertiary,
         }}>
           {isPositive ? <ArrowUpRight size={14} /> : isNegative ? <ArrowDownRight size={14} /> : <Minus size={14} />}
           {Math.abs(delta).toFixed(1)}%
@@ -63,9 +63,9 @@ const UNIT_LABELS: Record<string, string> = { kg: "кг", l: "л", pcs: "шт", 
 function unitLabel(unit: string | undefined): string { return UNIT_LABELS[unit ?? "pcs"] ?? "шт"; }
 
 const STATUS: Record<string, { ru: string; uz: string; color: string }> = {
-  pending:   { ru: "Ожидает", uz: "Kutilmoqda", color: "var(--color-warning)" },
-  unloading: { ru: "Разгрузка", uz: "Tushirilmoqda", color: "var(--color-info)" },
-  completed: { ru: "Завершён", uz: "Yakunlandi", color: "var(--color-success)" },
+  pending:   { ru: "Ожидает", uz: "Kutilmoqda", color: "#fbbf24" },
+  unloading: { ru: "Разгрузка", uz: "Tushirilmoqda", color: "#60a5fa" },
+  completed: { ru: "Завершён", uz: "Yakunlandi", color: "#4ade80" },
 };
 
 const StatusBadge = memo(function StatusBadge({ status, lang }: { status: string; lang: "ru" | "uz" }) {
@@ -177,7 +177,7 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
                 </div>
               ))}
             </div>
-            <div className="flex items-center justify-between px-4 py-3 rounded-xl" style={{ background: "var(--color-primary-subtle)" }}>
+            <div className="flex items-center justify-between px-4 py-3 rounded-xl" style={{ background: "#eff6ff" }}>
               <span className="text-sm text-text-secondary font-medium">{t("Итого расходов:", "Jami xarajatlar:")}</span>
               <span className="text-lg font-bold text-primary font-data">{fmt(totalExpense.toFixed(0))}</span>
             </div>
@@ -194,7 +194,7 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
             </div>
             <div className="space-y-3">
               {items.map((item, i) => (
-                <div key={i} className="panel-flat p-4 space-y-3" style={{ border: "1px solid var(--color-border-subtle)", borderRadius: "16px" }}>
+                <div key={i} className="panel-flat p-4 space-y-3" style={{ border: "1px solid #f3f4f6", borderRadius: "16px" }}>
                   <PremiumSelect value={String(item.productId)} onChange={v => updateItem(i, "productId", Number(v))}
                     options={[{ value: "0", label: t("Выберите товар…", "Mahsulot tanlang…") }, ...(products?.data ?? []).map((p: any) => ({ value: String(p.id), label: `${p.name} · ${fmt(p.unitPrice)}/${unitLabel(p.unit)}` }))]}
                     width="100%" />
@@ -216,7 +216,7 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
                     </div>
                     <div className="flex justify-end">
                       {items.length > 1 && (
-                        <button onClick={() => removeItem(i)} className="w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:bg-red-50" style={{ border: "none", background: "transparent", color: "var(--color-danger)", cursor: "pointer" }}>
+                        <button onClick={() => removeItem(i)} className="w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:bg-red-50" style={{ border: "none", background: "transparent", color: "#f87171", cursor: "pointer" }}>
                           <X size={14} />
                         </button>
                       )}
@@ -225,7 +225,7 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
                 </div>
               ))}
             </div>
-            <button onClick={addItem} className="mt-3 w-full py-3 rounded-xl border-2 border-dashed flex items-center justify-center gap-2 text-sm font-medium transition-all hover:border-primary hover:text-primary hover:bg-primary/5" style={{ borderColor: "var(--color-border-strong)", color: "var(--color-text-secondary)", background: "transparent", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
+            <button onClick={addItem} className="mt-3 w-full py-3 rounded-xl border-2 border-dashed flex items-center justify-center gap-2 text-sm font-medium transition-all hover:border-primary hover:text-primary hover:bg-primary/5" style={{ borderColor: "#d1d5db", color: "#6b7280", background: "transparent", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
               <Plus size={16} /> {t("Добавить товар", "Mahsulot qo'shish")}
             </button>
           </div>
@@ -387,7 +387,7 @@ export default function Arrivals() {
             fontSize: "13px", fontWeight: 600, fontFamily: F.body, borderRadius: "10px",
             border: "none", cursor: "pointer", color: "#fff",
             background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
-            boxShadow: "0 4px 16px rgba(99,102,241,0.3)",
+            boxShadow: "0 4px 16px rgba(129,140,248,0.3)",
           }}>
             <Plus size={15} /> {t("Новый приход", "Yangi kelish")}
           </button>
@@ -401,7 +401,7 @@ export default function Arrivals() {
           value={String(kpis.total)}
           delta={null}
           icon={<Package size={20} color="#fff" />}
-          gradient="linear-gradient(135deg, #6366F1, #8B5CF6)"
+          gradient="linear-gradient(135deg, #818cf8, #6366f1)"
           delay={0}
         />
         <KpiCard
@@ -409,7 +409,7 @@ export default function Arrivals() {
           value={fmt(kpis.totalExpenses)}
           delta={null}
           icon={<Truck size={20} color="#fff" />}
-          gradient="linear-gradient(135deg, #F97316, #EA580C)"
+          gradient="linear-gradient(135deg, #fb923c, #f97316)"
           delay={0.05}
         />
         <KpiCard
@@ -425,7 +425,7 @@ export default function Arrivals() {
           value={String(kpis.pending)}
           delta={null}
           icon={<Clock size={20} color="#fff" />}
-          gradient="linear-gradient(135deg, #F59E0B, #D97706)"
+          gradient="linear-gradient(135deg, #fbbf24, #f59e0b)"
           delay={0.15}
         />
       </div>
@@ -461,7 +461,7 @@ export default function Arrivals() {
             )) : arrivals.length === 0 ? (
               <tr><td colSpan={6} style={{ textAlign: "center", padding: "48px 16px", color: COLORS.textTertiary, fontSize: "14px" }}>{t("Нет приходов", "Kelishlar yo'q")}</td></tr>
             ) : arrivals.map((a: any) => (
-              <tr key={a.id} style={{ transition: "background 0.15s" }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(99,102,241,0.02)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+              <tr key={a.id} style={{ transition: "background 0.15s" }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(129,140,248,0.02)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
                 <td style={{ ...tdStyle, fontWeight: 500 }}>{a.arrivalNumber}</td>
                 <td style={{ ...tdStyle, color: COLORS.textSecondary }}>{a.arrivalDate ? format(new Date(a.arrivalDate), "dd.MM.yyyy") : "—"}</td>
                 <td style={{ ...tdStyle, color: COLORS.textSecondary }}>{a.truckId ?? "—"}</td>
@@ -470,7 +470,7 @@ export default function Arrivals() {
                 <td style={{ borderBottom: `1px solid ${COLORS.border}` }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <StatusBadge status={a.status ?? "pending"} lang={lang as "ru" | "uz"} />
-                    {a.status === "pending" && <button onClick={() => updateStatus.mutate({ id: a.id, status: "unloading" })} style={{ padding: "6px 12px", borderRadius: "8px", fontSize: "11px", fontWeight: 600, fontFamily: F.body, color: COLORS.primary, background: "rgba(99,102,241,0.08)", border: "none", cursor: "pointer" }}>{t("Разгрузка", "Tushirish")}</button>}
+                    {a.status === "pending" && <button onClick={() => updateStatus.mutate({ id: a.id, status: "unloading" })} style={{ padding: "6px 12px", borderRadius: "8px", fontSize: "11px", fontWeight: 600, fontFamily: F.body, color: COLORS.primary, background: "rgba(129,140,248,0.08)", border: "none", cursor: "pointer" }}>{t("Разгрузка", "Tushirish")}</button>}
                     {a.status === "unloading" && <button onClick={() => updateStatus.mutate({ id: a.id, status: "completed" })} style={{ padding: "6px 12px", borderRadius: "8px", fontSize: "11px", fontWeight: 600, fontFamily: F.body, color: "#fff", background: "linear-gradient(135deg, #6366f1, #8b5cf6)", border: "none", cursor: "pointer" }}>{t("Завершить", "Yakunlash")}</button>}
                   </div>
                 </td>
@@ -480,7 +480,7 @@ export default function Arrivals() {
         </table>
         {/* Receipt rows */}
         {!isLoading && (data?.data ?? []).map((a: any) => (
-          <div key={`r-${a.id}`} style={{ borderTop: "1px solid var(--color-border-subtle)" }}>
+          <div key={`r-${a.id}`} style={{ borderTop: "1px solid #f3f4f6" }}>
             <ArrivalReceipt arrival={a} />
           </div>
         ))}

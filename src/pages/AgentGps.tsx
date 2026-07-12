@@ -96,7 +96,7 @@ export default function AgentGps() {
           <div className="space-y-3">
             <div
               className="w-20 h-20 rounded-full flex items-center justify-center mx-auto"
-              style={{ background: "var(--color-surface-light)" }}
+              style={{ background: "#f8f9fb" }}
             >
               <MapPin size={32} className="text-text-secondary" />
             </div>
@@ -113,7 +113,7 @@ export default function AgentGps() {
           <div className="space-y-3">
             <div
               className="w-20 h-20 rounded-full flex items-center justify-center mx-auto animate-pulse"
-              style={{ background: "color-mix(in srgb, var(--color-primary) 10%, transparent)" }}
+              style={{ background: "rgba(129,140,248,.10)" }}
             >
               <Loader2 size={32} className="text-primary animate-spin" />
             </div>
@@ -127,18 +127,18 @@ export default function AgentGps() {
           <div className="space-y-4">
             <div
               className="w-20 h-20 rounded-full flex items-center justify-center mx-auto"
-              style={{ background: "var(--color-success-subtle)" }}
+              style={{ background: "rgba(74,222,128,.10)" }}
             >
               <CheckCircle2 size={32} className="text-success" />
             </div>
             <div>
-              <p className="font-label text-[10px] tracking-wider mb-2" style={{ color: "var(--color-text-tertiary)" }}>
+              <p className="font-label text-[10px] tracking-wider mb-2" style={{ color: "#9ca3af" }}>
                 {t("КООРДИНАТЫ", "KOORDINATALAR")}
               </p>
               <p className="font-data text-text-primary text-sm">
                 {coords.lat.toFixed(6)}, {coords.lng.toFixed(6)}
               </p>
-              <p className="text-xs mt-1" style={{ color: "var(--color-text-tertiary)" }}>
+              <p className="text-xs mt-1" style={{ color: "#9ca3af" }}>
                 {t("Точность:", "Aniqlik:")} ±{Math.round(coords.accuracy)} м
               </p>
             </div>
@@ -148,7 +148,7 @@ export default function AgentGps() {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 text-sm font-medium"
-                style={{ color: "var(--color-primary)" }}
+                style={{ color: "#818cf8" }}
               >
                 <Navigation size={14} />
                 {t("Открыть на карте", "Xaritada ochish")}
@@ -161,7 +161,7 @@ export default function AgentGps() {
           <div className="space-y-3">
             <div
               className="w-20 h-20 rounded-full flex items-center justify-center mx-auto"
-              style={{ background: "var(--color-danger-subtle)" }}
+              style={{ background: "#fee2e2" }}
             >
               <AlertCircle size={32} className="text-danger" />
             </div>
@@ -187,14 +187,14 @@ export default function AgentGps() {
           <p className="font-medium text-text-primary text-sm">
             {t("Авто-трекинг", "Avto-kuzatish")}
           </p>
-          <p className="text-xs mt-0.5" style={{ color: "var(--color-text-tertiary)" }}>
+          <p className="text-xs mt-0.5" style={{ color: "#9ca3af" }}>
             {t("Отправлять местоположение каждые 2 минуты", "Har 2 daqiqada joylashuv yuborish")}
           </p>
         </div>
         <button
           onClick={() => setAutoTrack(v => !v)}
           className="w-12 h-6 rounded-full relative transition-colors flex-shrink-0"
-          style={{ background: autoTrack ? "var(--color-primary)" : "var(--color-surface-light)", border: autoTrack ? "none" : "1px solid var(--color-border)" }}
+          style={{ background: autoTrack ? "#818cf8" : "#f8f9fb", border: autoTrack ? "none" : "1px solid #e5e7eb" }}
         >
           <span
             className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform"
@@ -207,7 +207,7 @@ export default function AgentGps() {
       {autoTrack && (
         <div
           className="flex items-center gap-2 px-4 py-3 rounded-xl"
-          style={{ background: "var(--color-success-subtle)", border: "1px solid color-mix(in srgb, var(--color-success) 25%, transparent)" }}
+          style={{ background: "rgba(74,222,128,.10)", border: "1px solid rgba(74,222,128,.25)" }}
         >
           <Radio size={14} className="text-success animate-pulse flex-shrink-0" />
           <p className="text-sm text-success">
@@ -223,7 +223,7 @@ export default function AgentGps() {
 
       {/* Подтверждение отправки */}
       {lastSent && !autoTrack && (
-        <p className="text-xs text-center" style={{ color: "var(--color-text-tertiary)" }}>
+        <p className="text-xs text-center" style={{ color: "#9ca3af" }}>
           ✓ {t("Местоположение отправлено в", "Joylashuv yuborildi")} {format(lastSent, "HH:mm:ss")}
         </p>
       )}

@@ -151,7 +151,7 @@ export default function Dashboard() {
             fontSize: "13px", fontWeight: 600, fontFamily: "'DM Sans', sans-serif",
             borderRadius: "12px", border: "none", cursor: "pointer",
             background: "linear-gradient(135deg, #818cf8, #6366f1)",
-            color: "#fff", boxShadow: "0 2px 8px rgba(99,102,241,.25)",
+            color: "#fff", boxShadow: "0 2px 8px rgba(129,140,248,.25)",
             transition: "all 0.2s ease",
           }}
         >

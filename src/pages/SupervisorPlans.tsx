@@ -42,7 +42,7 @@ function CreatePlanForm({ date, onDone, lang }: { date: string; onDone: () => vo
   });
 
   return (
-    <div className="panel p-5 space-y-4" style={{ borderColor: "color-mix(in srgb, var(--color-primary) 30%, transparent)" }}>
+    <div className="panel p-5 space-y-4" style={{ borderColor: "rgba(129,140,248,.30)" }}>
       <div className="flex items-center justify-between">
         <h3 className="font-display text-sm font-semibold text-text-primary">
           {t("Новый план визита", "Yangi tashrif rejasi")} — {format(new Date(date), "dd MMMM yyyy", { locale: lang === "ru" ? dateRu : undefined })}
@@ -118,7 +118,7 @@ export default function SupervisorPlans() {
   const visited = plans?.filter(p => p.status === "visited").length ?? 0;
   const total   = plans?.length ?? 0;
   const pct     = total > 0 ? Math.round((visited / total) * 100) : 0;
-  const progressColor = pct === 100 ? "var(--color-success)" : pct >= 60 ? "var(--color-warning)" : "var(--color-primary)";
+  const progressColor = pct === 100 ? "#4ade80" : pct >= 60 ? "#fbbf24" : "#818cf8";
 
   return (
     <div className="space-y-4 animate-fade-up">
@@ -131,7 +131,7 @@ export default function SupervisorPlans() {
             {t("Планы визитов", "Tashrif rejalari")}
           </h1>
           {isToday && (
-            <p className="text-xs mt-0.5" style={{ color: "var(--color-primary)" }}>
+            <p className="text-xs mt-0.5" style={{ color: "#818cf8" }}>
               {t("Сегодня", "Bugun")}
             </p>
           )}
@@ -146,20 +146,20 @@ export default function SupervisorPlans() {
       <div className="flex items-center gap-3">
         <button onClick={() => setDate(d => subDays(d, 1))}
           className="w-10 h-10 flex items-center justify-center rounded-xl border hover:bg-surface-light transition-colors"
-          style={{ borderColor: "var(--color-border)" }}>
+          style={{ borderColor: "#e5e7eb" }}>
           <ChevronLeft size={18} />
         </button>
         <div className="flex-1 panel p-3 text-center">
           <p className="font-semibold text-text-primary capitalize">
             {format(date, "EEEE", { locale: lang === "ru" ? dateRu : undefined })}
           </p>
-          <p className="font-label text-[11px] tracking-wider mt-0.5" style={{ color: "var(--color-text-tertiary)" }}>
+          <p className="font-label text-[11px] tracking-wider mt-0.5" style={{ color: "#9ca3af" }}>
             {format(date, "d MMMM yyyy", { locale: lang === "ru" ? dateRu : undefined })}
           </p>
         </div>
         <button onClick={() => setDate(d => addDays(d, 1))}
           className="w-10 h-10 flex items-center justify-center rounded-xl border hover:bg-surface-light transition-colors"
-          style={{ borderColor: "var(--color-border)" }}>
+          style={{ borderColor: "#e5e7eb" }}>
           <ChevronRight size={18} />
         </button>
       </div>
@@ -173,10 +173,10 @@ export default function SupervisorPlans() {
 
         {total > 0 && (
           <div className="flex items-center gap-2 ml-auto">
-            <span className="text-sm font-data" style={{ color: "var(--color-text-secondary)" }}>
+            <span className="text-sm font-data" style={{ color: "#6b7280" }}>
               {visited}/{total}
             </span>
-            <div className="w-28 h-2 rounded-full overflow-hidden" style={{ background: "var(--color-surface-light)" }}>
+            <div className="w-28 h-2 rounded-full overflow-hidden" style={{ background: "#f8f9fb" }}>
               <div className="h-full rounded-full transition-all duration-500"
                 style={{ width: `${pct}%`, background: progressColor }} />
             </div>
@@ -268,7 +268,7 @@ export default function SupervisorPlans() {
                               onClick={() => updatePlan.mutate({ planId: plan.id, status: "skipped" })}
                               disabled={updatePlan.isPending}
                               className="btn-secondary py-1 px-2 text-xs flex items-center gap-1 text-warning"
-                              style={{ borderColor: "color-mix(in srgb, var(--color-warning) 30%, transparent)" }}
+                              style={{ borderColor: "color-mix(in srgb, #fbbf24 30%, transparent)" }}
                             >
                               <Clock size={12} />
                               {t("Пропустить", "O'tkazish")}

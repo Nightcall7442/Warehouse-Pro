@@ -110,7 +110,7 @@ function ChartTooltip({ active, payload, label, fmt }: {
       {payload.map((p) => (
         <div key={p.dataKey} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "16px", marginTop: "4px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: p.fill ?? p.stroke ?? "var(--color-primary)" }} />
+            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: p.fill ?? p.stroke ?? "#818cf8" }} />
             <span style={{ fontSize: "12px", color: COLORS.textSecondary }}>{p.name}</span>
           </div>
           <span style={{ fontSize: "13px", fontWeight: 600, color: COLORS.textPrimary, fontFamily: F.display }}>
@@ -384,7 +384,7 @@ export default function PnL() {
         }}>
           {(() => {
             const pct = current?.grossMarginPct ?? 0;
-            const ringColor = pct >= 20 ? "var(--color-success)" : pct >= 10 ? "var(--color-warning)" : "var(--color-danger)";
+            const ringColor = pct >= 20 ? "#4ade80" : pct >= 10 ? "#fbbf24" : "#f87171";
             const ringPct = Math.max(0, Math.min(100, pct));
             return (
               <ProgressRing value={ringPct} color={ringColor} size={80} strokeWidth={6} label={`${pct.toFixed(0)}%`} />
@@ -395,7 +395,7 @@ export default function PnL() {
               {lang === "uz" ? "YALPI MARJA" : "ВАЛОВАЯ МАРЖА"}
             </div>
             {deltas?.grossMarginPct !== null && deltas?.grossMarginPct !== undefined && (
-              <p style={{ fontSize: "11px", color: deltas.grossMarginPct >= 0 ? "var(--color-success)" : "var(--color-danger)", margin: "4px 0 0", fontWeight: 600 }}>
+              <p style={{ fontSize: "11px", color: deltas.grossMarginPct >= 0 ? "#4ade80" : "#f87171", margin: "4px 0 0", fontWeight: 600 }}>
                 {deltas.grossMarginPct >= 0 ? "+" : ""}{deltas.grossMarginPct.toFixed(1)}pp
               </p>
             )}
@@ -409,7 +409,7 @@ export default function PnL() {
         }}>
           {(() => {
             const pct = current?.netMarginPct ?? 0;
-            const ringColor = pct >= 15 ? "var(--color-success)" : pct >= 5 ? "var(--color-warning)" : "var(--color-danger)";
+            const ringColor = pct >= 15 ? "#4ade80" : pct >= 5 ? "#fbbf24" : "#f87171";
             const ringPct = Math.max(0, Math.min(100, pct));
             return (
               <ProgressRing value={ringPct} color={ringColor} size={80} strokeWidth={6} label={`${pct.toFixed(0)}%`} />
@@ -420,7 +420,7 @@ export default function PnL() {
               {lang === "uz" ? "TOZA MARJA" : "ЧИСТАЯ МАРЖА"}
             </div>
             {deltas?.netMarginPct !== null && deltas?.netMarginPct !== undefined && (
-              <p style={{ fontSize: "11px", color: deltas.netMarginPct >= 0 ? "var(--color-success)" : "var(--color-danger)", margin: "4px 0 0", fontWeight: 600 }}>
+              <p style={{ fontSize: "11px", color: deltas.netMarginPct >= 0 ? "#4ade80" : "#f87171", margin: "4px 0 0", fontWeight: 600 }}>
                 {deltas.netMarginPct >= 0 ? "+" : ""}{deltas.netMarginPct.toFixed(1)}pp
               </p>
             )}
@@ -434,7 +434,7 @@ export default function PnL() {
         }}>
           {(() => {
             const pct = (current?.revenue ?? 0) > 0 ? ((current?.cogs ?? 0) / (current?.revenue ?? 1)) * 100 : 0;
-            const ringColor = pct <= 60 ? "var(--color-success)" : pct <= 80 ? "var(--color-warning)" : "var(--color-danger)";
+            const ringColor = pct <= 60 ? "#4ade80" : pct <= 80 ? "#fbbf24" : "#f87171";
             const ringPct = Math.max(0, Math.min(100, pct));
             return (
               <ProgressRing value={ringPct} color={ringColor} size={80} strokeWidth={6} label={`${pct.toFixed(0)}%`} />
@@ -482,7 +482,7 @@ export default function PnL() {
                   {item.delta !== null && item.delta !== undefined && (
                     <span style={{
                       fontSize: "12px", fontWeight: 600,
-                      color: item.delta >= 0 ? "var(--color-success)" : "var(--color-danger)",
+                      color: item.delta >= 0 ? "#4ade80" : "#f87171",
                     }}>
                       {item.delta >= 0 ? "+" : ""}{item.delta.toFixed(1)}%
                     </span>
@@ -525,23 +525,23 @@ export default function PnL() {
                   iconSize={8}
                   wrapperStyle={{ fontSize: "12px", fontFamily: F.body, paddingTop: "12px" }}
                 />
-                <Bar dataKey="revenue" name={t("Выручка", "Tushum")} fill="var(--color-primary)" radius={[4, 4, 0, 0]} opacity={0.85} />
-                <Bar dataKey="cogs" name="COGS" fill="var(--color-warning)" radius={[4, 4, 0, 0]} opacity={0.85} />
+                <Bar dataKey="revenue" name={t("Выручка", "Tushum")} fill="#818cf8" radius={[4, 4, 0, 0]} opacity={0.85} />
+                <Bar dataKey="cogs" name="COGS" fill="#fbbf24" radius={[4, 4, 0, 0]} opacity={0.85} />
                 <Line
                   dataKey="grossProfit"
                   name={t("Вал. прибыль", "Yalpi foyda")}
-                  stroke="var(--color-success)"
+                  stroke="#4ade80"
                   strokeWidth={2.5}
-                  dot={{ r: 4, fill: "var(--color-success)", stroke: COLORS.surface, strokeWidth: 2 }}
+                  dot={{ r: 4, fill: "#4ade80", stroke: COLORS.surface, strokeWidth: 2 }}
                   activeDot={{ r: 6 }}
                 />
                 <Line
                   dataKey="netProfit"
                   name={t("Чист. прибыль", "Toza foyda")}
-                  stroke="var(--color-primary-muted)"
+                  stroke="#c7c9f8"
                   strokeWidth={2}
                   strokeDasharray="5 5"
-                  dot={{ r: 3, fill: "var(--color-primary-muted)", stroke: COLORS.surface, strokeWidth: 2 }}
+                  dot={{ r: 3, fill: "#c7c9f8", stroke: COLORS.surface, strokeWidth: 2 }}
                 />
                 <ReferenceLine y={0} stroke={COLORS.border} strokeDasharray="3 3" />
               </ComposedChart>
@@ -580,7 +580,7 @@ export default function PnL() {
                   const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
                   return (
                     <tr key={i} style={{ transition: "background 0.15s" }}
-                      onMouseEnter={e => (e.currentTarget.style.background = "rgba(99,102,241,0.02)")}
+                      onMouseEnter={e => (e.currentTarget.style.background = "rgba(129,140,248,0.02)")}
                       onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
                       <td style={tdStyle}>
                         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
@@ -590,15 +590,15 @@ export default function PnL() {
                       </td>
                       <td style={{ ...tdStyle, color: COLORS.textSecondary }}>{Number(p.totalQty).toFixed(0)} кг</td>
                       <td style={{ ...tdStyle, textAlign: "right", fontWeight: 600 }}>{fmt(revenue.toFixed(0))}</td>
-                      <td style={{ ...tdStyle, textAlign: "right", color: "var(--color-danger)" }}>{fmt(cost.toFixed(0))}</td>
-                      <td style={{ ...tdStyle, textAlign: "right", fontWeight: 700, color: profit >= 0 ? "var(--color-success)" : "var(--color-danger)" }}>
+                      <td style={{ ...tdStyle, textAlign: "right", color: "#f87171" }}>{fmt(cost.toFixed(0))}</td>
+                      <td style={{ ...tdStyle, textAlign: "right", fontWeight: 700, color: profit >= 0 ? "#4ade80" : "#f87171" }}>
                         {fmt(profit.toFixed(0))}
                       </td>
                       <td style={{ ...tdStyle, textAlign: "right" }}>
                         <span style={{
                           display: "inline-block", padding: "2px 8px", borderRadius: "6px", fontSize: "12px", fontWeight: 600,
-                          background: margin >= 20 ? "rgba(22,163,74,0.1)" : margin >= 10 ? "rgba(217,119,6,0.1)" : "rgba(220,38,38,0.1)",
-                          color: margin >= 20 ? "var(--color-success)" : margin >= 10 ? "var(--color-warning)" : "var(--color-danger)",
+                          background: margin >= 20 ? "rgba(74,222,128,0.1)" : margin >= 10 ? "rgba(251,191,36,0.1)" : "rgba(248,113,113,0.1)",
+                          color: margin >= 20 ? "#4ade80" : margin >= 10 ? "#fbbf24" : "#f87171",
                         }}>
                           {margin.toFixed(0)}%
                         </span>
@@ -640,7 +640,7 @@ export default function PnL() {
                   .slice(0, 20)
                   .map(a => (
                     <tr key={a.id} style={{ transition: "background 0.15s" }}
-                      onMouseEnter={e => (e.currentTarget.style.background = "rgba(99,102,241,0.02)")}
+                      onMouseEnter={e => (e.currentTarget.style.background = "rgba(129,140,248,0.02)")}
                       onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
                       <td style={{ ...tdStyle, fontWeight: 500 }}>{a.arrivalNumber}</td>
                       <td style={{ ...tdStyle, color: COLORS.textSecondary }}>
@@ -649,7 +649,7 @@ export default function PnL() {
                       <td style={{ ...tdStyle, color: COLORS.textSecondary }}>{a.truckId ?? "—"}</td>
                       <td style={{ ...tdStyle, textAlign: "right" }}>{fmt(a.fuelCost)}</td>
                       <td style={{ ...tdStyle, textAlign: "right" }}>{fmt(a.tollCost)}</td>
-                      <td style={{ ...tdStyle, textAlign: "right", fontWeight: 700, color: "var(--color-danger)" }}>{fmt(a.totalExpense)}</td>
+                      <td style={{ ...tdStyle, textAlign: "right", fontWeight: 700, color: "#f87171" }}>{fmt(a.totalExpense)}</td>
                     </tr>
                   ))}
               </tbody>

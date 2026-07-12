@@ -13,7 +13,7 @@ import {
 import { PremiumSelect } from "@/components/PremiumSelect";
 
 const STATUS_COLORS: Record<string, string> = {
-  new: "var(--color-primary)", processing: "var(--color-warning)", completed: "var(--color-success)", cancelled: "var(--color-danger)",
+  new: "#818cf8", processing: "#fbbf24", completed: "#4ade80", cancelled: "#f87171",
 };
 const STATUS_LABELS: Record<string, { ru: string; uz: string }> = {
   new:        { ru: "Новый",       uz: "Yangi"         },
@@ -48,7 +48,7 @@ function PaymentModal({ shopId, onClose }: { shopId: number; onClose: () => void
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
       style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }}>
-      <div className="w-full sm:max-w-md bg-[var(--color-surface)] rounded-t-2xl sm:rounded-2xl shadow-2xl p-5 space-y-4">
+      <div className="w-full sm:max-w-md bg-[#ffffff] rounded-t-2xl sm:rounded-2xl shadow-2xl p-5 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="font-display text-base text-text-primary">{t("Добавить платёж", "To'lov qo'shish")}</h2>
           <button onClick={onClose} className="btn-ghost p-1.5"><X size={18} /></button>
@@ -231,7 +231,7 @@ export default function ShopDetail() {
             <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload}/>
             <div className="relative group flex-shrink-0 cursor-pointer" onClick={() => fileRef.current?.click()}>
               <div className="w-20 h-20 rounded-xl overflow-hidden flex items-center justify-center border border-border-subtle"
-                style={{ background: "color-mix(in srgb, var(--color-primary) 10%, transparent)" }}>
+                style={{ background: "rgba(129,140,248,.10)" }}>
                 {uploadPhoto.isPending ? <Loader2 size={28} className="text-primary animate-spin"/>
                   : shop.photoUrl ? <img src={shop.photoUrl} alt={shop.name} className="w-full h-full object-cover"/>
                   : <Store size={28} className="text-primary"/>}
@@ -262,11 +262,11 @@ export default function ShopDetail() {
 
       {/* Блок долга */}
       <div className="panel p-5"
-        style={hasDebt ? { borderColor: "color-mix(in srgb, var(--color-danger) 35%, transparent)" } : undefined}>
+        style={hasDebt ? { borderColor: "color-mix(in srgb, #f87171 35%, transparent)" } : undefined}>
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <p className="font-label text-[10px] tracking-wider mb-1"
-              style={{ color: hasDebt ? "var(--color-danger)" : "var(--color-text-tertiary)" }}>
+              style={{ color: hasDebt ? "#f87171" : "#9ca3af" }}>
               {t("ТЕКУЩИЙ ДОЛГ", "JORIY QARZ")}
             </p>
             <div className="flex items-center gap-2">
@@ -288,13 +288,13 @@ export default function ShopDetail() {
 
         {/* История платежей */}
         {shop.paymentHistory && shop.paymentHistory.length > 0 && (
-          <div className="mt-4 space-y-0" style={{ borderTop: "1px solid var(--color-border-subtle)", paddingTop: 12 }}>
+          <div className="mt-4 space-y-0" style={{ borderTop: "1px solid #f3f4f6", paddingTop: 12 }}>
             <p className="font-label text-[10px] text-text-secondary tracking-wider mb-2">
               {t("ИСТОРИЯ ПЛАТЕЖЕЙ", "TO'LOVLAR TARIXI")}
             </p>
             {shop.paymentHistory.slice(0, 5).map((p: { id: number; type: string; notes: string | null; amount: string; createdAt: string | Date }) => (
               <div key={p.id} className="flex items-center justify-between py-2"
-                style={{ borderBottom: "1px solid var(--color-border-subtle)" }}>
+                style={{ borderBottom: "1px solid #f3f4f6" }}>
                 <div>
                   <p className="text-sm text-text-primary">
                     {p.type === "payment"
@@ -318,12 +318,12 @@ export default function ShopDetail() {
       {/* История заказов */}
       {shop.recentOrders && shop.recentOrders.length > 0 && (
         <div className="panel overflow-hidden">
-          <div className="px-5 py-4" style={{ borderBottom: "1px solid var(--color-border-subtle)" }}>
+          <div className="px-5 py-4" style={{ borderBottom: "1px solid #f3f4f6" }}>
             <p className="font-label text-[10px] text-primary tracking-wider">
               {t("ЗАКАЗЫ МАГАЗИНА", "DO'KON BUYURTMALARI")}
             </p>
           </div>
-          <div className="divide-y" style={{ borderColor: "var(--color-border-subtle)" }}>
+          <div className="divide-y" style={{ borderColor: "#f3f4f6" }}>
             {shop.recentOrders.slice(0, 10).map((o: { id: number; orderNumber: string; status: string; total: string; createdAt: string | Date }) => (
               <div key={o.id}
                 className="flex items-center gap-3 px-5 py-3.5 cursor-pointer hover:bg-surface-light/40 transition-colors"
