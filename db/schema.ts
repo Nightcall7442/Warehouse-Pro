@@ -116,7 +116,7 @@ export const products = mysqlTable("products", {
   unitWeight:   decimal("unit_weight", { precision: 10, scale: 3 }).default("0.000").notNull(),
   description:  text("description"),
   photoUrl:     text("photo_url"),
-  reorderPoint: decimal("reorder_point", { precision: 10, scale: 2 }).default("10.00").notNull(),
+  reorderPoint: decimal("reorder_point", { precision: 10, scale: 2 }).default("0.00").notNull(),
   status:       mysqlEnum("status", ["active", "inactive"]).default("active").notNull(),
   createdAt:    timestamp("created_at").defaultNow().notNull(),
   updatedAt:    timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
@@ -422,7 +422,7 @@ export const settings = mysqlTable("settings", {
   companyName:         varchar("company_name", { length: 255 }).default("Warehouse Pro").notNull(),
   currency:            varchar("currency", { length: 10 }).default("UZS").notNull(),
   currencySymbol:      varchar("currency_symbol", { length: 10 }).default("сум").notNull(),
-  defaultReorderPoint: decimal("default_reorder_point", { precision: 10, scale: 2 }).default("10.00").notNull(),
+  defaultReorderPoint: decimal("default_reorder_point", { precision: 10, scale: 2 }).default("0.00").notNull(),
   lowStockThreshold:   decimal("low_stock_threshold", { precision: 10, scale: 2 }).default("50.00").notNull(),
   symbolPosition:      mysqlEnum("symbol_position", ["before", "after"]).default("after").notNull(),
   // UZ: address for official documents (printed on invoices)

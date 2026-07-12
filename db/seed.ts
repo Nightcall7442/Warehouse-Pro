@@ -77,7 +77,7 @@ async function seed() {
     currency: "UZS",
     currencySymbol: "сум",
     symbolPosition: "after",
-    defaultReorderPoint: "20.00",
+    defaultReorderPoint: "0.00",
     lowStockThreshold: "30.00",
     companyAddress: "Тошкент вилояти, Чирчиқ ш., Мустақиллик кўчаси, 45-уй",
     companyPhone: "+998 71 234 56 78",
