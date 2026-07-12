@@ -32,8 +32,8 @@ export function PremiumSelect({ value, options, onChange, placeholder = "Выб�
           display: "flex", alignItems: "center", justifyContent: "space-between",
           width: "100%", padding: "10px 14px", borderRadius: "10px",
           background: "var(--color-surface-light, #f8f9fb)", color: selected ? "var(--color-text-primary, #111827)" : "var(--color-text-tertiary, #9ca3af)",
-          border: open ? "1.5px solid #818cf8" : "1.5px solid transparent",
-          boxShadow: open ? "0 0 0 3px rgba(129,140,248,.12)" : "none",
+          border: open ? "1.5px solid var(--color-primary, #818cf8)" : "1.5px solid transparent",
+          boxShadow: open ? "0 0 0 3px color-mix(in srgb, var(--color-primary, #818cf8) 12%, transparent)" : "none",
           fontSize: "13px", fontFamily: "'DM Sans', sans-serif", fontWeight: 500,
           cursor: "pointer", transition: "all 0.15s ease", outline: "none",
         }}
@@ -50,7 +50,7 @@ export function PremiumSelect({ value, options, onChange, placeholder = "Выб�
           position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, zIndex: 50,
           background: "var(--color-surface, #ffffff)", borderRadius: "12px",
           boxShadow: "0 4px 12px rgba(0,0,0,.08), 0 1px 3px rgba(0,0,0,.04)",
-          border: "1px solid #f3f4f6",
+          border: "1px solid var(--color-border, #f3f4f6)",
           maxHeight: "240px", overflowY: "auto", padding: "4px",
         }}>
           {options.map(opt => (
@@ -61,8 +61,8 @@ export function PremiumSelect({ value, options, onChange, placeholder = "Выб�
                 display: "flex", alignItems: "center", gap: "10px",
                 width: "100%", padding: "10px 12px", borderRadius: "8px",
                 border: "none", cursor: "pointer", transition: "all 0.15s ease",
-                background: value === opt.value ? "#eff6ff" : "transparent",
-                color: value === opt.value ? "#818cf8" : "var(--color-text-primary, #111827)",
+                background: value === opt.value ? "var(--color-primary-subtle, rgba(129,140,248,.10))" : "transparent",
+                color: value === opt.value ? "var(--color-primary, #818cf8)" : "var(--color-text-primary, #111827)",
                 fontSize: "13px", fontFamily: "'DM Sans', sans-serif", fontWeight: value === opt.value ? 600 : 400,
                 textAlign: "left",
               }}

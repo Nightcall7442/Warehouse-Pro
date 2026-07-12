@@ -45,7 +45,7 @@ export function GlobalSearch() {
       onClick={() => setOpen(true)}
       style={{
         display: "none", alignItems: "center", gap: "8px",
-        padding: "6px 12px", borderRadius: "8px", border: "1px solid #e5e7eb",
+        padding: "6px 12px", borderRadius: "8px", border: "1px solid var(--color-border, #e5e7eb)",
         background: "transparent", color: "var(--color-text-secondary, #6b7280)", fontSize: "13px",
         fontFamily: "'DM Sans', sans-serif", cursor: "pointer",
       }}
@@ -60,9 +60,9 @@ export function GlobalSearch() {
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 100, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: "10vh", padding: "16px" }}>
       <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }} onClick={() => setOpen(false)}/>
-      <div style={{ position: "relative", width: "100%", maxWidth: "540px", background: "var(--color-surface, #ffffff)", border: "1px solid #f3f4f6", borderRadius: "14px", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.15)", overflow: "hidden" }}>
+      <div style={{ position: "relative", width: "100%", maxWidth: "540px", background: "var(--color-surface, #ffffff)", border: "1px solid var(--color-border, #f3f4f6)", borderRadius: "14px", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.15)", overflow: "hidden" }}>
         {/* Input */}
-        <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", borderBottom: "1px solid #f3f4f6" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", borderBottom: "1px solid var(--color-border, #f3f4f6)" }}>
           <Search size={18} style={{ color: "var(--color-text-tertiary, #9ca3af)", flexShrink: 0 }}/>
           <input
             ref={inputRef}
@@ -93,7 +93,7 @@ export function GlobalSearch() {
                   <p style={{ padding: "8px 16px", fontSize: "10px", fontWeight: 600, color: "var(--color-text-tertiary, #9ca3af)", textTransform: "uppercase", letterSpacing: "0.08em", background: "var(--color-surface-light, #f8f9fb)" }}>{tr("МАГАЗИНЫ","DO'KONLAR")}</p>
                   {shops!.data.map((s: any) => (
                     <button key={s.id} onClick={() => go(`/shops/${s.id}`)}
-                      style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", borderBottom: "1px solid #f3f4f6", textAlign: "left", background: "transparent", border: "none", cursor: "pointer", borderBottomLeftRadius: "8px", borderBottomRightRadius: "8px" }}
+                      style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", borderBottom: "1px solid var(--color-border, #f3f4f6)", textAlign: "left", background: "transparent", border: "none", cursor: "pointer", borderBottomLeftRadius: "8px", borderBottomRightRadius: "8px" }}
                       onMouseEnter={e => (e.currentTarget.style.background = "var(--color-surface-light, #f8f9fb)")}
                       onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
                       <Store size={16} style={{ color: "#818cf8", flexShrink: 0 }}/>
@@ -114,7 +114,7 @@ export function GlobalSearch() {
                   <p style={{ padding: "8px 16px", fontSize: "10px", fontWeight: 600, color: "var(--color-text-tertiary, #9ca3af)", textTransform: "uppercase", letterSpacing: "0.08em", background: "var(--color-surface-light, #f8f9fb)" }}>{tr("ТОВАРЫ","MAHSULOTLAR")}</p>
                   {products!.data.map((p: any) => (
                     <button key={p.id} onClick={() => go(`/products/${p.id}`)}
-                      style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", borderBottom: "1px solid #f3f4f6", textAlign: "left", background: "transparent", border: "none", cursor: "pointer" }}
+                      style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", borderBottom: "1px solid var(--color-border, #f3f4f6)", textAlign: "left", background: "transparent", border: "none", cursor: "pointer" }}
                       onMouseEnter={e => (e.currentTarget.style.background = "var(--color-surface-light, #f8f9fb)")}
                       onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
                       <Package size={16} style={{ color: "#818cf8", flexShrink: 0 }}/>
@@ -133,7 +133,7 @@ export function GlobalSearch() {
                   <p style={{ padding: "8px 16px", fontSize: "10px", fontWeight: 600, color: "var(--color-text-tertiary, #9ca3af)", textTransform: "uppercase", letterSpacing: "0.08em", background: "var(--color-surface-light, #f8f9fb)" }}>{tr("ЗАКАЗЫ","BUYURTMALAR")}</p>
                   {orders!.data.map((o: any) => (
                     <button key={o.id} onClick={() => go(`/orders/${o.id}`)}
-                      style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", borderBottom: "1px solid #f3f4f6", textAlign: "left", background: "transparent", border: "none", cursor: "pointer" }}
+                      style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", borderBottom: "1px solid var(--color-border, #f3f4f6)", textAlign: "left", background: "transparent", border: "none", cursor: "pointer" }}
                       onMouseEnter={e => (e.currentTarget.style.background = "var(--color-surface-light, #f8f9fb)")}
                       onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
                       <ClipboardList size={16} style={{ color: "#818cf8", flexShrink: 0 }}/>

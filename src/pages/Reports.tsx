@@ -159,7 +159,7 @@ const AgentCard = memo(function AgentCard({ agent: a, rank, fmt, days }: { agent
   return (
     <div style={{
       display: "flex", alignItems: "center", gap: "16px", padding: "18px 20px",
-      borderRadius: "16px", background: isTop3 ? "#eff6ff" : COLORS.surface,
+      borderRadius: "16px", background: isTop3 ? "var(--color-primary-subtle, rgba(129,140,248,.10))" : COLORS.surface,
       boxShadow: isTop3 ? "0 2px 8px rgba(0,0,0,0.06)" : "0 1px 3px rgba(0,0,0,0.03)",
       border: isTop3 ? "1px solid rgba(129,140,248,.15)" : "none",
     }}>

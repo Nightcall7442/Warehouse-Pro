@@ -18,7 +18,7 @@ export const SparklineCard = memo(function SparklineCard({
   value,
   delta,
   trend,
-  color = "#818cf8",
+  color = "var(--color-primary, #818cf8)",
   invertDelta = false,
   onClick,
 }: SparklineCardProps) {
@@ -30,7 +30,7 @@ export const SparklineCard = memo(function SparklineCard({
   return (
     <div
       style={{
-        background: "#ffffff",
+        background: "var(--color-surface, #ffffff)",
         borderRadius: "20px",
         padding: "22px",
         boxShadow: "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06))",
@@ -50,14 +50,14 @@ export const SparklineCard = memo(function SparklineCard({
 
       <p style={{
         fontSize: "11px", fontWeight: 600, textTransform: "uppercase",
-        letterSpacing: "0.08em", color: "#9ca3af", margin: 0,
+        letterSpacing: "0.08em", color: "var(--color-text-tertiary, #9ca3af)", margin: 0,
         fontFamily: "'DM Sans', sans-serif",
       }}>
         {label}
       </p>
 
       <p style={{
-        fontSize: "28px", fontWeight: 700, color: "#111827",
+        fontSize: "28px", fontWeight: 700, color: "var(--color-text-primary, #111827)",
         margin: "8px 0 0", letterSpacing: "-0.03em",
         fontFamily: "'DM Sans', sans-serif",
       }}>
@@ -69,8 +69,8 @@ export const SparklineCard = memo(function SparklineCard({
           display: "inline-flex", alignItems: "center", gap: "4px",
           marginTop: "8px", padding: "3px 8px", borderRadius: "6px",
           fontSize: "12px", fontWeight: 600,
-          color: isPositive ? "#4ade80" : isNegative ? "#f87171" : "#9ca3af",
-          background: isPositive ? "#dcfce7" : isNegative ? "#fee2e2" : "transparent",
+          color: isPositive ? "var(--color-success, #4ade80)" : isNegative ? "var(--color-danger, #f87171)" : "var(--color-text-tertiary, #9ca3af)",
+          background: isPositive ? "rgba(74,222,128,.10)" : isNegative ? "rgba(248,113,113,.10)" : "transparent",
         }}>
           {isPositive ? <TrendingUp size={12} /> : isNegative ? <TrendingDown size={12} /> : null}
           <span>{Math.abs(delta).toFixed(1)}%</span>

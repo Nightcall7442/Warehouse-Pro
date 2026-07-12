@@ -264,7 +264,7 @@ export default function AgentDashboard() {
         {/* Заголовок */}
         <div
           className="px-4 py-3 flex items-center justify-between"
-          style={{ borderBottom: "1px solid #f3f4f6" }}
+          style={{ borderBottom: "1px solid var(--color-border, #f3f4f6)" }}
         >
           <span className="font-label text-[10px] tracking-wider" style={{ color: "#818cf8" }}>
             {t("СЕГОДНЯШНИЕ ВИЗИТЫ", "BUGUNGI TASHRIFLAR")}

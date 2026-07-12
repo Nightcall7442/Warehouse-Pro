@@ -139,7 +139,7 @@ function ProductForm({ onSave, onCancel, isPending, lang }: { onSave: (d: Record
             display: "flex", alignItems: "center", justifyContent: "center",
             cursor: "pointer", position: "relative",
             background: "rgba(129,140,248,.08)",
-            border: "1px solid #f3f4f6",
+            border: "1px solid var(--color-border, #f3f4f6)",
           }} onClick={()=>fileRef.current?.click()}>
             {photo ? <img src={photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }}/> : <Package size={28} style={{ color: COLORS.primary }}/>}
             <div style={{
@@ -477,7 +477,7 @@ export default function Products() {
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
           padding: "12px 20px", borderRadius: "14px",
-          background: "#eff6ff",
+          background: "var(--color-primary-subtle, rgba(129,140,248,.10))",
           border: "1px solid rgba(129,140,248,.20)",
         }}>
           <span style={{ fontSize: "13px", fontWeight: 600, color: "#818cf8" }}>

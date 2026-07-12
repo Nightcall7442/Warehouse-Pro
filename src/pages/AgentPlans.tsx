@@ -55,7 +55,7 @@ export default function AgentPlans() {
         </h1>
         {isToday && (
           <span className="font-label text-[10px] px-2.5 py-1 rounded-full tracking-wider"
-            style={{ background: "#eff6ff", color: "#818cf8" }}>
+            style={{ background: "var(--color-primary-subtle, rgba(129,140,248,.10))", color: "#818cf8" }}>
             {t("СЕГОДНЯ", "BUGUN")}
           </span>
         )}

@@ -133,7 +133,7 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
       <div className="relative w-full max-w-[720px] max-h-[90vh] overflow-y-auto glass-modal animate-scale-in" style={{ borderRadius: "24px", boxShadow: "0 25px 80px -12px rgba(0,0,0,0.35)" }}>
 
         {/* Gradient header */}
-        <div className="relative overflow-hidden" style={{ background: "linear-gradient(135deg, #5558e8, #7c3aed, #a78bfa)", borderRadius: "24px 24px 0 0", padding: "28px 32px 24px" }}>
+        <div className="relative overflow-hidden" style={{ background: "var(--color-primary, #818cf8)", borderRadius: "24px 24px 0 0", padding: "28px 32px 24px" }}>
           <div className="absolute -top-16 -right-16 w-40 h-40 rounded-full" style={{ background: "rgba(255,255,255,0.08)" }} />
           <div className="absolute -bottom-8 -left-8 w-24 h-24 rounded-full" style={{ background: "rgba(255,255,255,0.05)" }} />
           <div className="relative flex items-center justify-between">
@@ -177,7 +177,7 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
                 </div>
               ))}
             </div>
-            <div className="flex items-center justify-between px-4 py-3 rounded-xl" style={{ background: "#eff6ff" }}>
+            <div className="flex items-center justify-between px-4 py-3 rounded-xl" style={{ background: "var(--color-primary-subtle, rgba(129,140,248,.10))" }}>
               <span className="text-sm text-text-secondary font-medium">{t("Итого расходов:", "Jami xarajatlar:")}</span>
               <span className="text-lg font-bold text-primary font-data">{fmt(totalExpense.toFixed(0))}</span>
             </div>
@@ -194,7 +194,7 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
             </div>
             <div className="space-y-3">
               {items.map((item, i) => (
-                <div key={i} className="panel-flat p-4 space-y-3" style={{ border: "1px solid #f3f4f6", borderRadius: "16px" }}>
+                <div key={i} className="panel-flat p-4 space-y-3" style={{ border: "1px solid var(--color-border, #f3f4f6)", borderRadius: "16px" }}>
                   <PremiumSelect value={String(item.productId)} onChange={v => updateItem(i, "productId", Number(v))}
                     options={[{ value: "0", label: t("Выберите товар…", "Mahsulot tanlang…") }, ...(products?.data ?? []).map((p: any) => ({ value: String(p.id), label: `${p.name} · ${fmt(p.unitPrice)}/${unitLabel(p.unit)}` }))]}
                     width="100%" />
@@ -480,7 +480,7 @@ export default function Arrivals() {
         </table>
         {/* Receipt rows */}
         {!isLoading && (data?.data ?? []).map((a: any) => (
-          <div key={`r-${a.id}`} style={{ borderTop: "1px solid #f3f4f6" }}>
+          <div key={`r-${a.id}`} style={{ borderTop: "1px solid var(--color-border, #f3f4f6)" }}>
             <ArrivalReceipt arrival={a} />
           </div>
         ))}

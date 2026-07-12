@@ -507,17 +507,17 @@
 /* ── Recharts ─────────────────────────────────────────────────────────────── */
 .recharts-cartesian-grid-horizontal line,
 .recharts-cartesian-grid-vertical line {
-  stroke: #f3f4f6 !important;
+  stroke: var(--color-border, #f3f4f6) !important;
 }
 .recharts-tooltip-wrapper .recharts-default-tooltip {
-  background: #ffffff !important;
+  background: var(--color-surface, #ffffff) !important;
   border: none !important;
   border-radius: 12px !important;
   box-shadow: 0 4px 12px rgba(0,0,0,.08) !important;
   padding: 12px 16px !important;
 }
-.recharts-tooltip-label  { color: #9ca3af !important; font-size: 11px !important; margin-bottom: 6px !important; font-weight: 500 !important; text-transform: uppercase !important; letter-spacing: 0.05em !important; }
-.recharts-tooltip-item   { color: #111827 !important; font-size: 12px !important; }
+.recharts-tooltip-label  { color: var(--color-text-tertiary, #9ca3af) !important; font-size: 11px !important; margin-bottom: 6px !important; font-weight: 500 !important; text-transform: uppercase !important; letter-spacing: 0.05em !important; }
+.recharts-tooltip-item   { color: var(--color-text-primary, #111827) !important; font-size: 12px !important; }
 .recharts-legend-wrapper { font-family: 'DM Sans', sans-serif !important; }
 
 /* ── Scrollbar ────────────────────────────────────────────────────────────── */
@@ -682,12 +682,12 @@
   margin-top: 12px;
 }
 .kpi-hero-trend.up {
-  color: #16a34a;
-  background: rgba(22, 163, 74, 0.1);
+  color: var(--color-success, #4ade80);
+  background: color-mix(in srgb, var(--color-success, #4ade80) 10%, transparent);
 }
 .kpi-hero-trend.down {
-  color: #dc2626;
-  background: rgba(220, 38, 38, 0.1);
+  color: var(--color-danger, #f87171);
+  background: color-mix(in srgb, var(--color-danger, #f87171) 10%, transparent);
 }
 
 /* ── Sparkline mini-chart ──────────────────────────────────────────────────── */
@@ -715,7 +715,7 @@
   align-items: center;
   gap: 14px;
   padding: 14px 0;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid var(--color-border, #f3f4f6);
   transition: background 0.15s ease;
   cursor: pointer;
   margin: 0 -8px;
@@ -727,7 +727,7 @@
   border-bottom: none;
 }
 .activity-item:hover {
-  background: #f8f9fb;
+  background: var(--color-surface-light, #f8f9fb);
 }
 
 .activity-dot {
@@ -753,7 +753,7 @@
   border-radius: 4px;
   overflow: hidden;
   gap: 2px;
-  background: #f3f4f6;
+  background: var(--color-surface-light, #f3f4f6);
 }
 .status-bar-segment {
   height: 100%;
@@ -790,7 +790,7 @@
 /* ── Range selector — pill style ───────────────────────────────────────────── */
 .range-pills {
   display: inline-flex;
-  background: #f3f4f6;
+  background: var(--color-surface-light, #f3f4f6);
   border-radius: 10px;
   padding: 3px;
   gap: 2px;
@@ -804,17 +804,17 @@
   border: none;
   cursor: pointer;
   transition: all 0.15s ease;
-  color: #6b7280;
+  color: var(--color-text-secondary, #6b7280);
   background: transparent;
   letter-spacing: -0.01em;
 }
 .range-pill:hover {
-  color: #111827;
+  color: var(--color-text-primary, #111827);
 }
 .range-pill.active {
-  background: #ffffff;
-  color: #111827;
-  box-shadow: 0 1px 3px rgba(0,0,0,.08);
+  background: var(--color-surface, #ffffff);
+  color: var(--color-text-primary, #111827);
+  box-shadow: var(--shadow-xs, 0 1px 2px rgba(0,0,0,.04));
 }
 
 /* ── Count-up animation ────────────────────────────────────────────────────── */
@@ -893,23 +893,23 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: #9ca3af;
+  color: var(--color-text-tertiary, #9ca3af);
   padding: 0 16px 12px;
   text-align: left;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid var(--color-border, #f3f4f6);
 }
 .premium-table td {
   padding: 14px 16px;
   font-size: 13px;
-  color: #111827;
-  border-bottom: 1px solid #f3f4f6;
+  color: var(--color-text-primary, #111827);
+  border-bottom: 1px solid var(--color-border, #f3f4f6);
   transition: background 0.15s ease;
 }
 .premium-table tr:last-child td {
   border-bottom: none;
 }
 .premium-table tbody tr:hover td {
-  background: #f8f9fb;
+  background: var(--color-surface-light, #f8f9fb);
 }
 
 /* ── Premium button — larger, clean ───────────────────────────────────────── */

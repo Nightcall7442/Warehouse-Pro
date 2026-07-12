@@ -56,7 +56,7 @@ function Steps({ current, labels }: { current: number; labels: string[] }) {
                 display: "flex", alignItems: "center", justifyContent: "center",
                 fontSize: "13px", fontWeight: 700, fontFamily: "'DM Sans', sans-serif",
                 transition: "all 0.3s ease",
-                background: done ? "#818cf8" : active ? "#eff6ff" : "var(--color-surface-light, #f8f9fb)",
+                background: done ? "#818cf8" : active ? "var(--color-primary-subtle, rgba(129,140,248,.10))" : "var(--color-surface-light, #f8f9fb)",
                 color: done ? "#fff" : active ? "#818cf8" : "var(--color-text-tertiary, #9ca3af)",
                 boxShadow: done ? "0 4px 12px rgba(129,140,248,0.3)" : active ? "0 0 0 3px rgba(129,140,248,.15)" : "none",
               }}>
@@ -226,7 +226,7 @@ function StepShop({
                 width: "100%", padding: "16px", textAlign: "left", display: "flex", alignItems: "center", gap: "14px",
                 borderRadius: "16px", cursor: "pointer", transition: "all 0.25s cubic-bezier(0.25,0.46,0.45,0.94)",
                 border: shopId === shop.id ? "2px solid #818cf8" : "2px solid transparent",
-                background: shopId === shop.id ? "#eff6ff" : "var(--color-surface, #ffffff)",
+                background: shopId === shop.id ? "var(--color-primary-subtle, rgba(129,140,248,.10))" : "var(--color-surface, #ffffff)",
                 boxShadow: shopId === shop.id
                   ? "0 4px 16px rgba(129,140,248,0.12)"
                   : "0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04)",
@@ -373,8 +373,8 @@ function StepItems({
                 style={{
                   display: "flex", alignItems: "center", gap: "12px", padding: "12px 14px",
                   borderRadius: "12px", cursor: "pointer", transition: "all 0.15s ease",
-                  background: inCart ? "#eff6ff" : "var(--color-surface, #ffffff)",
-                  border: inCart ? "1px solid rgba(129,140,248,.30)" : "1px solid #f3f4f6",
+                  background: inCart ? "var(--color-primary-subtle, rgba(129,140,248,.10))" : "var(--color-surface, #ffffff)",
+                  border: inCart ? "1px solid rgba(129,140,248,.30)" : "1px solid var(--color-border, #f3f4f6)",
                 }}
                 onClick={() => addToCart(product)}
               >
@@ -459,7 +459,7 @@ function StepItems({
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                     <button onClick={() => updateQuantity(item.productId, -1)} style={{
-                      width: "24px", height: "24px", borderRadius: "6px", border: "1px solid #e5e7eb",
+                      width: "24px", height: "24px", borderRadius: "6px", border: "1px solid var(--color-border, #e5e7eb)",
                       background: "var(--color-surface, #ffffff)", display: "flex", alignItems: "center", justifyContent: "center",
                       cursor: "pointer", fontSize: "14px", color: "var(--color-text-secondary, #6b7280)",
                     }}>−</button>
@@ -467,7 +467,7 @@ function StepItems({
                       {item.quantity}
                     </span>
                     <button onClick={() => updateQuantity(item.productId, 1)} style={{
-                      width: "24px", height: "24px", borderRadius: "6px", border: "1px solid #e5e7eb",
+                      width: "24px", height: "24px", borderRadius: "6px", border: "1px solid var(--color-border, #e5e7eb)",
                       background: "var(--color-surface, #ffffff)", display: "flex", alignItems: "center", justifyContent: "center",
                       cursor: "pointer", fontSize: "14px", color: "var(--color-text-secondary, #6b7280)",
                     }}>+</button>
@@ -480,7 +480,7 @@ function StepItems({
             </div>
 
             {/* Итого */}
-            <div style={{ borderTop: "1px solid #f3f4f6", paddingTop: "12px" }}>
+            <div style={{ borderTop: "1px solid var(--color-border, #f3f4f6)", paddingTop: "12px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
                 <span style={{ fontSize: "13px", color: "var(--color-text-secondary, #6b7280)" }}>{t("Подитого", "Jami")}</span>
                 <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--color-text-primary, #111827)" }}>{fmt(subtotal.toFixed(0))}</span>
@@ -491,7 +491,7 @@ function StepItems({
                   <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--color-text-primary, #111827)" }}>{totalWeightKg.toFixed(1)} кг</span>
                 </div>
               )}
-              <div style={{ display: "flex", justifyContent: "space-between", paddingTop: "8px", borderTop: "1px solid #f3f4f6" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", paddingTop: "8px", borderTop: "1px solid var(--color-border, #f3f4f6)" }}>
                 <span style={{ fontSize: "15px", fontWeight: 700, color: "var(--color-text-primary, #111827)" }}>{t("ИТОГО", "JAMI")}</span>
                 <span style={{ fontSize: "15px", fontWeight: 700, color: "#818cf8" }}>{fmt(subtotal.toFixed(0))}</span>
               </div>
@@ -533,7 +533,7 @@ function StepReview({
 
       <div className="panel p-4 space-y-3">
         {/* Shop */}
-        <div className="flex items-center gap-2.5 pb-3" style={{ borderBottom: "1px solid #f3f4f6" }}>
+        <div className="flex items-center gap-2.5 pb-3" style={{ borderBottom: "1px solid var(--color-border, #f3f4f6)" }}>
           <Store size={14} className="text-text-secondary flex-shrink-0"/>
           <span className="text-sm text-text-primary font-medium">{shopName}</span>
         </div>
@@ -556,7 +556,7 @@ function StepReview({
         </div>
 
         {/* Totals */}
-        <div className="space-y-2 pt-3" style={{ borderTop: "1px solid #f3f4f6" }}>
+        <div className="space-y-2 pt-3" style={{ borderTop: "1px solid var(--color-border, #f3f4f6)" }}>
           <div className="flex justify-between text-sm">
             <span className="text-text-secondary">{t("Подитого", "Jami")}</span>
             <span className="font-data text-text-primary">{fmt(subtotal.toFixed(2))}</span>

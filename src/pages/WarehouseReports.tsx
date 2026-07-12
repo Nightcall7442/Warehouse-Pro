@@ -14,7 +14,7 @@ import {
 } from "recharts";
 import { exportToExcel, exportToPDF, buildExcelSheets, buildPDFHtml, type ReportData } from "@/lib/export";
 
-const COLORS = ["#818cf8", "#c7c9f8", "#c7c9f8", "#c7c9f8", "#eff6ff", "#eff6ff", "#4ade80", "#fbbf24"];
+const COLORS = ["#818cf8", "#c7c9f8", "#c7c9f8", "#c7c9f8", "var(--color-primary-subtle, rgba(129,140,248,.10))", "var(--color-primary-subtle, rgba(129,140,248,.10))", "#4ade80", "#fbbf24"];
 
 const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
 const THEME = {
@@ -344,7 +344,7 @@ export default function WarehouseReports() {
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr style={{ borderBottom: "1px solid #f3f4f6" }}>
+                <tr style={{ borderBottom: "1px solid var(--color-border, #f3f4f6)" }}>
                   <th className="text-left py-2 font-label" style={{ color: "var(--color-text-tertiary, #9ca3af)" }}>#</th>
                   <th className="text-left py-2 font-label" style={{ color: "var(--color-text-tertiary, #9ca3af)" }}>{t("Товар", "Mahsulot")}</th>
                   <th className="text-right py-2 font-label" style={{ color: "var(--color-text-tertiary, #9ca3af)" }}>{t("Остаток", "Qoldiq")}</th>
@@ -354,7 +354,7 @@ export default function WarehouseReports() {
               </thead>
               <tbody>
                 {topByValue?.map((p, i) => (
-                  <tr key={p.productId} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                  <tr key={p.productId} style={{ borderBottom: "1px solid var(--color-border, #f3f4f6)" }}>
                     <td className="py-2 font-data" style={{ color: "var(--color-text-tertiary, #9ca3af)" }}>{i + 1}</td>
                     <td className="py-2">
                       <div className="font-medium" style={{ color: "var(--color-text-primary, #111827)" }}>{p.productName ?? "—"}</div>
@@ -378,7 +378,7 @@ export default function WarehouseReports() {
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
-              <tr style={{ borderBottom: "1px solid #f3f4f6" }}>
+              <tr style={{ borderBottom: "1px solid var(--color-border, #f3f4f6)" }}>
                 <th className="text-left py-2 font-label" style={{ color: "var(--color-text-tertiary, #9ca3af)" }}>{t("Товар", "Mahsulot")}</th>
                 <th className="text-right py-2 font-label" style={{ color: "var(--color-text-tertiary, #9ca3af)" }}>{t("Остаток", "Qoldiq")}</th>
                 <th className="text-right py-2 font-label" style={{ color: "var(--color-text-tertiary, #9ca3af)" }}>{t("Продано", "Sotilgan")}</th>
@@ -391,7 +391,7 @@ export default function WarehouseReports() {
                 const rate = Number(p.turnoverRate);
                 const color = rate >= 2 ? "#4ade80" : rate >= 1 ? "#fbbf24" : "var(--color-text-secondary, #6b7280)";
                 return (
-                  <tr key={p.productId} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                  <tr key={p.productId} style={{ borderBottom: "1px solid var(--color-border, #f3f4f6)" }}>
                     <td className="py-2">
                       <div className="font-medium" style={{ color: "var(--color-text-primary, #111827)" }}>{p.productName ?? "—"}</div>
                       <div style={{ color: "var(--color-text-tertiary, #9ca3af)" }}>{p.productCode ?? ""}</div>

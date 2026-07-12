@@ -194,7 +194,7 @@ export default function AgentGps() {
         <button
           onClick={() => setAutoTrack(v => !v)}
           className="w-12 h-6 rounded-full relative transition-colors flex-shrink-0"
-          style={{ background: autoTrack ? "#818cf8" : "var(--color-surface-light, #f8f9fb)", border: autoTrack ? "none" : "1px solid #e5e7eb" }}
+          style={{ background: autoTrack ? "#818cf8" : "var(--color-surface-light, #f8f9fb)", border: autoTrack ? "none" : "1px solid var(--color-border, #e5e7eb)" }}
         >
           <span
             className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform"

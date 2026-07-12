@@ -168,7 +168,7 @@ export function ExcelImport({ type, onDone, onCancel }: Props) {
         <div style={{ overflowX: "auto", marginTop: "16px" }}>
           <table style={{ width: "100%", fontSize: "11px", fontFamily: "'DM Sans', sans-serif" }}>
             <thead>
-              <tr style={{ borderBottom: "1px solid #f3f4f6" }}>
+              <tr style={{ borderBottom: "1px solid var(--color-border, #f3f4f6)" }}>
                 {headers.map(h => (
                   <th key={h} style={{ textAlign: "left", padding: "8px 10px", fontWeight: 600, color: "var(--color-text-tertiary, #9ca3af)", textTransform: "uppercase", letterSpacing: "0.05em", fontSize: "10px" }}>{h}</th>
                 ))}
@@ -176,7 +176,7 @@ export function ExcelImport({ type, onDone, onCancel }: Props) {
             </thead>
             <tbody>
               {preview.map((row, i) => (
-                <tr key={i} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                <tr key={i} style={{ borderBottom: "1px solid var(--color-border, #f3f4f6)" }}>
                   {headers.map(h => (
                     <td key={h} style={{ padding: "6px 10px", color: "var(--color-text-primary, #111827)" }}>{String(row[h] ?? "")}</td>
                   ))}
@@ -202,13 +202,13 @@ export function ExcelImport({ type, onDone, onCancel }: Props) {
       )}
 
       {/* Actions */}
-      <div style={{ display: "flex", gap: "12px", marginTop: "20px", paddingTop: "16px", borderTop: "1px solid #f3f4f6" }}>
+      <div style={{ display: "flex", gap: "12px", marginTop: "20px", paddingTop: "16px", borderTop: "1px solid var(--color-border, #f3f4f6)" }}>
         <button onClick={handleImport} disabled={!base64 || importing}
           style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "10px 20px", borderRadius: "12px", fontSize: "13px", fontWeight: 600, color: "#fff", background: "linear-gradient(135deg, #818cf8, #6366f1)", border: "none", cursor: !base64 || importing ? "not-allowed" : "pointer", opacity: !base64 || importing ? 0.5 : 1, transition: "all 0.2s" }}>
           {importing ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <Upload size={14} />}
           {importing ? "Импортирую..." : `Импортировать${totalRows > 0 ? ` ${totalRows} строк` : ""}`}
         </button>
-        <button onClick={onCancel} style={{ padding: "10px 20px", borderRadius: "12px", fontSize: "13px", fontWeight: 600, color: "var(--color-text-secondary, #6b7280)", background: "var(--color-surface, #ffffff)", border: "1px solid #f3f4f6", cursor: "pointer" }}>
+        <button onClick={onCancel} style={{ padding: "10px 20px", borderRadius: "12px", fontSize: "13px", fontWeight: 600, color: "var(--color-text-secondary, #6b7280)", background: "var(--color-surface, #ffffff)", border: "1px solid var(--color-border, #f3f4f6)", cursor: "pointer" }}>
           Отмена
         </button>
       </div>

@@ -39,11 +39,11 @@ const SHADOWS = {
 };
 
 const GRADIENTS = {
-  hero: `linear-gradient(135deg, #eff6ff 0%, #eff6ff 50%, #ffffff 100%)`,
-  heroExpired: `linear-gradient(135deg, #fee2e2 0%, #fef2f2 50%, #ffffff 100%)`,
+  hero: `linear-gradient(135deg, color-mix(in srgb, var(--color-primary, #818cf8) 8%, var(--color-surface, #eff6ff)) 0%, var(--color-surface, #ffffff) 100%)`,
+  heroExpired: `linear-gradient(135deg, color-mix(in srgb, var(--color-danger, #f87171) 8%, var(--color-surface, #fee2e2)) 0%, var(--color-surface, #ffffff) 100%)`,
   button: `linear-gradient(135deg, ${COLORS.gradientStart}, ${COLORS.gradientEnd})`,
   buttonHover: `linear-gradient(135deg, ${COLORS.primaryDark}, #9333ea)`,
-  card: `linear-gradient(180deg, #ffffff 0%, #f8f9fb 100%)`,
+  card: `linear-gradient(180deg, var(--color-surface, #ffffff) 0%, var(--color-surface-light, #f8f9fb) 100%)`,
 };
 
 const ANIMATIONS = {

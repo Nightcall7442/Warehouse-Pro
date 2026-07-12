@@ -22,7 +22,7 @@ export const ConfirmDialog = memo(function ConfirmDialog({ title, message, confi
     <div style={{
       position: "fixed",
       inset: 0,
-      zIndex: 9999,
+      zIndex: 99999,
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
@@ -33,7 +33,7 @@ export const ConfirmDialog = memo(function ConfirmDialog({ title, message, confi
         style={{
           position: "absolute",
           inset: 0,
-          background: "rgba(0,0,0,0.4)",
+          background: "rgba(0,0,0,0.5)",
           backdropFilter: "blur(4px)",
         }}
         onClick={onCancel}
@@ -54,8 +54,8 @@ export const ConfirmDialog = memo(function ConfirmDialog({ title, message, confi
       >
         <div style={{ display: "flex", alignItems: "flex-start", gap: "12px", marginBottom: "16px" }}>
           {danger && (
-            <div style={{ width: "40px", height: "40px", borderRadius: "50%", background: "rgba(248,113,113,0.1)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <AlertTriangle size={20} style={{ color: "#f87171" }}/>
+            <div style={{ width: "40px", height: "40px", borderRadius: "50%", background: "color-mix(in srgb, var(--color-danger, #f87171) 10%, transparent)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <AlertTriangle size={20} style={{ color: "var(--color-danger, #f87171)" }}/>
             </div>
           )}
           <div style={{ flex: 1 }}>
@@ -72,7 +72,7 @@ export const ConfirmDialog = memo(function ConfirmDialog({ title, message, confi
             style={{
               padding: "8px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 600,
               fontFamily: "'DM Sans', sans-serif", border: "none", cursor: "pointer",
-              background: danger ? "#f87171" : "linear-gradient(135deg, #818cf8, #6366f1)",
+              background: danger ? "var(--color-danger, #f87171)" : "var(--color-primary, #818cf8)",
               color: "#fff",
             }}>
             {confirmText}

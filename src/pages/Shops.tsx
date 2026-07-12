@@ -461,7 +461,7 @@ export default function Shops() {
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
           padding: "12px 20px", borderRadius: "14px",
-          background: "#eff6ff",
+          background: "var(--color-primary-subtle, rgba(129,140,248,.10))",
           border: "1px solid rgba(129,140,248,.20)",
         }}>
           <span style={{ fontSize: "13px", fontWeight: 600, color: "#818cf8" }}>

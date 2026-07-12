@@ -49,7 +49,7 @@ function TelegramSettings() {
           <div className="px-4 py-3 rounded-lg space-y-2 text-sm" style={{ background: "var(--color-surface-light, #f8f9fb)" }}>
             <p className="font-medium text-text-primary">{t("Как подключить:", "Qanday ulash:")}</p>
             <ol className="list-decimal list-inside space-y-1.5 text-text-secondary">
-              <li>{t("Откройте Telegram → найдите", "Telegramni oching →")} <code className="px-1 rounded text-primary" style={{ background: "#eff6ff" }}>@userinfobot</code></li>
+              <li>{t("Откройте Telegram → найдите", "Telegramni oching →")} <code className="px-1 rounded text-primary" style={{ background: "var(--color-primary-subtle, rgba(129,140,248,.10))" }}>@userinfobot</code></li>
               <li>{t("Нажмите /start — получите свой числовой ID", "/start → raqamli ID olasiz")}</li>
               <li>{t("Вставьте ID ниже и нажмите «Подключить»", "ID-ni quyida kiriting va «Ulash» tugmasini bosing")}</li>
             </ol>
@@ -73,7 +73,7 @@ function TelegramSettings() {
         </div>
       )}
 
-      <div style={{ borderTop: "1px solid #f3f4f6", paddingTop: 16 }}>
+      <div style={{ borderTop: "1px solid var(--color-border, #f3f4f6)", paddingTop: 16 }}>
         <p className="font-label text-[10px] text-text-secondary tracking-wider mb-2">
           {t("ВЫ БУДЕТЕ ПОЛУЧАТЬ", "QUYIDAGILARNI OLASIZ")}
         </p>
@@ -226,7 +226,7 @@ function ProfileSettings() {
         </button>
       </div>
 
-      <div className="space-y-3" style={{ borderTop: "1px solid #f3f4f6", paddingTop: 20 }}>
+      <div className="space-y-3" style={{ borderTop: "1px solid var(--color-border, #f3f4f6)", paddingTop: 20 }}>
         <p className="font-label text-[10px] text-text-secondary tracking-wider">{t("СМЕНА ПАРОЛЯ","PAROLNI O'ZGARTIRISH")}</p>
         {[
           { key: "current", ru: "ТЕКУЩИЙ ПАРОЛЬ",  uz: "JORIY PAROL"    },
@@ -283,7 +283,7 @@ function AppearanceSettings() {
         </div>
       </div>
 
-      <div style={{ borderTop: "1px solid #f3f4f6", paddingTop: 20 }}>
+      <div style={{ borderTop: "1px solid var(--color-border, #f3f4f6)", paddingTop: 20 }}>
         <p className="font-label text-[10px] text-text-secondary tracking-wider mb-3">{t("ЯЗЫК ИНТЕРФЕЙСА","INTERFEYS TILI")}</p>
         <div className="grid grid-cols-2 gap-3 max-w-xs">
           {[
@@ -365,7 +365,7 @@ function OneCSettings() {
               {t("Установите переменные окружения на сервере:", "Serverda muhit o'zgaruvchilarini o'rnating:")}
             </p>
             <pre className="mt-2 p-3 rounded-lg text-xs font-mono overflow-x-auto"
-              style={{ background: "var(--color-surface, #ffffff)", border: "1px solid #f3f4f6" }}>
+              style={{ background: "var(--color-surface, #ffffff)", border: "1px solid var(--color-border, #f3f4f6)" }}>
 {`ONEC_BRIDGE_URL=http://bridge-server:8080
 ONEC_USERNAME=your_user
 ONEC_PASSWORD=your_password
@@ -378,7 +378,7 @@ ONEC_WEBHOOK_SECRET=your_secret`}
               {t("Webhook URL для 1С (настройте в 1С:Предприятие):", "1C uchun webhook URL (1C:Predpriyatoyedagi sozlamalarda):")}
             </p>
             <pre className="mt-2 p-3 rounded-lg text-xs font-mono overflow-x-auto"
-              style={{ background: "var(--color-surface, #ffffff)", border: "1px solid #f3f4f6" }}>
+              style={{ background: "var(--color-surface, #ffffff)", border: "1px solid var(--color-border, #f3f4f6)" }}>
 {`Оплата: https://www.warehouse-pro.uz/api/webhooks/1c/payment
 Остатки: https://www.warehouse-pro.uz/api/webhooks/1c/stock`}
             </pre>
