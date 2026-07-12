@@ -1,510 +1,94 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { trpc } from "@/providers/trpc";
-import { useAuth } from "@/hooks/useAuth";
 import { useLang } from "@/i18n";
+import { useCurrency } from "@/hooks/useCurrency";
 import { useTheme } from "@/hooks/useTheme";
 import { notify } from "@/lib/toast";
-import {
-  User, Bell, Building2, Loader2,
-  Send, CheckCircle2, XCircle, Moon,
-  Upload, Database, RefreshCw, AlertTriangle,
-} from "lucide-react";
-import { PremiumSelect } from "@/components/PremiumSelect";
+import { Settings as SettingsIcon, Save, Moon, Sun, Globe, Building2 } from "lucide-react";
+import { CardDots, Card, PageHeader, btnPrimary, inputStyle } from "@/components/DashboardLayout";
 
-// ── Telegram ───────────────────────────────────────────────────────────────────
-function TelegramSettings() {
-  const [chatId, setChatId] = useState("");
-  const { lang } = useLang();
-  const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
-  const { data: status } = trpc.telegram.myStatus.useQuery();
-  const utils = trpc.useUtils();
-  const save   = trpc.telegram.saveChatId.useMutation({
-    onSuccess: () => { utils.telegram.myStatus.invalidate(); notify.success(t("Telegram подключён!", "Telegram ulandi!")); },
-    onError:   (e) => notify.error(e.message),
-  });
-  const remove = trpc.telegram.removeChatId.useMutation({
-    onSuccess: () => { utils.telegram.myStatus.invalidate(); notify.success(t("Telegram отключён", "Telegram uzildi")); },
-    onError:   (e) => notify.error(e.message),
-  });
+const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
 
-  return (
-    <div className="space-y-4">
-      {status?.connected ? (
-        <div className="flex items-center gap-3 px-4 py-3 rounded-lg"
-          style={{ background: "rgba(74,222,128,.10)", border: "1px solid rgba(74,222,128,.25)" }}>
-          <CheckCircle2 size={18} className="text-success flex-shrink-0" />
-          <div className="flex-1">
-            <p className="text-sm font-medium text-text-primary">{t("Telegram подключён", "Telegram ulangan")}</p>
-            <p className="text-xs text-text-secondary mt-0.5">chat_id: {status.chatId}</p>
-          </div>
-          <button onClick={() => remove.mutate()} disabled={remove.isPending}
-            className="btn-secondary py-1.5 px-3 text-xs text-danger flex items-center gap-1.5"
-            style={{ borderColor: "rgba(248,113,113,.30)" }}>
-            {remove.isPending ? <Loader2 size={11} className="animate-spin" /> : <XCircle size={11} />}
-            {t("Отключить", "Uzish")}
-          </button>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          <div className="px-4 py-3 rounded-lg space-y-2 text-sm" style={{ background: "var(--color-surface-light, #f8f9fb)" }}>
-            <p className="font-medium text-text-primary">{t("Как подключить:", "Qanday ulash:")}</p>
-            <ol className="list-decimal list-inside space-y-1.5 text-text-secondary">
-              <li>{t("Откройте Telegram → найдите", "Telegramni oching →")} <code className="px-1 rounded text-primary" style={{ background: "var(--color-primary-subtle, rgba(129,140,248,.10))" }}>@userinfobot</code></li>
-              <li>{t("Нажмите /start — получите свой числовой ID", "/start → raqamli ID olasiz")}</li>
-              <li>{t("Вставьте ID ниже и нажмите «Подключить»", "ID-ni quyida kiriting va «Ulash» tugmasini bosing")}</li>
-            </ol>
-          </div>
-          <div>
-            <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">
-              {t("ВАШ TELEGRAM CHAT ID", "TELEGRAM CHAT ID")}
-            </label>
-            <div className="flex gap-2">
-              <input className="input-field flex-1 font-data"
-                placeholder={t("Например: 123456789", "Masalan: 123456789")}
-                value={chatId} onChange={e => setChatId(e.target.value.replace(/\D/g, ""))} />
-              <button onClick={() => chatId && save.mutate({ chatId })}
-                disabled={save.isPending || !chatId}
-                className="btn-primary flex items-center gap-2 disabled:opacity-40">
-                {save.isPending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-                {t("Подключить", "Ulash")}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div style={{ borderTop: "1px solid var(--color-border, #f3f4f6)", paddingTop: 16 }}>
-        <p className="font-label text-[10px] text-text-secondary tracking-wider mb-2">
-          {t("ВЫ БУДЕТЕ ПОЛУЧАТЬ", "QUYIDAGILARNI OLASIZ")}
-        </p>
-        <ul className="space-y-2 text-sm text-text-secondary">
-          {[
-            t("📅 Ваш план визитов утром", "📅 Tashrif rejasi ertalab"),
-            t("🛒 Подтверждение новых заказов", "🛒 Yangi buyurtmalar tasdiqi"),
-            t("📦 Изменение статуса заказа", "📦 Buyurtma holati o'zgarishi"),
-            t("⚠️ Уведомления о низком остатке", "⚠️ Kam qoldiq haqida xabar"),
-          ].map(item => <li key={item}>{item}</li>)}
-        </ul>
-      </div>
-    </div>
-  );
-}
-
-// ── Компания ──────────────────────────────────────────────────────────────────
-function CompanySettings() {
-  const { lang } = useLang();
-  const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
-  const logoRef = useRef<HTMLInputElement>(null);
-  const { data: settings, isLoading } = trpc.settings.get.useQuery();
-  const utils = trpc.useUtils();
-  type CompanyForm = Record<string, unknown>;
-  const [form, setForm] = useState<CompanyForm | null>(null);
-
-  if (!isLoading && settings && !form) setForm(settings as any);
-
-  const saveMutation = trpc.settings.update.useMutation({
-    onSuccess: () => { utils.settings.get.invalidate(); notify.success(t("Настройки сохранены", "Sozlamalar saqlandi")); },
-    onError:   (e) => notify.error(e.message),
-  });
-
-  const handleLogo = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 1024 * 1024) { notify.error(t("Макс. 1 МБ", "Maks. 1 MB")); return; }
-    const reader = new FileReader();
-    reader.onload = () => setForm((f: CompanyForm | null) => ({ ...f, logoUrl: reader.result as string } as CompanyForm));
-    reader.readAsDataURL(file);
-  };
-
-  if (isLoading || !form) return <div className="h-32 bg-surface-light animate-pulse rounded-xl" />;
-
-  const FIELDS = [
-    { key: "companyName",    ru: "Название компании", uz: "Kompaniya nomi"    },
-    { key: "companyAddress", ru: "Адрес",             uz: "Manzil"           },
-    { key: "companyInn",     ru: "ИНН",               uz: "STIR"             },
-    { key: "companyDirector",ru: "Директор",          uz: "Direktor"         },
-    { key: "companyPhone",   ru: "Телефон",           uz: "Telefon"          },
-  ];
-
-  return (
-    <div className="space-y-4">
-      {/* Логотип */}
-      <div>
-        <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-2">
-          {t("ЛОГОТИП КОМПАНИИ", "KOMPANIYA LOGOTIPI")}
-        </label>
-        <div className="flex items-center gap-4">
-          <div
-            className="w-16 h-16 rounded-xl flex items-center justify-center overflow-hidden cursor-pointer border-2 border-dashed transition-colors hover:border-primary"
-            style={{ borderColor: "var(--color-border, #e5e7eb)", background: "var(--color-surface-light, #f8f9fb)" }}
-            onClick={() => logoRef.current?.click()}
-          >
-            {form.logoUrl
-              ? <img src={form.logoUrl as string} alt="logo" className="w-full h-full object-contain" />
-              : <Upload size={20} className="text-text-secondary" />}
-          </div>
-          <div>
-            <button onClick={() => logoRef.current?.click()} className="btn-secondary text-sm flex items-center gap-2">
-              <Upload size={14} />{t("Загрузить", "Yuklash")}
-            </button>
-            <p className="text-xs mt-1" style={{ color: "var(--color-text-tertiary, #9ca3af)" }}>
-              {t("PNG, JPG — макс. 1 МБ", "PNG, JPG — maks. 1 MB")}
-            </p>
-          </div>
-          <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={handleLogo} />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {FIELDS.map(f => (
-          <div key={f.key}>
-            <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">
-              {lang === "uz" ? f.uz : f.ru}
-            </label>
-            <input className="input-field w-full" value={(form[f.key] as string) ?? ""}
-              onChange={e => setForm({ ...form, [f.key]: e.target.value } as CompanyForm)} />
-          </div>
-        ))}
-
-        {/* Валюта */}
-        <div>
-          <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">
-            {t("ВАЛЮТА", "VALYUTA")}
-          </label>
-          <PremiumSelect value={(form.currency as string) ?? "UZS"}
-            onChange={v => setForm({ ...form, currency: v } as CompanyForm)}
-            options={[{value:"UZS",label:"UZS — Узбекский сум"},{value:"USD",label:"USD — Доллар США"},{value:"RUB",label:"RUB — Российский рубль"}]}
-            width="100%" />
-        </div>
-      </div>
-
-      <button onClick={() => saveMutation.mutate(form)} disabled={saveMutation.isPending}
-        className="btn-primary flex items-center gap-2 disabled:opacity-40">
-        {saveMutation.isPending && <Loader2 size={14} className="animate-spin" />}
-        {t("Сохранить", "Saqlash")}
-      </button>
-    </div>
-  );
-}
-
-// ── Профиль ───────────────────────────────────────────────────────────────────
-function ProfileSettings() {
-  const { user } = useAuth();
-  const { lang } = useLang();
-  const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
-  const utils = trpc.useUtils();
-  const [form, setForm] = useState({ name: user?.name ?? "", email: user?.email ?? "" });
-  const [pwForm, setPwForm] = useState({ current: "", next: "", confirm: "" });
-
-  const updateProfile = (trpc.user as any).updateProfile.useMutation({
-    onSuccess: () => { utils.auth.me.invalidate(); notify.success(t("Профиль обновлён", "Profil yangilandi")); },
-    onError:   (e: any) => notify.error(e.message),
-  });
-  const changePassword = trpc.user.changePassword.useMutation({
-    onSuccess: () => { setPwForm({ current: "", next: "", confirm: "" }); notify.success(t("Пароль изменён", "Parol o'zgartirildi")); },
-    onError:   (e) => notify.error(e.message),
-  });
-
-  return (
-    <div className="space-y-6">
-      <div className="space-y-3">
-        <p className="font-label text-[10px] text-text-secondary tracking-wider">{t("ОСНОВНОЕ", "ASOSIY")}</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">{t("ИМЯ","ISM")}</label>
-            <input className="input-field w-full" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
-          </div>
-          <div>
-            <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">EMAIL</label>
-            <input type="email" className="input-field w-full" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
-          </div>
-        </div>
-        <button onClick={() => updateProfile.mutate(form)} disabled={updateProfile.isPending}
-          className="btn-primary flex items-center gap-2 disabled:opacity-40">
-          {updateProfile.isPending && <Loader2 size={14} className="animate-spin" />}
-          {t("Сохранить профиль", "Profilni saqlash")}
-        </button>
-      </div>
-
-      <div className="space-y-3" style={{ borderTop: "1px solid var(--color-border, #f3f4f6)", paddingTop: 20 }}>
-        <p className="font-label text-[10px] text-text-secondary tracking-wider">{t("СМЕНА ПАРОЛЯ","PAROLNI O'ZGARTIRISH")}</p>
-        {[
-          { key: "current", ru: "ТЕКУЩИЙ ПАРОЛЬ",  uz: "JORIY PAROL"    },
-          { key: "next",    ru: "НОВЫЙ ПАРОЛЬ",     uz: "YANGI PAROL"    },
-          { key: "confirm", ru: "ПОДТВЕРДИТЕ НОВЫЙ", uz: "YANGI PAROLNI TASDIQLANG" },
-        ].map(f => (
-          <div key={f.key}>
-            <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">
-              {lang === "uz" ? f.uz : f.ru}
-            </label>
-            <input type="password" className="input-field w-full sm:max-w-sm"
-              value={(pwForm as unknown as Record<string, string>)[f.key]}
-              onChange={e => setPwForm({ ...pwForm, [f.key]: e.target.value })} />
-          </div>
-        ))}
-        <button
-          onClick={() => {
-            if (pwForm.next !== pwForm.confirm) { notify.error(t("Пароли не совпадают", "Parollar mos emas")); return; }
-            changePassword.mutate({ currentPassword: pwForm.current, newPassword: pwForm.next });
-          }}
-          disabled={changePassword.isPending || !pwForm.current || !pwForm.next}
-          className="btn-secondary flex items-center gap-2 disabled:opacity-40"
-        >
-          {changePassword.isPending && <Loader2 size={14} className="animate-spin" />}
-          {t("Изменить пароль", "Parolni o'zgartirish")}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ── Внешний вид ───────────────────────────────────────────────────────────────
-function AppearanceSettings() {
-  const { theme, toggle } = useTheme();
+export default function Settings() {
   const { lang, setLang } = useLang();
+  const { fmt } = useCurrency();
+  const { theme, toggle } = useTheme();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
 
-  return (
-    <div className="space-y-6">
-      <div>
-        <p className="font-label text-[10px] text-text-secondary tracking-wider mb-3">{t("ТЕМА","MAVZU")}</p>
-        <div className="grid grid-cols-2 gap-3 max-w-xs">
-          {[
-            { val: "light", labelRu: "☀️ Светлая", labelUz: "☀️ Yorug'" },
-            { val: "dark",  labelRu: "🌙 Тёмная",  labelUz: "🌙 To'q"  },
-          ].map(opt => (
-            <button key={opt.val} onClick={toggle}
-              className={`py-3 rounded-xl border text-sm font-medium transition-all ${
-                theme === opt.val ? "border-primary bg-primary/10 text-primary" : "border-border-subtle text-text-secondary hover:border-border-strong"
-              }`}>
-              {lang === "uz" ? opt.labelUz : opt.labelRu}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div style={{ borderTop: "1px solid var(--color-border, #f3f4f6)", paddingTop: 20 }}>
-        <p className="font-label text-[10px] text-text-secondary tracking-wider mb-3">{t("ЯЗЫК ИНТЕРФЕЙСА","INTERFEYS TILI")}</p>
-        <div className="grid grid-cols-2 gap-3 max-w-xs">
-          {[
-            { val: "ru", label: "🇷🇺 Русский"  },
-            { val: "uz", label: "🇺🇿 O'zbek"   },
-          ].map(l => (
-            <button key={l.val} onClick={() => setLang(l.val as "ru" | "uz")}
-              className={`py-3 rounded-xl border text-sm font-medium transition-all ${
-                lang === l.val ? "border-primary bg-primary/10 text-primary" : "border-border-subtle text-text-secondary hover:border-border-strong"
-              }`}>
-              {l.label}
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── 1С Интеграция ─────────────────────────────────────────────────────────────
-function OneCSettings() {
-  const { lang } = useLang();
-  const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
-  const utils = trpc.useUtils();
-
-  const { data: health, isLoading: healthLoading } = trpc.onec.health.useQuery();
-  const { data: status } = trpc.onec.status.useQuery();
-
-  const syncProducts = trpc.onec.syncProducts.useMutation({
-    onSuccess: (r) => { notify.success(t(`Синхронизировано: ${r.synced} товаров`, `Sinxronizatsiya: ${r.synced} mahsulot`)); },
+  const { data: settings } = trpc.settings.get.useQuery();
+  const updateSettings = trpc.settings.update.useMutation({
+    onSuccess: () => notify.success(t("Настройки сохранены", "Sozlamalar saqlandi")),
     onError: (e) => notify.error(e.message),
   });
 
+  const [companyName, setCompanyName] = useState(settings?.companyName ?? "");
+  const [currency, setCurrency] = useState(settings?.currency ?? "UZS");
+
+  if (settings && !companyName) {
+    setCompanyName(settings.companyName ?? "");
+    setCurrency(settings.currency ?? "UZS");
+  }
+
   return (
-    <div className="space-y-6">
-      {/* Статус соединения */}
-      <div>
-        <p className="font-label text-[10px] text-text-secondary tracking-wider mb-3">
-          {t("СТАТУС СОЕДИНЕНИЯ", "ULANISH HOLATI")}
-        </p>
-        <div className="flex items-center gap-3 px-4 py-3 rounded-lg"
-          style={{
-            background: health?.healthy ? "rgba(74,222,128,.10)" : "var(--color-danger-subtle, rgba(248,113,113,.10))",
-            border: `1px solid ${health?.healthy ? "rgba(74,222,128,.25)" : "color-mix(in srgb, #f87171 25%, transparent)"}`,
-          }}>
-          {healthLoading ? (
-            <Loader2 size={18} className="text-text-secondary animate-spin" />
-          ) : health?.healthy ? (
-            <CheckCircle2 size={18} className="text-success flex-shrink-0" />
-          ) : (
-            <XCircle size={18} className="text-danger flex-shrink-0" />
-          )}
-          <div className="flex-1">
-            <p className="text-sm font-medium text-text-primary">
-              {health?.healthy
-                ? t("1С Bridge подключён", "1C Bridge ulangan")
-                : t("1С Bridge не подключён", "1C Bridge ulanmagan")}
-            </p>
-            <p className="text-xs text-text-secondary mt-0.5">
-              {health?.healthy
-                ? t("Соединение активно", "Ulanish faol")
-                : health?.error ?? t("Проверьте настройки подключения", "Ulanish sozlamalarini tekshiring")}
-            </p>
+    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+      <PageHeader title={t("Настройки", "Sozlamalar")} subtitle={t("Управление параметрами системы", "Tizim parametrlarini boshqarish")} />
+
+      {/* Company Info */}
+      <Card>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "20px" }}>
+          <div style={{ width: "28px", height: "28px", borderRadius: "8px", background: "rgba(129,140,248,.10)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Building2 size={14} color="var(--color-primary, #818cf8)" />
+          </div>
+          <h3 style={{ fontFamily: F.display, fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary, #111827)", margin: 0 }}>{t("Компания", "Kompaniya")}</h3>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+          <div>
+            <label style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-text-tertiary, #9ca3af)", display: "block", marginBottom: "6px" }}>{t("Название", "Nomi")}</label>
+            <input value={companyName} onChange={e => setCompanyName(e.target.value)} style={inputStyle} />
+          </div>
+          <div>
+            <label style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-text-tertiary, #9ca3af)", display: "block", marginBottom: "6px" }}>{t("Валюта", "Valyuta")}</label>
+            <input value={currency} onChange={e => setCurrency(e.target.value)} style={inputStyle} />
           </div>
         </div>
-      </div>
+        <button onClick={() => updateSettings.mutate({ companyName, currency })} disabled={updateSettings.isPending} style={{ ...btnPrimary, marginTop: "16px" }}>
+          <Save size={14} /> {t("Сохранить", "Saqlash")}
+        </button>
+      </Card>
 
-      {/* Настройки подключения */}
-      <div>
-        <p className="font-label text-[10px] text-text-secondary tracking-wider mb-3">
-          {t("НАСТРОЙКИ ПОДКЛЮЧЕНИЯ", "ULANISH SOZLAMALARI")}
-        </p>
-        <div className="space-y-3">
-          <div className="p-4 rounded-lg" style={{ background: "var(--color-surface-light, #f8f9fb)" }}>
-            <p className="text-xs text-text-secondary mb-2">
-              {t("Для подключения 1С:Предприятие необходим Bridge-сервер.", "1C:Predpriyatiye bilan ulanish uchun Bridge server kerak.")}
-            </p>
-            <p className="text-xs text-text-secondary">
-              {t("Установите переменные окружения на сервере:", "Serverda muhit o'zgaruvchilarini o'rnating:")}
-            </p>
-            <pre className="mt-2 p-3 rounded-lg text-xs font-mono overflow-x-auto"
-              style={{ background: "var(--color-surface, #ffffff)", border: "1px solid var(--color-border, #f3f4f6)" }}>
-{`ONEC_BRIDGE_URL=http://bridge-server:8080
-ONEC_USERNAME=your_user
-ONEC_PASSWORD=your_password
-ONEC_WEBHOOK_SECRET=your_secret`}
-            </pre>
+      {/* Appearance */}
+      <Card>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "20px" }}>
+          <div style={{ width: "28px", height: "28px", borderRadius: "8px", background: "rgba(129,140,248,.10)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <SettingsIcon size={14} color="var(--color-primary, #818cf8)" />
           </div>
-
-          <div className="p-4 rounded-lg" style={{ background: "var(--color-surface-light, #f8f9fb)" }}>
-            <p className="text-xs text-text-secondary mb-2">
-              {t("Webhook URL для 1С (настройте в 1С:Предприятие):", "1C uchun webhook URL (1C:Predpriyatoyedagi sozlamalarda):")}
-            </p>
-            <pre className="mt-2 p-3 rounded-lg text-xs font-mono overflow-x-auto"
-              style={{ background: "var(--color-surface, #ffffff)", border: "1px solid var(--color-border, #f3f4f6)" }}>
-{`Оплата: https://www.warehouse-pro.uz/api/webhooks/1c/payment
-Остатки: https://www.warehouse-pro.uz/api/webhooks/1c/stock`}
-            </pre>
-          </div>
+          <h3 style={{ fontFamily: F.display, fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary, #111827)", margin: 0 }}>{t("Внешний вид", "Ko'rinish")}</h3>
         </div>
-      </div>
-
-      {/* Синхронизация */}
-      <div>
-        <p className="font-label text-[10px] text-text-secondary tracking-wider mb-3">
-          {t("СИНХРОНИЗАЦИЯ", "SINXRONIZATSIYA")}
-        </p>
-        <div className="space-y-3">
-          <div className="flex items-center justify-between p-4 rounded-lg" style={{ background: "var(--color-surface-light, #f8f9fb)" }}>
-            <div>
-              <p className="text-sm font-medium text-text-primary">{t("Товары из 1С", "1C dan mahsulotlar")}</p>
-              <p className="text-xs text-text-secondary mt-0.5">
-                {t("Загрузить товары, цены и остатки из 1С", "1C dan mahsulotlar, narxlar va qoldiqlarni yuklash")}
-              </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderRadius: "12px", background: "var(--color-surface-light, #f8f9fb)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              {theme === "dark" ? <Moon size={16} color="var(--color-primary, #818cf8)" /> : <Sun size={16} color="var(--color-warning, #fbbf24)" />}
+              <span style={{ fontSize: "13px", color: "var(--color-text-primary, #111827)" }}>{t("Тёмная тема", "Qorong'u tema")}</span>
             </div>
-            <button
-              onClick={() => syncProducts.mutate()}
-              disabled={syncProducts.isPending || !health?.healthy}
-              className="btn-primary flex items-center gap-2 text-sm disabled:opacity-40"
-            >
-              {syncProducts.isPending ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-              {t("Синхронизировать", "Sinxronlashtirish")}
+            <button onClick={toggle} style={{ width: "44px", height: "24px", borderRadius: "12px", border: "none", cursor: "pointer", background: theme === "dark" ? "var(--color-primary, #818cf8)" : "var(--color-surface-hover, #f3f4f6)", transition: "all 0.2s", position: "relative" }}>
+              <span style={{ position: "absolute", top: "2px", left: theme === "dark" ? "22px" : "2px", width: "20px", height: "20px", borderRadius: "50%", background: "#fff", transition: "all 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,.1)" }} />
             </button>
           </div>
-
-          {status && (
-            <div className="grid grid-cols-2 gap-3">
-              <div className="p-3 rounded-lg" style={{ background: "var(--color-surface-light, #f8f9fb)" }}>
-                <p className="text-[10px] text-text-secondary tracking-wider mb-1">
-                  {t("ПОСЛЕДНЯЯ СИНХРОНИЗАЦИЯ", "OXIRGI SINXRONIZATSIYA")}
-                </p>
-                <p className="text-sm font-medium text-text-primary">
-                  {status.lastProductSync
-                    ? new Date(status.lastProductSync).toLocaleString("ru")
-                    : t("Не выполнялась", "Bajarilmagan")}
-                </p>
-              </div>
-              <div className="p-3 rounded-lg" style={{ background: "var(--color-surface-light, #f8f9fb)" }}>
-                <p className="text-[10px] text-text-secondary tracking-wider mb-1">
-                  {t("ОШИБКИ", "XATOLIKLAR")}
-                </p>
-                <p className={`text-sm font-medium ${status.errors > 0 ? "text-danger" : "text-success"}`}>
-                  {status.errors ?? 0}
-                </p>
-              </div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderRadius: "12px", background: "var(--color-surface-light, #f8f9fb)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <Globe size={16} color="var(--color-success, #4ade80)" />
+              <span style={{ fontSize: "13px", color: "var(--color-text-primary, #111827)" }}>{t("Язык", "Til")}</span>
             </div>
-          )}
-        </div>
-      </div>
-
-      {/* Документация */}
-      <div className="p-4 rounded-lg" style={{ background: "var(--color-surface-light, #f8f9fb)" }}>
-        <div className="flex items-start gap-3">
-          <AlertTriangle size={16} className="text-amber-500 mt-0.5 flex-shrink-0" />
-          <div>
-            <p className="text-sm font-medium text-text-primary mb-1">
-              {t("Важно", "Muhim")}
-            </p>
-            <p className="text-xs text-text-secondary leading-relaxed">
-              {t(
-                "Для работы интеграции необходим Bridge-сервер, который связывает 1С:Предприятие с Warehouse Pro. Обратитесь к поставщику 1С для настройки Bridge.",
-                "Integratsiya uchun 1C:Predpriyatiye ni Warehouse Pro bilan bog'laydigan Bridge server kerak. Bridge ni sozlash uchun 1C yetkazib beruvchisiga murojaat qiling."
-              )}
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Секции ────────────────────────────────────────────────────────────────────
-const SECTIONS = [
-  { key: "profile",    iconRu: "Профиль",    iconUz: "Profil",        Icon: User,      Comp: ProfileSettings    },
-  { key: "company",   iconRu: "Компания",   iconUz: "Kompaniya",     Icon: Building2, Comp: CompanySettings    },
-  { key: "telegram",  iconRu: "Telegram",   iconUz: "Telegram",      Icon: Bell,      Comp: TelegramSettings   },
-  { key: "onec",      iconRu: "1С",         iconUz: "1C",            Icon: Database,  Comp: OneCSettings       },
-  { key: "appearance",iconRu: "Внешний вид",iconUz: "Ko'rinish",     Icon: Moon,      Comp: AppearanceSettings },
-];
-
-export default function Settings() {
-  const [active, setActive] = useState("profile");
-  const { lang } = useLang();
-  const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
-  const Current = SECTIONS.find(s => s.key === active)?.Comp ?? ProfileSettings;
-
-  return (
-    <div className="max-w-3xl mx-auto animate-fade-up">
-      <h1 className="font-display text-2xl font-bold text-text-primary tracking-tight mb-5">{t("Настройки", "Sozlamalar")}</h1>
-
-      <div className="flex flex-col sm:flex-row gap-5">
-        {/* Боковое меню */}
-        <nav className="sm:w-44 flex-shrink-0">
-          <div className="panel p-2 flex sm:flex-col gap-1">
-            {SECTIONS.map(s => {
-              const Icon = s.Icon;
-              return (
-                <button key={s.key} onClick={() => setActive(s.key)}
-                  className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-left text-sm font-medium transition-all w-full ${
-                    active === s.key
-                      ? "bg-primary/10 text-primary"
-                      : "text-text-secondary hover:text-text-primary hover:bg-surface-light"
-                  }`}>
-                  <Icon size={15} />
-                  <span className="hidden sm:inline">{lang === "uz" ? s.iconUz : s.iconRu}</span>
+            <div style={{ display: "flex", gap: "4px" }}>
+              {(["ru", "uz"] as const).map(l => (
+                <button key={l} onClick={() => setLang(l)} style={{ padding: "6px 12px", borderRadius: "8px", border: "none", cursor: "pointer", fontSize: "12px", fontWeight: 600, fontFamily: F.body, background: lang === l ? "var(--color-primary, #818cf8)" : "transparent", color: lang === l ? "#fff" : "var(--color-text-secondary, #6b7280)", transition: "all 0.15s" }}>
+                  {l === "ru" ? "РУС" : "UZB"}
                 </button>
-              );
-            })}
+              ))}
+            </div>
           </div>
-        </nav>
-
-        {/* Контент */}
-        <div className="flex-1 panel p-5 min-h-[300px]">
-          <h2 className="font-display text-base text-text-primary mb-5">
-            {lang === "uz"
-              ? SECTIONS.find(s => s.key === active)?.iconUz
-              : SECTIONS.find(s => s.key === active)?.iconRu}
-          </h2>
-          <Current />
         </div>
-      </div>
+      </Card>
     </div>
   );
 }
