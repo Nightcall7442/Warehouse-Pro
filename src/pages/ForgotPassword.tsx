@@ -20,7 +20,7 @@ export default function ForgotPassword() {
   };
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "var(--color-canvas, #ffffff)", alignItems: "center", justifyContent: "center" }}>
+    <div style={{ display: "flex", minHeight: "100vh", background: "var(--color-canvas, #f0f2f5)", alignItems: "center", justifyContent: "center" }}>
       <div style={{ width: "100%", maxWidth: 400, padding: "0 24px" }}>
         {/* Back to login */}
         <Link to="/login" style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--color-text-secondary, #6b7280)", fontSize: 13, textDecoration: "none", marginBottom: 24 }}>

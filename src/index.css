@@ -45,7 +45,7 @@
 
   /* ── Light theme — Clean KPI Dashboard ─────────────────────────────── */
   :root, .light {
-    --color-canvas:          #ffffff;
+    --color-canvas:          #f0f2f5;
     --color-surface:         #ffffff;
     --color-surface-raised:  #ffffff;
     --color-surface-light:   #f8f9fb;
@@ -198,7 +198,7 @@
   html { font-size: 14px; }
 
   body {
-    background-color: var(--color-canvas, #ffffff);
+    background-color: var(--color-canvas, #f0f2f5);
     color: var(--color-text-primary, #111827);
     font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
     line-height: 1.6;
@@ -429,14 +429,14 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    filter: drop-shadow(0 2px 4px rgba(0,0,0,.06));
+    filter: var(--shadow-ring, drop-shadow(0 2px 4px rgba(0,0,0,.06)));
   }
   .progress-ring-label {
     position: absolute;
     font-family: 'DM Sans', sans-serif;
     font-weight: 700;
     font-size: 18px;
-    color: #111827;
+    color: var(--color-text-primary, #111827);
     pointer-events: none;
   }
 
@@ -556,6 +556,14 @@
 
 /* Leaflet dark */
 .dark .leaflet-container { background: #0b0c10 !important; }
+
+/* Dark mode progress ring */
+.dark .progress-ring-wrap {
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,.2));
+}
+.dark .progress-ring-label {
+  color: var(--color-text-primary, #f0f1f5);
+}
 
 /* Refined scrollbars — quiet until hovered */
 * { scrollbar-width: thin; scrollbar-color: var(--color-border-strong, #d1d5db) transparent; }

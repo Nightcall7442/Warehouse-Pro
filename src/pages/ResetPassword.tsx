@@ -23,7 +23,7 @@ export default function ResetPassword() {
 
   if (!token) {
     return (
-      <div style={{ display: "flex", minHeight: "100vh", background: "var(--color-canvas, #ffffff)", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ display: "flex", minHeight: "100vh", background: "var(--color-canvas, #f0f2f5)", alignItems: "center", justifyContent: "center" }}>
         <div style={{ textAlign: "center", padding: 24 }}>
           <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--color-text-primary, #111827)", marginBottom: 8 }}>
             {tr("Неверная ссылка", "Noto'g'ri havola")}
@@ -56,7 +56,7 @@ export default function ResetPassword() {
   };
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "var(--color-canvas, #ffffff)", alignItems: "center", justifyContent: "center" }}>
+    <div style={{ display: "flex", minHeight: "100vh", background: "var(--color-canvas, #f0f2f5)", alignItems: "center", justifyContent: "center" }}>
       <div style={{ width: "100%", maxWidth: 400, padding: "0 24px" }}>
         <Link to="/login" style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--color-text-secondary, #6b7280)", fontSize: 13, textDecoration: "none", marginBottom: 24 }}>
           <ArrowLeft size={14} /> {tr("Назад к входу", "Orqaga")}
