@@ -236,7 +236,7 @@ export default function Login() {
             </form>
 
             {/* Register */}
-            <div style={{ marginTop: 32, paddingTop: 24, borderTop: "1px solid #f3f4f6", textAlign: "center" }}>
+            <div style={{ marginTop: 32, paddingTop: 24, borderTop: "1px solid var(--color-border, #f3f4f6)", textAlign: "center" }}>
               <p style={{ fontSize: "14px", color: "var(--color-text-secondary, #6b7280)", margin: 0 }}>
                 {tr("Нет аккаунта?", "Hisobingiz yo'qmi?")}{" "}
                 <Link to="/register" style={{ fontWeight: 600, color: "#818cf8", textDecoration: "none" }}>

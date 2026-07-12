@@ -326,7 +326,7 @@ function OneCSettings() {
         </p>
         <div className="flex items-center gap-3 px-4 py-3 rounded-lg"
           style={{
-            background: health?.healthy ? "rgba(74,222,128,.10)" : "#fee2e2",
+            background: health?.healthy ? "rgba(74,222,128,.10)" : "var(--color-danger-subtle, rgba(248,113,113,.10))",
             border: `1px solid ${health?.healthy ? "rgba(74,222,128,.25)" : "color-mix(in srgb, #f87171 25%, transparent)"}`,
           }}>
           {healthLoading ? (

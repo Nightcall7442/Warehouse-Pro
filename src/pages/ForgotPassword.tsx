@@ -51,7 +51,7 @@ export default function ForgotPassword() {
             /* Form */
             <>
               <div style={{ textAlign: "center", marginBottom: 24 }}>
-                <div style={{ width: 48, height: 48, borderRadius: 12, background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+                <div style={{ width: 48, height: 48, borderRadius: 12, background: "var(--color-primary-subtle, rgba(129,140,248,.10))", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
                   <Mail size={24} style={{ color: "#818cf8" }} />
                 </div>
                 <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--color-text-primary, #111827)", marginBottom: 8 }}>

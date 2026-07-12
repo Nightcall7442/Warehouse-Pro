@@ -190,7 +190,7 @@ export default function Register() {
 
             {error && (
               <div className="flex items-center gap-2 text-sm px-3 py-2.5 rounded-lg"
-                style={{ background: "#fee2e2", color: "#f87171" }}>
+                style={{ background: "var(--color-danger-subtle, rgba(248,113,113,.10))", color: "#f87171" }}>
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
                   <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm-.75 4a.75.75 0 0 1 1.5 0v3a.75.75 0 0 1-1.5 0V5zm.75 6.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2z" />
                 </svg>

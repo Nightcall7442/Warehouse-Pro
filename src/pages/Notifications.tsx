@@ -141,7 +141,7 @@ export default function Notifications() {
             onClick={() => setFilter(f.key)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap"
             style={{
-              background: filter === f.key ? "#eff6ff" : "var(--color-surface-light, #f8f9fb)",
+              background: filter === f.key ? "var(--color-primary-subtle, rgba(129,140,248,.10))" : "var(--color-surface-light, #f8f9fb)",
               color: filter === f.key ? "#818cf8" : "var(--color-text-secondary, #6b7280)",
               border: `1px solid ${filter === f.key ? "#c7c9f8" : "var(--color-border, #f3f4f6)"}`,
             }}

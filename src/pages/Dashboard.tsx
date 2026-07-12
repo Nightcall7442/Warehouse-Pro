@@ -284,7 +284,7 @@ export default function Dashboard() {
         <div style={{ display: "flex", gap: "12px", overflowX: "auto", paddingBottom: "4px" }}>
           {(alerts as any[]).slice(0, 4).map((alert: any, i: any) => {
             const colors: Record<string, { bg: string; icon: string }> = {
-              info:    { bg: "#eff6ff", icon: "#60a5fa" },
+              info:    { bg: "var(--color-primary-subtle, rgba(129,140,248,.10))", icon: "#60a5fa" },
               warning: { bg: "#fffbeb", icon: "#fbbf24" },
               danger:  { bg: "#fef2f2", icon: "#f87171" },
             };
@@ -462,7 +462,7 @@ export default function Dashboard() {
                   style={{
                     display: "flex", alignItems: "center", gap: "12px",
                     padding: "10px 0", cursor: "pointer",
-                    borderBottom: "1px solid #f3f4f6",
+                    borderBottom: "1px solid var(--color-border, #f3f4f6)",
                   }}
                 >
                   <span
@@ -509,7 +509,7 @@ export default function Dashboard() {
               display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
               fontSize: "12px", fontWeight: 600, fontFamily: "'DM Sans', sans-serif",
               borderRadius: "8px", border: "none", cursor: "pointer",
-              background: "#eff6ff", color: "#818cf8", transition: "all 0.15s",
+              background: "var(--color-primary-subtle, rgba(129,140,248,.10))", color: "#818cf8", transition: "all 0.15s",
             }}
           >
             {t("Все заказы", "Barcha buyurtmalar")}

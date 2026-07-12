@@ -288,13 +288,13 @@ export default function ShopDetail() {
 
         {/* История платежей */}
         {shop.paymentHistory && shop.paymentHistory.length > 0 && (
-          <div className="mt-4 space-y-0" style={{ borderTop: "1px solid #f3f4f6", paddingTop: 12 }}>
+          <div className="mt-4 space-y-0" style={{ borderTop: "1px solid var(--color-border, #f3f4f6)", paddingTop: 12 }}>
             <p className="font-label text-[10px] text-text-secondary tracking-wider mb-2">
               {t("ИСТОРИЯ ПЛАТЕЖЕЙ", "TO'LOVLAR TARIXI")}
             </p>
             {shop.paymentHistory.slice(0, 5).map((p: { id: number; type: string; notes: string | null; amount: string; createdAt: string | Date }) => (
               <div key={p.id} className="flex items-center justify-between py-2"
-                style={{ borderBottom: "1px solid #f3f4f6" }}>
+                style={{ borderBottom: "1px solid var(--color-border, #f3f4f6)" }}>
                 <div>
                   <p className="text-sm text-text-primary">
                     {p.type === "payment"
@@ -318,7 +318,7 @@ export default function ShopDetail() {
       {/* История заказов */}
       {shop.recentOrders && shop.recentOrders.length > 0 && (
         <div className="panel overflow-hidden">
-          <div className="px-5 py-4" style={{ borderBottom: "1px solid #f3f4f6" }}>
+          <div className="px-5 py-4" style={{ borderBottom: "1px solid var(--color-border, #f3f4f6)" }}>
             <p className="font-label text-[10px] text-primary tracking-wider">
               {t("ЗАКАЗЫ МАГАЗИНА", "DO'KON BUYURTMALARI")}
             </p>

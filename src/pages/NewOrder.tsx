@@ -700,7 +700,7 @@ export default function NewOrder() {
         </div>
         {isOffline && (
           <div className="ml-auto flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium"
-            style={{ background: "#fef3c7", color: "#fbbf24" }}>
+            style={{ background: "var(--color-warning-subtle, rgba(251,191,36,.10))", color: "#fbbf24" }}>
             <WifiOff size={12}/>
             {t("Офлайн", "Oflayn")}
           </div>

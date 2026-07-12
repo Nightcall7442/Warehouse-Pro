@@ -82,7 +82,7 @@ function PlanCard({ plan, onDone, onSkip, isPending }: {
           {hasDebt && (
             <span
               className="flex items-center gap-1 text-[10px] font-data font-semibold px-1.5 py-0.5 rounded flex-shrink-0"
-              style={{ background: "#fee2e2", color: "#f87171" }}
+              style={{ background: "var(--color-danger-subtle, rgba(248,113,113,.10))", color: "#f87171" }}
             >
               <AlertCircle size={9} />
               {fmt(plan.shopDebt)}

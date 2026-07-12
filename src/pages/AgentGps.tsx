@@ -161,7 +161,7 @@ export default function AgentGps() {
           <div className="space-y-3">
             <div
               className="w-20 h-20 rounded-full flex items-center justify-center mx-auto"
-              style={{ background: "#fee2e2" }}
+              style={{ background: "var(--color-danger-subtle, rgba(248,113,113,.10))" }}
             >
               <AlertCircle size={32} className="text-danger" />
             </div>
