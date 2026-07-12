@@ -2,267 +2,83 @@ import { useState } from "react";
 import { useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
-import { CheckCircle2, Warehouse, Package, Users, ChevronRight, Loader2, Sparkles } from "lucide-react";
+import { useLang } from "@/i18n";
+import { Warehouse, ArrowRight, ArrowLeft, Check } from "lucide-react";
+import { CardDots, Card, btnPrimary, inputStyle } from "@/components/DashboardLayout";
 
-const STEPS = [
-  { key: "warehouse", num: 1, iconRu: "Склад",         iconUz: "Ombor",            Icon: Warehouse },
-  { key: "product",   num: 2, iconRu: "Первый товар",  iconUz: "Birinchi mahsulot", Icon: Package   },
-  { key: "invite",    num: 3, iconRu: "Пригласить",    iconUz: "Taklif",            Icon: Users     },
-];
+const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
 
-function ProgressBar({ current }: { current: number }) {
-  return (
-    <div className="flex items-center gap-0 mb-10">
-      {STEPS.map((s, i) => {
-        const done   = s.num < current;
-        const active = s.num === current;
-        const Icon   = s.Icon;
-        return (
-          <div key={s.key} className="flex items-center flex-1">
-            <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center border-2 transition-all ${
-                done   ? "border-primary bg-primary text-white" :
-                active ? "border-primary bg-primary/10 text-primary" :
-                         "border-border-subtle bg-surface-light text-text-secondary"
-              }`}>
-                {done ? <CheckCircle2 size={18} /> : <Icon size={18} />}
-              </div>
-              <span className={`text-[10px] font-label tracking-wider ${active ? "text-primary" : "text-text-secondary"}`}>
-                ШАГ {s.num}
-              </span>
-            </div>
-            {i < STEPS.length - 1 && (
-              <div className={`flex-1 h-[2px] mx-3 mb-5 rounded transition-all ${s.num < current ? "bg-primary" : "bg-border-subtle"}`} />
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// Шаг 1: Склад
-function StepWarehouse({ onNext }: { onNext: () => void }) {
-  const [form, setForm] = useState({ name: "", address: "", city: "" });
-  const utils = trpc.useUtils();
-  const create = trpc.warehouse.create.useMutation({
-    onSuccess: () => { utils.warehouse.list.invalidate(); onNext(); },
-    onError:   (e) => notify.error(e.message),
-  });
-
-  return (
-    <div className="space-y-5 animate-fade-up">
-      <div>
-        <p className="text-[11px] font-semibold tracking-[.12em] uppercase mb-2" style={{ color: "#818cf8" }}>
-          ШАГ 1 ИЗ 3
-        </p>
-        <h2 className="font-display text-2xl text-text-primary">Настройте склад</h2>
-        <p className="text-sm text-text-secondary mt-1.5">Укажите основную информацию о вашем складе</p>
-      </div>
-      <div className="space-y-3">
-        <div>
-          <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">НАЗВАНИЕ СКЛАДА *</label>
-          <input className="input-field w-full" placeholder="Главный склад" autoFocus
-            value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
-        </div>
-        <div>
-          <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">АДРЕС</label>
-          <input className="input-field w-full" placeholder="ул. Амира Темура, 15"
-            value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} />
-        </div>
-        <div>
-          <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">ГОРОД</label>
-          <input className="input-field w-full" placeholder="Ташкент"
-            value={form.city} onChange={e => setForm({ ...form, city: e.target.value })} />
-        </div>
-      </div>
-      <button
-        onClick={() => form.name.trim() && create.mutate(form)}
-        disabled={create.isPending || !form.name.trim()}
-        className="btn-primary w-full py-3 flex items-center justify-center gap-2 disabled:opacity-40"
-      >
-        {create.isPending ? <Loader2 size={15} className="animate-spin" /> : null}
-        Создать склад <ChevronRight size={15} />
-      </button>
-      <button onClick={onNext} className="w-full text-center text-sm text-text-secondary hover:text-text-primary transition-colors">
-        Пропустить →
-      </button>
-    </div>
-  );
-}
-
-// Шаг 2: Первый товар
-function StepProduct({ onNext }: { onNext: () => void }) {
-  const [form, setForm] = useState({ code: "", name: "", unitPrice: "", category: "" });
-  const utils = trpc.useUtils();
-  const create = trpc.product.create.useMutation({
-    onSuccess: () => { utils.product.list.invalidate(); onNext(); },
-    onError:   (e) => notify.error(e.message),
-  });
-
-  return (
-    <div className="space-y-5 animate-fade-up">
-      <div>
-        <p className="text-[11px] font-semibold tracking-[.12em] uppercase mb-2" style={{ color: "#818cf8" }}>
-          ШАГ 2 ИЗ 3
-        </p>
-        <h2 className="font-display text-2xl text-text-primary">Добавьте первый товар</h2>
-        <p className="text-sm text-text-secondary mt-1.5">Позже можно импортировать из Excel</p>
-      </div>
-      <div className="space-y-3">
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">КОД *</label>
-            <input className="input-field w-full font-data" placeholder="MUK-001" autoFocus
-              value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} />
-          </div>
-          <div>
-            <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">КАТЕГОРИЯ</label>
-            <input className="input-field w-full" placeholder="Мука"
-              value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} />
-          </div>
-        </div>
-        <div>
-          <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">НАЗВАНИЕ *</label>
-          <input className="input-field w-full" placeholder="Мука пшеничная в/с"
-            value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
-        </div>
-        <div>
-          <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">ЦЕНА ЗА КГ *</label>
-          <input type="number" step="0.01" className="input-field w-full font-data" placeholder="0.00"
-            value={form.unitPrice} onChange={e => setForm({ ...form, unitPrice: e.target.value })} />
-        </div>
-      </div>
-      <button
-        onClick={() => form.code && form.name && form.unitPrice && create.mutate({ ...form, reorderPoint: "10.00" })}
-        disabled={create.isPending || !form.code || !form.name || !form.unitPrice}
-        className="btn-primary w-full py-3 flex items-center justify-center gap-2 disabled:opacity-40"
-      >
-        {create.isPending ? <Loader2 size={15} className="animate-spin" /> : null}
-        Добавить товар <ChevronRight size={15} />
-      </button>
-      <button onClick={onNext} className="w-full text-center text-sm text-text-secondary hover:text-text-primary transition-colors">
-        Пропустить →
-      </button>
-    </div>
-  );
-}
-
-// Шаг 3: Пригласить агента
-function StepInvite({ onFinish }: { onFinish: () => void }) {
-  const [email, setEmail] = useState("");
-  const [role,  setRole]  = useState<"agent" | "operator">("agent");
-  const [sent,  setSent]  = useState(false);
-  const invite = trpc.invite.send.useMutation({
-    onSuccess: () => setSent(true),
-    onError:   (e) => notify.error(e.message),
-  });
-
-  if (sent) return (
-    <div className="text-center py-6 animate-fade-up">
-      <CheckCircle2 size={48} className="text-success mx-auto mb-4" />
-      <h2 className="font-display text-xl text-text-primary mb-2">Приглашение отправлено!</h2>
-      <p className="text-text-secondary text-sm mb-6">На {email} отправлена ссылка для регистрации</p>
-      <button onClick={onFinish} className="btn-primary px-8 py-3">
-        Перейти в Dashboard →
-      </button>
-    </div>
-  );
-
-  return (
-    <div className="space-y-5 animate-fade-up">
-      <div>
-        <p className="text-[11px] font-semibold tracking-[.12em] uppercase mb-2" style={{ color: "#818cf8" }}>
-          ШАГ 3 ИЗ 3
-        </p>
-        <h2 className="font-display text-2xl text-text-primary">Пригласите первого агента</h2>
-        <p className="text-sm text-text-secondary mt-1.5">Агент сразу получит доступ к мобильному приложению</p>
-      </div>
-      <div className="space-y-3">
-        <div>
-          <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">EMAIL СОТРУДНИКА</label>
-          <input type="email" className="input-field w-full" placeholder="agent@company.com" autoFocus
-            value={email} onChange={e => setEmail(e.target.value)} />
-        </div>
-        <div>
-          <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-3">РОЛЬ</label>
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              { val: "agent",    labelRu: "🧑 Торговый агент",  desc: "Заказы, визиты, GPS" },
-              { val: "operator", labelRu: "🖥️ Оператор склада", desc: "Склад, приходы, заказы" },
-            ].map(r => (
-              <button key={r.val} onClick={() => setRole(r.val as "agent" | "operator")}
-                className={`p-3 rounded-xl border text-left transition-all ${
-                  role === r.val ? "border-primary bg-primary/10" : "border-border-subtle hover:border-border-strong"
-                }`}>
-                <p className={`text-sm font-medium ${role === r.val ? "text-primary" : "text-text-primary"}`}>{r.labelRu}</p>
-                <p className="text-xs text-text-secondary mt-0.5">{r.desc}</p>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-      <button
-        onClick={() => email && invite.mutate({ email, role })}
-        disabled={invite.isPending || !email}
-        className="btn-primary w-full py-3 flex items-center justify-center gap-2 disabled:opacity-40"
-      >
-        {invite.isPending ? <Loader2 size={15} className="animate-spin" /> : null}
-        Отправить приглашение
-      </button>
-      <button onClick={onFinish} className="w-full text-center text-sm text-text-secondary hover:text-text-primary transition-colors">
-        Пропустить, перейти в Dashboard →
-      </button>
-    </div>
-  );
-}
-
-// Финальный экран
-function StepDone({ onFinish }: { onFinish: () => void }) {
-  return (
-    <div className="text-center py-8 animate-fade-up">
-      <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
-        style={{ background: "rgba(129,140,248,.15)" }}>
-        <Sparkles size={32} className="text-primary" />
-      </div>
-      <h2 className="font-display text-2xl text-text-primary mb-2">🎉 Всё готово!</h2>
-      <p className="text-text-secondary text-sm mb-8 max-w-xs mx-auto">
-        Ваш склад настроен. Теперь вы можете добавлять заказы, управлять агентами и следить за аналитикой.
-      </p>
-      <button onClick={onFinish} className="btn-primary px-10 py-3 text-base">
-        Перейти в Dashboard →
-      </button>
-    </div>
-  );
-}
-
-// Главный компонент
 export default function Onboarding() {
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(0);
+  const [companyName, setCompanyName] = useState("");
+  const [currency, setCurrency] = useState("UZS");
   const navigate = useNavigate();
-  const finish   = () => navigate("/");
+  const { lang } = useLang();
+  const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
+
+  const updateSettings = trpc.settings.update.useMutation({
+    onSuccess: () => { notify.success(t("Настройки сохранены", "Sozlamalar saqlandi")); navigate("/"); },
+    onError: (e) => notify.error(e.message),
+  });
+
+  const steps = [
+    { title: t("Добро пожаловать!", "Xush kelibsiz!"), desc: t("Настройте вашу компанию", "Kompaniyangizni sozlang") },
+    { title: t("Информация о компании", "Kompaniya haqida"), desc: t("Введите название и валюту", "Nomi va valyutani kiriting") },
+    { title: t("Готово!", "Tayyor!"), desc: t("Начните использовать система", "Tizimni ishlatishni boshlang") },
+  ];
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-12"
-      style={{ background: "var(--color-canvas, #f0f2f5)" }}>
-      <div className="w-full max-w-lg">
-
-        {/* Лого */}
-        <div className="flex items-center gap-2.5 mb-10">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "#818cf8" }}>
-            <Warehouse size={16} color="#fff" />
+    <div style={{ display: "flex", minHeight: "100vh", background: "var(--color-canvas, #f0f2f5)", alignItems: "center", justifyContent: "center", padding: "24px" }}>
+      <div style={{ width: "100%", maxWidth: "480px" }}>
+        <div style={{ textAlign: "center", marginBottom: "32px" }}>
+          <div style={{ width: "64px", height: "64px", borderRadius: "18px", background: "linear-gradient(135deg, var(--color-primary, #818cf8), #6366f1)", display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: "20px", boxShadow: "0 4px 16px rgba(129,140,248,.3)" }}>
+            <Warehouse size={28} color="#fff" />
           </div>
-          <span className="font-display text-sm text-text-primary">Warehouse Pro</span>
+          <h1 style={{ fontFamily: F.display, fontSize: "24px", fontWeight: 700, color: "var(--color-text-primary, #111827)", margin: 0 }}>{steps[step].title}</h1>
+          <p style={{ fontSize: "14px", color: "var(--color-text-secondary, #6b7280)", margin: "8px 0 0" }}>{steps[step].desc}</p>
         </div>
 
-        {step <= 3 && <ProgressBar current={step} />}
+        <Card>
+          {step === 0 && (
+            <div style={{ textAlign: "center", padding: "20px 0" }}>
+              <p style={{ fontSize: "14px", color: "var(--color-text-secondary, #6b7280)" }}>{t("Пройдите быструю настройку чтобы начать работу", "Ishni boshlash uchun tez sozlashdan o'ting")}</p>
+            </div>
+          )}
+          {step === 1 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              <div>
+                <label style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-text-tertiary, #9ca3af)", display: "block", marginBottom: "6px" }}>{t("Название компании", "Kompaniya nomi")}</label>
+                <input placeholder="ООО Ромашка" value={companyName} onChange={e => setCompanyName(e.target.value)} style={inputStyle} />
+              </div>
+              <div>
+                <label style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-text-tertiary, #9ca3af)", display: "block", marginBottom: "6px" }}>{t("Валюта", "Valyuta")}</label>
+                <select value={currency} onChange={e => setCurrency(e.target.value)} style={inputStyle}>
+                  <option value="UZS">UZS (сум)</option>
+                  <option value="USD">USD ($)</option>
+                </select>
+              </div>
+            </div>
+          )}
+          {step === 2 && (
+            <div style={{ textAlign: "center", padding: "20px 0" }}>
+              <div style={{ width: "56px", height: "56px", borderRadius: "50%", background: "rgba(74,222,128,.10)", display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: "16px" }}>
+                <Check size={28} color="#4ade80" />
+              </div>
+              <p style={{ fontSize: "14px", color: "var(--color-text-secondary, #6b7280)" }}>{t("Система готова к использованию", "Tizim ishlatishga tayyor")}</p>
+            </div>
+          )}
 
-        <div className="panel p-8">
-          {step === 1 && <StepWarehouse onNext={() => setStep(2)} />}
-          {step === 2 && <StepProduct   onNext={() => setStep(3)} />}
-          {step === 3 && <StepInvite    onFinish={() => setStep(4)} />}
-          {step === 4 && <StepDone      onFinish={finish} />}
-        </div>
+          <div style={{ display: "flex", gap: "12px", marginTop: "20px" }}>
+            {step > 0 && <button onClick={() => setStep(s => s - 1)} style={{ flex: 1, padding: "12px", borderRadius: "12px", fontSize: "14px", fontWeight: 500, fontFamily: F.body, border: "1px solid var(--color-border, #e5e7eb)", background: "transparent", color: "var(--color-text-secondary, #6b7280)", cursor: "pointer" }}><ArrowLeft size={16} /> {t("Назад", "Orqaga")}</button>}
+            <button onClick={() => {
+              if (step === 1 && companyName) updateSettings.mutate({ companyName, currency });
+              else if (step < 2) setStep(s => s + 1);
+              else navigate("/");
+            }} style={{ ...btnPrimary, flex: 1 }}>
+              {step === 2 ? t("Начать", "Boshlash") : <>{t("Далее", "Keyingi")} <ArrowRight size={16} /></>}
+            </button>
+          </div>
+        </Card>
       </div>
     </div>
   );
