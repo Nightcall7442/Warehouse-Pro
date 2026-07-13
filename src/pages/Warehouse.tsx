@@ -274,6 +274,7 @@ export default function Warehouse() {
   const [adjusting, setAdjusting] = useState<{ id: number; name: string; stock: number; unit: string; unitWeight: number } | null>(null);
   const [activeTab, setActiveTab] = useState<"stock" | "deadstock" | "reorder">("stock");
   const [deadStockDays, setDeadStockDays] = useState(30);
+  const [showLowStock, setShowLowStock] = useState(false);
 
 
   const { data, isLoading } = trpc.warehouse.list.useQuery({ search: search || undefined }) as { data: any; isLoading: boolean };
@@ -311,7 +312,7 @@ export default function Warehouse() {
     { label: t("ВСЕГО КГ", "JAMI KG"), value: Number(summary?.totalWeight ?? 0).toLocaleString("ru-RU", { maximumFractionDigits: 0 }), icon: Scale, gradient: "linear-gradient(135deg, #60a5fa, #22d3ee)", sub: t("общий вес на складе", "ombordagi umumiy") },
     { label: t("СТОИМОСТЬ СКЛАДА", "OMBOR QIYMATI"), value: valLoading ? "—" : fmt(Number(valuation?.totalCostValue ?? 0).toFixed(0)), icon: DollarSign, gradient: "linear-gradient(135deg, #fbbf24, #fb923c)", sub: t("себестоимость остатков", "qoldiq tannarx") },
     { label: t("МЕРТВЫЙ СТОК", "O'LIK STOK"), value: deadStockItems?.length ?? "—", icon: Clock, gradient: deadStockItems && deadStockItems.length > 0 ? "linear-gradient(135deg, #6366f1, #818cf8)" : "linear-gradient(135deg, #4ade80, #22c55e)", sub: t("товаров без продаж", "sotilmasdan mahsulotlar") },
-    { label: t("МАЛО СТОКА", "KAM STOK"), value: lowCount, icon: lowCount > 0 ? AlertCircle : Package, gradient: lowCount > 0 ? "linear-gradient(135deg, #f87171, #ef4444)" : "linear-gradient(135deg, #4ade80, #22c55e)", sub: lowCount > 0 ? t("товаров ниже порога", "mahsulot chegaradan past") : t("все в норме", "hammasi yaxshi") },
+    { label: t("МАЛО СТОКА", "KAM STOK"), value: lowCount, icon: lowCount > 0 ? AlertCircle : Package, gradient: lowCount > 0 ? "linear-gradient(135deg, #f87171, #ef4444)" : "linear-gradient(135deg, #4ade80, #22c55e)", sub: lowCount > 0 ? t("товаров ниже порога", "mahsulot chegaradan past") : t("все в норме", "hammasi yaxshi"), onClick: lowCount > 0 ? () => setShowLowStock(true) : undefined },
   ];
 
   const tabs = [
@@ -333,6 +334,47 @@ export default function Warehouse() {
           onClose={() => setAdjusting(null)}
           isPending={adjustMutation.isPending}
         />
+      )}
+
+      {/* Low Stock Modal */}
+      {showLowStock && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }} onClick={() => setShowLowStock(false)}>
+          <div className="relative w-full max-w-2xl max-h-[80vh] overflow-y-auto rounded-3xl p-6" style={{ background: "var(--color-surface, #ffffff)", boxShadow: "0 25px 80px -12px rgba(0,0,0,0.35)" }} onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, #f87171, #ef4444)" }}>
+                  <AlertTriangle size={18} color="#fff" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold" style={{ color: "var(--color-text-primary, #111827)", fontFamily: "'DM Sans', sans-serif" }}>
+                    {t("Товары ниже порога", "Chegaradan past mahsulotlar")}
+                  </h2>
+                  <p className="text-xs" style={{ color: "var(--color-text-tertiary, #9ca3af)" }}>
+                    {lowCount} {t("товаров требуют пополнения", "ta mahsulot to'ldirish talab qiladi")}
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setShowLowStock(false)} className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "var(--color-surface-light, #f8f9fb)", border: "none", cursor: "pointer", color: "var(--color-text-secondary, #6b7280)" }}>
+                ×
+              </button>
+            </div>
+            <div className="space-y-2">
+              {reorderSuggestions?.filter((r: any) => Number(r.currentStock ?? 0) < Number(r.reorderPoint ?? 0) && Number(r.reorderPoint ?? 0) > 0).map((item: any, i: number) => (
+                <div key={i} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: "var(--color-surface-light, #f8f9fb)" }}>
+                  <div className="w-2 h-8 rounded-full flex-shrink-0" style={{ background: "linear-gradient(180deg, #f87171, #ef4444)" }} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate" style={{ color: "var(--color-text-primary, #111827)" }}>{item.productName}</p>
+                    <p className="text-xs" style={{ color: "var(--color-text-tertiary, #9ca3af)" }}>{item.productCode}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-bold" style={{ color: "#f87171" }}>{Number(item.currentStock ?? 0).toFixed(1)} {unitLabel(item.unit ?? undefined, lang)}</p>
+                    <p className="text-xs" style={{ color: "var(--color-text-tertiary, #9ca3af)" }}>{t("порог", "chegara")}: {Number(item.reorderPoint ?? 0).toFixed(0)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Header */}
@@ -392,7 +434,7 @@ export default function Warehouse() {
         {kpis.map((k, i) => {
           const Icon = k.icon;
           return (
-            <div key={k.label} className="kpi-hero" style={{ animationDelay: `${i * 0.05}s` }}>
+            <div key={k.label} className="kpi-hero" style={{ animationDelay: `${i * 0.05}s`, cursor: k.onClick ? "pointer" : "default" }} onClick={k.onClick}>
               <div className="flex justify-between items-start mb-4">
                 <span className="text-[10px] font-semibold tracking-wider uppercase" style={{ color: "var(--color-text-tertiary, #9ca3af)", fontFamily: "'DM Sans', sans-serif" }}>
                   {k.label}
