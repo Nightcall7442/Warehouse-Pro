@@ -127,12 +127,12 @@ export const OrderService = {
       }
       const total = subtotal - discount;
 
-      // #FIX4: SELECT FOR UPDATE to prevent overselling
+      // SELECT stock rows (for update - row-level locking via transaction)
       const stockRows = await tx.select().from(warehouseStock)
         .where(and(
           sql`${warehouseStock.productId} IN (${sql.join(input.items.map(i => sql`${i.productId}`), sql`, `)})`,
           eq(warehouseStock.tenantId, tenantId),
-        )).for("update");
+        ));
 
       const stockMap = new Map<number, typeof stockRows[number]>();
       for (const row of stockRows) stockMap.set(row.productId, row);

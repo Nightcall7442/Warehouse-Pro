@@ -20,7 +20,7 @@ export const StockService = {
         .where(and(
           inArray(warehouseStock.productId, productIds),
           eq(warehouseStock.tenantId, tenantId),
-        )).for("update");
+        ));
 
       const stockMap = new Map<number, typeof stockRows[number]>();
       for (const row of stockRows) stockMap.set(row.productId, row);
@@ -59,7 +59,7 @@ export const StockService = {
         .where(and(
           inArray(warehouseStock.productId, productIds),
           eq(warehouseStock.tenantId, tenantId),
-        )).for("update");
+        ));
 
       const stockMap = new Map<number, typeof stockRows[number]>();
       for (const row of stockRows) stockMap.set(row.productId, row);
@@ -98,7 +98,7 @@ export const StockService = {
         .where(and(
           inArray(warehouseStock.productId, productIds),
           eq(warehouseStock.tenantId, tenantId),
-        )).for("update");
+        ));
 
       const stockMap = new Map<number, typeof stockRows[number]>();
       for (const row of stockRows) stockMap.set(row.productId, row);
@@ -158,7 +158,7 @@ export const StockService = {
         currentStock: warehouseStock.currentStock,
         available: warehouseStock.available,
       })
-        .from(warehouseStock).where(stockWhere).for("update").limit(1);
+        .from(warehouseStock).where(stockWhere).limit(1);
 
       const currentQty = Number(currentStock?.currentStock ?? 0);
 
