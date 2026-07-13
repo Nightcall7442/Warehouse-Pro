@@ -25,7 +25,7 @@ export const productRouter = createRouter({
       const cached = cache.get(cacheKey);
       if (cached) return cached;
 
-      const conditions = [eq(products.tenantId, tenantId)];
+      const conditions = [eq(products.tenantId, tenantId), eq(products.status, "active")];
       if (input?.search)   conditions.push(like(products.name, `%${sanitizeSearch(input.search)}%`));
       if (input?.category) conditions.push(eq(products.category, input?.category));
       const where = and(...conditions);
@@ -169,26 +169,21 @@ export const productRouter = createRouter({
         .where(and(eq(products.id, input.id), eq(products.tenantId, tenantId))).limit(1);
       if (!existingProduct) throw new Error("Товар не найден");
 
-      const [orderItemCount] = await db.select({ count: sql<number>`count(*)` })
-        .from(orderItems)
-        .innerJoin(products, eq(orderItems.productId, products.id))
-        .where(and(eq(orderItems.productId, input.id), eq(products.tenantId, tenantId)));
-      if (Number(orderItemCount.count) > 0) {
-        throw new Error(`Невозможно удалить товар: связан с ${orderItemCount.count} позицией(ями) заказов`);
-      }
+      // Soft delete — помечаем inactive вместо удаления (FK на order_items, stock_movements мешает удалению)
+      await db.update(products)
+        .set({ status: "inactive", updatedAt: new Date() })
+        .where(and(eq(products.id, input.id), eq(products.tenantId, tenantId)));
 
+      // Обнуляем сток если есть
       const [stock] = await db.select().from(warehouseStock)
         .where(and(eq(warehouseStock.productId, input.id), eq(warehouseStock.tenantId, tenantId))).limit(1);
       if (stock && Number(stock.currentStock) > 0) {
-        throw new Error("Невозможно удалить товар: на складе есть остаток");
+        // Обнуляем сток при удалении товара
+        await db.update(warehouseStock)
+          .set({ currentStock: "0", reserved: "0", available: "0" })
+          .where(and(eq(warehouseStock.productId, input.id), eq(warehouseStock.tenantId, tenantId)));
       }
 
-      await db.transaction(async (tx) => {
-        await tx.delete(warehouseStock)
-          .where(and(eq(warehouseStock.productId, input.id), eq(warehouseStock.tenantId, tenantId)));
-        await tx.delete(products)
-          .where(and(eq(products.id, input.id), eq(products.tenantId, tenantId)));
-      });
       cache.invalidatePrefix(`products:${tenantId}`);
       cache.invalidatePrefix(`product_cats:${tenantId}`);
       return { success: true };
