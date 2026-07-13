@@ -622,13 +622,6 @@ export default function Warehouse() {
                           </tr>
                         );
                       })}
-                  {!isLoading && data?.data.map((item: any) => (
-                    <tr key={`hist-${item.id}`}>
-                      <td colSpan={8} className="p-0" style={{ borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
-                        <MovementHistory productId={item.productId} productName={item.productName ?? ""} />
-                      </td>
-                    </tr>
-                  ))}
                 </tbody>
               </table>
             </div>
