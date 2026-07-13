@@ -141,17 +141,17 @@
     --sidebar-border:        220 8% 16%;
     --sidebar-ring:          185 100% 50%;
 
-    --color-canvas:          #141824;
-    --color-canvas-alt:      #1a1f2e;
-    --color-surface:         #1a1f2e;
-    --color-surface-raised:  #1e2335;
-    --color-surface-light:   #22283a;
-    --color-surface-hover:   #252c3e;
+    --color-canvas:          #1e2028;
+    --color-canvas-alt:      #24262e;
+    --color-surface:         #24262e;
+    --color-surface-raised:  #2a2c35;
+    --color-surface-light:   #30323c;
+    --color-surface-hover:   #363842;
 
-    --color-border:          #2a3044;
-    --color-border-subtle:   #252c3e;
-    --color-border-custom:   #2a3044;
-    --color-border-strong:   #353d52;
+    --color-border:          #383a45;
+    --color-border-subtle:   #30323c;
+    --color-border-custom:   #383a45;
+    --color-border-strong:   #42444f;
 
     --color-text-primary:    #e2e8f0;
     --color-text-secondary:  #8896b3;
@@ -173,13 +173,13 @@
     --color-info-subtle:     rgba(0,180,255,.12);
 
     /* Dark neumorphic shadows */
-    --shadow-raised:  8px 8px 16px rgba(0,0,0,0.5), -8px -8px 16px rgba(255,255,255,0.03);
-    --shadow-pressed: inset 6px 6px 12px rgba(0,0,0,0.5), inset -6px -6px 12px rgba(255,255,255,0.03);
-    --shadow-sm:      4px 4px 8px rgba(0,0,0,0.4), -4px -4px 8px rgba(255,255,255,0.02);
-    --shadow-xs:      2px 2px 4px rgba(0,0,0,0.3), -2px -2px 4px rgba(255,255,255,0.02);
-    --shadow-md:      12px 12px 24px rgba(0,0,0,0.5), -12px -12px 24px rgba(255,255,255,0.03);
-    --shadow-lg:      16px 16px 32px rgba(0,0,0,0.55), -16px -16px 32px rgba(255,255,255,0.02);
-    --shadow-xl:      20px 20px 40px rgba(0,0,0,0.6), -20px -20px 40px rgba(255,255,255,0.02);
+    --shadow-raised:  8px 8px 16px rgba(0,0,0,0.45), -8px -8px 16px rgba(255,255,255,0.02);
+    --shadow-pressed: inset 6px 6px 12px rgba(0,0,0,0.45), inset -6px -6px 12px rgba(255,255,255,0.02);
+    --shadow-sm:      4px 4px 8px rgba(0,0,0,0.35), -4px -4px 8px rgba(255,255,255,0.015);
+    --shadow-xs:      2px 2px 4px rgba(0,0,0,0.25), -2px -2px 4px rgba(255,255,255,0.015);
+    --shadow-md:      12px 12px 24px rgba(0,0,0,0.45), -12px -12px 24px rgba(255,255,255,0.02);
+    --shadow-lg:      16px 16px 32px rgba(0,0,0,0.5), -16px -16px 32px rgba(255,255,255,0.015);
+    --shadow-xl:      20px 20px 40px rgba(0,0,0,0.55), -20px -20px 40px rgba(255,255,255,0.015);
     --shadow-ring:    drop-shadow(0 2px 4px rgba(0,0,0,0.3));
     --ring-primary:   0 0 0 3px rgba(0,212,255,.2);
 
