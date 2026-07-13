@@ -20,10 +20,10 @@ import { ProgressRing } from "@/components/ProgressRing";
 type Range = "7d" | "30d" | "month";
 
 const STATUS_COLOR: Record<string, string> = {
-  new:        "#818cf8",
+  new:        "#6366f1",
   processing: "#fbbf24",
-  completed:  "#4ade80",
-  cancelled:  "#f87171",
+  completed:  "#22c55e",
+  cancelled:  "#ef4444",
 };
 const STATUS_LABEL: Record<string, { ru: string; uz: string }> = {
   new:        { ru: "Новые",       uz: "Yangi"         },
@@ -36,9 +36,9 @@ const STATUS_LABEL: Record<string, { ru: string; uz: string }> = {
 const CardDots = memo(function CardDots() {
   return (
     <div style={{ display: "flex", gap: "6px", marginBottom: "12px" }}>
-      <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#fb7185" }} />
-      <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#fbbf24" }} />
-      <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#2dd4bf" }} />
+      <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-pink, #fb7185)" }} />
+      <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-orange, #fbbf24)" }} />
+      <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-teal, #2dd4bf)" }} />
     </div>
   );
 });
@@ -50,16 +50,16 @@ const AppleTooltip = memo(function AppleTooltip({ active, payload, label, fmt }:
       background: "var(--color-surface, #ffffff)", borderRadius: "12px", padding: "14px 16px",
       boxShadow: "0 4px 12px rgba(0,0,0,.08)", minWidth: "160px",
     }}>
-      <p style={{ fontSize: "11px", fontWeight: 600, color: "var(--color-text-tertiary, #9ca3af)", marginBottom: "8px", fontFamily: "'DM Sans', sans-serif", letterSpacing: "0.05em", textTransform: "uppercase" }}>
+      <p style={{ fontSize: "11px", fontWeight: 600, color: "var(--color-text-tertiary, #94a3b8)", marginBottom: "8px", fontFamily: "'DM Sans', sans-serif", letterSpacing: "0.05em", textTransform: "uppercase" }}>
         {label}
       </p>
       {payload.map((p: { dataKey: string; name: string; value: number; stroke: string }) => (
         <div key={p.dataKey} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "16px", marginTop: "4px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
             <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: p.stroke }} />
-            <span style={{ fontSize: "12px", color: "var(--color-text-secondary, #6b7280)" }}>{p.name}</span>
+            <span style={{ fontSize: "12px", color: "var(--color-text-secondary, #64748b)" }}>{p.name}</span>
           </div>
-          <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary, #111827)", fontFamily: "'DM Sans', sans-serif" }}>
+          <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary, #1e293b)", fontFamily: "'DM Sans', sans-serif" }}>
             {p.dataKey === "revenue" ? fmt(p.value, true) : p.value}
           </span>
         </div>
@@ -115,15 +115,15 @@ export default function Dashboard() {
 
   if (isLoading || !kpis) return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-      <div style={{ height: "28px", width: "240px", borderRadius: "8px", background: "var(--color-border, #f3f4f6)" }} />
+      <div style={{ height: "28px", width: "240px", borderRadius: "8px", background: "var(--color-border, #e2e8f0)" }} />
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px" }}>
         {[1, 2, 3, 4].map(i => (
-          <div key={i} style={{ height: "160px", borderRadius: "20px", background: "var(--color-border, #f3f4f6)" }} />
+          <div key={i} style={{ height: "160px", borderRadius: "20px", background: "var(--color-border, #e2e8f0)" }} />
         ))}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "16px" }}>
-        <div style={{ height: "320px", borderRadius: "20px", background: "var(--color-border, #f3f4f6)" }} />
-        <div style={{ height: "320px", borderRadius: "20px", background: "var(--color-border, #f3f4f6)" }} />
+        <div style={{ height: "320px", borderRadius: "20px", background: "var(--color-border, #e2e8f0)" }} />
+        <div style={{ height: "320px", borderRadius: "20px", background: "var(--color-border, #e2e8f0)" }} />
       </div>
     </div>
   );
@@ -137,10 +137,10 @@ export default function Dashboard() {
           <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "4px" }}>
             <CardDots />
           </div>
-          <h1 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "24px", fontWeight: 700, color: "var(--color-text-primary, #111827)", letterSpacing: "-0.025em", margin: 0 }}>
+          <h1 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "24px", fontWeight: 700, color: "var(--color-text-primary, #1e293b)", letterSpacing: "-0.025em", margin: 0 }}>
             {t("Главная", "Bosh sahifa")}
           </h1>
-          <p style={{ fontSize: "13px", color: "var(--color-text-secondary, #6b7280)", margin: "4px 0 0" }}>
+          <p style={{ fontSize: "13px", color: "var(--color-text-secondary, #64748b)", margin: "4px 0 0" }}>
             {greeting}, {user?.name?.split(" ")[0] ?? ""} — {format(new Date(), "EEEE, d MMMM yyyy", { locale: ru })}
           </p>
         </div>
@@ -150,8 +150,8 @@ export default function Dashboard() {
             display: "flex", alignItems: "center", gap: "8px", padding: "10px 20px",
             fontSize: "13px", fontWeight: 600, fontFamily: "'DM Sans', sans-serif",
             borderRadius: "12px", border: "none", cursor: "pointer",
-            background: "linear-gradient(135deg, #818cf8, #6366f1)",
-            color: "#fff", boxShadow: "0 2px 8px rgba(129,140,248,.25)",
+            background: "linear-gradient(135deg, #6366f1, #6366f1)",
+            color: "#fff", boxShadow: "0 2px 8px rgba(99,102,241,.25)",
             transition: "all 0.2s ease",
           }}
         >
@@ -168,16 +168,16 @@ export default function Dashboard() {
           cursor: "pointer",
         }} onClick={navigateReports}>
           <CardDots />
-          <p style={{ fontSize: "11px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-text-tertiary, #9ca3af)", margin: 0, fontFamily: "'DM Sans', sans-serif" }}>
+          <p style={{ fontSize: "11px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-text-tertiary, #94a3b8)", margin: 0, fontFamily: "'DM Sans', sans-serif" }}>
             {t("ВЫРУЧКА", "TUSHUM")}
           </p>
-          <p style={{ fontSize: "28px", fontWeight: 700, color: "var(--color-text-primary, #111827)", margin: "8px 0 0", letterSpacing: "-0.03em", fontFamily: "'DM Sans', sans-serif" }}>
+          <p style={{ fontSize: "28px", fontWeight: 700, color: "var(--color-text-primary, #1e293b)", margin: "8px 0 0", letterSpacing: "-0.03em", fontFamily: "'DM Sans', sans-serif" }}>
             {fmt(kpis.todayRevenue, true)}
           </p>
           {revenueDelta !== 0 && (
             <div style={{ display: "flex", alignItems: "center", gap: "4px", marginTop: "8px" }}>
-              {revenueDelta > 0 ? <TrendingUp size={14} color="#4ade80" /> : <TrendingDown size={14} color="#f87171" />}
-              <span style={{ fontSize: "12px", fontWeight: 600, color: revenueDelta > 0 ? "#4ade80" : "#f87171" }}>
+              {revenueDelta > 0 ? <TrendingUp size={14} color="#22c55e" /> : <TrendingDown size={14} color="#ef4444" />}
+              <span style={{ fontSize: "12px", fontWeight: 600, color: revenueDelta > 0 ? "#22c55e" : "#ef4444" }}>
                 {Math.abs(revenueDelta).toFixed(1)}%
               </span>
             </div>
@@ -188,11 +188,11 @@ export default function Dashboard() {
                 <AreaChart data={revenueTrend.map((v, i) => ({ i, v }))}>
                   <defs>
                     <linearGradient id="gRevKpi" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#4ade80" stopOpacity={0.2} />
-                      <stop offset="100%" stopColor="#4ade80" stopOpacity={0} />
+                      <stop offset="0%" stopColor="#22c55e" stopOpacity={0.2} />
+                      <stop offset="100%" stopColor="#22c55e" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <Area type="monotone" dataKey="v" stroke="#4ade80" strokeWidth={2} fill="url(#gRevKpi)" dot={false} />
+                  <Area type="monotone" dataKey="v" stroke="#22c55e" strokeWidth={2} fill="url(#gRevKpi)" dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -205,16 +205,16 @@ export default function Dashboard() {
           cursor: "pointer",
         }} onClick={navigateOrders}>
           <CardDots />
-          <p style={{ fontSize: "11px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-text-tertiary, #9ca3af)", margin: 0, fontFamily: "'DM Sans', sans-serif" }}>
+          <p style={{ fontSize: "11px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-text-tertiary, #94a3b8)", margin: 0, fontFamily: "'DM Sans', sans-serif" }}>
             {t("ЗАКАЗЫ", "BUYURTMALAR")}
           </p>
-          <p style={{ fontSize: "28px", fontWeight: 700, color: "var(--color-text-primary, #111827)", margin: "8px 0 0", letterSpacing: "-0.03em", fontFamily: "'DM Sans', sans-serif" }}>
+          <p style={{ fontSize: "28px", fontWeight: 700, color: "var(--color-text-primary, #1e293b)", margin: "8px 0 0", letterSpacing: "-0.03em", fontFamily: "'DM Sans', sans-serif" }}>
             {kpis.todayOrders}
           </p>
           {ordersDelta !== 0 && (
             <div style={{ display: "flex", alignItems: "center", gap: "4px", marginTop: "8px" }}>
-              {ordersDelta > 0 ? <TrendingUp size={14} color="#4ade80" /> : <TrendingDown size={14} color="#f87171" />}
-              <span style={{ fontSize: "12px", fontWeight: 600, color: ordersDelta > 0 ? "#4ade80" : "#f87171" }}>
+              {ordersDelta > 0 ? <TrendingUp size={14} color="#22c55e" /> : <TrendingDown size={14} color="#ef4444" />}
+              <span style={{ fontSize: "12px", fontWeight: 600, color: ordersDelta > 0 ? "#22c55e" : "#ef4444" }}>
                 {Math.abs(ordersDelta).toFixed(1)}%
               </span>
             </div>
@@ -242,10 +242,10 @@ export default function Dashboard() {
           cursor: "pointer",
         }} onClick={navigateReports}>
           <CardDots />
-          <p style={{ fontSize: "11px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-text-tertiary, #9ca3af)", margin: 0, fontFamily: "'DM Sans', sans-serif" }}>
+          <p style={{ fontSize: "11px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-text-tertiary, #94a3b8)", margin: 0, fontFamily: "'DM Sans', sans-serif" }}>
             {t("ДОЛГ КЛИЕНТОВ", "MIJZOZLAR QARZI")}
           </p>
-          <p style={{ fontSize: "28px", fontWeight: 700, color: "var(--color-text-primary, #111827)", margin: "8px 0 0", letterSpacing: "-0.03em", fontFamily: "'DM Sans', sans-serif" }}>
+          <p style={{ fontSize: "28px", fontWeight: 700, color: "var(--color-text-primary, #1e293b)", margin: "8px 0 0", letterSpacing: "-0.03em", fontFamily: "'DM Sans', sans-serif" }}>
             {fmt(kpis.customerDebt ?? 0, true)}
           </p>
         </div>
@@ -258,16 +258,16 @@ export default function Dashboard() {
         }} onClick={navigateReports}>
           <div style={{ flex: 1 }}>
             <CardDots />
-            <p style={{ fontSize: "11px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-text-tertiary, #9ca3af)", margin: 0, fontFamily: "'DM Sans', sans-serif" }}>
+            <p style={{ fontSize: "11px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-text-tertiary, #94a3b8)", margin: 0, fontFamily: "'DM Sans', sans-serif" }}>
               {t("ВАЛОВАЯ ПРИБЫЛЬ", "SOF FOYDA")}
             </p>
-            <p style={{ fontSize: "28px", fontWeight: 700, color: "var(--color-text-primary, #111827)", margin: "8px 0 0", letterSpacing: "-0.03em", fontFamily: "'DM Sans', sans-serif" }}>
+            <p style={{ fontSize: "28px", fontWeight: 700, color: "var(--color-text-primary, #1e293b)", margin: "8px 0 0", letterSpacing: "-0.03em", fontFamily: "'DM Sans', sans-serif" }}>
               {(kpis.grossMargin ?? 0).toFixed(1)}%
             </p>
           </div>
           <ProgressRing
             value={Math.max(0, Math.min(100, kpis.grossMargin ?? 0))}
-            color="#818cf8"
+            color="#6366f1"
             size={72}
             strokeWidth={6}
             label={`${(kpis.grossMargin ?? 0).toFixed(0)}%`}
@@ -280,9 +280,9 @@ export default function Dashboard() {
         <div style={{ display: "flex", gap: "12px", overflowX: "auto", paddingBottom: "4px" }}>
           {(alerts as any[]).slice(0, 4).map((alert: any, i: any) => {
             const colors: Record<string, { bg: string; icon: string }> = {
-              info:    { bg: "var(--color-primary-subtle, rgba(129,140,248,.10))", icon: "#60a5fa" },
+              info:    { bg: "var(--color-primary-subtle, #eef2ff)", icon: "#60a5fa" },
               warning: { bg: "#fffbeb", icon: "#fbbf24" },
-              danger:  { bg: "#fef2f2", icon: "#f87171" },
+              danger:  { bg: "#fef2f2", icon: "#ef4444" },
             };
             const c = colors[alert.severity] || colors.info;
             return (
@@ -301,8 +301,8 @@ export default function Dashboard() {
                    <TrendingUp size={16} style={{ color: c.icon }} />}
                 </div>
                 <div>
-                  <p style={{ fontSize: "12px", fontWeight: 600, color: "var(--color-text-primary, #111827)", margin: 0 }}>{alert.title}</p>
-                  <p style={{ fontSize: "11px", color: "var(--color-text-secondary, #6b7280)", margin: "2px 0 0" }}>{alert.message}</p>
+                  <p style={{ fontSize: "12px", fontWeight: 600, color: "var(--color-text-primary, #1e293b)", margin: 0 }}>{alert.title}</p>
+                  <p style={{ fontSize: "11px", color: "var(--color-text-secondary, #64748b)", margin: "2px 0 0" }}>{alert.message}</p>
                 </div>
               </div>
             );
@@ -316,18 +316,18 @@ export default function Dashboard() {
         {/* Sales Chart */}
         <div style={{
           background: "var(--color-surface, #ffffff)", borderRadius: "20px", padding: "24px",
-          boxShadow: "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06))",
+          boxShadow: "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.04))",
         }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
             <div>
-              <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 600, color: "var(--color-text-primary, #111827)", margin: 0 }}>
+              <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 600, color: "var(--color-text-primary, #1e293b)", margin: 0 }}>
                 {t("Динамика продаж", "Sotuvlar dinamikasi")}
               </h2>
-              <p style={{ fontSize: "12px", color: "var(--color-text-tertiary, #9ca3af)", margin: "4px 0 0" }}>
+              <p style={{ fontSize: "12px", color: "var(--color-text-tertiary, #94a3b8)", margin: "4px 0 0" }}>
                 {t("Выручка и количество заказов", "Tushum va buyurtmalar soni")}
               </p>
             </div>
-            <div style={{ display: "inline-flex", background: "var(--color-border, #f3f4f6)", borderRadius: "10px", padding: "3px", gap: "2px" }}>
+            <div style={{ display: "inline-flex", background: "var(--color-border, #e2e8f0)", borderRadius: "10px", padding: "3px", gap: "2px" }}>
               {([
                 { key: "7d" as const, label: "7д", onClick: setRange7d },
                 { key: "30d" as const, label: "30д", onClick: setRange30d },
@@ -341,7 +341,7 @@ export default function Dashboard() {
                     borderRadius: "8px", border: "none", cursor: "pointer",
                     fontFamily: "'DM Sans', sans-serif",
                     background: r.key === range ? "var(--color-surface, #ffffff)" : "transparent",
-                    color: r.key === range ? "var(--color-text-primary, #111827)" : "var(--color-text-secondary, #6b7280)",
+                    color: r.key === range ? "var(--color-text-primary, #1e293b)" : "var(--color-text-secondary, #64748b)",
                     boxShadow: r.key === range ? "0 1px 3px rgba(0,0,0,.08)" : "none",
                     transition: "all 0.2s",
                   }}
@@ -356,23 +356,23 @@ export default function Dashboard() {
               <AreaChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="gRevenue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#818cf8" stopOpacity={0.15} />
-                    <stop offset="100%" stopColor="#818cf8" stopOpacity={0} />
+                    <stop offset="0%" stopColor="#6366f1" stopOpacity={0.15} />
+                    <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
                   </linearGradient>
                   <linearGradient id="gOrders" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#4ade80" stopOpacity={0.15} />
-                    <stop offset="100%" stopColor="#4ade80" stopOpacity={0} />
+                    <stop offset="0%" stopColor="#22c55e" stopOpacity={0.15} />
+                    <stop offset="100%" stopColor="#22c55e" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <XAxis
                   dataKey="date"
-                  tick={{ fill: "var(--color-text-tertiary, #9ca3af)", fontSize: 11, fontFamily: "'DM Sans', sans-serif" }}
+                  tick={{ fill: "var(--color-text-tertiary, #94a3b8)", fontSize: 11, fontFamily: "'DM Sans', sans-serif" }}
                   axisLine={false}
                   tickLine={false}
                   dy={8}
                 />
                 <YAxis
-                  tick={{ fill: "var(--color-text-tertiary, #9ca3af)", fontSize: 11, fontFamily: "'DM Sans', sans-serif" }}
+                  tick={{ fill: "var(--color-text-tertiary, #94a3b8)", fontSize: 11, fontFamily: "'DM Sans', sans-serif" }}
                   axisLine={false}
                   tickLine={false}
                   tickFormatter={v => fmt(v, true)}
@@ -382,33 +382,33 @@ export default function Dashboard() {
                 <YAxis
                   yAxisId="right"
                   orientation="right"
-                  tick={{ fill: "var(--color-text-tertiary, #9ca3af)", fontSize: 11, fontFamily: "'DM Sans', sans-serif" }}
+                  tick={{ fill: "var(--color-text-tertiary, #94a3b8)", fontSize: 11, fontFamily: "'DM Sans', sans-serif" }}
                   axisLine={false}
                   tickLine={false}
                   dx={4}
                 />
-                <Tooltip content={<AppleTooltip fmt={fmt} />} cursor={{ stroke: "var(--color-border, #e5e7eb)", strokeWidth: 1, strokeDasharray: "4 4" }} />
+                <Tooltip content={<AppleTooltip fmt={fmt} />} cursor={{ stroke: "var(--color-border, #e2e8f0)", strokeWidth: 1, strokeDasharray: "4 4" }} />
                 <Area
                   yAxisId="left"
                   type="monotone"
                   dataKey="revenue"
-                  stroke="#818cf8"
+                  stroke="#6366f1"
                   strokeWidth={2.5}
                   fill="url(#gRevenue)"
                   name={t("Выручка", "Tushum")}
                   dot={false}
-                  activeDot={{ r: 5, fill: "#818cf8", stroke: "#fff", strokeWidth: 2 }}
+                  activeDot={{ r: 5, fill: "#6366f1", stroke: "#fff", strokeWidth: 2 }}
                 />
                 <Area
                   yAxisId="right"
                   type="monotone"
                   dataKey="orders"
-                  stroke="#4ade80"
+                  stroke="#22c55e"
                   strokeWidth={2.5}
                   fill="url(#gOrders)"
                   name={t("Заказы", "Buyurtmalar")}
                   dot={false}
-                  activeDot={{ r: 5, fill: "#4ade80", stroke: "#fff", strokeWidth: 2 }}
+                  activeDot={{ r: 5, fill: "#22c55e", stroke: "#fff", strokeWidth: 2 }}
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -418,15 +418,15 @@ export default function Dashboard() {
         {/* Recent Orders */}
         <div style={{
           background: "var(--color-surface, #ffffff)", borderRadius: "20px", padding: "24px",
-          boxShadow: "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06))",
+          boxShadow: "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.04))",
           display: "flex", flexDirection: "column",
         }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
             <div>
-              <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 600, color: "var(--color-text-primary, #111827)", margin: 0 }}>
+              <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 600, color: "var(--color-text-primary, #1e293b)", margin: 0 }}>
                 {t("Последние заказы", "So'nggi buyurtmalar")}
               </h2>
-              <p style={{ fontSize: "12px", color: "var(--color-text-tertiary, #9ca3af)", margin: "4px 0 0" }}>
+              <p style={{ fontSize: "12px", color: "var(--color-text-tertiary, #94a3b8)", margin: "4px 0 0" }}>
                 {activity?.length ?? 0} {t("заказов", "buyurtmalar")}
               </p>
             </div>
@@ -434,7 +434,7 @@ export default function Dashboard() {
               onClick={navigateOrders}
               style={{
                 padding: "6px", borderRadius: "8px", border: "none", cursor: "pointer",
-                background: "transparent", color: "var(--color-text-tertiary, #9ca3af)", transition: "all 0.15s",
+                background: "transparent", color: "var(--color-text-tertiary, #94a3b8)", transition: "all 0.15s",
               }}
             >
               <ArrowRight size={16} />
@@ -443,10 +443,10 @@ export default function Dashboard() {
           <div style={{ flex: 1, overflowY: "auto" }}>
             {!activity?.length ? (
               <div style={{ textAlign: "center", padding: "32px 0" }}>
-                <div style={{ width: "48px", height: "48px", margin: "0 auto 12px", borderRadius: "12px", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--color-border, #f3f4f6)" }}>
-                  <ClipboardList size={20} color="var(--color-text-tertiary, #9ca3af)" />
+                <div style={{ width: "48px", height: "48px", margin: "0 auto 12px", borderRadius: "12px", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--color-border, #e2e8f0)" }}>
+                  <ClipboardList size={20} color="var(--color-text-tertiary, #94a3b8)" />
                 </div>
-                <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--color-text-secondary, #6b7280)" }}>
+                <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--color-text-secondary, #64748b)" }}>
                   {t("Заказов пока нет", "Hali buyurtma yo'q")}
                 </p>
               </div>
@@ -458,7 +458,7 @@ export default function Dashboard() {
                   style={{
                     display: "flex", alignItems: "center", gap: "12px",
                     padding: "10px 0", cursor: "pointer",
-                    borderBottom: "1px solid var(--color-border, #f3f4f6)",
+                    borderBottom: "1px solid var(--color-border, #e2e8f0)",
                   }}
                 >
                   <span
@@ -468,14 +468,14 @@ export default function Dashboard() {
                     }}
                   />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--color-text-primary, #111827)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--color-text-primary, #1e293b)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {e.agentName}
                     </p>
-                    <p style={{ fontSize: "11px", color: "var(--color-text-tertiary, #9ca3af)", margin: "2px 0 0", fontFamily: "'DM Sans', sans-serif" }}>
+                    <p style={{ fontSize: "11px", color: "var(--color-text-tertiary, #94a3b8)", margin: "2px 0 0", fontFamily: "'DM Sans', sans-serif" }}>
                       #{e.orderNumber} · {e.createdAt ? format(new Date(e.createdAt), "HH:mm") : ""}
                     </p>
                   </div>
-                  <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary, #111827)", fontFamily: "'DM Sans', sans-serif", flexShrink: 0 }}>
+                  <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary, #1e293b)", fontFamily: "'DM Sans', sans-serif", flexShrink: 0 }}>
                     {fmt(e.total, true)}
                   </span>
                 </div>
@@ -492,10 +492,10 @@ export default function Dashboard() {
       }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
           <div>
-            <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 600, color: "var(--color-text-primary, #111827)", margin: 0 }}>
+            <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 600, color: "var(--color-text-primary, #1e293b)", margin: 0 }}>
               {t("Статусы заказов", "Buyurtmalar holati")}
             </h2>
-            <p style={{ fontSize: "12px", color: "var(--color-text-tertiary, #9ca3af)", margin: "4px 0 0" }}>
+            <p style={{ fontSize: "12px", color: "var(--color-text-tertiary, #94a3b8)", margin: "4px 0 0" }}>
               {statusTotal} {t("всего", "jami")}
             </p>
           </div>
@@ -505,7 +505,7 @@ export default function Dashboard() {
               display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
               fontSize: "12px", fontWeight: 600, fontFamily: "'DM Sans', sans-serif",
               borderRadius: "8px", border: "none", cursor: "pointer",
-              background: "var(--color-primary-subtle, rgba(129,140,248,.10))", color: "#818cf8", transition: "all 0.15s",
+              background: "var(--color-primary-subtle, #eef2ff)", color: "#6366f1", transition: "all 0.15s",
             }}
           >
             {t("Все заказы", "Barcha buyurtmalar")}
@@ -514,7 +514,7 @@ export default function Dashboard() {
         </div>
 
         {/* Status Bar */}
-        <div style={{ display: "flex", height: "6px", borderRadius: "3px", overflow: "hidden", gap: "2px", background: "var(--color-border, #f3f4f6)", marginBottom: "16px" }}>
+        <div style={{ display: "flex", height: "6px", borderRadius: "3px", overflow: "hidden", gap: "2px", background: "var(--color-border, #e2e8f0)", marginBottom: "16px" }}>
           {statusData?.map(s => (
             <div
               key={s.status}
@@ -541,11 +541,11 @@ export default function Dashboard() {
             >
               <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
                 <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: STATUS_COLOR[s.status ?? ""] ?? "var(--color-border-strong, #d1d5db)" }} />
-                <span style={{ fontSize: "11px", fontWeight: 500, color: "var(--color-text-tertiary, #9ca3af)" }}>
+                <span style={{ fontSize: "11px", fontWeight: 500, color: "var(--color-text-tertiary, #94a3b8)" }}>
                   {STATUS_LABEL[s.status ?? ""]?.[lang] ?? s.status}
                 </span>
               </div>
-              <p style={{ fontSize: "22px", fontWeight: 700, color: "var(--color-text-primary, #111827)", fontFamily: "'DM Sans', sans-serif", letterSpacing: "-0.02em", margin: 0 }}>
+              <p style={{ fontSize: "22px", fontWeight: 700, color: "var(--color-text-primary, #1e293b)", fontFamily: "'DM Sans', sans-serif", letterSpacing: "-0.02em", margin: 0 }}>
                 {s.count}
               </p>
             </div>

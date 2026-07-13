@@ -72,9 +72,9 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
   const items    = NAV_ITEMS[role] ?? [];
 
   return (
-    <div className="flex flex-col h-full sidebar-collapse-transition" style={{ background: "var(--color-surface, #ffffff)", borderRight: "1px solid var(--color-border, #e5e7eb)" }}>
+    <div className="flex flex-col h-full sidebar-collapse-transition" style={{ background: "var(--color-surface, #ffffff)", borderRight: "1px solid var(--color-border, #e2e8f0)" }}>
       {/* Logo */}
-      <div className="h-[60px] flex items-center px-5 gap-3" style={{ borderBottom: "1px solid var(--color-border, #e5e7eb)" }}>
+      <div className="h-[60px] flex items-center px-5 gap-3" style={{ borderBottom: "1px solid var(--color-border, #e2e8f0)" }}>
         <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 gradient-primary animate-gradient" style={{ backgroundSize: "200% 200%" }}>
           <Warehouse size={16} color="#fff" />
         </div>
@@ -87,26 +87,26 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
       </div>
 
       {/* Search */}
-      <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--color-border, #e5e7eb)" }}>
+      <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--color-border, #e2e8f0)" }}>
         <GlobalSearch />
       </div>
 
       {/* User info */}
-      <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--color-border, #e5e7eb)" }}>
+      <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--color-border, #e2e8f0)" }}>
         <div className="flex items-center gap-2.5">
           <div
             className="avatar-premium w-9 h-9 text-xs font-bold"
-            style={{ background: "var(--color-primary-subtle, rgba(129,140,248,.12))", color: "var(--color-primary, #818cf8)" }}
+            style={{ background: "var(--color-primary-subtle, #eef2ff)", color: "var(--color-primary, #6366f1)" }}
           >
             {(user?.name ?? "U")[0].toUpperCase()}
           </div>
           <div className="min-w-0">
-            <p style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary, #111827)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user?.name ?? "User"}</p>
-            <span style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--color-primary, #818cf8)" }}>{role}</span>
+            <p style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary, #1e293b)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user?.name ?? "User"}</p>
+            <span style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--color-primary, #6366f1)" }}>{role}</span>
           </div>
         </div>
         {user?.email && (
-          <p style={{ fontSize: "11px", color: "var(--color-text-secondary, #6b7280)", marginTop: "6px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.email}</p>
+          <p style={{ fontSize: "11px", color: "var(--color-text-secondary, #64748b)", marginTop: "6px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.email}</p>
         )}
       </div>
 
@@ -130,7 +130,7 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
       </nav>
 
       {/* Bottom actions */}
-      <div className="p-4 space-y-2" style={{ borderTop: "1px solid var(--color-border, #e5e7eb)" }}>
+      <div className="p-4 space-y-2" style={{ borderTop: "1px solid var(--color-border, #e2e8f0)" }}>
         {/* Notifications button */}
         <button
           onClick={() => { navigate("/notifications"); onClose?.(); }}
@@ -280,13 +280,13 @@ const BottomNav = memo(function BottomNav() {
               key={item.path}
               onClick={() => navigate(item.path)}
               className="flex-1 flex flex-col items-center justify-center gap-[3px] transition-colors relative"
-              style={{ color: isActive ? "#818cf8" : "var(--color-text-secondary, #6b7280)" }}
+              style={{ color: isActive ? "#6366f1" : "var(--color-text-secondary, #64748b)" }}
             >
               {/* Active pill indicator */}
               {isActive && (
                 <span
                   className="absolute top-1.5 left-1/2 -translate-x-1/2 w-5 h-[3px] rounded-full"
-                  style={{ background: "#818cf8" }}
+                  style={{ background: "#6366f1" }}
                 />
               )}
               {Icon && <Icon size={22} />}
@@ -350,7 +350,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   if (isLoading || !user) return null;
 
   return (
-    <div className="min-h-screen" style={{ background: "var(--color-canvas, #f0f2f5)" }}>
+    <div className="min-h-screen" style={{ background: "var(--color-canvas, #e9eef6)" }}>
       <MobileHeader onMenuClick={openDrawer} unreadCount={unreadCount} />
       <MobileDrawer open={drawerOpen} onClose={closeDrawer} unreadCount={unreadCount} />
 

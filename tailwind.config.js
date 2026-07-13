@@ -21,6 +21,7 @@ module.exports = {
 
         "text-primary":   "var(--color-text-primary)",
         "text-secondary": "var(--color-text-secondary)",
+        "text-tertiary":  "var(--color-text-tertiary)",
         "text-inverse":   "var(--color-text-inverse)",
 
         primary: {
