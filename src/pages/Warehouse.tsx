@@ -435,8 +435,12 @@ export default function Warehouse() {
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
         {kpis.map((k, i) => {
           const Icon = k.icon;
+          const Wrapper = k.onClick ? 'button' : 'div';
           return (
-            <div key={k.label} className="kpi-hero" style={{ animationDelay: `${i * 0.05}s`, cursor: k.onClick ? "pointer" : "default" }} onClick={(e) => { e.stopPropagation(); k.onClick?.(); }}>
+            <Wrapper key={k.label}
+              className="kpi-hero"
+              style={{ animationDelay: `${i * 0.05}s`, cursor: k.onClick ? "pointer" : "default", border: 'none', textAlign: 'left', width: '100%' } as any}
+              onClick={k.onClick as any}>
               <div className="flex justify-between items-start mb-4">
                 <span className="text-[10px] font-semibold tracking-wider uppercase" style={{ color: "var(--color-text-tertiary, #9ca3af)", fontFamily: "'DM Sans', sans-serif" }}>
                   {k.label}
@@ -447,7 +451,7 @@ export default function Warehouse() {
               </div>
               <div className="kpi-hero-value animate-count-up">{k.value}</div>
               <div className="kpi-hero-label mt-1">{k.sub}</div>
-            </div>
+            </Wrapper>
           );
         })}
       </div>
@@ -478,15 +482,19 @@ export default function Warehouse() {
         <>
           {/* Low stock warning */}
           {lowCount > 0 && (
-            <div className="flex items-center gap-3 px-5 py-4 rounded-2xl"
-              style={{ background: "rgba(248,113,113,0.06)", boxShadow: "inset 0 0 0 1px rgba(248,113,113,0.15)" }}>
+            <div className="flex items-center gap-3 px-5 py-4 rounded-2xl cursor-pointer"
+              style={{ background: "rgba(248,113,113,0.06)", boxShadow: "inset 0 0 0 1px rgba(248,113,113,0.15)" }}
+              onClick={() => setShowLowStock(true)}>
               <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
                 style={{ background: "linear-gradient(135deg, #f87171, #ef4444)" }}>
                 <AlertTriangle size={18} color="#fff" />
               </div>
-              <p className="text-sm" style={{ color: "var(--color-text-primary, #111827)" }}>
+              <p className="text-sm flex-1" style={{ color: "var(--color-text-primary, #111827)" }}>
                 <b style={{ color: "#f87171" }}>{lowCount}</b> {t("товаров ниже порога — отмечены красным", "ta mahsulot chegaradan past")}
               </p>
+              <span className="text-xs font-semibold px-3 py-1.5 rounded-lg" style={{ background: "rgba(248,113,113,0.12)", color: "#f87171" }}>
+                {t("Показать", "Ko'rish")} →
+              </span>
             </div>
           )}
 
