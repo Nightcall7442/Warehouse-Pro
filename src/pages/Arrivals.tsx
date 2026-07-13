@@ -3,9 +3,9 @@ import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { useCurrency } from "@/hooks/useCurrency";
 import { format } from "date-fns";
-import { Search, Plus, Truck, CheckCircle2, Clock, Package, FileDown, FileText } from "lucide-react";
+import { Search, Plus, Truck, CheckCircle2, Clock, Package, FileDown, FileText, ChevronRight, X } from "lucide-react";
 import { exportToExcel } from "@/lib/excel";
-import { CardDots, Card, KpiCard, PageHeader, TableContainer, thStyle, tdStyle, btnPrimary, btnSecondary } from "@/components/DashboardLayout";
+import { CardDots, Card, KpiCard, PageHeader, TableContainer, thStyle, tdStyle, btnPrimary, btnSecondary, inputStyle } from "@/components/DashboardLayout";
 
 const STATUS: Record<string, { ru: string; uz: string; color: string }> = {
   pending:    { ru: "Ожидание", uz: "Kutilmoqda", color: "#fbbf24" },
@@ -83,6 +83,23 @@ export default function Arrivals() {
           </tbody>
         </table>
       </TableContainer>
+
+      {/* Create Arrival Modal */}
+      {showCreate && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+          <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }} onClick={() => setShowCreate(false)} />
+          <div style={{ position: "relative", width: "100%", maxWidth: "500px", background: "var(--color-surface, #ffffff)", borderRadius: "20px", padding: "24px", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
+              <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "18px", fontWeight: 700, color: "var(--color-text-primary, #111827)", margin: 0 }}>{t("Новый приход", "Yangi kirim")}</h2>
+              <button onClick={() => setShowCreate(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-text-tertiary, #9ca3af)" }}><X size={20} /></button>
+            </div>
+            <p style={{ fontSize: "13px", color: "var(--color-text-secondary, #6b7280)", textAlign: "center", padding: "32px 0" }}>
+              {t("Форма создания прихода будет доступна в ближайшее время.", "Kirim yaratish formasi tez orada mavjud bo'ladi.")}
+            </p>
+            <button onClick={() => setShowCreate(false)} style={{ ...btnPrimary, width: "100%" }}>{t("Закрыть", "Yopish")}</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
