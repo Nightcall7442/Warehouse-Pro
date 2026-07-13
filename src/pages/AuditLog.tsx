@@ -20,11 +20,12 @@ export default function AuditLog() {
   const { lang } = useLang();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
 
-  const { data: logs, isLoading } = trpc.audit.list.useQuery({ search }) as { data: any; isLoading: boolean };
+  const { data: logsData, isLoading } = trpc.audit.list.useQuery({ search }) as { data: any; isLoading: boolean };
+  const logs = logsData?.data ?? [];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-      <PageHeader title={t("Аудит-лог", "Audit log")} subtitle={`${(logs ?? []).length} ${t("событий", "hodisa")}`} />
+      <PageHeader title={t("Аудит-лог", "Audit log")} subtitle={`${logs.length} ${t("событий", "hodisa")}`} />
 
       <div style={{ position: "relative" }}>
         <Search size={15} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "var(--color-text-tertiary, #9ca3af)" }} />
