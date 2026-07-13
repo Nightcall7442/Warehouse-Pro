@@ -228,7 +228,7 @@ export const productRouter = createRouter({
     if (cached) return cached;
 
     const results = await getDb().select({ category: products.category })
-      .from(products).where(eq(products.tenantId, tenantId)).groupBy(products.category);
+      .from(products).where(and(eq(products.tenantId, tenantId), eq(products.status, "active"))).groupBy(products.category);
     const cats = results.map(r => r.category).filter(Boolean);
     cache.set(cacheKey, cats, CacheTTL.categories);
     return cats;

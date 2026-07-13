@@ -8,6 +8,26 @@ import { PaymentService } from "./services/payment";
 import { cache, CacheKeys, CacheTTL } from "./lib/cache";
 
 export const shopRouter = createRouter({
+  territories: operatorQuery.query(async ({ ctx }) => {
+    const tenantId = ctx.tenant.id;
+    const results = await getDb().select({
+      city: shops.city,
+      district: shops.district,
+      count: sql<number>`count(*)`,
+      totalDebt: sql<string>`COALESCE(SUM(CAST(${shops.debt} AS DECIMAL)), 0)`,
+    })
+      .from(shops)
+      .where(eq(shops.tenantId, tenantId))
+      .groupBy(shops.city, shops.district)
+      .orderBy(sql`count(*) DESC`);
+    return results.map(r => ({
+      city: r.city ?? "",
+      district: r.district ?? "",
+      count: Number(r.count),
+      totalDebt: Number(r.totalDebt),
+    }));
+  }),
+
   list: operatorQuery
     .input(z.object({
       page:     z.number().default(1),

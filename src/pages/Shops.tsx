@@ -249,10 +249,12 @@ export default function Shops() {
   const [showForm,setShowForm] = useState(false);
   const [showImport,setShowImport] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [viewMode, setViewMode] = useState<"territories" | "list">("territories");
 
   const {data,isLoading}   = trpc.shop.list.useQuery({page,pageSize:25,search:search||undefined,city,district,agentId:agentFilter?Number(agentFilter):undefined}) as { data: any; isLoading: boolean };
   const {data:cities}      = trpc.shop.cities.useQuery();
   const {data:districts}   = trpc.shop.districts.useQuery({city});
+  const {data:territories} = trpc.shop.territories.useQuery() as { data: any };
   const {data:usersData}   = trpc.user.list.useQuery({page:1,pageSize:100});
   const agents = useMemo(() => (usersData?.data??[]).filter((u:{role:string})=>u.role==="agent"), [usersData?.data]);
   const utils = trpc.useUtils();
@@ -416,28 +418,36 @@ export default function Shops() {
         background: COLORS.surface, borderRadius: "16px", padding: "16px 20px",
         boxShadow: SHADOW, display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap",
       }}>
+        {/* View mode toggle */}
+        <div style={{ display: "flex", borderRadius: "10px", overflow: "hidden", border: `1px solid ${COLORS.border}` }}>
+          <button onClick={() => { setViewMode("territories"); setCity(undefined); setDistrict(undefined); setAgentFilter(undefined); setSearch(""); setPage(1); }}
+            style={{
+              padding: "8px 16px", fontSize: "13px", fontWeight: 600, fontFamily: F.body, border: "none", cursor: "pointer",
+              background: viewMode === "territories" ? "#818cf8" : COLORS.surface,
+              color: viewMode === "territories" ? "#fff" : COLORS.textSecondary,
+              transition: "all 0.2s",
+            }}>
+            {t("Территории","Hududlar")}
+          </button>
+          <button onClick={() => setViewMode("list")}
+            style={{
+              padding: "8px 16px", fontSize: "13px", fontWeight: 600, fontFamily: F.body, border: "none", cursor: "pointer",
+              background: viewMode === "list" ? "#818cf8" : COLORS.surface,
+              color: viewMode === "list" ? "#fff" : COLORS.textSecondary,
+              transition: "all 0.2s",
+            }}>
+            {t("Все магазины","Barcha do'konlar")}
+          </button>
+        </div>
+
         <div style={{ position: "relative", flex: 1, minWidth: "200px" }}>
           <Search size={16} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: COLORS.textSecondary }}/>
           <input className="input-field" style={{ paddingLeft: "40px", width: "100%" }} placeholder={t("Поиск магазинов…","Do'kon qidirish…")} value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}}/>
         </div>
-        {agents.length > 0 && (
+        {viewMode === "list" && agents.length > 0 && (
           <PremiumSelect value={agentFilter??""} onChange={v=>{setAgentFilter(v||undefined);setPage(1);}}
             options={[{value:"",label:t("Все агенты","Barcha agentlar"),...(agents??[]).map((a:{id:number;name:string})=>({value:String(a.id),label:a.name}))}]}
             width="180px" />
-        )}
-        {(!!cities?.length || !!districts?.length) && (
-          <div style={{ display: "flex", gap: "8px" }}>
-            {!!cities?.length && (
-              <PremiumSelect value={city??""} onChange={v=>{setCity(v||undefined);setDistrict(undefined);setPage(1);}}
-                options={[{value:"",label:t("Все города","Barcha shaharlar")},...(cities??[]).map((c: any)=>({value:String(c),label:String(c)}))]}
-                width="180px" />
-            )}
-            {!!districts?.length && (
-              <PremiumSelect value={district??""} onChange={v=>{setDistrict(v||undefined);setPage(1);}}
-                options={[{value:"",label:t("Все районы","Barcha tumanlar")},...(districts??[]).map((d: any)=>({value:String(d),label:String(d)}))]}
-                width="180px" />
-            )}
-          </div>
         )}
         {(city||district||agentFilter)&&(
           <button onClick={()=>{setCity(undefined);setDistrict(undefined);setAgentFilter(undefined);setPage(1);}} className="btn-secondary text-sm px-3 flex items-center gap-1">
@@ -446,79 +456,156 @@ export default function Shops() {
         )}
       </div>
 
-      {/* City/district breadcrumb */}
-      {(city||district)&&(
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: COLORS.textSecondary }}>
-          <MapPin size={14} style={{ color: COLORS.primary }}/>
-          <span>{city&&<strong style={{ color: COLORS.textPrimary }}>{city}</strong>}</span>
-          {district&&<><span>›</span><strong style={{ color: COLORS.textPrimary }}>{district}</strong></>}
-          <span style={{ color: COLORS.textSecondary }}>({data?.total??0} {t("магазинов","do'kon")})</span>
-        </div>
-      )}
-
-      {/* Selection bar */}
-      {selected.size > 0 && (
-        <div style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "12px 20px", borderRadius: "14px",
-          background: "var(--color-primary-subtle, rgba(129,140,248,.10))",
-          border: "1px solid rgba(129,140,248,.20)",
-        }}>
-          <span style={{ fontSize: "13px", fontWeight: 600, color: "#818cf8" }}>
-            {selected.size} {t("выбрано","tanlangan")}
-          </span>
-          <div style={{ display: "flex", gap: "8px" }}>
-            <button onClick={()=>setSelected(new Set())} className="btn-secondary text-xs py-1.5 px-3">
-              {t("Сбросить","Bekor qilish")}
-            </button>
-            <button onClick={handleBulkDelete} disabled={deleteMutation.isPending}
-              style={{
-                display: "flex", alignItems: "center", gap: "5px", padding: "6px 14px",
-                fontSize: "12px", fontWeight: 600, borderRadius: "8px",
-                border: "none", cursor: "pointer", color: "#fff",
-                background: "#f87171", opacity: deleteMutation.isPending ? 0.5 : 1,
-              }}>
-              <Trash2 size={13} />{t("Удалить","O'chirish")}
-            </button>
+      {/* Territories grid */}
+      {viewMode === "territories" && !city && !district && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "16px" }}>
+          {/* All shops card */}
+          <div className="kpi-hero" style={{
+            borderRadius: "24px", padding: "24px", cursor: "pointer",
+            animation: "slideUp 0.4s ease forwards",
+            display: "flex", flexDirection: "column", justifyContent: "space-between",
+          }}
+          onClick={() => setViewMode("list")}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = "translateY(-2px)"; (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 20px rgba(0,0,0,0.08)"; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = "translateY(0)"; (e.currentTarget as HTMLElement).style.boxShadow = SHADOW; }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
+              <span style={{ fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: COLORS.textTertiary }}>
+                {t("ВСЕ МАГАЗИНЫ","BARCHA DO'KONLAR")}
+              </span>
+              <div style={{ width: "44px", height: "44px", borderRadius: "12px", background: "linear-gradient(135deg, #818cf8, #6366f1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Store size={20} color="#fff"/>
+              </div>
+            </div>
+            <div style={{ fontFamily: F.display, fontSize: "32px", fontWeight: 700, color: COLORS.textPrimary, lineHeight: 1, letterSpacing: "-0.03em" }}>
+              {data?.total ?? 0}
+            </div>
+            <span style={{ fontSize: "12px", color: COLORS.textSecondary, marginTop: "6px" }}>
+              {t("магазинов","do'kon")}
+            </span>
           </div>
+
+          {/* Territory cards */}
+          {(territories ?? []).map((t_: any, i: number) => {
+            const debt = Number(t_.totalDebt ?? 0);
+            return (
+              <div key={`${t_.city}-${t_.district}`} className="kpi-hero" style={{
+                borderRadius: "24px", padding: "24px", cursor: "pointer",
+                animation: `slideUp ${0.4 + (i + 1) * 0.05}s ease forwards`,
+                display: "flex", flexDirection: "column", justifyContent: "space-between",
+              }}
+              onClick={() => { setCity(t_.city); setDistrict(t_.district || undefined); setViewMode("list"); setPage(1); }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = "translateY(-2px)"; (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 20px rgba(0,0,0,0.08)"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = "translateY(0)"; (e.currentTarget as HTMLElement).style.boxShadow = SHADOW; }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
+                  <span style={{ fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: COLORS.textTertiary }}>
+                    {[t_.city, t_.district].filter(Boolean).join(", ").toUpperCase()}
+                  </span>
+                  <div style={{ width: "44px", height: "44px", borderRadius: "12px", background: debt > 0 ? "linear-gradient(135deg, #f87171, #ef4444)" : "linear-gradient(135deg, #4ade80, #22c47a)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <MapPin size={20} color="#fff"/>
+                  </div>
+                </div>
+                <div style={{ fontFamily: F.display, fontSize: "32px", fontWeight: 700, color: COLORS.textPrimary, lineHeight: 1, letterSpacing: "-0.03em" }}>
+                  {t_.count}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "6px" }}>
+                  <span style={{ fontSize: "12px", color: COLORS.textSecondary }}>
+                    {t("магазинов","do'kon")}
+                  </span>
+                  {debt > 0 && (
+                    <span style={{
+                      display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", fontWeight: 600,
+                      padding: "2px 8px", borderRadius: "9999px", background: "rgba(248,113,113,.15)",
+                      color: "#f87171", fontFamily: F.body, marginLeft: "auto",
+                    }}>
+                      <AlertCircle size={10}/>{fmt(debt, { decimals: 0 })}
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
-      {/* Select all */}
-      {data && data.data.length > 0 && (
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <button onClick={toggleSelectAll}
-            style={{ background: "none", border: "none", cursor: "pointer", padding: "4px", display: "flex", alignItems: "center", gap: "6px" }}>
-            {allSelected
-              ? <CheckSquare size={16} style={{ color: COLORS.primary }} />
-              : <Square size={16} style={{ color: COLORS.textTertiary }} />
-            }
-            <span style={{ fontSize: "12px", color: COLORS.textSecondary }}>{t("Выбрать все","Barchasini tanlash")}</span>
-          </button>
-        </div>
-      )}
+      {(viewMode === "list" || city || district) && (
+        <>
+          {/* City/district breadcrumb */}
+          {(city||district)&&(
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: COLORS.textSecondary }}>
+              <MapPin size={14} style={{ color: COLORS.primary }}/>
+              <span>{city&&<strong style={{ color: COLORS.textPrimary }}>{city}</strong>}</span>
+              {district&&<><span>›</span><strong style={{ color: COLORS.textPrimary }}>{district}</strong></>}
+              <span style={{ color: COLORS.textSecondary }}>({data?.total??0} {t("магазинов","do'kon")})</span>
+            </div>
+          )}
 
-      {/* Cards */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-        {isLoading?Array.from({length:4}).map((_,i)=>(
-          <div key={i} style={{ height: "96px", borderRadius: "24px", background: COLORS.surfaceLight, animation: `slideUp ${0.4 + i * 0.05}s ease forwards` }}/>
-        ))
-          :data?.data.length===0?<p style={{ textAlign: "center", color: COLORS.textSecondary, padding: "48px 0", fontSize: "14px" }}>{t("Нет магазинов","Do'kon yo'q")}</p>
-          :data?.data.map((s: any, i: number)=><ShopCard key={s.id} s={s} lang={lang} fmt={fmt} delay={i*0.03}
-            onClick={()=>navigate(`/shops/${s.id}`)}
-            selected={selected.has(s.id)}
-            onToggleSelect={()=>toggleSelect(s.id)}
-          />)}
-      </div>
+          {/* Selection bar */}
+          {selected.size > 0 && (
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              padding: "12px 20px", borderRadius: "14px",
+              background: "var(--color-primary-subtle, rgba(129,140,248,.10))",
+              border: "1px solid rgba(129,140,248,.20)",
+            }}>
+              <span style={{ fontSize: "13px", fontWeight: 600, color: "#818cf8" }}>
+                {selected.size} {t("выбрано","tanlangan")}
+              </span>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <button onClick={()=>setSelected(new Set())} className="btn-secondary text-xs py-1.5 px-3">
+                  {t("Сбросить","Bekor qilish")}
+                </button>
+                <button onClick={handleBulkDelete} disabled={deleteMutation.isPending}
+                  style={{
+                    display: "flex", alignItems: "center", gap: "5px", padding: "6px 14px",
+                    fontSize: "12px", fontWeight: 600, borderRadius: "8px",
+                    border: "none", cursor: "pointer", color: "#fff",
+                    background: "#f87171", opacity: deleteMutation.isPending ? 0.5 : 1,
+                  }}>
+                  <Trash2 size={13} />{t("Удалить","O'chirish")}
+                </button>
+              </div>
+            </div>
+          )}
 
-      {data&&data.total>25&&(
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <span style={{ fontSize: "13px", color: COLORS.textSecondary }}>{data.total} {t("всего","jami")}</span>
-          <div style={{ display: "flex", gap: "8px" }}>
-            <button onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1} className="btn-secondary py-1 px-3 text-sm disabled:opacity-40">{t("Назад","Orqaga")}</button>
-            <button onClick={()=>setPage(p=>p+1)} disabled={page*25>=data.total} className="btn-secondary py-1 px-3 text-sm disabled:opacity-40">{t("Далее","Keyingi")}</button>
+          {/* Select all */}
+          {data && data.data.length > 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <button onClick={toggleSelectAll}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: "4px", display: "flex", alignItems: "center", gap: "6px" }}>
+                {allSelected
+                  ? <CheckSquare size={16} style={{ color: COLORS.primary }} />
+                  : <Square size={16} style={{ color: COLORS.textTertiary }} />
+                }
+                <span style={{ fontSize: "12px", color: COLORS.textSecondary }}>{t("Выбрать все","Barchasini tanlash")}</span>
+              </button>
+            </div>
+          )}
+
+          {/* Cards */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            {isLoading?Array.from({length:4}).map((_,i)=>(
+              <div key={i} style={{ height: "96px", borderRadius: "24px", background: COLORS.surfaceLight, animation: `slideUp ${0.4 + i * 0.05}s ease forwards` }}/>
+            ))
+              :data?.data.length===0?<p style={{ textAlign: "center", color: COLORS.textSecondary, padding: "48px 0", fontSize: "14px" }}>{t("Нет магазинов","Do'kon yo'q")}</p>
+              :data?.data.map((s: any, i: number)=><ShopCard key={s.id} s={s} lang={lang} fmt={fmt} delay={i*0.03}
+                onClick={()=>navigate(`/shops/${s.id}`)}
+                selected={selected.has(s.id)}
+                onToggleSelect={()=>toggleSelect(s.id)}
+              />)}
           </div>
-        </div>
+
+          {data&&data.total>25&&(
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontSize: "13px", color: COLORS.textSecondary }}>{data.total} {t("всего","jami")}</span>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <button onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1} className="btn-secondary py-1 px-3 text-sm disabled:opacity-40">{t("Назад","Orqaga")}</button>
+                <button onClick={()=>setPage(p=>p+1)} disabled={page*25>=data.total} className="btn-secondary py-1 px-3 text-sm disabled:opacity-40">{t("Далее","Keyingi")}</button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
