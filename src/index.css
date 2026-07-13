@@ -47,21 +47,21 @@
      LIGHT THEME — Soft UI Neumorphism
      ══════════════════════════════════════════════════════════════════════ */
   :root, .light {
-    --color-canvas:          #e0e5ec;
-    --color-canvas-alt:      #d1d9e6;
-    --color-surface:         #e0e5ec;
-    --color-surface-raised:  #e6ebf2;
-    --color-surface-light:   #e8ecf3;
-    --color-surface-hover:   #d5dbe6;
+    --color-canvas:          #f2f0ec;
+    --color-canvas-alt:      #ece9e3;
+    --color-surface:         #f6f4f0;
+    --color-surface-raised:  #f8f6f2;
+    --color-surface-light:   #fbfaf8;
+    --color-surface-hover:   #ede9e2;
 
-    --color-border:          #c8d0dc;
-    --color-border-subtle:   #d1d9e6;
-    --color-border-custom:   #c8d0dc;
-    --color-border-strong:   #a8b4c4;
+    --color-border:          #e4e0d8;
+    --color-border-subtle:   #ebe7e0;
+    --color-border-custom:   #e4e0d8;
+    --color-border-strong:   #d2ccc0;
 
-    --color-text-primary:    #2d3748;
-    --color-text-secondary:  #5a6a7f;
-    --color-text-tertiary:   #8b9bb4;
+    --color-text-primary:    #2b2a28;
+    --color-text-secondary:  #6b675f;
+    --color-text-tertiary:   #9a968c;
     --color-text-inverse:    #ffffff;
 
     --color-primary:         #4b6cf6;
@@ -84,15 +84,17 @@
     --accent-purple:  #8b7cf6;
     --accent-cyan:    #00d4ff;
 
-    /* Neumorphic shadow system - dual shadows for raised effect */
-    --shadow-raised:  9px 9px 16px rgba(163,177,198,0.6), -9px -9px 16px rgba(255,255,255,0.5);
-    --shadow-pressed: inset 6px 6px 10px rgba(163,177,198,0.4), inset -6px -6px 10px rgba(255,255,255,0.6);
-    --shadow-sm:      4px 4px 8px rgba(163,177,198,0.4), -4px -4px 8px rgba(255,255,255,0.5);
-    --shadow-xs:      2px 2px 4px rgba(163,177,198,0.3), -2px -2px 4px rgba(255,255,255,0.4);
-    --shadow-md:      12px 12px 24px rgba(163,177,198,0.5), -12px -12px 24px rgba(255,255,255,0.5);
-    --shadow-lg:      16px 16px 32px rgba(163,177,198,0.55), -16px -16px 32px rgba(255,255,255,0.45);
-    --shadow-xl:      20px 20px 40px rgba(163,177,198,0.6), -20px -20px 40px rgba(255,255,255,0.4);
-    --shadow-ring:    drop-shadow(0 2px 4px rgba(163,177,198,0.2));
+    /* Neumorphic shadow system — мягкая асимметричная диффузия, а не
+       "тиснёный" эффект в 50/50: тёплый приглушённый тон тени (не холодный
+       серо-синий), ниже непрозрачность тёмной стороны, больше blur. */
+    --shadow-raised:  8px 8px 20px rgba(180,172,158,0.35), -8px -8px 20px rgba(255,255,255,0.6);
+    --shadow-pressed: inset 5px 5px 10px rgba(180,172,158,0.25), inset -5px -5px 10px rgba(255,255,255,0.5);
+    --shadow-sm:      3px 3px 8px rgba(180,172,158,0.25), -3px -3px 8px rgba(255,255,255,0.5);
+    --shadow-xs:      2px 2px 4px rgba(180,172,158,0.2), -2px -2px 4px rgba(255,255,255,0.4);
+    --shadow-md:      10px 10px 24px rgba(180,172,158,0.3), -10px -10px 24px rgba(255,255,255,0.55);
+    --shadow-lg:      14px 14px 32px rgba(180,172,158,0.35), -14px -14px 32px rgba(255,255,255,0.5);
+    --shadow-xl:      18px 18px 40px rgba(180,172,158,0.4), -18px -18px 40px rgba(255,255,255,0.45);
+    --shadow-ring:    drop-shadow(0 4px 10px rgba(180,172,158,0.3));
     --ring-primary:   0 0 0 3px color-mix(in srgb, var(--color-primary) 18%, transparent);
 
     /* Chart colors */
@@ -141,22 +143,22 @@
     --sidebar-border:        220 8% 16%;
     --sidebar-ring:          185 100% 50%;
 
-    --color-canvas:          #1e2028;
-    --color-canvas-alt:      #24262e;
-    --color-surface:         #24262e;
-    --color-surface-raised:  #2a2c35;
-    --color-surface-light:   #30323c;
-    --color-surface-hover:   #363842;
+    --color-canvas:          #1c1a17;
+    --color-canvas-alt:      #211f1b;
+    --color-surface:         #221f1c;
+    --color-surface-raised:  #262320;
+    --color-surface-light:   #2a2622;
+    --color-surface-hover:   #2e2a25;
 
-    --color-border:          #383a45;
-    --color-border-subtle:   #30323c;
-    --color-border-custom:   #383a45;
-    --color-border-strong:   #42444f;
+    --color-border:          #322e28;
+    --color-border-subtle:   #2a2622;
+    --color-border-custom:   #322e28;
+    --color-border-strong:   #423d35;
 
-    --color-text-primary:    #e2e8f0;
-    --color-text-secondary:  #8896b3;
-    --color-text-tertiary:   #5a6680;
-    --color-text-inverse:    #141824;
+    --color-text-primary:    #ede9e3;
+    --color-text-secondary:  #a39d92;
+    --color-text-tertiary:   #756f64;
+    --color-text-inverse:    #1c1a17;
 
     --color-primary:         #00d4ff;
     --color-primary-hover:   #33ddff;
@@ -172,15 +174,16 @@
     --color-info:            #00b4ff;
     --color-info-subtle:     rgba(0,180,255,.12);
 
-    /* Dark neumorphic shadows */
-    --shadow-raised:  8px 8px 16px rgba(0,0,0,0.45), -8px -8px 16px rgba(255,255,255,0.02);
-    --shadow-pressed: inset 6px 6px 12px rgba(0,0,0,0.45), inset -6px -6px 12px rgba(255,255,255,0.02);
-    --shadow-sm:      4px 4px 8px rgba(0,0,0,0.35), -4px -4px 8px rgba(255,255,255,0.015);
+    /* Dark neumorphic shadows — тот же тёплый нейтральный тон, что и фон,
+       ниже контраст между гранями, чем в исходной "холодной" версии. */
+    --shadow-raised:  7px 7px 16px rgba(0,0,0,0.4), -7px -7px 16px rgba(255,255,255,0.025);
+    --shadow-pressed: inset 5px 5px 10px rgba(0,0,0,0.4), inset -5px -5px 10px rgba(255,255,255,0.025);
+    --shadow-sm:      3px 3px 8px rgba(0,0,0,0.32), -3px -3px 8px rgba(255,255,255,0.02);
     --shadow-xs:      2px 2px 4px rgba(0,0,0,0.25), -2px -2px 4px rgba(255,255,255,0.015);
-    --shadow-md:      12px 12px 24px rgba(0,0,0,0.45), -12px -12px 24px rgba(255,255,255,0.02);
-    --shadow-lg:      16px 16px 32px rgba(0,0,0,0.5), -16px -16px 32px rgba(255,255,255,0.015);
-    --shadow-xl:      20px 20px 40px rgba(0,0,0,0.55), -20px -20px 40px rgba(255,255,255,0.015);
-    --shadow-ring:    drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+    --shadow-md:      10px 10px 24px rgba(0,0,0,0.42), -10px -10px 24px rgba(255,255,255,0.025);
+    --shadow-lg:      14px 14px 32px rgba(0,0,0,0.46), -14px -14px 32px rgba(255,255,255,0.02);
+    --shadow-xl:      18px 18px 40px rgba(0,0,0,0.5), -18px -18px 40px rgba(255,255,255,0.015);
+    --shadow-ring:    drop-shadow(0 4px 10px rgba(0,0,0,0.4));
     --ring-primary:   0 0 0 3px rgba(0,212,255,.2);
 
     /* Chart colors */
@@ -496,6 +499,29 @@
     box-shadow: var(--shadow-md);
     transform: translateY(-3px);
   }
+
+  /* Компактная версия карточки — используется на AgentDashboard/SupervisorTracking
+     как облегчённый вариант .kpi-hero (меньше паддинг). */
+  .kpi-card {
+    background: var(--color-surface);
+    border-radius: 20px;
+    padding: 18px;
+    box-shadow: var(--shadow-raised);
+    border: 1px solid rgba(255,255,255,0.1);
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+  }
+  .dark .kpi-card { border-color: rgba(255,255,255,0.03); }
+  .kpi-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+
+  /* Прозрачная icon/text-кнопка — используется в шапках карточек и модалках
+     (крестик закрытия, второстепенные действия). */
+  .btn-ghost {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    border: none; background: transparent; cursor: pointer;
+    border-radius: 10px; color: var(--color-text-secondary);
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .btn-ghost:hover { background: var(--color-surface-hover); color: var(--color-text-primary); }
 
   .kpi-hero-label {
     font-family: 'DM Sans', sans-serif;
