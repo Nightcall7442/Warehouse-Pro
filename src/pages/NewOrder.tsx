@@ -344,10 +344,10 @@ function StepItems({
       {/* ── Каталог товаров ── */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <p className="font-label text-[10px] text-text-secondary tracking-wider">
+          <p className="font-label text-[10px] text-secondary tracking-wider">
             {t("КАТАЛОГ ТОВАРОВ", "MAHSULOTLAR KATALOGI")}
           </p>
-          <span className="text-xs text-text-tertiary">{filtered.length} {t("товаров", "mahsulot")}</span>
+          <span className="text-xs text-tertiary">{filtered.length} {t("товаров", "mahsulot")}</span>
         </div>
 
         {/* Поиск */}
@@ -527,15 +527,15 @@ function StepReview({
 
   return (
     <div className="space-y-4 animate-fade-up">
-      <p className="font-label text-[10px] text-text-secondary tracking-wider">
+      <p className="font-label text-[10px] text-secondary tracking-wider">
         {t("ПОДТВЕРЖДЕНИЕ ЗАКАЗА", "BUYURTMANI TASDIQLASH")}
       </p>
 
       <div className="neo-card p-4 space-y-3">
         {/* Shop */}
         <div className="flex items-center gap-2.5 pb-3" style={{ borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
-          <Store size={14} className="text-text-secondary flex-shrink-0"/>
-          <span className="text-sm text-text-primary font-medium">{shopName}</span>
+          <Store size={14} className="text-secondary flex-shrink-0"/>
+          <span className="text-sm text-primary font-medium">{shopName}</span>
         </div>
 
         {/* Items */}
@@ -543,12 +543,12 @@ function StepReview({
           {validItems.map((item, i) => (
             <div key={i} className="flex items-center justify-between text-sm gap-3">
               <div className="flex-1 min-w-0">
-                <p className="text-text-primary truncate">{item.productName}</p>
-                <p className="text-xs text-text-secondary font-data mt-0.5">
+                <p className="text-primary truncate">{item.productName}</p>
+                <p className="text-xs text-secondary font-data mt-0.5">
                   {item.quantity} {unitLabel(item.unit, lang)} × {fmt(item.unitPrice)}
                 </p>
               </div>
-              <span className="font-data text-text-primary font-medium flex-shrink-0">
+              <span className="font-data text-primary font-medium flex-shrink-0">
                 {fmt((Number(item.unitPrice) * Number(item.quantity)).toFixed(2))}
               </span>
             </div>
@@ -558,12 +558,12 @@ function StepReview({
         {/* Totals */}
         <div className="space-y-2 pt-3" style={{ borderTop: "1px solid var(--color-border, #f0f3f8)" }}>
           <div className="flex justify-between text-sm">
-            <span className="text-text-secondary">{t("Подитого", "Jami")}</span>
-            <span className="font-data text-text-primary">{fmt(subtotal.toFixed(2))}</span>
+            <span className="text-secondary">{t("Подитого", "Jami")}</span>
+            <span className="font-data text-primary">{fmt(subtotal.toFixed(2))}</span>
           </div>
           {/* Discount field */}
           <div className="flex items-center justify-between gap-3">
-            <span className="text-sm text-text-secondary flex-shrink-0">{t("Скидка", "Chegirma")}</span>
+            <span className="text-sm text-secondary flex-shrink-0">{t("Скидка", "Chegirma")}</span>
             <div className="relative w-28">
               <input
                 className="neo-input text-right font-data py-1.5 text-sm"
@@ -578,12 +578,12 @@ function StepReview({
             </div>
           </div>
           <div className="flex justify-between pt-1">
-            <span className="font-semibold text-text-primary">{t("ИТОГО", "JAMI")}</span>
+            <span className="font-semibold text-primary">{t("ИТОГО", "JAMI")}</span>
             <span className="font-data text-xl font-bold text-primary">{fmt(total.toFixed(2))}</span>
           </div>
           {totalWeightKg > 0 && (
             <div className="flex justify-between pt-1">
-              <span className="text-sm text-text-secondary">{t("Общий вес", "Umumiy og'irlik")}</span>
+              <span className="text-sm text-secondary">{t("Общий вес", "Umumiy og'irlik")}</span>
               <span className="font-data text-sm font-semibold text-primary">{totalWeightKg.toFixed(2)} кг</span>
             </div>
           )}
@@ -592,7 +592,7 @@ function StepReview({
 
       {/* Notes */}
       <div>
-        <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">
+        <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">
           {t("ПРИМЕЧАНИЯ (ОПЦИОНАЛЬНО)", "ESLATMALAR (IXTIYORIY)")}
         </label>
         <textarea
@@ -691,11 +691,11 @@ export default function NewOrder() {
           </svg>
         </button>
         <div>
-          <h1 className="font-display text-xl font-bold text-text-primary tracking-tight">
+          <h1 className="font-display text-xl font-bold text-primary tracking-tight">
             {t("Новый заказ", "Yangi buyurtma")}
           </h1>
           {shopName && step > 1 && (
-            <p className="text-xs text-text-secondary mt-0.5">{shopName}</p>
+            <p className="text-xs text-secondary mt-0.5">{shopName}</p>
           )}
         </div>
         {isOffline && (

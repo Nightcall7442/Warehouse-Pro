@@ -105,12 +105,12 @@ export default function OfflineOrders() {
           : <WifiOff size={20} className="text-warning flex-shrink-0"/>
         }
         <div className="flex-1">
-          <p className="font-medium text-text-primary text-sm">
+          <p className="font-medium text-primary text-sm">
             {online
               ? (lang === "uz" ? "Internet bor" : "Онлайн")
               : (lang === "uz" ? "Internet yo'q" : "Офлайн режим")}
           </p>
-          <p className="text-xs text-text-secondary">
+          <p className="text-xs text-secondary">
             {online
               ? pending.length > 0
                 ? (lang === "uz" ? `${pending.length} ta buyurtma sinxronlanishni kutmoqda` : `${pending.length} заказов ожидают синхронизации`)
@@ -132,10 +132,10 @@ export default function OfflineOrders() {
       </div>
 
       <div className="flex items-center justify-between">
-        <h1 className="font-display text-2xl font-bold text-text-primary tracking-tight">
+        <h1 className="font-display text-2xl font-bold text-primary tracking-tight">
           {lang === "uz" ? "Offline buyurtmalar" : "Офлайн заказы"}
         </h1>
-        <span className="font-data text-text-secondary text-sm">
+        <span className="font-data text-secondary text-sm">
           {pending.length} {lang === "uz" ? "ta" : "шт."}
         </span>
       </div>
@@ -143,11 +143,11 @@ export default function OfflineOrders() {
       {pending.length === 0 ? (
         <div className="neo-card p-10 text-center space-y-2">
           <CheckCircle2 size={32} className="mx-auto text-success"/>
-          <p className="text-text-secondary text-sm">
+          <p className="text-secondary text-sm">
             {lang === "uz" ? "Kutayotgan buyurtmalar yo'q" : "Нет ожидающих заказов"}
           </p>
           {!online && (
-            <p className="text-xs text-text-secondary mt-2">
+            <p className="text-xs text-secondary mt-2">
               {lang === "uz"
                 ? "Internet bo'lmasa ham yangi buyurtmalar bu yerda saqlanadi"
                 : "При отсутствии интернета новые заказы сохранятся здесь"}
@@ -166,14 +166,14 @@ export default function OfflineOrders() {
                   <div>
                     <div className="flex items-center gap-2">
                       <Clock size={14} className="text-warning flex-shrink-0"/>
-                      <span className="text-sm font-medium text-text-primary">
+                      <span className="text-sm font-medium text-primary">
                         {String(order.shopName ?? `Shop #${String(order.shopId)}`)}
                       </span>
                     </div>
-                    <p className="text-xs text-text-secondary mt-1">
+                    <p className="text-xs text-secondary mt-1">
                       {lang === "uz" ? "Saqlangan:" : "Сохранён:"} {new Date(order.savedAt as string).toLocaleString("ru-RU")}
                     </p>
-                    <p className="text-xs text-text-secondary">
+                    <p className="text-xs text-secondary">
                       {(order.items as any)?.length ?? 0} {lang === "uz" ? "ta mahsulot" : "товаров"} · {fmt(total)}
                     </p>
                   </div>
@@ -216,8 +216,8 @@ export default function OfflineOrders() {
         </div>
       )}
 
-      <div className="neo-card p-4 text-sm text-text-secondary">
-        <p className="font-medium text-text-primary mb-1">
+      <div className="neo-card p-4 text-sm text-secondary">
+        <p className="font-medium text-primary mb-1">
           {lang === "uz" ? "Qanday ishlaydi" : "Как работает"}
         </p>
         <p>

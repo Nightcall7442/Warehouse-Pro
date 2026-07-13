@@ -86,7 +86,7 @@ export default function AgentGps() {
 
   return (
     <div className="space-y-4 max-w-sm mx-auto animate-fade-up">
-      <h1 className="font-display text-2xl font-bold text-text-primary tracking-tight">
+      <h1 className="font-display text-2xl font-bold text-primary tracking-tight">
         {t("GPS Трекер", "GPS Tracker")}
       </h1>
 
@@ -98,9 +98,9 @@ export default function AgentGps() {
               className="w-20 h-20 rounded-full flex items-center justify-center mx-auto"
               style={{ background: "var(--color-surface-light, #f0f3f8)" }}
             >
-              <MapPin size={32} className="text-text-secondary" />
+              <MapPin size={32} className="text-secondary" />
             </div>
-            <p className="text-text-secondary text-sm">
+            <p className="text-secondary text-sm">
               {t(
                 "Нажмите кнопку ниже чтобы отправить своё местоположение супервайзеру",
                 "Joylashuvingizni supervisorga yuborish uchun quyidagi tugmani bosing"
@@ -117,7 +117,7 @@ export default function AgentGps() {
             >
               <Loader2 size={32} className="text-primary animate-spin" />
             </div>
-            <p className="text-text-secondary text-sm">
+            <p className="text-secondary text-sm">
               {t("Определяем ваше местоположение…", "Joylashuvingiz aniqlanmoqda…")}
             </p>
           </div>
@@ -135,7 +135,7 @@ export default function AgentGps() {
               <p className="font-label text-[10px] tracking-wider mb-2" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
                 {t("КООРДИНАТЫ", "KOORDINATALAR")}
               </p>
-              <p className="font-data text-text-primary text-sm">
+              <p className="font-data text-primary text-sm">
                 {coords.lat.toFixed(6)}, {coords.lng.toFixed(6)}
               </p>
               <p className="text-xs mt-1" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
@@ -184,7 +184,7 @@ export default function AgentGps() {
       {/* Авто-трекинг */}
       <div className="neo-card p-4 flex items-center justify-between">
         <div>
-          <p className="font-medium text-text-primary text-sm">
+          <p className="font-medium text-primary text-sm">
             {t("Авто-трекинг", "Avto-kuzatish")}
           </p>
           <p className="text-xs mt-0.5" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>

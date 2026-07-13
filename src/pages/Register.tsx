@@ -96,7 +96,7 @@ export default function Register() {
               <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
             </svg>
           </div>
-          <span className="font-display text-base text-text-primary">Warehouse Pro</span>
+          <span className="font-display text-base text-primary">Warehouse Pro</span>
         </div>
 
         {/* Hero */}
@@ -105,7 +105,7 @@ export default function Register() {
             <p className="text-[11px] font-semibold tracking-[.14em] uppercase mb-3" style={{ color: "#34c473" }}>
               {tr("Начните бесплатно","Bepul boshlang")}
             </p>
-            <h1 className="text-[38px] font-bold leading-[1.15] tracking-tight text-text-primary">
+            <h1 className="text-[38px] font-bold leading-[1.15] tracking-tight text-primary">
               {tr("Настройте склад за 3 шага","Omborni 3 qadamda sozlang")}
             </h1>
           </div>
@@ -118,7 +118,7 @@ export default function Register() {
                   {s.num}
                 </div>
                 <div>
-                  <p className="font-medium text-text-primary">{s.title}</p>
+                  <p className="font-medium text-primary">{s.title}</p>
                   <p className="text-sm mt-0.5" style={{ color: "var(--color-text-secondary, #6a7290)" }}>{s.desc}</p>
                 </div>
               </div>
@@ -128,7 +128,7 @@ export default function Register() {
           <div className="flex items-center gap-3 px-4 py-3 rounded-xl"
             style={{ background: "color-mix(in srgb, #34c473 8%, transparent)", border: "1px solid color-mix(in srgb, #34c473 20%, transparent)" }}>
             <CheckCircle2 size={16} className="text-success flex-shrink-0" />
-            <p className="text-sm text-text-primary">{tr("Первые 14 дней бесплатно — без карты","Birinchi 14 kun bepul — kartasiz")}</p>
+            <p className="text-sm text-primary">{tr("Первые 14 дней бесплатно — без карты","Birinchi 14 kun bepul — kartasiz")}</p>
           </div>
         </div>
 
@@ -144,12 +144,12 @@ export default function Register() {
               <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
             </svg>
           </div>
-          <span className="font-display text-sm text-text-primary">Warehouse Pro</span>
+          <span className="font-display text-sm text-primary">Warehouse Pro</span>
         </div>
 
         <div className="w-full max-w-[380px]">
           <div className="mb-8">
-            <h2 className="font-display text-2xl text-text-primary mb-1.5">{tr("Создать организацию","Tashkilot yaratish")}</h2>
+            <h2 className="font-display text-2xl text-primary mb-1.5">{tr("Создать организацию","Tashkilot yaratish")}</h2>
             <p className="text-sm" style={{ color: "var(--color-text-secondary, #6a7290)" }}>
               {tr("Уже есть аккаунт?","Hisobingiz bormi?")}{" "}
               <Link to="/login" className="font-medium hover:underline" style={{ color: "#4b6cf6" }}>{tr("Войти","Kirish")}</Link>

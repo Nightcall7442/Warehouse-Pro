@@ -88,7 +88,7 @@ export default function BarcodePage() {
         currency,
       }))}/>
 
-      <h1 className="font-display text-2xl font-bold text-text-primary tracking-tight">
+      <h1 className="font-display text-2xl font-bold text-primary tracking-tight">
         {lang === "uz" ? "Shtrix-kod" : "Штрих-коды"}
       </h1>
 
@@ -105,7 +105,7 @@ export default function BarcodePage() {
 
       {/* Manual search */}
       <div className="relative">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary"/>
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary"/>
         <input
           className="neo-input pl-10 w-full font-data"
           placeholder={lang === "uz" ? "Kod bo'yicha qidirish…" : "Поиск по коду или названию…"}
@@ -124,7 +124,7 @@ export default function BarcodePage() {
           ) : products?.data.length === 0 ? (
             <div className="p-6 text-center">
               <AlertTriangle size={24} className="mx-auto text-warning mb-2"/>
-              <p className="text-text-secondary text-sm">
+              <p className="text-secondary text-sm">
                 {lang === "uz" ? "Mahsulot topilmadi" : "Товар не найден"}
               </p>
             </div>
@@ -136,9 +136,9 @@ export default function BarcodePage() {
                     <Package size={18} className="text-primary"/>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-text-primary text-sm truncate">{p.name}</p>
+                    <p className="font-medium text-primary text-sm truncate">{p.name}</p>
                     <div className="flex items-center gap-3 mt-0.5">
-                      <span className="font-data text-xs text-text-secondary">{p.code}</span>
+                      <span className="font-data text-xs text-secondary">{p.code}</span>
                       <span className="font-data text-sm text-primary">{fmt(p.unitPrice)}/кг</span>
                       <span className={`text-xs font-data ${Number(p.available ?? 0) < Number(p.reorderPoint ?? 0) ? "text-danger" : "text-success"}`}>
                         {Number(p.available ?? 0).toFixed(0)} кг
@@ -187,9 +187,9 @@ export default function BarcodePage() {
           <div className="space-y-1.5">
             {labelQueue.map((p: any, i: number) => (
               <div key={i} className="flex items-center justify-between text-sm">
-                <span className="text-text-primary">{p.name}</span>
+                <span className="text-primary">{p.name}</span>
                 <div className="flex items-center gap-2">
-                  <span className="font-data text-text-secondary text-xs">{p.code}</span>
+                  <span className="font-data text-secondary text-xs">{p.code}</span>
                   <button
                     onClick={() => setLabelQueue(q => q.filter((_, j) => j !== i))}
                     className="text-danger text-xs hover:underline"
@@ -204,8 +204,8 @@ export default function BarcodePage() {
       )}
 
       {/* Info */}
-      <div className="neo-card p-4 text-sm text-text-secondary space-y-1">
-        <p className="font-medium text-text-primary">
+      <div className="neo-card p-4 text-sm text-secondary space-y-1">
+        <p className="font-medium text-primary">
           {lang === "uz" ? "Qo'llab-quvvatlanadigan formatlar" : "Поддерживаемые форматы"}
         </p>
         <p>EAN-13, EAN-8, Code 128, Code 39, QR, UPC-A, UPC-E</p>

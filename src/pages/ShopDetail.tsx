@@ -50,7 +50,7 @@ function PaymentModal({ shopId, onClose }: { shopId: number; onClose: () => void
       style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }}>
       <div className="w-full sm:max-w-md bg-[#ffffff] rounded-t-2xl sm:rounded-2xl shadow-2xl p-5 space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="font-display text-base text-text-primary">{t("Добавить платёж", "To'lov qo'shish")}</h2>
+          <h2 className="font-display text-base text-primary">{t("Добавить платёж", "To'lov qo'shish")}</h2>
           <button onClick={onClose} className="btn-ghost p-1.5"><X size={18} /></button>
         </div>
 
@@ -60,7 +60,7 @@ function PaymentModal({ shopId, onClose }: { shopId: number; onClose: () => void
               className={`py-3 px-3 rounded-lg border text-xs font-medium text-left transition-all ${
                 type === o.val
                   ? "border-primary bg-primary/10 text-primary"
-                  : "border-border-subtle text-text-secondary hover:border-border-strong"
+                  : "border-border-subtle text-secondary hover:border-border-strong"
               }`}>
               {lang === "uz" ? o.labelUz : o.labelRu}
             </button>
@@ -68,7 +68,7 @@ function PaymentModal({ shopId, onClose }: { shopId: number; onClose: () => void
         </div>
 
         <div>
-          <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">
+          <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">
             {t("СУММА", "SUMMA")}
           </label>
           <input type="number" step="0.01" min="0"
@@ -77,7 +77,7 @@ function PaymentModal({ shopId, onClose }: { shopId: number; onClose: () => void
         </div>
 
         <div>
-          <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">
+          <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">
             {t("ПРИМЕЧАНИЯ", "IZOHLAR")}
           </label>
           <input className="neo-input w-full" placeholder={t("Комментарий…", "Izoh…")}
@@ -155,7 +155,7 @@ export default function ShopDetail() {
       <div className="h-64 bg-surface-light animate-pulse rounded-xl" />
     </div>
   );
-  if (!shop) return <div className="text-center py-20 text-text-secondary">{t("Магазин не найден", "Do'kon topilmadi")}</div>;
+  if (!shop) return <div className="text-center py-20 text-secondary">{t("Магазин не найден", "Do'kon topilmadi")}</div>;
 
   const hasDebt = Number(shop.debt ?? 0) > 0;
 
@@ -166,7 +166,7 @@ export default function ShopDetail() {
 
       {/* Навигация */}
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <button onClick={() => navigate("/shops")} className="flex items-center gap-2 text-text-secondary hover:text-text-primary transition-colors">
+        <button onClick={() => navigate("/shops")} className="flex items-center gap-2 text-secondary hover:text-primary transition-colors">
           <ArrowLeft size={18} /><span className="text-sm">{t("Магазины", "Do'konlar")}</span>
         </button>
         <div className="flex gap-2">
@@ -201,7 +201,7 @@ export default function ShopDetail() {
             </div>
             {agents.length > 0 && (
               <div>
-                <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">
+                <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">
                   {t("АГЕНТ", "AGENT")}
                 </label>
                 <PremiumSelect
@@ -241,8 +241,8 @@ export default function ShopDetail() {
               </div>
             </div>
             <div className="flex-1 min-w-0">
-              <h1 className="font-display text-xl font-bold text-text-primary tracking-tight">{shop.name}</h1>
-              <p className="text-text-secondary text-sm mt-0.5">{shop.ownerName ?? t("Владелец не указан", "Egasi ko'rsatilmagan")}</p>
+              <h1 className="font-display text-xl font-bold text-primary tracking-tight">{shop.name}</h1>
+              <p className="text-secondary text-sm mt-0.5">{shop.ownerName ?? t("Владелец не указан", "Egasi ko'rsatilmagan")}</p>
               <div className="flex flex-wrap gap-4 mt-3">
                 {shop.phone && (
                   <a href={`tel:${shop.phone}`} className="flex items-center gap-1.5 text-sm text-primary">
@@ -250,7 +250,7 @@ export default function ShopDetail() {
                   </a>
                 )}
                 {(shop.city || shop.address) && (
-                  <span className="flex items-center gap-1.5 text-sm text-text-secondary">
+                  <span className="flex items-center gap-1.5 text-sm text-secondary">
                     <MapPin size={13} />{[shop.address, shop.city, shop.district].filter(Boolean).join(", ")}
                   </span>
                 )}
@@ -289,20 +289,20 @@ export default function ShopDetail() {
         {/* История платежей */}
         {shop.paymentHistory && shop.paymentHistory.length > 0 && (
           <div className="mt-4 space-y-0" style={{ borderTop: "1px solid var(--color-border, #f0f3f8)", paddingTop: 12 }}>
-            <p className="font-label text-[10px] text-text-secondary tracking-wider mb-2">
+            <p className="font-label text-[10px] text-secondary tracking-wider mb-2">
               {t("ИСТОРИЯ ПЛАТЕЖЕЙ", "TO'LOVLAR TARIXI")}
             </p>
             {shop.paymentHistory.slice(0, 5).map((p: { id: number; type: string; notes: string | null; amount: string; createdAt: string | Date }) => (
               <div key={p.id} className="flex items-center justify-between py-2"
                 style={{ borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
                 <div>
-                  <p className="text-sm text-text-primary">
+                  <p className="text-sm text-primary">
                     {p.type === "payment"
                       ? t("💰 Оплата", "💰 To'lov")
                       : t("📋 Долг", "📋 Qarz")}
                     {p.notes ? ` — ${p.notes}` : ""}
                   </p>
-                  <p className="text-xs text-text-secondary mt-0.5">
+                  <p className="text-xs text-secondary mt-0.5">
                     {p.createdAt ? format(new Date(p.createdAt), "dd.MM.yyyy HH:mm") : ""}
                   </p>
                 </div>
@@ -331,15 +331,15 @@ export default function ShopDetail() {
                 <span className="w-2 h-2 rounded-full flex-shrink-0"
                   style={{ background: STATUS_COLORS[o.status ?? "new"] }} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-data font-semibold text-text-primary">{o.orderNumber}</p>
-                  <p className="text-xs text-text-secondary mt-0.5">
+                  <p className="text-sm font-data font-semibold text-primary">{o.orderNumber}</p>
+                  <p className="text-xs text-secondary mt-0.5">
                     {STATUS_LABELS[o.status ?? "new"]?.[lang]} ·{" "}
                     {o.createdAt ? format(new Date(o.createdAt), "dd.MM.yyyy") : ""}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="font-data text-sm font-bold text-text-primary">{fmt(o.total)}</span>
-                  <ChevronRight size={14} className="text-text-secondary" />
+                  <span className="font-data text-sm font-bold text-primary">{fmt(o.total)}</span>
+                  <ChevronRight size={14} className="text-secondary" />
                 </div>
               </div>
             ))}

@@ -121,7 +121,7 @@ export default function OrderDetail() {
     </div>
   );
 
-  if (!order) return <div className="text-center py-20 text-text-secondary">Заказ не найден</div>;
+  if (!order) return <div className="text-center py-20 text-secondary">Заказ не найден</div>;
 
   const subtotal = Number(order.subtotal ?? 0);
   const discount = Number(order.discount ?? 0);
@@ -132,7 +132,7 @@ export default function OrderDetail() {
       {/* Toolbar */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <button onClick={() => navigate("/orders")}
-          className="flex items-center gap-2 text-text-secondary hover:text-text-primary">
+          className="flex items-center gap-2 text-secondary hover:text-primary">
           <ArrowLeft size={18}/><span className="text-sm">{t("common.back")}</span>
         </button>
         <div className="flex gap-2 relative">
@@ -153,7 +153,7 @@ export default function OrderDetail() {
                   { label: "ТОРГ-12 (РФ)",             fn: () => { const d = buildDocData(); if(d) printTorg12(d);   } },
                 ].map(item => (
                   <button key={item.label} onClick={() => { item.fn(); setPrintMenu(false); }}
-                    className="w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-surface-light">
+                    className="w-full text-left px-4 py-2 text-sm text-primary hover:bg-surface-light">
                     {item.label}
                   </button>
                 ))}
@@ -168,16 +168,16 @@ export default function OrderDetail() {
         {/* Header */}
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="font-display text-2xl font-bold text-text-primary tracking-tight">
+            <h1 className="font-display text-2xl font-bold text-primary tracking-tight">
               {lang === "uz" ? "HISOB-FAKTURA" : "НАКЛАДНАЯ"}
             </h1>
-            <p className="font-data text-text-secondary mt-1">{order.orderNumber}</p>
+            <p className="font-data text-secondary mt-1">{order.orderNumber}</p>
           </div>
           <div className="text-right">
             <p className="font-label text-primary tracking-widest text-sm">
               {settings?.companyName ?? "WAREHOUSE PRO"}
             </p>
-            <p className="text-xs text-text-secondary mt-1">
+            <p className="text-xs text-secondary mt-1">
               {order.createdAt
                 ? format(new Date(order.createdAt), "d MMMM yyyy", { locale: dateRu })
                 : ""}
@@ -191,24 +191,24 @@ export default function OrderDetail() {
         {/* Meta */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-4 border-t border-border-subtle">
           <div>
-            <p className="font-label text-text-secondary text-[10px] tracking-wider mb-1">
+            <p className="font-label text-secondary text-[10px] tracking-wider mb-1">
               {lang === "uz" ? "XARIDOR" : "ПОКУПАТЕЛЬ"}
             </p>
-            <p className="text-sm font-medium text-text-primary">{order.shop?.name ?? "—"}</p>
-            <p className="text-xs text-text-secondary">{(order.shop as any)?.ownerName ?? ""}</p>
-            <p className="text-xs text-text-secondary">{((order.shop as Record<string, unknown>)?.phone as string) ?? ""}</p>
+            <p className="text-sm font-medium text-primary">{order.shop?.name ?? "—"}</p>
+            <p className="text-xs text-secondary">{(order.shop as any)?.ownerName ?? ""}</p>
+            <p className="text-xs text-secondary">{((order.shop as Record<string, unknown>)?.phone as string) ?? ""}</p>
           </div>
           <div>
-            <p className="font-label text-text-secondary text-[10px] tracking-wider mb-1">
+            <p className="font-label text-secondary text-[10px] tracking-wider mb-1">
               {lang === "uz" ? "AGENT" : "АГЕНТ"}
             </p>
-            <p className="text-sm text-text-primary">{(order as any).agent?.name ?? "—"}</p>
+            <p className="text-sm text-primary">{(order as any).agent?.name ?? "—"}</p>
           </div>
           <div>
-            <p className="font-label text-text-secondary text-[10px] tracking-wider mb-1">
+            <p className="font-label text-secondary text-[10px] tracking-wider mb-1">
               {lang === "uz" ? "SANA" : "ДАТА"}
             </p>
-            <p className="text-sm text-text-primary">
+            <p className="text-sm text-primary">
               {order.createdAt ? format(new Date(order.createdAt), "dd.MM.yyyy") : "—"}
             </p>
           </div>
@@ -218,22 +218,22 @@ export default function OrderDetail() {
         <table className="w-full">
           <thead>
             <tr className="bg-surface-light">
-              <th className="text-left px-3 py-2 font-h3 text-text-secondary text-xs">
+              <th className="text-left px-3 py-2 font-h3 text-secondary text-xs">
                 {lang === "uz" ? "MAHSULOT" : "ТОВАР"}
               </th>
-              <th className="text-left px-3 py-2 font-h3 text-text-secondary text-xs">КОД</th>
-              <th className="text-right px-3 py-2 font-h3 text-text-secondary text-xs">КГ</th>
-              <th className="text-right px-3 py-2 font-h3 text-text-secondary text-xs">ЦЕНА</th>
-              <th className="text-right px-3 py-2 font-h3 text-text-secondary text-xs">СУММА</th>
+              <th className="text-left px-3 py-2 font-h3 text-secondary text-xs">КОД</th>
+              <th className="text-right px-3 py-2 font-h3 text-secondary text-xs">КГ</th>
+              <th className="text-right px-3 py-2 font-h3 text-secondary text-xs">ЦЕНА</th>
+              <th className="text-right px-3 py-2 font-h3 text-secondary text-xs">СУММА</th>
             </tr>
           </thead>
           <tbody>
             {order.items?.map((item: any, i) => (
               <tr key={item.id ?? i} className="border-b border-border-subtle">
-                <td className="px-3 py-2.5 text-sm text-text-primary">{item.productName ?? "—"}</td>
-                <td className="px-3 py-2.5 font-data text-xs text-text-secondary">{item.productCode ?? "—"}</td>
+                <td className="px-3 py-2.5 text-sm text-primary">{item.productName ?? "—"}</td>
+                <td className="px-3 py-2.5 font-data text-xs text-secondary">{item.productCode ?? "—"}</td>
                 <td className="px-3 py-2.5 font-data text-sm text-right">{Number(item.quantity).toFixed(2)}</td>
-                <td className="px-3 py-2.5 font-data text-sm text-right text-text-secondary">{fmt(item.unitPrice)}</td>
+                <td className="px-3 py-2.5 font-data text-sm text-right text-secondary">{fmt(item.unitPrice)}</td>
                 <td className="px-3 py-2.5 font-data text-sm text-right">{fmt(item.subtotal)}</td>
               </tr>
             ))}
@@ -244,12 +244,12 @@ export default function OrderDetail() {
         <div className="flex justify-end">
           <div className="w-64 space-y-1.5">
             <div className="flex justify-between text-sm">
-              <span className="text-text-secondary">{lang === "uz" ? "Summa" : "Итого"}</span>
+              <span className="text-secondary">{lang === "uz" ? "Summa" : "Итого"}</span>
               <span className="font-data">{fmt(subtotal)}</span>
             </div>
             {discount > 0 && (
               <div className="flex justify-between text-sm">
-                <span className="text-text-secondary">{lang === "uz" ? "Chegirma" : "Скидка"}</span>
+                <span className="text-secondary">{lang === "uz" ? "Chegirma" : "Скидка"}</span>
                 <span className="font-data text-success">−{fmt(discount)}</span>
               </div>
             )}
@@ -262,10 +262,10 @@ export default function OrderDetail() {
 
         {order.notes && (
           <div className="pt-4 border-t border-border-subtle">
-            <p className="font-label text-text-secondary text-[10px] tracking-wider mb-1">
+            <p className="font-label text-secondary text-[10px] tracking-wider mb-1">
               {lang === "uz" ? "IZOH" : "ПРИМЕЧАНИЕ"}
             </p>
-            <p className="text-sm text-text-secondary">{order.notes}</p>
+            <p className="text-sm text-secondary">{order.notes}</p>
           </div>
         )}
       </div>
@@ -273,7 +273,7 @@ export default function OrderDetail() {
       {/* Status actions */}
       {(order.status === "new" || order.status === "processing") && (
         <div className="neo-card p-4">
-          <p className="font-label text-text-secondary text-xs tracking-wider mb-3">
+          <p className="font-label text-secondary text-xs tracking-wider mb-3">
             {lang === "uz" ? "HOLATNI O'ZGARTIRISH" : "ИЗМЕНИТЬ СТАТУС"}
           </p>
           <div className="flex flex-wrap gap-2">
@@ -301,7 +301,7 @@ export default function OrderDetail() {
       {/* Courier assignment (operator/ceo only) */}
       {isOperatorOrCeo && (order.status === "new" || order.status === "processing") && (
         <div className="neo-card p-4">
-          <p className="font-label text-text-secondary text-xs tracking-wider mb-3 flex items-center gap-2">
+          <p className="font-label text-secondary text-xs tracking-wider mb-3 flex items-center gap-2">
             <Truck size={14}/>
             {lang === "uz" ? "KURYERNI TAYINLASH" : "НАЗНАЧИТЬ КУРЬЕРА"}
           </p>

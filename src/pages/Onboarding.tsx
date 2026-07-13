@@ -23,11 +23,11 @@ function ProgressBar({ current }: { current: number }) {
               <div className={`w-10 h-10 rounded-xl flex items-center justify-center border-2 transition-all ${
                 done   ? "border-primary bg-primary text-white" :
                 active ? "border-primary bg-primary/10 text-primary" :
-                         "border-border-subtle bg-surface-light text-text-secondary"
+                         "border-border-subtle bg-surface-light text-secondary"
               }`}>
                 {done ? <CheckCircle2 size={18} /> : <Icon size={18} />}
               </div>
-              <span className={`text-[10px] font-label tracking-wider ${active ? "text-primary" : "text-text-secondary"}`}>
+              <span className={`text-[10px] font-label tracking-wider ${active ? "text-primary" : "text-secondary"}`}>
                 ШАГ {s.num}
               </span>
             </div>
@@ -56,22 +56,22 @@ function StepWarehouse({ onNext }: { onNext: () => void }) {
         <p className="text-[11px] font-semibold tracking-[.12em] uppercase mb-2" style={{ color: "#4b6cf6" }}>
           ШАГ 1 ИЗ 3
         </p>
-        <h2 className="font-display text-2xl text-text-primary">Настройте склад</h2>
-        <p className="text-sm text-text-secondary mt-1.5">Укажите основную информацию о вашем складе</p>
+        <h2 className="font-display text-2xl text-primary">Настройте склад</h2>
+        <p className="text-sm text-secondary mt-1.5">Укажите основную информацию о вашем складе</p>
       </div>
       <div className="space-y-3">
         <div>
-          <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">НАЗВАНИЕ СКЛАДА *</label>
+          <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">НАЗВАНИЕ СКЛАДА *</label>
           <input className="neo-input w-full" placeholder="Главный склад" autoFocus
             value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
         </div>
         <div>
-          <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">АДРЕС</label>
+          <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">АДРЕС</label>
           <input className="neo-input w-full" placeholder="ул. Амира Темура, 15"
             value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} />
         </div>
         <div>
-          <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">ГОРОД</label>
+          <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">ГОРОД</label>
           <input className="neo-input w-full" placeholder="Ташкент"
             value={form.city} onChange={e => setForm({ ...form, city: e.target.value })} />
         </div>
@@ -84,7 +84,7 @@ function StepWarehouse({ onNext }: { onNext: () => void }) {
         {create.isPending ? <Loader2 size={15} className="animate-spin" /> : null}
         Создать склад <ChevronRight size={15} />
       </button>
-      <button onClick={onNext} className="w-full text-center text-sm text-text-secondary hover:text-text-primary transition-colors">
+      <button onClick={onNext} className="w-full text-center text-sm text-secondary hover:text-primary transition-colors">
         Пропустить →
       </button>
     </div>
@@ -106,29 +106,29 @@ function StepProduct({ onNext }: { onNext: () => void }) {
         <p className="text-[11px] font-semibold tracking-[.12em] uppercase mb-2" style={{ color: "#4b6cf6" }}>
           ШАГ 2 ИЗ 3
         </p>
-        <h2 className="font-display text-2xl text-text-primary">Добавьте первый товар</h2>
-        <p className="text-sm text-text-secondary mt-1.5">Позже можно импортировать из Excel</p>
+        <h2 className="font-display text-2xl text-primary">Добавьте первый товар</h2>
+        <p className="text-sm text-secondary mt-1.5">Позже можно импортировать из Excel</p>
       </div>
       <div className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">КОД *</label>
+            <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">КОД *</label>
             <input className="neo-input w-full font-data" placeholder="MUK-001" autoFocus
               value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} />
           </div>
           <div>
-            <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">КАТЕГОРИЯ</label>
+            <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">КАТЕГОРИЯ</label>
             <input className="neo-input w-full" placeholder="Мука"
               value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} />
           </div>
         </div>
         <div>
-          <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">НАЗВАНИЕ *</label>
+          <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">НАЗВАНИЕ *</label>
           <input className="neo-input w-full" placeholder="Мука пшеничная в/с"
             value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
         </div>
         <div>
-          <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">ЦЕНА ЗА КГ *</label>
+          <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">ЦЕНА ЗА КГ *</label>
           <input type="number" step="0.01" className="neo-input w-full font-data" placeholder="0.00"
             value={form.unitPrice} onChange={e => setForm({ ...form, unitPrice: e.target.value })} />
         </div>
@@ -141,7 +141,7 @@ function StepProduct({ onNext }: { onNext: () => void }) {
         {create.isPending ? <Loader2 size={15} className="animate-spin" /> : null}
         Добавить товар <ChevronRight size={15} />
       </button>
-      <button onClick={onNext} className="w-full text-center text-sm text-text-secondary hover:text-text-primary transition-colors">
+      <button onClick={onNext} className="w-full text-center text-sm text-secondary hover:text-primary transition-colors">
         Пропустить →
       </button>
     </div>
@@ -161,8 +161,8 @@ function StepInvite({ onFinish }: { onFinish: () => void }) {
   if (sent) return (
     <div className="text-center py-6 animate-fade-up">
       <CheckCircle2 size={48} className="text-success mx-auto mb-4" />
-      <h2 className="font-display text-xl text-text-primary mb-2">Приглашение отправлено!</h2>
-      <p className="text-text-secondary text-sm mb-6">На {email} отправлена ссылка для регистрации</p>
+      <h2 className="font-display text-xl text-primary mb-2">Приглашение отправлено!</h2>
+      <p className="text-secondary text-sm mb-6">На {email} отправлена ссылка для регистрации</p>
       <button onClick={onFinish} className="neo-btn-primary px-8 py-3">
         Перейти в Dashboard →
       </button>
@@ -175,17 +175,17 @@ function StepInvite({ onFinish }: { onFinish: () => void }) {
         <p className="text-[11px] font-semibold tracking-[.12em] uppercase mb-2" style={{ color: "#4b6cf6" }}>
           ШАГ 3 ИЗ 3
         </p>
-        <h2 className="font-display text-2xl text-text-primary">Пригласите первого агента</h2>
-        <p className="text-sm text-text-secondary mt-1.5">Агент сразу получит доступ к мобильному приложению</p>
+        <h2 className="font-display text-2xl text-primary">Пригласите первого агента</h2>
+        <p className="text-sm text-secondary mt-1.5">Агент сразу получит доступ к мобильному приложению</p>
       </div>
       <div className="space-y-3">
         <div>
-          <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">EMAIL СОТРУДНИКА</label>
+          <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">EMAIL СОТРУДНИКА</label>
           <input type="email" className="neo-input w-full" placeholder="agent@company.com" autoFocus
             value={email} onChange={e => setEmail(e.target.value)} />
         </div>
         <div>
-          <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-3">РОЛЬ</label>
+          <label className="font-label text-[10px] text-secondary tracking-wider block mb-3">РОЛЬ</label>
           <div className="grid grid-cols-2 gap-3">
             {[
               { val: "agent",    labelRu: "🧑 Торговый агент",  desc: "Заказы, визиты, GPS" },
@@ -195,8 +195,8 @@ function StepInvite({ onFinish }: { onFinish: () => void }) {
                 className={`p-3 rounded-xl border text-left transition-all ${
                   role === r.val ? "border-primary bg-primary/10" : "border-border-subtle hover:border-border-strong"
                 }`}>
-                <p className={`text-sm font-medium ${role === r.val ? "text-primary" : "text-text-primary"}`}>{r.labelRu}</p>
-                <p className="text-xs text-text-secondary mt-0.5">{r.desc}</p>
+                <p className={`text-sm font-medium ${role === r.val ? "text-primary" : "text-primary"}`}>{r.labelRu}</p>
+                <p className="text-xs text-secondary mt-0.5">{r.desc}</p>
               </button>
             ))}
           </div>
@@ -210,7 +210,7 @@ function StepInvite({ onFinish }: { onFinish: () => void }) {
         {invite.isPending ? <Loader2 size={15} className="animate-spin" /> : null}
         Отправить приглашение
       </button>
-      <button onClick={onFinish} className="w-full text-center text-sm text-text-secondary hover:text-text-primary transition-colors">
+      <button onClick={onFinish} className="w-full text-center text-sm text-secondary hover:text-primary transition-colors">
         Пропустить, перейти в Dashboard →
       </button>
     </div>
@@ -225,8 +225,8 @@ function StepDone({ onFinish }: { onFinish: () => void }) {
         style={{ background: "rgba(75,108,246,.15)" }}>
         <Sparkles size={32} className="text-primary" />
       </div>
-      <h2 className="font-display text-2xl text-text-primary mb-2">🎉 Всё готово!</h2>
-      <p className="text-text-secondary text-sm mb-8 max-w-xs mx-auto">
+      <h2 className="font-display text-2xl text-primary mb-2">🎉 Всё готово!</h2>
+      <p className="text-secondary text-sm mb-8 max-w-xs mx-auto">
         Ваш склад настроен. Теперь вы можете добавлять заказы, управлять агентами и следить за аналитикой.
       </p>
       <button onClick={onFinish} className="neo-btn-primary px-10 py-3 text-base">
@@ -252,7 +252,7 @@ export default function Onboarding() {
           <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "#4b6cf6" }}>
             <Warehouse size={16} color="#fff" />
           </div>
-          <span className="font-display text-sm text-text-primary">Warehouse Pro</span>
+          <span className="font-display text-sm text-primary">Warehouse Pro</span>
         </div>
 
         {step <= 3 && <ProgressBar current={step} />}

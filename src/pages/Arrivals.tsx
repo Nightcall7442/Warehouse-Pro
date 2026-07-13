@@ -133,7 +133,7 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
       <div className="relative w-full max-w-[720px] max-h-[90vh] overflow-y-auto neo-card animate-scale-in" style={{ borderRadius: "24px", boxShadow: "0 25px 80px -12px rgba(0,0,0,0.35)" }}>
 
         {/* Gradient header */}
-        <div className="relative overflow-hidden" style={{ background: "var(--color-primary, #4b6cf6)", borderRadius: "24px 24px 0 0", padding: "28px 32px 24px" }}>
+        <div className="relative overflow-hidden" style={{ background: "linear-gradient(135deg, var(--color-primary, #4b6cf6), var(--color-primary-hover, #3a5be5))", borderRadius: "24px 24px 0 0", padding: "28px 32px 24px" }}>
           <div className="absolute -top-16 -right-16 w-40 h-40 rounded-full" style={{ background: "rgba(255,255,255,0.08)" }} />
           <div className="absolute -bottom-8 -left-8 w-24 h-24 rounded-full" style={{ background: "rgba(255,255,255,0.05)" }} />
           <div className="relative flex items-center justify-between">
@@ -141,8 +141,8 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
               <h2 className="text-xl font-bold text-white mb-0.5">{t("Новый приход", "Yangi kelish")}</h2>
               <p className="text-xs" style={{ color: "rgba(255,255,255,0.7)" }}>{t("Поступление товаров на склад", "Omborga mahsulot kiritish")}</p>
             </div>
-            <button onClick={onClose} className="w-9 h-9 rounded-full flex items-center justify-center transition-all hover:scale-110" style={{ background: "rgba(255,255,255,0.15)", color: "#fff", border: "none", cursor: "pointer" }}>
-              <X size={18} />
+            <button onClick={onClose} className="neo-btn-icon" style={{ width: "40px", height: "40px", background: "rgba(255,255,255,0.2)", color: "#fff", borderRadius: "12px" }}>
+              <X size={20} />
             </button>
           </div>
         </div>
@@ -163,7 +163,7 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
             <p className={sectionLabel}>{t("Дата и расходы", "Sana va xarajatlar")}</p>
             <div className="grid grid-cols-4 gap-3 mb-3">
               <div>
-                <label className="font-label text-[10px] text-text-secondary mb-1.5 block">{t("Дата", "Sana")}</label>
+                <label className="font-label text-[10px] text-secondary mb-1.5 block">{t("Дата", "Sana")}</label>
                 <input type="date" className="neo-input" value={form.arrivalDate} onChange={e => setForm(p => ({ ...p, arrivalDate: e.target.value }))} />
               </div>
               {[
@@ -172,13 +172,13 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
                 { key: "otherCost", label: t("Прочее", "Boshqa") },
               ].map(f => (
                 <div key={f.key}>
-                  <label className="font-label text-[10px] text-text-secondary mb-1.5 block">{f.label}</label>
+                  <label className="font-label text-[10px] text-secondary mb-1.5 block">{f.label}</label>
                   <input type="number" step="0.01" className="neo-input" style={{ textAlign: "right" }} placeholder="0" value={(form as Record<string, unknown>)[f.key] as string} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))} />
                 </div>
               ))}
             </div>
             <div className="flex items-center justify-between px-4 py-3 rounded-xl" style={{ background: "var(--color-primary-subtle, rgba(75,108,246,.10))" }}>
-              <span className="text-sm text-text-secondary font-medium">{t("Итого расходов:", "Jami xarajatlar:")}</span>
+              <span className="text-sm text-secondary font-medium">{t("Итого расходов:", "Jami xarajatlar:")}</span>
               <span className="text-lg font-bold text-primary font-data">{fmt(totalExpense.toFixed(0))}</span>
             </div>
           </div>
@@ -188,7 +188,7 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
             <div className="flex items-center justify-between mb-3">
               <p className={sectionLabel} style={{ marginBottom: 0 }}>{t("Товары", "Tovarlar")}</p>
               <div className="flex gap-4">
-                {totalWeight > 0 && <span className="text-xs font-semibold text-text-secondary">{totalWeight.toFixed(2)} кг</span>}
+                {totalWeight > 0 && <span className="text-xs font-semibold text-secondary">{totalWeight.toFixed(2)} кг</span>}
                 {totalCost > 0 && <span className="text-xs font-semibold text-primary font-data">{fmt(totalCost.toFixed(0))}</span>}
               </div>
             </div>
@@ -200,18 +200,18 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
                     width="100%" />
                   <div className="grid grid-cols-4 gap-3 items-end">
                     <div>
-                      <label className="font-label text-[10px] text-text-secondary mb-1.5 block">{t("Кол-во", "Miqdor")}</label>
+                      <label className="font-label text-[10px] text-secondary mb-1.5 block">{t("Кол-во", "Miqdor")}</label>
                       <div className="flex items-center gap-2">
                         <input type="number" className="neo-input" style={{ width: 72, textAlign: "center", padding: "8px 10px" }} placeholder="0" value={item.quantity} onChange={e => updateItem(i, "quantity", e.target.value)} />
-                        <span className="text-xs text-text-tertiary">{unitLabel(item.unit)}</span>
+                        <span className="text-xs text-tertiary">{unitLabel(item.unit)}</span>
                       </div>
                     </div>
                     <div>
-                      <label className="font-label text-[10px] text-text-secondary mb-1.5 block">{t("Себестоимость", "Tannarx")}</label>
+                      <label className="font-label text-[10px] text-secondary mb-1.5 block">{t("Себестоимость", "Tannarx")}</label>
                       <input type="number" step="0.01" className="neo-input" style={{ textAlign: "right", padding: "8px 10px" }} placeholder={t("цена/ед", "narx/dona")} value={item.costPrice} onChange={e => updateItem(i, "costPrice", e.target.value)} />
                     </div>
                     <div>
-                      <label className="font-label text-[10px] text-text-secondary mb-1.5 block">{t("Состояние", "Holat")}</label>
+                      <label className="font-label text-[10px] text-secondary mb-1.5 block">{t("Состояние", "Holat")}</label>
                       <input className="neo-input" style={{ padding: "8px 10px" }} placeholder={t("Хорошее", "Yaxshi")} value={item.condition} onChange={e => updateItem(i, "condition", e.target.value)} />
                     </div>
                     <div className="flex justify-end">
@@ -225,7 +225,7 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
                 </div>
               ))}
             </div>
-            <button onClick={addItem} className="mt-3 w-full py-3 rounded-xl border-2 border-dashed flex items-center justify-center gap-2 text-sm font-medium transition-all hover:border-primary hover:text-primary hover:bg-primary/5" style={{ borderColor: "var(--color-border-strong, #d1d5db)", color: "var(--color-text-secondary, #6a7290)", background: "transparent", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
+            <button onClick={addItem} className="neo-btn w-full py-3 flex items-center justify-center gap-2 text-sm font-medium" style={{ borderStyle: "dashed", borderColor: "var(--color-border-strong, #a8b4c4)", color: "var(--color-text-secondary, #6a7290)", background: "transparent" }}>
               <Plus size={16} /> {t("Добавить товар", "Mahsulot qo'shish")}
             </button>
           </div>

@@ -50,7 +50,7 @@ export default function AgentPlans() {
 
       {/* Заголовок */}
       <div className="flex items-center justify-between">
-        <h1 className="font-display text-2xl font-bold text-text-primary tracking-tight">
+        <h1 className="font-display text-2xl font-bold text-primary tracking-tight">
           {t("План визитов", "Tashrif rejasi")}
         </h1>
         {isToday && (
@@ -71,7 +71,7 @@ export default function AgentPlans() {
           <ChevronLeft size={18} />
         </button>
         <div className="flex-1 panel p-3 text-center">
-          <p className="font-semibold text-text-primary capitalize">
+          <p className="font-semibold text-primary capitalize">
             {format(date, "EEEE", { locale: lang === "ru" ? dateRu : undefined })}
           </p>
           <p className="font-label text-[11px] tracking-wider mt-0.5" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
@@ -95,7 +95,7 @@ export default function AgentPlans() {
               {t("ПРОГРЕСС ДНЯ", "KUNLIK PROGRESS")}
             </span>
             <div className="flex items-center gap-2">
-              <span className="font-data text-sm text-text-primary font-semibold">
+              <span className="font-data text-sm text-primary font-semibold">
                 {visited}/{total}
               </span>
               <span className="font-data text-sm font-bold" style={{ color: progressColor }}>
@@ -126,8 +126,8 @@ export default function AgentPlans() {
         </div>
       ) : plans?.length === 0 ? (
         <div className="neo-card p-12 text-center space-y-3">
-          <Calendar size={36} className="mx-auto opacity-20 text-text-secondary" />
-          <p className="text-text-secondary text-sm">
+          <Calendar size={36} className="mx-auto opacity-20 text-secondary" />
+          <p className="text-secondary text-sm">
             {t("На этот день визитов нет", "Bu kun uchun tashrif yo'q")}
           </p>
           <p className="text-xs" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
@@ -164,7 +164,7 @@ export default function AgentPlans() {
                       <div className="flex-1 min-w-0">
                         {/* Название + статус */}
                         <div className="flex items-center justify-between gap-2 mb-1">
-                          <p className="font-medium text-text-primary truncate">
+                          <p className="font-medium text-primary truncate">
                             {plan.shopName ?? t("Магазин", "Do'kon")}
                           </p>
                           <div className={`flex items-center gap-1 text-[10px] font-label flex-shrink-0 ${cfg.color}`}>

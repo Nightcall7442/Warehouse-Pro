@@ -44,7 +44,7 @@ function CreatePlanForm({ date, onDone, lang }: { date: string; onDone: () => vo
   return (
     <div className="neo-card p-5 space-y-4" style={{ borderColor: "rgba(75,108,246,.30)" }}>
       <div className="flex items-center justify-between">
-        <h3 className="font-display text-sm font-semibold text-text-primary">
+        <h3 className="font-display text-sm font-semibold text-primary">
           {t("Новый план визита", "Yangi tashrif rejasi")} — {format(new Date(date), "dd MMMM yyyy", { locale: lang === "ru" ? dateRu : undefined })}
         </h3>
         <button onClick={onDone} className="btn-ghost p-1.5"><X size={16} /></button>
@@ -52,7 +52,7 @@ function CreatePlanForm({ date, onDone, lang }: { date: string; onDone: () => vo
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">
+          <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">
             {t("АГЕНТ *", "AGENT *")}
           </label>
           <PremiumSelect value={String(agentId)}
@@ -61,7 +61,7 @@ function CreatePlanForm({ date, onDone, lang }: { date: string; onDone: () => vo
             width="100%" />
         </div>
         <div>
-          <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">
+          <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">
             {t("МАГАЗИН *", "DO'KON *")}
           </label>
           <PremiumSelect value={String(shopId)}
@@ -70,7 +70,7 @@ function CreatePlanForm({ date, onDone, lang }: { date: string; onDone: () => vo
             width="100%" />
         </div>
         <div className="sm:col-span-2">
-          <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">
+          <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">
             {t("ПРИМЕЧАНИЯ", "IZOHLAR")}
           </label>
           <input className="neo-input w-full"
@@ -127,7 +127,7 @@ export default function SupervisorPlans() {
       {/* Заголовок */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="font-display text-2xl font-bold text-text-primary tracking-tight">
+          <h1 className="font-display text-2xl font-bold text-primary tracking-tight">
             {t("Планы визитов", "Tashrif rejalari")}
           </h1>
           {isToday && (
@@ -150,7 +150,7 @@ export default function SupervisorPlans() {
           <ChevronLeft size={18} />
         </button>
         <div className="flex-1 panel p-3 text-center">
-          <p className="font-semibold text-text-primary capitalize">
+          <p className="font-semibold text-primary capitalize">
             {format(date, "EEEE", { locale: lang === "ru" ? dateRu : undefined })}
           </p>
           <p className="font-label text-[11px] tracking-wider mt-0.5" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
@@ -222,8 +222,8 @@ export default function SupervisorPlans() {
               ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-14 text-center">
-                    <Calendar size={32} className="mx-auto mb-2 opacity-20 text-text-secondary" />
-                    <p className="text-text-secondary text-sm">
+                    <Calendar size={32} className="mx-auto mb-2 opacity-20 text-secondary" />
+                    <p className="text-secondary text-sm">
                       {t("На этот день планов нет", "Bu kun uchun reja yo'q")}
                     </p>
                     <button onClick={() => setShowForm(true)}
@@ -238,13 +238,13 @@ export default function SupervisorPlans() {
                   const hasDebt = Number(plan.shopDebt ?? 0) > 0;
                   return (
                     <tr key={plan.id}>
-                      <td className="font-medium text-text-primary">
+                      <td className="font-medium text-primary">
                         {((plan as any).agentName ?? "—")}
                       </td>
                       <td>{plan.shopName ?? "—"}</td>
-                      <td className="text-text-secondary">{((plan as any).shopCity ?? "—")}</td>
+                      <td className="text-secondary">{((plan as any).shopCity ?? "—")}</td>
                       <td>
-                        <span className={`font-data text-sm font-semibold ${hasDebt ? "text-danger" : "text-text-secondary"}`}>
+                        <span className={`font-data text-sm font-semibold ${hasDebt ? "text-danger" : "text-secondary"}`}>
                           {fmt(plan.shopDebt ?? 0)}
                         </span>
                       </td>

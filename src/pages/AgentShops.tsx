@@ -63,7 +63,7 @@ function AddShopModal({ onClose }: { onClose: () => void }) {
       <div className="w-full sm:max-w-md bg-[#ffffff] rounded-t-2xl sm:rounded-2xl shadow-2xl p-5 space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <h2 className="font-display text-lg text-text-primary">
+          <h2 className="font-display text-lg text-primary">
             {t("Новый магазин", "Yangi do'kon")}
           </h2>
           <button onClick={onClose} className="btn-ghost p-1.5">
@@ -74,7 +74,7 @@ function AddShopModal({ onClose }: { onClose: () => void }) {
         {/* Fields */}
         <div className="space-y-3">
           <div>
-            <label className="font-label text-text-secondary text-xs block mb-1">
+            <label className="font-label text-secondary text-xs block mb-1">
               {t("НАЗВАНИЕ *", "NOMI *")}
             </label>
             <input
@@ -88,7 +88,7 @@ function AddShopModal({ onClose }: { onClose: () => void }) {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="font-label text-text-secondary text-xs block mb-1">
+              <label className="font-label text-secondary text-xs block mb-1">
                 {t("ВЛАДЕЛЕЦ", "EGASI")}
               </label>
               <input
@@ -99,7 +99,7 @@ function AddShopModal({ onClose }: { onClose: () => void }) {
               />
             </div>
             <div>
-              <label className="font-label text-text-secondary text-xs block mb-1">
+              <label className="font-label text-secondary text-xs block mb-1">
                 {t("ТЕЛЕФОН", "TELEFON")}
               </label>
               <input
@@ -113,7 +113,7 @@ function AddShopModal({ onClose }: { onClose: () => void }) {
           </div>
 
           <div>
-            <label className="font-label text-text-secondary text-xs block mb-1">
+            <label className="font-label text-secondary text-xs block mb-1">
               {t("АДРЕС", "MANZIL")}
             </label>
             <input
@@ -126,7 +126,7 @@ function AddShopModal({ onClose }: { onClose: () => void }) {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="font-label text-text-secondary text-xs block mb-1">
+              <label className="font-label text-secondary text-xs block mb-1">
                 {t("ГОРОД", "SHAHAR")}
               </label>
               <input
@@ -137,7 +137,7 @@ function AddShopModal({ onClose }: { onClose: () => void }) {
               />
             </div>
             <div>
-              <label className="font-label text-text-secondary text-xs block mb-1">
+              <label className="font-label text-secondary text-xs block mb-1">
                 {t("РАЙОН", "TUMAN")}
               </label>
               <input
@@ -167,7 +167,7 @@ function AddShopModal({ onClose }: { onClose: () => void }) {
           </div>
 
           <div>
-            <label className="font-label text-text-secondary text-xs block mb-1">
+            <label className="font-label text-secondary text-xs block mb-1">
               {t("ЗАМЕТКИ", "ESLATMALAR")}
             </label>
             <textarea
@@ -234,10 +234,10 @@ export default function AgentShops() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-display text-2xl font-bold text-text-primary tracking-tight">
+          <h1 className="font-display text-2xl font-bold text-primary tracking-tight">
             {t("Мои магазины", "Mening do'konlarim")}
           </h1>
-          <p className="text-text-secondary text-sm mt-0.5">
+          <p className="text-secondary text-sm mt-0.5">
             {shops?.length ?? 0} {t("магазинов", "ta do'kon")}
           </p>
         </div>
@@ -252,7 +252,7 @@ export default function AgentShops() {
 
       {/* Search */}
       <div className="relative">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary" />
         <input
           className="neo-input pl-10 w-full"
           placeholder={t("Поиск магазинов…", "Do'kon qidirish…")}
@@ -263,8 +263,8 @@ export default function AgentShops() {
 
       {filtered?.length === 0 && (
         <div className="text-center py-16">
-          <Store size={40} className="text-text-secondary mx-auto mb-3 opacity-40" />
-          <p className="text-text-secondary text-sm">
+          <Store size={40} className="text-secondary mx-auto mb-3 opacity-40" />
+          <p className="text-secondary text-sm">
             {shops?.length === 0
               ? t("Нет магазинов — добавьте первый!", "Do'kon yo'q — birinchisini qo'shing!")
               : t("Ничего не найдено", "Hech narsa topilmadi")}
@@ -295,8 +295,8 @@ export default function AgentShops() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <p className="font-medium text-text-primary">{shop.name}</p>
-                    <p className="text-sm text-text-secondary">{shop.ownerName ?? t("Владелец не указан", "Egasi ko'rsatilmagan")}</p>
+                    <p className="font-medium text-primary">{shop.name}</p>
+                    <p className="text-sm text-secondary">{shop.ownerName ?? t("Владелец не указан", "Egasi ko'rsatilmagan")}</p>
                   </div>
                   {Number(shop.debt ?? 0) > 0 && (
                     <div className="flex items-center gap-1 flex-shrink-0 px-2 py-1 rounded-lg"
@@ -309,14 +309,14 @@ export default function AgentShops() {
 
                 {shop.address && (
                   <div className="flex items-center gap-1.5 mt-2">
-                    <MapPin size={11} className="text-text-secondary flex-shrink-0" />
-                    <span className="text-xs text-text-secondary truncate">{shop.address}</span>
+                    <MapPin size={11} className="text-secondary flex-shrink-0" />
+                    <span className="text-xs text-secondary truncate">{shop.address}</span>
                   </div>
                 )}
 
                 {shop.phone && (
                   <div className="flex items-center gap-1.5 mt-1">
-                    <Phone size={11} className="text-text-secondary flex-shrink-0" />
+                    <Phone size={11} className="text-secondary flex-shrink-0" />
                     <a href={`tel:${shop.phone}`} className="text-xs text-primary" onClick={e => e.stopPropagation()}>
                       {shop.phone}
                     </a>

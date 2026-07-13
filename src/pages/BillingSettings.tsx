@@ -55,7 +55,7 @@ export default function BillingSettings() {
 
   return (
     <div className="max-w-2xl space-y-6">
-      <h1 className="font-display text-2xl font-bold text-text-primary tracking-tight">
+      <h1 className="font-display text-2xl font-bold text-primary tracking-tight">
         Подписка
       </h1>
 
@@ -69,7 +69,7 @@ export default function BillingSettings() {
           </div>
           <div className="flex-1">
             <div className="flex items-center gap-3 flex-wrap">
-              <h2 className="font-display text-lg font-semibold text-text-primary">
+              <h2 className="font-display text-lg font-semibold text-primary">
                 {sub.plan.charAt(0).toUpperCase() + sub.plan.slice(1)}
               </h2>
               <span className={`status-badge ${
@@ -79,15 +79,15 @@ export default function BillingSettings() {
               </span>
             </div>
             {sub.isTrialing && sub.daysLeft !== null && (
-              <p className="text-sm text-text-secondary mt-1">
-                Пробный период заканчивается через <b className={sub.daysLeft <= 3 ? "text-danger" : "text-text-primary"}>
+              <p className="text-sm text-secondary mt-1">
+                Пробный период заканчивается через <b className={sub.daysLeft <= 3 ? "text-danger" : "text-primary"}>
                   {sub.daysLeft} дн.
                 </b>
                 {sub.trialEndsAt && ` (${format(new Date(sub.trialEndsAt), "dd.MM.yyyy")})`}
               </p>
             )}
             {sub.currentPeriodEnds && !sub.isTrialing && (
-              <p className="text-sm text-text-secondary mt-1">
+              <p className="text-sm text-secondary mt-1">
                 Следующее списание: {format(new Date(sub.currentPeriodEnds), "dd.MM.yyyy")}
               </p>
             )}
@@ -107,7 +107,7 @@ export default function BillingSettings() {
 
       {/* Plans */}
       <div>
-        <h2 className="font-label text-text-secondary tracking-wider text-xs mb-4">ТАРИФЫ</h2>
+        <h2 className="font-label text-secondary tracking-wider text-xs mb-4">ТАРИФЫ</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[
             { key: "basic",     name: "Basic",     price: "299 000 сум/мес",  highlight: false },
@@ -125,12 +125,12 @@ export default function BillingSettings() {
                   </span>
                 )}
                 <div>
-                  <p className="font-display text-lg font-bold text-text-primary">{plan.name}</p>
+                  <p className="font-display text-lg font-bold text-primary">{plan.name}</p>
                   <p className="font-data text-2xl font-bold text-primary mt-1">{plan.price}</p>
                 </div>
                 <ul className="space-y-2 flex-1">
                   {features.map(f => (
-                    <li key={f} className="flex items-center gap-2 text-sm text-text-secondary">
+                    <li key={f} className="flex items-center gap-2 text-sm text-secondary">
                       <CheckCircle2 size={14} className="text-success flex-shrink-0"/>
                       {f}
                     </li>
@@ -162,7 +162,7 @@ export default function BillingSettings() {
           <p className="font-label text-info text-xs tracking-wider mb-3">В ПРОБНОМ ПЕРИОДЕ ДОСТУПНО</p>
           <ul className="space-y-1.5">
             {PLAN_FEATURES.trial.map(f => (
-              <li key={f} className="flex items-center gap-2 text-sm text-text-secondary">
+              <li key={f} className="flex items-center gap-2 text-sm text-secondary">
                 <CheckCircle2 size={14} className="text-info"/>
                 {f}
               </li>

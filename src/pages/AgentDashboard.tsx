@@ -36,7 +36,7 @@ function AgentKpi({ label, value, icon: Icon, color = "indigo" }: {
     <div className="kpi-card flex flex-col gap-3 hover-lift">
       <KpiIcon icon={Icon} color={color} />
       <div>
-        <p className="font-data text-2xl font-bold leading-none text-text-primary">
+        <p className="font-data text-2xl font-bold leading-none text-primary">
           {value}
         </p>
         <p className="font-label text-[10px] tracking-wider mt-1.5" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
@@ -76,7 +76,7 @@ function PlanCard({ plan, onDone, onSkip, isPending }: {
       {/* Info */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <p className="text-sm font-medium text-text-primary truncate">
+          <p className="text-sm font-medium text-primary truncate">
             {plan.shopName ?? t("Неизвестный магазин", "Noma'lum do'kon")}
           </p>
           {hasDebt && (
@@ -166,7 +166,7 @@ export default function AgentDashboard() {
           <p className="text-xs font-medium mb-0.5" style={{ color: "#4b6cf6" }}>
             {greeting}{firstName ? `, ${firstName}` : ""}
           </p>
-          <h1 className="font-display text-2xl font-bold text-text-primary tracking-tight">
+          <h1 className="font-display text-2xl font-bold text-primary tracking-tight">
             {t("Мой день", "Mening kunim")}
           </h1>
           <p className="text-xs mt-0.5 capitalize" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
@@ -221,7 +221,7 @@ export default function AgentDashboard() {
         <div className="flex items-center gap-4">
           <ProgressRing value={pct} color={progressColor} label={`${pct}%`} />
           <div>
-            <p className="font-data text-lg font-bold text-text-primary leading-none">
+            <p className="font-data text-lg font-bold text-primary leading-none">
               {todayVisited} / {todayPlanned}
             </p>
             <p className="text-xs mt-1.5" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
@@ -296,8 +296,8 @@ export default function AgentDashboard() {
           </div>
         ) : plans?.length === 0 ? (
           <div className="text-center py-12">
-            <Calendar size={32} className="mx-auto mb-3 opacity-20 text-text-secondary" />
-            <p className="text-sm text-text-secondary">
+            <Calendar size={32} className="mx-auto mb-3 opacity-20 text-secondary" />
+            <p className="text-sm text-secondary">
               {t("На сегодня визитов нет", "Bugun tashrif yo'q")}
             </p>
             <p className="text-xs mt-1" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>

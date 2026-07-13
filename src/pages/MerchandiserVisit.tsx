@@ -93,7 +93,7 @@ export default function MerchandiserVisit() {
         </button>
         <div>
           <h1 className="text-lg font-bold">{t("Отчёт о визите", "Tashrif hisoboti")}</h1>
-          <p className="text-sm text-text-secondary">{shopName}</p>
+          <p className="text-sm text-secondary">{shopName}</p>
         </div>
       </div>
 
@@ -131,7 +131,7 @@ export default function MerchandiserVisit() {
                 reader.readAsDataURL(file);
               }}
             />
-            <Camera size={20} className="text-text-secondary" />
+            <Camera size={20} className="text-secondary" />
           </label>
         </div>
       </div>
@@ -140,7 +140,7 @@ export default function MerchandiserVisit() {
       <div className="bg-surface rounded-xl p-4 space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="font-semibold">{t("Чек-лист товаров", "Mahsulotlar ro'yxati")}</h2>
-          <span className="text-sm text-text-secondary">
+          <span className="text-sm text-secondary">
             {presentCount}/{totalItems} ({completionPct}%)
           </span>
         </div>
@@ -155,11 +155,11 @@ export default function MerchandiserVisit() {
             <div key={item.productId} className="flex items-center gap-3 p-2 rounded-lg hover:bg-surface-light">
               <button
                 onClick={() => toggleChecklist(item.productId)}
-                className={`flex-shrink-0 ${item.present ? "text-success" : "text-text-secondary"}`}
+                className={`flex-shrink-0 ${item.present ? "text-success" : "text-secondary"}`}
               >
                 {item.present ? <CheckCircle2 size={20} /> : <Circle size={20} />}
               </button>
-              <span className={`flex-1 text-sm ${item.present ? "" : "text-text-secondary"}`}>
+              <span className={`flex-1 text-sm ${item.present ? "" : "text-secondary"}`}>
                 {item.productName}
               </span>
               <input

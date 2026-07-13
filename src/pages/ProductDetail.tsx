@@ -65,7 +65,7 @@ export default function ProductDetail() {
   };
 
   if (isLoading) return <div className="h-64 bg-surface-light animate-pulse rounded"/>;
-  if (!product) return <div className="text-center py-20 text-text-secondary">{tr("Товар не найден","Mahsulot topilmadi")}</div>;
+  if (!product) return <div className="text-center py-20 text-secondary">{tr("Товар не найден","Mahsulot topilmadi")}</div>;
 
   const stock      = product.stock as any;
   const movements  = (product.movements ?? []) as any[];
@@ -78,7 +78,7 @@ export default function ProductDetail() {
     <div className="max-w-3xl mx-auto space-y-4">
       {dialog}
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <button onClick={()=>navigate("/products")} className="flex items-center gap-2 text-text-secondary hover:text-text-primary">
+        <button onClick={()=>navigate("/products")} className="flex items-center gap-2 text-secondary hover:text-primary">
           <ArrowLeft size={18}/><span className="text-sm">{tr("Назад","Orqaga")}</span>
         </button>
         <div className="flex gap-2">
@@ -151,25 +151,25 @@ export default function ProductDetail() {
               <>
                 <div className="flex items-start gap-3">
                   <div>
-                    <h1 className="font-display text-xl font-bold text-text-primary tracking-tight">{product.name}</h1>
-                    <p className="font-data text-text-secondary text-sm">{product.code}</p>
+                    <h1 className="font-display text-xl font-bold text-primary tracking-tight">{product.name}</h1>
+                    <p className="font-data text-secondary text-sm">{product.code}</p>
                   </div>
                   <div className="ml-auto text-right">
                     <span className="font-data text-xl text-primary font-bold">{fmt(product.unitPrice, {decimals:2})}/{unitLabel(product.unit)}</span>
                     {Number(product.costPrice) > 0 && (
-                      <p className="text-xs text-text-secondary mt-0.5">{tr("Себест.","Tannarx")}: {fmt(product.costPrice, {decimals:2})}</p>
+                      <p className="text-xs text-secondary mt-0.5">{tr("Себест.","Tannarx")}: {fmt(product.costPrice, {decimals:2})}</p>
                     )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  {product.category && <span className="text-sm text-text-secondary">{product.category}</span>}
+                  {product.category && <span className="text-sm text-secondary">{product.category}</span>}
                   {Number(product.unitWeight) > 0 && (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-surface-light text-text-secondary">
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-surface-light text-secondary">
                       1 {unitLabel(product.unit)} = {Number(product.unitWeight).toFixed(2)} {tr("кг","kg")}
                     </span>
                   )}
                 </div>
-                {product.description && <p className="text-sm text-text-secondary mt-2">{product.description}</p>}
+                {product.description && <p className="text-sm text-secondary mt-2">{product.description}</p>}
               </>
             )}
           </div>
@@ -184,14 +184,14 @@ export default function ProductDetail() {
               {label:tr("Всего","Jami"),     value:Number(stock.currentStock).toFixed(2), danger:false},
             ].map(s=>(
               <div key={s.label} className="text-center">
-                <p className={`font-data text-2xl font-bold ${s.danger?"text-danger":"text-text-primary"}`}>{s.value}</p>
-                <p className="font-label text-text-secondary text-[10px] tracking-wide">{unitLabel(product.unit).toUpperCase()} {s.label.toUpperCase()}</p>
+                <p className={`font-data text-2xl font-bold ${s.danger?"text-danger":"text-primary"}`}>{s.value}</p>
+                <p className="font-label text-secondary text-[10px] tracking-wide">{unitLabel(product.unit).toUpperCase()} {s.label.toUpperCase()}</p>
               </div>
             ))}
             {Number(product.unitWeight) > 0 && (
               <div className="col-span-3 mt-2 pt-2 border-t border-border-subtle/50 flex items-center justify-between">
-                <span className="text-xs text-text-secondary">{tr("Общий вес на складе (для сверки)","Ombordagi umumiy vazn (tekshirish uchun)")}</span>
-                <span className="font-data text-sm font-bold text-text-primary">{totalWeightKg.toFixed(2)} {tr("кг","kg")}</span>
+                <span className="text-xs text-secondary">{tr("Общий вес на складе (для сверки)","Ombordagi umumiy vazn (tekshirish uchun)")}</span>
+                <span className="font-data text-sm font-bold text-primary">{totalWeightKg.toFixed(2)} {tr("кг","kg")}</span>
               </div>
             )}
           </div>
@@ -212,24 +212,24 @@ export default function ProductDetail() {
           )}
         </div>
         {movements.length===0 ? (
-          <p className="px-4 py-8 text-center text-text-secondary text-sm">{tr("Движений пока нет","Hozircha harakatlar yo'q")}</p>
+          <p className="px-4 py-8 text-center text-secondary text-sm">{tr("Движений пока нет","Hozircha harakatlar yo'q")}</p>
         ) : (
           <table className="w-full text-sm">
             <thead><tr className="bg-surface-light">
               {[tr("Дата","Sana"),tr("Тип","Turi"),tr("Кол-во","Miqdor"),tr("Документ","Hujjat"),tr("Заметки","Izoh")].map(h=>(
-                <th key={h} className="text-left px-4 py-2 font-h3 text-text-secondary text-xs">{h}</th>
+                <th key={h} className="text-left px-4 py-2 font-h3 text-secondary text-xs">{h}</th>
               ))}
             </tr></thead>
             <tbody>
               {movements.map(m=>(
                 <tr key={m.id} className="border-b border-border-subtle">
-                  <td className="px-4 py-2 text-xs text-text-secondary">{m.createdAt?format(new Date(m.createdAt),"dd/MM/yy HH:mm"):""}</td>
+                  <td className="px-4 py-2 text-xs text-secondary">{m.createdAt?format(new Date(m.createdAt),"dd/MM/yy HH:mm"):""}</td>
                   <td className="px-4 py-2"><div className="flex items-center gap-1">{TYPE_ICONS[m.type]}<span className={`text-xs ${m.type==="in"?"text-success":m.type==="out"?"text-danger":"text-warning"}`}>{m.type.toUpperCase()}</span></div></td>
                   <td className={`px-4 py-2 font-data text-sm ${m.type==="in"?"text-success":m.type==="out"?"text-danger":"text-warning"}`}>
                     {m.type==="in"?"+":m.type==="out"?"−":"±"}{Number(m.quantity).toFixed(2)} {unitLabel(product.unit)}
                   </td>
-                  <td className="px-4 py-2 text-xs text-text-secondary">{m.referenceType?`${m.referenceType} #${m.referenceId}`:"—"}</td>
-                  <td className="px-4 py-2 text-xs text-text-secondary">{m.notes??"—"}</td>
+                  <td className="px-4 py-2 text-xs text-secondary">{m.referenceType?`${m.referenceType} #${m.referenceId}`:"—"}</td>
+                  <td className="px-4 py-2 text-xs text-secondary">{m.notes??"—"}</td>
                 </tr>
               ))}
             </tbody>

@@ -145,7 +145,7 @@ function InviteForm({ onDone, lang }: { onDone: () => void; lang: "ru" | "uz" })
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">
+          <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">
             {t("ИМЯ *", "ISM *")}
           </label>
           <input
@@ -158,7 +158,7 @@ function InviteForm({ onDone, lang }: { onDone: () => void; lang: "ru" | "uz" })
           />
         </div>
         <div>
-          <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">
+          <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">
             EMAIL *
           </label>
           <input
@@ -170,7 +170,7 @@ function InviteForm({ onDone, lang }: { onDone: () => void; lang: "ru" | "uz" })
           />
         </div>
         <div>
-          <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">
+          <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">
             {t("ПАРОЛЬ *", "PAROL *")}
           </label>
           <div className="relative">
@@ -185,14 +185,14 @@ function InviteForm({ onDone, lang }: { onDone: () => void; lang: "ru" | "uz" })
             <button
               type="button"
               onClick={() => setShowPw(!showPw)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-secondary"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-tertiary hover:text-secondary"
             >
               {showPw ? "👁" : "👁‍🗨"}
             </button>
           </div>
         </div>
         <div>
-          <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">
+          <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">
             {t("РОЛЬ *", "LAVOZIM *")}
           </label>
           <PremiumSelect value={d.role}
@@ -250,7 +250,7 @@ function ResetPasswordModal({ userId, userName, onClose, lang }: {
           <button onClick={onClose} className="btn-ghost p-1.5"><X size={18} /></button>
         </div>
         <div>
-          <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">
+          <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">
             {t("НОВЫЙ ПАРОЛЬ (мин. 8 символов)", "YANGI PAROL (kamida 8 ta belgi)")}
           </label>
           <input

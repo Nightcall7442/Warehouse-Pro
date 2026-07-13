@@ -34,8 +34,8 @@ function TelegramSettings() {
           style={{ background: "rgba(74,222,128,.10)", border: "1px solid rgba(74,222,128,.25)" }}>
           <CheckCircle2 size={18} className="text-success flex-shrink-0" />
           <div className="flex-1">
-            <p className="text-sm font-medium text-text-primary">{t("Telegram подключён", "Telegram ulangan")}</p>
-            <p className="text-xs text-text-secondary mt-0.5">chat_id: {status.chatId}</p>
+            <p className="text-sm font-medium text-primary">{t("Telegram подключён", "Telegram ulangan")}</p>
+            <p className="text-xs text-secondary mt-0.5">chat_id: {status.chatId}</p>
           </div>
           <button onClick={() => remove.mutate()} disabled={remove.isPending}
             className="neo-btn py-1.5 px-3 text-xs text-danger flex items-center gap-1.5"
@@ -47,15 +47,15 @@ function TelegramSettings() {
       ) : (
         <div className="space-y-4">
           <div className="px-4 py-3 rounded-lg space-y-2 text-sm" style={{ background: "var(--color-surface-light, #f0f3f8)" }}>
-            <p className="font-medium text-text-primary">{t("Как подключить:", "Qanday ulash:")}</p>
-            <ol className="list-decimal list-inside space-y-1.5 text-text-secondary">
+            <p className="font-medium text-primary">{t("Как подключить:", "Qanday ulash:")}</p>
+            <ol className="list-decimal list-inside space-y-1.5 text-secondary">
               <li>{t("Откройте Telegram → найдите", "Telegramni oching →")} <code className="px-1 rounded text-primary" style={{ background: "var(--color-primary-subtle, rgba(75,108,246,.10))" }}>@userinfobot</code></li>
               <li>{t("Нажмите /start — получите свой числовой ID", "/start → raqamli ID olasiz")}</li>
               <li>{t("Вставьте ID ниже и нажмите «Подключить»", "ID-ni quyida kiriting va «Ulash» tugmasini bosing")}</li>
             </ol>
           </div>
           <div>
-            <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">
+            <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">
               {t("ВАШ TELEGRAM CHAT ID", "TELEGRAM CHAT ID")}
             </label>
             <div className="flex gap-2">
@@ -74,10 +74,10 @@ function TelegramSettings() {
       )}
 
       <div style={{ borderTop: "1px solid var(--color-border, #f0f3f8)", paddingTop: 16 }}>
-        <p className="font-label text-[10px] text-text-secondary tracking-wider mb-2">
+        <p className="font-label text-[10px] text-secondary tracking-wider mb-2">
           {t("ВЫ БУДЕТЕ ПОЛУЧАТЬ", "QUYIDAGILARNI OLASIZ")}
         </p>
-        <ul className="space-y-2 text-sm text-text-secondary">
+        <ul className="space-y-2 text-sm text-secondary">
           {[
             t("📅 Ваш план визитов утром", "📅 Tashrif rejasi ertalab"),
             t("🛒 Подтверждение новых заказов", "🛒 Yangi buyurtmalar tasdiqi"),
@@ -130,7 +130,7 @@ function CompanySettings() {
     <div className="space-y-4">
       {/* Логотип */}
       <div>
-        <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-2">
+        <label className="font-label text-[10px] text-secondary tracking-wider block mb-2">
           {t("ЛОГОТИП КОМПАНИИ", "KOMPANIYA LOGOTIPI")}
         </label>
         <div className="flex items-center gap-4">
@@ -141,7 +141,7 @@ function CompanySettings() {
           >
             {form.logoUrl
               ? <img src={form.logoUrl as string} alt="logo" className="w-full h-full object-contain" />
-              : <Upload size={20} className="text-text-secondary" />}
+              : <Upload size={20} className="text-secondary" />}
           </div>
           <div>
             <button onClick={() => logoRef.current?.click()} className="neo-btn text-sm flex items-center gap-2">
@@ -158,7 +158,7 @@ function CompanySettings() {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {FIELDS.map(f => (
           <div key={f.key}>
-            <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">
+            <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">
               {lang === "uz" ? f.uz : f.ru}
             </label>
             <input className="neo-input w-full" value={(form[f.key] as string) ?? ""}
@@ -168,7 +168,7 @@ function CompanySettings() {
 
         {/* Валюта */}
         <div>
-          <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">
+          <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">
             {t("ВАЛЮТА", "VALYUTA")}
           </label>
           <PremiumSelect value={(form.currency as string) ?? "UZS"}
@@ -208,14 +208,14 @@ function ProfileSettings() {
   return (
     <div className="space-y-6">
       <div className="space-y-3">
-        <p className="font-label text-[10px] text-text-secondary tracking-wider">{t("ОСНОВНОЕ", "ASOSIY")}</p>
+        <p className="font-label text-[10px] text-secondary tracking-wider">{t("ОСНОВНОЕ", "ASOSIY")}</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">{t("ИМЯ","ISM")}</label>
+            <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">{t("ИМЯ","ISM")}</label>
             <input className="neo-input w-full" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
           </div>
           <div>
-            <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">EMAIL</label>
+            <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">EMAIL</label>
             <input type="email" className="neo-input w-full" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
           </div>
         </div>
@@ -227,14 +227,14 @@ function ProfileSettings() {
       </div>
 
       <div className="space-y-3" style={{ borderTop: "1px solid var(--color-border, #f0f3f8)", paddingTop: 20 }}>
-        <p className="font-label text-[10px] text-text-secondary tracking-wider">{t("СМЕНА ПАРОЛЯ","PAROLNI O'ZGARTIRISH")}</p>
+        <p className="font-label text-[10px] text-secondary tracking-wider">{t("СМЕНА ПАРОЛЯ","PAROLNI O'ZGARTIRISH")}</p>
         {[
           { key: "current", ru: "ТЕКУЩИЙ ПАРОЛЬ",  uz: "JORIY PAROL"    },
           { key: "next",    ru: "НОВЫЙ ПАРОЛЬ",     uz: "YANGI PAROL"    },
           { key: "confirm", ru: "ПОДТВЕРДИТЕ НОВЫЙ", uz: "YANGI PAROLNI TASDIQLANG" },
         ].map(f => (
           <div key={f.key}>
-            <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">
+            <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">
               {lang === "uz" ? f.uz : f.ru}
             </label>
             <input type="password" className="neo-input w-full sm:max-w-sm"
@@ -267,7 +267,7 @@ function AppearanceSettings() {
   return (
     <div className="space-y-6">
       <div>
-        <p className="font-label text-[10px] text-text-secondary tracking-wider mb-3">{t("ТЕМА","MAVZU")}</p>
+        <p className="font-label text-[10px] text-secondary tracking-wider mb-3">{t("ТЕМА","MAVZU")}</p>
         <div className="grid grid-cols-2 gap-3 max-w-xs">
           {[
             { val: "light", labelRu: "☀️ Светлая", labelUz: "☀️ Yorug'" },
@@ -275,7 +275,7 @@ function AppearanceSettings() {
           ].map(opt => (
             <button key={opt.val} onClick={toggle}
               className={`py-3 rounded-xl border text-sm font-medium transition-all ${
-                theme === opt.val ? "border-primary bg-primary/10 text-primary" : "border-border-subtle text-text-secondary hover:border-border-strong"
+                theme === opt.val ? "border-primary bg-primary/10 text-primary" : "border-border-subtle text-secondary hover:border-border-strong"
               }`}>
               {lang === "uz" ? opt.labelUz : opt.labelRu}
             </button>
@@ -284,7 +284,7 @@ function AppearanceSettings() {
       </div>
 
       <div style={{ borderTop: "1px solid var(--color-border, #f0f3f8)", paddingTop: 20 }}>
-        <p className="font-label text-[10px] text-text-secondary tracking-wider mb-3">{t("ЯЗЫК ИНТЕРФЕЙСА","INTERFEYS TILI")}</p>
+        <p className="font-label text-[10px] text-secondary tracking-wider mb-3">{t("ЯЗЫК ИНТЕРФЕЙСА","INTERFEYS TILI")}</p>
         <div className="grid grid-cols-2 gap-3 max-w-xs">
           {[
             { val: "ru", label: "🇷🇺 Русский"  },
@@ -292,7 +292,7 @@ function AppearanceSettings() {
           ].map(l => (
             <button key={l.val} onClick={() => setLang(l.val as "ru" | "uz")}
               className={`py-3 rounded-xl border text-sm font-medium transition-all ${
-                lang === l.val ? "border-primary bg-primary/10 text-primary" : "border-border-subtle text-text-secondary hover:border-border-strong"
+                lang === l.val ? "border-primary bg-primary/10 text-primary" : "border-border-subtle text-secondary hover:border-border-strong"
               }`}>
               {l.label}
             </button>
@@ -321,7 +321,7 @@ function OneCSettings() {
     <div className="space-y-6">
       {/* Статус соединения */}
       <div>
-        <p className="font-label text-[10px] text-text-secondary tracking-wider mb-3">
+        <p className="font-label text-[10px] text-secondary tracking-wider mb-3">
           {t("СТАТУС СОЕДИНЕНИЯ", "ULANISH HOLATI")}
         </p>
         <div className="flex items-center gap-3 px-4 py-3 rounded-lg"
@@ -330,19 +330,19 @@ function OneCSettings() {
             border: `1px solid ${health?.healthy ? "rgba(74,222,128,.25)" : "color-mix(in srgb, #e85050 25%, transparent)"}`,
           }}>
           {healthLoading ? (
-            <Loader2 size={18} className="text-text-secondary animate-spin" />
+            <Loader2 size={18} className="text-secondary animate-spin" />
           ) : health?.healthy ? (
             <CheckCircle2 size={18} className="text-success flex-shrink-0" />
           ) : (
             <XCircle size={18} className="text-danger flex-shrink-0" />
           )}
           <div className="flex-1">
-            <p className="text-sm font-medium text-text-primary">
+            <p className="text-sm font-medium text-primary">
               {health?.healthy
                 ? t("1С Bridge подключён", "1C Bridge ulangan")
                 : t("1С Bridge не подключён", "1C Bridge ulanmagan")}
             </p>
-            <p className="text-xs text-text-secondary mt-0.5">
+            <p className="text-xs text-secondary mt-0.5">
               {health?.healthy
                 ? t("Соединение активно", "Ulanish faol")
                 : health?.error ?? t("Проверьте настройки подключения", "Ulanish sozlamalarini tekshiring")}
@@ -353,15 +353,15 @@ function OneCSettings() {
 
       {/* Настройки подключения */}
       <div>
-        <p className="font-label text-[10px] text-text-secondary tracking-wider mb-3">
+        <p className="font-label text-[10px] text-secondary tracking-wider mb-3">
           {t("НАСТРОЙКИ ПОДКЛЮЧЕНИЯ", "ULANISH SOZLAMALARI")}
         </p>
         <div className="space-y-3">
           <div className="p-4 rounded-lg" style={{ background: "var(--color-surface-light, #f0f3f8)" }}>
-            <p className="text-xs text-text-secondary mb-2">
+            <p className="text-xs text-secondary mb-2">
               {t("Для подключения 1С:Предприятие необходим Bridge-сервер.", "1C:Predpriyatiye bilan ulanish uchun Bridge server kerak.")}
             </p>
-            <p className="text-xs text-text-secondary">
+            <p className="text-xs text-secondary">
               {t("Установите переменные окружения на сервере:", "Serverda muhit o'zgaruvchilarini o'rnating:")}
             </p>
             <pre className="mt-2 p-3 rounded-lg text-xs font-mono overflow-x-auto"
@@ -374,7 +374,7 @@ ONEC_WEBHOOK_SECRET=your_secret`}
           </div>
 
           <div className="p-4 rounded-lg" style={{ background: "var(--color-surface-light, #f0f3f8)" }}>
-            <p className="text-xs text-text-secondary mb-2">
+            <p className="text-xs text-secondary mb-2">
               {t("Webhook URL для 1С (настройте в 1С:Предприятие):", "1C uchun webhook URL (1C:Predpriyatoyedagi sozlamalarda):")}
             </p>
             <pre className="mt-2 p-3 rounded-lg text-xs font-mono overflow-x-auto"
@@ -388,14 +388,14 @@ ONEC_WEBHOOK_SECRET=your_secret`}
 
       {/* Синхронизация */}
       <div>
-        <p className="font-label text-[10px] text-text-secondary tracking-wider mb-3">
+        <p className="font-label text-[10px] text-secondary tracking-wider mb-3">
           {t("СИНХРОНИЗАЦИЯ", "SINXRONIZATSIYA")}
         </p>
         <div className="space-y-3">
           <div className="flex items-center justify-between p-4 rounded-lg" style={{ background: "var(--color-surface-light, #f0f3f8)" }}>
             <div>
-              <p className="text-sm font-medium text-text-primary">{t("Товары из 1С", "1C dan mahsulotlar")}</p>
-              <p className="text-xs text-text-secondary mt-0.5">
+              <p className="text-sm font-medium text-primary">{t("Товары из 1С", "1C dan mahsulotlar")}</p>
+              <p className="text-xs text-secondary mt-0.5">
                 {t("Загрузить товары, цены и остатки из 1С", "1C dan mahsulotlar, narxlar va qoldiqlarni yuklash")}
               </p>
             </div>
@@ -412,17 +412,17 @@ ONEC_WEBHOOK_SECRET=your_secret`}
           {status && (
             <div className="grid grid-cols-2 gap-3">
               <div className="p-3 rounded-lg" style={{ background: "var(--color-surface-light, #f0f3f8)" }}>
-                <p className="text-[10px] text-text-secondary tracking-wider mb-1">
+                <p className="text-[10px] text-secondary tracking-wider mb-1">
                   {t("ПОСЛЕДНЯЯ СИНХРОНИЗАЦИЯ", "OXIRGI SINXRONIZATSIYA")}
                 </p>
-                <p className="text-sm font-medium text-text-primary">
+                <p className="text-sm font-medium text-primary">
                   {status.lastProductSync
                     ? new Date(status.lastProductSync).toLocaleString("ru")
                     : t("Не выполнялась", "Bajarilmagan")}
                 </p>
               </div>
               <div className="p-3 rounded-lg" style={{ background: "var(--color-surface-light, #f0f3f8)" }}>
-                <p className="text-[10px] text-text-secondary tracking-wider mb-1">
+                <p className="text-[10px] text-secondary tracking-wider mb-1">
                   {t("ОШИБКИ", "XATOLIKLAR")}
                 </p>
                 <p className={`text-sm font-medium ${status.errors > 0 ? "text-danger" : "text-success"}`}>
@@ -439,10 +439,10 @@ ONEC_WEBHOOK_SECRET=your_secret`}
         <div className="flex items-start gap-3">
           <AlertTriangle size={16} className="text-amber-500 mt-0.5 flex-shrink-0" />
           <div>
-            <p className="text-sm font-medium text-text-primary mb-1">
+            <p className="text-sm font-medium text-primary mb-1">
               {t("Важно", "Muhim")}
             </p>
-            <p className="text-xs text-text-secondary leading-relaxed">
+            <p className="text-xs text-secondary leading-relaxed">
               {t(
                 "Для работы интеграции необходим Bridge-сервер, который связывает 1С:Предприятие с Warehouse Pro. Обратитесь к поставщику 1С для настройки Bridge.",
                 "Integratsiya uchun 1C:Predpriyatiye ni Warehouse Pro bilan bog'laydigan Bridge server kerak. Bridge ni sozlash uchun 1C yetkazib beruvchisiga murojaat qiling."
@@ -472,7 +472,7 @@ export default function Settings() {
 
   return (
     <div className="max-w-3xl mx-auto animate-fade-up">
-      <h1 className="font-display text-2xl font-bold text-text-primary tracking-tight mb-5">{t("Настройки", "Sozlamalar")}</h1>
+      <h1 className="font-display text-2xl font-bold text-primary tracking-tight mb-5">{t("Настройки", "Sozlamalar")}</h1>
 
       <div className="flex flex-col sm:flex-row gap-5">
         {/* Боковое меню */}
@@ -485,7 +485,7 @@ export default function Settings() {
                   className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-left text-sm font-medium transition-all w-full ${
                     active === s.key
                       ? "bg-primary/10 text-primary"
-                      : "text-text-secondary hover:text-text-primary hover:bg-surface-light"
+                      : "text-secondary hover:text-primary hover:bg-surface-light"
                   }`}>
                   <Icon size={15} />
                   <span className="hidden sm:inline">{lang === "uz" ? s.iconUz : s.iconRu}</span>
@@ -497,7 +497,7 @@ export default function Settings() {
 
         {/* Контент */}
         <div className="flex-1 panel p-5 min-h-[300px]">
-          <h2 className="font-display text-base text-text-primary mb-5">
+          <h2 className="font-display text-base text-primary mb-5">
             {lang === "uz"
               ? SECTIONS.find(s => s.key === active)?.iconUz
               : SECTIONS.find(s => s.key === active)?.iconRu}

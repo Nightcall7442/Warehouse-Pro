@@ -14,11 +14,11 @@ export default function NotFound() {
         </div>
 
         <div>
-          <p className="font-data text-5xl font-bold text-text-primary tracking-tight">404</p>
-          <h1 className="font-display text-xl font-bold text-text-primary tracking-tight mt-2">
+          <p className="font-data text-5xl font-bold text-primary tracking-tight">404</p>
+          <h1 className="font-display text-xl font-bold text-primary tracking-tight mt-2">
             {tr("Страница не найдена", "Sahifa topilmadi")}
           </h1>
-          <p className="text-text-secondary text-sm mt-2">
+          <p className="text-secondary text-sm mt-2">
             {tr("Возможно, она была удалена или адрес введён неверно.", "Ehtimol, u o'chirilgan yoki manzil noto'g'ri kiritilgan.")}
           </p>
         </div>

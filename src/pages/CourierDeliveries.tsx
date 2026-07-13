@@ -70,21 +70,21 @@ export default function CourierDeliveries() {
         <Truck size={24} className="text-primary" />
         <div>
           <h1 className="text-lg font-bold">{t("Мои доставки", "Mening yetkazishlarim")}</h1>
-          <p className="text-sm text-text-secondary">{user?.name}</p>
+          <p className="text-sm text-secondary">{user?.name}</p>
         </div>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-surface rounded-xl p-4">
-          <div className="flex items-center gap-2 text-text-secondary text-sm mb-1">
+          <div className="flex items-center gap-2 text-secondary text-sm mb-1">
             <Package size={16} />
             {t("Ожидают", "Kutilmoqda")}
           </div>
           <p className="text-2xl font-bold">{assigned.length}</p>
         </div>
         <div className="bg-surface rounded-xl p-4">
-          <div className="flex items-center gap-2 text-text-secondary text-sm mb-1">
+          <div className="flex items-center gap-2 text-secondary text-sm mb-1">
             <Truck size={16} />
             {t("В пути", "Yo'lda")}
           </div>
@@ -95,7 +95,7 @@ export default function CourierDeliveries() {
       {/* In Transit */}
       {inTransit.length > 0 && (
         <div className="space-y-2">
-          <h2 className="font-semibold text-sm text-text-secondary flex items-center gap-2">
+          <h2 className="font-semibold text-sm text-secondary flex items-center gap-2">
             <Truck size={16} className="text-warning" />
             {t("В пути", "Yo'lda")}
           </h2>
@@ -128,7 +128,7 @@ export default function CourierDeliveries() {
       {/* Assigned */}
       {assigned.length > 0 && (
         <div className="space-y-2">
-          <h2 className="font-semibold text-sm text-text-secondary flex items-center gap-2">
+          <h2 className="font-semibold text-sm text-secondary flex items-center gap-2">
             <Package size={16} className="text-info" />
             {t("Ожидают доставки", "Yetkazishni kutmoqda")}
           </h2>
@@ -145,14 +145,14 @@ export default function CourierDeliveries() {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="font-semibold">{order.orderNumber}</p>
-                  <p className="text-sm text-text-secondary">{order.shopName}</p>
+                  <p className="text-sm text-secondary">{order.shopName}</p>
                 </div>
                 <span className={`badge ${DELIVERY_STATUS_STYLES[order.deliveryStatus] ?? ""}`}>
                   {DELIVERY_STATUS_LABELS[order.deliveryStatus]?.ru ?? order.deliveryStatus}
                 </span>
               </div>
               {order.shopAddress && (
-                <p className="text-xs text-text-secondary flex items-center gap-1">
+                <p className="text-xs text-secondary flex items-center gap-1">
                   <MapPin size={12} />{order.shopAddress}{order.shopCity ? `, ${order.shopCity}` : ""}
                 </p>
               )}
@@ -184,7 +184,7 @@ export default function CourierDeliveries() {
       )}
 
       {(!deliveries || deliveries.length === 0) && (
-        <div className="text-center py-20 text-text-secondary">
+        <div className="text-center py-20 text-secondary">
           <Truck size={48} className="mx-auto mb-4 opacity-30" />
           <p>{t("Нет заказов на доставку", "Yetkazish uchun buyurtmalar yo'q")}</p>
         </div>
@@ -218,20 +218,20 @@ function DeliveryCard({
       <div className="flex items-start justify-between">
         <div>
           <p className="font-semibold">{order.orderNumber}</p>
-          <p className="text-sm text-text-secondary">{order.shopName}</p>
+          <p className="text-sm text-secondary">{order.shopName}</p>
         </div>
         <span className={`badge ${DELIVERY_STATUS_STYLES[order.deliveryStatus] ?? ""}`}>
           {DELIVERY_STATUS_LABELS[order.deliveryStatus]?.ru ?? order.deliveryStatus}
         </span>
       </div>
       {order.shopAddress && (
-        <p className="text-xs text-text-secondary flex items-center gap-1">
+        <p className="text-xs text-secondary flex items-center gap-1">
           <MapPin size={12} />{order.shopAddress}{order.shopCity ? `, ${order.shopCity}` : ""}
         </p>
       )}
       <p className="font-data text-sm">{fmt(order.total)}</p>
       {Number(order.totalWeightKg ?? 0) > 0 && (
-        <p className="text-xs text-text-secondary flex items-center gap-1">
+        <p className="text-xs text-secondary flex items-center gap-1">
           <Package size={12} />
           {Number(order.totalWeightKg).toFixed(1)} кг
         </p>
@@ -252,7 +252,7 @@ function DeliveryCard({
       </div>
 
       <div className="border-t border-border-subtle pt-3 space-y-2">
-        <label className="text-xs text-text-secondary">
+        <label className="text-xs text-secondary">
           {t("Сумма наличных (необязательно)", "Naqd pul miqdori (ixtiyoriy)")}
         </label>
         <input

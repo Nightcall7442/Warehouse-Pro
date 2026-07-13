@@ -177,7 +177,7 @@ export default function WarehouseReports() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="font-display text-2xl font-bold text-text-primary tracking-tight">
+          <h1 className="font-display text-2xl font-bold text-primary tracking-tight">
             {t("Отчёты по складу", "Ombor hisobotlari")}
           </h1>
           <p className="text-xs mt-0.5" style={{ color: "var(--color-text-secondary, #6a7290)" }}>

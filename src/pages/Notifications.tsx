@@ -112,7 +112,7 @@ export default function Notifications() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-display text-2xl font-bold text-text-primary tracking-tight">
+          <h1 className="font-display text-2xl font-bold text-primary tracking-tight">
             {t("Уведомления", "Bildirishnomalar")}
           </h1>
           {unreadCount > 0 && (
@@ -158,7 +158,7 @@ export default function Notifications() {
           <div className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: "var(--color-surface-light, #f0f3f8)" }}>
             <Bell size={28} style={{ color: "var(--color-text-tertiary, #98a0b8)" }} />
           </div>
-          <p className="text-text-secondary text-sm font-medium mb-1">
+          <p className="text-secondary text-sm font-medium mb-1">
             {t("Нет уведомлений", "Bildirishnomalar yo'q")}
           </p>
           <p className="text-xs" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
@@ -168,7 +168,7 @@ export default function Notifications() {
       ) : filtered.length === 0 ? (
         <div className="text-center py-16 panel">
           <Filter size={28} className="mx-auto mb-3 opacity-20" style={{ color: "var(--color-text-tertiary, #98a0b8)" }} />
-          <p className="text-text-secondary text-sm">
+          <p className="text-secondary text-sm">
             {t("Нет уведомлений в этой категории", "Bu turkumda bildirishnomalar yo'q")}
           </p>
         </div>

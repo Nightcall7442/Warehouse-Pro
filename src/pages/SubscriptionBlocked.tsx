@@ -16,10 +16,10 @@ export default function SubscriptionBlocked() {
         </div>
 
         <div>
-          <h1 className="font-display text-2xl font-bold text-text-primary">
+          <h1 className="font-display text-2xl font-bold text-primary">
             {tr("Требуется подписка","Obuna talab qilinadi")}
           </h1>
-          <p className="text-text-secondary text-sm mt-2">
+          <p className="text-secondary text-sm mt-2">
             {tr("Ваша подписка истекла или неактивна. Обновите тарифный план, чтобы продолжить работу.","Obunangiz tugagan yoki faol emas. Davom etish uchun tarifni yangilang.")}
           </p>
         </div>

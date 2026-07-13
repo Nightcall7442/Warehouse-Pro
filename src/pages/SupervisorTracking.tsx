@@ -153,7 +153,7 @@ export default function SupervisorTracking() {
     <div className="space-y-4 animate-fade-up">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="font-display text-2xl font-bold text-text-primary tracking-tight">{t("Слежение за агентами", "Agentlarni kuzatish")}</h1>
+          <h1 className="font-display text-2xl font-bold text-primary tracking-tight">{t("Слежение за агентами", "Agentlarni kuzatish")}</h1>
           {lastUpdate && (
             <p className="text-xs mt-0.5" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
               {t("Обновлено:", "Yangilangan:")} {format(lastUpdate, "HH:mm:ss")}
@@ -186,7 +186,7 @@ export default function SupervisorTracking() {
               <div className={`kpi-icon-box kpi-icon-${k.color} mb-3`}>
                 <Icon size={16} />
               </div>
-              <p className="font-data text-2xl font-bold text-text-primary">{k.value}</p>
+              <p className="font-data text-2xl font-bold text-primary">{k.value}</p>
               <p className="font-label text-[10px] tracking-wider mt-1" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
                 {lang === "uz" ? k.labelUz : k.labelRu}
               </p>
@@ -207,8 +207,8 @@ export default function SupervisorTracking() {
               : locations?.length === 0
               ? (
                 <div className="text-center py-10">
-                  <MapPin size={28} className="mx-auto mb-2 opacity-20 text-text-secondary" />
-                  <p className="text-sm text-text-secondary">{t("Нет данных о локации", "Joylashuv ma'lumoti yo'q")}</p>
+                  <MapPin size={28} className="mx-auto mb-2 opacity-20 text-secondary" />
+                  <p className="text-sm text-secondary">{t("Нет данных о локации", "Joylashuv ma'lumoti yo'q")}</p>
                   <p className="text-xs mt-1" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
                     {t("Агенты делятся геолокацией со страницы GPS", "Agentlar GPS sahifasidan joylashuv ulashadi")}
                   </p>
@@ -232,7 +232,7 @@ export default function SupervisorTracking() {
                           {(loc.agentName ?? "A")[0].toUpperCase()}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-text-primary truncate">
+                          <p className="text-sm font-medium text-primary truncate">
                             {loc.agentName ?? `Agent #${loc.agentId}`}
                           </p>
                           <div className="flex items-center gap-1 mt-0.5">
