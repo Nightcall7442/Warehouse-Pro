@@ -69,7 +69,7 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
   const items    = NAV_ITEMS[role] ?? [];
 
   return (
-    <div className="flex flex-col h-full sidebar-collapse-transition" style={{ background: "var(--sidebar-background, #ffffff)" }}>
+    <div className="flex flex-col h-full sidebar-collapse-transition" style={{ background: "transparent" }}>
       {/* Logo */}
       <div className="flex items-center px-5 gap-3" style={{ height: "64px", borderBottom: "1px solid var(--sidebar-border, #f0f2f6)" }}>
         <div className="w-9 h-9 rounded-[12px] flex items-center justify-center flex-shrink-0" style={{ background: "var(--color-primary, #4b6cf6)" }}>
@@ -336,8 +336,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         {user?.role !== "superadmin" && user?.role !== "supervisor" && user?.role !== "merchandiser" && <TrialBanner />}
       </div>
 
-      {/* Floating sidebar — white card, rounded, inset from edges */}
-      <aside className="hidden md:block fixed left-[16px] top-[16px] bottom-[16px] w-[248px] z-40 rounded-[20px] overflow-hidden" style={{ background: "var(--sidebar-background, #ffffff)", boxShadow: "0 4px 24px rgba(43,52,80,.06), 0 0 0 1px rgba(43,52,80,.02)" }}>
+      {/* Floating sidebar — glassmorphic white card */}
+      <aside className="hidden md:block fixed left-[16px] top-[16px] bottom-[16px] w-[248px] z-40 rounded-[24px] overflow-hidden" style={{ background: "rgba(255,255,255,.85)", backdropFilter: "blur(24px) saturate(180%)", WebkitBackdropFilter: "blur(24px) saturate(180%)", boxShadow: "0 8px 40px rgba(43,52,80,.1), 0 2px 8px rgba(43,52,80,.04), inset 0 1px 0 rgba(255,255,255,.9)", border: "1px solid rgba(255,255,255,.7)" }}>
         <Sidebar unreadCount={unreadCount} />
       </aside>
 
