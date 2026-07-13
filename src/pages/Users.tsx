@@ -26,7 +26,7 @@ export default function Users() {
   const { confirm, dialog } = useConfirm();
 
   const { data, isLoading } = trpc.user.list.useQuery({ search }) as { data: any; isLoading: boolean };
-  const users = data ?? [];
+  const users = data?.data ?? [];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>

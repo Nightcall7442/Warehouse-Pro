@@ -4,7 +4,7 @@ import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { notify } from "@/lib/toast";
 import { useNavigate } from "react-router";
-import { Search, Plus, FileDown, ChevronRight } from "lucide-react";
+import { Search, Plus, FileDown, ChevronRight, ShoppingCart, Clock, CheckCircle2, DollarSign } from "lucide-react";
 import { format } from "date-fns";
 import { exportToExcel, formatOrdersForExport } from "@/lib/excel";
 import { PremiumSelect } from "@/components/PremiumSelect";

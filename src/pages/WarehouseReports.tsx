@@ -2,7 +2,7 @@ import { useState } from "react";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { useCurrency } from "@/hooks/useCurrency";
-import { BarChart3, TrendingUp, Package, Truck, Layers, AlertTriangle, FileDown, FileText } from "lucide-react";
+import { BarChart3, TrendingUp, Package, Truck, Layers, AlertTriangle, FileDown, FileText, ArrowUpRight } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, LineChart, Line, PieChart, Pie, Cell } from "recharts";
 import { exportToExcel, exportToPDF, buildExcelSheets, buildPDFHtml, type ReportData } from "@/lib/export";
 import { CardDots, Card, KpiCard, PageHeader, SectionTitle, btnSecondary } from "@/components/DashboardLayout";
