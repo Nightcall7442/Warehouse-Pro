@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { trpc } from "@/providers/trpc";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useLang } from "@/i18n";
@@ -87,7 +88,7 @@ function AdjustModal({ productId, productName, currentStock, unit, unitWeight, o
             {t("Текущий остаток", "Joriy qoldiq")}
           </span>
           <span className="ml-auto text-sm font-bold" style={{ color: "var(--color-text-primary, #111827)", fontFamily: "'DM Sans', sans-serif" }}>
-            {currentStock.toFixed(2)} {unitLabel}
+            {currentStock.toFixed(2)}
             {unitWeight > 0 && <span className="text-xs font-normal" style={{ color: "var(--color-text-tertiary, #9ca3af)" }}> ({toKg(currentStock, unitWeight).toFixed(1)} кг)</span>}
           </span>
         </div>
@@ -125,7 +126,7 @@ function AdjustModal({ productId, productName, currentStock, unit, unitWeight, o
         {/* Quantity input */}
         <div>
           <label className="text-[10px] font-semibold tracking-wider uppercase mb-2 block" style={{ color: "var(--color-text-tertiary, #9ca3af)", fontFamily: "'DM Sans', sans-serif" }}>
-            {t(`КОЛИЧЕСТВО (${unitLabel.toUpperCase()})`, `MIQDOR (${unitLabel.toUpperCase()})`)}
+            {t("КОЛИЧЕСТВО", "MIQDOR")}
           </label>
           <input type="number" step="0.01" min="0" autoFocus
             className="w-full px-4 py-3 rounded-xl text-xl font-bold outline-none transition-all"
@@ -139,7 +140,7 @@ function AdjustModal({ productId, productName, currentStock, unit, unitWeight, o
                 {t("Новый остаток", "Yangi qoldiq")}
               </span>
               <span className="text-sm font-bold" style={{ color: newStock >= 0 ? "#4ade80" : "#f87171", fontFamily: "'DM Sans', sans-serif" }}>
-                {newStock.toFixed(2)} {unitLabel}
+                {newStock.toFixed(2)}
                 {unitWeight > 0 && <span className="text-xs font-normal" style={{ color: "var(--color-text-tertiary, #9ca3af)" }}> ({toKg(newStock, unitWeight).toFixed(1)} кг)</span>}
               </span>
             </div>
@@ -337,7 +338,7 @@ export default function Warehouse() {
       )}
 
       {/* Low Stock Modal */}
-      {showLowStock && (
+      {showLowStock && createPortal(
         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }} onClick={() => setShowLowStock(false)}>
           <div className="relative w-full max-w-2xl max-h-[80vh] overflow-y-auto rounded-3xl p-6" style={{ background: "var(--color-surface, #ffffff)", boxShadow: "0 25px 80px -12px rgba(0,0,0,0.35)" }} onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
@@ -367,14 +368,15 @@ export default function Warehouse() {
                     <p className="text-xs" style={{ color: "var(--color-text-tertiary, #9ca3af)" }}>{item.productCode}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-bold" style={{ color: "#f87171" }}>{Number(item.currentStock ?? 0).toFixed(1)} {unitLabel(item.unit ?? undefined, lang)}</p>
+                    <p className="text-sm font-bold" style={{ color: "#f87171" }}>{Number(item.currentStock ?? 0).toFixed(1)}</p>
                     <p className="text-xs" style={{ color: "var(--color-text-tertiary, #9ca3af)" }}>{t("порог", "chegara")}: {Number(item.reorderPoint ?? 0).toFixed(0)}</p>
                   </div>
                 </div>
               ))}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Header */}
@@ -434,7 +436,7 @@ export default function Warehouse() {
         {kpis.map((k, i) => {
           const Icon = k.icon;
           return (
-            <div key={k.label} className="kpi-hero" style={{ animationDelay: `${i * 0.05}s`, cursor: k.onClick ? "pointer" : "default" }} onClick={k.onClick}>
+            <div key={k.label} className="kpi-hero" style={{ animationDelay: `${i * 0.05}s`, cursor: k.onClick ? "pointer" : "default" }} onClick={(e) => { e.stopPropagation(); k.onClick?.(); }}>
               <div className="flex justify-between items-start mb-4">
                 <span className="text-[10px] font-semibold tracking-wider uppercase" style={{ color: "var(--color-text-tertiary, #9ca3af)", fontFamily: "'DM Sans', sans-serif" }}>
                   {k.label}
@@ -532,7 +534,7 @@ export default function Warehouse() {
                               ].map(col => (
                                 <div key={col.label}>
                                   <p className="text-lg font-bold" style={{ color: col.danger ? "#f87171" : "var(--color-text-primary, #111827)", fontFamily: "'DM Sans', sans-serif" }}>
-                                    {Number(col.val ?? 0).toFixed(0)} <span className="text-xs font-normal" style={{ color: "var(--color-text-tertiary, #9ca3af)" }}>{unitLabel(col.unit, lang)}</span>
+                                    {Number(col.val ?? 0).toFixed(0)}
                                   </p>
                                   <p className="text-[10px] mt-0.5" style={{ color: "var(--color-text-tertiary, #9ca3af)" }}>{col.label}</p>
                                 </div>
@@ -588,19 +590,19 @@ export default function Warehouse() {
                               {item.category ?? "—"}
                             </td>
                             <td className="px-5 py-3.5 text-sm font-bold" style={{ color: low ? "#f87171" : "var(--color-text-primary, #111827)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f3f4f6)" }}>
-                              {Number(item.available ?? 0).toFixed(2)} {unitLabel(item.unit ?? undefined, lang)}
+                              {Number(item.available ?? 0).toFixed(2)}
                             </td>
                             <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-secondary, #6b7280)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f3f4f6)" }}>
                               {toKg(item.available, item.unitWeight).toFixed(1)} кг
                             </td>
                             <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-secondary, #6b7280)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f3f4f6)" }}>
-                              {Number(item.reserved ?? 0).toFixed(2)} {unitLabel(item.unit ?? undefined, lang)}
+                              {Number(item.reserved ?? 0).toFixed(2)}
                             </td>
                             <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-primary, #111827)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f3f4f6)" }}>
-                              {Number(item.currentStock ?? 0).toFixed(2)} {unitLabel(item.unit ?? undefined, lang)}
+                              {Number(item.currentStock ?? 0).toFixed(2)}
                             </td>
                             <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-tertiary, #9ca3af)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f3f4f6)" }}>
-                              {Number(item.reorderPoint ?? 0).toFixed(0)} {unitLabel(item.unit ?? undefined, lang)}
+                              {Number(item.reorderPoint ?? 0).toFixed(0)}
                             </td>
                             <td className="px-5 py-3.5" style={{ borderBottom: "1px solid var(--color-border, #f3f4f6)" }}>
                               <button onClick={() => setAdjusting({ id: item.productId, name: item.productName ?? "", stock: Number(item.currentStock ?? 0), unit: item.unit ?? "pcs", unitWeight: Number(item.unitWeight ?? 0) })}
@@ -685,7 +687,7 @@ export default function Warehouse() {
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-xs" style={{ color: "var(--color-text-tertiary, #9ca3af)" }}>
-                        {t("Остаток:", "Qoldiq:")} {Number(item.currentStock ?? 0).toFixed(2)} {item.unit ?? "кг"}
+                        {t("Остаток:", "Qoldiq:")} {Number(item.currentStock ?? 0).toFixed(2)}
                       </span>
                       <span className="text-sm font-bold" style={{ color: badgeColor, fontFamily: "'DM Sans', sans-serif" }}>
                         {fmt(Number(item.value ?? 0).toFixed(0))}
@@ -730,7 +732,7 @@ export default function Warehouse() {
                           {item.category ?? "—"}
                         </td>
                         <td className="px-5 py-3.5 text-sm font-bold" style={{ color: "var(--color-text-primary, #111827)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f3f4f6)" }}>
-                          {Number(item.currentStock ?? 0).toFixed(2)} {unitLabel(item.unit ?? undefined, lang)}
+                          {Number(item.currentStock ?? 0).toFixed(2)}
                         </td>
                         <td className="px-5 py-3.5 text-sm font-bold" style={{ color: badgeColor, fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f3f4f6)" }}>
                           {fmt(Number(item.value ?? 0).toFixed(0))}
@@ -795,8 +797,8 @@ export default function Warehouse() {
                           </span>
                         </div>
                         <div className="flex items-center justify-between text-xs" style={{ color: "var(--color-text-tertiary, #9ca3af)" }}>
-                          <span>{t("Остаток:", "Qoldiq:")} {Number(item.currentStock ?? 0).toFixed(1)} / {Number(item.reorderPoint ?? 0).toFixed(0)} {item.unit ?? "кг"}</span>
-                          <span className="font-semibold" style={{ color: badgeColor }}>+{item.suggestedQty} {item.unit ?? "кг"}</span>
+                          <span>{t("Остаток:", "Qoldiq:")} {Number(item.currentStock ?? 0).toFixed(1)} / {Number(item.reorderPoint ?? 0).toFixed(0)} {unitLabel(item.unit, lang)}</span>
+                          <span className="font-semibold" style={{ color: badgeColor }}>+{item.suggestedQty} {unitLabel(item.unit, lang)}</span>
                         </div>
                       </div>
                     </div>
@@ -833,10 +835,10 @@ export default function Warehouse() {
                           </div>
                         </td>
                         <td className="px-5 py-3.5 text-sm font-bold" style={{ color: badgeColor, fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f3f4f6)" }}>
-                          {Number(item.currentStock ?? 0).toFixed(1)} {item.unit ?? "кг"}
+                          {Number(item.currentStock ?? 0).toFixed(1)} {unitLabel(item.unit, lang)}
                         </td>
                         <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-tertiary, #9ca3af)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f3f4f6)" }}>
-                          {Number(item.reorderPoint ?? 0).toFixed(0)} {item.unit ?? "кг"}
+                          {Number(item.reorderPoint ?? 0).toFixed(0)} {unitLabel(item.unit, lang)}
                         </td>
                         <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-secondary, #6b7280)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f3f4f6)" }}>
                           {item.avgDailySales}
@@ -848,7 +850,7 @@ export default function Warehouse() {
                           </span>
                         </td>
                         <td className="px-5 py-3.5 text-sm font-bold" style={{ color: badgeColor, fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f3f4f6)" }}>
-                          +{item.suggestedQty} {item.unit ?? "кг"}
+                          +{item.suggestedQty} {unitLabel(item.unit, lang)}
                         </td>
                         <td className="px-5 py-3.5 text-sm font-bold" style={{ color: "var(--color-text-primary, #111827)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f3f4f6)" }}>
                           {fmt(Number(item.suggestedCost ?? 0).toFixed(0))}

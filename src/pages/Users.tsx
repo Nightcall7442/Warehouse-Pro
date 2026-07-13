@@ -40,9 +40,9 @@ function KpiCard({
   const isPositive = delta !== null && delta > 0;
   const isNegative = delta !== null && delta < 0;
   return (
-    <div style={{
-      background: COLORS.surface, borderRadius: "24px", padding: "24px",
-      boxShadow: SHADOW, position: "relative", overflow: "hidden",
+    <div className="kpi-hero" style={{
+      borderRadius: "24px", padding: "24px",
+      position: "relative", overflow: "hidden",
       animation: `slideUp ${0.5 + delay}s ease forwards`,
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>

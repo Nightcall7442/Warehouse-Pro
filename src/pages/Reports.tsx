@@ -32,9 +32,9 @@ const KpiCard = memo(function KpiCard({ label, value, sub, icon, gradient, delay
   icon: React.ReactNode; gradient: string; delay: number;
 }) {
   return (
-    <div style={{
-      background: COLORS.surface, borderRadius: "20px", padding: "22px",
-      boxShadow: SHADOW, position: "relative", overflow: "hidden",
+    <div className="kpi-hero" style={{
+      padding: "22px",
+      position: "relative", overflow: "hidden",
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
         <span style={{ fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: COLORS.textTertiary }}>

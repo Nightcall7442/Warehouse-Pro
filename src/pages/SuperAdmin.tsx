@@ -78,7 +78,7 @@ function KpiCard({ label, value, icon: Icon, gradient, loading }: {
   label: string; value: string | number; icon: any; gradient: string; loading?: boolean;
 }) {
   return (
-    <div style={{ background: COLORS.surface, borderRadius: "20px", padding: "22px", boxShadow: SHADOW, position: "relative", overflow: "hidden" }}>
+    <div className="kpi-hero" style={{ padding: "22px", position: "relative", overflow: "hidden" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
         <span style={{ fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: COLORS.textTertiary }}>{label}</span>
         <div style={{ width: "40px", height: "40px", borderRadius: "12px", background: gradient, display: "flex", alignItems: "center", justifyContent: "center" }}>

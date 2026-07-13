@@ -620,6 +620,7 @@
   background: var(--kpi-gradient, linear-gradient(90deg, var(--color-primary), var(--color-primary)));
   opacity: 0;
   transition: opacity 0.2s ease;
+  pointer-events: none;
 }
 .kpi-hero:hover {
   box-shadow: var(--shadow-md, 0 4px 6px rgba(0,0,0,.05));
@@ -648,6 +649,7 @@
   filter: blur(12px);
   opacity: 0.4;
   z-index: -1;
+  pointer-events: none;
 }
 
 .kpi-hero-value {

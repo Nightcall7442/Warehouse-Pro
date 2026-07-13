@@ -163,10 +163,9 @@ export default function Dashboard() {
       {/* KPI Cards Row */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px" }}>
         {/* Revenue KPI */}
-        <div style={{
-          background: "var(--color-surface, #ffffff)", borderRadius: "20px", padding: "22px",
-          boxShadow: "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06))",
-          cursor: "pointer", transition: "all 0.2s ease",
+        <div className="kpi-hero" style={{
+          padding: "22px",
+          cursor: "pointer",
         }} onClick={navigateReports}>
           <CardDots />
           <p style={{ fontSize: "11px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-text-tertiary, #9ca3af)", margin: 0, fontFamily: "'DM Sans', sans-serif" }}>
@@ -201,10 +200,9 @@ export default function Dashboard() {
         </div>
 
         {/* Orders KPI */}
-        <div style={{
-          background: "var(--color-surface, #ffffff)", borderRadius: "20px", padding: "22px",
-          boxShadow: "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06))",
-          cursor: "pointer", transition: "all 0.2s ease",
+        <div className="kpi-hero" style={{
+          padding: "22px",
+          cursor: "pointer",
         }} onClick={navigateOrders}>
           <CardDots />
           <p style={{ fontSize: "11px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-text-tertiary, #9ca3af)", margin: 0, fontFamily: "'DM Sans', sans-serif" }}>
@@ -239,10 +237,9 @@ export default function Dashboard() {
         </div>
 
         {/* Debt KPI */}
-        <div style={{
-          background: "var(--color-surface, #ffffff)", borderRadius: "20px", padding: "22px",
-          boxShadow: "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06))",
-          cursor: "pointer", transition: "all 0.2s ease",
+        <div className="kpi-hero" style={{
+          padding: "22px",
+          cursor: "pointer",
         }} onClick={navigateReports}>
           <CardDots />
           <p style={{ fontSize: "11px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-text-tertiary, #9ca3af)", margin: 0, fontFamily: "'DM Sans', sans-serif" }}>
@@ -254,10 +251,9 @@ export default function Dashboard() {
         </div>
 
         {/* Gross Margin KPI */}
-        <div style={{
-          background: "var(--color-surface, #ffffff)", borderRadius: "20px", padding: "22px",
-          boxShadow: "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06))",
-          cursor: "pointer", transition: "all 0.2s ease",
+        <div className="kpi-hero" style={{
+          padding: "22px",
+          cursor: "pointer",
           display: "flex", alignItems: "center", gap: "16px",
         }} onClick={navigateReports}>
           <div style={{ flex: 1 }}>

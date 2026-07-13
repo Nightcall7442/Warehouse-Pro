@@ -11,16 +11,11 @@ export const CardDots = memo(function CardDots() {
   );
 });
 
-/* ─── Card — white, soft shadow, 20px radius ─── */
+/* ─── Card — white, soft shadow, 20px radius, hover lift ─── */
 export const Card = memo(function Card({ children, onClick, style }: { children: React.ReactNode; onClick?: () => void; style?: React.CSSProperties }) {
   return (
-    <div onClick={onClick} style={{
-      background: "var(--color-surface, #ffffff)",
-      borderRadius: "20px",
-      padding: "22px",
-      boxShadow: "0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.03)",
+    <div className="kpi-hero" onClick={onClick} style={{
       cursor: onClick ? "pointer" : "default",
-      transition: "all 0.2s ease",
       ...style,
     }}>
       {children}
@@ -45,25 +40,22 @@ export const SectionTitle = memo(function SectionTitle({ title, subtitle }: { ti
 });
 
 /* ─── KPI Card with icon ─── */
-export const KpiCard = memo(function KpiCard({ label, value, icon, gradient, children }: {
-  label: string; value: string; icon?: React.ReactNode; gradient?: string; children?: React.ReactNode;
+export const KpiCard = memo(function KpiCard({ label, value, icon, gradient, children, onClick }: {
+  label: string; value: string | number; icon?: React.ReactNode; gradient?: string; children?: React.ReactNode; onClick?: () => void;
 }) {
   return (
-    <Card>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
-        <CardDots />
+    <Card onClick={onClick} style={onClick ? { cursor: "pointer" } : undefined}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
+        <span style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-text-tertiary, #9ca3af)", fontFamily: "'DM Sans', sans-serif" }}>
+          {label}
+        </span>
         {icon && (
-          <div style={{ width: "40px", height: "40px", borderRadius: "12px", background: gradient ?? "var(--color-primary-subtle, rgba(129,140,248,.10))", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div className="kpi-hero-icon" style={{ background: gradient ?? "var(--color-primary-subtle, rgba(129,140,248,.10))" }}>
             {icon}
           </div>
         )}
       </div>
-      <p style={{ fontSize: "11px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-text-tertiary, #9ca3af)", margin: 0, fontFamily: "'DM Sans', sans-serif" }}>
-        {label}
-      </p>
-      <p style={{ fontSize: "28px", fontWeight: 700, color: "var(--color-text-primary, #111827)", margin: "8px 0 0", letterSpacing: "-0.03em", fontFamily: "'DM Sans', sans-serif" }}>
-        {value}
-      </p>
+      <div className="kpi-hero-value">{value}</div>
       {children}
     </Card>
   );
