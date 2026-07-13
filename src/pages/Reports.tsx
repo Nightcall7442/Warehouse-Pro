@@ -59,10 +59,7 @@ const KpiCard = memo(function KpiCard({ label, value, sub, icon, gradient, delay
 // ── Premium Chart Container ───────────────────────────────────────────────────
 const ChartPanel = memo(function ChartPanel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div style={{
-      background: COLORS.surface, borderRadius: "20px", padding: "24px",
-      boxShadow: SHADOW, position: "relative", overflow: "hidden",
-    }}>
+    <div className="neo-card" style={{ padding: "24px" }}>
       <h2 style={{ fontFamily: F.display, fontSize: "16px", fontWeight: 600, color: COLORS.textPrimary, margin: "0 0 20px" }}>
         {title}
       </h2>

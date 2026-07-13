@@ -453,10 +453,7 @@ export default function PnL() {
 
       {/* Period Comparison */}
       {data?.previous && (
-        <div style={{
-          background: COLORS.surface, borderRadius: "24px", padding: "24px",
-          boxShadow: SHADOW,
-        }}>
+        <div className="neo-card" style={{ padding: "24px" }}>
           <h2 style={{ fontFamily: F.display, fontSize: "16px", fontWeight: 600, color: COLORS.textPrimary, margin: "0 0 16px" }}>
             {t("Сравнение с предыдущим периодом", "Oldingi davr bilan taqqoslash")}
           </h2>
@@ -499,7 +496,7 @@ export default function PnL() {
 
       {/* Monthly Trend Chart */}
       {chartData.length > 0 && (
-        <div style={{ background: COLORS.surface, borderRadius: "24px", padding: "24px", boxShadow: SHADOW }}>
+        <div className="neo-card" style={{ padding: "24px" }}>
           <h2 style={{ fontFamily: F.display, fontSize: "16px", fontWeight: 600, color: COLORS.textPrimary, margin: "0 0 20px" }}>
             {lang === "uz" ? "Oylik trend" : "Месячный тренд"}
           </h2>
@@ -551,7 +548,7 @@ export default function PnL() {
       )}
 
       {/* Products with COGS */}
-      <div style={{ background: COLORS.surface, borderRadius: "24px", padding: "24px", boxShadow: SHADOW }}>
+      <div className="neo-card" style={{ padding: "24px" }}>
         <h2 style={{ fontFamily: F.display, fontSize: "16px", fontWeight: 600, color: COLORS.textPrimary, margin: "0 0 16px" }}>
           {lang === "uz" ? "Mahsulotlar bo'yicha foyda" : "Прибыль по товарам"}
         </h2>
@@ -613,7 +610,7 @@ export default function PnL() {
       </div>
 
       {/* Transport Expenses */}
-      <div style={{ background: COLORS.surface, borderRadius: "24px", padding: "24px", boxShadow: SHADOW }}>
+      <div className="neo-card" style={{ padding: "24px" }}>
         <h2 style={{ fontFamily: F.display, fontSize: "16px", fontWeight: 600, color: COLORS.textPrimary, margin: "0 0 16px" }}>
           {lang === "uz" ? "Transport xarajatlari" : "Расходы на транспорт"}
         </h2>
