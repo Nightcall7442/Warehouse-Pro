@@ -18,11 +18,11 @@ type Range = "7d" | "30d" | "90d" | "12m" | "ytd" | "custom";
 
 const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
 const COLORS = {
-  primary: "#818cf8", success: "#4ade80",
-  warning: "#fbbf24", danger: "#f87171",
-  surface: "var(--color-surface, #ffffff)", surfaceLight: "var(--color-surface-light, #f8f9fb)",
-  textPrimary: "var(--color-text-primary, #111827)", textSecondary: "var(--color-text-secondary, #6b7280)",
-  textTertiary: "var(--color-text-tertiary, #9ca3af)", border: "var(--color-border, #f3f4f6)",
+  primary: "#4b6cf6", success: "#34c473",
+  warning: "#e8a830", danger: "#e85050",
+  surface: "var(--color-surface, #ffffff)", surfaceLight: "var(--color-surface-light, #f0f3f8)",
+  textPrimary: "var(--color-text-primary, #2b3450)", textSecondary: "var(--color-text-secondary, #6a7290)",
+  textTertiary: "var(--color-text-tertiary, #98a0b8)", border: "var(--color-border, #f0f3f8)",
 };
 const SHADOW = "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04))";
 
@@ -73,7 +73,7 @@ function KpiCard({ label, value, delta, icon, gradient, delay }: {
         <div style={{
           display: "flex", alignItems: "center", gap: "4px", marginTop: "10px",
           fontSize: "12px", fontWeight: 600, fontFamily: F.body,
-          color: isPositive ? "#4ade80" : isNegative ? "#f87171" : COLORS.textTertiary,
+          color: isPositive ? "#34c473" : isNegative ? "#e85050" : COLORS.textTertiary,
         }}>
           {isPositive ? <ArrowUpRight size={14} /> : isNegative ? <ArrowDownRight size={14} /> : <Minus size={14} />}
           {Math.abs(delta).toFixed(1)}%
@@ -110,7 +110,7 @@ function ChartTooltip({ active, payload, label, fmt }: {
       {payload.map((p) => (
         <div key={p.dataKey} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "16px", marginTop: "4px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: p.fill ?? p.stroke ?? "#818cf8" }} />
+            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: p.fill ?? p.stroke ?? "#4b6cf6" }} />
             <span style={{ fontSize: "12px", color: COLORS.textSecondary }}>{p.name}</span>
           </div>
           <span style={{ fontSize: "13px", fontWeight: 600, color: COLORS.textPrimary, fontFamily: F.display }}>
@@ -384,7 +384,7 @@ export default function PnL() {
         }}>
           {(() => {
             const pct = current?.grossMarginPct ?? 0;
-            const ringColor = pct >= 20 ? "#4ade80" : pct >= 10 ? "#fbbf24" : "#f87171";
+            const ringColor = pct >= 20 ? "#34c473" : pct >= 10 ? "#e8a830" : "#e85050";
             const ringPct = Math.max(0, Math.min(100, pct));
             return (
               <ProgressRing value={ringPct} color={ringColor} size={80} strokeWidth={6} label={`${pct.toFixed(0)}%`} />
@@ -395,7 +395,7 @@ export default function PnL() {
               {lang === "uz" ? "YALPI MARJA" : "ВАЛОВАЯ МАРЖА"}
             </div>
             {deltas?.grossMarginPct !== null && deltas?.grossMarginPct !== undefined && (
-              <p style={{ fontSize: "11px", color: deltas.grossMarginPct >= 0 ? "#4ade80" : "#f87171", margin: "4px 0 0", fontWeight: 600 }}>
+              <p style={{ fontSize: "11px", color: deltas.grossMarginPct >= 0 ? "#34c473" : "#e85050", margin: "4px 0 0", fontWeight: 600 }}>
                 {deltas.grossMarginPct >= 0 ? "+" : ""}{deltas.grossMarginPct.toFixed(1)}pp
               </p>
             )}
@@ -409,7 +409,7 @@ export default function PnL() {
         }}>
           {(() => {
             const pct = current?.netMarginPct ?? 0;
-            const ringColor = pct >= 15 ? "#4ade80" : pct >= 5 ? "#fbbf24" : "#f87171";
+            const ringColor = pct >= 15 ? "#34c473" : pct >= 5 ? "#e8a830" : "#e85050";
             const ringPct = Math.max(0, Math.min(100, pct));
             return (
               <ProgressRing value={ringPct} color={ringColor} size={80} strokeWidth={6} label={`${pct.toFixed(0)}%`} />
@@ -420,7 +420,7 @@ export default function PnL() {
               {lang === "uz" ? "TOZA MARJA" : "ЧИСТАЯ МАРЖА"}
             </div>
             {deltas?.netMarginPct !== null && deltas?.netMarginPct !== undefined && (
-              <p style={{ fontSize: "11px", color: deltas.netMarginPct >= 0 ? "#4ade80" : "#f87171", margin: "4px 0 0", fontWeight: 600 }}>
+              <p style={{ fontSize: "11px", color: deltas.netMarginPct >= 0 ? "#34c473" : "#e85050", margin: "4px 0 0", fontWeight: 600 }}>
                 {deltas.netMarginPct >= 0 ? "+" : ""}{deltas.netMarginPct.toFixed(1)}pp
               </p>
             )}
@@ -434,7 +434,7 @@ export default function PnL() {
         }}>
           {(() => {
             const pct = (current?.revenue ?? 0) > 0 ? ((current?.cogs ?? 0) / (current?.revenue ?? 1)) * 100 : 0;
-            const ringColor = pct <= 60 ? "#4ade80" : pct <= 80 ? "#fbbf24" : "#f87171";
+            const ringColor = pct <= 60 ? "#34c473" : pct <= 80 ? "#e8a830" : "#e85050";
             const ringPct = Math.max(0, Math.min(100, pct));
             return (
               <ProgressRing value={ringPct} color={ringColor} size={80} strokeWidth={6} label={`${pct.toFixed(0)}%`} />
@@ -482,7 +482,7 @@ export default function PnL() {
                   {item.delta !== null && item.delta !== undefined && (
                     <span style={{
                       fontSize: "12px", fontWeight: 600,
-                      color: item.delta >= 0 ? "#4ade80" : "#f87171",
+                      color: item.delta >= 0 ? "#34c473" : "#e85050",
                     }}>
                       {item.delta >= 0 ? "+" : ""}{item.delta.toFixed(1)}%
                     </span>
@@ -525,14 +525,14 @@ export default function PnL() {
                   iconSize={8}
                   wrapperStyle={{ fontSize: "12px", fontFamily: F.body, paddingTop: "12px" }}
                 />
-                <Bar dataKey="revenue" name={t("Выручка", "Tushum")} fill="#818cf8" radius={[4, 4, 0, 0]} opacity={0.85} />
-                <Bar dataKey="cogs" name="COGS" fill="#fbbf24" radius={[4, 4, 0, 0]} opacity={0.85} />
+                <Bar dataKey="revenue" name={t("Выручка", "Tushum")} fill="#4b6cf6" radius={[4, 4, 0, 0]} opacity={0.85} />
+                <Bar dataKey="cogs" name="COGS" fill="#e8a830" radius={[4, 4, 0, 0]} opacity={0.85} />
                 <Line
                   dataKey="grossProfit"
                   name={t("Вал. прибыль", "Yalpi foyda")}
-                  stroke="#4ade80"
+                  stroke="#34c473"
                   strokeWidth={2.5}
-                  dot={{ r: 4, fill: "#4ade80", stroke: COLORS.surface, strokeWidth: 2 }}
+                  dot={{ r: 4, fill: "#34c473", stroke: COLORS.surface, strokeWidth: 2 }}
                   activeDot={{ r: 6 }}
                 />
                 <Line
@@ -580,7 +580,7 @@ export default function PnL() {
                   const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
                   return (
                     <tr key={i} style={{ transition: "background 0.15s" }}
-                      onMouseEnter={e => (e.currentTarget.style.background = "rgba(129,140,248,0.02)")}
+                      onMouseEnter={e => (e.currentTarget.style.background = "rgba(75,108,246,0.02)")}
                       onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
                       <td style={tdStyle}>
                         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
@@ -590,15 +590,15 @@ export default function PnL() {
                       </td>
                       <td style={{ ...tdStyle, color: COLORS.textSecondary }}>{Number(p.totalQty).toFixed(0)} кг</td>
                       <td style={{ ...tdStyle, textAlign: "right", fontWeight: 600 }}>{fmt(revenue.toFixed(0))}</td>
-                      <td style={{ ...tdStyle, textAlign: "right", color: "#f87171" }}>{fmt(cost.toFixed(0))}</td>
-                      <td style={{ ...tdStyle, textAlign: "right", fontWeight: 700, color: profit >= 0 ? "#4ade80" : "#f87171" }}>
+                      <td style={{ ...tdStyle, textAlign: "right", color: "#e85050" }}>{fmt(cost.toFixed(0))}</td>
+                      <td style={{ ...tdStyle, textAlign: "right", fontWeight: 700, color: profit >= 0 ? "#34c473" : "#e85050" }}>
                         {fmt(profit.toFixed(0))}
                       </td>
                       <td style={{ ...tdStyle, textAlign: "right" }}>
                         <span style={{
                           display: "inline-block", padding: "2px 8px", borderRadius: "6px", fontSize: "12px", fontWeight: 600,
-                          background: margin >= 20 ? "rgba(74,222,128,0.1)" : margin >= 10 ? "rgba(251,191,36,0.1)" : "rgba(248,113,113,0.1)",
-                          color: margin >= 20 ? "#4ade80" : margin >= 10 ? "#fbbf24" : "#f87171",
+                          background: margin >= 20 ? "rgba(74,222,128,0.1)" : margin >= 10 ? "rgba(251,191,36,0.1)" : "rgba(232,80,80,0.1)",
+                          color: margin >= 20 ? "#34c473" : margin >= 10 ? "#e8a830" : "#e85050",
                         }}>
                           {margin.toFixed(0)}%
                         </span>
@@ -640,7 +640,7 @@ export default function PnL() {
                   .slice(0, 20)
                   .map(a => (
                     <tr key={a.id} style={{ transition: "background 0.15s" }}
-                      onMouseEnter={e => (e.currentTarget.style.background = "rgba(129,140,248,0.02)")}
+                      onMouseEnter={e => (e.currentTarget.style.background = "rgba(75,108,246,0.02)")}
                       onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
                       <td style={{ ...tdStyle, fontWeight: 500 }}>{a.arrivalNumber}</td>
                       <td style={{ ...tdStyle, color: COLORS.textSecondary }}>
@@ -649,7 +649,7 @@ export default function PnL() {
                       <td style={{ ...tdStyle, color: COLORS.textSecondary }}>{a.truckId ?? "—"}</td>
                       <td style={{ ...tdStyle, textAlign: "right" }}>{fmt(a.fuelCost)}</td>
                       <td style={{ ...tdStyle, textAlign: "right" }}>{fmt(a.tollCost)}</td>
-                      <td style={{ ...tdStyle, textAlign: "right", fontWeight: 700, color: "#f87171" }}>{fmt(a.totalExpense)}</td>
+                      <td style={{ ...tdStyle, textAlign: "right", fontWeight: 700, color: "#e85050" }}>{fmt(a.totalExpense)}</td>
                     </tr>
                   ))}
               </tbody>

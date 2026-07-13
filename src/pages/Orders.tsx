@@ -17,20 +17,20 @@ import { PremiumSelect } from "@/components/PremiumSelect";
 /* ─── Premium Design Constants ─── */
 const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
 const COLORS = {
-  primary: "#818cf8", success: "#4ade80",
-  warning: "#fbbf24", danger: "#f87171",
-  surface: "var(--color-surface, #ffffff)", surfaceLight: "var(--color-surface-light, #f8f9fb)",
-  textPrimary: "var(--color-text-primary, #111827)", textSecondary: "var(--color-text-secondary, #6b7280)",
-  textTertiary: "var(--color-text-tertiary, #9ca3af)", border: "var(--color-border, #f3f4f6)",
+  primary: "#4b6cf6", success: "#34c473",
+  warning: "#e8a830", danger: "#e85050",
+  surface: "var(--color-surface, #ffffff)", surfaceLight: "var(--color-surface-light, #f0f3f8)",
+  textPrimary: "var(--color-text-primary, #2b3450)", textSecondary: "var(--color-text-secondary, #6a7290)",
+  textTertiary: "var(--color-text-tertiary, #98a0b8)", border: "var(--color-border, #f0f3f8)",
 };
 const SHADOW = "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04))";
 
 /* ─── Status Config ─── */
 const STATUS: Record<string, { ru: string; uz: string; dot: string; bg: string; text: string; border: string }> = {
-  new:        { ru: "Новый",       uz: "Yangi",         dot: "#818cf8", bg: "bg-info/10",    text: "text-info",    border: "border-info/25" },
-  processing: { ru: "В обработке", uz: "Jarayonda",     dot: "#fbbf24", bg: "bg-warning/10", text: "text-warning", border: "border-warning/25" },
-  completed:  { ru: "Выполнен",    uz: "Bajarildi",     dot: "#4ade80", bg: "bg-success/10", text: "text-success", border: "border-success/25" },
-  cancelled:  { ru: "Отменён",     uz: "Bekor qilindi", dot: "#f87171", bg: "bg-danger/10",  text: "text-danger",  border: "border-danger/25" },
+  new:        { ru: "Новый",       uz: "Yangi",         dot: "#4b6cf6", bg: "bg-info/10",    text: "text-info",    border: "border-info/25" },
+  processing: { ru: "В обработке", uz: "Jarayonda",     dot: "#e8a830", bg: "bg-warning/10", text: "text-warning", border: "border-warning/25" },
+  completed:  { ru: "Выполнен",    uz: "Bajarildi",     dot: "#34c473", bg: "bg-success/10", text: "text-success", border: "border-success/25" },
+  cancelled:  { ru: "Отменён",     uz: "Bekor qilindi", dot: "#e85050", bg: "bg-danger/10",  text: "text-danger",  border: "border-danger/25" },
 };
 
 /* ─── Premium KpiCard Component ─── */
@@ -61,7 +61,7 @@ function KpiCard({ label, value, delta, icon, gradient, delay }: {
         <div style={{
           display: "flex", alignItems: "center", gap: "4px", marginTop: "10px",
           fontSize: "12px", fontWeight: 600, fontFamily: F.body,
-          color: isPositive ? "#4ade80" : isNegative ? "#f87171" : COLORS.textTertiary,
+          color: isPositive ? "#34c473" : isNegative ? "#e85050" : COLORS.textTertiary,
         }}>
           {isPositive ? <ArrowUpRight size={14} /> : isNegative ? <ArrowDownRight size={14} /> : <Minus size={14} />}
           {Math.abs(delta).toFixed(1)}%
@@ -161,8 +161,8 @@ export default function Orders() {
             display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
             fontSize: "13px", fontWeight: 600, fontFamily: F.body, borderRadius: "10px",
             border: "none", cursor: "pointer", transition: "all 0.2s",
-            background: "linear-gradient(135deg, #818cf8, #818cf8)",
-            color: "#fff", boxShadow: "0 2px 8px rgba(129,140,248,0.3)",
+            background: "linear-gradient(135deg, #4b6cf6, #4b6cf6)",
+            color: "#fff", boxShadow: "0 2px 8px rgba(75,108,246,0.3)",
           }}>
             <Plus size={16} />
             <span>{t("Новый заказ", "Yangi buyurtma")}</span>
@@ -177,7 +177,7 @@ export default function Orders() {
           value={stats.total.toLocaleString()}
           delta={null}
           icon={<ShoppingCart size={20} color="#fff" />}
-          gradient="linear-gradient(135deg, #818cf8, #6366f1)"
+          gradient="linear-gradient(135deg, #4b6cf6, #4b6cf6)"
           delay={0}
         />
         <KpiCard
@@ -193,7 +193,7 @@ export default function Orders() {
           value={stats.processingCount.toLocaleString()}
           delta={null}
           icon={<Clock size={20} color="#fff" />}
-          gradient="linear-gradient(135deg, #fbbf24, #f59e0b)"
+          gradient="linear-gradient(135deg, #e8a830, #f59e0b)"
           delay={0.1}
         />
         <KpiCard
@@ -209,7 +209,7 @@ export default function Orders() {
           value={stats.cancelledCount.toLocaleString()}
           delta={null}
           icon={<XCircle size={20} color="#fff" />}
-          gradient="linear-gradient(135deg, #f87171, #ef4444)"
+          gradient="linear-gradient(135deg, #e85050, #e85050)"
           delay={0.2}
         />
         <KpiCard
@@ -383,7 +383,7 @@ export default function Orders() {
                               style={{
                                 padding: "4px 10px", fontSize: "11px", fontWeight: 600, fontFamily: F.body,
                                 borderRadius: "8px", border: "none", cursor: "pointer",
-                                background: "linear-gradient(135deg, #818cf8, #818cf8)",
+                                background: "linear-gradient(135deg, #4b6cf6, #4b6cf6)",
                                 color: "#fff",
                               }}
                             >

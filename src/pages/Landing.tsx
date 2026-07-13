@@ -274,7 +274,7 @@ function MeshGradient() {
       <div
         className="absolute w-[800px] h-[800px] rounded-full blur-[180px] opacity-20"
         style={{
-          background: "radial-gradient(circle, rgba(167,139,250,0.4), rgba(129,140,248,0.2), transparent)",
+          background: "radial-gradient(circle, rgba(167,139,250,0.4), rgba(75,108,246,0.2), transparent)",
           left: `${30 + Math.sin(time) * 10}%`,
           top: `${10 + Math.cos(time * 0.7) * 8}%`,
           transform: "translate(-50%, -50%)",
@@ -1273,7 +1273,7 @@ function DashboardPreview() {
                 className="flex-1 rounded-t transition-all duration-700 hover:opacity-100"
                 style={{
                   height: `${h}%`,
-                  background: `linear-gradient(to top, rgba(167,139,250,${i === 11 ? 0.8 : 0.2}), rgba(129,140,248,${i === 11 ? 0.5 : 0.05}))`,
+                  background: `linear-gradient(to top, rgba(167,139,250,${i === 11 ? 0.8 : 0.2}), rgba(75,108,246,${i === 11 ? 0.5 : 0.05}))`,
                 }}
               />
             ))}
@@ -1282,7 +1282,7 @@ function DashboardPreview() {
         <div className="p-4 rounded-xl bg-gradient-to-br from-gray-50/80 to-white border border-gray-200/30">
           <div className="text-[9px] text-gray-400 uppercase tracking-wider mb-3 font-semibold">{tr("Статусы", "Holatlar")}</div>
           <div className="space-y-3">
-            {[{ l: tr("Новые", "Yangi"), v: 23, c: "#c7c9f8" }, { l: tr("В работе", "Jarayonda"), v: 15, c: "#fbbf24" }, { l: tr("Выполнены", "Bajarildi"), v: 89, c: "#4ade80" }].map((s) => (
+            {[{ l: tr("Новые", "Yangi"), v: 23, c: "#c7c9f8" }, { l: tr("В работе", "Jarayonda"), v: 15, c: "#e8a830" }, { l: tr("Выполнены", "Bajarildi"), v: 89, c: "#34c473" }].map((s) => (
               <div key={s.l}>
                 <div className="flex justify-between text-[11px] mb-1">
                   <div className="flex items-center gap-1.5">
@@ -1316,11 +1316,11 @@ function MapPreview() {
         <path d="M0,270 L600,270" stroke="#fff" strokeWidth="3" fill="none" opacity="0.55" />
         <path d="M150,0 L150,360" stroke="#fff" strokeWidth="3" fill="none" opacity="0.55" />
         <path d="M450,0 L450,360" stroke="#fff" strokeWidth="3" fill="none" opacity="0.55" />
-        <rect x="85" y="55" width="50" height="28" rx="2" fill="var(--color-text-tertiary, #9ca3af)" opacity="0.45" />
-        <rect x="160" y="55" width="35" height="24" rx="2" fill="var(--color-text-tertiary, #9ca3af)" opacity="0.45" />
-        <rect x="310" y="55" width="45" height="26" rx="2" fill="var(--color-text-tertiary, #9ca3af)" opacity="0.45" />
-        <rect x="85" y="195" width="45" height="30" rx="2" fill="var(--color-text-tertiary, #9ca3af)" opacity="0.45" />
-        <rect x="310" y="195" width="50" height="28" rx="2" fill="var(--color-text-tertiary, #9ca3af)" opacity="0.45" />
+        <rect x="85" y="55" width="50" height="28" rx="2" fill="var(--color-text-tertiary, #98a0b8)" opacity="0.45" />
+        <rect x="160" y="55" width="35" height="24" rx="2" fill="var(--color-text-tertiary, #98a0b8)" opacity="0.45" />
+        <rect x="310" y="55" width="45" height="26" rx="2" fill="var(--color-text-tertiary, #98a0b8)" opacity="0.45" />
+        <rect x="85" y="195" width="45" height="30" rx="2" fill="var(--color-text-tertiary, #98a0b8)" opacity="0.45" />
+        <rect x="310" y="195" width="50" height="28" rx="2" fill="var(--color-text-tertiary, #98a0b8)" opacity="0.45" />
         <rect x="460" y="100" width="70" height="50" rx="8" fill="rgba(74,222,128,.10)" opacity="0.4" />
         <rect x="60" y="290" width="60" height="40" rx="8" fill="rgba(74,222,128,.10)" opacity="0.4" />
         <ellipse cx="520" cy="290" rx="45" ry="25" fill="#60a5fa" opacity="0.3" />

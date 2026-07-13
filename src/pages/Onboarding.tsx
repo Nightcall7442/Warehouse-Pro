@@ -53,7 +53,7 @@ function StepWarehouse({ onNext }: { onNext: () => void }) {
   return (
     <div className="space-y-5 animate-fade-up">
       <div>
-        <p className="text-[11px] font-semibold tracking-[.12em] uppercase mb-2" style={{ color: "#818cf8" }}>
+        <p className="text-[11px] font-semibold tracking-[.12em] uppercase mb-2" style={{ color: "#4b6cf6" }}>
           ШАГ 1 ИЗ 3
         </p>
         <h2 className="font-display text-2xl text-text-primary">Настройте склад</h2>
@@ -103,7 +103,7 @@ function StepProduct({ onNext }: { onNext: () => void }) {
   return (
     <div className="space-y-5 animate-fade-up">
       <div>
-        <p className="text-[11px] font-semibold tracking-[.12em] uppercase mb-2" style={{ color: "#818cf8" }}>
+        <p className="text-[11px] font-semibold tracking-[.12em] uppercase mb-2" style={{ color: "#4b6cf6" }}>
           ШАГ 2 ИЗ 3
         </p>
         <h2 className="font-display text-2xl text-text-primary">Добавьте первый товар</h2>
@@ -172,7 +172,7 @@ function StepInvite({ onFinish }: { onFinish: () => void }) {
   return (
     <div className="space-y-5 animate-fade-up">
       <div>
-        <p className="text-[11px] font-semibold tracking-[.12em] uppercase mb-2" style={{ color: "#818cf8" }}>
+        <p className="text-[11px] font-semibold tracking-[.12em] uppercase mb-2" style={{ color: "#4b6cf6" }}>
           ШАГ 3 ИЗ 3
         </p>
         <h2 className="font-display text-2xl text-text-primary">Пригласите первого агента</h2>
@@ -222,7 +222,7 @@ function StepDone({ onFinish }: { onFinish: () => void }) {
   return (
     <div className="text-center py-8 animate-fade-up">
       <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
-        style={{ background: "rgba(129,140,248,.15)" }}>
+        style={{ background: "rgba(75,108,246,.15)" }}>
         <Sparkles size={32} className="text-primary" />
       </div>
       <h2 className="font-display text-2xl text-text-primary mb-2">🎉 Всё готово!</h2>
@@ -249,7 +249,7 @@ export default function Onboarding() {
 
         {/* Лого */}
         <div className="flex items-center gap-2.5 mb-10">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "#818cf8" }}>
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "#4b6cf6" }}>
             <Warehouse size={16} color="#fff" />
           </div>
           <span className="font-display text-sm text-text-primary">Warehouse Pro</span>

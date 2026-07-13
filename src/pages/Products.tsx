@@ -16,11 +16,11 @@ import { exportToExcel, formatProductsForExport } from "@/lib/excel";
 // Premium Design Constants
 const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
 const COLORS = {
-  primary: "#818cf8", success: "#4ade80",
-  warning: "#fbbf24", danger: "#f87171",
-  surface: "var(--color-surface, #ffffff)", surfaceLight: "var(--color-surface-light, #f8f9fb)",
-  textPrimary: "var(--color-text-primary, #111827)", textSecondary: "var(--color-text-secondary, #6b7280)",
-  textTertiary: "var(--color-text-tertiary, #9ca3af)", border: "var(--color-border, #f3f4f6)",
+  primary: "#4b6cf6", success: "#34c473",
+  warning: "#e8a830", danger: "#e85050",
+  surface: "var(--color-surface, #ffffff)", surfaceLight: "var(--color-surface-light, #f0f3f8)",
+  textPrimary: "var(--color-text-primary, #2b3450)", textSecondary: "var(--color-text-secondary, #6a7290)",
+  textTertiary: "var(--color-text-tertiary, #98a0b8)", border: "var(--color-border, #f0f3f8)",
 };
 const SHADOW = "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04))";
 
@@ -52,7 +52,7 @@ function KpiCard({ label, value, delta, icon, gradient, delay }: {
         <div style={{
           display: "flex", alignItems: "center", gap: "4px", marginTop: "10px",
           fontSize: "12px", fontWeight: 600, fontFamily: F.body,
-          color: isPositive ? "#4ade80" : isNegative ? "#f87171" : COLORS.textTertiary,
+          color: isPositive ? "#34c473" : isNegative ? "#e85050" : COLORS.textTertiary,
         }}>
           {isPositive ? <ArrowUpRight size={14} /> : isNegative ? <ArrowDownRight size={14} /> : <Minus size={14} />}
           {Math.abs(delta).toFixed(1)}%
@@ -94,7 +94,7 @@ function ProductPhoto({ productId, photoUrl, size = "md" }: { productId: number;
   return (
     <div className="relative group" onClick={e => e.stopPropagation()}>
       <div className={`${dim} rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0 cursor-pointer border border-border-subtle`}
-        style={{ background: "rgba(129,140,248,.08)" }}
+        style={{ background: "rgba(75,108,246,.08)" }}
         onClick={() => fileRef.current?.click()}>
         {upload.isPending ? <Loader2 size={iconSize} className="text-primary animate-spin" />
           : photoUrl ? <img src={photoUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
@@ -138,8 +138,8 @@ function ProductForm({ onSave, onCancel, isPending, lang }: { onSave: (d: Record
             width: "80px", height: "80px", borderRadius: "16px", overflow: "hidden",
             display: "flex", alignItems: "center", justifyContent: "center",
             cursor: "pointer", position: "relative",
-            background: "rgba(129,140,248,.08)",
-            border: "1px solid var(--color-border, #f3f4f6)",
+            background: "rgba(75,108,246,.08)",
+            border: "1px solid var(--color-border, #f0f3f8)",
           }} onClick={()=>fileRef.current?.click()}>
             {photo ? <img src={photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }}/> : <Package size={28} style={{ color: COLORS.primary }}/>}
             <div style={{
@@ -256,8 +256,8 @@ const ProductCard = memo(function ProductCard({ p, onClick, onDelete, selected, 
           <span style={{
             marginLeft: "auto", fontSize: "12px", fontFamily: F.body, fontWeight: 600,
             padding: "2px 8px", borderRadius: "6px",
-            background: low ? "rgba(248,113,113,0.15)" : "rgba(74,222,128,0.15)",
-            color: low ? "#f87171" : "#4ade80",
+            background: low ? "rgba(232,80,80,0.15)" : "rgba(74,222,128,0.15)",
+            color: low ? "#e85050" : "#34c473",
           }}>
             {Number(p.available??0).toFixed(0)} {u}
           </span>
@@ -265,15 +265,15 @@ const ProductCard = memo(function ProductCard({ p, onClick, onDelete, selected, 
             onClick={e => { e.stopPropagation(); onDelete(Number(p.id)); }}
             style={{
               width: "28px", height: "28px", borderRadius: "8px", border: "none",
-              background: "rgba(248,113,113,0.1)", cursor: "pointer",
+              background: "rgba(232,80,80,0.1)", cursor: "pointer",
               display: "flex", alignItems: "center", justifyContent: "center",
               transition: "all 0.15s", flexShrink: 0,
             }}
-            onMouseEnter={e => { e.currentTarget.style.background = "rgba(248,113,113,0.2)"; }}
-            onMouseLeave={e => { e.currentTarget.style.background = "rgba(248,113,113,0.1)"; }}
+            onMouseEnter={e => { e.currentTarget.style.background = "rgba(232,80,80,0.2)"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "rgba(232,80,80,0.1)"; }}
             title={t("Удалить","O'chirish")}
           >
-            <Trash2 size={13} style={{ color: "#f87171" }} />
+            <Trash2 size={13} style={{ color: "#e85050" }} />
           </button>
         </div>
       </div>
@@ -397,8 +397,8 @@ export default function Products() {
               display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
               fontSize: "13px", fontWeight: 500, fontFamily: F.body, borderRadius: "10px",
               border: "none", cursor: "pointer",
-              background: "linear-gradient(135deg, #818cf8, #6366f1)", color: "#fff",
-              boxShadow: "0 2px 8px rgba(129,140,248,0.3)",
+              background: "linear-gradient(135deg, #4b6cf6, #4b6cf6)", color: "#fff",
+              boxShadow: "0 2px 8px rgba(75,108,246,0.3)",
             }}
           >
             <Plus size={14}/><span className="hidden sm:inline">{t("Добавить","Qo'shish")}</span>
@@ -419,7 +419,7 @@ export default function Products() {
           value={String(totalCount)}
           delta={null}
           icon={<Box size={20} color="#fff" />}
-          gradient="linear-gradient(135deg, #818cf8, #6366f1)"
+          gradient="linear-gradient(135deg, #4b6cf6, #4b6cf6)"
           delay={0}
         />
         <KpiCard
@@ -443,7 +443,7 @@ export default function Products() {
           value={`p.${page}`}
           delta={null}
           icon={<BarChart3 size={20} color="#fff" />}
-          gradient="linear-gradient(135deg, #a78bfa, #818cf8)"
+          gradient="linear-gradient(135deg, #a78bfa, #4b6cf6)"
           delay={0.15}
         />
       </div>
@@ -477,10 +477,10 @@ export default function Products() {
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
           padding: "12px 20px", borderRadius: "14px",
-          background: "var(--color-primary-subtle, rgba(129,140,248,.10))",
-          border: "1px solid rgba(129,140,248,.20)",
+          background: "var(--color-primary-subtle, rgba(75,108,246,.10))",
+          border: "1px solid rgba(75,108,246,.20)",
         }}>
-          <span style={{ fontSize: "13px", fontWeight: 600, color: "#818cf8" }}>
+          <span style={{ fontSize: "13px", fontWeight: 600, color: "#4b6cf6" }}>
             {selected.size} {t("выбрано","tanlangan")}
           </span>
           <div style={{ display: "flex", gap: "8px" }}>
@@ -492,7 +492,7 @@ export default function Products() {
                 display: "flex", alignItems: "center", gap: "5px", padding: "6px 14px",
                 fontSize: "12px", fontWeight: 600, borderRadius: "8px",
                 border: "none", cursor: "pointer", color: "#fff",
-                background: "#f87171", opacity: deleteMutation.isPending ? 0.5 : 1,
+                background: "#e85050", opacity: deleteMutation.isPending ? 0.5 : 1,
               }}>
               <Trash2 size={13} />{t("Удалить","O'chirish")}
             </button>
@@ -572,8 +572,8 @@ export default function Products() {
               style={{
                 padding: "8px 16px", fontSize: "13px", fontWeight: 500, fontFamily: F.body,
                 borderRadius: "8px", border: "none", cursor: "pointer",
-                background: "linear-gradient(135deg, #818cf8, #6366f1)", color: "#fff",
-                boxShadow: "0 2px 8px rgba(129,140,248,0.3)",
+                background: "linear-gradient(135deg, #4b6cf6, #4b6cf6)", color: "#fff",
+                boxShadow: "0 2px 8px rgba(75,108,246,0.3)",
                 opacity: page*25>=data.total ? 0.5 : 1,
               }}
             >

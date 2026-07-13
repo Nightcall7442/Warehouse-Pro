@@ -19,7 +19,7 @@ export interface ProgressRingProps {
 export const ProgressRing = memo(function ProgressRing({
   value,
   trackColor,
-  color = "var(--color-primary, #818cf8)",
+  color = "var(--color-primary, #4b6cf6)",
   size = 88,
   strokeWidth = 7,
   label,
@@ -55,7 +55,7 @@ export const ProgressRing = memo(function ProgressRing({
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke={trackColor ?? "var(--color-border, #f3f4f6)"}
+          stroke={trackColor ?? "var(--color-border, #f0f3f8)"}
           strokeWidth={strokeWidth}
         />
         {/* Value arc */}
@@ -78,7 +78,7 @@ export const ProgressRing = memo(function ProgressRing({
           fontFamily: "'DM Sans', sans-serif",
           fontWeight: 700,
           fontSize: size > 80 ? "18px" : "14px",
-          color: "var(--color-text-primary, #111827)",
+          color: "var(--color-text-primary, #2b3450)",
           pointerEvents: "none",
         }}>
           {label}

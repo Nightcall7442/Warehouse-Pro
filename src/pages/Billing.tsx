@@ -9,19 +9,19 @@ import {
 
 // ── Premium Design Tokens ────────────────────────────────────────────────────
 const COLORS = {
-  primary: "#818cf8",
-  primaryLight: "#818cf8",
-  primaryDark: "#6366f1",
-  gradientStart: "#818cf8",
+  primary: "#4b6cf6",
+  primaryLight: "#4b6cf6",
+  primaryDark: "#4b6cf6",
+  gradientStart: "#4b6cf6",
   gradientEnd: "#c7c9f8",
-  success: "#4ade80",
-  warning: "#fbbf24",
-  danger: "#f87171",
+  success: "#34c473",
+  warning: "#e8a830",
+  danger: "#e85050",
   surface: "var(--color-surface, #ffffff)",
-  surfaceDark: "var(--color-surface-light, #f8f9fb)",
-  textPrimary: "var(--color-text-primary, #111827)",
-  textSecondary: "var(--color-text-secondary, #6b7280)",
-  textTertiary: "var(--color-text-tertiary, #9ca3af)",
+  surfaceDark: "var(--color-surface-light, #f0f3f8)",
+  textPrimary: "var(--color-text-primary, #2b3450)",
+  textSecondary: "var(--color-text-secondary, #6a7290)",
+  textTertiary: "var(--color-text-tertiary, #98a0b8)",
 };
 
 const FONTS = {
@@ -39,11 +39,11 @@ const SHADOWS = {
 };
 
 const GRADIENTS = {
-  hero: `linear-gradient(135deg, color-mix(in srgb, var(--color-primary, #818cf8) 8%, var(--color-surface, #eff6ff)) 0%, var(--color-surface, #ffffff) 100%)`,
-  heroExpired: `linear-gradient(135deg, color-mix(in srgb, var(--color-danger, #f87171) 8%, var(--color-surface, #fee2e2)) 0%, var(--color-surface, #ffffff) 100%)`,
+  hero: `linear-gradient(135deg, color-mix(in srgb, var(--color-primary, #4b6cf6) 8%, var(--color-surface, #eff6ff)) 0%, var(--color-surface, #ffffff) 100%)`,
+  heroExpired: `linear-gradient(135deg, color-mix(in srgb, var(--color-danger, #e85050) 8%, var(--color-surface, #fee2e2)) 0%, var(--color-surface, #ffffff) 100%)`,
   button: `linear-gradient(135deg, ${COLORS.gradientStart}, ${COLORS.gradientEnd})`,
   buttonHover: `linear-gradient(135deg, ${COLORS.primaryDark}, #9333ea)`,
-  card: `linear-gradient(180deg, var(--color-surface, #ffffff) 0%, var(--color-surface-light, #f8f9fb) 100%)`,
+  card: `linear-gradient(180deg, var(--color-surface, #ffffff) 0%, var(--color-surface-light, #f0f3f8) 100%)`,
 };
 
 const ANIMATIONS = {
@@ -51,7 +51,7 @@ const ANIMATIONS = {
   slideUp: "@keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }",
   pulse: "@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }",
   progressFill: "@keyframes progressFill { from { width: 0; } }",
-  glowPulse: "@keyframes glowPulse { 0%, 100% { box-shadow: 0 0 20px rgba(129,140,248,0.1); } 50% { box-shadow: 0 0 30px rgba(129,140,248,0.2); } }",
+  glowPulse: "@keyframes glowPulse { 0%, 100% { box-shadow: 0 0 20px rgba(75,108,246,0.1); } 50% { box-shadow: 0 0 30px rgba(75,108,246,0.2); } }",
 };
 
 // ── Usage meter (premium) ────────────────────────────────────────────────────
@@ -314,7 +314,7 @@ export default function BillingPage() {
           width: "160px",
           height: "160px",
           borderRadius: "50%",
-          background: isExpired ? "#f87171" : "#818cf8",
+          background: isExpired ? "#e85050" : "#4b6cf6",
           opacity: 0.06,
           filter: "blur(40px)",
         }} />
@@ -325,7 +325,7 @@ export default function BillingPage() {
           width: "120px",
           height: "120px",
           borderRadius: "50%",
-          background: isExpired ? "#f87171" : "#818cf8",
+          background: isExpired ? "#e85050" : "#4b6cf6",
           opacity: 0.04,
           filter: "blur(50px)",
         }} />
@@ -499,7 +499,7 @@ export default function BillingPage() {
                         fontSize: "10px",
                         fontWeight: "600",
                         color: COLORS.primary,
-                        background: "rgba(129,140,248,.15)",
+                        background: "rgba(75,108,246,.15)",
                       }}>
                         {t("ТЕКУЩИЙ", "JORIY")}
                       </span>
@@ -560,7 +560,7 @@ export default function BillingPage() {
                         justifyContent: "center",
                         flexShrink: 0,
                       }}>
-                        <Check size={12} style={{ color: "#4ade80" }} />
+                        <Check size={12} style={{ color: "#34c473" }} />
                       </div>
                       <span style={{ color: COLORS.textSecondary }}>
                         <span style={{
@@ -653,7 +653,7 @@ export default function BillingPage() {
             width: "40px",
             height: "40px",
             borderRadius: "12px",
-            background: "rgba(129,140,248,.12)",
+            background: "rgba(75,108,246,.12)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",

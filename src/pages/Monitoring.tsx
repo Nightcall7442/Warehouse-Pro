@@ -18,11 +18,11 @@ const REFRESH_INTERVAL = 3_000;
 // ── Premium design tokens ─────────────────────────────────────────────────────
 const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
 const COLORS = {
-  primary: "#818cf8", success: "#4ade80",
-  warning: "#fbbf24", danger: "#f87171",
-  surface: "var(--color-surface, #ffffff)", surfaceLight: "var(--color-surface-light, #f8f9fb)",
-  textPrimary: "var(--color-text-primary, #111827)", textSecondary: "var(--color-text-secondary, #6b7280)",
-  textTertiary: "var(--color-text-tertiary, #9ca3af)", border: "var(--color-border, #f3f4f6)",
+  primary: "#4b6cf6", success: "#34c473",
+  warning: "#e8a830", danger: "#e85050",
+  surface: "var(--color-surface, #ffffff)", surfaceLight: "var(--color-surface-light, #f0f3f8)",
+  textPrimary: "var(--color-text-primary, #2b3450)", textSecondary: "var(--color-text-secondary, #6a7290)",
+  textTertiary: "var(--color-text-tertiary, #98a0b8)", border: "var(--color-border, #f0f3f8)",
   info: "#60a5fa",
 };
 const SHADOW = "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04))";
@@ -71,7 +71,7 @@ function ChartTooltip({ active, payload, label }: any) {
       {payload.map((p: any, i: number) => (
         <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "16px", marginTop: "4px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: p.color ?? "#818cf8" }} />
+            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: p.color ?? "#4b6cf6" }} />
             <span style={{ fontSize: "12px", color: COLORS.textSecondary }}>{p.name}</span>
           </div>
           <span style={{ fontSize: "13px", fontWeight: 600, color: COLORS.textPrimary, fontFamily: F.display }}>
@@ -89,8 +89,8 @@ function Badge({ status, label }: { status: string; label: string }) {
     ok: { fg: COLORS.success, bg: "rgba(74,222,128,.12)" },
     connected: { fg: COLORS.success, bg: "rgba(74,222,128,.12)" },
     degraded: { fg: COLORS.warning, bg: "rgba(251,191,36,.12)" },
-    error: { fg: COLORS.danger, bg: "rgba(248,113,113,.12)" },
-    disconnected: { fg: COLORS.danger, bg: "rgba(248,113,113,.12)" },
+    error: { fg: COLORS.danger, bg: "rgba(232,80,80,.12)" },
+    disconnected: { fg: COLORS.danger, bg: "rgba(232,80,80,.12)" },
   };
   const s = map[status] ?? map.error;
   const Icon = status === "ok" || status === "connected" ? CheckCircle2 : XCircle;
@@ -133,7 +133,7 @@ function KpiCard({ label, value, delta, sub, icon: Icon, gradient, delay }: {
         <div style={{
           display: "flex", alignItems: "center", gap: "4px", marginTop: "10px",
           fontSize: "12px", fontWeight: 600, fontFamily: F.body,
-          color: isPositive ? "#4ade80" : isNegative ? "#f87171" : COLORS.textTertiary,
+          color: isPositive ? "#34c473" : isNegative ? "#e85050" : COLORS.textTertiary,
         }}>
           {isPositive ? <ArrowUpRight size={14} /> : isNegative ? <ArrowDownRight size={14} /> : <Minus size={14} />}
           {Math.abs(delta).toFixed(1)}%
@@ -162,7 +162,7 @@ function Section({ title, icon: Icon, children, className = "", actions, delay =
           <div style={{
             width: "28px", height: "28px", borderRadius: "8px",
             display: "flex", alignItems: "center", justifyContent: "center",
-            background: "rgba(129,140,248,.10)", color: COLORS.primary,
+            background: "rgba(75,108,246,.10)", color: COLORS.primary,
           }}>
             <Icon size={14} />
           </div>
@@ -221,7 +221,7 @@ function ErrorDetailModal({ errorId, onClose }: { errorId: string; onClose: () =
             <div style={{
               width: "40px", height: "40px", borderRadius: "12px",
               display: "flex", alignItems: "center", justifyContent: "center",
-              background: "rgba(248,113,113,.10)", color: COLORS.danger,
+              background: "rgba(232,80,80,.10)", color: COLORS.danger,
             }}>
               <AlertCircle size={20} />
             </div>
@@ -435,7 +435,7 @@ export default function Monitoring() {
           >
             <div style={{
               width: "6px", height: "6px", borderRadius: "50%",
-              background: autoRefresh ? COLORS.success : "var(--color-text-tertiary, #9ca3af)",
+              background: autoRefresh ? COLORS.success : "var(--color-text-tertiary, #98a0b8)",
               animation: autoRefresh ? "pulse 2s infinite" : undefined,
             }} />
             {autoRefresh ? "Live" : "Paused"}
@@ -565,7 +565,7 @@ export default function Monitoring() {
               ["PID", <span style={{ fontFamily: "monospace", fontSize: "12px", color: COLORS.textSecondary }}>{data?.server.pid}</span>],
               ["Окружение", <span style={{
                 fontFamily: F.body, fontSize: "11px", fontWeight: 600, padding: "2px 8px", borderRadius: "12px",
-                background: data?.server.environment === "production" ? "rgba(248,113,113,.10)" : "rgba(96,165,250,.10)",
+                background: data?.server.environment === "production" ? "rgba(232,80,80,.10)" : "rgba(96,165,250,.10)",
                 color: data?.server.environment === "production" ? COLORS.danger : COLORS.info,
               }}>{data?.server.environment}</span>],
             ].map(([label, val], i) => (
@@ -630,9 +630,9 @@ export default function Monitoring() {
                   style={{
                     padding: "4px 8px", borderRadius: "6px", fontSize: "10px", fontWeight: 600,
                     fontFamily: F.body, cursor: "pointer", transition: "all 0.2s",
-                    background: errorFilter === code ? "rgba(129,140,248,.10)" : "transparent",
+                    background: errorFilter === code ? "rgba(75,108,246,.10)" : "transparent",
                     color: errorFilter === code ? COLORS.primary : COLORS.textTertiary,
-                    border: `1px solid ${errorFilter === code ? "rgba(129,140,248,.20)" : COLORS.border}`,
+                    border: `1px solid ${errorFilter === code ? "rgba(75,108,246,.20)" : COLORS.border}`,
                   }}
                 >
                   {code || "Все"}

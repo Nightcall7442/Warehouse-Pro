@@ -47,7 +47,7 @@ function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card-description"
       className={cn("text-sm", className)}
-      style={{ color: "var(--color-text-tertiary, #9ca3af)" }}
+      style={{ color: "var(--color-text-tertiary, #98a0b8)" }}
       {...props}
     />
   )

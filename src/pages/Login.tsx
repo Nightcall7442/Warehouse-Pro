@@ -90,7 +90,7 @@ export default function Login() {
             borderRadius: 24, background: "rgba(255,255,255,0.1)", backdropFilter: "blur(8px)",
             border: "1px solid rgba(255,255,255,0.15)", marginBottom: 32, alignSelf: "flex-start",
           }}>
-            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 8px rgba(74,222,128,0.5)" }} />
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#34c473", boxShadow: "0 0 8px rgba(74,222,128,0.5)" }} />
             <span style={{ fontSize: "11px", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "rgba(255,255,255,0.9)" }}>
               {tr("Система управления складом", "Ombor boshqaruv tizimi")}
             </span>
@@ -125,7 +125,7 @@ export default function Login() {
         <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "13px", color: "rgba(255,255,255,0.5)", zIndex: 1 }}>
           <p>© 2025 Warehouse Pro</p>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#4ade80" }} />
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#34c473" }} />
             <span>v2.5.0</span>
           </div>
         </div>
@@ -156,10 +156,10 @@ export default function Login() {
 
             {/* Header */}
             <div style={{ marginBottom: 36 }}>
-              <h2 style={{ fontFamily: F.display, fontSize: "32px", fontWeight: 700, color: "var(--color-text-primary, #111827)", margin: "0 0 8px", letterSpacing: "-0.02em" }}>
+              <h2 style={{ fontFamily: F.display, fontSize: "32px", fontWeight: 700, color: "var(--color-text-primary, #2b3450)", margin: "0 0 8px", letterSpacing: "-0.02em" }}>
                 {tr("Добро пожаловать", "Xush kelibsiz")}
               </h2>
-              <p style={{ fontSize: "15px", color: "var(--color-text-secondary, #6b7280)", margin: 0 }}>
+              <p style={{ fontSize: "15px", color: "var(--color-text-secondary, #6a7290)", margin: 0 }}>
                 {tr("Войдите в свой аккаунт", "Hisobingizga kiring")}
               </p>
             </div>
@@ -167,16 +167,16 @@ export default function Login() {
             <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
               {/* Email */}
               <div>
-                <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary, #111827)", marginBottom: 8 }}>Email</label>
+                <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary, #2b3450)", marginBottom: 8 }}>Email</label>
                 <div style={{ position: "relative" }}>
-                  <Mail size={18} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--color-text-tertiary, #9ca3af)", pointerEvents: "none" }} />
+                  <Mail size={18} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--color-text-tertiary, #98a0b8)", pointerEvents: "none" }} />
                   <input type="email" style={{
                     width: "100%", padding: "14px 14px 14px 44px", borderRadius: 14,
-                    fontSize: "15px", fontFamily: F.body, color: "var(--color-text-primary, #111827)",
-                    background: "var(--color-surface-light, #f8f9fb)", border: "2px solid transparent",
+                    fontSize: "15px", fontFamily: F.body, color: "var(--color-text-primary, #2b3450)",
+                    background: "var(--color-surface-light, #f0f3f8)", border: "2px solid transparent",
                     outline: "none", transition: "all 0.2s ease",
                   }} placeholder="you@company.com" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" disabled={isPending}
-                    onFocus={e => { e.currentTarget.style.borderColor = "#818cf8"; e.currentTarget.style.boxShadow = "0 0 0 4px rgba(129,140,248,.10)"; }}
+                    onFocus={e => { e.currentTarget.style.borderColor = "#4b6cf6"; e.currentTarget.style.boxShadow = "0 0 0 4px rgba(75,108,246,.10)"; }}
                     onBlur={e => { e.currentTarget.style.borderColor = "transparent"; e.currentTarget.style.boxShadow = "none"; }}
                   />
                 </div>
@@ -184,19 +184,19 @@ export default function Login() {
 
               {/* Password */}
               <div>
-                <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary, #111827)", marginBottom: 8 }}>{tr("Пароль", "Parol")}</label>
+                <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary, #2b3450)", marginBottom: 8 }}>{tr("Пароль", "Parol")}</label>
                 <div style={{ position: "relative" }}>
-                  <Lock size={18} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--color-text-tertiary, #9ca3af)", pointerEvents: "none" }} />
+                  <Lock size={18} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--color-text-tertiary, #98a0b8)", pointerEvents: "none" }} />
                   <input type={showPw ? "text" : "password"} style={{
                     width: "100%", padding: "14px 48px 14px 44px", borderRadius: 14,
-                    fontSize: "15px", fontFamily: F.body, color: "var(--color-text-primary, #111827)",
-                    background: "var(--color-surface-light, #f8f9fb)", border: "2px solid transparent",
+                    fontSize: "15px", fontFamily: F.body, color: "var(--color-text-primary, #2b3450)",
+                    background: "var(--color-surface-light, #f0f3f8)", border: "2px solid transparent",
                     outline: "none", transition: "all 0.2s ease",
                   }} placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" disabled={isPending}
-                    onFocus={e => { e.currentTarget.style.borderColor = "#818cf8"; e.currentTarget.style.boxShadow = "0 0 0 4px rgba(129,140,248,.10)"; }}
+                    onFocus={e => { e.currentTarget.style.borderColor = "#4b6cf6"; e.currentTarget.style.boxShadow = "0 0 0 4px rgba(75,108,246,.10)"; }}
                     onBlur={e => { e.currentTarget.style.borderColor = "transparent"; e.currentTarget.style.boxShadow = "none"; }}
                   />
-                  <button type="button" onClick={() => setShowPw(!showPw)} style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--color-text-tertiary, #9ca3af)", padding: 0 }} tabIndex={-1}>
+                  <button type="button" onClick={() => setShowPw(!showPw)} style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--color-text-tertiary, #98a0b8)", padding: 0 }} tabIndex={-1}>
                     {showPw ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
@@ -204,7 +204,7 @@ export default function Login() {
 
               {/* Forgot password link */}
               <div style={{ textAlign: "right", marginTop: -8 }}>
-                <Link to="/forgot-password" style={{ fontSize: 13, color: "#818cf8", textDecoration: "none", fontWeight: 500 }}>
+                <Link to="/forgot-password" style={{ fontSize: 13, color: "#4b6cf6", textDecoration: "none", fontWeight: 500 }}>
                   {tr("Забыли пароль?", "Parolni unutdingizmi?")}
                 </Link>
               </div>
@@ -213,7 +213,7 @@ export default function Login() {
               {error && (
                 <div style={{
                   display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderRadius: 12,
-                  background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.15)", fontSize: "13px", fontWeight: 500, color: "#f87171",
+                  background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.15)", fontSize: "13px", fontWeight: 500, color: "#e85050",
                 }}>
                   <AlertCircle size={16} />
                   <span>{error}</span>
@@ -224,8 +224,8 @@ export default function Login() {
               <button type="submit" disabled={isPending} style={{
                 width: "100%", padding: "14px 24px", borderRadius: 14, fontSize: "15px", fontWeight: 600,
                 fontFamily: F.body, color: "#fff", border: "none", cursor: "pointer",
-                background: "linear-gradient(135deg, #818cf8, #6366f1)",
-                boxShadow: "0 4px 16px rgba(129,140,248,.30), inset 0 1px 0 rgba(255,255,255,0.12)",
+                background: "linear-gradient(135deg, #4b6cf6, #4b6cf6)",
+                boxShadow: "0 4px 16px rgba(75,108,246,.30), inset 0 1px 0 rgba(255,255,255,0.12)",
                 opacity: isPending ? 0.6 : 1, transition: "all 0.2s ease",
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
               }}>
@@ -236,10 +236,10 @@ export default function Login() {
             </form>
 
             {/* Register */}
-            <div style={{ marginTop: 32, paddingTop: 24, borderTop: "1px solid var(--color-border, #f3f4f6)", textAlign: "center" }}>
-              <p style={{ fontSize: "14px", color: "var(--color-text-secondary, #6b7280)", margin: 0 }}>
+            <div style={{ marginTop: 32, paddingTop: 24, borderTop: "1px solid var(--color-border, #f0f3f8)", textAlign: "center" }}>
+              <p style={{ fontSize: "14px", color: "var(--color-text-secondary, #6a7290)", margin: 0 }}>
                 {tr("Нет аккаунта?", "Hisobingiz yo'qmi?")}{" "}
-                <Link to="/register" style={{ fontWeight: 600, color: "#818cf8", textDecoration: "none" }}>
+                <Link to="/register" style={{ fontWeight: 600, color: "#4b6cf6", textDecoration: "none" }}>
                   {tr("Создать", "Yaratish")}
                 </Link>
               </p>

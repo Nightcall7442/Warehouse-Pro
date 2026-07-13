@@ -14,11 +14,11 @@ import { PremiumSelect } from "@/components/PremiumSelect";
 // ── Premium design tokens ─────────────────────────────────────────────────────
 const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
 const COLORS = {
-  primary: "#818cf8", success: "#4ade80",
-  warning: "#fbbf24", danger: "#f87171",
-  surface: "var(--color-surface, #ffffff)", surfaceLight: "var(--color-surface-light, #f8f9fb)",
-  textPrimary: "var(--color-text-primary, #111827)", textSecondary: "var(--color-text-secondary, #6b7280)",
-  textTertiary: "var(--color-text-tertiary, #9ca3af)", border: "var(--color-border, #f3f4f6)",
+  primary: "#4b6cf6", success: "#34c473",
+  warning: "#e8a830", danger: "#e85050",
+  surface: "var(--color-surface, #ffffff)", surfaceLight: "var(--color-surface-light, #f0f3f8)",
+  textPrimary: "var(--color-text-primary, #2b3450)", textSecondary: "var(--color-text-secondary, #6a7290)",
+  textTertiary: "var(--color-text-tertiary, #98a0b8)", border: "var(--color-border, #f0f3f8)",
   info: "#60a5fa",
 };
 const SHADOW = "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04))";
@@ -56,12 +56,12 @@ function planStatus(t: TenantRow): { label: string; color: string } {
 
 const PLAN_COLORS: Record<string, { fg: string; bg: string }> = {
   basic:     { fg: "#60a5fa",    bg: "rgba(96,165,250,0.12)" },
-  pro:       { fg: "#4ade80",    bg: "rgba(74,222,128,0.12)" },
+  pro:       { fg: "#34c473",    bg: "rgba(74,222,128,0.12)" },
   exclusive: { fg: "#a78bfa",    bg: "rgba(167,139,250,0.12)" },
 };
 const STATUS_COLORS: Record<string, { fg: string; bg: string }> = {
-  active:    { fg: "#4ade80",    bg: "rgba(74,222,128,0.12)" },
-  suspended: { fg: "#f87171",    bg: "rgba(248,113,113,0.12)" },
+  active:    { fg: "#34c473",    bg: "rgba(74,222,128,0.12)" },
+  suspended: { fg: "#e85050",    bg: "rgba(232,80,80,0.12)" },
 };
 
 function PlanBadge({ plan }: { plan: string }) {
@@ -100,7 +100,7 @@ function Section({ title, icon: Icon, children, delay = 0 }: {
   return (
     <div style={{ background: COLORS.surface, borderRadius: "20px", boxShadow: SHADOW }}>
       <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", gap: "10px", borderBottom: `1px solid ${COLORS.border}` }}>
-        <div style={{ width: "28px", height: "28px", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(129,140,248,0.1)", color: COLORS.primary }}>
+        <div style={{ width: "28px", height: "28px", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(75,108,246,0.1)", color: COLORS.primary }}>
           <Icon size={14} />
         </div>
         <h3 style={{ fontFamily: F.display, fontSize: "13px", fontWeight: 600, color: COLORS.textPrimary }}>{title}</h3>
@@ -133,7 +133,7 @@ function Input({ label, ...props }: { label: string } & React.InputHTMLAttribute
 
 function BtnPrimary({ children, disabled, onClick, style: s }: { children: React.ReactNode; disabled?: boolean; onClick?: () => void; style?: React.CSSProperties }) {
   return (
-    <button onClick={onClick} disabled={disabled} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px", padding: "10px 20px", borderRadius: "10px", fontSize: "13px", fontWeight: 600, fontFamily: F.body, color: "#fff", background: "linear-gradient(135deg, #818cf8, #6366f1)", border: "none", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1, transition: "all 0.2s", ...s }}>
+    <button onClick={onClick} disabled={disabled} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px", padding: "10px 20px", borderRadius: "10px", fontSize: "13px", fontWeight: 600, fontFamily: F.body, color: "#fff", background: "linear-gradient(135deg, #4b6cf6, #4b6cf6)", border: "none", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1, transition: "all 0.2s", ...s }}>
       {children}
     </button>
   );
@@ -153,10 +153,10 @@ function BtnSecondary({ children, onClick, style: s }: { children: React.ReactNo
 function PlatformStats() {
   const { data: stats, isLoading } = trpc.tenant.platformStats.useQuery();
   const cards = [
-    { label: "Организаций", value: stats?.tenants ?? 0, icon: Building2, gradient: "linear-gradient(135deg, #818cf8, #6366f1)" },
+    { label: "Организаций", value: stats?.tenants ?? 0, icon: Building2, gradient: "linear-gradient(135deg, #4b6cf6, #4b6cf6)" },
     { label: "Пользователей", value: stats?.users ?? 0, icon: Users, gradient: "linear-gradient(135deg, #60a5fa, #3b82f6)" },
-    { label: "Заказов", value: fmt(stats?.orders ?? 0), icon: ShoppingCart, gradient: "linear-gradient(135deg, #4ade80, #16a34a)" },
-    { label: "Выручка", value: money(stats?.revenue ?? 0) + " сум", icon: TrendingUp, gradient: "linear-gradient(135deg, #fbbf24, #d97706)" },
+    { label: "Заказов", value: fmt(stats?.orders ?? 0), icon: ShoppingCart, gradient: "linear-gradient(135deg, #34c473, #16a34a)" },
+    { label: "Выручка", value: money(stats?.revenue ?? 0) + " сум", icon: TrendingUp, gradient: "linear-gradient(135deg, #e8a830, #d97706)" },
   ];
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
@@ -196,7 +196,7 @@ function CreateTenantModal({ onClose, onCreated }: { onClose: () => void; onCrea
       <div style={{ padding: "24px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "24px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <div style={{ width: "40px", height: "40px", borderRadius: "12px", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(129,140,248,0.1)", color: COLORS.primary }}><Plus size={20} /></div>
+            <div style={{ width: "40px", height: "40px", borderRadius: "12px", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(75,108,246,0.1)", color: COLORS.primary }}><Plus size={20} /></div>
             <div>
               <h2 style={{ fontFamily: F.display, fontSize: "16px", fontWeight: 700, color: COLORS.textPrimary }}>Новая организация</h2>
               <p style={{ fontSize: "12px", color: COLORS.textTertiary }}>Создайте тенант и владельца</p>
@@ -260,9 +260,9 @@ function TenantDetail({ tenantId, onBack }: { tenantId: number; onBack: () => vo
 
   const metricCards = [
     { label: "Пользователей", value: tenantUsers.length, icon: Users, gradient: "linear-gradient(135deg, #60a5fa, #3b82f6)" },
-    { label: "Заказов", value: fmt(stats.orders), icon: ShoppingCart, gradient: "linear-gradient(135deg, #4ade80, #16a34a)" },
-    { label: "Товаров", value: fmt(stats.products), icon: Package, gradient: "linear-gradient(135deg, #818cf8, #6366f1)" },
-    { label: "Магазинов", value: fmt(stats.shops), icon: Store, gradient: "linear-gradient(135deg, #fbbf24, #d97706)" },
+    { label: "Заказов", value: fmt(stats.orders), icon: ShoppingCart, gradient: "linear-gradient(135deg, #34c473, #16a34a)" },
+    { label: "Товаров", value: fmt(stats.products), icon: Package, gradient: "linear-gradient(135deg, #4b6cf6, #4b6cf6)" },
+    { label: "Магазинов", value: fmt(stats.shops), icon: Store, gradient: "linear-gradient(135deg, #e8a830, #d97706)" },
   ];
 
   return (
@@ -285,7 +285,7 @@ function TenantDetail({ tenantId, onBack }: { tenantId: number; onBack: () => vo
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
         <button onClick={onBack} style={{ padding: "8px", borderRadius: "10px", background: COLORS.surface, border: `1px solid ${COLORS.border}`, cursor: "pointer", color: COLORS.textSecondary }}><ArrowLeft size={16} /></button>
-        <div style={{ width: "44px", height: "44px", borderRadius: "14px", background: "rgba(129,140,248,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ width: "44px", height: "44px", borderRadius: "14px", background: "rgba(75,108,246,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <span style={{ fontSize: "18px", fontWeight: 700, color: COLORS.primary }}>{tenant.name[0].toUpperCase()}</span>
         </div>
         <div style={{ flex: 1 }}>
@@ -376,7 +376,7 @@ function TenantDetail({ tenantId, onBack }: { tenantId: number; onBack: () => vo
               <div key={m.month} style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                 <span style={{ width: "72px", fontSize: "12px", color: COLORS.textSecondary, fontFamily: F.body }}>{m.month}</span>
                 <div style={{ flex: 1, height: "6px", borderRadius: "3px", background: COLORS.surfaceLight, overflow: "hidden" }}>
-                  <div style={{ height: "100%", borderRadius: "3px", background: "linear-gradient(90deg, #818cf8, #6366f1)", width: `${Math.min(100, ((m.orders ?? 0) / Math.max(1, ...monthlyOrders.map(x => x.orders ?? 0))) * 100)}%` }} />
+                  <div style={{ height: "100%", borderRadius: "3px", background: "linear-gradient(90deg, #4b6cf6, #4b6cf6)", width: `${Math.min(100, ((m.orders ?? 0) / Math.max(1, ...monthlyOrders.map(x => x.orders ?? 0))) * 100)}%` }} />
                 </div>
                 <span style={{ width: "40px", textAlign: "right", fontSize: "12px", fontWeight: 600, color: COLORS.textPrimary }}>{m.orders ?? 0}</span>
                 <span style={{ width: "100px", textAlign: "right", fontSize: "11px", color: COLORS.textTertiary }}>{money(Number(m.revenue ?? 0))} сум</span>
@@ -410,7 +410,7 @@ function AdminProfile() {
   return (
     <Section title="Мой профиль" icon={User}>
       <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "24px" }}>
-        <div style={{ width: "48px", height: "48px", borderRadius: "14px", background: "rgba(129,140,248,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}><User size={22} style={{ color: COLORS.primary }} /></div>
+        <div style={{ width: "48px", height: "48px", borderRadius: "14px", background: "rgba(75,108,246,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}><User size={22} style={{ color: COLORS.primary }} /></div>
         <div>
           <p style={{ fontFamily: F.display, fontSize: "15px", fontWeight: 600, color: COLORS.textPrimary }}>{user?.name}</p>
           <p style={{ fontSize: "12px", color: COLORS.textTertiary }}>{user?.role} · {user?.email}</p>
@@ -473,7 +473,7 @@ export default function SuperAdmin() {
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <div style={{ width: "44px", height: "44px", borderRadius: "14px", background: "linear-gradient(135deg, #818cf8, #6366f1)", display: "flex", alignItems: "center", justifyContent: "center" }}><Zap size={22} color="#fff" /></div>
+          <div style={{ width: "44px", height: "44px", borderRadius: "14px", background: "linear-gradient(135deg, #4b6cf6, #4b6cf6)", display: "flex", alignItems: "center", justifyContent: "center" }}><Zap size={22} color="#fff" /></div>
           <div>
             <h1 style={{ fontFamily: F.display, fontSize: "24px", fontWeight: 700, color: COLORS.textPrimary, letterSpacing: "-0.02em" }}>Super Admin</h1>
             <p style={{ fontSize: "13px", color: COLORS.textSecondary }}>Управление платформой</p>
@@ -526,7 +526,7 @@ export default function SuperAdmin() {
                   <tr key={t.id} style={{ borderBottom: `1px solid ${COLORS.border}`, cursor: "pointer", transition: "background 0.15s" }} onClick={() => setSelectedId(t.id)} onMouseEnter={e => (e.currentTarget.style.background = COLORS.surfaceLight)} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
                     <td style={{ padding: "12px 16px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                        <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: "rgba(129,140,248,0.1)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><span style={{ fontSize: "14px", fontWeight: 700, color: COLORS.primary }}>{t.name[0].toUpperCase()}</span></div>
+                        <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: "rgba(75,108,246,0.1)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><span style={{ fontSize: "14px", fontWeight: 700, color: COLORS.primary }}>{t.name[0].toUpperCase()}</span></div>
                         <div><p style={{ fontSize: "13px", fontWeight: 500, color: COLORS.textPrimary }}>{t.name}</p><p style={{ fontSize: "10px", color: COLORS.textTertiary }}>{t.slug}</p></div>
                       </div>
                     </td>

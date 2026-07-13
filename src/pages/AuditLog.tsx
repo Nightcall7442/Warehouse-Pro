@@ -12,11 +12,11 @@ import {
 // ── Premium design tokens ─────────────────────────────────────────────────────
 const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
 const COLORS = {
-  primary: "#818cf8", success: "#4ade80",
-  warning: "#fbbf24", danger: "#f87171",
-  surface: "var(--color-surface, #ffffff)", surfaceLight: "var(--color-surface-light, #f8f9fb)",
-  textPrimary: "var(--color-text-primary, #111827)", textSecondary: "var(--color-text-secondary, #6b7280)",
-  textTertiary: "var(--color-text-tertiary, #9ca3af)", border: "var(--color-border, #f3f4f6)",
+  primary: "#4b6cf6", success: "#34c473",
+  warning: "#e8a830", danger: "#e85050",
+  surface: "var(--color-surface, #ffffff)", surfaceLight: "var(--color-surface-light, #f0f3f8)",
+  textPrimary: "var(--color-text-primary, #2b3450)", textSecondary: "var(--color-text-secondary, #6a7290)",
+  textTertiary: "var(--color-text-tertiary, #98a0b8)", border: "var(--color-border, #f0f3f8)",
   info: "#60a5fa",
 };
 const SHADOW = "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04))";
@@ -63,7 +63,7 @@ function KpiCard({ label, value, delta, icon, gradient, delay }: {
         <div style={{
           display: "flex", alignItems: "center", gap: "4px", marginTop: "10px",
           fontSize: "12px", fontWeight: 600, fontFamily: F.body,
-          color: isPositive ? "#4ade80" : isNegative ? "#f87171" : COLORS.textTertiary,
+          color: isPositive ? "#34c473" : isNegative ? "#e85050" : COLORS.textTertiary,
         }}>
           {isPositive ? <ArrowUpRight size={14} /> : isNegative ? <ArrowDownRight size={14} /> : <Minus size={14} />}
           {Math.abs(delta).toFixed(1)}%
@@ -79,12 +79,12 @@ const ACTION_CONFIG: Record<string, {
   gradient: string;
   label: { ru: string; uz: string };
 }> = {
-  "user.updated":                    { icon: User,         gradient: "linear-gradient(135deg, #818cf8, #6366f1)", label: { ru: "Обновлён пользователь", uz: "Foydalanuvchi yangilandi" } },
-  "user.deactivated":                { icon: User,         gradient: "linear-gradient(135deg, #ef4444, #f87171)", label: { ru: "Пользователь деактивирован", uz: "Foydalanuvchi o'chirildi" } },
+  "user.updated":                    { icon: User,         gradient: "linear-gradient(135deg, #4b6cf6, #4b6cf6)", label: { ru: "Обновлён пользователь", uz: "Foydalanuvchi yangilandi" } },
+  "user.deactivated":                { icon: User,         gradient: "linear-gradient(135deg, #e85050, #e85050)", label: { ru: "Пользователь деактивирован", uz: "Foydalanuvchi o'chirildi" } },
   "user.password_reset_by_admin":    { icon: Key,          gradient: "linear-gradient(135deg, #fb923c, #f97316)", label: { ru: "Сброс пароля", uz: "Parol tiklandi" } },
-  "stock.adjusted":                  { icon: Package,      gradient: "linear-gradient(135deg, #fbbf24, #f59e0b)", label: { ru: "Корректировка склада", uz: "Ombor tahrirlandi" } },
+  "stock.adjusted":                  { icon: Package,      gradient: "linear-gradient(135deg, #e8a830, #f59e0b)", label: { ru: "Корректировка склада", uz: "Ombor tahrirlandi" } },
   "integration.onec_secret_rotated": { icon: Settings,     gradient: "linear-gradient(135deg, #10B981, #059669)", label: { ru: "Ротация ключа 1C", uz: "1C kalit almashtirildi" } },
-  "tenant.updated":                  { icon: AlertTriangle, gradient: "linear-gradient(135deg, #f87171, #ef4444)", label: { ru: "Обновлён тенант", uz: "Tench yangilandi" } },
+  "tenant.updated":                  { icon: AlertTriangle, gradient: "linear-gradient(135deg, #e85050, #e85050)", label: { ru: "Обновлён тенант", uz: "Tench yangilandi" } },
 };
 
 const ACTION_FILTERS = [
@@ -193,7 +193,7 @@ export default function AuditLog() {
                 border: "none", cursor: "pointer", transition: "all 0.2s", whiteSpace: "nowrap" as const,
                 background: active ? COLORS.primary : COLORS.surfaceLight,
                 color: active ? "#fff" : COLORS.textSecondary,
-                boxShadow: active ? "0 2px 8px rgba(129,140,248,0.25)" : "none",
+                boxShadow: active ? "0 2px 8px rgba(75,108,246,0.25)" : "none",
               }}
             >
               {f.key === "all" && <Filter size={12} />}
@@ -210,7 +210,7 @@ export default function AuditLog() {
             label={t("ВСЕГО ЗАПИСЕЙ", "JAMI YOZUVLAR")}
             value={String(data.total)}
             icon={<Shield size={20} color="#fff" />}
-            gradient="linear-gradient(135deg, #818cf8, #6366f1)"
+            gradient="linear-gradient(135deg, #4b6cf6, #4b6cf6)"
             delay={0}
           />
           <KpiCard
@@ -277,7 +277,7 @@ export default function AuditLog() {
                     cursor: "pointer", transition: "background 0.15s",
                   }}
                   onClick={() => setExpandedId(isExpanded ? null : entry.id)}
-                  onMouseEnter={e => (e.currentTarget.style.background = "rgba(129,140,248,0.02)")}
+                  onMouseEnter={e => (e.currentTarget.style.background = "rgba(75,108,246,0.02)")}
                   onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
                 >
                   {/* Gradient icon */}

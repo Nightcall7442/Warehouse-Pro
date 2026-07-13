@@ -96,7 +96,7 @@ export default function AgentGps() {
           <div className="space-y-3">
             <div
               className="w-20 h-20 rounded-full flex items-center justify-center mx-auto"
-              style={{ background: "var(--color-surface-light, #f8f9fb)" }}
+              style={{ background: "var(--color-surface-light, #f0f3f8)" }}
             >
               <MapPin size={32} className="text-text-secondary" />
             </div>
@@ -113,7 +113,7 @@ export default function AgentGps() {
           <div className="space-y-3">
             <div
               className="w-20 h-20 rounded-full flex items-center justify-center mx-auto animate-pulse"
-              style={{ background: "rgba(129,140,248,.10)" }}
+              style={{ background: "rgba(75,108,246,.10)" }}
             >
               <Loader2 size={32} className="text-primary animate-spin" />
             </div>
@@ -132,13 +132,13 @@ export default function AgentGps() {
               <CheckCircle2 size={32} className="text-success" />
             </div>
             <div>
-              <p className="font-label text-[10px] tracking-wider mb-2" style={{ color: "var(--color-text-tertiary, #9ca3af)" }}>
+              <p className="font-label text-[10px] tracking-wider mb-2" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
                 {t("КООРДИНАТЫ", "KOORDINATALAR")}
               </p>
               <p className="font-data text-text-primary text-sm">
                 {coords.lat.toFixed(6)}, {coords.lng.toFixed(6)}
               </p>
-              <p className="text-xs mt-1" style={{ color: "var(--color-text-tertiary, #9ca3af)" }}>
+              <p className="text-xs mt-1" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
                 {t("Точность:", "Aniqlik:")} ±{Math.round(coords.accuracy)} м
               </p>
             </div>
@@ -148,7 +148,7 @@ export default function AgentGps() {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 text-sm font-medium"
-                style={{ color: "#818cf8" }}
+                style={{ color: "#4b6cf6" }}
               >
                 <Navigation size={14} />
                 {t("Открыть на карте", "Xaritada ochish")}
@@ -161,7 +161,7 @@ export default function AgentGps() {
           <div className="space-y-3">
             <div
               className="w-20 h-20 rounded-full flex items-center justify-center mx-auto"
-              style={{ background: "var(--color-danger-subtle, rgba(248,113,113,.10))" }}
+              style={{ background: "var(--color-danger-subtle, rgba(232,80,80,.10))" }}
             >
               <AlertCircle size={32} className="text-danger" />
             </div>
@@ -187,14 +187,14 @@ export default function AgentGps() {
           <p className="font-medium text-text-primary text-sm">
             {t("Авто-трекинг", "Avto-kuzatish")}
           </p>
-          <p className="text-xs mt-0.5" style={{ color: "var(--color-text-tertiary, #9ca3af)" }}>
+          <p className="text-xs mt-0.5" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
             {t("Отправлять местоположение каждые 2 минуты", "Har 2 daqiqada joylashuv yuborish")}
           </p>
         </div>
         <button
           onClick={() => setAutoTrack(v => !v)}
           className="w-12 h-6 rounded-full relative transition-colors flex-shrink-0"
-          style={{ background: autoTrack ? "#818cf8" : "var(--color-surface-light, #f8f9fb)", border: autoTrack ? "none" : "1px solid var(--color-border, #e5e7eb)" }}
+          style={{ background: autoTrack ? "#4b6cf6" : "var(--color-surface-light, #f0f3f8)", border: autoTrack ? "none" : "1px solid var(--color-border, #dde2ec)" }}
         >
           <span
             className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform"
@@ -223,7 +223,7 @@ export default function AgentGps() {
 
       {/* Подтверждение отправки */}
       {lastSent && !autoTrack && (
-        <p className="text-xs text-center" style={{ color: "var(--color-text-tertiary, #9ca3af)" }}>
+        <p className="text-xs text-center" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
           ✓ {t("Местоположение отправлено в", "Joylashuv yuborildi")} {format(lastSent, "HH:mm:ss")}
         </p>
       )}

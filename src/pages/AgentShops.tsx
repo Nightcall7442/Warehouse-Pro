@@ -287,7 +287,7 @@ export default function AgentShops() {
             <div className="flex items-start gap-3">
               <div
                 className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
-                style={{ background: "rgba(129,140,248,.10)" }}
+                style={{ background: "rgba(75,108,246,.10)" }}
               >
                 <Store size={19} className="text-primary" />
               </div>
@@ -300,7 +300,7 @@ export default function AgentShops() {
                   </div>
                   {Number(shop.debt ?? 0) > 0 && (
                     <div className="flex items-center gap-1 flex-shrink-0 px-2 py-1 rounded-lg"
-                      style={{ background: "rgba(248,113,113,.10)" }}>
+                      style={{ background: "rgba(232,80,80,.10)" }}>
                       <AlertCircle size={13} className="text-danger" />
                       <span className="text-sm font-data text-danger">{fmt(shop.debt)}</span>
                     </div>

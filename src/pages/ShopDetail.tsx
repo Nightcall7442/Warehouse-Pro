@@ -13,7 +13,7 @@ import {
 import { PremiumSelect } from "@/components/PremiumSelect";
 
 const STATUS_COLORS: Record<string, string> = {
-  new: "#818cf8", processing: "#fbbf24", completed: "#4ade80", cancelled: "#f87171",
+  new: "#4b6cf6", processing: "#e8a830", completed: "#34c473", cancelled: "#e85050",
 };
 const STATUS_LABELS: Record<string, { ru: string; uz: string }> = {
   new:        { ru: "Новый",       uz: "Yangi"         },
@@ -231,7 +231,7 @@ export default function ShopDetail() {
             <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload}/>
             <div className="relative group flex-shrink-0 cursor-pointer" onClick={() => fileRef.current?.click()}>
               <div className="w-20 h-20 rounded-xl overflow-hidden flex items-center justify-center border border-border-subtle"
-                style={{ background: "rgba(129,140,248,.10)" }}>
+                style={{ background: "rgba(75,108,246,.10)" }}>
                 {uploadPhoto.isPending ? <Loader2 size={28} className="text-primary animate-spin"/>
                   : shop.photoUrl ? <img src={shop.photoUrl} alt={shop.name} className="w-full h-full object-cover"/>
                   : <Store size={28} className="text-primary"/>}
@@ -262,11 +262,11 @@ export default function ShopDetail() {
 
       {/* Блок долга */}
       <div className="panel p-5"
-        style={hasDebt ? { borderColor: "color-mix(in srgb, #f87171 35%, transparent)" } : undefined}>
+        style={hasDebt ? { borderColor: "color-mix(in srgb, #e85050 35%, transparent)" } : undefined}>
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <p className="font-label text-[10px] tracking-wider mb-1"
-              style={{ color: hasDebt ? "#f87171" : "var(--color-text-tertiary, #9ca3af)" }}>
+              style={{ color: hasDebt ? "#e85050" : "var(--color-text-tertiary, #98a0b8)" }}>
               {t("ТЕКУЩИЙ ДОЛГ", "JORIY QARZ")}
             </p>
             <div className="flex items-center gap-2">
@@ -288,13 +288,13 @@ export default function ShopDetail() {
 
         {/* История платежей */}
         {shop.paymentHistory && shop.paymentHistory.length > 0 && (
-          <div className="mt-4 space-y-0" style={{ borderTop: "1px solid var(--color-border, #f3f4f6)", paddingTop: 12 }}>
+          <div className="mt-4 space-y-0" style={{ borderTop: "1px solid var(--color-border, #f0f3f8)", paddingTop: 12 }}>
             <p className="font-label text-[10px] text-text-secondary tracking-wider mb-2">
               {t("ИСТОРИЯ ПЛАТЕЖЕЙ", "TO'LOVLAR TARIXI")}
             </p>
             {shop.paymentHistory.slice(0, 5).map((p: { id: number; type: string; notes: string | null; amount: string; createdAt: string | Date }) => (
               <div key={p.id} className="flex items-center justify-between py-2"
-                style={{ borderBottom: "1px solid var(--color-border, #f3f4f6)" }}>
+                style={{ borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
                 <div>
                   <p className="text-sm text-text-primary">
                     {p.type === "payment"
@@ -318,12 +318,12 @@ export default function ShopDetail() {
       {/* История заказов */}
       {shop.recentOrders && shop.recentOrders.length > 0 && (
         <div className="panel overflow-hidden">
-          <div className="px-5 py-4" style={{ borderBottom: "1px solid var(--color-border, #f3f4f6)" }}>
+          <div className="px-5 py-4" style={{ borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
             <p className="font-label text-[10px] text-primary tracking-wider">
               {t("ЗАКАЗЫ МАГАЗИНА", "DO'KON BUYURTMALARI")}
             </p>
           </div>
-          <div className="divide-y" style={{ borderColor: "var(--color-border, #f3f4f6)" }}>
+          <div className="divide-y" style={{ borderColor: "var(--color-border, #f0f3f8)" }}>
             {shop.recentOrders.slice(0, 10).map((o: { id: number; orderNumber: string; status: string; total: string; createdAt: string | Date }) => (
               <div key={o.id}
                 className="flex items-center gap-3 px-5 py-3.5 cursor-pointer hover:bg-surface-light/40 transition-colors"

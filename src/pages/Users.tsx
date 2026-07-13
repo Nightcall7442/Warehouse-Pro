@@ -17,16 +17,16 @@ const F = {
   body: "'DM Sans', -apple-system, sans-serif",
 };
 const COLORS = {
-  primary: "#818cf8",
-  success: "#4ade80",
-  warning: "#fbbf24",
-  danger: "#f87171",
+  primary: "#4b6cf6",
+  success: "#34c473",
+  warning: "#e8a830",
+  danger: "#e85050",
   surface: "var(--color-surface, #ffffff)",
-  surfaceLight: "var(--color-surface-light, #f8f9fb)",
-  textPrimary: "var(--color-text-primary, #111827)",
-  textSecondary: "var(--color-text-secondary, #6b7280)",
-  textTertiary: "var(--color-text-tertiary, #9ca3af)",
-  border: "var(--color-border, #f3f4f6)",
+  surfaceLight: "var(--color-surface-light, #f0f3f8)",
+  textPrimary: "var(--color-text-primary, #2b3450)",
+  textSecondary: "var(--color-text-secondary, #6a7290)",
+  textTertiary: "var(--color-text-tertiary, #98a0b8)",
+  border: "var(--color-border, #f0f3f8)",
 };
 const SHADOW = "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04))";
 
@@ -60,7 +60,7 @@ function KpiCard({
         <div style={{
           display: "flex", alignItems: "center", gap: "4px", marginTop: "10px",
           fontSize: "12px", fontWeight: 600, fontFamily: F.body,
-          color: isPositive ? "#4ade80" : isNegative ? "#f87171" : COLORS.textTertiary,
+          color: isPositive ? "#34c473" : isNegative ? "#e85050" : COLORS.textTertiary,
         }}>
           {isPositive ? <ArrowUpRight size={14} /> : isNegative ? <ArrowDownRight size={14} /> : <Minus size={14} />}
           {Math.abs(delta).toFixed(1)}%
@@ -391,7 +391,7 @@ export default function Users() {
             value={String(stats.total)}
             delta={null}
             icon={<UsersIcon size={20} color="#fff" />}
-            gradient="linear-gradient(135deg, #818cf8, #6366f1)"
+            gradient="linear-gradient(135deg, #4b6cf6, #4b6cf6)"
             delay={0}
           />
           <KpiCard
@@ -407,7 +407,7 @@ export default function Users() {
             value={String(stats.inactive)}
             delta={null}
             icon={<UserX size={20} color="#fff" />}
-            gradient="linear-gradient(135deg, #f87171, #ef4444)"
+            gradient="linear-gradient(135deg, #e85050, #e85050)"
             delay={0.1}
           />
         </div>
@@ -482,7 +482,7 @@ export default function Users() {
                 )
                 : data?.data.map((u: any) => (
                     <tr key={u.id} style={{ transition: "background 0.15s" }}
-                      onMouseEnter={e => (e.currentTarget.style.background = "rgba(129,140,248,0.02)")}
+                      onMouseEnter={e => (e.currentTarget.style.background = "rgba(75,108,246,0.02)")}
                       onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
                       {/* Имя */}
                       <td style={tdStyle}>
@@ -491,8 +491,8 @@ export default function Users() {
                             width: "32px", height: "32px", borderRadius: "10px", flexShrink: 0,
                             display: "flex", alignItems: "center", justifyContent: "center",
                             fontSize: "12px", fontWeight: 700,
-                            background: "rgba(129,140,248,.12)",
-                            color: "#818cf8",
+                            background: "rgba(75,108,246,.12)",
+                            color: "#4b6cf6",
                           }}>
                             {u.name?.[0]?.toUpperCase()}
                           </div>
@@ -540,7 +540,7 @@ export default function Users() {
                               title={t("Деактивировать", "O'chirish")}
                               onClick={() => handleDeactivate(u.id, u.name)}
                               className="btn-secondary p-1.5 text-danger"
-                              style={{ borderColor: "rgba(248,113,113,.30)" }}
+                              style={{ borderColor: "rgba(232,80,80,.30)" }}
                             >
                               <Power size={14} />
                             </button>

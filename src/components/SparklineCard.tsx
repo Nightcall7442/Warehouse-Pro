@@ -18,7 +18,7 @@ export const SparklineCard = memo(function SparklineCard({
   value,
   delta,
   trend,
-  color = "var(--color-primary, #818cf8)",
+  color = "var(--color-primary, #4b6cf6)",
   invertDelta = false,
   onClick,
 }: SparklineCardProps) {
@@ -44,20 +44,20 @@ export const SparklineCard = memo(function SparklineCard({
       {/* Three colored dots */}
       <div style={{ display: "flex", gap: "6px", marginBottom: "12px" }}>
         <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#fb7185" }} />
-        <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#fbbf24" }} />
+        <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#e8a830" }} />
         <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#2dd4bf" }} />
       </div>
 
       <p style={{
         fontSize: "11px", fontWeight: 600, textTransform: "uppercase",
-        letterSpacing: "0.08em", color: "var(--color-text-tertiary, #9ca3af)", margin: 0,
+        letterSpacing: "0.08em", color: "var(--color-text-tertiary, #98a0b8)", margin: 0,
         fontFamily: "'DM Sans', sans-serif",
       }}>
         {label}
       </p>
 
       <p style={{
-        fontSize: "28px", fontWeight: 700, color: "var(--color-text-primary, #111827)",
+        fontSize: "28px", fontWeight: 700, color: "var(--color-text-primary, #2b3450)",
         margin: "8px 0 0", letterSpacing: "-0.03em",
         fontFamily: "'DM Sans', sans-serif",
       }}>
@@ -69,8 +69,8 @@ export const SparklineCard = memo(function SparklineCard({
           display: "inline-flex", alignItems: "center", gap: "4px",
           marginTop: "8px", padding: "3px 8px", borderRadius: "6px",
           fontSize: "12px", fontWeight: 600,
-          color: isPositive ? "var(--color-success, #4ade80)" : isNegative ? "var(--color-danger, #f87171)" : "var(--color-text-tertiary, #9ca3af)",
-          background: isPositive ? "rgba(74,222,128,.10)" : isNegative ? "rgba(248,113,113,.10)" : "transparent",
+          color: isPositive ? "var(--color-success, #34c473)" : isNegative ? "var(--color-danger, #e85050)" : "var(--color-text-tertiary, #98a0b8)",
+          background: isPositive ? "rgba(74,222,128,.10)" : isNegative ? "rgba(232,80,80,.10)" : "transparent",
         }}>
           {isPositive ? <TrendingUp size={12} /> : isNegative ? <TrendingDown size={12} /> : null}
           <span>{Math.abs(delta).toFixed(1)}%</span>

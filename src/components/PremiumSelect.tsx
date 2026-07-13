@@ -31,9 +31,9 @@ export function PremiumSelect({ value, options, onChange, placeholder = "Выб�
         style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
           width: "100%", padding: "10px 14px", borderRadius: "10px",
-          background: "var(--color-surface-light, #f8f9fb)", color: selected ? "var(--color-text-primary, #111827)" : "var(--color-text-tertiary, #9ca3af)",
-          border: open ? "1.5px solid var(--color-primary, #818cf8)" : "1.5px solid transparent",
-          boxShadow: open ? "0 0 0 3px color-mix(in srgb, var(--color-primary, #818cf8) 12%, transparent)" : "none",
+          background: "var(--color-surface-light, #f0f3f8)", color: selected ? "var(--color-text-primary, #2b3450)" : "var(--color-text-tertiary, #98a0b8)",
+          border: open ? "1.5px solid var(--color-primary, #4b6cf6)" : "1.5px solid transparent",
+          boxShadow: open ? "0 0 0 3px color-mix(in srgb, var(--color-primary, #4b6cf6) 12%, transparent)" : "none",
           fontSize: "13px", fontFamily: "'DM Sans', sans-serif", fontWeight: 500,
           cursor: "pointer", transition: "all 0.15s ease", outline: "none",
         }}
@@ -41,7 +41,7 @@ export function PremiumSelect({ value, options, onChange, placeholder = "Выб�
         <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {selected?.label ?? placeholder}
         </span>
-        <ChevronDown size={16} style={{ color: "var(--color-text-tertiary, #9ca3af)", transform: open ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.15s ease", flexShrink: 0 }} />
+        <ChevronDown size={16} style={{ color: "var(--color-text-tertiary, #98a0b8)", transform: open ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.15s ease", flexShrink: 0 }} />
       </button>
 
       {/* Dropdown */}
@@ -50,7 +50,7 @@ export function PremiumSelect({ value, options, onChange, placeholder = "Выб�
           position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, zIndex: 50,
           background: "var(--color-surface, #ffffff)", borderRadius: "12px",
           boxShadow: "0 4px 12px rgba(0,0,0,.08), 0 1px 3px rgba(0,0,0,.04)",
-          border: "1px solid var(--color-border, #f3f4f6)",
+          border: "1px solid var(--color-border, #f0f3f8)",
           maxHeight: "240px", overflowY: "auto", padding: "4px",
         }}>
           {options.map(opt => (
@@ -61,18 +61,18 @@ export function PremiumSelect({ value, options, onChange, placeholder = "Выб�
                 display: "flex", alignItems: "center", gap: "10px",
                 width: "100%", padding: "10px 12px", borderRadius: "8px",
                 border: "none", cursor: "pointer", transition: "all 0.15s ease",
-                background: value === opt.value ? "var(--color-primary-subtle, rgba(129,140,248,.10))" : "transparent",
-                color: value === opt.value ? "var(--color-primary, #818cf8)" : "var(--color-text-primary, #111827)",
+                background: value === opt.value ? "var(--color-primary-subtle, rgba(75,108,246,.10))" : "transparent",
+                color: value === opt.value ? "var(--color-primary, #4b6cf6)" : "var(--color-text-primary, #2b3450)",
                 fontSize: "13px", fontFamily: "'DM Sans', sans-serif", fontWeight: value === opt.value ? 600 : 400,
                 textAlign: "left",
               }}
-              onMouseEnter={e => { if (value !== opt.value) e.currentTarget.style.background = "var(--color-surface-light, #f8f9fb)"; }}
+              onMouseEnter={e => { if (value !== opt.value) e.currentTarget.style.background = "var(--color-surface-light, #f0f3f8)"; }}
               onMouseLeave={e => { if (value !== opt.value) e.currentTarget.style.background = "transparent"; }}
             >
               {selected?.value === opt.value && (
                 <div style={{
                   width: "18px", height: "18px", borderRadius: "6px",
-                  background: "#818cf8", display: "flex",
+                  background: "#4b6cf6", display: "flex",
                   alignItems: "center", justifyContent: "center", flexShrink: 0,
                 }}>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">

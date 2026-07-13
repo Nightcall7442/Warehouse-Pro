@@ -5,7 +5,7 @@ export const CardDots = memo(function CardDots() {
   return (
     <div style={{ display: "flex", gap: "6px", marginBottom: "12px" }}>
       <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-pink, #fb7185)" }} />
-      <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-orange, #fbbf24)" }} />
+      <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-orange, #e8a830)" }} />
       <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-teal, #2dd4bf)" }} />
     </div>
   );
@@ -27,7 +27,7 @@ export const Card = memo(function Card({ children, onClick, style }: { children:
 export const SectionTitle = memo(function SectionTitle({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
     <div>
-      <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 600, color: "var(--color-text-primary, #1e293b)", margin: 0 }}>
+      <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 600, color: "var(--color-text-primary, #2b3450)", margin: 0 }}>
         {title}
       </h2>
       {subtitle && (
@@ -89,7 +89,7 @@ export const thStyle: React.CSSProperties = {
 export const tdStyle: React.CSSProperties = {
   padding: "12px 16px",
   fontSize: "13px",
-  color: "var(--color-text-primary, #1e293b)",
+  color: "var(--color-text-primary, #2b3450)",
   borderBottom: "1px solid var(--color-border, #e2e8f0)",
 };
 
@@ -98,7 +98,7 @@ export const btnPrimary: React.CSSProperties = {
   display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "8px",
   padding: "10px 20px", fontSize: "13px", fontWeight: 600, fontFamily: "'DM Sans', sans-serif",
   borderRadius: "12px", border: "none", cursor: "pointer",
-  background: "var(--color-primary, #6366f1)", color: "#fff",
+  background: "var(--color-primary, #4b6cf6)", color: "#fff",
   boxShadow: "0 2px 8px rgba(99,102,241,.25)", transition: "all 0.2s ease",
 };
 
@@ -106,20 +106,20 @@ export const btnSecondary: React.CSSProperties = {
   display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px",
   padding: "8px 16px", fontSize: "13px", fontWeight: 500, fontFamily: "'DM Sans', sans-serif",
   borderRadius: "10px", border: "none", cursor: "pointer",
-  background: "var(--color-surface-light, #f4f6f9)", color: "var(--color-text-secondary, #64748b)",
+  background: "var(--color-surface-light, #f4f6f9)", color: "var(--color-text-secondary, #6a7290)",
   transition: "all 0.15s ease",
 };
 
 export const btnDanger: React.CSSProperties = {
   ...btnSecondary,
   background: "var(--color-danger-subtle, #fef2f2)",
-  color: "var(--color-danger, #ef4444)",
+  color: "var(--color-danger, #e85050)",
 };
 
 /* ─── Input styles ─── */
 export const inputStyle: React.CSSProperties = {
   width: "100%", padding: "10px 14px", fontSize: "13px", fontFamily: "'DM Sans', sans-serif",
-  color: "var(--color-text-primary, #1e293b)", background: "var(--color-surface-light, #f4f6f9)",
+  color: "var(--color-text-primary, #2b3450)", background: "var(--color-surface-light, #f4f6f9)",
   border: "1px solid transparent", borderRadius: "10px", outline: "none", transition: "all 0.15s ease",
 };
 
@@ -129,11 +129,11 @@ export const PageHeader = memo(function PageHeader({ title, subtitle, actions }:
     <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
       <div>
         <CardDots />
-        <h1 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "24px", fontWeight: 700, color: "var(--color-text-primary, #1e293b)", letterSpacing: "-0.025em", margin: 0 }}>
+        <h1 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "24px", fontWeight: 700, color: "var(--color-text-primary, #2b3450)", letterSpacing: "-0.025em", margin: 0 }}>
           {title}
         </h1>
         {subtitle && (
-          <p style={{ fontSize: "13px", color: "var(--color-text-secondary, #64748b)", margin: "4px 0 0" }}>
+          <p style={{ fontSize: "13px", color: "var(--color-text-secondary, #6a7290)", margin: "4px 0 0" }}>
             {subtitle}
           </p>
         )}
