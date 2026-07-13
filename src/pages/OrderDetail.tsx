@@ -12,11 +12,11 @@ import { printUzWaybill, printTorg12, printInvoice } from "@/lib/documents";
 import type { OrderDocData, CompanyInfo } from "@/lib/documents";
 import { notify } from "@/lib/toast";
 
-const STATUS_STYLES: Record<string, { bg: string; color: string }> = {
-  new:        { bg: "rgba(96,165,250,.10)", color: "#60a5fa" },
-  processing: { bg: "rgba(251,191,36,.10)", color: "#fbbf24" },
-  completed:  { bg: "rgba(74,222,128,.10)", color: "#4ade80" },
-  cancelled:  { bg: "rgba(248,113,113,.10)", color: "#f87171" },
+const STATUS_STYLES: Record<string, string> = {
+  new:        "bg-info/15 text-info border-info/30",
+  processing: "bg-warning/15 text-warning border-warning/30",
+  completed:  "bg-success/15 text-success border-success/30",
+  cancelled:  "bg-danger/15 text-danger border-danger/30",
 };
 
 export default function OrderDetail() {
@@ -182,7 +182,7 @@ export default function OrderDetail() {
                 ? format(new Date(order.createdAt), "d MMMM yyyy", { locale: dateRu })
                 : ""}
             </p>
-            <span className={`badge ${STATUS_STYLES[order.status]}`} style={{ display: "inline-flex", padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 600, background: STATUS_STYLES[order.status]?.bg, color: STATUS_STYLES[order.status]?.color }}>
+            <span className={`badge ${STATUS_STYLES[order.status]} mt-2 inline-block`}>
               {t(`orders.status.${order.status}` as string) || order.status.toUpperCase()}
             </span>
           </div>

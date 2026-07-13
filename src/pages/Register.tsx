@@ -1,77 +1,215 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router";
 import { trpc } from "@/providers/trpc";
-import { notify } from "@/lib/toast";
-import { useLang } from "@/i18n";
-import { Warehouse, User, Mail, Lock, Eye, EyeOff } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { Eye, EyeOff, Loader2, CheckCircle2 } from "lucide-react";
+import { useTranslate } from "@/i18n";
 
-export default function Register() {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPwd, setShowPwd] = useState(false);
-  const navigate = useNavigate();
-  const { lang } = useLang();
-  const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
+function PasswordStrength({ password }: { password: string }) {
+  const tr = useTranslate();
+  const checks = [
+    { label: tr("8+ символов","8+ belgi"),     pass: password.length >= 8     },
+    { label: tr("Заглавная буква","Bosh harf"), pass: /[A-Z]/.test(password)   },
+    { label: tr("Цифра","Raqam"),           pass: /[0-9]/.test(password)   },
+  ];
+  const score = checks.filter(c => c.pass).length;
+  const bar   = score === 0 ? 0 : score === 1 ? 33 : score === 2 ? 66 : 100;
+  const color = score < 2 ? "#f87171" : score < 3 ? "#fbbf24" : "#4ade80";
+  const label = score < 2 ? tr("Слабый","Zaif") : score < 3 ? tr("Средний","O'rtacha") : tr("Надёжный","Ishonchli");
 
-  const register = trpc.register.useMutation({
-    onSuccess: () => { notify.success(t("Регистрация прошла успешно!", "Muvaffaqiyatli ro'yxatdan o'tdingiz!")); navigate("/"); },
-    onError: (e) => notify.error(e.message),
-  });
+  if (!password) return null;
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "var(--color-canvas, #f0f2f5)", alignItems: "center", justifyContent: "center", padding: "24px" }}>
-      <div style={{ width: "100%", maxWidth: "400px" }}>
-        <div style={{ textAlign: "center", marginBottom: "32px" }}>
-          <div style={{ width: "56px", height: "56px", borderRadius: "16px", background: "linear-gradient(135deg, var(--color-primary, #818cf8), #6366f1)", display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: "16px", boxShadow: "0 4px 12px rgba(129,140,248,.3)" }}>
-            <Warehouse size={24} color="#fff" />
+    <div className="mt-2 space-y-1.5">
+      <div className="flex items-center justify-between">
+        <div className="h-1.5 flex-1 rounded-full overflow-hidden mr-3" style={{ background: "var(--color-surface-light, #f8f9fb)" }}>
+          <div className="h-full rounded-full transition-all duration-400" style={{ width: `${bar}%`, background: color }} />
+        </div>
+        <span className="text-xs font-medium flex-shrink-0" style={{ color }}>{label}</span>
+      </div>
+      <div className="flex gap-3">
+        {checks.map(c => (
+          <div key={c.label} className="flex items-center gap-1">
+            <div className={`w-1.5 h-1.5 rounded-full ${c.pass ? "bg-success" : "bg-border-subtle"}`} />
+            <span className="text-[10px]" style={{ color: c.pass ? "#4ade80" : "var(--color-text-tertiary, #9ca3af)" }}>{c.label}</span>
           </div>
-          <h1 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "24px", fontWeight: 700, color: "var(--color-text-primary, #111827)", margin: 0 }}>Warehouse Pro</h1>
-          <p style={{ fontSize: "13px", color: "var(--color-text-secondary, #6b7280)", margin: "4px 0 0" }}>{t("Создайте аккаунт", "Hisob yarating")}</p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default function Register() {
+  const tr = useTranslate();
+  const [form, setForm] = useState({ name: "", companyName: "", email: "", password: "" });
+  const [showPw, setShowPw] = useState(false);
+  const [error,  setError]  = useState("");
+  const navigate = useNavigate();
+  const { refresh } = useAuth();
+
+  const registerMutation = trpc.tenant.register.useMutation({
+    onSuccess: async () => { await refresh(); navigate("/"); },
+    onError:   (e)       => setError(e.message || tr("Ошибка регистрации","Ro'yxatdan o'tishda xatolik")),
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    if (!form.name || !form.email || !form.password || !form.companyName) {
+      setError(tr("Заполните все поля","Barcha maydonlarni to'ldiring")); return;
+    }
+    if (form.password.length < 8) { setError(tr("Пароль слишком короткий","Parol juda qisqa")); return; }
+    registerMutation.mutate({
+      orgName: form.companyName,
+      name: form.name,
+      email: form.email,
+      password: form.password,
+    });
+  };
+
+  const STEPS = [
+    { num: "01", title: tr("Создайте аккаунт","Hisob yarating"), desc: tr("Занимает 2 минуты","2 daqiqa vaqt oladi") },
+    { num: "02", title: tr("Добавьте товары","Mahsulot qo'shing"),  desc: tr("Импорт из Excel или вручную","Excel'dan import yoki qo'lda") },
+    { num: "03", title: tr("Пригласите агентов","Agentlarni taklif qiling"), desc: tr("Они сразу начнут работать","Ular darhol ishni boshlaydi") },
+  ];
+
+  return (
+    <div className="min-h-screen flex" style={{ background: "var(--color-canvas, #f0f2f5)" }}>
+
+      {/* ── Левая панель ── */}
+      <div className="hidden lg:flex flex-col justify-between w-[52%] p-12 relative overflow-hidden"
+        style={{ background: "var(--color-surface, #ffffff)" }}>
+        {/* Сетка */}
+        <div className="absolute inset-0 pointer-events-none opacity-[0.03]"
+          style={{
+            backgroundImage: "linear-gradient(#111827 1px, transparent 1px), linear-gradient(90deg, #111827 1px, transparent 1px)",
+            backgroundSize: "40px 40px",
+          }} />
+        {/* Glow */}
+        <div className="absolute -bottom-40 -left-40 w-[500px] h-[500px] rounded-full pointer-events-none"
+          style={{ background: "radial-gradient(circle, color-mix(in srgb, #4ade80 12%, transparent), transparent 70%)" }} />
+
+        {/* Лого */}
+        <div className="relative flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "#818cf8" }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+            </svg>
+          </div>
+          <span className="font-display text-base text-text-primary">Warehouse Pro</span>
         </div>
 
-        <div style={{ background: "var(--color-surface, #ffffff)", borderRadius: "20px", padding: "32px", boxShadow: "0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04)" }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-            <div>
-              <label style={{ fontSize: "11px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-text-tertiary, #9ca3af)", display: "block", marginBottom: "6px" }}>{t("Имя", "Ism")}</label>
-              <div style={{ position: "relative" }}>
-                <User size={16} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "var(--color-text-tertiary, #9ca3af)" }} />
-                <input placeholder="Иван Иванов" value={name} onChange={e => setName(e.target.value)} style={{ paddingLeft: "36px" }} className="input-field" />
+        {/* Hero */}
+        <div className="relative space-y-10">
+          <div>
+            <p className="text-[11px] font-semibold tracking-[.14em] uppercase mb-3" style={{ color: "#4ade80" }}>
+              {tr("Начните бесплатно","Bepul boshlang")}
+            </p>
+            <h1 className="text-[38px] font-bold leading-[1.15] tracking-tight text-text-primary">
+              {tr("Настройте склад за 3 шага","Omborni 3 qadamda sozlang")}
+            </h1>
+          </div>
+
+          <div className="space-y-5">
+            {STEPS.map((s, i) => (
+              <div key={i} className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 font-data font-bold text-sm"
+                  style={{ background: "rgba(129,140,248,.12)", color: "#818cf8" }}>
+                  {s.num}
+                </div>
+                <div>
+                  <p className="font-medium text-text-primary">{s.title}</p>
+                  <p className="text-sm mt-0.5" style={{ color: "var(--color-text-secondary, #6b7280)" }}>{s.desc}</p>
+                </div>
               </div>
-            </div>
-            <div>
-              <label style={{ fontSize: "11px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-text-tertiary, #9ca3af)", display: "block", marginBottom: "6px" }}>Email</label>
-              <div style={{ position: "relative" }}>
-                <Mail size={16} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "var(--color-text-tertiary, #9ca3af)" }} />
-                <input type="email" placeholder="admin@example.com" value={email} onChange={e => setEmail(e.target.value)} style={{ paddingLeft: "36px" }} className="input-field" />
+            ))}
+          </div>
+
+          <div className="flex items-center gap-3 px-4 py-3 rounded-xl"
+            style={{ background: "color-mix(in srgb, #4ade80 8%, transparent)", border: "1px solid color-mix(in srgb, #4ade80 20%, transparent)" }}>
+            <CheckCircle2 size={16} className="text-success flex-shrink-0" />
+            <p className="text-sm text-text-primary">{tr("Первые 14 дней бесплатно — без карты","Birinchi 14 kun bepul — kartasiz")}</p>
+          </div>
+        </div>
+
+        <p className="relative text-xs" style={{ color: "var(--color-text-tertiary, #9ca3af)" }}>© 2025 Warehouse Pro</p>
+      </div>
+
+      {/* ── Форма ── */}
+      <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
+        {/* Мобильное лого */}
+        <div className="lg:hidden flex items-center gap-2.5 mb-8">
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "#818cf8" }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+            </svg>
+          </div>
+          <span className="font-display text-sm text-text-primary">Warehouse Pro</span>
+        </div>
+
+        <div className="w-full max-w-[380px]">
+          <div className="mb-8">
+            <h2 className="font-display text-2xl text-text-primary mb-1.5">{tr("Создать организацию","Tashkilot yaratish")}</h2>
+            <p className="text-sm" style={{ color: "var(--color-text-secondary, #6b7280)" }}>
+              {tr("Уже есть аккаунт?","Hisobingiz bormi?")}{" "}
+              <Link to="/login" className="font-medium hover:underline" style={{ color: "#818cf8" }}>{tr("Войти","Kirish")}</Link>
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {[
+              { key: "name",        type: "text",     placeholder: tr("Ваше имя","Ismingiz"),              label: tr("Имя","Ism")              },
+              { key: "companyName", type: "text",     placeholder: tr("ООО «Название»","«Nomi» MChJ"),        label: tr("Название компании","Kompaniya nomi") },
+              { key: "email",       type: "email",    placeholder: "you@company.com",        label: tr("Email","Email")             },
+            ].map(f => (
+              <div key={f.key} className="space-y-1.5">
+                <label className="block text-xs font-medium" style={{ color: "var(--color-text-secondary, #6b7280)" }}>{f.label}</label>
+                <input type={f.type} className="input-field" placeholder={f.placeholder}
+                  value={(form as unknown as Record<string, string>)[f.key]}
+                  onChange={e => setForm({ ...form, [f.key]: e.target.value })}
+                  disabled={registerMutation.isPending} />
               </div>
-            </div>
-            <div>
-              <label style={{ fontSize: "11px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-text-tertiary, #9ca3af)", display: "block", marginBottom: "6px" }}>{t("Пароль", "Parol")}</label>
-              <div style={{ position: "relative" }}>
-                <Lock size={16} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "var(--color-text-tertiary, #9ca3af)" }} />
-                <input type={showPwd ? "text" : "password"} placeholder="мин. 8 символов" value={password} onChange={e => setPassword(e.target.value)} style={{ paddingLeft: "36px", paddingRight: "36px" }} className="input-field" />
-                <button onClick={() => setShowPwd(v => !v)} style={{ position: "absolute", right: "8px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--color-text-tertiary, #9ca3af)", padding: "4px" }}>
-                  {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
+            ))}
+
+            <div className="space-y-1.5">
+              <label className="block text-xs font-medium" style={{ color: "var(--color-text-secondary, #6b7280)" }}>{tr("Пароль","Parol")}</label>
+              <div className="relative">
+                <input type={showPw ? "text" : "password"} className="input-field pr-10"
+                  placeholder={tr("Минимум 8 символов","Kamida 8 belgi")}
+                  value={form.password}
+                  onChange={e => setForm({ ...form, password: e.target.value })}
+                  disabled={registerMutation.isPending} />
+                <button type="button" onClick={() => setShowPw(!showPw)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors" tabIndex={-1}
+                  style={{ color: "var(--color-text-tertiary, #9ca3af)" }}>
+                  {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
                 </button>
               </div>
+              <PasswordStrength password={form.password} />
             </div>
-            <button onClick={() => register.mutate({ name, email, password })} disabled={register.isPending || !name || !email || !password || password.length < 8} style={{
-              width: "100%", padding: "12px", borderRadius: "12px", fontSize: "14px", fontWeight: 600,
-              fontFamily: "'DM Sans', sans-serif", border: "none", cursor: "pointer",
-              background: "var(--color-primary, #818cf8)", color: "#fff",
-              boxShadow: "0 2px 8px rgba(129,140,248,.25)",
-              opacity: !name || !email || password.length < 8 ? 0.5 : 1,
-              transition: "all 0.2s ease",
-            }}>
-              {register.isPending ? "..." : t("Зарегистрироваться", "Ro'yxatdan o'tish")}
-            </button>
-          </div>
-        </div>
 
-        <p style={{ textAlign: "center", fontSize: "13px", color: "var(--color-text-secondary, #6b7280)", marginTop: "20px" }}>
-          {t("Уже есть аккаунт?", "Hisob bormi?")} <Link to="/login" style={{ color: "var(--color-primary, #818cf8)", fontWeight: 600, textDecoration: "none" }}>{t("Войти", "Kirish")}</Link>
-        </p>
+            {error && (
+              <div className="flex items-center gap-2 text-sm px-3 py-2.5 rounded-lg"
+                style={{ background: "var(--color-danger-subtle, rgba(248,113,113,.10))", color: "#f87171" }}>
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm-.75 4a.75.75 0 0 1 1.5 0v3a.75.75 0 0 1-1.5 0V5zm.75 6.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2z" />
+                </svg>
+                {error}
+              </div>
+            )}
+
+            <button type="submit" className="btn-primary w-full py-2.5 text-sm mt-2"
+              disabled={registerMutation.isPending}>
+              {registerMutation.isPending
+                ? <><Loader2 size={15} className="animate-spin inline mr-2" />{tr("Создание…","Yaratilmoqda…")}</>
+                : tr("Создать аккаунт →","Hisob yaratish →")}
+            </button>
+
+            <p className="text-xs text-center" style={{ color: "var(--color-text-tertiary, #9ca3af)" }}>
+              {tr("Нажимая «Создать», вы принимаете условия использования","«Yaratish»ni bosib, foydalanish shartlarini qabul qilasiz")}
+            </p>
+          </form>
+        </div>
       </div>
     </div>
   );

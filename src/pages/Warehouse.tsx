@@ -12,7 +12,6 @@ import {
 import { exportToExcel, formatWarehouseForExport, formatMovementsForExport, formatStockValuationForExport, formatDeadStockForExport, formatReorderForExport } from "@/lib/excel";
 import { useCurrency } from "@/hooks/useCurrency";
 import { notify } from "@/lib/toast";
-import { CardDots, Card, KpiCard, PageHeader, btnPrimary, btnSecondary } from "@/components/DashboardLayout";
 
 const MOVE_TYPE: Record<string, { icon: any; labelRu: string; labelUz: string; color: string; sign: string }> = {
   in:         { icon: TrendingUp,   labelRu: "Приход",       labelUz: "Kirim",       color: "#4ade80", sign: "+" },

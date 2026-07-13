@@ -1,78 +1,209 @@
-import { useState } from "react";
+import { useParams, useNavigate, useSearchParams } from "react-router";
 import { trpc } from "@/providers/trpc";
-import { useLang } from "@/i18n";
-import { useCurrency } from "@/hooks/useCurrency";
-import { useNavigate, useParams } from "react-router";
+import { useTranslate } from "@/i18n";
+import { useState, useEffect } from "react";
+import { ArrowLeft, Camera, CheckCircle2, Circle, Save, Trash2 } from "lucide-react";
 import { notify } from "@/lib/toast";
-import { Check, Package, ShoppingCart, MapPin } from "lucide-react";
-import { CardDots, Card, KpiCard, PageHeader, btnPrimary, inputStyle } from "@/components/DashboardLayout";
+
+interface ChecklistItem {
+  productId: number;
+  productName: string;
+  present: boolean;
+  price?: string;
+  promoNote?: string;
+}
 
 export default function MerchandiserVisit() {
-  const { id } = useParams();
-  const { lang } = useLang();
-  const { fmt } = useCurrency();
+  const { id: planId } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
+  const shopId = Number(searchParams.get("shopId") ?? 0);
+  const shopName = searchParams.get("shopName") ?? "";
   const navigate = useNavigate();
-  const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
+  const t = useTranslate();
+  const utils = trpc.useUtils();
 
-  const { data: shop } = trpc.shop.getById.useQuery({ id: Number(id) }) as { data: any };
-  const { data: products } = trpc.product.list.useQuery({ pageSize: 1000 }) as { data: any };
-  const [items, setItems] = useState<Array<{ productId: number; quantity: number }>>([]);
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
+  const [competitorNotes, setCompetitorNotes] = useState("");
 
-  const visitMutation = trpc.agent.visit.useMutation({
-    onSuccess: () => { notify.success(t("Визит оформлен", "Tashrif bajarildi")); navigate("/agent/shops"); },
+  const { data: products } = trpc.product.list.useQuery(
+    { page: 1, pageSize: 100 },
+    { enabled: !!shopId }
+  );
+
+  const submitReport = trpc.merchandiser.submitReport.useMutation({
+    onSuccess: () => {
+      utils.agent.getPlans.invalidate();
+      notify.success(t("Отчёт отправлен!", "Hisobot yuborildi!"));
+      navigate("/agent/plans");
+    },
     onError: (e) => notify.error(e.message),
   });
 
-  const addItem = (productId: number) => setItems(prev => {
-    const existing = prev.find(i => i.productId === productId);
-    if (existing) return prev.map(i => i.productId === productId ? { ...i, quantity: i.quantity + 1 } : i);
-    return [...prev, { productId, quantity: 1 }];
-  });
+  useEffect(() => {
+    const productList = (products as unknown as { data?: Array<{ id: number; name: string }> })?.data;
+    if (productList && checklist.length === 0) {
+      setChecklist(productList.map(p => ({
+        productId: p.id,
+        productName: p.name,
+        present: false,
+      })));
+    }
+  }, [products]);
+
+  const toggleChecklist = (productId: number) => {
+    setChecklist(prev => prev.map(item =>
+      item.productId === productId ? { ...item, present: !item.present } : item
+    ));
+  };
+
+  const updateChecklistPrice = (productId: number, price: string) => {
+    setChecklist(prev => prev.map(item =>
+      item.productId === productId ? { ...item, price } : item
+    ));
+  };
+
+  const updateChecklistPromo = (productId: number, promoNote: string) => {
+    setChecklist(prev => prev.map(item =>
+      item.productId === productId ? { ...item, promoNote } : item
+    ));
+  };
+
+  const handleSubmit = () => {
+    if (!planId || !shopId) return;
+    submitReport.mutate({
+      planId: Number(planId),
+      shopId,
+      photos,
+      checklist,
+      competitorNotes: competitorNotes || undefined,
+    });
+  };
+
+  const presentCount = checklist.filter(i => i.present).length;
+  const totalItems = checklist.length;
+  const completionPct = totalItems > 0 ? Math.round((presentCount / totalItems) * 100) : 0;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-      <PageHeader title={t("Визит в магазин", "Do'konga tashrif")} subtitle={shop?.name ?? ""} />
-
-      {shop && (
-        <Card>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <div style={{ width: "40px", height: "40px", borderRadius: "10px", background: "rgba(129,140,248,.10)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <MapPin size={18} color="var(--color-primary, #818cf8)" />
-            </div>
-            <div>
-              <p style={{ fontSize: "14px", fontWeight: 600, color: "var(--color-text-primary, #111827)", margin: 0 }}>{shop.name}</p>
-              <p style={{ fontSize: "12px", color: "var(--color-text-tertiary, #9ca3af)", margin: "2px 0 0" }}>{shop.city ?? ""} · {shop.phone ?? ""}</p>
-            </div>
-          </div>
-        </Card>
-      )}
-
-      <Card>
-        <p style={{ fontSize: "11px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-text-tertiary, #9ca3af)", marginBottom: "12px" }}>{t("ТОВАРЫ", "MAHSULOTLAR")}</p>
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "300px", overflowY: "auto" }}>
-          {(products?.data ?? []).map((p: any) => {
-            const qty = items.find(i => i.productId === p.id)?.quantity ?? 0;
-            return (
-              <div key={p.id} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px 14px", borderRadius: "12px", background: qty > 0 ? "var(--color-primary-subtle, rgba(129,140,248,.10))" : "transparent", transition: "all 0.15s" }}>
-                <Package size={16} color="var(--color-text-tertiary, #9ca3af)" />
-                <div style={{ flex: 1 }}>
-                  <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--color-text-primary, #111827)", margin: 0 }}>{p.name}</p>
-                </div>
-                {qty > 0 && <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-primary, #818cf8)" }}>×{qty}</span>}
-                <button onClick={() => addItem(p.id)} style={{ padding: "6px 12px", borderRadius: "8px", border: "none", background: "var(--color-primary, #818cf8)", color: "#fff", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>
-                  <Plus size={14} />
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      </Card>
-
-      {items.length > 0 && (
-        <button onClick={() => visitMutation.mutate({ shopId: Number(id), items })} disabled={visitMutation.isPending} style={{ ...btnPrimary, width: "100%" }}>
-          <Check size={14} /> {t("Завершить визит", "Tashrifni tugatish")} ({items.length} {t("товаров", "mahsulot")})
+    <div className="max-w-3xl mx-auto space-y-4 p-4">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <button onClick={() => navigate(-1)} className="p-2 hover:bg-surface-light rounded-lg">
+          <ArrowLeft size={20} />
         </button>
-      )}
+        <div>
+          <h1 className="text-lg font-bold">{t("Отчёт о визите", "Tashrif hisoboti")}</h1>
+          <p className="text-sm text-text-secondary">{shopName}</p>
+        </div>
+      </div>
+
+      {/* Photos */}
+      <div className="bg-surface rounded-xl p-4 space-y-3">
+        <h2 className="font-semibold flex items-center gap-2">
+          <Camera size={18} />
+          {t("Фотографии", "Rasmlar")}
+        </h2>
+        <div className="flex flex-wrap gap-2">
+          {photos.map((photo, i) => (
+            <div key={i} className="relative w-20 h-20 rounded-lg overflow-hidden border">
+              <img src={photo} alt="" className="w-full h-full object-cover" />
+              <button
+                onClick={() => setPhotos(prev => prev.filter((_, j) => j !== i))}
+                className="absolute top-1 right-1 bg-danger/80 rounded-full p-0.5"
+              >
+                <Trash2 size={12} className="text-white" />
+              </button>
+            </div>
+          ))}
+          <label className="w-20 h-20 rounded-lg border-2 border-dashed border-border flex items-center justify-center cursor-pointer hover:border-primary">
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = () => {
+                  if (reader.result) setPhotos(prev => [...prev, reader.result as string]);
+                };
+                reader.readAsDataURL(file);
+              }}
+            />
+            <Camera size={20} className="text-text-secondary" />
+          </label>
+        </div>
+      </div>
+
+      {/* Checklist */}
+      <div className="bg-surface rounded-xl p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="font-semibold">{t("Чек-лист товаров", "Mahsulotlar ro'yxati")}</h2>
+          <span className="text-sm text-text-secondary">
+            {presentCount}/{totalItems} ({completionPct}%)
+          </span>
+        </div>
+        <div className="w-full bg-surface-light rounded-full h-2">
+          <div
+            className="bg-primary h-2 rounded-full transition-all"
+            style={{ width: `${completionPct}%` }}
+          />
+        </div>
+        <div className="space-y-2 max-h-96 overflow-y-auto">
+          {checklist.map(item => (
+            <div key={item.productId} className="flex items-center gap-3 p-2 rounded-lg hover:bg-surface-light">
+              <button
+                onClick={() => toggleChecklist(item.productId)}
+                className={`flex-shrink-0 ${item.present ? "text-success" : "text-text-secondary"}`}
+              >
+                {item.present ? <CheckCircle2 size={20} /> : <Circle size={20} />}
+              </button>
+              <span className={`flex-1 text-sm ${item.present ? "" : "text-text-secondary"}`}>
+                {item.productName}
+              </span>
+              <input
+                type="text"
+                placeholder={t("Цена", "Narxi")}
+                value={item.price ?? ""}
+                onChange={(e) => updateChecklistPrice(item.productId, e.target.value)}
+                className="w-20 text-xs px-2 py-1 border rounded"
+              />
+              <input
+                type="text"
+                placeholder={t("Акция", "Aksiya")}
+                value={item.promoNote ?? ""}
+                onChange={(e) => updateChecklistPromo(item.productId, e.target.value)}
+                className="w-24 text-xs px-2 py-1 border rounded"
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Competitor Notes */}
+      <div className="bg-surface rounded-xl p-4 space-y-3">
+        <h2 className="font-semibold">{t("Заметки о конкурентах", "Raqobatchilar haqida eslatmalar")}</h2>
+        <textarea
+          value={competitorNotes}
+          onChange={(e) => setCompetitorNotes(e.target.value)}
+          rows={4}
+          placeholder={t("Что видно на полках конкурентов...", "Raqobatchilar polkalarida nima bor...")}
+          className="w-full px-3 py-2 border rounded-lg text-sm resize-none"
+        />
+      </div>
+
+      {/* Submit */}
+      <button
+        onClick={handleSubmit}
+        disabled={submitReport.isPending}
+        className="w-full py-3 bg-primary text-white rounded-xl font-semibold flex items-center justify-center gap-2 hover:bg-primary/90 disabled:opacity-50"
+      >
+        <Save size={18} />
+        {submitReport.isPending
+          ? t("Отправка...", "Yuborilmoqda...")
+          : t("Завершить визит", "Tashrifni yakunlash")}
+      </button>
     </div>
   );
 }

@@ -1,64 +1,112 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import { trpc } from "@/providers/trpc";
-import { notify } from "@/lib/toast";
-import { useLang } from "@/i18n";
-import { Warehouse, Mail, CheckCircle2 } from "lucide-react";
+import { useTranslate } from "@/i18n";
+import { Mail, Loader2, ArrowLeft, CheckCircle2 } from "lucide-react";
 
 export default function ForgotPassword() {
+  const tr = useTranslate();
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
-  const { lang } = useLang();
-  const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
 
-  const forgot = trpc.forgotPassword.useMutation({
-    onSuccess: () => { setSent(true); notify.success(t("Письмо отправлено", "Xabar yuborildi")); },
-    onError: (e) => notify.error(e.message),
+  const requestReset = trpc.auth.requestPasswordReset.useMutation({
+    onSuccess: () => setSent(true),
   });
 
-  return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "var(--color-canvas, #f0f2f5)", alignItems: "center", justifyContent: "center", padding: "24px" }}>
-      <div style={{ width: "100%", maxWidth: "400px" }}>
-        <div style={{ textAlign: "center", marginBottom: "32px" }}>
-          <div style={{ width: "56px", height: "56px", borderRadius: "16px", background: "linear-gradient(135deg, var(--color-primary, #818cf8), #6366f1)", display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: "16px", boxShadow: "0 4px 12px rgba(129,140,248,.3)" }}>
-            <Warehouse size={24} color="#fff" />
-          </div>
-          <h1 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "24px", fontWeight: 700, color: "var(--color-text-primary, #111827)", margin: 0 }}>{t("Сброс пароля", "Parolni tiklash")}</h1>
-          <p style={{ fontSize: "13px", color: "var(--color-text-secondary, #6b7280)", margin: "4px 0 0" }}>{t("Введите email для восстановления", "Tiklash uchun email kiriting")}</p>
-        </div>
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email) return;
+    requestReset.mutate({ email });
+  };
 
-        <div style={{ background: "var(--color-surface, #ffffff)", borderRadius: "20px", padding: "32px", boxShadow: "0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04)" }}>
+  return (
+    <div style={{ display: "flex", minHeight: "100vh", background: "var(--color-canvas, #f0f2f5)", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ width: "100%", maxWidth: 400, padding: "0 24px" }}>
+        {/* Back to login */}
+        <Link to="/login" style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--color-text-secondary, #6b7280)", fontSize: 13, textDecoration: "none", marginBottom: 24 }}>
+          <ArrowLeft size={14} /> {tr("Назад к входу", "Orqaga")}
+        </Link>
+
+        <div style={{ background: "var(--color-surface, #ffffff)", borderRadius: 16, border: "1px solid #e5e7eb", padding: "32px 28px" }}>
           {sent ? (
+            /* Success state */
             <div style={{ textAlign: "center" }}>
-              <CheckCircle2 size={48} color="var(--color-success, #4ade80)" style={{ margin: "0 auto 16px" }} />
-              <p style={{ fontSize: "14px", fontWeight: 600, color: "var(--color-text-primary, #111827)", margin: 0 }}>{t("Письмо отправлено!", "Xabar yuborildi!")}</p>
-              <p style={{ fontSize: "13px", color: "var(--color-text-secondary, #6b7280)", margin: "8px 0 0" }}>{t("Проверьте почту", "Pochtani tekshiring")}</p>
-              <Link to="/login" style={{ display: "inline-block", marginTop: "20px", padding: "10px 24px", background: "var(--color-primary, #818cf8)", color: "#fff", borderRadius: "10px", fontSize: "13px", fontWeight: 600, textDecoration: "none" }}>{t("Войти", "Kirish")}</Link>
+              <div style={{ width: 48, height: 48, borderRadius: 12, background: "rgba(74,222,128,.10)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+                <CheckCircle2 size={24} style={{ color: "#4ade80" }} />
+              </div>
+              <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--color-text-primary, #111827)", marginBottom: 8 }}>
+                {tr("Письмо отправлено", "Xabar yuborildi")}
+              </h1>
+              <p style={{ fontSize: 14, color: "var(--color-text-secondary, #6b7280)", lineHeight: 1.6, marginBottom: 24 }}>
+                {tr(
+                  "Если аккаунт с таким email существует, вы получите письмо со ссылкой для сброса пароля.",
+                  "Agar shu email bilan hisob mavjud bo'lsa, parolni tiklash havolasi bilan xabar olasiz."
+                )}
+              </p>
+              <Link to="/login" style={{ display: "inline-block", padding: "10px 24px", background: "#818cf8", color: "#fff", borderRadius: 8, fontSize: 14, fontWeight: 600, textDecoration: "none" }}>
+                {tr("Вернуться к входу", "Kirishga qaytish")}
+              </Link>
             </div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              <div>
-                <label style={{ fontSize: "11px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-text-tertiary, #9ca3af)", display: "block", marginBottom: "6px" }}>Email</label>
-                <div style={{ position: "relative" }}>
-                  <Mail size={16} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "var(--color-text-tertiary, #9ca3af)" }} />
-                  <input type="email" placeholder="admin@example.com" value={email} onChange={e => setEmail(e.target.value)} style={{ paddingLeft: "36px" }} className="input-field" />
+            /* Form */
+            <>
+              <div style={{ textAlign: "center", marginBottom: 24 }}>
+                <div style={{ width: 48, height: 48, borderRadius: 12, background: "var(--color-primary-subtle, rgba(129,140,248,.10))", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+                  <Mail size={24} style={{ color: "#818cf8" }} />
                 </div>
+                <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--color-text-primary, #111827)", marginBottom: 8 }}>
+                  {tr("Забыли пароль?", "Parolni unutdingizmi?")}
+                </h1>
+                <p style={{ fontSize: 14, color: "var(--color-text-secondary, #6b7280)" }}>
+                  {tr("Введите email — мы отправим ссылку для сброса.", "Emailni kiriting — tiklash havolasini yuboramiz.")}
+                </p>
               </div>
-              <button onClick={() => forgot.mutate({ email })} disabled={forgot.isPending || !email} style={{
-                width: "100%", padding: "12px", borderRadius: "12px", fontSize: "14px", fontWeight: 600,
-                fontFamily: "'DM Sans', sans-serif", border: "none", cursor: "pointer",
-                background: "var(--color-primary, #818cf8)", color: "#fff",
-                boxShadow: "0 2px 8px rgba(129,140,248,.25)", opacity: !email ? 0.5 : 1,
-              }}>
-                {forgot.isPending ? "..." : t("Отправить", "Yuborish")}
-              </button>
-            </div>
+
+              <form onSubmit={handleSubmit}>
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--color-text-secondary, #6b7280)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>
+                    EMAIL
+                  </label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="name@company.com"
+                    required
+                    autoFocus
+                    style={{
+                      width: "100%", padding: "10px 12px", borderRadius: 8,
+                      border: "1px solid #e5e7eb", background: "var(--color-surface-light, #f8f9fb)",
+                      color: "var(--color-text-primary, #111827)", fontSize: 14, outline: "none",
+                      boxSizing: "border-box",
+                    }}
+                  />
+                </div>
+
+                {requestReset.isError && (
+                  <p style={{ fontSize: 13, color: "#f87171", marginBottom: 12 }}>
+                    {requestReset.error.message}
+                  </p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={requestReset.isPending || !email}
+                  style={{
+                    width: "100%", padding: "10px 0", borderRadius: 8,
+                    background: "#818cf8", color: "#fff", border: "none",
+                    fontSize: 14, fontWeight: 600, cursor: requestReset.isPending ? "wait" : "pointer",
+                    opacity: requestReset.isPending || !email ? 0.6 : 1,
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                  }}
+                >
+                  {requestReset.isPending && <Loader2 size={16} className="animate-spin" />}
+                  {tr("Отправить ссылку", "Havolani yuborish")}
+                </button>
+              </form>
+            </>
           )}
         </div>
-
-        <p style={{ textAlign: "center", fontSize: "13px", color: "var(--color-text-secondary, #6b7280)", marginTop: "20px" }}>
-          <Link to="/login" style={{ color: "var(--color-primary, #818cf8)", fontWeight: 600, textDecoration: "none" }}>{t("Вернуться к входу", "Kirishga qaytish")}</Link>
-        </p>
       </div>
     </div>
   );

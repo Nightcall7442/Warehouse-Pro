@@ -1,70 +1,231 @@
-import { useState } from "react";
+/**
+ * Offline Orders — agent can create orders without internet.
+ * Orders are saved to IndexedDB and synced when connection is restored.
+ */
+import { useState, useEffect, useCallback } from "react";
 import { trpc } from "@/providers/trpc";
-import { useLang } from "@/i18n";
+import { useAuth } from "@/hooks/useAuth";
 import { useCurrency } from "@/hooks/useCurrency";
-import { useNavigate } from "react-router";
+import { useLang } from "@/i18n";
 import { notify } from "@/lib/toast";
-import { WifiOff, Store, ShoppingCart, Plus, Trash2 } from "lucide-react";
-import { CardDots, Card, PageHeader, btnPrimary, btnDanger, inputStyle } from "@/components/DashboardLayout";
+import { WifiOff, Wifi, Clock, CheckCircle2, Loader2, Trash2, RefreshCw } from "lucide-react";
+import { getPendingOrders, deletePendingOrder } from "./OfflineOrders.helpers";
 
+// ── Component ────────────────────────────────────────────────────────────────
 export default function OfflineOrders() {
-  const [shopName, setShopName] = useState("");
-  const [items, setItems] = useState<Array<{ name: string; qty: number; price: number }>>([]);
-  const { lang } = useLang();
-  const { fmt } = useCurrency();
-  const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
+  const { user }        = useAuth();
+  const { fmt }         = useCurrency();
+  const { lang }        = useLang();
+  const [online, setOnline]   = useState(navigator.onLine);
+  const [pending, setPending] = useState<Record<string, unknown>[]>([]);
+  const [syncing, setSyncing] = useState(false);
+  const utils = trpc.useUtils();
 
-  const addItem = () => setItems(prev => [...prev, { name: "", qty: 1, price: 0 }]);
-  const removeItem = (i: number) => setItems(prev => prev.filter((_, idx) => idx !== i));
-  const updateItem = (i: number, field: string, value: any) => setItems(prev => prev.map((item, idx) => idx === i ? { ...item, [field]: value } : item));
+  const createOrder = trpc.order.create.useMutation();
 
-  const total = items.reduce((s, item) => s + item.qty * item.price, 0);
+  // Listen for online/offline
+  useEffect(() => {
+    const goOnline  = () => { setOnline(true);  };
+    const goOffline = () => { setOnline(false); notify.info("Офлайн режим — заказы сохраняются локально"); };
+    window.addEventListener("online",  goOnline);
+    window.addEventListener("offline", goOffline);
+    return () => {
+      window.removeEventListener("online",  goOnline);
+      window.removeEventListener("offline", goOffline);
+    };
+  }, []);
+
+  const loadPending = useCallback(async () => {
+    try {
+      const orders = await getPendingOrders();
+      setPending(orders);
+    } catch {
+      notify.error("Не удалось загрузить локальные заказы");
+    }
+  }, []);
+
+  const syncAll = useCallback(async () => {
+    if (!online || pending.length === 0 || syncing) return;
+    setSyncing(true);
+
+    let synced = 0;
+    let failed = 0;
+
+    for (const order of pending) {
+      try {
+        await createOrder.mutateAsync({
+          shopId:   order.shopId as number,
+          agentId:  (order.agentId as number) ?? user?.id ?? 0,
+          items:    order.items as any,
+          notes:    order.notes as string | undefined,
+          discount: order.discount as string | number | undefined,
+        });
+                            await deletePendingOrder(order.localId as number);
+        synced++;
+      } catch {
+        failed++;
+      }
+    }
+
+    setSyncing(false);
+    await loadPending();
+    utils.order.list.invalidate();
+
+    if (synced > 0) notify.success(`${synced} заказов синхронизировано`);
+    if (failed > 0) notify.error(`${failed} заказов не удалось синхронизировать`);
+  }, [online, pending, syncing, createOrder, user, loadPending, utils]);
+
+  // Load pending orders on mount
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadPending();
+  }, [loadPending]);
+
+  // Auto-sync when coming online
+  useEffect(() => {
+    if (online && pending.length > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      syncAll();
+    }
+  }, [online, pending.length, syncAll]);
+
+  const deleteLocal = async (localId: number) => {
+    await deletePendingOrder(localId);
+    await loadPending();
+  };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-      <PageHeader title={t("Офлайн заказы", "Oflayn buyurtmalar")} subtitle={t("Создание заказов без интернета", "Internetsiz buyurtma yaratish")} />
-
-      <Card>
-        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
-          <WifiOff size={16} color="var(--color-warning, #fbbf24)" />
-          <span style={{ fontSize: "13px", color: "var(--color-text-secondary, #6b7280)" }}>{t("Заказы сохраняются локально и синхронизируются при подключении", "Buyurtmalar mahalliy saqlanadi va ulanganda sinxronlashtiriladi")}</span>
+    <div className="space-y-5 max-w-lg mx-auto">
+      {/* Status bar */}
+      <div className={`panel p-4 flex items-center gap-3 border-l-4 ${
+        online ? "border-success bg-success/5" : "border-warning bg-warning/5"
+      }`}>
+        {online
+          ? <Wifi size={20} className="text-success flex-shrink-0"/>
+          : <WifiOff size={20} className="text-warning flex-shrink-0"/>
+        }
+        <div className="flex-1">
+          <p className="font-medium text-text-primary text-sm">
+            {online
+              ? (lang === "uz" ? "Internet bor" : "Онлайн")
+              : (lang === "uz" ? "Internet yo'q" : "Офлайн режим")}
+          </p>
+          <p className="text-xs text-text-secondary">
+            {online
+              ? pending.length > 0
+                ? (lang === "uz" ? `${pending.length} ta buyurtma sinxronlanishni kutmoqda` : `${pending.length} заказов ожидают синхронизации`)
+                : (lang === "uz" ? "Hamma narsa sinxronlangan" : "Всё синхронизировано")
+              : (lang === "uz" ? "Buyurtmalar qurilmada saqlanadi" : "Заказы сохраняются на устройстве")
+            }
+          </p>
         </div>
-        <div>
-          <label style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-text-tertiary, #9ca3af)", display: "block", marginBottom: "6px" }}>{t("МАГАЗИН", "DO'KON")}</label>
-          <input placeholder={t("Название магазина", "Do'kon nomi")} value={shopName} onChange={e => setShopName(e.target.value)} style={inputStyle} />
-        </div>
-      </Card>
-
-      <Card>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
-          <p style={{ fontSize: "11px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-text-tertiary, #9ca3af)", margin: 0 }}>{t("ТОВАРЫ", "MAHSULOTLAR")}</p>
-          <button onClick={addItem} style={{ display: "flex", alignItems: "center", gap: "4px", padding: "6px 12px", borderRadius: "8px", border: "none", background: "var(--color-primary-subtle, rgba(129,140,248,.10))", color: "var(--color-primary, #818cf8)", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>
-            <Plus size={14} /> {t("Добавить", "Qo'shish")}
+        {online && pending.length > 0 && (
+          <button
+            onClick={syncAll}
+            disabled={syncing}
+            className="btn-primary py-1.5 px-3 text-xs flex items-center gap-1.5"
+          >
+            {syncing ? <Loader2 size={13} className="animate-spin"/> : <RefreshCw size={13}/>}
+            {lang === "uz" ? "Sinxronlash" : "Синхронизировать"}
           </button>
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          {items.map((item, i) => (
-            <div key={i} style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-              <input placeholder={t("Название", "Nomi")} value={item.name} onChange={e => updateItem(i, "name", e.target.value)} style={{ ...inputStyle, flex: 2 }} />
-              <input type="number" placeholder="0" value={item.qty || ""} onChange={e => updateItem(i, "qty", Number(e.target.value))} style={{ ...inputStyle, flex: 1 }} />
-              <input type="number" placeholder="0" value={item.price || ""} onChange={e => updateItem(i, "price", Number(e.target.value))} style={{ ...inputStyle, flex: 1 }} />
-              <button onClick={() => removeItem(i)} style={{ padding: "8px", borderRadius: "8px", border: "none", background: "rgba(248,113,113,.10)", color: "#f87171", cursor: "pointer" }}><Trash2 size={14} /></button>
-            </div>
-          ))}
-        </div>
-      </Card>
+        )}
+      </div>
 
-      {items.length > 0 && (
-        <Card>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: "13px", color: "var(--color-text-secondary, #6b7280)" }}>{items.length} {t("товаров", "mahsulot")}</span>
-            <span style={{ fontSize: "20px", fontWeight: 700, color: "var(--color-text-primary, #111827)" }}>{fmt(total)}</span>
-          </div>
-          <button onClick={() => { notify.success(t("Офлайн заказ сохранён", "Oflayn buyurtma saqlandi")); setItems([]); setShopName(""); }} disabled={!shopName || items.length === 0} style={{ ...btnPrimary, width: "100%", marginTop: "12px", opacity: !shopName || items.length === 0 ? 0.5 : 1 }}>
-            <ShoppingCart size={14} /> {t("Сохранить офлайн", "Oflayn saqlash")}
-          </button>
-        </Card>
+      <div className="flex items-center justify-between">
+        <h1 className="font-display text-2xl font-bold text-text-primary tracking-tight">
+          {lang === "uz" ? "Offline buyurtmalar" : "Офлайн заказы"}
+        </h1>
+        <span className="font-data text-text-secondary text-sm">
+          {pending.length} {lang === "uz" ? "ta" : "шт."}
+        </span>
+      </div>
+
+      {pending.length === 0 ? (
+        <div className="panel p-10 text-center space-y-2">
+          <CheckCircle2 size={32} className="mx-auto text-success"/>
+          <p className="text-text-secondary text-sm">
+            {lang === "uz" ? "Kutayotgan buyurtmalar yo'q" : "Нет ожидающих заказов"}
+          </p>
+          {!online && (
+            <p className="text-xs text-text-secondary mt-2">
+              {lang === "uz"
+                ? "Internet bo'lmasa ham yangi buyurtmalar bu yerda saqlanadi"
+                : "При отсутствии интернета новые заказы сохранятся здесь"}
+            </p>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {pending.map(order => {
+            const total = (order.items as any)?.reduce(
+              (s: number, i: any) => s + Number(i.unitPrice) * Number(i.quantity), 0
+            ) ?? 0;
+            return (
+              <div key={order.localId as any} className="panel p-4 border-l-2 border-warning">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Clock size={14} className="text-warning flex-shrink-0"/>
+                      <span className="text-sm font-medium text-text-primary">
+                        {String(order.shopName ?? `Shop #${String(order.shopId)}`)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-text-secondary mt-1">
+                      {lang === "uz" ? "Saqlangan:" : "Сохранён:"} {new Date(order.savedAt as string).toLocaleString("ru-RU")}
+                    </p>
+                    <p className="text-xs text-text-secondary">
+                      {(order.items as any)?.length ?? 0} {lang === "uz" ? "ta mahsulot" : "товаров"} · {fmt(total)}
+                    </p>
+                  </div>
+                  <div className="flex gap-1 flex-shrink-0">
+                    {online && (
+                      <button
+                        onClick={async () => {
+                          try {
+                            await createOrder.mutateAsync({
+                              shopId:   order.shopId as number,
+                              agentId:  (order.agentId as number) ?? user?.id ?? 0,
+                              items:    order.items as any,
+                              notes:    order.notes as string | undefined,
+                              discount: order.discount as string | number | undefined,
+                            });
+        await deletePendingOrder(order.localId as number);
+                            await loadPending();
+                            utils.order.list.invalidate();
+                            notify.success(lang === "uz" ? "Buyurtma yuborildi" : "Заказ отправлен");
+                          } catch (e: unknown) {
+                            notify.error(e instanceof Error ? e.message : "Unknown error");
+                          }
+                        }}
+                        className="btn-primary py-1 px-2 text-xs"
+                      >
+                        {lang === "uz" ? "Yuborish" : "Отправить"}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => deleteLocal(order.localId as number)}
+                      className="btn-secondary p-1.5 text-danger border-danger/30"
+                    >
+                      <Trash2 size={14}/>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
+
+      <div className="panel p-4 text-sm text-text-secondary">
+        <p className="font-medium text-text-primary mb-1">
+          {lang === "uz" ? "Qanday ishlaydi" : "Как работает"}
+        </p>
+        <p>
+          {lang === "uz"
+            ? "Internet bo'lmasa yangi buyurtma yaratganingizda u avtomatik qurilmaga saqlanadi. Internet paydo bo'lganda avtomatik yuboriladi."
+            : "При создании заказа без интернета он автоматически сохраняется на устройстве. При восстановлении связи — автоматически отправляется на сервер."}
+        </p>
+      </div>
     </div>
   );
 }
