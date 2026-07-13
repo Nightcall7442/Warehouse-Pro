@@ -874,18 +874,19 @@
 }
 
 /* ════════════════════════════════════════════════════════════════════════
-   RECHARTS OVERRIDES
+   RECHARTS OVERRIDES — Neumorphic Style
    ════════════════════════════════════════════════════════════════════════ */
 .recharts-cartesian-grid-horizontal line,
 .recharts-cartesian-grid-vertical line {
   stroke: var(--color-border, #c8d0dc) !important;
   stroke-dasharray: 4 4;
+  opacity: 0.5;
 }
 .recharts-tooltip-wrapper .recharts-default-tooltip {
   background: var(--color-surface, #e0e5ec) !important;
-  border: none !important;
+  border: 1px solid rgba(255,255,255,0.3) !important;
   border-radius: 16px !important;
-  box-shadow: var(--shadow-md) !important;
+  box-shadow: var(--shadow-raised) !important;
   padding: 14px 18px !important;
 }
 .recharts-tooltip-label {
@@ -904,6 +905,17 @@
 .recharts-legend-wrapper {
   font-family: 'DM Sans', sans-serif !important;
 }
+.recharts-legend-item-text {
+  color: var(--color-text-secondary, #5a6a7f) !important;
+  font-size: 12px !important;
+}
+.recharts-bar-rectangle {
+  rx: 6;
+  ry: 6;
+}
+.recharts-pie-sector {
+  filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.1));
+}
 
 /* ════════════════════════════════════════════════════════════════════════
    SCROLLBAR
@@ -919,13 +931,14 @@
    ════════════════════════════════════════════════════════════════════════ */
 .dark .recharts-tooltip-wrapper .recharts-default-tooltip {
   background: var(--color-surface-raised, #1e2335) !important;
-  border: 1px solid rgba(255,255,255,0.05) !important;
+  border: 1px solid rgba(255,255,255,0.06) !important;
   box-shadow: var(--shadow-md) !important;
 }
 .dark .recharts-cartesian-grid-horizontal line,
 .dark .recharts-cartesian-grid-vertical line {
   stroke: rgba(255,255,255,0.06) !important;
   stroke-dasharray: 3 3;
+  opacity: 0.6;
 }
 .dark .recharts-tooltip-label {
   color: var(--color-text-tertiary, #5a6680) !important;
@@ -935,6 +948,12 @@
 }
 .dark .recharts-legend-item-text {
   color: var(--color-text-secondary, #8896b3) !important;
+}
+.dark .recharts-pie-sector {
+  filter: drop-shadow(2px 2px 6px rgba(0,0,0,0.3));
+}
+.dark .recharts-bar-rectangle {
+  filter: drop-shadow(1px 1px 3px rgba(0,0,0,0.2));
 }
 .dark .leaflet-container { background: #0b0c10 !important; }
 .dark .progress-ring-label { color: var(--color-text-primary); }
