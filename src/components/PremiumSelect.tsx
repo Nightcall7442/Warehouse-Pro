@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { ChevronDown } from "lucide-react";
 
 interface PremiumSelectProps {
@@ -12,6 +13,8 @@ interface PremiumSelectProps {
 export function PremiumSelect({ value, options, onChange, placeholder = "Выберите...", width }: PremiumSelectProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 });
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -21,12 +24,20 @@ export function PremiumSelect({ value, options, onChange, placeholder = "Выб�
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  useEffect(() => {
+    if (open && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setDropdownPos({ top: rect.bottom + window.scrollY + 6, left: rect.left, width: rect.width });
+    }
+  }, [open]);
+
   const selected = options.find(o => o.value === value);
 
   return (
     <div ref={ref} style={{ position: "relative", width: width || "auto" }}>
       {/* Trigger */}
       <button
+        ref={triggerRef}
         onClick={() => setOpen(v => !v)}
         style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -44,10 +55,10 @@ export function PremiumSelect({ value, options, onChange, placeholder = "Выб�
         <ChevronDown size={16} style={{ color: "var(--color-text-tertiary, #98a0b8)", transform: open ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.15s ease", flexShrink: 0 }} />
       </button>
 
-      {/* Dropdown */}
-      {open && (
+      {/* Dropdown — portal to avoid clipping */}
+      {open && createPortal(
         <div style={{
-          position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, zIndex: 50,
+          position: "fixed", top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width, zIndex: 99999,
           background: "var(--color-surface, #ffffff)", borderRadius: "12px",
           boxShadow: "0 4px 12px rgba(0,0,0,.08), 0 1px 3px rgba(0,0,0,.04)",
           border: "1px solid var(--color-border, #f0f3f8)",
@@ -83,7 +94,8 @@ export function PremiumSelect({ value, options, onChange, placeholder = "Выб�
               {opt.label}
             </button>
           ))}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

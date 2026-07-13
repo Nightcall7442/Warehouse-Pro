@@ -87,7 +87,7 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
   const { lang } = useLang();
   const { fmt } = useCurrency();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
-  const { data: products } = trpc.product.list.useQuery({ page: 1, pageSize: 200 }) as { data: any };
+  const { data: products, isLoading: productsLoading } = trpc.product.list.useQuery({ page: 1, pageSize: 200 }) as { data: any; isLoading: boolean };
 
   const [form, setForm] = useState({
     truckId: "", driverName: "", driverPhone: "",
@@ -196,7 +196,7 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
               {items.map((item, i) => (
                 <div key={i} className="neo-card-sm p-4 space-y-3" style={{ border: "1px solid var(--color-border, #f0f3f8)", borderRadius: "16px" }}>
                   <PremiumSelect value={String(item.productId)} onChange={v => updateItem(i, "productId", Number(v))}
-                    options={[{ value: "0", label: t("Выберите товар…", "Mahsulot tanlang…") }, ...(products?.data ?? []).map((p: any) => ({ value: String(p.id), label: `${p.name} · ${fmt(p.unitPrice)}/${unitLabel(p.unit)}` }))]}
+                    options={[{ value: "0", label: productsLoading ? t("Загрузка товаров...", "Mahsulotlar yuklanmoqda...") : t("Выберите товар…", "Mahsulot tanlang…") }, ...(products?.data ?? []).map((p: any) => ({ value: String(p.id), label: `${p.name} · ${fmt(p.unitPrice)}/${unitLabel(p.unit)}` }))]}
                     width="100%" />
                   <div className="grid grid-cols-4 gap-3 items-end">
                     <div>
