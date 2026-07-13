@@ -188,7 +188,7 @@ export default function WarehouseReports() {
           <select
             value={days}
             onChange={(e) => setDays(Number(e.target.value))}
-            className="input-field text-xs py-1.5"
+            className="neo-input text-xs py-1.5"
             style={{ minWidth: 100 }}
           >
             <option value={7}>{t("7 дней", "7 kun")}</option>
@@ -199,7 +199,7 @@ export default function WarehouseReports() {
           <button
             onClick={handleExcelExport}
             disabled={isLoading}
-            className="btn-secondary flex items-center gap-1.5 text-xs py-1.5 px-3"
+            className="neo-btn flex items-center gap-1.5 text-xs py-1.5 px-3"
             title="Excel"
           >
             <FileSpreadsheet size={14} />
@@ -208,7 +208,7 @@ export default function WarehouseReports() {
           <button
             onClick={handlePDFExport}
             disabled={isLoading}
-            className="btn-secondary flex items-center gap-1.5 text-xs py-1.5 px-3"
+            className="neo-btn flex items-center gap-1.5 text-xs py-1.5 px-3"
             title="PDF"
           >
             <FileText size={14} />

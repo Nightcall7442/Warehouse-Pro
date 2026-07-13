@@ -60,7 +60,7 @@ export default function BillingSettings() {
       </h1>
 
       {/* Current status */}
-      <div className="panel p-6">
+      <div className="neo-card p-6">
         <div className="flex items-start gap-4">
           <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${
             sub.isActive ? "bg-success/15" : "bg-danger/15"
@@ -96,7 +96,7 @@ export default function BillingSettings() {
             <button
               onClick={() => portal.mutate()}
               disabled={portal.isPending}
-              className="btn-secondary flex items-center gap-2 text-sm py-2 flex-shrink-0"
+              className="neo-btn flex items-center gap-2 text-sm py-2 flex-shrink-0"
             >
               {portal.isPending ? <Loader2 size={14} className="animate-spin"/> : <ExternalLink size={14}/>}
               Управление
@@ -137,14 +137,14 @@ export default function BillingSettings() {
                   ))}
                 </ul>
                 {isCurrent ? (
-                  <div className="btn-secondary w-full text-center py-2 text-sm opacity-60 cursor-default">
+                  <div className="neo-btn w-full text-center py-2 text-sm opacity-60 cursor-default">
                     Текущий тариф
                   </div>
                 ) : (
                   <button
                     onClick={() => checkout.mutate({ plan: plan.key as "basic" | "pro" | "exclusive" })}
                     disabled={checkout.isPending}
-                    className="btn-primary w-full flex items-center justify-center gap-2 py-2 text-sm"
+                    className="neo-btn-primary w-full flex items-center justify-center gap-2 py-2 text-sm"
                   >
                     {checkout.isPending ? <Loader2 size={14} className="animate-spin"/> : <Zap size={14}/>}
                     {sub.isTrialing ? "Подключить" : "Перейти"}
@@ -158,7 +158,7 @@ export default function BillingSettings() {
 
       {/* Trial features */}
       {sub.isTrialing && (
-        <div className="panel p-5 border-info/30 bg-info/5">
+        <div className="neo-card p-5 border-info/30 bg-info/5">
           <p className="font-label text-info text-xs tracking-wider mb-3">В ПРОБНОМ ПЕРИОДЕ ДОСТУПНО</p>
           <ul className="space-y-1.5">
             {PLAN_FEATURES.trial.map(f => (

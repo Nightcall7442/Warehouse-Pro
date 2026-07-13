@@ -7,7 +7,7 @@ export default function NotFound() {
 
   return (
     <div className="min-h-screen bg-canvas flex flex-col items-center justify-center px-4">
-      <div className="panel w-full max-w-md p-10 text-center space-y-6">
+      <div className="neo-card w-full max-w-md p-10 text-center space-y-6">
         <div className="w-16 h-16 rounded-2xl mx-auto flex items-center justify-center"
           style={{ background: "var(--kpi-amber)" }}>
           <SearchX size={28} className="text-white" />
@@ -25,7 +25,7 @@ export default function NotFound() {
 
         <Link
           to="/"
-          className="btn-primary w-full flex items-center justify-center gap-2 py-3"
+          className="neo-btn-primary w-full flex items-center justify-center gap-2 py-3"
         >
           <Home size={18} />
           {tr("На главную", "Bosh sahifaga")}

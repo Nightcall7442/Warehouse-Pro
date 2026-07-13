@@ -163,7 +163,7 @@ export default function CourierDeliveries() {
                     href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.shopAddress)}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="btn-secondary flex items-center gap-2 text-sm flex-1 justify-center"
+                    className="neo-btn flex items-center gap-2 text-sm flex-1 justify-center"
                   >
                     <MapPin size={14} />
                     {t("На карте", "Xaritada")}
@@ -172,7 +172,7 @@ export default function CourierDeliveries() {
                 <button
                   onClick={() => markOutForDelivery.mutate({ orderId: order.id })}
                   disabled={markOutForDelivery.isPending}
-                  className="btn-primary flex items-center gap-2 text-sm flex-1 justify-center"
+                  className="neo-btn-primary flex items-center gap-2 text-sm flex-1 justify-center"
                 >
                   <ArrowRight size={14} />
                   {t("Взять в доставку", "Yetkazishga olish")}
@@ -243,7 +243,7 @@ function DeliveryCard({
             href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.shopAddress)}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="btn-secondary flex items-center gap-2 text-sm flex-1 justify-center"
+            className="neo-btn flex items-center gap-2 text-sm flex-1 justify-center"
           >
             <MapPin size={14} />
             {t("На карте", "Xaritada")}
@@ -260,7 +260,7 @@ function DeliveryCard({
           value={cashInput}
           onChange={(e) => onCashChange(e.target.value)}
           placeholder="0"
-          className="input-field w-full text-sm"
+          className="neo-input w-full text-sm"
         />
       </div>
 

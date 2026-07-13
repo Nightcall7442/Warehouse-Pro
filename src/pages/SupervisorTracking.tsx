@@ -167,7 +167,7 @@ export default function SupervisorTracking() {
               {t("ПРЯМОЙ ЭФИР · 30 сек", "JONLI · 30 sek")}
             </span>
           </div>
-          <button onClick={() => refetch()} className="btn-secondary py-1.5 px-3 text-xs flex items-center gap-1.5">
+          <button onClick={() => refetch()} className="neo-btn py-1.5 px-3 text-xs flex items-center gap-1.5">
             <RefreshCw size={12} />{t("Обновить", "Yangilash")}
           </button>
         </div>
@@ -197,7 +197,7 @@ export default function SupervisorTracking() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Agent list */}
-        <div className="panel p-4 lg:col-span-1 order-2 lg:order-1">
+        <div className="neo-card p-4 lg:col-span-1 order-2 lg:order-1">
           <p className="font-label text-[10px] text-primary tracking-wider mb-3">
             {t("АГЕНТЫ", "AGENTLAR")}
           </p>
@@ -264,7 +264,7 @@ export default function SupervisorTracking() {
         </div>
 
         {/* Map */}
-        <div className="panel overflow-hidden lg:col-span-2 order-1 lg:order-2" style={{ minHeight: 420 }}>
+        <div className="neo-card overflow-hidden lg:col-span-2 order-1 lg:order-2" style={{ minHeight: 420 }}>
           <div ref={mapDivRef} style={{ width: "100%", height: "480px" }} />
         </div>
       </div>

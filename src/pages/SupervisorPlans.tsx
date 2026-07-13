@@ -42,7 +42,7 @@ function CreatePlanForm({ date, onDone, lang }: { date: string; onDone: () => vo
   });
 
   return (
-    <div className="panel p-5 space-y-4" style={{ borderColor: "rgba(75,108,246,.30)" }}>
+    <div className="neo-card p-5 space-y-4" style={{ borderColor: "rgba(75,108,246,.30)" }}>
       <div className="flex items-center justify-between">
         <h3 className="font-display text-sm font-semibold text-text-primary">
           {t("Новый план визита", "Yangi tashrif rejasi")} — {format(new Date(date), "dd MMMM yyyy", { locale: lang === "ru" ? dateRu : undefined })}
@@ -73,7 +73,7 @@ function CreatePlanForm({ date, onDone, lang }: { date: string; onDone: () => vo
           <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">
             {t("ПРИМЕЧАНИЯ", "IZOHLAR")}
           </label>
-          <input className="input-field w-full"
+          <input className="neo-input w-full"
             placeholder={t("Дополнительные инструкции…", "Qo'shimcha ko'rsatmalar…")}
             value={notes} onChange={e => setNotes(e.target.value)} />
         </div>
@@ -82,7 +82,7 @@ function CreatePlanForm({ date, onDone, lang }: { date: string; onDone: () => vo
       <button
         onClick={() => agentId && shopId && createPlan.mutate({ agentId, shopId, planDate: date, notes: notes || undefined })}
         disabled={createPlan.isPending || !agentId || !shopId}
-        className="btn-primary flex items-center gap-2 disabled:opacity-40"
+        className="neo-btn-primary flex items-center gap-2 disabled:opacity-40"
       >
         {createPlan.isPending && <Loader2 size={14} className="animate-spin" />}
         {t("Создать план", "Reja yaratish")}
@@ -136,7 +136,7 @@ export default function SupervisorPlans() {
             </p>
           )}
         </div>
-        <button onClick={() => setShowForm(v => !v)} className="btn-primary flex items-center gap-2">
+        <button onClick={() => setShowForm(v => !v)} className="neo-btn-primary flex items-center gap-2">
           <Plus size={16} />
           <span className="hidden sm:inline">{t("Создать план", "Reja yaratish")}</span>
         </button>
@@ -197,7 +197,7 @@ export default function SupervisorPlans() {
       )}
 
       {/* Таблица планов */}
-      <div className="panel overflow-hidden">
+      <div className="neo-card overflow-hidden">
         <table className="data-table">
           <thead>
             <tr>
@@ -259,7 +259,7 @@ export default function SupervisorPlans() {
                             <button
                               onClick={() => updatePlan.mutate({ planId: plan.id, status: "visited" })}
                               disabled={updatePlan.isPending}
-                              className="btn-primary py-1 px-2 text-xs flex items-center gap-1"
+                              className="neo-btn-primary py-1 px-2 text-xs flex items-center gap-1"
                             >
                               <CheckCircle2 size={12} />
                               {t("Готово", "Bajarildi")}
@@ -267,7 +267,7 @@ export default function SupervisorPlans() {
                             <button
                               onClick={() => updatePlan.mutate({ planId: plan.id, status: "skipped" })}
                               disabled={updatePlan.isPending}
-                              className="btn-secondary py-1 px-2 text-xs flex items-center gap-1 text-warning"
+                              className="neo-btn py-1 px-2 text-xs flex items-center gap-1 text-warning"
                               style={{ borderColor: "color-mix(in srgb, #e8a830 30%, transparent)" }}
                             >
                               <Clock size={12} />

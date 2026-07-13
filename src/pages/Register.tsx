@@ -164,7 +164,7 @@ export default function Register() {
             ].map(f => (
               <div key={f.key} className="space-y-1.5">
                 <label className="block text-xs font-medium" style={{ color: "var(--color-text-secondary, #6a7290)" }}>{f.label}</label>
-                <input type={f.type} className="input-field" placeholder={f.placeholder}
+                <input type={f.type} className="neo-input" placeholder={f.placeholder}
                   value={(form as unknown as Record<string, string>)[f.key]}
                   onChange={e => setForm({ ...form, [f.key]: e.target.value })}
                   disabled={registerMutation.isPending} />
@@ -174,7 +174,7 @@ export default function Register() {
             <div className="space-y-1.5">
               <label className="block text-xs font-medium" style={{ color: "var(--color-text-secondary, #6a7290)" }}>{tr("Пароль","Parol")}</label>
               <div className="relative">
-                <input type={showPw ? "text" : "password"} className="input-field pr-10"
+                <input type={showPw ? "text" : "password"} className="neo-input pr-10"
                   placeholder={tr("Минимум 8 символов","Kamida 8 belgi")}
                   value={form.password}
                   onChange={e => setForm({ ...form, password: e.target.value })}
@@ -198,7 +198,7 @@ export default function Register() {
               </div>
             )}
 
-            <button type="submit" className="btn-primary w-full py-2.5 text-sm mt-2"
+            <button type="submit" className="neo-btn-primary w-full py-2.5 text-sm mt-2"
               disabled={registerMutation.isPending}>
               {registerMutation.isPending
                 ? <><Loader2 size={15} className="animate-spin inline mr-2" />{tr("Создание…","Yaratilmoqda…")}</>

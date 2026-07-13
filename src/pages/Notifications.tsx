@@ -125,7 +125,7 @@ export default function Notifications() {
           <button
             onClick={() => markAllRead.mutate()}
             disabled={markAllRead.isPending}
-            className="btn-secondary flex items-center gap-2 text-sm py-2"
+            className="neo-btn flex items-center gap-2 text-sm py-2"
           >
             {markAllRead.isPending ? <Loader2 size={14} className="animate-spin" /> : <CheckCheck size={14} />}
             {t("Прочитать все", "Hammasini o'qish")}
@@ -190,7 +190,7 @@ export default function Notifications() {
                 </div>
 
                 {/* Notifications in this group */}
-                <div className="panel overflow-hidden">
+                <div className="neo-card overflow-hidden">
                   {items.map((n, i) => {
                     const typeKey = n.type ?? "system";
                     const style = TYPE_CONFIG[typeKey] ?? TYPE_CONFIG.system;

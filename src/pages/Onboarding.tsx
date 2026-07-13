@@ -62,24 +62,24 @@ function StepWarehouse({ onNext }: { onNext: () => void }) {
       <div className="space-y-3">
         <div>
           <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">НАЗВАНИЕ СКЛАДА *</label>
-          <input className="input-field w-full" placeholder="Главный склад" autoFocus
+          <input className="neo-input w-full" placeholder="Главный склад" autoFocus
             value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
         </div>
         <div>
           <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">АДРЕС</label>
-          <input className="input-field w-full" placeholder="ул. Амира Темура, 15"
+          <input className="neo-input w-full" placeholder="ул. Амира Темура, 15"
             value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} />
         </div>
         <div>
           <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">ГОРОД</label>
-          <input className="input-field w-full" placeholder="Ташкент"
+          <input className="neo-input w-full" placeholder="Ташкент"
             value={form.city} onChange={e => setForm({ ...form, city: e.target.value })} />
         </div>
       </div>
       <button
         onClick={() => form.name.trim() && create.mutate(form)}
         disabled={create.isPending || !form.name.trim()}
-        className="btn-primary w-full py-3 flex items-center justify-center gap-2 disabled:opacity-40"
+        className="neo-btn-primary w-full py-3 flex items-center justify-center gap-2 disabled:opacity-40"
       >
         {create.isPending ? <Loader2 size={15} className="animate-spin" /> : null}
         Создать склад <ChevronRight size={15} />
@@ -113,30 +113,30 @@ function StepProduct({ onNext }: { onNext: () => void }) {
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">КОД *</label>
-            <input className="input-field w-full font-data" placeholder="MUK-001" autoFocus
+            <input className="neo-input w-full font-data" placeholder="MUK-001" autoFocus
               value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} />
           </div>
           <div>
             <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">КАТЕГОРИЯ</label>
-            <input className="input-field w-full" placeholder="Мука"
+            <input className="neo-input w-full" placeholder="Мука"
               value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} />
           </div>
         </div>
         <div>
           <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">НАЗВАНИЕ *</label>
-          <input className="input-field w-full" placeholder="Мука пшеничная в/с"
+          <input className="neo-input w-full" placeholder="Мука пшеничная в/с"
             value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
         </div>
         <div>
           <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">ЦЕНА ЗА КГ *</label>
-          <input type="number" step="0.01" className="input-field w-full font-data" placeholder="0.00"
+          <input type="number" step="0.01" className="neo-input w-full font-data" placeholder="0.00"
             value={form.unitPrice} onChange={e => setForm({ ...form, unitPrice: e.target.value })} />
         </div>
       </div>
       <button
         onClick={() => form.code && form.name && form.unitPrice && create.mutate({ ...form, reorderPoint: "10.00" })}
         disabled={create.isPending || !form.code || !form.name || !form.unitPrice}
-        className="btn-primary w-full py-3 flex items-center justify-center gap-2 disabled:opacity-40"
+        className="neo-btn-primary w-full py-3 flex items-center justify-center gap-2 disabled:opacity-40"
       >
         {create.isPending ? <Loader2 size={15} className="animate-spin" /> : null}
         Добавить товар <ChevronRight size={15} />
@@ -163,7 +163,7 @@ function StepInvite({ onFinish }: { onFinish: () => void }) {
       <CheckCircle2 size={48} className="text-success mx-auto mb-4" />
       <h2 className="font-display text-xl text-text-primary mb-2">Приглашение отправлено!</h2>
       <p className="text-text-secondary text-sm mb-6">На {email} отправлена ссылка для регистрации</p>
-      <button onClick={onFinish} className="btn-primary px-8 py-3">
+      <button onClick={onFinish} className="neo-btn-primary px-8 py-3">
         Перейти в Dashboard →
       </button>
     </div>
@@ -181,7 +181,7 @@ function StepInvite({ onFinish }: { onFinish: () => void }) {
       <div className="space-y-3">
         <div>
           <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">EMAIL СОТРУДНИКА</label>
-          <input type="email" className="input-field w-full" placeholder="agent@company.com" autoFocus
+          <input type="email" className="neo-input w-full" placeholder="agent@company.com" autoFocus
             value={email} onChange={e => setEmail(e.target.value)} />
         </div>
         <div>
@@ -205,7 +205,7 @@ function StepInvite({ onFinish }: { onFinish: () => void }) {
       <button
         onClick={() => email && invite.mutate({ email, role })}
         disabled={invite.isPending || !email}
-        className="btn-primary w-full py-3 flex items-center justify-center gap-2 disabled:opacity-40"
+        className="neo-btn-primary w-full py-3 flex items-center justify-center gap-2 disabled:opacity-40"
       >
         {invite.isPending ? <Loader2 size={15} className="animate-spin" /> : null}
         Отправить приглашение
@@ -229,7 +229,7 @@ function StepDone({ onFinish }: { onFinish: () => void }) {
       <p className="text-text-secondary text-sm mb-8 max-w-xs mx-auto">
         Ваш склад настроен. Теперь вы можете добавлять заказы, управлять агентами и следить за аналитикой.
       </p>
-      <button onClick={onFinish} className="btn-primary px-10 py-3 text-base">
+      <button onClick={onFinish} className="neo-btn-primary px-10 py-3 text-base">
         Перейти в Dashboard →
       </button>
     </div>
@@ -257,7 +257,7 @@ export default function Onboarding() {
 
         {step <= 3 && <ProgressBar current={step} />}
 
-        <div className="panel p-8">
+        <div className="neo-card p-8">
           {step === 1 && <StepWarehouse onNext={() => setStep(2)} />}
           {step === 2 && <StepProduct   onNext={() => setStep(3)} />}
           {step === 3 && <StepInvite    onFinish={() => setStep(4)} />}

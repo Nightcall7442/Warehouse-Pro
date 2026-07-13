@@ -154,26 +154,26 @@ function ProductForm({ onSave, onCancel, isPending, lang }: { onSave: (d: Record
           </div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px", flex: 1 }}>
-          <input className="input-field" placeholder={t("Код *","Kod *")} value={d.code} onChange={e=>setD({...d,code:e.target.value})}/>
-          <input className="input-field" placeholder={t("Штрих-код (необязательно)","Shtrix-kod (ixtiyoriy)")} value={d.barcode} onChange={e=>setD({...d,barcode:e.target.value})}/>
-          <input className="input-field" placeholder={t("Название *","Nomi *")} value={d.name} onChange={e=>setD({...d,name:e.target.value})}/>
-          <input className="input-field" placeholder={t("Категория","Kategoriya")} value={d.category} onChange={e=>setD({...d,category:e.target.value})}/>
+          <input className="neo-input" placeholder={t("Код *","Kod *")} value={d.code} onChange={e=>setD({...d,code:e.target.value})}/>
+          <input className="neo-input" placeholder={t("Штрих-код (необязательно)","Shtrix-kod (ixtiyoriy)")} value={d.barcode} onChange={e=>setD({...d,barcode:e.target.value})}/>
+          <input className="neo-input" placeholder={t("Название *","Nomi *")} value={d.name} onChange={e=>setD({...d,name:e.target.value})}/>
+          <input className="neo-input" placeholder={t("Категория","Kategoriya")} value={d.category} onChange={e=>setD({...d,category:e.target.value})}/>
           <PremiumSelect value={d.unit} onChange={v=>setD({...d,unit:v})}
             options={UNITS.map(u=>({value:u.value,label:lang==="uz"?u.uz:u.ru}))}
             width="100%" />
-          <input className="input-field font-data" placeholder={t("Себестоимость","Tannarx")} type="number" step="0.01" value={d.costPrice} onChange={e=>setD({...d,costPrice:e.target.value})}/>
-          <input className="input-field font-data" placeholder={t("Цена продажи *","Sotish narxi *")} type="number" step="0.01" value={d.unitPrice} onChange={e=>setD({...d,unitPrice:e.target.value})}/>
-          <input className="input-field font-data" placeholder={t("Масса 1 ед. в кг (ящик=8)","1 dona vazni, kg")} type="number" step="0.001" value={d.unitWeight} onChange={e=>setD({...d,unitWeight:e.target.value})}/>
-          <input className="input-field font-data" placeholder={t("Порог дозаказа","Qayta buyurtma chegarasi")} type="number" value={d.reorderPoint} onChange={e=>setD({...d,reorderPoint:e.target.value})}/>
-          <input className="input-field sm:col-span-2" placeholder={t("Описание","Tavsif")} value={d.description} onChange={e=>setD({...d,description:e.target.value})}/>
+          <input className="neo-input font-data" placeholder={t("Себестоимость","Tannarx")} type="number" step="0.01" value={d.costPrice} onChange={e=>setD({...d,costPrice:e.target.value})}/>
+          <input className="neo-input font-data" placeholder={t("Цена продажи *","Sotish narxi *")} type="number" step="0.01" value={d.unitPrice} onChange={e=>setD({...d,unitPrice:e.target.value})}/>
+          <input className="neo-input font-data" placeholder={t("Масса 1 ед. в кг (ящик=8)","1 dona vazni, kg")} type="number" step="0.001" value={d.unitWeight} onChange={e=>setD({...d,unitWeight:e.target.value})}/>
+          <input className="neo-input font-data" placeholder={t("Порог дозаказа","Qayta buyurtma chegarasi")} type="number" value={d.reorderPoint} onChange={e=>setD({...d,reorderPoint:e.target.value})}/>
+          <input className="neo-input sm:col-span-2" placeholder={t("Описание","Tavsif")} value={d.description} onChange={e=>setD({...d,description:e.target.value})}/>
         </div>
       </div>
       <div style={{ display: "flex", gap: "8px", marginTop: "16px" }}>
         <button onClick={()=>d.code&&d.name&&d.unitPrice&&onSave({...d,photoUrl:photo??undefined})} disabled={isPending}
-          className="btn-primary flex-1 sm:flex-none flex items-center justify-center gap-2">
+          className="neo-btn-primary flex-1 sm:flex-none flex items-center justify-center gap-2">
           {isPending&&<Loader2 size={14} className="animate-spin"/>}{t("Сохранить","Saqlash")}
         </button>
-        <button onClick={onCancel} className="btn-secondary flex-1 sm:flex-none">{t("Отмена","Bekor qilish")}</button>
+        <button onClick={onCancel} className="neo-btn flex-1 sm:flex-none">{t("Отмена","Bekor qilish")}</button>
       </div>
     </div>
   );
@@ -454,7 +454,7 @@ export default function Products() {
           <div style={{ position: "relative", flex: 1, minWidth: "200px" }}>
             <Search size={16} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: COLORS.textSecondary }}/>
             <input
-              className="input-field"
+              className="neo-input"
               style={{ paddingLeft: "36px", width: "100%" }}
               placeholder={t("Поиск товаров…","Mahsulot qidirish…")}
               value={search}
@@ -484,7 +484,7 @@ export default function Products() {
             {selected.size} {t("выбрано","tanlangan")}
           </span>
           <div style={{ display: "flex", gap: "8px" }}>
-            <button onClick={()=>setSelected(new Set())} className="btn-secondary text-xs py-1.5 px-3">
+            <button onClick={()=>setSelected(new Set())} className="neo-btn text-xs py-1.5 px-3">
               {t("Сбросить","Bekor qilish")}
             </button>
             <button onClick={handleBulkDelete} disabled={deleteMutation.isPending}

@@ -82,13 +82,13 @@ export default function ProductDetail() {
           <ArrowLeft size={18}/><span className="text-sm">{tr("Назад","Orqaga")}</span>
         </button>
         <div className="flex gap-2">
-          <button onClick={()=>setEditing(v=>!v)} className="btn-secondary flex items-center gap-2 text-sm py-2"><Edit2 size={14}/>{tr("Изменить","Tahrirlash")}</button>
-          <button onClick={handleDelete} className="btn-secondary text-danger border-danger/30 text-sm py-2">{tr("Удалить","O'chirish")}</button>
+          <button onClick={()=>setEditing(v=>!v)} className="neo-btn flex items-center gap-2 text-sm py-2"><Edit2 size={14}/>{tr("Изменить","Tahrirlash")}</button>
+          <button onClick={handleDelete} className="neo-btn text-danger border-danger/30 text-sm py-2">{tr("Удалить","O'chirish")}</button>
         </div>
       </div>
 
       {/* Info card */}
-      <div className="panel p-6">
+      <div className="neo-card p-6">
         <div className="flex items-start gap-4">
           {/* Photo area */}
           <div className="flex-shrink-0">
@@ -116,7 +116,7 @@ export default function ProductDetail() {
             {editing ? (
               <div className="grid grid-cols-2 gap-3">
                 {[["code","Код"],["name","Название"],["category","Категория"]].map(([k,p])=>(
-                  <input key={k} className="input-field" placeholder={p}
+                  <input key={k} className="neo-input" placeholder={p}
                     defaultValue={(product as any)[k] ?? ""}
                     onChange={e=>setEditData((d: Record<string, unknown>)=>({...d,[k]:e.target.value}))}/>
                 ))}
@@ -124,27 +124,27 @@ export default function ProductDetail() {
                   onChange={v=>setEditData((d: Record<string, unknown>)=>({...d,unit:v}))}
                   options={Object.keys(UNIT_LABELS).map(u=>({value:u,label:unitLabel(u)}))}
                   width="100%" />
-                <input className="input-field font-data" placeholder={tr("Себестоимость","Tannarx")}
+                <input className="neo-input font-data" placeholder={tr("Себестоимость","Tannarx")}
                   defaultValue={(product as any).costPrice} type="number" step="0.01"
                   onChange={e=>setEditData((d: Record<string, unknown>)=>({...d,costPrice:e.target.value}))}/>
-                <input className="input-field font-data" placeholder={tr("Цена продажи","Sotish narxi")}
+                <input className="neo-input font-data" placeholder={tr("Цена продажи","Sotish narxi")}
                   defaultValue={(product as any).unitPrice} type="number" step="0.01"
                   onChange={e=>setEditData((d: Record<string, unknown>)=>({...d,unitPrice:e.target.value}))}/>
-                <input className="input-field font-data" placeholder={tr("Масса 1 ед. (кг)","1 dona vazni (kg)")}
+                <input className="neo-input font-data" placeholder={tr("Масса 1 ед. (кг)","1 dona vazni (kg)")}
                   defaultValue={(product as any).unitWeight} type="number" step="0.001"
                   onChange={e=>setEditData((d: Record<string, unknown>)=>({...d,unitWeight:e.target.value}))}/>
-                <input className="input-field font-data" placeholder={tr("Порог дозаказа","Qayta buyurtma chegarasi")}
+                <input className="neo-input font-data" placeholder={tr("Порог дозаказа","Qayta buyurtma chegarasi")}
                   defaultValue={(product as any).reorderPoint} type="number" step="0.01"
                   onChange={e=>setEditData((d: Record<string, unknown>)=>({...d,reorderPoint:e.target.value}))}/>
-                <input className="input-field col-span-2" placeholder={tr("Описание","Tavsif")}
+                <input className="neo-input col-span-2" placeholder={tr("Описание","Tavsif")}
                   defaultValue={(product as any).description ?? ""}
                   onChange={e=>setEditData((d: Record<string, unknown>)=>({...d,description:e.target.value}))}/>
                 <div className="col-span-2 flex gap-2">
                   <button onClick={()=>updateProduct.mutate({id:product.id,...editData})} disabled={updateProduct.isPending}
-                    className="btn-primary flex items-center gap-2">
+                    className="neo-btn-primary flex items-center gap-2">
                     {updateProduct.isPending&&<Loader2 size={14} className="animate-spin"/>}{tr("Сохранить","Saqlash")}
                   </button>
-                  <button onClick={()=>setEditing(false)} className="btn-secondary">{tr("Отмена","Bekor qilish")}</button>
+                  <button onClick={()=>setEditing(false)} className="neo-btn">{tr("Отмена","Bekor qilish")}</button>
                 </div>
               </div>
             ) : (
@@ -203,12 +203,12 @@ export default function ProductDetail() {
       </div>
 
       {/* Movement history */}
-      <div className="panel">
+      <div className="neo-card">
         <div className="px-4 pt-4 pb-2 border-b border-border-subtle flex items-center justify-between">
           <span className="font-label text-primary tracking-wider text-xs">{tr("ИСТОРИЯ ДВИЖЕНИЙ","HARAKATLAR TARIXI")}</span>
           {movements.length>0 && (
             <button onClick={()=>exportToExcel(formatMovementsForExport(movements as any),`movements-${product.name}`)}
-              className="btn-secondary py-1 px-3 text-xs">{tr("Экспорт","Eksport")}</button>
+              className="neo-btn py-1 px-3 text-xs">{tr("Экспорт","Eksport")}</button>
           )}
         </div>
         {movements.length===0 ? (

@@ -72,7 +72,7 @@ function PaymentModal({ shopId, onClose }: { shopId: number; onClose: () => void
             {t("СУММА", "SUMMA")}
           </label>
           <input type="number" step="0.01" min="0"
-            className="input-field w-full font-data text-lg"
+            className="neo-input w-full font-data text-lg"
             placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} autoFocus />
         </div>
 
@@ -80,7 +80,7 @@ function PaymentModal({ shopId, onClose }: { shopId: number; onClose: () => void
           <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">
             {t("ПРИМЕЧАНИЯ", "IZOHLAR")}
           </label>
-          <input className="input-field w-full" placeholder={t("Комментарий…", "Izoh…")}
+          <input className="neo-input w-full" placeholder={t("Комментарий…", "Izoh…")}
             value={notes} onChange={e => setNotes(e.target.value)} />
         </div>
 
@@ -88,11 +88,11 @@ function PaymentModal({ shopId, onClose }: { shopId: number; onClose: () => void
           <button
             onClick={() => amount && addPayment.mutate({ shopId, amount, type, notes: notes || undefined })}
             disabled={addPayment.isPending || !amount}
-            className="btn-primary flex-1 flex items-center justify-center gap-2 disabled:opacity-40">
+            className="neo-btn-primary flex-1 flex items-center justify-center gap-2 disabled:opacity-40">
             {addPayment.isPending && <Loader2 size={14} className="animate-spin" />}
             {t("Записать", "Kiritish")}
           </button>
-          <button onClick={onClose} className="btn-secondary px-5">{t("Отмена", "Bekor")}</button>
+          <button onClick={onClose} className="neo-btn px-5">{t("Отмена", "Bekor")}</button>
         </div>
       </div>
     </div>
@@ -170,7 +170,7 @@ export default function ShopDetail() {
           <ArrowLeft size={18} /><span className="text-sm">{t("Магазины", "Do'konlar")}</span>
         </button>
         <div className="flex gap-2">
-          <button onClick={() => setEditing(v => !v)} className="btn-secondary flex items-center gap-1.5 text-sm py-2">
+          <button onClick={() => setEditing(v => !v)} className="neo-btn flex items-center gap-1.5 text-sm py-2">
             <Edit2 size={13} />{t("Изменить", "O'zgartirish")}
           </button>
           <button onClick={handleDelete} className="btn-ghost flex items-center gap-1.5 text-sm text-danger">
@@ -180,7 +180,7 @@ export default function ShopDetail() {
       </div>
 
       {/* Карточка магазина */}
-      <div className="panel p-5">
+      <div className="neo-card p-5">
         {editing ? (
           <div className="space-y-3">
             <p className="font-label text-[10px] text-primary tracking-wider">{t("РЕДАКТИРОВАНИЕ", "TAHRIRLASH")}</p>
@@ -193,7 +193,7 @@ export default function ShopDetail() {
                 { key: "city",      ru: "Город",     uz: "Shahar"    },
                 { key: "district",  ru: "Район",     uz: "Tuman"     },
               ].map(f => (
-                <input key={f.key} className="input-field"
+                <input key={f.key} className="neo-input"
                   placeholder={lang === "uz" ? f.uz : f.ru}
                   defaultValue={(shop as Record<string, unknown>)[f.key] as string ?? ""}
                   onChange={e => setEditData((d: Record<string, unknown>) => ({ ...d, [f.key]: e.target.value }))} />
@@ -218,11 +218,11 @@ export default function ShopDetail() {
             <div className="flex gap-2">
               <button onClick={() => updateShop.mutate({ id: shop.id, ...editData })}
                 disabled={updateShop.isPending}
-                className="btn-primary flex items-center gap-2 disabled:opacity-40">
+                className="neo-btn-primary flex items-center gap-2 disabled:opacity-40">
                 {updateShop.isPending && <Loader2 size={14} className="animate-spin" />}
                 {t("Сохранить", "Saqlash")}
               </button>
-              <button onClick={() => setEditing(false)} className="btn-secondary">{t("Отмена", "Bekor")}</button>
+              <button onClick={() => setEditing(false)} className="neo-btn">{t("Отмена", "Bekor")}</button>
             </div>
           </div>
         ) : (
@@ -261,7 +261,7 @@ export default function ShopDetail() {
       </div>
 
       {/* Блок долга */}
-      <div className="panel p-5"
+      <div className="neo-card p-5"
         style={hasDebt ? { borderColor: "color-mix(in srgb, #e85050 35%, transparent)" } : undefined}>
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
@@ -281,7 +281,7 @@ export default function ShopDetail() {
               <p className="text-xs mt-1 text-success">{t("Задолженности нет", "Qarz yo'q")}</p>
             )}
           </div>
-          <button onClick={() => setShowPayment(true)} className="btn-primary flex items-center gap-2">
+          <button onClick={() => setShowPayment(true)} className="neo-btn-primary flex items-center gap-2">
             <Plus size={15} />{t("Добавить платёж", "To'lov qo'shish")}
           </button>
         </div>
@@ -317,7 +317,7 @@ export default function ShopDetail() {
 
       {/* История заказов */}
       {shop.recentOrders && shop.recentOrders.length > 0 && (
-        <div className="panel overflow-hidden">
+        <div className="neo-card overflow-hidden">
           <div className="px-5 py-4" style={{ borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
             <p className="font-label text-[10px] text-primary tracking-wider">
               {t("ЗАКАЗЫ МАГАЗИНА", "DO'KON BUYURTMALARI")}

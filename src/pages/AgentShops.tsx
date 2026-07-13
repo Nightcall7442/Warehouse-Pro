@@ -78,7 +78,7 @@ function AddShopModal({ onClose }: { onClose: () => void }) {
               {t("НАЗВАНИЕ *", "NOMI *")}
             </label>
             <input
-              className="input-field"
+              className="neo-input"
               placeholder={t("Название магазина", "Do'kon nomi")}
               value={form.name}
               onChange={e => setForm({ ...form, name: e.target.value })}
@@ -92,7 +92,7 @@ function AddShopModal({ onClose }: { onClose: () => void }) {
                 {t("ВЛАДЕЛЕЦ", "EGASI")}
               </label>
               <input
-                className="input-field"
+                className="neo-input"
                 placeholder={t("Имя владельца", "Egasi ismi")}
                 value={form.ownerName}
                 onChange={e => setForm({ ...form, ownerName: e.target.value })}
@@ -103,7 +103,7 @@ function AddShopModal({ onClose }: { onClose: () => void }) {
                 {t("ТЕЛЕФОН", "TELEFON")}
               </label>
               <input
-                className="input-field"
+                className="neo-input"
                 placeholder="+998 ..."
                 type="tel"
                 value={form.phone}
@@ -117,7 +117,7 @@ function AddShopModal({ onClose }: { onClose: () => void }) {
               {t("АДРЕС", "MANZIL")}
             </label>
             <input
-              className="input-field"
+              className="neo-input"
               placeholder={t("Улица, дом", "Ko'cha, uy")}
               value={form.address}
               onChange={e => setForm({ ...form, address: e.target.value })}
@@ -130,7 +130,7 @@ function AddShopModal({ onClose }: { onClose: () => void }) {
                 {t("ГОРОД", "SHAHAR")}
               </label>
               <input
-                className="input-field"
+                className="neo-input"
                 placeholder={t("Город", "Shahar")}
                 value={form.city}
                 onChange={e => setForm({ ...form, city: e.target.value })}
@@ -141,7 +141,7 @@ function AddShopModal({ onClose }: { onClose: () => void }) {
                 {t("РАЙОН", "TUMAN")}
               </label>
               <input
-                className="input-field"
+                className="neo-input"
                 placeholder={t("Район", "Tuman")}
                 value={form.district}
                 onChange={e => setForm({ ...form, district: e.target.value })}
@@ -155,7 +155,7 @@ function AddShopModal({ onClose }: { onClose: () => void }) {
               type="button"
               onClick={captureGps}
               disabled={gpsLoading}
-              className="btn-secondary w-full flex items-center justify-center gap-2 text-sm py-2.5"
+              className="neo-btn w-full flex items-center justify-center gap-2 text-sm py-2.5"
             >
               {gpsLoading
                 ? <Loader2 size={15} className="animate-spin" />
@@ -171,7 +171,7 @@ function AddShopModal({ onClose }: { onClose: () => void }) {
               {t("ЗАМЕТКИ", "ESLATMALAR")}
             </label>
             <textarea
-              className="input-field resize-none"
+              className="neo-input resize-none"
               rows={2}
               placeholder={t("Дополнительная информация", "Qo'shimcha ma'lumot")}
               value={form.notes}
@@ -185,12 +185,12 @@ function AddShopModal({ onClose }: { onClose: () => void }) {
           <button
             onClick={handleSave}
             disabled={createMutation.isPending || !form.name.trim()}
-            className="btn-primary flex-1 flex items-center justify-center gap-2 disabled:opacity-40"
+            className="neo-btn-primary flex-1 flex items-center justify-center gap-2 disabled:opacity-40"
           >
             {createMutation.isPending && <Loader2 size={14} className="animate-spin" />}
             {t("Добавить магазин", "Do'kon qo'shish")}
           </button>
-          <button onClick={onClose} className="btn-secondary px-4">
+          <button onClick={onClose} className="neo-btn px-4">
             {t("Отмена", "Bekor")}
           </button>
         </div>
@@ -243,7 +243,7 @@ export default function AgentShops() {
         </div>
         <button
           onClick={() => setShowAdd(true)}
-          className="btn-primary flex items-center gap-2"
+          className="neo-btn-primary flex items-center gap-2"
         >
           <Plus size={16} />
           <span className="hidden sm:inline">{t("Добавить", "Qo'shish")}</span>
@@ -254,7 +254,7 @@ export default function AgentShops() {
       <div className="relative">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
         <input
-          className="input-field pl-10 w-full"
+          className="neo-input pl-10 w-full"
           placeholder={t("Поиск магазинов…", "Do'kon qidirish…")}
           value={search}
           onChange={e => setSearch(e.target.value)}
@@ -272,7 +272,7 @@ export default function AgentShops() {
           {shops?.length === 0 && (
             <button
               onClick={() => setShowAdd(true)}
-              className="btn-primary mt-4 flex items-center gap-2 mx-auto"
+              className="neo-btn-primary mt-4 flex items-center gap-2 mx-auto"
             >
               <Plus size={16} />
               {t("Добавить магазин", "Do'kon qo'shish")}
@@ -283,7 +283,7 @@ export default function AgentShops() {
 
       <div className="space-y-3">
         {filtered?.map(shop => (
-          <div key={shop.id} className="panel p-4">
+          <div key={shop.id} className="neo-card p-4">
             <div className="flex items-start gap-3">
               <div
                 className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
@@ -327,7 +327,7 @@ export default function AgentShops() {
                 <div className="flex gap-2 mt-3">
                   <button
                     onClick={() => navigate(`/orders/new?shopId=${shop.id}`)}
-                    className="btn-primary flex-1 py-2 text-xs flex items-center justify-center gap-1.5"
+                    className="neo-btn-primary flex-1 py-2 text-xs flex items-center justify-center gap-1.5"
                   >
                     <PlusCircle size={13} />
                     {t("Новый заказ", "Yangi buyurtma")}
@@ -337,7 +337,7 @@ export default function AgentShops() {
                       href={`https://maps.google.com/?q=${shop.gpsLat},${shop.gpsLng}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="btn-secondary py-2 px-3 flex items-center gap-1.5 text-xs"
+                      className="neo-btn py-2 px-3 flex items-center gap-1.5 text-xs"
                       onClick={e => e.stopPropagation()}
                     >
                       <MapPin size={13} />

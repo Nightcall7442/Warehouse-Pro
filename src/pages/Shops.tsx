@@ -141,26 +141,26 @@ function ShopForm({ onSave, onCancel, isPending, lang, agents }: { onSave:(d:Sho
           </p>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "12px", flex: 1 }}>
-          <input className="input-field" placeholder={t("Название *","Nomi *")} value={d.name} onChange={e=>setD({...d,name:e.target.value})}/>
-          <input className="input-field" placeholder={t("Владелец","Egasi")} value={d.ownerName} onChange={e=>setD({...d,ownerName:e.target.value})}/>
-          <input className="input-field" placeholder={t("Телефон","Telefon")} value={d.phone} onChange={e=>setD({...d,phone:e.target.value})}/>
-          <input className="input-field" placeholder={t("Город","Shahar")} value={d.city} onChange={e=>setD({...d,city:e.target.value})}/>
-          <input className="input-field" placeholder={t("Район","Tuman")} value={d.district} onChange={e=>setD({...d,district:e.target.value})}/>
-          <input className="input-field" placeholder={t("Адрес","Manzil")} value={d.address} onChange={e=>setD({...d,address:e.target.value})}/>
+          <input className="neo-input" placeholder={t("Название *","Nomi *")} value={d.name} onChange={e=>setD({...d,name:e.target.value})}/>
+          <input className="neo-input" placeholder={t("Владелец","Egasi")} value={d.ownerName} onChange={e=>setD({...d,ownerName:e.target.value})}/>
+          <input className="neo-input" placeholder={t("Телефон","Telefon")} value={d.phone} onChange={e=>setD({...d,phone:e.target.value})}/>
+          <input className="neo-input" placeholder={t("Город","Shahar")} value={d.city} onChange={e=>setD({...d,city:e.target.value})}/>
+          <input className="neo-input" placeholder={t("Район","Tuman")} value={d.district} onChange={e=>setD({...d,district:e.target.value})}/>
+          <input className="neo-input" placeholder={t("Адрес","Manzil")} value={d.address} onChange={e=>setD({...d,address:e.target.value})}/>
           {agents.length>0&&(
             <PremiumSelect value={d.agentId} onChange={v=>setD({...d,agentId:v})}
               options={[{value:"",label:t("— Агент —","— Agent —")},...(agents??[]).map((a:AgentOption)=>({value:String(a.id),label:String(a.name)}))]}
               width="100%" />
           )}
-          <textarea className="input-field resize-none" style={{gridColumn:"span 2"}} rows={2} placeholder={t("Заметки","Izoh")} value={d.notes} onChange={e=>setD({...d,notes:e.target.value})}/>
+          <textarea className="neo-input resize-none" style={{gridColumn:"span 2"}} rows={2} placeholder={t("Заметки","Izoh")} value={d.notes} onChange={e=>setD({...d,notes:e.target.value})}/>
         </div>
       </div>
       <div style={{ display: "flex", gap: "12px", marginTop: "20px" }}>
         <button onClick={()=>d.name&&onSave({...d,agentId:d.agentId?Number(d.agentId):undefined,photoUrl:photo??undefined} as ShopFormData)}
-          disabled={isPending} className="btn-primary flex-1 sm:flex-none flex items-center justify-center gap-2">
+          disabled={isPending} className="neo-btn-primary flex-1 sm:flex-none flex items-center justify-center gap-2">
           {isPending&&<Loader2 size={14} className="animate-spin"/>}{t("Сохранить","Saqlash")}
         </button>
-        <button onClick={onCancel} className="btn-secondary flex-1 sm:flex-none">{t("Отмена","Bekor qilish")}</button>
+        <button onClick={onCancel} className="neo-btn flex-1 sm:flex-none">{t("Отмена","Bekor qilish")}</button>
       </div>
     </div>
   );
@@ -367,7 +367,7 @@ export default function Shops() {
           }}>
             <Upload size={14}/><span className="hidden sm:inline">{t("Импорт","Import")}</span>
           </button>
-          <button onClick={()=>setShowForm(!showForm)} className="btn-primary flex items-center gap-2">
+          <button onClick={()=>setShowForm(!showForm)} className="neo-btn-primary flex items-center gap-2">
             <Plus size={16}/><span className="hidden sm:inline">{t("Добавить","Qo'shish")}</span>
           </button>
         </div>
@@ -442,7 +442,7 @@ export default function Shops() {
 
         <div style={{ position: "relative", flex: 1, minWidth: "200px" }}>
           <Search size={16} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: COLORS.textSecondary }}/>
-          <input className="input-field" style={{ paddingLeft: "40px", width: "100%" }} placeholder={t("Поиск магазинов…","Do'kon qidirish…")} value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}}/>
+          <input className="neo-input" style={{ paddingLeft: "40px", width: "100%" }} placeholder={t("Поиск магазинов…","Do'kon qidirish…")} value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}}/>
         </div>
         {viewMode === "list" && agents.length > 0 && (
           <PremiumSelect value={agentFilter??""} onChange={v=>{setAgentFilter(v||undefined);setPage(1);}}
@@ -450,7 +450,7 @@ export default function Shops() {
             width="180px" />
         )}
         {(city||district||agentFilter)&&(
-          <button onClick={()=>{setCity(undefined);setDistrict(undefined);setAgentFilter(undefined);setPage(1);}} className="btn-secondary text-sm px-3 flex items-center gap-1">
+          <button onClick={()=>{setCity(undefined);setDistrict(undefined);setAgentFilter(undefined);setPage(1);}} className="neo-btn text-sm px-3 flex items-center gap-1">
             <X size={14}/>{t("Сбросить","Tozalash")}
           </button>
         )}
@@ -553,7 +553,7 @@ export default function Shops() {
                 {selected.size} {t("выбрано","tanlangan")}
               </span>
               <div style={{ display: "flex", gap: "8px" }}>
-                <button onClick={()=>setSelected(new Set())} className="btn-secondary text-xs py-1.5 px-3">
+                <button onClick={()=>setSelected(new Set())} className="neo-btn text-xs py-1.5 px-3">
                   {t("Сбросить","Bekor qilish")}
                 </button>
                 <button onClick={handleBulkDelete} disabled={deleteMutation.isPending}
@@ -600,8 +600,8 @@ export default function Shops() {
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <span style={{ fontSize: "13px", color: COLORS.textSecondary }}>{data.total} {t("всего","jami")}</span>
               <div style={{ display: "flex", gap: "8px" }}>
-                <button onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1} className="btn-secondary py-1 px-3 text-sm disabled:opacity-40">{t("Назад","Orqaga")}</button>
-                <button onClick={()=>setPage(p=>p+1)} disabled={page*25>=data.total} className="btn-secondary py-1 px-3 text-sm disabled:opacity-40">{t("Далее","Keyingi")}</button>
+                <button onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1} className="neo-btn py-1 px-3 text-sm disabled:opacity-40">{t("Назад","Orqaga")}</button>
+                <button onClick={()=>setPage(p=>p+1)} disabled={page*25>=data.total} className="neo-btn py-1 px-3 text-sm disabled:opacity-40">{t("Далее","Keyingi")}</button>
               </div>
             </div>
           )}

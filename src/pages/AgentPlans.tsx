@@ -89,7 +89,7 @@ export default function AgentPlans() {
 
       {/* Прогресс */}
       {total > 0 && (
-        <div className="panel p-4">
+        <div className="neo-card p-4">
           <div className="flex items-center justify-between mb-2.5">
             <span className="font-label text-[10px] tracking-wider" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
               {t("ПРОГРЕСС ДНЯ", "KUNLIK PROGRESS")}
@@ -125,7 +125,7 @@ export default function AgentPlans() {
           ))}
         </div>
       ) : plans?.length === 0 ? (
-        <div className="panel p-12 text-center space-y-3">
+        <div className="neo-card p-12 text-center space-y-3">
           <Calendar size={36} className="mx-auto opacity-20 text-text-secondary" />
           <p className="text-text-secondary text-sm">
             {t("На этот день визитов нет", "Bu kun uchun tashrif yo'q")}
@@ -203,7 +203,7 @@ export default function AgentPlans() {
                               <>
                                 <button
                                   onClick={() => navigate(`/agent/visit/${plan.id}?shopId=${plan.shopId ?? ""}&shopName=${encodeURIComponent(plan.shopName ?? "")}`)}
-                                  className="btn-primary flex-1 py-2 text-xs flex items-center justify-center gap-1.5"
+                                  className="neo-btn-primary flex-1 py-2 text-xs flex items-center justify-center gap-1.5"
                                 >
                                   <ClipboardList size={13} />
                                   {t("Отчёт о визите", "Tashrif hisoboti")}
@@ -221,14 +221,14 @@ export default function AgentPlans() {
                                 <button
                                   onClick={() => update.mutate({ planId: plan.id, status: "visited" })}
                                   disabled={update.isPending}
-                                  className="btn-primary flex-1 py-2 text-xs flex items-center justify-center gap-1.5"
+                                  className="neo-btn-primary flex-1 py-2 text-xs flex items-center justify-center gap-1.5"
                                 >
                                   <CheckCircle2 size={13} />
                                   {t("Отметить", "Belgilash")}
                                 </button>
                                 <button
                                   onClick={() => navigate(`/orders/new?shopId=${plan.shopId ?? ""}`)}
-                                  className="btn-secondary py-2 px-3 text-xs flex items-center gap-1"
+                                  className="neo-btn py-2 px-3 text-xs flex items-center gap-1"
                                 >
                                   <PlusCircle size={13} />
                                   {t("Заказ", "Buyurtma")}

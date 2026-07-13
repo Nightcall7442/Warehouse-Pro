@@ -114,7 +114,7 @@ function PlanCard({ plan, onDone, onSkip, isPending }: {
           <button
             onClick={onDone}
             disabled={isPending}
-            className="btn-primary py-1 px-3 text-xs"
+            className="neo-btn-primary py-1 px-3 text-xs"
           >
             {t("Готово", "Bajarildi")}
           </button>
@@ -176,7 +176,7 @@ export default function AgentDashboard() {
         {/* GPS кнопка */}
         <button
           onClick={() => navigate("/agent/gps")}
-          className="btn-secondary flex items-center gap-1.5 text-sm py-2"
+          className="neo-btn flex items-center gap-1.5 text-sm py-2"
         >
           <Navigation size={14} />
           GPS
@@ -206,7 +206,7 @@ export default function AgentDashboard() {
       </div>
 
       {/* ── Прогресс плана ── */}
-      <div className="panel p-4">
+      <div className="neo-card p-4">
         <div className="flex items-center justify-between mb-3.5">
           <span className="font-label text-[10px] tracking-wider" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
             {t("ПЛАН ВИЗИТОВ", "TASHRIF REJASI")}
@@ -240,7 +240,7 @@ export default function AgentDashboard() {
         {user?.role !== "merchandiser" && (
           <button
             onClick={() => navigate("/orders/new")}
-            className="btn-primary py-4 flex flex-col items-center gap-2"
+            className="neo-btn-primary py-4 flex flex-col items-center gap-2"
           >
             <PlusCircle size={22} />
             <span className="text-xs font-label tracking-wider">
@@ -250,7 +250,7 @@ export default function AgentDashboard() {
         )}
         <button
           onClick={() => navigate("/agent/shops")}
-          className="btn-secondary py-4 flex flex-col items-center gap-2"
+          className="neo-btn py-4 flex flex-col items-center gap-2"
         >
           <Store size={22} />
           <span className="text-xs font-label tracking-wider">
@@ -260,7 +260,7 @@ export default function AgentDashboard() {
       </div>
 
       {/* ── Список визитов сегодня ── */}
-      <div className="panel overflow-hidden">
+      <div className="neo-card overflow-hidden">
         {/* Заголовок */}
         <div
           className="px-4 py-3 flex items-center justify-between"

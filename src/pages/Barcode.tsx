@@ -95,7 +95,7 @@ export default function BarcodePage() {
       {/* Scan button */}
       <button
         onClick={() => setScanning(true)}
-        className="btn-primary w-full py-5 flex flex-col items-center gap-2 text-base"
+        className="neo-btn-primary w-full py-5 flex flex-col items-center gap-2 text-base"
       >
         <Scan size={28}/>
         <span className="font-label tracking-wider">
@@ -107,7 +107,7 @@ export default function BarcodePage() {
       <div className="relative">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary"/>
         <input
-          className="input-field pl-10 w-full font-data"
+          className="neo-input pl-10 w-full font-data"
           placeholder={lang === "uz" ? "Kod bo'yicha qidirish…" : "Поиск по коду или названию…"}
           value={searchCode}
           onChange={e => setSearchCode(e.target.value)}
@@ -116,7 +116,7 @@ export default function BarcodePage() {
 
       {/* Product result */}
       {searchCode.length > 1 && (
-        <div className="panel overflow-hidden">
+        <div className="neo-card overflow-hidden">
           {isLoading ? (
             <div className="p-4 space-y-2">
               {[1,2].map(i => <div key={i} className="h-10 bg-surface-light animate-pulse rounded"/>)}
@@ -148,7 +148,7 @@ export default function BarcodePage() {
                   <div className="flex gap-1 flex-shrink-0">
                     <button
                       onClick={() => navigate(`/orders/new?productCode=${p.code}`)}
-                      className="btn-primary py-1.5 px-2 text-xs flex items-center gap-1"
+                      className="neo-btn-primary py-1.5 px-2 text-xs flex items-center gap-1"
                       title={lang === "uz" ? "Buyurtma qo'shish" : "Добавить в заказ"}
                     >
                       <Plus size={13}/>
@@ -156,7 +156,7 @@ export default function BarcodePage() {
                     </button>
                     <button
                       onClick={() => addToLabelQueue(p)}
-                      className="btn-secondary py-1.5 px-2 text-xs"
+                      className="neo-btn py-1.5 px-2 text-xs"
                       title={lang === "uz" ? "Yorliq qo'shish" : "Добавить этикетку"}
                     >
                       <Printer size={13}/>
@@ -171,14 +171,14 @@ export default function BarcodePage() {
 
       {/* Label queue */}
       {labelQueue.length > 0 && (
-        <div className="panel p-4 space-y-3">
+        <div className="neo-card p-4 space-y-3">
           <div className="flex items-center justify-between">
             <span className="font-label text-primary tracking-wider text-xs">
               {lang === "uz" ? "YORLIQLAR" : "ОЧЕРЕДЬ НА ПЕЧАТЬ"} ({labelQueue.length})
             </span>
             <button
               onClick={printLabels}
-              className="btn-primary py-1.5 px-3 text-sm flex items-center gap-1.5"
+              className="neo-btn-primary py-1.5 px-3 text-sm flex items-center gap-1.5"
             >
               <Printer size={14}/>
               {lang === "uz" ? "Chop etish" : "Печать этикеток"}
@@ -204,7 +204,7 @@ export default function BarcodePage() {
       )}
 
       {/* Info */}
-      <div className="panel p-4 text-sm text-text-secondary space-y-1">
+      <div className="neo-card p-4 text-sm text-text-secondary space-y-1">
         <p className="font-medium text-text-primary">
           {lang === "uz" ? "Qo'llab-quvvatlanadigan formatlar" : "Поддерживаемые форматы"}
         </p>

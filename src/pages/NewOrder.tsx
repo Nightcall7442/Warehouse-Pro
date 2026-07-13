@@ -354,7 +354,7 @@ function StepItems({
         <div style={{ position: "relative", marginBottom: "12px" }}>
           <Search size={14} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "var(--color-text-tertiary, #98a0b8)", pointerEvents: "none" }} />
           <input
-            className="input-field"
+            className="neo-input"
             style={{ paddingLeft: "36px", width: "100%" }}
             placeholder={t("Поиск товаров…", "Mahsulot qidirish…")}
             value={search}
@@ -531,7 +531,7 @@ function StepReview({
         {t("ПОДТВЕРЖДЕНИЕ ЗАКАЗА", "BUYURTMANI TASDIQLASH")}
       </p>
 
-      <div className="panel p-4 space-y-3">
+      <div className="neo-card p-4 space-y-3">
         {/* Shop */}
         <div className="flex items-center gap-2.5 pb-3" style={{ borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
           <Store size={14} className="text-text-secondary flex-shrink-0"/>
@@ -566,7 +566,7 @@ function StepReview({
             <span className="text-sm text-text-secondary flex-shrink-0">{t("Скидка", "Chegirma")}</span>
             <div className="relative w-28">
               <input
-                className="input-field text-right font-data py-1.5 text-sm"
+                className="neo-input text-right font-data py-1.5 text-sm"
                 type="number"
                 min="0"
                 max={subtotal}
@@ -596,7 +596,7 @@ function StepReview({
           {t("ПРИМЕЧАНИЯ (ОПЦИОНАЛЬНО)", "ESLATMALAR (IXTIYORIY)")}
         </label>
         <textarea
-          className="input-field w-full resize-none"
+          className="neo-input w-full resize-none"
           rows={3}
           placeholder={t("Особые инструкции…", "Maxsus ko'rsatmalar…")}
           value={notes}
@@ -735,7 +735,7 @@ export default function NewOrder() {
         <button
           onClick={handleNext}
           disabled={!canNext() || createOrder.isPending}
-          className="btn-primary w-full py-3.5 text-[15px] disabled:opacity-40"
+          className="neo-btn-primary w-full py-3.5 text-[15px] disabled:opacity-40"
         >
           {createOrder.isPending
             ? <><Loader2 size={16} className="animate-spin inline mr-2"/>

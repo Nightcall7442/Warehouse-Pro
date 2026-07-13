@@ -136,13 +136,13 @@ export default function OrderDetail() {
           <ArrowLeft size={18}/><span className="text-sm">{t("common.back")}</span>
         </button>
         <div className="flex gap-2 relative">
-          <button onClick={handleExport} className="btn-secondary flex items-center gap-2 text-sm py-2">
+          <button onClick={handleExport} className="neo-btn flex items-center gap-2 text-sm py-2">
             <FileDown size={15}/>Excel
           </button>
           {/* Print dropdown */}
           <div className="relative">
             <button onClick={() => setPrintMenu(v => !v)}
-              className="btn-secondary flex items-center gap-2 text-sm py-2">
+              className="neo-btn flex items-center gap-2 text-sm py-2">
               <Printer size={15}/>{t("common.print")}<ChevronDown size={13}/>
             </button>
             {printMenu && (
@@ -164,7 +164,7 @@ export default function OrderDetail() {
       </div>
 
       {/* Order card */}
-      <div className="panel p-6 space-y-6">
+      <div className="neo-card p-6 space-y-6">
         {/* Header */}
         <div className="flex items-start justify-between">
           <div>
@@ -272,25 +272,25 @@ export default function OrderDetail() {
 
       {/* Status actions */}
       {(order.status === "new" || order.status === "processing") && (
-        <div className="panel p-4">
+        <div className="neo-card p-4">
           <p className="font-label text-text-secondary text-xs tracking-wider mb-3">
             {lang === "uz" ? "HOLATNI O'ZGARTIRISH" : "ИЗМЕНИТЬ СТАТУС"}
           </p>
           <div className="flex flex-wrap gap-2">
             {order.status === "new" && (
               <button onClick={() => updateStatus.mutate({ id: order.id, status: "processing" })}
-                className="btn-secondary flex items-center gap-2 text-sm">
+                className="neo-btn flex items-center gap-2 text-sm">
                 <RefreshCw size={14}/>
                 {lang === "uz" ? "Jarayonda" : "В обработку"}
               </button>
             )}
             <button onClick={() => updateStatus.mutate({ id: order.id, status: "completed" })}
-              className="btn-primary flex items-center gap-2 text-sm">
+              className="neo-btn-primary flex items-center gap-2 text-sm">
               <CheckCircle2 size={14}/>
               {lang === "uz" ? "Bajarildi" : "Выполнен"}
             </button>
             <button onClick={() => updateStatus.mutate({ id: order.id, status: "cancelled" })}
-              className="btn-secondary flex items-center gap-2 text-sm text-danger border-danger/30">
+              className="neo-btn flex items-center gap-2 text-sm text-danger border-danger/30">
               <XCircle size={14}/>
               {lang === "uz" ? "Bekor" : "Отменить"}
             </button>
@@ -300,14 +300,14 @@ export default function OrderDetail() {
 
       {/* Courier assignment (operator/ceo only) */}
       {isOperatorOrCeo && (order.status === "new" || order.status === "processing") && (
-        <div className="panel p-4">
+        <div className="neo-card p-4">
           <p className="font-label text-text-secondary text-xs tracking-wider mb-3 flex items-center gap-2">
             <Truck size={14}/>
             {lang === "uz" ? "KURYERNI TAYINLASH" : "НАЗНАЧИТЬ КУРЬЕРА"}
           </p>
           <div className="flex items-center gap-3">
             <select
-              className="input-field flex-1"
+              className="neo-input flex-1"
               value={order.courierId ?? ""}
               onChange={(e) => {
                 const courierId = Number(e.target.value);

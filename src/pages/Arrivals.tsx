@@ -120,7 +120,7 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
     }));
   };
 
-  const inputCls = "input-field";
+  const inputCls = "neo-input";
   const sectionLabel = "font-label text-[10px] tracking-wider uppercase mb-3 block";
 
   return createPortal(
@@ -130,7 +130,7 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
     <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 overflow-y-auto">
 
       {/* Modal */}
-      <div className="relative w-full max-w-[720px] max-h-[90vh] overflow-y-auto glass-modal animate-scale-in" style={{ borderRadius: "24px", boxShadow: "0 25px 80px -12px rgba(0,0,0,0.35)" }}>
+      <div className="relative w-full max-w-[720px] max-h-[90vh] overflow-y-auto neo-card animate-scale-in" style={{ borderRadius: "24px", boxShadow: "0 25px 80px -12px rgba(0,0,0,0.35)" }}>
 
         {/* Gradient header */}
         <div className="relative overflow-hidden" style={{ background: "var(--color-primary, #4b6cf6)", borderRadius: "24px 24px 0 0", padding: "28px 32px 24px" }}>
@@ -152,9 +152,9 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
           <div>
             <p className={sectionLabel}>{t("Данные машины", "Mashina ma'lumotlari")}</p>
             <div className="grid grid-cols-3 gap-3">
-              <input className={inputCls} placeholder={t("Номер машины", "Mashina raqami")} value={form.truckId} onChange={e => setForm(p => ({ ...p, truckId: e.target.value }))} />
-              <input className={inputCls} placeholder={t("Имя водителя", "Haydovchi ismi")} value={form.driverName} onChange={e => setForm(p => ({ ...p, driverName: e.target.value }))} />
-              <input className={inputCls} placeholder={t("Телефон", "Telefon")} value={form.driverPhone} onChange={e => setForm(p => ({ ...p, driverPhone: e.target.value }))} />
+              <input className="neo-input" placeholder={t("Номер машины", "Mashina raqami")} value={form.truckId} onChange={e => setForm(p => ({ ...p, truckId: e.target.value }))} />
+              <input className="neo-input" placeholder={t("Имя водителя", "Haydovchi ismi")} value={form.driverName} onChange={e => setForm(p => ({ ...p, driverName: e.target.value }))} />
+              <input className="neo-input" placeholder={t("Телефон", "Telefon")} value={form.driverPhone} onChange={e => setForm(p => ({ ...p, driverPhone: e.target.value }))} />
             </div>
           </div>
 
@@ -164,7 +164,7 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
             <div className="grid grid-cols-4 gap-3 mb-3">
               <div>
                 <label className="font-label text-[10px] text-text-secondary mb-1.5 block">{t("Дата", "Sana")}</label>
-                <input type="date" className={inputCls} value={form.arrivalDate} onChange={e => setForm(p => ({ ...p, arrivalDate: e.target.value }))} />
+                <input type="date" className="neo-input" value={form.arrivalDate} onChange={e => setForm(p => ({ ...p, arrivalDate: e.target.value }))} />
               </div>
               {[
                 { key: "fuelCost", label: t("Топливо", "Yo'qilgi") },
@@ -173,7 +173,7 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
               ].map(f => (
                 <div key={f.key}>
                   <label className="font-label text-[10px] text-text-secondary mb-1.5 block">{f.label}</label>
-                  <input type="number" step="0.01" className={inputCls} style={{ textAlign: "right" }} placeholder="0" value={(form as Record<string, unknown>)[f.key] as string} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))} />
+                  <input type="number" step="0.01" className="neo-input" style={{ textAlign: "right" }} placeholder="0" value={(form as Record<string, unknown>)[f.key] as string} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))} />
                 </div>
               ))}
             </div>
@@ -194,7 +194,7 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
             </div>
             <div className="space-y-3">
               {items.map((item, i) => (
-                <div key={i} className="panel-flat p-4 space-y-3" style={{ border: "1px solid var(--color-border, #f0f3f8)", borderRadius: "16px" }}>
+                <div key={i} className="neo-card-sm p-4 space-y-3" style={{ border: "1px solid var(--color-border, #f0f3f8)", borderRadius: "16px" }}>
                   <PremiumSelect value={String(item.productId)} onChange={v => updateItem(i, "productId", Number(v))}
                     options={[{ value: "0", label: t("Выберите товар…", "Mahsulot tanlang…") }, ...(products?.data ?? []).map((p: any) => ({ value: String(p.id), label: `${p.name} · ${fmt(p.unitPrice)}/${unitLabel(p.unit)}` }))]}
                     width="100%" />
@@ -202,17 +202,17 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
                     <div>
                       <label className="font-label text-[10px] text-text-secondary mb-1.5 block">{t("Кол-во", "Miqdor")}</label>
                       <div className="flex items-center gap-2">
-                        <input type="number" className={inputCls} style={{ width: 72, textAlign: "center", padding: "8px 10px" }} placeholder="0" value={item.quantity} onChange={e => updateItem(i, "quantity", e.target.value)} />
+                        <input type="number" className="neo-input" style={{ width: 72, textAlign: "center", padding: "8px 10px" }} placeholder="0" value={item.quantity} onChange={e => updateItem(i, "quantity", e.target.value)} />
                         <span className="text-xs text-text-tertiary">{unitLabel(item.unit)}</span>
                       </div>
                     </div>
                     <div>
                       <label className="font-label text-[10px] text-text-secondary mb-1.5 block">{t("Себестоимость", "Tannarx")}</label>
-                      <input type="number" step="0.01" className={inputCls} style={{ textAlign: "right", padding: "8px 10px" }} placeholder={t("цена/ед", "narx/dona")} value={item.costPrice} onChange={e => updateItem(i, "costPrice", e.target.value)} />
+                      <input type="number" step="0.01" className="neo-input" style={{ textAlign: "right", padding: "8px 10px" }} placeholder={t("цена/ед", "narx/dona")} value={item.costPrice} onChange={e => updateItem(i, "costPrice", e.target.value)} />
                     </div>
                     <div>
                       <label className="font-label text-[10px] text-text-secondary mb-1.5 block">{t("Состояние", "Holat")}</label>
-                      <input className={inputCls} style={{ padding: "8px 10px" }} placeholder={t("Хорошее", "Yaxshi")} value={item.condition} onChange={e => updateItem(i, "condition", e.target.value)} />
+                      <input className="neo-input" style={{ padding: "8px 10px" }} placeholder={t("Хорошее", "Yaxshi")} value={item.condition} onChange={e => updateItem(i, "condition", e.target.value)} />
                     </div>
                     <div className="flex justify-end">
                       {items.length > 1 && (
@@ -233,19 +233,19 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
           {/* Notes */}
           <div>
             <label className={sectionLabel}>{t("Примечания", "Izohlar")}</label>
-            <textarea className={inputCls} style={{ resize: "none", minHeight: 60 }} rows={2} value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} placeholder={t("Дополнительная информация…", "Qo'shimcha ma'lumot…")} />
+            <textarea className="neo-input" style={{ resize: "none", minHeight: 60 }} rows={2} value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} placeholder={t("Дополнительная информация…", "Qo'shimcha ma'lumot…")} />
           </div>
 
           {/* Actions */}
           <div className="flex gap-3 pt-2">
             <button onClick={() => form.arrivalDate && onSave({ ...form, items: items.filter(i => i.productId > 0 && Number(i.quantity) > 0).map(i => ({ productId: i.productId, quantity: i.quantity, costPrice: i.costPrice, condition: i.condition })) })}
               disabled={isPending || !form.arrivalDate}
-              className="btn-primary flex-1 h-12 text-sm flex items-center justify-center gap-2"
+              className="neo-btn-primary flex-1 h-12 text-sm flex items-center justify-center gap-2"
               style={{ opacity: isPending || !form.arrivalDate ? 0.5 : 1 }}>
               {isPending && <Loader2 size={15} className="animate-spin" />}
               {t("Сохранить", "Saqlash")}
             </button>
-            <button onClick={onClose} className="btn-secondary flex-1 h-12 text-sm">
+            <button onClick={onClose} className="neo-btn flex-1 h-12 text-sm">
               {t("Отмена", "Bekor qilish")}
             </button>
           </div>

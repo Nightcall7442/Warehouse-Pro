@@ -150,7 +150,7 @@ function InviteForm({ onDone, lang }: { onDone: () => void; lang: "ru" | "uz" })
           </label>
           <input
             type="text"
-            className="input-field w-full"
+            className="neo-input w-full"
             placeholder={t("Иван Иванов", "Ism Familiya")}
             value={d.name}
             onChange={e => setD(p => ({ ...p, name: e.target.value }))}
@@ -163,7 +163,7 @@ function InviteForm({ onDone, lang }: { onDone: () => void; lang: "ru" | "uz" })
           </label>
           <input
             type="email"
-            className="input-field w-full"
+            className="neo-input w-full"
             placeholder="agent@company.com"
             value={d.email}
             onChange={e => setD(p => ({ ...p, email: e.target.value }))}
@@ -176,7 +176,7 @@ function InviteForm({ onDone, lang }: { onDone: () => void; lang: "ru" | "uz" })
           <div className="relative">
             <input
               type={showPw ? "text" : "password"}
-              className="input-field w-full pr-10"
+              className="neo-input w-full pr-10"
               placeholder="Минимум 8 символов"
               value={d.password}
               onChange={e => setD(p => ({ ...p, password: e.target.value }))}
@@ -212,7 +212,7 @@ function InviteForm({ onDone, lang }: { onDone: () => void; lang: "ru" | "uz" })
       <button
         onClick={handleSubmit}
         disabled={createUser.isPending || !d.email || !d.name || !d.password}
-        className="btn-primary flex items-center gap-2 disabled:opacity-40"
+        className="neo-btn-primary flex items-center gap-2 disabled:opacity-40"
       >
         {createUser.isPending && <Loader2 size={14} className="animate-spin" />}
         {t("Создать пользователя", "Foydalanuvchi yaratish")}
@@ -255,7 +255,7 @@ function ResetPasswordModal({ userId, userName, onClose, lang }: {
           </label>
           <input
             type="password"
-            className="input-field w-full"
+            className="neo-input w-full"
             placeholder="••••••••"
             value={pw}
             onChange={e => setPw(e.target.value)}
@@ -266,12 +266,12 @@ function ResetPasswordModal({ userId, userName, onClose, lang }: {
           <button
             onClick={() => pw.length >= 8 && reset.mutate({ id: userId, newPassword: pw })}
             disabled={reset.isPending || pw.length < 8}
-            className="btn-primary flex-1 flex items-center justify-center gap-2 disabled:opacity-40"
+            className="neo-btn-primary flex-1 flex items-center justify-center gap-2 disabled:opacity-40"
           >
             {reset.isPending && <Loader2 size={14} className="animate-spin" />}
             {t("Сохранить", "Saqlash")}
           </button>
-          <button onClick={onClose} className="btn-secondary flex-1">
+          <button onClick={onClose} className="neo-btn flex-1">
             {t("Отмена", "Bekor")}
           </button>
         </div>
@@ -375,7 +375,7 @@ export default function Users() {
           </button>
           <button
             onClick={() => setShowInvite(v => !v)}
-            className="btn-primary flex items-center gap-2"
+            className="neo-btn-primary flex items-center gap-2"
           >
             <UserPlus size={16} />
             <span className="hidden sm:inline">{t("Создать", "Yaratish")}</span>
@@ -430,7 +430,7 @@ export default function Users() {
         <div style={{ position: "relative", flex: "1 1 180px", maxWidth: "320px" }}>
           <Search size={15} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: COLORS.textSecondary }} />
           <input
-            className="input-field w-full"
+            className="neo-input w-full"
             style={{ paddingLeft: "36px" }}
             placeholder={t("Поиск пользователей…", "Foydalanuvchi qidirish…")}
             value={search}
@@ -531,7 +531,7 @@ export default function Users() {
                           <button
                             title={t("Сбросить пароль", "Parolni tiklash")}
                             onClick={() => setResetUser({ id: u.id, name: u.name })}
-                            className="btn-secondary p-1.5"
+                            className="neo-btn p-1.5"
                           >
                             <KeyRound size={14} />
                           </button>
@@ -539,7 +539,7 @@ export default function Users() {
                             <button
                               title={t("Деактивировать", "O'chirish")}
                               onClick={() => handleDeactivate(u.id, u.name)}
-                              className="btn-secondary p-1.5 text-danger"
+                              className="neo-btn p-1.5 text-danger"
                               style={{ borderColor: "rgba(232,80,80,.30)" }}
                             >
                               <Power size={14} />
@@ -548,7 +548,7 @@ export default function Users() {
                             <button
                               title={t("Активировать", "Faollashtirish")}
                               onClick={() => updateUser.mutate({ id: u.id, status: "active" })}
-                              className="btn-secondary p-1.5 text-success"
+                              className="neo-btn p-1.5 text-success"
                               style={{ borderColor: "rgba(74,222,128,.30)" }}
                             >
                               <Power size={14} />
@@ -573,14 +573,14 @@ export default function Users() {
             <button
               onClick={() => setPage(p => Math.max(1, p - 1))}
               disabled={page === 1}
-              className="btn-secondary py-1 px-3 text-sm disabled:opacity-40"
+              className="neo-btn py-1 px-3 text-sm disabled:opacity-40"
             >
               {t("Назад", "Orqaga")}
             </button>
             <button
               onClick={() => setPage(p => p + 1)}
               disabled={page * 25 >= data.total}
-              className="btn-secondary py-1 px-3 text-sm disabled:opacity-40"
+              className="neo-btn py-1 px-3 text-sm disabled:opacity-40"
             >
               {t("Далее", "Keyingi")}
             </button>

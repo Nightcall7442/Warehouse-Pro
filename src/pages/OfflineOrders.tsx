@@ -123,7 +123,7 @@ export default function OfflineOrders() {
           <button
             onClick={syncAll}
             disabled={syncing}
-            className="btn-primary py-1.5 px-3 text-xs flex items-center gap-1.5"
+            className="neo-btn-primary py-1.5 px-3 text-xs flex items-center gap-1.5"
           >
             {syncing ? <Loader2 size={13} className="animate-spin"/> : <RefreshCw size={13}/>}
             {lang === "uz" ? "Sinxronlash" : "Синхронизировать"}
@@ -141,7 +141,7 @@ export default function OfflineOrders() {
       </div>
 
       {pending.length === 0 ? (
-        <div className="panel p-10 text-center space-y-2">
+        <div className="neo-card p-10 text-center space-y-2">
           <CheckCircle2 size={32} className="mx-auto text-success"/>
           <p className="text-text-secondary text-sm">
             {lang === "uz" ? "Kutayotgan buyurtmalar yo'q" : "Нет ожидающих заказов"}
@@ -161,7 +161,7 @@ export default function OfflineOrders() {
               (s: number, i: any) => s + Number(i.unitPrice) * Number(i.quantity), 0
             ) ?? 0;
             return (
-              <div key={order.localId as any} className="panel p-4 border-l-2 border-warning">
+              <div key={order.localId as any} className="neo-card p-4 border-l-2 border-warning">
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <div className="flex items-center gap-2">
@@ -197,14 +197,14 @@ export default function OfflineOrders() {
                             notify.error(e instanceof Error ? e.message : "Unknown error");
                           }
                         }}
-                        className="btn-primary py-1 px-2 text-xs"
+                        className="neo-btn-primary py-1 px-2 text-xs"
                       >
                         {lang === "uz" ? "Yuborish" : "Отправить"}
                       </button>
                     )}
                     <button
                       onClick={() => deleteLocal(order.localId as number)}
-                      className="btn-secondary p-1.5 text-danger border-danger/30"
+                      className="neo-btn p-1.5 text-danger border-danger/30"
                     >
                       <Trash2 size={14}/>
                     </button>
@@ -216,7 +216,7 @@ export default function OfflineOrders() {
         </div>
       )}
 
-      <div className="panel p-4 text-sm text-text-secondary">
+      <div className="neo-card p-4 text-sm text-text-secondary">
         <p className="font-medium text-text-primary mb-1">
           {lang === "uz" ? "Qanday ishlaydi" : "Как работает"}
         </p>

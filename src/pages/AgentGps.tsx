@@ -91,7 +91,7 @@ export default function AgentGps() {
       </h1>
 
       {/* Статус карточка */}
-      <div className="panel p-8 text-center">
+      <div className="neo-card p-8 text-center">
         {state === "idle" && (
           <div className="space-y-3">
             <div
@@ -174,7 +174,7 @@ export default function AgentGps() {
       <button
         onClick={locate}
         disabled={state === "locating"}
-        className="btn-primary w-full py-4 flex items-center justify-center gap-2 text-base disabled:opacity-50"
+        className="neo-btn-primary w-full py-4 flex items-center justify-center gap-2 text-base disabled:opacity-50"
       >
         {state === "locating"
           ? <><Loader2 size={18} className="animate-spin" />{t("Определяем…", "Aniqlanmoqda…")}</>
@@ -182,7 +182,7 @@ export default function AgentGps() {
       </button>
 
       {/* Авто-трекинг */}
-      <div className="panel p-4 flex items-center justify-between">
+      <div className="neo-card p-4 flex items-center justify-between">
         <div>
           <p className="font-medium text-text-primary text-sm">
             {t("Авто-трекинг", "Avto-kuzatish")}

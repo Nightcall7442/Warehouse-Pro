@@ -31,12 +31,12 @@ export default function AcceptInvite() {
 
   if (error || !invite) return (
     <div className="min-h-screen bg-canvas flex flex-col items-center justify-center px-4">
-      <div className="panel w-full max-w-sm p-8 text-center space-y-4">
+      <div className="neo-card w-full max-w-sm p-8 text-center space-y-4">
         <h1 className="font-display text-xl font-bold text-text-primary">{tr("Ссылка недействительна","Havola yaroqsiz")}</h1>
         <p className="text-text-secondary text-sm">
           {tr("Приглашение истекло или уже было принято. Попросите администратора отправить новое.","Taklif muddati tugagan yoki allaqachon qabul qilingan. Administratordan yangisini so'rang.")}
         </p>
-        <button onClick={() => navigate("/login")} className="btn-secondary w-full">
+        <button onClick={() => navigate("/login")} className="neo-btn w-full">
           {tr("Войти в аккаунт","Hisobga kirish")}
         </button>
       </div>
@@ -45,7 +45,7 @@ export default function AcceptInvite() {
 
   if (done) return (
     <div className="min-h-screen bg-canvas flex flex-col items-center justify-center px-4">
-      <div className="panel w-full max-w-sm p-8 text-center space-y-4">
+      <div className="neo-card w-full max-w-sm p-8 text-center space-y-4">
         <div className="w-14 h-14 rounded-full bg-success/15 flex items-center justify-center mx-auto">
           <CheckCircle2 size={28} className="text-success"/>
         </div>
@@ -53,7 +53,7 @@ export default function AcceptInvite() {
         <p className="text-text-secondary text-sm">
           {tr("Аккаунт создан. Войдите в систему.","Hisob yaratildi. Tizimga kiring.")}
         </p>
-        <button onClick={() => navigate("/login")} className="btn-primary w-full">
+        <button onClick={() => navigate("/login")} className="neo-btn-primary w-full">
           {tr("Войти","Kirish")}
         </button>
       </div>
@@ -70,7 +70,7 @@ export default function AcceptInvite() {
       <div className="text-center mb-8">
         <span className="font-label text-primary tracking-[0.15em] text-sm">WAREHOUSE PRO</span>
       </div>
-      <div className="panel w-full max-w-[400px] p-8 space-y-5">
+      <div className="neo-card w-full max-w-[400px] p-8 space-y-5">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center">
             <UserPlus size={18} className="text-primary"/>
@@ -83,19 +83,19 @@ export default function AcceptInvite() {
 
         <div>
           <label className="font-label text-text-secondary text-[10px] tracking-wider block mb-1">EMAIL</label>
-          <input className="input-field w-full opacity-60 cursor-not-allowed" value={invite.email} disabled/>
+          <input className="neo-input w-full opacity-60 cursor-not-allowed" value={invite.email} disabled/>
         </div>
 
         <div>
           <label className="font-label text-text-secondary text-[10px] tracking-wider block mb-1">{tr("ВАШЕ ИМЯ","ISMINGIZ")} *</label>
-          <input className="input-field w-full" placeholder={tr("Имя Фамилия","Ism Familiya")}
+          <input className="neo-input w-full" placeholder={tr("Имя Фамилия","Ism Familiya")}
             value={name} onChange={e => setName(e.target.value)} autoFocus/>
         </div>
 
         <div>
           <label className="font-label text-text-secondary text-[10px] tracking-wider block mb-1">{tr("ПРИДУМАЙТЕ ПАРОЛЬ","PAROL O'YLAB TOPING")} *</label>
           <div className="relative">
-            <input type={showPw ? "text" : "password"} className="input-field w-full pr-10"
+            <input type={showPw ? "text" : "password"} className="neo-input w-full pr-10"
               placeholder={tr("Минимум 8 символов","Kamida 8 belgi")}
               value={pw} onChange={e => setPw(e.target.value)}/>
             <button type="button" onClick={() => setShowPw(v => !v)}
@@ -112,7 +112,7 @@ export default function AcceptInvite() {
             accept.mutate({ token: token!, name: name.trim(), password: pw });
           }}
           disabled={accept.isPending}
-          className="btn-primary w-full flex items-center justify-center gap-2 py-3"
+          className="neo-btn-primary w-full flex items-center justify-center gap-2 py-3"
         >
           {accept.isPending ? <Loader2 size={16} className="animate-spin"/> : <UserPlus size={16}/>}
           {tr("Создать аккаунт","Hisob yaratish")}

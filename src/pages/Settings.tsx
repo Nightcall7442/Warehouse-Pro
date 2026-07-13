@@ -38,7 +38,7 @@ function TelegramSettings() {
             <p className="text-xs text-text-secondary mt-0.5">chat_id: {status.chatId}</p>
           </div>
           <button onClick={() => remove.mutate()} disabled={remove.isPending}
-            className="btn-secondary py-1.5 px-3 text-xs text-danger flex items-center gap-1.5"
+            className="neo-btn py-1.5 px-3 text-xs text-danger flex items-center gap-1.5"
             style={{ borderColor: "rgba(232,80,80,.30)" }}>
             {remove.isPending ? <Loader2 size={11} className="animate-spin" /> : <XCircle size={11} />}
             {t("Отключить", "Uzish")}
@@ -59,12 +59,12 @@ function TelegramSettings() {
               {t("ВАШ TELEGRAM CHAT ID", "TELEGRAM CHAT ID")}
             </label>
             <div className="flex gap-2">
-              <input className="input-field flex-1 font-data"
+              <input className="neo-input flex-1 font-data"
                 placeholder={t("Например: 123456789", "Masalan: 123456789")}
                 value={chatId} onChange={e => setChatId(e.target.value.replace(/\D/g, ""))} />
               <button onClick={() => chatId && save.mutate({ chatId })}
                 disabled={save.isPending || !chatId}
-                className="btn-primary flex items-center gap-2 disabled:opacity-40">
+                className="neo-btn-primary flex items-center gap-2 disabled:opacity-40">
                 {save.isPending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
                 {t("Подключить", "Ulash")}
               </button>
@@ -144,7 +144,7 @@ function CompanySettings() {
               : <Upload size={20} className="text-text-secondary" />}
           </div>
           <div>
-            <button onClick={() => logoRef.current?.click()} className="btn-secondary text-sm flex items-center gap-2">
+            <button onClick={() => logoRef.current?.click()} className="neo-btn text-sm flex items-center gap-2">
               <Upload size={14} />{t("Загрузить", "Yuklash")}
             </button>
             <p className="text-xs mt-1" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
@@ -161,7 +161,7 @@ function CompanySettings() {
             <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">
               {lang === "uz" ? f.uz : f.ru}
             </label>
-            <input className="input-field w-full" value={(form[f.key] as string) ?? ""}
+            <input className="neo-input w-full" value={(form[f.key] as string) ?? ""}
               onChange={e => setForm({ ...form, [f.key]: e.target.value } as CompanyForm)} />
           </div>
         ))}
@@ -179,7 +179,7 @@ function CompanySettings() {
       </div>
 
       <button onClick={() => saveMutation.mutate(form)} disabled={saveMutation.isPending}
-        className="btn-primary flex items-center gap-2 disabled:opacity-40">
+        className="neo-btn-primary flex items-center gap-2 disabled:opacity-40">
         {saveMutation.isPending && <Loader2 size={14} className="animate-spin" />}
         {t("Сохранить", "Saqlash")}
       </button>
@@ -212,15 +212,15 @@ function ProfileSettings() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">{t("ИМЯ","ISM")}</label>
-            <input className="input-field w-full" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+            <input className="neo-input w-full" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
           </div>
           <div>
             <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">EMAIL</label>
-            <input type="email" className="input-field w-full" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
+            <input type="email" className="neo-input w-full" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
           </div>
         </div>
         <button onClick={() => updateProfile.mutate(form)} disabled={updateProfile.isPending}
-          className="btn-primary flex items-center gap-2 disabled:opacity-40">
+          className="neo-btn-primary flex items-center gap-2 disabled:opacity-40">
           {updateProfile.isPending && <Loader2 size={14} className="animate-spin" />}
           {t("Сохранить профиль", "Profilni saqlash")}
         </button>
@@ -237,7 +237,7 @@ function ProfileSettings() {
             <label className="font-label text-[10px] text-text-secondary tracking-wider block mb-1.5">
               {lang === "uz" ? f.uz : f.ru}
             </label>
-            <input type="password" className="input-field w-full sm:max-w-sm"
+            <input type="password" className="neo-input w-full sm:max-w-sm"
               value={(pwForm as unknown as Record<string, string>)[f.key]}
               onChange={e => setPwForm({ ...pwForm, [f.key]: e.target.value })} />
           </div>
@@ -248,7 +248,7 @@ function ProfileSettings() {
             changePassword.mutate({ currentPassword: pwForm.current, newPassword: pwForm.next });
           }}
           disabled={changePassword.isPending || !pwForm.current || !pwForm.next}
-          className="btn-secondary flex items-center gap-2 disabled:opacity-40"
+          className="neo-btn flex items-center gap-2 disabled:opacity-40"
         >
           {changePassword.isPending && <Loader2 size={14} className="animate-spin" />}
           {t("Изменить пароль", "Parolni o'zgartirish")}
@@ -402,7 +402,7 @@ ONEC_WEBHOOK_SECRET=your_secret`}
             <button
               onClick={() => syncProducts.mutate()}
               disabled={syncProducts.isPending || !health?.healthy}
-              className="btn-primary flex items-center gap-2 text-sm disabled:opacity-40"
+              className="neo-btn-primary flex items-center gap-2 text-sm disabled:opacity-40"
             >
               {syncProducts.isPending ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
               {t("Синхронизировать", "Sinxronlashtirish")}
@@ -477,7 +477,7 @@ export default function Settings() {
       <div className="flex flex-col sm:flex-row gap-5">
         {/* Боковое меню */}
         <nav className="sm:w-44 flex-shrink-0">
-          <div className="panel p-2 flex sm:flex-col gap-1">
+          <div className="neo-card p-2 flex sm:flex-col gap-1">
             {SECTIONS.map(s => {
               const Icon = s.Icon;
               return (
