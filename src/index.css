@@ -84,6 +84,18 @@
     --accent-purple:  #8b7cf6;
     --accent-cyan:    #00d4ff;
 
+    /* KPI colors */
+    --kpi-indigo:  #4b6cf6;
+    --kpi-blue:    #4a9de8;
+    --kpi-teal:    #2ec4b0;
+    --kpi-green:   #34c473;
+    --kpi-amber:   #e8a830;
+    --kpi-orange:  #f09050;
+    --kpi-red:     #e85050;
+    --kpi-pink:    #f06895;
+    --kpi-purple:  #8b7cf6;
+    --kpi-coral:   #f06895;
+
     /* Neumorphic shadow system — мягкая асимметричная диффузия, а не
        "тиснёный" эффект в 50/50: тёплый приглушённый тон тени (не холодный
        серо-синий), ниже непрозрачность тёмной стороны, больше blur. */
@@ -173,6 +185,18 @@
     --color-danger-subtle:   rgba(255,77,106,.12);
     --color-info:            #00b4ff;
     --color-info-subtle:     rgba(0,180,255,.12);
+
+    /* KPI colors — dark mode */
+    --kpi-indigo:  #7b94f8;
+    --kpi-blue:    #58a8f0;
+    --kpi-teal:    #3cd0b0;
+    --kpi-green:   #5ad88e;
+    --kpi-amber:   #f0c040;
+    --kpi-orange:  #f09858;
+    --kpi-red:     #f06060;
+    --kpi-pink:    #e878a8;
+    --kpi-purple:  #a088f0;
+    --kpi-coral:   #e878a8;
 
     /* Dark neumorphic shadows — более выраженные для глубины */
     --shadow-raised:  8px 8px 20px rgba(0,0,0,0.5), -4px -4px 12px rgba(255,255,255,0.04);
