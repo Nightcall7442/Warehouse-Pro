@@ -71,40 +71,42 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
   return (
     <div className="flex flex-col h-full sidebar-collapse-transition" style={{ background: "transparent" }}>
       {/* Logo */}
-      <div className="flex items-center px-5 gap-3" style={{ height: "64px", borderBottom: "1px solid var(--sidebar-border, #f0f2f6)" }}>
-        <div className="w-9 h-9 rounded-[12px] flex items-center justify-center flex-shrink-0" style={{ background: "var(--color-primary, #4b6cf6)" }}>
+      <div className="flex items-center px-5 gap-3" style={{ height: "64px" }}>
+        <div className="w-10 h-10 rounded-[14px] flex items-center justify-center flex-shrink-0" style={{ background: "linear-gradient(135deg, var(--color-primary, #4b6cf6), var(--color-primary-hover, #3a5be5))", boxShadow: "var(--shadow-sm)" }}>
           <Warehouse size={18} color="#fff" />
         </div>
-        <span style={{ fontSize: "15px", fontWeight: 700, color: "var(--color-text-primary, #2b3450)", letterSpacing: "-0.02em" }}>Warehouse Pro</span>
+        <span style={{ fontSize: "16px", fontWeight: 700, color: "var(--color-text-primary, #2d3748)", letterSpacing: "-0.02em" }}>Warehouse Pro</span>
         {onClose && (
-          <button onClick={onClose} className="ml-auto md:hidden btn-ghost p-1.5 rounded-lg">
+          <button onClick={onClose} className="ml-auto md:hidden neo-btn-icon" style={{ width: "36px", height: "36px" }}>
             <X size={18} />
           </button>
         )}
       </div>
 
       {/* Search */}
-      <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--sidebar-border, #f0f2f6)" }}>
+      <div className="px-4 py-3">
         <GlobalSearch />
       </div>
 
       {/* User info */}
-      <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--sidebar-border, #f0f2f6)" }}>
-        <div className="flex items-center gap-3">
-          <div
-            className="flex-shrink-0 flex items-center justify-center rounded-full"
-            style={{ width: "40px", height: "40px", background: "var(--color-primary-subtle, #e8edfd)", color: "var(--color-primary, #4b6cf6)", fontWeight: 700, fontSize: "14px" }}
-          >
-            {(user?.name ?? "U")[0].toUpperCase()}
+      <div className="px-4 py-3">
+        <div className="neo-card-sm" style={{ padding: "14px" }}>
+          <div className="flex items-center gap-3">
+            <div
+              className="avatar-premium flex-shrink-0"
+              style={{ background: "var(--color-primary-subtle, rgba(75,108,246,.12))", color: "var(--color-primary, #4b6cf6)" }}
+            >
+              {(user?.name ?? "U")[0].toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <p style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary, #2d3748)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user?.name ?? "User"}</p>
+              <span style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-primary, #4b6cf6)" }}>{role}</span>
+            </div>
           </div>
-          <div className="min-w-0">
-            <p style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary, #2b3450)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user?.name ?? "User"}</p>
-            <span style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-primary, #4b6cf6)" }}>{role}</span>
-          </div>
+          {user?.email && (
+            <p style={{ fontSize: "11px", color: "var(--color-text-tertiary, #8b9bb4)", margin: "8px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.email}</p>
+          )}
         </div>
-        {user?.email && (
-          <p style={{ fontSize: "11px", color: "var(--color-text-tertiary, #98a0b8)", margin: "8px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.email}</p>
-        )}
       </div>
 
       {/* Navigation */}
@@ -119,7 +121,7 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
               onClick={() => { navigate(item.path); onClose?.(); }}
               className={`sidebar-nav-item ${isActive ? "active" : ""}`}
             >
-              {Icon && <Icon size={18} strokeWidth={isActive ? 2 : 1.5} />}
+              {Icon && <Icon size={18} strokeWidth={isActive ? 2.5 : 1.5} />}
               <span>{t(item.labelKey)}</span>
             </button>
           );
@@ -127,7 +129,7 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
       </nav>
 
       {/* Bottom actions */}
-      <div className="p-4 space-y-2 mt-auto" style={{ borderTop: "1px solid var(--sidebar-border, #f0f2f6)" }}>
+      <div className="p-4 space-y-2 mt-auto" style={{ borderTop: "1px solid var(--color-border-subtle, #d1d9e6)" }}>
         <button
           onClick={() => { navigate("/notifications"); onClose?.(); }}
           className="sidebar-nav-item w-full"
@@ -135,7 +137,7 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
           <div className="relative">
             <Bell size={18} />
             {unreadCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-[16px] rounded-full text-white text-[9px] font-bold flex items-center justify-center px-1" style={{ background: "var(--color-danger, #e85050)" }}>
+              <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-[16px] rounded-full text-white text-[9px] font-bold flex items-center justify-center px-1" style={{ background: "var(--color-danger, #e85050)", boxShadow: "var(--shadow-xs)" }}>
                 {unreadCount > 99 ? "99+" : unreadCount}
               </span>
             )}
@@ -143,18 +145,18 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
           {t("nav.notifications")}
         </button>
 
-        <div className="flex gap-1.5 mb-1">
+        <div className="flex gap-2 mb-1 p-1 rounded-[12px]" style={{ background: "var(--color-surface)", boxShadow: "var(--shadow-pressed)" }}>
           {(["ru", "uz"] as const).map(l => (
             <button key={l} onClick={() => setLang(l)} className={`lang-btn ${lang === l ? "active" : ""}`}>
               {l === "ru" ? "РУС" : "UZB"}
             </button>
           ))}
         </div>
-        <button onClick={toggle} className="btn-secondary w-full flex items-center justify-center gap-2">
+        <button onClick={toggle} className="neo-btn w-full flex items-center justify-center gap-2 text-xs">
           {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
-          <span className="text-xs">{theme === "dark" ? "Светлая тема" : "Тёмная тема"}</span>
+          <span>{theme === "dark" ? "Светлая тема" : "Тёмная тема"}</span>
         </button>
-        <button onClick={logout} className="btn-ghost w-full flex items-center justify-center gap-2 text-xs rounded-lg">
+        <button onClick={logout} className="neo-btn w-full flex items-center justify-center gap-2 text-xs" style={{ color: "var(--color-danger, #e85050)" }}>
           <LogOut size={14} />
           {t("nav.logout")}
         </button>
@@ -336,8 +338,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         {user?.role !== "superadmin" && user?.role !== "supervisor" && user?.role !== "merchandiser" && <TrialBanner />}
       </div>
 
-      {/* Floating sidebar — glassmorphic white card */}
-      <aside className="hidden md:block fixed left-[16px] top-[16px] bottom-[16px] w-[248px] z-40 rounded-[24px] overflow-hidden" style={{ background: "rgba(255,255,255,.85)", backdropFilter: "blur(24px) saturate(180%)", WebkitBackdropFilter: "blur(24px) saturate(180%)", boxShadow: "0 8px 40px rgba(43,52,80,.1), 0 2px 8px rgba(43,52,80,.04), inset 0 1px 0 rgba(255,255,255,.9)", border: "1px solid rgba(255,255,255,.7)" }}>
+      {/* Floating sidebar — neumorphic card */}
+      <aside className="hidden md:block fixed left-[16px] top-[16px] bottom-[16px] w-[248px] z-40 rounded-[24px] overflow-hidden neo-card" style={{ padding: 0, display: "flex", flexDirection: "column" }}>
         <Sidebar unreadCount={unreadCount} />
       </aside>
 
