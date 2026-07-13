@@ -2,6 +2,7 @@ import { lazy, Suspense } from "react";
 import { Routes, Route, Navigate, Outlet } from "react-router";
 import { useAuth } from "@/hooks/useAuth";
 import Layout from "@/components/Layout";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import Login                from "./pages/Login";
 import Register             from "./pages/Register";
 import Landing              from "./pages/Landing";
@@ -63,12 +64,13 @@ const RoleGuard = memo(function RoleGuard({ children, roles }: { children: React
 });
 
 function AppLayout() {
-  return <Layout><Outlet /></Layout>;
+  return <Layout><ErrorBoundary pageName="Страница"><Outlet /></ErrorBoundary></Layout>;
 }
 
 export default function App() {
   return (
     <Suspense fallback={<PageLoader />}>
+      <ErrorBoundary pageName="Приложение">
       <Routes>
         {/* Public */}
         <Route path="/login"              element={<Login />} />
@@ -132,6 +134,7 @@ export default function App() {
 
         <Route path="*" element={<NotFound />} />
       </Routes>
+      </ErrorBoundary>
     </Suspense>
   );
 }
