@@ -72,9 +72,9 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
   const items    = NAV_ITEMS[role] ?? [];
 
   return (
-    <div className="flex flex-col h-full sidebar-collapse-transition" style={{ background: "var(--color-surface, #ffffff)", borderRight: "1px solid var(--color-border, #e2e8f0)" }}>
+    <div className="flex flex-col h-full sidebar-collapse-transition rounded-[24px]" style={{ background: "var(--color-canvas, #e4e8ef)", borderRight: "none" }}>
       {/* Logo */}
-      <div className="h-[60px] flex items-center px-5 gap-3" style={{ borderBottom: "1px solid var(--color-border, #e2e8f0)" }}>
+      <div className="h-[60px] flex items-center px-5 gap-3">
         <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 gradient-primary animate-gradient" style={{ backgroundSize: "200% 200%" }}>
           <Warehouse size={16} color="#fff" />
         </div>
@@ -87,12 +87,12 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
       </div>
 
       {/* Search */}
-      <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--color-border, #e2e8f0)" }}>
+      <div className="px-4 py-3">
         <GlobalSearch />
       </div>
 
       {/* User info */}
-      <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--color-border, #e2e8f0)" }}>
+      <div className="px-4 py-3">
         <div className="flex items-center gap-2.5">
           <div
             className="avatar-premium w-9 h-9 text-xs font-bold"
@@ -130,7 +130,7 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
       </nav>
 
       {/* Bottom actions */}
-      <div className="p-4 space-y-2" style={{ borderTop: "1px solid var(--color-border, #e2e8f0)" }}>
+      <div className="p-4 space-y-2 mt-auto">
         {/* Notifications button */}
         <button
           onClick={() => { navigate("/notifications"); onClose?.(); }}
@@ -350,19 +350,19 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   if (isLoading || !user) return null;
 
   return (
-    <div className="min-h-screen" style={{ background: "var(--color-canvas, #e9eef6)" }}>
+    <div className="min-h-screen" style={{ background: "var(--color-canvas, #e4e8ef)" }}>
       <MobileHeader onMenuClick={openDrawer} unreadCount={unreadCount} />
       <MobileDrawer open={drawerOpen} onClose={closeDrawer} unreadCount={unreadCount} />
 
-      <div className="md:ml-[260px]">
+      <div className="md:ml-[272px]">
         {user?.role !== "superadmin" && user?.role !== "supervisor" && user?.role !== "merchandiser" && <TrialBanner />}
       </div>
 
-      <aside className="hidden md:block fixed left-0 top-0 bottom-0 w-[260px] z-40">
+      <aside className="hidden md:block fixed left-[12px] top-[12px] bottom-[12px] w-[248px] z-40 rounded-[24px] overflow-hidden" style={{ boxShadow: "var(--shadow-md)" }}>
         <Sidebar unreadCount={unreadCount} />
       </aside>
 
-      <main className="md:ml-[260px] min-h-screen">
+      <main className="md:ml-[272px] min-h-screen">
         <div key={location.pathname} className="p-4 md:p-6 pb-[84px] md:pb-6 animate-fade-up">
           {children}
         </div>
