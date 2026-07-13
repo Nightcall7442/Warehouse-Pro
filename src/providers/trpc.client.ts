@@ -13,7 +13,21 @@ export const queryClient = new QueryClient({
       refetchOnWindowFocus: false,
     },
   },
+  queryCache: undefined, // will be set below
 });
+
+// Глобальный обработчик ошибок API — показывает toast для всех необработанных ошибок запросов
+queryClient.getQueryCache().config.onError = (error: any) => {
+  const msg = error?.message || "Ошибка загрузки данных";
+  // Не дублируем если компонент уже показал свой toast через onError callback
+  console.error("[Query error]", msg);
+};
+
+queryClient.getMutationCache().config.onError = (error: any) => {
+  const msg = error?.message || "Ошибка сервера";
+  console.error("[Mutation error]", msg);
+  // Toast показывается в конкретных useMutation({ onError }) — глобальный fallback только логирует
+};
 
 const customFetch = (input: RequestInfo | URL, init?: RequestInit) =>
   globalThis.fetch(input, { ...init, credentials: "include" });
