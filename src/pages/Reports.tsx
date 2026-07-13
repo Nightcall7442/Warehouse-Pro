@@ -7,7 +7,7 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, R
 import { Users, MapPin, ClipboardList, TrendingUp, Activity, FileDown, Printer, LayoutDashboard, ShoppingCart, Award, Package, BarChart3 } from "lucide-react";
 import { exportToExcel, formatAgentsForExport } from "@/lib/excel";
 import { ProgressRing } from "@/components/ProgressRing";
-import { CardDots, Card, KpiCard, PageHeader, thStyle, tdStyle, btnSecondary, PeriodPicker, ChartPanel, GlassPanel } from "@/components/DashboardLayout";
+import { CardDots, Card, KpiCard, PageHeader, SectionTitle, thStyle, tdStyle, btnSecondary, PeriodPicker, ChartPanel, GlassPanel } from "@/components/DashboardLayout";
 
 type TabKey = "overview" | "sales" | "agents";
 
