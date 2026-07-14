@@ -982,6 +982,27 @@
 .dark .leaflet-container { background: #0b0c10 !important; }
 .dark .progress-ring-label { color: var(--color-text-primary); }
 
+/* ── Light mode text visibility fix ──────────────────────────────────────────── */
+.light .text-primary, :root .text-primary { color: var(--color-text-primary) !important; }
+.light .text-secondary, :root .text-secondary { color: var(--color-text-secondary) !important; }
+.light .text-tertiary, :root .text-tertiary { color: var(--color-text-tertiary) !important; }
+.light .text-danger, :root .text-danger { color: var(--color-danger) !important; }
+.light .text-success, :root .text-success { color: var(--color-success) !important; }
+.light .text-warning, :root .text-warning { color: var(--color-warning) !important; }
+.light .text-info, :root .text-info { color: var(--color-info) !important; }
+.light .bg-surface-light, :root .bg-surface-light { background-color: var(--color-surface-light) !important; }
+.light .border-border-subtle, :root .border-border-subtle { border-color: var(--color-border-subtle) !important; }
+
+/* Button visibility fix — light mode */
+.light .neo-btn, :root .neo-btn { color: var(--color-text-primary) !important; }
+.light .neo-btn:hover, :root .neo-btn:hover { color: var(--color-primary) !important; }
+.light .neo-btn-icon, :root .neo-btn-icon { color: var(--color-text-secondary) !important; }
+.light .neo-btn-icon:hover, :root .neo-btn-icon:hover { color: var(--color-primary) !important; }
+.light .btn-ghost, :root .btn-ghost { color: var(--color-text-secondary) !important; }
+.light .btn-ghost:hover, :root .btn-ghost:hover { color: var(--color-primary) !important; }
+.light .btn-secondary, :root .btn-secondary { color: var(--color-text-primary) !important; }
+.light .btn-secondary:hover, :root .btn-secondary:hover { color: var(--color-primary) !important; }
+
 /* ── Dark mode text visibility fix ──────────────────────────────────────────── */
 .dark p, .dark span, .dark h1, .dark h2, .dark h3, .dark h4, .dark h5, .dark h6,
 .dark label, .dark td, .dark th, .dark li, .dark a, .dark button {
