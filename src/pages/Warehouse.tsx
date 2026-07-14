@@ -473,6 +473,22 @@ export default function Warehouse() {
       {/* ── STOCK TAB ───────────────────────────────────────────────────────── */}
       {activeTab === "stock" && (
         <>
+          {/* Low stock warning */}
+          {lowCount > 0 && (
+            <div className="flex items-center gap-3 px-5 py-4 rounded-2xl cursor-pointer neo-card-sm"
+              onClick={() => setShowLowStock(true)}>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={{ background: "var(--color-danger, #e85050)" }}>
+                <AlertTriangle size={18} color="#fff" />
+              </div>
+              <p className="text-sm flex-1 font-medium" style={{ color: "var(--color-text-primary)" }}>
+                <b style={{ color: "var(--color-danger)" }}>{lowCount}</b> {t("товаров ниже порога — отмечены красным", "ta mahsulot chegaradan past")}
+              </p>
+              <span className="text-xs font-semibold px-3 py-1.5 rounded-lg" style={{ background: "var(--color-danger-subtle, rgba(232,80,80,0.12))", color: "var(--color-danger, #e85050)" }}>
+                {t("Показать", "Ko'rish")} →
+              </span>
+            </div>
+          )}
 
           {/* Search */}
           <div style={{ position: "relative" }}>
