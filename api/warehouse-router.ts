@@ -230,4 +230,22 @@ export const warehouseRouter = createRouter({
 
       return { created: rows.length };
     }),
+
+  // Удалить все товары со склада
+  deleteAll: operatorQuery
+    .mutation(async ({ ctx }) => {
+      const db = getDb();
+      const tenantId = ctx.tenant.id;
+
+      // Удаляем все записи стока
+      await db.delete(warehouseStock)
+        .where(eq(warehouseStock.tenantId, tenantId));
+
+      // Помечаем все товары как inactive
+      await db.update(products)
+        .set({ status: "inactive", updatedAt: new Date() })
+        .where(eq(products.tenantId, tenantId));
+
+      return { success: true };
+    }),
 });
