@@ -176,15 +176,9 @@ export const productRouter = createRouter({
         .set({ status: "inactive", updatedAt: new Date() })
         .where(and(eq(products.id, input.id), eq(products.tenantId, tenantId)));
 
-      // Обнуляем сток если есть
-      const [stock] = await db.select().from(warehouseStock)
-        .where(and(eq(warehouseStock.productId, input.id), eq(warehouseStock.tenantId, tenantId))).limit(1);
-      if (stock && Number(stock.currentStock) > 0) {
-        // Обнуляем сток при удалении товара
-        await db.update(warehouseStock)
-          .set({ currentStock: "0", reserved: "0", available: "0" })
-          .where(and(eq(warehouseStock.productId, input.id), eq(warehouseStock.tenantId, tenantId)));
-      }
+      // Полностью удаляем запись стока
+      await db.delete(warehouseStock)
+        .where(and(eq(warehouseStock.productId, input.id), eq(warehouseStock.tenantId, tenantId)));
 
       cache.invalidatePrefix(`products:${tenantId}`);
       cache.invalidatePrefix(`product_cats:${tenantId}`);
