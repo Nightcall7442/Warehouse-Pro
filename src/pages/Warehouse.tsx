@@ -393,23 +393,17 @@ export default function Warehouse() {
           {activeTab === "stock" && (
             <>
               <button onClick={() => backfillMutation.mutate()} disabled={backfillMutation.isPending}
-                className="flex items-center gap-2 text-sm py-2.5 px-4 rounded-xl font-medium transition-all"
-                style={{
-                  background: "var(--color-surface-light, #f0f3f8)", color: "var(--color-text-secondary, #6a7290)",
-                  border: "1px solid var(--color-border, #f0f3f8)", cursor: "pointer",
-                  opacity: backfillMutation.isPending ? 0.5 : 1,
-                }}>
+                className="neo-btn flex items-center gap-2 text-sm py-2 px-4"
+                style={{ opacity: backfillMutation.isPending ? 0.5 : 1 }}>
                 {backfillMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Package size={14} />}
                 {t("Добить стоки", "Stoklarni to'ldirish")}
               </button>
               <button onClick={() => data?.data && exportToExcel(formatWarehouseForExport(data.data), "warehouse-stock", "Склад", t("Остатки склада", "Ombor qoldiqlari"))}
-                className="flex items-center gap-2 text-sm py-2.5 px-5 rounded-xl font-medium transition-all"
-                style={{ background: "linear-gradient(135deg, #4b6cf6, #4b6cf6)", color: "#fff", boxShadow: "0 4px 16px rgba(75,108,246,0.3)" }}>
+                className="neo-btn-primary flex items-center gap-2 text-sm py-2 px-5">
                 <FileDown size={16} /> {t("Остатки", "Qoldiqlar")}
               </button>
               <button onClick={() => data?.data && exportToExcel(formatStockValuationForExport(data.data), "stock-valuation", "Оценка склада", t("Оценка стоимости склада", "Ombor qiymati"))}
-                className="flex items-center gap-2 text-sm py-2.5 px-5 rounded-xl font-medium transition-all"
-                style={{ background: "linear-gradient(135deg, #e8a830, #fb923c)", color: "#fff", boxShadow: "0 4px 16px rgba(251,191,36,0.3)" }}>
+                className="neo-btn flex items-center gap-2 text-sm py-2 px-5">
                 <FileDown size={16} /> {t("Оценка", "Qiymat")}
               </button>
             </>
@@ -423,8 +417,7 @@ export default function Warehouse() {
           )}
           {activeTab === "reorder" && (
             <button onClick={() => reorderSuggestions?.length && exportToExcel(formatReorderForExport(reorderSuggestions), "reorder-suggestions", "Дозаказ", t("Рекомендации по дозаказу", "Qayta buyurtma tavsiyalari"))}
-              className="flex items-center gap-2 text-sm py-2.5 px-5 rounded-xl font-medium transition-all"
-              style={{ background: "linear-gradient(135deg, #e85050, #e85050)", color: "#fff", boxShadow: "0 4px 16px rgba(232,80,80,0.3)" }}>
+              className="neo-btn-primary flex items-center gap-2 text-sm py-2 px-5">
               <FileDown size={16} /> {t("Экспорт", "Eksport")}
             </button>
           )}
