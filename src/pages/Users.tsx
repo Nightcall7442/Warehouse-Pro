@@ -213,7 +213,11 @@ function InviteForm({ onDone, lang }: { onDone: () => void; lang: "ru" | "uz" })
         onClick={handleSubmit}
         disabled={createUser.isPending || !d.email || !d.name || !d.password}
         className="neo-btn-primary flex items-center gap-2"
-        style={{ color: "#fff", opacity: (createUser.isPending || !d.email || !d.name || !d.password) ? 0.5 : 1, cursor: (createUser.isPending || !d.email || !d.name || !d.password) ? "not-allowed" : "pointer" }}
+        style={{ 
+          color: "#fff",
+          opacity: (createUser.isPending || !d.email || !d.name || !d.password) ? 0.5 : 1,
+          cursor: (createUser.isPending || !d.email || !d.name || !d.password) ? "not-allowed" : "pointer",
+        }}
       >
         {createUser.isPending && <Loader2 size={14} className="animate-spin" />}
         {t("Создать пользователя", "Foydalanuvchi yaratish")}
