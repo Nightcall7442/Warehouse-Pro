@@ -166,7 +166,7 @@ export default function ShopDetail() {
 
       {/* Навигация */}
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <button onClick={() => navigate("/shops")} className="flex items-center gap-2 text-secondary hover:text-primary transition-colors">
+        <button onClick={() => navigate("/shops")} className="neo-btn flex items-center gap-2 py-1.5 px-3 text-sm">
           <ArrowLeft size={18} /><span className="text-sm">{t("Магазины", "Do'konlar")}</span>
         </button>
         <div className="flex gap-2">

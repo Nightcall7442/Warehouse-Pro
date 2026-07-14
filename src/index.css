@@ -984,7 +984,7 @@
 
 /* ── Dark mode text visibility fix ──────────────────────────────────────────── */
 .dark p, .dark span, .dark h1, .dark h2, .dark h3, .dark h4, .dark h5, .dark h6,
-.dark label, .dark td, .dark th, .dark li, .dark a {
+.dark label, .dark td, .dark th, .dark li, .dark a, .dark button {
   color: inherit;
 }
 .dark .text-primary { color: var(--color-text-primary) !important; }
@@ -996,6 +996,16 @@
 .dark .text-info { color: var(--color-info) !important; }
 .dark .bg-surface-light { background-color: var(--color-surface-light) !important; }
 .dark .border-border-subtle { border-color: var(--color-border-subtle) !important; }
+
+/* Button visibility fix */
+.dark .neo-btn { color: var(--color-text-primary) !important; }
+.dark .neo-btn:hover { color: var(--color-primary) !important; }
+.dark .neo-btn-icon { color: var(--color-text-secondary) !important; }
+.dark .neo-btn-icon:hover { color: var(--color-primary) !important; }
+.dark .btn-ghost { color: var(--color-text-secondary) !important; }
+.dark .btn-ghost:hover { color: var(--color-primary) !important; }
+.dark .btn-secondary { color: var(--color-text-primary) !important; }
+.dark .btn-secondary:hover { color: var(--color-primary) !important; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
