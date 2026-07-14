@@ -54,7 +54,7 @@ export default function Login() {
   if (user) return null;
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "var(--color-canvas, #f0f2f5)" }}>
+    <div style={{ display: "flex", minHeight: "100vh", background: "var(--color-canvas, #e0e5ec)" }}>
 
       {/* ── Left panel (branding) ── */}
       <div style={{
@@ -152,14 +152,14 @@ export default function Login() {
 
         {/* Form */}
         <div style={{ width: "100%", maxWidth: 420, position: "relative", zIndex: 1 }}>
-          <div className="glass-panel" style={{ padding: "40px 36px", borderRadius: 28, boxShadow: "0 25px 60px -15px rgba(0,0,0,0.2)" }}>
+          <div className="neo-card" style={{ padding: "40px 36px", borderRadius: 28 }}>
 
             {/* Header */}
             <div style={{ marginBottom: 36 }}>
-              <h2 style={{ fontFamily: F.display, fontSize: "32px", fontWeight: 700, color: "var(--color-text-primary, #2b3450)", margin: "0 0 8px", letterSpacing: "-0.02em" }}>
+              <h2 style={{ fontFamily: F.display, fontSize: "32px", fontWeight: 700, color: "var(--color-text-primary, #2b2a28)", margin: "0 0 8px", letterSpacing: "-0.02em" }}>
                 {tr("Добро пожаловать", "Xush kelibsiz")}
               </h2>
-              <p style={{ fontSize: "15px", color: "var(--color-text-secondary, #6a7290)", margin: 0 }}>
+              <p style={{ fontSize: "15px", color: "var(--color-text-secondary, #6b675f)", margin: 0 }}>
                 {tr("Войдите в свой аккаунт", "Hisobingizga kiring")}
               </p>
             </div>
@@ -167,36 +167,20 @@ export default function Login() {
             <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
               {/* Email */}
               <div>
-                <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary, #2b3450)", marginBottom: 8 }}>Email</label>
+                <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary, #2b2a28)", marginBottom: 8 }}>Email</label>
                 <div style={{ position: "relative" }}>
-                  <Mail size={18} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--color-text-tertiary, #98a0b8)", pointerEvents: "none" }} />
-                  <input type="email" style={{
-                    width: "100%", padding: "14px 14px 14px 44px", borderRadius: 14,
-                    fontSize: "15px", fontFamily: F.body, color: "var(--color-text-primary, #2b3450)",
-                    background: "var(--color-surface-light, #f0f3f8)", border: "2px solid transparent",
-                    outline: "none", transition: "all 0.2s ease",
-                  }} placeholder="you@company.com" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" disabled={isPending}
-                    onFocus={e => { e.currentTarget.style.borderColor = "#4b6cf6"; e.currentTarget.style.boxShadow = "0 0 0 4px rgba(75,108,246,.10)"; }}
-                    onBlur={e => { e.currentTarget.style.borderColor = "transparent"; e.currentTarget.style.boxShadow = "none"; }}
-                  />
+                  <Mail size={18} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--color-text-tertiary, #9a968c)", pointerEvents: "none" }} />
+                  <input type="email" className="neo-input" style={{ padding: "14px 14px 14px 44px", borderRadius: 14, fontSize: "15px" }} placeholder="you@company.com" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" disabled={isPending} />
                 </div>
               </div>
 
               {/* Password */}
               <div>
-                <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary, #2b3450)", marginBottom: 8 }}>{tr("Пароль", "Parol")}</label>
+                <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary, #2b2a28)", marginBottom: 8 }}>{tr("Пароль", "Parol")}</label>
                 <div style={{ position: "relative" }}>
-                  <Lock size={18} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--color-text-tertiary, #98a0b8)", pointerEvents: "none" }} />
-                  <input type={showPw ? "text" : "password"} style={{
-                    width: "100%", padding: "14px 48px 14px 44px", borderRadius: 14,
-                    fontSize: "15px", fontFamily: F.body, color: "var(--color-text-primary, #2b3450)",
-                    background: "var(--color-surface-light, #f0f3f8)", border: "2px solid transparent",
-                    outline: "none", transition: "all 0.2s ease",
-                  }} placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" disabled={isPending}
-                    onFocus={e => { e.currentTarget.style.borderColor = "#4b6cf6"; e.currentTarget.style.boxShadow = "0 0 0 4px rgba(75,108,246,.10)"; }}
-                    onBlur={e => { e.currentTarget.style.borderColor = "transparent"; e.currentTarget.style.boxShadow = "none"; }}
-                  />
-                  <button type="button" onClick={() => setShowPw(!showPw)} style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--color-text-tertiary, #98a0b8)", padding: 0 }} tabIndex={-1}>
+                  <Lock size={18} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--color-text-tertiary, #9a968c)", pointerEvents: "none" }} />
+                  <input type={showPw ? "text" : "password"} className="neo-input" style={{ padding: "14px 48px 14px 44px", borderRadius: 14, fontSize: "15px" }} placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" disabled={isPending} />
+                  <button type="button" onClick={() => setShowPw(!showPw)} style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--color-text-tertiary, #9a968c)", padding: 0 }} tabIndex={-1}>
                     {showPw ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
@@ -204,7 +188,7 @@ export default function Login() {
 
               {/* Forgot password link */}
               <div style={{ textAlign: "right", marginTop: -8 }}>
-                <Link to="/forgot-password" style={{ fontSize: 13, color: "#4b6cf6", textDecoration: "none", fontWeight: 500 }}>
+                <Link to="/forgot-password" style={{ fontSize: 13, color: "var(--color-primary, #4b6cf6)", textDecoration: "none", fontWeight: 500 }}>
                   {tr("Забыли пароль?", "Parolni unutdingizmi?")}
                 </Link>
               </div>
@@ -213,7 +197,7 @@ export default function Login() {
               {error && (
                 <div style={{
                   display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderRadius: 12,
-                  background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.15)", fontSize: "13px", fontWeight: 500, color: "#e85050",
+                  background: "var(--color-danger-subtle, rgba(232,80,80,.12))", fontSize: "13px", fontWeight: 500, color: "var(--color-danger, #e85050)",
                 }}>
                   <AlertCircle size={16} />
                   <span>{error}</span>
@@ -221,13 +205,9 @@ export default function Login() {
               )}
 
               {/* Submit */}
-              <button type="submit" disabled={isPending} style={{
-                width: "100%", padding: "14px 24px", borderRadius: 14, fontSize: "15px", fontWeight: 600,
-                fontFamily: F.body, color: "#fff", border: "none", cursor: "pointer",
-                background: "linear-gradient(135deg, #4b6cf6, #4b6cf6)",
-                boxShadow: "0 4px 16px rgba(75,108,246,.30), inset 0 1px 0 rgba(255,255,255,0.12)",
-                opacity: isPending ? 0.6 : 1, transition: "all 0.2s ease",
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+              <button type="submit" disabled={isPending} className="neo-btn-primary" style={{
+                width: "100%", padding: "14px 24px", borderRadius: 14, fontSize: "15px",
+                opacity: isPending ? 0.6 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
               }}>
                 {isPending ? (
                   <><Loader2 size={18} style={{ animation: "spin 1s linear infinite" }} />{tr("Вход…", "Kirish…")}</>
@@ -236,10 +216,10 @@ export default function Login() {
             </form>
 
             {/* Register */}
-            <div style={{ marginTop: 32, paddingTop: 24, borderTop: "1px solid var(--color-border, #f0f3f8)", textAlign: "center" }}>
-              <p style={{ fontSize: "14px", color: "var(--color-text-secondary, #6a7290)", margin: 0 }}>
+            <div style={{ marginTop: 32, paddingTop: 24, borderTop: "1px solid var(--color-border, #e4e0d8)", textAlign: "center" }}>
+              <p style={{ fontSize: "14px", color: "var(--color-text-secondary, #6b675f)", margin: 0 }}>
                 {tr("Нет аккаунта?", "Hisobingiz yo'qmi?")}{" "}
-                <Link to="/register" style={{ fontWeight: 600, color: "#4b6cf6", textDecoration: "none" }}>
+                <Link to="/register" style={{ fontWeight: 600, color: "var(--color-primary, #4b6cf6)", textDecoration: "none" }}>
                   {tr("Создать", "Yaratish")}
                 </Link>
               </p>

@@ -398,6 +398,10 @@
     box-shadow: inset 3px 3px 6px rgba(0,0,0,0.2), inset -3px -3px 6px rgba(255,255,255,0.1);
     transform: translateY(0);
   }
+  .dark .neo-btn-primary {
+    color: #fff !important;
+    box-shadow: 4px 4px 12px rgba(0,0,0,0.4), -2px -2px 6px rgba(255,255,255,0.03);
+  }
 
   /* Icon button (circular) */
   .neo-btn-icon {
@@ -1003,7 +1007,16 @@
 .light .btn-secondary, :root .btn-secondary { color: var(--color-text-primary) !important; }
 .light .btn-secondary:hover, :root .btn-secondary:hover { color: var(--color-primary) !important; }
 
-/* ── Dark mode text visibility fix ──────────────────────────────────────────── */
+/* Button visibility fix — dark mode */
+.dark .neo-btn { color: var(--color-text-primary) !important; }
+.dark .neo-btn:hover { color: var(--color-primary) !important; }
+.dark .neo-btn-icon { color: var(--color-text-secondary) !important; }
+.dark .neo-btn-icon:hover { color: var(--color-primary) !important; }
+.dark .btn-ghost { color: var(--color-text-secondary) !important; }
+.dark .btn-ghost:hover { color: var(--color-primary) !important; }
+.dark .btn-secondary { color: var(--color-text-primary) !important; }
+.dark .btn-secondary:hover { color: var(--color-primary) !important; }
+.dark .neo-btn-primary { color: #fff !important; }
 .dark p, .dark span, .dark h1, .dark h2, .dark h3, .dark h4, .dark h5, .dark h6,
 .dark label, .dark td, .dark th, .dark li, .dark a, .dark button {
   color: inherit;
