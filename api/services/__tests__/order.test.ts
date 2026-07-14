@@ -16,7 +16,7 @@ vi.mock("drizzle-orm", () => {
   };
 });
 
-import { orders, orderItems, warehouseStock, shops, users, products } from "@db/schema";
+import { orders, orderItems, warehouseStock, shops, users, products, warehouses } from "@db/schema";
 
 type FakeOrder = {
   id: number; tenantId: number; orderNumber: string; shopId: number;
@@ -41,6 +41,7 @@ let stockTable: FakeStock[] = [];
 let shopsTable: FakeShop[] = [];
 let usersTable: FakeUser[] = [];
 let productsTable: FakeProduct[] = [];
+let warehousesTable: { id: number; tenantId: number; name: string; isDefault: boolean; status: string }[] = [];
 let nextOrderId = 1;
 let nextItemId = 1;
 
@@ -48,14 +49,17 @@ function resetTables() {
   ordersTable = [];
   orderItemsTable = [];
   stockTable = [
-    { productId: 1, tenantId: 1, currentStock: "100.00", reserved: "0.00", available: "100.00" },
-    { productId: 2, tenantId: 1, currentStock: "50.00", reserved: "0.00", available: "50.00" },
+    { productId: 1, tenantId: 1, warehouseId: 1, currentStock: "100.00", reserved: "0.00", available: "100.00" },
+    { productId: 2, tenantId: 1, warehouseId: 1, currentStock: "50.00", reserved: "0.00", available: "50.00" },
   ];
   shopsTable = [{ id: 1, tenantId: 1, name: "Shop Alpha" }];
   usersTable = [{ id: 10, tenantId: 1, name: "Agent One" }];
   productsTable = [
     { id: 1, tenantId: 1, name: "Product 1", unitPrice: "100.00", status: "active" },
     { id: 2, tenantId: 1, name: "Product 2", unitPrice: "200.00", status: "active" },
+  ];
+  warehousesTable = [
+    { id: 1, tenantId: 1, name: "Main", isDefault: true, status: "active" },
   ];
   nextOrderId = 1;
   nextItemId = 1;
@@ -68,6 +72,7 @@ function tableOf(ref: unknown): string {
   if (ref === shops) return "shops";
   if (ref === users) return "users";
   if (ref === products) return "products";
+  if (ref === warehouses) return "warehouses";
   return "other";
 }
 
@@ -77,6 +82,7 @@ function rowsFor(table: string): unknown[] {
     warehouseStock: stockTable, shops: shopsTable, users: usersTable,
     products: productsTable,
   };
+  if (table === "warehouses") return warehousesTable;
   return map[table] ?? [];
 }
 
@@ -87,6 +93,7 @@ for (const [field, col] of Object.entries(warehouseStock)) colToField.set(col, f
 for (const [field, col] of Object.entries(shops)) colToField.set(col, field);
 for (const [field, col] of Object.entries(users)) colToField.set(col, field);
 for (const [field, col] of Object.entries(products)) colToField.set(col, field);
+for (const [field, col] of Object.entries(warehouses)) colToField.set(col, field);
 
 function evalCond(row: unknown, cond: unknown): boolean {
   if (!cond || typeof cond !== "object") return true;

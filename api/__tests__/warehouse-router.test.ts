@@ -24,7 +24,7 @@ vi.mock("../lib/sanitize", () => ({
   default: (val: unknown) => val,
 }));
 
-import { warehouseStock, products, stockMovements, settings, orderItems, orders } from "@db/schema";
+import { warehouseStock, products, stockMovements, settings, orderItems, orders, warehouses } from "@db/schema";
 
 interface FakeStock {
   id: number;
@@ -64,12 +64,13 @@ let movementsTable: FakeStockMovement[] = [];
 let settingsTable: unknown[] = [];
 let ordersTable: unknown[] = [];
 let orderItemsTable: unknown[] = [];
+let warehousesTable: { id: number; tenantId: number; name: string; isDefault: boolean; status: string }[] = [];
 let nextMovementId = 1;
 
 function resetTables() {
   stockTable = [
-    { id: 1, productId: 1, tenantId: 1, currentStock: "100.00", reserved: "0.00", available: "100.00", updatedAt: new Date() },
-    { id: 2, productId: 2, tenantId: 1, currentStock: "5.00", reserved: "0.00", available: "5.00", updatedAt: new Date() },
+    { id: 1, productId: 1, tenantId: 1, warehouseId: 1, currentStock: "100.00", reserved: "0.00", available: "100.00", updatedAt: new Date() },
+    { id: 2, productId: 2, tenantId: 1, warehouseId: 1, currentStock: "5.00", reserved: "0.00", available: "5.00", updatedAt: new Date() },
   ];
   productsTable = [
     { id: 1, tenantId: 1, name: "Product A", code: "PA-001", unitPrice: "100.00", costPrice: "50.00", reorderPoint: "10.00", category: "Widgets", unit: "pcs" },
@@ -79,6 +80,9 @@ function resetTables() {
   settingsTable = [];
   ordersTable = [];
   orderItemsTable = [];
+  warehousesTable = [
+    { id: 1, tenantId: 1, name: "Main", isDefault: true, status: "active" },
+  ];
   nextMovementId = 1;
 }
 
@@ -89,6 +93,7 @@ function tableOf(ref: unknown): string {
   if (ref === settings) return "settings";
   if (ref === orderItems) return "orderItems";
   if (ref === orders) return "orders";
+  if (ref === warehouses) return "warehouses";
   return "other";
 }
 
@@ -99,6 +104,7 @@ function rowsFor(table: string): unknown[] {
   if (table === "settings") return settingsTable;
   if (table === "orderItems") return orderItemsTable;
   if (table === "orders") return ordersTable;
+  if (table === "warehouses") return warehousesTable;
   return [];
 }
 
@@ -109,6 +115,7 @@ for (const [field, col] of Object.entries(stockMovements)) columnToFieldName.set
 for (const [field, col] of Object.entries(settings)) columnToFieldName.set(col, field);
 for (const [field, col] of Object.entries(orderItems)) columnToFieldName.set(col, field);
 for (const [field, col] of Object.entries(orders)) columnToFieldName.set(col, field);
+for (const [field, col] of Object.entries(warehouses)) columnToFieldName.set(col, field);
 
 function evalCond(row: unknown, cond: unknown): boolean {
   if (!cond || typeof cond !== "object") return true;

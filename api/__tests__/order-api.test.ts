@@ -40,12 +40,12 @@ vi.mock("../lib/feature-gating", () => ({
   checkSubscriptionAccess: vi.fn(async () => true),
 }));
 
-import { orders, orderItems, warehouseStock, shops, users, products } from "@db/schema";
+import { orders, orderItems, warehouseStock, shops, users, products, warehouses } from "@db/schema";
 
 // ── Fake tables ──────────────────────────────────────────────────────────────
 interface FakeOrder { id: number; tenantId: number; agentId: number; shopId: number; status: string; orderNumber: string; subtotal: string; discount: string; total: string; notes: string | null; createdAt: Date; updatedAt: Date; }
 interface FakeOrderItem { id: number; orderId: number; productId: number; quantity: string; unitPrice: string; subtotal: string; createdAt: Date; }
-interface FakeStock { id: number; productId: number; tenantId: number; currentStock: string; reserved: string; available: string; updatedAt: Date; }
+interface FakeStock { id: number; productId: number; tenantId: number; warehouseId: number; currentStock: string; reserved: string; available: string; updatedAt: Date; }
 interface FakeShop { id: number; tenantId: number; name: string; }
 interface FakeUser { id: number; tenantId: number; name: string; email: string; role: string; }
 interface FakeProduct { id: number; tenantId: number; name: string; unitPrice: string; status: string; }
@@ -56,6 +56,7 @@ let stockTable: FakeStock[] = [];
 let shopsTable: FakeShop[] = [];
 let usersTable: FakeUser[] = [];
 let productsTable: FakeProduct[] = [];
+let warehousesTable: { id: number; tenantId: number; name: string; isDefault: boolean; status: string }[] = [];
 let nextOrderId = 1;
 let nextItemId = 1;
 
@@ -63,8 +64,8 @@ function resetTables() {
   ordersTable = [];
   orderItemsTable = [];
   stockTable = [
-    { id: 1, productId: 1, tenantId: 1, currentStock: "100.00", reserved: "0.00", available: "100.00", updatedAt: new Date() },
-    { id: 2, productId: 2, tenantId: 1, currentStock: "5.00", reserved: "0.00", available: "5.00", updatedAt: new Date() },
+    { id: 1, productId: 1, tenantId: 1, warehouseId: 1, currentStock: "100.00", reserved: "0.00", available: "100.00", updatedAt: new Date() },
+    { id: 2, productId: 2, tenantId: 1, warehouseId: 1, currentStock: "5.00", reserved: "0.00", available: "5.00", updatedAt: new Date() },
   ];
   shopsTable = [
     { id: 1, tenantId: 1, name: "Shop A" },
@@ -80,6 +81,9 @@ function resetTables() {
     { id: 1, tenantId: 1, name: "Widget A", unitPrice: "100.00", status: "active" },
     { id: 2, tenantId: 1, name: "Widget B", unitPrice: "50.00", status: "active" },
   ];
+  warehousesTable = [
+    { id: 1, tenantId: 1, name: "Main", isDefault: true, status: "active" },
+  ];
   nextOrderId = 1;
   nextItemId = 1;
 }
@@ -91,6 +95,7 @@ function tableOf(ref: unknown): string {
   if (ref === shops) return "shops";
   if (ref === users) return "users";
   if (ref === products) return "products";
+  if (ref === warehouses) return "warehouses";
   return "other";
 }
 
@@ -101,6 +106,7 @@ function rowsFor(table: string): unknown[] {
   if (table === "shops") return shopsTable;
   if (table === "users") return usersTable;
   if (table === "products") return productsTable;
+  if (table === "warehouses") return warehousesTable;
   return [];
 }
 
@@ -111,6 +117,7 @@ for (const [field, col] of Object.entries(warehouseStock)) columnToFieldName.set
 for (const [field, col] of Object.entries(shops)) columnToFieldName.set(col, field);
 for (const [field, col] of Object.entries(users)) columnToFieldName.set(col, field);
 for (const [field, col] of Object.entries(products)) columnToFieldName.set(col, field);
+for (const [field, col] of Object.entries(warehouses)) columnToFieldName.set(col, field);
 
 function evalCond(row: unknown, cond: unknown): boolean {
   if (!cond || typeof cond !== "object") return true;

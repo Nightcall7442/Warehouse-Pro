@@ -40,7 +40,7 @@ vi.mock("../lib/sse", () => ({
   sseBus: { emit: vi.fn() },
 }));
 
-import { orders, orderItems, warehouseStock, products, stockMovements, settings } from "@db/schema";
+import { orders, orderItems, warehouseStock, products, stockMovements, settings, warehouses } from "@db/schema";
 
 // ── Fake tables ──────────────────────────────────────────────────────────────
 interface FakeStock { id: number; productId: number; tenantId: number; currentStock: string; reserved: string; available: string; updatedAt: Date; }
@@ -56,15 +56,16 @@ let ordersTable: FakeOrder[] = [];
 let orderItemsTable: FakeOrderItem[] = [];
 let productsTable: FakeProduct[] = [];
 let settingsTable: FakeSetting[] = [];
+let warehousesTable: { id: number; tenantId: number; name: string; isDefault: boolean; status: string }[] = [];
 let nextOrderId = 1;
 let nextItemId = 1;
 let nextMovementId = 1;
 
 function resetTables() {
   stockTable = [
-    { id: 1, productId: 1, tenantId: 1, currentStock: "100.00", reserved: "0.00", available: "100.00", updatedAt: new Date() },
-    { id: 2, productId: 2, tenantId: 1, currentStock: "5.00", reserved: "0.00", available: "5.00", updatedAt: new Date() },
-    { id: 3, productId: 3, tenantId: 1, currentStock: "0.00", reserved: "0.00", available: "0.00", updatedAt: new Date() },
+    { id: 1, productId: 1, tenantId: 1, warehouseId: 1, currentStock: "100.00", reserved: "0.00", available: "100.00", updatedAt: new Date() },
+    { id: 2, productId: 2, tenantId: 1, warehouseId: 1, currentStock: "5.00", reserved: "0.00", available: "5.00", updatedAt: new Date() },
+    { id: 3, productId: 3, tenantId: 1, warehouseId: 1, currentStock: "0.00", reserved: "0.00", available: "0.00", updatedAt: new Date() },
   ];
   movementsTable = [];
   ordersTable = [];
@@ -75,6 +76,9 @@ function resetTables() {
     { id: 3, tenantId: 1, name: "Empty Item", code: "EI-003", unitPrice: "200.00", costPrice: "100.00", reorderPoint: "5.00", status: "active" },
   ];
   settingsTable = [];
+  warehousesTable = [
+    { id: 1, tenantId: 1, name: "Main", isDefault: true, status: "active" },
+  ];
   nextOrderId = 1;
   nextItemId = 1;
   nextMovementId = 1;
@@ -87,6 +91,7 @@ function tableOf(ref: unknown): string {
   if (ref === orderItems) return "orderItems";
   if (ref === products) return "products";
   if (ref === settings) return "settings";
+  if (ref === warehouses) return "warehouses";
   return "other";
 }
 
@@ -97,6 +102,7 @@ function rowsFor(table: string): Record<string, unknown>[] {
   if (table === "orderItems") return orderItemsTable as unknown as Record<string, unknown>[];
   if (table === "products") return productsTable as unknown as Record<string, unknown>[];
   if (table === "settings") return settingsTable as unknown as Record<string, unknown>[];
+  if (table === "warehouses") return warehousesTable as unknown as Record<string, unknown>[];
   return [];
 }
 
@@ -107,6 +113,7 @@ for (const [field, col] of Object.entries(orders)) columnToFieldName.set(col, fi
 for (const [field, col] of Object.entries(orderItems)) columnToFieldName.set(col, field);
 for (const [field, col] of Object.entries(products)) columnToFieldName.set(col, field);
 for (const [field, col] of Object.entries(settings)) columnToFieldName.set(col, field);
+for (const [field, col] of Object.entries(warehouses)) columnToFieldName.set(col, field);
 
 function evalCond(row: Record<string, unknown>, cond: Record<string, unknown>): boolean {
   if (!cond || typeof cond !== "object") return true;

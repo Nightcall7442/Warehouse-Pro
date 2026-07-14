@@ -1,5 +1,5 @@
 import { eq, and, desc, sql } from "drizzle-orm";
-import { orders, orderItems, warehouseStock, shops, users, products } from "@db/schema";
+import { orders, orderItems, warehouseStock, shops, users, products, warehouses } from "@db/schema";
 import { cache, CacheKeys } from "../lib/cache";
 import { NotificationService } from "./NotificationService";
 
@@ -127,11 +127,20 @@ export const OrderService = {
       }
       const total = subtotal - discount;
 
+      // Get default warehouse for stock operations
+      const [defaultWh] = await tx.select({ id: warehouses.id })
+        .from(warehouses)
+        .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true)))
+        .limit(1);
+      if (!defaultWh) throw new Error("Склад по умолчанию не найден");
+      const warehouseId = defaultWh.id;
+
       // SELECT stock rows with row-level locking to prevent race conditions
       const stockRows = await tx.select().from(warehouseStock)
         .where(and(
           sql`${warehouseStock.productId} IN (${sql.join(input.items.map(i => sql`${i.productId}`), sql`, `)})`,
           eq(warehouseStock.tenantId, tenantId),
+          eq(warehouseStock.warehouseId, warehouseId),
         ))
         .for("update");
 
@@ -178,6 +187,7 @@ export const OrderService = {
             ), sql`\n`)} ELSE 0 END
           WHERE product_id IN (${sql.join(input.items.map(i => sql`${i.productId}`), sql`, `)})
             AND tenant_id = ${tenantId}
+            AND warehouse_id = ${warehouseId}
         `);
       }
 
@@ -229,6 +239,13 @@ export const OrderService = {
       if (!order) throw new Error("Заказ не найден");
       if (order.status !== "new") throw new Error("Можно отменить только новые заказы");
 
+      // Get default warehouse
+      const [defaultWh] = await tx.select({ id: warehouses.id })
+        .from(warehouses)
+        .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true)))
+        .limit(1);
+      const warehouseId = defaultWh?.id;
+
       const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
       if (items.length > 0) {
         await tx.execute(sql`
@@ -242,6 +259,7 @@ export const OrderService = {
             ), sql`\n`)} ELSE available END
           WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
             AND tenant_id = ${tenantId}
+            ${warehouseId ? sql`AND warehouse_id = ${warehouseId}` : sql``}
         `);
       }
       await tx.update(orders).set({ status: "cancelled" }).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)));
@@ -268,6 +286,13 @@ export const OrderService = {
         throw new Error(`Невозможно перевести из "${order.status}" в "${newStatus}"`);
       }
 
+      // Get default warehouse
+      const [defaultWh] = await tx.select({ id: warehouses.id })
+        .from(warehouses)
+        .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true)))
+        .limit(1);
+      const warehouseId = defaultWh?.id;
+
       const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
       if (items.length > 0) {
         if (newStatus === "completed") {
@@ -282,6 +307,7 @@ export const OrderService = {
               ), sql`\n`)} ELSE reserved END
             WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
               AND tenant_id = ${tenantId}
+              ${warehouseId ? sql`AND warehouse_id = ${warehouseId}` : sql``}
           `);
         }
         if (newStatus === "cancelled") {
@@ -296,6 +322,7 @@ export const OrderService = {
               ), sql`\n`)} ELSE available END
             WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
               AND tenant_id = ${tenantId}
+              ${warehouseId ? sql`AND warehouse_id = ${warehouseId}` : sql``}
           `);
         }
       }
@@ -311,6 +338,14 @@ export const OrderService = {
     await db.transaction(async (tx) => {
       const [order] = await tx.select().from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId))).limit(1);
       if (!order) throw new Error("Заказ не найден");
+
+      // Get default warehouse
+      const [defaultWh] = await tx.select({ id: warehouses.id })
+        .from(warehouses)
+        .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true)))
+        .limit(1);
+      const warehouseId = defaultWh?.id;
+
       const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
       if (order.status === "new" || order.status === "processing") {
         if (items.length > 0) {
@@ -325,6 +360,7 @@ export const OrderService = {
               ), sql`\n`)} ELSE available END
             WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
               AND tenant_id = ${tenantId}
+              ${warehouseId ? sql`AND warehouse_id = ${warehouseId}` : sql``}
           `);
         }
       }

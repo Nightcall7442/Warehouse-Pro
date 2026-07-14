@@ -21,7 +21,7 @@ vi.mock("../../lib/sse", () => ({
   sseBus: { emit: vi.fn() },
 }));
 
-import { warehouseStock, stockMovements, products } from "@db/schema";
+import { warehouseStock, stockMovements, products, warehouses } from "@db/schema";
 import { sseBus } from "../../lib/sse";
 
 type FakeStock = {
@@ -39,17 +39,21 @@ type FakeProduct = {
 let stockTable: FakeStock[] = [];
 let movementsTable: FakeMovement[] = [];
 let productsTable: FakeProduct[] = [];
+let warehousesTable: { id: number; tenantId: number; name: string; isDefault: boolean; status: string }[] = [];
 let nextMovementId = 1;
 
 function resetTables() {
   stockTable = [
-    { id: 1, productId: 1, tenantId: 1, currentStock: "100.00", reserved: "0.00", available: "100.00" },
-    { id: 2, productId: 2, tenantId: 1, currentStock: "50.00", reserved: "10.00", available: "40.00" },
+    { id: 1, productId: 1, tenantId: 1, warehouseId: 1, currentStock: "100.00", reserved: "0.00", available: "100.00" },
+    { id: 2, productId: 2, tenantId: 1, warehouseId: 1, currentStock: "50.00", reserved: "10.00", available: "40.00" },
   ];
   movementsTable = [];
   productsTable = [
     { id: 1, name: "Product A", reorderPoint: "10.00" },
     { id: 2, name: "Product B", reorderPoint: "20.00" },
+  ];
+  warehousesTable = [
+    { id: 1, tenantId: 1, name: "Main", isDefault: true, status: "active" },
   ];
   nextMovementId = 1;
 }
@@ -58,6 +62,7 @@ function tableOf(ref: unknown): string {
   if (ref === warehouseStock) return "warehouseStock";
   if (ref === stockMovements) return "stockMovements";
   if (ref === products) return "products";
+  if (ref === warehouses) return "warehouses";
   return "other";
 }
 
@@ -67,6 +72,7 @@ function rowsFor(table: string): unknown[] {
     stockMovements: movementsTable,
     products: productsTable,
   };
+  if (table === "warehouses") return warehousesTable;
   return map[table] ?? [];
 }
 
@@ -74,6 +80,7 @@ const colToField = new Map<unknown, string>();
 for (const [f, c] of Object.entries(warehouseStock)) colToField.set(c, f);
 for (const [f, c] of Object.entries(stockMovements)) colToField.set(c, f);
 for (const [f, c] of Object.entries(products)) colToField.set(c, f);
+for (const [f, c] of Object.entries(warehouses)) colToField.set(c, f);
 
 function evalCond(row: unknown, cond: unknown): boolean {
   if (!cond || typeof cond !== "object") return true;
@@ -103,20 +110,18 @@ function evalSqlDelta(row: unknown, fieldName: string, expr: unknown): string {
 function makeMockDb() {
   const selectBuilder = () => {
     let tbl = "";
+    const wrap = (arr: unknown[]) => Object.assign(Promise.resolve(arr), {
+      limit: (n: number) => wrap(arr.slice(0, n)),
+      orderBy: () => wrap(arr),
+      for: () => wrap(arr),
+    });
     const api: Record<string, unknown> = {
       from(ref: unknown) { tbl = tableOf(ref); return api; },
       where(cond: unknown) {
         const filtered = rowsFor(tbl).filter((r) => evalCond(r, cond));
-        const result = Object.assign(Promise.resolve(filtered), {
-          limit: (n: number) => Promise.resolve(filtered.slice(0, n)),
-          orderBy: () => Object.assign(Promise.resolve(filtered), {
-            limit: (n: number) => Promise.resolve(filtered.slice(0, n)),
-          }),
-          for: () => result,
-        });
-        return result;
+        return wrap(filtered);
       },
-      limit(n: number) { return Promise.resolve(rowsFor(tbl).slice(0, n)); },
+      limit(n: number) { return wrap(rowsFor(tbl).slice(0, n)); },
     };
     return api;
   };

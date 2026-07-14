@@ -8,9 +8,10 @@ import { StockService } from "./services/stock";
 export const warehouseRouter = createRouter({
   list: operatorQuery
     .input(z.object({
-      page:     z.number().default(1),
-      pageSize: z.number().default(25),
-      search:   z.string().optional(),
+      page:        z.number().default(1),
+      pageSize:    z.number().default(25),
+      search:      z.string().optional(),
+      warehouseId: z.number().optional(),
     }).optional())
     .query(async ({ input, ctx }) => {
       const db       = getDb();
@@ -19,13 +20,25 @@ export const warehouseRouter = createRouter({
       const pageSize = input?.pageSize ?? 25;
       const offset   = (page - 1) * pageSize;
 
+      // If no warehouseId specified, use default warehouse
+      let targetWarehouseId = input?.warehouseId;
+      if (!targetWarehouseId) {
+        const [defaultWh] = await db.select({ id: warehouses.id })
+          .from(warehouses)
+          .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true)))
+          .limit(1);
+        targetWarehouseId = defaultWh?.id;
+      }
+
       const stockCond = [eq(warehouseStock.tenantId, tenantId)];
+      if (targetWarehouseId) stockCond.push(eq(warehouseStock.warehouseId, targetWarehouseId));
       if (input?.search) stockCond.push(like(products.name, `%${input.search}%`));
       const where = and(...stockCond);
 
       const [data, countResult, summary] = await Promise.all([
         db.select({
           id: warehouseStock.id, productId: warehouseStock.productId,
+          warehouseId: warehouseStock.warehouseId,
           currentStock: warehouseStock.currentStock, reserved: warehouseStock.reserved,
           available: warehouseStock.available, productName: products.name,
           productCode: products.code, category: products.category,
@@ -41,7 +54,7 @@ export const warehouseRouter = createRouter({
           totalSKUs:     sql<number>`count(*)`,
           totalWeight:   sql<string>`COALESCE(SUM(CAST(${warehouseStock.currentStock} AS DECIMAL) * CAST(COALESCE(${products.unitWeight}, '0') AS DECIMAL)), 0)`,
           lowStockCount: sql<number>`count(CASE WHEN ${warehouseStock.available} < ${products.reorderPoint} THEN 1 END)`,
-        }).from(warehouseStock).leftJoin(products, eq(warehouseStock.productId, products.id)).where(eq(warehouseStock.tenantId, tenantId)),
+        }).from(warehouseStock).leftJoin(products, eq(warehouseStock.productId, products.id)).where(where),
       ]);
 
       return { data, total: Number(countResult[0]?.count ?? 0), page, pageSize, summary: summary[0] };

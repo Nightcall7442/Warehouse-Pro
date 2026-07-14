@@ -38,12 +38,12 @@ vi.mock("../lib/sanitize", () => ({
 
 import {
   orders, orderItems, warehouseStock, products, stockMovements,
-  shops, users, payments, settings,
+  shops, users, payments, settings, warehouses,
 } from "@db/schema";
 
 interface FakeOrder { id: number; tenantId: number; agentId: number; shopId: number; status: string; orderNumber: string; subtotal: string; discount: string; total: string; notes: string | null; createdAt: Date; updatedAt: Date; }
 interface FakeOrderItem { id: number; orderId: number; productId: number; quantity: string; unitPrice: string; subtotal: string; createdAt: Date; }
-interface FakeStock { id: number; productId: number; tenantId: number; currentStock: string; reserved: string; available: string; updatedAt: Date; }
+interface FakeStock { id: number; productId: number; tenantId: number; warehouseId: number; currentStock: string; reserved: string; available: string; updatedAt: Date; }
 interface FakeProduct { id: number; tenantId: number; name: string; code: string; unitPrice: string; costPrice: string; reorderPoint: string; category: string | null; unit: string; status: string; barcode?: string | null; photoUrl?: string | null; description?: string | null; unitWeight?: string; }
 interface FakeMovement { id: number; tenantId: number; productId: number; type: string; quantity: string; notes: string | null; referenceType?: string | null; referenceId?: number | null; createdAt: Date; }
 interface FakeShop { id: number; tenantId: number; name: string; city: string | null; district: string | null; agentId: number | null; debt: string; status: string; ownerName: string | null; phone: string | null; address: string | null; photoUrl: string | null; gpsLat: string | null; gpsLng: string | null; notes: string | null; createdAt: Date; updatedAt: Date; }
@@ -58,6 +58,7 @@ let movementsTable: FakeMovement[] = [];
 let shopsTable: FakeShop[] = [];
 let usersTable: FakeUser[] = [];
 let paymentsTable: FakePayment[] = [];
+let warehousesTable: { id: number; tenantId: number; name: string; isDefault: boolean; status: string }[] = [];
 let nextOrderId = 1;
 let nextItemId = 1;
 let nextMovementId = 1;
@@ -67,8 +68,8 @@ function resetTables() {
   ordersTable = [];
   orderItemsTable = [];
   stockTable = [
-    { id: 1, productId: 1, tenantId: 1, currentStock: "100.00", reserved: "0.00", available: "100.00", updatedAt: new Date() },
-    { id: 2, productId: 2, tenantId: 1, currentStock: "50.00", reserved: "0.00", available: "50.00", updatedAt: new Date() },
+    { id: 1, productId: 1, tenantId: 1, warehouseId: 1, currentStock: "100.00", reserved: "0.00", available: "100.00", updatedAt: new Date() },
+    { id: 2, productId: 2, tenantId: 1, warehouseId: 1, currentStock: "50.00", reserved: "0.00", available: "50.00", updatedAt: new Date() },
   ];
   productsTable = [
     { id: 1, tenantId: 1, name: "Widget A", code: "WA-001", unitPrice: "100.00", costPrice: "50.00", reorderPoint: "20.00", category: "Widgets", unit: "pcs", status: "active" },
@@ -84,6 +85,9 @@ function resetTables() {
     { id: 20, tenantId: 2, name: "Agent T2", email: "a1@t2.com", role: "agent" },
   ];
   paymentsTable = [];
+  warehousesTable = [
+    { id: 1, tenantId: 1, name: "Main", isDefault: true, status: "active" },
+  ];
   nextOrderId = 1;
   nextItemId = 1;
   nextMovementId = 1;
@@ -100,6 +104,7 @@ function tableOf(ref: unknown): string {
   if (ref === users) return "users";
   if (ref === payments) return "payments";
   if (ref === settings) return "settings";
+  if (ref === warehouses) return "warehouses";
   return "other";
 }
 
@@ -107,7 +112,7 @@ function rowsFor(table: string): unknown[] {
   const map: Record<string, unknown[]> = {
     orders: ordersTable, orderItems: orderItemsTable, warehouseStock: stockTable,
     products: productsTable, stockMovements: movementsTable, shops: shopsTable,
-    users: usersTable, payments: paymentsTable,
+    users: usersTable, payments: paymentsTable, warehouses: warehousesTable,
   };
   return map[table] ?? [];
 }
@@ -121,6 +126,7 @@ for (const [f, c] of Object.entries(stockMovements)) columnToFieldName.set(c, f)
 for (const [f, c] of Object.entries(shops)) columnToFieldName.set(c, f);
 for (const [f, c] of Object.entries(users)) columnToFieldName.set(c, f);
 for (const [f, c] of Object.entries(payments)) columnToFieldName.set(c, f);
+for (const [f, c] of Object.entries(warehouses)) columnToFieldName.set(c, f);
 
 function evalCond(row: unknown, cond: unknown): boolean {
   if (!cond || typeof cond !== "object") return true;

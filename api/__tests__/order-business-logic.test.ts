@@ -43,7 +43,7 @@ vi.mock("../telegram-router", () => ({
   tgMessages: { newOrder: vi.fn(() => "mock message") },
 }));
 
-import { orders, orderItems, warehouseStock, products } from "@db/schema";
+import { orders, orderItems, warehouseStock, products, warehouses } from "@db/schema";
 
 // ── Fake in-memory tables ─────────────────────────────────────────────────────
 interface FakeOrder { id: number; tenantId: number; agentId: number; shopId: number; status: string; }
@@ -55,6 +55,7 @@ let ordersTable: FakeOrder[]         = [];
 let orderItemsTable: FakeOrderItem[] = [];
 let stockTable: FakeStock[]          = [];
 let productsTable: FakeProduct[]     = [];
+let warehousesTable: { id: number; tenantId: number; name: string; isDefault: boolean; status: string }[] = [];
 let nextOrderId = 1;
 let nextItemId  = 1;
 
@@ -62,12 +63,15 @@ function resetFakeTables() {
   ordersTable     = [];
   orderItemsTable = [];
   stockTable      = [
-    { productId: 1, tenantId: 1, currentStock: "100.00", reserved: "0.00", available: "100.00" },
-    { productId: 2, tenantId: 1, currentStock: "5.00",   reserved: "0.00", available: "5.00"   },
+    { productId: 1, tenantId: 1, warehouseId: 1, currentStock: "100.00", reserved: "0.00", available: "100.00" },
+    { productId: 2, tenantId: 1, warehouseId: 1, currentStock: "5.00",   reserved: "0.00", available: "5.00"   },
   ];
   productsTable   = [
     { id: 1, tenantId: 1, name: "Product 1", unitPrice: "100.00", status: "active" },
     { id: 2, tenantId: 1, name: "Product 2", unitPrice: "50.00", status: "active" },
+  ];
+  warehousesTable = [
+    { id: 1, tenantId: 1, name: "Main", isDefault: true, status: "active" },
   ];
   nextOrderId = 1;
   nextItemId  = 1;
@@ -78,6 +82,7 @@ function tableOf(ref: unknown): "orders" | "orderItems" | "warehouseStock" | "ot
   if (ref === orderItems) return "orderItems";
   if (ref === warehouseStock) return "warehouseStock";
   if (ref === products) return "products";
+  if (ref === warehouses) return "warehouses";
   return "other";
 }
 
@@ -86,6 +91,7 @@ function rowsFor(table: ReturnType<typeof tableOf>): unknown[] {
   if (table === "orderItems") return orderItemsTable;
   if (table === "warehouseStock") return stockTable;
   if (table === "products") return productsTable;
+  if (table === "warehouses") return warehousesTable;
   return [];
 }
 
@@ -98,6 +104,7 @@ for (const [field, col] of Object.entries(orders))        columnToFieldName.set(
 for (const [field, col] of Object.entries(orderItems))    columnToFieldName.set(col, field);
 for (const [field, col] of Object.entries(warehouseStock)) columnToFieldName.set(col, field);
 for (const [field, col] of Object.entries(products)) columnToFieldName.set(col, field);
+for (const [field, col] of Object.entries(warehouses)) columnToFieldName.set(col, field);
 
 function evalCond(row: unknown, cond: unknown): boolean {
   if (!cond || typeof cond !== "object") return true;

@@ -1,4 +1,4 @@
-import { warehouseStock, stockMovements, products } from "@db/schema";
+import { warehouseStock, stockMovements, products, warehouses } from "@db/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { sseBus } from "../lib/sse";
 import { recordAudit } from "./audit-log";
@@ -10,9 +10,21 @@ export interface StockItem {
   quantity: number;
 }
 
+/** Get default warehouse for a tenant. Used when no warehouseId is specified. */
+async function getDefaultWarehouseId(db: DrizzleInstance, tenantId: number): Promise<number> {
+  const [wh] = await db.select({ id: warehouses.id })
+    .from(warehouses)
+    .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true)))
+    .limit(1);
+  if (!wh) throw new Error("Склад по умолчанию не найден");
+  return wh.id;
+}
+
 export const StockService = {
-  async reserve(db: DrizzleInstance, tenantId: number, items: StockItem[]) {
+  async reserve(db: DrizzleInstance, tenantId: number, items: StockItem[], warehouseId?: number) {
     if (items.length === 0) return { success: true };
+
+    const whId = warehouseId ?? await getDefaultWarehouseId(db, tenantId);
 
     await db.transaction(async (tx) => {
       const productIds = items.map(i => i.productId);
@@ -20,6 +32,7 @@ export const StockService = {
         .where(and(
           inArray(warehouseStock.productId, productIds),
           eq(warehouseStock.tenantId, tenantId),
+          eq(warehouseStock.warehouseId, whId),
         ))
         .for("update");
 
@@ -45,14 +58,17 @@ export const StockService = {
           ), sql`\n`)} ELSE 0 END
         WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
           AND tenant_id = ${tenantId}
+          AND warehouse_id = ${whId}
       `);
     });
 
     return { success: true };
   },
 
-  async release(db: DrizzleInstance, tenantId: number, items: StockItem[]) {
+  async release(db: DrizzleInstance, tenantId: number, items: StockItem[], warehouseId?: number) {
     if (items.length === 0) return { success: true };
+
+    const whId = warehouseId ?? await getDefaultWarehouseId(db, tenantId);
 
     await db.transaction(async (tx) => {
       const productIds = items.map(i => i.productId);
@@ -60,6 +76,7 @@ export const StockService = {
         .where(and(
           inArray(warehouseStock.productId, productIds),
           eq(warehouseStock.tenantId, tenantId),
+          eq(warehouseStock.warehouseId, whId),
         ))
         .for("update");
 
@@ -85,14 +102,17 @@ export const StockService = {
           ), sql`\n`)} ELSE 0 END
         WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
           AND tenant_id = ${tenantId}
+          AND warehouse_id = ${whId}
       `);
     });
 
     return { success: true };
   },
 
-  async deduct(db: DrizzleInstance, tenantId: number, items: StockItem[]) {
+  async deduct(db: DrizzleInstance, tenantId: number, items: StockItem[], warehouseId?: number) {
     if (items.length === 0) return { success: true };
+
+    const whId = warehouseId ?? await getDefaultWarehouseId(db, tenantId);
 
     await db.transaction(async (tx) => {
       const productIds = items.map(i => i.productId);
@@ -100,6 +120,7 @@ export const StockService = {
         .where(and(
           inArray(warehouseStock.productId, productIds),
           eq(warehouseStock.tenantId, tenantId),
+          eq(warehouseStock.warehouseId, whId),
         ))
         .for("update");
 
@@ -130,6 +151,7 @@ export const StockService = {
           ), sql`\n`)} ELSE 0 END)
         WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
           AND tenant_id = ${tenantId}
+          AND warehouse_id = ${whId}
       `);
     });
 
@@ -144,24 +166,29 @@ export const StockService = {
     type: "in" | "out" | "adjustment",
     notes?: string,
     actor?: { id: number; name: string; ip?: string },
+    warehouseId?: number,
   ) {
-    // #FIX5: Validate quantity
     if (!Number.isFinite(quantity) || quantity <= 0) {
       throw new Error("Количество должно быть положительным числом");
     }
+
+    const whId = warehouseId ?? await getDefaultWarehouseId(db, tenantId);
 
     let updatedAvailable: string | undefined;
     let productName: string | undefined;
     let reorderPoint: string | undefined;
 
     await db.transaction(async (tx) => {
-      // #FIX5: SELECT FOR UPDATE to prevent race conditions
-      const stockWhere = and(eq(warehouseStock.productId, productId), eq(warehouseStock.tenantId, tenantId));
+      const stockWhere = and(
+        eq(warehouseStock.productId, productId),
+        eq(warehouseStock.tenantId, tenantId),
+        eq(warehouseStock.warehouseId, whId),
+      );
       const [currentStock] = await tx.select({
         currentStock: warehouseStock.currentStock,
         available: warehouseStock.available,
       })
-        .from(warehouseStock).where(stockWhere).limit(1);
+        .from(warehouseStock).where(stockWhere).limit(1).for("update");
 
       const currentQty = Number(currentStock?.currentStock ?? 0);
 
@@ -171,7 +198,6 @@ export const StockService = {
           available: sql`${warehouseStock.available} + ${quantity}`,
         }).where(stockWhere);
       } else if (type === "out") {
-        // #FIX5: Check stock before deducting
         if (currentQty < quantity) {
           throw new Error(`Недостаточно товара на складе (на складе: ${currentQty}, запрошено: ${quantity})`);
         }
@@ -189,7 +215,6 @@ export const StockService = {
         productName = product?.name;
         reorderPoint = product?.reorderPoint;
       } else {
-        // "adjustment" — set absolute values
         const diff = quantity - currentQty;
         await tx.update(warehouseStock).set({
           currentStock: String(quantity),
@@ -216,7 +241,6 @@ export const StockService = {
       }
     }
 
-    // Audit: stock adjusted
     recordAudit(db, {
       tenantId,
       actorId: actor?.id,

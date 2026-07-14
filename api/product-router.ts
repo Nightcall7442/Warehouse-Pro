@@ -6,6 +6,14 @@ import { eq, like, and, sql, desc } from "drizzle-orm";
 import { sanitizeString, sanitizeSearch } from "./lib/sanitize";
 import { cache, CacheKeys, CacheTTL } from "./lib/cache";
 
+async function getDefaultWarehouseId(db: ReturnType<typeof getDb>, tenantId: number): Promise<number | null> {
+  const [wh] = await db.select({ id: warehouses.id })
+    .from(warehouses)
+    .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true)))
+    .limit(1);
+  return wh?.id ?? null;
+}
+
 export const productRouter = createRouter({
   list: agentQuery
     .input(z.object({
@@ -22,6 +30,8 @@ export const productRouter = createRouter({
       const pageSize = input?.pageSize ?? 25;
       const offset   = (page - 1) * pageSize;
 
+      const warehouseId = await getDefaultWarehouseId(db, tenantId);
+
       const cacheKey = CacheKeys.productList(tenantId, page, input?.search, input?.category) + (input?.includeAll ? ":all" : "");
       const cached = cache.get(cacheKey);
       if (cached) return cached;
@@ -31,6 +41,10 @@ export const productRouter = createRouter({
       if (input?.search)   conditions.push(like(products.name, `%${sanitizeSearch(input.search)}%`));
       if (input?.category) conditions.push(eq(products.category, input?.category));
       const where = and(...conditions);
+
+      const stockJoinCond = warehouseId
+        ? and(eq(products.id, warehouseStock.productId), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, warehouseId))
+        : and(eq(products.id, warehouseStock.productId), eq(warehouseStock.tenantId, tenantId));
 
       const [data, countResult] = await Promise.all([
         db.select({
@@ -51,7 +65,7 @@ export const productRouter = createRouter({
           available:    warehouseStock.available,
         })
           .from(products)
-          .leftJoin(warehouseStock, and(eq(products.id, warehouseStock.productId), eq(warehouseStock.tenantId, tenantId)))
+          .leftJoin(warehouseStock, stockJoinCond)
           .where(where)
           .limit(pageSize)
           .offset(offset)
@@ -69,6 +83,8 @@ export const productRouter = createRouter({
     .query(async ({ input, ctx }) => {
       const db       = getDb();
       const tenantId = ctx.tenant.id;
+      const warehouseId = await getDefaultWarehouseId(db, tenantId);
+
       const [product] = await db.select({
         id: products.id, code: products.code, barcode: products.barcode, name: products.name,
         category: products.category, costPrice: products.costPrice, unitPrice: products.unitPrice,
@@ -80,12 +96,16 @@ export const productRouter = createRouter({
         .limit(1);
       if (!product) return null;
 
+      const stockWhere = warehouseId
+        ? and(eq(warehouseStock.productId, product.id), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, warehouseId))
+        : and(eq(warehouseStock.productId, product.id), eq(warehouseStock.tenantId, tenantId));
+
       const [stockResult, movements] = await Promise.all([
         db.select({
           id: warehouseStock.id, currentStock: warehouseStock.currentStock,
           reserved: warehouseStock.reserved, available: warehouseStock.available,
         }).from(warehouseStock)
-          .where(and(eq(warehouseStock.productId, product.id), eq(warehouseStock.tenantId, tenantId)))
+          .where(stockWhere)
           .limit(1),
         db.select({
           id: stockMovements.id, type: stockMovements.type, quantity: stockMovements.quantity,
@@ -174,6 +194,7 @@ export const productRouter = createRouter({
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
       const tenantId = ctx.tenant.id;
+      const warehouseId = await getDefaultWarehouseId(db, tenantId);
 
       const [existingProduct] = await db.select().from(products)
         .where(and(eq(products.id, input.id), eq(products.tenantId, tenantId))).limit(1);
@@ -185,8 +206,10 @@ export const productRouter = createRouter({
         .where(and(eq(products.id, input.id), eq(products.tenantId, tenantId)));
 
       // Полностью удаляем запись стока
-      await db.delete(warehouseStock)
-        .where(and(eq(warehouseStock.productId, input.id), eq(warehouseStock.tenantId, tenantId)));
+      const deleteStockWhere = warehouseId
+        ? and(eq(warehouseStock.productId, input.id), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, warehouseId))
+        : and(eq(warehouseStock.productId, input.id), eq(warehouseStock.tenantId, tenantId));
+      await db.delete(warehouseStock).where(deleteStockWhere);
 
       cache.invalidatePrefix(`products:${tenantId}`);
       cache.invalidatePrefix(`product_cats:${tenantId}`);
@@ -214,13 +237,21 @@ export const productRouter = createRouter({
   findByBarcode: agentQuery
     .input(z.object({ barcode: z.string() }))
     .query(async ({ input, ctx }) => {
-      const result = await getDb().select({
+      const db = getDb();
+      const tenantId = ctx.tenant.id;
+      const warehouseId = await getDefaultWarehouseId(db, tenantId);
+
+      const stockJoinCond = warehouseId
+        ? and(eq(warehouseStock.productId, products.id), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, warehouseId))
+        : and(eq(warehouseStock.productId, products.id), eq(warehouseStock.tenantId, tenantId));
+
+      const result = await db.select({
         id: products.id, code: products.code, name: products.name,
         unitPrice: products.unitPrice, unit: products.unit, available: warehouseStock.available,
       })
         .from(products)
-        .leftJoin(warehouseStock, and(eq(warehouseStock.productId, products.id), eq(warehouseStock.tenantId, ctx.tenant.id)))
-        .where(and(eq(products.tenantId, ctx.tenant.id), eq(products.barcode, input.barcode)))
+        .leftJoin(warehouseStock, stockJoinCond)
+        .where(and(eq(products.tenantId, tenantId), eq(products.barcode, input.barcode)))
         .limit(1);
       return result[0] ?? null;
     }),

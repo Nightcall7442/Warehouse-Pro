@@ -11,6 +11,14 @@ import { cache, CacheKeys, CacheTTL } from "../lib/cache";
 
 type DrizzleInstance = ReturnType<typeof import("../queries/connection").getDb>;
 
+async function getDefaultWarehouseId(db: DrizzleInstance, tenantId: number): Promise<number | null> {
+  const [wh] = await db.select({ id: warehouses.id })
+    .from(warehouses)
+    .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true)))
+    .limit(1);
+  return wh?.id ?? null;
+}
+
 export interface ProductListFilters {
   page?: number;
   pageSize?: number;
@@ -61,6 +69,12 @@ export const ProductService = {
     if (filters?.category) conditions.push(eq(products.category, filters.category));
     const where = and(...conditions);
 
+    const warehouseId = await getDefaultWarehouseId(db, tenantId);
+
+    const stockJoinCond = warehouseId
+      ? and(eq(products.id, warehouseStock.productId), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, warehouseId))
+      : and(eq(products.id, warehouseStock.productId), eq(warehouseStock.tenantId, tenantId));
+
     const [data, countResult] = await Promise.all([
       db.select({
         id: products.id,
@@ -80,7 +94,7 @@ export const ProductService = {
         available: warehouseStock.available,
       })
         .from(products)
-        .leftJoin(warehouseStock, and(eq(products.id, warehouseStock.productId), eq(warehouseStock.tenantId, tenantId)))
+        .leftJoin(warehouseStock, stockJoinCond)
         .where(where)
         .limit(pageSize)
         .offset(offset)
@@ -115,6 +129,11 @@ export const ProductService = {
       .limit(1);
     if (!product) return null;
 
+    const warehouseId = await getDefaultWarehouseId(db, tenantId);
+    const stockWhere = warehouseId
+      ? and(eq(warehouseStock.productId, product.id), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, warehouseId))
+      : and(eq(warehouseStock.productId, product.id), eq(warehouseStock.tenantId, tenantId));
+
     const [stockResult, movements] = await Promise.all([
       db.select({
         id: warehouseStock.id,
@@ -123,7 +142,7 @@ export const ProductService = {
         available: warehouseStock.available,
       })
         .from(warehouseStock)
-        .where(and(eq(warehouseStock.productId, product.id), eq(warehouseStock.tenantId, tenantId)))
+        .where(stockWhere)
         .limit(1),
       db.select({
         id: stockMovements.id,
@@ -235,6 +254,11 @@ export const ProductService = {
   },
 
   async searchByBarcode(db: DrizzleInstance, tenantId: number, barcode: string) {
+    const warehouseId = await getDefaultWarehouseId(db, tenantId);
+    const stockJoinCond = warehouseId
+      ? and(eq(warehouseStock.productId, products.id), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, warehouseId))
+      : and(eq(warehouseStock.productId, products.id), eq(warehouseStock.tenantId, tenantId));
+
     const result = await db.select({
       id: products.id,
       code: products.code,
@@ -244,7 +268,7 @@ export const ProductService = {
       available: warehouseStock.available,
     })
       .from(products)
-      .leftJoin(warehouseStock, and(eq(warehouseStock.productId, products.id), eq(warehouseStock.tenantId, tenantId)))
+      .leftJoin(warehouseStock, stockJoinCond)
       .where(and(eq(products.tenantId, tenantId), eq(products.barcode, barcode)))
       .limit(1);
     return result[0] ?? null;
