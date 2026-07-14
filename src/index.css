@@ -301,7 +301,7 @@
   }
   .dark .neo-card {
     border-color: rgba(255,255,255,0.04);
-    background: linear-gradient(145deg, var(--color-surface-raised, #1e2335), var(--color-surface, #1a1f2e));
+    background: linear-gradient(145deg, var(--color-surface-raised), var(--color-surface));
     box-shadow: var(--shadow-raised);
   }
   .dark .neo-card::before {
@@ -318,7 +318,7 @@
 
   /* Pressed/inset card variant */
   .neo-card-pressed {
-    background: var(--color-surface, #e0e5ec);
+    background: var(--color-surface);
     border-radius: 24px;
     padding: 24px;
     box-shadow: var(--shadow-pressed);
@@ -330,7 +330,7 @@
 
   /* Small card variant */
   .neo-card-sm {
-    background: var(--color-surface, #e0e5ec);
+    background: var(--color-surface);
     border-radius: 20px;
     padding: 20px;
     box-shadow: var(--shadow-sm);
@@ -342,7 +342,7 @@
     transform: translateY(-1px);
   }
   .dark .neo-card-sm {
-    background: linear-gradient(145deg, var(--color-surface-raised, #1e2335), var(--color-surface, #1a1f2e));
+    background: linear-gradient(145deg, var(--color-surface-raised), var(--color-surface));
     border-color: rgba(255,255,255,0.04);
     box-shadow: var(--shadow-sm);
   }
@@ -521,7 +521,7 @@
   }
   .dark .kpi-hero {
     border-color: rgba(255,255,255,0.04);
-    background: linear-gradient(145deg, var(--color-surface-raised, #1e2335), var(--color-surface, #1a1f2e));
+    background: linear-gradient(145deg, var(--color-surface-raised), var(--color-surface));
   }
   .dark .kpi-hero::before {
     background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
@@ -637,7 +637,7 @@
   }
   .dark .sidebar-nav-item.active {
     color: var(--color-primary, #00d4ff);
-    background: var(--color-surface, #1a1f2e);
+    background: var(--color-surface);
     box-shadow: var(--shadow-raised);
   }
 
@@ -954,7 +954,7 @@
    DARK MODE OVERRIDES
    ════════════════════════════════════════════════════════════════════════ */
 .dark .recharts-tooltip-wrapper .recharts-default-tooltip {
-  background: var(--color-surface-raised, #1e2335) !important;
+  background: var(--color-surface-raised) !important;
   border: 1px solid rgba(255,255,255,0.06) !important;
   box-shadow: var(--shadow-md) !important;
 }
