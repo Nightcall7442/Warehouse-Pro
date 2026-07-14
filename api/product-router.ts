@@ -9,10 +9,11 @@ import { cache, CacheKeys, CacheTTL } from "./lib/cache";
 export const productRouter = createRouter({
   list: agentQuery
     .input(z.object({
-      page:     z.number().default(1),
-      pageSize: z.number().default(25),
-      search:   z.string().optional(),
-      category: z.string().optional(),
+      page:       z.number().default(1),
+      pageSize:   z.number().default(25),
+      search:     z.string().optional(),
+      category:   z.string().optional(),
+      includeAll: z.boolean().optional(),
     }).optional())
     .query(async ({ input, ctx }) => {
       const db       = getDb();
@@ -21,11 +22,12 @@ export const productRouter = createRouter({
       const pageSize = input?.pageSize ?? 25;
       const offset   = (page - 1) * pageSize;
 
-      const cacheKey = CacheKeys.productList(tenantId, page, input?.search, input?.category);
+      const cacheKey = CacheKeys.productList(tenantId, page, input?.search, input?.category) + (input?.includeAll ? ":all" : "");
       const cached = cache.get(cacheKey);
       if (cached) return cached;
 
-      const conditions = [eq(products.tenantId, tenantId), eq(products.status, "active")];
+      const conditions = [eq(products.tenantId, tenantId)];
+      if (!input?.includeAll) conditions.push(eq(products.status, "active"));
       if (input?.search)   conditions.push(like(products.name, `%${sanitizeSearch(input.search)}%`));
       if (input?.category) conditions.push(eq(products.category, input?.category));
       const where = and(...conditions);
