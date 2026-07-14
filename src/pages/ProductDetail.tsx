@@ -10,6 +10,11 @@ import { ArrowLeft, Package, Edit2, TrendingUp, TrendingDown, ArrowUpDown, Loade
 import { exportToExcel, formatMovementsForExport } from "@/lib/excel";
 import { PremiumSelect } from "@/components/PremiumSelect";
 
+const UNIT_LABELS: Record<string,[string,string]> = {
+  kg:   ["кг","kg"], l: ["л","l"], pcs: ["шт","dona"],
+  box:  ["ящ","quti"], pack: ["упак","pachka"], m: ["м","m"],
+};
+
 const COLORS = {
   primary: "var(--color-primary, #00d4ff)",
   secondary: "var(--color-text-secondary, #a39d92)",
