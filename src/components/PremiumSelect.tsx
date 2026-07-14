@@ -27,7 +27,7 @@ export function PremiumSelect({ value, options, onChange, placeholder = "Выб�
   useEffect(() => {
     if (open && triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
-      setDropdownPos({ top: rect.bottom + window.scrollY + 6, left: rect.left, width: rect.width });
+      setDropdownPos({ top: rect.bottom + 6, left: rect.left, width: rect.width });
     }
   }, [open]);
 

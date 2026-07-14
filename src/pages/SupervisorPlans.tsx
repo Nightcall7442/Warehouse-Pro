@@ -127,6 +127,11 @@ export default function SupervisorPlans() {
       {/* Заголовок */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
+          <div style={{ display: "flex", gap: "6px", marginBottom: "12px" }}>
+            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-pink, #f06895)", boxShadow: "var(--shadow-xs)" }} />
+            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-orange, #f5a825)", boxShadow: "var(--shadow-xs)" }} />
+            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-teal, #2ec4b0)", boxShadow: "var(--shadow-xs)" }} />
+          </div>
           <h1 className="font-display text-2xl font-bold text-primary tracking-tight">
             {t("Планы визитов", "Tashrif rejalari")}
           </h1>
@@ -145,8 +150,7 @@ export default function SupervisorPlans() {
       {/* Навигация по дате */}
       <div className="flex items-center gap-3">
         <button onClick={() => setDate(d => subDays(d, 1))}
-          className="w-10 h-10 flex items-center justify-center rounded-xl border hover:bg-surface-light transition-colors"
-          style={{ borderColor: "var(--color-border, #dde2ec)" }}>
+          className="neo-btn w-10 h-10 flex items-center justify-center">
           <ChevronLeft size={18} />
         </button>
         <div className="flex-1 panel p-3 text-center">
@@ -158,8 +162,7 @@ export default function SupervisorPlans() {
           </p>
         </div>
         <button onClick={() => setDate(d => addDays(d, 1))}
-          className="w-10 h-10 flex items-center justify-center rounded-xl border hover:bg-surface-light transition-colors"
-          style={{ borderColor: "var(--color-border, #dde2ec)" }}>
+          className="neo-btn w-10 h-10 flex items-center justify-center">
           <ChevronRight size={18} />
         </button>
       </div>

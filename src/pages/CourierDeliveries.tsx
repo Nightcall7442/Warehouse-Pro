@@ -69,6 +69,11 @@ export default function CourierDeliveries() {
       <div className="flex items-center gap-3">
         <Truck size={24} className="text-primary" />
         <div>
+          <div style={{ display: "flex", gap: "6px", marginBottom: "4px" }}>
+            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-pink, #f06895)", boxShadow: "var(--shadow-xs)" }} />
+            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-orange, #f5a825)", boxShadow: "var(--shadow-xs)" }} />
+            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-teal, #2ec4b0)", boxShadow: "var(--shadow-xs)" }} />
+          </div>
           <h1 className="text-lg font-bold">{t("Мои доставки", "Mening yetkazishlarim")}</h1>
           <p className="text-sm text-secondary">{user?.name}</p>
         </div>
@@ -76,14 +81,14 @@ export default function CourierDeliveries() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="bg-surface rounded-xl p-4">
+        <div className="kpi-hero" style={{ padding: "18px" }}>
           <div className="flex items-center gap-2 text-secondary text-sm mb-1">
             <Package size={16} />
             {t("Ожидают", "Kutilmoqda")}
           </div>
           <p className="text-2xl font-bold">{assigned.length}</p>
         </div>
-        <div className="bg-surface rounded-xl p-4">
+        <div className="kpi-hero" style={{ padding: "18px" }}>
           <div className="flex items-center gap-2 text-secondary text-sm mb-1">
             <Truck size={16} />
             {t("В пути", "Yo'lda")}
@@ -141,7 +146,7 @@ export default function CourierDeliveries() {
             shopCity: string | null;
             deliveryStatus: string;
           }) => (
-            <div key={order.id} className="bg-surface rounded-xl p-4 space-y-3">
+            <div key={order.id} className="neo-card" style={{ padding: "16px" }}>
               <div className="flex items-start justify-between">
                 <div>
                   <p className="font-semibold">{order.orderNumber}</p>
@@ -214,7 +219,7 @@ function DeliveryCard({
   isPending: boolean;
 }) {
   return (
-    <div className="bg-surface rounded-xl p-4 space-y-3 border-l-4 border-warning">
+    <div className="neo-card" style={{ padding: "16px", borderLeft: "4px solid var(--color-warning, #e8a830)" }}>
       <div className="flex items-start justify-between">
         <div>
           <p className="font-semibold">{order.orderNumber}</p>

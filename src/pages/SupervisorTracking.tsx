@@ -153,6 +153,11 @@ export default function SupervisorTracking() {
     <div className="space-y-4 animate-fade-up">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
+          <div style={{ display: "flex", gap: "6px", marginBottom: "12px" }}>
+            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-pink, #f06895)", boxShadow: "var(--shadow-xs)" }} />
+            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-orange, #f5a825)", boxShadow: "var(--shadow-xs)" }} />
+            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-teal, #2ec4b0)", boxShadow: "var(--shadow-xs)" }} />
+          </div>
           <h1 className="font-display text-2xl font-bold text-primary tracking-tight">{t("Слежение за агентами", "Agentlarni kuzatish")}</h1>
           {lastUpdate && (
             <p className="text-xs mt-0.5" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
@@ -182,7 +187,7 @@ export default function SupervisorTracking() {
         ].map((k, idx) => {
           const Icon = k.icon;
           return (
-            <div key={k.labelRu} className="kpi-card py-3 hover-lift animate-fade-in-up" style={{ animationDelay: `${idx * 60}ms` }}>
+            <div key={k.labelRu} className="kpi-hero stagger-children hover-lift" style={{ animationDelay: `${idx * 60}ms`, padding: "18px" }}>
               <div className={`kpi-icon-box kpi-icon-${k.color} mb-3`}>
                 <Icon size={16} />
               </div>

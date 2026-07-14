@@ -33,7 +33,7 @@ function AgentKpi({ label, value, icon: Icon, color = "indigo" }: {
   color?: KpiColor;
 }) {
   return (
-    <div className="kpi-card flex flex-col gap-3 hover-lift">
+    <div className="kpi-hero stagger-children flex flex-col gap-3 hover-lift">
       <KpiIcon icon={Icon} color={color} />
       <div>
         <p className="font-data text-2xl font-bold leading-none text-primary">
@@ -163,6 +163,11 @@ export default function AgentDashboard() {
       {/* ── Шапка ── */}
       <div className="flex items-start justify-between">
         <div>
+          <div style={{ display: "flex", gap: "6px", marginBottom: "12px" }}>
+            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-pink, #f06895)", boxShadow: "var(--shadow-xs)" }} />
+            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-orange, #f5a825)", boxShadow: "var(--shadow-xs)" }} />
+            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-teal, #2ec4b0)", boxShadow: "var(--shadow-xs)" }} />
+          </div>
           <p className="text-xs font-medium mb-0.5" style={{ color: "#4b6cf6" }}>
             {greeting}{firstName ? `, ${firstName}` : ""}
           </p>
@@ -260,20 +265,23 @@ export default function AgentDashboard() {
       </div>
 
       {/* ── Список визитов сегодня ── */}
-      <div className="neo-card overflow-hidden">
+      <div className="neo-card" style={{ padding: "20px" }}>
         {/* Заголовок */}
-        <div
-          className="px-4 py-3 flex items-center justify-between"
-          style={{ borderBottom: "1px solid var(--color-border, #f0f3f8)" }}
-        >
-          <span className="font-label text-[10px] tracking-wider" style={{ color: "#4b6cf6" }}>
-            {t("СЕГОДНЯШНИЕ ВИЗИТЫ", "BUGUNGI TASHRIFLAR")}
-          </span>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+          <div>
+            <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 700, color: "var(--color-text-primary, #2d3748)", margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
+              <ClipboardList size={16} color="var(--color-primary)" />
+              {t("Сегодняшние визиты", "Bugungi tashriflar")}
+            </h2>
+            <p style={{ fontSize: "12px", color: "var(--color-text-tertiary, #8b9bb4)", margin: "3px 0 0" }}>
+              {todayPlanned} {t("запланировано", "rejalashtirilgan")}{todaySkipped > 0 ? `, ${todaySkipped} ${t("пропущено", "o'tkazildi")}` : ""}
+            </p>
+          </div>
           {todayPlanned > 0 && (
             <button
               onClick={() => navigate("/agent/plans")}
               className="flex items-center gap-1 text-xs"
-              style={{ color: "var(--color-text-tertiary, #98a0b8)" }}
+              style={{ color: "var(--color-primary, #4b6cf6)", fontWeight: 600 }}
             >
               {t("Все планы", "Barcha rejalar")}
               <ChevronRight size={12} />
@@ -283,7 +291,7 @@ export default function AgentDashboard() {
 
         {/* Контент */}
         {isLoading ? (
-          <div className="p-4 space-y-3">
+          <div className="space-y-3">
             {Array.from({ length: 3 }).map((_, i) => (
               <div key={i} className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-full bg-surface-light animate-pulse flex-shrink-0" />
@@ -300,25 +308,26 @@ export default function AgentDashboard() {
             <p className="text-sm text-secondary">
               {t("На сегодня визитов нет", "Bugun tashrif yo'q")}
             </p>
-            <p className="text-xs mt-1" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+            <p className="text-xs mt-1" style={{ color: "var(--color-text-tertiary, #8b9bb4)" }}>
               {t("Супервайзер ещё не назначил маршрут", "Supervisor yo'l haritasini hali tayinlamadi")}
             </p>
           </div>
         ) : (
-          <div className="divide-y" style={{ borderColor: "var(--color-border, #f0f3f8)" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
             {/* Сначала запланированные, потом остальные */}
             {[
               ...( plans?.filter(p => p.status === "planned") ?? []),
               ...( plans?.filter(p => p.status === "visited") ?? []),
               ...( plans?.filter(p => p.status === "skipped") ?? []),
             ].map(plan => (
-              <PlanCard
-                key={plan.id}
-                plan={plan}
-                isPending={updatePlan.isPending}
-                onDone={() => updatePlan.mutate({ planId: plan.id, status: "visited" })}
-                onSkip={() => updatePlan.mutate({ planId: plan.id, status: "skipped" })}
-              />
+              <div key={plan.id} className="neo-card-sm" style={{ padding: "12px 16px" }}>
+                <PlanCard
+                  plan={plan}
+                  isPending={updatePlan.isPending}
+                  onDone={() => updatePlan.mutate({ planId: plan.id, status: "visited" })}
+                  onSkip={() => updatePlan.mutate({ planId: plan.id, status: "skipped" })}
+                />
+              </div>
             ))}
           </div>
         )}

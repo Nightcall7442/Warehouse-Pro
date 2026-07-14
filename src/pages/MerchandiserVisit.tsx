@@ -92,13 +92,18 @@ export default function MerchandiserVisit() {
           <ArrowLeft size={20} />
         </button>
         <div>
+          <div style={{ display: "flex", gap: "6px", marginBottom: "4px" }}>
+            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-pink, #f06895)", boxShadow: "var(--shadow-xs)" }} />
+            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-orange, #f5a825)", boxShadow: "var(--shadow-xs)" }} />
+            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-teal, #2ec4b0)", boxShadow: "var(--shadow-xs)" }} />
+          </div>
           <h1 className="text-lg font-bold">{t("Отчёт о визите", "Tashrif hisoboti")}</h1>
           <p className="text-sm text-secondary">{shopName}</p>
         </div>
       </div>
 
       {/* Photos */}
-      <div className="bg-surface rounded-xl p-4 space-y-3">
+      <div className="neo-card" style={{ padding: "16px" }}>
         <h2 className="font-semibold flex items-center gap-2">
           <Camera size={18} />
           {t("Фотографии", "Rasmlar")}
@@ -137,7 +142,7 @@ export default function MerchandiserVisit() {
       </div>
 
       {/* Checklist */}
-      <div className="bg-surface rounded-xl p-4 space-y-3">
+      <div className="neo-card" style={{ padding: "16px" }}>
         <div className="flex items-center justify-between">
           <h2 className="font-semibold">{t("Чек-лист товаров", "Mahsulotlar ro'yxati")}</h2>
           <span className="text-sm text-secondary">
@@ -182,7 +187,7 @@ export default function MerchandiserVisit() {
       </div>
 
       {/* Competitor Notes */}
-      <div className="bg-surface rounded-xl p-4 space-y-3">
+      <div className="neo-card" style={{ padding: "16px" }}>
         <h2 className="font-semibold">{t("Заметки о конкурентах", "Raqobatchilar haqida eslatmalar")}</h2>
         <textarea
           value={competitorNotes}
@@ -197,7 +202,7 @@ export default function MerchandiserVisit() {
       <button
         onClick={handleSubmit}
         disabled={submitReport.isPending}
-        className="w-full py-3 bg-primary text-white rounded-xl font-semibold flex items-center justify-center gap-2 hover:bg-primary/90 disabled:opacity-50"
+        className="w-full py-3 neo-btn-primary font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
       >
         <Save size={18} />
         {submitReport.isPending
