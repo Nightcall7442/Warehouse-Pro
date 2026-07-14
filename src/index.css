@@ -982,6 +982,21 @@
 .dark .leaflet-container { background: #0b0c10 !important; }
 .dark .progress-ring-label { color: var(--color-text-primary); }
 
+/* ── Dark mode text visibility fix ──────────────────────────────────────────── */
+.dark p, .dark span, .dark h1, .dark h2, .dark h3, .dark h4, .dark h5, .dark h6,
+.dark label, .dark td, .dark th, .dark li, .dark a {
+  color: inherit;
+}
+.dark .text-primary { color: var(--color-text-primary) !important; }
+.dark .text-secondary { color: var(--color-text-secondary) !important; }
+.dark .text-tertiary { color: var(--color-text-tertiary) !important; }
+.dark .text-danger { color: var(--color-danger) !important; }
+.dark .text-success { color: var(--color-success) !important; }
+.dark .text-warning { color: var(--color-warning) !important; }
+.dark .text-info { color: var(--color-info) !important; }
+.dark .bg-surface-light { background-color: var(--color-surface-light) !important; }
+.dark .border-border-subtle { border-color: var(--color-border-subtle) !important; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: .001ms !important;
