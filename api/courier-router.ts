@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createRouter, courierQuery, operatorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { orders, shops, users, payments, notifications, orderItems, products, warehouseStock } from "@db/schema";
+import { orders, shops, users, payments, notifications, orderItems, products } from "@db/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { sseBus } from "./lib/sse";
 import { logger } from "./lib/logger";

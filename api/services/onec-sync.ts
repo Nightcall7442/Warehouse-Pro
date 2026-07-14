@@ -1,6 +1,6 @@
 import { eq, and, inArray } from "drizzle-orm";
 import { getDb } from "../queries/connection";
-import { products, orders, orderItems, warehouseStock, idMappings } from "@db/schema";
+import { products, orders, orderItems, warehouseStock, warehouses } from "@db/schema";
 import { getBridge } from "../lib/onec-bridge";
 import { OneCMapper } from "./onec-mapper";
 import { mapProduct1C, mapOrder1C, mapUnit } from "./onec-transform";
@@ -54,10 +54,20 @@ export class OneCSyncService {
                 category: mapped.category,
               });
 
-            await db.insert(warehouseStock).values({
-              tenantId, productId: Number(result.insertId),
-              currentStock: "0.00", reserved: "0.00", available: "0.00",
-            });
+            // Get default warehouse for tenant
+            const [defaultWarehouse] = await db.select({ id: warehouses.id })
+              .from(warehouses)
+              .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true)))
+              .limit(1);
+
+            if (defaultWarehouse) {
+              await db.insert(warehouseStock).values({
+                tenantId,
+                warehouseId: defaultWarehouse.id,
+                productId: Number(result.insertId),
+                currentStock: "0.00", reserved: "0.00", available: "0.00",
+              });
+            }
 
             await OneCMapper.upsert(db, tenantId, "product", item.Ref_Key, Number(result.insertId));
           }

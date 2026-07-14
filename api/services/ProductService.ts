@@ -3,6 +3,7 @@ import {
   warehouseStock,
   stockMovements,
   orderItems,
+  warehouses,
 } from "@db/schema";
 import { eq, like, and, sql, desc } from "drizzle-orm";
 import { sanitizeString, sanitizeSearch } from "../lib/sanitize";
@@ -152,13 +153,22 @@ export const ProductService = {
     const [result] = await db.insert(products).values({ tenantId, ...sanitized, status: "active" });
     const productId = Number(result.insertId);
 
-    await db.insert(warehouseStock).values({
-      tenantId,
-      productId,
-      currentStock: "0.00",
-      reserved: "0.00",
-      available: "0.00",
-    });
+    // Get default warehouse for tenant
+    const [defaultWarehouse] = await db.select({ id: warehouses.id })
+      .from(warehouses)
+      .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true)))
+      .limit(1);
+
+    if (defaultWarehouse) {
+      await db.insert(warehouseStock).values({
+        tenantId,
+        warehouseId: defaultWarehouse.id,
+        productId,
+        currentStock: "0.00",
+        reserved: "0.00",
+        available: "0.00",
+      });
+    }
 
     cache.invalidatePrefix(`products:${tenantId}`);
     return { id: productId };

@@ -13,34 +13,50 @@ vi.mock('../lib/onec-bridge', () => ({
   }),
 }));
 
-vi.mock('../queries/connection', () => ({
-  getDb: () => ({
-    select: vi.fn().mockReturnValue({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockReturnValue({
-          limit: vi.fn().mockResolvedValue([]),
-          orderBy: vi.fn().mockResolvedValue([]),
+vi.mock('../lib/logger', () => ({
+  logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
+}));
+
+vi.mock('../lib/metrics', () => ({
+  record1CSync: vi.fn(),
+}));
+
+vi.mock('../services/onec-status', () => ({
+  updateSyncStatus: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../queries/connection', () => {
+  let nextId = 10;
+  return {
+    getDb: () => ({
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue([]),
+            orderBy: vi.fn().mockResolvedValue([]),
+          }),
+        }),
+      }),
+      insert: vi.fn().mockReturnValue({
+        values: vi.fn().mockImplementation(() => {
+          return Promise.resolve([{ insertId: nextId++ }]);
+        }),
+      }),
+      update: vi.fn().mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue({}),
         }),
       }),
     }),
-    insert: vi.fn().mockReturnValue({
-      values: vi.fn().mockReturnValue({
-        returning: vi.fn().mockResolvedValue([{ id: 1 }]),
-      }),
-    }),
-    update: vi.fn().mockReturnValue({
-      set: vi.fn().mockReturnValue({
-        where: vi.fn().mockResolvedValue({}),
-      }),
-    }),
-  }),
-}));
+  };
+});
 
 vi.mock('../services/onec-mapper', () => ({
   OneCMapper: {
     getInternalId: vi.fn().mockResolvedValue(null),
     getExternalId: vi.fn().mockResolvedValue('ext-123'),
     upsert: vi.fn().mockResolvedValue(undefined),
+    getAll: vi.fn().mockResolvedValue([]),
   },
 }));
 

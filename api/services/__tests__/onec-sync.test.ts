@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("drizzle-orm", () => ({
   eq: (col: unknown, val: unknown) => ({ __kind: "eq", col, val }),
   and: (...conds: unknown[]) => ({ __kind: "and", conds }),
+  inArray: (col: unknown, vals: unknown[]) => ({ __kind: "inArray", col, vals }),
   relations: () => ({}),
 }));
 
@@ -32,6 +33,7 @@ vi.mock("../onec-mapper", () => ({
     getInternalId: vi.fn(),
     getExternalId: vi.fn(),
     upsert: vi.fn().mockResolvedValue(undefined),
+    getAll: vi.fn().mockResolvedValue([]),
   },
 }));
 
@@ -41,7 +43,7 @@ vi.mock("../../lib/metrics", () => ({
   record1CSync: vi.fn(),
 }));
 
-import { products, orders, orderItems, idMappings } from "@db/schema";
+import { products, orders, orderItems, idMappings, warehouseStock, warehouses } from "@db/schema";
 
 type FakeProduct = {
   id: number; tenantId: number; name: string; code: string;
@@ -59,11 +61,20 @@ type FakeMapping = {
   id: number; tenantId: number; entityType: string;
   externalId: string; internalId: number;
 };
+type FakeWarehouse = {
+  id: number; tenantId: number; name: string; isDefault: boolean; status: string;
+};
+type FakeStock = {
+  id: number; productId: number; tenantId: number; warehouseId: number;
+  currentStock: string; reserved: string; available: string;
+};
 
 let productsTable: FakeProduct[] = [];
 let ordersTable: FakeOrder[] = [];
 let orderItemsTable: FakeOrderItem[] = [];
 let mappingsTable: FakeMapping[] = [];
+let warehousesTable: FakeWarehouse[] = [];
+let stockTable: FakeStock[] = [];
 let nextProductId = 1;
 let nextMappingId = 1;
 
@@ -72,6 +83,8 @@ function resetTables() {
   ordersTable = [];
   orderItemsTable = [];
   mappingsTable = [];
+  warehousesTable = [{ id: 1, tenantId: 1, name: "Main", isDefault: true, status: "active" }];
+  stockTable = [];
   nextProductId = 1;
   nextMappingId = 1;
 }
@@ -81,12 +94,16 @@ for (const [field, col] of Object.entries(products)) colToField.set(col, field);
 for (const [field, col] of Object.entries(orders)) colToField.set(col, field);
 for (const [field, col] of Object.entries(orderItems)) colToField.set(col, field);
 for (const [field, col] of Object.entries(idMappings)) colToField.set(col, field);
+for (const [field, col] of Object.entries(warehouses)) colToField.set(col, field);
+for (const [field, col] of Object.entries(warehouseStock)) colToField.set(col, field);
 
 function tableOf(ref: unknown): string {
   if (ref === products) return "products";
   if (ref === orders) return "orders";
   if (ref === orderItems) return "orderItems";
   if (ref === idMappings) return "idMappings";
+  if (ref === warehouses) return "warehouses";
+  if (ref === warehouseStock) return "warehouseStock";
   return "other";
 }
 
@@ -94,6 +111,7 @@ function rowsFor(table: string): unknown[] {
   const map: Record<string, unknown[]> = {
     products: productsTable, orders: ordersTable,
     orderItems: orderItemsTable, idMappings: mappingsTable,
+    warehouses: warehousesTable, warehouseStock: stockTable,
   };
   return map[table] ?? [];
 }
@@ -102,6 +120,14 @@ function evalCond(row: unknown, cond: unknown): boolean {
   if (!cond || typeof cond !== "object") return true;
   const c = cond as Record<string, unknown>;
   if (c.__kind === "and") return (c.conds as unknown[]).every((child: unknown) => evalCond(row, child));
+  if (c.__kind === "inArray") {
+    const col = c.col as { name?: string } | string;
+    const vals = c.vals as unknown[];
+    const fnL = (typeof col === "object" && col !== null ? (colToField.get(col) ?? col.name ?? col) : colToField.get(col) ?? (typeof col === "string" ? col : "")) as string;
+    const r = row as Record<string, unknown>;
+    const left = r[fnL];
+    return vals.some((v) => left === v || String(left) === String(v));
+  }
   if (c.__kind === "eq") {
     const col = c.col as { name?: string } | string;
     const val = c.val as { name?: string } | string | number;
@@ -124,20 +150,56 @@ const mockBridge = {
 vi.mock("../../lib/onec-bridge", () => ({ getBridge: () => mockBridge }));
 
 function makeMockDb() {
-  const db = {
-    select: (_proj?: unknown) => ({
-      from: (ref: unknown) => {
-        const tableName = tableOf(ref);
-        return {
-          where: (cond: unknown) => {
-            const filtered = rowsFor(tableName).filter((r) => evalCond(r, cond));
-            return Object.assign(Promise.resolve(filtered), {
-              limit: (n: number) => Promise.resolve(filtered.slice(0, n)),
-            });
-          },
-        };
+  function selectBuilder(_proj?: unknown) {
+    let currentTable = "other";
+    let joinedTable = "";
+    let joinedRows: unknown[] = [];
+    let joinedOnColL = "";
+    let joinedOnColR = "";
+    const api: Record<string, unknown> = {
+      from(ref: unknown) {
+        currentTable = tableOf(ref);
+        return api;
       },
-    }),
+      leftJoin(ref: unknown, onCond: unknown) {
+        joinedTable = tableOf(ref);
+        joinedRows = rowsFor(joinedTable);
+        // Extract column refs from eq() condition
+        const c = onCond as Record<string, unknown>;
+        if (c && c.__kind === "eq") {
+          joinedOnColL = colToField.get(c.col) ?? "";
+          joinedOnColR = colToField.get(c.val) ?? "";
+        }
+        return api;
+      },
+      where(cond: unknown) {
+        const filtered = rowsFor(currentTable).filter((r) => evalCond(r, cond));
+        if (joinedTable && joinedTable !== "other") {
+          const enriched = filtered.map((row) => {
+            const r = row as Record<string, unknown>;
+            const joinRow = joinedRows.find((jr) => {
+              const j = jr as Record<string, unknown>;
+              return joinedOnColR && joinedOnColL && j[joinedOnColR] === r[joinedOnColL]
+                || j.productId === r.productId;
+            }) ?? null;
+            return { ...r, ...(joinRow as Record<string, unknown> ?? {}) };
+          });
+          joinedTable = "";
+          joinedRows = [];
+          return Object.assign(Promise.resolve(enriched), {
+            limit: (n: number) => Promise.resolve(enriched.slice(0, n)),
+          });
+        }
+        return Object.assign(Promise.resolve(filtered), {
+          limit: (n: number) => Promise.resolve(filtered.slice(0, n)),
+        });
+      },
+    };
+    return api;
+  }
+
+  const db = {
+    select: (_proj?: unknown) => selectBuilder(_proj),
     insert: (ref: unknown) => ({
       values: (vals: unknown) => {
         const table = tableOf(ref);
@@ -149,7 +211,7 @@ function makeMockDb() {
             code: v.code as string, unitPrice: v.unitPrice as string,
             unit: v.unit as string, category: v.category as string | null | undefined,
           });
-          return { returning: vi.fn().mockResolvedValue([{ insertId: id }]) };
+          return Promise.resolve([{ insertId: id }]);
         }
         if (table === "idMappings") {
           const v = vals as Record<string, unknown>;
@@ -158,9 +220,20 @@ function makeMockDb() {
             entityType: v.entityType as string, externalId: v.externalId as string,
             internalId: v.internalId as number,
           });
-          return { returning: vi.fn().mockResolvedValue([{ insertId: nextMappingId - 1 }]) };
+          return Promise.resolve([{ insertId: nextMappingId - 1 }]);
         }
-        return { returning: vi.fn().mockResolvedValue([{ insertId: 1 }]) };
+        if (table === "warehouseStock") {
+          const v = vals as Record<string, unknown>;
+          stockTable.push({
+            id: stockTable.length + 1, productId: v.productId as number,
+            tenantId: v.tenantId as number, warehouseId: v.warehouseId as number,
+            currentStock: String(v.currentStock ?? "0.00"),
+            reserved: String(v.reserved ?? "0.00"),
+            available: String(v.available ?? "0.00"),
+          });
+          return Promise.resolve([{ insertId: stockTable.length }]);
+        }
+        return Promise.resolve([{ insertId: 1 }]);
       },
     }),
     update: (ref: unknown) => ({
@@ -198,6 +271,8 @@ beforeEach(() => {
   vi.mocked(OneCMapper.getInternalId).mockReset();
   vi.mocked(OneCMapper.upsert).mockReset();
   vi.mocked(OneCMapper.upsert).mockResolvedValue(undefined);
+  vi.mocked(OneCMapper.getAll).mockReset();
+  vi.mocked(OneCMapper.getAll).mockResolvedValue([]);
 });
 
 import { OneCSyncService } from "../onec-sync";

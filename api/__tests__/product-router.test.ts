@@ -26,17 +26,19 @@ vi.mock("../lib/sanitize", () => ({
   sanitizeSearch: (s: string) => s.replace(/['";\\]/g, "").replace(/--/g, "").trim(),
 }));
 
-import { products, warehouseStock, orderItems, stockMovements } from "@db/schema";
+import { products, warehouseStock, orderItems, stockMovements, warehouses } from "@db/schema";
 
 interface FakeProduct { id: number; tenantId: number; code: string; barcode: string; name: string; category: string; costPrice: string; unitPrice: string; unit: string; unitWeight: string; description: string | null; photoUrl: string | null; reorderPoint: string; status: string; createdAt: Date; }
-interface FakeStock { id: number; productId: number; tenantId: number; currentStock: string; reserved: string; available: string; }
+interface FakeStock { id: number; productId: number; tenantId: number; warehouseId: number; currentStock: string; reserved: string; available: string; }
 interface FakeOrderItem { id: number; orderId: number; productId: number; quantity: string; unitPrice: string; subtotal: string; createdAt: Date; }
 interface FakeStockMovement { id: number; tenantId: number; productId: number; type: string; quantity: string; notes: string | null; createdAt: Date; }
+interface FakeWarehouse { id: number; tenantId: number; name: string; address: string; city: string; isDefault: boolean; status: string; createdAt: Date; }
 
 let productsTable: FakeProduct[] = [];
 let stockTable: FakeStock[] = [];
 let orderItemsTable: FakeOrderItem[] = [];
 let movementsTable: FakeStockMovement[] = [];
+let warehousesTable: FakeWarehouse[] = [];
 let nextProductId = 10;
 let nextStockId = 10;
 
@@ -46,11 +48,14 @@ function resetTables() {
     { id: 2, tenantId: 1, code: "WB-002", barcode: "BC002", name: "Widget B", category: "Widgets", costPrice: "25.00", unitPrice: "50.00", unit: "pcs", unitWeight: "0.300", description: null, photoUrl: null, reorderPoint: "10.00", status: "active", createdAt: new Date() },
   ];
   stockTable = [
-    { id: 1, productId: 1, tenantId: 1, currentStock: "100.00", reserved: "0.00", available: "100.00" },
-    { id: 2, productId: 2, tenantId: 1, currentStock: "50.00", reserved: "0.00", available: "50.00" },
+    { id: 1, productId: 1, tenantId: 1, warehouseId: 1, currentStock: "100.00", reserved: "0.00", available: "100.00" },
+    { id: 2, productId: 2, tenantId: 1, warehouseId: 1, currentStock: "50.00", reserved: "0.00", available: "50.00" },
   ];
   orderItemsTable = [];
   movementsTable = [];
+  warehousesTable = [
+    { id: 1, tenantId: 1, name: "Main Warehouse", address: "Test", city: "Test", isDefault: true, status: "active", createdAt: new Date() },
+  ];
   nextProductId = 10;
   nextStockId = 10;
 }
@@ -60,6 +65,7 @@ function tableOf(ref: unknown): string {
   if (ref === warehouseStock) return "warehouseStock";
   if (ref === orderItems) return "orderItems";
   if (ref === stockMovements) return "stockMovements";
+  if (ref === warehouses) return "warehouses";
   return "other";
 }
 
@@ -68,6 +74,7 @@ function rowsFor(table: string): Record<string, unknown>[] {
   if (table === "warehouseStock") return stockTable as unknown as Record<string, unknown>[];
   if (table === "orderItems") return orderItemsTable as unknown as Record<string, unknown>[];
   if (table === "stockMovements") return movementsTable as unknown as Record<string, unknown>[];
+  if (table === "warehouses") return warehousesTable as unknown as Record<string, unknown>[];
   return [];
 }
 
@@ -76,6 +83,7 @@ for (const [field, col] of Object.entries(products)) columnToFieldName.set(col, 
 for (const [field, col] of Object.entries(warehouseStock)) columnToFieldName.set(col, field);
 for (const [field, col] of Object.entries(orderItems)) columnToFieldName.set(col, field);
 for (const [field, col] of Object.entries(stockMovements)) columnToFieldName.set(col, field);
+for (const [field, col] of Object.entries(warehouses)) columnToFieldName.set(col, field);
 
 function evalCond(row: Record<string, unknown>, cond: Record<string, unknown>): boolean {
   if (!cond || typeof cond !== "object") return true;
@@ -107,10 +115,12 @@ function chainable(rows: Record<string, unknown>[]) {
     limit?: (n: number) => ReturnType<typeof chainable>;
     offset?: (n: number) => ReturnType<typeof chainable>;
     orderBy?: (..._a: unknown[]) => ReturnType<typeof chainable>;
+    for?: (_mode: string) => ReturnType<typeof chainable>;
   };
   p.limit = (n: number) => chainable(rows.slice(0, n));
   p.offset = (n: number) => chainable(rows.slice(n));
   p.orderBy = () => chainable(rows);
+  p.for = () => chainable(rows);
   return p;
 }
 
@@ -312,17 +322,23 @@ describe("product.update", () => {
 });
 
 describe("product.delete", () => {
-  it("blocks if product has orderItems", async () => {
+  it("soft-deletes product even when it has orderItems", async () => {
     orderItemsTable.push({ id: 1, orderId: 1, productId: 1, quantity: "5", unitPrice: "100.00", subtotal: "500.00", createdAt: new Date() });
     const { productRouter } = await import("../product-router");
     const caller = productRouter.createCaller({ ...makeCtx(1, 1), db: mockDb });
-    await expect(caller.delete({ id: 1 })).rejects.toThrow(/позици/);
+    const result = await caller.delete({ id: 1 });
+    expect(result.success).toBe(true);
+    expect(productsTable.find((p) => p.id === 1)!.status).toBe("inactive");
+    expect(stockTable.find((s) => s.productId === 1)).toBeUndefined();
   });
 
-  it("blocks if product has stock > 0", async () => {
+  it("soft-deletes product and removes stock record", async () => {
     const { productRouter } = await import("../product-router");
     const caller = productRouter.createCaller({ ...makeCtx(1, 1), db: mockDb });
-    await expect(caller.delete({ id: 1 })).rejects.toThrow(/остаток/);
+    const result = await caller.delete({ id: 1 });
+    expect(result.success).toBe(true);
+    expect(productsTable.find((p) => p.id === 1)!.status).toBe("inactive");
+    expect(stockTable.find((s) => s.productId === 1)).toBeUndefined();
   });
 
   it("succeeds for zero-stock product with no orders", async () => {
@@ -331,7 +347,7 @@ describe("product.delete", () => {
     const caller = productRouter.createCaller({ ...makeCtx(1, 1), db: mockDb });
     const result = await caller.delete({ id: 2 });
     expect(result.success).toBe(true);
-    expect(productsTable.find((p) => p.id === 2)).toBeUndefined();
+    expect(productsTable.find((p) => p.id === 2)!.status).toBe("inactive");
     expect(stockTable.find((s) => s.productId === 2)).toBeUndefined();
   });
 });

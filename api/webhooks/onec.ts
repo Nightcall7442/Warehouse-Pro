@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { getDb } from "../queries/connection";
-import { payments, shops, warehouseStock, tenants } from "@db/schema";
+import { payments, shops, warehouseStock, tenants, warehouses } from "@db/schema";
 import { eq, and } from "drizzle-orm";
 import { OneCMapper } from "../services/onec-mapper";
 import { logger } from "../lib/logger";
@@ -130,8 +130,20 @@ app.post("/stock", async (c) => {
       const reserved = Number(existingStock?.reserved ?? 0);
       const available = parsedQty - reserved;
 
+      // Get default warehouse for tenant
+      const [defaultWarehouse] = await tx.select({ id: warehouses.id })
+        .from(warehouses)
+        .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true)))
+        .limit(1);
+
+      if (!defaultWarehouse) {
+        logger.error("No default warehouse found for tenant", { tenantId });
+        return c.json({ success: false, error: "No default warehouse" }, 400);
+      }
+
       await tx.insert(warehouseStock).values({
         tenantId,
+        warehouseId: defaultWarehouse.id,
         productId,
         currentStock: parsedQty.toFixed(2),
         reserved: existingStock ? existingStock.reserved : "0.00",

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createRouter, operatorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { warehouseStock, products, stockMovements, settings, orderItems, orders } from "@db/schema";
+import { warehouseStock, products, stockMovements, settings, orderItems, orders, warehouses } from "@db/schema";
 import { eq, like, and, sql, desc } from "drizzle-orm";
 import { StockService } from "./services/stock";
 
@@ -218,9 +218,18 @@ export const warehouseRouter = createRouter({
       const rows = (missing as any).rows ?? missing;
       if (rows.length === 0) return { created: 0 };
 
+      // Get default warehouse for tenant
+      const [defaultWarehouse] = await db.select({ id: warehouses.id })
+        .from(warehouses)
+        .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true)))
+        .limit(1);
+
+      if (!defaultWarehouse) return { created: 0 };
+
       await db.insert(warehouseStock).values(
         rows.map((r: any) => ({
           tenantId,
+          warehouseId: defaultWarehouse.id,
           productId: Number(r.id),
           currentStock: "0.00",
           reserved: "0.00",

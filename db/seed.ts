@@ -97,6 +97,27 @@ async function seed() {
   });
   console.log("✓ Tenant created\n");
 
+  // ── Warehouses ────────────────────────────────────────────────────────────────
+  console.log("Creating warehouses...");
+  const warehouseData = [
+    { name: "Основной склад Ташкент", address: "Тошкент ш., Промзона 12", city: "Tashkent", isDefault: true },
+    { name: "Склад Самарканд", address: "Самарқанд ш., пр. Мирзо Улугбек, 45", city: "Samarkand", isDefault: false },
+    { name: "Склад Бухара", address: "Бухоро ш., ул. Истиклол, 18", city: "Bukhara", isDefault: false },
+  ];
+  const warehouseIds: number[] = [];
+  for (const w of warehouseData) {
+    const [r] = await db.insert(schema.warehouses).values({
+      tenantId,
+      name: w.name,
+      address: w.address,
+      city: w.city,
+      isDefault: w.isDefault,
+      status: "active",
+    });
+    warehouseIds.push(Number(r.insertId));
+  }
+  console.log(`✓ ${warehouseIds.length} warehouses created\n`);
+
   // ── Users ────────────────────────────────────────────────────────────────────
   console.log("Creating users...");
   const password = await hashPassword("password123");
@@ -309,6 +330,7 @@ async function seed() {
     const reserved = Math.floor(currentStock * (0.03 + Math.random() * 0.08));
     await db.insert(schema.warehouseStock).values({
       tenantId,
+      warehouseId: warehouseIds[0], // default warehouse
       productId: productIds[i],
       currentStock: String(currentStock),
       reserved: String(reserved),

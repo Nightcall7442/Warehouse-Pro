@@ -2,7 +2,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { createRouter, operatorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { products, shops, warehouseStock } from "@db/schema";
+import { products, shops, warehouseStock, warehouses } from "@db/schema";
 import { eq, and } from "drizzle-orm";
 
 type ParsedRow = Record<string, string | number | null>;
@@ -264,6 +264,16 @@ export const importRouter = createRouter({
 
         // Insert all rows — duplicates handled by unique constraint catch
         await db.transaction(async (tx) => {
+          // Get default warehouse for tenant
+          const [defaultWarehouse] = await tx.select({ id: warehouses.id })
+            .from(warehouses)
+            .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true)))
+            .limit(1);
+
+          if (!defaultWarehouse) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Не найден склад по умолчанию" });
+          }
+
           for (const row of parsedRows) {
             try {
               const [r] = await tx.insert(products).values({
@@ -274,7 +284,8 @@ export const importRouter = createRouter({
                 photoUrl: row.photoUrl, status: "active",
               });
               await tx.insert(warehouseStock).values({
-                tenantId, productId: Number(r.insertId),
+                tenantId, warehouseId: defaultWarehouse.id,
+                productId: Number(r.insertId),
                 currentStock: row.initialStock, reserved: "0.00",
                 available: row.initialStock,
               });

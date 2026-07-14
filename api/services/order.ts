@@ -127,12 +127,13 @@ export const OrderService = {
       }
       const total = subtotal - discount;
 
-      // SELECT stock rows (for update - row-level locking via transaction)
+      // SELECT stock rows with row-level locking to prevent race conditions
       const stockRows = await tx.select().from(warehouseStock)
         .where(and(
           sql`${warehouseStock.productId} IN (${sql.join(input.items.map(i => sql`${i.productId}`), sql`, `)})`,
           eq(warehouseStock.tenantId, tenantId),
-        ));
+        ))
+        .for("update");
 
       const stockMap = new Map<number, typeof stockRows[number]>();
       for (const row of stockRows) stockMap.set(row.productId, row);

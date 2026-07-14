@@ -78,7 +78,7 @@ export const apiKeyRouter = createRouter({
 
   /** Update API key status (active/suspended) */
   setStatus: authedQuery
-    .input(z.object({ id: z.number(), status: z.enum(["active", "suspended"]) }))
+    .input(z.object({ id: z.number(), status: z.enum(["active", "inactive"]) }))
     .mutation(async ({ ctx, input }) => {
       if (ctx.user.role !== "superadmin" && ctx.user.role !== "ceo") {
         throw new TRPCError({ code: "FORBIDDEN", message: "Only CEO or SuperAdmin can manage API keys." });

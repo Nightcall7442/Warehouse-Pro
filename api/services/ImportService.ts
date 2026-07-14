@@ -1,5 +1,5 @@
 import { getDb } from "../queries/connection";
-import { products, shops, warehouseStock } from "@db/schema";
+import { products, shops, warehouseStock, warehouses } from "@db/schema";
 import { eq, and } from "drizzle-orm";
 import { cache, CacheKeys } from "../lib/cache";
 
@@ -103,6 +103,16 @@ export const ImportService = {
     });
 
     await db.transaction(async (tx) => {
+      // Get default warehouse for tenant
+      const [defaultWarehouse] = await tx.select({ id: warehouses.id })
+        .from(warehouses)
+        .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true)))
+        .limit(1);
+
+      if (!defaultWarehouse) {
+        return { success: 0, errors: ["Не найден склад по умолчанию"], skipped: [], total: rows.length };
+      }
+
       for (const row of toInsert) {
         try {
           const [r] = await tx.insert(products).values({
@@ -112,7 +122,8 @@ export const ImportService = {
             status: "active",
           });
           await tx.insert(warehouseStock).values({
-            tenantId, productId: Number(r.insertId),
+            tenantId, warehouseId: defaultWarehouse.id,
+            productId: Number(r.insertId),
             currentStock: "0.00", reserved: "0.00", available: "0.00",
           });
           success.count++;

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createRouter, operatorQuery, agentQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { products, warehouseStock, stockMovements, orderItems } from "@db/schema";
+import { products, warehouseStock, stockMovements, warehouses } from "@db/schema";
 import { eq, like, and, sql, desc } from "drizzle-orm";
 import { sanitizeString, sanitizeSearch } from "./lib/sanitize";
 import { cache, CacheKeys, CacheTTL } from "./lib/cache";
@@ -126,7 +126,15 @@ export const productRouter = createRouter({
       const [result] = await db.insert(products).values({ tenantId, ...sanitized, status: "active" });
       const productId = Number(result.insertId);
 
-      await db.insert(warehouseStock).values({ tenantId, productId, currentStock: "0.00", reserved: "0.00", available: "0.00" });
+      // Get default warehouse for tenant
+      const [defaultWarehouse] = await db.select({ id: warehouses.id })
+        .from(warehouses)
+        .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true)))
+        .limit(1);
+
+      if (defaultWarehouse) {
+        await db.insert(warehouseStock).values({ tenantId, warehouseId: defaultWarehouse.id, productId, currentStock: "0.00", reserved: "0.00", available: "0.00" });
+      }
 
       cache.invalidatePrefix(`products:${tenantId}`);
       return { id: productId };
