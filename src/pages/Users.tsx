@@ -212,7 +212,8 @@ function InviteForm({ onDone, lang }: { onDone: () => void; lang: "ru" | "uz" })
       <button
         onClick={handleSubmit}
         disabled={createUser.isPending || !d.email || !d.name || !d.password}
-        className="neo-btn-primary flex items-center gap-2 disabled:opacity-40"
+        className="neo-btn-primary flex items-center gap-2"
+        style={{ color: "#fff", opacity: (createUser.isPending || !d.email || !d.name || !d.password) ? 0.5 : 1, cursor: (createUser.isPending || !d.email || !d.name || !d.password) ? "not-allowed" : "pointer" }}
       >
         {createUser.isPending && <Loader2 size={14} className="animate-spin" />}
         {t("Создать пользователя", "Foydalanuvchi yaratish")}
@@ -266,7 +267,7 @@ function ResetPasswordModal({ userId, userName, onClose, lang }: {
           <button
             onClick={() => pw.length >= 8 && reset.mutate({ id: userId, newPassword: pw })}
             disabled={reset.isPending || pw.length < 8}
-            className="neo-btn-primary flex-1 flex items-center justify-center gap-2 disabled:opacity-40"
+            className="neo-btn-primary flex-1 flex items-center justify-center gap-2" style={{ color: "#fff" }}
           >
             {reset.isPending && <Loader2 size={14} className="animate-spin" />}
             {t("Сохранить", "Saqlash")}
@@ -376,6 +377,7 @@ export default function Users() {
           <button
             onClick={() => setShowInvite(v => !v)}
             className="neo-btn-primary flex items-center gap-2"
+            style={{ color: "#fff" }}
           >
             <UserPlus size={16} />
             <span className="hidden sm:inline">{t("Создать", "Yaratish")}</span>
