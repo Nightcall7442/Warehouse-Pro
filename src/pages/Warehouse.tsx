@@ -5,7 +5,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useLang } from "@/i18n";
 import { format } from "date-fns";
 import {
-  Search, AlertTriangle, Package, X, FileDown,
+  Search, AlertTriangle, Package, X, FileDown, Trash2,
   TrendingUp, TrendingDown, ArrowUpDown, Loader2,
   ChevronDown, ChevronUp, Boxes, Scale, AlertCircle, DollarSign,
   Clock, ShoppingCart,
@@ -305,6 +305,14 @@ export default function Warehouse() {
     onError: (e) => notify.error(e.message),
   });
 
+  const deleteMutation = trpc.product.delete.useMutation({
+    onSuccess: () => {
+      utils.warehouse.list.invalidate();
+      notify.success(t("Товар удалён", "Mahsulot o'chirildi"));
+    },
+    onError: (e) => notify.error(e.message),
+  });
+
   const summary = data?.summary;
   const lowCount = Number(summary?.lowStockCount ?? 0);
 
@@ -521,10 +529,18 @@ export default function Warehouse() {
                                 {low && <AlertTriangle size={14} color="#e85050" />}
                                 <p className="text-sm font-semibold" style={{ color: "var(--color-text-primary, #2b3450)" }}>{item.productName}</p>
                               </div>
-                              <button onClick={() => setAdjusting({ id: item.productId, name: item.productName ?? "", stock: Number(item.currentStock ?? 0), unit: item.unit ?? "pcs", unitWeight: Number(item.unitWeight ?? 0) })}
-                                className="text-xs py-1.5 px-3 rounded-lg transition-colors" style={{ color: "#4b6cf6", background: "rgba(75,108,246,0.08)" }}>
-                                {t("Скорр.", "Tuzatish")}
-                              </button>
+                              <div className="flex items-center gap-2">
+                                <button onClick={() => setAdjusting({ id: item.productId, name: item.productName ?? "", stock: Number(item.currentStock ?? 0), unit: item.unit ?? "pcs", unitWeight: Number(item.unitWeight ?? 0) })}
+                                  className="text-xs py-1.5 px-3 rounded-lg transition-colors" style={{ color: "#4b6cf6", background: "rgba(75,108,246,0.08)" }}>
+                                  {t("Скорр.", "Tuzatish")}
+                                </button>
+                                <button onClick={() => deleteMutation.mutate({ id: item.productId })}
+                                  disabled={deleteMutation.isPending}
+                                  className="text-xs py-1.5 px-2 rounded-lg transition-all"
+                                  style={{ color: "#e85050", background: "rgba(232,80,80,0.08)" }}>
+                                  <Trash2 size={12} />
+                                </button>
+                              </div>
                             </div>
                             <div className="grid grid-cols-3 gap-3">
                               {[
@@ -605,11 +621,19 @@ export default function Warehouse() {
                               {Number(item.reorderPoint ?? 0).toFixed(0)}
                             </td>
                             <td className="px-5 py-3.5" style={{ borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
-                              <button onClick={() => setAdjusting({ id: item.productId, name: item.productName ?? "", stock: Number(item.currentStock ?? 0), unit: item.unit ?? "pcs", unitWeight: Number(item.unitWeight ?? 0) })}
-                                className="text-xs py-1.5 px-3 rounded-lg transition-all"
-                                style={{ color: "#4b6cf6", background: "rgba(75,108,246,0.08)" }}>
-                                {t("Скорректировать", "Tuzatish")}
-                              </button>
+                              <div className="flex items-center gap-2">
+                                <button onClick={() => setAdjusting({ id: item.productId, name: item.productName ?? "", stock: Number(item.currentStock ?? 0), unit: item.unit ?? "pcs", unitWeight: Number(item.unitWeight ?? 0) })}
+                                  className="text-xs py-1.5 px-3 rounded-lg transition-all"
+                                  style={{ color: "#4b6cf6", background: "rgba(75,108,246,0.08)" }}>
+                                  {t("Скорректировать", "Tuzatish")}
+                                </button>
+                                <button onClick={() => deleteMutation.mutate({ id: item.productId })}
+                                  disabled={deleteMutation.isPending}
+                                  className="text-xs py-1.5 px-3 rounded-lg transition-all"
+                                  style={{ color: "#e85050", background: "rgba(232,80,80,0.08)" }}>
+                                  <Trash2 size={12} />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );
