@@ -159,7 +159,19 @@ class UnifiedCache {
   clear(): void {
     this.memory.clear();
     if (isRedisAvailable()) {
-      getRedis().flushdb().catch(() => {});
+      const prefixes = new Set<string>();
+      for (const keyFn of Object.values(CacheKeys)) {
+        try {
+          const example = keyFn(0, 0);
+          const prefix = example.split(':')[0];
+          if (prefix) prefixes.add(prefix);
+        } catch { /* skip */ }
+      }
+      for (const prefix of prefixes) {
+        getRedis().keys(`${prefix}:*`).then(keys => {
+          if (keys.length > 0) getRedis().del(...keys).catch(() => {});
+        }).catch(() => {});
+      }
     }
   }
 

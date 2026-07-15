@@ -80,19 +80,6 @@ export const OrderService = {
   async create(db: Db, tenantId: number, agentId: number, input: { shopId: number; items: Array<{ productId: number; quantity: string }>; notes?: string; discount?: string; idempotencyKey?: string; paymentMethod?: "cash" | "transfer" | "debt" | "card" }) {
     const discount = Number(input.discount ?? "0");
 
-    // #FIX1-IDEMPOTENCY: Check for existing order with same key
-    if (input.idempotencyKey) {
-      const [existing] = await db.select({ id: orders.id, orderNumber: orders.orderNumber })
-        .from(orders)
-        .where(and(
-          eq(orders.tenantId, tenantId),
-          eq(orders.idempotencyKey, input.idempotencyKey),
-        )).limit(1);
-      if (existing) {
-        return { id: existing.id, orderNumber: existing.orderNumber, idempotent: true };
-      }
-    }
-
     const raw = crypto.randomUUID().replace(/-/g, "");
     const orderNumber = `ORD-${raw.slice(0, 12).toUpperCase()}`;
 
@@ -100,6 +87,21 @@ export const OrderService = {
     let orderTotal: number;
     try {
       const txResult = await db.transaction(async (tx) => {
+      // #FIX1-IDEMPOTENCY: Check INSIDE transaction with row lock
+      if (input.idempotencyKey) {
+        const [existing] = await tx.select({ id: orders.id, orderNumber: orders.orderNumber })
+          .from(orders)
+          .where(and(
+            eq(orders.tenantId, tenantId),
+            eq(orders.idempotencyKey, input.idempotencyKey),
+          ))
+          .for("update")
+          .limit(1);
+        if (existing) {
+          return { id: existing.id, orderNumber: existing.orderNumber, idempotent: true as const };
+        }
+      }
+
       // #FIX1: Look up prices from the database, never trust client
       const productIds = input.items.map(i => i.productId);
       const productRows = await tx.select({ id: products.id, unitPrice: products.unitPrice })
@@ -213,18 +215,11 @@ export const OrderService = {
     });
       orderId = txResult.id;
       orderTotal = txResult.total;
-    } catch (err: unknown) {
-      // Handle idempotency key race condition (MySQL error 23000 = duplicate entry)
-      const code = err && typeof err === "object" && "code" in err ? (err as { code?: string }).code : undefined;
-      if (input.idempotencyKey && code === "ER_DUP_ENTRY") {
-        const [existing] = await db.select({ id: orders.id, orderNumber: orders.orderNumber })
-          .from(orders)
-          .where(and(eq(orders.tenantId, tenantId), eq(orders.idempotencyKey, input.idempotencyKey)))
-          .limit(1);
-        if (existing) {
-          return { id: existing.id, orderNumber: existing.orderNumber, idempotent: true };
-        }
+      // If result is idempotent (returned existing order), return early
+      if ('idempotent' in txResult && txResult.idempotent) {
+        return { id: txResult.id, orderNumber: txResult.orderNumber, idempotent: true };
       }
+    } catch (err: unknown) {
       throw err;
     }
 
@@ -253,7 +248,9 @@ export const OrderService = {
 
   async cancel(db: Db, tenantId: number, orderId: number, opts: { userId: number; userRole: string }) {
     await db.transaction(async (tx) => {
-      const [order] = await tx.select().from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), eq(orders.agentId, opts.userId))).limit(1);
+      const cancelConditions = [eq(orders.id, orderId), eq(orders.tenantId, tenantId)];
+      if (opts.userRole === "agent") cancelConditions.push(eq(orders.agentId, opts.userId));
+      const [order] = await tx.select().from(orders).where(and(...cancelConditions)).limit(1);
       if (!order) throw new Error("Заказ не найден");
       if (order.status !== "new") throw new Error("Можно отменить только новые заказы");
 
@@ -276,7 +273,8 @@ export const OrderService = {
         .from(warehouses)
         .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true)))
         .limit(1);
-      const warehouseId = defaultWh?.id;
+      if (!defaultWh) throw new Error("Склад по умолчанию не найден");
+      const warehouseId = defaultWh.id;
 
       const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
       if (items.length > 0) {
@@ -291,7 +289,7 @@ export const OrderService = {
             ), sql`\n`)} ELSE available END
           WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
             AND tenant_id = ${tenantId}
-            ${warehouseId ? sql`AND warehouse_id = ${warehouseId}` : sql``}
+            AND warehouse_id = ${warehouseId}
         `);
       }
       await tx.update(orders).set({ status: "cancelled" }).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)));
@@ -323,7 +321,8 @@ export const OrderService = {
         .from(warehouses)
         .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true)))
         .limit(1);
-      const warehouseId = defaultWh?.id;
+      if (!defaultWh) throw new Error("Склад по умолчанию не найден");
+      const warehouseId = defaultWh.id;
 
       const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
       if (items.length > 0) {
@@ -339,7 +338,7 @@ export const OrderService = {
               ), sql`\n`)} ELSE reserved END
             WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
               AND tenant_id = ${tenantId}
-              ${warehouseId ? sql`AND warehouse_id = ${warehouseId}` : sql``}
+              AND warehouse_id = ${warehouseId}
           `);
         }
         if (newStatus === "cancelled") {
@@ -354,7 +353,7 @@ export const OrderService = {
               ), sql`\n`)} ELSE available END
             WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
               AND tenant_id = ${tenantId}
-              ${warehouseId ? sql`AND warehouse_id = ${warehouseId}` : sql``}
+              AND warehouse_id = ${warehouseId}
           `);
         }
       }
@@ -376,7 +375,8 @@ export const OrderService = {
         .from(warehouses)
         .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true)))
         .limit(1);
-      const warehouseId = defaultWh?.id;
+      if (!defaultWh) throw new Error("Склад по умолчанию не найден");
+      const warehouseId = defaultWh.id;
 
       const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
       if (order.status === "new" || order.status === "processing") {
@@ -392,7 +392,7 @@ export const OrderService = {
               ), sql`\n`)} ELSE available END
             WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
               AND tenant_id = ${tenantId}
-              ${warehouseId ? sql`AND warehouse_id = ${warehouseId}` : sql``}
+              AND warehouse_id = ${warehouseId}
           `);
         }
       }

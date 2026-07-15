@@ -14,6 +14,7 @@ import { products, warehouseStock, orders, orderItems, users, shops } from "@db/
 import { eq, and, sql, desc, gte, lte, like } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { sendTelegram } from "../telegram-router";
+import { env } from "../lib/env";
 
 const app = new Hono<{ Variables: { validatedBody: Record<string, unknown> } }>();
 
@@ -243,6 +244,12 @@ async function findUserByChatId(chatId: string): Promise<{ tenantId: number; nam
 // ── Webhook endpoint ───────────────────────────────────────────────────────────
 app.post("/api/webhooks/telegram", async (c) => {
   try {
+    const secretToken = c.req.header("X-Telegram-Bot-Api-Secret-Token");
+    if (secretToken !== env.telegramBotToken) {
+      logger.warn("Telegram webhook: invalid secret token");
+      return c.json({ ok: false }, 401);
+    }
+
     const body = await c.req.json();
 
     // Telegram Bot API format

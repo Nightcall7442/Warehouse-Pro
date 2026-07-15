@@ -12,6 +12,8 @@ export function useNotifications() {
   const [unreadCount, setUnreadCount] = useState(0);
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const utilsRef = useRef(utils);
+  utilsRef.current = utils;
 
   // Fetch initial unread count
   const { data: countData } = trpc.notification.unreadCount.useQuery(undefined, {
@@ -46,7 +48,7 @@ export function useNotifications() {
           } else {
             // New notification — increment counter and refresh list
             setUnreadCount((prev) => prev + 1);
-            utils.notification.list.invalidate();
+            utilsRef.current.notification.list.invalidate();
           }
         }
       } catch {
@@ -61,7 +63,7 @@ export function useNotifications() {
       // Reconnect after 5 seconds
       reconnectTimerRef.current = setTimeout(connect, 5000);
     };
-  }, [utils]);
+  }, []);
 
   useEffect(() => {
     connect();
@@ -72,7 +74,7 @@ export function useNotifications() {
         eventSourceRef.current = null;
       }
     };
-  }, [connect]);
+  }, []);
 
   return { connected, unreadCount };
 }

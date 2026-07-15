@@ -153,12 +153,16 @@ export const ShopService = {
 
   async create(db: DrizzleInstance, tenantId: number, data: ShopCreateInput) {
     const sanitized = {
-      ...data,
       name: sanitizeString(data.name),
       ownerName: data.ownerName ? sanitizeString(data.ownerName) : undefined,
+      phone: data.phone,
       address: data.address ? sanitizeString(data.address) : undefined,
       city: data.city ? sanitizeString(data.city) : undefined,
       district: data.district ? sanitizeString(data.district) : undefined,
+      photoUrl: data.photoUrl,
+      gpsLat: data.gpsLat,
+      gpsLng: data.gpsLng,
+      agentId: data.agentId,
       notes: data.notes ? sanitizeString(data.notes) : undefined,
     };
     const [result] = await db.insert(shops).values({
@@ -174,13 +178,19 @@ export const ShopService = {
   },
 
   async update(db: DrizzleInstance, tenantId: number, shopId: number, data: ShopUpdateInput) {
-    const sanitized: Record<string, unknown> = { ...data };
-    if (typeof data.name === "string") sanitized.name = sanitizeString(data.name);
-    if (typeof data.ownerName === "string") sanitized.ownerName = sanitizeString(data.ownerName);
-    if (typeof data.address === "string") sanitized.address = sanitizeString(data.address);
-    if (typeof data.city === "string") sanitized.city = sanitizeString(data.city);
-    if (typeof data.district === "string") sanitized.district = sanitizeString(data.district);
-    if (typeof data.notes === "string") sanitized.notes = sanitizeString(data.notes);
+    const sanitized: Record<string, unknown> = {};
+    if (data.name !== undefined) sanitized.name = sanitizeString(data.name);
+    if (data.ownerName !== undefined) sanitized.ownerName = sanitizeString(data.ownerName);
+    if (data.phone !== undefined) sanitized.phone = data.phone;
+    if (data.address !== undefined) sanitized.address = sanitizeString(data.address);
+    if (data.city !== undefined) sanitized.city = sanitizeString(data.city);
+    if (data.district !== undefined) sanitized.district = sanitizeString(data.district);
+    if (data.photoUrl !== undefined) sanitized.photoUrl = data.photoUrl;
+    if (data.gpsLat !== undefined) sanitized.gpsLat = data.gpsLat;
+    if (data.gpsLng !== undefined) sanitized.gpsLng = data.gpsLng;
+    if (data.agentId !== undefined) sanitized.agentId = data.agentId;
+    if (data.notes !== undefined) sanitized.notes = sanitizeString(data.notes);
+    if (data.status !== undefined) sanitized.status = data.status;
 
     await db.update(shops).set(sanitized)
       .where(and(eq(shops.id, shopId), eq(shops.tenantId, tenantId)));

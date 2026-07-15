@@ -289,6 +289,14 @@ export default function Warehouse() {
     setAdjusting(item);
   }, []);
 
+  const deleteMutation = trpc.product.delete.useMutation({
+    onSuccess: () => {
+      utils.warehouse.list.invalidate();
+      notify.success(t("Товар удалён", "Mahsulot o'chirildi"));
+    },
+    onError: (e) => notify.error(e.message),
+  });
+
   const handleDelete = useCallback((id: number) => {
     deleteMutation.mutate({ id });
   }, [deleteMutation]);
@@ -310,14 +318,6 @@ export default function Warehouse() {
       } else {
         notify.success(t("Все товары уже имеют строки стока", "Barcha mahsulotlar allaqachon stokka ega"));
       }
-    },
-    onError: (e) => notify.error(e.message),
-  });
-
-  const deleteMutation = trpc.product.delete.useMutation({
-    onSuccess: () => {
-      utils.warehouse.list.invalidate();
-      notify.success(t("Товар удалён", "Mahsulot o'chirildi"));
     },
     onError: (e) => notify.error(e.message),
   });

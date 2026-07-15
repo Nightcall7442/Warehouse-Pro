@@ -164,10 +164,17 @@ export const ProductService = {
 
   async create(db: DrizzleInstance, tenantId: number, data: ProductCreateInput) {
     const sanitized = {
-      ...data,
+      code: data.code,
+      barcode: data.barcode,
       name: sanitizeString(data.name),
       category: data.category ? sanitizeString(data.category) : undefined,
+      costPrice: data.costPrice,
+      unitPrice: data.unitPrice,
+      unit: data.unit,
+      unitWeight: data.unitWeight,
       description: data.description ? sanitizeString(data.description) : undefined,
+      photoUrl: data.photoUrl,
+      reorderPoint: data.reorderPoint,
     };
     const [result] = await db.insert(products).values({ tenantId, ...sanitized, status: "active" });
     const productId = Number(result.insertId);
@@ -194,10 +201,19 @@ export const ProductService = {
   },
 
   async update(db: DrizzleInstance, tenantId: number, productId: number, data: ProductUpdateInput) {
-    const sanitized: Record<string, unknown> = { ...data };
-    if (typeof data.name === "string") sanitized.name = sanitizeString(data.name);
-    if (typeof data.category === "string") sanitized.category = sanitizeString(data.category);
-    if (typeof data.description === "string") sanitized.description = sanitizeString(data.description);
+    const sanitized: Record<string, unknown> = {};
+    if (data.code !== undefined) sanitized.code = data.code;
+    if (data.barcode !== undefined) sanitized.barcode = data.barcode;
+    if (data.name !== undefined) sanitized.name = sanitizeString(data.name);
+    if (data.category !== undefined) sanitized.category = sanitizeString(data.category);
+    if (data.costPrice !== undefined) sanitized.costPrice = data.costPrice;
+    if (data.unitPrice !== undefined) sanitized.unitPrice = data.unitPrice;
+    if (data.unit !== undefined) sanitized.unit = data.unit;
+    if (data.unitWeight !== undefined) sanitized.unitWeight = data.unitWeight;
+    if (data.description !== undefined) sanitized.description = sanitizeString(data.description);
+    if (data.photoUrl !== undefined) sanitized.photoUrl = data.photoUrl;
+    if (data.reorderPoint !== undefined) sanitized.reorderPoint = data.reorderPoint;
+    if (data.status !== undefined) sanitized.status = data.status;
 
     await db.update(products).set(sanitized)
       .where(and(eq(products.id, productId), eq(products.tenantId, tenantId)));

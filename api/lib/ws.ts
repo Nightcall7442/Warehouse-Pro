@@ -27,7 +27,7 @@ async function saveLocation(userId: number, tenantId: number, lat: string, lng: 
 }
 
 export function attachWebSocket(server: ServerType) {
-  const wss = new WebSocketServer({ noServer: true });
+  const wss = new WebSocketServer({ noServer: true, maxPayload: 100 * 1024 }); // 100KB max
 
   server.on("upgrade", (req: IncomingMessage, socket, head) => {
     const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);

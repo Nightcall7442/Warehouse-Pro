@@ -15,7 +15,7 @@ export const dashboardRouter = createRouter({
     const db       = ctx.db;
     const today    = new Date().toISOString().split("T")[0];
 
-    const [todaysOrders, todaysRevenue, activeAgents, totalStock, customerDebt, marginResult] = await Promise.all([
+    const [todaysOrders, todaysRevenue, activeAgents, totalStock, customerDebt, revenueResult, costResult] = await Promise.all([
       db.select({ count: sql<number>`count(*)` }).from(orders)
         .where(and(eq(orders.tenantId, tenantId), sql`DATE(${orders.createdAt}) = ${today}`)),
       db.select({ total: sql<string>`COALESCE(SUM(${orders.total}), 0)` }).from(orders)
@@ -28,15 +28,18 @@ export const dashboardRouter = createRouter({
         .where(eq(shops.tenantId, tenantId)),
       db.select({
         totalRevenue: sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'completed' THEN ${orders.total} ELSE 0 END), 0)`,
-        totalCost: sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'completed' THEN ${orderItems.quantity} * ${products.costPrice} ELSE 0 END), 0)`,
       }).from(orders)
-        .leftJoin(orderItems, eq(orders.id, orderItems.orderId))
-        .leftJoin(products, eq(orderItems.productId, products.id))
+        .where(eq(orders.tenantId, tenantId)),
+      db.select({
+        totalCost: sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'completed' THEN ${orderItems.quantity} * ${products.costPrice} ELSE 0 END), 0)`,
+      }).from(orderItems)
+        .innerJoin(orders, eq(orders.id, orderItems.orderId))
+        .innerJoin(products, eq(orderItems.productId, products.id))
         .where(eq(orders.tenantId, tenantId)),
     ]);
 
-    const totalRev = Number(marginResult[0]?.totalRevenue ?? 0);
-    const totalCostVal = Number(marginResult[0]?.totalCost ?? 0);
+    const totalRev = Number(revenueResult[0]?.totalRevenue ?? 0);
+    const totalCostVal = Number(costResult[0]?.totalCost ?? 0);
     const grossMargin = totalRev > 0 ? ((totalRev - totalCostVal) / totalRev) * 100 : 0;
 
     const result = {
