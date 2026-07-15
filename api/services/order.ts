@@ -1,5 +1,5 @@
-import { eq, and, desc, sql } from "drizzle-orm";
-import { orders, orderItems, warehouseStock, shops, users, products, warehouses, payments } from "@db/schema";
+import { eq, and, desc, sql, isNull } from "drizzle-orm";
+import { orders, orderItems, warehouseStock, shops, users, products } from "@db/schema";
 import { cache, CacheKeys } from "../lib/cache";
 import { NotificationService } from "./NotificationService";
 
@@ -7,21 +7,21 @@ type Db = ReturnType<typeof import("../queries/connection").getDb>;
 
 export const OrderService = {
   async list(db: Db, tenantId: number, filters: Record<string, unknown>, _opts?: { userId: number; userRole: string }) {
-    const f = filters as { status?: "new" | "processing" | "completed" | "cancelled"; paymentMethod?: "cash" | "transfer" | "debt" | "card"; agentId?: number; page?: number; pageSize?: number; search?: string };
+    const f = filters as { status?: "new" | "processing" | "completed" | "cancelled"; agentId?: number; page?: number; pageSize?: number; search?: string; showDeleted?: boolean };
     const page = f.page ?? 1;
     const limit = f.pageSize ?? 25;
     const offset = (page - 1) * limit;
 
     const conditions = [eq(orders.tenantId, tenantId)];
     if (f.status) conditions.push(eq(orders.status, f.status));
-    if (f.paymentMethod) conditions.push(eq(orders.paymentMethod, f.paymentMethod));
     if (f.agentId) conditions.push(eq(orders.agentId, f.agentId));
+    // Hide deleted orders unless CEO explicitly requests them
+    if (!f.showDeleted) conditions.push(isNull(orders.deletedAt));
 
     const baseQuery = db.select({
       id: orders.id,
       orderNumber: orders.orderNumber,
       status: orders.status,
-      paymentMethod: orders.paymentMethod,
       total: orders.total,
       subtotal: orders.subtotal,
       discount: orders.discount,
@@ -47,13 +47,12 @@ export const OrderService = {
   async getById(db: Db, tenantId: number, orderId: number, _opts?: { userId: number; userRole: string }) {
     const [order] = await db.select({
       id: orders.id, orderNumber: orders.orderNumber, status: orders.status,
-      paymentMethod: orders.paymentMethod,
       total: orders.total, subtotal: orders.subtotal, discount: orders.discount,
       notes: orders.notes, createdAt: orders.createdAt, updatedAt: orders.updatedAt,
       shopId: orders.shopId, agentId: orders.agentId,
       courierId: orders.courierId, deliveryStatus: orders.deliveryStatus,
       deliveredAt: orders.deliveredAt,
-    }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId))).limit(1);
+    }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt))).limit(1);
     if (!order) return null;
 
     const [items, [shop]] = await Promise.all([
@@ -77,8 +76,21 @@ export const OrderService = {
     return { data, total: Number(countResult[0]?.count ?? 0) };
   },
 
-  async create(db: Db, tenantId: number, agentId: number, input: { shopId: number; items: Array<{ productId: number; quantity: string }>; notes?: string; discount?: string; idempotencyKey?: string; paymentMethod?: "cash" | "transfer" | "debt" | "card" }) {
+  async create(db: Db, tenantId: number, agentId: number, input: { shopId: number; items: Array<{ productId: number; quantity: string }>; notes?: string; discount?: string; idempotencyKey?: string }) {
     const discount = Number(input.discount ?? "0");
+
+    // #FIX1-IDEMPOTENCY: Check for existing order with same key
+    if (input.idempotencyKey) {
+      const [existing] = await db.select({ id: orders.id, orderNumber: orders.orderNumber })
+        .from(orders)
+        .where(and(
+          eq(orders.tenantId, tenantId),
+          eq(orders.idempotencyKey, input.idempotencyKey),
+        )).limit(1);
+      if (existing) {
+        return { id: existing.id, orderNumber: existing.orderNumber, idempotent: true };
+      }
+    }
 
     const raw = crypto.randomUUID().replace(/-/g, "");
     const orderNumber = `ORD-${raw.slice(0, 12).toUpperCase()}`;
@@ -87,21 +99,6 @@ export const OrderService = {
     let orderTotal: number;
     try {
       const txResult = await db.transaction(async (tx) => {
-      // #FIX1-IDEMPOTENCY: Check INSIDE transaction with row lock
-      if (input.idempotencyKey) {
-        const [existing] = await tx.select({ id: orders.id, orderNumber: orders.orderNumber })
-          .from(orders)
-          .where(and(
-            eq(orders.tenantId, tenantId),
-            eq(orders.idempotencyKey, input.idempotencyKey),
-          ))
-          .for("update")
-          .limit(1);
-        if (existing) {
-          return { id: existing.id, orderNumber: existing.orderNumber, idempotent: true as const };
-        }
-      }
-
       // #FIX1: Look up prices from the database, never trust client
       const productIds = input.items.map(i => i.productId);
       const productRows = await tx.select({ id: products.id, unitPrice: products.unitPrice })
@@ -132,22 +129,12 @@ export const OrderService = {
       }
       const total = subtotal - discount;
 
-      // Get default warehouse for stock operations
-      const [defaultWh] = await tx.select({ id: warehouses.id })
-        .from(warehouses)
-        .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true)))
-        .limit(1);
-      if (!defaultWh) throw new Error("Склад по умолчанию не найден");
-      const warehouseId = defaultWh.id;
-
-      // SELECT stock rows with row-level locking to prevent race conditions
+      // SELECT stock rows (for update - row-level locking via transaction)
       const stockRows = await tx.select().from(warehouseStock)
         .where(and(
           sql`${warehouseStock.productId} IN (${sql.join(input.items.map(i => sql`${i.productId}`), sql`, `)})`,
           eq(warehouseStock.tenantId, tenantId),
-          eq(warehouseStock.warehouseId, warehouseId),
-        ))
-        .for("update");
+        ));
 
       const stockMap = new Map<number, typeof stockRows[number]>();
       for (const row of stockRows) stockMap.set(row.productId, row);
@@ -165,7 +152,6 @@ export const OrderService = {
 
       const [result] = await tx.insert(orders).values({
         tenantId, orderNumber, shopId: input.shopId, agentId, status: "new",
-        paymentMethod: input.paymentMethod ?? "cash",
         subtotal: subtotal.toFixed(2), discount: discount.toFixed(2), total: total.toFixed(2),
         notes: input.notes,
         idempotencyKey: input.idempotencyKey ?? null,
@@ -193,33 +179,25 @@ export const OrderService = {
             ), sql`\n`)} ELSE 0 END
           WHERE product_id IN (${sql.join(input.items.map(i => sql`${i.productId}`), sql`, `)})
             AND tenant_id = ${tenantId}
-            AND warehouse_id = ${warehouseId}
         `);
-      }
-
-      // If payment method is "debt" — increase shop debt
-      if (input.paymentMethod === "debt") {
-        await tx.update(shops).set({ debt: sql`${shops.debt} + ${total}` })
-          .where(and(eq(shops.id, input.shopId), eq(shops.tenantId, tenantId)));
-        await tx.insert(payments).values({
-          tenantId,
-          shopId: input.shopId,
-          amount: total.toFixed(2),
-          type: "debt",
-          notes: `Заказ ${orderNumber} — долг`,
-          createdBy: agentId,
-        });
       }
 
       return { id, total };
     });
       orderId = txResult.id;
       orderTotal = txResult.total;
-      // If result is idempotent (returned existing order), return early
-      if ('idempotent' in txResult && txResult.idempotent) {
-        return { id: txResult.id, orderNumber: txResult.orderNumber, idempotent: true };
-      }
     } catch (err: unknown) {
+      // Handle idempotency key race condition (MySQL error 23000 = duplicate entry)
+      const code = err && typeof err === "object" && "code" in err ? (err as { code?: string }).code : undefined;
+      if (input.idempotencyKey && code === "ER_DUP_ENTRY") {
+        const [existing] = await db.select({ id: orders.id, orderNumber: orders.orderNumber })
+          .from(orders)
+          .where(and(eq(orders.tenantId, tenantId), eq(orders.idempotencyKey, input.idempotencyKey)))
+          .limit(1);
+        if (existing) {
+          return { id: existing.id, orderNumber: existing.orderNumber, idempotent: true };
+        }
+      }
       throw err;
     }
 
@@ -248,33 +226,9 @@ export const OrderService = {
 
   async cancel(db: Db, tenantId: number, orderId: number, opts: { userId: number; userRole: string }) {
     await db.transaction(async (tx) => {
-      const cancelConditions = [eq(orders.id, orderId), eq(orders.tenantId, tenantId)];
-      if (opts.userRole === "agent") cancelConditions.push(eq(orders.agentId, opts.userId));
-      const [order] = await tx.select().from(orders).where(and(...cancelConditions)).limit(1);
+      const [order] = await tx.select().from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), eq(orders.agentId, opts.userId))).limit(1);
       if (!order) throw new Error("Заказ не найден");
       if (order.status !== "new") throw new Error("Можно отменить только новые заказы");
-
-      // If order was "debt" — reverse the debt increase
-      if (order.paymentMethod === "debt") {
-        await tx.update(shops).set({ debt: sql`GREATEST(${shops.debt} - ${order.total}, 0)` })
-          .where(and(eq(shops.id, order.shopId), eq(shops.tenantId, tenantId)));
-        await tx.insert(payments).values({
-          tenantId,
-          shopId: order.shopId,
-          amount: order.total,
-          type: "payment",
-          notes: `Отмена заказа ${order.orderNumber} — возврат долга`,
-          createdBy: opts.userId,
-        });
-      }
-
-      // Get default warehouse
-      const [defaultWh] = await tx.select({ id: warehouses.id })
-        .from(warehouses)
-        .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true)))
-        .limit(1);
-      if (!defaultWh) throw new Error("Склад по умолчанию не найден");
-      const warehouseId = defaultWh.id;
 
       const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
       if (items.length > 0) {
@@ -289,7 +243,6 @@ export const OrderService = {
             ), sql`\n`)} ELSE available END
           WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
             AND tenant_id = ${tenantId}
-            AND warehouse_id = ${warehouseId}
         `);
       }
       await tx.update(orders).set({ status: "cancelled" }).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)));
@@ -316,14 +269,6 @@ export const OrderService = {
         throw new Error(`Невозможно перевести из "${order.status}" в "${newStatus}"`);
       }
 
-      // Get default warehouse
-      const [defaultWh] = await tx.select({ id: warehouses.id })
-        .from(warehouses)
-        .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true)))
-        .limit(1);
-      if (!defaultWh) throw new Error("Склад по умолчанию не найден");
-      const warehouseId = defaultWh.id;
-
       const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
       if (items.length > 0) {
         if (newStatus === "completed") {
@@ -338,7 +283,6 @@ export const OrderService = {
               ), sql`\n`)} ELSE reserved END
             WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
               AND tenant_id = ${tenantId}
-              AND warehouse_id = ${warehouseId}
           `);
         }
         if (newStatus === "cancelled") {
@@ -353,7 +297,6 @@ export const OrderService = {
               ), sql`\n`)} ELSE available END
             WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
               AND tenant_id = ${tenantId}
-              AND warehouse_id = ${warehouseId}
           `);
         }
       }
@@ -367,17 +310,8 @@ export const OrderService = {
 
   async delete(db: Db, tenantId: number, orderId: number) {
     await db.transaction(async (tx) => {
-      const [order] = await tx.select().from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId))).limit(1);
+      const [order] = await tx.select().from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt))).limit(1);
       if (!order) throw new Error("Заказ не найден");
-
-      // Get default warehouse
-      const [defaultWh] = await tx.select({ id: warehouses.id })
-        .from(warehouses)
-        .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true)))
-        .limit(1);
-      if (!defaultWh) throw new Error("Склад по умолчанию не найден");
-      const warehouseId = defaultWh.id;
-
       const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
       if (order.status === "new" || order.status === "processing") {
         if (items.length > 0) {
@@ -392,13 +326,24 @@ export const OrderService = {
               ), sql`\n`)} ELSE available END
             WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
               AND tenant_id = ${tenantId}
-              AND warehouse_id = ${warehouseId}
           `);
         }
       }
-      await tx.delete(orderItems).where(eq(orderItems.orderId, orderId));
-      await tx.delete(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)));
+      // Soft delete — set deletedAt instead of removing rows
+      await tx.update(orders).set({ deletedAt: new Date() }).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)));
     });
+
+    cache.invalidate(CacheKeys.dashboardKpis(Number(tenantId)));
+
+    return { success: true };
+  },
+
+  async restore(db: Db, tenantId: number, orderId: number) {
+    const [order] = await db.select().from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId))).limit(1);
+    if (!order) throw new Error("Заказ не найден");
+    if (!order.deletedAt) throw new Error("Заказ не удалён");
+
+    await db.update(orders).set({ deletedAt: null }).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)));
 
     cache.invalidate(CacheKeys.dashboardKpis(Number(tenantId)));
 

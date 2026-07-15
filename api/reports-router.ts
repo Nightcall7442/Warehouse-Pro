@@ -16,7 +16,7 @@ export const reportsRouter = createRouter({
 
     const [
       agentCount, visitsToday, ordersMonth,
-      revenueMonth, sub, revenueByPaymentMethod,
+      revenueMonth, sub,
     ] = await Promise.all([
       db.select({ count: sql<number>`count(*)` }).from(users)
         .where(and(eq(users.tenantId, tenantId), eq(users.role, "agent"), eq(users.status, "active"))),
@@ -31,15 +31,6 @@ export const reportsRouter = createRouter({
         .where(and(eq(orders.tenantId, tenantId), eq(orders.status, "completed"), gte(orders.createdAt, new Date(d30ago)))),
 
       db.select().from(subscriptions).where(eq(subscriptions.tenantId, tenantId)).limit(1),
-
-      db.select({
-        paymentMethod: orders.paymentMethod,
-        revenue: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
-        orderCount: sql<number>`count(*)`,
-      })
-        .from(orders)
-        .where(and(eq(orders.tenantId, tenantId), eq(orders.status, "completed"), gte(orders.createdAt, new Date(d30ago))))
-        .groupBy(orders.paymentMethod),
     ]);
 
     // Active agents today (those with location pings in last 2h)
@@ -62,11 +53,6 @@ export const reportsRouter = createRouter({
       revenueMonth:   Number(revenueMonth[0]?.total ?? 0),
       avgOrdersPerAgent: agentTotal > 0 ? +(ordersM / agentTotal).toFixed(1) : 0,
       subscription:   sub[0] ?? null,
-      revenueByPaymentMethod: revenueByPaymentMethod.map(r => ({
-        paymentMethod: r.paymentMethod,
-        revenue: Number(r.revenue),
-        orderCount: Number(r.orderCount),
-      })),
     };
   }),
 
