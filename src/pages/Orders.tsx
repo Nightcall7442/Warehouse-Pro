@@ -1,14 +1,15 @@
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import { useCurrency } from "@/hooks/useCurrency";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { notify } from "@/lib/toast";
 import { useNavigate } from "react-router";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useAuth } from "@/hooks/useAuth";
 import {
   Search, Plus, FileDown, ChevronRight, Store, User,
   ShoppingCart, Clock, CheckCircle2, XCircle, DollarSign,
-  ArrowUpRight, ArrowDownRight, Minus,
+  ArrowUpRight, ArrowDownRight, Minus, Trash2, RotateCcw,
 } from "lucide-react";
 import { format } from "date-fns";
 import { exportToExcel, formatOrdersForExport } from "@/lib/excel";
@@ -33,29 +34,7 @@ const STATUS: Record<string, { ru: string; uz: string; dot: string; bg: string; 
   cancelled:  { ru: "Отменён",     uz: "Bekor qilindi", dot: "#e85050", bg: "bg-danger/10",  text: "text-danger",  border: "border-danger/25" },
 };
 
-/* ─── Payment Method Config ─── */
-const PAYMENT_METHODS: Record<string, { ru: string; uz: string; color: string }> = {
-  cash:     { ru: "Наличные",     uz: "Naqd",       color: "#34c473" },
-  transfer: { ru: "Перечисление", uz: "O'tkazma",   color: "#4b6cf6" },
-  debt:     { ru: "Долг",         uz: "Qarz",       color: "#e8a830" },
-  card:     { ru: "Карта",        uz: "Plastik",    color: "#9b59b6" },
-};
-
 /* ─── Premium KpiCard Component ─── */
-function PaymentMethodBadge({ method, lang }: { method?: string; lang: "ru" | "uz" }) {
-  const m = PAYMENT_METHODS[method ?? "cash"];
-  if (!m) return null;
-  return (
-    <span style={{
-      display: "inline-flex", alignItems: "center", gap: "4px",
-      padding: "2px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: 600,
-      background: `${m.color}15`, color: m.color,
-    }}>
-      {lang === "uz" ? m.uz : m.ru}
-    </span>
-  );
-}
-
 function KpiCard({ label, value, delta, icon, gradient, delay }: {
   label: string; value: string; delta: number | null;
   icon: React.ReactNode; gradient: string; delay: number;
@@ -115,43 +94,57 @@ export default function Orders() {
   const { lang }            = useLang();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
+  const [showDeleted, setShowDeleted] = useState(false);
   const isMobile            = useIsMobile();
   const navigate            = useNavigate();
   const utils               = trpc.useUtils();
+  const { user }            = useAuth();
+  const isCeo               = user?.role === "ceo";
 
   const { data, isLoading } = trpc.order.list.useQuery({
     page, pageSize: 25,
     search: search || undefined,
-    status: (status || undefined) as "new" | "processing" | "completed" | "cancelled" | undefined,
+    status: (status || undefined) as any,
+    showDeleted: isCeo && showDeleted ? true : undefined,
   });
 
-  // Aggregate stats from backend — single lightweight query, no 1000-row fetch
-  const { data: stats } = trpc.order.stats.useQuery();
-
-  // Only fetch all orders when user clicks export — not on every mount
-  const [showExport, setShowExport] = useState(false);
-  const { data: allOrders } = trpc.order.list.useQuery(
-    { page: 1, pageSize: 1000 },
-    { enabled: showExport, staleTime: 60_000 }
-  );
+  const { data: allOrders } = trpc.order.list.useQuery({ page: 1, pageSize: 1000, showDeleted: false });
 
   const updateStatus = trpc.order.updateStatus.useMutation({
     onSuccess: () => { utils.order.list.invalidate(); notify.success("Заказ обновлён"); },
     onError:   (e) => notify.error(e.message),
   });
 
+  const deleteOrder = trpc.order.delete.useMutation({
+    onSuccess: () => { utils.order.list.invalidate(); notify.success("Заказ удалён"); },
+    onError:   (e) => notify.error(e.message),
+  });
+
+  const restoreOrder = trpc.order.restore.useMutation({
+    onSuccess: () => { utils.order.list.invalidate(); notify.success("Заказ восстановлен"); },
+    onError:   (e) => notify.error(e.message),
+  });
+
   const handleExport = useCallback(() => {
-    if (allOrders?.data) {
-      exportToExcel(formatOrdersForExport(allOrders.data), "orders-export");
-      setShowExport(false);
-    } else {
-      setShowExport(true);
-    }
+    if (!allOrders?.data) return;
+    exportToExcel(formatOrdersForExport(allOrders.data), "orders-export");
   }, [allOrders?.data]);
 
   const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);
 
   const handleNewOrder = useCallback(() => navigate("/orders/new"), [navigate]);
+
+  /* ─── Compute KPI stats from allOrders ─── */
+  const stats = useMemo(() => {
+    const orders = allOrders?.data ?? [];
+    const total = orders.length;
+    const newCount = orders.filter(o => o.status === "new").length;
+    const processingCount = orders.filter(o => o.status === "processing").length;
+    const completedCount = orders.filter(o => o.status === "completed").length;
+    const cancelledCount = orders.filter(o => o.status === "cancelled").length;
+    const totalRevenue = orders.reduce((sum, o) => sum + (o.total ?? 0), 0);
+    return { total, newCount, processingCount, completedCount, cancelledCount, totalRevenue };
+  }, [allOrders?.data]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
@@ -266,6 +259,21 @@ export default function Orders() {
         <PremiumSelect value={status} onChange={v => { setStatus(v); setPage(1); }}
           options={[{value:"",label:t("Все статусы","Barcha holatlar")},...Object.entries(STATUS).map(([k,v])=>({value:k,label:lang==="uz"?v.uz:v.ru}))]}
           width="180px" />
+        {isCeo && (
+          <button
+            onClick={() => setShowDeleted(v => !v)}
+            style={{
+              display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
+              fontSize: "12px", fontWeight: 500, fontFamily: F.body, borderRadius: "10px",
+              border: `1px solid ${showDeleted ? COLORS.danger : COLORS.border}`, cursor: "pointer",
+              background: showDeleted ? `${COLORS.danger}15` : COLORS.surfaceLight,
+              color: showDeleted ? COLORS.danger : COLORS.textSecondary,
+            }}
+          >
+            <Trash2 size={13} />
+            {showDeleted ? t("Скрыть удалённые", "O'chirilganlarni yashirish") : t("Показать удалённые", "O'chirilganlarni ko'rsatish")}
+          </button>
+        )}
       </div>
 
       {/* ─── Mobile Cards ─── */}
@@ -312,7 +320,6 @@ export default function Orders() {
                                 {o.agentName ?? "—"} · {o.createdAt ? format(new Date(o.createdAt), "d MMM") : ""}
                               </span>
                             </div>
-                            <PaymentMethodBadge method={o.paymentMethod} lang={lang} />
                           </div>
                           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                             <span style={{ fontFamily: F.display, fontSize: "16px", fontWeight: 700, color: COLORS.textPrimary }}>
@@ -341,7 +348,6 @@ export default function Orders() {
                   t("ДАТА",   "SANA"),
                   t("МАГАЗИН","DO'KON"),
                   t("АГЕНТ",  "AGENT"),
-                  t("ОПЛАТА", "TO'LOV"),
                   t("ИТОГО",  "JAMI"),
                   t("СТАТУС", "HOLAT"),
                   t("ДЕЙСТВИЯ","AMALLAR"),
@@ -361,22 +367,24 @@ export default function Orders() {
               {isLoading
                 ? Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i} style={{ borderBottom: `1px solid ${COLORS.border}` }}>
-                      <td colSpan={8} style={{ padding: "16px" }}>
+                      <td colSpan={7} style={{ padding: "16px" }}>
                         <div style={{ height: "16px", borderRadius: "6px", background: COLORS.surfaceLight, animation: `slideUp ${0.4 + i * 0.05}s ease forwards` }} />
                       </td>
                     </tr>
                   ))
                 : data?.data.length === 0
-                ? <tr><td colSpan={8} style={{ padding: "56px 16px", textAlign: "center", color: COLORS.textSecondary, fontSize: "13px", fontFamily: F.body }}>{t("Нет заказов", "Buyurtma yo'q")}</td></tr>
+                ? <tr><td colSpan={7} style={{ padding: "56px 16px", textAlign: "center", color: COLORS.textSecondary, fontSize: "13px", fontFamily: F.body }}>{t("Нет заказов", "Buyurtma yo'q")}</td></tr>
                 : data?.data.map(o => (
                     <tr
                       key={o.id}
                       style={{
                         borderBottom: `1px solid ${COLORS.border}`,
                         cursor: "pointer", transition: "background 0.15s",
+                        opacity: (o as any).deletedAt ? 0.5 : 1,
+                        background: (o as any).deletedAt ? `${COLORS.danger}08` : "transparent",
                       }}
                       onMouseEnter={e => (e.currentTarget.style.background = `${COLORS.surfaceLight}80`)}
-                      onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                      onMouseLeave={e => (e.currentTarget.style.background = (o as any).deletedAt ? `${COLORS.danger}08` : "transparent")}
                       onClick={() => navigate(`/orders/${o.id}`)}
                     >
                       <td style={{ padding: "14px 16px", fontFamily: F.display, fontSize: "13px", fontWeight: 600, color: COLORS.primary }}>{o.orderNumber}</td>
@@ -385,13 +393,27 @@ export default function Orders() {
                       </td>
                       <td style={{ padding: "14px 16px", fontSize: "13px", color: COLORS.textPrimary }}>{o.shopName ?? "—"}</td>
                       <td style={{ padding: "14px 16px", fontSize: "13px", color: COLORS.textSecondary }}>{o.agentName ?? "—"}</td>
-                      <td style={{ padding: "14px 16px" }}><PaymentMethodBadge method={o.paymentMethod} lang={lang} /></td>
                       <td style={{ padding: "14px 16px", fontFamily: F.display, fontSize: "13px", fontWeight: 600, color: COLORS.textPrimary }}>{fmt(o.total)}</td>
                       <td style={{ padding: "14px 16px" }}>
                         <StatusBadge status={o.status} lang={lang} />
                       </td>
                       <td style={{ padding: "14px 16px" }} onClick={e => e.stopPropagation()}>
-                        {o.status === "new" && (
+                        {(o as any).deletedAt ? (
+                          isCeo && (
+                            <button
+                              onClick={() => restoreOrder.mutate({ id: o.id })}
+                              style={{
+                                display: "flex", alignItems: "center", gap: "4px",
+                                padding: "4px 10px", fontSize: "11px", fontWeight: 500, fontFamily: F.body,
+                                borderRadius: "8px", border: `1px solid ${COLORS.success}40`, cursor: "pointer",
+                                background: `${COLORS.success}15`, color: COLORS.success,
+                              }}
+                            >
+                              <RotateCcw size={11} />
+                              {t("Восстановить", "Tiklash")}
+                            </button>
+                          )
+                        ) : o.status === "new" ? (
                           <div style={{ display: "flex", gap: "6px" }}>
                             <button
                               onClick={() => updateStatus.mutate({ id: o.id, status: "processing" })}
@@ -415,6 +437,23 @@ export default function Orders() {
                               {t("Выполнен", "Bajarildi")}
                             </button>
                           </div>
+                        ) : (
+                          (o.status === "new" || o.status === "processing" || o.status === "cancelled") && isCeo && (
+                            <button
+                              onClick={() => {
+                                if (window.confirm(t("Удалить заказ?", "Buyurtmani o'chirish?")))
+                                  deleteOrder.mutate({ id: o.id });
+                              }}
+                              style={{
+                                display: "flex", alignItems: "center", gap: "4px",
+                                padding: "4px 10px", fontSize: "11px", fontWeight: 500, fontFamily: F.body,
+                                borderRadius: "8px", border: `1px solid ${COLORS.danger}40`, cursor: "pointer",
+                                background: `${COLORS.danger}10`, color: COLORS.danger,
+                              }}
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                          )
                         )}
                       </td>
                     </tr>
