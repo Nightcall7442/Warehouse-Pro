@@ -7,9 +7,10 @@ import { notify } from "@/lib/toast";
 import {
   User, Bell, Building2, Loader2,
   Send, CheckCircle2, XCircle, Moon,
-  Upload, Database, RefreshCw, AlertTriangle,
+  Upload, Database, RefreshCw, AlertTriangle, Gift,
 } from "lucide-react";
 import { PremiumSelect } from "@/components/PremiumSelect";
+import { ReferralCard } from "@/components/ReferralCard";
 
 // ── Telegram ───────────────────────────────────────────────────────────────────
 function TelegramSettings() {
@@ -471,12 +472,18 @@ ONEC_WEBHOOK_SECRET=your_secret`}
   );
 }
 
+// ── Referral ──────────────────────────────────────────────────────────────────
+function ReferralSettings() {
+  return <ReferralCard />;
+}
+
 // ── Секции ────────────────────────────────────────────────────────────────────
 const SECTIONS = [
   { key: "profile",    iconRu: "Профиль",    iconUz: "Profil",        Icon: User,      Comp: ProfileSettings    },
   { key: "company",   iconRu: "Компания",   iconUz: "Kompaniya",     Icon: Building2, Comp: CompanySettings    },
   { key: "telegram",  iconRu: "Telegram",   iconUz: "Telegram",      Icon: Bell,      Comp: TelegramSettings   },
   { key: "onec",      iconRu: "1С",         iconUz: "1C",            Icon: Database,  Comp: OneCSettings       },
+  { key: "referral",  iconRu: "Реферал",    iconUz: "Taklif",        Icon: Gift,      Comp: ReferralSettings   },
   { key: "appearance",iconRu: "Внешний вид",iconUz: "Ko'rinish",     Icon: Moon,      Comp: AppearanceSettings },
 ];
 

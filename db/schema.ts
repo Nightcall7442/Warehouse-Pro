@@ -59,6 +59,8 @@ export const users = mysqlTable("users", {
   updatedAt:    timestamp("updatedAt").defaultNow().notNull().$onUpdate(() => new Date()),
   lastSignInAt:     timestamp("lastSignInAt").defaultNow().notNull(),
   telegramChatId:   varchar("telegram_chat_id", { length: 50 }),
+  referralCode:     varchar("referral_code", { length: 20 }).unique(),
+  referredBy:       bigint("referred_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "set null" }),
 }, (t) => ({
   // email уникален внутри тенанта, но может повторяться в разных тенантах
   emailPerTenant: uniqueIndex("uq_user_email_tenant").on(t.email, t.tenantId),

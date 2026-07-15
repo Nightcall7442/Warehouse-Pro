@@ -197,4 +197,88 @@ export const userRouter = createRouter({
       });
       return { success: true };
     }),
+
+  // ── Referral Program ─────────────────────────────────────────────────────
+  referral: {
+    /** Get my referral code and stats */
+    myCode: authedQuery.query(async ({ ctx }) => {
+      const db = getDb();
+      const [user] = await db.select({ referralCode: users.referralCode })
+        .from(users).where(eq(users.id, ctx.user.id)).limit(1);
+
+      // Generate code if not exists
+      if (!user?.referralCode) {
+        const code = `WP${ctx.user.id}${Date.now().toString(36).toUpperCase()}`;
+        await db.update(users).set({ referralCode: code })
+          .where(eq(users.id, ctx.user.id));
+        return { code, referralCount: 0, totalRewards: 0 };
+      }
+
+      // Count referrals
+      const [stats] = await db.select({ count: sql<number>`count(*)` })
+        .from(users).where(eq(users.referredBy, ctx.user.id));
+
+      return {
+        code: user.referralCode,
+        referralCount: Number(stats?.count ?? 0),
+        totalRewards: Number(stats?.count ?? 0) * 30, // 30 days free per referral
+      };
+    }),
+
+    /** Apply referral code during registration */
+    applyCode: authedQuery
+      .input(z.object({ code: z.string() }))
+      .mutation(async ({ input, ctx }) => {
+        const db = getDb();
+
+        // Find referrer
+        const [referrer] = await db.select({ id: users.id })
+          .from(users).where(eq(users.referralCode, input.code)).limit(1);
+
+        if (!referrer) {
+          throw new Error("Реферальный код не найден");
+        }
+
+        if (referrer.id === ctx.user.id) {
+          throw new Error("Нельзя использовать свой код");
+        }
+
+        // Check if already referred
+        const [currentUser] = await db.select({ referredBy: users.referredBy })
+          .from(users).where(eq(users.id, ctx.user.id)).limit(1);
+
+        if (currentUser?.referredBy) {
+          throw new Error("Вы уже использовали реферальный код");
+        }
+
+        // Apply referral
+        await db.update(users).set({ referredBy: referrer.id })
+          .where(eq(users.id, ctx.user.id));
+
+        // TODO: Extend subscription by 30 days for both users
+        // This would integrate with the billing/subscription system
+
+        return { success: true, referrerId: referrer.id };
+      }),
+
+    /** List my referrals (CEO only) */
+    list: authedQuery.query(async ({ ctx }) => {
+      const db = getDb();
+      const referrals = await db.select({
+        id: users.id,
+        name: users.name,
+        email: users.email,
+        createdAt: users.createdAt,
+      })
+        .from(users).where(eq(users.referredBy, ctx.user.id))
+        .orderBy(desc(users.createdAt));
+
+      return referrals.map(r => ({
+        ...r,
+        daysSinceRegistration: Math.floor(
+          (Date.now() - new Date(r.createdAt).getTime()) / (1000 * 60 * 60 * 24)
+        ),
+      }));
+    }),
+  },
 });
