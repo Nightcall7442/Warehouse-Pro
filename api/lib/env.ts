@@ -29,10 +29,7 @@ export const env = {
   // Database
   dbConnectionLimit:    parseInt(optional("DB_CONNECTION_LIMIT", "20"), 10),
 
-  // Redis
-  redisUrl:             optional("REDIS_URL"),
-
-  // Cache (fallback for when Redis is unavailable)
+  // Cache
   cacheMaxEntries:      parseInt(optional("CACHE_MAX_ENTRIES", "500"), 10),
   cacheDefaultTtlMs:    parseInt(optional("CACHE_DEFAULT_TTL_MS", "60000"), 10),
 
@@ -72,7 +69,4 @@ export const env = {
   oneCUsername:        optional("ONEC_USERNAME"),
   oneCPassword:        optional("ONEC_PASSWORD"),
   onecWebhookSecret:   optional("ONEC_WEBHOOK_SECRET"),
-
-  // OpenTelemetry
-  otelExporterUrl:     optional("OTEL_EXPORTER_OTLP_ENDPOINT"),
 } as const;

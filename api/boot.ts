@@ -13,31 +13,27 @@ import onecWebhooks from "./webhooks/onec";
 import publicApi from "./public-api";
 import { createSSEResponse } from "./sse-router";
 import { authenticateRequest } from "./auth";
-import { initTelemetry, shutdownTelemetry } from "./lib/telemetry";
-initTelemetry();
 import { cache } from "./lib/cache";
 import { getDb } from "./queries/connection";
 import { tenants } from "@db/schema";
 import { sql } from "drizzle-orm";
-import { logger, runWithLogContext } from "./lib/logger";
+import { logger } from "./lib/logger";
 import { recordRequest } from "./system-router";
 import { logError } from "./lib/error-log";
 import { safeEqual } from "./lib/safe-compare";
-import { connectRedis, disconnectRedis } from "./lib/redis";
+
 
 const APP_VERSION = "1.0.0";
 
 const app = new Hono<{ Bindings: HttpBindings }>();
 
-// ── Request logging with correlation IDs + structured context ─────────────────
+// ── Request logging with correlation IDs ──────────────────────────────────────
 if (env.isProduction) {
   app.use("*", async (c, next) => {
     const start = Date.now();
     const corrId = c.req.header("x-correlation-id") ?? crypto.randomUUID().slice(0, 12);
     c.header("x-correlation-id", corrId);
-    await runWithLogContext({ correlationId: corrId, path: c.req.path, method: c.req.method }, async () => {
-      await next();
-    });
+    await next();
     const ms = Date.now() - start;
     recordRequest(ms, c.res.status >= 400);
     logger.info("request", {
@@ -45,16 +41,12 @@ if (env.isProduction) {
       path: c.req.path,
       status: c.res.status,
       ms,
+      correlationId: corrId,
       ip: c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown",
     });
   });
 } else {
-  app.use("*", async (c, next) => {
-    const corrId = crypto.randomUUID().slice(0, 12);
-    await runWithLogContext({ correlationId: corrId, path: c.req.path, method: c.req.method }, async () => {
-      await next();
-    });
-  });
+  app.use(honoLogger());
 }
 
 // ── Security headers ─────────────────────────────────────────────────────────
@@ -264,7 +256,6 @@ app.get("/health/1c", async (c) => {
 // ── Health check with version info ───────────────────────────────────────────
 app.get("/health", async (c) => {
   const dbHealthy = await checkDatabaseHealth();
-  const redisHealthy = await checkRedisHealth();
   return c.json({
     status: dbHealthy ? "ok" : "degraded",
     version: APP_VERSION,
@@ -273,7 +264,6 @@ app.get("/health", async (c) => {
     env: env.isProduction ? "production" : "development",
     cache: cache.getStats(),
     database: dbHealthy ? "connected" : "disconnected",
-    redis: redisHealthy,
   });
 });
 
@@ -318,36 +308,7 @@ async function checkDatabaseHealth(): Promise<boolean> {
   }
 }
 
-async function checkRedisHealth(): Promise<string> {
-  try {
-    const { isRedisAvailable } = await import("./lib/redis");
-    return isRedisAvailable() ? "connected" : "unconfigured";
-  } catch {
-    return "unavailable";
-  }
-}
-
-// Initialize Redis connection (non-blocking)
-if (env.redisUrl) {
-  connectRedis().catch(() => {});
-}
-
 export default app;
-
-// Graceful shutdown
-process.on("SIGTERM", async () => {
-  logger.info("Shutting down gracefully...");
-  await disconnectRedis();
-  await shutdownTelemetry();
-  process.exit(0);
-});
-
-process.on("SIGINT", async () => {
-  logger.info("Shutting down...");
-  await disconnectRedis();
-  await shutdownTelemetry();
-  process.exit(0);
-});
 
 if (env.isProduction) {
   const { serve }            = await import("@hono/node-server");
