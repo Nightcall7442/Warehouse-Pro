@@ -5,6 +5,7 @@ import { useNotifications } from "@/hooks/useNotifications";
 import { NAV_ITEMS } from "@/const";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { TrialBanner } from "@/components/TrialBanner";
+import { OfflineQueueBadge } from "@/components/OfflineQueueBadge";
 import { useTheme } from "@/hooks/useTheme";
 import { useLang } from "@/i18n";
 import { trpc } from "@/providers/trpc";
@@ -195,6 +196,8 @@ const MobileHeader = memo(function MobileHeader({ onMenuClick, unreadCount }: { 
           <span style={{ fontSize: "11px", color: "var(--color-text-tertiary, #98a0b8)" }}>{meta.parent}</span>
         )}
       </div>
+
+      <OfflineQueueBadge />
 
       <button onClick={() => navigate("/notifications")} className="btn-ghost p-2 relative">
         <Bell size={18} />

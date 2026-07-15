@@ -12,6 +12,7 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart a
 import { ProgressRing } from "@/components/ProgressRing";
 import { CardDots } from "@/components/DashboardLayout";
 import { GamificationCard } from "@/components/GamificationCard";
+import { UsageDashboard } from "@/components/UsageDashboard";
 
 type Range = "7d" | "30d" | "month";
 
@@ -492,6 +493,9 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {/* Usage Dashboard */}
+      <UsageDashboard />
     </div>
   );
 }
