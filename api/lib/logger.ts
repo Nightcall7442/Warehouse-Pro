@@ -1,6 +1,17 @@
 import { nanoid } from "nanoid";
+import { AsyncLocalStorage } from "node:async_hooks";
 
 type Level = "debug" | "info" | "warn" | "error";
+
+export interface LogContext {
+  correlationId?: string;
+  userId?: number;
+  tenantId?: number;
+  path?: string;
+  method?: string;
+}
+
+const storage = new AsyncLocalStorage<LogContext>();
 
 const SENSITIVE_KEYS = new Set([
   "password", "secret", "token", "authorization", "cookie",
@@ -26,11 +37,19 @@ function sanitize(obj: Record<string, unknown>): Record<string, unknown> {
 }
 
 function emit(level: Level, message: string, meta?: Record<string, unknown>) {
+  const ctx = storage.getStore();
   const entry: Record<string, unknown> = {
     level,
     time: new Date().toISOString(),
     msg: message,
   };
+  if (ctx) {
+    entry.correlationId = ctx.correlationId;
+    if (ctx.userId) entry.userId = ctx.userId;
+    if (ctx.tenantId) entry.tenantId = ctx.tenantId;
+    if (ctx.path) entry.path = ctx.path;
+    if (ctx.method) entry.method = ctx.method;
+  }
   if (meta && Object.keys(meta).length > 0) {
     entry.meta = sanitize(meta);
   }
@@ -51,4 +70,8 @@ export const logger = {
 
 export function createRequestId(): string {
   return nanoid(12);
+}
+
+export function runWithLogContext(ctx: LogContext, fn: () => Promise<unknown>): Promise<unknown> {
+  return storage.run(ctx, fn);
 }

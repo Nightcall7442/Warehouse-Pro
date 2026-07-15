@@ -125,6 +125,9 @@ export default function Orders() {
     status: (status || undefined) as "new" | "processing" | "completed" | "cancelled" | undefined,
   });
 
+  // Aggregate stats from backend — single lightweight query, no 1000-row fetch
+  const { data: stats } = trpc.order.stats.useQuery();
+
   // Only fetch all orders when user clicks export — not on every mount
   const [showExport, setShowExport] = useState(false);
   const { data: allOrders } = trpc.order.list.useQuery(
@@ -149,18 +152,6 @@ export default function Orders() {
   const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);
 
   const handleNewOrder = useCallback(() => navigate("/orders/new"), [navigate]);
-
-  /* ─── Compute KPI stats from allOrders ─── */
-  const stats = useMemo(() => {
-    const orders = allOrders?.data ?? [];
-    const total = orders.length;
-    const newCount = orders.filter(o => o.status === "new").length;
-    const processingCount = orders.filter(o => o.status === "processing").length;
-    const completedCount = orders.filter(o => o.status === "completed").length;
-    const cancelledCount = orders.filter(o => o.status === "cancelled").length;
-    const totalRevenue = orders.reduce((sum, o) => sum + (o.total ?? 0), 0);
-    return { total, newCount, processingCount, completedCount, cancelledCount, totalRevenue };
-  }, [allOrders?.data]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>

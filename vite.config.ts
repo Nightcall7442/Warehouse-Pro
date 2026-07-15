@@ -42,8 +42,9 @@ export default defineConfig({
         ],
       },
       workbox: {
-        navigateFallback:         "/",
+        navigateFallback:         "/index.html",
         navigateFallbackDenylist: [/^\/api\//],
+        globPatterns:             ["**/*.{js,css,html,json,png,svg,ico}"],
         runtimeCaching: [
           {
             urlPattern: /^\/api\/trpc\//,

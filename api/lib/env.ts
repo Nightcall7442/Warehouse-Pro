@@ -72,4 +72,7 @@ export const env = {
   oneCUsername:        optional("ONEC_USERNAME"),
   oneCPassword:        optional("ONEC_PASSWORD"),
   onecWebhookSecret:   optional("ONEC_WEBHOOK_SECRET"),
+
+  // OpenTelemetry
+  otelExporterUrl:     optional("OTEL_EXPORTER_OTLP_ENDPOINT"),
 } as const;

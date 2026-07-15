@@ -1,8 +1,32 @@
 import { z } from "zod";
 import { createRouter, operatorQuery, agentQuery } from "./middleware";
 import { OrderService } from "./services/order";
+import { getDb } from "./queries/connection";
+import { orders } from "@db/schema";
+import { eq, and, sql } from "drizzle-orm";
 
 export const orderRouter = createRouter({
+  stats: agentQuery.query(async ({ ctx }) => {
+    const db = getDb();
+    const tenantId = ctx.tenant.id;
+    const [row] = await db.select({
+      total:        sql<number>`count(*)`,
+      newCount:     sql<number>`count(CASE WHEN ${orders.status} = 'new' THEN 1 END)`,
+      processingCount: sql<number>`count(CASE WHEN ${orders.status} = 'processing' THEN 1 END)`,
+      completedCount:  sql<number>`count(CASE WHEN ${orders.status} = 'completed' THEN 1 END)`,
+      cancelledCount:  sql<number>`count(CASE WHEN ${orders.status} = 'cancelled' THEN 1 END)`,
+      totalRevenue: sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'completed' THEN ${orders.total} ELSE 0 END), 0)`,
+    }).from(orders).where(eq(orders.tenantId, tenantId));
+    return {
+      total:            Number(row?.total ?? 0),
+      newCount:         Number(row?.newCount ?? 0),
+      processingCount:  Number(row?.processingCount ?? 0),
+      completedCount:   Number(row?.completedCount ?? 0),
+      cancelledCount:   Number(row?.cancelledCount ?? 0),
+      totalRevenue:     Number(row?.totalRevenue ?? 0),
+    };
+  }),
+
   list: agentQuery
     .input(z.object({
       page:          z.number().int().min(1).default(1),

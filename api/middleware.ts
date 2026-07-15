@@ -8,6 +8,7 @@ import { env } from "./lib/env";
 import { checkSubscriptionAccess } from "./lib/feature-gating";
 import { checkRateLimit, getClientIp } from "./lib/rate-limit";
 import { AppErrors } from "./lib/errors";
+import { runWithLogContext } from "./lib/logger";
 
 const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
@@ -69,7 +70,9 @@ const requireAuth = t.middleware(async ({ ctx, next }) => {
   if (!ctx.user || !ctx.tenant) {
     throw AppErrors.unauthorized(ErrorMessages.unauthenticated);
   }
-  return next({ ctx: { ...ctx, user: ctx.user, tenant: ctx.tenant } });
+  return runWithLogContext({ userId: ctx.user.id, tenantId: ctx.tenant.id }, () =>
+    next({ ctx: { ...ctx, user: ctx.user, tenant: ctx.tenant } })
+  );
 });
 
 // ── Role guard ────────────────────────────────────────────────────────────────

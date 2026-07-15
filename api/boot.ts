@@ -13,11 +13,13 @@ import onecWebhooks from "./webhooks/onec";
 import publicApi from "./public-api";
 import { createSSEResponse } from "./sse-router";
 import { authenticateRequest } from "./auth";
+import { initTelemetry, shutdownTelemetry } from "./lib/telemetry";
+initTelemetry();
 import { cache } from "./lib/cache";
 import { getDb } from "./queries/connection";
 import { tenants } from "@db/schema";
 import { sql } from "drizzle-orm";
-import { logger } from "./lib/logger";
+import { logger, runWithLogContext } from "./lib/logger";
 import { recordRequest } from "./system-router";
 import { logError } from "./lib/error-log";
 import { safeEqual } from "./lib/safe-compare";
@@ -27,13 +29,15 @@ const APP_VERSION = "1.0.0";
 
 const app = new Hono<{ Bindings: HttpBindings }>();
 
-// ── Request logging with correlation IDs ──────────────────────────────────────
+// ── Request logging with correlation IDs + structured context ─────────────────
 if (env.isProduction) {
   app.use("*", async (c, next) => {
     const start = Date.now();
     const corrId = c.req.header("x-correlation-id") ?? crypto.randomUUID().slice(0, 12);
     c.header("x-correlation-id", corrId);
-    await next();
+    await runWithLogContext({ correlationId: corrId, path: c.req.path, method: c.req.method }, async () => {
+      await next();
+    });
     const ms = Date.now() - start;
     recordRequest(ms, c.res.status >= 400);
     logger.info("request", {
@@ -41,12 +45,16 @@ if (env.isProduction) {
       path: c.req.path,
       status: c.res.status,
       ms,
-      correlationId: corrId,
       ip: c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown",
     });
   });
 } else {
-  app.use(honoLogger());
+  app.use("*", async (c, next) => {
+    const corrId = crypto.randomUUID().slice(0, 12);
+    await runWithLogContext({ correlationId: corrId, path: c.req.path, method: c.req.method }, async () => {
+      await next();
+    });
+  });
 }
 
 // ── Security headers ─────────────────────────────────────────────────────────
@@ -330,12 +338,14 @@ export default app;
 process.on("SIGTERM", async () => {
   logger.info("Shutting down gracefully...");
   await disconnectRedis();
+  await shutdownTelemetry();
   process.exit(0);
 });
 
 process.on("SIGINT", async () => {
   logger.info("Shutting down...");
   await disconnectRedis();
+  await shutdownTelemetry();
   process.exit(0);
 });
 
