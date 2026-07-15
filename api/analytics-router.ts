@@ -318,4 +318,66 @@ export const analyticsRouter = createRouter({
         prevPeriod: input.compareWithPrev ? { from: prevFrom, to: prevTo } : null,
       };
     }),
+
+  // ── P&L by Payment Method ──────────────────────────────────────────────────
+  pnlByPaymentMethod: reportsQuery
+    .input(z.object({ from: z.string(), to: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const db = getDb();
+      const tid = ctx.tenant.id;
+
+      const rows = await db.select({
+        paymentMethod: orders.paymentMethod,
+        revenue: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
+        orderCount: sql<number>`count(*)`,
+        discount: sql<string>`COALESCE(SUM(${orders.discount}), 0)`,
+      })
+        .from(orders)
+        .where(and(
+          eq(orders.tenantId, tid),
+          eq(orders.status, "completed"),
+          sql`${orders.createdAt} >= ${input.from}`,
+          sql`${orders.createdAt} <= ${input.to + " 23:59:59"}`,
+        ))
+        .groupBy(orders.paymentMethod);
+
+      return rows.map(r => ({
+        method: r.paymentMethod ?? "unknown",
+        revenue: Number(r.revenue),
+        orderCount: Number(r.orderCount),
+        discount: Number(r.discount),
+        netRevenue: Number(r.revenue) - Number(r.discount),
+      }));
+    }),
+
+  // ── Payment Method Trend ──────────────────────────────────────────────────
+  paymentMethodTrend: reportsQuery
+    .input(z.object({ from: z.string(), to: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const db = getDb();
+      const tid = ctx.tenant.id;
+
+      const rows = await db.select({
+        date: sql<string>`DATE(${orders.createdAt})`,
+        paymentMethod: orders.paymentMethod,
+        revenue: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
+        orderCount: sql<number>`count(*)`,
+      })
+        .from(orders)
+        .where(and(
+          eq(orders.tenantId, tid),
+          eq(orders.status, "completed"),
+          sql`${orders.createdAt} >= ${input.from}`,
+          sql`${orders.createdAt} <= ${input.to + " 23:59:59"}`,
+        ))
+        .groupBy(sql`DATE(${orders.createdAt})`, orders.paymentMethod)
+        .orderBy(sql`DATE(${orders.createdAt})`);
+
+      return rows.map(r => ({
+        date: r.date,
+        method: r.paymentMethod ?? "unknown",
+        revenue: Number(r.revenue),
+        orderCount: Number(r.orderCount),
+      }));
+    }),
 });
