@@ -286,6 +286,117 @@ export const agentRouter = createRouter({
         .where(and(eq(shops.id, input.shopId), eq(shops.tenantId, ctx.tenant.id), eq(shops.agentId, ctx.user.id)));
       return { success: true };
     }),
+
+  // ── Gamification: Leaderboard + Streaks + Achievements ─────────────────────
+  gamification: authedQuery.query(async ({ ctx }) => {
+    const db = getDb();
+    const tenantId = ctx.tenant.id;
+    const now = new Date();
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+    // Import here to avoid circular dependency
+    const { orders, dailyPlans } = await import("@db/schema");
+
+    // Weekly leaderboard: agents ranked by order count
+    const weeklyLeaderboard = await db.select({
+      agentId: users.id,
+      agentName: users.name,
+      orderCount: sql<number>`count(DISTINCT ${orders.id})`,
+      revenue: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
+      visitCount: sql<number>`count(DISTINCT ${dailyPlans.id})`,
+    })
+      .from(users)
+      .leftJoin(orders, and(eq(orders.agentId, users.id), sql`${orders.createdAt} >= ${weekAgo}`, eq(orders.status, "completed")))
+      .leftJoin(dailyPlans, and(eq(dailyPlans.agentId, users.id), sql`${dailyPlans.planDate} >= ${weekAgo}`, eq(dailyPlans.status, "visited")))
+      .where(and(eq(users.tenantId, tenantId), eq(users.role, "agent"), eq(users.status, "active")))
+      .groupBy(users.id)
+      .orderBy(desc(sql`count(DISTINCT ${orders.id})`))
+      .limit(10);
+
+    // Current user's stats
+    const [myStats] = await db.select({
+      weeklyOrders: sql<number>`count(DISTINCT ${orders.id})`,
+      weeklyRevenue: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
+      monthlyOrders: sql<number>`(SELECT count(*) FROM ${orders} WHERE agent_id = ${ctx.user.id} AND created_at >= ${monthAgo} AND status = 'completed')`,
+    })
+      .from(orders)
+      .where(and(eq(orders.agentId, ctx.user.id), sql`${orders.createdAt} >= ${weekAgo}`, eq(orders.status, "completed")));
+
+    // Calculate streak: consecutive days with at least 1 completed order
+    const streakData = await db.select({
+      day: sql<string>`DATE(${orders.createdAt})`,
+      count: sql<number>`count(*)`,
+    })
+      .from(orders)
+      .where(and(
+        eq(orders.agentId, ctx.user.id),
+        eq(orders.status, "completed"),
+        sql`${orders.createdAt} >= ${new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()}`,
+      ))
+      .groupBy(sql`DATE(${orders.createdAt})`)
+      .orderBy(desc(sql`DATE(${orders.createdAt})`));
+
+    let streak = 0;
+    const today = now.toISOString().split("T")[0];
+    for (let i = 0; i < streakData.length; i++) {
+      const expectedDate = new Date(now.getTime() - i * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+      if (streakData[i]?.day === expectedDate && Number(streakData[i]?.count) > 0) {
+        streak++;
+      } else {
+        break;
+      }
+    }
+
+    // Achievements
+    const achievements = [];
+    const totalAllTime = await db.select({ count: sql<number>`count(*)` })
+      .from(orders)
+      .where(and(eq(orders.agentId, ctx.user.id), eq(orders.status, "completed")));
+
+    const total = Number(totalAllTime[0]?.count ?? 0);
+    if (total >= 1) achievements.push({ id: "first_order", title: "Первый заказ", titleUz: "Birinchi buyurtma", icon: "🎯", unlocked: true });
+    if (total >= 10) achievements.push({ id: "orders_10", title: "10 заказов", titleUz: "10 buyurtma", icon: "🔥", unlocked: true });
+    if (total >= 50) achievements.push({ id: "orders_50", title: "50 заказов", titleUz: "50 buyurtma", icon: "⚡", unlocked: true });
+    if (total >= 100) achievements.push({ id: "orders_100", title: "100 заказов", titleUz: "100 buyurtma", icon: "💎", unlocked: true });
+    if (streak >= 3) achievements.push({ id: "streak_3", title: "3 дня подряд", titleUz: "3 kun ketma-ket", icon: "🔥", unlocked: true });
+    if (streak >= 7) achievements.push({ id: "streak_7", title: "Неделя без перерыва", titleUz: "Hafta dam olishsiz", icon: "🏆", unlocked: true });
+
+    // Monthly top agent
+    const [topAgent] = await db.select({
+      agentId: users.id,
+      agentName: users.name,
+      revenue: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
+    })
+      .from(users)
+      .leftJoin(orders, and(eq(orders.agentId, users.id), sql`${orders.createdAt} >= ${monthAgo}`, eq(orders.status, "completed")))
+      .where(and(eq(users.tenantId, tenantId), eq(users.role, "agent")))
+      .groupBy(users.id)
+      .orderBy(desc(sql`SUM(${orders.total})`))
+      .limit(1);
+
+    return {
+      leaderboard: weeklyLeaderboard.map((r, i) => ({
+        rank: i + 1,
+        agentId: r.agentId,
+        agentName: r.agentName,
+        orderCount: Number(r.orderCount),
+        revenue: Number(r.revenue),
+        visitCount: Number(r.visitCount),
+      })),
+      myStats: {
+        weeklyOrders: Number(myStats?.weeklyOrders ?? 0),
+        weeklyRevenue: Number(myStats?.weeklyRevenue ?? 0),
+        monthlyOrders: Number(myStats?.monthlyOrders ?? 0),
+        streak,
+      },
+      achievements,
+      topAgent: topAgent ? {
+        name: topAgent.agentName,
+        revenue: Number(topAgent.revenue),
+      } : null,
+    };
+  }),
 });
 
 // ── Haversine distance in km ─────────────────────────────────────────────────

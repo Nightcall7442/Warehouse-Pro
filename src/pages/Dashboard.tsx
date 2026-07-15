@@ -11,6 +11,7 @@ import { ClipboardList, TrendingUp, TrendingDown, Sparkles, AlertCircle, ArrowRi
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart as RePieChart, Pie, Cell, BarChart, Bar } from "recharts";
 import { ProgressRing } from "@/components/ProgressRing";
 import { CardDots } from "@/components/DashboardLayout";
+import { GamificationCard } from "@/components/GamificationCard";
 
 type Range = "7d" | "30d" | "month";
 
@@ -148,6 +149,7 @@ export default function Dashboard() {
   const { data: statusData } = trpc.dashboard.statusBreakdown.useQuery() as { data: StatusEntry[] | undefined };
   const { data: activity } = trpc.dashboard.activity.useQuery() as { data: ActivityEntry[] | undefined };
   const { data: alerts } = trpc.notification.smartAlerts.useQuery() as { data: SmartAlert[] | undefined };
+  const { data: gamification } = trpc.agent.gamification.useQuery() as { data: any };
 
   const chartData = useMemo(() => trends?.map(tr => ({ date: format(new Date(tr.date), "dd/MM"), orders: tr.orderCount, revenue: Number(tr.revenue) })) ?? [], [trends]);
   const revenueTrend = useMemo(() => (trends ?? []).slice(-7).map(tr => Number(tr.revenue)), [trends]);
@@ -439,6 +441,13 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Gamification */}
+      {gamification && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "16px" }}>
+          <GamificationCard data={gamification} />
+        </div>
+      )}
 
       {/* Recent Orders */}
       <div className="neo-card">

@@ -117,4 +117,93 @@ export const telegramRouter = createRouter({
       await notifyTenantRole(ctx.tenant.id, "agent", input.message);
       return { success: true };
     }),
+
+  /** One-tap Telegram connect via deep link */
+  deepLink: authedQuery.query(async ({ ctx }) => {
+    const botToken = env.telegramBotToken;
+    if (!botToken) return { url: null, error: "Telegram bot not configured" };
+
+    // Get bot username from token
+    const botInfo = await fetch(`https://api.telegram.org/bot${botToken}/getMe`)
+      .then(r => r.json())
+      .catch(() => null);
+
+    const botUsername = botInfo?.result?.username;
+    if (!botUsername) return { url: null, error: "Cannot fetch bot info" };
+
+    // Create deep link with user ID as start parameter
+    const url = `https://t.me/${botUsername}?start=${ctx.user.id}`;
+    return { url, botUsername };
+  }),
+
+  /** Daily digest: orders summary, low stock, agent performance */
+  dailyDigest: authedQuery.query(async ({ ctx }) => {
+    const db = getDb();
+    const tenantId = ctx.tenant.id;
+    const today = new Date().toISOString().split("T")[0];
+
+    const { orders, warehouseStock, products, dailyPlans, users } = await import("@db/schema");
+    const { eq, and, sql, gte } = await import("drizzle-orm");
+
+    const [todayStats, lowStock, planProgress] = await Promise.all([
+      // Today's orders
+      db.select({
+        totalOrders: sql<number>`count(*)`,
+        completedOrders: sql<number>`count(CASE WHEN ${orders.status} = 'completed' THEN 1 END)`,
+        totalRevenue: sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'completed' THEN ${orders.total} ELSE 0 END), 0)`,
+      }).from(orders).where(and(
+        eq(orders.tenantId, tenantId),
+        sql`DATE(${orders.createdAt}) = ${today}`,
+      )),
+
+      // Low stock items
+      db.select({
+        productName: products.name,
+        available: warehouseStock.available,
+      }).from(warehouseStock)
+        .leftJoin(products, eq(warehouseStock.productId, products.id))
+        .where(and(eq(warehouseStock.tenantId, tenantId), sql`${warehouseStock.available} < ${products.reorderPoint}`))
+        .limit(5),
+
+      // Today's plan progress
+      db.select({
+        total: sql<number>`count(*)`,
+        visited: sql<number>`count(CASE WHEN ${dailyPlans.status} = 'visited' THEN 1 END)`,
+      }).from(dailyPlans).where(and(
+        eq(dailyPlans.tenantId, tenantId),
+        sql`DATE(${dailyPlans.planDate}) = ${today}`,
+      )),
+    ]);
+
+    const stats = todayStats[0];
+    const plan = planProgress[0];
+    const planPct = plan && Number(plan.total) > 0 ? Math.round((Number(plan.visited) / Number(plan.total)) * 100) : 0;
+
+    // Build digest message
+    const lines = [
+      `📊 <b>Дайджест за ${today}</b>`,
+      ``,
+      `🛒 Заказов: ${stats?.totalOrders ?? 0} (${stats?.completedOrders ?? 0} выполнено)`,
+      `💰 Выручка: ${Number(stats?.totalRevenue ?? 0).toLocaleString("ru")} сум`,
+      `📅 План: ${plan?.visited ?? 0}/${plan?.total ?? 0} (${planPct}%)`,
+    ];
+
+    if (lowStock.length > 0) {
+      lines.push(``, `⚠️ Мало на складе:`);
+      lowStock.forEach(s => {
+        lines.push(`  • ${s.productName}: ${Number(s.available ?? 0).toFixed(1)} кг`);
+      });
+    }
+
+    return {
+      text: lines.join("\n"),
+      stats: {
+        totalOrders: Number(stats?.totalOrders ?? 0),
+        completedOrders: Number(stats?.completedOrders ?? 0),
+        totalRevenue: Number(stats?.totalRevenue ?? 0),
+        planPct,
+        lowStockCount: lowStock.length,
+      },
+    };
+  }),
 });
