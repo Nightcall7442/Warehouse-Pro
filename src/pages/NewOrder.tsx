@@ -8,8 +8,18 @@ import { useLang } from "@/i18n";
 import {
   CheckCircle2, Loader2, WifiOff,
   Store, Package, Search, AlertCircle, ShoppingCart,
+  Banknote, CreditCard, ArrowRightLeft, AlertTriangle,
 } from "lucide-react";
 import { savePendingOrder } from "./OfflineOrders.helpers";
+
+type PaymentMethod = "cash" | "transfer" | "debt" | "card";
+
+const PAYMENT_METHODS: Record<PaymentMethod, { ru: string; uz: string; icon: typeof Banknote; color: string }> = {
+  cash:     { ru: "Наличные",    uz: "Naqd",          icon: Banknote,      color: "#34c473" },
+  transfer: { ru: "Перечисление", uz: "O'tkazma",      icon: ArrowRightLeft, color: "#4b6cf6" },
+  debt:     { ru: "Долг",        uz: "Qarz",          icon: AlertTriangle, color: "#e8a830" },
+  card:     { ru: "Карта",       uz: "Plastik karta", icon: CreditCard,    color: "#9b59b6" },
+};
 
 interface OrderItem {
   productId:   number;
@@ -506,10 +516,12 @@ function StepItems({
 // ── Step 3: Проверка ──────────────────────────────────────────────────────────
 function StepReview({
   shopName, items, notes, onNotesChange, discount, onDiscountChange,
+  paymentMethod, onPaymentMethodChange,
 }: {
   shopName: string; items: OrderItem[];
   notes: string; onNotesChange: (v: string) => void;
   discount: string; onDiscountChange: (v: string) => void;
+  paymentMethod: PaymentMethod; onPaymentMethodChange: (v: PaymentMethod) => void;
 }) {
   const { fmt }  = useCurrency();
   const { lang } = useLang();
@@ -603,6 +615,62 @@ function StepReview({
           onChange={e => onNotesChange(e.target.value)}
         />
       </div>
+
+      {/* Payment Method */}
+      <div>
+        <label className="font-label text-[10px] text-secondary tracking-wider block mb-2">
+          {t("МЕТОД ОПЛАТЫ *", "TO'LOV USULI *")}
+        </label>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+          {(Object.entries(PAYMENT_METHODS) as [PaymentMethod, typeof PAYMENT_METHODS[PaymentMethod]][]).map(([key, method]) => {
+            const Icon = method.icon;
+            const isActive = paymentMethod === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => onPaymentMethodChange(key)}
+                style={{
+                  display: "flex", alignItems: "center", gap: "10px",
+                  padding: "12px 14px", borderRadius: "12px",
+                  border: isActive ? `2px solid ${method.color}` : "2px solid var(--color-border, #f0f3f8)",
+                  background: isActive ? `${method.color}10` : "var(--color-surface, #ffffff)",
+                  cursor: "pointer", transition: "all 0.15s ease",
+                  boxShadow: isActive ? `0 2px 8px ${method.color}20` : "none",
+                }}
+              >
+                <div style={{
+                  width: "32px", height: "32px", borderRadius: "8px",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  background: isActive ? method.color : "var(--color-surface-light, #f0f3f8)",
+                  flexShrink: 0,
+                }}>
+                  <Icon size={16} style={{ color: isActive ? "#fff" : "var(--color-text-secondary, #6a7290)" }} />
+                </div>
+                <span style={{
+                  fontSize: "13px", fontWeight: isActive ? 600 : 500,
+                  color: isActive ? method.color : "var(--color-text-primary, #2b3450)",
+                  fontFamily: "'DM Sans', sans-serif",
+                }}>
+                  {lang === "uz" ? method.uz : method.ru}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        {paymentMethod === "debt" && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: "8px", marginTop: "10px",
+            padding: "10px 14px", borderRadius: "10px",
+            background: "rgba(232,168,48,0.08)", border: "1px solid rgba(232,168,48,0.2)",
+          }}>
+            <AlertTriangle size={14} style={{ color: "#e8a830", flexShrink: 0 }} />
+            <span style={{ fontSize: "12px", color: "#e8a830", fontWeight: 500 }}>
+              {t("Сумма заказа будет добавлена к долгу магазина", "Buyurtma summasi do'kon qarziga qo'shiladi")}
+            </span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -624,6 +692,7 @@ export default function NewOrder() {
   const [items,    setItems]    = useState<OrderItem[]>([{ ...EMPTY_ITEM }]);
   const [notes,    setNotes]    = useState("");
   const [discount, setDiscount] = useState("0");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   // #FIX1-IDEMPOTENCY: Generate key once per form session, survives retries
   const [idempotencyKey] = useState(() => crypto.randomUUID());
 
@@ -658,12 +727,13 @@ export default function NewOrder() {
       items:   items
         .filter(i => i.productId > 0 && Number(i.quantity) > 0)
         .map(i => ({ productId: i.productId, quantity: i.quantity })),
-      notes:    notes || undefined,
-      discount: discount || "0",
+      notes:         notes || undefined,
+      discount:      discount || "0",
+      paymentMethod,
     };
 
     if (!navigator.onLine) {
-      savePendingOrder({ ...payload, shopName })
+      savePendingOrder({ ...payload, shopName, paymentMethod })
         .then(() => {
           notify.success(t("Заказ сохранён офлайн", "Buyurtma oflayn saqlandi"));
           navigate("/agent");
@@ -726,6 +796,8 @@ export default function NewOrder() {
             onNotesChange={setNotes}
             discount={discount}
             onDiscountChange={setDiscount}
+            paymentMethod={paymentMethod}
+            onPaymentMethodChange={setPaymentMethod}
           />
         )}
       </div>

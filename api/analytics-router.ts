@@ -318,4 +318,80 @@ export const analyticsRouter = createRouter({
         prevPeriod: input.compareWithPrev ? { from: prevFrom, to: prevTo } : null,
       };
     }),
+
+  // ── P&L by Payment Method ──────────────────────────────────────────────────
+  pnlByPaymentMethod: reportsQuery
+    .input(z.object({ from: z.string(), to: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const tid = ctx.tenant.id;
+      const db = getDb();
+
+      const rows = await db.select({
+        paymentMethod: orders.paymentMethod,
+        revenue: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
+        discount: sql<string>`COALESCE(SUM(${orders.discount}), 0)`,
+        cogs: sql<string>`COALESCE(SUM(${orderItems.quantity} * COALESCE(${products.costPrice}, 0)), 0)`,
+        orderCount: sql<number>`count(DISTINCT ${orders.id})`,
+      })
+        .from(orders)
+        .leftJoin(orderItems, eq(orderItems.orderId, orders.id))
+        .leftJoin(products, eq(orderItems.productId, products.id))
+        .where(and(
+          eq(orders.tenantId, tid),
+          eq(orders.status, "completed"),
+          sql`${orders.createdAt} >= ${input.from}`,
+          sql`${orders.createdAt} <= ${input.to + " 23:59:59"}`,
+        ))
+        .groupBy(orders.paymentMethod)
+        .orderBy(desc(sql`SUM(${orders.total})`));
+
+      return rows.map(r => {
+        const rev = Number(r.revenue);
+        const cost = Number(r.cogs);
+        return {
+          paymentMethod: r.paymentMethod,
+          revenue: rev,
+          discount: Number(r.discount),
+          cogs: cost,
+          grossProfit: rev - cost,
+          grossMarginPct: rev > 0 ? ((rev - cost) / rev) * 100 : 0,
+          orderCount: Number(r.orderCount),
+        };
+      });
+    }),
+
+  // ── Payment Method Breakdown for Monthly Trend ──────────────────────────────
+  paymentMethodTrend: reportsQuery
+    .input(z.object({ from: z.string(), to: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const tid = ctx.tenant.id;
+      const db = getDb();
+
+      const rows = await db.select({
+        month: sql<string>`DATE_FORMAT(${orders.createdAt}, '%Y-%m')`,
+        paymentMethod: orders.paymentMethod,
+        revenue: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
+      })
+        .from(orders)
+        .where(and(
+          eq(orders.tenantId, tid),
+          eq(orders.status, "completed"),
+          sql`${orders.createdAt} >= ${input.from}`,
+          sql`${orders.createdAt} <= ${input.to + " 23:59:59"}`,
+        ))
+        .groupBy(sql`DATE_FORMAT(${orders.createdAt}, '%Y-%m')`, orders.paymentMethod)
+        .orderBy(sql`DATE_FORMAT(${orders.createdAt}, '%Y-%m')`);
+
+      // Transform to { month, cash, transfer, debt, card }[]
+      const monthMap = new Map<string, Record<string, number>>();
+      for (const r of rows) {
+        if (!monthMap.has(r.month)) {
+          monthMap.set(r.month, { month: r.month, cash: 0, transfer: 0, debt: 0, card: 0 });
+        }
+        const entry = monthMap.get(r.month)!;
+        entry[r.paymentMethod as keyof typeof entry] = Number(r.revenue);
+      }
+
+      return Array.from(monthMap.values()).sort((a, b) => a.month.localeCompare(b.month));
+    }),
 });

@@ -19,6 +19,13 @@ const STATUS_STYLES: Record<string, string> = {
   cancelled:  "bg-danger/15 text-danger border-danger/30",
 };
 
+const PAYMENT_METHODS: Record<string, { ru: string; uz: string; color: string }> = {
+  cash:     { ru: "Наличные",     uz: "Naqd",       color: "#34c473" },
+  transfer: { ru: "Перечисление", uz: "O'tkazma",   color: "#4b6cf6" },
+  debt:     { ru: "Долг",         uz: "Qarz",       color: "#e8a830" },
+  card:     { ru: "Карта",        uz: "Plastik",    color: "#9b59b6" },
+};
+
 export default function OrderDetail() {
   const { id }      = useParams<{ id: string }>();
   const navigate    = useNavigate();
@@ -185,6 +192,18 @@ export default function OrderDetail() {
             <span className={`badge ${STATUS_STYLES[order.status]} mt-2 inline-block`}>
               {t(`orders.status.${order.status}` as string) || order.status.toUpperCase()}
             </span>
+            {(() => {
+              const pm = PAYMENT_METHODS[(order as any).paymentMethod ?? "cash"];
+              if (!pm) return null;
+              return (
+                <span className="badge mt-2 ml-2 inline-block" style={{
+                  background: `${pm.color}15`, color: pm.color, border: `1px solid ${pm.color}30`,
+                  padding: "2px 10px", borderRadius: "6px", fontSize: "11px", fontWeight: 600,
+                }}>
+                  {lang === "uz" ? pm.uz : pm.ru}
+                </span>
+              );
+            })()}
           </div>
         </div>
 

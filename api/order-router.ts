@@ -5,13 +5,14 @@ import { OrderService } from "./services/order";
 export const orderRouter = createRouter({
   list: agentQuery
     .input(z.object({
-      page:     z.number().int().min(1).default(1),
-      pageSize: z.number().int().min(1).max(1000).default(25),
-      search:   z.string().max(200).optional(),
-      status:   z.enum(["new", "processing", "completed", "cancelled"]).optional(),
-      agentId:  z.number().int().positive().optional(),
-      dateFrom: z.string().optional(),
-      dateTo:   z.string().optional(),
+      page:          z.number().int().min(1).default(1),
+      pageSize:      z.number().int().min(1).max(1000).default(25),
+      search:        z.string().max(200).optional(),
+      status:        z.enum(["new", "processing", "completed", "cancelled"]).optional(),
+      paymentMethod: z.enum(["cash", "transfer", "debt", "card"]).optional(),
+      agentId:       z.number().int().positive().optional(),
+      dateFrom:      z.string().optional(),
+      dateTo:        z.string().optional(),
     }).optional())
     .query(async ({ input, ctx }) => {
       return OrderService.list(ctx.db, ctx.tenant.id, input ?? {}, {
@@ -42,8 +43,9 @@ export const orderRouter = createRouter({
         productId: z.number().int().positive(),
         quantity:  z.union([z.number(), z.string()]).transform(String),
       })).min(1).max(100),
-      notes:    z.string().max(500).optional(),
-      discount: z.union([z.number(), z.string()]).transform(String).default("0.00"),
+      notes:         z.string().max(500).optional(),
+      discount:      z.union([z.number(), z.string()]).transform(String).default("0.00"),
+      paymentMethod: z.enum(["cash", "transfer", "debt", "card"]).default("cash"),
     }))
     .mutation(async ({ input, ctx }) => {
       return OrderService.create(ctx.db, ctx.tenant.id, ctx.user.id, input);

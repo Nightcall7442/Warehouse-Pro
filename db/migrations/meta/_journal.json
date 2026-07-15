@@ -43,6 +43,41 @@
       "when": 1783629600000,
       "tag": "0005_add_password_reset_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1783716000000,
+      "tag": "0006_add_api_keys",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1783802400000,
+      "tag": "0007_add_exclusive_plan",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1783888800000,
+      "tag": "0008_fix_reorder_point_default",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1783975200000,
+      "tag": "0009_fix_multi_warehouse_and_cascade",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1784072143935,
+      "tag": "0010_add_payment_method",
+      "breakpoints": true
     }
   ]
 }

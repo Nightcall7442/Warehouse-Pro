@@ -1,5 +1,5 @@
 import { eq, and, desc, sql } from "drizzle-orm";
-import { orders, orderItems, warehouseStock, shops, users, products, warehouses } from "@db/schema";
+import { orders, orderItems, warehouseStock, shops, users, products, warehouses, payments } from "@db/schema";
 import { cache, CacheKeys } from "../lib/cache";
 import { NotificationService } from "./NotificationService";
 
@@ -7,19 +7,21 @@ type Db = ReturnType<typeof import("../queries/connection").getDb>;
 
 export const OrderService = {
   async list(db: Db, tenantId: number, filters: Record<string, unknown>, _opts?: { userId: number; userRole: string }) {
-    const f = filters as { status?: "new" | "processing" | "completed" | "cancelled"; agentId?: number; page?: number; pageSize?: number; search?: string };
+    const f = filters as { status?: "new" | "processing" | "completed" | "cancelled"; paymentMethod?: "cash" | "transfer" | "debt" | "card"; agentId?: number; page?: number; pageSize?: number; search?: string };
     const page = f.page ?? 1;
     const limit = f.pageSize ?? 25;
     const offset = (page - 1) * limit;
 
     const conditions = [eq(orders.tenantId, tenantId)];
     if (f.status) conditions.push(eq(orders.status, f.status));
+    if (f.paymentMethod) conditions.push(eq(orders.paymentMethod, f.paymentMethod));
     if (f.agentId) conditions.push(eq(orders.agentId, f.agentId));
 
     const baseQuery = db.select({
       id: orders.id,
       orderNumber: orders.orderNumber,
       status: orders.status,
+      paymentMethod: orders.paymentMethod,
       total: orders.total,
       subtotal: orders.subtotal,
       discount: orders.discount,
@@ -45,6 +47,7 @@ export const OrderService = {
   async getById(db: Db, tenantId: number, orderId: number, _opts?: { userId: number; userRole: string }) {
     const [order] = await db.select({
       id: orders.id, orderNumber: orders.orderNumber, status: orders.status,
+      paymentMethod: orders.paymentMethod,
       total: orders.total, subtotal: orders.subtotal, discount: orders.discount,
       notes: orders.notes, createdAt: orders.createdAt, updatedAt: orders.updatedAt,
       shopId: orders.shopId, agentId: orders.agentId,
@@ -74,7 +77,7 @@ export const OrderService = {
     return { data, total: Number(countResult[0]?.count ?? 0) };
   },
 
-  async create(db: Db, tenantId: number, agentId: number, input: { shopId: number; items: Array<{ productId: number; quantity: string }>; notes?: string; discount?: string; idempotencyKey?: string }) {
+  async create(db: Db, tenantId: number, agentId: number, input: { shopId: number; items: Array<{ productId: number; quantity: string }>; notes?: string; discount?: string; idempotencyKey?: string; paymentMethod?: "cash" | "transfer" | "debt" | "card" }) {
     const discount = Number(input.discount ?? "0");
 
     // #FIX1-IDEMPOTENCY: Check for existing order with same key
@@ -160,6 +163,7 @@ export const OrderService = {
 
       const [result] = await tx.insert(orders).values({
         tenantId, orderNumber, shopId: input.shopId, agentId, status: "new",
+        paymentMethod: input.paymentMethod ?? "cash",
         subtotal: subtotal.toFixed(2), discount: discount.toFixed(2), total: total.toFixed(2),
         notes: input.notes,
         idempotencyKey: input.idempotencyKey ?? null,
@@ -189,6 +193,20 @@ export const OrderService = {
             AND tenant_id = ${tenantId}
             AND warehouse_id = ${warehouseId}
         `);
+      }
+
+      // If payment method is "debt" — increase shop debt
+      if (input.paymentMethod === "debt") {
+        await tx.update(shops).set({ debt: sql`${shops.debt} + ${total}` })
+          .where(and(eq(shops.id, input.shopId), eq(shops.tenantId, tenantId)));
+        await tx.insert(payments).values({
+          tenantId,
+          shopId: input.shopId,
+          amount: total.toFixed(2),
+          type: "debt",
+          notes: `Заказ ${orderNumber} — долг`,
+          createdBy: agentId,
+        });
       }
 
       return { id, total };
@@ -238,6 +256,20 @@ export const OrderService = {
       const [order] = await tx.select().from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), eq(orders.agentId, opts.userId))).limit(1);
       if (!order) throw new Error("Заказ не найден");
       if (order.status !== "new") throw new Error("Можно отменить только новые заказы");
+
+      // If order was "debt" — reverse the debt increase
+      if (order.paymentMethod === "debt") {
+        await tx.update(shops).set({ debt: sql`GREATEST(${shops.debt} - ${order.total}, 0)` })
+          .where(and(eq(shops.id, order.shopId), eq(shops.tenantId, tenantId)));
+        await tx.insert(payments).values({
+          tenantId,
+          shopId: order.shopId,
+          amount: order.total,
+          type: "payment",
+          notes: `Отмена заказа ${order.orderNumber} — возврат долга`,
+          createdBy: opts.userId,
+        });
+      }
 
       // Get default warehouse
       const [defaultWh] = await tx.select({ id: warehouses.id })

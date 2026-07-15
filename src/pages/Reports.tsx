@@ -5,7 +5,7 @@ import { useLang } from "@/i18n";
 import { format, subDays } from "date-fns";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Legend, Cell,
+  ResponsiveContainer, Legend, Cell, PieChart, Pie,
 } from "recharts";
 import {
   Users, MapPin, ClipboardList, TrendingUp, Activity, FileDown, Printer,
@@ -23,6 +23,16 @@ const COLORS = {
   textTertiary: "var(--color-text-tertiary, #98a0b8)", border: "var(--color-border, #f0f3f8)",
 };
 const SHADOW = "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04))";
+
+const PAYMENT_COLORS: Record<string, string> = {
+  cash: "#34c473", transfer: "#4b6cf6", debt: "#e8a830", card: "#9b59b6",
+};
+const PAYMENT_LABELS: Record<string, { ru: string; uz: string }> = {
+  cash:     { ru: "Наличные",     uz: "Naqd" },
+  transfer: { ru: "Перечисление", uz: "O'tkazma" },
+  debt:     { ru: "Долг",         uz: "Qarz" },
+  card:     { ru: "Карта",        uz: "Plastik karta" },
+};
 
 type TabKey = "overview" | "sales" | "agents";
 
@@ -213,6 +223,7 @@ export default function Reports() {
   const { data: byShop } = trpc.analytics.salesByShop.useQuery({ dateFrom: from, dateTo: to });
   const { data: topProds } = trpc.analytics.topProducts.useQuery({ dateFrom: from, dateTo: to });
   const { data: agents } = trpc.reports.getAgentPerformance.useQuery({ days });
+  const { data: paymentBreakdown } = trpc.analytics.pnlByPaymentMethod.useQuery({ from, to });
 
   const shopChartData = (byShop ?? []).map(s => ({
     name: (s.shopName ?? "—").slice(0, 14), revenue: Number(s.revenue), fullName: s.shopName ?? "—",
@@ -421,6 +432,92 @@ export default function Reports() {
               </div>
             )}
           </GlassPanel>
+
+          {/* Payment Method Breakdown */}
+          {paymentBreakdown && paymentBreakdown.length > 0 && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "20px" }}>
+              {/* Pie Chart */}
+              <GlassPanel>
+                <h2 style={{ fontFamily: F.display, fontSize: "15px", fontWeight: 600, color: COLORS.textPrimary, margin: "0 0 16px" }}>
+                  {t("Методы оплаты", "To'lov usullari")}
+                </h2>
+                <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
+                  <div style={{ width: "160px", height: "160px", flexShrink: 0 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={paymentBreakdown.map(r => ({
+                            name: PAYMENT_LABELS[r.paymentMethod]?.[lang] ?? r.paymentMethod,
+                            value: r.revenue,
+                            fill: PAYMENT_COLORS[r.paymentMethod] ?? COLORS.primary,
+                          }))}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={40}
+                          outerRadius={70}
+                          paddingAngle={2}
+                          dataKey="value"
+                        />
+                        <Tooltip
+                          contentStyle={{ background: COLORS.surface, border: "none", borderRadius: 12, boxShadow: "0 4px 12px rgba(0,0,0,.08)" }}
+                          formatter={(value: number) => fmt(value)}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px", flex: 1 }}>
+                    {paymentBreakdown.map(r => {
+                      const total = paymentBreakdown.reduce((s, x) => s + x.revenue, 0);
+                      const pct = total > 0 ? (r.revenue / total) * 100 : 0;
+                      return (
+                        <div key={r.paymentMethod} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: PAYMENT_COLORS[r.paymentMethod], flexShrink: 0 }} />
+                          <span style={{ fontSize: "12px", color: COLORS.textSecondary, flex: 1 }}>
+                            {PAYMENT_LABELS[r.paymentMethod]?.[lang] ?? r.paymentMethod}
+                          </span>
+                          <span style={{ fontSize: "12px", fontWeight: 600, color: COLORS.textPrimary }}>{pct.toFixed(0)}%</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </GlassPanel>
+
+              {/* Table */}
+              <GlassPanel>
+                <h2 style={{ fontFamily: F.display, fontSize: "15px", fontWeight: 600, color: COLORS.textPrimary, margin: "0 0 16px" }}>
+                  {t("Детали по методам", "Usullar bo'yicha tafsilotlar")}
+                </h2>
+                <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
+                  <thead>
+                    <tr>
+                      <th style={thStyle}>{t("Метод", "Usul")}</th>
+                      <th style={{ ...thStyle, textAlign: "right" }}>{t("Выручка", "Tushum")}</th>
+                      <th style={{ ...thStyle, textAlign: "right" }}>{t("Заказов", "Buyurtma")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paymentBreakdown.map(r => (
+                      <tr key={r.paymentMethod} style={{ transition: "background 0.15s" }}
+                        onMouseEnter={e => (e.currentTarget.style.background = "rgba(75,108,246,0.02)")}
+                        onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                        <td style={tdStyle}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: PAYMENT_COLORS[r.paymentMethod] }} />
+                            <span style={{ fontSize: "13px", fontWeight: 500 }}>
+                              {PAYMENT_LABELS[r.paymentMethod]?.[lang] ?? r.paymentMethod}
+                            </span>
+                          </div>
+                        </td>
+                        <td style={{ ...tdStyle, textAlign: "right", fontWeight: 600 }}>{fmt(r.revenue)}</td>
+                        <td style={{ ...tdStyle, textAlign: "right" }}>{r.orderCount}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </GlassPanel>
+            </div>
+          )}
         </div>
       )}
 

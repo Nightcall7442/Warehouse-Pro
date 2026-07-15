@@ -141,6 +141,7 @@ export const orders = mysqlTable("orders", {
   shopId:      bigint("shop_id", { mode: "number", unsigned: true }).notNull().references(() => shops.id),
   agentId:     bigint("agent_id", { mode: "number", unsigned: true }).notNull().references(() => users.id),
   status:      mysqlEnum("status", ["new", "processing", "completed", "cancelled"]).default("new").notNull(),
+  paymentMethod: mysqlEnum("payment_method", ["cash", "transfer", "debt", "card"]).default("cash").notNull(),
   subtotal:    decimal("subtotal", { precision: 12, scale: 2 }).default("0.00").notNull(),
   discount:    decimal("discount", { precision: 12, scale: 2 }).default("0.00").notNull(),
   total:       decimal("total", { precision: 12, scale: 2 }).default("0.00").notNull(),

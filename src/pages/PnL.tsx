@@ -11,7 +11,7 @@ import {
 import { ProgressRing } from "@/components/ProgressRing";
 import {
   Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  CartesianGrid, Legend, ComposedChart, Line, ReferenceLine,
+  CartesianGrid, Legend, ComposedChart, Line, ReferenceLine, BarChart, Cell,
 } from "recharts";
 
 type Range = "7d" | "30d" | "90d" | "12m" | "ytd" | "custom";
@@ -25,6 +25,16 @@ const COLORS = {
   textTertiary: "var(--color-text-tertiary, #98a0b8)", border: "var(--color-border, #f0f3f8)",
 };
 const SHADOW = "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04))";
+
+const PAYMENT_COLORS: Record<string, string> = {
+  cash: "#34c473", transfer: "#4b6cf6", debt: "#e8a830", card: "#9b59b6",
+};
+const PAYMENT_LABELS: Record<string, { ru: string; uz: string }> = {
+  cash:     { ru: "Наличные",     uz: "Naqd" },
+  transfer: { ru: "Перечисление", uz: "O'tkazma" },
+  debt:     { ru: "Долг",         uz: "Qarz" },
+  card:     { ru: "Карта",        uz: "Plastik karta" },
+};
 
 function DateInput({ value, onChange, label }: { value: string; onChange: (v: string) => void; label: string }) {
   return (
@@ -148,6 +158,8 @@ export default function PnL() {
 
   const cogsByProduct = trpc.analytics.cogsByProduct.useQuery({ dateFrom: from, dateTo: to });
   const arrivals = trpc.arrival.list.useQuery({ page: 1, pageSize: 1000 });
+  const paymentBreakdown = trpc.analytics.pnlByPaymentMethod.useQuery({ from, to });
+  const paymentTrend = trpc.analytics.paymentMethodTrend.useQuery({ from, to });
 
   const current = data?.current;
   const deltas = data?.deltas;
@@ -210,6 +222,20 @@ export default function PnL() {
           "Себестоимость": cost.toFixed(0),
           Прибыль: profit.toFixed(0),
           "Маржа %": `${margin.toFixed(0)}%`,
+        });
+      });
+    }
+    if (paymentBreakdown.data && paymentBreakdown.data.length > 0) {
+      rows.push({ Показатель: "" }, { Показатель: "--- ПО МЕТОДАМ ОПЛАТЫ ---" });
+      paymentBreakdown.data.forEach(row => {
+        const label = PAYMENT_LABELS[row.paymentMethod]?.ru ?? row.paymentMethod;
+        rows.push({
+          Показатель: label,
+          Выручка: row.revenue.toFixed(0),
+          "Себестоимость": row.cogs.toFixed(0),
+          Прибыль: row.grossProfit.toFixed(0),
+          "Маржа %": `${row.grossMarginPct.toFixed(0)}%`,
+          "Заказов": row.orderCount,
         });
       });
     }
@@ -450,6 +476,122 @@ export default function PnL() {
           </div>
         </div>
       </div>
+
+      {/* Payment Method Breakdown */}
+      {paymentBreakdown.data && paymentBreakdown.data.length > 0 && (
+        <div className="neo-card" style={{ padding: "24px" }}>
+          <h2 style={{ fontFamily: F.display, fontSize: "16px", fontWeight: 600, color: COLORS.textPrimary, margin: "0 0 20px" }}>
+            {t("Разбивка по методам оплаты", "To'lov usullari bo'yicha")}
+          </h2>
+
+          {/* Table */}
+          <div style={{ overflowX: "auto", marginBottom: "24px" }}>
+            <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
+              <thead>
+                <tr>
+                  <th style={thStyle}>{t("Метод оплаты", "To'lov usuli")}</th>
+                  <th style={{ ...thStyle, textAlign: "right" }}>{t("Выручка", "Tushum")}</th>
+                  <th style={{ ...thStyle, textAlign: "right" }}>{t("Себестоимость", "Tannarx")}</th>
+                  <th style={{ ...thStyle, textAlign: "right" }}>{t("Прибыль", "Foyda")}</th>
+                  <th style={{ ...thStyle, textAlign: "right" }}>{t("Маржа", "Marja")}</th>
+                  <th style={{ ...thStyle, textAlign: "right" }}>{t("Заказов", "Buyurtma")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paymentBreakdown.data.map((row) => (
+                  <tr key={row.paymentMethod} style={{ transition: "background 0.15s" }}
+                    onMouseEnter={e => (e.currentTarget.style.background = "rgba(75,108,246,0.02)")}
+                    onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                    <td style={tdStyle}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <span style={{
+                          width: "8px", height: "8px", borderRadius: "50%",
+                          background: PAYMENT_COLORS[row.paymentMethod] ?? COLORS.primary,
+                        }} />
+                        <span style={{ fontSize: "13px", fontWeight: 500 }}>
+                          {PAYMENT_LABELS[row.paymentMethod]?.[lang] ?? row.paymentMethod}
+                        </span>
+                      </div>
+                    </td>
+                    <td style={{ ...tdStyle, textAlign: "right", fontWeight: 600 }}>{fmt(row.revenue.toFixed(0))}</td>
+                    <td style={{ ...tdStyle, textAlign: "right", color: "#e85050" }}>{fmt(row.cogs.toFixed(0))}</td>
+                    <td style={{ ...tdStyle, textAlign: "right", fontWeight: 700, color: row.grossProfit >= 0 ? "#34c473" : "#e85050" }}>
+                      {fmt(row.grossProfit.toFixed(0))}
+                    </td>
+                    <td style={{ ...tdStyle, textAlign: "right" }}>
+                      <span style={{
+                        display: "inline-block", padding: "2px 8px", borderRadius: "6px", fontSize: "12px", fontWeight: 600,
+                        background: row.grossMarginPct >= 20 ? "rgba(74,222,128,0.1)" : row.grossMarginPct >= 10 ? "rgba(251,191,36,0.1)" : "rgba(232,80,80,0.1)",
+                        color: row.grossMarginPct >= 20 ? "#34c473" : row.grossMarginPct >= 10 ? "#e8a830" : "#e85050",
+                      }}>
+                        {row.grossMarginPct.toFixed(0)}%
+                      </span>
+                    </td>
+                    <td style={{ ...tdStyle, textAlign: "right" }}>{row.orderCount}</td>
+                  </tr>
+                ))}
+                {/* Total row */}
+                <tr style={{ borderTop: `2px solid ${COLORS.border}`, background: COLORS.surfaceLight }}>
+                  <td style={{ ...tdStyle, fontWeight: 700 }}>{t("ИТОГО", "JAMI")}</td>
+                  <td style={{ ...tdStyle, textAlign: "right", fontWeight: 700 }}>
+                    {fmt(paymentBreakdown.data.reduce((s, r) => s + r.revenue, 0).toFixed(0))}
+                  </td>
+                  <td style={{ ...tdStyle, textAlign: "right", fontWeight: 700, color: "#e85050" }}>
+                    {fmt(paymentBreakdown.data.reduce((s, r) => s + r.cogs, 0).toFixed(0))}
+                  </td>
+                  <td style={{ ...tdStyle, textAlign: "right", fontWeight: 700, color: "#34c473" }}>
+                    {fmt(paymentBreakdown.data.reduce((s, r) => s + r.grossProfit, 0).toFixed(0))}
+                  </td>
+                  <td style={{ ...tdStyle, textAlign: "right", fontWeight: 700 }}>
+                    {(() => {
+                      const totalRev = paymentBreakdown.data.reduce((s, r) => s + r.revenue, 0);
+                      const totalCost = paymentBreakdown.data.reduce((s, r) => s + r.cogs, 0);
+                      const margin = totalRev > 0 ? ((totalRev - totalCost) / totalRev) * 100 : 0;
+                      return `${margin.toFixed(0)}%`;
+                    })()}
+                  </td>
+                  <td style={{ ...tdStyle, textAlign: "right", fontWeight: 700 }}>
+                    {paymentBreakdown.data.reduce((s, r) => s + r.orderCount, 0)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* Stacked Bar Chart */}
+          {paymentTrend.data && paymentTrend.data.length > 0 && (
+            <div style={{ height: "300px" }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={paymentTrend.data} margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
+                  <XAxis
+                    dataKey="month"
+                    tick={{ fontSize: 11, fill: COLORS.textTertiary, fontFamily: F.body }}
+                    axisLine={{ stroke: COLORS.border }}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 11, fill: COLORS.textTertiary, fontFamily: F.body }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(v: number) => v >= 1_000_000 ? `${(v / 1_000_000).toFixed(0)}M` : v >= 1_000 ? `${(v / 1_000).toFixed(0)}K` : String(v)}
+                  />
+                  <Tooltip content={<ChartTooltip fmt={(v) => fmt(v)} />} />
+                  <Legend
+                    iconType="circle"
+                    iconSize={8}
+                    wrapperStyle={{ fontSize: "12px", fontFamily: F.body, paddingTop: "12px" }}
+                  />
+                  <Bar dataKey="cash" name={t("Наличные", "Naqd")} stackId="payment" fill="#34c473" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="transfer" name={t("Перечисление", "O'tkazma")} stackId="payment" fill="#4b6cf6" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="debt" name={t("Долг", "Qarz")} stackId="payment" fill="#e8a830" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="card" name={t("Карта", "Plastik")} stackId="payment" fill="#9b59b6" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Period Comparison */}
       {data?.previous && (

@@ -33,7 +33,29 @@ const STATUS: Record<string, { ru: string; uz: string; dot: string; bg: string; 
   cancelled:  { ru: "Отменён",     uz: "Bekor qilindi", dot: "#e85050", bg: "bg-danger/10",  text: "text-danger",  border: "border-danger/25" },
 };
 
+/* ─── Payment Method Config ─── */
+const PAYMENT_METHODS: Record<string, { ru: string; uz: string; color: string }> = {
+  cash:     { ru: "Наличные",     uz: "Naqd",       color: "#34c473" },
+  transfer: { ru: "Перечисление", uz: "O'tkazma",   color: "#4b6cf6" },
+  debt:     { ru: "Долг",         uz: "Qarz",       color: "#e8a830" },
+  card:     { ru: "Карта",        uz: "Plastik",    color: "#9b59b6" },
+};
+
 /* ─── Premium KpiCard Component ─── */
+function PaymentMethodBadge({ method, lang }: { method?: string; lang: "ru" | "uz" }) {
+  const m = PAYMENT_METHODS[method ?? "cash"];
+  if (!m) return null;
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: "4px",
+      padding: "2px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: 600,
+      background: `${m.color}15`, color: m.color,
+    }}>
+      {lang === "uz" ? m.uz : m.ru}
+    </span>
+  );
+}
+
 function KpiCard({ label, value, delta, icon, gradient, delay }: {
   label: string; value: string; delta: number | null;
   icon: React.ReactNode; gradient: string; delay: number;
@@ -290,6 +312,7 @@ export default function Orders() {
                                 {o.agentName ?? "—"} · {o.createdAt ? format(new Date(o.createdAt), "d MMM") : ""}
                               </span>
                             </div>
+                            <PaymentMethodBadge method={o.paymentMethod} lang={lang} />
                           </div>
                           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                             <span style={{ fontFamily: F.display, fontSize: "16px", fontWeight: 700, color: COLORS.textPrimary }}>
@@ -318,6 +341,7 @@ export default function Orders() {
                   t("ДАТА",   "SANA"),
                   t("МАГАЗИН","DO'KON"),
                   t("АГЕНТ",  "AGENT"),
+                  t("ОПЛАТА", "TO'LOV"),
                   t("ИТОГО",  "JAMI"),
                   t("СТАТУС", "HOLAT"),
                   t("ДЕЙСТВИЯ","AMALLAR"),
@@ -337,13 +361,13 @@ export default function Orders() {
               {isLoading
                 ? Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i} style={{ borderBottom: `1px solid ${COLORS.border}` }}>
-                      <td colSpan={7} style={{ padding: "16px" }}>
+                      <td colSpan={8} style={{ padding: "16px" }}>
                         <div style={{ height: "16px", borderRadius: "6px", background: COLORS.surfaceLight, animation: `slideUp ${0.4 + i * 0.05}s ease forwards` }} />
                       </td>
                     </tr>
                   ))
                 : data?.data.length === 0
-                ? <tr><td colSpan={7} style={{ padding: "56px 16px", textAlign: "center", color: COLORS.textSecondary, fontSize: "13px", fontFamily: F.body }}>{t("Нет заказов", "Buyurtma yo'q")}</td></tr>
+                ? <tr><td colSpan={8} style={{ padding: "56px 16px", textAlign: "center", color: COLORS.textSecondary, fontSize: "13px", fontFamily: F.body }}>{t("Нет заказов", "Buyurtma yo'q")}</td></tr>
                 : data?.data.map(o => (
                     <tr
                       key={o.id}
@@ -361,6 +385,7 @@ export default function Orders() {
                       </td>
                       <td style={{ padding: "14px 16px", fontSize: "13px", color: COLORS.textPrimary }}>{o.shopName ?? "—"}</td>
                       <td style={{ padding: "14px 16px", fontSize: "13px", color: COLORS.textSecondary }}>{o.agentName ?? "—"}</td>
+                      <td style={{ padding: "14px 16px" }}><PaymentMethodBadge method={o.paymentMethod} lang={lang} /></td>
                       <td style={{ padding: "14px 16px", fontFamily: F.display, fontSize: "13px", fontWeight: 600, color: COLORS.textPrimary }}>{fmt(o.total)}</td>
                       <td style={{ padding: "14px 16px" }}>
                         <StatusBadge status={o.status} lang={lang} />
