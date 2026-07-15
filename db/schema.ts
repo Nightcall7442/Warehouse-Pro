@@ -59,8 +59,6 @@ export const users = mysqlTable("users", {
   updatedAt:    timestamp("updatedAt").defaultNow().notNull().$onUpdate(() => new Date()),
   lastSignInAt:     timestamp("lastSignInAt").defaultNow().notNull(),
   telegramChatId:   varchar("telegram_chat_id", { length: 50 }),
-  referralCode:     varchar("referral_code", { length: 20 }).unique(),
-  referredBy:       bigint("referred_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "set null" }),
 }, (t) => ({
   // email уникален внутри тенанта, но может повторяться в разных тенантах
   emailPerTenant: uniqueIndex("uq_user_email_tenant").on(t.email, t.tenantId),
@@ -85,7 +83,7 @@ export const shops = mysqlTable("shops", {
   photoUrl:  text("photo_url"),
   gpsLat:    decimal("gps_lat", { precision: 10, scale: 8 }),
   gpsLng:    decimal("gps_lng", { precision: 11, scale: 8 }),
-  agentId:   bigint("agent_id", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "set null" }),
+  agentId:   bigint("agent_id", { mode: "number", unsigned: true }).references(() => users.id),
   debt:      decimal("debt", { precision: 12, scale: 2 }).default("0.00").notNull(),
   status:    mysqlEnum("status", ["active", "inactive"]).default("active").notNull(),
   notes:     text("notes"),
@@ -143,15 +141,15 @@ export const orders = mysqlTable("orders", {
   shopId:      bigint("shop_id", { mode: "number", unsigned: true }).notNull().references(() => shops.id),
   agentId:     bigint("agent_id", { mode: "number", unsigned: true }).notNull().references(() => users.id),
   status:      mysqlEnum("status", ["new", "processing", "completed", "cancelled"]).default("new").notNull(),
-  paymentMethod: mysqlEnum("payment_method", ["cash", "transfer", "debt", "card"]).default("cash").notNull(),
   subtotal:    decimal("subtotal", { precision: 12, scale: 2 }).default("0.00").notNull(),
   discount:    decimal("discount", { precision: 12, scale: 2 }).default("0.00").notNull(),
   total:       decimal("total", { precision: 12, scale: 2 }).default("0.00").notNull(),
   notes:       text("notes"),
   idempotencyKey: varchar("idempotency_key", { length: 64 }),
-  courierId:   bigint("courier_id", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "set null" }),
+  courierId:   bigint("courier_id", { mode: "number", unsigned: true }).references(() => users.id),
   deliveryStatus: mysqlEnum("delivery_status", ["not_assigned", "assigned", "out_for_delivery", "delivered", "failed"]).default("not_assigned").notNull(),
   deliveredAt: timestamp("delivered_at"),
+  deletedAt:   timestamp("deleted_at"),
   createdAt:   timestamp("created_at").defaultNow().notNull(),
   updatedAt:   timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
   }, (t) => ({
@@ -199,7 +197,7 @@ export const warehouses = mysqlTable("warehouses", {
   address:     varchar("address", { length: 500 }),
   city:        varchar("city", { length: 100 }),
   isDefault:   boolean("is_default").default(false).notNull(),
-  status:      mysqlEnum("status", ["active", "inactive"]).default("active").notNull(),
+  status:      varchar("status", { length: 20 }).default("active").notNull(),
   createdAt:   timestamp("created_at").defaultNow().notNull(),
   updatedAt:   timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
 }, (t) => ({
@@ -221,7 +219,7 @@ export const stockTransfers = mysqlTable("stock_transfers", {
   quantity:      decimal("quantity", { precision: 12, scale: 2 }).notNull(),
   status:        varchar("status", { length: 20 }).default("pending").notNull(),
   notes:         text("notes"),
-  createdBy:     bigint("created_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "set null" }),
+  createdBy:     bigint("created_by", { mode: "number", unsigned: true }).references(() => users.id),
   createdAt:     timestamp("created_at").defaultNow().notNull(),
   completedAt:   timestamp("completed_at"),
 }, (t) => ({
@@ -240,14 +238,14 @@ export type InsertStockTransfer = typeof stockTransfers.$inferInsert;
 export const warehouseStock = mysqlTable("warehouse_stock", {
   id:           serial("id").primaryKey(),
   tenantId:     bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id),
-  warehouseId:  bigint("warehouse_id", { mode: "number", unsigned: true }).notNull().references(() => warehouses.id, { onDelete: "cascade" }),
+  warehouseId:  bigint("warehouse_id", { mode: "number", unsigned: true }).references(() => warehouses.id),
   productId:    bigint("product_id", { mode: "number", unsigned: true }).notNull().references(() => products.id),
   currentStock: decimal("current_stock", { precision: 12, scale: 2 }).default("0.00").notNull(),
   reserved:     decimal("reserved", { precision: 12, scale: 2 }).default("0.00").notNull(),
   available:    decimal("available", { precision: 12, scale: 2 }).default("0.00").notNull(),
   updatedAt:    timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
 }, (t) => ({
-  productPerWarehouse: uniqueIndex("uq_stock_product_warehouse").on(t.productId, t.warehouseId, t.tenantId),
+  productPerTenant: uniqueIndex("uq_stock_product_tenant").on(t.productId, t.tenantId),
   tenantIdx:        index("idx_stock_tenant").on(t.tenantId),
   warehouseIdx:     index("idx_stock_warehouse").on(t.warehouseId),
 }));
@@ -337,7 +335,7 @@ export const payments = mysqlTable("payments", {
   amount:    decimal("amount", { precision: 12, scale: 2 }).notNull(),
   type:      mysqlEnum("type", ["payment", "debt"]).default("payment").notNull(),
   notes:     text("notes"),
-  createdBy: bigint("created_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "set null" }),
+  createdBy: bigint("created_by", { mode: "number", unsigned: true }).references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({
   tenantIdx: index("idx_payments_tenant").on(t.tenantId),
@@ -380,7 +378,7 @@ export const dailyPlans = mysqlTable("daily_plans", {
   planDate:  date("plan_date").notNull(),
   status:    mysqlEnum("status", ["planned", "visited", "skipped"]).default("planned").notNull(),
   notes:     text("notes"),
-  createdBy: bigint("created_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "set null" }),
+  createdBy: bigint("created_by", { mode: "number", unsigned: true }).references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
 }, (t) => ({
@@ -539,7 +537,7 @@ export type InsertTenantBranding = typeof tenantBranding.$inferInsert;
 // ============================================
 export const idMappings = mysqlTable("id_mappings", {
   id:            serial("id").primaryKey(),
-  tenantId:      bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  tenantId:      bigint("tenant_id", { mode: "number", unsigned: true }).notNull(),
   entityType:    varchar("entity_type", { length: 50 }).notNull(),
   externalId:    varchar("external_id", { length: 100 }).notNull(),
   internalId:    bigint("internal_id", { mode: "number", unsigned: true }).notNull(),
@@ -558,7 +556,7 @@ export type InsertIdMapping = typeof idMappings.$inferInsert;
 // ============================================
 export const syncStatus = mysqlTable('sync_status', {
   id:                  serial('id').primaryKey(),
-  tenantId:            bigint('tenant_id', { mode: 'number', unsigned: true }).notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId:            bigint('tenant_id', { mode: 'number', unsigned: true }).notNull(),
   entityType:          varchar('entity_type', { length: 50 }).notNull(),
   direction:           varchar('direction', { length: 20 }).notNull(),
   status:              varchar('status', { length: 20 }).notNull(),
@@ -658,7 +656,7 @@ export const apiKeys = mysqlTable("api_keys", {
   rateLimit:   int("rate_limit").default(100).notNull(),       // requests per minute
   lastUsedAt:  timestamp("last_used_at"),
   expiresAt:   timestamp("expires_at"),
-  status:      mysqlEnum("status", ["active", "inactive"]).default("active").notNull(),
+  status:      varchar("status", { length: 20 }).default("active").notNull(),
   createdAt:   timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({
   tenantIdx:  index("idx_apikey_tenant").on(t.tenantId),
