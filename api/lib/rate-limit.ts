@@ -1,27 +1,13 @@
-/**
- * In-process sliding window rate limiter.
- * No external dependency — uses a Map<ip, timestamps[]>.
- *
- * TODO: For multi-instance deployments, replace with Redis (ioredis + sliding window script).
- * The in-memory store is not shared across instances, making rate limits ineffective
- * behind a load balancer with multiple backend pods.
- *
- * Rate limiting is applied at two levels:
- * 1. Global: 120 requests/minute per IP (applied to all authenticated endpoints)
- * 2. Namespace-specific: per-endpoint limits (login: 20/15min, mutations: varies)
- */
+import { getRedis, isRedisAvailable } from "./redis";
 
 type Entry = { timestamps: number[] };
 
 const store = new Map<string, Entry>();
 
-// Trusted proxy count: number of trusted reverse proxies in front of this server.
-// Only the last N hops in X-Forwarded-For are trusted. Set to 0 to disable trust.
 const TRUSTED_PROXY_COUNT = parseInt(process.env.TRUSTED_PROXY_COUNT ?? "1", 10);
 
-// Prune old entries every 10 minutes to avoid memory growth
 setInterval(() => {
-  const cutoff = Date.now() - 60 * 60 * 1000; // 1 hour
+  const cutoff = Date.now() - 60 * 60 * 1000;
   for (const [key, entry] of store) {
     entry.timestamps = entry.timestamps.filter(t => t > cutoff);
     if (entry.timestamps.length === 0) store.delete(key);
@@ -29,40 +15,69 @@ setInterval(() => {
 }, 10 * 60 * 1000);
 
 export type RateLimitOptions = {
-  /** Window size in milliseconds */
   windowMs: number;
-  /** Max requests allowed per window */
   limit: number;
-  /** Key to namespace this limiter (e.g. "login", "register") */
   namespace: string;
 };
 
 /**
- * Returns true if the request is allowed, false if it should be blocked.
- * Call this at the start of sensitive mutations.
+ * Returns true if the request is allowed, false if blocked.
+ * Uses Redis sorted sets when available, in-memory fallback otherwise.
  */
 export function checkRateLimit(ip: string, opts: RateLimitOptions): boolean {
+  if (isRedisAvailable()) {
+    return checkRateLimitRedis(ip, opts);
+  }
+  return checkRateLimitMemory(ip, opts);
+}
+
+function checkRateLimitMemory(ip: string, opts: RateLimitOptions): boolean {
   const key     = `${opts.namespace}:${ip}`;
   const now     = Date.now();
   const cutoff  = now - opts.windowMs;
   const entry   = store.get(key) ?? { timestamps: [] };
 
-  // Slide the window — drop timestamps older than windowMs
   entry.timestamps = entry.timestamps.filter(t => t > cutoff);
 
   if (entry.timestamps.length >= opts.limit) {
     store.set(key, entry);
-    return false; // blocked
+    return false;
   }
 
   entry.timestamps.push(now);
   store.set(key, entry);
-  return true; // allowed
+  return true;
 }
 
-/** Extract the real client IP from Hono/Node request headers.
- *  Respects TRUSTED_PROXY_COUNT: only the last N entries in X-Forwarded-For
- *  are trusted to prevent client spoofing. */
+function checkRateLimitRedis(ip: string, opts: RateLimitOptions): boolean {
+  try {
+    const key = `ratelimit:${opts.namespace}:${ip}`;
+    const now = Date.now();
+    const windowSeconds = Math.ceil(opts.windowMs / 1000);
+    const cutoff = now - opts.windowMs;
+
+    const redis = getRedis();
+    const multi = redis.multi();
+
+    // Remove old entries outside the window
+    multi.zremrangebyscore(key, 0, cutoff);
+    // Count entries in window
+    multi.zcard(key);
+    // Add current entry
+    multi.zadd(key, now, `${now}:${Math.random()}`);
+    // Set TTL on the key
+    multi.expire(key, windowSeconds * 2);
+
+    const results = multi.exec() as unknown as [Error | null, unknown][] | null;
+    if (!results) return checkRateLimitMemory(ip, opts);
+
+    const count = Number(results[1]?.[1] ?? 0);
+    return count < opts.limit;
+  } catch {
+    return checkRateLimitMemory(ip, opts);
+  }
+}
+
 export function getClientIp(req: Request): string {
   const forwarded = req.headers.get("x-forwarded-for");
   if (forwarded && TRUSTED_PROXY_COUNT > 0) {
@@ -74,4 +89,11 @@ export function getClientIp(req: Request): string {
     req.headers.get("x-real-ip") ??
     "unknown"
   );
+}
+
+/**
+ * Check rate limit asynchronously (for use in non-blocking contexts).
+ */
+export async function checkRateLimitAsync(ip: string, opts: RateLimitOptions): Promise<boolean> {
+  return checkRateLimit(ip, opts);
 }

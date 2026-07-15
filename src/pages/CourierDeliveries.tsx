@@ -23,7 +23,7 @@ const DELIVERY_STATUS_LABELS: Record<string, { ru: string; uz: string }> = {
 export default function CourierDeliveries() {
   const { user } = useAuth();
   const { fmt } = useCurrency();
-  const t = useLang().t as any;
+  const { t } = useLang();
   const utils = trpc.useUtils();
   const [cashInput, setCashInput] = useState<Record<number, string>>({});
 

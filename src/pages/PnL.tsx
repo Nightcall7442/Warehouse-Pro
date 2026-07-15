@@ -186,7 +186,7 @@ export default function PnL() {
   };
 
   const handleExportExcel = () => {
-    const rows: any[] = [
+    const rows: Record<string, unknown>[] = [
       { Показатель: "Период", Значение: `${from} — ${to}` },
       { Показатель: "Выручка", Сумма: (current?.revenue ?? 0).toFixed(0) },
       { Показатель: "Скидки", Сумма: (current?.discount ?? 0).toFixed(0) },

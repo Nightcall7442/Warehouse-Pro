@@ -29,7 +29,10 @@ export const env = {
   // Database
   dbConnectionLimit:    parseInt(optional("DB_CONNECTION_LIMIT", "20"), 10),
 
-  // Cache
+  // Redis
+  redisUrl:             optional("REDIS_URL"),
+
+  // Cache (fallback for when Redis is unavailable)
   cacheMaxEntries:      parseInt(optional("CACHE_MAX_ENTRIES", "500"), 10),
   cacheDefaultTtlMs:    parseInt(optional("CACHE_DEFAULT_TTL_MS", "60000"), 10),
 

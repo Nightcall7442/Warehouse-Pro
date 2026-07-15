@@ -179,7 +179,7 @@ function ProductForm({ onSave, onCancel, isPending, lang }: { onSave: (d: Record
   );
 }
 
-const ProductCard = memo(function ProductCard({ p, onClick, onDelete, selected, onToggleSelect, lang, fmt }: { p: any; onClick:()=>void; onDelete:(id:number)=>void; selected?:boolean; onToggleSelect?:()=>void; lang:string; fmt: (v: string | number, opts?: Record<string, unknown>) => string }) {
+const ProductCard = memo(function ProductCard({ p, onClick, onDelete, selected, onToggleSelect, lang, fmt }: { p: Record<string, unknown>; onClick:()=>void; onDelete:(id:number)=>void; selected?:boolean; onToggleSelect?:()=>void; lang:string; fmt: (v: string | number, opts?: Record<string, unknown>) => string }) {
   const t = (ru:string,uz:string) => lang==="uz"?uz:ru;
   const low = Number(p.available??0) < Number(p.reorderPoint);
   const u = unitLabel(p.unit as string, lang);
@@ -410,7 +410,7 @@ export default function Products() {
       {showImport && <ExcelImport type="products" onDone={()=>{setShowImport(false);utils.product.list.invalidate();}} onCancel={()=>setShowImport(false)}/>}
 
       {/* Form Section */}
-      {showForm && <ProductForm isPending={createMutation.isPending} lang={lang} onSave={d=>createMutation.mutate(d as any)} onCancel={()=>setShowForm(false)}/>}
+      {showForm && <ProductForm isPending={createMutation.isPending} lang={lang}               onSave={d=>createMutation.mutate(d)} onCancel={()=>setShowForm(false)}/>}
 
       {/* KPI Cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>

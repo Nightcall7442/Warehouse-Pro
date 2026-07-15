@@ -5,11 +5,11 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function getGreeting(t: (ru: string, uz: string) => string): string {
+export function getGreeting(t: (key: string) => string): string {
   const hour = new Date().getHours();
   return hour < 12
-    ? t("Доброе утро", "Xayrli tong")
+    ? t("agent.goodMorning")
     : hour < 18
-    ? t("Добрый день", "Xayrli kun")
-    : t("Добрый вечер", "Xayrli kech");
+    ? t("agent.goodAfternoon")
+    : t("agent.goodEvening");
 }

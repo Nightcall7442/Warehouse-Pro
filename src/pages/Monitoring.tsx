@@ -57,7 +57,7 @@ function statusColor(code: number): string {
 }
 
 // ── Chart Tooltip ────────────────────────────────────────────────────────────
-function ChartTooltip({ active, payload, label }: any) {
+function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ dataKey?: string; name?: string; value?: number; color?: string }>; label?: string }) {
   if (!active || !payload?.length) return null;
   return (
     <div style={{
@@ -68,7 +68,7 @@ function ChartTooltip({ active, payload, label }: any) {
       <p style={{ fontSize: "11px", fontWeight: 600, color: COLORS.textTertiary, marginBottom: "8px", fontFamily: F.body, letterSpacing: "0.05em", textTransform: "uppercase" }}>
         {label}
       </p>
-      {payload.map((p: any, i: number) => (
+      {payload.map((p, i) => (
         <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "16px", marginTop: "4px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
             <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: p.color ?? "#4b6cf6" }} />
@@ -108,7 +108,7 @@ function Badge({ status, label }: { status: string; label: string }) {
 // ── KPI Card (Premium) ───────────────────────────────────────────────────────
 function KpiCard({ label, value, delta, sub, icon: Icon, gradient, delay }: {
   label: string; value: string | number; delta?: number | null;
-  sub?: string; icon: any; gradient: string; delay: number;
+  sub?: string; icon: React.ComponentType<{ size?: number; color?: string }>; gradient: string; delay: number;
 }) {
   const isPositive = delta !== null && delta !== undefined && delta > 0;
   const isNegative = delta !== null && delta !== undefined && delta < 0;
@@ -146,7 +146,7 @@ function KpiCard({ label, value, delta, sub, icon: Icon, gradient, delay }: {
 
 // ── Section (Premium) ────────────────────────────────────────────────────────
 function Section({ title, icon: Icon, children, className = "", actions, delay = 0 }: {
-  title: string; icon: any; children: React.ReactNode; className?: string;
+  title: string; icon: React.ComponentType<{ size?: number; color?: string }>; children: React.ReactNode; className?: string;
   actions?: React.ReactNode; delay?: number;
 }) {
   return (

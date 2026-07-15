@@ -1,20 +1,16 @@
 import { trpc } from "@/providers/trpc";
 import { useMemo } from "react";
 
-/**
- * Returns a formatter that uses the tenant's currency symbol from settings.
- * Falls back to "сум" / "UZS" if settings not yet loaded.
- *
- * Usage:
- *   const { fmt, symbol } = useCurrency();
- *   fmt(12500)        →  "12 500 сум"
- *   fmt(12500, true)  →  "12.5K сум"   (compact — for tight KPI cards)
- *   fmt(12500, { decimals: 2 }) → "12 500.00 сум"
- */
+interface SettingsData {
+  currencySymbol?: string;
+  currency?: string;
+  symbolPosition?: "before" | "after";
+}
+
 export function useCurrency() {
   const { data: settings } = trpc.settings.get.useQuery(undefined, {
     staleTime: 1000 * 60 * 10,
-  }) as { data: any };
+  }) as { data: SettingsData | null };
 
   const symbol   = settings?.currencySymbol ?? "сум";
   const currency = settings?.currency       ?? "UZS";

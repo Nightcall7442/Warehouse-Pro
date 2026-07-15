@@ -309,8 +309,8 @@ export default function Arrivals() {
   const { lang } = useLang();
   const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);
 
-  const { data, isLoading } = trpc.arrival.list.useQuery({ page, pageSize: 25, status: (status || undefined) as any }) as { data: any; isLoading: boolean };
-  const { data: all } = trpc.arrival.list.useQuery({ page: 1, pageSize: 500 }) as { data: any };
+  const { data, isLoading } = trpc.arrival.list.useQuery({ page, pageSize: 25, status: (status || undefined) as "pending" | "unloading" | "completed" | undefined });
+  const { data: all } = trpc.arrival.list.useQuery({ page: 1, pageSize: 500 });
   const utils = trpc.useUtils();
 
   const createMutation = trpc.arrival.create.useMutation({

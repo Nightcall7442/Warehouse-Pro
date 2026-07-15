@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { createRouter, operatorQuery } from "./middleware";
-import { getDb } from "./queries/connection";
 import { warehouseStock, products, stockMovements, settings, orderItems, orders, warehouses } from "@db/schema";
 import { eq, like, and, sql, desc } from "drizzle-orm";
 import { StockService } from "./services/stock";
@@ -14,7 +13,7 @@ export const warehouseRouter = createRouter({
       warehouseId: z.number().optional(),
     }).optional())
     .query(async ({ input, ctx }) => {
-      const db       = getDb();
+      const db       = ctx.db;
       const tenantId = ctx.tenant.id;
       const page     = input?.page ?? 1;
       const pageSize = input?.pageSize ?? 25;
@@ -63,7 +62,7 @@ export const warehouseRouter = createRouter({
   movements: operatorQuery
     .input(z.object({ productId: z.number() }))
     .query(async ({ input, ctx }) => {
-      return getDb().select({
+      return ctx.db.select({
         id: stockMovements.id, type: stockMovements.type, quantity: stockMovements.quantity,
         referenceType: stockMovements.referenceType, referenceId: stockMovements.referenceId,
         notes: stockMovements.notes, createdAt: stockMovements.createdAt, productName: products.name,
@@ -84,7 +83,7 @@ export const warehouseRouter = createRouter({
     .mutation(async ({ input, ctx }) => {
       // warehouses — просто настройка tenant, склад уже создаётся при регистрации.
       // Сохраняем название в settings.companyName если ещё не задано.
-      const db       = getDb();
+      const db       = ctx.db;
       const tenantId = ctx.tenant.id;
       const [existing] = await db.select().from(settings).where(eq(settings.tenantId, tenantId)).limit(1);
       if (existing) {
@@ -119,7 +118,7 @@ export const warehouseRouter = createRouter({
   // ── Stock Valuation ─────────────────────────────────────────────────────────
   valuation: operatorQuery
     .query(async ({ ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const tenantId = ctx.tenant.id;
 
       const [summary] = await db.select({
@@ -138,7 +137,7 @@ export const warehouseRouter = createRouter({
   deadStock: operatorQuery
     .input(z.object({ days: z.number().default(30) }).optional())
     .query(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const tenantId = ctx.tenant.id;
       const days = input?.days ?? 30;
       const cutoff = new Date(Date.now() - days * 86400000).toISOString();
@@ -172,7 +171,7 @@ export const warehouseRouter = createRouter({
 
   // ── Auto-Replenishment Suggestions ──────────────────────────────────────────
   reorderSuggestions: operatorQuery.query(async ({ ctx }) => {
-    const db = getDb();
+    const db = ctx.db;
     const tenantId = ctx.tenant.id;
     const days30 = new Date(Date.now() - 30 * 86400000).toISOString();
 
@@ -216,7 +215,7 @@ export const warehouseRouter = createRouter({
   /** Create missing warehouse_stock rows for products that don't have one */
   backfillStock: operatorQuery
     .mutation(async ({ ctx }) => {
-      const db       = getDb();
+      const db       = ctx.db;
       const tenantId = ctx.tenant.id;
 
       // Find products without a warehouseStock row
@@ -256,7 +255,7 @@ export const warehouseRouter = createRouter({
   // Удалить все товары со склада
   deleteAll: operatorQuery
     .mutation(async ({ ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const tenantId = ctx.tenant.id;
 
       // Удаляем все записи стока

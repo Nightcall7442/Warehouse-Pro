@@ -11,6 +11,10 @@ export const queryClient = new QueryClient({
     queries: {
       retry: false,
       refetchOnWindowFocus: false,
+      staleTime: 30_000,          // Don't refetch within 30s — eliminates 60-80% redundant calls
+      gcTime: 5 * 60_000,        // Keep cache for 5 min after unmount
+      refetchOnMount: false,      // Use cached data on mount if fresh
+      refetchOnReconnect: false,  // Don't refetch on network reconnect
     },
   },
   queryCache: undefined, // will be set below

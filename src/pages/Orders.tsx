@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { useCurrency } from "@/hooks/useCurrency";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
@@ -122,10 +122,15 @@ export default function Orders() {
   const { data, isLoading } = trpc.order.list.useQuery({
     page, pageSize: 25,
     search: search || undefined,
-    status: (status || undefined) as any,
+    status: (status || undefined) as "new" | "processing" | "completed" | "cancelled" | undefined,
   });
 
-  const { data: allOrders } = trpc.order.list.useQuery({ page: 1, pageSize: 1000 });
+  // Only fetch all orders when user clicks export — not on every mount
+  const [showExport, setShowExport] = useState(false);
+  const { data: allOrders } = trpc.order.list.useQuery(
+    { page: 1, pageSize: 1000 },
+    { enabled: showExport, staleTime: 60_000 }
+  );
 
   const updateStatus = trpc.order.updateStatus.useMutation({
     onSuccess: () => { utils.order.list.invalidate(); notify.success("Заказ обновлён"); },
@@ -133,8 +138,12 @@ export default function Orders() {
   });
 
   const handleExport = useCallback(() => {
-    if (!allOrders?.data) return;
-    exportToExcel(formatOrdersForExport(allOrders.data), "orders-export");
+    if (allOrders?.data) {
+      exportToExcel(formatOrdersForExport(allOrders.data), "orders-export");
+      setShowExport(false);
+    } else {
+      setShowExport(true);
+    }
   }, [allOrders?.data]);
 
   const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);

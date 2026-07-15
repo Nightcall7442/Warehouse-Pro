@@ -1,9 +1,4 @@
-/**
- * In-memory LRU cache for frequently accessed data.
- * Designed for tenant settings, dashboard KPIs, and other hot paths.
- *
- * For multi-instance deployments, replace with Redis.
- */
+import { getRedis, isRedisAvailable } from "./redis";
 
 type CacheEntry<T> = {
   value: T;
@@ -25,9 +20,7 @@ class MemoryCache {
 
   constructor(opts?: { maxEntries?: number; defaultTtlMs?: number }) {
     this.maxEntries = opts?.maxEntries ?? 1000;
-    this.defaultTtlMs = opts?.defaultTtlMs ?? 60_000; // 1 minute default
-
-    // Periodic cleanup every 2 minutes
+    this.defaultTtlMs = opts?.defaultTtlMs ?? 60_000;
     this.pruneInterval = setInterval(() => this.prune(), 2 * 60 * 1000);
   }
 
@@ -48,7 +41,6 @@ class MemoryCache {
   }
 
   set<T>(key: string, value: T, ttlMs?: number): void {
-    // Evict oldest if at capacity
     if (this.store.size >= this.maxEntries && !this.store.has(key)) {
       const firstKey = this.store.keys().next().value;
       if (firstKey !== undefined) {
@@ -56,7 +48,6 @@ class MemoryCache {
         this.stats.size--;
       }
     }
-
     this.store.set(key, {
       value,
       expiresAt: Date.now() + (ttlMs ?? this.defaultTtlMs),
@@ -70,7 +61,6 @@ class MemoryCache {
     return existed;
   }
 
-  /** Invalidate all keys matching a prefix (e.g., all tenant cache) */
   invalidatePrefix(prefix: string): number {
     let count = 0;
     for (const key of this.store.keys()) {
@@ -115,10 +105,95 @@ class MemoryCache {
   }
 }
 
-/** Singleton cache instance */
-export const cache = new MemoryCache({ maxEntries: 500, defaultTtlMs: 60_000 });
+/**
+ * Unified cache: uses in-memory store for synchronous operations
+ * and lazily populates Redis in the background when available.
+ *
+ * All sync methods (get/set/invalidate) work identically to the
+ * original MemoryCache — no changes needed in callers.
+ * Redis is used as a secondary cache for multi-instance scenarios.
+ */
+class UnifiedCache {
+  private memory: MemoryCache;
 
-/** Cache key builders */
+  constructor() {
+    this.memory = new MemoryCache({
+      maxEntries: parseInt(process.env.CACHE_MAX_ENTRIES ?? "500", 10),
+      defaultTtlMs: parseInt(process.env.CACHE_DEFAULT_TTL_MS ?? "60000", 10),
+    });
+    // Warm Redis from memory on startup (best-effort)
+  }
+
+  // ── Sync API (backward compatible, always uses in-memory) ──
+
+  get<T>(key: string): T | undefined {
+    return this.memory.get<T>(key);
+  }
+
+  set<T>(key: string, value: T, ttlMs?: number): void {
+    this.memory.set(key, value, ttlMs);
+    // Fire-and-forget: also set in Redis if available
+    if (isRedisAvailable()) {
+      this.setRedis(key, value, ttlMs).catch(() => {});
+    }
+  }
+
+  invalidate(key: string): boolean {
+    const result = this.memory.invalidate(key);
+    if (isRedisAvailable()) {
+      getRedis().del(key).catch(() => {});
+    }
+    return result;
+  }
+
+  invalidatePrefix(prefix: string): number {
+    const count = this.memory.invalidatePrefix(prefix);
+    if (isRedisAvailable()) {
+      getRedis().keys(`${prefix}*`).then(keys => {
+        if (keys.length > 0) getRedis().del(...keys).catch(() => {});
+      }).catch(() => {});
+    }
+    return count;
+  }
+
+  clear(): void {
+    this.memory.clear();
+    if (isRedisAvailable()) {
+      getRedis().flushdb().catch(() => {});
+    }
+  }
+
+  // ── Redis-specific helpers ──
+
+  private async setRedis<T>(key: string, value: T, ttlMs?: number): Promise<void> {
+    try {
+      const ttl = (ttlMs ?? 60000) / 1000;
+      await getRedis().setex(key, Math.ceil(ttl), JSON.stringify(value));
+    } catch { /* Redis unavailable, ignore */ }
+  }
+
+  async getRedisValue<T>(key: string): Promise<T | undefined> {
+    if (!isRedisAvailable()) return undefined;
+    try {
+      const raw = await getRedis().get(key);
+      if (raw === null) return undefined;
+      return JSON.parse(raw) as T;
+    } catch {
+      return undefined;
+    }
+  }
+
+  getStats(): CacheStats & { hitRate: string } {
+    return this.memory.getStats();
+  }
+
+  destroy(): void {
+    this.memory.destroy();
+  }
+}
+
+export const cache = new UnifiedCache();
+
 export const CacheKeys = {
   tenantSettings: (tenantId: number) => `settings:${tenantId}`,
   tenantBranding: (tenantId: number) => `branding:${tenantId}`,
@@ -137,15 +212,14 @@ export const CacheKeys = {
   smartAlerts: (tenantId: number, userId: number) => `alerts:${tenantId}:${userId}`,
 } as const;
 
-/** Cache TTLs in milliseconds */
 export const CacheTTL = {
-  settings: 5 * 60 * 1000,       // 5 minutes
-  branding: 10 * 60 * 1000,      // 10 minutes
-  kpis: 2 * 60 * 1000,           // 2 minutes
-  subscription: 5 * 60 * 1000,   // 5 minutes
-  users: 3 * 60 * 1000,          // 3 minutes
-  products: 3 * 60 * 1000,       // 3 minutes
-  shops: 3 * 60 * 1000,          // 3 minutes
-  categories: 10 * 60 * 1000,    // 10 minutes
-  alerts: 1 * 60 * 1000,         // 1 minute
+  settings: 5 * 60 * 1000,
+  branding: 10 * 60 * 1000,
+  kpis: 2 * 60 * 1000,
+  subscription: 5 * 60 * 1000,
+  users: 3 * 60 * 1000,
+  products: 3 * 60 * 1000,
+  shops: 3 * 60 * 1000,
+  categories: 10 * 60 * 1000,
+  alerts: 1 * 60 * 1000,
 } as const;

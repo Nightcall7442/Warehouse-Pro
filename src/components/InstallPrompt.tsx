@@ -4,7 +4,7 @@ import { Download, X } from "lucide-react";
 const DISMISS_KEY = "pwa_prompt_dismissed_until";
 
 export function InstallPrompt() {
-  const [prompt, setPrompt]     = useState<any>(null);
+  const [prompt, setPrompt]     = useState<Event | null>(null);
   const [visible, setVisible]   = useState(false);
 
   useEffect(() => {
@@ -12,7 +12,7 @@ export function InstallPrompt() {
     const until = localStorage.getItem(DISMISS_KEY);
     if (until && new Date(until) > new Date()) return;
 
-    const handler = (e: any) => {
+    const handler = (e: Event) => {
       e.preventDefault();
       setPrompt(e);
       setVisible(true);

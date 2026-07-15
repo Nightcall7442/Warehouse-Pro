@@ -100,7 +100,7 @@ function CompanySettings() {
   type CompanyForm = Record<string, unknown>;
   const [form, setForm] = useState<CompanyForm | null>(null);
 
-  if (!isLoading && settings && !form) setForm(settings as any);
+  if (!isLoading && settings && !form) setForm(settings as unknown as CompanyForm);
 
   const saveMutation = trpc.settings.update.useMutation({
     onSuccess: () => { utils.settings.get.invalidate(); notify.success(t("Настройки сохранены", "Sozlamalar saqlandi")); },
@@ -196,9 +196,9 @@ function ProfileSettings() {
   const [form, setForm] = useState({ name: user?.name ?? "", email: user?.email ?? "" });
   const [pwForm, setPwForm] = useState({ current: "", next: "", confirm: "" });
 
-  const updateProfile = (trpc.user as any).updateProfile.useMutation({
+  const updateProfile = trpc.user.updateMe.useMutation({
     onSuccess: () => { utils.auth.me.invalidate(); notify.success(t("Профиль обновлён", "Profil yangilandi")); },
-    onError:   (e: any) => notify.error(e.message),
+    onError:   (e) => notify.error(e.message),
   });
   const changePassword = trpc.user.changePassword.useMutation({
     onSuccess: () => { setPwForm({ current: "", next: "", confirm: "" }); notify.success(t("Пароль изменён", "Parol o'zgartirildi")); },
@@ -219,7 +219,7 @@ function ProfileSettings() {
             <input type="email" className="neo-input w-full" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
           </div>
         </div>
-        <button onClick={() => updateProfile.mutate(form)} disabled={updateProfile.isPending}
+        <button onClick={() => updateProfile.mutate({ name: form.name })} disabled={updateProfile.isPending}
           className="neo-btn-primary flex items-center gap-2 disabled:opacity-40">
           {updateProfile.isPending && <Loader2 size={14} className="animate-spin" />}
           {t("Сохранить профиль", "Profilni saqlash")}

@@ -179,7 +179,7 @@ export function exportToCSV(rows: Row[], filename: string) {
 
 // ── Форматтеры ────────────────────────────────────────────────────────────────
 
-export function formatOrdersForExport(orders: any[]) {
+export function formatOrdersForExport(orders: Record<string, unknown>[]) {
   return orders.map(o => ({
     "Заказ №":   o.orderNumber,
     "Дата":      o.createdAt ? new Date(o.createdAt).toLocaleDateString("ru-RU") : "",
@@ -193,7 +193,7 @@ export function formatOrdersForExport(orders: any[]) {
   }));
 }
 
-export function formatArrivalsForExport(arrivals: any[]) {
+export function formatArrivalsForExport(arrivals: Record<string, unknown>[]) {
   return arrivals.map(a => ({
     "Приход №":      a.arrivalNumber,
     "Дата":          a.arrivalDate ? new Date(a.arrivalDate).toLocaleDateString("ru-RU") : "",
@@ -209,7 +209,7 @@ export function formatArrivalsForExport(arrivals: any[]) {
   }));
 }
 
-export function formatWarehouseForExport(stock: any[]) {
+export function formatWarehouseForExport(stock: Record<string, unknown>[]) {
   return stock.map(s => ({
     "Товар":         s.productName ?? "",
     "Код":           s.productCode ?? "",
@@ -226,7 +226,7 @@ export function formatWarehouseForExport(stock: any[]) {
   }));
 }
 
-export function formatMovementsForExport(movements: any[]) {
+export function formatMovementsForExport(movements: Record<string, unknown>[]) {
   return movements.map(m => ({
     "Дата":      m.createdAt ? new Date(m.createdAt).toLocaleDateString("ru-RU") : "",
     "Товар":     m.productName ?? "",
@@ -237,7 +237,7 @@ export function formatMovementsForExport(movements: any[]) {
   }));
 }
 
-export function formatAgentsForExport(agents: any[], days: number) {
+export function formatAgentsForExport(agents: Record<string, unknown>[], days: number) {
   return agents.map((a, i) => ({
     "№":       i + 1,
     "Агент":   a.agentName ?? `Agent #${a.agentId}`,
@@ -248,7 +248,7 @@ export function formatAgentsForExport(agents: any[], days: number) {
   }));
 }
 
-export function formatShopsForExport(shops: any[]) {
+export function formatShopsForExport(shops: Record<string, unknown>[]) {
   return shops.map(s => ({
     "Название":    s.name ?? "",
     "Владелец":    s.ownerName ?? "",
@@ -262,7 +262,7 @@ export function formatShopsForExport(shops: any[]) {
   }));
 }
 
-export function formatProductsForExport(products: any[]) {
+export function formatProductsForExport(products: Record<string, unknown>[]) {
   return products.map(p => ({
     "Код":         p.code ?? "",
     "Штрихкод":    p.barcode ?? "",
@@ -278,7 +278,7 @@ export function formatProductsForExport(products: any[]) {
   }));
 }
 
-export function formatUsersForExport(users: any[]) {
+export function formatUsersForExport(users: Record<string, unknown>[]) {
   return users.map(u => ({
     "Имя":         u.name ?? "",
     "Email":       u.email ?? "",
@@ -289,7 +289,7 @@ export function formatUsersForExport(users: any[]) {
   }));
 }
 
-export function formatStockValuationForExport(stock: any[]) {
+export function formatStockValuationForExport(stock: Record<string, unknown>[]) {
   return stock.map(s => ({
     "Товар":         s.productName ?? "",
     "Код":           s.productCode ?? "",
@@ -302,7 +302,7 @@ export function formatStockValuationForExport(stock: any[]) {
   }));
 }
 
-export function formatDeadStockForExport(items: any[]) {
+export function formatDeadStockForExport(items: Record<string, unknown>[]) {
   return items.map(s => ({
     "Товар":         s.productName ?? "",
     "Код":           s.productCode ?? "",
@@ -317,7 +317,7 @@ export function formatDeadStockForExport(items: any[]) {
   }));
 }
 
-export function formatReorderForExport(items: any[]) {
+export function formatReorderForExport(items: Record<string, unknown>[]) {
   return items.map(s => ({
     "Товар":         s.productName ?? "",
     "Код":           s.productCode ?? "",
@@ -334,7 +334,7 @@ export function formatReorderForExport(items: any[]) {
 export function formatPnLForExport(data: {
   revenue: number; cogs: number; grossProfit: number; grossMargin: number;
   transportExpenses: number; netProfit: number; netMargin: number;
-  products: any[];
+  products: Record<string, unknown>[];
 }) {
   const rows: Row[] = [
     { Показатель: "Выручка", Сумма: data.revenue.toFixed(0) },

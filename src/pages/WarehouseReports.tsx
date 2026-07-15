@@ -26,12 +26,12 @@ const THEME = {
 };
 const SHADOW = "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04))";
 
-function ChartTooltip({ active, payload, label }: any) {
+function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ dataKey?: string; name?: string; value?: number; color?: string }>; label?: string }) {
   if (!active || !payload?.length) return null;
   return (
     <div className="glass-panel p-3 text-xs" style={{ backdropFilter: "blur(16px)" }}>
       <p className="font-medium mb-1.5" style={{ color: THEME.textSecondary }}>{label}</p>
-      {payload.map((p: any, i: number) => (
+      {payload.map((p, i) => (
         <div key={i} className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full" style={{ background: p.color }} />
           <span style={{ color: THEME.textSecondary }}>{p.name}:</span>

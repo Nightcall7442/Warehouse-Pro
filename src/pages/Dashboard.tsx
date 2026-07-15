@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { trpc } from "@/providers/trpc";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useLang } from "@/i18n";
@@ -7,11 +7,41 @@ import { useNavigate } from "react-router";
 import { getGreeting } from "@/lib/utils";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
-import { ClipboardList, TrendingUp, TrendingDown, Sparkles, AlertCircle, ArrowRight, BarChart3, PieChart, Activity } from "lucide-react";
+import { ClipboardList, TrendingUp, TrendingDown, Sparkles, AlertCircle, ArrowRight, PieChart, Activity } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart as RePieChart, Pie, Cell, BarChart, Bar } from "recharts";
 import { ProgressRing } from "@/components/ProgressRing";
+import { CardDots } from "@/components/DashboardLayout";
 
 type Range = "7d" | "30d" | "month";
+
+interface DashboardKpis {
+  todayOrders: number;
+  todayRevenue: number;
+  activeAgents: number;
+  totalStock: number;
+  customerDebt: number;
+  grossMargin: number;
+}
+
+interface StatusEntry {
+  status: string;
+  count: string | number;
+}
+
+interface ActivityEntry {
+  id: number;
+  orderNumber: string;
+  status: string;
+  total: string;
+  createdAt: string;
+  agentName: string;
+}
+
+interface SmartAlert {
+  severity: string;
+  title: string;
+  message: string;
+}
 
 const STATUS_COLOR: Record<string, string> = { new: "#4b6cf6", processing: "#e8a830", completed: "#34c473", cancelled: "#e85050" };
 const STATUS_LABEL: Record<string, { ru: string; uz: string }> = {
@@ -20,17 +50,6 @@ const STATUS_LABEL: Record<string, { ru: string; uz: string }> = {
 };
 
 const CHART_COLORS = ["#4b6cf6", "#34c473", "#e8a830", "#e85050", "#8b7cf6", "#2ec4b0", "#f06895", "#f5a825"];
-
-/* ── Decorative dots ─────────────────────────────────────────────────────── */
-const CardDots = memo(function CardDots() {
-  return (
-    <div style={{ display: "flex", gap: "6px", marginBottom: "12px" }}>
-      <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-pink, #f06895)", boxShadow: "var(--shadow-xs)" }} />
-      <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-orange, #f5a825)", boxShadow: "var(--shadow-xs)" }} />
-      <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-teal, #2ec4b0)", boxShadow: "var(--shadow-xs)" }} />
-    </div>
-  );
-});
 
 /* ── Chart Tooltip ───────────────────────────────────────────────────────── */
 const ChartTooltip = memo(function ChartTooltip({ active, payload, label, fmt }: { active?: boolean; payload?: Array<{ dataKey: string; name: string; value: number; stroke: string }>; label?: string; fmt: (v: number, short?: boolean) => string }) {
@@ -103,7 +122,6 @@ function CircularKpiCard({ label, value, subValue, color, icon, delay, onClick }
 
 /* ── Bar Chart Mini ──────────────────────────────────────────────────────── */
 function MiniBarChart({ data, color }: { data: number[]; color: string }) {
-  const max = Math.max(...data, 1);
   const barData = data.map((v, i) => ({ value: v, i }));
   return (
     <ResponsiveContainer width="100%" height={60}>
@@ -121,16 +139,15 @@ function MiniBarChart({ data, color }: { data: number[]; color: string }) {
 export default function Dashboard() {
   const [range, setRange] = useState<Range>("7d");
   const { fmt } = useCurrency();
-  const { lang } = useLang();
+  const { lang, t } = useLang();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);
 
-  const { data: kpis, isLoading } = trpc.dashboard.kpis.useQuery() as { data: any; isLoading: boolean };
+  const { data: kpis, isLoading } = trpc.dashboard.kpis.useQuery() as { data: DashboardKpis | undefined; isLoading: boolean };
   const { data: trends } = trpc.dashboard.trends.useQuery({ range });
-  const { data: statusData } = trpc.dashboard.statusBreakdown.useQuery();
-  const { data: activity } = trpc.dashboard.activity.useQuery();
-  const { data: alerts } = trpc.notification.smartAlerts.useQuery();
+  const { data: statusData } = trpc.dashboard.statusBreakdown.useQuery() as { data: StatusEntry[] | undefined };
+  const { data: activity } = trpc.dashboard.activity.useQuery() as { data: ActivityEntry[] | undefined };
+  const { data: alerts } = trpc.notification.smartAlerts.useQuery() as { data: SmartAlert[] | undefined };
 
   const chartData = useMemo(() => trends?.map(tr => ({ date: format(new Date(tr.date), "dd/MM"), orders: tr.orderCount, revenue: Number(tr.revenue) })) ?? [], [trends]);
   const revenueTrend = useMemo(() => (trends ?? []).slice(-7).map(tr => Number(tr.revenue)), [trends]);
@@ -139,12 +156,12 @@ export default function Dashboard() {
   const calcDelta = useCallback((curr: number[], prev: number[]): number => { const sumPrev = prev.reduce((a, b) => a + b, 0); const sumCurr = curr.reduce((a, b) => a + b, 0); if (sumPrev === 0) return sumCurr > 0 ? 100 : 0; return Math.round(((sumCurr - sumPrev) / sumPrev) * 1000) / 10; }, []);
   const revenueDelta = useMemo(() => calcDelta(revenueTrend, prev7.map(tr => Number(tr.revenue))), [calcDelta, revenueTrend, prev7]);
   const ordersDelta = useMemo(() => calcDelta(ordersTrend, prev7.map(tr => tr.orderCount)), [calcDelta, ordersTrend, prev7]);
-  const statusTotal = useMemo(() => statusData?.reduce((s: number, d: any) => s + Number(d.count), 0) ?? 1, [statusData]);
+  const statusTotal = useMemo(() => statusData?.reduce((s, d) => s + Number(d.count), 0) ?? 1, [statusData]);
   const greeting = getGreeting(t);
 
   // Pie chart data
   const pieData = useMemo(() =>
-    statusData?.map((s: any, i: number) => ({
+    statusData?.map((s, i) => ({
       name: STATUS_LABEL[s.status ?? ""]?.[lang] ?? s.status,
       value: Number(s.count),
       color: STATUS_COLOR[s.status ?? ""] ?? CHART_COLORS[i % CHART_COLORS.length],
@@ -176,7 +193,7 @@ export default function Dashboard() {
         <div>
           <CardDots />
           <h1 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "26px", fontWeight: 700, color: "var(--color-text-primary, #2d3748)", letterSpacing: "-0.025em", margin: 0 }}>
-            {t("Главная", "Bosh sahifa")}
+            {t("dashboard.title")}
           </h1>
           <p style={{ fontSize: "13px", color: "var(--color-text-secondary, #5a6a7f)", margin: "4px 0 0" }}>
             {greeting}, {user?.name?.split(" ")[0] ?? ""} — {format(new Date(), "EEEE, d MMMM yyyy", { locale: ru })}
@@ -184,7 +201,7 @@ export default function Dashboard() {
         </div>
         <button onClick={() => navigate("/orders/new")} className="neo-btn-primary">
           <Sparkles size={16} />
-          <span>{t("Новый заказ", "Yangi buyurtma")}</span>
+          <span>{t("orders.new")}</span>
         </button>
       </div>
 
@@ -193,7 +210,7 @@ export default function Dashboard() {
         {/* Revenue */}
         <div className="kpi-hero" style={{ cursor: "pointer" }} onClick={() => navigate("/reports")}>
           <CardDots />
-          <p className="kpi-hero-label">{t("ВЫРУЧКА", "TUSHUM")}</p>
+          <p className="kpi-hero-label">{t("common.revenue")}</p>
           <p className="kpi-hero-value" style={{ fontSize: "28px", marginTop: "8px" }}>{fmt(kpis.todayRevenue, true)}</p>
           {revenueDelta !== 0 && (
             <div style={{ display: "flex", alignItems: "center", gap: "4px", marginTop: "8px" }}>
@@ -211,7 +228,7 @@ export default function Dashboard() {
         {/* Orders */}
         <div className="kpi-hero" style={{ cursor: "pointer" }} onClick={() => navigate("/orders")}>
           <CardDots />
-          <p className="kpi-hero-label">{t("ЗАКАЗЫ", "BUYURTMALAR")}</p>
+          <p className="kpi-hero-label">{t("orders.title")}</p>
           <p className="kpi-hero-value" style={{ fontSize: "28px", marginTop: "8px" }}>{kpis.todayOrders}</p>
           {ordersDelta !== 0 && (
             <div style={{ display: "flex", alignItems: "center", gap: "4px", marginTop: "8px" }}>
@@ -228,7 +245,7 @@ export default function Dashboard() {
 
         {/* Debt */}
         <CircularKpiCard
-          label={t("ДОЛГ КЛИЕНТОВ", "MIJZOZLAR QARZI")}
+          label={t("common.customerDebt")}
           value={fmt(kpis.customerDebt ?? 0, true)}
           color="var(--color-warning, #e8a830)"
           icon={<Activity size={18} color="var(--color-warning)" />}
@@ -240,7 +257,7 @@ export default function Dashboard() {
         <div className="kpi-hero" style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: "16px" }} onClick={() => navigate("/reports")}>
           <div style={{ flex: 1 }}>
             <CardDots />
-            <p className="kpi-hero-label">{t("ВАЛОВАЯ ПРИБЫЛЬ", "SOF FOYDA")}</p>
+            <p className="kpi-hero-label">{t("common.grossMargin")}</p>
             <p className="kpi-hero-value" style={{ fontSize: "28px", marginTop: "8px" }}>{(kpis.grossMargin ?? 0).toFixed(1)}%</p>
           </div>
           <div className="neo-progress-ring" style={{ width: "80px", height: "80px" }}>
@@ -250,9 +267,9 @@ export default function Dashboard() {
       </div>
 
       {/* Smart Alerts */}
-      {alerts && (alerts as any[]).length > 0 && (
+      {alerts && alerts.length > 0 && (
         <div style={{ display: "flex", gap: "12px", overflowX: "auto", paddingBottom: "4px" }}>
-          {(alerts as any[]).slice(0, 4).map((alert: any, i: any) => {
+          {alerts.slice(0, 4).map((alert, i) => {
             const colors: Record<string, { bg: string; icon: string }> = {
               info: { bg: "var(--color-info-subtle)", icon: "var(--color-info, #4a9de8)" },
               warning: { bg: "var(--color-warning-subtle)", icon: "var(--color-warning, #e8a830)" },
@@ -281,14 +298,14 @@ export default function Dashboard() {
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
             <div>
               <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 700, color: "var(--color-text-primary, #2d3748)", margin: 0 }}>
-                {t("Динамика продаж", "Sotuvlar dinamikasi")}
+                {t("dashboard.salesDynamics")}
               </h2>
               <p style={{ fontSize: "12px", color: "var(--color-text-tertiary, #8b9bb4)", margin: "3px 0 0" }}>
-                {t("Выручка и количество заказов", "Tushum va buyurtmalar soni")}
+                {t("dashboard.salesSubtitle")}
               </p>
             </div>
             <div className="range-pills">
-              {([{ key: "7d" as const, label: "7д" }, { key: "30d" as const, label: "30д" }, { key: "month" as const, label: t("Месяц", "Oy") }]).map(r => (
+              {([{ key: "7d" as const, label: "7д" }, { key: "30d" as const, label: "30д" }, { key: "month" as const, label: t("common.month") }]).map(r => (
                 <button key={r.key} onClick={() => setRange(r.key)} className={`range-pill ${range === r.key ? "active" : ""}`}>{r.label}</button>
               ))}
             </div>
@@ -309,8 +326,8 @@ export default function Dashboard() {
               <YAxis yAxisId="left" tick={{ fill: "var(--color-text-tertiary, #8b9bb4)", fontSize: 11, fontFamily: "'DM Sans', sans-serif" }} axisLine={false} tickLine={false} tickFormatter={v => fmt(v, true)} dx={-4} />
               <YAxis yAxisId="right" orientation="right" tick={{ fill: "var(--color-text-tertiary, #8b9bb4)", fontSize: 11, fontFamily: "'DM Sans', sans-serif" }} axisLine={false} tickLine={false} dx={4} />
               <Tooltip content={<ChartTooltip fmt={fmt} />} cursor={{ stroke: "var(--color-border, #c8d0dc)", strokeWidth: 1, strokeDasharray: "4 4" }} />
-              <Area yAxisId="left" type="monotone" dataKey="revenue" stroke="var(--color-primary, #4b6cf6)" strokeWidth={2.5} fill="url(#gRevenue)" name={t("Выручка", "Tushum")} dot={false} activeDot={{ r: 5, fill: "var(--color-primary, #4b6cf6)", stroke: "#fff", strokeWidth: 2 }} />
-              <Area yAxisId="right" type="monotone" dataKey="orders" stroke="var(--color-success, #34c473)" strokeWidth={2.5} fill="url(#gOrders)" name={t("Заказы", "Buyurtmalar")} dot={false} activeDot={{ r: 5, fill: "var(--color-success, #34c473)", stroke: "#fff", strokeWidth: 2 }} />
+              <Area yAxisId="left" type="monotone" dataKey="revenue" stroke="var(--color-primary, #4b6cf6)" strokeWidth={2.5} fill="url(#gRevenue)" name={t("common.revenue")} dot={false} activeDot={{ r: 5, fill: "var(--color-primary, #4b6cf6)", stroke: "#fff", strokeWidth: 2 }} />
+              <Area yAxisId="right" type="monotone" dataKey="orders" stroke="var(--color-success, #34c473)" strokeWidth={2.5} fill="url(#gOrders)" name={t("orders.title")} dot={false} activeDot={{ r: 5, fill: "var(--color-success, #34c473)", stroke: "#fff", strokeWidth: 2 }} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -320,10 +337,10 @@ export default function Dashboard() {
           <div style={{ marginBottom: "16px" }}>
             <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 700, color: "var(--color-text-primary, #2d3748)", margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
               <PieChart size={16} color="var(--color-primary)" />
-              {t("Статусы заказов", "Buyurtmalar holati")}
+              {t("dashboard.orderStatuses")}
             </h2>
             <p style={{ fontSize: "12px", color: "var(--color-text-tertiary, #8b9bb4)", margin: "3px 0 0" }}>
-              {statusTotal} {t("всего", "jami")}
+              {statusTotal} {t("common.totalCount")}
             </p>
           </div>
           <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
@@ -341,7 +358,7 @@ export default function Dashboard() {
                     animationBegin={0}
                     animationDuration={800}
                   >
-                    {pieData.map((entry: any, index: number) => (
+                    {pieData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
                     ))}
                   </Pie>
@@ -350,12 +367,12 @@ export default function Dashboard() {
               </ResponsiveContainer>
               <div className="neo-pie-chart-inner">
                 <span style={{ fontSize: "20px", fontWeight: 700, color: "var(--color-text-primary)" }}>{statusTotal}</span>
-                <span style={{ fontSize: "10px", color: "var(--color-text-tertiary)" }}>{t("заказов", "buyurtma")}</span>
+                <span style={{ fontSize: "10px", color: "var(--color-text-tertiary)" }}>{t("orders.genitive")}</span>
               </div>
             </div>
             {/* Legend */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginTop: "16px", width: "100%" }}>
-              {pieData.map((entry: any, i: number) => (
+              {pieData.map((entry, i) => (
                 <div key={i} style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }} onClick={() => navigate(`/orders?status=${entry.status}`)}>
                   <span style={{ width: "10px", height: "10px", borderRadius: "3px", background: entry.color, boxShadow: "var(--shadow-xs)", flexShrink: 0 }} />
                   <span style={{ fontSize: "11px", color: "var(--color-text-secondary)" }}>{entry.name}</span>
@@ -373,10 +390,10 @@ export default function Dashboard() {
           <div>
             <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 700, color: "var(--color-text-primary, #2d3748)", margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
               <ClipboardList size={16} color="var(--color-primary)" />
-              {t("Последние заказы", "So'nggi buyurtmalar")}
+              {t("dashboard.recentOrders")}
             </h2>
             <p style={{ fontSize: "12px", color: "var(--color-text-tertiary, #8b9bb4)", margin: "3px 0 0" }}>
-              {activity?.length ?? 0} {t("заказов", "buyurtmalar")}
+              {activity?.length ?? 0} {t("orders.genitive")}
             </p>
           </div>
           <button onClick={() => navigate("/orders")} className="neo-btn-icon">
@@ -390,11 +407,11 @@ export default function Dashboard() {
                 <ClipboardList size={20} style={{ color: "var(--color-text-tertiary, #8b9bb4)" }} />
               </div>
               <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--color-text-secondary, #5a6a7f)" }}>
-                {t("Заказов пока нет", "Hali buyurtma yo'q")}
+                {t("orders.noOrders")}
               </p>
             </div>
           ) : (
-            activity.slice(0, 8).map((e: any) => (
+            activity.slice(0, 8).map((e) => (
               <div key={e.id} onClick={() => navigate(`/orders/${e.id}`)} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px 8px", cursor: "pointer", borderRadius: "12px", transition: "all 0.15s", marginBottom: "2px" }}
                 onMouseEnter={ev => { ev.currentTarget.style.background = "rgba(75,108,246,.04)"; }}
                 onMouseLeave={ev => { ev.currentTarget.style.background = "transparent"; }}

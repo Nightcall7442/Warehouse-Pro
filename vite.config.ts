@@ -75,6 +75,8 @@ export default defineConfig({
   build: {
     outDir:      path.resolve(__dirname, "dist/public"),
     emptyOutDir: true,
+    target:      "es2022",           // Smaller output than default es2015
+    cssTarget:   "es2022",
     rollupOptions: {
       output: {
         manualChunks: {
@@ -82,6 +84,7 @@ export default defineConfig({
           "vendor-charts":   ["recharts"],
           "vendor-xlsx":     ["xlsx"],
           "vendor-ui":       ["@radix-ui/react-dialog", "@radix-ui/react-select", "@radix-ui/react-popover", "@radix-ui/react-dropdown-menu"],
+          "vendor-utils":    ["date-fns", "clsx", "tailwind-merge"],
         },
       },
     },

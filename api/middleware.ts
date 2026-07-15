@@ -1,21 +1,31 @@
 import { ErrorMessages } from "@contracts/constants";
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
+import { ZodError } from "zod";
 import type { TrpcContext } from "./context";
 import type { Role } from "@contracts/types";
 import { env } from "./lib/env";
 import { checkSubscriptionAccess } from "./lib/feature-gating";
 import { checkRateLimit, getClientIp } from "./lib/rate-limit";
+import { AppErrors } from "./lib/errors";
 
 const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
   errorFormatter: ({ shape, error }) => {
     const isInternal = error.code === "INTERNAL_SERVER_ERROR";
+
+    let message = shape.message;
+    if (error.cause instanceof ZodError) {
+      message = error.cause.errors
+        .map(e => `${e.path.join(".")}: ${e.message}`)
+        .join("; ");
+    } else if (isInternal && env.isProduction) {
+      message = "Внутренняя ошибка сервера. Попробуйте позже.";
+    }
+
     return {
       ...shape,
-      message: isInternal && env.isProduction
-        ? "Внутренняя ошибка сервера. Попробуйте позже."
-        : shape.message,
+      message,
       data: {
         ...shape.data,
         stack: env.isProduction ? undefined : shape.data.stack,
@@ -38,10 +48,7 @@ const withCorrelationId = t.middleware(async ({ ctx, next }) => {
 // ── Tenant isolation verification ────────────────────────────────────────────
 const withTenantIsolation = t.middleware(async ({ ctx, next }) => {
   if (ctx.user && !ctx.tenant) {
-    throw new TRPCError({
-      code: "UNAUTHORIZED",
-      message: "Организация не найдена. Пожалуйста, войдите заново.",
-    });
+    throw AppErrors.unauthorized("Организация не найдена. Пожалуйста, войдите заново.");
   }
   return next();
 });
@@ -52,10 +59,7 @@ const GLOBAL_RATE_LIMIT = { windowMs: 60 * 1000, limit: 120, namespace: "global"
 const withGlobalRateLimit = t.middleware(async ({ ctx, next }) => {
   const ip = getClientIp(ctx.req);
   if (!checkRateLimit(ip, GLOBAL_RATE_LIMIT)) {
-    throw new TRPCError({
-      code:    "TOO_MANY_REQUESTS",
-      message: "Слишком много запросов. Подождите минуту.",
-    });
+    throw AppErrors.tooManyRequests("Слишком много запросов. Подождите минуту.");
   }
   return next();
 });
@@ -63,7 +67,7 @@ const withGlobalRateLimit = t.middleware(async ({ ctx, next }) => {
 // ── Require auth ──────────────────────────────────────────────────────────────
 const requireAuth = t.middleware(async ({ ctx, next }) => {
   if (!ctx.user || !ctx.tenant) {
-    throw new TRPCError({ code: "UNAUTHORIZED", message: ErrorMessages.unauthenticated });
+    throw AppErrors.unauthorized(ErrorMessages.unauthenticated);
   }
   return next({ ctx: { ...ctx, user: ctx.user, tenant: ctx.tenant } });
 });
@@ -72,7 +76,7 @@ const requireAuth = t.middleware(async ({ ctx, next }) => {
 function requireRole(roles: Role[]) {
   return t.middleware(async ({ ctx, next }) => {
     if (!ctx.user || !roles.includes(ctx.user.role as Role)) {
-      throw new TRPCError({ code: "FORBIDDEN", message: ErrorMessages.insufficientRole });
+      throw AppErrors.forbidden(ErrorMessages.insufficientRole);
     }
     return next({ ctx: { ...ctx, user: ctx.user, tenant: ctx.tenant! } });
   });
@@ -84,10 +88,7 @@ const mutationRateLimit = (namespace: string, limit: number, windowMs: number = 
     if (ctx.req.method === "POST" || ctx.req.method === "PUT" || ctx.req.method === "DELETE") {
       const ip = getClientIp(ctx.req);
       if (!checkRateLimit(ip, { windowMs, limit, namespace })) {
-        throw new TRPCError({
-          code:    "TOO_MANY_REQUESTS",
-          message: "Слишком много запросов. Попробуйте позже.",
-        });
+        throw AppErrors.tooManyRequests("Слишком много запросов. Попробуйте позже.");
       }
     }
     return next();
@@ -96,14 +97,11 @@ const mutationRateLimit = (namespace: string, limit: number, windowMs: number = 
 // ── Require active subscription ───────────────────────────────────────────────
 export const requireActiveSubscription = t.middleware(async ({ ctx, next }) => {
   if (!ctx.tenant) {
-    throw new TRPCError({ code: "UNAUTHORIZED", message: ErrorMessages.unauthenticated });
+    throw AppErrors.unauthorized(ErrorMessages.unauthenticated);
   }
   const allowed = await checkSubscriptionAccess(ctx.tenant.id);
   if (!allowed) {
-    throw new TRPCError({
-      code:    "FORBIDDEN",
-      message: "Требуется активная подписка. Обновите тариф в настройках.",
-    });
+    throw AppErrors.forbidden("Требуется активная подписка. Обновите тариф в настройках.");
   }
   return next({ ctx });
 });

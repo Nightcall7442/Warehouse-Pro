@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { createRouter, operatorQuery } from "./middleware";
-import { getDb } from "./queries/connection";
 import { arrivals, arrivalItems, products } from "@db/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { sanitizeString } from "./lib/sanitize";
@@ -13,7 +12,7 @@ export const arrivalRouter = createRouter({
       status:   z.enum(["pending", "unloading", "completed"]).optional(),
     }).optional())
     .query(async ({ input, ctx }) => {
-      const db       = getDb();
+      const db       = ctx.db;
       const tenantId = ctx.tenant.id;
       const page     = input?.page ?? 1;
       const pageSize = input?.pageSize ?? 25;
@@ -39,7 +38,7 @@ export const arrivalRouter = createRouter({
   getById: operatorQuery
     .input(z.object({ id: z.number() }))
     .query(async ({ input, ctx }) => {
-      const db       = getDb();
+      const db       = ctx.db;
       const tenantId = ctx.tenant.id;
       const [arrival] = await db.select({
         id: arrivals.id, arrivalNumber: arrivals.arrivalNumber, truckId: arrivals.truckId,
@@ -78,8 +77,8 @@ export const arrivalRouter = createRouter({
       items:       z.array(z.object({ productId: z.number(), quantity: z.string(), condition: z.string().optional() })).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db           = getDb();
-      const tenantId     = ctx.tenant.id;
+      const db       = ctx.db;
+      const tenantId = ctx.tenant.id;
       // SECURITY FIX 1.1: Use random arrival number instead of predictable timestamp
       // EXPANDED: 12 hex chars = 48 bits entropy, safe for billions of arrivals
       const raw = crypto.randomUUID().replace(/-/g, "");
@@ -127,7 +126,7 @@ export const arrivalRouter = createRouter({
       notes:       z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db       = getDb();
+      const db       = ctx.db;
       const tenantId = ctx.tenant.id;
       const { id, ...data } = input;
 

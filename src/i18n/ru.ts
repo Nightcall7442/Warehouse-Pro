@@ -52,11 +52,26 @@ export const ru = {
     success:     "Успешно",
     prev:        "Назад",
     next:        "Далее",
+    revenue:     "Выручка",
+    customerDebt:"Долг клиентов",
+    grossMargin: "Валовая прибыль",
+    month:       "Месяц",
+    totalCount:  "всего",
+  },
+  // Dashboard
+  dashboard: {
+    title:         "Главная",
+    salesDynamics: "Динамика продаж",
+    salesSubtitle: "Выручка и количество заказов",
+    orderStatuses: "Статусы заказов",
+    recentOrders:  "Последние заказы",
   },
   // Orders
   orders: {
     title:       "Заказы",
     new:         "Новый заказ",
+    noOrders:    "Заказов пока нет",
+    genitive:    "заказов",
     number:      "Номер заказа",
     shop:        "Магазин",
     agent:       "Агент",

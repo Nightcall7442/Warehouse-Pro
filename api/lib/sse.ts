@@ -1,12 +1,4 @@
-/**
- * Server-Sent Events (SSE) infrastructure.
- * Provides an event bus for broadcasting real-time updates to connected clients.
- *
- * Architecture:
- * - In-memory event emitter for single-instance deployments
- * - Channel-based: each tenant gets its own channel
- * - Graceful degradation: if SSE fails, tRPC mutation still succeeds
- */
+import { getRedis, getSubscriber, isRedisAvailable } from "./redis";
 
 export type SSEEventType =
   | "order.created"
@@ -31,13 +23,66 @@ type SSEListener = {
   lastPing: number;
 };
 
+const REDIS_SSE_CHANNEL = "sse:events";
+
 class SSEBus {
   private listeners = new Map<string, Set<SSEListener>>();
   private eventHistory = new Map<string, SSEEvent[]>();
   private maxHistoryPerChannel = 50;
-  private historyTTL = 5 * 60 * 1000; // 5 minutes
+  private historyTTL = 5 * 60 * 1000;
   private lastEviction = Date.now();
-  private evictionInterval = 60 * 1000; // run eviction every 60s
+  private evictionInterval = 60 * 1000;
+  private redisSubscribed = false;
+
+  constructor() {
+    this.setupRedisSubscription();
+  }
+
+  private setupRedisSubscription(): void {
+    if (!isRedisAvailable() || this.redisSubscribed) return;
+
+    try {
+      const sub = getSubscriber();
+      sub.subscribe(REDIS_SSE_CHANNEL, (err) => {
+        if (err) {
+          console.error("SSE Redis subscribe error:", err.message);
+          return;
+        }
+        this.redisSubscribed = true;
+      });
+
+      sub.on("message", (channel, message) => {
+        if (channel !== REDIS_SSE_CHANNEL) return;
+        try {
+          const event: SSEEvent = JSON.parse(message);
+          this.dispatchToLocalListeners(event);
+        } catch { /* ignore malformed messages */ }
+      });
+    } catch {
+      // Redis unavailable, SSE works in single-instance mode
+    }
+  }
+
+  private dispatchToLocalListeners(event: SSEEvent): void {
+    const channel = `tenant:${event.tenantId}`;
+    const listeners = this.listeners.get(channel);
+    if (!listeners || listeners.size === 0) return;
+
+    const payload = `data: ${JSON.stringify(event)}\n\n`;
+    const dead: SSEListener[] = [];
+
+    for (const listener of listeners) {
+      try {
+        if (event.userId && listener.userId !== event.userId) continue;
+        listener.controller.enqueue(new TextEncoder().encode(payload));
+        listener.lastPing = Date.now();
+      } catch {
+        dead.push(listener);
+      }
+    }
+
+    for (const d of dead) listeners.delete(d);
+  }
 
   private evictStaleEntries(): void {
     const now = Date.now();
@@ -54,7 +99,6 @@ class SSEBus {
     }
   }
 
-  /** Subscribe a client to SSE events for a tenant */
   subscribe(
     tenantId: number,
     userId: number,
@@ -73,7 +117,6 @@ class SSEBus {
     };
     this.listeners.get(channel)!.add(listener);
 
-    // Return unsubscribe function
     return () => {
       this.listeners.get(channel)?.delete(listener);
       if (this.listeners.get(channel)?.size === 0) {
@@ -82,14 +125,13 @@ class SSEBus {
     };
   }
 
-  /** Emit an event to all subscribers of a tenant */
   emit(event: Omit<SSEEvent, "timestamp">): void {
     this.evictStaleEntries();
 
     const fullEvent: SSEEvent = { ...event, timestamp: Date.now() };
     const channel = `tenant:${event.tenantId}`;
 
-    // Store in history
+    // Store in local history (always)
     if (!this.eventHistory.has(channel)) {
       this.eventHistory.set(channel, []);
     }
@@ -99,28 +141,17 @@ class SSEBus {
       history.splice(0, history.length - this.maxHistoryPerChannel);
     }
 
-    const listeners = this.listeners.get(channel);
-    if (!listeners || listeners.size === 0) return;
+    // Dispatch to local listeners
+    this.dispatchToLocalListeners(fullEvent);
 
-    const payload = `data: ${JSON.stringify(fullEvent)}\n\n`;
-    const dead: SSEListener[] = [];
-
-    for (const listener of listeners) {
+    // Publish to Redis so other instances receive it
+    if (isRedisAvailable()) {
       try {
-        // Skip if targeting a specific user
-        if (event.userId && listener.userId !== event.userId) continue;
-        listener.controller.enqueue(new TextEncoder().encode(payload));
-        listener.lastPing = Date.now();
-      } catch {
-        dead.push(listener);
-      }
+        getRedis().publish(REDIS_SSE_CHANNEL, JSON.stringify(fullEvent)).catch(() => {});
+      } catch { /* Redis unavailable */ }
     }
-
-    // Clean up dead connections
-    for (const d of dead) listeners.delete(d);
   }
 
-  /** Get recent events for a tenant (for reconnection catch-up) */
   getRecentEvents(tenantId: number, since?: number): SSEEvent[] {
     const channel = `tenant:${tenantId}`;
     const history = this.eventHistory.get(channel) ?? [];
@@ -128,7 +159,6 @@ class SSEBus {
     return history.filter(e => e.timestamp > since);
   }
 
-  /** Get connection stats */
   getStats(): { channels: number; totalListeners: number } {
     let total = 0;
     for (const listeners of this.listeners.values()) {
@@ -138,5 +168,4 @@ class SSEBus {
   }
 }
 
-/** Singleton SSE bus */
 export const sseBus = new SSEBus();

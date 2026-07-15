@@ -62,6 +62,13 @@ export function useLang() {
   return useContext(LangContext);
 }
 
+/**
+ * Inline translation helper.
+ *
+ * @deprecated Use `useLang().t("key")` with keys from the translation dictionary.
+ *             This function is kept for backward compatibility and will be removed
+ *             once all pages are migrated to the key-based system.
+ */
 export function useTranslate() {
   const { lang } = useLang();
   return useCallback(

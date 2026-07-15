@@ -21,7 +21,7 @@ import { logger } from "./lib/logger";
 import { recordRequest } from "./system-router";
 import { logError } from "./lib/error-log";
 import { safeEqual } from "./lib/safe-compare";
-
+import { connectRedis, disconnectRedis } from "./lib/redis";
 
 const APP_VERSION = "1.0.0";
 
@@ -256,6 +256,7 @@ app.get("/health/1c", async (c) => {
 // ── Health check with version info ───────────────────────────────────────────
 app.get("/health", async (c) => {
   const dbHealthy = await checkDatabaseHealth();
+  const redisHealthy = await checkRedisHealth();
   return c.json({
     status: dbHealthy ? "ok" : "degraded",
     version: APP_VERSION,
@@ -264,6 +265,7 @@ app.get("/health", async (c) => {
     env: env.isProduction ? "production" : "development",
     cache: cache.getStats(),
     database: dbHealthy ? "connected" : "disconnected",
+    redis: redisHealthy,
   });
 });
 
@@ -308,7 +310,34 @@ async function checkDatabaseHealth(): Promise<boolean> {
   }
 }
 
+async function checkRedisHealth(): Promise<string> {
+  try {
+    const { isRedisAvailable } = await import("./lib/redis");
+    return isRedisAvailable() ? "connected" : "unconfigured";
+  } catch {
+    return "unavailable";
+  }
+}
+
+// Initialize Redis connection (non-blocking)
+if (env.redisUrl) {
+  connectRedis().catch(() => {});
+}
+
 export default app;
+
+// Graceful shutdown
+process.on("SIGTERM", async () => {
+  logger.info("Shutting down gracefully...");
+  await disconnectRedis();
+  process.exit(0);
+});
+
+process.on("SIGINT", async () => {
+  logger.info("Shutting down...");
+  await disconnectRedis();
+  process.exit(0);
+});
 
 if (env.isProduction) {
   const { serve }            = await import("@hono/node-server");

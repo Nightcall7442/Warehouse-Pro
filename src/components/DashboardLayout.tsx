@@ -1,12 +1,12 @@
 import { memo } from "react";
 
 /* ─── Three colored dots — reference signature ─── */
-export const CardDots = memo(function CardDots() {
+export const CardDots = memo(function CardDots({ style }: { style?: React.CSSProperties }) {
   return (
-    <div style={{ display: "flex", gap: "6px", marginBottom: "10px" }}>
-      <span style={{ width: "7px", height: "7px", borderRadius: "50%", background: "var(--accent-pink, #f06895)" }} />
-      <span style={{ width: "7px", height: "7px", borderRadius: "50%", background: "var(--accent-orange, #f5a825)" }} />
-      <span style={{ width: "7px", height: "7px", borderRadius: "50%", background: "var(--accent-teal, #2ec4b0)" }} />
+    <div style={{ display: "flex", gap: "6px", marginBottom: "12px", ...style }}>
+      <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-pink, #f06895)", boxShadow: "var(--shadow-xs)" }} />
+      <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-orange, #f5a825)", boxShadow: "var(--shadow-xs)" }} />
+      <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-teal, #2ec4b0)", boxShadow: "var(--shadow-xs)" }} />
     </div>
   );
 });

@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { createRouter, operatorQuery, agentQuery, supervisorQuery } from "./middleware";
-import { getDb } from "./queries/connection";
 import { orders, warehouseStock, users, shops, agentLocations, dailyPlans, orderItems, products } from "@db/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { subDays } from "date-fns";
@@ -13,7 +12,7 @@ export const dashboardRouter = createRouter({
     const cached = cache.get(cacheKey);
     if (cached) return cached;
 
-    const db       = getDb();
+    const db       = ctx.db;
     const today    = new Date().toISOString().split("T")[0];
 
     const [todaysOrders, todaysRevenue, activeAgents, totalStock, customerDebt, marginResult] = await Promise.all([
@@ -56,7 +55,7 @@ export const dashboardRouter = createRouter({
   trends: operatorQuery
     .input(z.object({ range: z.enum(["7d", "30d", "month"]) }))
     .query(async ({ input, ctx }) => {
-      const db        = getDb();
+      const db        = ctx.db;
       const tenantId  = ctx.tenant.id;
       const days      = input.range === "7d" ? 7 : 30;
       const startDate = subDays(new Date(), days).toISOString().split("T")[0];
@@ -72,12 +71,12 @@ export const dashboardRouter = createRouter({
     }),
 
   statusBreakdown: operatorQuery.query(async ({ ctx }) => {
-    return getDb().select({ status: orders.status, count: sql<number>`count(*)` })
+    return ctx.db.select({ status: orders.status, count: sql<number>`count(*)` })
       .from(orders).where(eq(orders.tenantId, ctx.tenant.id)).groupBy(orders.status);
   }),
 
   activity: operatorQuery.query(async ({ ctx }) => {
-    return getDb().select({
+    return ctx.db.select({
       id: orders.id, orderNumber: orders.orderNumber, status: orders.status,
       total: orders.total, createdAt: orders.createdAt, shopName: shops.name, agentName: users.name,
     })
@@ -89,7 +88,7 @@ export const dashboardRouter = createRouter({
   }),
 
   agentDashboard: agentQuery.query(async ({ ctx }) => {
-    const db       = getDb();
+    const db       = ctx.db;
     const tenantId = ctx.tenant.id;
     const userId   = ctx.user.id;
     const today    = new Date().toISOString().split("T")[0];
@@ -109,7 +108,7 @@ export const dashboardRouter = createRouter({
   }),
 
   supervisorDashboard: supervisorQuery.query(async ({ ctx }) => {
-    const db       = getDb();
+    const db       = ctx.db;
     const tenantId = ctx.tenant.id;
     const today    = new Date().toISOString().split("T")[0];
     const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();

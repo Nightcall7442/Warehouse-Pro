@@ -16,3 +16,4 @@ export { ReportsService } from "./ReportsService";
 export { DashboardService } from "./DashboardService";
 export { ImportService } from "./ImportService";
 export { AnalyticsService } from "./AnalyticsService";
+export { PasswordResetService } from "./password-reset";
