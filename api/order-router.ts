@@ -65,6 +65,17 @@ export const orderRouter = createRouter({
       return OrderService.updateStatus(ctx.db, ctx.tenant.id, input.id, input.status);
     }),
 
+  update: operatorQuery
+    .input(z.object({
+      id: z.number().int().positive(),
+      notes: z.string().max(500).optional(),
+      discount: z.union([z.number(), z.string()]).transform(String).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const { id, ...data } = input;
+      return OrderService.update(ctx.db, ctx.tenant.id, id, data);
+    }),
+
   delete: operatorQuery
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ input, ctx }) => {

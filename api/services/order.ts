@@ -1,4 +1,4 @@
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, isNull } from "drizzle-orm";
 import { orders, orderItems, warehouseStock, shops, users, products } from "@db/schema";
 import { cache, CacheKeys } from "../lib/cache";
 import { NotificationService } from "./NotificationService";
@@ -15,6 +15,8 @@ export const OrderService = {
     const conditions = [eq(orders.tenantId, tenantId)];
     if (f.status) conditions.push(eq(orders.status, f.status));
     if (f.agentId) conditions.push(eq(orders.agentId, f.agentId));
+    // Hide deleted orders unless explicitly requested
+    if (!f.showDeleted) conditions.push(isNull(orders.deletedAt));
 
     const baseQuery = db.select({
       id: orders.id,
@@ -49,8 +51,8 @@ export const OrderService = {
       notes: orders.notes, createdAt: orders.createdAt, updatedAt: orders.updatedAt,
       shopId: orders.shopId, agentId: orders.agentId,
       courierId: orders.courierId, deliveryStatus: orders.deliveryStatus,
-      deliveredAt: orders.deliveredAt,
-    }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId))).limit(1);
+      deliveredAt: orders.deliveredAt, deletedAt: orders.deletedAt,
+    }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt))).limit(1);
     if (!order) return null;
 
     const [items, [shop]] = await Promise.all([
@@ -308,10 +310,12 @@ export const OrderService = {
 
   async delete(db: Db, tenantId: number, orderId: number) {
     await db.transaction(async (tx) => {
-      const [order] = await tx.select().from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId))).limit(1);
-      if (!order) throw new Error("Заказ не найден");
-      const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
+      const [order] = await tx.select().from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt))).limit(1);
+      if (!order) throw new Error("Заказ не найден или уже удалён");
+
+      // Release reserved stock if order is new or processing
       if (order.status === "new" || order.status === "processing") {
+        const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
         if (items.length > 0) {
           await tx.execute(sql`
             UPDATE warehouse_stock
@@ -327,8 +331,9 @@ export const OrderService = {
           `);
         }
       }
-      await tx.delete(orderItems).where(eq(orderItems.orderId, orderId));
-      await tx.delete(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)));
+
+      // Soft delete
+      await tx.update(orders).set({ deletedAt: new Date() }).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)));
     });
 
     cache.invalidate(CacheKeys.dashboardKpis(Number(tenantId)));
@@ -336,7 +341,39 @@ export const OrderService = {
     return { success: true };
   },
 
-  async restore(db: Db, tenantId: number, orderId: number) {
-    throw new Error("Restore not supported without deletedAt column");
+  async update(db: Db, tenantId: number, orderId: number, data: { notes?: string; discount?: string }) {
+    const [order] = await db.select().from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt))).limit(1);
+    if (!order) throw new Error("Заказ не найден");
+
+    const updates: Record<string, unknown> = {};
+    if (data.notes !== undefined) updates.notes = data.notes;
+    if (data.discount !== undefined) {
+      updates.discount = data.discount;
+      // Recalculate total
+      const subtotal = Number(order.subtotal);
+      const discount = Number(data.discount);
+      updates.total = String(subtotal - discount);
+    }
+
+    if (Object.keys(updates).length > 0) {
+      await db.update(orders).set(updates).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)));
+    }
+
+    cache.invalidate(CacheKeys.dashboardKpis(Number(tenantId)));
+
+    return { success: true };
   },
+
+  async restore(db: Db, tenantId: number, orderId: number) {
+    const [order] = await db.select().from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId))).limit(1);
+    if (!order) throw new Error("Заказ не найден");
+    if (!order.deletedAt) throw new Error("Заказ не удалён");
+
+    await db.update(orders).set({ deletedAt: null }).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)));
+
+    cache.invalidate(CacheKeys.dashboardKpis(Number(tenantId)));
+
+    return { success: true };
+  },
+
 };
