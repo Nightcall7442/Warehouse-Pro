@@ -1,5 +1,5 @@
 import { ErrorMessages } from "@contracts/constants";
-import { initTRPC, TRPCError } from "@trpc/server";
+import { initTRPC } from "@trpc/server";
 import superjson from "superjson";
 import { ZodError } from "zod";
 import type { TrpcContext } from "./context";
@@ -17,7 +17,7 @@ const t = initTRPC.context<TrpcContext>().create({
 
     let message = shape.message;
     if (error.cause instanceof ZodError) {
-      message = error.cause.errors
+      message = error.cause.issues
         .map(e => `${e.path.join(".")}: ${e.message}`)
         .join("; ");
     } else if (isInternal && env.isProduction) {
