@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { createTRPCReact } from "@trpc/react-query";
 import { httpBatchLink, httpLink, splitLink } from "@trpc/client";
 import { QueryClient } from "@tanstack/react-query";

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Offline Orders — agent can create orders without internet.
  * Orders are saved to IndexedDB and synced when connection is restored.

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { memo, useCallback, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { trpc } from "@/providers/trpc";

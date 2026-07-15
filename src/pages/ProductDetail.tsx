@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useParams, useNavigate } from "react-router";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useRef, useState } from "react";

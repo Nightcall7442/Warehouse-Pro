@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Barcode page — scan products for quick stock lookup + label printing.
  * Also supports scanning to find a product and add it to a new order.

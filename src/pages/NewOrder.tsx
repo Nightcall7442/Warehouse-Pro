@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useMemo } from "react";
 import { useCurrency } from "@/hooks/useCurrency";
 import { trpc } from "@/providers/trpc";

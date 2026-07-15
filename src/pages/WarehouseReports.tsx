@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState } from "react";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";

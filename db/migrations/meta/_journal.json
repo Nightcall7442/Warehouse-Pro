@@ -78,6 +78,13 @@
       "when": 1784072143935,
       "tag": "0010_add_payment_method",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1784158543935,
+      "tag": "0011_add_performance_indexes",
+      "breakpoints": true
     }
   ]
 }

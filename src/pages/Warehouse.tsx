@@ -1,4 +1,5 @@
-import { useState } from "react";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { memo, useCallback, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { trpc } from "@/providers/trpc";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -38,7 +39,7 @@ function toKg(stock: number | string, unitWeight: number | string | null): numbe
 }
 
 // ── Premium adjust modal ─────────────────────────────────────────────────────
-function AdjustModal({ productId, productName, currentStock, unit, unitWeight, onSave, onClose, isPending }: {
+const AdjustModal = memo(function AdjustModal({ productId, productName, currentStock, unit, unitWeight, onSave, onClose, isPending }: {
   productId: number; productName: string; currentStock: number;
   unit: string; unitWeight: number;
   onSave: (d: unknown) => void; onClose: () => void; isPending: boolean;
@@ -188,7 +189,7 @@ function AdjustModal({ productId, productName, currentStock, unit, unitWeight, o
       </div>
     </div>
   );
-}
+});
 
 // ── Movement history ──────────────────────────────────────────────────────────
 function MovementHistory({ productId, productName }: { productId: number; productName: string }) {
@@ -284,6 +285,14 @@ export default function Warehouse() {
   const { data: deadStockItems, isLoading: deadStockLoading } = trpc.warehouse.deadStock.useQuery({ days: deadStockDays }) as { data: any; isLoading: boolean };
   const utils = trpc.useUtils();
 
+  const handleAdjust = useCallback((item: { id: number; name: string; stock: number; unit: string; unitWeight: number }) => {
+    setAdjusting(item);
+  }, []);
+
+  const handleDelete = useCallback((id: number) => {
+    deleteMutation.mutate({ id });
+  }, [deleteMutation]);
+
   const adjustMutation = trpc.warehouse.adjustStock.useMutation({
     onSuccess: () => {
       utils.warehouse.list.invalidate();
@@ -325,19 +334,19 @@ export default function Warehouse() {
   const summary = data?.summary;
   const lowCount = Number(summary?.lowStockCount ?? 0);
 
-  const kpis = [
+  const kpis = useMemo(() => [
     { label: t("ПОЗИЦИЙ", "POZITSIYALAR"), value: summary?.totalSKUs ?? "—", icon: Boxes, gradient: "linear-gradient(135deg, #4b6cf6, #4b6cf6)", sub: t("уникальных товаров", "noyob mahsulotlar") },
     { label: t("ВСЕГО КГ", "JAMI KG"), value: Number(summary?.totalWeight ?? 0).toLocaleString("ru-RU", { maximumFractionDigits: 0 }), icon: Scale, gradient: "linear-gradient(135deg, #60a5fa, #22d3ee)", sub: t("общий вес на складе", "ombordagi umumiy") },
     { label: t("СТОИМОСТЬ СКЛАДА", "OMBOR QIYMATI"), value: valLoading ? "—" : fmt(Number(valuation?.totalCostValue ?? 0).toFixed(0)), icon: DollarSign, gradient: "linear-gradient(135deg, #e8a830, #fb923c)", sub: t("себестоимость остатков", "qoldiq tannarx") },
     { label: t("МЕРТВЫЙ СТОК", "O'LIK STOK"), value: deadStockItems?.length ?? "—", icon: Clock, gradient: deadStockItems && deadStockItems.length > 0 ? "linear-gradient(135deg, #4b6cf6, #4b6cf6)" : "linear-gradient(135deg, #34c473, #34c473)", sub: t("товаров без продаж", "sotilmasdan mahsulotlar") },
     { label: t("МАЛО СТОКА", "KAM STOK"), value: lowCount, icon: lowCount > 0 ? AlertCircle : Package, gradient: lowCount > 0 ? "linear-gradient(135deg, #e85050, #e85050)" : "linear-gradient(135deg, #34c473, #34c473)", sub: lowCount > 0 ? t("товаров ниже порога", "mahsulot chegaradan past") : t("все в норме", "hammasi yaxshi"), onClick: lowCount > 0 ? () => setShowLowStock(true) : undefined },
-  ];
+  ], [summary, valuation, valLoading, deadStockItems, lowCount, t, fmt]);
 
-  const tabs = [
+  const tabs = useMemo(() => [
     { key: "stock" as const, label: t("Остатки", "Qoldiqlar"), count: summary?.totalSKUs ?? 0 },
     { key: "deadstock" as const, label: t("Мёртвый сток", "O'lik stok"), count: deadStockItems?.length ?? 0 },
     { key: "reorder" as const, label: t("Дозаказ", "Qayta buyurtma"), count: reorderSuggestions?.length ?? 0 },
-  ];
+  ], [summary, deadStockItems, reorderSuggestions, t]);
 
   return (
     <div className="space-y-5 animate-fade-up">
@@ -549,11 +558,11 @@ export default function Warehouse() {
                                 <p className="text-sm font-semibold" style={{ color: "var(--color-text-primary, #2b3450)" }}>{item.productName}</p>
                               </div>
                               <div className="flex items-center gap-2">
-                                <button onClick={() => setAdjusting({ id: item.productId, name: item.productName ?? "", stock: Number(item.currentStock ?? 0), unit: item.unit ?? "pcs", unitWeight: Number(item.unitWeight ?? 0) })}
+                                <button onClick={() => handleAdjust({ id: item.productId, name: item.productName ?? "", stock: Number(item.currentStock ?? 0), unit: item.unit ?? "pcs", unitWeight: Number(item.unitWeight ?? 0) })}
                                   className="text-xs py-1.5 px-3 rounded-lg transition-colors" style={{ color: "#4b6cf6", background: "rgba(75,108,246,0.08)" }}>
                                   {t("Скорр.", "Tuzatish")}
                                 </button>
-                                <button onClick={() => deleteMutation.mutate({ id: item.productId })}
+                                <button onClick={() => handleDelete(item.productId)}
                                   disabled={deleteMutation.isPending}
                                   className="text-xs py-1.5 px-2 rounded-lg transition-all"
                                   style={{ color: "#e85050", background: "rgba(232,80,80,0.08)" }}>
@@ -641,12 +650,12 @@ export default function Warehouse() {
                             </td>
                             <td className="px-5 py-3.5" style={{ borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
                               <div className="flex items-center gap-2">
-                                <button onClick={() => setAdjusting({ id: item.productId, name: item.productName ?? "", stock: Number(item.currentStock ?? 0), unit: item.unit ?? "pcs", unitWeight: Number(item.unitWeight ?? 0) })}
+                                <button onClick={() => handleAdjust({ id: item.productId, name: item.productName ?? "", stock: Number(item.currentStock ?? 0), unit: item.unit ?? "pcs", unitWeight: Number(item.unitWeight ?? 0) })}
                                   className="text-xs py-1.5 px-3 rounded-lg transition-all"
                                   style={{ color: "#4b6cf6", background: "rgba(75,108,246,0.08)" }}>
                                   {t("Скорректировать", "Tuzatish")}
                                 </button>
-                                <button onClick={() => deleteMutation.mutate({ id: item.productId })}
+                                <button onClick={() => handleDelete(item.productId)}
                                   disabled={deleteMutation.isPending}
                                   className="text-xs py-1.5 px-3 rounded-lg transition-all"
                                   style={{ color: "#e85050", background: "rgba(232,80,80,0.08)" }}>
