@@ -8,6 +8,7 @@ import { format } from "date-fns";
 import { ru as dateRu } from "date-fns/locale";
 import { ArrowLeft, Printer, FileDown, CheckCircle2, XCircle, RefreshCw, ChevronDown, Truck } from "lucide-react";
 import { useState } from "react";
+import { PremiumSelect } from "@/components/PremiumSelect";
 import { exportToExcel } from "@/lib/excel";
 import { printUzWaybill, printTorg12, printInvoice } from "@/lib/documents";
 import type { OrderDocData, CompanyInfo } from "@/lib/documents";
@@ -326,21 +327,20 @@ export default function OrderDetail() {
             {lang === "uz" ? "KURYERNI TAYINLASH" : "НАЗНАЧИТЬ КУРЬЕРА"}
           </p>
           <div className="flex items-center gap-3">
-            <select
-              className="neo-input flex-1"
-              value={order.courierId ?? ""}
-              onChange={(e) => {
-                const courierId = Number(e.target.value);
+            <PremiumSelect
+              value={order.courierId ? String(order.courierId) : ""}
+              options={[
+                { value: "", label: lang === "uz" ? "Kuryer tanlang" : "Выберите курьера" },
+                ...(couriers?.data?.map((c: any) => ({ value: String(c.id), label: c.name })) ?? []),
+              ]}
+              onChange={(val) => {
+                const courierId = Number(val);
                 if (courierId) {
                   assignCourier.mutate({ orderId: order.id, courierId });
                 }
               }}
-            >
-              <option value="">{lang === "uz" ? "Kuryer tanlang" : "Выберите курьера"}</option>
-              {couriers?.data?.map((c: any) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
+              width="100%"
+            />
             {order.deliveryStatus && order.deliveryStatus !== "not_assigned" && (
               <span className={`badge ${
                 order.deliveryStatus === "delivered" ? "bg-success/15 text-success" :
