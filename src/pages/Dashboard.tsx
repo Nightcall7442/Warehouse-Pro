@@ -7,7 +7,7 @@ import { useNavigate } from "react-router";
 import { getGreeting } from "@/lib/utils";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
-import { ClipboardList, TrendingUp, TrendingDown, Sparkles, AlertCircle, ArrowRight, PieChart, Activity } from "lucide-react";
+import { ClipboardList, TrendingUp, TrendingDown, Sparkles, AlertCircle, ArrowRight, PieChart, Activity, Plus, Truck, RefreshCw, Package } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart as RePieChart, Pie, Cell, BarChart, Bar } from "recharts";
 import { ProgressRing } from "@/components/ProgressRing";
 import { CardDots } from "@/components/DashboardLayout";
@@ -205,6 +205,25 @@ export default function Dashboard() {
         </button>
       </div>
 
+      {/* Quick Actions */}
+      <div className="stagger-children" style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+        {[
+          { label: t("orders.new"), icon: Plus, path: "/orders/new", color: "#4b6cf6" },
+          { label: t("nav.deliveries", "Доставки"), icon: Truck, path: "/deliveries", color: "#34c473" },
+          { label: t("nav.warehouse", "Склад"), icon: Package, path: "/warehouse", color: "#e8a830" },
+          { label: t("nav.arrivals", "Приходы"), icon: RefreshCw, path: "/arrivals", color: "#8b7cf6" },
+        ].map(action => (
+          <button key={action.path} onClick={() => navigate(action.path)}
+            className="neo-card-sm"
+            style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 16px", cursor: "pointer", border: "none", transition: "all 0.2s" }}>
+            <div style={{ width: "28px", height: "28px", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", background: `${action.color}15` }}>
+              <action.icon size={14} style={{ color: action.color }} />
+            </div>
+            <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--color-text-primary)" }}>{action.label}</span>
+          </button>
+        ))}
+      </div>
+
       {/* KPI Cards Row */}
       <div className="stagger-children" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px" }}>
         {/* Revenue */}
@@ -288,6 +307,43 @@ export default function Dashboard() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Needs Attention — low stock + recent orders */}
+      {(kpis.customerDebt > 0 || (activity && activity.length > 0)) && (
+        <div className="neo-card" style={{ padding: "20px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+            <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 700, color: "var(--color-text-primary)", margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
+              <AlertCircle size={16} style={{ color: "var(--color-warning)" }} />
+              {t("dashboard.needsAttention", "Требует внимания")}
+            </h2>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "12px" }}>
+            {kpis.customerDebt > 0 && (
+              <div className="neo-card-sm" style={{ padding: "14px", cursor: "pointer" }} onClick={() => navigate("/reports")}>
+                <p style={{ fontSize: "11px", fontWeight: 600, color: "var(--color-text-tertiary)", textTransform: "uppercase", letterSpacing: "0.06em", margin: 0 }}>
+                  {t("common.customerDebt", "Долг клиентов")}
+                </p>
+                <p style={{ fontSize: "20px", fontWeight: 700, color: "var(--color-warning)", margin: "6px 0 0" }}>
+                  {fmt(kpis.customerDebt, true)}
+                </p>
+              </div>
+            )}
+            {activity && activity.slice(0, 3).map(order => (
+              <div key={order.id} className="neo-card-sm" style={{ padding: "14px", cursor: "pointer" }} onClick={() => navigate(`/orders/${order.id}`)}>
+                <p style={{ fontSize: "11px", fontWeight: 600, color: "var(--color-text-tertiary)", textTransform: "uppercase", letterSpacing: "0.06em", margin: 0 }}>
+                  {order.orderNumber}
+                </p>
+                <p style={{ fontSize: "14px", fontWeight: 600, color: "var(--color-text-primary)", margin: "4px 0 0" }}>
+                  {fmt(Number(order.total), true)}
+                </p>
+                <p style={{ fontSize: "11px", color: "var(--color-text-secondary)", margin: "2px 0 0" }}>
+                  {order.agentName} · {order.status}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

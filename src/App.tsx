@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, Outlet } from "react-router";
 import { useAuth } from "@/hooks/useAuth";
 import Layout from "@/components/Layout";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import { CommandPalette } from "@/components/CommandPalette";
 import Login                from "./pages/Login";
 import Register             from "./pages/Register";
 import Landing              from "./pages/Landing";
@@ -71,6 +72,7 @@ export default function App() {
   return (
     <Suspense fallback={<PageLoader />}>
       <ErrorBoundary pageName="Приложение">
+      <CommandPalette />
       <Routes>
         {/* Public */}
         <Route path="/login"              element={<Login />} />
