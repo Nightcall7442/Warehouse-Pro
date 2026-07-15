@@ -705,7 +705,13 @@ export default function NewOrder() {
     onSuccess: () => {
       utils.order.list.invalidate();
       notify.success(t("Заказ создан!", "Buyurtma yaratildi!"));
-      navigate("/agent");
+      // Navigate based on user role
+      const role = user?.role;
+      if (role === "ceo" || role === "operator" || role === "superadmin") {
+        navigate("/orders");
+      } else {
+        navigate("/agent");
+      }
     },
     onError: (e) => notify.error(e.message),
   });
@@ -737,7 +743,12 @@ export default function NewOrder() {
       savePendingOrder({ ...payload, shopName, paymentMethod })
         .then(() => {
           notify.success(t("Заказ сохранён офлайн", "Buyurtma oflayn saqlandi"));
-          navigate("/agent");
+          const role = user?.role;
+          if (role === "ceo" || role === "operator" || role === "superadmin") {
+            navigate("/orders");
+          } else {
+            navigate("/agent");
+          }
         })
         .catch(() => notify.error(t("Ошибка сохранения", "Saqlashda xato")));
       return;
