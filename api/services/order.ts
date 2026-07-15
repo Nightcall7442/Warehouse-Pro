@@ -1,4 +1,4 @@
-import { eq, and, desc, sql, isNull } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 import { orders, orderItems, warehouseStock, shops, users, products } from "@db/schema";
 import { cache, CacheKeys } from "../lib/cache";
 import { NotificationService } from "./NotificationService";
@@ -15,8 +15,6 @@ export const OrderService = {
     const conditions = [eq(orders.tenantId, tenantId)];
     if (f.status) conditions.push(eq(orders.status, f.status));
     if (f.agentId) conditions.push(eq(orders.agentId, f.agentId));
-    // Hide deleted orders unless CEO explicitly requests them
-    if (!f.showDeleted) conditions.push(isNull(orders.deletedAt));
 
     const baseQuery = db.select({
       id: orders.id,
@@ -52,7 +50,7 @@ export const OrderService = {
       shopId: orders.shopId, agentId: orders.agentId,
       courierId: orders.courierId, deliveryStatus: orders.deliveryStatus,
       deliveredAt: orders.deliveredAt,
-    }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt))).limit(1);
+    }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId))).limit(1);
     if (!order) return null;
 
     const [items, [shop]] = await Promise.all([
@@ -310,7 +308,7 @@ export const OrderService = {
 
   async delete(db: Db, tenantId: number, orderId: number) {
     await db.transaction(async (tx) => {
-      const [order] = await tx.select().from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt))).limit(1);
+      const [order] = await tx.select().from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId))).limit(1);
       if (!order) throw new Error("Заказ не найден");
       const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
       if (order.status === "new" || order.status === "processing") {
@@ -329,8 +327,8 @@ export const OrderService = {
           `);
         }
       }
-      // Soft delete — set deletedAt instead of removing rows
-      await tx.update(orders).set({ deletedAt: new Date() }).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)));
+      await tx.delete(orderItems).where(eq(orderItems.orderId, orderId));
+      await tx.delete(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)));
     });
 
     cache.invalidate(CacheKeys.dashboardKpis(Number(tenantId)));
@@ -339,14 +337,6 @@ export const OrderService = {
   },
 
   async restore(db: Db, tenantId: number, orderId: number) {
-    const [order] = await db.select().from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId))).limit(1);
-    if (!order) throw new Error("Заказ не найден");
-    if (!order.deletedAt) throw new Error("Заказ не удалён");
-
-    await db.update(orders).set({ deletedAt: null }).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)));
-
-    cache.invalidate(CacheKeys.dashboardKpis(Number(tenantId)));
-
-    return { success: true };
+    throw new Error("Restore not supported without deletedAt column");
   },
 };
