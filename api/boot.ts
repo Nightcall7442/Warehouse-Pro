@@ -167,7 +167,8 @@ app.post("/api/login", async (c) => {
       user: { id: user.id, name: user.name, email: user.email, role: user.role, tenant: { id: tenant.id, name: tenant.name, slug: tenant.slug } },
     });
   } catch (e) {
-    return c.json({ error: "Login failed" }, 500);
+    console.error("[LOGIN ERROR]", e instanceof Error ? e.message : String(e), e instanceof Error ? e.stack : "");
+    return c.json({ error: "Login failed", details: e instanceof Error ? e.message : String(e) }, 500);
   }
 });
 
