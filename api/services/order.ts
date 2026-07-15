@@ -70,7 +70,18 @@ export const OrderService = {
   async myOrders(db: Db, tenantId: number, agentId: number) {
     const conditions = [eq(orders.tenantId, tenantId), eq(orders.agentId, agentId)];
     const [data, countResult] = await Promise.all([
-      db.select().from(orders).where(and(...conditions)).orderBy(desc(orders.createdAt)).limit(500),
+      db.select({
+        id: orders.id,
+        orderNumber: orders.orderNumber,
+        status: orders.status,
+        total: orders.total,
+        subtotal: orders.subtotal,
+        discount: orders.discount,
+        notes: orders.notes,
+        createdAt: orders.createdAt,
+        shopId: orders.shopId,
+        agentId: orders.agentId,
+      }).from(orders).where(and(...conditions)).orderBy(desc(orders.createdAt)).limit(500),
       db.select({ count: sql<number>`count(*)` }).from(orders).where(and(...conditions)),
     ]);
     return { data, total: Number(countResult[0]?.count ?? 0) };
@@ -310,12 +321,19 @@ export const OrderService = {
 
   async delete(db: Db, tenantId: number, orderId: number) {
     await db.transaction(async (tx) => {
-      const [order] = await tx.select().from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt))).limit(1);
+      const [order] = await tx.select({
+        id: orders.id,
+        status: orders.status,
+        deletedAt: orders.deletedAt,
+      }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt))).limit(1);
       if (!order) throw new Error("Заказ не найден или уже удалён");
 
       // Release reserved stock if order is new or processing
       if (order.status === "new" || order.status === "processing") {
-        const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
+        const items = await tx.select({
+          productId: orderItems.productId,
+          quantity: orderItems.quantity,
+        }).from(orderItems).where(eq(orderItems.orderId, orderId));
         if (items.length > 0) {
           await tx.execute(sql`
             UPDATE warehouse_stock
@@ -342,7 +360,11 @@ export const OrderService = {
   },
 
   async update(db: Db, tenantId: number, orderId: number, data: { notes?: string; discount?: string }) {
-    const [order] = await db.select().from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt))).limit(1);
+    const [order] = await db.select({
+      id: orders.id,
+      subtotal: orders.subtotal,
+      deletedAt: orders.deletedAt,
+    }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt))).limit(1);
     if (!order) throw new Error("Заказ не найден");
 
     const updates: Record<string, unknown> = {};
