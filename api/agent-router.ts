@@ -193,8 +193,8 @@ export const agentRouter = createRouter({
       debt: shops.debt, gpsLat: shops.gpsLat, gpsLng: shops.gpsLng,
     })
       .from(shops)
-      .where(and(eq(shops.agentId, ctx.user.id), eq(shops.tenantId, ctx.tenant.id)))
-      .limit(200);
+      .where(and(eq(shops.tenantId, ctx.tenant.id), eq(shops.status, "active")))
+      .limit(500);
   }),
 
   // Агент может добавить новый магазин — автоматически привязывается к нему
