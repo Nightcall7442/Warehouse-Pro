@@ -361,7 +361,7 @@ function TenantDetail({ tenantId, onBack }: { tenantId: number; onBack: () => vo
               <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
                 <span style={{ fontSize: "10px", color: COLORS.textTertiary, padding: "2px 8px", borderRadius: "6px", background: COLORS.surfaceLight }}>{u.role}</span>
                 <StatusBadge status={u.status} />
-                <button onClick={() => setResetPwd({ userId: u.id, name: u.name })} style={{ padding: "6px 10px", borderRadius: "8px", background: "rgba(232,168,48,0.1)", border: "1px solid rgba(232,168,48,0.3)", cursor: "pointer", color: COLORS.warning, display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", fontWeight: 600 }} title="Сбросить пароль"><Lock size={12} /> Сбросить</button>
+                <button onClick={() => setResetPwd({ userId: u.id, name: u.name })} style={{ padding: "6px", borderRadius: "6px", background: "none", border: `1px solid ${COLORS.border}`, cursor: "pointer", color: COLORS.warning }} title="Сбросить пароль"><Lock size={12} /></button>
               </div>
             </div>
           ))}
