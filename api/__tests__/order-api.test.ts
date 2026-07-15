@@ -28,6 +28,7 @@ vi.mock("drizzle-orm", () => {
     and: (...conds: unknown[]) => ({ __kind: "and", conds }),
     desc: (col: unknown) => ({ __kind: "desc", col }),
     like: (col: unknown, val: unknown) => ({ __kind: "like", col, val }),
+    isNull: (col: unknown) => ({ __kind: "isNull", col }),
     sql: sqlFn,
   };
 });
@@ -134,6 +135,10 @@ function evalCond(row: unknown, cond: unknown): boolean {
     const val = r[fieldName as string] ?? "";
     const pattern = String(c.val).replace(/^%/, ".*").replace(/%$/, "");
     return new RegExp(pattern, "i").test(String(val));
+  }
+  if (c.__kind === "isNull") {
+    const fieldName = columnToFieldName.get(c.col) ?? (c.col as Record<string, unknown>)?.name ?? c.col;
+    return r[fieldName as string] === null || r[fieldName as string] === undefined;
   }
   return true;
 }
@@ -573,8 +578,9 @@ describe("order.delete — DELETE /api/orders/:id", () => {
     const result = await opCaller.delete({ id: 1 });
 
     expect(result.success).toBe(true);
-    expect(ordersTable).toHaveLength(0);
-    expect(orderItemsTable).toHaveLength(0);
+    // Soft delete: order still exists but deletedAt is set
+    expect(ordersTable).toHaveLength(1);
+    expect(ordersTable[0].deletedAt).toBeDefined();
     const stock = stockTable.find(s => s.productId === 1)!;
     expect(stock.available).toBe("100.00");
   });

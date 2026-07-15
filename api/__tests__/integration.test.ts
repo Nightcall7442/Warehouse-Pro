@@ -14,6 +14,7 @@ vi.mock("drizzle-orm", () => {
     and: (...conds: unknown[]) => ({ __kind: "and", conds }),
     desc: (col: unknown) => ({ __kind: "desc", col }),
     like: (col: unknown, val: unknown) => ({ __kind: "like", col, val }),
+    isNull: (col: unknown) => ({ __kind: "isNull", col }),
     sql: sqlFn,
     ne: (col: unknown, val: unknown) => ({ __kind: "ne", col, val }),
   };

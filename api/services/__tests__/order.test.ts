@@ -12,6 +12,7 @@ vi.mock("drizzle-orm", () => {
     eq: (col: unknown, val: unknown) => ({ __kind: "eq", col, val }),
     and: (...conds: unknown[]) => ({ __kind: "and", conds }),
     desc: (col: unknown) => ({ __kind: "desc", col }),
+    isNull: (col: unknown) => ({ __kind: "isNull", col }),
     sql: sqlFn,
   };
 });
@@ -439,7 +440,7 @@ describe("OrderService.updateStatus", () => {
 });
 
 describe("OrderService.delete", () => {
-  it("restores stock for new orders and removes order", async () => {
+  it("restores stock for new orders and soft deletes order", async () => {
     await OrderService.create(mockDb as any, 1, 10, {
       shopId: 1, items: [{ productId: 1, quantity: "25", unitPrice: "100" }],
     });
@@ -449,8 +450,9 @@ describe("OrderService.delete", () => {
     const stock = stockTable.find((s) => s.productId === 1)!;
     expect(stock.reserved).toBe("0.00");
     expect(stock.available).toBe("100.00");
-    expect(ordersTable).toHaveLength(0);
-    expect(orderItemsTable).toHaveLength(0);
+    // Soft delete: order still exists but deletedAt is set
+    expect(ordersTable).toHaveLength(1);
+    expect(ordersTable[0].deletedAt).toBeDefined();
   });
 
   it("restores stock for processing orders", async () => {
