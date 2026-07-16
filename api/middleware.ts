@@ -118,8 +118,8 @@ export const publicQuery = basePublic;
 export const authedQuery     = t.procedure.use(withCorrelationId).use(withTenantIsolation).use(withGlobalRateLimit).use(requireAuth);
 
 // superAdminQuery — platform-level operations: manage tenants, billing, platform stats.
-// Both superadmin and CEO can access these endpoints.
-export const superAdminQuery = authedQuery.use(requireRole(["superadmin", "ceo"]));
+// Only superadmin can access these endpoints.
+export const superAdminQuery = authedQuery.use(requireRole(["superadmin"]));
 
 // adminQuery — tenant-level operations limited to the CEO role within their own
 // tenant. Superadmin is excluded by design (see above).
