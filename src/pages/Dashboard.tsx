@@ -354,12 +354,12 @@ export default function Dashboard() {
               </div>
             </div>
             {/* Legend */}
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 16px", marginTop: "16px", width: "100%", justifyContent: "center" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 12px", marginTop: "16px", width: "100%" }}>
               {pieData.map((entry: any, i: number) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => navigate(`/orders?status=${entry.status}`)}>
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", minWidth: 0 }} onClick={() => navigate(`/orders?status=${entry.status}`)}>
                   <span style={{ width: "10px", height: "10px", borderRadius: "3px", background: entry.color, boxShadow: "var(--shadow-xs)", flexShrink: 0 }} />
-                  <span style={{ fontSize: "12px", color: "var(--color-text-secondary)" }}>{entry.name}</span>
-                  <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--color-text-primary)" }}>{entry.value}</span>
+                  <span style={{ fontSize: "12px", color: "var(--color-text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.name}</span>
+                  <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--color-text-primary)", marginLeft: "auto", flexShrink: 0 }}>{entry.value}</span>
                 </div>
               ))}
             </div>
