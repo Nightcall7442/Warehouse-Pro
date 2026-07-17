@@ -34,19 +34,7 @@ export default function SupervisorTracking() {
   const [selected, setSelected] = useState<number | null>(null);
   const lastUpdate = dataUpdatedAt ? new Date(dataUpdatedAt) : null;
 
-  const [mapError, setMapError] = useState(false);
-
-  // Load Yandex Maps API
-  useEffect(() => {
-    if (window.ymaps) return;
-    if (!YANDEX_MAPS_API_KEY) { setMapError(true); return; }
-
-    const script = document.createElement("script");
-    script.src = `https://api-maps.yandex.ru/2.1/?apikey=${YANDEX_MAPS_API_KEY}&lang=ru_RU`;
-    script.onload = () => initMap();
-    script.onerror = () => setMapError(true);
-    document.head.appendChild(script);
-  }, []);
+  const [mapError, setMapError] = useState(!YANDEX_MAPS_API_KEY);
 
   // Initialize map
   function initMap() {
@@ -67,6 +55,18 @@ export default function SupervisorTracking() {
       mapRef.current = map;
     });
   }
+
+  // Load Yandex Maps API
+  useEffect(() => {
+    if (window.ymaps || !YANDEX_MAPS_API_KEY) return;
+
+    const script = document.createElement("script");
+    script.src = `https://api-maps.yandex.ru/2.1/?apikey=${YANDEX_MAPS_API_KEY}&lang=ru_RU`;
+    script.onload = () => initMap();
+    script.onerror = () => setMapError(true);
+    document.head.appendChild(script);
+    // eslint-disable-next-line react-hooks/immutability
+  }, []);
 
   // Update markers when locations change
   useEffect(() => {

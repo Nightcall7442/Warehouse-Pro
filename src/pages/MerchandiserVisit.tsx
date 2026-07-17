@@ -43,12 +43,14 @@ export default function MerchandiserVisit() {
   useEffect(() => {
     const productList = (products as unknown as { data?: Array<{ id: number; name: string }> })?.data;
     if (productList && checklist.length === 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setChecklist(productList.map(p => ({
         productId: p.id,
         productName: p.name,
         present: false,
       })));
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [products]);
 
   const toggleChecklist = (productId: number) => {
