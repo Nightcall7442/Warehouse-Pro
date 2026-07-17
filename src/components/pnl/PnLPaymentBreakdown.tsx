@@ -108,20 +108,20 @@ export function PnLPaymentBreakdown({
                   </div>
                 </td>
                 <td style={{ ...tdStyle, textAlign: "right", fontWeight: 600 }}>
-                  {fmt(row.revenue.toFixed(0))}
+                  {fmt((row.revenue ?? 0).toFixed(0))}
                 </td>
                 <td style={{ ...tdStyle, textAlign: "right", color: "#e85050" }}>
-                  {fmt(row.cogs.toFixed(0))}
+                  {fmt((row.cogs ?? 0).toFixed(0))}
                 </td>
                 <td
                   style={{
                     ...tdStyle,
                     textAlign: "right",
                     fontWeight: 700,
-                    color: row.grossProfit >= 0 ? "#34c473" : "#e85050",
+                    color: (row.grossProfit ?? 0) >= 0 ? "#34c473" : "#e85050",
                   }}
                 >
-                  {fmt(row.grossProfit.toFixed(0))}
+                  {fmt((row.grossProfit ?? 0).toFixed(0))}
                 </td>
                 <td style={{ ...tdStyle, textAlign: "right" }}>
                   <span
@@ -132,20 +132,20 @@ export function PnLPaymentBreakdown({
                       fontSize: "12px",
                       fontWeight: 600,
                       background:
-                        row.grossMarginPct >= 20
+                        (row.grossMarginPct ?? 0) >= 20
                           ? "rgba(74,222,128,0.1)"
-                          : row.grossMarginPct >= 10
+                          : (row.grossMarginPct ?? 0) >= 10
                             ? "rgba(251,191,36,0.1)"
                             : "rgba(232,80,80,0.1)",
                       color:
-                        row.grossMarginPct >= 20
+                        (row.grossMarginPct ?? 0) >= 20
                           ? "#34c473"
-                          : row.grossMarginPct >= 10
+                          : (row.grossMarginPct ?? 0) >= 10
                             ? "#e8a830"
                             : "#e85050",
                     }}
                   >
-                    {row.grossMarginPct.toFixed(0)}%
+                    {(row.grossMarginPct ?? 0).toFixed(0)}%
                   </span>
                 </td>
                 <td style={{ ...tdStyle, textAlign: "right" }}>
