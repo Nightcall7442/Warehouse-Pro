@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 
 const ROLE_HOME: Record<string, string> = {
   superadmin:   "/super-admin",
-  ceo:          "/reports",
+  ceo:          "/dashboard",
   operator:     "/dashboard",
   supervisor:   "/supervisor",
   agent:        "/agent",
