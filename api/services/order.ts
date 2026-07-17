@@ -31,6 +31,7 @@ export const OrderService = {
       agentId: orders.agentId,
       shopName: shops.name,
       agentName: users.name,
+      paymentMethod: orders.paymentMethod,
     }).from(orders)
       .leftJoin(shops, eq(orders.shopId, shops.id))
       .leftJoin(users, eq(orders.agentId, users.id))
@@ -52,6 +53,7 @@ export const OrderService = {
       shopId: orders.shopId, agentId: orders.agentId,
       courierId: orders.courierId, deliveryStatus: orders.deliveryStatus,
       deliveredAt: orders.deliveredAt, deletedAt: orders.deletedAt,
+      paymentMethod: orders.paymentMethod,
     }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt))).limit(1);
     if (!order) return null;
 
@@ -81,13 +83,14 @@ export const OrderService = {
         createdAt: orders.createdAt,
         shopId: orders.shopId,
         agentId: orders.agentId,
+        paymentMethod: orders.paymentMethod,
       }).from(orders).where(and(...conditions)).orderBy(desc(orders.createdAt)).limit(500),
       db.select({ count: sql<number>`count(*)` }).from(orders).where(and(...conditions)),
     ]);
     return { data, total: Number(countResult[0]?.count ?? 0) };
   },
 
-  async create(db: Db, tenantId: number, agentId: number, input: { shopId: number; items: Array<{ productId: number; quantity: string }>; notes?: string; discount?: string; idempotencyKey?: string }) {
+  async create(db: Db, tenantId: number, agentId: number, input: { shopId: number; items: Array<{ productId: number; quantity: string }>; notes?: string; discount?: string; idempotencyKey?: string; paymentMethod?: "cash" | "card" | "transfer" | "debt" }) {
     const discount = Number(input.discount ?? "0");
 
     // #FIX1-IDEMPOTENCY: Check for existing order with same key
@@ -166,6 +169,7 @@ export const OrderService = {
         subtotal: subtotal.toFixed(2), discount: discount.toFixed(2), total: total.toFixed(2),
         notes: input.notes,
         idempotencyKey: input.idempotencyKey ?? null,
+        paymentMethod: input.paymentMethod ?? "cash",
       });
       const id = Number(result.insertId);
 

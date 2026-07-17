@@ -4,12 +4,11 @@ interface SectionProps {
   title: string;
   icon: React.ComponentType<{ size: number }>;
   children: React.ReactNode;
-  className?: string;
   actions?: React.ReactNode;
   delay?: number;
 }
 
-export function Section({ title, icon: Icon, children, className = "", actions, delay = 0 }: SectionProps) {
+export function Section({ title, icon: Icon, children, actions, delay = 0 }: SectionProps) {
   return (
     <div style={{
       background: COLORS.surface, borderRadius: "24px", overflow: "hidden",

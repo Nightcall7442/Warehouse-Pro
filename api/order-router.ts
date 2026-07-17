@@ -43,8 +43,9 @@ export const orderRouter = createRouter({
         productId: z.number().int().positive(),
         quantity:  z.union([z.number(), z.string()]).transform(String),
       })).min(1).max(100),
-      notes:    z.string().max(500).optional(),
-      discount: z.union([z.number(), z.string()]).transform(String).default("0.00"),
+      notes:          z.string().max(500).optional(),
+      discount:       z.union([z.number(), z.string()]).transform(String).default("0.00"),
+      paymentMethod:  z.enum(["cash", "card", "transfer", "debt"]).default("cash"),
     }))
     .mutation(async ({ input, ctx }) => {
       return OrderService.create(ctx.db, ctx.tenant.id, ctx.user.id, input);

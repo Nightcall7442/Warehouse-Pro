@@ -17,6 +17,15 @@ export const Paths = {
 // router (USD).  Currency-specific pricing lives in each router.
 
 export const PLANS = {
+  trial: {
+    name:           "Trial",
+    nameUz:         "Trial",
+    nameRu:         "Пробный",
+    maxUsers:       3,
+    maxProducts:    20,
+    maxOrdersMonth: 50,
+    durationDays:   14,
+  },
   basic: {
     name:           "Basic",
     nameUz:         "Basic",
@@ -50,6 +59,7 @@ export type PlanKey = keyof typeof PLANS;
 
 /** UZS prices — used by billing-router for local payment providers (Payme, Click, Uzum Pay) */
 export const PLAN_PRICES_UZS: Record<PlanKey, number> = {
+  trial:     0,
   basic:     299_000,
   pro:       599_000,
   exclusive: 1_299_000,

@@ -17,6 +17,7 @@ export function getStripe(): Stripe {
 
 // Extend shared plan metadata with Stripe-specific pricing (USD cents).
 export const PLANS: Record<PlanKey, (typeof BASE_PLANS)[PlanKey] & { price: number; priceId: string | null }> = {
+  trial:     { ...BASE_PLANS.trial,     price: 0,           priceId: null },
   basic:     { ...BASE_PLANS.basic,     price: 99_00,      priceId: env.stripeBasicPriceId || null },
   pro:       { ...BASE_PLANS.pro,       price: 249_00,     priceId: env.stripeProPriceId || null },
   exclusive: { ...BASE_PLANS.exclusive, price: 999_00,     priceId: env.stripeExclusivePriceId || null },

@@ -18,8 +18,7 @@ export const billingRouter = createRouter({
       .where(eq(tenants.id, tenantId)).limit(1);
     if (!tenant) throw new TRPCError({ code: "NOT_FOUND" });
 
-    // Handle legacy "trial" plan — map to "basic"
-    const planKey = (tenant.plan === "trial" ? "basic" : tenant.plan) as PlanKey;
+    const planKey = tenant.plan as PlanKey;
     const plan      = PLANS[planKey] ?? PLANS.basic;
     const now       = new Date();
     const trialEnds = tenant.trialEndsAt;
@@ -27,7 +26,7 @@ export const billingRouter = createRouter({
 
     const trialActive  = trialEnds && trialEnds > now;
     const planActive   = planEnds  && planEnds  > now;
-    const isExpired    = !trialActive && !planActive && tenant.plan !== "basic";
+    const isExpired    = !trialActive && !planActive;
 
     // Current usage
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -63,7 +62,9 @@ export const billingRouter = createRouter({
         products:Number(productCount[0]?.c ?? 0),
         orders:  Number(orderCount[0]?.c ?? 0),
       },
-      plans: (Object.entries(PLANS) as [PlanKey, (typeof PLANS)[PlanKey]][]).map(([key, p]) => ({
+      plans: (Object.entries(PLANS) as [PlanKey, (typeof PLANS)[PlanKey]][])
+        .filter(([key]) => key !== "trial")
+        .map(([key, p]) => ({
         key,
         name:      p.name,
         nameUz:    p.nameUz,

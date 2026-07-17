@@ -5,6 +5,7 @@ import { products, warehouseStock, stockMovements, warehouses } from "@db/schema
 import { eq, like, and, sql, desc } from "drizzle-orm";
 import { sanitizeString, sanitizeSearch } from "./lib/sanitize";
 import { cache, CacheKeys, CacheTTL } from "./lib/cache";
+import { ProductService } from "./services/ProductService";
 
 async function getDefaultWarehouseId(db: ReturnType<typeof getDb>, tenantId: number): Promise<number | null> {
   const [wh] = await db.select({ id: warehouses.id })
@@ -237,23 +238,7 @@ export const productRouter = createRouter({
   findByBarcode: agentQuery
     .input(z.object({ barcode: z.string() }))
     .query(async ({ input, ctx }) => {
-      const db = getDb();
-      const tenantId = ctx.tenant.id;
-      const warehouseId = await getDefaultWarehouseId(db, tenantId);
-
-      const stockJoinCond = warehouseId
-        ? and(eq(warehouseStock.productId, products.id), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, warehouseId))
-        : and(eq(warehouseStock.productId, products.id), eq(warehouseStock.tenantId, tenantId));
-
-      const result = await db.select({
-        id: products.id, code: products.code, name: products.name,
-        unitPrice: products.unitPrice, unit: products.unit, available: warehouseStock.available,
-      })
-        .from(products)
-        .leftJoin(warehouseStock, stockJoinCond)
-        .where(and(eq(products.tenantId, tenantId), eq(products.barcode, input.barcode)))
-        .limit(1);
-      return result[0] ?? null;
+      return ProductService.searchByBarcode(getDb(), ctx.tenant.id, input.barcode);
     }),
 
   categories: agentQuery.query(async ({ ctx }) => {

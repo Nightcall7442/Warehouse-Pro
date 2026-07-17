@@ -38,7 +38,7 @@ export function TenantList({ onSelect }: TenantListProps) {
           <Search size={15} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: COLORS.textTertiary }} />
           <input placeholder="Поиск по имени, slug, email…" value={search} onChange={e => setSearch(e.target.value)} style={{ width: "100%", padding: "10px 14px 10px 38px", borderRadius: "12px", border: `1px solid ${COLORS.border}`, background: COLORS.surfaceLight, color: COLORS.textPrimary, fontFamily: F.body, fontSize: "13px", outline: "none" }} />
         </div>
-        <PremiumSelect value={filterPlan} onChange={setFilterPlan} options={[{ value: "all", label: "Все тарифы" }, { value: "basic", label: "Basic" }, { value: "pro", label: "Pro" }, { value: "exclusive", label: "Exclusive" }]} width="140px" />
+        <PremiumSelect value={filterPlan} onChange={setFilterPlan} options={[{ value: "all", label: "Все тарифы" }, { value: "trial", label: "Trial" }, { value: "basic", label: "Basic" }, { value: "pro", label: "Pro" }, { value: "exclusive", label: "Exclusive" }]} width="140px" />
         <PremiumSelect value={filterStatus} onChange={setFilterStatus} options={[{ value: "all", label: "Все статусы" }, { value: "active", label: "Active" }, { value: "suspended", label: "Suspended" }]} width="140px" />
         <span style={{ fontSize: "12px", color: COLORS.textTertiary, marginLeft: "auto" }}>{tenants.length} из {allTenants?.length ?? 0}</span>
       </div>

@@ -125,7 +125,7 @@ export const telegramRouter = createRouter({
 
     // Get bot username from token
     const botInfo = await fetch(`https://api.telegram.org/bot${botToken}/getMe`)
-      .then(r => r.json())
+      .then(r => r.json() as Promise<{ result?: { username?: string } }>)
       .catch(() => null);
 
     const botUsername = botInfo?.result?.username;
@@ -142,8 +142,8 @@ export const telegramRouter = createRouter({
     const tenantId = ctx.tenant.id;
     const today = new Date().toISOString().split("T")[0];
 
-    const { orders, warehouseStock, products, dailyPlans, users } = await import("@db/schema");
-    const { eq, and, sql, gte } = await import("drizzle-orm");
+    const { orders, warehouseStock, products, dailyPlans } = await import("@db/schema");
+    const { eq, and, sql } = await import("drizzle-orm");
 
     const [todayStats, lowStock, planProgress] = await Promise.all([
       // Today's orders

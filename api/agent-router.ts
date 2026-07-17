@@ -185,18 +185,6 @@ export const agentRouter = createRouter({
       return { id: Number(result.insertId) };
     }),
 
-  myShops: agentQuery.query(async ({ ctx }) => {
-    return getDb().select({
-      id: shops.id, name: shops.name, ownerName: shops.ownerName,
-      phone: shops.phone, address: shops.address, city: shops.city,
-      district: shops.district, photoUrl: shops.photoUrl, status: shops.status,
-      debt: shops.debt, gpsLat: shops.gpsLat, gpsLng: shops.gpsLng,
-    })
-      .from(shops)
-      .where(and(eq(shops.tenantId, ctx.tenant.id), eq(shops.status, "active")))
-      .limit(500);
-  }),
-
   // Агент может добавить новый магазин — автоматически привязывается к нему
   createShop: agentQuery
     .input(z.object({
@@ -338,7 +326,6 @@ export const agentRouter = createRouter({
       .orderBy(desc(sql`DATE(${orders.createdAt})`));
 
     let streak = 0;
-    const today = now.toISOString().split("T")[0];
     for (let i = 0; i < streakData.length; i++) {
       const expectedDate = new Date(now.getTime() - i * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
       if (streakData[i]?.day === expectedDate && Number(streakData[i]?.count) > 0) {

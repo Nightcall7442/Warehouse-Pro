@@ -162,7 +162,7 @@ class UnifiedCache {
       const prefixes = new Set<string>();
       for (const keyFn of Object.values(CacheKeys)) {
         try {
-          const example = keyFn(0, 0);
+          const example = (keyFn as (...args: number[]) => string)(0, 0);
           const prefix = example.split(':')[0];
           if (prefix) prefixes.add(prefix);
         } catch { /* skip */ }

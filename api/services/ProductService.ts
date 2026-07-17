@@ -42,6 +42,7 @@ export interface ProductCreateInput {
 
 export interface ProductUpdateInput {
   code?: string;
+  barcode?: string;
   name?: string;
   category?: string;
   costPrice?: string;

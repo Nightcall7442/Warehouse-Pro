@@ -17,7 +17,7 @@ export function PlatformStats() {
       {stats && (
         <Section title="По тарифам" icon={BarChart3}>
           <div style={{ display: "flex", gap: "20px", flexWrap: "wrap", alignItems: "center" }}>
-            {(["basic", "pro", "exclusive"] as const).map(plan => (
+            {(["trial", "basic", "pro", "exclusive"] as const).map(plan => (
               <div key={plan} style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                 <PlanBadge plan={plan} />
                 <span style={{ fontFamily: F.display, fontSize: "20px", fontWeight: 700, color: COLORS.textPrimary }}>{stats.byPlan[plan] ?? 0}</span>

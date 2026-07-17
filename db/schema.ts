@@ -147,6 +147,7 @@ export const orders = mysqlTable("orders", {
   notes:       text("notes"),
   idempotencyKey: varchar("idempotency_key", { length: 64 }),
   courierId:   bigint("courier_id", { mode: "number", unsigned: true }).references(() => users.id),
+  paymentMethod: mysqlEnum("payment_method", ["cash", "card", "transfer", "debt"]).default("cash").notNull(),
   deliveryStatus: mysqlEnum("delivery_status", ["not_assigned", "assigned", "out_for_delivery", "delivered", "failed"]).default("not_assigned").notNull(),
   deliveredAt: timestamp("delivered_at"),
   deletedAt:   timestamp("deleted_at"),

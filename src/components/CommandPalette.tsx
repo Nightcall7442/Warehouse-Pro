@@ -5,7 +5,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { trpc } from "@/providers/trpc";
 import {
   Search, ShoppingCart, Package, Store, Users, FileText,
-  BarChart3, Settings, Truck, Map, ArrowRight, X, Loader2,
+  BarChart3, Settings, Truck, ArrowRight,
 } from "lucide-react";
 
 interface CommandItem {
@@ -21,7 +21,6 @@ interface CommandItem {
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const { lang } = useLang();

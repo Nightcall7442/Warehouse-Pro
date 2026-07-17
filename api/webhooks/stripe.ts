@@ -59,7 +59,9 @@ export function registerStripeWebhook(app: Hono) {
             const tenantId = Number(sub.metadata?.tenantId);
             if (!tenantId) break;
             const priceId = sub.items?.data?.[0]?.price?.id;
-            const plan = priceId === env.stripeProPriceId ? "pro" : "basic";
+            let plan: "basic" | "pro" | "exclusive" = "basic";
+            if (priceId === env.stripeProPriceId) plan = "pro";
+            else if (priceId === env.stripeExclusivePriceId) plan = "exclusive";
             await tx.update(subscriptions).set({
               plan, status: sub.status as "active" | "past_due" | "canceled" | "trialing" | "incomplete",
               currentPeriodEnds: sub.current_period_end

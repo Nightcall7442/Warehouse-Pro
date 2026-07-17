@@ -280,7 +280,7 @@ describe("billing.status", () => {
     expect(result.planActive).toBeFalsy();
   });
 
-  it("returns isExpired: false when plan is basic (trial period)", async () => {
+  it("returns isExpired: true when plan is basic and both dates are past", async () => {
     tenantsTable[0].plan = "basic";
     tenantsTable[0].trialEndsAt = new Date("2020-01-01");
     tenantsTable[0].planExpiresAt = new Date("2020-01-01");
@@ -289,7 +289,7 @@ describe("billing.status", () => {
     const caller = billingRouter.createCaller(makeCtx(1, 10));
     const result = await caller.status();
 
-    expect(result.isExpired).toBe(false);
+    expect(result.isExpired).toBe(true);
   });
 
   it("calculates correct daysLeft for trial", async () => {

@@ -24,7 +24,7 @@ export const BillingService = {
 
     const trialActive = trialEnds && trialEnds > now;
     const planActive = planEnds && planEnds > now;
-    const isExpired = !trialActive && !planActive && tenant.plan !== "pro";
+    const isExpired = !trialActive && !planActive;
 
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const [userCount, productCount, orderCount] = await Promise.all([
