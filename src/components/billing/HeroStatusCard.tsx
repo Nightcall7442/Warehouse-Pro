@@ -1,5 +1,5 @@
 import { CheckCircle2, AlertTriangle } from "lucide-react";
-import { COLORS, FONTS, GRADIENTS, SHADOWS } from "./designTokens";
+import { COLORS, FONTS, GRADIENTS } from "./designTokens";
 import { DaysRing } from "./DaysRing";
 
 interface HeroStatusCardProps {
@@ -18,18 +18,17 @@ export function HeroStatusCard({
   t,
 }: HeroStatusCardProps) {
   return (
-    <div style={{
-      position: "relative",
-      overflow: "hidden",
-      borderRadius: "24px",
-      padding: "28px",
-      background: isExpired ? GRADIENTS.heroExpired : GRADIENTS.hero,
-      boxShadow: isExpired
-        ? `${SHADOWS.lg}, ${SHADOWS.glow("danger", 0.08)}`
-        : `${SHADOWS.lg}, ${SHADOWS.glow("primary", 0.08)}`,
-      marginBottom: "24px",
-      animation: "slideUp 0.7s ease forwards",
-    }}>
+    <div
+      className="neo-card"
+      style={{
+        position: "relative",
+        overflow: "hidden",
+        padding: "28px",
+        background: isExpired ? GRADIENTS.heroExpired : GRADIENTS.hero,
+        marginBottom: "24px",
+        animation: "slideUp 0.7s ease forwards",
+      }}
+    >
       {/* Ambient glow */}
       <div style={{
         position: "absolute",
@@ -38,20 +37,9 @@ export function HeroStatusCard({
         width: "160px",
         height: "160px",
         borderRadius: "50%",
-        background: isExpired ? "#d45050" : "#5b6d8a",
+        background: isExpired ? "var(--color-danger, #d45050)" : "var(--color-primary, #5b6d8a)",
         opacity: 0.06,
         filter: "blur(40px)",
-      }} />
-      <div style={{
-        position: "absolute",
-        bottom: "-60px",
-        left: "-20px",
-        width: "120px",
-        height: "120px",
-        borderRadius: "50%",
-        background: isExpired ? "#d45050" : "#5b6d8a",
-        opacity: 0.04,
-        filter: "blur(50px)",
       }} />
 
       <div style={{

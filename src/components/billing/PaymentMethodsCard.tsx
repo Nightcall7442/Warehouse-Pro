@@ -7,11 +7,8 @@ interface PaymentMethodsCardProps {
 
 export function PaymentMethodsCard({ t }: PaymentMethodsCardProps) {
   return (
-    <div style={{
-      borderRadius: "24px",
+    <div className="neo-card" style={{
       padding: "24px",
-      background: GRADIENTS.card,
-      boxShadow: SHADOWS.md,
       marginTop: "32px",
       animation: "slideUp 1s ease forwards",
     }}>

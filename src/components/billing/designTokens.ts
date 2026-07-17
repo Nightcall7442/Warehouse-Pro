@@ -1,17 +1,17 @@
 export const COLORS = {
-  primary: "#5b6d8a",
-  primaryLight: "#5b6d8a",
-  primaryDark: "#5b6d8a",
-  gradientStart: "#5b6d8a",
-  gradientEnd: "#c7c9f8",
-  success: "#34c473",
-  warning: "#d4973a",
-  danger: "#d45050",
-  surface: "var(--color-surface, #ffffff)",
-  surfaceDark: "var(--color-surface-light, #f0f3f8)",
-  textPrimary: "var(--color-text-primary, #2b3450)",
-  textSecondary: "var(--color-text-secondary, #6a7290)",
-  textTertiary: "var(--color-text-tertiary, #98a0b8)",
+  primary: "var(--color-primary, #5b6d8a)",
+  primaryLight: "var(--color-primary-muted, #94a3b8)",
+  primaryDark: "var(--color-primary-hover, #4a5c78)",
+  gradientStart: "var(--color-primary, #5b6d8a)",
+  gradientEnd: "var(--color-primary-muted, #94a3b8)",
+  success: "var(--color-success, #34c473)",
+  warning: "var(--color-warning, #d4973a)",
+  danger: "var(--color-danger, #d45050)",
+  surface: "var(--color-surface, #f6f4f0)",
+  surfaceDark: "var(--color-surface-light, #fbfaf8)",
+  textPrimary: "var(--color-text-primary, #2b2a28)",
+  textSecondary: "var(--color-text-secondary, #5e5b54)",
+  textTertiary: "var(--color-text-tertiary, #757168)",
 };
 
 export const FONTS = {
@@ -20,20 +20,20 @@ export const FONTS = {
 };
 
 export const SHADOWS = {
-  sm: "0 1px 2px rgba(0,0,0,.04)",
-  md: "0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04)",
-  lg: "0 10px 15px -3px rgba(0,0,0,.06)",
-  xl: "0 20px 25px -5px rgba(0,0,0,.06)",
+  sm: "var(--shadow-xs)",
+  md: "var(--shadow-sm)",
+  lg: "var(--shadow-md)",
+  xl: "var(--shadow-lg)",
   glow: (color: string, intensity = 0.15) =>
-    `0 0 30px rgba(${color === "primary" ? "99,102,241" : color === "success" ? "16,185,129" : color === "warning" ? "245,158,11" : "239,68,68"},${intensity})`,
+    `0 0 30px rgba(${color === "primary" ? "91,109,138" : color === "success" ? "52,196,115" : color === "warning" ? "212,151,58" : "212,80,80"},${intensity})`,
 };
 
 export const GRADIENTS = {
-  hero: `linear-gradient(135deg, color-mix(in srgb, var(--color-primary, #5b6d8a) 8%, var(--color-surface, #eff6ff)) 0%, var(--color-surface, #ffffff) 100%)`,
-  heroExpired: `linear-gradient(135deg, color-mix(in srgb, var(--color-danger, #d45050) 8%, var(--color-surface, #fee2e2)) 0%, var(--color-surface, #ffffff) 100%)`,
-  button: `linear-gradient(135deg, ${COLORS.gradientStart}, ${COLORS.gradientEnd})`,
-  buttonHover: `linear-gradient(135deg, ${COLORS.primaryDark}, #9333ea)`,
-  card: `linear-gradient(180deg, var(--color-surface, #ffffff) 0%, var(--color-surface-light, #f0f3f8) 100%)`,
+  hero: `linear-gradient(135deg, color-mix(in srgb, var(--color-primary, #5b6d8a) 6%, var(--color-surface, #f6f4f0)) 0%, var(--color-surface, #f6f4f0) 100%)`,
+  heroExpired: `linear-gradient(135deg, color-mix(in srgb, var(--color-danger, #d45050) 6%, var(--color-surface, #f6f4f0)) 0%, var(--color-surface, #f6f4f0) 100%)`,
+  button: `linear-gradient(135deg, var(--color-primary, #5b6d8a), var(--color-primary-hover, #4a5c78))`,
+  buttonHover: `linear-gradient(135deg, var(--color-primary-hover, #4a5c78), var(--color-primary, #5b6d8a))`,
+  card: "var(--color-surface, #f6f4f0)",
 };
 
 export const ANIMATIONS = {
@@ -41,5 +41,5 @@ export const ANIMATIONS = {
   slideUp: "@keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }",
   pulse: "@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }",
   progressFill: "@keyframes progressFill { from { width: 0; } }",
-  glowPulse: "@keyframes glowPulse { 0%, 100% { box-shadow: 0 0 20px rgba(75,108,246,0.1); } 50% { box-shadow: 0 0 30px rgba(75,108,246,0.2); } }",
+  glowPulse: "@keyframes glowPulse { 0%, 100% { box-shadow: var(--shadow-sm); } 50% { box-shadow: var(--shadow-md); } }",
 };

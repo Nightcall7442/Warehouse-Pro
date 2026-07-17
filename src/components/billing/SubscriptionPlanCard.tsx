@@ -34,19 +34,13 @@ export function SubscriptionPlanCard({
 }: SubscriptionPlanCardProps) {
   return (
     <div
+      className="neo-card"
       style={{
         position: "relative",
-        borderRadius: "24px",
         padding: "24px",
         display: "flex",
         flexDirection: "column",
         gap: "16px",
-        background: isCurrent || isPro ? GRADIENTS.card : COLORS.surface,
-        boxShadow: isPro
-          ? `${SHADOWS.xl}, ${SHADOWS.glow("primary", 0.12)}`
-          : isCurrent
-            ? `${SHADOWS.lg}, 0 0 0 2px ${COLORS.primary}30`
-            : SHADOWS.md,
         transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
         animation: `slideUp ${0.8 + index * 0.1}s ease forwards`,
         cursor: "default",
@@ -54,9 +48,6 @@ export function SubscriptionPlanCard({
       onMouseEnter={(e) => {
         if (!isCurrent) {
           (e.currentTarget as HTMLElement).style.transform = "translateY(-4px)";
-          (e.currentTarget as HTMLElement).style.boxShadow = isPro
-            ? `${SHADOWS.xl}, ${SHADOWS.glow("primary", 0.18)}`
-            : SHADOWS.xl;
         }
       }}
       onMouseLeave={(e) => {

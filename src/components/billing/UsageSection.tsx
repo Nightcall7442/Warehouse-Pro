@@ -22,11 +22,8 @@ interface UsageSectionProps {
 
 export function UsageSection({ usage, limits, t }: UsageSectionProps) {
   return (
-    <div style={{
-      borderRadius: "24px",
+    <div className="neo-card" style={{
       padding: "28px",
-      background: GRADIENTS.card,
-      boxShadow: SHADOWS.md,
       marginBottom: "32px",
       animation: "slideUp 0.8s ease forwards",
     }}>
