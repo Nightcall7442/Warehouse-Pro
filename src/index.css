@@ -47,21 +47,21 @@
      LIGHT THEME — Soft UI Neumorphism
      ══════════════════════════════════════════════════════════════════════ */
   :root, .light {
-    --color-canvas:          #f2f0ec;
-    --color-canvas-alt:      #ece9e3;
-    --color-surface:         #f6f4f0;
-    --color-surface-raised:  #f8f6f2;
-    --color-surface-light:   #fbfaf8;
-    --color-surface-hover:   #ede9e2;
+    --color-canvas:          #e8e6e1;
+    --color-canvas-alt:      #e0ddd7;
+    --color-surface:         #efedea;
+    --color-surface-raised:  #f2f0ec;
+    --color-surface-light:   #f6f4f0;
+    --color-surface-hover:   #e5e3de;
 
-    --color-border:          #e4e0d8;
-    --color-border-subtle:   #ebe7e0;
-    --color-border-custom:   #e4e0d8;
-    --color-border-strong:   #d2ccc0;
+    --color-border:          #d8d5cd;
+    --color-border-subtle:   #e0ddd7;
+    --color-border-custom:   #d8d5cd;
+    --color-border-strong:   #c4c0b8;
 
     --color-text-primary:    #2b2a28;
-    --color-text-secondary:  #6b675f;
-    --color-text-tertiary:   #807c72;  /* WCAG AA: 4.5:1 on #f2f0ec */
+    --color-text-secondary:  #5e5b54;
+    --color-text-tertiary:   #757168;  /* WCAG AA: 4.5:1 on #e8e6e1 */
     --color-text-inverse:    #ffffff;
 
     --color-primary:         #4b6cf6;
@@ -99,13 +99,13 @@
     /* Neumorphic shadow system — мягкая асимметричная диффузия, а не
        "тиснёный" эффект в 50/50: тёплый приглушённый тон тени (не холодный
        серо-синий), ниже непрозрачность тёмной стороны, больше blur. */
-    --shadow-raised:  8px 8px 20px rgba(180,172,158,0.35), -8px -8px 20px rgba(255,255,255,0.6);
-    --shadow-pressed: inset 5px 5px 10px rgba(180,172,158,0.25), inset -5px -5px 10px rgba(255,255,255,0.5);
-    --shadow-sm:      3px 3px 8px rgba(180,172,158,0.25), -3px -3px 8px rgba(255,255,255,0.5);
-    --shadow-xs:      2px 2px 4px rgba(180,172,158,0.2), -2px -2px 4px rgba(255,255,255,0.4);
-    --shadow-md:      10px 10px 24px rgba(180,172,158,0.3), -10px -10px 24px rgba(255,255,255,0.55);
-    --shadow-lg:      14px 14px 32px rgba(180,172,158,0.35), -14px -14px 32px rgba(255,255,255,0.5);
-    --shadow-xl:      18px 18px 40px rgba(180,172,158,0.4), -18px -18px 40px rgba(255,255,255,0.45);
+    --shadow-raised:  8px 8px 20px rgba(160,152,140,0.38), -8px -8px 20px rgba(255,255,255,0.55);
+    --shadow-pressed: inset 5px 5px 10px rgba(160,152,140,0.28), inset -5px -5px 10px rgba(255,255,255,0.45);
+    --shadow-sm:      3px 3px 8px rgba(160,152,140,0.28), -3px -3px 8px rgba(255,255,255,0.45);
+    --shadow-xs:      2px 2px 4px rgba(160,152,140,0.22), -2px -2px 4px rgba(255,255,255,0.35);
+    --shadow-md:      10px 10px 24px rgba(160,152,140,0.32), -10px -10px 24px rgba(255,255,255,0.5);
+    --shadow-lg:      14px 14px 32px rgba(160,152,140,0.35), -14px -14px 32px rgba(255,255,255,0.45);
+    --shadow-xl:      18px 18px 40px rgba(160,152,140,0.4), -18px -18px 40px rgba(255,255,255,0.4);
     --shadow-ring:    drop-shadow(0 4px 10px rgba(180,172,158,0.3));
     --ring-primary:   0 0 0 3px color-mix(in srgb, var(--color-primary) 18%, transparent);
 
