@@ -81,7 +81,7 @@ export default function SupervisorTracking() {
         if (!lat || !lng) return;
 
         const online = isOnline(loc.createdAt);
-        const color = online ? "#34c473" : "var(--color-text-tertiary, #98a0b8)";
+        const color = online ? "var(--color-success, #34c473)" : "var(--color-text-tertiary, #98a0b8)";
         const initial = (loc.agentName ?? "A")[0].toUpperCase();
 
         const placemark = new window.ymaps.Placemark(
@@ -233,7 +233,7 @@ export default function SupervisorTracking() {
                     >
                       <div className="flex items-center gap-2.5">
                         <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold"
-                          style={{ background: online ? "#34c473" : "var(--color-text-tertiary, #98a0b8)" }}>
+                          style={{ background: online ? "var(--color-success, #34c473)" : "var(--color-text-tertiary, #98a0b8)" }}>
                           {(loc.agentName ?? "A")[0].toUpperCase()}
                         </div>
                         <div className="flex-1 min-w-0">

@@ -84,6 +84,15 @@ export default function MerchandiserVisit() {
   const totalItems = checklist.length;
   const completionPct = totalItems > 0 ? Math.round((presentCount / totalItems) * 100) : 0;
 
+  if (!shopId) {
+    return (
+      <div className="max-w-3xl mx-auto p-4 text-center py-20">
+        <p className="text-secondary">{t("Магазин не выбран", "Do'kon tanlanmagan")}</p>
+        <button onClick={() => navigate(-1)} className="neo-btn-primary mt-4">{t("Назад", "Orqaga")}</button>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-3xl mx-auto space-y-4 p-4">
       {/* Header */}
@@ -172,14 +181,14 @@ export default function MerchandiserVisit() {
                 placeholder={t("Цена", "Narxi")}
                 value={item.price ?? ""}
                 onChange={(e) => updateChecklistPrice(item.productId, e.target.value)}
-                className="w-20 text-xs px-2 py-1 border rounded"
+                className="w-20 text-xs px-2 py-1 neo-input"
               />
               <input
                 type="text"
                 placeholder={t("Акция", "Aksiya")}
                 value={item.promoNote ?? ""}
                 onChange={(e) => updateChecklistPromo(item.productId, e.target.value)}
-                className="w-24 text-xs px-2 py-1 border rounded"
+                className="w-24 text-xs px-2 py-1 neo-input"
               />
             </div>
           ))}
@@ -194,7 +203,7 @@ export default function MerchandiserVisit() {
           onChange={(e) => setCompetitorNotes(e.target.value)}
           rows={4}
           placeholder={t("Что видно на полках конкурентов...", "Raqobatchilar polkalarida nima bor...")}
-          className="w-full px-3 py-2 border rounded-lg text-sm resize-none"
+          className="w-full px-3 py-2 neo-input text-sm resize-none"
         />
       </div>
 

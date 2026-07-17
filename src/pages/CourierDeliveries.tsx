@@ -152,8 +152,8 @@ export default function CourierDeliveries() {
                   <p className="font-semibold">{order.orderNumber}</p>
                   <p className="text-sm text-secondary">{order.shopName}</p>
                 </div>
-                <span className={`badge ${DELIVERY_STATUS_STYLES[order.deliveryStatus] ?? ""}`}>
-                  {DELIVERY_STATUS_LABELS[order.deliveryStatus]?.ru ?? order.deliveryStatus}
+                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${DELIVERY_STATUS_STYLES[order.deliveryStatus] ?? ""}`}>
+                  {DELIVERY_STATUS_LABELS[order.deliveryStatus] ? t(DELIVERY_STATUS_LABELS[order.deliveryStatus].ru, DELIVERY_STATUS_LABELS[order.deliveryStatus].uz) : order.deliveryStatus}
                 </span>
               </div>
               {order.shopAddress && (
@@ -225,8 +225,8 @@ function DeliveryCard({
           <p className="font-semibold">{order.orderNumber}</p>
           <p className="text-sm text-secondary">{order.shopName}</p>
         </div>
-        <span className={`badge ${DELIVERY_STATUS_STYLES[order.deliveryStatus] ?? ""}`}>
-          {DELIVERY_STATUS_LABELS[order.deliveryStatus]?.ru ?? order.deliveryStatus}
+        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${DELIVERY_STATUS_STYLES[order.deliveryStatus] ?? ""}`}>
+          {DELIVERY_STATUS_LABELS[order.deliveryStatus] ? t(DELIVERY_STATUS_LABELS[order.deliveryStatus].ru, DELIVERY_STATUS_LABELS[order.deliveryStatus].uz) : order.deliveryStatus}
         </span>
       </div>
       {order.shopAddress && (
@@ -272,7 +272,7 @@ function DeliveryCard({
       <button
         onClick={onDeliver}
         disabled={isPending}
-        className="w-full btn-primary flex items-center justify-center gap-2 text-sm"
+        className="w-full neo-btn-primary flex items-center justify-center gap-2 text-sm"
       >
         <CheckCircle2 size={16} />
         {isPending ? t("Отправка...", "Yuborilmoqda...") : t("Доставлено", "Yetkazildi")}
