@@ -1,6 +1,28 @@
 import { z } from "zod";
 import { createRouter, authedQuery } from "./middleware";
-import { uploadToS3, isS3Configured } from "./lib/s3";
+import { env } from "./lib/env";
+
+function isS3Configured(): boolean {
+  return !!(env.s3Bucket && env.s3AccessKey && env.s3SecretKey);
+}
+
+async function uploadToS3(key: string, body: Buffer, contentType: string): Promise<string> {
+  const { S3Client, PutObjectCommand } = await import("@aws-sdk/client-s3");
+  const s3 = new S3Client({
+    region: env.s3Region || "us-east-1",
+    credentials: {
+      accessKeyId: env.s3AccessKey || "",
+      secretAccessKey: env.s3SecretKey || "",
+    },
+  });
+  await s3.send(new PutObjectCommand({
+    Bucket: env.s3Bucket!,
+    Key: key,
+    Body: body,
+    ContentType: contentType,
+  }));
+  return `https://${env.s3Bucket}.s3.${env.s3Region || "us-east-1"}.amazonaws.com/${key}`;
+}
 
 export const uploadRouter = createRouter({
   /** Upload a base64-encoded image to S3 and return the public URL.
@@ -12,11 +34,9 @@ export const uploadRouter = createRouter({
     }))
     .mutation(async ({ input, ctx }) => {
       if (!isS3Configured()) {
-        // Fallback: store dataUrl directly (dev mode)
         return { url: input.dataUrl };
       }
 
-      // Parse dataUrl
       const match = input.dataUrl.match(/^data:image\/(\w+);base64,(.+)$/);
       if (!match) throw new Error("Invalid dataUrl format");
 
