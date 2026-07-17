@@ -61,7 +61,10 @@ export const OrderService = {
       db.select({
         id: orderItems.id, productId: orderItems.productId, quantity: orderItems.quantity,
         unitPrice: orderItems.unitPrice, subtotal: orderItems.subtotal,
-      }).from(orderItems).where(eq(orderItems.orderId, orderId)),
+        productName: products.name, productCode: products.code,
+      }).from(orderItems)
+        .innerJoin(products, eq(orderItems.productId, products.id))
+        .where(eq(orderItems.orderId, orderId)),
       db.select({ id: shops.id, name: shops.name, address: shops.address, city: shops.city, phone: shops.phone })
         .from(shops).where(eq(shops.id, order.shopId)).limit(1),
     ]);
