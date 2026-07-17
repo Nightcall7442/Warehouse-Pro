@@ -154,9 +154,9 @@ export default function SupervisorTracking() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <div style={{ display: "flex", gap: "6px", marginBottom: "12px" }}>
-            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-pink, #f06895)", boxShadow: "var(--shadow-xs)" }} />
-            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-orange, #f5a825)", boxShadow: "var(--shadow-xs)" }} />
-            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-teal, #2ec4b0)", boxShadow: "var(--shadow-xs)" }} />
+            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-pink, #c06080)", boxShadow: "var(--shadow-xs)" }} />
+            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-orange, #c49530)", boxShadow: "var(--shadow-xs)" }} />
+            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-teal, #3a9a8a)", boxShadow: "var(--shadow-xs)" }} />
           </div>
           <h1 className="font-display text-2xl font-bold text-primary tracking-tight">{t("Слежение за агентами", "Agentlarni kuzatish")}</h1>
           {lastUpdate && (

@@ -102,7 +102,7 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
                   alignItems: "center", justifyContent: "center", flexShrink: 0,
                   background: inCart ? "rgba(75,108,246,.15)" : "var(--color-surface-light, #f0f3f8)",
                 }}>
-                  <Package size={18} style={{ color: inCart ? "#4b6cf6" : "var(--color-text-tertiary, #98a0b8)" }} />
+                  <Package size={18} style={{ color: inCart ? "#5b6d8a" : "var(--color-text-tertiary, #98a0b8)" }} />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <p style={{ fontWeight: 500, fontSize: "13px", color: "var(--color-text-primary, #2b3450)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -110,12 +110,12 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
                   </p>
                   <p style={{ fontSize: "11px", color: "var(--color-text-secondary, #6a7290)", margin: "2px 0 0" }}>
                     {fmt(product.unitPrice)}/{unitLabel(product.unit, lang)}
-                    {lowStock && <span style={{ color: "#e8a830", marginLeft: "8px" }}>⚠</span>}
+                    {lowStock && <span style={{ color: "#d4973a", marginLeft: "8px" }}>⚠</span>}
                   </p>
                 </div>
                 {inCart ? (
                   <span style={{
-                    background: "#4b6cf6", color: "#fff", borderRadius: "8px",
+                    background: "#5b6d8a", color: "#fff", borderRadius: "8px",
                     padding: "4px 10px", fontSize: "12px", fontWeight: 600,
                   }}>
                     ×{inCart.quantity}
@@ -146,7 +146,7 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
           </h3>
           {validItems.length > 0 && (
             <button onClick={() => onChange([])} style={{
-              fontSize: "11px", color: "#e85050", background: "none",
+              fontSize: "11px", color: "#d45050", background: "none",
               border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", fontWeight: 500,
             }}>
               {t("Очистить", "Tozalash")}
@@ -212,7 +212,7 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
               )}
               <div style={{ display: "flex", justifyContent: "space-between", paddingTop: "8px", borderTop: "1px solid var(--color-border, #f0f3f8)" }}>
                 <span style={{ fontSize: "15px", fontWeight: 700, color: "var(--color-text-primary, #2b3450)" }}>{t("ИТОГО", "JAMI")}</span>
-                <span style={{ fontSize: "15px", fontWeight: 700, color: "#4b6cf6" }}>{fmt(subtotal.toFixed(0))}</span>
+                <span style={{ fontSize: "15px", fontWeight: 700, color: "#5b6d8a" }}>{fmt(subtotal.toFixed(0))}</span>
               </div>
             </div>
           </>

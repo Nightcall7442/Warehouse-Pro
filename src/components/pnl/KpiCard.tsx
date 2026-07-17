@@ -79,7 +79,7 @@ export function KpiCard({ label, value, delta, icon, gradient, delay }: KpiCardP
             color: isPositive
               ? "#34c473"
               : isNegative
-                ? "#e85050"
+                ? "#d45050"
                 : COLORS.textTertiary,
           }}
         >

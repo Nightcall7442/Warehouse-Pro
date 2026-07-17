@@ -5,10 +5,10 @@ export const F = {
 };
 
 export const COLORS = {
-  primary: "#4b6cf6",
+  primary: "#5b6d8a",
   success: "#34c473",
-  warning: "#e8a830",
-  danger: "#e85050",
+  warning: "#d4973a",
+  danger: "#d45050",
   surface: "var(--color-surface, #ffffff)",
   surfaceLight: "var(--color-surface-light, #f0f3f8)",
   textPrimary: "var(--color-text-primary, #2b3450)",

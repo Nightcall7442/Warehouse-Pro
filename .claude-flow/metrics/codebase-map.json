@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-07-15T19:59:48.854Z",
+  "timestamp": "2026-07-16T01:44:49.147Z",
   "projectRoot": "C:\\Users\\user\\Warehouse-Pro",
   "structure": {
     "hasPackageJson": true,
@@ -7,5 +7,5 @@
     "hasClaudeConfig": false,
     "hasClaudeFlow": true
   },
-  "scannedAt": 1784145588854
+  "scannedAt": 1784166289148
 }

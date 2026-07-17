@@ -142,7 +142,7 @@ export function PnLPeriodComparison({
                   style={{
                     fontSize: "12px",
                     fontWeight: 600,
-                    color: item.delta >= 0 ? "#34c473" : "#e85050",
+                    color: item.delta >= 0 ? "#34c473" : "#d45050",
                   }}
                 >
                   {item.delta >= 0 ? "+" : ""}

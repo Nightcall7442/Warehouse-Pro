@@ -125,7 +125,7 @@ export default function Products() {
               display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
               fontSize: "13px", fontWeight: 500, fontFamily: F.body, borderRadius: "10px",
               border: "none", cursor: "pointer",
-              background: "linear-gradient(135deg, #4b6cf6, #4b6cf6)", color: "#fff",
+              background: "linear-gradient(135deg, #5b6d8a, #5b6d8a)", color: "#fff",
               boxShadow: "0 2px 8px rgba(75,108,246,0.3)",
             }}
           >
@@ -147,7 +147,7 @@ export default function Products() {
           value={String(totalCount)}
           delta={null}
           icon={<Box size={20} color="#fff" />}
-          gradient="linear-gradient(135deg, #4b6cf6, #4b6cf6)"
+          gradient="linear-gradient(135deg, #5b6d8a, #5b6d8a)"
           delay={0}
         />
         <KpiCard
@@ -171,7 +171,7 @@ export default function Products() {
           value={`p.${page}`}
           delta={null}
           icon={<BarChart3 size={20} color="#fff" />}
-          gradient="linear-gradient(135deg, #a78bfa, #4b6cf6)"
+          gradient="linear-gradient(135deg, #a78bfa, #5b6d8a)"
           delay={0.15}
         />
       </div>
@@ -194,7 +194,7 @@ export default function Products() {
           background: "var(--color-primary-subtle, rgba(75,108,246,.10))",
           border: "1px solid rgba(75,108,246,.20)",
         }}>
-          <span style={{ fontSize: "13px", fontWeight: 600, color: "#4b6cf6" }}>
+          <span style={{ fontSize: "13px", fontWeight: 600, color: "#5b6d8a" }}>
             {selected.size} {t("выбрано", "tanlangan")}
           </span>
           <div style={{ display: "flex", gap: "8px" }}>
@@ -206,7 +206,7 @@ export default function Products() {
                 display: "flex", alignItems: "center", gap: "5px", padding: "6px 14px",
                 fontSize: "12px", fontWeight: 600, borderRadius: "8px",
                 border: "none", cursor: "pointer", color: "#fff",
-                background: "#e85050", opacity: deleteMutation.isPending ? 0.5 : 1,
+                background: "#d45050", opacity: deleteMutation.isPending ? 0.5 : 1,
               }}>
               <Trash2 size={13} />{t("Удалить", "O'chirish")}
             </button>
@@ -266,7 +266,7 @@ export default function Products() {
               style={{
                 padding: "8px 16px", fontSize: "13px", fontWeight: 500, fontFamily: F.body,
                 borderRadius: "8px", border: "none", cursor: "pointer",
-                background: "linear-gradient(135deg, #4b6cf6, #4b6cf6)", color: "#fff",
+                background: "linear-gradient(135deg, #5b6d8a, #5b6d8a)", color: "#fff",
                 boxShadow: "0 2px 8px rgba(75,108,246,0.3)",
                 opacity: page * 25 >= data.total ? 0.5 : 1,
               }}

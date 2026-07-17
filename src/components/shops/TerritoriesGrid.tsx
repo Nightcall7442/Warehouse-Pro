@@ -25,7 +25,7 @@ export function TerritoriesGrid({ territories, totalShops, lang, fmt, onSelectAl
           <span style={{ fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: COLORS.textTertiary }}>
             {t("ВСЕ МАГАЗИНЫ", "BARCHA DO'KONLAR")}
           </span>
-          <div style={{ width: "44px", height: "44px", borderRadius: "12px", background: "linear-gradient(135deg, #4b6cf6, #4b6cf6)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ width: "44px", height: "44px", borderRadius: "12px", background: "linear-gradient(135deg, #5b6d8a, #5b6d8a)", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Store size={20} color="#fff" />
           </div>
         </div>
@@ -54,7 +54,7 @@ export function TerritoriesGrid({ territories, totalShops, lang, fmt, onSelectAl
               <span style={{ fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: COLORS.textTertiary }}>
                 {[t_.city, t_.district].filter(Boolean).join(", ").toUpperCase()}
               </span>
-              <div style={{ width: "44px", height: "44px", borderRadius: "12px", background: debt > 0 ? "linear-gradient(135deg, #e85050, #e85050)" : "linear-gradient(135deg, #34c473, #22c47a)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ width: "44px", height: "44px", borderRadius: "12px", background: debt > 0 ? "linear-gradient(135deg, #d45050, #d45050)" : "linear-gradient(135deg, #34c473, #22c47a)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <MapPin size={20} color="#fff" />
               </div>
             </div>
@@ -69,7 +69,7 @@ export function TerritoriesGrid({ territories, totalShops, lang, fmt, onSelectAl
                 <span style={{
                   display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", fontWeight: 600,
                   padding: "2px 8px", borderRadius: "9999px", background: "rgba(232,80,80,.15)",
-                  color: "#e85050", fontFamily: F.body, marginLeft: "auto",
+                  color: "#d45050", fontFamily: F.body, marginLeft: "auto",
                 }}>
                   <AlertCircle size={10} />{fmt(debt, { decimals: 0 })}
                 </span>

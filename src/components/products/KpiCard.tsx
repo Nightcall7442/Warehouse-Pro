@@ -34,7 +34,7 @@ export function KpiCard({ label, value, delta, icon, gradient, delay }: KpiCardP
         <div style={{
           display: "flex", alignItems: "center", gap: "4px", marginTop: "10px",
           fontSize: "12px", fontWeight: 600, fontFamily: F.body,
-          color: isPositive ? "#34c473" : isNegative ? "#e85050" : COLORS.textTertiary,
+          color: isPositive ? "#34c473" : isNegative ? "#d45050" : COLORS.textTertiary,
         }}>
           {isPositive ? <ArrowUpRight size={14} /> : isNegative ? <ArrowDownRight size={14} /> : <Minus size={14} />}
           {Math.abs(delta).toFixed(1)}%

@@ -881,7 +881,7 @@ function DashboardPreview() {
         <div className="p-4 rounded-xl bg-gradient-to-br from-gray-50/80 to-white border border-gray-200/30">
           <div className="text-[9px] text-gray-400 uppercase tracking-wider mb-3 font-semibold">{tr("Статусы", "Holatlar")}</div>
           <div className="space-y-3">
-            {[{ l: tr("Новые", "Yangi"), v: 23, c: "#c7c9f8" }, { l: tr("В работе", "Jarayonda"), v: 15, c: "#e8a830" }, { l: tr("Выполнены", "Bajarildi"), v: 89, c: "#34c473" }].map((s) => (
+            {[{ l: tr("Новые", "Yangi"), v: 23, c: "#c7c9f8" }, { l: tr("В работе", "Jarayonda"), v: 15, c: "#d4973a" }, { l: tr("Выполнены", "Bajarildi"), v: 89, c: "#34c473" }].map((s) => (
               <div key={s.l}>
                 <div className="flex justify-between text-[11px] mb-1">
                   <div className="flex items-center gap-1.5">

@@ -14,7 +14,7 @@ function PasswordStrength({ password }: { password: string }) {
   ];
   const score = checks.filter(c => c.pass).length;
   const bar   = score === 0 ? 0 : score === 1 ? 33 : score === 2 ? 66 : 100;
-  const color = score < 2 ? "#e85050" : score < 3 ? "#e8a830" : "#34c473";
+  const color = score < 2 ? "#d45050" : score < 3 ? "#d4973a" : "#34c473";
   const label = score < 2 ? tr("Слабый","Zaif") : score < 3 ? tr("Средний","O'rtacha") : tr("Надёжный","Ishonchli");
 
   if (!password) return null;
@@ -91,7 +91,7 @@ export default function Register() {
 
         {/* Лого */}
         <div className="relative flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "#4b6cf6" }}>
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "#5b6d8a" }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
             </svg>
@@ -114,7 +114,7 @@ export default function Register() {
             {STEPS.map((s, i) => (
               <div key={i} className="flex items-start gap-4">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 font-data font-bold text-sm"
-                  style={{ background: "rgba(75,108,246,.12)", color: "#4b6cf6" }}>
+                  style={{ background: "rgba(75,108,246,.12)", color: "#5b6d8a" }}>
                   {s.num}
                 </div>
                 <div>
@@ -139,7 +139,7 @@ export default function Register() {
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
         {/* Мобильное лого */}
         <div className="lg:hidden flex items-center gap-2.5 mb-8">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "#4b6cf6" }}>
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "#5b6d8a" }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
             </svg>
@@ -152,7 +152,7 @@ export default function Register() {
             <h2 className="font-display text-2xl text-primary mb-1.5">{tr("Создать организацию","Tashkilot yaratish")}</h2>
             <p className="text-sm" style={{ color: "var(--color-text-secondary, #6a7290)" }}>
               {tr("Уже есть аккаунт?","Hisobingiz bormi?")}{" "}
-              <Link to="/login" className="font-medium hover:underline" style={{ color: "#4b6cf6" }}>{tr("Войти","Kirish")}</Link>
+              <Link to="/login" className="font-medium hover:underline" style={{ color: "#5b6d8a" }}>{tr("Войти","Kirish")}</Link>
             </p>
           </div>
 
@@ -190,7 +190,7 @@ export default function Register() {
 
             {error && (
               <div className="flex items-center gap-2 text-sm px-3 py-2.5 rounded-lg"
-                style={{ background: "var(--color-danger-subtle, rgba(232,80,80,.10))", color: "#e85050" }}>
+                style={{ background: "var(--color-danger-subtle, rgba(232,80,80,.10))", color: "#d45050" }}>
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
                   <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm-.75 4a.75.75 0 0 1 1.5 0v3a.75.75 0 0 1-1.5 0V5zm.75 6.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2z" />
                 </svg>

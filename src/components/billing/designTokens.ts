@@ -1,12 +1,12 @@
 export const COLORS = {
-  primary: "#4b6cf6",
-  primaryLight: "#4b6cf6",
-  primaryDark: "#4b6cf6",
-  gradientStart: "#4b6cf6",
+  primary: "#5b6d8a",
+  primaryLight: "#5b6d8a",
+  primaryDark: "#5b6d8a",
+  gradientStart: "#5b6d8a",
   gradientEnd: "#c7c9f8",
   success: "#34c473",
-  warning: "#e8a830",
-  danger: "#e85050",
+  warning: "#d4973a",
+  danger: "#d45050",
   surface: "var(--color-surface, #ffffff)",
   surfaceDark: "var(--color-surface-light, #f0f3f8)",
   textPrimary: "var(--color-text-primary, #2b3450)",
@@ -29,8 +29,8 @@ export const SHADOWS = {
 };
 
 export const GRADIENTS = {
-  hero: `linear-gradient(135deg, color-mix(in srgb, var(--color-primary, #4b6cf6) 8%, var(--color-surface, #eff6ff)) 0%, var(--color-surface, #ffffff) 100%)`,
-  heroExpired: `linear-gradient(135deg, color-mix(in srgb, var(--color-danger, #e85050) 8%, var(--color-surface, #fee2e2)) 0%, var(--color-surface, #ffffff) 100%)`,
+  hero: `linear-gradient(135deg, color-mix(in srgb, var(--color-primary, #5b6d8a) 8%, var(--color-surface, #eff6ff)) 0%, var(--color-surface, #ffffff) 100%)`,
+  heroExpired: `linear-gradient(135deg, color-mix(in srgb, var(--color-danger, #d45050) 8%, var(--color-surface, #fee2e2)) 0%, var(--color-surface, #ffffff) 100%)`,
   button: `linear-gradient(135deg, ${COLORS.gradientStart}, ${COLORS.gradientEnd})`,
   buttonHover: `linear-gradient(135deg, ${COLORS.primaryDark}, #9333ea)`,
   card: `linear-gradient(180deg, var(--color-surface, #ffffff) 0%, var(--color-surface-light, #f0f3f8) 100%)`,

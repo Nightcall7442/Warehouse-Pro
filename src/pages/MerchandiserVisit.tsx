@@ -93,9 +93,9 @@ export default function MerchandiserVisit() {
         </button>
         <div>
           <div style={{ display: "flex", gap: "6px", marginBottom: "4px" }}>
-            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-pink, #f06895)", boxShadow: "var(--shadow-xs)" }} />
-            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-orange, #f5a825)", boxShadow: "var(--shadow-xs)" }} />
-            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-teal, #2ec4b0)", boxShadow: "var(--shadow-xs)" }} />
+            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-pink, #c06080)", boxShadow: "var(--shadow-xs)" }} />
+            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-orange, #c49530)", boxShadow: "var(--shadow-xs)" }} />
+            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-teal, #3a9a8a)", boxShadow: "var(--shadow-xs)" }} />
           </div>
           <h1 className="text-lg font-bold">{t("Отчёт о визите", "Tashrif hisoboti")}</h1>
           <p className="text-sm text-secondary">{shopName}</p>

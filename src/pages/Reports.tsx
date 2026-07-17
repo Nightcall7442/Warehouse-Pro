@@ -16,8 +16,8 @@ import { ProgressRing } from "@/components/ProgressRing";
 
 const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
 const COLORS = {
-  primary: "#4b6cf6", success: "#34c473",
-  warning: "#e8a830", danger: "#e85050",
+  primary: "#5b6d8a", success: "#34c473",
+  warning: "#d4973a", danger: "#d45050",
   surface: "var(--color-surface, #ffffff)", surfaceLight: "var(--color-surface-light, #f0f3f8)",
   textPrimary: "var(--color-text-primary, #2b3450)", textSecondary: "var(--color-text-secondary, #6a7290)",
   textTertiary: "var(--color-text-tertiary, #98a0b8)", border: "var(--color-border, #f0f3f8)",
@@ -128,7 +128,7 @@ const PlanCompletion = memo(function PlanCompletion({ data, t }: { data: unknown
       {data.map((a) => {
         const agent = a as Record<string, unknown>;
         const pct = Math.min(100, Math.round(Number(agent.pct ?? 0)));
-        const color = pct >= 80 ? "#34c473" : pct >= 50 ? "#e8a830" : "#e85050";
+        const color = pct >= 80 ? "#34c473" : pct >= 50 ? "#d4973a" : "#d45050";
         return (
           <div key={String(agent.agentId)}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
@@ -151,7 +151,7 @@ const PlanCompletion = memo(function PlanCompletion({ data, t }: { data: unknown
 
 // ── Agent Card (for Agents tab) ───────────────────────────────────────────────
 const MEDALS = ["🥇", "🥈", "🥉"];
-const MEDAL_COLORS = ["#e8a830", "var(--color-text-tertiary, #98a0b8)", "#e8a830"];
+const MEDAL_COLORS = ["#d4973a", "var(--color-text-tertiary, #98a0b8)", "#d4973a"];
 
 const AgentCard = memo(function AgentCard({ agent: a, rank, fmt, days }: { agent: unknown; rank: number; fmt: (v: string | number) => string; days: number }) {
   const agent = a as Record<string, unknown>;
@@ -190,7 +190,7 @@ const AgentCard = memo(function AgentCard({ agent: a, rank, fmt, days }: { agent
 
       {/* Revenue */}
       <div style={{ textAlign: "right" }}>
-        <p style={{ fontFamily: F.body, fontSize: "16px", fontWeight: 700, color: "#4b6cf6", margin: 0 }}>
+        <p style={{ fontFamily: F.body, fontSize: "16px", fontWeight: 700, color: "#5b6d8a", margin: 0 }}>
           {fmt(agent.revenue as string | number)}
         </p>
         <p style={{ fontSize: "11px", color: COLORS.textTertiary, margin: "2px 0 0" }}>выручка</p>
@@ -311,7 +311,7 @@ export default function Reports() {
                   <YAxis tick={{ fill: COLORS.textTertiary, fontSize: 11, fontFamily: F.body }} axisLine={false} tickLine={false} />
                   <Tooltip contentStyle={{ background: COLORS.surface, border: "none", borderRadius: 12, boxShadow: "0 4px 24px rgba(0,0,0,0.08)" }} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Line type="monotone" dataKey="visits" stroke="#4b6cf6" strokeWidth={2.5} dot={false} name={t("Визиты", "Tashriflar")} />
+                  <Line type="monotone" dataKey="visits" stroke="#5b6d8a" strokeWidth={2.5} dot={false} name={t("Визиты", "Tashriflar")} />
                   <Line type="monotone" dataKey="orders" stroke="#34c473" strokeWidth={2.5} dot={false} name={t("Заказы", "Buyurtmalar")} />
                 </LineChart>
               </ResponsiveContainer>
@@ -329,7 +329,7 @@ export default function Reports() {
                 const totalVisited = plans.reduce((s, p) => s + Number(p.visited ?? 0), 0);
                 const totalPlanned = plans.reduce((s, p) => s + Number(p.total ?? 0), 0);
                 const pct = totalPlanned > 0 ? Math.round((totalVisited / totalPlanned) * 100) : 0;
-                const ringColor = pct >= 80 ? "#34c473" : pct >= 50 ? "#e8a830" : "#e85050";
+                const ringColor = pct >= 80 ? "#34c473" : pct >= 50 ? "#d4973a" : "#d45050";
                 return (
                   <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "20px", paddingBottom: "20px", borderBottom: `1px solid ${COLORS.border}` }}>
                     <ProgressRing value={pct} color={ringColor} label={`${pct}%`} />

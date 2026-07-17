@@ -14,8 +14,8 @@ export interface OrderItem {
 
 export const PAYMENT_METHODS: Record<PaymentMethod, { ru: string; uz: string; icon: typeof Banknote; color: string }> = {
   cash:     { ru: "Наличные",    uz: "Naqd",          icon: Banknote,      color: "#34c473" },
-  transfer: { ru: "Перечисление", uz: "O'tkazma",      icon: ArrowRightLeft, color: "#4b6cf6" },
-  debt:     { ru: "Долг",        uz: "Qarz",          icon: AlertTriangle, color: "#e8a830" },
+  transfer: { ru: "Перечисление", uz: "O'tkazma",      icon: ArrowRightLeft, color: "#5b6d8a" },
+  debt:     { ru: "Долг",        uz: "Qarz",          icon: AlertTriangle, color: "#d4973a" },
   card:     { ru: "Карта",       uz: "Plastik karta", icon: CreditCard,    color: "#9b59b6" },
 };
 

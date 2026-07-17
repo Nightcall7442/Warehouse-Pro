@@ -3,8 +3,8 @@ import { differenceInDays } from "date-fns";
 // ── Design tokens ───────────────────────────────────────────────────────────
 export const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
 export const COLORS = {
-  primary: "#4b6cf6", success: "#34c473",
-  warning: "#e8a830", danger: "#e85050",
+  primary: "#5b6d8a", success: "#34c473",
+  warning: "#d4973a", danger: "#d45050",
   surface: "var(--color-surface, #ffffff)", surfaceLight: "var(--color-surface-light, #f0f3f8)",
   textPrimary: "var(--color-text-primary, #2b3450)", textSecondary: "var(--color-text-secondary, #6a7290)",
   textTertiary: "var(--color-text-tertiary, #98a0b8)", border: "var(--color-border, #f0f3f8)",
@@ -54,5 +54,5 @@ export const PLAN_COLORS: Record<string, { fg: string; bg: string }> = {
 
 export const STATUS_COLORS: Record<string, { fg: string; bg: string }> = {
   active:    { fg: "#34c473",    bg: "rgba(74,222,128,0.12)" },
-  suspended: { fg: "#e85050",    bg: "rgba(232,80,80,0.12)" },
+  suspended: { fg: "#d45050",    bg: "rgba(232,80,80,0.12)" },
 };

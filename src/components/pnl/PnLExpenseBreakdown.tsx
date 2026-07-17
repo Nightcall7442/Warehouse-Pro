@@ -114,7 +114,7 @@ export function PnLExpenseBreakdown({
                     <td style={{ ...tdStyle, textAlign: "right", fontWeight: 600 }}>
                       {fmt(revenue.toFixed(0))}
                     </td>
-                    <td style={{ ...tdStyle, textAlign: "right", color: "#e85050" }}>
+                    <td style={{ ...tdStyle, textAlign: "right", color: "#d45050" }}>
                       {fmt(cost.toFixed(0))}
                     </td>
                     <td
@@ -122,7 +122,7 @@ export function PnLExpenseBreakdown({
                         ...tdStyle,
                         textAlign: "right",
                         fontWeight: 700,
-                        color: profit >= 0 ? "#34c473" : "#e85050",
+                        color: profit >= 0 ? "#34c473" : "#d45050",
                       }}
                     >
                       {fmt(profit.toFixed(0))}
@@ -145,8 +145,8 @@ export function PnLExpenseBreakdown({
                             margin >= 20
                               ? "#34c473"
                               : margin >= 10
-                                ? "#e8a830"
-                                : "#e85050",
+                                ? "#d4973a"
+                                : "#d45050",
                         }}
                       >
                         {margin.toFixed(0)}%

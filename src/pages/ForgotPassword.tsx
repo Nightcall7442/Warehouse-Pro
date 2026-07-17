@@ -43,7 +43,7 @@ export default function ForgotPassword() {
                   "Agar shu email bilan hisob mavjud bo'lsa, parolni tiklash havolasi bilan xabar olasiz."
                 )}
               </p>
-              <Link to="/login" style={{ display: "inline-block", padding: "10px 24px", background: "#4b6cf6", color: "#fff", borderRadius: 8, fontSize: 14, fontWeight: 600, textDecoration: "none" }}>
+              <Link to="/login" style={{ display: "inline-block", padding: "10px 24px", background: "#5b6d8a", color: "#fff", borderRadius: 8, fontSize: 14, fontWeight: 600, textDecoration: "none" }}>
                 {tr("Вернуться к входу", "Kirishga qaytish")}
               </Link>
             </div>
@@ -52,7 +52,7 @@ export default function ForgotPassword() {
             <>
               <div style={{ textAlign: "center", marginBottom: 24 }}>
                 <div style={{ width: 48, height: 48, borderRadius: 12, background: "var(--color-primary-subtle, rgba(75,108,246,.10))", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-                  <Mail size={24} style={{ color: "#4b6cf6" }} />
+                  <Mail size={24} style={{ color: "#5b6d8a" }} />
                 </div>
                 <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--color-text-primary, #2b3450)", marginBottom: 8 }}>
                   {tr("Забыли пароль?", "Parolni unutdingizmi?")}
@@ -84,7 +84,7 @@ export default function ForgotPassword() {
                 </div>
 
                 {requestReset.isError && (
-                  <p style={{ fontSize: 13, color: "#e85050", marginBottom: 12 }}>
+                  <p style={{ fontSize: 13, color: "#d45050", marginBottom: 12 }}>
                     {requestReset.error.message}
                   </p>
                 )}
@@ -94,7 +94,7 @@ export default function ForgotPassword() {
                   disabled={requestReset.isPending || !email}
                   style={{
                     width: "100%", padding: "10px 0", borderRadius: 8,
-                    background: "#4b6cf6", color: "#fff", border: "none",
+                    background: "#5b6d8a", color: "#fff", border: "none",
                     fontSize: 14, fontWeight: 600, cursor: requestReset.isPending ? "wait" : "pointer",
                     opacity: requestReset.isPending || !email ? 0.6 : 1,
                     display: "flex", alignItems: "center", justifyContent: "center", gap: 8,

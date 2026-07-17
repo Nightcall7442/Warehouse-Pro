@@ -97,13 +97,13 @@ export function GlobalSearch() {
                       style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", borderBottom: "1px solid var(--color-border, #f0f3f8)", textAlign: "left", background: "transparent", border: "none", cursor: "pointer", borderBottomLeftRadius: "8px", borderBottomRightRadius: "8px" }}
                       onMouseEnter={e => (e.currentTarget.style.background = "var(--color-surface-light, #f0f3f8)")}
                       onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
-                      <Store size={16} style={{ color: "#4b6cf6", flexShrink: 0 }}/>
+                      <Store size={16} style={{ color: "#5b6d8a", flexShrink: 0 }}/>
                       <div>
                         <p style={{ fontSize: "13px", color: "var(--color-text-primary, #2b3450)", margin: 0 }}>{s.name}</p>
                         <p style={{ fontSize: "11px", color: "var(--color-text-secondary, #6a7290)", margin: "2px 0 0" }}>{s.city ?? ""} · {s.ownerName ?? ""}</p>
                       </div>
                       {Number(s.debt ?? 0) > 0 && (
-                        <span style={{ marginLeft: "auto", fontSize: "11px", color: "#e85050", fontWeight: 500 }}>{Number(s.debt).toLocaleString()} {tr("сум","so'm")}</span>
+                        <span style={{ marginLeft: "auto", fontSize: "11px", color: "#d45050", fontWeight: 500 }}>{Number(s.debt).toLocaleString()} {tr("сум","so'm")}</span>
                       )}
                     </button>
                   ))}
@@ -118,7 +118,7 @@ export function GlobalSearch() {
                       style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", borderBottom: "1px solid var(--color-border, #f0f3f8)", textAlign: "left", background: "transparent", border: "none", cursor: "pointer" }}
                       onMouseEnter={e => (e.currentTarget.style.background = "var(--color-surface-light, #f0f3f8)")}
                       onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
-                      <Package size={16} style={{ color: "#4b6cf6", flexShrink: 0 }}/>
+                      <Package size={16} style={{ color: "#5b6d8a", flexShrink: 0 }}/>
                       <div>
                         <p style={{ fontSize: "13px", color: "var(--color-text-primary, #2b3450)", margin: 0 }}>{p.name}</p>
                         <p style={{ fontSize: "11px", color: "var(--color-text-secondary, #6a7290)", margin: "2px 0 0" }}>{p.code} · {p.category ?? ""}</p>
@@ -137,7 +137,7 @@ export function GlobalSearch() {
                       style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", borderBottom: "1px solid var(--color-border, #f0f3f8)", textAlign: "left", background: "transparent", border: "none", cursor: "pointer" }}
                       onMouseEnter={e => (e.currentTarget.style.background = "var(--color-surface-light, #f0f3f8)")}
                       onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
-                      <ClipboardList size={16} style={{ color: "#4b6cf6", flexShrink: 0 }}/>
+                      <ClipboardList size={16} style={{ color: "#5b6d8a", flexShrink: 0 }}/>
                       <div>
                         <p style={{ fontSize: "13px", color: "var(--color-text-primary, #2b3450)", margin: 0, fontWeight: 500 }}>{o.orderNumber}</p>
                         <p style={{ fontSize: "11px", color: "var(--color-text-secondary, #6a7290)", margin: "2px 0 0" }}>{o.shopName ?? ""} · {o.status}</p>

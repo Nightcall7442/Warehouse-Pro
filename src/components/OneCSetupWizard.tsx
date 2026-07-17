@@ -82,7 +82,7 @@ export function OneCSetupWizard({ onClose }: { onClose: () => void }) {
             <div style={{ textAlign: "center" }}>
               <div style={{
                 width: "64px", height: "64px", borderRadius: "16px", margin: "0 auto 16px",
-                background: "linear-gradient(135deg, #4b6cf6, #60a5fa)", display: "flex",
+                background: "linear-gradient(135deg, #5b6d8a, #60a5fa)", display: "flex",
                 alignItems: "center", justifyContent: "center",
               }}>
                 <Database size={28} color="#fff" />

@@ -15,8 +15,8 @@ import { PremiumSelect } from "@/components/PremiumSelect";
 
 const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
 const COLORS = {
-  primary: "#4b6cf6", success: "#34c473",
-  warning: "#e8a830", danger: "#e85050",
+  primary: "#5b6d8a", success: "#34c473",
+  warning: "#d4973a", danger: "#d45050",
   surface: "var(--color-surface, #ffffff)", surfaceLight: "var(--color-surface-light, #f0f3f8)",
   textPrimary: "var(--color-text-primary, #2b3450)", textSecondary: "var(--color-text-secondary, #6a7290)",
   textTertiary: "var(--color-text-tertiary, #98a0b8)", border: "var(--color-border, #f0f3f8)",
@@ -50,7 +50,7 @@ function KpiCard({ label, value, delta, icon, gradient, delay }: {
         <div style={{
           display: "flex", alignItems: "center", gap: "4px", marginTop: "10px",
           fontSize: "12px", fontWeight: 600, fontFamily: F.body,
-          color: isPositive ? "#34c473" : isNegative ? "#e85050" : COLORS.textTertiary,
+          color: isPositive ? "#34c473" : isNegative ? "#d45050" : COLORS.textTertiary,
         }}>
           {isPositive ? <ArrowUpRight size={14} /> : isNegative ? <ArrowDownRight size={14} /> : <Minus size={14} />}
           {Math.abs(delta).toFixed(1)}%
@@ -64,7 +64,7 @@ const UNIT_LABELS: Record<string, string> = { kg: "кг", l: "л", pcs: "шт", 
 function unitLabel(unit: string | undefined): string { return UNIT_LABELS[unit ?? "pcs"] ?? "шт"; }
 
 const STATUS: Record<string, { ru: string; uz: string; color: string }> = {
-  pending:   { ru: "Ожидает", uz: "Kutilmoqda", color: "#e8a830" },
+  pending:   { ru: "Ожидает", uz: "Kutilmoqda", color: "#d4973a" },
   unloading: { ru: "Разгрузка", uz: "Tushirilmoqda", color: "#60a5fa" },
   completed: { ru: "Завершён", uz: "Yakunlandi", color: "#34c473" },
 };
@@ -134,7 +134,7 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
       <div className="relative w-full max-w-[720px] max-h-[90vh] overflow-y-auto neo-card animate-scale-in" style={{ borderRadius: "24px", boxShadow: "0 25px 80px -12px rgba(0,0,0,0.35)" }}>
 
         {/* Gradient header */}
-        <div className="relative overflow-hidden" style={{ background: "linear-gradient(135deg, var(--color-primary, #4b6cf6), var(--color-primary-hover, #3a5be5))", borderRadius: "24px 24px 0 0", padding: "28px 32px 24px" }}>
+        <div className="relative overflow-hidden" style={{ background: "linear-gradient(135deg, var(--color-primary, #5b6d8a), var(--color-primary-hover, #4a5c78))", borderRadius: "24px 24px 0 0", padding: "28px 32px 24px" }}>
           <div className="absolute -top-16 -right-16 w-40 h-40 rounded-full" style={{ background: "rgba(255,255,255,0.08)" }} />
           <div className="absolute -bottom-8 -left-8 w-24 h-24 rounded-full" style={{ background: "rgba(255,255,255,0.05)" }} />
           <div className="relative flex items-center justify-between">
@@ -217,7 +217,7 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
                     </div>
                     <div className="flex justify-end">
                       {items.length > 1 && (
-                        <button onClick={() => removeItem(i)} className="w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:bg-red-50" style={{ border: "none", background: "transparent", color: "#e85050", cursor: "pointer" }}>
+                        <button onClick={() => removeItem(i)} className="w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:bg-red-50" style={{ border: "none", background: "transparent", color: "#d45050", cursor: "pointer" }}>
                           <X size={14} />
                         </button>
                       )}
@@ -387,7 +387,7 @@ export default function Arrivals() {
             display: "flex", alignItems: "center", gap: "6px", padding: "8px 16px",
             fontSize: "13px", fontWeight: 600, fontFamily: F.body, borderRadius: "10px",
             border: "none", cursor: "pointer", color: "#fff",
-            background: "linear-gradient(135deg, #4b6cf6, #8b5cf6)",
+            background: "linear-gradient(135deg, #5b6d8a, #8b5cf6)",
             boxShadow: "0 4px 16px rgba(75,108,246,0.3)",
           }}>
             <Plus size={15} /> {t("Новый приход", "Yangi kelish")}
@@ -402,7 +402,7 @@ export default function Arrivals() {
           value={String(kpis.total)}
           delta={null}
           icon={<Package size={20} color="#fff" />}
-          gradient="linear-gradient(135deg, #4b6cf6, #4b6cf6)"
+          gradient="linear-gradient(135deg, #5b6d8a, #5b6d8a)"
           delay={0}
         />
         <KpiCard
@@ -426,7 +426,7 @@ export default function Arrivals() {
           value={String(kpis.pending)}
           delta={null}
           icon={<Clock size={20} color="#fff" />}
-          gradient="linear-gradient(135deg, #e8a830, #f59e0b)"
+          gradient="linear-gradient(135deg, #d4973a, #f59e0b)"
           delay={0.15}
         />
       </div>
@@ -472,7 +472,7 @@ export default function Arrivals() {
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <StatusBadge status={a.status ?? "pending"} lang={lang as "ru" | "uz"} />
                     {a.status === "pending" && <button onClick={() => updateStatus.mutate({ id: a.id, status: "unloading" })} style={{ padding: "6px 12px", borderRadius: "8px", fontSize: "11px", fontWeight: 600, fontFamily: F.body, color: COLORS.primary, background: "rgba(75,108,246,0.08)", border: "none", cursor: "pointer" }}>{t("Разгрузка", "Tushirish")}</button>}
-                    {a.status === "unloading" && <button onClick={() => updateStatus.mutate({ id: a.id, status: "completed" })} style={{ padding: "6px 12px", borderRadius: "8px", fontSize: "11px", fontWeight: 600, fontFamily: F.body, color: "#fff", background: "linear-gradient(135deg, #4b6cf6, #8b5cf6)", border: "none", cursor: "pointer" }}>{t("Завершить", "Yakunlash")}</button>}
+                    {a.status === "unloading" && <button onClick={() => updateStatus.mutate({ id: a.id, status: "completed" })} style={{ padding: "6px 12px", borderRadius: "8px", fontSize: "11px", fontWeight: 600, fontFamily: F.body, color: "#fff", background: "linear-gradient(135deg, #5b6d8a, #8b5cf6)", border: "none", cursor: "pointer" }}>{t("Завершить", "Yakunlash")}</button>}
                   </div>
                 </td>
               </tr>

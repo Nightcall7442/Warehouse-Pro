@@ -4,9 +4,9 @@ import { memo } from "react";
 export const CardDots = memo(function CardDots({ style }: { style?: React.CSSProperties }) {
   return (
     <div style={{ display: "flex", gap: "6px", marginBottom: "12px", ...style }}>
-      <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-pink, #f06895)", boxShadow: "var(--shadow-xs)" }} />
-      <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-orange, #f5a825)", boxShadow: "var(--shadow-xs)" }} />
-      <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-teal, #2ec4b0)", boxShadow: "var(--shadow-xs)" }} />
+      <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-pink, #c06080)", boxShadow: "var(--shadow-xs)" }} />
+      <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-orange, #c49530)", boxShadow: "var(--shadow-xs)" }} />
+      <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-teal, #3a9a8a)", boxShadow: "var(--shadow-xs)" }} />
     </div>
   );
 });
@@ -56,9 +56,9 @@ export const thStyle: React.CSSProperties = { fontFamily: "'DM Sans', sans-serif
 export const tdStyle: React.CSSProperties = { padding: "12px 16px", fontSize: "13px", color: "var(--color-text-primary, #2b3450)", borderBottom: "1px solid var(--color-border, #dde2ec)" };
 
 /* ─── Button styles ─── */
-export const btnPrimary: React.CSSProperties = { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "8px", padding: "10px 20px", fontSize: "13px", fontWeight: 600, fontFamily: "'DM Sans', sans-serif", borderRadius: "12px", border: "none", cursor: "pointer", background: "var(--color-primary, #4b6cf6)", color: "#fff", boxShadow: "0 2px 8px rgba(75,108,246,.25)", transition: "all 0.2s ease" };
+export const btnPrimary: React.CSSProperties = { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "8px", padding: "10px 20px", fontSize: "13px", fontWeight: 600, fontFamily: "'DM Sans', sans-serif", borderRadius: "12px", border: "none", cursor: "pointer", background: "var(--color-primary, #5b6d8a)", color: "#fff", boxShadow: "0 2px 8px rgba(75,108,246,.25)", transition: "all 0.2s ease" };
 export const btnSecondary: React.CSSProperties = { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px", padding: "8px 16px", fontSize: "13px", fontWeight: 500, fontFamily: "'DM Sans', sans-serif", borderRadius: "10px", border: "none", cursor: "pointer", background: "var(--color-surface, #ffffff)", color: "var(--color-text-primary, #2b3450)", boxShadow: "var(--shadow-xs)", transition: "all 0.15s ease" };
-export const btnDanger: React.CSSProperties = { ...btnSecondary, background: "var(--color-danger-subtle, #fde8e8)", color: "var(--color-danger, #e85050)" };
+export const btnDanger: React.CSSProperties = { ...btnSecondary, background: "var(--color-danger-subtle, #fde8e8)", color: "var(--color-danger, #d45050)" };
 
 /* ─── Input styles ─── */
 export const inputStyle: React.CSSProperties = { width: "100%", padding: "10px 14px", fontSize: "13px", fontFamily: "'DM Sans', sans-serif", color: "var(--color-text-primary, #2b3450)", background: "var(--color-surface-light, #f0f3f8)", border: "1.5px solid transparent", borderRadius: "10px", outline: "none", transition: "all 0.2s ease" };

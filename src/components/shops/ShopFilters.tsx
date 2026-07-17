@@ -23,7 +23,7 @@ export function ShopFilters({ lang, search, setSearch, viewMode, setViewMode, ag
         <button onClick={() => { setViewMode("territories"); resetFilters(); }}
           style={{
             padding: "8px 16px", fontSize: "13px", fontWeight: 600, border: "none", cursor: "pointer",
-            background: viewMode === "territories" ? "#4b6cf6" : COLORS.surface,
+            background: viewMode === "territories" ? "#5b6d8a" : COLORS.surface,
             color: viewMode === "territories" ? "#fff" : COLORS.textSecondary,
             transition: "all 0.2s",
           }}>
@@ -32,7 +32,7 @@ export function ShopFilters({ lang, search, setSearch, viewMode, setViewMode, ag
         <button onClick={() => setViewMode("list")}
           style={{
             padding: "8px 16px", fontSize: "13px", fontWeight: 600, border: "none", cursor: "pointer",
-            background: viewMode === "list" ? "#4b6cf6" : COLORS.surface,
+            background: viewMode === "list" ? "#5b6d8a" : COLORS.surface,
             color: viewMode === "list" ? "#fff" : COLORS.textSecondary,
             transition: "all 0.2s",
           }}>

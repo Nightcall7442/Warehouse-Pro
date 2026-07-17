@@ -60,7 +60,7 @@ export function ShopSelector({ shopId, onSelect }: ShopSelectorProps) {
           <button onClick={() => setSelectedCity(null)} style={{
             flexShrink: 0, padding: "8px 18px", borderRadius: "24px", fontSize: "13px", fontWeight: 600,
             fontFamily: "'DM Sans', sans-serif", cursor: "pointer", transition: "all 0.25s ease",
-            background: !selectedCity ? "linear-gradient(135deg, #4b6cf6, #4b6cf6)" : "var(--color-surface-light, #f0f3f8)",
+            background: !selectedCity ? "linear-gradient(135deg, #5b6d8a, #5b6d8a)" : "var(--color-surface-light, #f0f3f8)",
             color: !selectedCity ? "#fff" : "var(--color-text-secondary, #6a7290)",
             border: "none", boxShadow: !selectedCity ? "0 4px 12px rgba(75,108,246,0.3)" : "none",
           }}>
@@ -70,7 +70,7 @@ export function ShopSelector({ shopId, onSelect }: ShopSelectorProps) {
             <button key={city} onClick={() => setSelectedCity(selectedCity === city ? null : city)} style={{
               flexShrink: 0, padding: "8px 18px", borderRadius: "24px", fontSize: "13px", fontWeight: 600,
               fontFamily: "'DM Sans', sans-serif", cursor: "pointer", transition: "all 0.25s ease",
-              background: selectedCity === city ? "linear-gradient(135deg, #4b6cf6, #4b6cf6)" : "var(--color-surface-light, #f0f3f8)",
+              background: selectedCity === city ? "linear-gradient(135deg, #5b6d8a, #5b6d8a)" : "var(--color-surface-light, #f0f3f8)",
               color: selectedCity === city ? "#fff" : "var(--color-text-secondary, #6a7290)",
               border: "none", boxShadow: selectedCity === city ? "0 4px 12px rgba(75,108,246,0.3)" : "none",
             }}>
@@ -93,7 +93,7 @@ export function ShopSelector({ shopId, onSelect }: ShopSelectorProps) {
           placeholder={t("Поиск магазинов…", "Do'kon qidirish…")}
           value={search}
           onChange={e => setSearch(e.target.value)}
-          onFocus={e => { e.currentTarget.style.borderColor = "#4b6cf6"; e.currentTarget.style.boxShadow = "0 0 0 4px rgba(75,108,246,0.1)"; e.currentTarget.style.background = "var(--color-surface, #ffffff)"; }}
+          onFocus={e => { e.currentTarget.style.borderColor = "#5b6d8a"; e.currentTarget.style.boxShadow = "0 0 0 4px rgba(75,108,246,0.1)"; e.currentTarget.style.background = "var(--color-surface, #ffffff)"; }}
           onBlur={e => { e.currentTarget.style.borderColor = "transparent"; e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.background = "var(--color-surface-light, #f0f3f8)"; }}
         />
       </div>
@@ -105,7 +105,7 @@ export function ShopSelector({ shopId, onSelect }: ShopSelectorProps) {
         </p>
         {selectedCity && (
           <button onClick={() => setSelectedCity(null)} style={{
-            fontSize: "11px", color: "#4b6cf6", background: "none", border: "none",
+            fontSize: "11px", color: "#5b6d8a", background: "none", border: "none",
             cursor: "pointer", fontFamily: "'DM Sans', sans-serif", fontWeight: 600, padding: 0,
           }}>
             {t("Сбросить", "Tozalash")} ×
@@ -145,7 +145,7 @@ export function ShopSelector({ shopId, onSelect }: ShopSelectorProps) {
               style={{
                 width: "100%", padding: "16px", textAlign: "left", display: "flex", alignItems: "center", gap: "14px",
                 borderRadius: "16px", cursor: "pointer", transition: "all 0.25s cubic-bezier(0.25,0.46,0.45,0.94)",
-                border: shopId === shop.id ? "2px solid #4b6cf6" : "2px solid transparent",
+                border: shopId === shop.id ? "2px solid #5b6d8a" : "2px solid transparent",
                 background: shopId === shop.id ? "var(--color-primary-subtle, rgba(75,108,246,.10))" : "var(--color-surface, #ffffff)",
                 boxShadow: shopId === shop.id
                   ? "0 4px 16px rgba(75,108,246,0.12)"
@@ -155,7 +155,7 @@ export function ShopSelector({ shopId, onSelect }: ShopSelectorProps) {
               <div style={{
                 width: "44px", height: "44px", borderRadius: "12px", display: "flex",
                 alignItems: "center", justifyContent: "center", flexShrink: 0,
-                background: shopId === shop.id ? "linear-gradient(135deg, #4b6cf6, #4b6cf6)" : "var(--color-surface-light, #f0f3f8)",
+                background: shopId === shop.id ? "linear-gradient(135deg, #5b6d8a, #5b6d8a)" : "var(--color-surface-light, #f0f3f8)",
                 boxShadow: shopId === shop.id ? "0 4px 12px rgba(75,108,246,0.25)" : "none",
               }}>
                 <Store size={20} style={{ color: shopId === shop.id ? "#fff" : "var(--color-text-secondary, #6a7290)" }} />
@@ -171,8 +171,8 @@ export function ShopSelector({ shopId, onSelect }: ShopSelectorProps) {
                 </p>
                 {Number(shop.debt ?? 0) > 0 && (
                   <div style={{ display: "inline-flex", alignItems: "center", gap: "4px", marginTop: "6px", padding: "3px 8px", borderRadius: "6px", background: "rgba(232,80,80,0.08)" }}>
-                    <AlertCircle size={10} style={{ color: "#e85050" }} />
-                    <span style={{ fontSize: "11px", fontWeight: 600, color: "#e85050" }}>
+                    <AlertCircle size={10} style={{ color: "#d45050" }} />
+                    <span style={{ fontSize: "11px", fontWeight: 600, color: "#d45050" }}>
                       {fmt(shop.debt)} {t("долг", "qarz")}
                     </span>
                   </div>
@@ -181,7 +181,7 @@ export function ShopSelector({ shopId, onSelect }: ShopSelectorProps) {
               {shopId === shop.id && (
                 <div style={{
                   width: "28px", height: "28px", borderRadius: "50%", flexShrink: 0,
-                  background: "#4b6cf6", display: "flex", alignItems: "center", justifyContent: "center",
+                  background: "#5b6d8a", display: "flex", alignItems: "center", justifyContent: "center",
                 }}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="20 6 9 17 4 12" />

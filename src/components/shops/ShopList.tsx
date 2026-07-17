@@ -70,7 +70,7 @@ export function SelectionBar({ count, lang, onReset, onBulkDelete, isDeleting }:
       background: "var(--color-primary-subtle, rgba(75,108,246,.10))",
       border: "1px solid rgba(75,108,246,.20)",
     }}>
-      <span style={{ fontSize: "13px", fontWeight: 600, color: "#4b6cf6" }}>
+      <span style={{ fontSize: "13px", fontWeight: 600, color: "#5b6d8a" }}>
         {count} {t("выбрано", "tanlangan")}
       </span>
       <div style={{ display: "flex", gap: "8px" }}>
@@ -82,7 +82,7 @@ export function SelectionBar({ count, lang, onReset, onBulkDelete, isDeleting }:
             display: "flex", alignItems: "center", gap: "5px", padding: "6px 14px",
             fontSize: "12px", fontWeight: 600, borderRadius: "8px",
             border: "none", cursor: "pointer", color: "#fff",
-            background: "#e85050", opacity: isDeleting ? 0.5 : 1,
+            background: "#d45050", opacity: isDeleting ? 0.5 : 1,
           }}>
           <Trash2 size={13} />{t("Удалить", "O'chirish")}
         </button>

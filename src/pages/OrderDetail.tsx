@@ -23,8 +23,8 @@ const STATUS_STYLES: Record<string, string> = {
 
 const PAYMENT_METHODS: Record<string, { ru: string; uz: string; color: string }> = {
   cash:     { ru: "Наличные",     uz: "Naqd",       color: "#34c473" },
-  transfer: { ru: "Перечисление", uz: "O'tkazma",   color: "#4b6cf6" },
-  debt:     { ru: "Долг",         uz: "Qarz",       color: "#e8a830" },
+  transfer: { ru: "Перечисление", uz: "O'tkazma",   color: "#5b6d8a" },
+  debt:     { ru: "Долг",         uz: "Qarz",       color: "#d4973a" },
   card:     { ru: "Карта",        uz: "Plastik",    color: "#9b59b6" },
 };
 

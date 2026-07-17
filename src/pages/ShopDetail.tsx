@@ -13,7 +13,7 @@ import {
 import { PremiumSelect } from "@/components/PremiumSelect";
 
 const STATUS_COLORS: Record<string, string> = {
-  new: "#4b6cf6", processing: "#e8a830", completed: "#34c473", cancelled: "#e85050",
+  new: "#5b6d8a", processing: "#d4973a", completed: "#34c473", cancelled: "#d45050",
 };
 const STATUS_LABELS: Record<string, { ru: string; uz: string }> = {
   new:        { ru: "Новый",       uz: "Yangi"         },
@@ -262,11 +262,11 @@ export default function ShopDetail() {
 
       {/* Блок долга */}
       <div className="neo-card p-5"
-        style={hasDebt ? { borderColor: "color-mix(in srgb, #e85050 35%, transparent)" } : undefined}>
+        style={hasDebt ? { borderColor: "color-mix(in srgb, #d45050 35%, transparent)" } : undefined}>
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <p className="font-label text-[10px] tracking-wider mb-1"
-              style={{ color: hasDebt ? "#e85050" : "var(--color-text-tertiary, #98a0b8)" }}>
+              style={{ color: hasDebt ? "#d45050" : "var(--color-text-tertiary, #98a0b8)" }}>
               {t("ТЕКУЩИЙ ДОЛГ", "JORIY QARZ")}
             </p>
             <div className="flex items-center gap-2">

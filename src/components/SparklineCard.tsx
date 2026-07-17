@@ -18,7 +18,7 @@ export const SparklineCard = memo(function SparklineCard({
   value,
   delta,
   trend,
-  color = "var(--color-primary, #4b6cf6)",
+  color = "var(--color-primary, #5b6d8a)",
   invertDelta = false,
   onClick,
 }: SparklineCardProps) {
@@ -44,7 +44,7 @@ export const SparklineCard = memo(function SparklineCard({
       {/* Three colored dots */}
       <div style={{ display: "flex", gap: "6px", marginBottom: "12px" }}>
         <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#fb7185" }} />
-        <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#e8a830" }} />
+        <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#d4973a" }} />
         <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#2dd4bf" }} />
       </div>
 
@@ -69,7 +69,7 @@ export const SparklineCard = memo(function SparklineCard({
           display: "inline-flex", alignItems: "center", gap: "4px",
           marginTop: "8px", padding: "3px 8px", borderRadius: "6px",
           fontSize: "12px", fontWeight: 600,
-          color: isPositive ? "var(--color-success, #34c473)" : isNegative ? "var(--color-danger, #e85050)" : "var(--color-text-tertiary, #98a0b8)",
+          color: isPositive ? "var(--color-success, #34c473)" : isNegative ? "var(--color-danger, #d45050)" : "var(--color-text-tertiary, #98a0b8)",
           background: isPositive ? "rgba(74,222,128,.10)" : isNegative ? "rgba(232,80,80,.10)" : "transparent",
         }}>
           {isPositive ? <TrendingUp size={12} /> : isNegative ? <TrendingDown size={12} /> : null}

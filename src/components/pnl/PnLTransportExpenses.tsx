@@ -114,7 +114,7 @@ export function PnLTransportExpenses({
                       ...tdStyle,
                       textAlign: "right",
                       fontWeight: 700,
-                      color: "#e85050",
+                      color: "#d45050",
                     }}
                   >
                     {fmt(a.totalExpense)}

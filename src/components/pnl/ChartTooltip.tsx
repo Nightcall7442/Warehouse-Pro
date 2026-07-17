@@ -58,7 +58,7 @@ export function ChartTooltip({ active, payload, label, fmt }: ChartTooltipProps)
                 width: "8px",
                 height: "8px",
                 borderRadius: "50%",
-                background: p.fill ?? p.stroke ?? "#4b6cf6",
+                background: p.fill ?? p.stroke ?? "#5b6d8a",
               }}
             />
             <span style={{ fontSize: "12px", color: COLORS.textSecondary }}>

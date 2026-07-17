@@ -91,7 +91,7 @@ export const ProductCard = memo(function ProductCard({ p, onClick, onDelete, sel
             marginLeft: "auto", fontSize: "12px", fontFamily: F.body, fontWeight: 600,
             padding: "2px 8px", borderRadius: "6px",
             background: low ? "rgba(232,80,80,0.15)" : "rgba(74,222,128,0.15)",
-            color: low ? "#e85050" : "#34c473",
+            color: low ? "#d45050" : "#34c473",
           }}>
             {Number(p.available ?? 0).toFixed(0)} {u}
           </span>
@@ -107,7 +107,7 @@ export const ProductCard = memo(function ProductCard({ p, onClick, onDelete, sel
             onMouseLeave={e => { e.currentTarget.style.background = "rgba(232,80,80,0.1)"; }}
             title={t("Удалить", "O'chirish")}
           >
-            <Trash2 size={13} style={{ color: "#e85050" }} />
+            <Trash2 size={13} style={{ color: "#d45050" }} />
           </button>
         </div>
       </div>

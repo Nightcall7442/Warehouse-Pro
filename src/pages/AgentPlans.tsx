@@ -14,7 +14,7 @@ import { useNavigate } from "react-router";
 const STATUS_CONFIG = {
   visited: { ru: "Посещён",         uz: "Borildi",              color: "text-success", border: "border-success", dot: "#34c473" },
   planned: { ru: "Запланирован",    uz: "Rejalashtirilgan",     color: "text-info",    border: "border-primary", dot: "#60a5fa" },
-  skipped: { ru: "Пропущен",        uz: "O'tkazildi",           color: "text-warning", border: "border-warning", dot: "#e8a830" },
+  skipped: { ru: "Пропущен",        uz: "O'tkazildi",           color: "text-warning", border: "border-warning", dot: "#d4973a" },
 } as const;
 
 const STATUS_ICON = {
@@ -43,7 +43,7 @@ export default function AgentPlans() {
   const visited = plans?.filter(p => p.status === "visited").length ?? 0;
   const total   = plans?.length ?? 0;
   const pct     = total > 0 ? Math.round((visited / total) * 100) : 0;
-  const progressColor = pct === 100 ? "#34c473" : pct >= 60 ? "#e8a830" : "#4b6cf6";
+  const progressColor = pct === 100 ? "#34c473" : pct >= 60 ? "#d4973a" : "#5b6d8a";
 
   return (
     <div className="space-y-4 max-w-lg mx-auto animate-fade-up">
@@ -55,7 +55,7 @@ export default function AgentPlans() {
         </h1>
         {isToday && (
           <span className="font-label text-[10px] px-2.5 py-1 rounded-full tracking-wider"
-            style={{ background: "var(--color-primary-subtle, rgba(75,108,246,.10))", color: "#4b6cf6" }}>
+            style={{ background: "var(--color-primary-subtle, rgba(75,108,246,.10))", color: "#5b6d8a" }}>
             {t("СЕГОДНЯ", "BUGUN")}
           </span>
         )}

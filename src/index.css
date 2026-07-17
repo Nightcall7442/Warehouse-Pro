@@ -64,36 +64,36 @@
     --color-text-tertiary:   #757168;  /* WCAG AA: 4.5:1 on #e8e6e1 */
     --color-text-inverse:    #ffffff;
 
-    --color-primary:         #4b6cf6;
-    --color-primary-hover:   #3a5be5;
-    --color-primary-subtle:  rgba(75,108,246,.12);
-    --color-primary-muted:   #a8b8f5;
+    --color-primary:         #5b6d8a;
+    --color-primary-hover:   #4a5c78;
+    --color-primary-subtle:  rgba(91,109,138,.10);
+    --color-primary-muted:   #94a3b8;
 
     --color-success:         #34c473;
-    --color-success-subtle:  rgba(52,196,115,.12);
-    --color-warning:         #e8a830;
-    --color-warning-subtle:  rgba(232,168,48,.12);
-    --color-danger:          #e85050;
-    --color-danger-subtle:   rgba(232,80,80,.12);
-    --color-info:            #4a9de8;
-    --color-info-subtle:     rgba(74,157,232,.12);
+    --color-success-subtle:  rgba(52,196,115,.10);
+    --color-warning:         #d4973a;
+    --color-warning-subtle:  rgba(212,151,58,.10);
+    --color-danger:          #d45050;
+    --color-danger-subtle:   rgba(212,80,80,.10);
+    --color-info:            #5a8fad;
+    --color-info-subtle:     rgba(90,143,173,.10);
 
-    --accent-pink:    #f06895;
-    --accent-orange:  #f5a825;
-    --accent-teal:    #2ec4b0;
-    --accent-purple:  #8b7cf6;
-    --accent-cyan:    #00d4ff;
+    --accent-pink:    #c06080;
+    --accent-orange:  #c49530;
+    --accent-teal:    #3a9a8a;
+    --accent-purple:  #7a6db5;
+    --accent-cyan:    #3a9ab5;
 
     /* KPI colors */
-    --kpi-indigo:  #4b6cf6;
-    --kpi-blue:    #4a9de8;
-    --kpi-teal:    #2ec4b0;
+    --kpi-indigo:  #5b6d8a;
+    --kpi-blue:    #5a8fad;
+    --kpi-teal:    #3a9a8a;
     --kpi-green:   #34c473;
-    --kpi-amber:   #e8a830;
-    --kpi-orange:  #f09050;
-    --kpi-red:     #e85050;
-    --kpi-pink:    #f06895;
-    --kpi-purple:  #8b7cf6;
+    --kpi-amber:   #d4973a;
+    --kpi-orange:  #c07040;
+    --kpi-red:     #d45050;
+    --kpi-pink:    #c06080;
+    --kpi-purple:  #7a6db5;
     --kpi-coral:   #f06895;
 
     /* Neumorphic shadow system — мягкая асимметричная диффузия, а не
@@ -110,15 +110,15 @@
     --ring-primary:   0 0 0 3px color-mix(in srgb, var(--color-primary) 18%, transparent);
 
     /* Chart colors */
-    --chart-blue:     #4b6cf6;
-    --chart-cyan:     #00d4ff;
-    --chart-teal:     #2ec4b0;
+    --chart-blue:     #5b6d8a;
+    --chart-cyan:     #3a9ab5;
+    --chart-teal:     #3a9a8a;
     --chart-green:    #34c473;
-    --chart-amber:    #e8a830;
-    --chart-orange:   #f09050;
-    --chart-red:      #e85050;
-    --chart-pink:     #f06895;
-    --chart-purple:   #8b7cf6;
+    --chart-amber:    #d4973a;
+    --chart-orange:   #c07040;
+    --chart-red:      #d45050;
+    --chart-pink:     #c06080;
+    --chart-purple:   #7a6db5;
 
     color-scheme: light;
   }

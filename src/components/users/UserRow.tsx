@@ -28,7 +28,7 @@ export function UserRow({ user, lang, onResetPassword, onDeactivate, onReactivat
             display: "flex", alignItems: "center", justifyContent: "center",
             fontSize: "12px", fontWeight: 700,
             background: "rgba(75,108,246,.12)",
-            color: "#4b6cf6",
+            color: "#5b6d8a",
           }}>
             {user.name?.[0]?.toUpperCase()}
           </div>

@@ -53,7 +53,7 @@ function StepWarehouse({ onNext }: { onNext: () => void }) {
   return (
     <div className="space-y-5 animate-fade-up">
       <div>
-        <p className="text-[11px] font-semibold tracking-[.12em] uppercase mb-2" style={{ color: "#4b6cf6" }}>
+        <p className="text-[11px] font-semibold tracking-[.12em] uppercase mb-2" style={{ color: "#5b6d8a" }}>
           ШАГ 1 ИЗ 3
         </p>
         <h2 className="font-display text-2xl text-primary">Настройте склад</h2>
@@ -103,7 +103,7 @@ function StepProduct({ onNext }: { onNext: () => void }) {
   return (
     <div className="space-y-5 animate-fade-up">
       <div>
-        <p className="text-[11px] font-semibold tracking-[.12em] uppercase mb-2" style={{ color: "#4b6cf6" }}>
+        <p className="text-[11px] font-semibold tracking-[.12em] uppercase mb-2" style={{ color: "#5b6d8a" }}>
           ШАГ 2 ИЗ 3
         </p>
         <h2 className="font-display text-2xl text-primary">Добавьте первый товар</h2>
@@ -172,7 +172,7 @@ function StepInvite({ onFinish }: { onFinish: () => void }) {
   return (
     <div className="space-y-5 animate-fade-up">
       <div>
-        <p className="text-[11px] font-semibold tracking-[.12em] uppercase mb-2" style={{ color: "#4b6cf6" }}>
+        <p className="text-[11px] font-semibold tracking-[.12em] uppercase mb-2" style={{ color: "#5b6d8a" }}>
           ШАГ 3 ИЗ 3
         </p>
         <h2 className="font-display text-2xl text-primary">Пригласите первого агента</h2>
@@ -249,7 +249,7 @@ export default function Onboarding() {
 
         {/* Лого */}
         <div className="flex items-center gap-2.5 mb-10">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "#4b6cf6" }}>
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "#5b6d8a" }}>
             <Warehouse size={16} color="#fff" />
           </div>
           <span className="font-display text-sm text-primary">Warehouse Pro</span>

@@ -13,21 +13,21 @@ import { ProgressRing } from "@/components/ProgressRing";
 
 type Range = "7d" | "30d" | "month";
 
-const STATUS_COLOR: Record<string, string> = { new: "#4b6cf6", processing: "#e8a830", completed: "#34c473", cancelled: "#e85050" };
+const STATUS_COLOR: Record<string, string> = { new: "#5b6d8a", processing: "#d4973a", completed: "#34c473", cancelled: "#d45050" };
 const STATUS_LABEL: Record<string, { ru: string; uz: string }> = {
   new: { ru: "Новые", uz: "Yangi" }, processing: { ru: "В обработке", uz: "Jarayonda" },
   completed: { ru: "Выполнены", uz: "Bajarildi" }, cancelled: { ru: "Отменены", uz: "Bekor qilindi" },
 };
 
-const CHART_COLORS = ["#4b6cf6", "#34c473", "#e8a830", "#e85050", "#8b7cf6", "#2ec4b0", "#f06895", "#f5a825"];
+const CHART_COLORS = ["#5b6d8a", "#34c473", "#d4973a", "#d45050", "#7a6db5", "#3a9a8a", "#c06080", "#c49530"];
 
 /* ── Decorative dots ─────────────────────────────────────────────────────── */
 const CardDots = memo(function CardDots() {
   return (
     <div style={{ display: "flex", gap: "6px", marginBottom: "12px" }}>
-      <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-pink, #f06895)", boxShadow: "var(--shadow-xs)" }} />
-      <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-orange, #f5a825)", boxShadow: "var(--shadow-xs)" }} />
-      <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-teal, #2ec4b0)", boxShadow: "var(--shadow-xs)" }} />
+      <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-pink, #c06080)", boxShadow: "var(--shadow-xs)" }} />
+      <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-orange, #c49530)", boxShadow: "var(--shadow-xs)" }} />
+      <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-teal, #3a9a8a)", boxShadow: "var(--shadow-xs)" }} />
     </div>
   );
 });
@@ -197,8 +197,8 @@ export default function Dashboard() {
           <p className="kpi-hero-value" style={{ fontSize: "28px", marginTop: "8px" }}>{fmt(kpis.todayRevenue, true)}</p>
           {revenueDelta !== 0 && (
             <div style={{ display: "flex", alignItems: "center", gap: "4px", marginTop: "8px" }}>
-              {revenueDelta > 0 ? <TrendingUp size={14} color="var(--color-success, #34c473)" /> : <TrendingDown size="14" color="var(--color-danger, #e85050)" />}
-              <span style={{ fontSize: "12px", fontWeight: 600, color: revenueDelta > 0 ? "var(--color-success, #34c473)" : "var(--color-danger, #e85050)" }}>{Math.abs(revenueDelta).toFixed(1)}%</span>
+              {revenueDelta > 0 ? <TrendingUp size={14} color="var(--color-success, #34c473)" /> : <TrendingDown size="14" color="var(--color-danger, #d45050)" />}
+              <span style={{ fontSize: "12px", fontWeight: 600, color: revenueDelta > 0 ? "var(--color-success, #34c473)" : "var(--color-danger, #d45050)" }}>{Math.abs(revenueDelta).toFixed(1)}%</span>
             </div>
           )}
           {miniBarRevenue.length > 0 && (
@@ -215,13 +215,13 @@ export default function Dashboard() {
           <p className="kpi-hero-value" style={{ fontSize: "28px", marginTop: "8px" }}>{kpis.todayOrders}</p>
           {ordersDelta !== 0 && (
             <div style={{ display: "flex", alignItems: "center", gap: "4px", marginTop: "8px" }}>
-              {ordersDelta > 0 ? <TrendingUp size={14} color="var(--color-success, #34c473)" /> : <TrendingDown size={14} color="var(--color-danger, #e85050)" />}
-              <span style={{ fontSize: "12px", fontWeight: 600, color: ordersDelta > 0 ? "var(--color-success, #34c473)" : "var(--color-danger, #e85050)" }}>{Math.abs(ordersDelta).toFixed(1)}%</span>
+              {ordersDelta > 0 ? <TrendingUp size={14} color="var(--color-success, #34c473)" /> : <TrendingDown size={14} color="var(--color-danger, #d45050)" />}
+              <span style={{ fontSize: "12px", fontWeight: 600, color: ordersDelta > 0 ? "var(--color-success, #34c473)" : "var(--color-danger, #d45050)" }}>{Math.abs(ordersDelta).toFixed(1)}%</span>
             </div>
           )}
           {miniBarOrders.length > 0 && (
             <div style={{ marginTop: "12px" }}>
-              <MiniBarChart data={miniBarOrders} color="var(--color-primary, #4b6cf6)" />
+              <MiniBarChart data={miniBarOrders} color="var(--color-primary, #5b6d8a)" />
             </div>
           )}
         </div>
@@ -230,7 +230,7 @@ export default function Dashboard() {
         <CircularKpiCard
           label={t("ДОЛГ КЛИЕНТОВ", "MIJZOZLAR QARZI")}
           value={fmt(kpis.customerDebt ?? 0, true)}
-          color="var(--color-warning, #e8a830)"
+          color="var(--color-warning, #d4973a)"
           icon={<Activity size={18} color="var(--color-warning)" />}
           delay={0.1}
           onClick={() => navigate("/reports")}
@@ -244,7 +244,7 @@ export default function Dashboard() {
             <p className="kpi-hero-value" style={{ fontSize: "28px", marginTop: "8px" }}>{(kpis.grossMargin ?? 0).toFixed(1)}%</p>
           </div>
           <div className="neo-progress-ring" style={{ width: "80px", height: "80px" }}>
-            <ProgressRing value={Math.max(0, Math.min(100, kpis.grossMargin ?? 0))} color="var(--color-primary, #4b6cf6)" size={72} strokeWidth={6} label={`${(kpis.grossMargin ?? 0).toFixed(0)}%`} />
+            <ProgressRing value={Math.max(0, Math.min(100, kpis.grossMargin ?? 0))} color="var(--color-primary, #5b6d8a)" size={72} strokeWidth={6} label={`${(kpis.grossMargin ?? 0).toFixed(0)}%`} />
           </div>
         </div>
       </div>
@@ -255,8 +255,8 @@ export default function Dashboard() {
           {(alerts as any[]).slice(0, 4).map((alert: any, i: any) => {
             const colors: Record<string, { bg: string; icon: string }> = {
               info: { bg: "var(--color-info-subtle)", icon: "var(--color-info, #4a9de8)" },
-              warning: { bg: "var(--color-warning-subtle)", icon: "var(--color-warning, #e8a830)" },
-              danger: { bg: "var(--color-danger-subtle)", icon: "var(--color-danger, #e85050)" },
+              warning: { bg: "var(--color-warning-subtle)", icon: "var(--color-warning, #d4973a)" },
+              danger: { bg: "var(--color-danger-subtle)", icon: "var(--color-danger, #d45050)" },
             };
             const c = colors[alert.severity] || colors.info;
             return (
@@ -297,8 +297,8 @@ export default function Dashboard() {
             <AreaChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="gRevenue" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="var(--color-primary, #4b6cf6)" stopOpacity={0.2} />
-                  <stop offset="100%" stopColor="var(--color-primary, #4b6cf6)" stopOpacity={0} />
+                  <stop offset="0%" stopColor="var(--color-primary, #5b6d8a)" stopOpacity={0.2} />
+                  <stop offset="100%" stopColor="var(--color-primary, #5b6d8a)" stopOpacity={0} />
                 </linearGradient>
                 <linearGradient id="gOrders" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="var(--color-success, #34c473)" stopOpacity={0.2} />
@@ -309,7 +309,7 @@ export default function Dashboard() {
               <YAxis yAxisId="left" tick={{ fill: "var(--color-text-tertiary, #8b9bb4)", fontSize: 11, fontFamily: "'DM Sans', sans-serif" }} axisLine={false} tickLine={false} tickFormatter={v => fmt(v, true)} dx={-4} />
               <YAxis yAxisId="right" orientation="right" tick={{ fill: "var(--color-text-tertiary, #8b9bb4)", fontSize: 11, fontFamily: "'DM Sans', sans-serif" }} axisLine={false} tickLine={false} dx={4} />
               <Tooltip content={<ChartTooltip fmt={fmt} />} cursor={{ stroke: "var(--color-border, #c8d0dc)", strokeWidth: 1, strokeDasharray: "4 4" }} />
-              <Area yAxisId="left" type="monotone" dataKey="revenue" stroke="var(--color-primary, #4b6cf6)" strokeWidth={2.5} fill="url(#gRevenue)" name={t("Выручка", "Tushum")} dot={false} activeDot={{ r: 5, fill: "var(--color-primary, #4b6cf6)", stroke: "#fff", strokeWidth: 2 }} />
+              <Area yAxisId="left" type="monotone" dataKey="revenue" stroke="var(--color-primary, #5b6d8a)" strokeWidth={2.5} fill="url(#gRevenue)" name={t("Выручка", "Tushum")} dot={false} activeDot={{ r: 5, fill: "var(--color-primary, #5b6d8a)", stroke: "#fff", strokeWidth: 2 }} />
               <Area yAxisId="right" type="monotone" dataKey="orders" stroke="var(--color-success, #34c473)" strokeWidth={2.5} fill="url(#gOrders)" name={t("Заказы", "Buyurtmalar")} dot={false} activeDot={{ r: 5, fill: "var(--color-success, #34c473)", stroke: "#fff", strokeWidth: 2 }} />
             </AreaChart>
           </ResponsiveContainer>

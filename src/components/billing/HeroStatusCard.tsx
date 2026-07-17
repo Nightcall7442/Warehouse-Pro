@@ -38,7 +38,7 @@ export function HeroStatusCard({
         width: "160px",
         height: "160px",
         borderRadius: "50%",
-        background: isExpired ? "#e85050" : "#4b6cf6",
+        background: isExpired ? "#d45050" : "#5b6d8a",
         opacity: 0.06,
         filter: "blur(40px)",
       }} />
@@ -49,7 +49,7 @@ export function HeroStatusCard({
         width: "120px",
         height: "120px",
         borderRadius: "50%",
-        background: isExpired ? "#e85050" : "#4b6cf6",
+        background: isExpired ? "#d45050" : "#5b6d8a",
         opacity: 0.04,
         filter: "blur(50px)",
       }} />

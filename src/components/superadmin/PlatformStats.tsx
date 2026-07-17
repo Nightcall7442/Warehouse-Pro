@@ -6,10 +6,10 @@ import { KpiCard, Section, PlanBadge, StatusBadge } from "./ui";
 export function PlatformStats() {
   const { data: stats, isLoading } = trpc.tenant.platformStats.useQuery();
   const cards = [
-    { label: "Организаций", value: stats?.tenants ?? 0, icon: Building2, gradient: "linear-gradient(135deg, #4b6cf6, #4b6cf6)" },
+    { label: "Организаций", value: stats?.tenants ?? 0, icon: Building2, gradient: "linear-gradient(135deg, #5b6d8a, #5b6d8a)" },
     { label: "Пользователей", value: stats?.users ?? 0, icon: Users, gradient: "linear-gradient(135deg, #60a5fa, #3b82f6)" },
     { label: "Заказов", value: fmt(stats?.orders ?? 0), icon: ShoppingCart, gradient: "linear-gradient(135deg, #34c473, #16a34a)" },
-    { label: "Выручка", value: money(stats?.revenue ?? 0) + " сум", icon: TrendingUp, gradient: "linear-gradient(135deg, #e8a830, #d97706)" },
+    { label: "Выручка", value: money(stats?.revenue ?? 0) + " сум", icon: TrendingUp, gradient: "linear-gradient(135deg, #d4973a, #d97706)" },
   ];
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>

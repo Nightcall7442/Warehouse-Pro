@@ -70,9 +70,9 @@ export default function CourierDeliveries() {
         <Truck size={24} className="text-primary" />
         <div>
           <div style={{ display: "flex", gap: "6px", marginBottom: "4px" }}>
-            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-pink, #f06895)", boxShadow: "var(--shadow-xs)" }} />
-            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-orange, #f5a825)", boxShadow: "var(--shadow-xs)" }} />
-            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-teal, #2ec4b0)", boxShadow: "var(--shadow-xs)" }} />
+            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-pink, #c06080)", boxShadow: "var(--shadow-xs)" }} />
+            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-orange, #c49530)", boxShadow: "var(--shadow-xs)" }} />
+            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-teal, #3a9a8a)", boxShadow: "var(--shadow-xs)" }} />
           </div>
           <h1 className="text-lg font-bold">{t("Мои доставки", "Mening yetkazishlarim")}</h1>
           <p className="text-sm text-secondary">{user?.name}</p>
@@ -219,7 +219,7 @@ function DeliveryCard({
   isPending: boolean;
 }) {
   return (
-    <div className="neo-card" style={{ padding: "16px", borderLeft: "4px solid var(--color-warning, #e8a830)" }}>
+    <div className="neo-card" style={{ padding: "16px", borderLeft: "4px solid var(--color-warning, #d4973a)" }}>
       <div className="flex items-start justify-between">
         <div>
           <p className="font-semibold">{order.orderNumber}</p>

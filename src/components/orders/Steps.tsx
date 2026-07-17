@@ -20,8 +20,8 @@ export function Steps({ current, labels }: StepsProps) {
                 display: "flex", alignItems: "center", justifyContent: "center",
                 fontSize: "13px", fontWeight: 700, fontFamily: "'DM Sans', sans-serif",
                 transition: "all 0.3s ease",
-                background: done ? "#4b6cf6" : active ? "var(--color-primary-subtle, rgba(75,108,246,.10))" : "var(--color-surface-light, #f0f3f8)",
-                color: done ? "#fff" : active ? "#4b6cf6" : "var(--color-text-tertiary, #98a0b8)",
+                background: done ? "#5b6d8a" : active ? "var(--color-primary-subtle, rgba(75,108,246,.10))" : "var(--color-surface-light, #f0f3f8)",
+                color: done ? "#fff" : active ? "#5b6d8a" : "var(--color-text-tertiary, #98a0b8)",
                 boxShadow: done ? "0 4px 12px rgba(75,108,246,0.3)" : active ? "0 0 0 3px rgba(75,108,246,.15)" : "none",
               }}>
                 {done ? <CheckCircle2 size={18} /> : step}
@@ -29,7 +29,7 @@ export function Steps({ current, labels }: StepsProps) {
               <span style={{
                 fontSize: "10px", fontWeight: 600, letterSpacing: "0.08em",
                 fontFamily: "'DM Sans', sans-serif", textTransform: "uppercase",
-                color: active ? "#4b6cf6" : done ? "#4b6cf6" : "var(--color-text-tertiary, #98a0b8)",
+                color: active ? "#5b6d8a" : done ? "#5b6d8a" : "var(--color-text-tertiary, #98a0b8)",
               }}>
                 {label}
               </span>
@@ -38,7 +38,7 @@ export function Steps({ current, labels }: StepsProps) {
               <div style={{
                 flex: 1, height: "2px", margin: "0 8px", marginBottom: "20px",
                 borderRadius: "1px", transition: "all 0.3s ease",
-                background: step < current ? "#4b6cf6" : "var(--color-border, #f0f3f8)",
+                background: step < current ? "#5b6d8a" : "var(--color-border, #f0f3f8)",
               }} />
             )}
           </div>

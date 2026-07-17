@@ -84,7 +84,7 @@ export function BtnPrimary({ children, disabled, onClick, style: s }: {
   children: React.ReactNode; disabled?: boolean; onClick?: () => void; style?: React.CSSProperties;
 }) {
   return (
-    <button onClick={onClick} disabled={disabled} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px", padding: "10px 20px", borderRadius: "10px", fontSize: "13px", fontWeight: 600, fontFamily: F.body, color: "#fff", background: "linear-gradient(135deg, #4b6cf6, #4b6cf6)", border: "none", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1, transition: "all 0.2s", ...s }}>
+    <button onClick={onClick} disabled={disabled} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px", padding: "10px 20px", borderRadius: "10px", fontSize: "13px", fontWeight: 600, fontFamily: F.body, color: "#fff", background: "linear-gradient(135deg, #5b6d8a, #5b6d8a)", border: "none", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1, transition: "all 0.2s", ...s }}>
       {children}
     </button>
   );

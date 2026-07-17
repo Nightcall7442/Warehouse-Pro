@@ -18,8 +18,8 @@ import { PremiumSelect } from "@/components/PremiumSelect";
 /* ─── Premium Design Constants ─── */
 const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
 const COLORS = {
-  primary: "#4b6cf6", success: "#34c473",
-  warning: "#e8a830", danger: "#e85050",
+  primary: "#5b6d8a", success: "#34c473",
+  warning: "#d4973a", danger: "#d45050",
   surface: "var(--color-surface, #ffffff)", surfaceLight: "var(--color-surface-light, #f0f3f8)",
   textPrimary: "var(--color-text-primary, #2b3450)", textSecondary: "var(--color-text-secondary, #6a7290)",
   textTertiary: "var(--color-text-tertiary, #98a0b8)", border: "var(--color-border, #f0f3f8)",
@@ -28,10 +28,10 @@ const SHADOW = "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0
 
 /* ─── Status Config ─── */
 const STATUS: Record<string, { ru: string; uz: string; dot: string; bg: string; text: string; border: string }> = {
-  new:        { ru: "Новый",       uz: "Yangi",         dot: "#4b6cf6", bg: "bg-info/10",    text: "text-info",    border: "border-info/25" },
-  processing: { ru: "В обработке", uz: "Jarayonda",     dot: "#e8a830", bg: "bg-warning/10", text: "text-warning", border: "border-warning/25" },
+  new:        { ru: "Новый",       uz: "Yangi",         dot: "#5b6d8a", bg: "bg-info/10",    text: "text-info",    border: "border-info/25" },
+  processing: { ru: "В обработке", uz: "Jarayonda",     dot: "#d4973a", bg: "bg-warning/10", text: "text-warning", border: "border-warning/25" },
   completed:  { ru: "Выполнен",    uz: "Bajarildi",     dot: "#34c473", bg: "bg-success/10", text: "text-success", border: "border-success/25" },
-  cancelled:  { ru: "Отменён",     uz: "Bekor qilindi", dot: "#e85050", bg: "bg-danger/10",  text: "text-danger",  border: "border-danger/25" },
+  cancelled:  { ru: "Отменён",     uz: "Bekor qilindi", dot: "#d45050", bg: "bg-danger/10",  text: "text-danger",  border: "border-danger/25" },
 };
 
 /* ─── Premium KpiCard Component ─── */
@@ -62,7 +62,7 @@ function KpiCard({ label, value, delta, icon, gradient, delay }: {
         <div style={{
           display: "flex", alignItems: "center", gap: "4px", marginTop: "10px",
           fontSize: "12px", fontWeight: 600, fontFamily: F.body,
-          color: isPositive ? "#34c473" : isNegative ? "#e85050" : COLORS.textTertiary,
+          color: isPositive ? "#34c473" : isNegative ? "#d45050" : COLORS.textTertiary,
         }}>
           {isPositive ? <ArrowUpRight size={14} /> : isNegative ? <ArrowDownRight size={14} /> : <Minus size={14} />}
           {Math.abs(delta).toFixed(1)}%
@@ -176,7 +176,7 @@ export default function Orders() {
             display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
             fontSize: "13px", fontWeight: 600, fontFamily: F.body, borderRadius: "10px",
             border: "none", cursor: "pointer", transition: "all 0.2s",
-            background: "linear-gradient(135deg, #4b6cf6, #4b6cf6)",
+            background: "linear-gradient(135deg, #5b6d8a, #5b6d8a)",
             color: "#fff", boxShadow: "0 2px 8px rgba(75,108,246,0.3)",
           }}>
             <Plus size={16} />
@@ -192,7 +192,7 @@ export default function Orders() {
           value={stats.total.toLocaleString()}
           delta={null}
           icon={<ShoppingCart size={20} color="#fff" />}
-          gradient="linear-gradient(135deg, #4b6cf6, #4b6cf6)"
+          gradient="linear-gradient(135deg, #5b6d8a, #5b6d8a)"
           delay={0}
         />
         <KpiCard
@@ -208,7 +208,7 @@ export default function Orders() {
           value={stats.processingCount.toLocaleString()}
           delta={null}
           icon={<Clock size={20} color="#fff" />}
-          gradient="linear-gradient(135deg, #e8a830, #f59e0b)"
+          gradient="linear-gradient(135deg, #d4973a, #f59e0b)"
           delay={0.1}
         />
         <KpiCard
@@ -224,7 +224,7 @@ export default function Orders() {
           value={stats.cancelledCount.toLocaleString()}
           delta={null}
           icon={<XCircle size={20} color="#fff" />}
-          gradient="linear-gradient(135deg, #e85050, #e85050)"
+          gradient="linear-gradient(135deg, #d45050, #d45050)"
           delay={0.2}
         />
         <KpiCard
@@ -430,7 +430,7 @@ export default function Orders() {
                               style={{
                                 padding: "4px 10px", fontSize: "11px", fontWeight: 600, fontFamily: F.body,
                                 borderRadius: "8px", border: "none", cursor: "pointer",
-                                background: "linear-gradient(135deg, #4b6cf6, #4b6cf6)",
+                                background: "linear-gradient(135deg, #5b6d8a, #5b6d8a)",
                                 color: "#fff",
                               }}
                             >

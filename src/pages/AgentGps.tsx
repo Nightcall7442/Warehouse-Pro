@@ -148,7 +148,7 @@ export default function AgentGps() {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 text-sm font-medium"
-                style={{ color: "#4b6cf6" }}
+                style={{ color: "#5b6d8a" }}
               >
                 <Navigation size={14} />
                 {t("Открыть на карте", "Xaritada ochish")}
@@ -194,7 +194,7 @@ export default function AgentGps() {
         <button
           onClick={() => setAutoTrack(v => !v)}
           className="w-12 h-6 rounded-full relative transition-colors flex-shrink-0"
-          style={{ background: autoTrack ? "#4b6cf6" : "var(--color-surface-light, #f0f3f8)", border: autoTrack ? "none" : "1px solid var(--color-border, #dde2ec)" }}
+          style={{ background: autoTrack ? "#5b6d8a" : "var(--color-surface-light, #f0f3f8)", border: autoTrack ? "none" : "1px solid var(--color-border, #dde2ec)" }}
         >
           <span
             className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform"

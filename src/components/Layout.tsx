@@ -73,7 +73,7 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
     <div className="flex flex-col h-full sidebar-collapse-transition" style={{ background: "transparent" }}>
       {/* Logo */}
       <div className="flex items-center px-5 gap-3" style={{ height: "64px" }}>
-        <div className="w-10 h-10 rounded-[14px] flex items-center justify-center flex-shrink-0" style={{ background: "linear-gradient(135deg, var(--color-primary, #4b6cf6), var(--color-primary-hover, #3a5be5))", boxShadow: "var(--shadow-sm)" }}>
+        <div className="w-10 h-10 rounded-[14px] flex items-center justify-center flex-shrink-0" style={{ background: "linear-gradient(135deg, var(--color-primary, #5b6d8a), var(--color-primary-hover, #4a5c78))", boxShadow: "var(--shadow-sm)" }}>
           <Warehouse size={18} color="#fff" />
         </div>
         <span style={{ fontSize: "16px", fontWeight: 700, color: "var(--color-text-primary, #2d3748)", letterSpacing: "-0.02em" }}>Warehouse Pro</span>
@@ -95,13 +95,13 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
           <div className="flex items-center gap-3">
             <div
               className="avatar-premium flex-shrink-0"
-              style={{ background: "var(--color-primary-subtle, rgba(75,108,246,.12))", color: "var(--color-primary, #4b6cf6)" }}
+              style={{ background: "var(--color-primary-subtle, rgba(75,108,246,.12))", color: "var(--color-primary, #5b6d8a)" }}
             >
               {(user?.name ?? "U")[0].toUpperCase()}
             </div>
             <div className="min-w-0">
               <p style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary, #2d3748)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user?.name ?? "User"}</p>
-              <span style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-primary, #4b6cf6)" }}>{role}</span>
+              <span style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-primary, #5b6d8a)" }}>{role}</span>
             </div>
           </div>
           {user?.email && (
@@ -138,7 +138,7 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
           <div className="relative">
             <Bell size={18} />
             {unreadCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-[16px] rounded-full text-white text-[9px] font-bold flex items-center justify-center px-1" style={{ background: "var(--color-danger, #e85050)", boxShadow: "var(--shadow-xs)" }}>
+              <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-[16px] rounded-full text-white text-[9px] font-bold flex items-center justify-center px-1" style={{ background: "var(--color-danger, #d45050)", boxShadow: "var(--shadow-xs)" }}>
                 {unreadCount > 99 ? "99+" : unreadCount}
               </span>
             )}
@@ -157,7 +157,7 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
           {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
           <span>{theme === "dark" ? "Светлая тема" : "Тёмная тема"}</span>
         </button>
-        <button onClick={logout} className="neo-btn w-full flex items-center justify-center gap-2 text-xs" style={{ color: "var(--color-danger, #e85050)" }}>
+        <button onClick={logout} className="neo-btn w-full flex items-center justify-center gap-2 text-xs" style={{ color: "var(--color-danger, #d45050)" }}>
           <LogOut size={14} />
           {t("nav.logout")}
         </button>
@@ -202,7 +202,7 @@ const MobileHeader = memo(function MobileHeader({ onMenuClick, unreadCount }: { 
       <button onClick={() => navigate("/notifications")} className="btn-ghost p-2 relative">
         <Bell size={18} />
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full text-white text-[10px] font-bold flex items-center justify-center px-1 shadow-sm" style={{ background: "var(--color-danger, #e85050)" }}>
+          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full text-white text-[10px] font-bold flex items-center justify-center px-1 shadow-sm" style={{ background: "var(--color-danger, #d45050)" }}>
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>
         )}
@@ -271,10 +271,10 @@ const BottomNav = memo(function BottomNav() {
               key={item.path}
               onClick={() => navigate(item.path)}
               className="flex-1 flex flex-col items-center justify-center gap-[3px] relative"
-              style={{ color: isActive ? "var(--color-primary, #4b6cf6)" : "var(--color-text-tertiary, #98a0b8)" }}
+              style={{ color: isActive ? "var(--color-primary, #5b6d8a)" : "var(--color-text-tertiary, #98a0b8)" }}
             >
               {isActive && (
-                <span className="absolute top-1.5 left-1/2 -translate-x-1/2 w-5 h-[3px] rounded-full" style={{ background: "var(--color-primary, #4b6cf6)" }} />
+                <span className="absolute top-1.5 left-1/2 -translate-x-1/2 w-5 h-[3px] rounded-full" style={{ background: "var(--color-primary, #5b6d8a)" }} />
               )}
               {Icon && <Icon size={22} />}
               <span style={{ fontSize: "10px", fontWeight: 500, letterSpacing: "-0.01em" }}>

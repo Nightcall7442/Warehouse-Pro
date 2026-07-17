@@ -193,18 +193,18 @@ export function ExcelImport({ type, onDone, onCancel }: Props) {
       {/* Errors */}
       {errors.length > 0 && (
         <div style={{ marginTop: "16px", padding: "12px", borderRadius: "12px", background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.2)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px", color: "#e85050", fontSize: "13px", fontWeight: 600 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px", color: "#d45050", fontSize: "13px", fontWeight: 600 }}>
             <AlertTriangle size={15} /> Ошибки
           </div>
-          {errors.slice(0, 5).map((e, i) => <p key={i} style={{ fontSize: "11px", color: "#e85050", margin: "2px 0" }}>{e}</p>)}
-          {errors.length > 5 && <p style={{ fontSize: "11px", color: "#e85050" }}>... и ещё {errors.length - 5}</p>}
+          {errors.slice(0, 5).map((e, i) => <p key={i} style={{ fontSize: "11px", color: "#d45050", margin: "2px 0" }}>{e}</p>)}
+          {errors.length > 5 && <p style={{ fontSize: "11px", color: "#d45050" }}>... и ещё {errors.length - 5}</p>}
         </div>
       )}
 
       {/* Actions */}
       <div style={{ display: "flex", gap: "12px", marginTop: "20px", paddingTop: "16px", borderTop: "1px solid var(--color-border, #f0f3f8)" }}>
         <button onClick={handleImport} disabled={!base64 || importing}
-          style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "10px 20px", borderRadius: "12px", fontSize: "13px", fontWeight: 600, color: "#fff", background: "linear-gradient(135deg, #4b6cf6, #4b6cf6)", border: "none", cursor: !base64 || importing ? "not-allowed" : "pointer", opacity: !base64 || importing ? 0.5 : 1, transition: "all 0.2s" }}>
+          style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "10px 20px", borderRadius: "12px", fontSize: "13px", fontWeight: 600, color: "#fff", background: "linear-gradient(135deg, #5b6d8a, #5b6d8a)", border: "none", cursor: !base64 || importing ? "not-allowed" : "pointer", opacity: !base64 || importing ? 0.5 : 1, transition: "all 0.2s" }}>
           {importing ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <Upload size={14} />}
           {importing ? "Импортирую..." : `Импортировать${totalRows > 0 ? ` ${totalRows} строк` : ""}`}
         </button>

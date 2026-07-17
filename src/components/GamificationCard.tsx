@@ -33,7 +33,7 @@ interface GamificationData {
   topAgent?: { name: string; revenue: number } | null;
 }
 
-const RANK_COLORS = ["#e8a830", "#9ca3af", "#cd7f32"];
+const RANK_COLORS = ["#d4973a", "#9ca3af", "#cd7f32"];
 const RANK_ICONS = ["🥇", "🥈", "🥉"];
 
 export const GamificationCard = memo(function GamificationCard({ data }: { data: GamificationData }) {
@@ -47,7 +47,7 @@ export const GamificationCard = memo(function GamificationCard({ data }: { data:
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
         <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 700, color: "var(--color-text-primary)", margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
-          <Trophy size={16} style={{ color: "#e8a830" }} />
+          <Trophy size={16} style={{ color: "#d4973a" }} />
           {t("Достижения", "Yutuqlar")}
         </h2>
         <button onClick={() => navigate("/agent")} style={{ fontSize: "12px", color: "var(--color-primary)", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>
@@ -59,7 +59,7 @@ export const GamificationCard = memo(function GamificationCard({ data }: { data:
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px", marginBottom: "16px" }}>
         <div className="neo-card-sm" style={{ padding: "12px", textAlign: "center" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "4px", marginBottom: "4px" }}>
-            <Flame size={14} style={{ color: "#e85050" }} />
+            <Flame size={14} style={{ color: "#d45050" }} />
             <span style={{ fontSize: "10px", fontWeight: 600, color: "var(--color-text-tertiary)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
               {t("Серия", "Seriya")}
             </span>
@@ -74,7 +74,7 @@ export const GamificationCard = memo(function GamificationCard({ data }: { data:
 
         <div className="neo-card-sm" style={{ padding: "12px", textAlign: "center" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "4px", marginBottom: "4px" }}>
-            <Target size={14} style={{ color: "#4b6cf6" }} />
+            <Target size={14} style={{ color: "#5b6d8a" }} />
             <span style={{ fontSize: "10px", fontWeight: 600, color: "var(--color-text-tertiary)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
               {t("Заказы", "Buyurtmalar")}
             </span>
@@ -116,7 +116,7 @@ export const GamificationCard = memo(function GamificationCard({ data }: { data:
                 borderRadius: "8px", background: "rgba(232,168,48,0.08)", border: "1px solid rgba(232,168,48,0.15)",
               }}>
                 <span style={{ fontSize: "14px" }}>{a.icon}</span>
-                <span style={{ fontSize: "11px", fontWeight: 600, color: "#e8a830" }}>
+                <span style={{ fontSize: "11px", fontWeight: 600, color: "#d4973a" }}>
                   {lang === "uz" && a.titleUz ? a.titleUz : a.title}
                 </span>
               </div>
@@ -172,7 +172,7 @@ export const GamificationCard = memo(function GamificationCard({ data }: { data:
           background: "linear-gradient(135deg, rgba(232,168,48,0.08), rgba(232,168,48,0.02))",
           border: "1px solid rgba(232,168,48,0.15)", display: "flex", alignItems: "center", gap: "10px",
         }}>
-          <Award size={18} style={{ color: "#e8a830" }} />
+          <Award size={18} style={{ color: "#d4973a" }} />
           <div>
             <p style={{ fontSize: "11px", color: "var(--color-text-tertiary)", margin: 0 }}>
               {t("Лучший агент месяца", "Oyning eng yaxshi agenti")}

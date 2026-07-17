@@ -46,7 +46,7 @@ export function ReferralCard() {
       <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
         <div style={{
           width: "36px", height: "36px", borderRadius: "10px",
-          background: "linear-gradient(135deg, #f06895, #f5a825)",
+          background: "linear-gradient(135deg, #c06080, #c49530)",
           display: "flex", alignItems: "center", justifyContent: "center",
         }}>
           <Gift size={18} color="#fff" />

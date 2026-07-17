@@ -80,7 +80,7 @@ export const ShopCard = memo(function ShopCard({ s, onClick, selected, onToggleS
             {hasDebt && <span style={{
               display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "12px", fontWeight: 600,
               padding: "2px 8px", borderRadius: "9999px", background: "rgba(232,80,80,.15)",
-              color: "#e85050", fontFamily: F.body,
+              color: "#d45050", fontFamily: F.body,
             }}><AlertCircle size={11} />{fmt(s.debt, { decimals: 0 })}</span>}
             <span style={{
               fontSize: "10px", padding: "2px 8px", borderRadius: "9999px", fontWeight: 500,

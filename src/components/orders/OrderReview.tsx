@@ -156,8 +156,8 @@ export function OrderReview({
             padding: "10px 14px", borderRadius: "10px",
             background: "rgba(232,168,48,0.08)", border: "1px solid rgba(232,168,48,0.2)",
           }}>
-            <AlertTriangle size={14} style={{ color: "#e8a830", flexShrink: 0 }} />
-            <span style={{ fontSize: "12px", color: "#e8a830", fontWeight: 500 }}>
+            <AlertTriangle size={14} style={{ color: "#d4973a", flexShrink: 0 }} />
+            <span style={{ fontSize: "12px", color: "#d4973a", fontWeight: 500 }}>
               {t("Сумма заказа будет добавлена к долгу магазина", "Buyurtma summasi do'kon qarziga qo'shiladi")}
             </span>
           </div>

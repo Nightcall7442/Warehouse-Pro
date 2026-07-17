@@ -118,7 +118,7 @@ export default function SupervisorPlans() {
   const visited = plans?.filter(p => p.status === "visited").length ?? 0;
   const total   = plans?.length ?? 0;
   const pct     = total > 0 ? Math.round((visited / total) * 100) : 0;
-  const progressColor = pct === 100 ? "#34c473" : pct >= 60 ? "#e8a830" : "#4b6cf6";
+  const progressColor = pct === 100 ? "#34c473" : pct >= 60 ? "#d4973a" : "#5b6d8a";
 
   return (
     <div className="space-y-4 animate-fade-up">
@@ -128,15 +128,15 @@ export default function SupervisorPlans() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <div style={{ display: "flex", gap: "6px", marginBottom: "12px" }}>
-            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-pink, #f06895)", boxShadow: "var(--shadow-xs)" }} />
-            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-orange, #f5a825)", boxShadow: "var(--shadow-xs)" }} />
-            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-teal, #2ec4b0)", boxShadow: "var(--shadow-xs)" }} />
+            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-pink, #c06080)", boxShadow: "var(--shadow-xs)" }} />
+            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-orange, #c49530)", boxShadow: "var(--shadow-xs)" }} />
+            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-teal, #3a9a8a)", boxShadow: "var(--shadow-xs)" }} />
           </div>
           <h1 className="font-display text-2xl font-bold text-primary tracking-tight">
             {t("Планы визитов", "Tashrif rejalari")}
           </h1>
           {isToday && (
-            <p className="text-xs mt-0.5" style={{ color: "#4b6cf6" }}>
+            <p className="text-xs mt-0.5" style={{ color: "#5b6d8a" }}>
               {t("Сегодня", "Bugun")}
             </p>
           )}
@@ -271,7 +271,7 @@ export default function SupervisorPlans() {
                               onClick={() => updatePlan.mutate({ planId: plan.id, status: "skipped" })}
                               disabled={updatePlan.isPending}
                               className="neo-btn py-1 px-2 text-xs flex items-center gap-1 text-warning"
-                              style={{ borderColor: "color-mix(in srgb, #e8a830 30%, transparent)" }}
+                              style={{ borderColor: "color-mix(in srgb, #d4973a 30%, transparent)" }}
                             >
                               <Clock size={12} />
                               {t("Пропустить", "O'tkazish")}

@@ -96,14 +96,14 @@ export function PnLRevenueChart({
             <Bar
               dataKey="revenue"
               name={t("Выручка", "Tushum")}
-              fill="#4b6cf6"
+              fill="#5b6d8a"
               radius={[4, 4, 0, 0]}
               opacity={0.85}
             />
             <Bar
               dataKey="cogs"
               name="COGS"
-              fill="#e8a830"
+              fill="#d4973a"
               radius={[4, 4, 0, 0]}
               opacity={0.85}
             />

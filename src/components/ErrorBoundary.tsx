@@ -34,7 +34,7 @@ export default class ErrorBoundary extends Component<Props, State> {
             background: "rgba(232,80,80,0.1)", display: "flex",
             alignItems: "center", justifyContent: "center", marginBottom: "20px",
           }}>
-            <AlertTriangle size={28} color="#e85050" />
+            <AlertTriangle size={28} color="#d45050" />
           </div>
           <h2 style={{
             fontFamily: "'DM Sans', sans-serif", fontSize: "18px", fontWeight: 700,
@@ -75,7 +75,7 @@ export default class ErrorBoundary extends Component<Props, State> {
                 padding: "10px 20px", fontSize: "13px", fontWeight: 600,
                 fontFamily: "'DM Sans', sans-serif", borderRadius: "12px",
                 border: "none", cursor: "pointer",
-                background: "var(--color-primary, #4b6cf6)", color: "#fff",
+                background: "var(--color-primary, #5b6d8a)", color: "#fff",
                 boxShadow: "0 2px 8px rgba(75,108,246,.25)",
               }}
             >

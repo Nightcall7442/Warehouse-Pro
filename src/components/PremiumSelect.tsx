@@ -46,8 +46,8 @@ export function PremiumSelect({ value, options, onChange, placeholder = "Выб�
           display: "flex", alignItems: "center", justifyContent: "space-between",
           width: "100%", padding: "10px 14px", borderRadius: "10px",
           background: "var(--color-surface-light, #f0f3f8)", color: selected ? "var(--color-text-primary, #2b3450)" : "var(--color-text-tertiary, #98a0b8)",
-          border: open ? "1.5px solid var(--color-primary, #4b6cf6)" : "1.5px solid transparent",
-          boxShadow: open ? "0 0 0 3px color-mix(in srgb, var(--color-primary, #4b6cf6) 12%, transparent)" : "none",
+          border: open ? "1.5px solid var(--color-primary, #5b6d8a)" : "1.5px solid transparent",
+          boxShadow: open ? "0 0 0 3px color-mix(in srgb, var(--color-primary, #5b6d8a) 12%, transparent)" : "none",
           fontSize: "13px", fontFamily: "'DM Sans', sans-serif", fontWeight: 500,
           cursor: "pointer", transition: "all 0.15s ease", outline: "none",
         }}
@@ -76,7 +76,7 @@ export function PremiumSelect({ value, options, onChange, placeholder = "Выб�
                 width: "100%", padding: "10px 12px", borderRadius: "8px",
                 border: "none", cursor: "pointer", transition: "all 0.15s ease",
                 background: value === opt.value ? "var(--color-primary-subtle, rgba(75,108,246,.10))" : "transparent",
-                color: value === opt.value ? "var(--color-primary, #4b6cf6)" : "var(--color-text-primary, #2b3450)",
+                color: value === opt.value ? "var(--color-primary, #5b6d8a)" : "var(--color-text-primary, #2b3450)",
                 fontSize: "13px", fontFamily: "'DM Sans', sans-serif", fontWeight: value === opt.value ? 600 : 400,
                 textAlign: "left",
               }}
@@ -86,7 +86,7 @@ export function PremiumSelect({ value, options, onChange, placeholder = "Выб�
               {selected?.value === opt.value && (
                 <div style={{
                   width: "18px", height: "18px", borderRadius: "6px",
-                  background: "#4b6cf6", display: "flex",
+                  background: "#5b6d8a", display: "flex",
                   alignItems: "center", justifyContent: "center", flexShrink: 0,
                 }}>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">

@@ -43,7 +43,7 @@ function KpiCard({
         <div style={{
           display: "flex", alignItems: "center", gap: "4px", marginTop: "10px",
           fontSize: "12px", fontWeight: 600, fontFamily: F.body,
-          color: isPositive ? "#34c473" : isNegative ? "#e85050" : COLORS.textTertiary,
+          color: isPositive ? "#34c473" : isNegative ? "#d45050" : COLORS.textTertiary,
         }}>
           {isPositive ? <ArrowUpRight size={14} /> : isNegative ? <ArrowDownRight size={14} /> : <Minus size={14} />}
           {Math.abs(delta).toFixed(1)}%
@@ -346,7 +346,7 @@ export default function Users() {
             value={String(stats.total)}
             delta={null}
             icon={<UsersIcon size={20} color="#fff" />}
-            gradient="linear-gradient(135deg, #4b6cf6, #4b6cf6)"
+            gradient="linear-gradient(135deg, #5b6d8a, #5b6d8a)"
             delay={0}
           />
           <KpiCard
@@ -362,7 +362,7 @@ export default function Users() {
             value={String(stats.inactive)}
             delta={null}
             icon={<UserX size={20} color="#fff" />}
-            gradient="linear-gradient(135deg, #e85050, #e85050)"
+            gradient="linear-gradient(135deg, #d45050, #d45050)"
             delay={0.1}
           />
         </div>

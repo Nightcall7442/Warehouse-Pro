@@ -344,7 +344,7 @@ function OneCSettings() {
         <div className="flex items-center gap-3 px-4 py-3 rounded-lg"
           style={{
             background: health?.healthy ? "rgba(74,222,128,.10)" : "var(--color-danger-subtle, rgba(232,80,80,.10))",
-            border: `1px solid ${health?.healthy ? "rgba(74,222,128,.25)" : "color-mix(in srgb, #e85050 25%, transparent)"}`,
+            border: `1px solid ${health?.healthy ? "rgba(74,222,128,.25)" : "color-mix(in srgb, #d45050 25%, transparent)"}`,
           }}>
           {healthLoading ? (
             <Loader2 size={18} className="text-secondary animate-spin" />

@@ -22,7 +22,7 @@ export default function SuperAdmin() {
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <div style={{ width: "44px", height: "44px", borderRadius: "14px", background: "linear-gradient(135deg, #4b6cf6, #4b6cf6)", display: "flex", alignItems: "center", justifyContent: "center" }}><Zap size={22} color="#fff" /></div>
+          <div style={{ width: "44px", height: "44px", borderRadius: "14px", background: "linear-gradient(135deg, #5b6d8a, #5b6d8a)", display: "flex", alignItems: "center", justifyContent: "center" }}><Zap size={22} color="#fff" /></div>
           <div>
             <h1 style={{ fontFamily: F.display, fontSize: "24px", fontWeight: 700, color: COLORS.textPrimary, letterSpacing: "-0.02em" }}>Super Admin</h1>
             <p style={{ fontSize: "13px", color: COLORS.textSecondary }}>Управление платформой</p>

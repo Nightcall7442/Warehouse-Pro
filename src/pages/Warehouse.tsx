@@ -84,11 +84,11 @@ export default function Warehouse() {
   const lowCount = Number(summary?.lowStockCount ?? 0);
 
   const kpis = useMemo(() => [
-    { label: t("ПОЗИЦИЙ", "POZITSIYALAR"), value: summary?.totalSKUs ?? "—", icon: Boxes, gradient: "linear-gradient(135deg, #4b6cf6, #4b6cf6)", sub: t("уникальных товаров", "noyob mahsulotlar") },
+    { label: t("ПОЗИЦИЙ", "POZITSIYALAR"), value: summary?.totalSKUs ?? "—", icon: Boxes, gradient: "linear-gradient(135deg, #5b6d8a, #5b6d8a)", sub: t("уникальных товаров", "noyob mahsulotlar") },
     { label: t("ВСЕГО КГ", "JAMI KG"), value: Number(summary?.totalWeight ?? 0).toLocaleString("ru-RU", { maximumFractionDigits: 0 }), icon: Scale, gradient: "linear-gradient(135deg, #60a5fa, #22d3ee)", sub: t("общий вес на складе", "ombordagi umumiy") },
-    { label: t("СТОИМОСТЬ СКЛАДА", "OMBOR QIYMATI"), value: valLoading ? "—" : fmt(Number(valuation?.totalCostValue ?? 0).toFixed(0)), icon: DollarSign, gradient: "linear-gradient(135deg, #e8a830, #fb923c)", sub: t("себестоимость остатков", "qoldiq tannarx") },
-    { label: t("МЕРТВЫЙ СТОК", "O'LIK STOK"), value: deadStockItems?.length ?? "—", icon: Clock, gradient: deadStockItems && deadStockItems.length > 0 ? "linear-gradient(135deg, #4b6cf6, #4b6cf6)" : "linear-gradient(135deg, #34c473, #34c473)", sub: t("товаров без продаж", "sotilmasdan mahsulotlar") },
-    { label: t("МАЛО СТОКА", "KAM STOK"), value: lowCount, icon: lowCount > 0 ? AlertCircle : Package, gradient: lowCount > 0 ? "linear-gradient(135deg, #e85050, #e85050)" : "linear-gradient(135deg, #34c473, #34c473)", sub: lowCount > 0 ? t("товаров ниже порога", "mahsulot chegaradan past") : t("все в норме", "hammasi yaxshi"), onClick: lowCount > 0 ? () => setShowLowStock(true) : undefined },
+    { label: t("СТОИМОСТЬ СКЛАДА", "OMBOR QIYMATI"), value: valLoading ? "—" : fmt(Number(valuation?.totalCostValue ?? 0).toFixed(0)), icon: DollarSign, gradient: "linear-gradient(135deg, #d4973a, #fb923c)", sub: t("себестоимость остатков", "qoldiq tannarx") },
+    { label: t("МЕРТВЫЙ СТОК", "O'LIK STOK"), value: deadStockItems?.length ?? "—", icon: Clock, gradient: deadStockItems && deadStockItems.length > 0 ? "linear-gradient(135deg, #5b6d8a, #5b6d8a)" : "linear-gradient(135deg, #34c473, #34c473)", sub: t("товаров без продаж", "sotilmasdan mahsulotlar") },
+    { label: t("МАЛО СТОКА", "KAM STOK"), value: lowCount, icon: lowCount > 0 ? AlertCircle : Package, gradient: lowCount > 0 ? "linear-gradient(135deg, #d45050, #d45050)" : "linear-gradient(135deg, #34c473, #34c473)", sub: lowCount > 0 ? t("товаров ниже порога", "mahsulot chegaradan past") : t("все в норме", "hammasi yaxshi"), onClick: lowCount > 0 ? () => setShowLowStock(true) : undefined },
   ], [summary, valuation, valLoading, deadStockItems, lowCount, t, fmt]);
 
   const tabs = useMemo(() => [
@@ -118,7 +118,7 @@ export default function Warehouse() {
           <div className="relative w-full max-w-2xl max-h-[80vh] overflow-y-auto rounded-3xl p-6" style={{ background: "var(--color-surface, #ffffff)", boxShadow: "0 25px 80px -12px rgba(0,0,0,0.35)" }} onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, #e85050, #e85050)" }}>
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, #d45050, #d45050)" }}>
                   <AlertTriangle size={18} color="#fff" />
                 </div>
                 <div>
@@ -137,13 +137,13 @@ export default function Warehouse() {
             <div className="space-y-2">
               {reorderSuggestions?.filter((r: any) => Number(r.currentStock ?? 0) < Number(r.reorderPoint ?? 0) && Number(r.reorderPoint ?? 0) > 0).map((item: any, i: number) => (
                 <div key={i} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: "var(--color-surface-light, #f0f3f8)" }}>
-                  <div className="w-2 h-8 rounded-full flex-shrink-0" style={{ background: "linear-gradient(180deg, #e85050, #e85050)" }} />
+                  <div className="w-2 h-8 rounded-full flex-shrink-0" style={{ background: "linear-gradient(180deg, #d45050, #d45050)" }} />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate" style={{ color: "var(--color-text-primary, #2b3450)" }}>{item.productName}</p>
                     <p className="text-xs" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>{item.productCode}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-bold" style={{ color: "#e85050" }}>{Number(item.currentStock ?? 0).toFixed(1)}</p>
+                    <p className="text-sm font-bold" style={{ color: "#d45050" }}>{Number(item.currentStock ?? 0).toFixed(1)}</p>
                     <p className="text-xs" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>{t("порог", "chegara")}: {Number(item.reorderPoint ?? 0).toFixed(0)}</p>
                   </div>
                 </div>
@@ -196,7 +196,7 @@ export default function Warehouse() {
           {activeTab === "deadstock" && (
             <button onClick={() => deadStockItems?.length && exportToExcel(formatDeadStockForExport(deadStockItems), "dead-stock", "Мёртвый сток", t("Мёртвый сток — товары без продаж", "O'lik stok — sotilmasdan mahsulotlar"))}
               className="flex items-center gap-2 text-sm py-2.5 px-5 rounded-xl font-medium transition-all"
-              style={{ background: "linear-gradient(135deg, #4b6cf6, #4b6cf6)", color: "#fff", boxShadow: "0 4px 16px rgba(167,139,250,0.3)" }}>
+              style={{ background: "linear-gradient(135deg, #5b6d8a, #5b6d8a)", color: "#fff", boxShadow: "0 4px 16px rgba(167,139,250,0.3)" }}>
               <FileDown size={16} /> {t("Экспорт", "Eksport")}
             </button>
           )}
@@ -247,7 +247,7 @@ export default function Warehouse() {
             {tab.label}
             {tab.count > 0 && (
               <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
-                style={{ background: activeTab === tab.key ? "#4b6cf6" : "var(--color-border, #f0f3f8)", color: activeTab === tab.key ? "#fff" : "var(--color-text-tertiary, #98a0b8)" }}>
+                style={{ background: activeTab === tab.key ? "#5b6d8a" : "var(--color-border, #f0f3f8)", color: activeTab === tab.key ? "#fff" : "var(--color-text-tertiary, #98a0b8)" }}>
                 {tab.count}
               </span>
             )}
@@ -263,13 +263,13 @@ export default function Warehouse() {
             <div className="flex items-center gap-3 px-5 py-4 rounded-2xl cursor-pointer neo-card-sm"
               onClick={() => setShowLowStock(true)}>
               <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                style={{ background: "var(--color-danger, #e85050)" }}>
+                style={{ background: "var(--color-danger, #d45050)" }}>
                 <AlertTriangle size={18} color="#fff" />
               </div>
               <p className="text-sm flex-1 font-medium" style={{ color: "var(--color-text-primary)" }}>
                 <b style={{ color: "var(--color-danger)" }}>{lowCount}</b> {t("товаров ниже порога — отмечены красным", "ta mahsulot chegaradan past")}
               </p>
-              <span className="text-xs font-semibold px-3 py-1.5 rounded-lg" style={{ background: "var(--color-danger-subtle, rgba(232,80,80,0.12))", color: "var(--color-danger, #e85050)" }}>
+              <span className="text-xs font-semibold px-3 py-1.5 rounded-lg" style={{ background: "var(--color-danger-subtle, rgba(232,80,80,0.12))", color: "var(--color-danger, #d45050)" }}>
                 {t("Показать", "Ko'rish")} →
               </span>
             </div>
@@ -280,7 +280,7 @@ export default function Warehouse() {
             <Search size={16} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--color-text-tertiary, #98a0b8)", pointerEvents: "none" }} />
             <input className="w-full py-3 pl-10 pr-4 rounded-xl text-sm outline-none transition-all"
               style={{ background: "var(--color-surface-light, #f0f3f8)", color: "var(--color-text-primary, #2b3450)", border: "2px solid transparent", fontFamily: "'DM Sans', sans-serif" }}
-              onFocus={e => { e.currentTarget.style.borderColor = "#4b6cf6"; e.currentTarget.style.boxShadow = "0 0 0 4px rgba(75,108,246,0.1)"; e.currentTarget.style.background = "var(--color-surface, #ffffff)"; }}
+              onFocus={e => { e.currentTarget.style.borderColor = "#5b6d8a"; e.currentTarget.style.boxShadow = "0 0 0 4px rgba(75,108,246,0.1)"; e.currentTarget.style.background = "var(--color-surface, #ffffff)"; }}
               onBlur={e => { e.currentTarget.style.borderColor = "transparent"; e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.background = "var(--color-surface-light, #f0f3f8)"; }}
               placeholder={t("Поиск товаров…", "Mahsulot qidirish…")}
               value={search} onChange={e => setSearch(e.target.value)} />
@@ -299,22 +299,22 @@ export default function Warehouse() {
                       <div key={item.id} className="rounded-2xl overflow-hidden"
                         style={{ background: "var(--color-surface, #ffffff)", boxShadow: "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06))" }}>
                         <div className="flex">
-                          {low && <div className="w-1.5 flex-shrink-0" style={{ background: "#e85050" }} />}
+                          {low && <div className="w-1.5 flex-shrink-0" style={{ background: "#d45050" }} />}
                           <div className="flex-1 p-5">
                             <div className="flex items-center justify-between mb-3">
                               <div className="flex items-center gap-2">
-                                {low && <AlertTriangle size={14} color="#e85050" />}
+                                {low && <AlertTriangle size={14} color="#d45050" />}
                                 <p className="text-sm font-semibold" style={{ color: "var(--color-text-primary, #2b3450)" }}>{item.productName}</p>
                               </div>
                               <div className="flex items-center gap-2">
                                 <button onClick={() => handleAdjust({ id: item.productId, name: item.productName ?? "", stock: Number(item.currentStock ?? 0), unit: item.unit ?? "pcs", unitWeight: Number(item.unitWeight ?? 0) })}
-                                  className="text-xs py-1.5 px-3 rounded-lg transition-colors" style={{ color: "#4b6cf6", background: "rgba(75,108,246,0.08)" }}>
+                                  className="text-xs py-1.5 px-3 rounded-lg transition-colors" style={{ color: "#5b6d8a", background: "rgba(75,108,246,0.08)" }}>
                                   {t("Скорр.", "Tuzatish")}
                                 </button>
                                 <button onClick={() => handleDelete(item.productId)}
                                   disabled={deleteMutation.isPending}
                                   className="text-xs py-1.5 px-2 rounded-lg transition-all"
-                                  style={{ color: "#e85050", background: "rgba(232,80,80,0.08)" }}>
+                                  style={{ color: "#d45050", background: "rgba(232,80,80,0.08)" }}>
                                   <Trash2 size={12} />
                                 </button>
                               </div>
@@ -326,7 +326,7 @@ export default function Warehouse() {
                                 { label: t("Всего", "Jami"), val: item.currentStock, unit: item.unit, danger: false },
                               ].map(col => (
                                 <div key={col.label}>
-                                  <p className="text-lg font-bold" style={{ color: col.danger ? "#e85050" : "var(--color-text-primary, #2b3450)", fontFamily: "'DM Sans', sans-serif" }}>
+                                  <p className="text-lg font-bold" style={{ color: col.danger ? "#d45050" : "var(--color-text-primary, #2b3450)", fontFamily: "'DM Sans', sans-serif" }}>
                                     {Number(col.val ?? 0).toFixed(0)}
                                   </p>
                                   <p className="text-[10px] mt-0.5" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>{col.label}</p>
@@ -372,7 +372,7 @@ export default function Warehouse() {
                           <tr key={item.id} style={low ? { background: "rgba(232,80,80,0.03)" } : undefined}>
                             <td className="px-5 py-3.5" style={{ borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
                               <div className="flex items-center gap-2.5">
-                                {low && <AlertTriangle size={13} color="#e85050" />}
+                                {low && <AlertTriangle size={13} color="#d45050" />}
                                 <span className="text-sm font-medium" style={{ color: "var(--color-text-primary, #2b3450)" }}>{item.productName}</span>
                               </div>
                             </td>
@@ -382,7 +382,7 @@ export default function Warehouse() {
                             <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-secondary, #6a7290)", borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
                               {item.category ?? "—"}
                             </td>
-                            <td className="px-5 py-3.5 text-sm font-bold" style={{ color: low ? "#e85050" : "var(--color-text-primary, #2b3450)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
+                            <td className="px-5 py-3.5 text-sm font-bold" style={{ color: low ? "#d45050" : "var(--color-text-primary, #2b3450)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
                               {Number(item.available ?? 0).toFixed(2)}
                             </td>
                             <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-secondary, #6a7290)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
@@ -401,13 +401,13 @@ export default function Warehouse() {
                               <div className="flex items-center gap-2">
                                 <button onClick={() => handleAdjust({ id: item.productId, name: item.productName ?? "", stock: Number(item.currentStock ?? 0), unit: item.unit ?? "pcs", unitWeight: Number(item.unitWeight ?? 0) })}
                                   className="text-xs py-1.5 px-3 rounded-lg transition-all"
-                                  style={{ color: "#4b6cf6", background: "rgba(75,108,246,0.08)" }}>
+                                  style={{ color: "#5b6d8a", background: "rgba(75,108,246,0.08)" }}>
                                   {t("Скорректировать", "Tuzatish")}
                                 </button>
                                 <button onClick={() => handleDelete(item.productId)}
                                   disabled={deleteMutation.isPending}
                                   className="text-xs py-1.5 px-3 rounded-lg transition-all"
-                                  style={{ color: "#e85050", background: "rgba(232,80,80,0.08)" }}>
+                                  style={{ color: "#d45050", background: "rgba(232,80,80,0.08)" }}>
                                   <Trash2 size={12} />
                                 </button>
                               </div>
@@ -433,7 +433,7 @@ export default function Warehouse() {
               <button key={d} onClick={() => setDeadStockDays(d)}
                 className="text-xs py-1.5 px-3 rounded-lg font-medium transition-all"
                 style={{
-                  background: deadStockDays === d ? "#4b6cf6" : "var(--color-surface-light, #f0f3f8)",
+                  background: deadStockDays === d ? "#5b6d8a" : "var(--color-surface-light, #f0f3f8)",
                   color: deadStockDays === d ? "#fff" : "var(--color-text-tertiary, #98a0b8)",
                 }}>
                 {d} {t("дн", "kun")}
@@ -467,7 +467,7 @@ export default function Warehouse() {
                 const isWarning = days > 30;
                 const bgColor = isUrgent ? "rgba(232,80,80,0.06)" : isWarning ? "rgba(251,191,36,0.06)" : "var(--color-surface, #ffffff)";
                 const borderColor = isUrgent ? "rgba(232,80,80,0.15)" : isWarning ? "rgba(251,191,36,0.15)" : "var(--color-border, #f0f3f8)";
-                const badgeColor = isUrgent ? "#e85050" : isWarning ? "#e8a830" : "#4b6cf6";
+                const badgeColor = isUrgent ? "#d45050" : isWarning ? "#d4973a" : "#5b6d8a";
                 return (
                   <div key={item.productId} className="rounded-2xl p-4" style={{ background: bgColor, boxShadow: `inset 0 0 0 1px ${borderColor}`, animation: `slideUp ${0.3 + i * 0.05}s ease forwards` }}>
                     <div className="flex items-center justify-between mb-2">
@@ -510,7 +510,7 @@ export default function Warehouse() {
                     const isUrgent = days > 90;
                     const isWarning = days > 30;
                     const rowBg = isUrgent ? "rgba(232,80,80,0.04)" : isWarning ? "rgba(251,191,36,0.04)" : undefined;
-                    const badgeColor = isUrgent ? "#e85050" : isWarning ? "#e8a830" : "#4b6cf6";
+                    const badgeColor = isUrgent ? "#d45050" : isWarning ? "#d4973a" : "#5b6d8a";
                     return (
                       <tr key={item.productId} style={{ background: rowBg }}>
                         <td className="px-5 py-3.5 text-sm font-medium" style={{ color: "var(--color-text-primary, #2b3450)", borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
@@ -578,7 +578,7 @@ export default function Warehouse() {
                 const daysLeft = Number(item.daysUntilStockout ?? 999);
                 const isUrgent = daysLeft <= 3;
                 const isWarning = daysLeft <= 7;
-                const badgeColor = isUrgent ? "#e85050" : isWarning ? "#e8a830" : "#4b6cf6";
+                const badgeColor = isUrgent ? "#d45050" : isWarning ? "#d4973a" : "#5b6d8a";
                 return (
                   <div key={item.productId} className="rounded-2xl overflow-hidden" style={{ animation: `slideUp ${0.3 + i * 0.05}s ease forwards` }}>
                     <div className="flex">
@@ -618,13 +618,13 @@ export default function Warehouse() {
                     const daysLeft = Number(item.daysUntilStockout ?? 999);
                     const isUrgent = daysLeft <= 3;
                     const isWarning = daysLeft <= 7;
-                    const badgeColor = isUrgent ? "#e85050" : isWarning ? "#e8a830" : "#4b6cf6";
+                    const badgeColor = isUrgent ? "#d45050" : isWarning ? "#d4973a" : "#5b6d8a";
                     const rowBg = isUrgent ? "rgba(232,80,80,0.04)" : isWarning ? "rgba(251,191,36,0.04)" : undefined;
                     return (
                       <tr key={item.productId} style={{ background: rowBg }}>
                         <td className="px-5 py-3.5 text-sm font-medium" style={{ color: "var(--color-text-primary, #2b3450)", borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
                           <div className="flex items-center gap-2">
-                            {isUrgent && <AlertTriangle size={13} color="#e85050" />}
+                            {isUrgent && <AlertTriangle size={13} color="#d45050" />}
                             {item.productName}
                           </div>
                         </td>

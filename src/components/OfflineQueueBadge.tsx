@@ -48,7 +48,7 @@ export function OfflineQueueBadge() {
         background: online
           ? "var(--color-warning-subtle, rgba(232,168,48,0.12))"
           : "var(--color-danger-subtle, rgba(232,80,80,0.12))",
-        color: online ? "var(--color-warning, #e8a830)" : "var(--color-danger, #e85050)",
+        color: online ? "var(--color-warning, #d4973a)" : "var(--color-danger, #d45050)",
         fontSize: "12px", fontWeight: 600, fontFamily: "'DM Sans', sans-serif",
         transition: "all 0.2s",
       }}

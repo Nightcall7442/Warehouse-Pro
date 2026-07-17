@@ -38,7 +38,7 @@ export const UsageDashboard = memo(function UsageDashboard() {
       icon: Users,
       used: usage.users,
       max: limits.maxUsers,
-      color: "#4b6cf6",
+      color: "#5b6d8a",
     },
     {
       label: t("Товары", "Mahsulotlar"),
@@ -52,7 +52,7 @@ export const UsageDashboard = memo(function UsageDashboard() {
       icon: ShoppingCart,
       used: usage.orders,
       max: limits.maxOrdersMonth,
-      color: "#e8a830",
+      color: "#d4973a",
     },
   ];
 

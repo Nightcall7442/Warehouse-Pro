@@ -116,7 +116,7 @@ export default function Notifications() {
             {t("Уведомления", "Bildirishnomalar")}
           </h1>
           {unreadCount > 0 && (
-            <p className="text-xs mt-0.5" style={{ color: "#4b6cf6" }}>
+            <p className="text-xs mt-0.5" style={{ color: "#5b6d8a" }}>
               {unreadCount} {t("непрочитанных", "o'qilmagan")}
             </p>
           )}
@@ -142,7 +142,7 @@ export default function Notifications() {
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap"
             style={{
               background: filter === f.key ? "var(--color-primary-subtle, rgba(75,108,246,.10))" : "var(--color-surface-light, #f0f3f8)",
-              color: filter === f.key ? "#4b6cf6" : "var(--color-text-secondary, #6a7290)",
+              color: filter === f.key ? "#5b6d8a" : "var(--color-text-secondary, #6a7290)",
               border: `1px solid ${filter === f.key ? "#c7c9f8" : "var(--color-border, #f0f3f8)"}`,
             }}
           >
@@ -224,7 +224,7 @@ export default function Notifications() {
                                 <ExternalLink size={12} style={{ color: "var(--color-text-tertiary, #98a0b8)" }} />
                               )}
                               {!n.isRead && (
-                                <span className="w-2 h-2 rounded-full" style={{ background: "#4b6cf6" }} />
+                                <span className="w-2 h-2 rounded-full" style={{ background: "#5b6d8a" }} />
                               )}
                             </div>
                           </div>

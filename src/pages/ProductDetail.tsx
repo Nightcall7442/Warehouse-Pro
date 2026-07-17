@@ -17,7 +17,7 @@ const UNIT_LABELS: Record<string,[string,string]> = {
 };
 
 const COLORS = {
-  primary: "var(--color-primary, #00d4ff)",
+  primary: "var(--color-primary, #3a9ab5)",
   secondary: "var(--color-text-secondary, #a39d92)",
   danger: "var(--color-danger, #ff4d6a)",
   surface: "var(--color-surface, #221f1c)",
