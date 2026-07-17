@@ -106,7 +106,11 @@ app.get("/orders", async (c) => {
   const limit = Math.min(Number(c.req.query("limit") ?? 50), 200);
   const offset = Number(c.req.query("offset") ?? 0);
 
-  const rows = await db.select().from(orders)
+  const rows = await db.select({
+    id: orders.id, orderNumber: orders.orderNumber, status: orders.status,
+    total: orders.total, shopId: orders.shopId, agentId: orders.agentId,
+    createdAt: orders.createdAt,
+  }).from(orders)
     .where(eq(orders.tenantId, tenantId))
     .orderBy(desc(orders.createdAt))
     .limit(limit).offset(offset);
@@ -125,7 +129,12 @@ app.get("/orders/:id", async (c) => {
 
   const db = getDb();
   const id = Number(c.req.param("id"));
-  const [order] = await db.select().from(orders)
+  const [order] = await db.select({
+    id: orders.id, orderNumber: orders.orderNumber, status: orders.status,
+    total: orders.total, subtotal: orders.subtotal, discount: orders.discount,
+    shopId: orders.shopId, agentId: orders.agentId, notes: orders.notes,
+    createdAt: orders.createdAt,
+  }).from(orders)
     .where(and(eq(orders.id, id), eq(orders.tenantId, tenantId))).limit(1);
   if (!order) return c.json({ error: "Order not found" }, 404);
 

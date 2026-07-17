@@ -61,7 +61,7 @@ export const CourierService = {
   },
 
   async assignCourier(db: Db, tenantId: number, orderId: number, courierId: number) {
-    const [order] = await db.select().from(orders)
+    const [order] = await db.select({ id: orders.id, status: orders.status, courierId: orders.courierId }).from(orders)
       .where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)))
       .limit(1);
     if (!order) throw new Error("Заказ не найден");
@@ -100,7 +100,7 @@ export const CourierService = {
   },
 
   async markOutForDelivery(db: Db, tenantId: number, orderId: number, courierId: number) {
-    const [order] = await db.select().from(orders)
+    const [order] = await db.select({ id: orders.id, status: orders.status, deliveryStatus: orders.deliveryStatus }).from(orders)
       .where(and(
         eq(orders.id, orderId),
         eq(orders.tenantId, tenantId),
@@ -117,7 +117,7 @@ export const CourierService = {
   },
 
   async markDelivered(db: Db, tenantId: number, orderId: number, courierId: number, data?: { cashAmount?: string }) {
-    const [order] = await db.select().from(orders)
+    const [order] = await db.select({ id: orders.id, status: orders.status, deliveryStatus: orders.deliveryStatus }).from(orders)
       .where(and(
         eq(orders.id, orderId),
         eq(orders.tenantId, tenantId),

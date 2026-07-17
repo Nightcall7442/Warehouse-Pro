@@ -72,7 +72,7 @@ export const courierRouter = createRouter({
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
 
-      const [order] = await db.select().from(orders)
+      const [order] = await db.select({ id: orders.id, status: orders.status, courierId: orders.courierId }).from(orders)
         .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, ctx.tenant.id)))
         .limit(1);
       if (!order) throw new Error("Заказ не найден");
@@ -118,7 +118,7 @@ export const courierRouter = createRouter({
       const db = getDb();
       const courierId = ctx.user.id;
 
-      const [order] = await db.select().from(orders)
+      const [order] = await db.select({ id: orders.id, status: orders.status, deliveryStatus: orders.deliveryStatus }).from(orders)
         .where(and(
           eq(orders.id, input.orderId),
           eq(orders.tenantId, ctx.tenant.id),
@@ -143,7 +143,7 @@ export const courierRouter = createRouter({
       const db = getDb();
       const courierId = ctx.user.id;
 
-      const [order] = await db.select().from(orders)
+      const [order] = await db.select({ id: orders.id, status: orders.status, deliveryStatus: orders.deliveryStatus }).from(orders)
         .where(and(
           eq(orders.id, input.orderId),
           eq(orders.tenantId, ctx.tenant.id),

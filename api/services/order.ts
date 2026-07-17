@@ -238,7 +238,7 @@ export const OrderService = {
 
   async cancel(db: Db, tenantId: number, orderId: number, opts: { userId: number; userRole: string }) {
     await db.transaction(async (tx) => {
-      const [order] = await tx.select().from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), eq(orders.agentId, opts.userId))).limit(1);
+      const [order] = await tx.select({ id: orders.id, status: orders.status }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), eq(orders.agentId, opts.userId))).limit(1);
       if (!order) throw new Error("Заказ не найден");
       if (order.status !== "new") throw new Error("Можно отменить только новые заказы");
 
@@ -267,7 +267,10 @@ export const OrderService = {
 
   async updateStatus(db: Db, tenantId: number, orderId: number, newStatus: "new" | "processing" | "completed" | "cancelled") {
     await db.transaction(async (tx) => {
-      const [order] = await tx.select().from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId))).limit(1);
+      const [order] = await tx.select({
+        id: orders.id, status: orders.status, shopId: orders.shopId,
+        agentId: orders.agentId, total: orders.total, subtotal: orders.subtotal,
+      }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId))).limit(1);
       if (!order) throw new Error("Заказ не найден");
 
       if (order.status === newStatus) {
@@ -388,7 +391,7 @@ export const OrderService = {
   },
 
   async restore(db: Db, tenantId: number, orderId: number) {
-    const [order] = await db.select().from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId))).limit(1);
+    const [order] = await db.select({ id: orders.id, deletedAt: orders.deletedAt }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId))).limit(1);
     if (!order) throw new Error("Заказ не найден");
     if (!order.deletedAt) throw new Error("Заказ не удалён");
 
