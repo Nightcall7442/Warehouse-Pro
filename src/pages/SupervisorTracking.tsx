@@ -5,7 +5,7 @@ import { format } from "date-fns";
 import { Radio, RefreshCw, MapPin, Wifi, WifiOff } from "lucide-react";
 
 // Yandex Maps API key — получить на https://developer.tech.yandex.ru/services
-const YANDEX_MAPS_API_KEY = "YOUR_YANDEX_MAPS_API_KEY";
+const YANDEX_MAPS_API_KEY = import.meta.env.VITE_YANDEX_MAPS_API_KEY || "";
 
 function timeAgo(date: Date, lang: string): string {
   const diff = Math.floor((Date.now() - date.getTime()) / 1000);
@@ -34,13 +34,17 @@ export default function SupervisorTracking() {
   const [selected, setSelected] = useState<number | null>(null);
   const lastUpdate = dataUpdatedAt ? new Date(dataUpdatedAt) : null;
 
+  const [mapError, setMapError] = useState(false);
+
   // Load Yandex Maps API
   useEffect(() => {
     if (window.ymaps) return;
+    if (!YANDEX_MAPS_API_KEY) { setMapError(true); return; }
 
     const script = document.createElement("script");
     script.src = `https://api-maps.yandex.ru/2.1/?apikey=${YANDEX_MAPS_API_KEY}&lang=ru_RU`;
     script.onload = () => initMap();
+    script.onerror = () => setMapError(true);
     document.head.appendChild(script);
   }, []);
 
@@ -270,7 +274,19 @@ export default function SupervisorTracking() {
 
         {/* Map */}
         <div className="neo-card overflow-hidden lg:col-span-2 order-1 lg:order-2" style={{ minHeight: 420 }}>
-          <div ref={mapDivRef} style={{ width: "100%", height: "480px" }} />
+          {mapError ? (
+            <div className="flex flex-col items-center justify-center h-[480px] text-center p-6">
+              <MapPin size={32} className="mb-3 opacity-30" style={{ color: "var(--color-text-tertiary)" }} />
+              <p className="text-sm font-medium" style={{ color: "var(--color-text-secondary)" }}>
+                {t("Карта недоступна", "Xarita mavjud emas")}
+              </p>
+              <p className="text-xs mt-1" style={{ color: "var(--color-text-tertiary)" }}>
+                {t("Настройте VITE_YANDEX_MAPS_API_KEY", "VITE_YANDEX_MAPS_API_KEY ni sozlang")}
+              </p>
+            </div>
+          ) : (
+            <div ref={mapDivRef} style={{ width: "100%", height: "480px" }} />
+          )}
         </div>
       </div>
     </div>
