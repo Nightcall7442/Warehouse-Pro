@@ -316,7 +316,7 @@ export default function Dashboard() {
         </div>
 
         {/* Pie Chart — Status Breakdown */}
-        <div className="neo-card" style={{ display: "flex", flexDirection: "column" }}>
+        <div className="neo-card" style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
           <div style={{ marginBottom: "16px" }}>
             <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 700, color: "var(--color-text-primary, #2d3748)", margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
               <PieChart size={16} color="var(--color-primary)" />
@@ -327,15 +327,15 @@ export default function Dashboard() {
             </p>
           </div>
           <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-            <div className="neo-pie-chart" style={{ width: "160px", height: "160px" }}>
+            <div className="neo-pie-chart" style={{ width: "180px", height: "180px" }}>
               <ResponsiveContainer width="100%" height="100%">
                 <RePieChart>
                   <Pie
                     data={pieData}
                     cx="50%"
                     cy="50%"
-                    innerRadius={45}
-                    outerRadius={70}
+                    innerRadius={50}
+                    outerRadius={80}
                     paddingAngle={3}
                     dataKey="value"
                     animationBegin={0}
@@ -349,17 +349,17 @@ export default function Dashboard() {
                 </RePieChart>
               </ResponsiveContainer>
               <div className="neo-pie-chart-inner">
-                <span style={{ fontSize: "20px", fontWeight: 700, color: "var(--color-text-primary)" }}>{statusTotal}</span>
+                <span style={{ fontSize: "22px", fontWeight: 700, color: "var(--color-text-primary)" }}>{statusTotal}</span>
                 <span style={{ fontSize: "10px", color: "var(--color-text-tertiary)" }}>{t("заказов", "buyurtma")}</span>
               </div>
             </div>
             {/* Legend */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginTop: "16px", width: "100%" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 16px", marginTop: "16px", width: "100%", justifyContent: "center" }}>
               {pieData.map((entry: any, i: number) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }} onClick={() => navigate(`/orders?status=${entry.status}`)}>
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => navigate(`/orders?status=${entry.status}`)}>
                   <span style={{ width: "10px", height: "10px", borderRadius: "3px", background: entry.color, boxShadow: "var(--shadow-xs)", flexShrink: 0 }} />
-                  <span style={{ fontSize: "11px", color: "var(--color-text-secondary)" }}>{entry.name}</span>
-                  <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--color-text-primary)", marginLeft: "auto" }}>{entry.value}</span>
+                  <span style={{ fontSize: "12px", color: "var(--color-text-secondary)" }}>{entry.name}</span>
+                  <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--color-text-primary)" }}>{entry.value}</span>
                 </div>
               ))}
             </div>
