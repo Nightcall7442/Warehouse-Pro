@@ -342,7 +342,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* Floating sidebar — neumorphic card */}
-      <aside className="hidden md:block fixed left-[16px] top-[16px] bottom-[16px] w-[248px] z-40 rounded-[24px] overflow-hidden neo-card" style={{ padding: 0, display: "flex", flexDirection: "column" }}>
+      <aside className="hidden md:flex fixed left-[16px] top-[16px] bottom-[16px] w-[248px] z-40 rounded-[24px] overflow-hidden neo-card flex-col" style={{ padding: 0 }}>
         <Sidebar unreadCount={unreadCount} />
       </aside>
 
