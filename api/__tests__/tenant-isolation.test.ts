@@ -96,8 +96,8 @@ describe("role access matrix", () => {
     ["operator",     "operatorQuery",   true ],
     ["agent",        "operatorQuery",   false],
     ["agent",        "agentQuery",      true ],
-    ["merchandiser", "agentQuery",      false], // merchandiser has its own merchQuery, not agentQuery
-    ["supervisor",   "agentQuery",      false],
+    ["merchandiser", "agentQuery",      true ], // agentQuery intentionally includes supervisor + merchandiser
+    ["supervisor",   "agentQuery",      true ], // for lightweight agent/shop pickers in agent-router
     ["merchandiser", "merchQuery",      true ],
     ["supervisor",   "merchQuery",      true ],
     ["agent",        "merchQuery",      false],

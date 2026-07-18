@@ -87,8 +87,8 @@ describe("auth middleware — role-based access", () => {
     ["ceo",          "agentQuery",      true ],
     ["operator",     "agentQuery",      true ],
     ["agent",        "agentQuery",      true ],
-    ["merchandiser", "agentQuery",      false],
-    ["supervisor",   "agentQuery",      false],
+    ["merchandiser", "agentQuery",      true ], // agentQuery intentionally includes supervisor + merchandiser
+    ["supervisor",   "agentQuery",      true ], // for lightweight agent/shop pickers in agent-router
     ["ceo",          "supervisorQuery", true ],
     ["supervisor",   "supervisorQuery", true ],
     ["agent",        "supervisorQuery", false],
