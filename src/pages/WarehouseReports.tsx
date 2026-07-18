@@ -135,7 +135,7 @@ export default function WarehouseReports() {
   }
 
   // ── Export handlers ──────────────────────────────────────────────────────
-  const handleExcelExport = () => {
+  const handleExcelExport = async () => {
     if (!byCategory || !topByValue || !turnoverData) return;
     const reportData: ReportData = {
       byCategory: byCategory.map(c => ({ ...c, totalProducts: Number(c.totalProducts), totalUnits: Number(c.totalUnits), totalValue: Number(c.totalValue), totalRetail: Number(c.totalRetail), lowStockCount: Number(c.lowStockCount) })),
@@ -151,10 +151,10 @@ export default function WarehouseReports() {
       } : undefined,
       days,
     };
-    exportToExcel(buildExcelSheets(reportData));
+    await exportToExcel(buildExcelSheets(reportData));
   };
 
-  const handlePDFExport = () => {
+  const handlePDFExport = async () => {
     if (!byCategory || !topByValue || !turnoverData) return;
     const reportData: ReportData = {
       byCategory: byCategory.map(c => ({ ...c, totalProducts: Number(c.totalProducts), totalUnits: Number(c.totalUnits), totalValue: Number(c.totalValue), totalRetail: Number(c.totalRetail), lowStockCount: Number(c.lowStockCount) })),

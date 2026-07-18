@@ -69,7 +69,7 @@ export default function Shops() {
     });
   }, []);
 
-  const toggleSelectAll = useCallback(() => {
+  const toggleSelectAll = useCallback(async () => {
     if (allSelected) {
       setSelected(new Set());
     } else {
@@ -93,7 +93,7 @@ export default function Shops() {
     }
   };
 
-  const resetFilters = useCallback(() => {
+  const resetFilters = useCallback(async () => {
     setCity(undefined);
     setDistrict(undefined);
     setSearch("");
@@ -135,7 +135,7 @@ export default function Shops() {
           </p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <button onClick={() => data?.data && exportToExcel(formatShopsForExport(data.data), "shops-export", "Магазины", t("Список магазинов", "Do'konlar ro'yxati"))}
+          <button onClick={async () => data?.data && await exportToExcel(formatShopsForExport(data.data), "shops-export", "Магазины", t("Список магазинов", "Do'konlar ro'yxati"))}
             style={{
               display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
               fontSize: "13px", fontWeight: 500, borderRadius: "10px",

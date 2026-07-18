@@ -67,7 +67,7 @@ function InviteForm({ onDone, lang }: { onDone: () => void; lang: "ru" | "uz" })
     onError: (e) => notify.error(e.message),
   });
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!d.name || !d.email || !d.password) {
       notify.error(t("Заполните все поля", "Barcha maydonlarni to'ldiring"));
       return;
@@ -318,7 +318,7 @@ export default function Users() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <button
-            onClick={() => data?.data && exportToExcel(formatUsersForExport(data.data), "users-export", "Пользователи", t("Список пользователей", "Foydalanuvchilar ro'yxati"))}
+            onClick={async () => data?.data && await exportToExcel(formatUsersForExport(data.data), "users-export", "Пользователи", t("Список пользователей", "Foydalanuvchilar ro'yxati"))}
             style={{
               display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
               fontSize: "13px", fontWeight: 500, fontFamily: F.body, borderRadius: "10px",

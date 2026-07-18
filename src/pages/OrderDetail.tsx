@@ -107,7 +107,7 @@ export default function OrderDetail() {
     };
   };
 
-  const handleExport = () => {
+  const handleExport = async () => {
     if (!order) return;
     const rows = (order.items ?? []).map((i: any) => ({
       [t("orders.number")]:   order.orderNumber,
@@ -120,7 +120,7 @@ export default function OrderDetail() {
       "Цена":                 Number(i.unitPrice).toFixed(2),
       [t("common.total")]:    Number(i.subtotal).toFixed(2),
     }));
-    exportToExcel(rows, `order-${order.orderNumber}`);
+    await exportToExcel(rows, `order-${order.orderNumber}`);
   };
 
   if (isLoading) return (

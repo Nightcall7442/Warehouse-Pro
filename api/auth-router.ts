@@ -5,6 +5,8 @@ import { checkRateLimit, getClientIp } from "./lib/rate-limit";
 import { TRPCError } from "@trpc/server";
 import { env } from "./lib/env";
 
+const CONFIRM_RATE_LIMIT = { windowMs: 15 * 60 * 1000, limit: 10, namespace: "confirmReset" };
+
 export const authRouter = createRouter({
   /** Return current authenticated user */
   me: authedQuery.query(({ ctx }) => ctx.user),

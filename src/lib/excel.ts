@@ -1,15 +1,15 @@
 /**
  * Excel export — профессиональный, со стилями.
- * Использует SheetJS через ES-import (не require).
- * Добавляет: заголовок отчёта, заморозку строки, ширины колонок,
+ * Использует ExcelJS (заменяет уязвимый SheetJS/xlsx).
+ * Добавляет: заголовок отчёта, ширины колонок,
  * цвета статусов, итоговую строку.
  */
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 
 type Row = Record<string, string | number | null | undefined>;
 
 // Цвета статусов для ячеек
-const STATUS_FILLS: Record<string, string> = {
+const STATUS_COLORS: Record<string, string> = {
   new:        "C7D2FE", // indigo-200
   processing: "FDE68A", // amber-200
   completed:  "A7F3D0", // green-200
@@ -29,7 +29,7 @@ const CURRENCY_COLS = new Set(["Total", "Subtotal", "Discount", "Revenue",
 
 const STATUS_COLS = new Set(["Status", "Low Stock"]);
 
-export function exportToExcel(
+export async function exportToExcel(
   rows: Row[],
   filename: string,
   sheetName = "Данные",
@@ -37,25 +37,87 @@ export function exportToExcel(
 ) {
   if (!rows.length) return;
 
-  const wb = XLSX.utils.book_new();
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet(sheetName);
   const headers = Object.keys(rows[0]);
 
-  // Данные для листа: заголовок отчёта (2 строки) + шапка + данные + итог
+  // Title date
   const titleDate = new Date().toLocaleDateString("ru-RU", {
     day: "2-digit", month: "long", year: "numeric",
   });
-  const sheetData: unknown[][] = [
-    [reportTitle ?? `Отчёт: ${sheetName}`, ...Array(headers.length - 1).fill("")],
-    [`Сформирован: ${titleDate}`, ...Array(headers.length - 1).fill("")],
-    [], // пустая строка-разделитель
-    headers,
-    ...rows.map(r => headers.map(h => r[h] ?? "")),
-  ];
 
-  const dataStartRow = 4; // 0-based: шапка в строке 4 (5-я)
+  // Title row
+  ws.addRow([reportTitle ?? `Отчёт: ${sheetName}`, ...Array(headers.length - 1).fill("")]);
+  ws.mergeCells(1, 1, 1, headers.length);
+  const titleCell = ws.getCell(1, 1);
+  titleCell.font = { bold: true, size: 13, color: { argb: "FF1E293B" } };
 
-  // Итоговая строка для числовых колонок
-  const totals: unknown[] = headers.map(h => {
+  // Date row
+  ws.addRow([`Сформирован: ${titleDate}`, ...Array(headers.length - 1).fill("")]);
+  ws.mergeCells(2, 1, 2, headers.length);
+  const dateCell = ws.getCell(2, 1);
+  dateCell.font = { size: 10, color: { argb: "FF64748B" } };
+
+  // Empty separator
+  ws.addRow([]);
+
+  // Header row
+  const headerRow = ws.addRow(headers);
+  headerRow.eachCell((cell) => {
+    cell.font = { bold: true, size: 11, color: { argb: "FFFFFFFF" } };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4F46E5" } };
+    cell.border = {
+      top: { style: "thin", color: { argb: "FFCBD5E1" } },
+      bottom: { style: "thin", color: { argb: "FFCBD5E1" } },
+      left: { style: "thin", color: { argb: "FFCBD5E1" } },
+      right: { style: "thin", color: { argb: "FFCBD5E1" } },
+    };
+    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+  });
+  headerRow.height = 20;
+
+  const dataStartRow = 5; // 1-based: row 5
+
+  // Data rows
+  rows.forEach((r, rowIdx) => {
+    const dataRow = ws.addRow(headers.map(h => r[h] ?? ""));
+    const isEven = rowIdx % 2 === 0;
+
+    dataRow.eachCell((cell, colNumber) => {
+      const headerName = headers[colNumber - 1];
+      const cellVal = String(cell.value ?? "");
+
+      // Status coloring
+      if (STATUS_COLS.has(headerName)) {
+        const statusKey = cellVal.toLowerCase().replace(/\s+/g, "_");
+        const rgb = STATUS_COLORS[statusKey] ?? STATUS_COLORS[cellVal.toLowerCase()];
+        if (rgb) {
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${rgb}` } };
+        }
+      } else {
+        // Alternating row colors
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: isEven ? "FFF8FAFC" : "FFFFFFFF" } };
+      }
+
+      cell.border = {
+        top: { style: "thin", color: { argb: "FFCBD5E1" } },
+        bottom: { style: "thin", color: { argb: "FFCBD5E1" } },
+        left: { style: "thin", color: { argb: "FFCBD5E1" } },
+        right: { style: "thin", color: { argb: "FFCBD5E1" } },
+      };
+
+      // Currency formatting
+      if (CURRENCY_COLS.has(headerName)) {
+        cell.numFmt = "#,##0.00";
+        cell.alignment = { horizontal: "right", vertical: "middle" };
+      } else {
+        cell.alignment = { vertical: "middle" };
+      }
+    });
+  });
+
+  // Totals row
+  const totals: (string | number)[] = headers.map(h => {
     if (CURRENCY_COLS.has(h)) {
       const sum = rows.reduce((acc, r) => acc + Number(r[h] ?? 0), 0);
       return sum.toFixed(2);
@@ -63,98 +125,38 @@ export function exportToExcel(
     return "";
   });
   totals[0] = "ИТОГО";
-  sheetData.push(totals);
+  const totalRow = ws.addRow(totals);
+  totalRow.eachCell((cell, colNumber) => {
+    cell.font = { bold: true, size: 11 };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE0E7FF" } };
+    cell.border = {
+      top: { style: "thin", color: { argb: "FFCBD5E1" } },
+      bottom: { style: "thin", color: { argb: "FFCBD5E1" } },
+      left: { style: "thin", color: { argb: "FFCBD5E1" } },
+      right: { style: "thin", color: { argb: "FFCBD5E1" } },
+    };
+    const headerName = headers[colNumber - 1];
+    cell.alignment = { horizontal: CURRENCY_COLS.has(headerName) ? "right" : "left", vertical: "middle" };
+  });
 
-  const ws = XLSX.utils.aoa_to_sheet(sheetData);
-
-  // ── Ширины колонок ──────────────────────────────────────────────────────────
-  const colWidths = headers.map(h => {
+  // Column widths
+  ws.columns = headers.map((h, i) => {
     const max = Math.max(
       h.length,
       ...rows.map(r => String(r[h] ?? "").length),
     );
-    return { wch: Math.min(max + 3, 40) };
+    return { width: Math.min(max + 3, 40) };
   });
-  ws["!cols"] = colWidths;
 
-  // ── Заморозка первых 5 строк (заголовок + шапка) ───────────────────────────
-  ws["!freeze"] = { xSplit: 0, ySplit: dataStartRow + 1 };
-
-  // ── Стили ──────────────────────────────────────────────────────────────────
-  const range = XLSX.utils.decode_range(ws["!ref"] ?? "A1");
-  const TITLE_FONT   = { bold: true, sz: 13, color: { rgb: "1E293B" } };
-  const HEADER_FONT  = { bold: true, sz: 11, color: { rgb: "FFFFFF" } };
-  const HEADER_FILL  = { fgColor: { rgb: "4F46E5" } };  // indigo-600
-  const TOTAL_FONT   = { bold: true, sz: 11 };
-  const TOTAL_FILL   = { fgColor: { rgb: "E0E7FF" } };   // indigo-100
-  const BORDER_THIN  = { style: "thin", color: { rgb: "CBD5E1" } };
-  const BORDER_ALL   = { top: BORDER_THIN, bottom: BORDER_THIN, left: BORDER_THIN, right: BORDER_THIN };
-
-  for (let R = range.s.r; R <= range.e.r; R++) {
-    for (let C = range.s.c; C <= range.e.c; C++) {
-      const cellAddr = XLSX.utils.encode_cell({ r: R, c: C });
-      if (!ws[cellAddr]) ws[cellAddr] = { t: "z", v: "" };
-      const cell = ws[cellAddr];
-
-      // Строка 0: заголовок отчёта
-      if (R === 0) {
-        cell.s = { font: TITLE_FONT, alignment: { horizontal: "left" } };
-      }
-      // Строка 1: дата
-      else if (R === 1) {
-        cell.s = { font: { sz: 10, color: { rgb: "64748B" } } };
-      }
-      // Строка с шапкой таблицы (dataStartRow)
-      else if (R === dataStartRow) {
-        cell.s = {
-          font:      HEADER_FONT,
-          fill:      HEADER_FILL,
-          border:    BORDER_ALL,
-          alignment: { horizontal: "center", vertical: "center", wrapText: true },
-        };
-      }
-      // Строки данных
-      else if (R > dataStartRow && R < range.e.r) {
-        const isEven = (R - dataStartRow) % 2 === 0;
-        const headerName = headers[C];
-        const cellVal    = String(cell.v ?? "");
-
-        let fill: { fgColor: { rgb: string } } = { fgColor: { rgb: isEven ? "F8FAFC" : "FFFFFF" } };
-
-        // Цвет по статусу
-        if (STATUS_COLS.has(headerName)) {
-          const statusKey = cellVal.toLowerCase().replace(/\s+/g, "_");
-          const rgb = STATUS_FILLS[statusKey] ?? STATUS_FILLS[cellVal.toLowerCase()];
-          if (rgb) fill = { fgColor: { rgb } };
-        }
-
-        cell.s = {
-          fill,
-          border:    BORDER_ALL,
-          alignment: { vertical: "center", horizontal: CURRENCY_COLS.has(headerName) ? "right" : "left" },
-          numFmt:    CURRENCY_COLS.has(headerName) ? "#,##0.00" : undefined,
-        };
-      }
-      // Итоговая строка (последняя)
-      else if (R === range.e.r) {
-        cell.s = {
-          font:      TOTAL_FONT,
-          fill:      TOTAL_FILL,
-          border:    BORDER_ALL,
-          alignment: { horizontal: CURRENCY_COLS.has(headers[C]) ? "right" : "left", vertical: "center" },
-        };
-      }
-    }
-  }
-
-  // Объединяем ячейки заголовка
-  ws["!merges"] = [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: headers.length - 1 } },
-    { s: { r: 1, c: 0 }, e: { r: 1, c: headers.length - 1 } },
-  ];
-
-  XLSX.utils.book_append_sheet(wb, ws, sheetName);
-  XLSX.writeFile(wb, `${filename}.xlsx`);
+  // Generate and download
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${filename}.xlsx`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // Fallback CSV (на случай совсем старого окружения)

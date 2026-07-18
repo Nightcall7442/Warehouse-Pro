@@ -237,9 +237,9 @@ export default function Reports() {
     { key: "agents" as const, ru: "Агенты", uz: "Agentlar", icon: <Award size={16} /> },
   ];
 
-  const handleExport = () => {
+  const handleExport = async () => {
     if (!agents?.length) return;
-    exportToExcel(formatAgentsForExport(agents, days), `report-${format(new Date(), "yyyy-MM-dd")}`, t("Отчёт", "Hisobot"), `${t("Сводный отчёт", "Yig'ma hisobot")} — ${format(new Date(), "dd.MM.yyyy")}`);
+    await exportToExcel(formatAgentsForExport(agents, days), `report-${format(new Date(), "yyyy-MM-dd")}`, t("Отчёт", "Hisobot"), `${t("Сводный отчёт", "Yig'ma hisobot")} — ${format(new Date(), "dd.MM.yyyy")}`);
   };
 
   return (

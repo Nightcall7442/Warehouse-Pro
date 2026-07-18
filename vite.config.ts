@@ -83,7 +83,7 @@ export default defineConfig({
         manualChunks: {
           "vendor-react":    ["react", "react-dom", "react-router"],
           "vendor-charts":   ["recharts"],
-          "vendor-xlsx":     ["xlsx"],
+          "vendor-excel":     ["exceljs"],
           "vendor-ui":       ["@radix-ui/react-dialog", "@radix-ui/react-select", "@radix-ui/react-popover", "@radix-ui/react-dropdown-menu"],
           "vendor-utils":    ["date-fns", "clsx", "tailwind-merge"],
         },

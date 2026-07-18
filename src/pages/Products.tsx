@@ -59,7 +59,7 @@ export default function Products() {
     });
   }, []);
 
-  const toggleSelectAll = useCallback(() => {
+  const toggleSelectAll = useCallback(async () => {
     if (allSelected) {
       setSelected(new Set());
     } else {
@@ -109,7 +109,7 @@ export default function Products() {
             <Upload size={14} /><span className="hidden sm:inline">{t("Импорт", "Import")}</span>
           </button>
           <button
-            onClick={() => data?.data && exportToExcel(formatProductsForExport(data.data), "products-export", "Товары", t("Список товаров", "Mahsulotlar ro'yxati"))}
+            onClick={async () => data?.data && await exportToExcel(formatProductsForExport(data.data), "products-export", "Товары", t("Список товаров", "Mahsulotlar ro'yxati"))}
             style={{
               display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
               fontSize: "13px", fontWeight: 500, fontFamily: F.body, borderRadius: "10px",
