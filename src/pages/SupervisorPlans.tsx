@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useLang } from "@/i18n";
 import { trpc } from "@/providers/trpc";
@@ -182,6 +182,23 @@ export default function SupervisorPlans() {
     { agentId: filterAgent || undefined, date: dateStr },
     { refetchInterval: 30_000 }
   );
+
+  // Group plans by agent to show territories
+  const groupedPlans = useMemo(() => {
+    if (!plans) return [];
+    const map = new Map<number, { agentName: string; agentId: number; shops: typeof plans; visited: number; total: number }>();
+    for (const p of plans) {
+      const agentId = (p as any).agentId ?? 0;
+      if (!map.has(agentId)) {
+        map.set(agentId, { agentName: (p as any).agentName ?? "—", agentId, shops: [], visited: 0, total: 0 });
+      }
+      const g = map.get(agentId)!;
+      g.shops.push(p);
+      g.total++;
+      if (p.status === "visited") g.visited++;
+    }
+    return Array.from(map.values());
+  }, [plans]);
   const utils      = trpc.useUtils();
   const updatePlan = trpc.agent.updatePlanStatus.useMutation({
     onSuccess: () => { utils.agent.getPlans.invalidate(); notify.success(t("Статус обновлён", "Holat yangilandi")); },
@@ -272,91 +289,109 @@ export default function SupervisorPlans() {
         />
       )}
 
-      {/* Таблица планов */}
-      <div className="neo-card overflow-hidden">
-        <table className="data-table">
-          <thead>
-            <tr>
-              {[
-                t("АГЕНТ",    "AGENT"),
-                t("МАГАЗИН",  "DO'KON"),
-                t("ГОРОД",    "SHAHAR"),
-                t("ДОЛГ",     "QARZ"),
-                t("СТАТУС",   "HOLAT"),
-                t("ДЕЙСТВИЯ", "AMALLAR"),
-              ].map(h => <th key={h}>{h}</th>)}
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading
-              ? Array.from({ length: 4 }).map((_, i) => (
-                  <tr key={i}>
-                    <td colSpan={6}><div className="h-4 bg-surface-light animate-pulse rounded" /></td>
-                  </tr>
-                ))
-              : plans?.length === 0
-              ? (
-                <tr>
-                  <td colSpan={6} className="px-4 py-14 text-center">
-                    <Calendar size={32} className="mx-auto mb-2 opacity-20 text-secondary" />
-                    <p className="text-secondary text-sm">
-                      {t("На этот день планов нет", "Bu kun uchun reja yo'q")}
-                    </p>
-                    <button onClick={() => setShowForm(true)}
-                      className="text-primary hover:underline mt-2 text-sm">
-                      {t("Создать первый план →", "Birinchi reja yaratish →")}
-                    </button>
-                  </td>
-                </tr>
-              )
-              : plans?.map(plan => {
-                  const sc = STATUS_CONFIG[plan.status] ?? STATUS_CONFIG.planned;
-                  const hasDebt = Number(plan.shopDebt ?? 0) > 0;
-                  return (
-                    <tr key={plan.id}>
-                      <td className="font-medium text-primary">
-                        {((plan as any).agentName ?? "—")}
-                      </td>
-                      <td>{plan.shopName ?? "—"}</td>
-                      <td className="text-secondary">{((plan as any).shopCity ?? "—")}</td>
-                      <td>
-                        <span className={`font-data text-sm font-semibold ${hasDebt ? "text-danger" : "text-secondary"}`}>
-                          {fmt(plan.shopDebt ?? 0)}
-                        </span>
-                      </td>
-                      <td>
-                        <span className={`status-badge ${sc.cls}`}>
-                          {lang === "uz" ? sc.uz : sc.ru}
-                        </span>
-                      </td>
-                      <td>
-                        {plan.status === "planned" && (
-                          <div className="flex gap-1">
-                            <button
-                              onClick={() => updatePlan.mutate({ planId: plan.id, status: "visited" })}
-                              disabled={updatePlan.isPending}
-                              className="neo-btn-primary py-1 px-2 text-xs flex items-center gap-1"
-                            >
-                              <CheckCircle2 size={12} />
-                              {t("Готово", "Bajarildi")}
-                            </button>
-                            <button
-                              onClick={() => updatePlan.mutate({ planId: plan.id, status: "skipped" })}
-                              disabled={updatePlan.isPending}
-                              className="neo-btn py-1 px-2 text-xs flex items-center gap-1 text-warning"
-                              style={{ borderColor: "color-mix(in srgb, #d4973a 30%, transparent)" }}
-                            >
-                              <Clock size={12} />
-                              {t("Пропустить", "O'tkazish")}
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-          </tbody>
-        </table>
+      {/* Территории агентов */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+        {isLoading
+          ? Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="neo-card" style={{ padding: "20px" }}>
+                <div className="h-5 w-32 bg-surface-light animate-pulse rounded mb-3" />
+                <div className="h-4 w-48 bg-surface-light animate-pulse rounded" />
+              </div>
+            ))
+          : groupedPlans.length === 0
+          ? (
+            <div className="neo-card" style={{ padding: "48px", textAlign: "center" }}>
+              <Calendar size={32} style={{ margin: "0 auto 8px", opacity: 0.2, color: "var(--color-text-tertiary)" }} />
+              <p style={{ color: "var(--color-text-secondary)", fontSize: "13px" }}>
+                {t("На этот день планов нет", "Bu kun uchun reja yo'q")}
+              </p>
+              <button onClick={() => setShowForm(true)}
+                style={{ color: "var(--color-primary)", background: "none", border: "none", cursor: "pointer", marginTop: "8px", fontSize: "13px", fontWeight: 500 }}>
+                {t("Создать первый план →", "Birinchi reja yaratish →")}
+              </button>
+            </div>
+          )
+          : groupedPlans.map(group => {
+              const progress = group.total > 0 ? Math.round((group.visited / group.total) * 100) : 0;
+              const allVisited = group.visited === group.total && group.total > 0;
+              return (
+                <div key={group.agentId} className="neo-card" style={{ padding: "20px" }}>
+                  {/* Agent header */}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <div style={{
+                        width: "36px", height: "36px", borderRadius: "10px",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        background: allVisited ? "var(--color-success-subtle)" : "var(--color-primary-subtle)",
+                        color: allVisited ? "var(--color-success)" : "var(--color-primary)",
+                        fontWeight: 700, fontSize: "14px",
+                      }}>
+                        {(group.agentName ?? "A")[0].toUpperCase()}
+                      </div>
+                      <div>
+                        <p style={{ fontSize: "14px", fontWeight: 600, color: "var(--color-text-primary)", margin: 0 }}>{group.agentName}</p>
+                        <p style={{ fontSize: "11px", color: "var(--color-text-tertiary)", margin: "2px 0 0" }}>
+                          {group.visited}/{group.total} {t("магазинов", "do'kon")} · {progress}%
+                        </p>
+                      </div>
+                    </div>
+                    {/* Progress bar */}
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <div style={{ width: "80px", height: "6px", borderRadius: "3px", background: "var(--color-surface-light)", overflow: "hidden" }}>
+                        <div style={{ height: "100%", borderRadius: "3px", width: `${progress}%`, background: allVisited ? "var(--color-success)" : "var(--color-primary)", transition: "width 0.5s" }} />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Shop list (territory) */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    {group.shops.map(plan => {
+                      const sc = STATUS_CONFIG[plan.status] ?? STATUS_CONFIG.planned;
+                      const hasDebt = Number(plan.shopDebt ?? 0) > 0;
+                      return (
+                        <div key={plan.id} style={{
+                          display: "flex", alignItems: "center", gap: "10px", padding: "8px 12px",
+                          borderRadius: "8px", background: "var(--color-surface-light)",
+                        }}>
+                          <span className={`status-badge ${sc.cls}`} style={{ fontSize: "10px", padding: "2px 6px" }}>
+                            {lang === "uz" ? sc.uz : sc.ru}
+                          </span>
+                          <span style={{ flex: 1, fontSize: "13px", color: "var(--color-text-primary)", fontWeight: 500 }}>
+                            {plan.shopName ?? "—"}
+                          </span>
+                          <span style={{ fontSize: "11px", color: "var(--color-text-tertiary)" }}>
+                            {(plan as any).shopCity ?? ""}
+                          </span>
+                          {hasDebt && (
+                            <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--color-danger)" }}>
+                              {fmt(plan.shopDebt ?? 0)}
+                            </span>
+                          )}
+                          {plan.status === "planned" && (
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => updatePlan.mutate({ planId: plan.id, status: "visited" })}
+                                disabled={updatePlan.isPending}
+                                className="neo-btn-primary py-1 px-2 text-xs flex items-center gap-1"
+                              >
+                                <CheckCircle2 size={10} />
+                              </button>
+                              <button
+                                onClick={() => updatePlan.mutate({ planId: plan.id, status: "skipped" })}
+                                disabled={updatePlan.isPending}
+                                className="neo-btn py-1 px-2 text-xs flex items-center gap-1"
+                              >
+                                <Clock size={10} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
       </div>
     </div>
   );
