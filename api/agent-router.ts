@@ -152,7 +152,7 @@ export const agentRouter = createRouter({
         .limit(100);
     }),
 
-  updatePlanStatus: supervisorQuery
+  updatePlanStatus: agentQuery
     .input(z.object({ planId: z.number(), status: z.enum(["planned", "visited", "skipped"]) }))
     .mutation(async ({ input, ctx }) => {
       await getDb().update(dailyPlans).set({ status: input.status })
@@ -161,7 +161,7 @@ export const agentRouter = createRouter({
     }),
 
   // ── Visit Photo Proof ───────────────────────────────────────────────────────
-  saveVisitPhoto: supervisorQuery
+  saveVisitPhoto: agentQuery
     .input(z.object({ planId: z.number(), photoUrl: z.string().max(5_000_000), notes: z.string().optional() }))
     .mutation(async ({ input, ctx }) => {
       await getDb().update(dailyPlans).set({
