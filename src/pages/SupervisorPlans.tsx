@@ -60,8 +60,13 @@ function CreatePlanForm({ date, onDone, lang }: { date: string; onDone: () => vo
         <h3 style={{ fontSize: "14px", fontWeight: 600, color: "var(--color-text-primary)", margin: 0 }}>
           {t("Новый план визита", "Yangi tashrif rejası")} — {format(new Date(date), "dd MMMM yyyy", { locale: lang === "ru" ? dateRu : undefined })}
         </h3>
-        <button onClick={onDone} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-text-tertiary)", padding: 4 }}>
-          <X size={16} />
+        <button onClick={onDone} style={{
+          width: "28px", height: "28px", borderRadius: "8px",
+          background: "var(--color-surface-light)", border: "1px solid var(--color-border)",
+          cursor: "pointer", color: "var(--color-text-secondary)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <X size={14} />
         </button>
       </div>
 
