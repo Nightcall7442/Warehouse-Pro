@@ -55,23 +55,27 @@ function CreatePlanForm({ date, onDone, lang }: { date: string; onDone: () => vo
   };
 
   return (
-    <div className="neo-card" style={{ padding: "20px", borderLeft: "3px solid var(--color-primary)" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
-        <h3 style={{ fontSize: "14px", fontWeight: 600, color: "var(--color-text-primary)", margin: 0 }}>
+    <div className="neo-card" style={{ padding: "24px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
+        <h3 style={{ fontSize: "16px", fontWeight: 700, color: "var(--color-text-primary)", margin: 0, letterSpacing: "-0.01em" }}>
           {t("Новый план визита", "Yangi tashrif rejası")} — {format(new Date(date), "dd MMMM yyyy", { locale: lang === "ru" ? dateRu : undefined })}
         </h3>
         <button onClick={onDone} style={{
-          width: "28px", height: "28px", borderRadius: "8px",
+          width: "32px", height: "32px", borderRadius: "10px",
           background: "var(--color-surface-light)", border: "1px solid var(--color-border)",
           cursor: "pointer", color: "var(--color-text-secondary)",
           display: "flex", alignItems: "center", justifyContent: "center",
-        }}>
-          <X size={14} />
+          transition: "all 0.15s",
+        }}
+          onMouseEnter={e => e.currentTarget.style.background = "var(--color-surface-hover)"}
+          onMouseLeave={e => e.currentTarget.style.background = "var(--color-surface-light)"}
+        >
+          <X size={16} />
         </button>
       </div>
 
-      <div style={{ marginBottom: "12px" }}>
-        <label style={{ fontSize: "10px", fontWeight: 600, color: "var(--color-text-secondary)", letterSpacing: "0.08em", textTransform: "uppercase", display: "block", marginBottom: "6px" }}>
+      <div style={{ marginBottom: "16px" }}>
+        <label style={{ fontSize: "11px", fontWeight: 600, color: "var(--color-text-secondary)", letterSpacing: "0.06em", textTransform: "uppercase", display: "block", marginBottom: "8px" }}>
           {t("АГЕНТ *", "AGENT *")}
         </label>
         <PremiumSelect value={String(agentId)}
@@ -80,8 +84,8 @@ function CreatePlanForm({ date, onDone, lang }: { date: string; onDone: () => vo
           width="100%" />
       </div>
 
-      <div style={{ marginBottom: "12px" }}>
-        <label style={{ fontSize: "10px", fontWeight: 600, color: "var(--color-text-secondary)", letterSpacing: "0.08em", textTransform: "uppercase", display: "block", marginBottom: "6px" }}>
+      <div style={{ marginBottom: "16px" }}>
+        <label style={{ fontSize: "11px", fontWeight: 600, color: "var(--color-text-secondary)", letterSpacing: "0.06em", textTransform: "uppercase", display: "block", marginBottom: "8px" }}>
           {t("ТЕРРИТОРИЯ *", "TERRITORIYA *")}
         </label>
         <PremiumSelect value={String(territoryId)}
@@ -89,14 +93,14 @@ function CreatePlanForm({ date, onDone, lang }: { date: string; onDone: () => vo
           options={[{value:"0",label:t("Выберите территорию…", "Territoriya tanlang…")},...(territories??[]).map((tr:any)=>({value:String(tr.id),label:`${tr.name} (${tr.shopCount} ${t("магазинов","do'kon")})`}))]}
           width="100%" />
         {selectedTerritory && (
-          <p style={{ fontSize: "11px", color: "var(--color-text-tertiary)", margin: "4px 0 0" }}>
-            {t(`${shopCount} магазинов будет добавлено`, `${shopCount} ta do'kon qo'shiladi`)}
+          <p style={{ fontSize: "12px", color: "var(--color-text-tertiary)", margin: "6px 0 0" }}>
+            {t(`${shopCount} магазинов будет добавлено в план`, `${shopCount} ta do'kon reja qo'shiladi`)}
           </p>
         )}
       </div>
 
-      <div style={{ marginBottom: "16px" }}>
-        <label style={{ fontSize: "10px", fontWeight: 600, color: "var(--color-text-secondary)", letterSpacing: "0.08em", textTransform: "uppercase", display: "block", marginBottom: "6px" }}>
+      <div style={{ marginBottom: "20px" }}>
+        <label style={{ fontSize: "11px", fontWeight: 600, color: "var(--color-text-secondary)", letterSpacing: "0.06em", textTransform: "uppercase", display: "block", marginBottom: "8px" }}>
           {t("ПРИМЕЧАНИЯ", "IZOHLAR")}
         </label>
         <input className="neo-input" style={{ width: "100%" }}
@@ -108,7 +112,7 @@ function CreatePlanForm({ date, onDone, lang }: { date: string; onDone: () => vo
         onClick={handleCreate}
         disabled={createPlan.isPending || !agentId || !territoryId}
         className="neo-btn-primary flex items-center gap-2"
-        style={{ opacity: createPlan.isPending || !agentId || !territoryId ? 0.5 : 1, width: "100%", justifyContent: "center" }}
+        style={{ opacity: createPlan.isPending || !agentId || !territoryId ? 0.5 : 1, width: "100%", justifyContent: "center", padding: "12px 24px" }}
       >
         {createPlan.isPending && <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} />}
         {t(`Создать план (${shopCount})`, `Reja yaratish (${shopCount})`)}
