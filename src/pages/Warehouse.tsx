@@ -136,7 +136,7 @@ export default function Warehouse() {
               </button>
             </div>
             <div className="space-y-2">
-              {reorderSuggestions?.filter((r: any) => Number(r.currentStock ?? 0) < Number(r.reorderPoint ?? 0) && Number(r.reorderPoint ?? 0) > 0).map((item: any, i: number) => (
+              {reorderSuggestions?.map((item: any, i: number) => (
                 <div key={i} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: "var(--color-surface-light, #f0f3f8)" }}>
                   <div className="w-2 h-8 rounded-full flex-shrink-0" style={{ background: "linear-gradient(180deg, #d45050, #d45050)" }} />
                   <div className="flex-1 min-w-0">
