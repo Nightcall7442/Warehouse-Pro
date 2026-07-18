@@ -125,7 +125,7 @@ export const superAdminQuery = authedQuery.use(requireRole(["superadmin"]));
 // tenant. Superadmin is excluded by design (see above).
 export const adminQuery      = authedQuery.use(requireRole(["ceo"])).use(mutationRateLimit("admin", 60));
 export const operatorQuery   = authedQuery.use(requireRole(["ceo", "operator"])).use(mutationRateLimit("operator", 120));
-export const agentQuery      = authedQuery.use(requireRole(["ceo", "operator", "agent"])).use(mutationRateLimit("agent", 200));
+export const agentQuery      = authedQuery.use(requireRole(["ceo", "operator", "agent", "supervisor"])).use(mutationRateLimit("agent", 200));
 export const supervisorQuery = authedQuery.use(requireRole(["ceo", "supervisor"])).use(mutationRateLimit("supervisor", 120));
 export const merchQuery      = authedQuery.use(requireRole(["ceo", "supervisor", "merchandiser"]));
 export const courierQuery    = authedQuery.use(requireRole(["ceo", "operator", "courier"])).use(mutationRateLimit("courier", 200));
