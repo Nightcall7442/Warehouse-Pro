@@ -596,8 +596,8 @@
     background: var(--color-surface);
   }
   .neo-pie-chart-inner {
-    position: absolute;
-    inset: 0;
+    width: 80px;
+    height: 80px;
     border-radius: 50%;
     background: var(--color-surface);
     box-shadow: var(--shadow-pressed);
@@ -605,7 +605,6 @@
     align-items: center;
     justify-content: center;
     flex-direction: column;
-    pointer-events: none;
   }
 
   /* ══════════════════════════════════════════════════════════════════════
