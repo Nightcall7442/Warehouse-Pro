@@ -22,12 +22,10 @@ const STATUS_CONFIG: Record<string, { ru: string; uz: string; cls: string }> = {
 function CreatePlanForm({ date, onDone, lang }: { date: string; onDone: () => void; lang: "ru" | "uz" }) {
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const [agentId, setAgentId] = useState(0);
-  const [shopId,  setShopId]  = useState(0);
+  const [selectedShops, setSelectedShops] = useState<Set<number>>(new Set());
   const [notes,   setNotes]   = useState("");
+  const [shopSearch, setShopSearch] = useState("");
 
-  // user.list (ceo-only) and shop.list (operator-only) both 403 for the
-  // supervisor role — these lightweight, supervisor-scoped endpoints exist
-  // specifically so this form works for the role it's actually shown to.
   const { data: agents } = trpc.agent.listAgents.useQuery();
   const { data: shops  } = trpc.agent.listShopsForPlan.useQuery();
   const utils = trpc.useUtils();
@@ -35,57 +33,132 @@ function CreatePlanForm({ date, onDone, lang }: { date: string; onDone: () => vo
   const createPlan = trpc.agent.createPlan.useMutation({
     onSuccess: () => {
       utils.agent.getPlans.invalidate();
-      notify.success(t("План создан", "Reja yaratildi"));
+      notify.success(t("Планы созданы", "Rejalar yaratildi"));
       onDone();
     },
     onError: (e) => notify.error(e.message),
   });
 
+  const filteredShops = (shops ?? []).filter((s: any) =>
+    !shopSearch || s.name?.toLowerCase().includes(shopSearch.toLowerCase()) || (s.city ?? "").toLowerCase().includes(shopSearch.toLowerCase())
+  );
+
+  const toggleShop = (id: number) => {
+    setSelectedShops(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAll = () => setSelectedShops(new Set(filteredShops.map((s: any) => s.id)));
+  const clearAll = () => setSelectedShops(new Set());
+
+  const handleCreate = async () => {
+    if (!agentId || selectedShops.size === 0) return;
+    const promises = Array.from(selectedShops).map(shopId =>
+      createPlan.mutateAsync({ agentId, shopId, planDate: date, notes: notes || undefined })
+    );
+    await Promise.all(promises);
+  };
+
   return (
-    <div className="neo-card p-5 space-y-4" style={{ borderColor: "rgba(75,108,246,.30)" }}>
+    <div className="neo-card p-5 space-y-4" style={{ borderColor: "rgba(91,109,138,.30)" }}>
       <div className="flex items-center justify-between">
-        <h3 className="font-display text-sm font-semibold text-primary">
-          {t("Новый план визита", "Yangi tashrif rejasi")} — {format(new Date(date), "dd MMMM yyyy", { locale: lang === "ru" ? dateRu : undefined })}
+        <h3 className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>
+          {t("Новый план визита", "Yangi tashrif rejası")} — {format(new Date(date), "dd MMMM yyyy", { locale: lang === "ru" ? dateRu : undefined })}
         </h3>
-        <button onClick={onDone} className="btn-ghost p-1.5"><X size={16} /></button>
+        <button onClick={onDone} className="p-1.5" style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-text-tertiary)" }}><X size={16} /></button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div>
-          <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">
-            {t("АГЕНТ *", "AGENT *")}
+      {/* Agent */}
+      <div>
+        <label className="block mb-1.5" style={{ fontSize: "10px", fontWeight: 600, color: "var(--color-text-secondary)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+          {t("АГЕНТ *", "AGENT *")}
+        </label>
+        <PremiumSelect value={String(agentId)}
+          onChange={v => setAgentId(Number(v))}
+          options={[{value:"0",label:t("Выберите агента…", "Agent tanlang…")},...(agents??[]).map((a:any)=>({value:String(a.id),label:String(a.name)}))]}
+          width="100%" />
+      </div>
+
+      {/* Shops multi-select */}
+      <div>
+        <div className="flex items-center justify-between mb-1.5">
+          <label style={{ fontSize: "10px", fontWeight: 600, color: "var(--color-text-secondary)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+            {t("МАГАЗИНЫ *", "DO'KONLAR *")} <span style={{ color: "var(--color-primary)" }}>({selectedShops.size})</span>
           </label>
-          <PremiumSelect value={String(agentId)}
-            onChange={v => setAgentId(Number(v))}
-            options={[{value:"0",label:t("Выберите агента…", "Agent tanlang…")},...(agents??[]).map(a=>({value:String(a.id),label:String(a.name)}))]}
-            width="100%" />
+          <div className="flex gap-2">
+            <button onClick={selectAll} style={{ fontSize: "11px", color: "var(--color-primary)", background: "none", border: "none", cursor: "pointer", fontWeight: 500 }}>
+              {t("Все", "Barchasi")}
+            </button>
+            <button onClick={clearAll} style={{ fontSize: "11px", color: "var(--color-text-tertiary)", background: "none", border: "none", cursor: "pointer", fontWeight: 500 }}>
+              {t("Очистить", "Tozalash")}
+            </button>
+          </div>
         </div>
-        <div>
-          <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">
-            {t("МАГАЗИН *", "DO'KON *")}
-          </label>
-          <PremiumSelect value={String(shopId)}
-            onChange={v => setShopId(Number(v))}
-            options={[{value:"0",label:t("Выберите магазин…", "Do'kon tanlang…")},...(shops??[]).map(s=>({value:String(s.id),label:`${s.name}${s.city ? ` — ${s.city}` : ""}`}))]}
-            width="100%" />
+
+        {/* Shop search */}
+        <div style={{ position: "relative", marginBottom: "8px" }}>
+          <input className="neo-input w-full" style={{ paddingLeft: "12px", fontSize: "13px" }}
+            placeholder={t("Поиск магазина…", "Do'kon qidirish…")}
+            value={shopSearch} onChange={e => setShopSearch(e.target.value)} />
         </div>
-        <div className="sm:col-span-2">
-          <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">
-            {t("ПРИМЕЧАНИЯ", "IZOHLAR")}
-          </label>
-          <input className="neo-input w-full"
-            placeholder={t("Дополнительные инструкции…", "Qo'shimcha ko'rsatmalar…")}
-            value={notes} onChange={e => setNotes(e.target.value)} />
+
+        {/* Shop list */}
+        <div style={{ maxHeight: "200px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "4px" }}>
+          {filteredShops.map((shop: any) => {
+            const selected = selectedShops.has(shop.id);
+            return (
+              <div key={shop.id}
+                onClick={() => toggleShop(shop.id)}
+                style={{
+                  display: "flex", alignItems: "center", gap: "10px", padding: "8px 12px",
+                  borderRadius: "8px", cursor: "pointer", transition: "all 0.15s",
+                  background: selected ? "var(--color-primary-subtle)" : "transparent",
+                  border: selected ? "1px solid rgba(91,109,138,.25)" : "1px solid transparent",
+                }}>
+                <div style={{
+                  width: "18px", height: "18px", borderRadius: "4px", flexShrink: 0,
+                  border: selected ? "none" : "2px solid var(--color-border)",
+                  background: selected ? "var(--color-primary)" : "transparent",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  {selected && <CheckCircle2 size={12} color="#fff" />}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--color-text-primary)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{shop.name}</p>
+                  {shop.city && <p style={{ fontSize: "11px", color: "var(--color-text-tertiary)", margin: "1px 0 0" }}>{shop.city}</p>}
+                </div>
+              </div>
+            );
+          })}
+          {filteredShops.length === 0 && (
+            <p style={{ fontSize: "12px", color: "var(--color-text-tertiary)", textAlign: "center", padding: "12px 0" }}>
+              {t("Магазины не найдены", "Do'konlar topilmadi")}
+            </p>
+          )}
         </div>
+      </div>
+
+      {/* Notes */}
+      <div>
+        <label className="block mb-1.5" style={{ fontSize: "10px", fontWeight: 600, color: "var(--color-text-secondary)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+          {t("ПРИМЕЧАНИЯ", "IZOHLAR")}
+        </label>
+        <input className="neo-input w-full"
+          placeholder={t("Для всех выбранных магазинов…", "Barcha tanlangan do'konlar uchun…")}
+          value={notes} onChange={e => setNotes(e.target.value)} />
       </div>
 
       <button
-        onClick={() => agentId && shopId && createPlan.mutate({ agentId, shopId, planDate: date, notes: notes || undefined })}
-        disabled={createPlan.isPending || !agentId || !shopId}
-        className="neo-btn-primary flex items-center gap-2 disabled:opacity-40"
+        onClick={handleCreate}
+        disabled={createPlan.isPending || !agentId || selectedShops.size === 0}
+        className="neo-btn-primary flex items-center gap-2"
+        style={{ opacity: createPlan.isPending || !agentId || selectedShops.size === 0 ? 0.5 : 1, width: "100%", justifyContent: "center" }}
       >
-        {createPlan.isPending && <Loader2 size={14} className="animate-spin" />}
-        {t("Создать план", "Reja yaratish")}
+        {createPlan.isPending && <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} />}
+        {t(`Создать планы (${selectedShops.size})`, `Rejalar yaratish (${selectedShops.size})`)}
       </button>
     </div>
   );
