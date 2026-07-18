@@ -28,6 +28,7 @@ import { warehouseReportsRouter } from "./warehouse-reports-router";
 import { warehouseMultiRouter } from "./warehouse-multi-router";
 import { apiKeyRouter } from "./api-key-router";
 import { uploadRouter } from "./upload-router";
+import { territoryRouter } from "./territory-router";
 import { createRouter, publicQuery } from "./middleware";
 
 export const appRouter = createRouter({
@@ -62,6 +63,7 @@ export const appRouter = createRouter({
   warehouseMulti: warehouseMultiRouter,
   apiKey:       apiKeyRouter,
   upload:       uploadRouter,
+  territory:    territoryRouter,
 });
 
 export type AppRouter = typeof appRouter;

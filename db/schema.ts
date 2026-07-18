@@ -69,6 +69,23 @@ export type User       = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
 // ============================================
+// TERRITORIES — территории (группы магазинов)
+// ============================================
+export const territories = mysqlTable("territories", {
+  id:        serial("id").primaryKey(),
+  tenantId:  bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id),
+  name:      varchar("name", { length: 255 }).notNull(),
+  color:     varchar("color", { length: 7 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
+}, (t) => ({
+  tenantIdx: index("idx_territories_tenant").on(t.tenantId),
+}));
+
+export type Territory       = typeof territories.$inferSelect;
+export type InsertTerritory = typeof territories.$inferInsert;
+
+// ============================================
 // SHOPS — торговые точки
 // ============================================
 export const shops = mysqlTable("shops", {
@@ -84,6 +101,7 @@ export const shops = mysqlTable("shops", {
   gpsLat:    decimal("gps_lat", { precision: 10, scale: 8 }),
   gpsLng:    decimal("gps_lng", { precision: 11, scale: 8 }),
   agentId:   bigint("agent_id", { mode: "number", unsigned: true }).references(() => users.id),
+  territoryId: bigint("territory_id", { mode: "number", unsigned: true }).references(() => territories.id),
   debt:      decimal("debt", { precision: 12, scale: 2 }).default("0.00").notNull(),
   status:    mysqlEnum("status", ["active", "inactive"]).default("active").notNull(),
   notes:     text("notes"),

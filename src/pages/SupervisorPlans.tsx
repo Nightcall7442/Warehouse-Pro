@@ -22,12 +22,11 @@ const STATUS_CONFIG: Record<string, { ru: string; uz: string; cls: string }> = {
 function CreatePlanForm({ date, onDone, lang }: { date: string; onDone: () => void; lang: "ru" | "uz" }) {
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const [agentId, setAgentId] = useState(0);
-  const [selectedShops, setSelectedShops] = useState<Set<number>>(new Set());
-  const [notes,   setNotes]   = useState("");
-  const [shopSearch, setShopSearch] = useState("");
+  const [territoryId, setTerritoryId] = useState(0);
+  const [notes, setNotes] = useState("");
 
   const { data: agents } = trpc.agent.listAgents.useQuery();
-  const { data: shops  } = trpc.agent.listShopsForPlan.useQuery();
+  const { data: territories } = trpc.territory.list.useQuery();
   const utils = trpc.useUtils();
 
   const createPlan = trpc.agent.createPlan.useMutation({
@@ -39,41 +38,35 @@ function CreatePlanForm({ date, onDone, lang }: { date: string; onDone: () => vo
     onError: (e) => notify.error(e.message),
   });
 
-  const filteredShops = (shops ?? []).filter((s: any) =>
-    !shopSearch || s.name?.toLowerCase().includes(shopSearch.toLowerCase()) || (s.city ?? "").toLowerCase().includes(shopSearch.toLowerCase())
-  );
-
-  const toggleShop = (id: number) => {
-    setSelectedShops(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
-
-  const selectAll = () => setSelectedShops(new Set(filteredShops.map((s: any) => s.id)));
-  const clearAll = () => setSelectedShops(new Set());
+  const selectedTerritory = territories?.find((tr: any) => tr.id === territoryId);
+  const shopCount = selectedTerritory?.shopCount ?? 0;
 
   const handleCreate = async () => {
-    if (!agentId || selectedShops.size === 0) return;
-    const promises = Array.from(selectedShops).map(shopId =>
-      createPlan.mutateAsync({ agentId, shopId, planDate: date, notes: notes || undefined })
+    if (!agentId || !territoryId) return;
+    const shopsInTerritory = await utils.client.territory.getShops.query({ territoryId });
+    if (!shopsInTerritory.length) {
+      notify.error(t("В территории нет магазинов", "Territoriyada do'konlar yo'q"));
+      return;
+    }
+    const promises = shopsInTerritory.map((shop: any) =>
+      createPlan.mutateAsync({ agentId, shopId: shop.id, planDate: date, notes: notes || undefined })
     );
     await Promise.all(promises);
   };
 
   return (
-    <div className="neo-card p-5 space-y-4" style={{ borderColor: "rgba(91,109,138,.30)" }}>
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>
+    <div className="neo-card" style={{ padding: "20px", borderLeft: "3px solid var(--color-primary)" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+        <h3 style={{ fontSize: "14px", fontWeight: 600, color: "var(--color-text-primary)", margin: 0 }}>
           {t("Новый план визита", "Yangi tashrif rejası")} — {format(new Date(date), "dd MMMM yyyy", { locale: lang === "ru" ? dateRu : undefined })}
         </h3>
-        <button onClick={onDone} className="p-1.5" style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-text-tertiary)" }}><X size={16} /></button>
+        <button onClick={onDone} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-text-tertiary)", padding: 4 }}>
+          <X size={16} />
+        </button>
       </div>
 
-      {/* Agent */}
-      <div>
-        <label className="block mb-1.5" style={{ fontSize: "10px", fontWeight: 600, color: "var(--color-text-secondary)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+      <div style={{ marginBottom: "12px" }}>
+        <label style={{ fontSize: "10px", fontWeight: 600, color: "var(--color-text-secondary)", letterSpacing: "0.08em", textTransform: "uppercase", display: "block", marginBottom: "6px" }}>
           {t("АГЕНТ *", "AGENT *")}
         </label>
         <PremiumSelect value={String(agentId)}
@@ -82,83 +75,38 @@ function CreatePlanForm({ date, onDone, lang }: { date: string; onDone: () => vo
           width="100%" />
       </div>
 
-      {/* Shops multi-select */}
-      <div>
-        <div className="flex items-center justify-between mb-1.5">
-          <label style={{ fontSize: "10px", fontWeight: 600, color: "var(--color-text-secondary)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
-            {t("МАГАЗИНЫ *", "DO'KONLAR *")} <span style={{ color: "var(--color-primary)" }}>({selectedShops.size})</span>
-          </label>
-          <div className="flex gap-2">
-            <button onClick={selectAll} style={{ fontSize: "11px", color: "var(--color-primary)", background: "none", border: "none", cursor: "pointer", fontWeight: 500 }}>
-              {t("Все", "Barchasi")}
-            </button>
-            <button onClick={clearAll} style={{ fontSize: "11px", color: "var(--color-text-tertiary)", background: "none", border: "none", cursor: "pointer", fontWeight: 500 }}>
-              {t("Очистить", "Tozalash")}
-            </button>
-          </div>
-        </div>
-
-        {/* Shop search */}
-        <div style={{ position: "relative", marginBottom: "8px" }}>
-          <input className="neo-input w-full" style={{ paddingLeft: "12px", fontSize: "13px" }}
-            placeholder={t("Поиск магазина…", "Do'kon qidirish…")}
-            value={shopSearch} onChange={e => setShopSearch(e.target.value)} />
-        </div>
-
-        {/* Shop list */}
-        <div style={{ maxHeight: "200px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "4px" }}>
-          {filteredShops.map((shop: any) => {
-            const selected = selectedShops.has(shop.id);
-            return (
-              <div key={shop.id}
-                onClick={() => toggleShop(shop.id)}
-                style={{
-                  display: "flex", alignItems: "center", gap: "10px", padding: "8px 12px",
-                  borderRadius: "8px", cursor: "pointer", transition: "all 0.15s",
-                  background: selected ? "var(--color-primary-subtle)" : "transparent",
-                  border: selected ? "1px solid rgba(91,109,138,.25)" : "1px solid transparent",
-                }}>
-                <div style={{
-                  width: "18px", height: "18px", borderRadius: "4px", flexShrink: 0,
-                  border: selected ? "none" : "2px solid var(--color-border)",
-                  background: selected ? "var(--color-primary)" : "transparent",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                }}>
-                  {selected && <CheckCircle2 size={12} color="#fff" />}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--color-text-primary)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{shop.name}</p>
-                  {shop.city && <p style={{ fontSize: "11px", color: "var(--color-text-tertiary)", margin: "1px 0 0" }}>{shop.city}</p>}
-                </div>
-              </div>
-            );
-          })}
-          {filteredShops.length === 0 && (
-            <p style={{ fontSize: "12px", color: "var(--color-text-tertiary)", textAlign: "center", padding: "12px 0" }}>
-              {t("Магазины не найдены", "Do'konlar topilmadi")}
-            </p>
-          )}
-        </div>
+      <div style={{ marginBottom: "12px" }}>
+        <label style={{ fontSize: "10px", fontWeight: 600, color: "var(--color-text-secondary)", letterSpacing: "0.08em", textTransform: "uppercase", display: "block", marginBottom: "6px" }}>
+          {t("ТЕРРИТОРИЯ *", "TERRITORIYA *")}
+        </label>
+        <PremiumSelect value={String(territoryId)}
+          onChange={v => setTerritoryId(Number(v))}
+          options={[{value:"0",label:t("Выберите территорию…", "Territoriya tanlang…")},...(territories??[]).map((tr:any)=>({value:String(tr.id),label:`${tr.name} (${tr.shopCount} ${t("магазинов","do'kon")})`}))]}
+          width="100%" />
+        {selectedTerritory && (
+          <p style={{ fontSize: "11px", color: "var(--color-text-tertiary)", margin: "4px 0 0" }}>
+            {t(`${shopCount} магазинов будет добавлено`, `${shopCount} ta do'kon qo'shiladi`)}
+          </p>
+        )}
       </div>
 
-      {/* Notes */}
-      <div>
-        <label className="block mb-1.5" style={{ fontSize: "10px", fontWeight: 600, color: "var(--color-text-secondary)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+      <div style={{ marginBottom: "16px" }}>
+        <label style={{ fontSize: "10px", fontWeight: 600, color: "var(--color-text-secondary)", letterSpacing: "0.08em", textTransform: "uppercase", display: "block", marginBottom: "6px" }}>
           {t("ПРИМЕЧАНИЯ", "IZOHLAR")}
         </label>
-        <input className="neo-input w-full"
-          placeholder={t("Для всех выбранных магазинов…", "Barcha tanlangan do'konlar uchun…")}
+        <input className="neo-input" style={{ width: "100%" }}
+          placeholder={t("Для всех магазинов территории…", "Territoriyadagi barcha do'konlar uchun…")}
           value={notes} onChange={e => setNotes(e.target.value)} />
       </div>
 
       <button
         onClick={handleCreate}
-        disabled={createPlan.isPending || !agentId || selectedShops.size === 0}
+        disabled={createPlan.isPending || !agentId || !territoryId}
         className="neo-btn-primary flex items-center gap-2"
-        style={{ opacity: createPlan.isPending || !agentId || selectedShops.size === 0 ? 0.5 : 1, width: "100%", justifyContent: "center" }}
+        style={{ opacity: createPlan.isPending || !agentId || !territoryId ? 0.5 : 1, width: "100%", justifyContent: "center" }}
       >
         {createPlan.isPending && <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} />}
-        {t(`Создать планы (${selectedShops.size})`, `Rejalar yaratish (${selectedShops.size})`)}
+        {t(`Создать план (${shopCount})`, `Reja yaratish (${shopCount})`)}
       </button>
     </div>
   );
