@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { createRouter, operatorQuery, agentQuery } from "./middleware";
+import { createRouter, operatorQuery, fieldSalesQuery } from "./middleware";
 import { OrderService } from "./services/order";
 
 export const orderRouter = createRouter({
-  list: agentQuery
+  list: fieldSalesQuery
     .input(z.object({
       page:        z.number().int().min(1).default(1),
       pageSize:    z.number().int().min(1).max(1000).default(25),
@@ -21,7 +21,7 @@ export const orderRouter = createRouter({
       });
     }),
 
-  getById: agentQuery
+  getById: fieldSalesQuery
     .input(z.object({ id: z.number().int().positive() }))
     .query(async ({ input, ctx }) => {
       return OrderService.getById(ctx.db, ctx.tenant.id, input.id, {
@@ -30,11 +30,11 @@ export const orderRouter = createRouter({
       });
     }),
 
-  myOrders: agentQuery.query(async ({ ctx }) => {
+  myOrders: fieldSalesQuery.query(async ({ ctx }) => {
     return OrderService.myOrders(ctx.db, ctx.tenant.id, ctx.user.id);
   }),
 
-  create: agentQuery
+  create: fieldSalesQuery
     .input(z.object({
       shopId:         z.number().int().positive(),
       agentId:        z.number().int().positive().optional(),
@@ -51,7 +51,7 @@ export const orderRouter = createRouter({
       return OrderService.create(ctx.db, ctx.tenant.id, ctx.user.id, input);
     }),
 
-  cancel: agentQuery
+  cancel: fieldSalesQuery
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ input, ctx }) => {
       return OrderService.cancel(ctx.db, ctx.tenant.id, input.id, {

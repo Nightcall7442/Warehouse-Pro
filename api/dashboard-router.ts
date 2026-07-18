@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, operatorQuery, agentQuery, supervisorQuery } from "./middleware";
+import { createRouter, operatorQuery, fieldSalesQuery, supervisorQuery } from "./middleware";
 import { orders, warehouseStock, users, shops, agentLocations, dailyPlans, orderItems, products } from "@db/schema";
 import { eq, and, sql, desc, isNull } from "drizzle-orm";
 import { subDays } from "date-fns";
@@ -90,7 +90,7 @@ export const dashboardRouter = createRouter({
       .orderBy(desc(orders.createdAt)).limit(10);
   }),
 
-  agentDashboard: agentQuery.query(async ({ ctx }) => {
+  agentDashboard: fieldSalesQuery.query(async ({ ctx }) => {
     const db       = ctx.db;
     const tenantId = ctx.tenant.id;
     const userId   = ctx.user.id;
