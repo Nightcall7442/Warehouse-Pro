@@ -142,7 +142,7 @@ export const agentRouter = createRouter({
 
       return getDb().select({
         id: dailyPlans.id, planDate: dailyPlans.planDate, status: dailyPlans.status,
-        notes: dailyPlans.notes, createdAt: dailyPlans.createdAt,
+        photoUrl: dailyPlans.photoUrl, notes: dailyPlans.notes, createdAt: dailyPlans.createdAt,
         shopName: shops.name, shopAddress: shops.address, shopDebt: shops.debt,
         shopCity: shops.city, agentName: users.name, shopId: dailyPlans.shopId,
       })
