@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import { trpc } from "@/providers/trpc";
-import { useTranslate } from "@/i18n";
+import { useLang } from "@/i18n";
 import { Mail, Loader2, ArrowLeft, CheckCircle2 } from "lucide-react";
 
 export default function ForgotPassword() {
-  const tr = useTranslate();
+  const { t } = useLang();
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
 
@@ -24,7 +24,7 @@ export default function ForgotPassword() {
       <div style={{ width: "100%", maxWidth: 400, padding: "0 24px" }}>
         {/* Back to login */}
         <Link to="/login" style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--color-text-secondary, #6a7290)", fontSize: 13, textDecoration: "none", marginBottom: 24 }}>
-          <ArrowLeft size={14} /> {tr("Назад к входу", "Orqaga")}
+          <ArrowLeft size={14} /> {t("auth.forgotPassword.backToLogin")}
         </Link>
 
         <div style={{ background: "var(--color-surface, #ffffff)", borderRadius: 16, border: "1px solid #dde2ec", padding: "32px 28px" }}>
@@ -35,16 +35,13 @@ export default function ForgotPassword() {
                 <CheckCircle2 size={24} style={{ color: "#34c473" }} />
               </div>
               <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--color-text-primary, #2b3450)", marginBottom: 8 }}>
-                {tr("Письмо отправлено", "Xabar yuborildi")}
+                {t("auth.forgotPassword.emailSent")}
               </h1>
               <p style={{ fontSize: 14, color: "var(--color-text-secondary, #6a7290)", lineHeight: 1.6, marginBottom: 24 }}>
-                {tr(
-                  "Если аккаунт с таким email существует, вы получите письмо со ссылкой для сброса пароля.",
-                  "Agar shu email bilan hisob mavjud bo'lsa, parolni tiklash havolasi bilan xabar olasiz."
-                )}
+                {t("auth.forgotPassword.subtitle")}
               </p>
               <Link to="/login" style={{ display: "inline-block", padding: "10px 24px", background: "#5b6d8a", color: "#fff", borderRadius: 8, fontSize: 14, fontWeight: 600, textDecoration: "none" }}>
-                {tr("Вернуться к входу", "Kirishga qaytish")}
+                {t("auth.forgotPassword.returnToLogin")}
               </Link>
             </div>
           ) : (
@@ -55,10 +52,10 @@ export default function ForgotPassword() {
                   <Mail size={24} style={{ color: "#5b6d8a" }} />
                 </div>
                 <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--color-text-primary, #2b3450)", marginBottom: 8 }}>
-                  {tr("Забыли пароль?", "Parolni unutdingizmi?")}
+                  {t("auth.forgotPassword.title")}
                 </h1>
                 <p style={{ fontSize: 14, color: "var(--color-text-secondary, #6a7290)" }}>
-                  {tr("Введите email — мы отправим ссылку для сброса.", "Emailni kiriting — tiklash havolasini yuboramiz.")}
+                  {t("auth.forgotPassword.subtitle")}
                 </p>
               </div>
 
@@ -101,7 +98,7 @@ export default function ForgotPassword() {
                   }}
                 >
                   {requestReset.isPending && <Loader2 size={16} className="animate-spin" />}
-                  {tr("Отправить ссылку", "Havolani yuborish")}
+                  {t("auth.forgotPassword.submit")}
                 </button>
               </form>
             </>

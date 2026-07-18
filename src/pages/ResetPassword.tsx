@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { useSearchParams, Link, useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
-import { useTranslate } from "@/i18n";
+import { useLang } from "@/i18n";
 import { Lock, Loader2, ArrowLeft, CheckCircle2, Eye, EyeOff } from "lucide-react";
 
 export default function ResetPassword() {
-  const tr = useTranslate();
+  const { t } = useLang();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token") ?? "";
@@ -26,13 +26,13 @@ export default function ResetPassword() {
       <div style={{ display: "flex", minHeight: "100vh", background: "var(--color-canvas, #f0f2f5)", alignItems: "center", justifyContent: "center" }}>
         <div style={{ textAlign: "center", padding: 24 }}>
           <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--color-text-primary, #2b3450)", marginBottom: 8 }}>
-            {tr("Неверная ссылка", "Noto'g'ri havola")}
+            {t("auth.resetPassword.invalidLink")}
           </h1>
           <p style={{ fontSize: 14, color: "var(--color-text-secondary, #6a7290)", marginBottom: 16 }}>
-            {tr("Ссылка для сброса пароля отсутствует или истекла.", "Parolni tiklash havolasi mavjud em yoki muddati tugagan.")}
+            {t("auth.resetPassword.invalidHint")}
           </p>
           <Link to="/forgot-password" style={{ color: "#5b6d8a", fontSize: 14, fontWeight: 600 }}>
-            {tr("Запросить новую ссылку", "Yangi havola so'rash")}
+            {t("auth.resetPassword.requestNew")}
           </Link>
         </div>
       </div>
@@ -44,11 +44,11 @@ export default function ResetPassword() {
     setError("");
 
     if (password.length < 8) {
-      setError(tr("Пароль должен быть не менее 8 символов", "Parol kamida 8 ta belgi bo'lishi kerak"));
+      setError(t("auth.resetPassword.minLength"));
       return;
     }
     if (password !== confirm) {
-      setError(tr("Пароли не совпадают", "Parollar mos kelmaydi"));
+      setError(t("auth.resetPassword.noMatch"));
       return;
     }
 
@@ -59,7 +59,7 @@ export default function ResetPassword() {
     <div style={{ display: "flex", minHeight: "100vh", background: "var(--color-canvas, #f0f2f5)", alignItems: "center", justifyContent: "center" }}>
       <div style={{ width: "100%", maxWidth: 400, padding: "0 24px" }}>
         <Link to="/login" style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--color-text-secondary, #6a7290)", fontSize: 13, textDecoration: "none", marginBottom: 24 }}>
-          <ArrowLeft size={14} /> {tr("Назад к входу", "Orqaga")}
+          <ArrowLeft size={14} /> {t("auth.resetPassword.backToLogin")}
         </Link>
 
         <div style={{ background: "var(--color-surface, #ffffff)", borderRadius: 16, border: "1px solid #dde2ec", padding: "32px 28px" }}>
@@ -69,16 +69,16 @@ export default function ResetPassword() {
                 <CheckCircle2 size={24} style={{ color: "#34c473" }} />
               </div>
               <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--color-text-primary, #2b3450)", marginBottom: 8 }}>
-                {tr("Пароль обновлён", "Parol yangilandi")}
+                {t("auth.resetPassword.success")}
               </h1>
               <p style={{ fontSize: 14, color: "var(--color-text-secondary, #6a7290)", marginBottom: 24 }}>
-                {tr("Теперь войдите с новым паролом.", "Endi yangi parol bilan kiring.")}
+                {t("auth.resetPassword.successHint")}
               </p>
               <button
                 onClick={() => navigate("/login")}
                 style={{ padding: "10px 24px", background: "#5b6d8a", color: "#fff", borderRadius: 8, fontSize: 14, fontWeight: 600, border: "none", cursor: "pointer" }}
               >
-                {tr("Войти", "Kirish")}
+                {t("auth.resetPassword.submit")}
               </button>
             </div>
           ) : (
@@ -88,17 +88,17 @@ export default function ResetPassword() {
                   <Lock size={24} style={{ color: "#5b6d8a" }} />
                 </div>
                 <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--color-text-primary, #2b3450)", marginBottom: 8 }}>
-                  {tr("Новый пароль", "Yangi parol")}
+                  {t("auth.resetPassword.title")}
                 </h1>
                 <p style={{ fontSize: 14, color: "var(--color-text-secondary, #6a7290)" }}>
-                  {tr("Введите новый пароль для вашего аккаунта.", "Hisobingiz uchun yangi parolni kiriting.")}
+                  {t("auth.resetPassword.successHint")}
                 </p>
               </div>
 
               <form onSubmit={handleSubmit}>
                 <div style={{ marginBottom: 14 }}>
                   <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--color-text-secondary, #6a7290)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>
-                    {tr("НОВЫЙ ПАРОЛЬ", "YANGI PAROL")}
+                    НОВЫЙ ПАРОЛЬ
                   </label>
                   <div style={{ position: "relative" }}>
                     <input
@@ -124,7 +124,7 @@ export default function ResetPassword() {
 
                 <div style={{ marginBottom: 16 }}>
                   <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--color-text-secondary, #6a7290)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>
-                    {tr("ПОДТВЕРДИТЕ ПАРОЛЬ", "PAROLNI TASDIQLANG")}
+                    ПОДТВЕРДИТЕ ПАРОЛЬ
                   </label>
                   <input
                     type={showPw ? "text" : "password"}
@@ -158,7 +158,7 @@ export default function ResetPassword() {
                   }}
                 >
                   {resetPassword.isPending && <Loader2 size={16} className="animate-spin" />}
-                  {tr("Сохранить пароль", "Parolni saqlash")}
+                  {t("auth.resetPassword.title")}
                 </button>
               </form>
             </>
