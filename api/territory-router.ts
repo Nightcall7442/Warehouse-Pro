@@ -1,12 +1,12 @@
 import { z } from "zod";
-import { createRouter, operatorQuery, supervisorQuery } from "./middleware";
+import { createRouter, authedQuery, supervisorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { territories, shops } from "@db/schema";
 import { eq, and, sql } from "drizzle-orm";
 
 export const territoryRouter = createRouter({
   /** List all territories for current tenant */
-  list: operatorQuery.query(async ({ ctx }) => {
+  list: authedQuery.query(async ({ ctx }) => {
     const rows = await getDb().select({
       id: territories.id,
       name: territories.name,
@@ -62,7 +62,7 @@ export const territoryRouter = createRouter({
     }),
 
   /** Get shops in a territory */
-  getShops: operatorQuery
+  getShops: authedQuery
     .input(z.object({ territoryId: z.number() }))
     .query(async ({ input, ctx }) => {
       return getDb().select({
