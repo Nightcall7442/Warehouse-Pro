@@ -4,13 +4,13 @@ import { useNavigate, Link } from "react-router";
 import { useAuth } from "@/hooks/useAuth";
 
 import { Eye, EyeOff, Loader2, Mail, Lock, AlertCircle } from "lucide-react";
-import { useTranslate } from "@/i18n";
+import { useLang } from "@/i18n";
 import { ROLE_ROUTES } from "@/const";
 
 const F = { display: "'Inter', -apple-system, system-ui, sans-serif", body: "'Inter', -apple-system, system-ui, sans-serif" };
 
 export default function Login() {
-  const tr = useTranslate();
+  const { t } = useLang();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -31,7 +31,7 @@ export default function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    if (!email || !password) { setError(tr("Введите email и пароль", "Email va parolni kiriting")); return; }
+    if (!email || !password) { setError(t("auth.login.fillAll")); return; }
 
     setIsPending(true);
     try {
@@ -45,7 +45,7 @@ export default function Login() {
       if (!res.ok) throw new Error(data.error || "Login failed");
       window.location.replace("/");
     } catch (err: any) {
-      setError(err.message || tr("Неверный email или пароль", "Email yoki parol noto'g'ri"));
+      setError(err.message || t("auth.login.error"));
     } finally {
       setIsPending(false);
     }
@@ -98,12 +98,12 @@ export default function Login() {
         <div style={{ position: "relative", zIndex: 1, flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", maxWidth: 460 }}>
           <h1 style={{
             fontFamily: F.display, fontSize: "42px", fontWeight: 800,
-            lineHeight: 1.08, letterSpacing: "-0.035em", margin: "0 0 24px",
+            lineHeight: 1.08, letterSpacing: "-0.035em", margin: "0 0 24px", whiteSpace: "pre-line",
           }}>
-            {tr("Контроль над бизнесом\nв одном месте", "Biznesni boshqarish\nbir joyda")}
+            {t("auth.login.title")}
           </h1>
           <p style={{ fontSize: "16px", color: "#9ca3af", lineHeight: 1.6, margin: 0 }}>
-            {tr("Заказы, агенты, склад — работает на любом устройстве", "Buyurtmalar, agentlar, ombor — istalgan qurilmadan")}
+            {t("auth.login.subtitle")}
           </p>
         </div>
 
@@ -160,10 +160,10 @@ export default function Login() {
                 fontFamily: F.display, fontSize: "26px", fontWeight: 700,
                 color: "#111827", margin: "0 0 6px", letterSpacing: "-0.02em",
               }}>
-                {tr("Добро пожаловать", "Xush kelibsiz")}
+                {t("auth.login.title")}
               </h2>
               <p style={{ fontSize: "14px", color: "#6b7280", margin: 0 }}>
-                {tr("Войдите в свой аккаунт", "Hisobingizga kiring")}
+                {t("auth.login.subtitle")}
               </p>
             </div>
 
@@ -171,7 +171,7 @@ export default function Login() {
               {/* Email */}
               <div>
                 <label style={{ display: "block", fontSize: "13px", fontWeight: 500, color: "#374151", marginBottom: 6 }}>
-                  Email
+                  {t("auth.login.email")}
                 </label>
                 <div style={{ position: "relative" }}>
                   <Mail size={16} style={{
@@ -201,7 +201,7 @@ export default function Login() {
               {/* Password */}
               <div>
                 <label style={{ display: "block", fontSize: "13px", fontWeight: 500, color: "#374151", marginBottom: 6 }}>
-                  {tr("Пароль", "Parol")}
+                  {t("auth.login.password")}
                 </label>
                 <div style={{ position: "relative" }}>
                   <Lock size={16} style={{
@@ -251,7 +251,7 @@ export default function Login() {
                   onMouseEnter={e => e.currentTarget.style.color = "#4338ca"}
                   onMouseLeave={e => e.currentTarget.style.color = "#4f46e5"}
                 >
-                  {tr("Забыли пароль?", "Parolni unutdingizmi?")}
+                  {t("auth.login.forgotPassword")}
                 </Link>
               </div>
 
@@ -287,22 +287,22 @@ export default function Login() {
                 onMouseUp={e => e.currentTarget.style.transform = "scale(1)"}
               >
                 {isPending ? (
-                  <><Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} />{tr("Вход…", "Kirish…")}</>
-                ) : tr("Войти", "Kirish")}
+                  <><Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} />{t("auth.login.submitting")}</>
+                ) : t("auth.login.submit")}
               </button>
             </form>
 
             {/* Register */}
             <div style={{ marginTop: 28, paddingTop: 20, borderTop: "1px solid #f3f4f6", textAlign: "center" }}>
               <p style={{ fontSize: "13px", color: "#6b7280", margin: 0 }}>
-                {tr("Нет аккаунта?", "Hisobingiz yo'qmi?")}{""}
+                {t("auth.login.noAccount")}{""}
                 <Link
                   to="/register"
                   style={{ fontWeight: 600, color: "#4f46e5", textDecoration: "none", marginLeft: 4 }}
                   onMouseEnter={e => e.currentTarget.style.color = "#4338ca"}
                   onMouseLeave={e => e.currentTarget.style.color = "#4f46e5"}
                 >
-                  {tr("Создать", "Yaratish")}
+                  {t("auth.login.createAccount")}
                 </Link>
               </p>
             </div>
