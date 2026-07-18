@@ -55,7 +55,7 @@ export const territoryRouter = createRouter({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
       await getDb().update(shops).set({ territoryId: null })
-        .where(eq(shops.territoryId, input.id));
+        .where(and(eq(shops.territoryId, input.id), eq(shops.tenantId, ctx.tenant.id)));
       await getDb().delete(territories)
         .where(and(eq(territories.id, input.id), eq(territories.tenantId, ctx.tenant.id)));
       return { success: true };

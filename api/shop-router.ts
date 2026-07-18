@@ -31,7 +31,7 @@ export const shopRouter = createRouter({
   list: operatorQuery
     .input(z.object({
       page:     z.number().default(1),
-      pageSize: z.number().default(25),
+      pageSize: z.number().min(1).max(100).default(25),
       search:   z.string().optional(),
       city:     z.string().optional(),
       district: z.string().optional(),

@@ -70,7 +70,7 @@ app.use(secureHeaders({
 app.use("/api/*", cors({
   origin: env.isProduction
     ? (origin) => (origin && env.allowedOrigins.includes(origin)) ? origin : null
-    : "*",
+    : (origin) => (origin && env.allowedOrigins.includes(origin)) ? origin : null,
   allowMethods: ["GET", "POST", "OPTIONS"],
   allowHeaders: ["Content-Type", "Authorization", "ngrok-skip-browser-warning", "x-correlation-id", "Last-Event-ID"],
   credentials: true,
@@ -168,7 +168,7 @@ app.post("/api/login", async (c) => {
     });
   } catch (e) {
     console.error("[LOGIN ERROR]", e instanceof Error ? e.message : String(e), e instanceof Error ? e.stack : "");
-    return c.json({ error: "Login failed", details: e instanceof Error ? e.message : String(e) }, 500);
+    return c.json({ error: "Login failed" }, 500);
   }
 });
 

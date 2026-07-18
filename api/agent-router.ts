@@ -4,6 +4,7 @@ import { getDb } from "./queries/connection";
 import { agentLocations, dailyPlans, shops, users } from "@db/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { sseBus } from "./lib/sse";
+import { sanitizeString } from "./lib/sanitize";
 
 export const agentRouter = createRouter({
   // Supervisor needs a lightweight agent picker for "assign plan to agent" —
@@ -155,8 +156,17 @@ export const agentRouter = createRouter({
   updatePlanStatus: agentQuery
     .input(z.object({ planId: z.number(), status: z.enum(["planned", "visited", "skipped"]) }))
     .mutation(async ({ input, ctx }) => {
+      const isPrivileged = ["ceo", "supervisor", "superadmin"].includes(ctx.user.role);
+      const conditions = [
+        eq(dailyPlans.id, input.planId),
+        eq(dailyPlans.tenantId, ctx.tenant.id),
+      ];
+      // Non-privileged users can only update their own plans
+      if (!isPrivileged) {
+        conditions.push(eq(dailyPlans.agentId, ctx.user.id));
+      }
       await getDb().update(dailyPlans).set({ status: input.status })
-        .where(and(eq(dailyPlans.id, input.planId), eq(dailyPlans.tenantId, ctx.tenant.id)));
+        .where(and(...conditions));
       return { success: true };
     }),
 
@@ -166,6 +176,7 @@ export const agentRouter = createRouter({
     .mutation(async ({ input, ctx }) => {
       await getDb().update(dailyPlans).set({
         status: "visited",
+        photoUrl: input.photoUrl,
         notes: input.notes ?? undefined,
       }).where(and(eq(dailyPlans.id, input.planId), eq(dailyPlans.tenantId, ctx.tenant.id)));
       return { success: true };
@@ -202,7 +213,16 @@ export const agentRouter = createRouter({
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
       const [result] = await db.insert(shops).values({
-        ...input,
+        name:      sanitizeString(input.name),
+        ownerName: input.ownerName ? sanitizeString(input.ownerName) : undefined,
+        phone:     input.phone,
+        address:   input.address ? sanitizeString(input.address) : undefined,
+        city:      input.city ? sanitizeString(input.city) : undefined,
+        district:  input.district ? sanitizeString(input.district) : undefined,
+        photoUrl:  input.photoUrl,
+        gpsLat:    input.gpsLat,
+        gpsLng:    input.gpsLng,
+        notes:     input.notes ? sanitizeString(input.notes) : undefined,
         tenantId: ctx.tenant.id,
         agentId:  ctx.user.id,   // автоматически привязываем к агенту
         debt:     "0.00",
@@ -261,7 +281,14 @@ export const agentRouter = createRouter({
     }))
     .mutation(async ({ input, ctx }) => {
       const { id, ...rest } = input;
-      await getDb().update(shops).set(rest)
+      const sanitized: Record<string, unknown> = { ...rest };
+      if (typeof rest.name === "string") sanitized.name = sanitizeString(rest.name);
+      if (typeof rest.ownerName === "string") sanitized.ownerName = sanitizeString(rest.ownerName);
+      if (typeof rest.address === "string") sanitized.address = sanitizeString(rest.address);
+      if (typeof rest.city === "string") sanitized.city = sanitizeString(rest.city);
+      if (typeof rest.district === "string") sanitized.district = sanitizeString(rest.district);
+      if (typeof rest.notes === "string") sanitized.notes = sanitizeString(rest.notes);
+      await getDb().update(shops).set(sanitized)
         .where(and(eq(shops.id, id), eq(shops.tenantId, ctx.tenant.id), eq(shops.agentId, ctx.user.id)));
       return { success: true };
     }),

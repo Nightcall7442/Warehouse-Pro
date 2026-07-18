@@ -3,6 +3,7 @@ import { createRouter, publicQuery, authedQuery } from "./middleware";
 import { requestPasswordReset, confirmPasswordReset } from "./services/password-reset";
 import { checkRateLimit, getClientIp } from "./lib/rate-limit";
 import { TRPCError } from "@trpc/server";
+import { env } from "./lib/env";
 
 export const authRouter = createRouter({
   /** Return current authenticated user */
@@ -17,10 +18,8 @@ export const authRouter = createRouter({
         throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Слишком много запросов. Попробуйте позже." });
       }
 
-      // Derive app URL from request
-      const proto = ctx.req.headers.get("x-forwarded-proto") ?? "http";
-      const host = ctx.req.headers.get("host") ?? "localhost:3000";
-      const appUrl = `${proto}://${host}`;
+      // Use configured app URL to prevent host header injection
+      const appUrl = env.appUrl ?? "http://localhost:3000";
 
       await requestPasswordReset(ctx.db, input.email, appUrl);
       return { success: true };
