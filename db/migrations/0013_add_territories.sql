@@ -1,7 +1,7 @@
 -- Create territories table
 CREATE TABLE IF NOT EXISTS territories (
-  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  tenant_id INT UNSIGNED NOT NULL,
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  tenant_id BIGINT UNSIGNED NOT NULL,
   name VARCHAR(255) NOT NULL,
   color VARCHAR(7),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -12,5 +12,5 @@ CREATE TABLE IF NOT EXISTS territories (
 CREATE INDEX idx_territories_tenant ON territories (tenant_id);
 
 -- Add territory_id to shops
-ALTER TABLE shops ADD COLUMN territory_id INT UNSIGNED NULL AFTER agent_id;
+ALTER TABLE shops ADD COLUMN territory_id BIGINT UNSIGNED NULL AFTER agent_id;
 ALTER TABLE shops ADD FOREIGN KEY (territory_id) REFERENCES territories(id) ON DELETE SET NULL;
