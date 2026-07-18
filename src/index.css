@@ -292,6 +292,13 @@
     position: relative;
     overflow: hidden;
   }
+
+  /* Panel — generic container for dropdowns, sidebars, etc. */
+  .panel {
+    background: var(--color-surface, #ffffff);
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: 12px;
+  }
   .neo-card::before {
     content: '';
     position: absolute;
