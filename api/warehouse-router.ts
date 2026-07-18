@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, operatorQuery, adminQuery } from "./middleware";
+import { createRouter, operatorQuery, fieldSalesQuery, adminQuery } from "./middleware";
 import { warehouseStock, products, stockMovements, settings, orderItems, orders, warehouses } from "@db/schema";
 import { eq, like, and, sql, desc } from "drizzle-orm";
 import { StockService } from "./services/stock";
@@ -170,7 +170,7 @@ export const warehouseRouter = createRouter({
     }),
 
   // ── Auto-Replenishment Suggestions ──────────────────────────────────────────
-  reorderSuggestions: operatorQuery.query(async ({ ctx }) => {
+  reorderSuggestions: fieldSalesQuery.query(async ({ ctx }) => {
     const db = ctx.db;
     const tenantId = ctx.tenant.id;
     const days30 = new Date(Date.now() - 30 * 86400000).toISOString();
