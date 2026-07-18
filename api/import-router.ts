@@ -59,14 +59,26 @@ async function parseFile(base64: string, filename: string): Promise<{ headers: s
   const isXlsx = filename.toLowerCase().endsWith(".xlsx") || filename.toLowerCase().endsWith(".xls");
 
   if (isXlsx) {
-    const XLSX = await import("xlsx");
+    const ExcelJS = await import("exceljs");
+    const workbook = new ExcelJS.Workbook();
     const buf = Buffer.from(base64, "base64");
-    const wb = XLSX.read(buf, { type: "buffer" });
-    const sheet = wb.Sheets[wb.SheetNames[0]];
-    const data: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null });
-    if (data.length === 0) throw new TRPCError({ code: "BAD_REQUEST", message: "Файл пуст" });
-    const headers = data[0].map((h: any) => String(h ?? "").trim());
-    const rows = data.slice(1).filter((r: any[]) => r.some(c => c !== null && c !== ""));
+    await workbook.xlsx.load(buf);
+    const sheet = workbook.worksheets[0];
+    if (!sheet || sheet.rowCount === 0) throw new TRPCError({ code: "BAD_REQUEST", message: "Файл пуст" });
+    const headers: string[] = [];
+    const rows: (string | number | null)[][] = [];
+    sheet.eachRow((row, rowNumber) => {
+      const values = row.values.slice(1); // ExcelJS row.values is 1-indexed with first element undefined
+      if (rowNumber === 1) {
+        headers.push(...values.map((h: any) => String(h ?? "").trim()));
+      } else {
+        const filtered = values.map((c: any) => c ?? null);
+        if (filtered.some(c => c !== null && c !== "")) {
+          rows.push(filtered);
+        }
+      }
+    });
+    if (headers.length === 0) throw new TRPCError({ code: "BAD_REQUEST", message: "Файл пуст" });
     return { headers, rows };
   }
 
