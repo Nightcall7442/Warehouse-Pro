@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useCurrency } from "@/hooks/useCurrency";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
-import { Package, Search, ShoppingCart } from "lucide-react";
+import { Package, Search, ShoppingCart, Plus, Minus, Trash2 } from "lucide-react";
 import { OrderItem, unitLabel } from "./types";
 
 interface ProductSelectorProps {
@@ -16,31 +16,35 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const { data: products } = trpc.product.list.useQuery({ page: 1, pageSize: 200 }) as { data: any };
   const [search, setSearch] = useState("");
+  const [quickQty, setQuickQty] = useState<Record<number, string>>({});
+  const searchRef = useRef<HTMLInputElement>(null);
 
   const filtered = (products?.data ?? []).filter((p: any) =>
     !search || p.name?.toLowerCase().includes(search.toLowerCase()) || (p.code ?? "").toLowerCase().includes(search.toLowerCase())
   );
 
-  const addToCart = (product: any) => {
+  const addToCart = useCallback((product: any, qty?: number) => {
+    const addQty = qty ?? 1;
     const existing = items.findIndex(i => i.productId === (product.id as number));
     if (existing >= 0) {
       const next = [...items];
-      next[existing] = { ...next[existing], quantity: String(Number(next[existing].quantity) + 1) };
+      next[existing] = { ...next[existing], quantity: String(Number(next[existing].quantity) + addQty) };
       onChange(next);
     } else {
       onChange([...items, {
         productId: product.id as number,
         productName: product.name as string,
         unitPrice: product.unitPrice as string,
-        quantity: "1",
+        quantity: String(addQty),
         available: (product.available as string) ?? "0",
         unit: (product.unit as string) ?? "pcs",
         unitWeight: Number(product.unitWeight ?? 0),
       }]);
     }
-  };
+    setQuickQty(prev => ({ ...prev, [product.id]: "" }));
+  }, [items, onChange]);
 
-  const updateQuantity = (productId: number, delta: number) => {
+  const updateQuantity = useCallback((productId: number, delta: number) => {
     const next = [...items];
     const itemIdx = next.findIndex(i => i.productId === productId);
     if (itemIdx === -1) return;
@@ -51,7 +55,33 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
       next[itemIdx] = { ...next[itemIdx], quantity: String(newQty) };
     }
     onChange(next);
-  };
+  }, [items, onChange]);
+
+  const setQuantityDirect = useCallback((productId: number, value: string) => {
+    const num = parseInt(value, 10);
+    if (isNaN(num) || num < 0) return;
+    const next = [...items];
+    const itemIdx = next.findIndex(i => i.productId === productId);
+    if (itemIdx === -1) return;
+    if (num === 0) {
+      next.splice(itemIdx, 1);
+    } else {
+      next[itemIdx] = { ...next[itemIdx], quantity: String(num) };
+    }
+    onChange(next);
+  }, [items, onChange]);
+
+  const removeItem = useCallback((productId: number) => {
+    onChange(items.filter(i => i.productId !== productId));
+  }, [items, onChange]);
+
+  const handleQuickAdd = useCallback((product: any) => {
+    const qty = parseInt(quickQty[product.id] || "1", 10);
+    if (qty > 0) {
+      addToCart(product, qty);
+      searchRef.current?.focus();
+    }
+  }, [quickQty, addToCart]);
 
   const validItems = items.filter(i => i.productId > 0);
   const totalWeightKg = validItems.reduce((s, i) => s + Number(i.quantity) * (i.unitWeight || 1), 0);
@@ -60,6 +90,7 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
   return (
     <div className="animate-fade-up order-grid" style={{ display: "grid", gridTemplateColumns: "1fr", gap: "20px", alignItems: "start" }}>
       <style>{`@media (min-width: 768px) { .order-grid { grid-template-columns: 1fr 320px !important; } }`}</style>
+
       {/* Product catalog */}
       <div>
         <div className="flex items-center justify-between mb-3">
@@ -71,62 +102,91 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
 
         {/* Search */}
         <div style={{ position: "relative", marginBottom: "12px" }}>
-          <Search size={14} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "var(--color-text-tertiary, #98a0b8)", pointerEvents: "none" }} />
+          <Search size={14} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "var(--color-text-tertiary)", pointerEvents: "none" }} />
           <input
+            ref={searchRef}
             className="neo-input"
             style={{ paddingLeft: "36px", width: "100%" }}
-            placeholder={t("Поиск товаров…", "Mahsulot qidirish…")}
+            placeholder={t("Поиск по названию или коду…", "Nomi yoki kodi bo'yicha qidirish…")}
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
         </div>
 
         {/* Product list */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "8px", maxHeight: "480px", overflowY: "auto" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "520px", overflowY: "auto" }}>
           {filtered.map((product: any) => {
             const inCart = items.find(i => i.productId === product.id);
             const lowStock = Number(product.available ?? 0) < 10;
+            const inputVal = quickQty[product.id] || "";
             return (
               <div
                 key={product.id}
+                className="neo-card-sm"
                 style={{
-                  display: "flex", alignItems: "center", gap: "12px", padding: "12px 14px",
-                  borderRadius: "12px", cursor: "pointer", transition: "all 0.15s ease",
-                  background: inCart ? "var(--color-primary-subtle, rgba(75,108,246,.10))" : "var(--color-surface, #ffffff)",
-                  border: inCart ? "1px solid rgba(75,108,246,.30)" : "1px solid var(--color-border, #f0f3f8)",
+                  display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px",
+                  cursor: "pointer", transition: "all 0.15s",
+                  borderLeft: inCart ? "3px solid var(--color-primary)" : "3px solid transparent",
                 }}
-                onClick={() => addToCart(product)}
+                onClick={() => !inCart && addToCart(product)}
               >
+                {/* Product icon */}
                 <div style={{
-                  width: "40px", height: "40px", borderRadius: "10px", display: "flex",
+                  width: "36px", height: "36px", borderRadius: "8px", display: "flex",
                   alignItems: "center", justifyContent: "center", flexShrink: 0,
-                  background: inCart ? "rgba(75,108,246,.15)" : "var(--color-surface-light, #f0f3f8)",
+                  background: inCart ? "var(--color-primary-subtle)" : "var(--color-surface-light)",
                 }}>
-                  <Package size={18} style={{ color: inCart ? "#5b6d8a" : "var(--color-text-tertiary, #98a0b8)" }} />
+                  <Package size={16} style={{ color: inCart ? "var(--color-primary)" : "var(--color-text-tertiary)" }} />
                 </div>
+
+                {/* Product info */}
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontWeight: 500, fontSize: "13px", color: "var(--color-text-primary, #2b3450)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <p style={{ fontWeight: 500, fontSize: "13px", color: "var(--color-text-primary)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {product.name}
                   </p>
-                  <p style={{ fontSize: "11px", color: "var(--color-text-secondary, #6a7290)", margin: "2px 0 0" }}>
+                  <p style={{ fontSize: "11px", color: "var(--color-text-secondary)", margin: "2px 0 0" }}>
                     {fmt(product.unitPrice)}/{unitLabel(product.unit, lang)}
-                    {lowStock && <span style={{ color: "#d4973a", marginLeft: "8px" }}>⚠</span>}
+                    {lowStock && <span style={{ color: "var(--color-warning)", marginLeft: "6px" }}>⚠ {t("мало", "kam")}</span>}
                   </p>
                 </div>
+
+                {/* Quantity controls */}
                 {inCart ? (
-                  <span style={{
-                    background: "#5b6d8a", color: "#fff", borderRadius: "8px",
-                    padding: "4px 10px", fontSize: "12px", fontWeight: 600,
-                  }}>
-                    ×{inCart.quantity}
-                  </span>
+                  <div style={{ display: "flex", alignItems: "center", gap: "4px", flexShrink: 0 }}>
+                    <button onClick={(e) => { e.stopPropagation(); updateQuantity(product.id, -1); }}
+                      style={{ width: "28px", height: "28px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--color-text-secondary)" }}>
+                      <Minus size={12} />
+                    </button>
+                    <input
+                      type="number"
+                      min="0"
+                      value={inCart.quantity}
+                      onChange={(e) => { e.stopPropagation(); setQuantityDirect(product.id, e.target.value); }}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ width: "44px", height: "28px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface)", textAlign: "center", fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary)", fontFamily: "'DM Sans', sans-serif", outline: "none" }}
+                    />
+                    <button onClick={(e) => { e.stopPropagation(); updateQuantity(product.id, 1); }}
+                      style={{ width: "28px", height: "28px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--color-text-secondary)" }}>
+                      <Plus size={12} />
+                    </button>
+                  </div>
                 ) : (
-                  <span style={{
-                    background: "var(--color-surface-light, #f0f3f8)", color: "var(--color-text-secondary, #6a7290)",
-                    borderRadius: "8px", padding: "4px 10px", fontSize: "12px", fontWeight: 500,
-                  }}>
-                    + {t("Добавить", "Qo'shish")}
-                  </span>
+                  /* Quick add: input qty + Enter */
+                  <div style={{ display: "flex", alignItems: "center", gap: "4px", flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="number"
+                      min="1"
+                      placeholder="1"
+                      value={inputVal}
+                      onChange={(e) => setQuickQty(prev => ({ ...prev, [product.id]: e.target.value }))}
+                      onKeyDown={(e) => { if (e.key === "Enter") handleQuickAdd(product); }}
+                      style={{ width: "44px", height: "28px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface)", textAlign: "center", fontSize: "12px", color: "var(--color-text-primary)", fontFamily: "'DM Sans', sans-serif", outline: "none" }}
+                    />
+                    <button onClick={() => handleQuickAdd(product)}
+                      style={{ width: "28px", height: "28px", borderRadius: "6px", border: "none", background: "var(--color-primary)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#fff" }}>
+                      <Plus size={12} />
+                    </button>
+                  </div>
                 )}
               </div>
             );
@@ -135,18 +195,14 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
       </div>
 
       {/* Cart */}
-      <div style={{
-        background: "var(--color-surface, #ffffff)", borderRadius: "24px", padding: "20px",
-        boxShadow: "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06))",
-        position: "sticky", top: "20px",
-      }}>
+      <div className="neo-card" style={{ padding: "20px", position: "sticky", top: "20px" }}>
         <div className="flex items-center justify-between mb-4">
-          <h3 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600, color: "var(--color-text-primary, #2b3450)", margin: 0 }}>
+          <h3 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600, color: "var(--color-text-primary)", margin: 0 }}>
             {t("Корзина", "Savat")} ({validItems.length})
           </h3>
           {validItems.length > 0 && (
             <button onClick={() => onChange([])} style={{
-              fontSize: "11px", color: "#d45050", background: "none",
+              fontSize: "11px", color: "var(--color-danger)", background: "none",
               border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", fontWeight: 500,
             }}>
               {t("Очистить", "Tozalash")}
@@ -155,64 +211,75 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
         </div>
 
         {validItems.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "40px 0", color: "var(--color-text-tertiary, #98a0b8)" }}>
+          <div style={{ textAlign: "center", padding: "40px 0", color: "var(--color-text-tertiary)" }}>
             <ShoppingCart size={32} style={{ margin: "0 auto 8px", opacity: 0.3 }} />
             <p style={{ fontSize: "13px" }}>{t("Корзина пуста", "Savat bo'sh")}</p>
-            <p style={{ fontSize: "11px", marginTop: "4px" }}>{t("Нажмите на товар чтобы добавить", "Mahsulotni bosib qo'shing")}</p>
+            <p style={{ fontSize: "11px", marginTop: "4px" }}>{t("Введите количество и нажмите +", "Miqdorni kiriting va + bosing")}</p>
           </div>
         ) : (
           <>
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "16px" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "16px", maxHeight: "320px", overflowY: "auto" }}>
               {validItems.map((item) => (
                 <div key={item.productId} style={{
-                  display: "flex", alignItems: "center", gap: "10px", padding: "10px",
-                  borderRadius: "10px", background: "var(--color-surface-light, #f0f3f8)",
+                  display: "flex", alignItems: "center", gap: "8px", padding: "8px 10px",
+                  borderRadius: "8px", background: "var(--color-surface-light)",
                 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: "12px", fontWeight: 500, color: "var(--color-text-primary, #2b3450)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <p style={{ fontSize: "12px", fontWeight: 500, color: "var(--color-text-primary)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {item.productName}
                     </p>
-                    <p style={{ fontSize: "11px", color: "var(--color-text-secondary, #6a7290)", margin: "2px 0 0" }}>
+                    <p style={{ fontSize: "10px", color: "var(--color-text-secondary)", margin: "1px 0 0" }}>
                       {fmt(item.unitPrice)}/{unitLabel(item.unit, lang)}
                     </p>
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "3px" }}>
                     <button onClick={() => updateQuantity(item.productId, -1)} style={{
-                      width: "24px", height: "24px", borderRadius: "6px", border: "1px solid var(--color-border, #dde2ec)",
-                      background: "var(--color-surface, #ffffff)", display: "flex", alignItems: "center", justifyContent: "center",
-                      cursor: "pointer", fontSize: "14px", color: "var(--color-text-secondary, #6a7290)",
+                      width: "22px", height: "22px", borderRadius: "4px", border: "1px solid var(--color-border)",
+                      background: "var(--color-surface)", display: "flex", alignItems: "center", justifyContent: "center",
+                      cursor: "pointer", fontSize: "12px", color: "var(--color-text-secondary)",
                     }}>−</button>
-                    <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary, #2b3450)", minWidth: "20px", textAlign: "center" }}>
-                      {item.quantity}
-                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={item.quantity}
+                      onChange={(e) => setQuantityDirect(item.productId, e.target.value)}
+                      style={{ width: "36px", height: "22px", borderRadius: "4px", border: "1px solid var(--color-border)", background: "var(--color-surface)", textAlign: "center", fontSize: "12px", fontWeight: 600, color: "var(--color-text-primary)", fontFamily: "'DM Sans', sans-serif", outline: "none" }}
+                    />
                     <button onClick={() => updateQuantity(item.productId, 1)} style={{
-                      width: "24px", height: "24px", borderRadius: "6px", border: "1px solid var(--color-border, #dde2ec)",
-                      background: "var(--color-surface, #ffffff)", display: "flex", alignItems: "center", justifyContent: "center",
-                      cursor: "pointer", fontSize: "14px", color: "var(--color-text-secondary, #6a7290)",
+                      width: "22px", height: "22px", borderRadius: "4px", border: "1px solid var(--color-border)",
+                      background: "var(--color-surface)", display: "flex", alignItems: "center", justifyContent: "center",
+                      cursor: "pointer", fontSize: "12px", color: "var(--color-text-secondary)",
                     }}>+</button>
                   </div>
-                  <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--color-text-primary, #2b3450)", minWidth: "60px", textAlign: "right" }}>
+                  <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--color-text-primary)", minWidth: "55px", textAlign: "right" }}>
                     {fmt((Number(item.unitPrice) * Number(item.quantity)).toFixed(0))}
                   </span>
+                  <button onClick={() => removeItem(item.productId)} style={{
+                    width: "20px", height: "20px", borderRadius: "4px", border: "none",
+                    background: "none", display: "flex", alignItems: "center", justifyContent: "center",
+                    cursor: "pointer", color: "var(--color-text-tertiary)", flexShrink: 0,
+                  }}>
+                    <Trash2 size={12} />
+                  </button>
                 </div>
               ))}
             </div>
 
             {/* Totals */}
-            <div style={{ borderTop: "1px solid var(--color-border, #f0f3f8)", paddingTop: "12px" }}>
+            <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: "12px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
-                <span style={{ fontSize: "13px", color: "var(--color-text-secondary, #6a7290)" }}>{t("Подитого", "Jami")}</span>
-                <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--color-text-primary, #2b3450)" }}>{fmt(subtotal.toFixed(0))}</span>
+                <span style={{ fontSize: "13px", color: "var(--color-text-secondary)" }}>{t("Подитого", "Jami")}</span>
+                <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--color-text-primary)" }}>{fmt(subtotal.toFixed(0))}</span>
               </div>
               {totalWeightKg > 0 && (
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
-                  <span style={{ fontSize: "13px", color: "var(--color-text-secondary, #6a7290)" }}>{t("Вес", "Og'irlik")}</span>
-                  <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--color-text-primary, #2b3450)" }}>{totalWeightKg.toFixed(1)} кг</span>
+                  <span style={{ fontSize: "13px", color: "var(--color-text-secondary)" }}>{t("Вес", "Og'irlik")}</span>
+                  <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--color-text-primary)" }}>{totalWeightKg.toFixed(1)} кг</span>
                 </div>
               )}
-              <div style={{ display: "flex", justifyContent: "space-between", paddingTop: "8px", borderTop: "1px solid var(--color-border, #f0f3f8)" }}>
-                <span style={{ fontSize: "15px", fontWeight: 700, color: "var(--color-text-primary, #2b3450)" }}>{t("ИТОГО", "JAMI")}</span>
-                <span style={{ fontSize: "15px", fontWeight: 700, color: "#5b6d8a" }}>{fmt(subtotal.toFixed(0))}</span>
+              <div style={{ display: "flex", justifyContent: "space-between", paddingTop: "8px", borderTop: "1px solid var(--color-border)" }}>
+                <span style={{ fontSize: "15px", fontWeight: 700, color: "var(--color-text-primary)" }}>{t("ИТОГО", "JAMI")}</span>
+                <span style={{ fontSize: "15px", fontWeight: 700, color: "var(--color-primary)" }}>{fmt(subtotal.toFixed(0))}</span>
               </div>
             </div>
           </>
