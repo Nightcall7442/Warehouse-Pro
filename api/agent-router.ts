@@ -172,7 +172,7 @@ export const agentRouter = createRouter({
 
   // ── Visit Photo Proof ───────────────────────────────────────────────────────
   saveVisitPhoto: merchVisitQuery
-    .input(z.object({ planId: z.number(), photoUrl: z.string().max(5_000_000), notes: z.string().optional() }))
+    .input(z.object({ planId: z.number(), photoUrl: z.string().startsWith("data:image/").max(5_000_000, "Файл слишком большой (макс. 5 МБ)"), notes: z.string().optional() }))
     .mutation(async ({ input, ctx }) => {
       await getDb().update(dailyPlans).set({
         status: "visited",

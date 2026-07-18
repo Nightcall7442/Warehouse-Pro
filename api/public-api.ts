@@ -8,23 +8,9 @@ import { apiKeys, products, orders, orderItems, warehouseStock, shops } from "..
 import { eq, and, desc, sql } from "drizzle-orm";
 import { createHash } from "crypto";
 import { logger } from "./lib/logger";
+import { checkRateLimit as sharedCheckRateLimit } from "./lib/rate-limit";
 
 const app = new Hono();
-
-// ── Rate limiting (in-memory per key) ────────────────────────────────────────
-const rateBuckets = new Map<string, { count: number; resetAt: number }>();
-
-function checkRateLimit(keyHash: string, limit: number): boolean {
-  const now = Date.now();
-  const bucket = rateBuckets.get(keyHash);
-  if (!bucket || now > bucket.resetAt) {
-    rateBuckets.set(keyHash, { count: 1, resetAt: now + 60_000 });
-    return true;
-  }
-  if (bucket.count >= limit) return false;
-  bucket.count++;
-  return true;
-}
 
 // ── API Key validation middleware ─────────────────────────────────────────────
 app.use("*", async (c, next) => {
@@ -42,8 +28,8 @@ app.use("*", async (c, next) => {
   if (key.status !== "active") return c.json({ error: "API key is suspended" }, 403);
   if (key.expiresAt && new Date(key.expiresAt) < new Date()) return c.json({ error: "API key has expired" }, 403);
 
-  // Rate limit
-  if (!checkRateLimit(keyHash, key.rateLimit)) {
+  // Rate limit (using shared Redis-backed limiter)
+  if (!sharedCheckRateLimit(keyHash, { windowMs: 60_000, limit: key.rateLimit, namespace: "public-api" })) {
     return c.json({ error: "Rate limit exceeded", retryAfter: 60 }, 429);
   }
 
@@ -72,10 +58,18 @@ app.get("/products", async (c) => {
   if (!requireScope(scopes, "products")) return c.json({ error: "Scope 'products' required" }, 403);
 
   const db = getDb();
+  const limit = Math.min(Number(c.req.query("limit") ?? 50), 200);
+  const offset = Number(c.req.query("offset") ?? 0);
+
   const rows = await db.select().from(products)
     .where(eq(products.tenantId, tenantId))
-    .orderBy(desc(products.createdAt));
-  return c.json({ data: rows, total: rows.length });
+    .orderBy(desc(products.createdAt))
+    .limit(limit).offset(offset);
+
+  const [{ count }] = await db.select({ count: sql<number>`count(*)` })
+    .from(products).where(eq(products.tenantId, tenantId));
+
+  return c.json({ data: rows, total: count, limit, offset });
 });
 
 /** GET /api/v1/products/:id — get product by ID */
@@ -153,9 +147,17 @@ app.get("/stock", async (c) => {
   if (!requireScope(scopes, "stock")) return c.json({ error: "Scope 'stock' required" }, 403);
 
   const db = getDb();
+  const limit = Math.min(Number(c.req.query("limit") ?? 50), 200);
+  const offset = Number(c.req.query("offset") ?? 0);
+
   const rows = await db.select().from(warehouseStock)
-    .where(eq(warehouseStock.tenantId, tenantId));
-  return c.json({ data: rows, total: rows.length });
+    .where(eq(warehouseStock.tenantId, tenantId))
+    .limit(limit).offset(offset);
+
+  const [{ count }] = await db.select({ count: sql<number>`count(*)` })
+    .from(warehouseStock).where(eq(warehouseStock.tenantId, tenantId));
+
+  return c.json({ data: rows, total: count, limit, offset });
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -169,9 +171,17 @@ app.get("/shops", async (c) => {
   if (!requireScope(scopes, "read")) return c.json({ error: "Scope 'read' required" }, 403);
 
   const db = getDb();
+  const limit = Math.min(Number(c.req.query("limit") ?? 50), 200);
+  const offset = Number(c.req.query("offset") ?? 0);
+
   const rows = await db.select().from(shops)
-    .where(eq(shops.tenantId, tenantId));
-  return c.json({ data: rows, total: rows.length });
+    .where(eq(shops.tenantId, tenantId))
+    .limit(limit).offset(offset);
+
+  const [{ count }] = await db.select({ count: sql<number>`count(*)` })
+    .from(shops).where(eq(shops.tenantId, tenantId));
+
+  return c.json({ data: rows, total: count, limit, offset });
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
