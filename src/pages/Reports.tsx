@@ -24,6 +24,13 @@ const COLORS = {
 };
 const SHADOW = "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04))";
 
+const PAYMENT_MAP: Record<string, { label: string; color: string }> = {
+  cash:     { label: "Наличные",     color: "#34c473" },
+  transfer: { label: "Перечисление", color: "#5b6d8a" },
+  debt:     { label: "Долг",         color: "#d4973a" },
+  card:     { label: "Карта",        color: "#9b59b6" },
+};
+
 type TabKey = "overview" | "sales" | "agents";
 
 // ── Premium KPI Card ──────────────────────────────────────────────────────────
@@ -216,6 +223,7 @@ export default function Reports() {
   const { data: byShop } = trpc.analytics.salesByShop.useQuery({ dateFrom: from, dateTo: to });
   const { data: topProds } = trpc.analytics.topProducts.useQuery({ dateFrom: from, dateTo: to });
   const { data: agents } = trpc.reports.getAgentPerformance.useQuery({ days });
+  const { data: byPayment } = trpc.analytics.pnlByPaymentMethod.useQuery({ from, to });
 
   const shopChartData = (byShop ?? []).map(s => ({
     name: (s.shopName ?? "—").slice(0, 14), revenue: Number(s.revenue), fullName: s.shopName ?? "—",
@@ -372,6 +380,28 @@ export default function Reports() {
               </ResponsiveContainer>
             )}
           </ChartPanel>
+
+          {/* Payment method breakdown */}
+          {byPayment && byPayment.length > 0 && (
+            <GlassPanel>
+              <h2 style={{ fontFamily: F.display, fontSize: "15px", fontWeight: 600, color: COLORS.textPrimary, margin: "0 0 16px" }}>
+                {t("По методам оплаты", "To'lov usullari bo'yicha")}
+              </h2>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "10px" }}>
+                {byPayment.map((p: any) => {
+                  const pm = PAYMENT_MAP[p.method] ?? { label: p.method, color: COLORS.textTertiary };
+                  return (
+                    <div key={p.method} className="neo-card-sm" style={{ padding: "14px", textAlign: "center" }}>
+                      <div style={{ width: "10px", height: "10px", borderRadius: "3px", background: pm.color, margin: "0 auto 8px" }} />
+                      <p style={{ fontSize: "11px", fontWeight: 600, color: COLORS.textSecondary, margin: 0 }}>{pm.label}</p>
+                      <p style={{ fontFamily: F.display, fontSize: "18px", fontWeight: 700, color: COLORS.textPrimary, margin: "4px 0" }}>{fmt(p.revenue, true)}</p>
+                      <p style={{ fontSize: "11px", color: COLORS.textTertiary, margin: 0 }}>{p.orderCount} {t("заказов", "buyurtma")}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </GlassPanel>
+          )}
 
           {/* Top products table */}
           <GlassPanel>
