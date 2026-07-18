@@ -26,6 +26,14 @@ const COLORS = {
 };
 const SHADOW = "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04))";
 
+/* ─── Payment Method Config ─── */
+const PAYMENT: Record<string, { ru: string; uz: string; color: string }> = {
+  cash:     { ru: "Наличные",     uz: "Naqd",      color: "#34c473" },
+  transfer: { ru: "Перечисление", uz: "O'tkazma",  color: "#5b6d8a" },
+  debt:     { ru: "Долг",         uz: "Qarz",      color: "#d4973a" },
+  card:     { ru: "Карта",        uz: "Plastik",   color: "#9b59b6" },
+};
+
 /* ─── Status Config ─── */
 const STATUS: Record<string, { ru: string; uz: string; dot: string; bg: string; text: string; border: string }> = {
   new:        { ru: "Новый",       uz: "Yangi",         dot: "#5b6d8a", bg: "bg-info/10",    text: "text-info",    border: "border-info/25" },
@@ -320,6 +328,16 @@ export default function Orders() {
                                 {o.agentName ?? "—"} · {o.createdAt ? format(new Date(o.createdAt), "d MMM") : ""}
                               </span>
                             </div>
+                            {(o as any).paymentMethod && PAYMENT[(o as any).paymentMethod] && (
+                              <span style={{
+                                display: "inline-flex", alignItems: "center", gap: "4px", marginTop: "4px",
+                                fontSize: "10px", fontWeight: 600, color: PAYMENT[(o as any).paymentMethod].color,
+                                background: `${PAYMENT[(o as any).paymentMethod].color}12`,
+                                padding: "2px 6px", borderRadius: "4px",
+                              }}>
+                                {PAYMENT[(o as any).paymentMethod][lang]}
+                              </span>
+                            )}
                           </div>
                           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                             <span style={{ fontFamily: F.display, fontSize: "16px", fontWeight: 700, color: COLORS.textPrimary }}>
@@ -348,6 +366,7 @@ export default function Orders() {
                   t("ДАТА",   "SANA"),
                   t("МАГАЗИН","DO'KON"),
                   t("АГЕНТ",  "AGENT"),
+                  t("ОПЛАТА", "TO'LOV"),
                   t("ИТОГО",  "JAMI"),
                   t("СТАТУС", "HOLAT"),
                   t("ДЕЙСТВИЯ","AMALLAR"),
@@ -367,13 +386,13 @@ export default function Orders() {
               {isLoading
                 ? Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i} style={{ borderBottom: `1px solid ${COLORS.border}` }}>
-                      <td colSpan={7} style={{ padding: "16px" }}>
+                      <td colSpan={8} style={{ padding: "16px" }}>
                         <div style={{ height: "16px", borderRadius: "6px", background: COLORS.surfaceLight, animation: `slideUp ${0.4 + i * 0.05}s ease forwards` }} />
                       </td>
                     </tr>
                   ))
                 : data?.data.length === 0
-                ? <tr><td colSpan={7} style={{ padding: "56px 16px", textAlign: "center", color: COLORS.textSecondary, fontSize: "13px", fontFamily: F.body }}>{t("Нет заказов", "Buyurtma yo'q")}</td></tr>
+                ? <tr><td colSpan={8} style={{ padding: "56px 16px", textAlign: "center", color: COLORS.textSecondary, fontSize: "13px", fontFamily: F.body }}>{t("Нет заказов", "Buyurtma yo'q")}</td></tr>
                 : data?.data.map(o => (
                     <tr
                       key={o.id}
@@ -393,6 +412,18 @@ export default function Orders() {
                       </td>
                       <td style={{ padding: "14px 16px", fontSize: "13px", color: COLORS.textPrimary }}>{o.shopName ?? "—"}</td>
                       <td style={{ padding: "14px 16px", fontSize: "13px", color: COLORS.textSecondary }}>{o.agentName ?? "—"}</td>
+                      <td style={{ padding: "14px 16px" }}>
+                        {(o as any).paymentMethod && PAYMENT[(o as any).paymentMethod] ? (
+                          <span style={{
+                            display: "inline-flex", alignItems: "center", gap: "4px",
+                            fontSize: "11px", fontWeight: 600, color: PAYMENT[(o as any).paymentMethod].color,
+                            background: `${PAYMENT[(o as any).paymentMethod].color}12`,
+                            padding: "3px 8px", borderRadius: "6px",
+                          }}>
+                            {PAYMENT[(o as any).paymentMethod][lang]}
+                          </span>
+                        ) : "—"}
+                      </td>
                       <td style={{ padding: "14px 16px", fontFamily: F.display, fontSize: "13px", fontWeight: 600, color: COLORS.textPrimary }}>{fmt(o.total)}</td>
                       <td style={{ padding: "14px 16px" }}>
                         <StatusBadge status={o.status} lang={lang} />
