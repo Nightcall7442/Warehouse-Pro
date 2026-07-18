@@ -24,13 +24,17 @@ export class OneCSyncService {
         $select: "Ref_Key,Code,Description,Price,Unit",
       });
 
-      // Collect all 1C external IDs from the response
-      const externalIds = new Set(items.map(i => i.Ref_Key));
+      // Batch-load all existing mappings upfront (avoid N+1 SELECT per item)
+      const existingMappings = await OneCMapper.getAll(db, tenantId, "product");
+      const externalToInternal = new Map<string, number>();
+      for (const m of existingMappings) externalToInternal.set(m.externalId, m.internalId);
+
+      const touchedExternalIds = new Set<string>();
 
       for (const item of items) {
         try {
           const mapped = mapProduct1C(item);
-          const internalId = await OneCMapper.getInternalId(db, tenantId, "product", item.Ref_Key);
+          const internalId = externalToInternal.get(item.Ref_Key) ?? null;
 
           if (internalId) {
             await db
@@ -71,6 +75,7 @@ export class OneCSyncService {
 
             await OneCMapper.upsert(db, tenantId, "product", item.Ref_Key, Number(result.insertId));
           }
+          touchedExternalIds.add(item.Ref_Key);
           synced++;
         } catch (e) {
           errors++;
@@ -82,11 +87,10 @@ export class OneCSyncService {
       }
 
       // Deactivate products that no longer exist in 1C
-      const allMappings = await OneCMapper.getAll(db, tenantId, "product");
       const staleIds: number[] = [];
-      for (const mapping of allMappings) {
-        if (!externalIds.has(mapping.externalId)) {
-          staleIds.push(mapping.internalId);
+      for (const [extId, intId] of externalToInternal) {
+        if (!touchedExternalIds.has(extId)) {
+          staleIds.push(intId);
         }
       }
       if (staleIds.length > 0) {

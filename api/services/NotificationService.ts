@@ -58,6 +58,7 @@ export const NotificationService = {
 
   /**
    * Notify multiple users in a tenant (e.g., all operators about a new order).
+   * Uses a single batch insert instead of N sequential calls.
    */
   async createBulk(
     db: Db,
@@ -70,8 +71,41 @@ export const NotificationService = {
       link?: string;
     },
   ): Promise<void> {
-    for (const userId of opts.userIds) {
-      await this.create(db, { ...opts, userId });
+    if (opts.userIds.length === 0) return;
+
+    try {
+      const now = new Date();
+      await db.insert(notifications).values(
+        opts.userIds.map((userId) => ({
+          tenantId: opts.tenantId,
+          userId,
+          type: opts.type,
+          title: opts.title,
+          message: opts.message ?? null,
+          link: opts.link ?? null,
+          createdAt: now,
+        })),
+      );
+
+      // Emit SSE for each user (can't batch SSE)
+      for (const userId of opts.userIds) {
+        sseBus.emit({
+          type: "notification.new",
+          tenantId: opts.tenantId,
+          userId,
+          data: {
+            type: opts.type,
+            title: opts.title,
+            message: opts.message,
+            link: opts.link,
+          },
+        });
+
+        // Invalidate unread count cache per user
+        cache.invalidatePrefix(`notif_unread:${opts.tenantId}:${userId}`);
+      }
+    } catch (err) {
+      logger.error("Failed to create bulk notifications", { error: String(err), type: opts.type });
     }
   },
 

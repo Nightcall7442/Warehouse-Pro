@@ -290,7 +290,7 @@ describe("OneCSyncService.syncProducts", () => {
   });
 
   it("inserts new products from 1C", async () => {
-    vi.mocked(OneCMapper.getInternalId).mockResolvedValue(null);
+    vi.mocked(OneCMapper.getAll).mockResolvedValue([]);
     mockBridge.odataQuery.mockResolvedValue([
       { Ref_Key: "uuid-a", Code: "001", Description: "Product A", Price: 100, Unit: "шт" },
       { Ref_Key: "uuid-b", Code: "002", Description: "Product B", Price: 250, Unit: "кг" },
@@ -303,15 +303,14 @@ describe("OneCSyncService.syncProducts", () => {
     expect(productsTable[0].code).toBe("001");
     expect(productsTable[1].name).toBe("Product B");
     expect(productsTable[1].code).toBe("002");
-    // getInternalId was called for each item (no existing mapping)
-    expect(vi.mocked(OneCMapper.getInternalId)).toHaveBeenCalledTimes(2);
+    // getAll was called once to batch-load all mappings (no N+1)
+    expect(vi.mocked(OneCMapper.getAll)).toHaveBeenCalledTimes(1);
   });
 
   it("updates existing products when mapping exists", async () => {
-    vi.mocked(OneCMapper.getInternalId).mockResolvedValue(1);
-    await mockDb.insert(idMappings).values({
-      tenantId: 1, entityType: "product", externalId: "uuid-a", internalId: 1,
-    });
+    vi.mocked(OneCMapper.getAll).mockResolvedValue([
+      { tenantId: 1, entityType: "product" as const, externalId: "uuid-a", internalId: 1, lastSyncedAt: null },
+    ]);
     productsTable.push({
       id: 1, tenantId: 1, name: "Old Name", code: "001",
       unitPrice: "50.00", unit: "pcs",
