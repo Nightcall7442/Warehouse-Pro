@@ -50,6 +50,14 @@ export default function CourierDeliveries() {
     onError: (e) => notify.error(e.message),
   });
 
+  const markFailed = trpc.courier.markFailed.useMutation({
+    onSuccess: () => {
+      utils.courier.listMyDeliveries.invalidate();
+      notify.success(t("Доставка отменена", "Yetkazish bekor qilindi"));
+    },
+    onError: (e) => notify.error(e.message),
+  });
+
   if (isLoading) {
     return (
       <div className="max-w-3xl mx-auto space-y-4 p-4">
@@ -124,6 +132,7 @@ export default function CourierDeliveries() {
                 orderId: order.id,
                 cashAmount: cashInput[order.id] || undefined,
               })}
+              onFail={() => markFailed.mutate({ orderId: order.id })}
               isPending={markDelivered.isPending}
             />
           ))}
@@ -165,7 +174,7 @@ export default function CourierDeliveries() {
               <div className="flex gap-2">
                 {order.shopAddress && (
                   <a
-                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.shopAddress)}`}
+                    href={`https://yandex.ru/maps/?text=${encodeURIComponent(order.shopAddress)}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="neo-btn flex items-center gap-2 text-sm flex-1 justify-center"
@@ -199,7 +208,7 @@ export default function CourierDeliveries() {
 }
 
 function DeliveryCard({
-  order, fmt, t, cashInput, onCashChange, onDeliver, isPending,
+  order, fmt, t, cashInput, onCashChange, onDeliver, onFail, isPending,
 }: {
   order: {
     id: number;
@@ -216,6 +225,7 @@ function DeliveryCard({
   cashInput: string;
   onCashChange: (v: string) => void;
   onDeliver: () => void;
+  onFail: () => void;
   isPending: boolean;
 }) {
   return (
@@ -245,7 +255,7 @@ function DeliveryCard({
       <div className="flex gap-2">
         {order.shopAddress && (
           <a
-            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.shopAddress)}`}
+            href={`https://yandex.ru/maps/?text=${encodeURIComponent(order.shopAddress)}`}
             target="_blank"
             rel="noopener noreferrer"
             className="neo-btn flex items-center gap-2 text-sm flex-1 justify-center"
@@ -276,6 +286,12 @@ function DeliveryCard({
       >
         <CheckCircle2 size={16} />
         {isPending ? t("Отправка...", "Yuborilmoqda...") : t("Доставлено", "Yetkazildi")}
+      </button>
+      <button
+        onClick={onFail}
+        className="w-full neo-btn flex items-center justify-center gap-2 text-sm mt-2 text-danger border-danger/30 hover:bg-danger/10"
+      >
+        {t("Не доставлено", "Yetkazilmadi")}
       </button>
     </div>
   );

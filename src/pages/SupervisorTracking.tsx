@@ -30,7 +30,7 @@ export default function SupervisorTracking() {
   ) as { data: any; isLoading: boolean; refetch: () => void; dataUpdatedAt: number | null };
   const mapRef     = useRef<any>(null);
   const mapDivRef  = useRef<HTMLDivElement>(null);
-  const markersRef = useRef<any[]>([]);
+  const markersMapRef = useRef<Map<number, any>>(new Map());
   const [selected, setSelected] = useState<number | null>(null);
   const lastUpdate = dataUpdatedAt ? new Date(dataUpdatedAt) : null;
 
@@ -58,7 +58,8 @@ export default function SupervisorTracking() {
 
   // Load Yandex Maps API
   useEffect(() => {
-    if (window.ymaps || !YANDEX_MAPS_API_KEY) return;
+    if (!YANDEX_MAPS_API_KEY) return;
+    if (window.ymaps) { initMap(); return; }
 
     const script = document.createElement("script");
     script.src = `https://api-maps.yandex.ru/2.1/?apikey=${YANDEX_MAPS_API_KEY}&lang=ru_RU`;
@@ -74,8 +75,8 @@ export default function SupervisorTracking() {
 
     window.ymaps.ready(() => {
       // Remove old markers
-      markersRef.current.forEach(m => mapRef.current.geoObjects.remove(m));
-      markersRef.current = [];
+      markersMapRef.current.forEach(m => mapRef.current.geoObjects.remove(m));
+      markersMapRef.current = new Map();
 
       const coords: number[][] = [];
 
@@ -119,7 +120,7 @@ export default function SupervisorTracking() {
         );
 
         mapRef.current.geoObjects.add(placemark);
-        markersRef.current.push(placemark);
+        markersMapRef.current.set(loc.agentId, placemark);
         coords.push([lat, lng]);
       });
 
@@ -142,11 +143,8 @@ export default function SupervisorTracking() {
     if (loc && Number(loc.lat) && Number(loc.lng)) {
       mapRef.current.setCenter([Number(loc.lat), Number(loc.lng)], 15);
       // Open balloon
-      markersRef.current.forEach((m, i) => {
-        if (locations[i]?.agentId === selected) {
-          m.balloon.open();
-        }
-      });
+      const pm = markersMapRef.current.get(selected);
+      if (pm) pm.balloon.open();
     }
   }, [selected]);
 

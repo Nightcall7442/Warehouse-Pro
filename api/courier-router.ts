@@ -48,6 +48,12 @@ export const courierRouter = createRouter({
       status: orders.status,
       deliveryStatus: orders.deliveryStatus,
       total: orders.total,
+      totalWeightKg: sql<string>`COALESCE((
+        SELECT SUM(CAST(oi.quantity AS DECIMAL) * CAST(COALESCE(p.unit_weight, '1') AS DECIMAL))
+        FROM ${orderItems} oi
+        LEFT JOIN ${products} p ON p.id = oi.product_id
+        WHERE oi.order_id = ${orders.id}
+      ), 0)`,
       shopName: shops.name,
       shopAddress: shops.address,
       shopCity: shops.city,
@@ -137,13 +143,13 @@ export const courierRouter = createRouter({
   markDelivered: courierQuery
     .input(z.object({
       orderId: z.number().int().positive(),
-      cashAmount: z.string().optional(),
+      cashAmount: z.string().regex(/^\d+(\.\d{1,2})?$/, "Неверный формат суммы").optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
       const courierId = ctx.user.id;
 
-      const [order] = await db.select({ id: orders.id, status: orders.status, deliveryStatus: orders.deliveryStatus }).from(orders)
+      const [order] = await db.select({ id: orders.id, status: orders.status, deliveryStatus: orders.deliveryStatus, total: orders.total }).from(orders)
         .where(and(
           eq(orders.id, input.orderId),
           eq(orders.tenantId, ctx.tenant.id),
@@ -151,6 +157,10 @@ export const courierRouter = createRouter({
           sql`${orders.deliveryStatus} IN ('assigned', 'out_for_delivery')`,
         )).limit(1);
       if (!order) throw new Error("Заказ не найден или не назначен на вас");
+
+      if (input.cashAmount && Number(input.cashAmount) > Number(order.total) * 1.2) {
+        throw new Error("Сумма наличных превышает сумму заказа");
+      }
 
       await db.transaction(async (tx) => {
         await tx.update(orders)
@@ -191,6 +201,54 @@ export const courierRouter = createRouter({
       }
 
       logger.info("order delivered", { orderId: input.orderId, courierId, cashAmount: input.cashAmount });
+
+      return { success: true };
+    }),
+
+  markFailed: courierQuery
+    .input(z.object({
+      orderId: z.number().int().positive(),
+      reason: z.string().max(500).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+      const courierId = ctx.user.id;
+
+      const [order] = await db.select({ id: orders.id, status: orders.status, deliveryStatus: orders.deliveryStatus, orderNumber: orders.orderNumber }).from(orders)
+        .where(and(
+          eq(orders.id, input.orderId),
+          eq(orders.tenantId, ctx.tenant.id),
+          eq(orders.courierId, courierId),
+          sql`${orders.deliveryStatus} IN ('assigned', 'out_for_delivery')`,
+        )).limit(1);
+      if (!order) throw new Error("Заказ не найден или не назначен на вас");
+
+      await db.update(orders)
+        .set({ deliveryStatus: "failed" })
+        .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, ctx.tenant.id)));
+
+      const [ceo] = await db.select({ id: users.id }).from(users)
+        .where(and(eq(orders.tenantId, ctx.tenant.id), eq(users.role, "ceo")))
+        .limit(1);
+
+      if (ceo) {
+        await db.insert(notifications).values({
+          tenantId: ctx.tenant.id,
+          userId: ceo.id,
+          type: "order",
+          title: "Доставка не состоялась",
+          message: `Заказ ${order.orderNumber}${input.reason ? ` — ${input.reason}` : ""}`,
+        });
+
+        sseBus.emit({
+          type: "notification.new",
+          tenantId: ctx.tenant.id,
+          userId: ceo.id,
+          data: { title: "Доставка не состоялась", orderNumber: order.orderNumber },
+        });
+      }
+
+      logger.info("order delivery failed", { orderId: input.orderId, courierId, reason: input.reason });
 
       return { success: true };
     }),
