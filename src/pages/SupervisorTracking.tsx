@@ -96,6 +96,7 @@ export default function SupervisorTracking() {
               <div style="font-family:Inter,sans-serif;font-size:12px;color:#666;padding:4px 0">
                 ${online ? t("Онлайн","Onlayn") : t("Не в сети","Oflayn")}
                 <br/>${Number(loc.lat).toFixed(5)}, ${Number(loc.lng).toFixed(5)}
+                ${loc.batteryLevel != null ? `<br/>🔋 ${loc.batteryLevel}%` : ""}
               </div>
             `,
             hintContent: loc.agentName ?? t("Агент","Agent"),
@@ -253,8 +254,13 @@ export default function SupervisorTracking() {
                                   ? timeAgo(new Date(loc.createdAt), lang)
                                   : t("Нет данных", "Ma'lumot yo'q")}
                             </span>
+                            {loc.batteryLevel != null && (
+                              <span className="ml-auto text-[10px] font-data flex items-center gap-0.5" style={{ color: loc.batteryLevel < 20 ? "var(--color-danger, #d45050)" : "var(--color-text-tertiary, #98a0b8)" }}>
+                                🔋 {loc.batteryLevel}%
+                              </span>
+                            )}
                             {loc.accuracy && (
-                              <span className="ml-auto text-[10px] font-data" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+                              <span className="text-[10px] font-data" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
                                 ±{Math.round(Number(loc.accuracy))}м
                               </span>
                             )}
