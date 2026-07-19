@@ -279,7 +279,7 @@ export default function SupervisorTracking() {
         </div>
 
         {/* Map */}
-        <div className="neo-card overflow-hidden lg:col-span-2 order-1 lg:order-2" style={{ minHeight: 420 }}>
+        <div className="neo-card lg:col-span-2 order-1 lg:order-2" style={{ minHeight: 480, position: "relative" }}>
           {mapError ? (
             <div className="flex flex-col items-center justify-center h-[480px] text-center p-6">
               <MapPin size={32} className="mb-3 opacity-30" style={{ color: "var(--color-text-tertiary)" }} />
@@ -291,7 +291,7 @@ export default function SupervisorTracking() {
               </p>
             </div>
           ) : (
-            <div ref={mapDivRef} style={{ width: "100%", height: "480px" }} />
+            <div ref={mapDivRef} style={{ width: "100%", height: "480px", position: "relative" }} />
           )}
         </div>
       </div>
