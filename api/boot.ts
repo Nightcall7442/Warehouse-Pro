@@ -53,7 +53,7 @@ if (env.isProduction) {
 app.use(secureHeaders({
   contentSecurityPolicy: {
     defaultSrc: ["'self'"],
-    scriptSrc:  ["'self'", "https://api-maps.yandex.ru", "https://core.apimaps.yandex.ru", "https://yastatic.net"],
+    scriptSrc:  ["'self'", "https://api-maps.yandex.ru", "https://core.apimaps.yandex.ru", "https://yastatic.net", "https://*.maps.yandex.net", "https://*.yandex.ru"],
     styleSrc:   ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],  // Google Fonts + Tailwind
     imgSrc:     ["'self'", "data:", "https:"],  // product photos, S3, base64 avatars
     connectSrc: ["'self'", "https://api-maps.yandex.ru"],                      // tRPC, SSE, WebSocket, Yandex Maps
