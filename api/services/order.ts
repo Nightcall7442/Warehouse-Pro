@@ -69,7 +69,7 @@ export const OrderService = {
         .from(shops).where(eq(shops.id, order.shopId)).limit(1),
     ]);
 
-    return { ...order, items, shop: shop ?? null };
+    return { ...order, items, shop: shop ?? null, shopName: shop?.name ?? null };
   },
 
   async myOrders(db: Db, tenantId: number, agentId: number) {
