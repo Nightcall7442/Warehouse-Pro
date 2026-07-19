@@ -144,7 +144,7 @@ export const agentRouter = createRouter({
 
       return getDb().select({
         id: dailyPlans.id, planDate: dailyPlans.planDate, status: dailyPlans.status,
-        notes: dailyPlans.notes, createdAt: dailyPlans.createdAt,
+        photoUrl: dailyPlans.photoUrl, notes: dailyPlans.notes, createdAt: dailyPlans.createdAt,
         shopName: shops.name, shopAddress: shops.address, shopDebt: shops.debt,
         shopCity: shops.city, agentName: users.name, shopId: dailyPlans.shopId,
       })
@@ -178,6 +178,7 @@ export const agentRouter = createRouter({
     .mutation(async ({ input, ctx }) => {
       await getDb().update(dailyPlans).set({
         status: "visited",
+        photoUrl: input.photoUrl,
         notes: input.notes ?? undefined,
       }).where(and(eq(dailyPlans.id, input.planId), eq(dailyPlans.tenantId, ctx.tenant.id)));
       return { success: true };
