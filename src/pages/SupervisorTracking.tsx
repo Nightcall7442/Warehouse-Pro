@@ -4,8 +4,8 @@ import { useLang } from "@/i18n";
 import { format } from "date-fns";
 import { Radio, RefreshCw, MapPin, Wifi, WifiOff } from "lucide-react";
 
-// Yandex Maps API key — получить на https://developer.tech.yandex.ru/services
-const YANDEX_MAPS_API_KEY = import.meta.env.VITE_YANDEX_MAPS_API_KEY || "";
+// Yandex Maps API key
+const YANDEX_MAPS_API_KEY = import.meta.env.VITE_YANDEX_MAPS_API_KEY || "dd072e98-24e7-4b2e-b328-2989bd981fa5";
 
 function timeAgo(date: Date, lang: string): string {
   const diff = Math.floor((Date.now() - date.getTime()) / 1000);
