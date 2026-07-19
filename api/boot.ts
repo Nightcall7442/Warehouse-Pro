@@ -53,10 +53,10 @@ if (env.isProduction) {
 app.use(secureHeaders({
   contentSecurityPolicy: {
     defaultSrc: ["'self'"],
-    scriptSrc:  ["'self'"],
+    scriptSrc:  ["'self'", "https://api-maps.yandex.ru", "https://core.apimaps.yandex.ru"],
     styleSrc:   ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],  // Google Fonts + Tailwind
     imgSrc:     ["'self'", "data:", "https:"],  // product photos, S3, base64 avatars
-    connectSrc: ["'self'"],                      // tRPC, SSE, WebSocket
+    connectSrc: ["'self'", "https://api-maps.yandex.ru"],                      // tRPC, SSE, WebSocket, Yandex Maps
     fontSrc:    ["'self'", "data:", "https://fonts.gstatic.com"],             // Google Fonts files
     frameAncestors: ["'none'"],
     objectSrc:  ["'none'"],

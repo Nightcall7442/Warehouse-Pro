@@ -75,9 +75,11 @@ export const agentRouter = createRouter({
     }),
 
   getLocations: supervisorQuery.query(async ({ ctx }) => {
-    // Optimized: get latest location per agent using subquery
+    // Get latest location per agent using a simpler approach
     const db = getDb();
-    const latestPerAgent = db.select({
+    
+    // First get the max IDs per agent
+    const maxIds = await db.select({
       agentId: agentLocations.agentId,
       maxId: sql<number>`max(${agentLocations.id})`,
     })
@@ -85,6 +87,11 @@ export const agentRouter = createRouter({
       .where(eq(agentLocations.tenantId, ctx.tenant.id))
       .groupBy(agentLocations.agentId);
 
+    if (maxIds.length === 0) return [];
+
+    const ids = maxIds.map(m => m.maxId);
+
+    // Then get the full records for those IDs
     const results = await db.select({
       id: agentLocations.id, agentId: agentLocations.agentId,
       lat: agentLocations.lat, lng: agentLocations.lng,
@@ -94,7 +101,7 @@ export const agentRouter = createRouter({
     })
       .from(agentLocations)
       .leftJoin(users, eq(agentLocations.agentId, users.id))
-      .where(sql`${agentLocations.id} IN (SELECT maxId FROM (${latestPerAgent}))`)
+      .where(sql`${agentLocations.id} IN (${sql.join(ids.map(id => sql`${id}`), sql`, `)})`)
       .orderBy(desc(agentLocations.createdAt));
 
     return results;
