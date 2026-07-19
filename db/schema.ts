@@ -376,6 +376,7 @@ export const agentLocations = mysqlTable("agent_locations", {
   lat:       decimal("lat", { precision: 10, scale: 8 }).notNull(),
   lng:       decimal("lng", { precision: 11, scale: 8 }).notNull(),
   accuracy:  decimal("accuracy", { precision: 8, scale: 2 }),
+  batteryLevel: int("battery_level"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({
   tenantIdx: index("idx_locations_tenant").on(t.tenantId),

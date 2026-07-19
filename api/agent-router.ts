@@ -53,7 +53,7 @@ export const agentRouter = createRouter({
   }),
 
   saveLocation: fieldSalesQuery
-    .input(z.object({ lat: z.string(), lng: z.string(), accuracy: z.string().optional() }))
+    .input(z.object({ lat: z.string(), lng: z.string(), accuracy: z.string().optional(), batteryLevel: z.number().optional() }))
     .mutation(async ({ input, ctx }) => {
       await getDb().insert(agentLocations).values({
         tenantId: ctx.tenant.id,
@@ -61,13 +61,14 @@ export const agentRouter = createRouter({
         lat:      input.lat,
         lng:      input.lng,
         accuracy: input.accuracy,
+        batteryLevel: input.batteryLevel,
       });
 
       sseBus.emit({
         type: "agent.location_updated",
         tenantId: ctx.tenant.id,
         userId: ctx.user.id,
-        data: { agentId: ctx.user.id, lat: input.lat, lng: input.lng, accuracy: input.accuracy },
+        data: { agentId: ctx.user.id, lat: input.lat, lng: input.lng, accuracy: input.accuracy, batteryLevel: input.batteryLevel },
       });
 
       return { success: true };
@@ -87,7 +88,8 @@ export const agentRouter = createRouter({
     const results = await db.select({
       id: agentLocations.id, agentId: agentLocations.agentId,
       lat: agentLocations.lat, lng: agentLocations.lng,
-      accuracy: agentLocations.accuracy, createdAt: agentLocations.createdAt,
+      accuracy: agentLocations.accuracy, batteryLevel: agentLocations.batteryLevel,
+      createdAt: agentLocations.createdAt,
       agentName: users.name,
     })
       .from(agentLocations)
