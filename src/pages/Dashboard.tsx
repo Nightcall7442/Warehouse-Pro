@@ -322,24 +322,23 @@ export default function Dashboard() {
               <PieChart size={16} color="var(--color-primary)" />
               {t("Статусы заказов", "Buyurtmalar holati")}
             </h2>
-            <p style={{ fontSize: "12px", color: "var(--color-text-tertiary, #8b9bb4)", margin: "3px 0 0" }}>
-              {statusTotal} {t("всего", "jami")}
-            </p>
           </div>
           <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-            <div className="neo-pie-chart" style={{ width: "180px", height: "180px" }}>
+            {/* Donut chart */}
+            <div style={{ width: "180px", height: "180px", position: "relative" }}>
               <ResponsiveContainer width="100%" height="100%">
                 <RePieChart>
                   <Pie
                     data={pieData}
                     cx="50%"
                     cy="50%"
-                    innerRadius={50}
+                    innerRadius={55}
                     outerRadius={80}
                     paddingAngle={3}
                     dataKey="value"
                     animationBegin={0}
                     animationDuration={800}
+                    strokeWidth={0}
                   >
                     {pieData.map((entry: any, index: number) => (
                       <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
@@ -348,13 +347,14 @@ export default function Dashboard() {
                   <Tooltip content={<PieTooltip />} />
                 </RePieChart>
               </ResponsiveContainer>
-              <div className="neo-pie-chart-inner">
-                <span style={{ fontSize: "22px", fontWeight: 700, color: "var(--color-text-primary)" }}>{statusTotal}</span>
-                <span style={{ fontSize: "10px", color: "var(--color-text-tertiary)" }}>{t("заказов", "buyurtma")}</span>
+              {/* Center label */}
+              <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", textAlign: "center", pointerEvents: "none" }}>
+                <span style={{ fontSize: "28px", fontWeight: 700, color: "var(--color-text-primary, #2d3748)", lineHeight: 1 }}>{statusTotal}</span>
+                <span style={{ fontSize: "11px", color: "var(--color-text-tertiary, #8b9bb4)", display: "block", marginTop: "2px" }}>{t("заказов", "buyurtma")}</span>
               </div>
             </div>
             {/* Legend */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 12px", marginTop: "16px", width: "100%" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 12px", marginTop: "20px", width: "100%" }}>
               {pieData.map((entry: any, i: number) => (
                 <div key={i} style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", minWidth: 0 }} onClick={() => navigate(`/orders?status=${entry.status}`)}>
                   <span style={{ width: "10px", height: "10px", borderRadius: "3px", background: entry.color, boxShadow: "var(--shadow-xs)", flexShrink: 0 }} />

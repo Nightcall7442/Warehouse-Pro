@@ -1,9 +1,10 @@
 import { z } from "zod";
-import { createRouter, agentQuery, supervisorQuery, authedQuery } from "./middleware";
+import { createRouter, fieldSalesQuery, merchVisitQuery, supervisorQuery, authedQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { agentLocations, dailyPlans, shops, users } from "@db/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { sseBus } from "./lib/sse";
+import { sanitizeString } from "./lib/sanitize";
 
 export const agentRouter = createRouter({
   // Supervisor needs a lightweight agent picker for "assign plan to agent" —
@@ -39,7 +40,7 @@ export const agentRouter = createRouter({
   }),
 
   // Agent: list all shops in tenant (for order creation, shop picker)
-  myShops: agentQuery.query(async ({ ctx }) => {
+  myShops: fieldSalesQuery.query(async ({ ctx }) => {
     return getDb().select({
       id: shops.id, name: shops.name, ownerName: shops.ownerName,
       phone: shops.phone, address: shops.address, city: shops.city,
@@ -51,8 +52,8 @@ export const agentRouter = createRouter({
       .limit(500);
   }),
 
-  saveLocation: agentQuery
-    .input(z.object({ lat: z.string(), lng: z.string(), accuracy: z.string().optional() }))
+  saveLocation: fieldSalesQuery
+    .input(z.object({ lat: z.string(), lng: z.string(), accuracy: z.string().optional(), batteryLevel: z.number().optional() }))
     .mutation(async ({ input, ctx }) => {
       await getDb().insert(agentLocations).values({
         tenantId: ctx.tenant.id,
@@ -60,22 +61,25 @@ export const agentRouter = createRouter({
         lat:      input.lat,
         lng:      input.lng,
         accuracy: input.accuracy,
+        batteryLevel: input.batteryLevel,
       });
 
       sseBus.emit({
         type: "agent.location_updated",
         tenantId: ctx.tenant.id,
         userId: ctx.user.id,
-        data: { agentId: ctx.user.id, lat: input.lat, lng: input.lng, accuracy: input.accuracy },
+        data: { agentId: ctx.user.id, lat: input.lat, lng: input.lng, accuracy: input.accuracy, batteryLevel: input.batteryLevel },
       });
 
       return { success: true };
     }),
 
   getLocations: supervisorQuery.query(async ({ ctx }) => {
-    // Optimized: get latest location per agent using subquery
+    // Get latest location per agent using a simpler approach
     const db = getDb();
-    const latestPerAgent = db.select({
+    
+    // First get the max IDs per agent
+    const maxIds = await db.select({
       agentId: agentLocations.agentId,
       maxId: sql<number>`max(${agentLocations.id})`,
     })
@@ -83,15 +87,21 @@ export const agentRouter = createRouter({
       .where(eq(agentLocations.tenantId, ctx.tenant.id))
       .groupBy(agentLocations.agentId);
 
+    if (maxIds.length === 0) return [];
+
+    const ids = maxIds.map(m => m.maxId);
+
+    // Then get the full records for those IDs
     const results = await db.select({
       id: agentLocations.id, agentId: agentLocations.agentId,
       lat: agentLocations.lat, lng: agentLocations.lng,
-      accuracy: agentLocations.accuracy, createdAt: agentLocations.createdAt,
+      accuracy: agentLocations.accuracy, batteryLevel: agentLocations.batteryLevel,
+      createdAt: agentLocations.createdAt,
       agentName: users.name,
     })
       .from(agentLocations)
       .leftJoin(users, eq(agentLocations.agentId, users.id))
-      .where(sql`${agentLocations.id} IN (SELECT maxId FROM (${latestPerAgent}))`)
+      .where(sql`${agentLocations.id} IN (${sql.join(ids.map(id => sql`${id}`), sql`, `)})`)
       .orderBy(desc(agentLocations.createdAt));
 
     return results;
@@ -141,7 +151,7 @@ export const agentRouter = createRouter({
 
       return getDb().select({
         id: dailyPlans.id, planDate: dailyPlans.planDate, status: dailyPlans.status,
-        notes: dailyPlans.notes, createdAt: dailyPlans.createdAt,
+        photoUrl: dailyPlans.photoUrl, notes: dailyPlans.notes, createdAt: dailyPlans.createdAt,
         shopName: shops.name, shopAddress: shops.address, shopDebt: shops.debt,
         shopCity: shops.city, agentName: users.name, shopId: dailyPlans.shopId,
       })
@@ -152,20 +162,30 @@ export const agentRouter = createRouter({
         .limit(100);
     }),
 
-  updatePlanStatus: agentQuery
+  updatePlanStatus: merchVisitQuery
     .input(z.object({ planId: z.number(), status: z.enum(["planned", "visited", "skipped"]) }))
     .mutation(async ({ input, ctx }) => {
+      const isPrivileged = ["ceo", "supervisor", "superadmin"].includes(ctx.user.role);
+      const conditions = [
+        eq(dailyPlans.id, input.planId),
+        eq(dailyPlans.tenantId, ctx.tenant.id),
+      ];
+      // Non-privileged users can only update their own plans
+      if (!isPrivileged) {
+        conditions.push(eq(dailyPlans.agentId, ctx.user.id));
+      }
       await getDb().update(dailyPlans).set({ status: input.status })
-        .where(and(eq(dailyPlans.id, input.planId), eq(dailyPlans.tenantId, ctx.tenant.id)));
+        .where(and(...conditions));
       return { success: true };
     }),
 
   // ── Visit Photo Proof ───────────────────────────────────────────────────────
-  saveVisitPhoto: agentQuery
-    .input(z.object({ planId: z.number(), photoUrl: z.string().max(5_000_000), notes: z.string().optional() }))
+  saveVisitPhoto: merchVisitQuery
+    .input(z.object({ planId: z.number(), photoUrl: z.string().startsWith("data:image/").max(5_000_000, "Файл слишком большой (макс. 5 МБ)"), notes: z.string().optional() }))
     .mutation(async ({ input, ctx }) => {
       await getDb().update(dailyPlans).set({
         status: "visited",
+        photoUrl: input.photoUrl,
         notes: input.notes ?? undefined,
       }).where(and(eq(dailyPlans.id, input.planId), eq(dailyPlans.tenantId, ctx.tenant.id)));
       return { success: true };
@@ -186,7 +206,7 @@ export const agentRouter = createRouter({
     }),
 
   // Агент может добавить новый магазин — автоматически привязывается к нему
-  createShop: agentQuery
+  createShop: fieldSalesQuery
     .input(z.object({
       name:      z.string().min(1),
       ownerName: z.string().optional(),
@@ -202,7 +222,16 @@ export const agentRouter = createRouter({
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
       const [result] = await db.insert(shops).values({
-        ...input,
+        name:      sanitizeString(input.name),
+        ownerName: input.ownerName ? sanitizeString(input.ownerName) : undefined,
+        phone:     input.phone,
+        address:   input.address ? sanitizeString(input.address) : undefined,
+        city:      input.city ? sanitizeString(input.city) : undefined,
+        district:  input.district ? sanitizeString(input.district) : undefined,
+        photoUrl:  input.photoUrl,
+        gpsLat:    input.gpsLat,
+        gpsLng:    input.gpsLng,
+        notes:     input.notes ? sanitizeString(input.notes) : undefined,
         tenantId: ctx.tenant.id,
         agentId:  ctx.user.id,   // автоматически привязываем к агенту
         debt:     "0.00",
@@ -211,7 +240,7 @@ export const agentRouter = createRouter({
       return { id: Number(result.insertId) };
     }),
 
-  nearbyShops: agentQuery
+  nearbyShops: fieldSalesQuery
     .input(z.object({ lat: z.number(), lng: z.number(), radius: z.number().default(5) }))
     .query(async ({ input, ctx }) => {
       const agentShops = await getDb().select().from(shops)
@@ -224,7 +253,7 @@ export const agentRouter = createRouter({
     }),
 
   // Мобильное приложение: агент смотрит детальные данные ТОЛЬКО своего магазина
-  getShopById: agentQuery
+  getShopById: fieldSalesQuery
     .input(z.object({ id: z.number() }))
     .query(async ({ input, ctx }) => {
       const db = getDb();
@@ -248,7 +277,7 @@ export const agentRouter = createRouter({
     }),
 
   // Мобильное приложение: агент редактирует ТОЛЬКО свой магазин
-  updateMyShop: agentQuery
+  updateMyShop: fieldSalesQuery
     .input(z.object({
       id:        z.number(),
       name:      z.string().min(1).optional(),
@@ -261,13 +290,20 @@ export const agentRouter = createRouter({
     }))
     .mutation(async ({ input, ctx }) => {
       const { id, ...rest } = input;
-      await getDb().update(shops).set(rest)
+      const sanitized: Record<string, unknown> = { ...rest };
+      if (typeof rest.name === "string") sanitized.name = sanitizeString(rest.name);
+      if (typeof rest.ownerName === "string") sanitized.ownerName = sanitizeString(rest.ownerName);
+      if (typeof rest.address === "string") sanitized.address = sanitizeString(rest.address);
+      if (typeof rest.city === "string") sanitized.city = sanitizeString(rest.city);
+      if (typeof rest.district === "string") sanitized.district = sanitizeString(rest.district);
+      if (typeof rest.notes === "string") sanitized.notes = sanitizeString(rest.notes);
+      await getDb().update(shops).set(sanitized)
         .where(and(eq(shops.id, id), eq(shops.tenantId, ctx.tenant.id), eq(shops.agentId, ctx.user.id)));
       return { success: true };
     }),
 
   // Мобильное приложение: агент загружает фото ТОЛЬКО своего магазина
-  uploadMyShopPhoto: agentQuery
+  uploadMyShopPhoto: fieldSalesQuery
     .input(z.object({ shopId: z.number(), dataUrl: z.string().startsWith("data:image/").max(2_800_000, "Файл слишком большой (макс. 2 МБ)") }))
     .mutation(async ({ input, ctx }) => {
       await getDb().update(shops).set({ photoUrl: input.dataUrl })

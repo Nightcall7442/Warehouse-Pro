@@ -133,9 +133,9 @@ export default function Orders() {
     onError:   (e) => notify.error(e.message),
   });
 
-  const handleExport = useCallback(() => {
+  const handleExport = useCallback(async () => {
     if (!allOrders?.data) return;
-    exportToExcel(formatOrdersForExport(allOrders.data), "orders-export");
+    await exportToExcel(formatOrdersForExport(allOrders.data), "orders-export");
   }, [allOrders?.data]);
 
   const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);

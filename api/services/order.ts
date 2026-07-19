@@ -69,7 +69,7 @@ export const OrderService = {
         .from(shops).where(eq(shops.id, order.shopId)).limit(1),
     ]);
 
-    return { ...order, items, shop: shop ?? null };
+    return { ...order, items, shop: shop ?? null, shopName: shop?.name ?? null };
   },
 
   async myOrders(db: Db, tenantId: number, agentId: number) {
@@ -146,12 +146,13 @@ export const OrderService = {
       }
       const total = subtotal - discount;
 
-      // SELECT stock rows (for update - row-level locking via transaction)
+      // SELECT stock rows with row-level locking to prevent race conditions
       const stockRows = await tx.select().from(warehouseStock)
         .where(and(
           sql`${warehouseStock.productId} IN (${sql.join(input.items.map(i => sql`${i.productId}`), sql`, `)})`,
           eq(warehouseStock.tenantId, tenantId),
-        ));
+        ))
+        .for("update");
 
       const stockMap = new Map<number, typeof stockRows[number]>();
       for (const row of stockRows) stockMap.set(row.productId, row);
@@ -244,7 +245,13 @@ export const OrderService = {
 
   async cancel(db: Db, tenantId: number, orderId: number, opts: { userId: number; userRole: string }) {
     await db.transaction(async (tx) => {
-      const [order] = await tx.select({ id: orders.id, status: orders.status }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), eq(orders.agentId, opts.userId))).limit(1);
+      const isPrivileged = ["ceo", "operator", "superadmin"].includes(opts.userRole);
+      const conditions = [eq(orders.id, orderId), eq(orders.tenantId, tenantId)];
+      // Non-privileged users can only cancel their own orders
+      if (!isPrivileged) {
+        conditions.push(eq(orders.agentId, opts.userId));
+      }
+      const [order] = await tx.select({ id: orders.id, status: orders.status }).from(orders).where(and(...conditions)).limit(1);
       if (!order) throw new Error("Заказ не найден");
       if (order.status !== "new") throw new Error("Можно отменить только новые заказы");
 

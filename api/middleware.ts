@@ -125,7 +125,21 @@ export const superAdminQuery = authedQuery.use(requireRole(["superadmin"]));
 // tenant. Superadmin is excluded by design (see above).
 export const adminQuery      = authedQuery.use(requireRole(["ceo"])).use(mutationRateLimit("admin", 60));
 export const operatorQuery   = authedQuery.use(requireRole(["ceo", "operator"])).use(mutationRateLimit("operator", 120));
-export const agentQuery      = authedQuery.use(requireRole(["ceo", "operator", "agent", "supervisor"])).use(mutationRateLimit("agent", 200));
+
+// ── Split agent permissions ──────────────────────────────────────────────────
+// Field sales: agents + supervisors see orders, catalog, shops
+export const fieldSalesQuery = authedQuery
+  .use(requireRole(["ceo", "operator", "agent", "supervisor"]))
+  .use(mutationRateLimit("agent", 200));
+
+// Merchandiser visits: visits, photo proof, reports — merchandiser included
+export const merchVisitQuery = authedQuery
+  .use(requireRole(["ceo", "operator", "agent", "supervisor", "merchandiser"]))
+  .use(mutationRateLimit("agent", 200));
+
+// Legacy alias — kept for backward compatibility, prefer fieldSalesQuery/merchVisitQuery
+export const agentQuery = fieldSalesQuery;
+
 export const supervisorQuery = authedQuery.use(requireRole(["ceo", "supervisor"])).use(mutationRateLimit("supervisor", 120));
 export const merchQuery      = authedQuery.use(requireRole(["ceo", "supervisor", "merchandiser"]));
 export const courierQuery    = authedQuery.use(requireRole(["ceo", "operator", "courier"])).use(mutationRateLimit("courier", 200));
@@ -135,4 +149,4 @@ export const reportsQuery    = authedQuery.use(requireRole(["ceo", "operator", "
 export const billedQuery     = authedQuery.use(requireActiveSubscription);
 export const billedAdmin     = adminQuery.use(requireActiveSubscription);
 export const billedOperator  = operatorQuery.use(requireActiveSubscription);
-export const billedAgent     = agentQuery.use(requireActiveSubscription);
+export const billedAgent     = fieldSalesQuery.use(requireActiveSubscription);

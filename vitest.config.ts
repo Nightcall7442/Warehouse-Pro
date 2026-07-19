@@ -15,12 +15,12 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include:     ["api/**/*.test.ts"],
+    include:     ["api/**/*.test.ts", "src/**/*.test.ts", "src/**/*.test.tsx"],
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov", "html"],
-      include: ["api/**/*.ts"],
-      exclude: ["api/__tests__/**", "api/**/*.test.ts"],
+      include: ["api/**/*.ts", "src/lib/**/*.ts"],
+      exclude: ["api/__tests__/**", "api/**/*.test.ts", "src/**/*.test.ts"],
       thresholds: {
         lines: 50,
         functions: 50,

@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { trpc } from "@/providers/trpc";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useLang } from "@/i18n";
@@ -135,7 +136,7 @@ export default function Warehouse() {
               </button>
             </div>
             <div className="space-y-2">
-              {reorderSuggestions?.filter((r: any) => Number(r.currentStock ?? 0) < Number(r.reorderPoint ?? 0) && Number(r.reorderPoint ?? 0) > 0).map((item: any, i: number) => (
+              {reorderSuggestions?.map((item: any, i: number) => (
                 <div key={i} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: "var(--color-surface-light, #f0f3f8)" }}>
                   <div className="w-2 h-8 rounded-full flex-shrink-0" style={{ background: "linear-gradient(180deg, #d45050, #d45050)" }} />
                   <div className="flex-1 min-w-0">
@@ -183,25 +184,25 @@ export default function Warehouse() {
                 {deleteAllMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                 {t("Удалить все", "Hammasini o'chirish")}
               </button>
-              <button onClick={() => data?.data && exportToExcel(formatWarehouseForExport(data.data), "warehouse-stock", "Склад", t("Остатки склада", "Ombor qoldiqlari"))}
+              <button onClick={async () => data?.data && await exportToExcel(formatWarehouseForExport(data.data), "warehouse-stock", "Склад", t("Остатки склада", "Ombor qoldiqlari"))}
                 className="neo-btn-primary flex items-center gap-2 text-sm py-2 px-5">
                 <FileDown size={16} /> {t("Остатки", "Qoldiqlar")}
               </button>
-              <button onClick={() => data?.data && exportToExcel(formatStockValuationForExport(data.data), "stock-valuation", "Оценка склада", t("Оценка стоимости склада", "Ombor qiymati"))}
+              <button onClick={async () => data?.data && await exportToExcel(formatStockValuationForExport(data.data), "stock-valuation", "Оценка склада", t("Оценка стоимости склада", "Ombor qiymati"))}
                 className="neo-btn flex items-center gap-2 text-sm py-2 px-5">
                 <FileDown size={16} /> {t("Оценка", "Qiymat")}
               </button>
             </>
           )}
           {activeTab === "deadstock" && (
-            <button onClick={() => deadStockItems?.length && exportToExcel(formatDeadStockForExport(deadStockItems), "dead-stock", "Мёртвый сток", t("Мёртвый сток — товары без продаж", "O'lik stok — sotilmasdan mahsulotlar"))}
+            <button onClick={async () => deadStockItems?.length && await exportToExcel(formatDeadStockForExport(deadStockItems), "dead-stock", "Мёртвый сток", t("Мёртвый сток — товары без продаж", "O'lik stok — sotilmasdan mahsulotlar"))}
               className="flex items-center gap-2 text-sm py-2.5 px-5 rounded-xl font-medium transition-all"
               style={{ background: "linear-gradient(135deg, #5b6d8a, #5b6d8a)", color: "#fff", boxShadow: "0 4px 16px rgba(167,139,250,0.3)" }}>
               <FileDown size={16} /> {t("Экспорт", "Eksport")}
             </button>
           )}
           {activeTab === "reorder" && (
-            <button onClick={() => reorderSuggestions?.length && exportToExcel(formatReorderForExport(reorderSuggestions), "reorder-suggestions", "Дозаказ", t("Рекомендации по дозаказу", "Qayta buyurtma tavsiyalari"))}
+            <button onClick={async () => reorderSuggestions?.length && await exportToExcel(formatReorderForExport(reorderSuggestions), "reorder-suggestions", "Дозаказ", t("Рекомендации по дозаказу", "Qayta buyurtma tavsiyalari"))}
               className="neo-btn-primary flex items-center gap-2 text-sm py-2 px-5">
               <FileDown size={16} /> {t("Экспорт", "Eksport")}
             </button>

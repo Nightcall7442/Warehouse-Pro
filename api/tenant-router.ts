@@ -3,7 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { createRouter, publicQuery, adminQuery, superAdminQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { tenants, users, settings, orders, products, shops, subscriptions } from "@db/schema";
-import { eq, ne, sql, count, sum } from "drizzle-orm";
+import { eq, and, ne, sql, count, sum } from "drizzle-orm";
 import { hashPassword } from "./auth/password";
 import { findTenantBySlug, listTenants } from "./queries/tenants";
 import { checkRateLimit, getClientIp } from "./lib/rate-limit";
@@ -40,7 +40,10 @@ export const tenantRouter = createRouter({
       let slug = slugify(input.orgName);
       const base = slug;
       let attempt = 1;
-      while (await findTenantBySlug(slug)) slug = `${base}-${attempt++}`;
+      while (await findTenantBySlug(slug)) {
+        if (attempt > 100) throw new TRPCError({ code: "CONFLICT", message: "Unable to generate unique slug." });
+        slug = `${base}-${attempt++}`;
+      }
 
       const existing = await db.select({ id: users.id }).from(users)
         .where(eq(users.email, input.email)).limit(1);
@@ -216,7 +219,10 @@ export const tenantRouter = createRouter({
       let slug = slugify(input.orgName);
       const base = slug;
       let attempt = 1;
-      while (await findTenantBySlug(slug)) slug = `${base}-${attempt++}`;
+      while (await findTenantBySlug(slug)) {
+        if (attempt > 100) throw new TRPCError({ code: "CONFLICT", message: "Unable to generate unique slug." });
+        slug = `${base}-${attempt++}`;
+      }
 
       const existing = await db.select({ id: users.id }).from(users)
         .where(eq(users.email, input.ownerEmail)).limit(1);
@@ -326,7 +332,7 @@ export const tenantRouter = createRouter({
       const passwordHash = await hashPassword(input.newPassword);
       await db.update(users)
         .set({ passwordHash, updatedAt: new Date() })
-        .where(eq(users.id, input.userId));
+        .where(and(eq(users.id, input.userId), eq(users.tenantId, input.tenantId)));
       return { success: true };
     }),
 

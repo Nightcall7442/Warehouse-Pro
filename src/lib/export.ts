@@ -1,33 +1,46 @@
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 
 /**
  * Export data to Excel (.xlsx) file.
  * @param sheets - Array of { name, data, columns }
  */
-export function exportToExcel(sheets: Array<{
+export async function exportToExcel(sheets: Array<{
   name: string;
   data: Record<string, unknown>[];
   columns: Array<{ key: string; header: string; width?: number }>;
 }>) {
-  const wb = XLSX.utils.book_new();
+  const wb = new ExcelJS.Workbook();
 
   for (const sheet of sheets) {
-    // Build rows with headers
-    const rows = sheet.data.map(row =>
-      Object.fromEntries(sheet.columns.map(col => [col.header, row[col.key]]))
-    );
+    const ws = wb.addWorksheet(sheet.name);
 
-    const ws = XLSX.utils.json_to_sheet(rows);
+    // Header row
+    const headerRow = ws.addRow(sheet.columns.map(col => col.header));
+    headerRow.eachCell((cell) => {
+      cell.font = { bold: true };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4F46E5" } };
+      cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+    });
 
-    // Set column widths
-    ws["!cols"] = sheet.columns.map(col => ({
-      wch: col.width ?? Math.max(col.header.length, 12),
+    // Data rows
+    for (const row of sheet.data) {
+      ws.addRow(sheet.columns.map(col => row[col.key] ?? ""));
+    }
+
+    // Column widths
+    ws.columns = sheet.columns.map(col => ({
+      width: col.width ?? Math.max(col.header.length, 12),
     }));
-
-    XLSX.utils.book_append_sheet(wb, ws, sheet.name);
   }
 
-  XLSX.writeFile(wb, `warehouse-report-${new Date().toISOString().split("T")[0]}.xlsx`);
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `warehouse-report-${new Date().toISOString().split("T")[0]}.xlsx`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 /**

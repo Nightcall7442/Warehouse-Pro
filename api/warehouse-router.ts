@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, operatorQuery } from "./middleware";
+import { createRouter, operatorQuery, adminQuery } from "./middleware";
 import { warehouseStock, products, stockMovements, settings, orderItems, orders, warehouses } from "@db/schema";
 import { eq, like, and, sql, desc } from "drizzle-orm";
 import { StockService } from "./services/stock";
@@ -8,7 +8,7 @@ export const warehouseRouter = createRouter({
   list: operatorQuery
     .input(z.object({
       page:        z.number().default(1),
-      pageSize:    z.number().default(25),
+      pageSize:    z.number().min(1).max(100).default(25),
       search:      z.string().optional(),
       warehouseId: z.number().optional(),
     }).optional())
@@ -192,6 +192,7 @@ export const warehouseRouter = createRouter({
       .where(and(
         eq(warehouseStock.tenantId, tenantId),
         sql`${warehouseStock.available} <= ${products.reorderPoint}`,
+        sql`${products.reorderPoint} > 0`,
       ))
       .orderBy(sql`${warehouseStock.available} / NULLIF(${products.reorderPoint}, 0)`);
 
@@ -252,8 +253,8 @@ export const warehouseRouter = createRouter({
       return { created: rows.length };
     }),
 
-  // Удалить все товары со склада
-  deleteAll: operatorQuery
+  // Удалить все товары со склада (CEO only — destructive operation)
+  deleteAll: adminQuery
     .mutation(async ({ ctx }) => {
       const db = ctx.db;
       const tenantId = ctx.tenant.id;

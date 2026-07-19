@@ -376,6 +376,7 @@ export const agentLocations = mysqlTable("agent_locations", {
   lat:       decimal("lat", { precision: 10, scale: 8 }).notNull(),
   lng:       decimal("lng", { precision: 11, scale: 8 }).notNull(),
   accuracy:  decimal("accuracy", { precision: 8, scale: 2 }),
+  batteryLevel: int("battery_level"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({
   tenantIdx: index("idx_locations_tenant").on(t.tenantId),
@@ -396,6 +397,7 @@ export const dailyPlans = mysqlTable("daily_plans", {
   shopId:    bigint("shop_id", { mode: "number", unsigned: true }).notNull().references(() => shops.id),
   planDate:  date("plan_date").notNull(),
   status:    mysqlEnum("status", ["planned", "visited", "skipped"]).default("planned").notNull(),
+  photoUrl:  text("photo_url"),
   notes:     text("notes"),
   createdBy: bigint("created_by", { mode: "number", unsigned: true }).references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),

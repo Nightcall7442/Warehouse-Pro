@@ -1,12 +1,12 @@
 import { useNavigate } from "react-router";
 import { useAuth } from "@/hooks/useAuth";
 import { Lock, CreditCard, LogOut } from "lucide-react";
-import { useTranslate } from "@/i18n";
+import { useLang } from "@/i18n";
 
 export default function SubscriptionBlocked() {
   const { logout } = useAuth();
   const navigate   = useNavigate();
-  const tr = useTranslate();
+  const { t } = useLang();
 
   return (
     <div className="min-h-screen bg-canvas flex flex-col items-center justify-center px-4">
@@ -17,10 +17,10 @@ export default function SubscriptionBlocked() {
 
         <div>
           <h1 className="font-display text-2xl font-bold text-primary">
-            {tr("Требуется подписка","Obuna talab qilinadi")}
+            {t("auth.subscriptionBlocked.title")}
           </h1>
           <p className="text-secondary text-sm mt-2">
-            {tr("Ваша подписка истекла или неактивна. Обновите тарифный план, чтобы продолжить работу.","Obunangiz tugagan yoki faol emas. Davom etish uchun tarifni yangilang.")}
+            {t("auth.subscriptionBlocked.hint")}
           </p>
         </div>
 
@@ -30,14 +30,14 @@ export default function SubscriptionBlocked() {
             className="neo-btn-primary w-full flex items-center justify-center gap-2 py-3"
           >
             <CreditCard size={18}/>
-            {tr("Обновить подписку","Obunani yangilash")}
+            {t("auth.subscriptionBlocked.upgrade")}
           </button>
           <button
             onClick={() => logout()}
             className="neo-btn w-full flex items-center justify-center gap-2 py-3"
           >
             <LogOut size={18}/>
-            {tr("Выйти","Chiqish")}
+            {t("auth.subscriptionBlocked.logout")}
           </button>
         </div>
       </div>

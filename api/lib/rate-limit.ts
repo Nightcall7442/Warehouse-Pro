@@ -4,7 +4,7 @@ type Entry = { timestamps: number[] };
 
 const store = new Map<string, Entry>();
 
-const TRUSTED_PROXY_COUNT = parseInt(process.env.TRUSTED_PROXY_COUNT ?? "1", 10);
+const TRUSTED_PROXY_COUNT = parseInt(process.env.TRUSTED_PROXY_COUNT ?? "0", 10);
 
 setInterval(() => {
   const cutoff = Date.now() - 60 * 60 * 1000;

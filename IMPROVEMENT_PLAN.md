@@ -1,198 +1,141 @@
 # Warehouse-Pro — План улучшений
 
-> Дата: 2026-07-15
-> Версия проекта: 0.0.0
+> Дата: 2026-07-19 (обновлено)
+> Версия проекта: 1.0.0
 
 ---
 
-## Фаза 0: Быстрые победы (1-2 дня)
+## Фаза 0: Критические исправления ✅
 
-| # | Задача | Файлы | Сложность | Эффект |
-|---|--------|-------|-----------|--------|
-| 0.1 | Исправить `warehouse-router.ts` — использовать `ctx.db` вместо `getDb()` | `api/warehouse-router.ts` | ★☆☆ | Консистентность |
-| 0.2 | Убрать дубликат `CardDots` — импортировать из `DashboardLayout` | `src/pages/Dashboard.tsx`, `src/components/DashboardLayout.tsx` | ★☆☆ | DRY |
-| 0.3 | Убрать `as any` в `useCurrency.ts` — добавить правильный тип | `src/hooks/useCurrency.ts` | ★☆☆ | Типобезопасность |
-| 0.4 | Убрать `as any` в `Dashboard.tsx` (kpis) | `src/pages/Dashboard.tsx` | ★☆☆ | Типобезопасность |
-| 0.5 | Убрать `as any` в `Orders.tsx` (если есть) | `src/pages/Orders.tsx` | ★☆☆ | Типобезопасность |
-| 0.6 | Убрать `as any` в `Products.tsx` (если есть) | `src/pages/Products.tsx` | ★☆☆ | Типобезопасность |
-| 0.7 | Унифицировать password-reset: из функции → Service-объект | `api/services/password-reset.ts` | ★☆☆ | Консистентность |
-| 0.8 | Удалить мёртвый код / закомментированные блоки | По всему проекту | ★☆☆ | Чистота |
+| # | Задача | Статус | Коммит |
+|---|--------|--------|--------|
+| 0.1 | Исправить 5 падающих тестов (RBAC + mock innerJoin) | ✅ | `045dd97` |
+| 0.2 | Удалить неиспользуемый `expo` из web package.json | ✅ | `045dd97` |
+| 0.3 | Заменить уязвимый `xlsx@0.18.5` на `exceljs` | ✅ | `634858f` |
+| 0.4 | Исправить 16 критических security bugs (cross-tenant, race conditions, XSS, injection) | ✅ | `3381cc1` |
+| 0.5 | Добавить миграцию `photo_url` для daily_plans | ✅ | `215e387` |
 
----
-
-## Фаза 1: Инфраструктура и масштабирование (3-5 дней)
-
-### 1.1 Redis — Кэш
-- Заменить `api/lib/cache.ts` (in-memory LRU) на Redis
-- Интерфейс сохранить: `cache.get(key)`, `cache.set(key, value, ttl)`
-- Добавить переменные окружения: `REDIS_URL`
-- Graceful degradation: если Redis недоступен — fallback на in-memory
-
-**Файлы:** `api/lib/cache.ts`, `.env.example`, `api/lib/env.ts`
-
-### 1.2 Redis — Rate Limiter
-- Переписать `api/lib/rate-limit.ts` на Redis + Lua script (sliding window)
-- Сохранить API: `checkRateLimit(key, limit, windowMs)`
-- Настроить разные лимиты для аутентифицированных и не-аутентифицированных
-
-**Файлы:** `api/lib/rate-limit.ts`, `api/middleware.ts`
-
-### 1.3 Redis — SSE (Pub/Sub)
-- Заменить `api/lib/sse.ts` (in-memory EventBus) на Redis Pub/Sub
-- При старте подписываться на канал `sse:tenant:{tenantId}`
-- При отправке события — публиковать в Redis, все инстансы получают
-
-**Файлы:** `api/lib/sse.ts`, `api/boot.ts`
-
-### 1.4 Graceful Shutdown
-- Добавить обработку `SIGTERM`/`SIGINT`
-- Закрыть Redis connection, DB pool, SSE connections
-- Дать текущим запросам завершиться (таймаут 30с)
-
-**Файлы:** `api/boot.ts`
+**npm audit:** 15 → 6 moderate (оставшиеся — транзитивная зависимость exceljs→uuid)
 
 ---
 
-## Фаза 2: Архитектура и код (3-5 дней)
+## Фаза 1: Производительность ✅
 
-### 2.1 Рефакторинг контроллеров
-- **Вариант А** (рекомендуемый): Удалить `api/controllers/`, всю логику в сервисы
-- **Вариант Б**: Переписать все роутеры, чтобы проходили через контроллеры
-- Перенести mapError из контроллеров в middleware error formatter
-
-**Файлы:** `api/controllers/*`, роутеры, которые их используют
-
-### 2.2 Унификация i18n
-- Выбрать единый подход: key-based (рекомендуется)
-- Переписать все inline-вызовы `useTranslate()(ru, uz)` на `t("key.name")`
-- Удалить `useTranslate` хук
-- Проверить, что все ключи покрыты в обоих языках
-
-**Файлы:** `src/i18n/*`, `src/hooks/*`, `src/pages/*`, `src/components/*`
-
-### 2.3 Стандартизация ошибок
-- Создать единый маппер ошибок: код → HTTP статус → сообщение
-- Все TRPCError должны проходить через central error handler
-- Локализовать сообщения об ошибках (RU/UZ/EN)
-
-**Файлы:** `api/middleware.ts`, `api/lib/errors.ts`, `contracts/errors.ts`
-
-### 2.4 Типизация: полный запрет `any`
-- Настроить ESLint правило: `@typescript-eslint/no-explicit-any: error`
-- Пройтись по всем вхождениям `as any`, `: any`, `<any>` и заменить на конкретные типы
-- Добавить eslint-disable только где абсолютно необходимо (drizzle type inference)
-
-**Файлы:** По всему проекту, ESLint config
+| # | Задача | Статус | Коммит |
+|---|--------|--------|--------|
+| 1.1 | Batch N+1 в onec-sync (500 SELECT → 1 SELECT) | ✅ | `30329bb` |
+| 1.2 | Batch INSERT в NotificationService.createBulk | ✅ | `30329bb` |
 
 ---
 
-## Фаза 3: Тестирование и CI/CD (2-3 дня)
+## Фаза 2: Тестирование ✅
 
-### 3.1 Поднять coverage
+| # | Задача | Статус | Коммит |
+|---|--------|--------|--------|
+| 2.1 | Frontend tests: order calculations (31 тест) | ✅ | `16fa97a` |
+| 2.2 | vitest config: добавлен `src/**/*.test.ts` | ✅ | `16fa97a` |
+
+**Итого тестов:** 360 (329 backend + 31 frontend)
+
+---
+
+## Фаза 3: Архитектура и код (текущая)
+
+### 3.1 Типизация: сокращение `as any`
+- ~48 вхождений `as any` в `src/` + `api/`
+- Включить `@typescript-eslint/no-explicit-any: error` постепенно
+- Добавить `eslint-disable` только где необходимо (Drizzle type inference)
+
+### 3.2 Унификация i18n
+- 12 файлов используют inline `useTranslate()(ru, uz)`
+- 50+ файлов используют key-based `t("key.name")`
+- Выбрать key-based, переписать оставшиеся 12
+
+### 3.3 Разбиение крупных компонентов
+- `Landing.tsx` (1090 строк), `sidebar.tsx` (728), `Warehouse.tsx` (670)
+- Разбить по логическим границам: фильтры/таблица/модалки
+
+### 3.4 Очистка контроллеров
+- `api/controllers/` может быть удален если вся логика в `api/services/`
+
+---
+
+## Фаза 4: Безопасность (следующая)
+
+### 4.1 Rate limit по email на confirmPasswordReset
+- Сейчас лимит только по IP — атакующий с ротацией IP может брутфорсить
+- Добавить лимит по email: 5 попыток в час на один email
+
+### 4.2 Проверка public-api.ts
+- REST API для Exclusive-тарифа — проверить tenant-scoping
+- Убедиться что тот же level защиты что и в tRPC роутерах
+
+### 4.3 Оставшиеся npm audit
+- 6 moderate от exceljs→uuid — транзитивная, нет прямого фикса
+- Мониторить обновления exceljs
+
+---
+
+## Фаза 5: Тестирование (углубление)
+
+### 5.1 Mobile тесты
+- Только 1 тестовый файл — добавить:
+  - Offline order sync (`OfflineOrders`)
+  - Background location (`backgroundLocation.ts`)
+  - Auth 401 invalidation (`src/api.ts`)
+
+### 5.2 Frontend тесты
+- Тесты на `ErrorBoundary.tsx`
+- Тесты на `MerchandiserVisit.tsx` (photos + checklist)
+
+### 5.3 Coverage targets
 - Lines: 50% → 70%
 - Branches: 30% → 50%
-- Functions: 50% → 65%
-
-### 3.2 Ключевые тесты
-- Тесты на state-переходы заказов (new → processing → completed → cancelled)
-- Тесты на multi-tenant изоляцию (data leakage)
-- Тесты на subscription gating (billedQuery)
-- Тесты на stock concurrency (race conditions)
-
-### 3.3 CI/CD
-- Добавить деплой в CI (Docker build & push → Railway/Dokku)
-- Добавить integration tests в CI (с MySQL testcontainer)
-- Добавить lint-staged / pre-commit hooks
-
-**Файлы:** `.github/workflows/ci.yml`, `Dockerfile`, `vitest.config.ts`
 
 ---
 
-## Фаза 4: UX и производительность (2-3 дня)
+## Фаза 6: Документация и DevEx
 
-### 4.1 Разделение больших компонентов
-- `Dashboard.tsx` (415 строк) → вынести KPI cards, Charts в отдельные компоненты
-- `Orders.tsx` (453 строки) → вынести фильтры, таблицу, модалки
+### 6.1 Актуализация README
+- Синхронизировать demo-credentials с текущими ролями
+- Обновить секцию RBAC после изменений
 
-### 4.2 Оптимизация загрузки
-- Проверить bundle size (Vite bundle analyzer)
-- Добавить code splitting для тяжёлых библиотек (recharts, xlsx)
-- Lazy loading для всех страниц (уже частично сделано)
-
-### 4.3 Offline support
-- Проверить PWA Service Worker (уже есть `vite-plugin-pwa`)
-- Добавить кэширование API-запросов для offline (Cache-first strategy)
-- Доделать `OfflineOrders.tsx`
+### 6.2 CI/CD
+- Добавить integration tests с MySQL testcontainer
+- Добавить деплой в CI (Docker → Railway/Dokku)
 
 ---
 
-## Фаза 5: Безопасность (1-2 дня)
+## Фаза 7: Observability (полировка)
 
-### 5.1 Аудит безопасности
-- Проверить CSP заголовки (уже есть, но обновить)
-- Добавить helmet-like middleware для Hono
-- Проверить rate-limit на auth endpoints (уже есть 20/15min)
-- Добавить bruteforce protection на forgot-password
-
-### 5.2 Аудит зависимостей
-- `npm audit` — исправить уязвимости
-- Обновить `vite-plugin-pwa@0.20` (fails with Vite 7, требует `--legacy-peer-deps`)
-
----
-
-## Фаза 6: Мониторинг и observability (2-3 дня)
-
-### 6.1 OpenTelemetry
-- Добавить OpenTelemetry SDK
-- Trace: каждый tRPC запрос → span с tenant_id, user_id, procedure
-- Metrics: request count, latency, error rate per endpoint
-- Export: OTLP (Jaeger/OpenTelemetry Collector)
-
-### 6.2 Structured logging
-- Улучшить `api/lib/logger.ts` — добавить request-scoped fields
-- Correlation ID прокидывать во все логи
-
-### 6.3 Health checks
-- `GET /health` — проверка DB, Redis, uptime
-- `GET /ready` — readiness probe для Kubernetes
+- OpenTelemetry SDK + OTLP export (уже настроен)
+- Structured logging с AsyncLocalStorage (уже настроен)
+- Health checks `/health` + `/ready` (уже есть)
 
 ---
 
 ## Roadmap
 
 ```
-Фаза 0: Быстрые победы           ████████░░░░░░  (нед. 1)
-Фаза 1: Инфраструктура (Redis)   ░░░░░░░░░░░░░░  (нед. 2-3)
-Фаза 2: Архитектура и код         ░░░░░░░░░░░░░░  (нед. 3-4)
-Фаза 3: Тестирование и CI/CD     ░░░░░░░░░░░░░░  (нед. 4-5)
-Фаза 4: UX и производительность  ░░░░░░░░░░░░░░  (нед. 5-6)
-Фаза 5: Безопасность             ░░░░░░░░░░░░░░  (нед. 6)
-Фаза 6: Observability            ░░░░░░░░░░░░░░  (нед. 7)
+Фаза 0: Критические исправления  ██████████████  ГОТОВО
+Фаза 1: Производительность         ██████████████  ГОТОВО
+Фаза 2: Тестирование              ██████████████  ГОТОВО
+Фаза 3: Архитектура и код         ░░░░░░░░░░░░░░  ТЕКУЩАЯ
+Фаза 4: Безопасность              ░░░░░░░░░░░░░░  СЛЕДУЮЩАЯ
+Фаза 5: Тестирование (углубление) ░░░░░░░░░░░░░░
+Фаза 6: Документация и DevEx      ░░░░░░░░░░░░░░
+Фаза 7: Observability             ██████████████  ГОТОВО
 ```
-
----
-
-## Оценка трудозатрат
-
-| Фаза | Дней | Описание |
-|------|------|----------|
-| Фаза 0 | 1-2 | Быстрые исправления |
-| Фаза 1 | 3-5 | Redis: кэш + rate-limit + SSE |
-| Фаза 2 | 3-5 | Архитектурный рефакторинг |
-| Фаза 3 | 2-3 | Тесты + CI/CD |
-| Фаза 4 | 2-3 | UX/производительность |
-| Фаза 5 | 1-2 | Безопасность |
-| Фаза 6 | 2-3 | Мониторинг |
-| **Итого** | **14-23** | **2-3 недели** |
 
 ---
 
 ## Статус выполнения
 
-- [x] **Фаза 0**: Быстрые победы
-- [x] **Фаза 1**: Redis — кэш, rate-limiter, SSE
-- [x] **Фаза 2**: Архитектура — контроллеры, i18n, ошибки, типы
-- [x] **Фаза 3**: Тестирование — 19 новых тестов (state transitions, subscription gating, stock concurrency), 329 тестов всего
-- [ ] **Фаза 4**: UX и производительность
-- [x] **Фаза 5**: Безопасность — helmet-заголовки уже были, обновлены nodemailer 6→9, vite-plugin-pwa 0.20→1.3
-- [x] **Фаза 6**: Мониторинг — OpenTelemetry SDK + автоинструментация + OTLP export, структурированное логирование с AsyncLocalStorage (correlationId, userId, tenantId)
+- [x] **Фаза 0**: Критические исправления — 16 security bugs, 5 failing tests, expo/xlsx
+- [x] **Фаза 1**: Производительность — N+1 batch fixes
+- [x] **Фаза 2**: Тестирование — 31 frontend test, 360 total
+- [ ] **Фаза 3**: Архитектура — as any, i18n, компоненты
+- [ ] **Фаза 4**: Безопасность — rate limit email, public-api audit
+- [ ] **Фаза 5**: Тестирование (углубление) — mobile, coverage
+- [ ] **Фаза 6**: Документация — README, CI/CD
+- [x] **Фаза 7**: Observability — OpenTelemetry, logging, health checks

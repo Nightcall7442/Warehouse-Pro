@@ -4,8 +4,8 @@ import { useLang } from "@/i18n";
 import { format } from "date-fns";
 import { Radio, RefreshCw, MapPin, Wifi, WifiOff } from "lucide-react";
 
-// Yandex Maps API key — получить на https://developer.tech.yandex.ru/services
-const YANDEX_MAPS_API_KEY = import.meta.env.VITE_YANDEX_MAPS_API_KEY || "";
+// Yandex Maps API key
+const YANDEX_MAPS_API_KEY = import.meta.env.VITE_YANDEX_MAPS_API_KEY || "dd072e98-24e7-4b2e-b328-2989bd981fa5";
 
 function timeAgo(date: Date, lang: string): string {
   const diff = Math.floor((Date.now() - date.getTime()) / 1000);
@@ -97,6 +97,7 @@ export default function SupervisorTracking() {
               <div style="font-family:Inter,sans-serif;font-size:12px;color:#666;padding:4px 0">
                 ${online ? t("Онлайн","Onlayn") : t("Не в сети","Oflayn")}
                 <br/>${Number(loc.lat).toFixed(5)}, ${Number(loc.lng).toFixed(5)}
+                ${loc.batteryLevel != null ? `<br/>🔋 ${loc.batteryLevel}%` : ""}
               </div>
             `,
             hintContent: loc.agentName ?? t("Агент","Agent"),
@@ -251,8 +252,13 @@ export default function SupervisorTracking() {
                                   ? timeAgo(new Date(loc.createdAt), lang)
                                   : t("Нет данных", "Ma'lumot yo'q")}
                             </span>
+                            {loc.batteryLevel != null && (
+                              <span className="ml-auto text-[10px] font-data flex items-center gap-0.5" style={{ color: loc.batteryLevel < 20 ? "var(--color-danger, #d45050)" : "var(--color-text-tertiary, #98a0b8)" }}>
+                                🔋 {loc.batteryLevel}%
+                              </span>
+                            )}
                             {loc.accuracy && (
-                              <span className="ml-auto text-[10px] font-data" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+                              <span className="text-[10px] font-data" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
                                 ±{Math.round(Number(loc.accuracy))}м
                               </span>
                             )}
@@ -271,7 +277,7 @@ export default function SupervisorTracking() {
         </div>
 
         {/* Map */}
-        <div className="neo-card overflow-hidden lg:col-span-2 order-1 lg:order-2" style={{ minHeight: 420 }}>
+        <div className="neo-card lg:col-span-2 order-1 lg:order-2" style={{ minHeight: 480, position: "relative" }}>
           {mapError ? (
             <div className="flex flex-col items-center justify-center h-[480px] text-center p-6">
               <MapPin size={32} className="mb-3 opacity-30" style={{ color: "var(--color-text-tertiary)" }} />
@@ -283,7 +289,7 @@ export default function SupervisorTracking() {
               </p>
             </div>
           ) : (
-            <div ref={mapDivRef} style={{ width: "100%", height: "480px" }} />
+            <div ref={mapDivRef} style={{ width: "100%", height: "480px", position: "relative" }} />
           )}
         </div>
       </div>

@@ -166,6 +166,7 @@ function makeMockDb() {
     const api: unknown = {
       from(ref: unknown) { currentTable = tableOf(ref); return api; },
       leftJoin() { return api; },
+      innerJoin() { return api; },
       where(cond: unknown) {
         const filtered = rowsFor(currentTable).filter((r) => evalCond(r, cond));
         if (isCount) return Promise.resolve([{ count: filtered.length }]);

@@ -24,7 +24,7 @@ export function MovementHistory({ productId, productName }: { productId: number;
       {open && (
         <div className="px-5 pb-4">
           <div className="flex justify-end mb-3">
-            <button onClick={() => movements && exportToExcel(formatMovementsForExport(movements), `movements-${productName}`)}
+            <button onClick={async () => movements && await exportToExcel(formatMovementsForExport(movements), `movements-${productName}`)}
               className="text-xs flex items-center gap-1.5 py-1.5 px-3 rounded-lg transition-colors"
               style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
               <FileDown size={12} /> Excel

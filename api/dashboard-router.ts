@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { createRouter, operatorQuery, agentQuery, supervisorQuery } from "./middleware";
+import { createRouter, operatorQuery, fieldSalesQuery, supervisorQuery } from "./middleware";
 import { orders, warehouseStock, users, shops, agentLocations, dailyPlans, orderItems, products } from "@db/schema";
-import { eq, and, sql, desc } from "drizzle-orm";
+import { eq, and, sql, desc, isNull } from "drizzle-orm";
 import { subDays } from "date-fns";
 import { cache, CacheKeys, CacheTTL } from "./lib/cache";
 
@@ -17,9 +17,9 @@ export const dashboardRouter = createRouter({
 
     const [todaysOrders, todaysRevenue, activeAgents, totalStock, customerDebt, revenueResult, costResult] = await Promise.all([
       db.select({ count: sql<number>`count(*)` }).from(orders)
-        .where(and(eq(orders.tenantId, tenantId), sql`DATE(${orders.createdAt}) = ${today}`)),
+        .where(and(eq(orders.tenantId, tenantId), sql`DATE(${orders.createdAt}) = ${today}`, isNull(orders.deletedAt))),
       db.select({ total: sql<string>`COALESCE(SUM(${orders.total}), 0)` }).from(orders)
-        .where(and(eq(orders.tenantId, tenantId), sql`DATE(${orders.createdAt}) = ${today}`, eq(orders.status, "completed"))),
+        .where(and(eq(orders.tenantId, tenantId), sql`DATE(${orders.createdAt}) = ${today}`, eq(orders.status, "completed"), isNull(orders.deletedAt))),
       db.select({ count: sql<number>`count(*)` }).from(users)
         .where(and(eq(users.tenantId, tenantId), eq(users.role, "agent"), eq(users.status, "active"))),
       db.select({ total: sql<string>`COALESCE(SUM(${warehouseStock.currentStock}), 0)` }).from(warehouseStock)
@@ -29,13 +29,13 @@ export const dashboardRouter = createRouter({
       db.select({
         totalRevenue: sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'completed' THEN ${orders.total} ELSE 0 END), 0)`,
       }).from(orders)
-        .where(eq(orders.tenantId, tenantId)),
+        .where(and(eq(orders.tenantId, tenantId), isNull(orders.deletedAt))),
       db.select({
         totalCost: sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'completed' THEN ${orderItems.quantity} * ${products.costPrice} ELSE 0 END), 0)`,
       }).from(orderItems)
         .innerJoin(orders, eq(orders.id, orderItems.orderId))
         .innerJoin(products, eq(orderItems.productId, products.id))
-        .where(eq(orders.tenantId, tenantId)),
+        .where(and(eq(orders.tenantId, tenantId), isNull(orders.deletedAt))),
     ]);
 
     const totalRev = Number(revenueResult[0]?.totalRevenue ?? 0);
@@ -69,13 +69,13 @@ export const dashboardRouter = createRouter({
         revenue:    sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'completed' THEN ${orders.total} ELSE 0 END), 0)`,
       })
         .from(orders)
-        .where(and(eq(orders.tenantId, tenantId), sql`DATE(${orders.createdAt}) >= ${startDate}`))
+        .where(and(eq(orders.tenantId, tenantId), sql`DATE(${orders.createdAt}) >= ${startDate}`, isNull(orders.deletedAt)))
         .groupBy(sql`DATE(${orders.createdAt})`).orderBy(sql`DATE(${orders.createdAt})`);
     }),
 
   statusBreakdown: operatorQuery.query(async ({ ctx }) => {
     return ctx.db.select({ status: orders.status, count: sql<number>`count(*)` })
-      .from(orders).where(eq(orders.tenantId, ctx.tenant.id)).groupBy(orders.status);
+      .from(orders).where(and(eq(orders.tenantId, ctx.tenant.id), isNull(orders.deletedAt))).groupBy(orders.status);
   }),
 
   activity: operatorQuery.query(async ({ ctx }) => {
@@ -86,11 +86,11 @@ export const dashboardRouter = createRouter({
       .from(orders)
       .leftJoin(shops, eq(orders.shopId, shops.id))
       .leftJoin(users, eq(orders.agentId, users.id))
-      .where(eq(orders.tenantId, ctx.tenant.id))
+      .where(and(eq(orders.tenantId, ctx.tenant.id), isNull(orders.deletedAt)))
       .orderBy(desc(orders.createdAt)).limit(10);
   }),
 
-  agentDashboard: agentQuery.query(async ({ ctx }) => {
+  agentDashboard: fieldSalesQuery.query(async ({ ctx }) => {
     const db       = ctx.db;
     const tenantId = ctx.tenant.id;
     const userId   = ctx.user.id;
@@ -98,7 +98,7 @@ export const dashboardRouter = createRouter({
 
     const [agentOrders, assignedShops] = await Promise.all([
       db.select({ count: sql<number>`count(*)`, total: sql<string>`COALESCE(SUM(${orders.total}), 0)` })
-        .from(orders).where(and(eq(orders.tenantId, tenantId), eq(orders.agentId, userId), sql`DATE(${orders.createdAt}) = ${today}`)),
+        .from(orders).where(and(eq(orders.tenantId, tenantId), eq(orders.agentId, userId), sql`DATE(${orders.createdAt}) = ${today}`, isNull(orders.deletedAt))),
       db.select({ count: sql<number>`count(*)` }).from(shops)
         .where(and(eq(shops.tenantId, tenantId), eq(shops.agentId, userId))),
     ]);
@@ -118,9 +118,9 @@ export const dashboardRouter = createRouter({
 
     const [todaysOrders, todaysRevenue, activeAgents, onlineAgents, pendingPlans] = await Promise.all([
       db.select({ count: sql<number>`count(*)` }).from(orders)
-        .where(and(eq(orders.tenantId, tenantId), sql`DATE(${orders.createdAt}) = ${today}`)),
+        .where(and(eq(orders.tenantId, tenantId), sql`DATE(${orders.createdAt}) = ${today}`, isNull(orders.deletedAt))),
       db.select({ total: sql<string>`COALESCE(SUM(${orders.total}), 0)` }).from(orders)
-        .where(and(eq(orders.tenantId, tenantId), sql`DATE(${orders.createdAt}) = ${today}`, eq(orders.status, "completed"))),
+        .where(and(eq(orders.tenantId, tenantId), sql`DATE(${orders.createdAt}) = ${today}`, eq(orders.status, "completed"), isNull(orders.deletedAt))),
       db.select({ count: sql<number>`count(*)` }).from(users)
         .where(and(eq(users.tenantId, tenantId), eq(users.role, "agent"), eq(users.status, "active"))),
       db.select({ count: sql<number>`count(distinct ${agentLocations.agentId})` }).from(agentLocations)

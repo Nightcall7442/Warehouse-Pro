@@ -375,7 +375,7 @@ export default function Arrivals() {
           </p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <button onClick={() => all?.data && exportToExcel(formatArrivalsForExport(all.data), "arrivals")} style={{
+          <button onClick={async () => all?.data && await exportToExcel(formatArrivalsForExport(all.data), "arrivals")} style={{
             display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
             fontSize: "13px", fontWeight: 500, fontFamily: F.body, borderRadius: "10px",
             border: `1px solid ${COLORS.border}`, cursor: "pointer",

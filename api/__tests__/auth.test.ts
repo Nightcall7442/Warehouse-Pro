@@ -78,25 +78,34 @@ describe("auth middleware — unauthenticated rejection", () => {
 // ── Role-based access ───────────────────────────────────────────────────────
 describe("auth middleware — role-based access", () => {
   it.each([
-    ["ceo",          "adminQuery",      true ],
-    ["operator",     "adminQuery",      false],
-    ["agent",        "adminQuery",      false],
-    ["ceo",          "operatorQuery",   true ],
-    ["operator",     "operatorQuery",   true ],
-    ["agent",        "operatorQuery",   false],
-    ["ceo",          "agentQuery",      true ],
-    ["operator",     "agentQuery",      true ],
-    ["agent",        "agentQuery",      true ],
-    ["merchandiser", "agentQuery",      false],
-    ["supervisor",   "agentQuery",      false],
-    ["ceo",          "supervisorQuery", true ],
-    ["supervisor",   "supervisorQuery", true ],
-    ["agent",        "supervisorQuery", false],
-    ["operator",     "supervisorQuery", false],
-    ["merchandiser", "merchQuery",      true ],
-    ["supervisor",   "merchQuery",      true ],
-    ["agent",        "merchQuery",      false],
-    ["operator",     "merchQuery",      false],
+    ["ceo",          "adminQuery",        true ],
+    ["operator",     "adminQuery",        false],
+    ["agent",        "adminQuery",        false],
+    ["ceo",          "operatorQuery",     true ],
+    ["operator",     "operatorQuery",     true ],
+    ["agent",        "operatorQuery",     false],
+    // fieldSalesQuery: ceo, operator, agent, supervisor (no merchandiser)
+    ["ceo",          "fieldSalesQuery",   true ],
+    ["operator",     "fieldSalesQuery",   true ],
+    ["agent",        "fieldSalesQuery",   true ],
+    ["supervisor",   "fieldSalesQuery",   true ],
+    ["merchandiser", "fieldSalesQuery",   false],
+    // merchVisitQuery: all roles
+    ["agent",        "merchVisitQuery",   true ],
+    ["supervisor",   "merchVisitQuery",   true ],
+    ["merchandiser", "merchVisitQuery",   true ],
+    // Legacy alias
+    ["agent",        "agentQuery",        true ],
+    ["merchandiser", "agentQuery",        false],
+    ["supervisor",   "agentQuery",        true ],
+    ["ceo",          "supervisorQuery",   true ],
+    ["supervisor",   "supervisorQuery",   true ],
+    ["agent",        "supervisorQuery",   false],
+    ["operator",     "supervisorQuery",   false],
+    ["merchandiser", "merchQuery",        true ],
+    ["supervisor",   "merchQuery",        true ],
+    ["agent",        "merchQuery",        false],
+    ["operator",     "merchQuery",        false],
   ])("%s can access %s: %s", async (role, queryType, allowed) => {
     const mod = await import("../middleware");
     const guard = (mod as Record<string, unknown>)[queryType] as typeof mod.authedQuery;

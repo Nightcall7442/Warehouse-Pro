@@ -112,7 +112,7 @@ export default function PnL() {
     setShowCustom(newRange === "custom");
   };
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     const rows: Record<string, unknown>[] = [
       { Показатель: "Период", Значение: `${from} — ${to}` },
       { Показатель: "Выручка", Сумма: (current?.revenue ?? 0).toFixed(0) },
@@ -202,10 +202,10 @@ export default function PnL() {
         });
       });
     }
-    exportToExcel(rows, `pnl-${from}-${to}`);
+    await exportToExcel(rows, `pnl-${from}-${to}`);
   };
 
-  const handleExportPDF = () => {
+  const handleExportPDF = async () => {
     const content = [
       `P&L Report: ${from} — ${to}`,
       `${"═".repeat(50)}`,

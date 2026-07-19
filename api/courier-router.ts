@@ -124,7 +124,7 @@ export const courierRouter = createRouter({
       const db = getDb();
       const courierId = ctx.user.id;
 
-      const [order] = await db.select({ id: orders.id, status: orders.status, deliveryStatus: orders.deliveryStatus }).from(orders)
+      const [order] = await db.select({ id: orders.id, orderNumber: orders.orderNumber, shopId: orders.shopId, status: orders.status, deliveryStatus: orders.deliveryStatus }).from(orders)
         .where(and(
           eq(orders.id, input.orderId),
           eq(orders.tenantId, ctx.tenant.id),
@@ -149,7 +149,7 @@ export const courierRouter = createRouter({
       const db = getDb();
       const courierId = ctx.user.id;
 
-      const [order] = await db.select({ id: orders.id, status: orders.status, deliveryStatus: orders.deliveryStatus, total: orders.total }).from(orders)
+      const [order] = await db.select({ id: orders.id, orderNumber: orders.orderNumber, shopId: orders.shopId, status: orders.status, deliveryStatus: orders.deliveryStatus, total: orders.total }).from(orders)
         .where(and(
           eq(orders.id, input.orderId),
           eq(orders.tenantId, ctx.tenant.id),

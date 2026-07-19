@@ -159,11 +159,25 @@ export const warehouseMultiRouter = createRouter({
       }
 
       await db.transaction(async (tx) => {
+        // Lock source stock row to prevent race conditions
+        const [lockedStock] = await tx.select()
+          .from(warehouseStock)
+          .where(and(
+            eq(warehouseStock.tenantId, ctx.tenant.id),
+            eq(warehouseStock.warehouseId, transfer.fromWarehouseId),
+            eq(warehouseStock.productId, transfer.productId),
+          ))
+          .for("update");
+
+        if (!lockedStock || Number(lockedStock.available) < Number(transfer.quantity)) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Недостаточно товара на складе отправителе" });
+        }
+
         // Deduct from source
         await tx.update(warehouseStock)
           .set({
-            currentStock: sql`GREATEST(${warehouseStock.currentStock} - ${transfer.quantity}, 0)`,
-            available: sql`GREATEST(${warehouseStock.available} - ${transfer.quantity}, 0)`,
+            currentStock: sql`${warehouseStock.currentStock} - ${transfer.quantity}`,
+            available: sql`${warehouseStock.available} - ${transfer.quantity}`,
           })
           .where(and(
             eq(warehouseStock.tenantId, ctx.tenant.id),

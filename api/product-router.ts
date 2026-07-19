@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, operatorQuery, agentQuery } from "./middleware";
+import { createRouter, operatorQuery, fieldSalesQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { products, warehouseStock, stockMovements, warehouses } from "@db/schema";
 import { eq, like, and, sql, desc } from "drizzle-orm";
@@ -16,7 +16,7 @@ async function getDefaultWarehouseId(db: ReturnType<typeof getDb>, tenantId: num
 }
 
 export const productRouter = createRouter({
-  list: agentQuery
+  list: fieldSalesQuery
     .input(z.object({
       page:       z.number().default(1),
       pageSize:   z.number().default(25),
@@ -79,7 +79,7 @@ export const productRouter = createRouter({
       return result;
     }),
 
-  getById: agentQuery
+  getById: fieldSalesQuery
     .input(z.object({ id: z.number() }))
     .query(async ({ input, ctx }) => {
       const db       = getDb();
@@ -235,13 +235,13 @@ export const productRouter = createRouter({
     }),
 
   // ── Find by Barcode ─────────────────────────────────────────────────────────
-  findByBarcode: agentQuery
+  findByBarcode: fieldSalesQuery
     .input(z.object({ barcode: z.string() }))
     .query(async ({ input, ctx }) => {
       return ProductService.searchByBarcode(getDb(), ctx.tenant.id, input.barcode);
     }),
 
-  categories: agentQuery.query(async ({ ctx }) => {
+  categories: fieldSalesQuery.query(async ({ ctx }) => {
     const tenantId = ctx.tenant.id;
     const cacheKey = CacheKeys.productCategories(tenantId);
     const cached = cache.get<string[]>(cacheKey);

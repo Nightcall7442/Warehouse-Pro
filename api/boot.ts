@@ -53,10 +53,10 @@ if (env.isProduction) {
 app.use(secureHeaders({
   contentSecurityPolicy: {
     defaultSrc: ["'self'"],
-    scriptSrc:  ["'self'"],
+    scriptSrc:  ["'self'", "https://api-maps.yandex.ru", "https://core.apimaps.yandex.ru", "https://yastatic.net", "https://*.maps.yandex.net", "https://*.yandex.ru"],
     styleSrc:   ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],  // Google Fonts + Tailwind
     imgSrc:     ["'self'", "data:", "https:"],  // product photos, S3, base64 avatars
-    connectSrc: ["'self'"],                      // tRPC, SSE, WebSocket
+    connectSrc: ["'self'", "https://api-maps.yandex.ru"],                      // tRPC, SSE, WebSocket, Yandex Maps
     fontSrc:    ["'self'", "data:", "https://fonts.gstatic.com"],             // Google Fonts files
     frameAncestors: ["'none'"],
     objectSrc:  ["'none'"],
@@ -70,7 +70,7 @@ app.use(secureHeaders({
 app.use("/api/*", cors({
   origin: env.isProduction
     ? (origin) => (origin && env.allowedOrigins.includes(origin)) ? origin : null
-    : "*",
+    : (origin) => (origin && env.allowedOrigins.includes(origin)) ? origin : null,
   allowMethods: ["GET", "POST", "OPTIONS"],
   allowHeaders: ["Content-Type", "Authorization", "ngrok-skip-browser-warning", "x-correlation-id", "Last-Event-ID"],
   credentials: true,
@@ -168,7 +168,7 @@ app.post("/api/login", async (c) => {
     });
   } catch (e) {
     console.error("[LOGIN ERROR]", e instanceof Error ? e.message : String(e), e instanceof Error ? e.stack : "");
-    return c.json({ error: "Login failed", details: e instanceof Error ? e.message : String(e) }, 500);
+    return c.json({ error: "Login failed" }, 500);
   }
 });
 
