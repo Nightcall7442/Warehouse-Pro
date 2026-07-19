@@ -176,7 +176,6 @@ export const agentRouter = createRouter({
     .mutation(async ({ input, ctx }) => {
       await getDb().update(dailyPlans).set({
         status: "visited",
-        photoUrl: input.photoUrl,
         notes: input.notes ?? undefined,
       }).where(and(eq(dailyPlans.id, input.planId), eq(dailyPlans.tenantId, ctx.tenant.id)));
       return { success: true };
