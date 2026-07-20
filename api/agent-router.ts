@@ -162,6 +162,112 @@ export const agentRouter = createRouter({
         .limit(100);
     }),
 
+  // Optimized route — sort plans by distance from current location
+  getOptimizedRoute: fieldSalesQuery
+    .input(z.object({
+      date: z.string().optional(),
+      agentId: z.number().optional(),
+      currentLat: z.number(),
+      currentLng: z.number(),
+    }))
+    .query(async ({ input, ctx }) => {
+      const db = getDb();
+      const dateStr = input.date ?? new Date().toISOString().split("T")[0];
+      const isPrivileged = ["ceo", "supervisor", "superadmin"].includes(ctx.user.role);
+      const agentId = input.agentId ?? (isPrivileged ? undefined : ctx.user.id);
+
+      const conditions = [
+        eq(dailyPlans.tenantId, ctx.tenant.id),
+        sql`DATE(${dailyPlans.planDate}) = ${dateStr}`,
+        eq(dailyPlans.status, "planned"), // Only unvisited plans
+      ];
+      if (agentId !== undefined) {
+        conditions.push(eq(dailyPlans.agentId, agentId));
+      }
+
+      const plans = await db.select({
+        id: dailyPlans.id,
+        planDate: dailyPlans.planDate,
+        status: dailyPlans.status,
+        shopId: dailyPlans.shopId,
+        shopName: shops.name,
+        shopAddress: shops.address,
+        shopCity: shops.city,
+        shopDebt: shops.debt,
+        lat: shops.gpsLat,
+        lng: shops.gpsLng,
+      })
+        .from(dailyPlans)
+        .leftJoin(shops, eq(dailyPlans.shopId, shops.id))
+        .where(and(...conditions))
+        .limit(50);
+
+      // Calculate distance from current location and sort
+      const R = 6371; // Earth's radius in km
+      const withDistance = plans.map(p => {
+        const lat = Number(p.lat);
+        const lng = Number(p.lng);
+        if (!lat || !lng) return { ...p, distance: 9999 };
+
+        const dLat = (lat - input.currentLat) * Math.PI / 180;
+        const dLng = (lng - input.currentLng) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos(input.currentLat * Math.PI / 180) * Math.cos(lat * Math.PI / 180) *
+          Math.sin(dLng / 2) * Math.sin(dLng / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const distance = R * c;
+
+        return { ...p, distance: Math.round(distance * 10) / 10 };
+      });
+
+      // Sort by distance (nearest first) — nearest neighbor heuristic
+      const sorted: typeof withDistance = [];
+      const remaining = [...withDistance];
+      let currentLat = input.currentLat;
+      let currentLng = input.currentLng;
+
+      while (remaining.length > 0) {
+        let nearestIdx = 0;
+        let nearestDist = Infinity;
+
+        for (let i = 0; i < remaining.length; i++) {
+          const lat = Number(remaining[i].lat);
+          const lng = Number(remaining[i].lng);
+          if (!lat || !lng) continue;
+
+          const dLat = (lat - currentLat) * Math.PI / 180;
+          const dLng = (lng - currentLng) * Math.PI / 180;
+          const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(currentLat * Math.PI / 180) * Math.cos(lat * Math.PI / 180) *
+            Math.sin(dLng / 2) * Math.sin(dLng / 2);
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+          const dist = R * c;
+
+          if (dist < nearestDist) {
+            nearestDist = dist;
+            nearestIdx = i;
+          }
+        }
+
+        const nearest = remaining.splice(nearestIdx, 1)[0];
+        sorted.push(nearest);
+        currentLat = Number(nearest.lat) || currentLat;
+        currentLng = Number(nearest.lng) || currentLng;
+      }
+
+      // Calculate total distance
+      let totalDistance = 0;
+      for (let i = 1; i < sorted.length; i++) {
+        totalDistance += sorted[i].distance;
+      }
+
+      return {
+        plans: sorted,
+        totalDistance: Math.round(totalDistance * 10) / 10,
+        totalStops: sorted.length,
+      };
+    }),
+
   updatePlanStatus: merchVisitQuery
     .input(z.object({ planId: z.number(), status: z.enum(["planned", "visited", "skipped"]) }))
     .mutation(async ({ input, ctx }) => {

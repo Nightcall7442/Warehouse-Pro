@@ -152,6 +152,61 @@ export type Product       = typeof products.$inferSelect;
 export type InsertProduct = typeof products.$inferInsert;
 
 // ============================================
+// PRICE LISTS — прайс-листы
+// ============================================
+export const priceLists = mysqlTable("price_lists", {
+  id:          serial("id").primaryKey(),
+  tenantId:    bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  name:        varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  type:        mysqlEnum("type", ["shop", "tier", "volume"]).default("shop").notNull(),
+  isActive:    boolean("is_active").default(true).notNull(),
+  priority:    int("priority").default(0).notNull(), // higher = overrides lower
+  createdAt:   timestamp("created_at").defaultNow().notNull(),
+  updatedAt:   timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
+}, (t) => ({
+  tenantIdx: index("idx_price_lists_tenant").on(t.tenantId),
+  typeIdx: index("idx_price_lists_type").on(t.type),
+}));
+
+export type PriceList       = typeof priceLists.$inferSelect;
+export type InsertPriceList = typeof priceLists.$inferInsert;
+
+// ============================================
+// PRICE LIST ITEMS — цены в прайс-листе
+// ============================================
+export const priceListItems = mysqlTable("price_list_items", {
+  id:          serial("id").primaryKey(),
+  priceListId: bigint("price_list_id", { mode: "number", unsigned: true }).notNull().references(() => priceLists.id, { onDelete: "cascade" }),
+  productId:   bigint("product_id", { mode: "number", unsigned: true }).notNull().references(() => products.id, { onDelete: "restrict" }),
+  price:       decimal("price", { precision: 10, scale: 2 }).notNull(),
+  minQuantity: decimal("min_quantity", { precision: 10, scale: 2 }).default("1").notNull(),
+  createdAt:   timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  priceListIdx: index("idx_price_list_items_list").on(t.priceListId),
+  productIdx: index("idx_price_list_items_product").on(t.productId),
+}));
+
+export type PriceListItem       = typeof priceListItems.$inferSelect;
+export type InsertPriceListItem = typeof priceListItems.$inferInsert;
+
+// ============================================
+// PRICE LIST ASSIGNMENTS — привязка прайс-листа к магазинам
+// ============================================
+export const priceListAssignments = mysqlTable("price_list_assignments", {
+  id:          serial("id").primaryKey(),
+  priceListId: bigint("price_list_id", { mode: "number", unsigned: true }).notNull().references(() => priceLists.id, { onDelete: "cascade" }),
+  shopId:      bigint("shop_id", { mode: "number", unsigned: true }).notNull().references(() => shops.id, { onDelete: "restrict" }),
+  createdAt:   timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  priceListIdx: index("idx_pl_assignments_list").on(t.priceListId),
+  shopIdx: index("idx_pl_assignments_shop").on(t.shopId),
+}));
+
+export type PriceListAssignment       = typeof priceListAssignments.$inferSelect;
+export type InsertPriceListAssignment = typeof priceListAssignments.$inferInsert;
+
+// ============================================
 // ORDERS — заказы
 // ============================================
 export const orders = mysqlTable("orders", {
