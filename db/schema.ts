@@ -416,6 +416,55 @@ export type DailyPlan       = typeof dailyPlans.$inferSelect;
 export type InsertDailyPlan = typeof dailyPlans.$inferInsert;
 
 // ============================================
+// SALES TARGETS — планы продаж (план/факт)
+// ============================================
+export const salesTargets = mysqlTable("sales_targets", {
+  id:           serial("id").primaryKey(),
+  tenantId:     bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  userId:       bigint("user_id", { mode: "number", unsigned: true }).notNull().references(() => users.id, { onDelete: "restrict" }),
+  shopId:       bigint("shop_id", { mode: "number", unsigned: true }).references(() => shops.id, { onDelete: "restrict" }),
+  periodType:   mysqlEnum("period_type", ["daily", "weekly", "monthly"]).default("monthly").notNull(),
+  periodStart:  date("period_start").notNull(),
+  periodEnd:    date("period_end").notNull(),
+  targetAmount: decimal("target_amount", { precision: 14, scale: 2 }).notNull(),
+  actualAmount: decimal("actual_amount", { precision: 14, scale: 2 }).default("0.00").notNull(),
+  notes:        text("notes"),
+  createdAt:    timestamp("created_at").defaultNow().notNull(),
+  updatedAt:    timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
+}, (t) => ({
+  tenantIdx: index("idx_sales_targets_tenant").on(t.tenantId),
+  userPeriodIdx: index("idx_sales_targets_user_period").on(t.userId, t.periodType, t.periodStart),
+  tenantPeriodIdx: index("idx_sales_targets_tenant_period").on(t.tenantId, t.periodType, t.periodStart),
+}));
+
+export type SalesTarget       = typeof salesTargets.$inferSelect;
+export type InsertSalesTarget = typeof salesTargets.$inferInsert;
+
+// ============================================
+// COMMISSIONS — комиссии агентов
+// ============================================
+export const commissions = mysqlTable("commissions", {
+  id:           serial("id").primaryKey(),
+  tenantId:     bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  userId:       bigint("user_id", { mode: "number", unsigned: true }).notNull().references(() => users.id, { onDelete: "restrict" }),
+  commissionRate: decimal("commission_rate", { precision: 5, scale: 2 }).default("0.00").notNull(), // percentage
+  periodType:   mysqlEnum("period_type", ["monthly", "quarterly"]).default("monthly").notNull(),
+  periodStart:  date("period_start").notNull(),
+  periodEnd:    date("period_end").notNull(),
+  salesAmount:  decimal("sales_amount", { precision: 14, scale: 2 }).default("0.00").notNull(),
+  commissionAmount: decimal("commission_amount", { precision: 14, scale: 2 }).default("0.00").notNull(),
+  status:       mysqlEnum("status", ["pending", "approved", "paid"]).default("pending").notNull(),
+  createdAt:    timestamp("created_at").defaultNow().notNull(),
+  updatedAt:    timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
+}, (t) => ({
+  tenantIdx: index("idx_commissions_tenant").on(t.tenantId),
+  userPeriodIdx: index("idx_commissions_user_period").on(t.userId, t.periodType, t.periodStart),
+}));
+
+export type Commission       = typeof commissions.$inferSelect;
+export type InsertCommission = typeof commissions.$inferInsert;
+
+// ============================================
 // NOTIFICATIONS
 // ============================================
 export const notifications = mysqlTable("notifications", {
