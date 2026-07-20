@@ -589,6 +589,30 @@
   }
 
   /* ══════════════════════════════════════════════════════════════════════
+     DASHBOARD RESPONSIVE GRIDS
+     ══════════════════════════════════════════════════════════════════════ */
+  .dashboard-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+  @media (min-width: 768px) {
+    .dashboard-kpi-grid {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
+  .dashboard-charts-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  @media (min-width: 768px) {
+    .dashboard-charts-grid {
+      grid-template-columns: 2fr 1fr;
+    }
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
      PIE CHART CONTAINER
      ══════════════════════════════════════════════════════════════════════ */
   .neo-pie-chart {

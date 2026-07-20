@@ -159,10 +159,10 @@ export default function Dashboard() {
   if (isLoading || !kpis) return (
     <div className="stagger-children" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       <div style={{ height: "28px", width: "240px", borderRadius: "12px", background: "var(--color-surface-light)" }} />
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px" }}>
+      <div className="dashboard-kpi-grid">
         {[1, 2, 3, 4].map(i => <div key={i} className="neo-card" style={{ height: "160px" }} />)}
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "16px" }}>
+      <div className="dashboard-charts-grid">
         <div className="neo-card" style={{ height: "320px" }} />
         <div className="neo-card" style={{ height: "320px" }} />
       </div>
@@ -189,7 +189,7 @@ export default function Dashboard() {
       </div>
 
       {/* KPI Cards Row */}
-      <div className="stagger-children" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px" }}>
+      <div className="stagger-children dashboard-kpi-grid">
         {/* Revenue */}
         <div className="kpi-hero" style={{ cursor: "pointer" }} onClick={() => navigate("/reports")}>
           <CardDots />
@@ -275,7 +275,7 @@ export default function Dashboard() {
       )}
 
       {/* Charts Row */}
-      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "16px" }}>
+      <div className="dashboard-charts-grid">
         {/* Sales Chart */}
         <div className="neo-card">
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
