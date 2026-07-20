@@ -1,7 +1,8 @@
 import { useCurrency } from "@/hooks/useCurrency";
 import { useLang } from "@/i18n";
 import { Store, AlertTriangle } from "lucide-react";
-import { OrderItem, PaymentMethod, PAYMENT_METHODS, unitLabel } from "./types";
+import { PAYMENT_METHODS, unitLabel } from "./types";
+import type { OrderItem, PaymentMethod } from "./types";
 
 interface OrderReviewProps {
   shopName: string;

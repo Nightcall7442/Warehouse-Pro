@@ -1,5 +1,6 @@
 import { MapPin, Trash2, CheckSquare, Square } from "lucide-react";
-import { ShopCard, ShopCardData } from "./ShopCard";
+import { ShopCard } from "./ShopCard";
+import type { ShopCardData } from "./ShopCard";
 import { COLORS } from "./constants";
 
 export function ShopList({ data, isLoading, lang, fmt, selected, allSelected, onSelectAll, onToggleSelect, onBulkDelete, onNavigate, isDeleting, page, setPage, total, t }: {

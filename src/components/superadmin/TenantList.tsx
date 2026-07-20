@@ -5,7 +5,8 @@ import { notify } from "@/lib/toast";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { Search, Power, Building2, ChevronRight } from "lucide-react";
 import { PremiumSelect } from "@/components/PremiumSelect";
-import { F, COLORS, SHADOW, TenantRow, fmt, money, planStatus } from "./types";
+import { F, COLORS, SHADOW, fmt, money, planStatus } from "./types";
+import type { TenantRow } from "./types";
 import { PlanBadge, StatusBadge } from "./ui";
 
 interface TenantListProps {

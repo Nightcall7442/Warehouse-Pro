@@ -15,8 +15,8 @@ import {
   PnLRevenueChart,
   PnLExpenseBreakdown,
   PnLTransportExpenses,
-  Range,
 } from "@/components/pnl";
+import type { Range } from "@/components/pnl";
 
 const COLORS = {
   surface: "var(--color-surface, #ffffff)",

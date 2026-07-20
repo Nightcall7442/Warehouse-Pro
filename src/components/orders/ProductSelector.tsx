@@ -3,7 +3,8 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { Package, Search, ShoppingCart, Plus, Minus, Trash2 } from "lucide-react";
-import { OrderItem, unitLabel } from "./types";
+import { unitLabel } from "./types";
+import type { OrderItem } from "./types";
 
 interface ProductSelectorProps {
   items: OrderItem[];

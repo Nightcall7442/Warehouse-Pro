@@ -8,7 +8,8 @@ import {
   BarChart3, Zap, Calendar, Power,
 } from "lucide-react";
 import { PremiumSelect } from "@/components/PremiumSelect";
-import { F, COLORS, TenantRow, fmt, money, planStatus } from "./types";
+import { F, COLORS, fmt, money, planStatus } from "./types";
+import type { TenantRow } from "./types";
 import { KpiCard, Section, PlanBadge, StatusBadge, Modal, Input, BtnPrimary, BtnSecondary } from "./ui";
 
 interface TenantDetailProps {
