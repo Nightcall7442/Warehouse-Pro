@@ -2,6 +2,8 @@ import { z } from "zod";
 import { createRouter, authedQuery } from "./middleware";
 import { env } from "./lib/env";
 
+const ALLOWED_IMAGE_EXTENSIONS = ["jpeg", "jpg", "png", "webp", "gif"] as const;
+
 function isS3Configured(): boolean {
   return !!(env.s3Bucket && env.s3AccessKey && env.s3SecretKey);
 }
@@ -40,7 +42,11 @@ export const uploadRouter = createRouter({
       const match = input.dataUrl.match(/^data:image\/(\w+);base64,(.+)$/);
       if (!match) throw new Error("Invalid dataUrl format");
 
-      const ext = match[1] === "jpeg" ? "jpg" : match[1];
+      const rawExt = match[1].toLowerCase();
+      if (!ALLOWED_IMAGE_EXTENSIONS.includes(rawExt as typeof ALLOWED_IMAGE_EXTENSIONS[number])) {
+        throw new Error(`Расширение ${rawExt} не разрешено. Допустимые: ${ALLOWED_IMAGE_EXTENSIONS.join(", ")}`);
+      }
+      const ext = rawExt === "jpeg" ? "jpg" : rawExt;
       const buffer = Buffer.from(match[2], "base64");
       const key = `${input.folder}/${ctx.tenant.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
