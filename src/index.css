@@ -172,9 +172,9 @@
     --color-text-tertiary:   #8a8478;  /* WCAG AA: 4.5:1 on #1c1a17 */
     --color-text-inverse:    #1c1a17;
 
-    --color-primary:         #00d4ff;
-    --color-primary-hover:   #33ddff;
-    --color-primary-subtle:  rgba(0,212,255,.12);
+    --color-primary:         #0099cc;
+    --color-primary-hover:   #00b4e6;
+    --color-primary-subtle:  rgba(0,153,204,.12);
     --color-primary-muted:   #0a3a48;
 
     --color-success:         #00e68a;
