@@ -183,12 +183,8 @@ export default function Orders() {
           }}>
             <FileDown size={14} /> Excel
           </button>
-          <button onClick={handleNewOrder} style={{
+          <button onClick={handleNewOrder} className="neo-btn-primary" style={{
             display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
-            fontSize: "13px", fontWeight: 600, fontFamily: F.body, borderRadius: "10px",
-            border: "none", cursor: "pointer", transition: "all 0.2s",
-            background: "linear-gradient(135deg, #5b6d8a, #5b6d8a)",
-            color: "#fff", boxShadow: "0 2px 8px rgba(75,108,246,0.3)",
           }}>
             <Plus size={16} />
             <span>{t("Новый заказ", "Yangi buyurtma")}</span>

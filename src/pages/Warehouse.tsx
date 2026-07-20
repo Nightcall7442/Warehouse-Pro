@@ -198,8 +198,7 @@ export default function Warehouse() {
           )}
           {activeTab === "deadstock" && (
             <button onClick={async () => deadStockItems?.length && await exportToExcel(formatDeadStockForExport(deadStockItems), "dead-stock", "Мёртвый сток", t("Мёртвый сток — товары без продаж", "O'lik stok — sotilmasdan mahsulotlar"))}
-              className="flex items-center gap-2 text-sm py-2.5 px-5 rounded-xl font-medium transition-all"
-              style={{ background: "linear-gradient(135deg, #5b6d8a, #5b6d8a)", color: "#fff", boxShadow: "0 4px 16px rgba(167,139,250,0.3)" }}>
+              className="neo-btn-primary flex items-center gap-2 text-sm py-2.5 px-5">
               <FileDown size={16} /> {t("Экспорт", "Eksport")}
             </button>
           )}

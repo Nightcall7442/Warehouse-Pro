@@ -121,12 +121,9 @@ export default function Products() {
           </button>
           <button
             onClick={() => setShowForm(!showForm)}
+            className="neo-btn-primary"
             style={{
               display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
-              fontSize: "13px", fontWeight: 500, fontFamily: F.body, borderRadius: "10px",
-              border: "none", cursor: "pointer",
-              background: "linear-gradient(135deg, #5b6d8a, #5b6d8a)", color: "#fff",
-              boxShadow: "0 2px 8px rgba(75,108,246,0.3)",
             }}
           >
             <Plus size={14} /><span className="hidden sm:inline">{t("Добавить", "Qo'shish")}</span>
@@ -263,11 +260,9 @@ export default function Products() {
             </button>
             <button
               onClick={() => setPage(p => p + 1)} disabled={page * 25 >= data.total}
+              className="neo-btn-primary"
               style={{
-                padding: "8px 16px", fontSize: "13px", fontWeight: 500, fontFamily: F.body,
-                borderRadius: "8px", border: "none", cursor: "pointer",
-                background: "linear-gradient(135deg, #5b6d8a, #5b6d8a)", color: "#fff",
-                boxShadow: "0 2px 8px rgba(75,108,246,0.3)",
+                padding: "8px 16px",
                 opacity: page * 25 >= data.total ? 0.5 : 1,
               }}
             >

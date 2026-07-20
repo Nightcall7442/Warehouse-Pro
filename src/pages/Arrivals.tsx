@@ -383,12 +383,8 @@ export default function Arrivals() {
           }}>
             <FileDown size={14} /> Excel
           </button>
-          <button onClick={() => setShowForm(true)} style={{
+          <button onClick={() => setShowForm(true)} className="neo-btn-primary" style={{
             display: "flex", alignItems: "center", gap: "6px", padding: "8px 16px",
-            fontSize: "13px", fontWeight: 600, fontFamily: F.body, borderRadius: "10px",
-            border: "none", cursor: "pointer", color: "#fff",
-            background: "linear-gradient(135deg, #5b6d8a, #8b5cf6)",
-            boxShadow: "0 4px 16px rgba(75,108,246,0.3)",
           }}>
             <Plus size={15} /> {t("Новый приход", "Yangi kelish")}
           </button>
@@ -472,7 +468,7 @@ export default function Arrivals() {
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <StatusBadge status={a.status ?? "pending"} lang={lang as "ru" | "uz"} />
                     {a.status === "pending" && <button onClick={() => updateStatus.mutate({ id: a.id, status: "unloading" })} style={{ padding: "6px 12px", borderRadius: "8px", fontSize: "11px", fontWeight: 600, fontFamily: F.body, color: COLORS.primary, background: "rgba(75,108,246,0.08)", border: "none", cursor: "pointer" }}>{t("Разгрузка", "Tushirish")}</button>}
-                    {a.status === "unloading" && <button onClick={() => updateStatus.mutate({ id: a.id, status: "completed" })} style={{ padding: "6px 12px", borderRadius: "8px", fontSize: "11px", fontWeight: 600, fontFamily: F.body, color: "#fff", background: "linear-gradient(135deg, #5b6d8a, #8b5cf6)", border: "none", cursor: "pointer" }}>{t("Завершить", "Yakunlash")}</button>}
+                    {a.status === "unloading" && <button onClick={() => updateStatus.mutate({ id: a.id, status: "completed" })} className="neo-btn-primary" style={{ padding: "6px 12px", fontSize: "11px" }}>{t("Завершить", "Yakunlash")}</button>}
                   </div>
                 </td>
               </tr>
