@@ -97,7 +97,7 @@ export default function App() {
           <Route path="/orders/:id"     element={<OrderDetail />} />
           <Route path="/warehouse"      element={<RoleGuard roles={["ceo","operator"]}><Warehouse /></RoleGuard>} />
           <Route path="/arrivals"       element={<RoleGuard roles={["ceo","operator"]}><Arrivals /></RoleGuard>} />
-          <Route path="/settings"       element={<RoleGuard roles={["ceo"]}><Settings /></RoleGuard>} />
+          <Route path="/settings"       element={<RoleGuard roles={["ceo","operator"]}><Settings /></RoleGuard>} />
           <Route path="/settings/billing" element={<RoleGuard roles={["ceo"]}><BillingSettings /></RoleGuard>} />
           <Route path="/billing"        element={<RoleGuard roles={["ceo"]}><BillingPage /></RoleGuard>} />
           <Route path="/barcode"        element={<BarcodePage />} />
