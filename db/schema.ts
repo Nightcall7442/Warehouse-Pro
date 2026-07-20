@@ -47,7 +47,7 @@ export type InsertTenant = typeof tenants.$inferInsert;
 // ============================================
 export const users = mysqlTable("users", {
   id:           serial("id").primaryKey(),
-  tenantId:     bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id),
+  tenantId:     bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
   name:         varchar("name", { length: 255 }).notNull(),
   email:        varchar("email", { length: 320 }).notNull(),
   passwordHash: varchar("password_hash", { length: 512 }).notNull(),
@@ -75,7 +75,7 @@ export type InsertUser = typeof users.$inferInsert;
 // ============================================
 export const territories = mysqlTable("territories", {
   id:        serial("id").primaryKey(),
-  tenantId:  bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id),
+  tenantId:  bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
   name:      varchar("name", { length: 255 }).notNull(),
   color:     varchar("color", { length: 7 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -92,7 +92,7 @@ export type InsertTerritory = typeof territories.$inferInsert;
 // ============================================
 export const shops = mysqlTable("shops", {
   id:        serial("id").primaryKey(),
-  tenantId:  bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id),
+  tenantId:  bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
   name:      varchar("name", { length: 255 }).notNull(),
   ownerName: varchar("owner_name", { length: 255 }),
   phone:     varchar("phone", { length: 20 }),
@@ -102,7 +102,7 @@ export const shops = mysqlTable("shops", {
   photoUrl:  text("photo_url"),
   gpsLat:    decimal("gps_lat", { precision: 10, scale: 8 }),
   gpsLng:    decimal("gps_lng", { precision: 11, scale: 8 }),
-  agentId:   bigint("agent_id", { mode: "number", unsigned: true }).references(() => users.id),
+  agentId:   bigint("agent_id", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),
   territoryId: bigint("territory_id", { mode: "number", unsigned: true }).references(() => territories.id),
   debt:      decimal("debt", { precision: 12, scale: 2 }).default("0.00").notNull(),
   status:    mysqlEnum("status", ["active", "inactive"]).default("active").notNull(),
@@ -125,7 +125,7 @@ export type InsertShop = typeof shops.$inferInsert;
 // ============================================
 export const products = mysqlTable("products", {
   id:           serial("id").primaryKey(),
-  tenantId:     bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id),
+  tenantId:     bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
   code:         varchar("code", { length: 50 }).notNull(),
   barcode:      varchar("barcode", { length: 100 }),
   name:         varchar("name", { length: 255 }).notNull(),
@@ -156,17 +156,17 @@ export type InsertProduct = typeof products.$inferInsert;
 // ============================================
 export const orders = mysqlTable("orders", {
   id:          serial("id").primaryKey(),
-  tenantId:    bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id),
+  tenantId:    bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
   orderNumber: varchar("order_number", { length: 50 }).notNull(),
-  shopId:      bigint("shop_id", { mode: "number", unsigned: true }).notNull().references(() => shops.id),
-  agentId:     bigint("agent_id", { mode: "number", unsigned: true }).notNull().references(() => users.id),
+  shopId:      bigint("shop_id", { mode: "number", unsigned: true }).notNull().references(() => shops.id, { onDelete: "restrict" }),
+  agentId:     bigint("agent_id", { mode: "number", unsigned: true }).notNull().references(() => users.id, { onDelete: "set null" }),
   status:      mysqlEnum("status", ["new", "processing", "completed", "cancelled"]).default("new").notNull(),
   subtotal:    decimal("subtotal", { precision: 12, scale: 2 }).default("0.00").notNull(),
   discount:    decimal("discount", { precision: 12, scale: 2 }).default("0.00").notNull(),
   total:       decimal("total", { precision: 12, scale: 2 }).default("0.00").notNull(),
   notes:       text("notes"),
   idempotencyKey: varchar("idempotency_key", { length: 64 }),
-  courierId:   bigint("courier_id", { mode: "number", unsigned: true }).references(() => users.id),
+  courierId:   bigint("courier_id", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "set null" }),
   paymentMethod: mysqlEnum("payment_method", ["cash", "card", "transfer", "debt"]).default("cash").notNull(),
   deliveryStatus: mysqlEnum("delivery_status", ["not_assigned", "assigned", "out_for_delivery", "delivered", "failed"]).default("not_assigned").notNull(),
   deliveredAt: timestamp("delivered_at"),
@@ -194,8 +194,8 @@ export type InsertOrder = typeof orders.$inferInsert;
 // ============================================
 export const orderItems = mysqlTable("order_items", {
   id:        serial("id").primaryKey(),
-  orderId:   bigint("order_id", { mode: "number", unsigned: true }).notNull().references(() => orders.id),
-  productId: bigint("product_id", { mode: "number", unsigned: true }).notNull().references(() => products.id),
+  orderId:   bigint("order_id", { mode: "number", unsigned: true }).notNull().references(() => orders.id, { onDelete: "cascade" }),
+  productId: bigint("product_id", { mode: "number", unsigned: true }).notNull().references(() => products.id, { onDelete: "restrict" }),
   quantity:  decimal("quantity", { precision: 10, scale: 2 }).notNull(),
   unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).notNull(),
   subtotal:  decimal("subtotal", { precision: 12, scale: 2 }).notNull(),
@@ -213,7 +213,7 @@ export type InsertOrderItem = typeof orderItems.$inferInsert;
 // ============================================
 export const warehouses = mysqlTable("warehouses", {
   id:          serial("id").primaryKey(),
-  tenantId:    bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id),
+  tenantId:    bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
   name:        varchar("name", { length: 255 }).notNull(),
   address:     varchar("address", { length: 500 }),
   city:        varchar("city", { length: 100 }),
@@ -233,14 +233,14 @@ export type InsertWarehouse = typeof warehouses.$inferInsert;
 // ============================================
 export const stockTransfers = mysqlTable("stock_transfers", {
   id:            serial("id").primaryKey(),
-  tenantId:      bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id),
-  fromWarehouseId: bigint("from_warehouse_id", { mode: "number", unsigned: true }).notNull().references(() => warehouses.id),
-  toWarehouseId:   bigint("to_warehouse_id", { mode: "number", unsigned: true }).notNull().references(() => warehouses.id),
-  productId:     bigint("product_id", { mode: "number", unsigned: true }).notNull().references(() => products.id),
+  tenantId:      bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  fromWarehouseId: bigint("from_warehouse_id", { mode: "number", unsigned: true }).notNull().references(() => warehouses.id, { onDelete: "restrict" }),
+  toWarehouseId:   bigint("to_warehouse_id", { mode: "number", unsigned: true }).notNull().references(() => warehouses.id, { onDelete: "restrict" }),
+  productId:     bigint("product_id", { mode: "number", unsigned: true }).notNull().references(() => products.id, { onDelete: "restrict" }),
   quantity:      decimal("quantity", { precision: 12, scale: 2 }).notNull(),
   status:        varchar("status", { length: 20 }).default("pending").notNull(),
   notes:         text("notes"),
-  createdBy:     bigint("created_by", { mode: "number", unsigned: true }).references(() => users.id),
+  createdBy:     bigint("created_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),
   createdAt:     timestamp("created_at").defaultNow().notNull(),
   completedAt:   timestamp("completed_at"),
 }, (t) => ({
@@ -258,9 +258,9 @@ export type InsertStockTransfer = typeof stockTransfers.$inferInsert;
 // ============================================
 export const warehouseStock = mysqlTable("warehouse_stock", {
   id:           serial("id").primaryKey(),
-  tenantId:     bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id),
-  warehouseId:  bigint("warehouse_id", { mode: "number", unsigned: true }).references(() => warehouses.id),
-  productId:    bigint("product_id", { mode: "number", unsigned: true }).notNull().references(() => products.id),
+  tenantId:     bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  warehouseId:  bigint("warehouse_id", { mode: "number", unsigned: true }).references(() => warehouses.id, { onDelete: "restrict" }),
+  productId:    bigint("product_id", { mode: "number", unsigned: true }).notNull().references(() => products.id, { onDelete: "restrict" }),
   currentStock: decimal("current_stock", { precision: 12, scale: 2 }).default("0.00").notNull(),
   reserved:     decimal("reserved", { precision: 12, scale: 2 }).default("0.00").notNull(),
   available:    decimal("available", { precision: 12, scale: 2 }).default("0.00").notNull(),
@@ -279,8 +279,8 @@ export type InsertWarehouseStock = typeof warehouseStock.$inferInsert;
 // ============================================
 export const stockMovements = mysqlTable("stock_movements", {
   id:            serial("id").primaryKey(),
-  tenantId:      bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id),
-  productId:     bigint("product_id", { mode: "number", unsigned: true }).notNull().references(() => products.id),
+  tenantId:      bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  productId:     bigint("product_id", { mode: "number", unsigned: true }).notNull().references(() => products.id, { onDelete: "restrict" }),
   type:          mysqlEnum("type", ["in", "out", "adjustment"]).notNull(),
   quantity:      decimal("quantity", { precision: 12, scale: 2 }).notNull(),
   referenceType: varchar("reference_type", { length: 50 }),
@@ -302,7 +302,7 @@ export type InsertStockMovement = typeof stockMovements.$inferInsert;
 // ============================================
 export const arrivals = mysqlTable("arrivals", {
   id:            serial("id").primaryKey(),
-  tenantId:      bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id),
+  tenantId:      bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
   arrivalNumber: varchar("arrival_number", { length: 50 }).notNull(),
   truckId:       varchar("truck_id", { length: 100 }),
   driverName:    varchar("driver_name", { length: 255 }),
@@ -332,8 +332,8 @@ export type InsertArrival = typeof arrivals.$inferInsert;
 // ============================================
 export const arrivalItems = mysqlTable("arrival_items", {
   id:        serial("id").primaryKey(),
-  arrivalId: bigint("arrival_id", { mode: "number", unsigned: true }).notNull().references(() => arrivals.id),
-  productId: bigint("product_id", { mode: "number", unsigned: true }).notNull().references(() => products.id),
+  arrivalId: bigint("arrival_id", { mode: "number", unsigned: true }).notNull().references(() => arrivals.id, { onDelete: "cascade" }),
+  productId: bigint("product_id", { mode: "number", unsigned: true }).notNull().references(() => products.id, { onDelete: "restrict" }),
   quantity:  decimal("quantity", { precision: 12, scale: 2 }).notNull(),
   condition: varchar("condition", { length: 255 }),
   notes:     text("notes"),
@@ -351,12 +351,12 @@ export type InsertArrivalItem = typeof arrivalItems.$inferInsert;
 // ============================================
 export const payments = mysqlTable("payments", {
   id:        serial("id").primaryKey(),
-  tenantId:  bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id),
-  shopId:    bigint("shop_id", { mode: "number", unsigned: true }).notNull().references(() => shops.id),
+  tenantId:  bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  shopId:    bigint("shop_id", { mode: "number", unsigned: true }).notNull().references(() => shops.id, { onDelete: "restrict" }),
   amount:    decimal("amount", { precision: 12, scale: 2 }).notNull(),
   type:      mysqlEnum("type", ["payment", "debt"]).default("payment").notNull(),
   notes:     text("notes"),
-  createdBy: bigint("created_by", { mode: "number", unsigned: true }).references(() => users.id),
+  createdBy: bigint("created_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({
   tenantIdx: index("idx_payments_tenant").on(t.tenantId),
@@ -373,8 +373,8 @@ export type InsertPayment = typeof payments.$inferInsert;
 // ============================================
 export const agentLocations = mysqlTable("agent_locations", {
   id:        serial("id").primaryKey(),
-  tenantId:  bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id),
-  agentId:   bigint("agent_id", { mode: "number", unsigned: true }).notNull().references(() => users.id),
+  tenantId:  bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  agentId:   bigint("agent_id", { mode: "number", unsigned: true }).notNull().references(() => users.id, { onDelete: "restrict" }),
   lat:       decimal("lat", { precision: 10, scale: 8 }).notNull(),
   lng:       decimal("lng", { precision: 11, scale: 8 }).notNull(),
   accuracy:  decimal("accuracy", { precision: 8, scale: 2 }),
@@ -394,14 +394,14 @@ export type InsertAgentLocation = typeof agentLocations.$inferInsert;
 // ============================================
 export const dailyPlans = mysqlTable("daily_plans", {
   id:        serial("id").primaryKey(),
-  tenantId:  bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id),
-  agentId:   bigint("agent_id", { mode: "number", unsigned: true }).notNull().references(() => users.id),
-  shopId:    bigint("shop_id", { mode: "number", unsigned: true }).notNull().references(() => shops.id),
+  tenantId:  bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  agentId:   bigint("agent_id", { mode: "number", unsigned: true }).notNull().references(() => users.id, { onDelete: "restrict" }),
+  shopId:    bigint("shop_id", { mode: "number", unsigned: true }).notNull().references(() => shops.id, { onDelete: "restrict" }),
   planDate:  date("plan_date").notNull(),
   status:    mysqlEnum("status", ["planned", "visited", "skipped"]).default("planned").notNull(),
   photoUrl:  text("photo_url"),
   notes:     text("notes"),
-  createdBy: bigint("created_by", { mode: "number", unsigned: true }).references(() => users.id),
+  createdBy: bigint("created_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
 }, (t) => ({
@@ -420,8 +420,8 @@ export type InsertDailyPlan = typeof dailyPlans.$inferInsert;
 // ============================================
 export const notifications = mysqlTable("notifications", {
   id:        serial("id").primaryKey(),
-  tenantId:  bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id),
-  userId:    bigint("user_id", { mode: "number", unsigned: true }).notNull().references(() => users.id),
+  tenantId:  bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  userId:    bigint("user_id", { mode: "number", unsigned: true }).notNull().references(() => users.id, { onDelete: "restrict" }),
   type:      mysqlEnum("type", ["order", "payment", "stock", "system"]).notNull(),
   title:     varchar("title", { length: 255 }).notNull(),
   message:   text("message"),
@@ -442,7 +442,7 @@ export type InsertNotification = typeof notifications.$inferInsert;
 // ============================================
 export const settings = mysqlTable("settings", {
   id:                  serial("id").primaryKey(),
-  tenantId:            bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id).unique(),
+  tenantId:            bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }).unique(),
   companyName:         varchar("company_name", { length: 255 }).default("Warehouse Pro").notNull(),
   currency:            varchar("currency", { length: 10 }).default("UZS").notNull(),
   currencySymbol:      varchar("currency_symbol", { length: 10 }).default("сум").notNull(),
@@ -470,7 +470,7 @@ export type InsertSetting = typeof settings.$inferInsert;
 // ============================================
 export const subscriptions = mysqlTable("subscriptions", {
   id:                   varchar("id", { length: 36 }).primaryKey(),
-  tenantId:             bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id).unique(),
+  tenantId:             bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }).unique(),
   stripeSubscriptionId: varchar("stripe_subscription_id", { length: 255 }),
   stripeCustomerId:     varchar("stripe_customer_id", { length: 255 }),
   plan:                 mysqlEnum("plan", ["trial", "basic", "pro", "exclusive"]).default("trial").notNull(),
@@ -492,7 +492,7 @@ export type InsertSubscription = typeof subscriptions.$inferInsert;
 // ============================================
 export const billingEvents = mysqlTable("billing_events", {
   id:            varchar("id", { length: 36 }).primaryKey(),
-  tenantId:      bigint("tenant_id", { mode: "number", unsigned: true }).references(() => tenants.id),
+  tenantId:      bigint("tenant_id", { mode: "number", unsigned: true }).references(() => tenants.id, { onDelete: "restrict" }),
   type:          varchar("type", { length: 100 }).notNull(),
   stripeEventId: varchar("stripe_event_id", { length: 255 }).unique(),
   payload:       text("payload"),
@@ -509,13 +509,13 @@ export type InsertBillingEvent = typeof billingEvents.$inferInsert;
 // ============================================
 export const invites = mysqlTable("invites", {
   id:         varchar("id", { length: 36 }).primaryKey(),
-  tenantId:   bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id),
+  tenantId:   bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
   email:      varchar("email", { length: 320 }).notNull(),
   role:       mysqlEnum("role", ["operator", "agent", "supervisor", "merchandiser", "courier"]).notNull(),
   token:      varchar("token", { length: 64 }).notNull().unique(),
   expiresAt:  timestamp("expires_at").notNull(),
   acceptedAt: timestamp("accepted_at"),
-  createdBy:  bigint("created_by", { mode: "number", unsigned: true }).notNull().references(() => users.id),
+  createdBy:  bigint("created_by", { mode: "number", unsigned: true }).notNull().references(() => users.id, { onDelete: "restrict" }),
   createdAt:  timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({
   tokenIdx:  index("idx_invites_token").on(t.token),
@@ -530,7 +530,7 @@ export type InsertInvite = typeof invites.$inferInsert;
 // ============================================
 export const tenantBranding = mysqlTable("tenant_branding", {
   id:            serial("id").primaryKey(),
-  tenantId:      bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id).unique(),
+  tenantId:      bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }).unique(),
   logoUrl:       text("logo_url"),
   primaryColor:  varchar("primary_color", { length: 7 }).default("#2563eb"),
   secondaryColor:varchar("secondary_color", { length: 7 }).default("#1e40af"),
@@ -602,10 +602,10 @@ export type InsertSyncStatus = typeof syncStatus.$inferInsert;
 // ============================================
 export const visitReports = mysqlTable("visit_reports", {
   id:             bigint("id", { mode: "number" }).primaryKey().autoincrement(),
-  tenantId:       bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id),
-  shopId:         bigint("shop_id", { mode: "number", unsigned: true }).notNull().references(() => shops.id),
-  userId:         bigint("user_id", { mode: "number", unsigned: true }).notNull().references(() => users.id),
-  planId:         bigint("plan_id", { mode: "number", unsigned: true }).notNull().references(() => dailyPlans.id),
+  tenantId:       bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  shopId:         bigint("shop_id", { mode: "number", unsigned: true }).notNull().references(() => shops.id, { onDelete: "restrict" }),
+  userId:         bigint("user_id", { mode: "number", unsigned: true }).notNull().references(() => users.id, { onDelete: "restrict" }),
+  planId:         bigint("plan_id", { mode: "number", unsigned: true }).notNull().references(() => dailyPlans.id, { onDelete: "cascade" }),
   photos:         json("photos").$type<string[]>().default([]),
   checklist:      json("checklist").$type<Array<{
     productId: number;
@@ -630,8 +630,8 @@ export type InsertVisitReport = typeof visitReports.$inferInsert;
 // ============================================
 export const auditLog = mysqlTable("audit_log", {
   id:         serial("id").primaryKey(),
-  tenantId:   bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id),
-  actorId:    bigint("actor_id", { mode: "number", unsigned: true }).references(() => users.id),
+  tenantId:   bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  actorId:    bigint("actor_id", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),
   actorName:  varchar("actor_name", { length: 100 }),
   action:     varchar("action", { length: 100 }).notNull(),
   targetType: varchar("target_type", { length: 50 }),
@@ -653,7 +653,7 @@ export type InsertAuditLog   = typeof auditLog.$inferInsert;
 // ============================================
 export const passwordResetTokens = mysqlTable("password_reset_tokens", {
   id:        serial("id").primaryKey(),
-  userId:    bigint("user_id", { mode: "number", unsigned: true }).notNull().references(() => users.id),
+  userId:    bigint("user_id", { mode: "number", unsigned: true }).notNull().references(() => users.id, { onDelete: "restrict" }),
   tokenHash: varchar("token_hash", { length: 64 }).notNull(),
   expiresAt: timestamp("expires_at").notNull(),
   usedAt:    timestamp("used_at"),
@@ -671,7 +671,7 @@ export type InsertPasswordResetToken = typeof passwordResetTokens.$inferInsert;
 // ============================================
 export const apiKeys = mysqlTable("api_keys", {
   id:          serial("id").primaryKey(),
-  tenantId:    bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id),
+  tenantId:    bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
   name:        varchar("name", { length: 100 }).notNull(),
   keyHash:     varchar("key_hash", { length: 64 }).notNull(),
   keyPrefix:   varchar("key_prefix", { length: 12 }).notNull(),   // first 8 chars for display: "wp_live_..."
