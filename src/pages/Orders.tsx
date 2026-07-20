@@ -14,6 +14,7 @@ import {
 import { format } from "date-fns";
 import { exportToExcel, formatOrdersForExport } from "@/lib/excel";
 import { PremiumSelect } from "@/components/PremiumSelect";
+import { useConfirm } from "@/components/ConfirmDialog";
 
 /* ─── Premium Design Constants ─── */
 const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
@@ -108,6 +109,7 @@ export default function Orders() {
   const utils               = trpc.useUtils();
   const { user }            = useAuth();
   const isCeo               = user?.role === "ceo";
+  const { confirm, dialog } = useConfirm();
 
   const { data, isLoading } = trpc.order.list.useQuery({
     page, pageSize: 25,
@@ -155,6 +157,7 @@ export default function Orders() {
   }, [allOrders?.data]);
 
   return (
+    <>
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
       {/* ─── Header ─── */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
@@ -471,9 +474,9 @@ export default function Orders() {
                         ) : (
                           (o.status === "new" || o.status === "processing" || o.status === "cancelled") && isCeo && (
                             <button
-                              onClick={() => {
-                                if (window.confirm(t("Удалить заказ?", "Buyurtmani o'chirish?")))
-                                  deleteOrder.mutate({ id: o.id });
+                              onClick={async () => {
+                                const ok = await confirm({ title: t("Удалить заказ?", "Buyurtmani o'chirish?"), danger: true, confirmText: t("Удалить", "O'chirish") });
+                                if (ok) deleteOrder.mutate({ id: o.id });
                               }}
                               style={{
                                 display: "flex", alignItems: "center", gap: "4px",
@@ -519,5 +522,7 @@ export default function Orders() {
         </div>
       )}
     </div>
+    {dialog}
+    </>
   );
 }

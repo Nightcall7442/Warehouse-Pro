@@ -13,7 +13,10 @@ export function useNotifications() {
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const utilsRef = useRef(utils);
-  utilsRef.current = utils;
+
+  useEffect(() => {
+    utilsRef.current = utils;
+  }, [utils]);
 
   // Fetch initial unread count
   const { data: countData } = trpc.notification.unreadCount.useQuery(undefined, {

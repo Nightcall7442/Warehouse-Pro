@@ -330,7 +330,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     }
   }, [sub, navigate, user]);
 
-  if (isLoading || !user) return null;
+  if (isLoading || !user) return (
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: "var(--color-primary)" }} />
+    </div>
+  );
 
   return (
     <div className="min-h-screen">

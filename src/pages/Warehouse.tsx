@@ -14,6 +14,7 @@ import { exportToExcel, formatWarehouseForExport, formatStockValuationForExport,
 import { useCurrency } from "@/hooks/useCurrency";
 import { notify } from "@/lib/toast";
 import { AdjustModal, MovementHistory, LowStockModal, unitLabel, toKg } from "@/components/warehouse";
+import { useConfirm } from "@/components/ConfirmDialog";
 
 // ── Main warehouse page ───────────────────────────────────────────────────────
 export default function Warehouse() {
@@ -21,6 +22,7 @@ export default function Warehouse() {
   const { lang } = useLang();
   const isMobile = useIsMobile();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
+  const { confirm, dialog } = useConfirm();
 
   const [search, setSearch] = useState("");
   const [adjusting, setAdjusting] = useState<{ id: number; name: string; stock: number; unit: string; unitWeight: number } | null>(null);
@@ -99,6 +101,7 @@ export default function Warehouse() {
   ], [summary, deadStockItems, reorderSuggestions, t]);
 
   return (
+    <>
     <div className="space-y-5 animate-fade-up">
       {adjusting && (
         <AdjustModal
@@ -174,10 +177,9 @@ export default function Warehouse() {
                 {backfillMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Package size={14} />}
                 {t("Добить стоки", "Stoklarni to'ldirish")}
               </button>
-              <button onClick={() => {
-                if (window.confirm(t("Удалить ВСЕ товары со склада? Это нельзя отменить.", "Barcha mahsulotlarni o'chirish? Qaytarib bo'lmaydi."))) {
-                  deleteAllMutation.mutate();
-                }
+              <button onClick={async () => {
+                const ok = await confirm({ title: t("Удалить ВСЕ товары со склада?", "Barcha mahsulotlarni o'chirish?"), message: t("Это нельзя отменить.", "Qaytarib bo'lmaydi."), danger: true, confirmText: t("Удалить", "O'chirish") });
+                if (ok) deleteAllMutation.mutate();
               }} disabled={deleteAllMutation.isPending}
                 className="neo-btn flex items-center gap-2 text-sm py-2 px-4"
                 style={{ color: "var(--color-danger)", opacity: deleteAllMutation.isPending ? 0.5 : 1 }}>
@@ -667,5 +669,7 @@ export default function Warehouse() {
         </>
       )}
     </div>
+    {dialog}
+    </>
   );
 }
