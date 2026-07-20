@@ -240,7 +240,7 @@ export const warehouseRouter = createRouter({
       if (!defaultWarehouse) return { created: 0 };
 
       await db.insert(warehouseStock).values(
-        rows.map((r: any) => ({
+        rows.map((r: Record<string, unknown>) => ({
           tenantId,
           warehouseId: defaultWarehouse.id,
           productId: Number(r.id),

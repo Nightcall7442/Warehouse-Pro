@@ -70,9 +70,9 @@ async function parseFile(base64: string, filename: string): Promise<{ headers: s
     sheet.eachRow((row, rowNumber) => {
       const values = row.values.slice(1); // ExcelJS row.values is 1-indexed with first element undefined
       if (rowNumber === 1) {
-        headers.push(...values.map((h: any) => String(h ?? "").trim()));
+        headers.push(...values.map((h: unknown) => String(h ?? "").trim()));
       } else {
-        const filtered = values.map((c: any) => c ?? null);
+        const filtered = values.map((c: unknown) => c ?? null);
         if (filtered.some(c => c !== null && c !== "")) {
           rows.push(filtered);
         }
@@ -213,8 +213,9 @@ export const importRouter = createRouter({
 
         const preview = rows.slice(0, 5).map(cells => parseRow(cells, mapping));
         return { headers, preview, totalRows: rows.length };
-      } catch (e: any) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: e.message || "Не удалось прочитать файл." });
+      } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : "Не удалось прочитать файл.";
+        throw new TRPCError({ code: "BAD_REQUEST", message });
       }
     }),
 
