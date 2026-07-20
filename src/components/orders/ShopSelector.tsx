@@ -18,12 +18,13 @@ export function ShopSelector({ shopId, onSelect }: ShopSelectorProps) {
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const { user } = useAuth();
   const isAgent = user?.role === "agent" || user?.role === "merchandiser";
+  const useMyShops = isAgent || user?.role === "ceo" || user?.role === "operator";
 
-  const { data: myShops, isLoading: myShopsLoading } = trpc.agent.myShops.useQuery(undefined, { enabled: isAgent }) as { data: any; isLoading: boolean };
-  const { data: allShopsData, isLoading: allShopsLoading } = trpc.shop.list.useQuery({ page: 1, pageSize: 200 }, { enabled: !isAgent }) as { data: any; isLoading: boolean };
+  const { data: myShops, isLoading: myShopsLoading } = trpc.agent.myShops.useQuery(undefined, { enabled: useMyShops }) as { data: any; isLoading: boolean };
+  const { data: allShopsData, isLoading: allShopsLoading } = trpc.shop.list.useQuery({ page: 1, pageSize: 200 }, { enabled: !useMyShops }) as { data: any; isLoading: boolean };
 
-  const shops = isAgent ? myShops : allShopsData?.data;
-  const isLoading = isAgent ? myShopsLoading : allShopsLoading;
+  const shops = useMyShops ? myShops : allShopsData?.data;
+  const isLoading = useMyShops ? myShopsLoading : allShopsLoading;
 
   const cities = useMemo(() => {
     const set = new Set<string>();
