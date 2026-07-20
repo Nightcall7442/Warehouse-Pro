@@ -290,7 +290,7 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
   return createPortal(
     <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 overflow-y-auto">
       <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }} onClick={onClose} />
-      <div className="relative w-full max-w-[640px] max-h-[90vh] overflow-y-auto neo-card" style={{ borderRadius: "24px" }}>
+      <div className="relative w-full max-w-[640px] max-h-[90vh] overflow-y-auto neo-card animate-scale-in" style={{ borderRadius: "24px" }}>
 
         {/* Gradient header */}
         <div style={{ background: "linear-gradient(135deg, var(--color-primary, #5b6d8a), var(--color-primary-hover, #4a5c78))", borderRadius: "24px 24px 0 0", padding: "28px 32px 24px", position: "relative", overflow: "hidden" }}>
@@ -369,7 +369,7 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
                   </thead>
                   <tbody>
                     {detail.items.map((item: any, i: number) => (
-                      <tr key={i}>
+                      <tr key={i} style={{ transition: "background 0.15s" }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(75,108,246,0.02)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
                         <td style={{ padding: "12px 14px", fontSize: "13px", color: COLORS.textPrimary, borderBottom: `1px solid ${COLORS.border}` }}>{item.productName ?? "—"}</td>
                         <td style={{ padding: "12px 14px", fontSize: "12px", color: COLORS.textTertiary, fontFamily: "monospace", borderBottom: `1px solid ${COLORS.border}` }}>{item.productCode ?? "—"}</td>
                         <td style={{ padding: "12px 14px", fontSize: "13px", fontWeight: 600, color: COLORS.textPrimary, borderBottom: `1px solid ${COLORS.border}` }}>{Number(item.quantity).toFixed(2)}</td>
