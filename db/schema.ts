@@ -55,6 +55,7 @@ export const users = mysqlTable("users", {
   phone:        varchar("phone", { length: 20 }),
   role:         mysqlEnum("role", ["superadmin", "ceo", "operator", "agent", "supervisor", "merchandiser", "courier"]).default("agent").notNull(),
   status:       mysqlEnum("status", ["active", "inactive"]).default("active").notNull(),
+  tokenVersion: int("token_version").default(0).notNull(),
   createdAt:    timestamp("createdAt").defaultNow().notNull(),
   updatedAt:    timestamp("updatedAt").defaultNow().notNull().$onUpdate(() => new Date()),
   lastSignInAt:     timestamp("lastSignInAt").defaultNow().notNull(),

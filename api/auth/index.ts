@@ -33,6 +33,11 @@ export async function authenticateRequest(headers: Headers): Promise<AuthResult>
   if (!user)   throw Errors.forbidden("User not found. Please re-login.");
   if (user.status !== "active") throw Errors.forbidden("Account is inactive.");
 
+  // Token revocation: check if tokenVersion matches
+  if (user.tokenVersion !== claim.tv) {
+    throw Errors.forbidden("Session expired. Please re-login.");
+  }
+
   const tenant = await findTenantById(user.tenantId);
   if (!tenant || tenant.status !== "active") throw Errors.forbidden("Organisation is suspended.");
 

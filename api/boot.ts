@@ -151,7 +151,7 @@ app.post("/api/login", async (c) => {
     if (!tenant || tenant.status !== "active") return c.json({ error: "Organisation is suspended" }, 403);
 
     await updateUserLastSignIn(user.id);
-    const token = await signSessionToken({ userId: user.id });
+    const token = await signSessionToken({ userId: user.id, tv: user.tokenVersion ?? 0 });
 
     c.header("set-cookie", cookie.serialize(Session.cookieName, token, {
       httpOnly: true,
@@ -182,6 +182,43 @@ app.post("/api/logout", async (c) => {
     expires: new Date(0),
   }));
   return c.json({ success: true });
+});
+
+// Logout all devices — invalidate all tokens by incrementing tokenVersion
+app.post("/api/logout-all", async (c) => {
+  const authHeader = c.req.header("authorization");
+  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : undefined;
+
+  if (!token) return c.json({ error: "No token" }, 401);
+
+  try {
+    const { verifySessionToken } = await import("./auth/session");
+    const { getDb } = await import("./queries/connection");
+    const { users } = await import("@db/schema");
+    const { eq } = await import("drizzle-orm");
+
+    const claim = await verifySessionToken(token);
+    if (!claim) return c.json({ error: "Invalid token" }, 401);
+
+    const db = getDb();
+    await db.update(users)
+      .set({ tokenVersion: (await import("@db/schema")).sql`COALESCE(${users.tokenVersion}, 0) + 1` })
+      .where(eq(users.id, claim.userId));
+
+    c.header("set-cookie", cookie.serialize(Session.cookieName, "", {
+      httpOnly: true,
+      path: "/",
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 0,
+      expires: new Date(0),
+    }));
+
+    return c.json({ success: true });
+  } catch (e) {
+    console.error("[LOGOUT-ALL ERROR]", e);
+    return c.json({ error: "Logout failed" }, 500);
+  }
 });
 
 // ── tRPC handler ─────────────────────────────────────────────────────────────

@@ -5,6 +5,7 @@ const JWT_ALG = "HS256";
 
 export type SessionPayload = {
   userId: number;
+  tv: number; // tokenVersion — for session revocation
 };
 
 export async function signSessionToken(payload: SessionPayload): Promise<string> {
@@ -12,7 +13,7 @@ export async function signSessionToken(payload: SessionPayload): Promise<string>
   return new jose.SignJWT(payload as Record<string, unknown>)
     .setProtectedHeader({ alg: JWT_ALG })
     .setIssuedAt()
-    .setExpirationTime("30d")   // was "1 year" — 30 days is standard
+    .setExpirationTime("30d")
     .sign(secret);
 }
 
@@ -23,9 +24,9 @@ export async function verifySessionToken(token: string): Promise<SessionPayload 
     const { payload } = await jose.jwtVerify(token, secret, {
       algorithms: [JWT_ALG],
     });
-    const { userId } = payload;
-    if (typeof userId !== "number") return null;
-    return { userId };
+    const { userId, tv } = payload;
+    if (typeof userId !== "number" || typeof tv !== "number") return null;
+    return { userId, tv };
   } catch {
     return null;
   }

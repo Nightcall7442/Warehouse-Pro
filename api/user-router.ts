@@ -86,7 +86,11 @@ export const userRouter = createRouter({
       if (!valid) throw new TRPCError({ code: "UNAUTHORIZED", message: "Current password is incorrect." });
 
       const newHash = await hashPassword(input.newPassword);
-      await getDb().update(users).set({ passwordHash: newHash }).where(eq(users.id, ctx.user.id));
+      // Increment tokenVersion to invalidate all existing sessions
+      await getDb().update(users).set({
+        passwordHash: newHash,
+        tokenVersion: sql`COALESCE(${users.tokenVersion}, 0) + 1`,
+      }).where(eq(users.id, ctx.user.id));
       return { success: true };
     }),
 
@@ -195,6 +199,16 @@ export const userRouter = createRouter({
         meta: { userName: target?.name, role: target?.role },
         ip: getClientIp(ctx.req),
       });
+      return { success: true };
+    }),
+
+  // Logout all devices — increment tokenVersion to invalidate all sessions
+  logoutAll: authedQuery
+    .mutation(async ({ ctx }) => {
+      const db = getDb();
+      await db.update(users)
+        .set({ tokenVersion: sql`COALESCE(${users.tokenVersion}, 0) + 1` })
+        .where(eq(users.id, ctx.user.id));
       return { success: true };
     }),
 });
