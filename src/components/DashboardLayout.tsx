@@ -51,18 +51,6 @@ export const TableContainer = memo(function TableContainer({ children }: { child
   return <Card style={{ padding: 0, overflow: "hidden" }}><div style={{ overflowX: "auto" }}>{children}</div></Card>;
 });
 
-/* ─── Table styles ─── */
-export const thStyle: React.CSSProperties = { fontFamily: "'DM Sans', sans-serif", fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-text-tertiary, #98a0b8)", padding: "12px 16px", textAlign: "left", borderBottom: "1px solid var(--color-border, #dde2ec)", background: "var(--color-surface-light, #f0f3f8)" };
-export const tdStyle: React.CSSProperties = { padding: "12px 16px", fontSize: "13px", color: "var(--color-text-primary, #2b3450)", borderBottom: "1px solid var(--color-border, #dde2ec)" };
-
-/* ─── Button styles ─── */
-export const btnPrimary: React.CSSProperties = { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "8px", padding: "10px 20px", fontSize: "13px", fontWeight: 600, fontFamily: "'DM Sans', sans-serif", borderRadius: "12px", border: "none", cursor: "pointer", background: "var(--color-primary, #5b6d8a)", color: "#fff", boxShadow: "0 2px 8px rgba(75,108,246,.25)", transition: "all 0.2s ease" };
-export const btnSecondary: React.CSSProperties = { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px", padding: "8px 16px", fontSize: "13px", fontWeight: 500, fontFamily: "'DM Sans', sans-serif", borderRadius: "10px", border: "none", cursor: "pointer", background: "var(--color-surface, #ffffff)", color: "var(--color-text-primary, #2b3450)", boxShadow: "var(--shadow-xs)", transition: "all 0.15s ease" };
-export const btnDanger: React.CSSProperties = { ...btnSecondary, background: "var(--color-danger-subtle, #fde8e8)", color: "var(--color-danger, #d45050)" };
-
-/* ─── Input styles ─── */
-export const inputStyle: React.CSSProperties = { width: "100%", padding: "10px 14px", fontSize: "13px", fontFamily: "'DM Sans', sans-serif", color: "var(--color-text-primary, #2b3450)", background: "var(--color-surface-light, #f0f3f8)", border: "1.5px solid transparent", borderRadius: "10px", outline: "none", transition: "all 0.2s ease" };
-
 /* ─── Page header ─── */
 export const PageHeader = memo(function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: React.ReactNode }) {
   return (

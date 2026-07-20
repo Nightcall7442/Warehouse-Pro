@@ -9,6 +9,7 @@ import {
   Users, CheckCheck, Loader2, ExternalLink,
   Filter, Warehouse, CreditCard, Zap, Settings,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 // ── Type config aligned with DB enum: order | payment | stock | system ────────
 const TYPE_CONFIG: Record<string, {
@@ -260,9 +261,4 @@ export default function Notifications() {
       )}
     </div>
   );
-}
-
-// ── Helper ───────────────────────────────────────────────────────────────────
-function cn(...classes: (string | false | null | undefined)[]) {
-  return classes.filter(Boolean).join(" ");
 }
