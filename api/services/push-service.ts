@@ -72,13 +72,53 @@ export async function sendPushToRole(tenantId: number, role: string, message: Pu
       eq(users.status, "active"),
     ));
 
-  for (const user of usersList) {
-    if (!user.pushToken) continue;
-    const success = await sendExpoPush(user.pushToken, message);
-    if (!success) {
+  const tokens = usersList
+    .filter(u => u.pushToken)
+    .map(u => ({ id: u.id, token: u.pushToken! }));
+
+  if (tokens.length === 0) return;
+
+  // Use Expo batch API (up to 100 tickets at once)
+  const BATCH_SIZE = 100;
+  const tickets: Array<{ id: number; status: string; message?: string }> = [];
+
+  for (let i = 0; i < tokens.length; i += BATCH_SIZE) {
+    const batch = tokens.slice(i, i + BATCH_SIZE);
+    try {
+      const response = await fetch(EXPO_PUSH_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          batch.map(t => ({
+            to: t.token,
+            title: message.title,
+            body: message.body,
+            data: message.data ?? {},
+            sound: message.sound ?? "default",
+            badge: message.badge,
+            channelId: "default",
+          }))
+        ),
+      });
+      const result = await response.json();
+      if (result.data) {
+        tickets.push(...result.data.map((r: { status: string; message?: string }, idx: number) => ({
+          id: batch[idx].id,
+          status: r.status,
+          message: r.message,
+        })));
+      }
+    } catch (e) {
+      console.warn("[Push] Batch send failed:", e);
+    }
+  }
+
+  // Clean up invalid tokens
+  for (const ticket of tickets) {
+    if (ticket.status === "error" && ticket.message?.includes("DeviceNotRegistered")) {
       await db.update(users)
         .set({ pushToken: null })
-        .where(eq(users.id, user.id));
+        .where(eq(users.id, ticket.id));
     }
   }
 }
@@ -92,13 +132,53 @@ export async function sendPushToTenant(tenantId: number, message: PushMessage): 
       eq(users.status, "active"),
     ));
 
-  for (const user of usersList) {
-    if (!user.pushToken) continue;
-    const success = await sendExpoPush(user.pushToken, message);
-    if (!success) {
+  const tokens = usersList
+    .filter(u => u.pushToken)
+    .map(u => ({ id: u.id, token: u.pushToken! }));
+
+  if (tokens.length === 0) return;
+
+  // Use Expo batch API (up to 100 tickets at once)
+  const BATCH_SIZE = 100;
+  const tickets: Array<{ id: number; status: string; message?: string }> = [];
+
+  for (let i = 0; i < tokens.length; i += BATCH_SIZE) {
+    const batch = tokens.slice(i, i + BATCH_SIZE);
+    try {
+      const response = await fetch(EXPO_PUSH_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          batch.map(t => ({
+            to: t.token,
+            title: message.title,
+            body: message.body,
+            data: message.data ?? {},
+            sound: message.sound ?? "default",
+            badge: message.badge,
+            channelId: "default",
+          }))
+        ),
+      });
+      const result = await response.json();
+      if (result.data) {
+        tickets.push(...result.data.map((r: { status: string; message?: string }, idx: number) => ({
+          id: batch[idx].id,
+          status: r.status,
+          message: r.message,
+        })));
+      }
+    } catch (e) {
+      console.warn("[Push] Batch send failed:", e);
+    }
+  }
+
+  // Clean up invalid tokens
+  for (const ticket of tickets) {
+    if (ticket.status === "error" && ticket.message?.includes("DeviceNotRegistered")) {
       await db.update(users)
         .set({ pushToken: null })
-        .where(eq(users.id, user.id));
+        .where(eq(users.id, ticket.id));
     }
   }
 }

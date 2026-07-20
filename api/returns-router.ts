@@ -111,43 +111,48 @@ export const returnsRouter = createRouter({
 
       const totalAmount = input.items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
 
-      const [result] = await db.insert(returns).values({
-        tenantId: ctx.tenant.id,
-        orderId: input.orderId ?? null,
-        shopId: input.shopId,
-        agentId: ctx.user.id,
-        returnNumber,
-        reason: input.reason,
-        notes: input.notes,
-        totalAmount: totalAmount.toFixed(2),
-        createdBy: ctx.user.id,
+      // Use transaction for atomicity
+      const returnId = await db.transaction(async (tx) => {
+        const [result] = await tx.insert(returns).values({
+          tenantId: ctx.tenant.id,
+          orderId: input.orderId ?? null,
+          shopId: input.shopId,
+          agentId: ctx.user.id,
+          returnNumber,
+          reason: input.reason,
+          notes: input.notes,
+          totalAmount: totalAmount.toFixed(2),
+          createdBy: ctx.user.id,
+        });
+
+        const id = Number(result.insertId);
+
+        // Insert return items
+        await tx.insert(returnItems).values(input.items.map(item => ({
+          returnId: id,
+          productId: item.productId,
+          quantity: item.quantity.toFixed(2),
+          unitPrice: item.unitPrice.toFixed(2),
+          subtotal: (item.unitPrice * item.quantity).toFixed(2),
+          reason: item.reason,
+          condition: item.condition,
+        })));
+
+        // Update stock (return items back to inventory)
+        for (const item of input.items) {
+          await tx.update(warehouseStock)
+            .set({
+              currentStock: sql`COALESCE(${warehouseStock.currentStock}, 0) + ${item.quantity}`,
+              available: sql`COALESCE(${warehouseStock.available}, 0) + ${item.quantity}`,
+            })
+            .where(and(
+              eq(warehouseStock.productId, item.productId),
+              eq(warehouseStock.tenantId, ctx.tenant.id),
+            ));
+        }
+
+        return id;
       });
-
-      const returnId = Number(result.insertId);
-
-      // Insert return items
-      await db.insert(returnItems).values(input.items.map(item => ({
-        returnId,
-        productId: item.productId,
-        quantity: item.quantity.toFixed(2),
-        unitPrice: item.unitPrice.toFixed(2),
-        subtotal: (item.unitPrice * item.quantity).toFixed(2),
-        reason: item.reason,
-        condition: item.condition,
-      })));
-
-      // Update stock (return items back to inventory)
-      for (const item of input.items) {
-        await db.update(warehouseStock)
-          .set({
-            currentStock: sql`COALESCE(${warehouseStock.currentStock}, 0) + ${item.quantity}`,
-            available: sql`COALESCE(${warehouseStock.available}, 0) + ${item.quantity}`,
-          })
-          .where(and(
-            eq(warehouseStock.productId, item.productId),
-            eq(warehouseStock.tenantId, ctx.tenant.id),
-          ));
-      }
 
       return { id: returnId, returnNumber };
     }),
