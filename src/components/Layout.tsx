@@ -70,7 +70,7 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
   const items    = NAV_ITEMS[role] ?? [];
 
   return (
-    <div className="flex flex-col h-full sidebar-collapse-transition" style={{ background: "transparent" }}>
+    <div className="flex flex-col h-full sidebar-collapse-transition" style={{ background: "var(--color-surface, #e0e5ec)" }}>
       {/* Logo */}
       <div className="flex items-center px-5 gap-3" style={{ height: "64px" }}>
         <div className="w-10 h-10 rounded-[14px] flex items-center justify-center flex-shrink-0" style={{ background: "linear-gradient(135deg, var(--color-primary, #5b6d8a), var(--color-primary-hover, #4a5c78))", boxShadow: "var(--shadow-sm)" }}>
@@ -293,7 +293,7 @@ const MobileDrawer = memo(function MobileDrawer({ open, onClose, unreadCount }: 
   return open ? (
     <div className="fixed inset-0 z-50 flex md:hidden">
       <div className="absolute inset-0 glass-overlay" onClick={onClose} />
-      <div className="relative w-[280px] h-full animate-slide-in sidebar-collapse-transition">
+      <div className="relative w-[280px] h-full animate-slide-in sidebar-collapse-transition" style={{ background: "var(--color-surface, #e0e5ec)" }}>
         <Sidebar onClose={onClose} unreadCount={unreadCount} />
       </div>
     </div>
