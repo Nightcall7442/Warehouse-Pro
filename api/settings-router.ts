@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, adminQuery, authedQuery } from "./middleware";
+import { createRouter, adminQuery, authedQuery, publicQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { settings } from "@db/schema";
 import { eq } from "drizzle-orm";
@@ -27,8 +27,14 @@ export const settingsRouter = createRouter({
     return result;
   }),
 
-  // Branding endpoint — lightweight, cached, for mobile app
-  branding: authedQuery.query(async ({ ctx }) => {
+  // Branding endpoint — lightweight, cached, public (needed before login)
+  branding: publicQuery.query(async ({ ctx }) => {
+    // For public access, return default branding (tenant-specific branding requires auth)
+    return { companyName: "Warehouse Pro", logoUrl: null, currency: "UZS", currencySymbol: "сум" };
+  }),
+
+  // Authenticated branding — returns tenant-specific branding
+  brandingAuth: authedQuery.query(async ({ ctx }) => {
     const cacheKey = CacheKeys.tenantSettings(ctx.tenant.id) + ":branding";
     const cached = cache.get(cacheKey);
     if (cached) return cached;
