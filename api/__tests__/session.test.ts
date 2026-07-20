@@ -7,9 +7,9 @@ process.env.APP_SECRET = "test-secret-that-is-long-enough-for-tests-32chars";
 
 describe("JWT session tokens", () => {
   it("signs and verifies a token", async () => {
-    const token   = await signSessionToken({ userId: 42 });
+    const token   = await signSessionToken({ userId: 42, tv: 0 });
     const payload = await verifySessionToken(token);
-    expect(payload).toEqual({ userId: 42 });
+    expect(payload).toEqual({ userId: 42, tv: 0 });
   });
 
   it("returns null for an empty string", async () => {
@@ -17,7 +17,7 @@ describe("JWT session tokens", () => {
   });
 
   it("returns null for a tampered token", async () => {
-    const token   = await signSessionToken({ userId: 1 });
+    const token   = await signSessionToken({ userId: 1, tv: 0 });
     const tampered = token.slice(0, -5) + "XXXXX";
     expect(await verifySessionToken(tampered)).toBeNull();
   });
