@@ -606,8 +606,8 @@ export default function Arrivals() {
                 <td style={{ borderBottom: `1px solid ${COLORS.border}` }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <StatusBadge status={a.status ?? "pending"} lang={lang as "ru" | "uz"} />
-                    {a.status === "pending" && <button onClick={() => updateStatus.mutate({ id: a.id, status: "unloading" })} style={{ padding: "6px 12px", borderRadius: "8px", fontSize: "11px", fontWeight: 600, fontFamily: F.body, color: COLORS.primary, background: "rgba(75,108,246,0.08)", border: "none", cursor: "pointer" }}>{t("Разгрузка", "Tushirish")}</button>}
-                    {a.status === "unloading" && <button onClick={() => updateStatus.mutate({ id: a.id, status: "completed" })} className="neo-btn-primary" style={{ padding: "6px 12px", fontSize: "11px" }}>{t("Завершить", "Yakunlash")}</button>}
+                    {a.status === "pending" && <button onClick={(e) => { e.stopPropagation(); updateStatus.mutate({ id: a.id, status: "unloading" }); }} style={{ padding: "6px 12px", borderRadius: "8px", fontSize: "11px", fontWeight: 600, fontFamily: F.body, color: COLORS.primary, background: "rgba(75,108,246,0.08)", border: "none", cursor: "pointer" }}>{t("Разгрузка", "Tushirish")}</button>}
+                    {a.status === "unloading" && <button onClick={(e) => { e.stopPropagation(); updateStatus.mutate({ id: a.id, status: "completed" }); }} className="neo-btn-primary" style={{ padding: "6px 12px", fontSize: "11px" }}>{t("Завершить", "Yakunlash")}</button>}
                   </div>
                 </td>
               </tr>
