@@ -258,6 +258,144 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
   );
 }
 
+// ── Arrival Detail Modal ─────────────────────────────────────────────────────
+function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () => void }) {
+  const { fmt } = useCurrency();
+  const { lang } = useLang();
+  const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);
+  const { data: detail, isLoading } = trpc.arrival.getById.useQuery({ id: arrivalId }) as { data: any; isLoading: boolean };
+
+  if (isLoading) return createPortal(
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+      <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }} onClick={onClose} />
+      <div className="relative w-full max-w-[640px] neo-card" style={{ borderRadius: "24px", padding: "48px", textAlign: "center" }}>
+        <Loader2 size={32} className="animate-spin" style={{ color: COLORS.primary, margin: "0 auto 16px" }} />
+        <p style={{ fontSize: "14px", color: COLORS.textSecondary }}>{t("Загрузка…", "Yuklanmoqda…")}</p>
+      </div>
+    </div>,
+    document.body
+  );
+
+  if (!detail) return null;
+
+  const statusColors: Record<string, string> = {
+    pending: COLORS.warning, unloading: COLORS.primary, completed: COLORS.success,
+  };
+  const statusLabels: Record<string, { ru: string; uz: string }> = {
+    pending: { ru: "Ожидает", uz: "Kutilmoqda" },
+    unloading: { ru: "Разгрузка", uz: "Tushirilmoqda" },
+    completed: { ru: "Завершён", uz: "Yakunlandi" },
+  };
+
+  return createPortal(
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 overflow-y-auto">
+      <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }} onClick={onClose} />
+      <div className="relative w-full max-w-[640px] max-h-[90vh] overflow-y-auto neo-card" style={{ borderRadius: "24px" }}>
+
+        {/* Gradient header */}
+        <div style={{ background: "linear-gradient(135deg, var(--color-primary, #5b6d8a), var(--color-primary-hover, #4a5c78))", borderRadius: "24px 24px 0 0", padding: "28px 32px 24px", position: "relative", overflow: "hidden" }}>
+          <div className="absolute -top-16 -right-16" style={{ width: "160px", height: "160px", borderRadius: "50%", background: "rgba(255,255,255,0.08)" }} />
+          <div className="absolute -bottom-8 -left-8" style={{ width: "96px", height: "96px", borderRadius: "50%", background: "rgba(255,255,255,0.05)" }} />
+          <div className="relative flex items-center justify-between">
+            <div>
+              <h2 style={{ fontFamily: F.display, fontSize: "20px", fontWeight: 700, color: "#fff", margin: "0 0 4px" }}>{detail.arrivalNumber}</h2>
+              <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.7)", margin: 0 }}>{t("Детали прихода", "Kelish tafsilotlari")}</p>
+            </div>
+            <button onClick={onClose} style={{ width: "40px", height: "40px", borderRadius: "12px", background: "rgba(255,255,255,0.2)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
+              <X size={20} />
+            </button>
+          </div>
+        </div>
+
+        <div style={{ padding: "28px 32px" }}>
+          {/* Status */}
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "24px", padding: "12px 16px", borderRadius: "12px", background: `${statusColors[detail.status] ?? COLORS.primary}10`, border: `1px solid ${statusColors[detail.status] ?? COLORS.primary}30` }}>
+            <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: statusColors[detail.status] ?? COLORS.primary }} />
+            <span style={{ fontSize: "14px", fontWeight: 600, color: statusColors[detail.status] ?? COLORS.primary }}>
+              {statusLabels[detail.status]?.[lang as "ru" | "uz"] ?? detail.status}
+            </span>
+          </div>
+
+          {/* Info grid */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "24px" }}>
+            {[
+              { label: t("Машина", "Mashina"), value: detail.truckId ?? "—" },
+              { label: t("Водитель", "Haydovchi"), value: detail.driverName ?? "—" },
+              { label: t("Телефон", "Telefon"), value: detail.driverPhone ?? "—" },
+              { label: t("Дата", "Sana"), value: detail.arrivalDate ? format(new Date(detail.arrivalDate), "dd.MM.yyyy") : "—" },
+              { label: t("Время прихода", "Kelish vaqti"), value: detail.arrivalTime ?? "—" },
+              { label: t("Время разгрузки", "Tushirish vaqti"), value: detail.unloadingTime ?? "—" },
+            ].map((item, i) => (
+              <div key={i}>
+                <p style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: COLORS.textTertiary, marginBottom: "4px" }}>{item.label}</p>
+                <p style={{ fontSize: "14px", fontWeight: 500, color: COLORS.textPrimary, margin: 0 }}>{item.value}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Expenses */}
+          <div style={{ marginBottom: "24px" }}>
+            <p style={{ fontSize: "12px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: COLORS.textTertiary, marginBottom: "12px" }}>{t("Расходы", "Xarajatlar")}</p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" }}>
+              {[
+                { label: t("Топливо", "Yo'qilgi"), value: detail.fuelCost },
+                { label: t("Дорога", "Yo'l"), value: detail.tollCost },
+                { label: t("Прочее", "Boshqa"), value: detail.otherCost },
+              ].map((item, i) => (
+                <div key={i} style={{ padding: "12px", borderRadius: "12px", background: COLORS.surfaceLight, textAlign: "center" }}>
+                  <p style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: COLORS.textTertiary, marginBottom: "6px" }}>{item.label}</p>
+                  <p style={{ fontSize: "16px", fontWeight: 700, color: COLORS.textPrimary, margin: 0 }}>{fmt(item.value ?? 0)}</p>
+                </div>
+              ))}
+            </div>
+            <div style={{ marginTop: "12px", padding: "12px 16px", borderRadius: "12px", background: `${COLORS.primary}10`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: "13px", fontWeight: 600, color: COLORS.textSecondary }}>{t("Итого расходы", "Jami xarajatlar")}</span>
+              <span style={{ fontSize: "16px", fontWeight: 700, color: COLORS.primary }}>{fmt(detail.totalExpense ?? 0)}</span>
+            </div>
+          </div>
+
+          {/* Items */}
+          {detail.items && detail.items.length > 0 && (
+            <div>
+              <p style={{ fontSize: "12px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: COLORS.textTertiary, marginBottom: "12px" }}>{t("Товары", "Mahsulotlar")} ({detail.items.length})</p>
+              <div style={{ borderRadius: "12px", overflow: "hidden", border: `1px solid ${COLORS.border}` }}>
+                <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
+                  <thead>
+                    <tr>
+                      {[t("Товар", "Mahsulot"), t("Код", "Kod"), t("Кол-во", "Miqdor"), t("Состояние", "Holat")].map(h => (
+                        <th key={h} style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: COLORS.textTertiary, padding: "10px 14px", textAlign: "left", borderBottom: `1px solid ${COLORS.border}`, background: COLORS.surfaceLight }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detail.items.map((item: any, i: number) => (
+                      <tr key={i}>
+                        <td style={{ padding: "12px 14px", fontSize: "13px", color: COLORS.textPrimary, borderBottom: `1px solid ${COLORS.border}` }}>{item.productName ?? "—"}</td>
+                        <td style={{ padding: "12px 14px", fontSize: "12px", color: COLORS.textTertiary, fontFamily: "monospace", borderBottom: `1px solid ${COLORS.border}` }}>{item.productCode ?? "—"}</td>
+                        <td style={{ padding: "12px 14px", fontSize: "13px", fontWeight: 600, color: COLORS.textPrimary, borderBottom: `1px solid ${COLORS.border}` }}>{Number(item.quantity).toFixed(2)}</td>
+                        <td style={{ padding: "12px 14px", fontSize: "13px", color: COLORS.textSecondary, borderBottom: `1px solid ${COLORS.border}` }}>{item.condition ?? "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Notes */}
+          {detail.notes && (
+            <div style={{ marginTop: "20px", padding: "14px 16px", borderRadius: "12px", background: COLORS.surfaceLight }}>
+              <p style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: COLORS.textTertiary, marginBottom: "6px" }}>{t("Примечания", "Eslatmalar")}</p>
+              <p style={{ fontSize: "13px", color: COLORS.textSecondary, margin: 0, lineHeight: "1.5" }}>{detail.notes}</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 // ── Receipt ──────────────────────────────────────────────────────────────────
 function ArrivalReceipt({ arrival }: { arrival: { id: number } }) {
   const [open, setOpen] = useState(false);
@@ -306,6 +444,7 @@ export default function Arrivals() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [detailId, setDetailId] = useState<number | null>(null);
   const { fmt } = useCurrency();
   const { lang } = useLang();
   const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);
@@ -458,7 +597,7 @@ export default function Arrivals() {
             )) : arrivals.length === 0 ? (
               <tr><td colSpan={6} style={{ textAlign: "center", padding: "48px 16px", color: COLORS.textTertiary, fontSize: "14px" }}>{t("Нет приходов", "Kelishlar yo'q")}</td></tr>
             ) : arrivals.map((a: any) => (
-              <tr key={a.id} style={{ transition: "background 0.15s" }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(75,108,246,0.02)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+              <tr key={a.id} style={{ transition: "background 0.15s", cursor: "pointer" }} onClick={() => setDetailId(a.id)} onMouseEnter={e => (e.currentTarget.style.background = "rgba(75,108,246,0.02)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
                 <td style={{ ...tdStyle, fontWeight: 500 }}>{a.arrivalNumber}</td>
                 <td style={{ ...tdStyle, color: COLORS.textSecondary }}>{a.arrivalDate ? format(new Date(a.arrivalDate), "dd.MM.yyyy") : "—"}</td>
                 <td style={{ ...tdStyle, color: COLORS.textSecondary }}>{a.truckId ?? "—"}</td>
@@ -501,6 +640,9 @@ export default function Arrivals() {
           </div>
         </div>
       )}
+
+      {/* Detail Modal */}
+      {detailId && <ArrivalDetail arrivalId={detailId} onClose={() => setDetailId(null)} />}
     </div>
   );
 }
