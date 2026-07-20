@@ -222,7 +222,7 @@ export const OrderService = {
 
     cache.invalidate(CacheKeys.dashboardKpis(Number(tenantId)));
 
-    // Notify operators/CEO about new order
+    // Notify operators/CEO about new order (in-app + push)
     try {
       const [shop] = await db.select({ name: shops.name }).from(shops).where(eq(shops.id, input.shopId)).limit(1);
       const operators = await db.select({ id: users.id }).from(users)
@@ -238,6 +238,19 @@ export const OrderService = {
           link: `/orders/${orderId}`,
         });
       }
+
+      // Send push notifications
+      const { sendPushToRole } = await import("./push-service");
+      await sendPushToRole(tenantId, "ceo", {
+        title: `Новый заказ ${orderNumber}`,
+        body: `${shop?.name ?? "Магазин"} — ${orderTotal.toLocaleString("ru")} сум`,
+        data: { type: "order", orderId },
+      });
+      await sendPushToRole(tenantId, "operator", {
+        title: `Новый заказ ${orderNumber}`,
+        body: `${shop?.name ?? "Магазин"} — ${orderTotal.toLocaleString("ru")} сум`,
+        data: { type: "order", orderId },
+      });
     } catch { /* notification is non-critical */ }
 
     return { id: orderId, orderNumber };

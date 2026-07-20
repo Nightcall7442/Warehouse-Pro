@@ -211,4 +211,25 @@ export const userRouter = createRouter({
         .where(eq(users.id, ctx.user.id));
       return { success: true };
     }),
+
+  // Register push token for notifications
+  registerPushToken: authedQuery
+    .input(z.object({ pushToken: z.string().min(1) }))
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+      await db.update(users)
+        .set({ pushToken: input.pushToken })
+        .where(eq(users.id, ctx.user.id));
+      return { success: true };
+    }),
+
+  // Remove push token (on logout)
+  removePushToken: authedQuery
+    .mutation(async ({ ctx }) => {
+      const db = getDb();
+      await db.update(users)
+        .set({ pushToken: null })
+        .where(eq(users.id, ctx.user.id));
+      return { success: true };
+    }),
 });

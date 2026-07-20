@@ -106,6 +106,16 @@ export const courierRouter = createRouter({
         message: `Заказ ${order.orderNumber} → ${shop?.name ?? "Магазин"}`,
       });
 
+      // Send push notification to courier
+      try {
+        const { sendPushToUser } = await import("./services/push-service");
+        await sendPushToUser(input.courierId, {
+          title: "Назначен заказ на доставку",
+          body: `Заказ ${order.orderNumber} → ${shop?.name ?? "Магазин"}`,
+          data: { type: "delivery", orderId: input.orderId },
+        });
+      } catch { /* push is non-critical */ }
+
       sseBus.emit({
         type: "notification.new",
         tenantId: ctx.tenant.id,
