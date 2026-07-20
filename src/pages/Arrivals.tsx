@@ -292,8 +292,8 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
       <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }} onClick={onClose} />
       <div className="relative w-full max-w-[640px] max-h-[90vh] overflow-y-auto neo-card animate-scale-in" style={{ borderRadius: "24px" }}>
 
-        {/* Gradient header */}
-        <div style={{ background: "linear-gradient(135deg, var(--color-primary, #5b6d8a), var(--color-primary-hover, #4a5c78))", borderRadius: "24px 24px 0 0", padding: "28px 32px 24px", position: "relative", overflow: "hidden" }}>
+        {/* Gradient header — dark background for white text in both themes */}
+        <div className="dark-mode-header" style={{ background: "linear-gradient(135deg, #2b3450, #1e293b)", borderRadius: "24px 24px 0 0", padding: "28px 32px 24px", position: "relative", overflow: "hidden" }}>
           <div className="absolute -top-16 -right-16" style={{ width: "160px", height: "160px", borderRadius: "50%", background: "rgba(255,255,255,0.08)" }} />
           <div className="absolute -bottom-8 -left-8" style={{ width: "96px", height: "96px", borderRadius: "50%", background: "rgba(255,255,255,0.05)" }} />
           <div className="relative flex items-center justify-between">

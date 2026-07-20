@@ -1083,6 +1083,7 @@ textarea:focus-visible {
 .dark .btn-secondary:hover { color: var(--color-primary) !important; }
 .dark .neo-btn-primary { color: #fff !important; }
 .dark .neo-btn-primary:hover { color: #fff !important; }
+.dark .dark-mode-header { background: linear-gradient(135deg, #1e293b, #0f172a) !important; }
 .dark p, .dark span, .dark h1, .dark h2, .dark h3, .dark h4, .dark h5, .dark h6,
 .dark label, .dark td, .dark th, .dark li, .dark a {
   color: inherit;
