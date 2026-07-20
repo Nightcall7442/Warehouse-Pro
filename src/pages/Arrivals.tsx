@@ -269,8 +269,8 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
     <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
       <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }} onClick={onClose} />
       <div className="relative w-full max-w-[640px] neo-card" style={{ borderRadius: "24px", padding: "48px", textAlign: "center" }}>
-        <Loader2 size={32} className="animate-spin" style={{ color: COLORS.primary, margin: "0 auto 16px" }} />
-        <p style={{ fontSize: "14px", color: COLORS.textSecondary }}>{t("Загрузка…", "Yuklanmoqda…")}</p>
+        <Loader2 size={32} className="animate-spin" style={{ color: "var(--color-primary)", margin: "0 auto 16px" }} />
+        <p style={{ fontSize: "14px", color: "var(--color-text-secondary)" }}>{t("Загрузка…", "Yuklanmoqda…")}</p>
       </div>
     </div>,
     document.body
@@ -279,7 +279,7 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
   if (!detail) return null;
 
   const statusColors: Record<string, string> = {
-    pending: COLORS.warning, unloading: COLORS.primary, completed: COLORS.success,
+    pending: "var(--color-warning)", unloading: "var(--color-primary)", completed: "var(--color-success)",
   };
   const statusLabels: Record<string, { ru: string; uz: string }> = {
     pending: { ru: "Ожидает", uz: "Kutilmoqda" },
@@ -309,9 +309,9 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
 
         <div style={{ padding: "28px 32px" }}>
           {/* Status */}
-          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "24px", padding: "12px 16px", borderRadius: "12px", background: `${statusColors[detail.status] ?? COLORS.primary}10`, border: `1px solid ${statusColors[detail.status] ?? COLORS.primary}30` }}>
-            <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: statusColors[detail.status] ?? COLORS.primary }} />
-            <span style={{ fontSize: "14px", fontWeight: 600, color: statusColors[detail.status] ?? COLORS.primary }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "24px", padding: "12px 16px", borderRadius: "12px", background: `color-mix(in srgb, ${statusColors[detail.status] ?? "var(--color-primary)"} 10%, transparent)`, border: `1px solid color-mix(in srgb, ${statusColors[detail.status] ?? "var(--color-primary)"} 30%, transparent)` }}>
+            <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: statusColors[detail.status] ?? "var(--color-primary)" }} />
+            <span style={{ fontSize: "14px", fontWeight: 600, color: statusColors[detail.status] ?? "var(--color-primary)" }}>
               {statusLabels[detail.status]?.[lang as "ru" | "uz"] ?? detail.status}
             </span>
           </div>
@@ -327,53 +327,53 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
               { label: t("Время разгрузки", "Tushirish vaqti"), value: detail.unloadingTime ?? "—" },
             ].map((item, i) => (
               <div key={i}>
-                <p style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: COLORS.textTertiary, marginBottom: "4px" }}>{item.label}</p>
-                <p style={{ fontSize: "14px", fontWeight: 500, color: COLORS.textPrimary, margin: 0 }}>{item.value}</p>
+                <p style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-text-tertiary)", marginBottom: "4px" }}>{item.label}</p>
+                <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--color-text-primary)", margin: 0 }}>{item.value}</p>
               </div>
             ))}
           </div>
 
           {/* Expenses */}
           <div style={{ marginBottom: "24px" }}>
-            <p style={{ fontSize: "12px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: COLORS.textTertiary, marginBottom: "12px" }}>{t("Расходы", "Xarajatlar")}</p>
+            <p style={{ fontSize: "12px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-text-tertiary)", marginBottom: "12px" }}>{t("Расходы", "Xarajatlar")}</p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" }}>
               {[
                 { label: t("Топливо", "Yo'qilgi"), value: detail.fuelCost },
                 { label: t("Дорога", "Yo'l"), value: detail.tollCost },
                 { label: t("Прочее", "Boshqa"), value: detail.otherCost },
               ].map((item, i) => (
-                <div key={i} style={{ padding: "12px", borderRadius: "12px", background: COLORS.surfaceLight, textAlign: "center" }}>
-                  <p style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: COLORS.textTertiary, marginBottom: "6px" }}>{item.label}</p>
-                  <p style={{ fontSize: "16px", fontWeight: 700, color: COLORS.textPrimary, margin: 0 }}>{fmt(item.value ?? 0)}</p>
+                <div key={i} style={{ padding: "12px", borderRadius: "12px", background: "var(--color-surface-light)", textAlign: "center" }}>
+                  <p style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-text-tertiary)", marginBottom: "6px" }}>{item.label}</p>
+                  <p style={{ fontSize: "16px", fontWeight: 700, color: "var(--color-text-primary)", margin: 0 }}>{fmt(item.value ?? 0)}</p>
                 </div>
               ))}
             </div>
-            <div style={{ marginTop: "12px", padding: "12px 16px", borderRadius: "12px", background: `${COLORS.primary}10`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: "13px", fontWeight: 600, color: COLORS.textSecondary }}>{t("Итого расходы", "Jami xarajatlar")}</span>
-              <span style={{ fontSize: "16px", fontWeight: 700, color: COLORS.primary }}>{fmt(detail.totalExpense ?? 0)}</span>
+            <div style={{ marginTop: "12px", padding: "12px 16px", borderRadius: "12px", background: "var(--color-primary-subtle)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-text-secondary)" }}>{t("Итого расходы", "Jami xarajatlar")}</span>
+              <span style={{ fontSize: "16px", fontWeight: 700, color: "var(--color-primary)" }}>{fmt(detail.totalExpense ?? 0)}</span>
             </div>
           </div>
 
           {/* Items */}
           {detail.items && detail.items.length > 0 && (
             <div>
-              <p style={{ fontSize: "12px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: COLORS.textTertiary, marginBottom: "12px" }}>{t("Товары", "Mahsulotlar")} ({detail.items.length})</p>
-              <div style={{ borderRadius: "12px", overflow: "hidden", border: `1px solid ${COLORS.border}` }}>
+              <p style={{ fontSize: "12px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-text-tertiary)", marginBottom: "12px" }}>{t("Товары", "Mahsulotlar")} ({detail.items.length})</p>
+              <div style={{ borderRadius: "12px", overflow: "hidden", border: "1px solid var(--color-border)" }}>
                 <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
                   <thead>
                     <tr>
                       {[t("Товар", "Mahsulot"), t("Код", "Kod"), t("Кол-во", "Miqdor"), t("Состояние", "Holat")].map(h => (
-                        <th key={h} style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: COLORS.textTertiary, padding: "10px 14px", textAlign: "left", borderBottom: `1px solid ${COLORS.border}`, background: COLORS.surfaceLight }}>{h}</th>
+                        <th key={h} style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-text-tertiary)", padding: "10px 14px", textAlign: "left", borderBottom: "1px solid var(--color-border)", background: "var(--color-surface-light)" }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {detail.items.map((item: any, i: number) => (
                       <tr key={i} style={{ transition: "background 0.15s" }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(75,108,246,0.02)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
-                        <td style={{ padding: "12px 14px", fontSize: "13px", color: COLORS.textPrimary, borderBottom: `1px solid ${COLORS.border}` }}>{item.productName ?? "—"}</td>
-                        <td style={{ padding: "12px 14px", fontSize: "12px", color: COLORS.textTertiary, fontFamily: "monospace", borderBottom: `1px solid ${COLORS.border}` }}>{item.productCode ?? "—"}</td>
-                        <td style={{ padding: "12px 14px", fontSize: "13px", fontWeight: 600, color: COLORS.textPrimary, borderBottom: `1px solid ${COLORS.border}` }}>{Number(item.quantity).toFixed(2)}</td>
-                        <td style={{ padding: "12px 14px", fontSize: "13px", color: COLORS.textSecondary, borderBottom: `1px solid ${COLORS.border}` }}>{item.condition ?? "—"}</td>
+                        <td style={{ padding: "12px 14px", fontSize: "13px", color: "var(--color-text-primary)", borderBottom: "1px solid var(--color-border)" }}>{item.productName ?? "—"}</td>
+                        <td style={{ padding: "12px 14px", fontSize: "12px", color: "var(--color-text-tertiary)", fontFamily: "monospace", borderBottom: "1px solid var(--color-border)" }}>{item.productCode ?? "—"}</td>
+                        <td style={{ padding: "12px 14px", fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary)", borderBottom: "1px solid var(--color-border)" }}>{Number(item.quantity).toFixed(2)}</td>
+                        <td style={{ padding: "12px 14px", fontSize: "13px", color: "var(--color-text-secondary)", borderBottom: "1px solid var(--color-border)" }}>{item.condition ?? "—"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -384,9 +384,9 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
 
           {/* Notes */}
           {detail.notes && (
-            <div style={{ marginTop: "20px", padding: "14px 16px", borderRadius: "12px", background: COLORS.surfaceLight }}>
-              <p style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: COLORS.textTertiary, marginBottom: "6px" }}>{t("Примечания", "Eslatmalar")}</p>
-              <p style={{ fontSize: "13px", color: COLORS.textSecondary, margin: 0, lineHeight: "1.5" }}>{detail.notes}</p>
+            <div style={{ marginTop: "20px", padding: "14px 16px", borderRadius: "12px", background: "var(--color-surface-light)" }}>
+              <p style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-text-tertiary)", marginBottom: "6px" }}>{t("Примечания", "Eslatmalar")}</p>
+              <p style={{ fontSize: "13px", color: "var(--color-text-secondary)", margin: 0, lineHeight: "1.5" }}>{detail.notes}</p>
             </div>
           )}
         </div>
