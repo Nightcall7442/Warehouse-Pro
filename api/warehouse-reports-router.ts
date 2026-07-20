@@ -154,9 +154,58 @@ export const warehouseReportsRouter = createRouter({
         const stock = Number(r.currentStock ?? 0);
         const sold = Number(r.soldQty);
         const avgInventory = stock + sold / 2; // rough average
-        const turnoverRate = avgInventory > 0 ? (sold / avgInventory).toFixed(2) : "0";
+        const turnoverRate = avgInventory > 0 ? (sold / avgInventory).toFixed("2") : "0";
         const daysToSell = sold > 0 ? Math.round(stock / (sold / days)) : 999;
         return { ...r, turnoverRate, daysToSell };
+      });
+    }),
+
+  /** Dynamic reorder point — calculates days until stockout based on sales velocity */
+  reorderAlerts: operatorQuery
+    .input(z.object({ days: z.number().default(30) }).optional())
+    .query(async ({ input, ctx }) => {
+      const db = getDb();
+      const tenantId = ctx.tenant.id;
+      const days = input?.days ?? 30;
+      const cutoff = new Date(Date.now() - days * 86400000);
+
+      // Get products with current stock and sales velocity
+      const result = await db.select({
+        productId: products.id,
+        productName: products.name,
+        productCode: products.code,
+        category: products.category,
+        currentStock: warehouseStock.currentStock,
+        reorderPoint: warehouseStock.reorderPoint,
+        soldQty: sql<string>`COALESCE((SELECT SUM(${orderItems.quantity}) FROM ${orderItems} INNER JOIN ${orders} o ON ${orderItems.orderId} = o.id WHERE ${orderItems.productId} = ${products.id} AND o.tenant_id = ${tenantId} AND o.status = 'completed' AND o.created_at >= ${cutoff}), 0)`,
+      })
+        .from(warehouseStock)
+        .innerJoin(products, eq(warehouseStock.productId, products.id))
+        .where(eq(warehouseStock.tenantId, tenantId))
+        .orderBy(sql`COALESCE((SELECT SUM(${orderItems.quantity}) FROM ${orderItems} INNER JOIN ${orders} o ON ${orderItems.orderId} = o.id WHERE ${orderItems.productId} = ${products.id} AND o.tenant_id = ${tenantId} AND o.status = 'completed' AND o.created_at >= ${cutoff}), 0) DESC`)
+        .limit(50);
+
+      return result.map(r => {
+        const stock = Number(r.currentStock ?? 0);
+        const sold = Number(r.soldQty);
+        const dailyVelocity = sold / days; // units per day
+        const daysUntilStockout = dailyVelocity > 0 ? Math.round(stock / dailyVelocity) : 999;
+
+        // Dynamic reorder point: velocity * lead time (assume 7 days lead time)
+        const dynamicReorderPoint = Math.ceil(dailyVelocity * 7);
+
+        // Alert levels
+        let alertLevel: "ok" | "warning" | "critical" = "ok";
+        if (daysUntilStockout <= 3) alertLevel = "critical";
+        else if (daysUntilStockout <= 7) alertLevel = "warning";
+
+        return {
+          ...r,
+          dailyVelocity: dailyVelocity.toFixed("2"),
+          daysUntilStockout,
+          dynamicReorderPoint,
+          alertLevel,
+        };
       });
     }),
 });

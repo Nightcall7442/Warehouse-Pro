@@ -209,6 +209,54 @@ export type OrderItem       = typeof orderItems.$inferSelect;
 export type InsertOrderItem = typeof orderItems.$inferInsert;
 
 // ============================================
+// RETURNS — возвраты/брак
+// ============================================
+export const returns = mysqlTable("returns", {
+  id:           serial("id").primaryKey(),
+  tenantId:     bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  orderId:      bigint("order_id", { mode: "number", unsigned: true }).references(() => orders.id, { onDelete: "set null" }),
+  shopId:       bigint("shop_id", { mode: "number", unsigned: true }).notNull().references(() => shops.id, { onDelete: "restrict" }),
+  agentId:      bigint("agent_id", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "set null" }),
+  returnNumber: varchar("return_number", { length: 50 }).notNull(),
+  status:       mysqlEnum("status", ["pending", "approved", "rejected", "completed"]).default("pending").notNull(),
+  reason:       mysqlEnum("reason", ["defect", "wrong_item", "expired", "damaged", "other"]).default("other").notNull(),
+  notes:        text("notes"),
+  totalAmount:  decimal("total_amount", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  createdBy:    bigint("created_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),
+  createdAt:    timestamp("created_at").defaultNow().notNull(),
+  updatedAt:    timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
+}, (t) => ({
+  tenantIdx: index("idx_returns_tenant").on(t.tenantId),
+  orderIdx: index("idx_returns_order").on(t.orderId),
+  shopIdx: index("idx_returns_shop").on(t.shopId),
+  statusIdx: index("idx_returns_status").on(t.status),
+}));
+
+export type Return       = typeof returns.$inferSelect;
+export type InsertReturn = typeof returns.$inferInsert;
+
+// ============================================
+// RETURN ITEMS — позиции возврата
+// ============================================
+export const returnItems = mysqlTable("return_items", {
+  id:          serial("id").primaryKey(),
+  returnId:    bigint("return_id", { mode: "number", unsigned: true }).notNull().references(() => returns.id, { onDelete: "cascade" }),
+  productId:   bigint("product_id", { mode: "number", unsigned: true }).notNull().references(() => products.id, { onDelete: "restrict" }),
+  quantity:    decimal("quantity", { precision: 10, scale: 2 }).notNull(),
+  unitPrice:   decimal("unit_price", { precision: 10, scale: 2 }).notNull(),
+  subtotal:    decimal("subtotal", { precision: 12, scale: 2 }).notNull(),
+  reason:      varchar("reason", { length: 255 }),
+  condition:   varchar("condition", { length: 255 }), // new, used, damaged, expired
+  createdAt:   timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  returnIdx: index("idx_return_items_return").on(t.returnId),
+  productIdx: index("idx_return_items_product").on(t.productId),
+}));
+
+export type ReturnItem       = typeof returnItems.$inferSelect;
+export type InsertReturnItem = typeof returnItems.$inferInsert;
+
+// ============================================
 // WAREHOUSES (multi-warehouse support)
 // ============================================
 export const warehouses = mysqlTable("warehouses", {
@@ -264,6 +312,7 @@ export const warehouseStock = mysqlTable("warehouse_stock", {
   currentStock: decimal("current_stock", { precision: 12, scale: 2 }).default("0.00").notNull(),
   reserved:     decimal("reserved", { precision: 12, scale: 2 }).default("0.00").notNull(),
   available:    decimal("available", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  reorderPoint: decimal("reorder_point", { precision: 12, scale: 2 }).default("0.00").notNull(),
   updatedAt:    timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
 }, (t) => ({
   productPerTenant: uniqueIndex("uq_stock_product_tenant").on(t.productId, t.tenantId),

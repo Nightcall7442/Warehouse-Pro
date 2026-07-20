@@ -31,6 +31,7 @@ import { uploadRouter } from "./upload-router";
 import { territoryRouter } from "./territory-router";
 import { salesTargetRouter } from "./sales-target-router";
 import { commissionRouter } from "./commission-router";
+import { returnsRouter } from "./returns-router";
 import { createRouter, publicQuery } from "./middleware";
 
 export const appRouter = createRouter({
@@ -68,6 +69,7 @@ export const appRouter = createRouter({
   territory:    territoryRouter,
   salesTarget:  salesTargetRouter,
   commission:   commissionRouter,
+  returns:      returnsRouter,
 });
 
 export type AppRouter = typeof appRouter;
