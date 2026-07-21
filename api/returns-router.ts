@@ -138,17 +138,21 @@ export const returnsRouter = createRouter({
           condition: item.condition,
         })));
 
-        // Update stock (return items back to inventory)
-        for (const item of input.items) {
-          await tx.update(warehouseStock)
-            .set({
-              currentStock: sql`COALESCE(${warehouseStock.currentStock}, 0) + ${item.quantity}`,
-              available: sql`COALESCE(${warehouseStock.available}, 0) + ${item.quantity}`,
-            })
-            .where(and(
-              eq(warehouseStock.productId, item.productId),
-              eq(warehouseStock.tenantId, ctx.tenant.id),
-            ));
+        // Update stock (return items back to inventory) — batch update
+        if (input.items.length > 0) {
+          const productIds = input.items.map(i => i.productId);
+          await tx.execute(sql`
+            UPDATE warehouse_stock
+            SET
+              current_stock = current_stock + CASE ${sql.join(input.items.map(i =>
+                sql`WHEN product_id = ${i.productId} THEN ${i.quantity}`
+              ), sql`\n`)} ELSE 0 END,
+              available = available + CASE ${sql.join(input.items.map(i =>
+                sql`WHEN product_id = ${i.productId} THEN ${i.quantity}`
+              ), sql`\n`)} ELSE 0 END
+            WHERE product_id IN (${sql.join(productIds.map(id => sql`${id}`), sql`, `)})
+              AND tenant_id = ${ctx.tenant.id}
+          `);
         }
 
         return id;

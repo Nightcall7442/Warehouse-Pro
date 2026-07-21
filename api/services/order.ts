@@ -228,29 +228,29 @@ export const OrderService = {
       const operators = await db.select({ id: users.id }).from(users)
         .where(and(eq(users.tenantId, tenantId), sql`${users.role} IN ('ceo', 'operator')`, eq(users.status, "active")));
 
-      for (const op of operators) {
-        await NotificationService.create(db, {
+      // Batch insert notifications (N+1 fix)
+      if (operators.length > 0) {
+        await db.insert(notifications).values(operators.map(op => ({
           tenantId,
           userId: op.id,
-          type: "order",
+          type: "order" as const,
           title: `Новый заказ ${orderNumber}`,
           message: `${shop?.name ?? "Магазин"} — ${orderTotal.toLocaleString("ru")} сум`,
           link: `/orders/${orderId}`,
-        });
+        })));
       }
 
       // Send push notifications
       const { sendPushToRole } = await import("./push-service");
-      await sendPushToRole(tenantId, "ceo", {
+      const pushMsg = {
         title: `Новый заказ ${orderNumber}`,
         body: `${shop?.name ?? "Магазин"} — ${orderTotal.toLocaleString("ru")} сум`,
         data: { type: "order", orderId },
-      });
-      await sendPushToRole(tenantId, "operator", {
-        title: `Новый заказ ${orderNumber}`,
-        body: `${shop?.name ?? "Магазин"} — ${orderTotal.toLocaleString("ru")} сум`,
-        data: { type: "order", orderId },
-      });
+      };
+      await Promise.all([
+        sendPushToRole(tenantId, "ceo", pushMsg),
+        sendPushToRole(tenantId, "operator", pushMsg),
+      ]);
     } catch { /* notification is non-critical */ }
 
     return { id: orderId, orderNumber };

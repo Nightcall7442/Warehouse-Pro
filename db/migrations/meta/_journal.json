@@ -85,6 +85,13 @@
       "when": 1784158543935,
       "tag": "0011_add_performance_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "5",
+      "when": 1784588081208,
+      "tag": "0012_friendly_silvermane",
+      "breakpoints": true
     }
   ]
 }

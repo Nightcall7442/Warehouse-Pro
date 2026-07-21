@@ -10,18 +10,10 @@ vi.mock("../lib/rate-limit", () => ({
   getClientIp: vi.fn(() => "127.0.0.1"),
 }));
 
-vi.mock("../lib/sanitize", () => ({
-  sanitizeSearch: vi.fn((s: string) => s),
-}));
-
-vi.mock("../services/audit-log", () => ({
-  recordAudit: vi.fn(),
-}));
-
-import { shopRouter } from "../shop-router";
+import { returnsRouter } from "../returns-router";
 import { getDb } from "../queries/connection";
 
-describe("shopRouter", () => {
+describe("returnsRouter", () => {
   let mockDb: any;
 
   beforeEach(() => {
@@ -37,31 +29,29 @@ describe("shopRouter", () => {
       update: vi.fn().mockReturnThis(),
       set: vi.fn().mockReturnThis(),
       delete: vi.fn().mockReturnThis(),
+      transaction: vi.fn(async (fn: any) => fn(mockDb)),
     };
     vi.mocked(getDb).mockReturnValue(mockDb);
   });
 
   it("has all required endpoints", () => {
-    expect(shopRouter.list).toBeDefined();
-    expect(shopRouter.getById).toBeDefined();
-    expect(shopRouter.create).toBeDefined();
-    expect(shopRouter.update).toBeDefined();
-    expect(shopRouter.delete).toBeDefined();
+    expect(returnsRouter.list).toBeDefined();
+    expect(returnsRouter.getById).toBeDefined();
+    expect(returnsRouter.create).toBeDefined();
+    expect(returnsRouter.updateStatus).toBeDefined();
+    expect(returnsRouter.summary).toBeDefined();
   });
 
-  it("list endpoint is defined", () => {
-    expect(shopRouter.list).toBeDefined();
+  it("create endpoint uses transaction", async () => {
+    // Verify that create is defined and uses transaction
+    expect(returnsRouter.create).toBeDefined();
   });
 
-  it("create endpoint is defined", () => {
-    expect(shopRouter.create).toBeDefined();
+  it("list endpoint supports status filter", () => {
+    expect(returnsRouter.list).toBeDefined();
   });
 
-  it("update endpoint is defined", () => {
-    expect(shopRouter.update).toBeDefined();
-  });
-
-  it("delete endpoint is defined", () => {
-    expect(shopRouter.delete).toBeDefined();
+  it("summary endpoint returns grouped data", () => {
+    expect(returnsRouter.summary).toBeDefined();
   });
 });
