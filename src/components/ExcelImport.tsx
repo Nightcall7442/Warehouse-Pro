@@ -95,14 +95,27 @@ export function ExcelImport({ type, onDone, onCancel }: Props) {
   };
 
   const handleDownloadTemplate = () => {
-    if (!templateQuery.data) return;
+    if (templateQuery.isLoading) {
+      notify.error("Шаблон ещё загружается, попробуйте через секунду");
+      return;
+    }
+    if (templateQuery.isError || !templateQuery.data) {
+      notify.error(
+        templateQuery.error instanceof Error
+          ? templateQuery.error.message
+          : "Не удалось загрузить шаблон. Проверьте права доступа."
+      );
+      return;
+    }
     const csv = templateQuery.data.csv;
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
     a.download = templateQuery.data.filename;
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
 
