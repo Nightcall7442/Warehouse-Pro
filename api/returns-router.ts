@@ -3,6 +3,7 @@ import { createRouter, fieldSalesQuery, operatorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { returns, returnItems, orders, shops, users, products, warehouseStock } from "@db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
+import { cache, CacheKeys } from "./lib/cache";
 
 export const returnsRouter = createRouter({
   // List returns
@@ -158,6 +159,7 @@ export const returnsRouter = createRouter({
         return id;
       });
 
+      cache.invalidate(CacheKeys.returns(ctx.tenant.id));
       return { id: returnId, returnNumber };
     }),
 

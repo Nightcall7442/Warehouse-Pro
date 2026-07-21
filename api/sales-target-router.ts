@@ -3,6 +3,7 @@ import { createRouter, operatorQuery, authedQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { salesTargets, commissions, users, orders, orderItems, products } from "@db/schema";
 import { eq, and, gte, lte, sql, desc } from "drizzle-orm";
+import { cache, CacheKeys } from "./lib/cache";
 
 export const salesTargetRouter = createRouter({
   // List sales targets for a period
@@ -61,6 +62,7 @@ export const salesTargetRouter = createRouter({
             notes: input.notes,
           })
           .where(and(eq(salesTargets.id, input.id), eq(salesTargets.tenantId, ctx.tenant.id)));
+        cache.invalidate(CacheKeys.salesTargets(ctx.tenant.id));
         return { success: true, id: input.id };
       }
 
@@ -75,6 +77,7 @@ export const salesTargetRouter = createRouter({
         notes: input.notes,
       });
 
+      cache.invalidate(CacheKeys.salesTargets(ctx.tenant.id));
       return { success: true, id: Number(result.insertId) };
     }),
 

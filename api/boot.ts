@@ -186,6 +186,12 @@ app.post("/api/logout", async (c) => {
 
 // Logout all devices — invalidate all tokens by incrementing tokenVersion
 app.post("/api/logout-all", async (c) => {
+  // Rate limit: 5 per 15 minutes per IP
+  const ip = getClientIp(c.req.raw);
+  if (!checkRateLimit(ip, { windowMs: 15 * 60 * 1000, limit: 5, namespace: "logout-all" })) {
+    return c.json({ error: "Too many requests. Try again later." }, 429);
+  }
+
   const authHeader = c.req.header("authorization");
   const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : undefined;
 
@@ -359,4 +365,25 @@ if (env.isProduction) {
   });
   attachWebSocket(server);
   logger.info("websocket attached");
+
+  // Graceful shutdown
+  const shutdown = async (signal: string) => {
+    logger.info(`${signal} received, starting graceful shutdown`);
+    server.close(() => {
+      logger.info("HTTP server closed");
+    });
+    // Close DB connections
+    try {
+      const { getDb } = await import("./queries/connection");
+      const db = getDb();
+      await db.$client.end();
+      logger.info("Database connections closed");
+    } catch (e) {
+      logger.error("Error closing database", { error: String(e) });
+    }
+    process.exit(0);
+  };
+
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
 }

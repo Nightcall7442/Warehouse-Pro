@@ -222,6 +222,11 @@ export const CacheKeys = {
   shopCities: (tenantId: number) => `shop_cities:${tenantId}`,
   shopDistricts: (tenantId: number, city?: string) => `shop_districts:${tenantId}:${city ?? ""}`,
   smartAlerts: (tenantId: number, userId: number) => `alerts:${tenantId}:${userId}`,
+  salesTargets: (tenantId: number) => `sales_targets:${tenantId}`,
+  commissions: (tenantId: number) => `commissions:${tenantId}`,
+  priceLists: (tenantId: number) => `price_lists:${tenantId}`,
+  returns: (tenantId: number) => `returns:${tenantId}`,
+  reorderAlerts: (tenantId: number) => `reorder:${tenantId}`,
 } as const;
 
 export const CacheTTL = {

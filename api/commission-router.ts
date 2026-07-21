@@ -3,6 +3,7 @@ import { createRouter, operatorQuery, authedQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { commissions, users } from "@db/schema";
 import { eq, and, gte, lte, desc } from "drizzle-orm";
+import { cache, CacheKeys } from "./lib/cache";
 
 export const commissionRouter = createRouter({
   // List commissions for a period
@@ -77,6 +78,7 @@ export const commissionRouter = createRouter({
         });
       }
 
+      cache.invalidate(CacheKeys.commissions(ctx.tenant.id));
       return { success: true };
     }),
 
