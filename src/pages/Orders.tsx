@@ -183,9 +183,7 @@ export default function Orders() {
           }}>
             <FileDown size={14} /> Excel
           </button>
-          <button onClick={handleNewOrder} className="neo-btn-primary" style={{
-            display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
-          }}>
+          <button onClick={handleNewOrder} className="neo-btn-primary neo-btn-sm">
             <Plus size={16} />
             <span>{t("Новый заказ", "Yangi buyurtma")}</span>
           </button>

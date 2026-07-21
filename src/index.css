@@ -409,6 +409,12 @@
     box-shadow: 4px 4px 12px rgba(0,0,0,0.4), -2px -2px 6px rgba(255,255,255,0.03);
   }
 
+  /* Button size variants */
+  .neo-btn-sm { padding: 6px 12px; font-size: 11px; }
+  .neo-btn-md { padding: 10px 20px; font-size: 13px; }
+  .neo-btn-lg { padding: 14px 28px; font-size: 15px; }
+  .neo-btn-xs { padding: 4px 8px; font-size: 10px; }
+
   /* Icon button (circular) */
   .neo-btn-icon {
     display: inline-flex; align-items: center; justify-content: center;

@@ -300,14 +300,30 @@ app.get("/health/1c", async (c) => {
 // ── Health check with version info ───────────────────────────────────────────
 app.get("/health", async (c) => {
   const dbHealthy = await checkDatabaseHealth();
+
+  // Check S3 if configured
+  let s3Status = "not_configured";
+  if (env.s3Bucket) {
+    try {
+      const { S3Client, HeadBucketCommand } = await import("@aws-sdk/client-s3");
+      const s3 = new S3Client({ region: env.s3Region || "us-east-1" });
+      await s3.send(new HeadBucketCommand({ Bucket: env.s3Bucket }));
+      s3Status = "connected";
+    } catch {
+      s3Status = "error";
+    }
+  }
+
+  const status = dbHealthy ? "ok" : "degraded";
   return c.json({
-    status: dbHealthy ? "ok" : "degraded",
+    status,
     version: APP_VERSION,
     uptime: Math.floor(process.uptime()),
     ts: Date.now(),
     env: env.isProduction ? "production" : "development",
     cache: cache.getStats(),
     database: dbHealthy ? "connected" : "disconnected",
+    s3: s3Status,
   });
 });
 
