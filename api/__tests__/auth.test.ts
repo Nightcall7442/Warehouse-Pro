@@ -84,19 +84,19 @@ describe("auth middleware — role-based access", () => {
     ["ceo",          "operatorQuery",     true ],
     ["operator",     "operatorQuery",     true ],
     ["agent",        "operatorQuery",     false],
-    // fieldSalesQuery: ceo, operator, agent, supervisor (no merchandiser)
+    // fieldSalesQuery: ceo, operator, agent, supervisor, merchandiser
     ["ceo",          "fieldSalesQuery",   true ],
     ["operator",     "fieldSalesQuery",   true ],
     ["agent",        "fieldSalesQuery",   true ],
     ["supervisor",   "fieldSalesQuery",   true ],
-    ["merchandiser", "fieldSalesQuery",   false],
+    ["merchandiser", "fieldSalesQuery",   true ],
     // merchVisitQuery: all roles
     ["agent",        "merchVisitQuery",   true ],
     ["supervisor",   "merchVisitQuery",   true ],
     ["merchandiser", "merchVisitQuery",   true ],
     // Legacy alias
     ["agent",        "agentQuery",        true ],
-    ["merchandiser", "agentQuery",        false],
+    ["merchandiser", "agentQuery",        true ],
     ["supervisor",   "agentQuery",        true ],
     ["ceo",          "supervisorQuery",   true ],
     ["supervisor",   "supervisorQuery",   true ],

@@ -95,17 +95,17 @@ describe("role access matrix", () => {
     ["ceo",          "operatorQuery",     true ],
     ["operator",     "operatorQuery",     true ],
     ["agent",        "operatorQuery",     false],
-    // fieldSalesQuery: ceo, operator, agent, supervisor (no merchandiser)
+    // fieldSalesQuery: ceo, operator, agent, supervisor, merchandiser
     ["agent",        "fieldSalesQuery",   true ],
     ["supervisor",   "fieldSalesQuery",   true ],
-    ["merchandiser", "fieldSalesQuery",   false],
+    ["merchandiser", "fieldSalesQuery",   true ],
     // merchVisitQuery: ceo, operator, agent, supervisor, merchandiser (all)
     ["agent",        "merchVisitQuery",   true ],
     ["supervisor",   "merchVisitQuery",   true ],
     ["merchandiser", "merchVisitQuery",   true ],
     // Legacy alias — same as fieldSalesQuery
     ["agent",        "agentQuery",        true ],
-    ["merchandiser", "agentQuery",        false],
+    ["merchandiser", "agentQuery",        true ],
     ["supervisor",   "agentQuery",        true ],
     ["merchandiser", "merchQuery",        true ],
     ["supervisor",   "merchQuery",        true ],

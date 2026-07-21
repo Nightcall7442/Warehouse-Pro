@@ -127,9 +127,9 @@ export const adminQuery      = authedQuery.use(requireRole(["ceo"])).use(mutatio
 export const operatorQuery   = authedQuery.use(requireRole(["ceo", "operator"])).use(mutationRateLimit("operator", 120));
 
 // ── Split agent permissions ──────────────────────────────────────────────────
-// Field sales: agents + supervisors see orders, catalog, shops
+// Field sales: agents + supervisors + merchandisers see dashboard, orders, catalog, shops
 export const fieldSalesQuery = authedQuery
-  .use(requireRole(["ceo", "operator", "agent", "supervisor"]))
+  .use(requireRole(["ceo", "operator", "agent", "supervisor", "merchandiser"]))
   .use(mutationRateLimit("agent", 200));
 
 // Merchandiser visits: visits, photo proof, reports — merchandiser included
