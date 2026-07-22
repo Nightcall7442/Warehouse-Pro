@@ -116,7 +116,13 @@ function CompanySettings() {
   type CompanyForm = Record<string, unknown>;
   const [form, setForm] = useState<CompanyForm | null>(null);
 
-  if (!isLoading && settings && !form) setForm(settings as unknown as CompanyForm);
+  if (!isLoading && settings && !form) {
+    // Normalize null → "" so z.string().nullable().optional() doesn't get raw null back
+    const normalized = Object.fromEntries(
+      Object.entries(settings as Record<string, unknown>).map(([k, v]) => [k, v === null ? "" : v])
+    );
+    setForm(normalized as CompanyForm);
+  }
 
   const saveMutation = trpc.settings.update.useMutation({
     onSuccess: () => { utils.settings.get.invalidate(); notify.success(t("Настройки сохранены", "Sozlamalar saqlandi")); },
