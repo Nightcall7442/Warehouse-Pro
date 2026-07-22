@@ -6,7 +6,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { useLang } from "@/i18n";
 import { format } from "date-fns";
 import {
-  Plus, X, Search, FileDown, ChevronDown, ChevronUp, Loader2,
+  Plus, X, Search, FileDown, ChevronDown, ChevronUp, Loader2, Printer,
   ArrowUpRight, ArrowDownRight, Minus, Truck, Package, CheckCircle2, Clock,
 } from "lucide-react";
 import { exportToExcel, formatArrivalsForExport } from "@/lib/excel";
@@ -95,15 +95,15 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
     arrivalDate: new Date().toISOString().split("T")[0],
     fuelCost: "0", tollCost: "0", otherCost: "0", notes: "",
   });
-  const [items, setItems] = useState<{ productId: number; quantity: string; costPrice: string; condition: string; unit: string; unitWeight: number }[]>([
-    { productId: 0, quantity: "", costPrice: "", condition: "Хорошее", unit: "pcs", unitWeight: 0 },
+  const [items, setItems] = useState<{ productId: number; quantity: string; costPrice: string; sellingPrice: string; condition: string; unit: string; unitWeight: number }[]>([
+    { productId: 0, quantity: "", costPrice: "", sellingPrice: "", condition: "Хорошее", unit: "pcs", unitWeight: 0 },
   ]);
 
   const totalExpense = Number(form.fuelCost) + Number(form.tollCost) + Number(form.otherCost);
   const totalWeight = items.reduce((s, i) => s + Number(i.quantity || 0) * (i.unitWeight || 1), 0);
   const totalCost = items.reduce((s, i) => s + Number(i.quantity || 0) * Number(i.costPrice || 0), 0);
 
-  const addItem = () => setItems(p => [...p, { productId: 0, quantity: "", costPrice: "", condition: "Хорошее", unit: "pcs", unitWeight: 0 }]);
+  const addItem = () => setItems(p => [...p, { productId: 0, quantity: "", costPrice: "", sellingPrice: "", condition: "Хорошее", unit: "pcs", unitWeight: 0 }]);
   const removeItem = (i: number) => setItems(p => p.filter((_, idx) => idx !== i));
   const updateItem = (i: number, field: string, val: string | number) => {
     setItems(p => p.map((item, idx) => {
@@ -115,6 +115,7 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
           updated.unit = product.unit ?? "pcs";
           updated.unitWeight = Number(product.unitWeight ?? 0);
           updated.costPrice = product.costPrice ?? "";
+          updated.sellingPrice = product.unitPrice ?? "";
         }
       }
       return updated;
@@ -199,7 +200,7 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
                   <PremiumSelect value={String(item.productId)} onChange={v => updateItem(i, "productId", Number(v))}
                     options={[{ value: "0", label: productsLoading ? t("Загрузка товаров...", "Mahsulotlar yuklanmoqda...") : t("Выберите товар…", "Mahsulot tanlang…") }, ...(products?.data ?? []).map((p: any) => ({ value: String(p.id), label: `${p.name} · ${fmt(p.unitPrice)}/${unitLabel(p.unit)}` }))]}
                     width="100%" />
-                  <div className="grid grid-cols-4 gap-3 items-end">
+                  <div className="grid grid-cols-5 gap-3 items-end">
                     <div>
                       <label className="font-label text-[10px] text-secondary mb-1.5 block">{t("Кол-во", "Miqdor")}</label>
                       <div className="flex items-center gap-2">
@@ -210,6 +211,10 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
                     <div>
                       <label className="font-label text-[10px] text-secondary mb-1.5 block">{t("Себестоимость", "Tannarx")}</label>
                       <input type="number" step="0.01" className="neo-input" style={{ textAlign: "right", padding: "8px 10px" }} placeholder={t("цена/ед", "narx/dona")} value={item.costPrice} onChange={e => updateItem(i, "costPrice", e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="font-label text-[10px] text-secondary mb-1.5 block">{t("Цена продажи", "Sotish narxi")}</label>
+                      <input type="number" step="0.01" className="neo-input" style={{ textAlign: "right", padding: "8px 10px" }} placeholder={t("цена/ед", "narx/dona")} value={item.sellingPrice} onChange={e => updateItem(i, "sellingPrice", e.target.value)} />
                     </div>
                     <div>
                       <label className="font-label text-[10px] text-secondary mb-1.5 block">{t("Состояние", "Holat")}</label>
@@ -239,7 +244,7 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
 
           {/* Actions */}
           <div className="flex gap-3 pt-2">
-            <button onClick={() => form.arrivalDate && onSave({ ...form, items: items.filter(i => i.productId > 0 && Number(i.quantity) > 0).map(i => ({ productId: i.productId, quantity: i.quantity, costPrice: i.costPrice, condition: i.condition })) })}
+            <button onClick={() => form.arrivalDate && onSave({ ...form, items: items.filter(i => i.productId > 0 && Number(i.quantity) > 0).map(i => ({ productId: i.productId, quantity: i.quantity, costPrice: i.costPrice, sellingPrice: i.sellingPrice, condition: i.condition })) })}
               disabled={isPending || !form.arrivalDate}
               className="neo-btn-primary flex-1 h-12 text-sm flex items-center justify-center gap-2"
               style={{ opacity: isPending || !form.arrivalDate ? 0.5 : 1 }}>
@@ -264,6 +269,59 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
   const { lang } = useLang();
   const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);
   const { data: detail, isLoading } = trpc.arrival.getById.useQuery({ id: arrivalId }) as { data: any; isLoading: boolean };
+
+  const handlePrintInvoice = () => {
+    if (!detail) return;
+    const fmtNum = (n: number | string) => Number(n ?? 0).toLocaleString("ru");
+    let html = `<table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr>
+        <th style="text-align:left;padding:6px 8px;border-bottom:2px solid #333">Товар</th>
+        <th style="text-align:left;padding:6px 8px;border-bottom:2px solid #333">Код</th>
+        <th style="text-align:right;padding:6px 8px;border-bottom:2px solid #333">Кол-во</th>
+        <th style="text-align:right;padding:6px 8px;border-bottom:2px solid #333">Себестоимость</th>
+        <th style="text-align:right;padding:6px 8px;border-bottom:2px solid #333">Цена продажи</th>
+        <th style="text-align:right;padding:6px 8px;border-bottom:2px solid #333">Сумма</th>
+      </tr></thead><tbody>`;
+    let totalSum = 0;
+    for (const item of detail.items ?? []) {
+      const qty = Number(item.quantity);
+      const cp = Number(item.costPrice ?? 0);
+      const sp = Number(item.sellingPrice ?? 0);
+      const sum = qty * sp;
+      totalSum += sum;
+      html += `<tr>
+        <td style="padding:5px 8px;border-bottom:1px solid #eee">${item.productName ?? "—"}</td>
+        <td style="padding:5px 8px;border-bottom:1px solid #eee;color:#888">${item.productCode ?? ""}</td>
+        <td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right">${qty.toFixed(2)}</td>
+        <td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right">${fmtNum(cp)}</td>
+        <td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right">${fmtNum(sp)}</td>
+        <td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right;font-weight:600">${fmtNum(sum)}</td>
+      </tr>`;
+    }
+    html += `</tbody></table>`;
+    html += `<div style="margin-top:16px;text-align:right;font-size:14px;font-weight:700">Итого: ${fmtNum(totalSum)} сум</div>`;
+
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Накладная ${detail.arrivalNumber}</title>
+      <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,sans-serif;padding:32px;color:#111;font-size:12px}
+      h1{font-size:18px;margin-bottom:4px}.sub{color:#666;font-size:11px;margin-bottom:20px}
+      .info{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:20px;font-size:12px}
+      .info span{color:#888}.info strong{color:#111}
+      @media print{body{padding:20px}}</style></head><body>
+      <h1>Накладная прихода</h1>
+      <div class="sub">${detail.arrivalNumber} — ${detail.arrivalDate ? new Date(detail.arrivalDate).toLocaleDateString("ru") : ""}</div>
+      <div class="info">
+        <div><span>Машина:</span> <strong>${detail.truckId ?? "—"}</strong></div>
+        <div><span>Водитель:</span> <strong>${detail.driverName ?? "—"}</strong></div>
+        <div><span>Телефон:</span> <strong>${detail.driverPhone ?? "—"}</strong></div>
+        <div><span>Статус:</span> <strong>${detail.status}</strong></div>
+      </div>
+      ${html}
+      <script>window.onload=()=>window.print()</script>
+      </body></html>`);
+    w.document.close();
+  };
 
   if (isLoading) return createPortal(
     <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
@@ -301,9 +359,14 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
               <h2 style={{ fontFamily: F.display, fontSize: "20px", fontWeight: 700, color: "#fff", margin: "0 0 4px" }}>{detail.arrivalNumber}</h2>
               <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.7)", margin: 0 }}>{t("Детали прихода", "Kelish tafsilotlari")}</p>
             </div>
-            <button onClick={onClose} style={{ width: "40px", height: "40px", borderRadius: "12px", background: "rgba(255,255,255,0.2)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
-              <X size={20} />
-            </button>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button onClick={handlePrintInvoice} style={{ padding: "8px 16px", borderRadius: "10px", background: "rgba(255,255,255,0.2)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", color: "#fff", fontSize: "12px", fontWeight: 600 }}>
+                <Printer size={14} /> {t("Накладная", "Hujjat")}
+              </button>
+              <button onClick={onClose} style={{ width: "40px", height: "40px", borderRadius: "12px", background: "rgba(255,255,255,0.2)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
+                <X size={20} />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -362,7 +425,7 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
                 <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
                   <thead>
                     <tr>
-                      {[t("Товар", "Mahsulot"), t("Код", "Kod"), t("Кол-во", "Miqdor"), t("Состояние", "Holat")].map(h => (
+                      {[t("Товар", "Mahsulot"), t("Код", "Kod"), t("Кол-во", "Miqdor"), t("Себест.", "Tannarx"), t("Продажа", "Sotish"), t("Состояние", "Holat")].map(h => (
                         <th key={h} style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-text-tertiary)", padding: "10px 14px", textAlign: "left", borderBottom: "1px solid var(--color-border)", background: "var(--color-surface-light)" }}>{h}</th>
                       ))}
                     </tr>
@@ -373,6 +436,8 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
                         <td style={{ padding: "12px 14px", fontSize: "13px", color: "var(--color-text-primary)", borderBottom: "1px solid var(--color-border)" }}>{item.productName ?? "—"}</td>
                         <td style={{ padding: "12px 14px", fontSize: "12px", color: "var(--color-text-tertiary)", fontFamily: "monospace", borderBottom: "1px solid var(--color-border)" }}>{item.productCode ?? "—"}</td>
                         <td style={{ padding: "12px 14px", fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary)", borderBottom: "1px solid var(--color-border)" }}>{Number(item.quantity).toFixed(2)}</td>
+                        <td style={{ padding: "12px 14px", fontSize: "13px", color: "var(--color-text-secondary)", borderBottom: "1px solid var(--color-border)", textAlign: "right" }}>{fmt(item.costPrice ?? 0)}</td>
+                        <td style={{ padding: "12px 14px", fontSize: "13px", color: "var(--color-text-primary)", fontWeight: 600, borderBottom: "1px solid var(--color-border)", textAlign: "right" }}>{fmt(item.sellingPrice ?? 0)}</td>
                         <td style={{ padding: "12px 14px", fontSize: "13px", color: "var(--color-text-secondary)", borderBottom: "1px solid var(--color-border)" }}>{item.condition ?? "—"}</td>
                       </tr>
                     ))}
@@ -614,12 +679,6 @@ export default function Arrivals() {
             ))}
           </tbody>
         </table>
-        {/* Receipt rows */}
-        {!isLoading && (data?.data ?? []).map((a: any) => (
-          <div key={`r-${a.id}`} style={{ borderTop: "1px solid var(--color-border, #f0f3f8)" }}>
-            <ArrivalReceipt arrival={a} />
-          </div>
-        ))}
       </div>
 
       {/* Pagination */}

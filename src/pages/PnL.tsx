@@ -3,6 +3,7 @@ import { trpc } from "@/providers/trpc";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useLang } from "@/i18n";
 import { exportToExcel } from "@/lib/excel";
+import { exportToPDF } from "@/lib/export";
 import { subDays, format, subMonths, startOfYear } from "date-fns";
 import { PAYMENT_LABELS } from "@/components/pnl/styles";
 import {
@@ -206,39 +207,75 @@ export default function PnL() {
   };
 
   const handleExportPDF = async () => {
-    const content = [
-      `P&L Report: ${from} — ${to}`,
-      `${"═".repeat(50)}`,
-      ``,
-      `Revenue:           ${fmt(current?.revenue ?? 0)}`,
-      `Discounts:         ${fmt(current?.discount ?? 0)}`,
-      `COGS:              ${fmt(current?.cogs ?? 0)}`,
-      `Gross Profit:      ${fmt(current?.grossProfit ?? 0)}`,
-      `Gross Margin:      ${(current?.grossMarginPct ?? 0).toFixed(1)}%`,
-      `Operating Expenses:${fmt(current?.operatingExpenses ?? 0)}`,
-      `Net Profit:        ${fmt(current?.netProfit ?? 0)}`,
-      `Net Margin:        ${(current?.netMarginPct ?? 0).toFixed(1)}%`,
-      `Orders:            ${current?.orderCount ?? 0}`,
-    ];
+    const fmtNum = (n: number) => n.toLocaleString("ru");
+    let html = "";
+
+    // KPIs
+    html += `<div class="kpi-grid">
+      <div class="kpi"><div class="kpi-label">Выручка</div><div class="kpi-value">${fmtNum(current?.revenue ?? 0)} сум</div></div>
+      <div class="kpi"><div class="kpi-label">COGS</div><div class="kpi-value">${fmtNum(current?.cogs ?? 0)} сум</div></div>
+      <div class="kpi"><div class="kpi-label">Валовая прибыль</div><div class="kpi-value">${fmtNum(current?.grossProfit ?? 0)} сум</div></div>
+      <div class="kpi"><div class="kpi-label">Чистая прибыль</div><div class="kpi-value">${fmtNum(current?.netProfit ?? 0)} сум</div></div>
+    </div>`;
+
+    // Summary table
+    html += `<div class="section"><h2>Сводка P&L</h2>
+      <table><thead><tr><th>Показатель</th><th class="right">Значение</th></tr></thead><tbody>
+      <tr><td>Период</td><td class="right">${from} — ${to}</td></tr>
+      <tr><td>Выручка</td><td class="right bold">${fmtNum(current?.revenue ?? 0)} сум</td></tr>
+      <tr><td>Скидки</td><td class="right">${fmtNum(current?.discount ?? 0)} сум</td></tr>
+      <tr><td>Себестоимость (COGS)</td><td class="right">${fmtNum(current?.cogs ?? 0)} сум</td></tr>
+      <tr><td>Валовая прибыль</td><td class="right bold">${fmtNum(current?.grossProfit ?? 0)} сум</td></tr>
+      <tr><td>Валовая маржа</td><td class="right">${(current?.grossMarginPct ?? 0).toFixed(1)}%</td></tr>
+      <tr><td>Расходы на доставку</td><td class="right">${fmtNum(current?.operatingExpenses ?? 0)} сум</td></tr>
+      <tr class="total"><td>Чистая прибыль</td><td class="right">${fmtNum(current?.netProfit ?? 0)} сум</td></tr>
+      <tr><td>Чистая маржа</td><td class="right">${(current?.netMarginPct ?? 0).toFixed(1)}%</td></tr>
+      <tr><td>Заказов</td><td class="right">${current?.orderCount ?? 0}</td></tr>
+      </tbody></table></div>`;
+
+    // Previous period comparison
     if (data?.previous) {
-      content.push(
-        ``,
-        `--- Previous Period (${data.prevPeriod?.from} — ${data.prevPeriod?.to}) ---`,
-        `Revenue:           ${fmt(data.previous.revenue)}`,
-        `COGS:              ${fmt(data.previous.cogs)}`,
-        `Gross Profit:      ${fmt(data.previous.grossProfit)}`,
-        `Net Profit:        ${fmt(data.previous.netProfit)}`
-      );
+      html += `<div class="section"><h2>Сравнение с прошлым периодом</h2>
+        <table><thead><tr><th>Показатель</th><th class="right">Текущий</th><th class="right">Прошлый</th><th class="right">Изменение</th></tr></thead><tbody>`;
+      const rows: Array<[string, number, number]> = [
+        ["Выручка", current?.revenue ?? 0, data.previous.revenue],
+        ["COGS", current?.cogs ?? 0, data.previous.cogs],
+        ["Валовая прибыль", current?.grossProfit ?? 0, data.previous.grossProfit],
+        ["Чистая прибыль", current?.netProfit ?? 0, data.previous.netProfit],
+      ];
+      for (const [label, curr, prev] of rows) {
+        const delta = prev > 0 ? ((curr - prev) / prev * 100).toFixed(1) : "—";
+        html += `<tr><td>${label}</td><td class="right">${fmtNum(curr)}</td><td class="right">${fmtNum(prev)}</td><td class="right">${delta}%</td></tr>`;
+      }
+      html += `</tbody></table></div>`;
     }
-    const blob = new Blob([content.join("\n")], {
-      type: "text/plain;charset=utf-8",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `pnl-${from}-${to}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+
+    // Products breakdown
+    if (cogsByProduct.data && cogsByProduct.data.length > 0) {
+      html += `<div class="section"><h2>Разбивка по товарам</h2>
+        <table><thead><tr><th>Товар</th><th class="right">Объём</th><th class="right">Выручка</th><th class="right">Себестоимость</th><th class="right">Прибыль</th><th class="right">Маржа</th></tr></thead><tbody>`;
+      for (const p of cogsByProduct.data) {
+        const rev = Number(p.totalRevenue);
+        const cost = Number(p.totalCost);
+        const profit = rev - cost;
+        const margin = rev > 0 ? (profit / rev * 100).toFixed(1) : "0";
+        html += `<tr><td>${p.productName}</td><td class="right">${Number(p.totalQty).toFixed(0)}</td><td class="right">${fmtNum(rev)}</td><td class="right">${fmtNum(cost)}</td><td class="right bold">${fmtNum(profit)}</td><td class="right">${margin}%</td></tr>`;
+      }
+      html += `</tbody></table></div>`;
+    }
+
+    // Payment methods
+    if (paymentBreakdown.data && paymentBreakdown.data.length > 0) {
+      html += `<div class="section"><h2>По методам оплаты</h2>
+        <table><thead><tr><th>Метод</th><th class="right">Выручка</th><th class="right">COGS</th><th class="right">Прибыль</th><th class="right">Маржа</th><th class="right">Заказов</th></tr></thead><tbody>`;
+      for (const row of paymentBreakdown.data) {
+        const label = PAYMENT_LABELS[row.paymentMethod]?.ru ?? row.paymentMethod;
+        html += `<tr><td>${label}</td><td class="right">${fmtNum(row.revenue)}</td><td class="right">${fmtNum(row.cogs)}</td><td class="right bold">${fmtNum(row.grossProfit)}</td><td class="right">${row.grossMarginPct.toFixed(1)}%</td><td class="right">${row.orderCount}</td></tr>`;
+      }
+      html += `</tbody></table></div>`;
+    }
+
+    exportToPDF(`P&L Отчёт: ${from} — ${to}`, html);
   };
 
   if (isLoading) {

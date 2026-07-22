@@ -12,6 +12,7 @@ import {
   LayoutDashboard, ShoppingCart, Award, Package, BarChart3,
 } from "lucide-react";
 import { exportToExcel, formatAgentsForExport } from "@/lib/excel";
+import { exportToPDF } from "@/lib/export";
 import { ProgressRing } from "@/components/ProgressRing";
 
 const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
@@ -238,8 +239,135 @@ export default function Reports() {
   ];
 
   const handleExport = async () => {
-    if (!agents?.length) return;
-    await exportToExcel(formatAgentsForExport(agents, days), `report-${format(new Date(), "yyyy-MM-dd")}`, t("Отчёт", "Hisobot"), `${t("Сводный отчёт", "Yig'ma hisobot")} — ${format(new Date(), "dd.MM.yyyy")}`);
+    // Collect all data for comprehensive export
+    const rows: Record<string, unknown>[] = [];
+
+    // Section: Summary
+    if (summary) {
+      rows.push({ "=== СВОДКА ===": "" });
+      rows.push({ "Показатель": "Агентов", "Значение": summary.totalAgents });
+      rows.push({ "Показатель": "Онлайн", "Значение": summary.activeNow });
+      rows.push({ "Показатель": "Визитов сегодня", "Значение": summary.visitsToday });
+      rows.push({ "Показатель": `Заказов за ${days}д`, "Значение": summary.ordersMonth });
+      rows.push({ "Показатель": `Выручка за ${days}д`, "Значение": summary.revenueMonth });
+      rows.push({});
+    }
+
+    // Section: Sales by shop
+    if (byShop && byShop.length > 0) {
+      rows.push({ "=== ПРОДАЖИ ПО МАГАЗИНАМ ===": "" });
+      byShop.forEach(s => {
+        rows.push({
+          "Магазин": s.shopName ?? "—",
+          "Выручка": Number(s.revenue ?? 0).toFixed(2),
+          "Заказов": s.orderCount ?? 0,
+        });
+      });
+      rows.push({});
+    }
+
+    // Section: Top products
+    if (topProds && topProds.length > 0) {
+      rows.push({ "=== ТОП ТОВАРОВ ===": "" });
+      topProds.forEach(p => {
+        rows.push({
+          "Товар": p.productName,
+          "Код": p.productCode ?? "",
+          "Объём": Number(p.totalQty).toFixed(0),
+          "Выручка": Number(p.totalRevenue).toFixed(2),
+        });
+      });
+      rows.push({});
+    }
+
+    // Section: Payment methods
+    if (byPayment && byPayment.length > 0) {
+      rows.push({ "=== ПО МЕТОДАМ ОПЛАТЫ ===": "" });
+      byPayment.forEach((p: any) => {
+        const pm = PAYMENT_MAP[p.method] ?? { label: p.method };
+        rows.push({
+          "Метод": pm.label,
+          "Выручка": Number(p.revenue ?? 0).toFixed(2),
+          "Заказов": p.orderCount ?? 0,
+        });
+      });
+      rows.push({});
+    }
+
+    // Section: Agents
+    if (agents && agents.length > 0) {
+      rows.push({ "=== АГЕНТЫ ===": "" });
+      agents.forEach((a, i) => {
+        rows.push({
+          "№": i + 1,
+          "Агент": a.agentName ?? `Agent #${a.agentId}`,
+          "Визиты": Number(a.visits),
+          "Заказы": Number(a.orders),
+          "Выручка": Number(a.revenue ?? 0).toFixed(2),
+        });
+      });
+    }
+
+    if (rows.length === 0) return;
+    await exportToExcel(rows, `report-${format(new Date(), "yyyy-MM-dd")}`, t("Отчёт", "Hisobot"), `${t("Сводный отчёт", "Yig'ma hisobot")} — ${format(new Date(), "dd.MM.yyyy")}`);
+  };
+
+  const handleExportPDF = () => {
+    const fmtNum = (n: number) => n.toLocaleString("ru");
+    let html = "";
+
+    // Summary KPIs
+    if (summary) {
+      html += `<div class="kpi-grid">
+        <div class="kpi"><div class="kpi-label">Агентов</div><div class="kpi-value">${summary.totalAgents}</div></div>
+        <div class="kpi"><div class="kpi-label">Визитов</div><div class="kpi-value">${summary.visitsToday}</div></div>
+        <div class="kpi"><div class="kpi-label">Заказов</div><div class="kpi-value">${summary.ordersMonth}</div></div>
+        <div class="kpi"><div class="kpi-label">Выручка</div><div class="kpi-value">${fmtNum(summary.revenueMonth)} сум</div></div>
+      </div>`;
+    }
+
+    // Sales by shop
+    if (byShop && byShop.length > 0) {
+      html += `<div class="section"><h2>Продажи по магазинам</h2>
+        <table><thead><tr><th>Магазин</th><th class="right">Выручка</th><th class="right">Заказов</th></tr></thead><tbody>`;
+      for (const s of byShop) {
+        html += `<tr><td>${s.shopName ?? "—"}</td><td class="right">${fmtNum(Number(s.revenue ?? 0))}</td><td class="right">${s.orderCount ?? 0}</td></tr>`;
+      }
+      html += `</tbody></table></div>`;
+    }
+
+    // Top products
+    if (topProds && topProds.length > 0) {
+      html += `<div class="section"><h2>Топ товаров</h2>
+        <table><thead><tr><th>Товар</th><th>Код</th><th class="right">Объём</th><th class="right">Выручка</th></tr></thead><tbody>`;
+      for (const p of topProds) {
+        html += `<tr><td>${p.productName}</td><td>${p.productCode ?? "—"}</td><td class="right">${Number(p.totalQty).toFixed(0)}</td><td class="right bold">${fmtNum(Number(p.totalRevenue))}</td></tr>`;
+      }
+      html += `</tbody></table></div>`;
+    }
+
+    // Payment methods
+    if (byPayment && byPayment.length > 0) {
+      html += `<div class="section"><h2>По методам оплаты</h2>
+        <table><thead><tr><th>Метод</th><th class="right">Выручка</th><th class="right">Заказов</th></tr></thead><tbody>`;
+      for (const p of byPayment) {
+        const pm = PAYMENT_MAP[p.method] ?? { label: p.method };
+        html += `<tr><td>${pm.label}</td><td class="right">${fmtNum(Number(p.revenue ?? 0))}</td><td class="right">${p.orderCount ?? 0}</td></tr>`;
+      }
+      html += `</tbody></table></div>`;
+    }
+
+    // Agents
+    if (agents && agents.length > 0) {
+      html += `<div class="section"><h2>Агенты</h2>
+        <table><thead><tr><th>Агент</th><th class="right">Визиты</th><th class="right">Заказы</th><th class="right">Выручка</th></tr></thead><tbody>`;
+      for (const a of agents) {
+        html += `<tr><td>${a.agentName ?? `Agent #${a.agentId}`}</td><td class="right">${Number(a.visits)}</td><td class="right">${Number(a.orders)}</td><td class="right bold">${fmtNum(Number(a.revenue ?? 0))}</td></tr>`;
+      }
+      html += `</tbody></table></div>`;
+    }
+
+    exportToPDF(`${t("Сводный отчёт", "Yig'ma hisobot")} — ${format(new Date(), "dd.MM.yyyy")}`, html);
   };
 
   return (
@@ -263,6 +391,14 @@ export default function Reports() {
             boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
           }}>
             <FileDown size={14} /> Excel
+          </button>
+          <button onClick={handleExportPDF} style={{
+            display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
+            fontSize: "13px", fontWeight: 500, fontFamily: F.body, borderRadius: "10px",
+            border: "none", cursor: "pointer", background: COLORS.surfaceLight, color: COLORS.textSecondary,
+            boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+          }}>
+            <FileDown size={14} /> PDF
           </button>
           <button onClick={() => window.print()} style={{
             display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",

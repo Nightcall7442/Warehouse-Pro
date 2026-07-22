@@ -7,9 +7,10 @@ interface Arrival {
   arrivalNumber: string;
   arrivalDate: string | null;
   truckId: string | null;
-  fuelCost: number;
-  tollCost: number;
-  totalExpense: number;
+  fuelCost: number | string;
+  tollCost: number | string;
+  otherCost?: number | string;
+  totalExpense: number | string;
   status: string;
 }
 
@@ -104,10 +105,10 @@ export function PnLTransportExpenses({
                     {a.truckId ?? "—"}
                   </td>
                   <td style={{ ...tdStyle, textAlign: "right" }}>
-                    {fmt(a.fuelCost)}
+                    {fmt(Number(a.fuelCost) || 0)}
                   </td>
                   <td style={{ ...tdStyle, textAlign: "right" }}>
-                    {fmt(a.tollCost)}
+                    {fmt(Number(a.tollCost) || 0)}
                   </td>
                   <td
                     style={{
@@ -117,7 +118,7 @@ export function PnLTransportExpenses({
                       color: "#d45050",
                     }}
                   >
-                    {fmt(a.totalExpense)}
+                    {fmt(Number(a.totalExpense) || 0)}
                   </td>
                 </tr>
               ))}

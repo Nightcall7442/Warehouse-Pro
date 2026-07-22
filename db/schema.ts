@@ -435,13 +435,15 @@ export type InsertArrival = typeof arrivals.$inferInsert;
 // ARRIVAL ITEMS
 // ============================================
 export const arrivalItems = mysqlTable("arrival_items", {
-  id:        serial("id").primaryKey(),
-  arrivalId: bigint("arrival_id", { mode: "number", unsigned: true }).notNull().references(() => arrivals.id, { onDelete: "cascade" }),
-  productId: bigint("product_id", { mode: "number", unsigned: true }).notNull().references(() => products.id, { onDelete: "restrict" }),
-  quantity:  decimal("quantity", { precision: 12, scale: 2 }).notNull(),
-  condition: varchar("condition", { length: 255 }),
-  notes:     text("notes"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  id:           serial("id").primaryKey(),
+  arrivalId:    bigint("arrival_id", { mode: "number", unsigned: true }).notNull().references(() => arrivals.id, { onDelete: "cascade" }),
+  productId:    bigint("product_id", { mode: "number", unsigned: true }).notNull().references(() => products.id, { onDelete: "restrict" }),
+  quantity:     decimal("quantity", { precision: 12, scale: 2 }).notNull(),
+  costPrice:    decimal("cost_price", { precision: 10, scale: 2 }).default("0.00"),
+  sellingPrice: decimal("selling_price", { precision: 10, scale: 2 }).default("0.00"),
+  condition:    varchar("condition", { length: 255 }),
+  notes:        text("notes"),
+  createdAt:    timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({
   arrivalIdx: index("idx_arrival_items_arrival").on(t.arrivalId),
   productIdx: index("idx_arrival_items_product").on(t.productId),

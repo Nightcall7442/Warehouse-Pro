@@ -26,6 +26,7 @@ export const arrivalRouter = createRouter({
         db.select({
           id: arrivals.id, arrivalNumber: arrivals.arrivalNumber, truckId: arrivals.truckId,
           driverName: arrivals.driverName, status: arrivals.status,
+          fuelCost: arrivals.fuelCost, tollCost: arrivals.tollCost, otherCost: arrivals.otherCost,
           totalExpense: arrivals.totalExpense, arrivalDate: arrivals.arrivalDate,
           arrivalTime: arrivals.arrivalTime, createdAt: arrivals.createdAt,
         }).from(arrivals).where(where).limit(pageSize).offset(offset).orderBy(desc(arrivals.createdAt)),
@@ -53,6 +54,7 @@ export const arrivalRouter = createRouter({
 
       const items = await db.select({
         id: arrivalItems.id, quantity: arrivalItems.quantity,
+        costPrice: arrivalItems.costPrice, sellingPrice: arrivalItems.sellingPrice,
         condition: arrivalItems.condition, notes: arrivalItems.notes,
         productId: arrivalItems.productId,
         productName: products.name, productCode: products.code,
@@ -74,7 +76,7 @@ export const arrivalRouter = createRouter({
       tollCost:    z.string().default("0.00"),
       otherCost:   z.string().default("0.00"),
       notes:       z.string().optional(),
-      items:       z.array(z.object({ productId: z.number(), quantity: z.string(), condition: z.string().optional() })).optional(),
+      items:       z.array(z.object({ productId: z.number(), quantity: z.string(), costPrice: z.string().optional(), sellingPrice: z.string().optional(), condition: z.string().optional() })).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const db       = ctx.db;
@@ -106,6 +108,8 @@ export const arrivalRouter = createRouter({
           arrivalId,
           productId: item.productId,
           quantity: item.quantity,
+          costPrice: item.costPrice ?? "0.00",
+          sellingPrice: item.sellingPrice ?? "0.00",
           condition: item.condition ? sanitizeString(item.condition) : undefined,
         })));
       }
@@ -129,6 +133,25 @@ export const arrivalRouter = createRouter({
       const db       = ctx.db;
       const tenantId = ctx.tenant.id;
       const { id, ...data } = input;
+
+      // When completing an arrival, update warehouse stock and prices
+      if (data.status === "completed") {
+        const items = await db.select().from(arrivalItems)
+          .where(eq(arrivalItems.arrivalId, id));
+
+        for (const item of items) {
+          const qty = Number(item.quantity);
+          const costPrice = Number(item.costPrice ?? 0);
+          const sellingPrice = Number(item.sellingPrice ?? 0);
+
+          // Add stock to product
+          await db.update(products).set({
+            currentStock: sql`${products.currentStock} + ${qty}`,
+            ...(costPrice > 0 ? { costPrice: costPrice.toFixed(2) } : {}),
+            ...(sellingPrice > 0 ? { unitPrice: sellingPrice.toFixed(2) } : {}),
+          }).where(and(eq(products.id, item.productId), eq(products.tenantId, tenantId)));
+        }
+      }
 
       if (data.fuelCost || data.tollCost || data.otherCost) {
         const [existing] = await db.select().from(arrivals)

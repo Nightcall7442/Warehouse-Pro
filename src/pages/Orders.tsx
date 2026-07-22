@@ -9,10 +9,11 @@ import { useAuth } from "@/hooks/useAuth";
 import {
   Search, Plus, FileDown, ChevronRight, Store, User,
   ShoppingCart, Clock, CheckCircle2, XCircle, DollarSign,
-  ArrowUpRight, ArrowDownRight, Minus, Trash2, RotateCcw,
+  ArrowUpRight, ArrowDownRight, Minus, Trash2, RotateCcw, Printer,
 } from "lucide-react";
-import { format } from "date-fns";
+import { format, subDays, startOfMonth } from "date-fns";
 import { exportToExcel, formatOrdersForExport } from "@/lib/excel";
+import { exportToPDF } from "@/lib/export";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { useConfirm } from "@/components/ConfirmDialog";
 
@@ -104,21 +105,26 @@ export default function Orders() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [showDeleted, setShowDeleted] = useState(false);
+  const [dateFrom, setDateFrom] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
+  const [dateTo, setDateTo] = useState(format(new Date(), "yyyy-MM-dd"));
   const isMobile            = useIsMobile();
   const navigate            = useNavigate();
   const utils               = trpc.useUtils();
   const { user }            = useAuth();
   const isCeo               = user?.role === "ceo";
   const { confirm, dialog } = useConfirm();
+  const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);
 
   const { data, isLoading } = trpc.order.list.useQuery({
     page, pageSize: 25,
     search: search || undefined,
     status: (status || undefined) as any,
     showDeleted: isCeo && showDeleted ? true : undefined,
+    dateFrom: dateFrom || undefined,
+    dateTo: dateTo || undefined,
   });
 
-  const { data: allOrders } = trpc.order.list.useQuery({ page: 1, pageSize: 1000, showDeleted: false });
+  const { data: allOrders } = trpc.order.list.useQuery({ page: 1, pageSize: 1000, showDeleted: false, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined });
 
   const updateStatus = trpc.order.updateStatus.useMutation({
     onSuccess: () => { utils.order.list.invalidate(); notify.success("Заказ обновлён"); },
@@ -137,10 +143,23 @@ export default function Orders() {
 
   const handleExport = useCallback(async () => {
     if (!allOrders?.data) return;
-    await exportToExcel(formatOrdersForExport(allOrders.data), "orders-export");
-  }, [allOrders?.data]);
+    await exportToExcel(formatOrdersForExport(allOrders.data), `orders-${dateFrom}-${dateTo}`, "Заказы", `Заказы ${dateFrom} — ${dateTo}`);
+  }, [allOrders?.data, dateFrom, dateTo]);
 
-  const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);
+  const handleExportPDF = useCallback(() => {
+    if (!allOrders?.data) return;
+    const fmtNum = (n: number) => n.toLocaleString("ru");
+    let html = `<div class="section"><h2>Заказы за ${dateFrom} — ${dateTo}</h2>
+      <table><thead><tr><th>№</th><th>Дата</th><th>Магазин</th><th>Агент</th><th>Статус</th><th class="right">Сумма</th></tr></thead><tbody>`;
+    for (const o of allOrders.data) {
+      const dateStr = o.createdAt ? format(new Date(o.createdAt), "dd.MM.yyyy") : "—";
+      html += `<tr><td>${o.orderNumber}</td><td>${dateStr}</td><td>${o.shopName ?? "—"}</td><td>${o.agentName ?? "—"}</td><td>${o.status}</td><td class="right bold">${fmtNum(Number(o.total ?? 0))}</td></tr>`;
+    }
+    html += `</tbody></table></div>`;
+    const total = allOrders.data.reduce((s, o) => s + Number(o.total ?? 0), 0);
+    html += `<div style="margin-top:16px;text-align:right;font-size:14px;font-weight:700">Итого: ${fmtNum(total)} сум · ${allOrders.data.length} заказов</div>`;
+    exportToPDF(`Заказы ${dateFrom} — ${dateTo}`, html);
+  }, [allOrders?.data, dateFrom, dateTo]);
 
   const handleNewOrder = useCallback(() => navigate("/orders/new"), [navigate]);
 
@@ -174,7 +193,10 @@ export default function Orders() {
             )}
           </p>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ padding: "6px 10px", borderRadius: "8px", border: `1px solid ${COLORS.border}`, fontSize: "12px", fontFamily: F.body, color: COLORS.textPrimary, background: COLORS.surface }} />
+          <span style={{ color: COLORS.textTertiary, fontSize: "12px" }}>—</span>
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ padding: "6px 10px", borderRadius: "8px", border: `1px solid ${COLORS.border}`, fontSize: "12px", fontFamily: F.body, color: COLORS.textPrimary, background: COLORS.surface }} />
           <button onClick={handleExport} style={{
             display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
             fontSize: "13px", fontWeight: 500, fontFamily: F.body, borderRadius: "10px",
@@ -182,6 +204,14 @@ export default function Orders() {
             background: COLORS.surface, color: COLORS.textSecondary,
           }}>
             <FileDown size={14} /> Excel
+          </button>
+          <button onClick={handleExportPDF} style={{
+            display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
+            fontSize: "13px", fontWeight: 500, fontFamily: F.body, borderRadius: "10px",
+            border: `1px solid ${COLORS.border}`, cursor: "pointer",
+            background: COLORS.surface, color: COLORS.textSecondary,
+          }}>
+            <Printer size={14} /> PDF
           </button>
           <button onClick={handleNewOrder} className="neo-btn-primary neo-btn-sm">
             <Plus size={16} />

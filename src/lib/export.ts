@@ -3,12 +3,13 @@ import ExcelJS from "exceljs";
 /**
  * Export data to Excel (.xlsx) file.
  * @param sheets - Array of { name, data, columns }
+ * @param filename - Optional custom filename (without extension)
  */
 export async function exportToExcel(sheets: Array<{
   name: string;
   data: Record<string, unknown>[];
   columns: Array<{ key: string; header: string; width?: number }>;
-}>) {
+}>, filename?: string) {
   const wb = new ExcelJS.Workbook();
 
   for (const sheet of sheets) {
@@ -38,7 +39,7 @@ export async function exportToExcel(sheets: Array<{
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `warehouse-report-${new Date().toISOString().split("T")[0]}.xlsx`;
+  a.download = `${filename ?? `warehouse-report-${new Date().toISOString().split("T")[0]}`}.xlsx`;
   a.click();
   URL.revokeObjectURL(url);
 }

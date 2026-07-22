@@ -32,6 +32,7 @@ export default function Shops() {
   const [viewMode, setViewMode] = useState<"territories" | "list">("territories");
 
   const { data, isLoading } = trpc.shop.list.useQuery({ page, pageSize: 25, search: search || undefined, city, district, agentId: agentFilter ? Number(agentFilter) : undefined }) as { data: any; isLoading: boolean };
+  const { data: allShopsData } = trpc.shop.list.useQuery({ page: 1, pageSize: 5000 }) as { data: any };
   const { data: cities } = trpc.shop.cities.useQuery();
   const { data: districts } = trpc.shop.districts.useQuery({ city });
   const { data: territories } = trpc.shop.territories.useQuery() as { data: any };
@@ -135,7 +136,37 @@ export default function Shops() {
           </p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <button onClick={async () => data?.data && await exportToExcel(formatShopsForExport(data.data), "shops-export", "Магазины", t("Список магазинов", "Do'konlar ro'yxati"))}
+          <button onClick={async () => {
+            const allShops = allShopsData?.data ?? [];
+            if (!allShops.length) return;
+            // Group by territory
+            const grouped = new Map<string, any[]>();
+            for (const s of allShops) {
+              const territory = s.district || s.city || "Другие";
+              if (!grouped.has(territory)) grouped.set(territory, []);
+              grouped.get(territory)!.push(s);
+            }
+            // Build rows with territory headers
+            const rows: Record<string, unknown>[] = [];
+            for (const [territory, shops] of Array.from(grouped.entries()).sort(([a], [b]) => a.localeCompare(b, "ru"))) {
+              rows.push({ "=== ТЕРРИТОРИЯ ===": territory });
+              for (const s of shops) {
+                rows.push({
+                  "Название": s.name ?? "",
+                  "Владелец": s.ownerName ?? "",
+                  "Телефон": s.phone ?? "",
+                  "Город": s.city ?? "",
+                  "Район": s.district ?? "",
+                  "Адрес": s.address ?? "",
+                  "Агент": s.agentName ?? "",
+                  "Долг": Number(s.debt ?? 0).toFixed(0),
+                  "Статус": s.status ?? "",
+                });
+              }
+              rows.push({});
+            }
+            await exportToExcel(rows, `shops-all`, "Магазины", `Магазины по территориям`);
+          }}
             style={{
               display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
               fontSize: "13px", fontWeight: 500, borderRadius: "10px",
