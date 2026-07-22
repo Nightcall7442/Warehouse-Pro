@@ -121,7 +121,7 @@ export const importRouter = createRouter({
   /** Download template as base64 CSV with full test data */
   downloadTemplate: operatorQuery
     .input(z.object({ type: z.enum(["products", "shops"]) }))
-    .query(({ input }) => {
+    .query(async ({ input }) => {
       const headers = input.type === "products"
         ? ["Код", "Штрихкод", "Название", "Категория", "Себестоимость (сум)", "Цена продажи (сум)", "Ед. измерения", "Вес (кг)", "Мин. остаток", "Остаток на складе", "Описание", "Фото URL"]
         : ["Название", "Владелец", "Телефон", "Город", "Район", "Адрес", "Долг", "Широта", "Долгота", "Примечания"];
@@ -192,8 +192,34 @@ export const importRouter = createRouter({
             ["Роҳат Мағозин", "Эргашева Дилноза", "+998913000007", "Бухара", "Бухоро", "Ал-Bukhari 27", "0", "39.7755", "64.4210", ""],
           ];
 
-      const csv = "\uFEFF" + [headers, ...examples].map(r => r.map(c => `"${c}"`).join(",")).join("\n");
-      return { csv, filename: `template-${input.type}.csv` };
+      const ExcelJS = (await import("exceljs")).default;
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet(input.type === "products" ? "Товары" : "Магазины");
+
+      const headerRow = ws.addRow(headers);
+      headerRow.eachCell((cell) => {
+        cell.font = { bold: true, size: 11, color: { argb: "FFFFFFFF" } };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4F46E5" } };
+        cell.border = { bottom: { style: "thin", color: { argb: "FFCBD5E1" } } };
+        cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+      });
+      headerRow.height = 24;
+
+      examples.forEach((row, idx) => {
+        const dataRow = ws.addRow(row);
+        const isEven = idx % 2 === 0;
+        dataRow.eachCell((cell) => {
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: isEven ? "FFF8FAFC" : "FFFFFFFF" } };
+          cell.border = { bottom: { style: "thin", color: { argb: "FFF0F0F0" } } };
+          cell.alignment = { vertical: "middle" };
+        });
+      });
+
+      ws.columns = headers.map((h) => ({ width: Math.max(h.length + 4, 14) }));
+
+      const buffer = await wb.xlsx.writeBuffer();
+      const base64 = Buffer.from(buffer).toString("base64");
+      return { base64, filename: `template-${input.type}.xlsx` };
     }),
 
   /** Preview first 5 rows without importing */

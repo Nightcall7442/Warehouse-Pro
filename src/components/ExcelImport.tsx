@@ -107,8 +107,11 @@ export function ExcelImport({ type, onDone, onCancel }: Props) {
       );
       return;
     }
-    const csv = templateQuery.data.csv;
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const base64 = templateQuery.data.base64;
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
