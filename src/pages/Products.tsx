@@ -21,6 +21,7 @@ export default function Products() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const navigate = useNavigate();
   const { data, isLoading } = trpc.product.list.useQuery({ page, pageSize: 25, search: search || undefined, category }) as { data: any; isLoading: boolean };
+  const { data: allProductsData } = trpc.product.list.useQuery({ page: 1, pageSize: 10000, includeAll: true }) as { data: any };
   const { data: categories } = trpc.product.categories.useQuery();
   const utils = trpc.useUtils();
   const createMutation = trpc.product.create.useMutation({
@@ -109,7 +110,11 @@ export default function Products() {
             <Upload size={14} /><span className="hidden sm:inline">{t("Импорт", "Import")}</span>
           </button>
           <button
-            onClick={async () => data?.data && await exportToExcel(formatProductsForExport(data.data), "products-export", "Товары", t("Список товаров", "Mahsulotlar ro'yxati"))}
+            onClick={async () => {
+              const allProds = allProductsData?.data ?? [];
+              if (!allProds.length) return;
+              await exportToExcel(formatProductsForExport(allProds), `products-all`, "Товары", `Все товары (${allProds.length})`);
+            }}
             style={{
               display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
               fontSize: "13px", fontWeight: 500, fontFamily: F.body, borderRadius: "10px",
