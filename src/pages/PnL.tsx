@@ -155,7 +155,12 @@ export default function PnL() {
       row.getCell(3).alignment = { horizontal: "right" };
       if (bold) row.eachCell(c => { c.font = { bold: true, size: 11 }; });
       if (highlight) row.getCell(2).font = { bold: true, color: { argb: highlight } };
-      row.eachCell(c => { c.border = { bottom: { style: "thin", color: { argb: "FFE2E8F0" } } }; });
+      row.eachCell(c => { c.border = {
+        top: { style: "thin", color: { argb: "FFE2E8F0" } },
+        bottom: { style: "thin", color: { argb: "FFE2E8F0" } },
+        left: { style: "thin", color: { argb: "FFE2E8F0" } },
+        right: { style: "thin", color: { argb: "FFE2E8F0" } },
+      }; });
       return row;
     };
 
@@ -207,7 +212,12 @@ export default function PnL() {
         const bg = i % 2 === 0 ? "FFF8FAFC" : "FFFFFFFF";
         row.eachCell(c => {
           c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bg } };
-          c.border = { bottom: { style: "thin", color: { argb: "FFF0F0F0" } } };
+          c.border = {
+            top: { style: "thin", color: { argb: "FFD1D5DB" } },
+            bottom: { style: "thin", color: { argb: "FFD1D5DB" } },
+            left: { style: "thin", color: { argb: "FFD1D5DB" } },
+            right: { style: "thin", color: { argb: "FFD1D5DB" } },
+          };
         });
       });
 
@@ -253,7 +263,12 @@ export default function PnL() {
         const bg = i % 2 === 0 ? "FFF8FAFC" : "FFFFFFFF";
         r.eachCell(c => {
           c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bg } };
-          c.border = { bottom: { style: "thin", color: { argb: "FFF0F0F0" } } };
+          c.border = {
+            top: { style: "thin", color: { argb: "FFD1D5DB" } },
+            bottom: { style: "thin", color: { argb: "FFD1D5DB" } },
+            left: { style: "thin", color: { argb: "FFD1D5DB" } },
+            right: { style: "thin", color: { argb: "FFD1D5DB" } },
+          };
         });
       });
 
@@ -297,7 +312,12 @@ export default function PnL() {
         const bg = i % 2 === 0 ? "FFF8FAFC" : "FFFFFFFF";
         r.eachCell(c => {
           c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bg } };
-          c.border = { bottom: { style: "thin", color: { argb: "FFF0F0F0" } } };
+          c.border = {
+            top: { style: "thin", color: { argb: "FFD1D5DB" } },
+            bottom: { style: "thin", color: { argb: "FFD1D5DB" } },
+            left: { style: "thin", color: { argb: "FFD1D5DB" } },
+            right: { style: "thin", color: { argb: "FFD1D5DB" } },
+          };
         });
       });
 

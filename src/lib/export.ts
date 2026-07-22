@@ -18,19 +18,37 @@ export async function exportToExcel(sheets: Array<{
     // Header row
     const headerRow = ws.addRow(sheet.columns.map(col => col.header));
     headerRow.eachCell((cell) => {
-      cell.font = { bold: true };
+      cell.font = { bold: true, size: 11, color: { argb: "FFFFFFFF" } };
       cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4F46E5" } };
-      cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+      cell.border = {
+        top: { style: "thin", color: { argb: "FF4F46E5" } },
+        bottom: { style: "thin", color: { argb: "FF4F46E5" } },
+        left: { style: "thin", color: { argb: "FF4F46E5" } },
+        right: { style: "thin", color: { argb: "FF4F46E5" } },
+      };
+      cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
     });
+    headerRow.height = 24;
 
     // Data rows
-    for (const row of sheet.data) {
-      ws.addRow(sheet.columns.map(col => row[col.key] ?? ""));
-    }
+    sheet.data.forEach((row, idx) => {
+      const dataRow = ws.addRow(sheet.columns.map(col => row[col.key] ?? ""));
+      const isEven = idx % 2 === 0;
+      dataRow.eachCell((cell) => {
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: isEven ? "FFF1F5F9" : "FFFFFFFF" } };
+        cell.border = {
+          top: { style: "thin", color: { argb: "FFD1D5DB" } },
+          bottom: { style: "thin", color: { argb: "FFD1D5DB" } },
+          left: { style: "thin", color: { argb: "FFD1D5DB" } },
+          right: { style: "thin", color: { argb: "FFD1D5DB" } },
+        };
+        cell.alignment = { vertical: "middle" };
+      });
+    });
 
     // Column widths
     ws.columns = sheet.columns.map(col => ({
-      width: col.width ?? Math.max(col.header.length, 12),
+      width: col.width ?? Math.max(col.header.length + 3, 14),
     }));
   }
 
