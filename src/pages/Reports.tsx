@@ -239,73 +239,48 @@ export default function Reports() {
   ];
 
   const handleExport = async () => {
-    // Collect all data for comprehensive export
     const rows: Record<string, unknown>[] = [];
 
-    // Section: Summary
+    // Summary
     if (summary) {
-      rows.push({ "=== СВОДКА ===": "" });
-      rows.push({ "Показатель": "Агентов", "Значение": summary.totalAgents });
-      rows.push({ "Показатель": "Онлайн", "Значение": summary.activeNow });
-      rows.push({ "Показатель": "Визитов сегодня", "Значение": summary.visitsToday });
-      rows.push({ "Показатель": `Заказов за ${days}д`, "Значение": summary.ordersMonth });
-      rows.push({ "Показатель": `Выручка за ${days}д`, "Значение": summary.revenueMonth });
-      rows.push({});
+      rows.push({ Раздел: "📊 СВОДКА", Показатель: "Агентов", Значение: summary.totalAgents, "": "" });
+      rows.push({ Раздел: "", Показатель: "Онлайн", Значение: summary.activeNow });
+      rows.push({ Раздел: "", Показатель: "Визитов сегодня", Значение: summary.visitsToday });
+      rows.push({ Раздел: "", Показатель: `Заказов за ${days}д`, Значение: summary.ordersMonth });
+      rows.push({ Раздел: "", Показатель: `Выручка за ${days}д`, Значение: summary.revenueMonth });
     }
 
-    // Section: Sales by shop
+    // Sales by shop
     if (byShop && byShop.length > 0) {
-      rows.push({ "=== ПРОДАЖИ ПО МАГАЗИНАМ ===": "" });
-      byShop.forEach(s => {
-        rows.push({
-          "Магазин": s.shopName ?? "—",
-          "Выручка": Number(s.revenue ?? 0).toFixed(2),
-          "Заказов": s.orderCount ?? 0,
-        });
-      });
-      rows.push({});
+      rows.push({ Раздел: "🛒 ПРОДАЖИ ПО МАГАЗИНАМ", Показатель: "Магазин", Значение: "Выручка", "": "Заказов" });
+      for (const s of byShop) {
+        rows.push({ Раздел: "", Показатель: s.shopName ?? "—", Значение: Number(s.revenue ?? 0).toFixed(2), "": s.orderCount ?? 0 });
+      }
     }
 
-    // Section: Top products
+    // Top products
     if (topProds && topProds.length > 0) {
-      rows.push({ "=== ТОП ТОВАРОВ ===": "" });
-      topProds.forEach(p => {
-        rows.push({
-          "Товар": p.productName,
-          "Код": p.productCode ?? "",
-          "Объём": Number(p.totalQty).toFixed(0),
-          "Выручка": Number(p.totalRevenue).toFixed(2),
-        });
-      });
-      rows.push({});
+      rows.push({ Раздел: "📦 ТОП ТОВАРОВ", Показатель: "Товар", Значение: "Объём", "": "Выручка" });
+      for (const p of topProds) {
+        rows.push({ Раздел: "", Показатель: p.productName, Значение: Number(p.totalQty ?? 0).toFixed(0), "": Number(p.totalRevenue ?? 0).toFixed(2) });
+      }
     }
 
-    // Section: Payment methods
+    // Payment methods
     if (byPayment && byPayment.length > 0) {
-      rows.push({ "=== ПО МЕТОДАМ ОПЛАТЫ ===": "" });
-      byPayment.forEach((p: any) => {
+      rows.push({ Раздел: "💳 МЕТОДЫ ОПЛАТЫ", Показатель: "Метод", Значение: "Выручка", "": "Заказов" });
+      for (const p of byPayment) {
         const pm = PAYMENT_MAP[p.method] ?? { label: p.method };
-        rows.push({
-          "Метод": pm.label,
-          "Выручка": Number(p.revenue ?? 0).toFixed(2),
-          "Заказов": p.orderCount ?? 0,
-        });
-      });
-      rows.push({});
+        rows.push({ Раздел: "", Показатель: pm.label, Значение: Number(p.revenue ?? 0).toFixed(2), "": p.orderCount ?? 0 });
+      }
     }
 
-    // Section: Agents
+    // Agents
     if (agents && agents.length > 0) {
-      rows.push({ "=== АГЕНТЫ ===": "" });
-      agents.forEach((a, i) => {
-        rows.push({
-          "№": i + 1,
-          "Агент": a.agentName ?? `Agent #${a.agentId}`,
-          "Визиты": Number(a.visits),
-          "Заказы": Number(a.orders),
-          "Выручка": Number(a.revenue ?? 0).toFixed(2),
-        });
-      });
+      rows.push({ Раздел: "👤 АГЕНТЫ", Показатель: "Агент", Значение: "Выручка", "": "Заказов" });
+      for (const a of agents) {
+        rows.push({ Раздел: "", Показатель: a.agentName ?? `Agent #${a.agentId}`, Значение: Number(a.revenue ?? 0).toFixed(2), "": Number(a.orders ?? 0) });
+      }
     }
 
     if (rows.length === 0) return;

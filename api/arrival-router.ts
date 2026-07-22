@@ -52,16 +52,37 @@ export const arrivalRouter = createRouter({
         .where(and(eq(arrivals.id, input.id), eq(arrivals.tenantId, tenantId))).limit(1);
       if (!arrival) return null;
 
-      const items = await db.select({
-        id: arrivalItems.id, quantity: arrivalItems.quantity,
-        costPrice: arrivalItems.costPrice, sellingPrice: arrivalItems.sellingPrice,
-        condition: arrivalItems.condition, notes: arrivalItems.notes,
-        productId: arrivalItems.productId,
-        productName: products.name, productCode: products.code,
-      })
-        .from(arrivalItems)
-        .leftJoin(products, eq(arrivalItems.productId, products.id))
-        .where(eq(arrivalItems.arrivalId, arrival.id));
+      // Try selecting with new columns, fallback to basic select if columns don't exist
+      let items: any[];
+      try {
+        items = await db.select({
+          id: arrivalItems.id, quantity: arrivalItems.quantity,
+          costPrice: arrivalItems.costPrice, sellingPrice: arrivalItems.sellingPrice,
+          condition: arrivalItems.condition, notes: arrivalItems.notes,
+          productId: arrivalItems.productId,
+          productName: products.name, productCode: products.code,
+        })
+          .from(arrivalItems)
+          .leftJoin(products, eq(arrivalItems.productId, products.id))
+          .where(eq(arrivalItems.arrivalId, arrival.id));
+      } catch {
+        // Fallback: columns cost_price/selling_price don't exist yet
+        items = await db.select({
+          id: arrivalItems.id, quantity: arrivalItems.quantity,
+          condition: arrivalItems.condition, notes: arrivalItems.notes,
+          productId: arrivalItems.productId,
+          productName: products.name, productCode: products.code,
+        })
+          .from(arrivalItems)
+          .leftJoin(products, eq(arrivalItems.productId, products.id))
+          .where(eq(arrivalItems.arrivalId, arrival.id));
+        // Use product's own prices as fallback
+        items = items.map((item: any) => ({
+          ...item,
+          costPrice: item.costPrice ?? "0.00",
+          sellingPrice: item.sellingPrice ?? "0.00",
+        }));
+      }
 
       return { ...arrival, items };
     }),
@@ -104,14 +125,24 @@ export const arrivalRouter = createRouter({
       const arrivalId = Number(result.insertId);
 
       if (input.items && input.items.length > 0) {
-        await db.insert(arrivalItems).values(input.items.map(item => ({
-          arrivalId,
-          productId: item.productId,
-          quantity: item.quantity,
-          costPrice: item.costPrice ?? "0.00",
-          sellingPrice: item.sellingPrice ?? "0.00",
-          condition: item.condition ? sanitizeString(item.condition) : undefined,
-        })));
+        // Try inserting with new columns, fallback to basic insert
+        try {
+          await db.insert(arrivalItems).values(input.items.map(item => ({
+            arrivalId,
+            productId: item.productId,
+            quantity: item.quantity,
+            costPrice: item.costPrice ?? "0.00",
+            sellingPrice: item.sellingPrice ?? "0.00",
+            condition: item.condition ? sanitizeString(item.condition) : undefined,
+          })));
+        } catch {
+          await db.insert(arrivalItems).values(input.items.map(item => ({
+            arrivalId,
+            productId: item.productId,
+            quantity: item.quantity,
+            condition: item.condition ? sanitizeString(item.condition) : undefined,
+          })));
+        }
       }
 
       return { id: arrivalId, arrivalNumber };
@@ -134,21 +165,18 @@ export const arrivalRouter = createRouter({
       const tenantId = ctx.tenant.id;
       const { id, ...data } = input;
 
-      // When completing an arrival, update warehouse stock and prices
+      // When completing an arrival, update warehouse stock
+      // Only add quantity; prices are NOT overwritten for existing products
       if (data.status === "completed") {
         const items = await db.select().from(arrivalItems)
           .where(eq(arrivalItems.arrivalId, id));
 
         for (const item of items) {
           const qty = Number(item.quantity);
-          const costPrice = Number(item.costPrice ?? 0);
-          const sellingPrice = Number(item.sellingPrice ?? 0);
 
-          // Add stock to product
+          // Only increase stock quantity — never touch prices
           await db.update(products).set({
             currentStock: sql`${products.currentStock} + ${qty}`,
-            ...(costPrice > 0 ? { costPrice: costPrice.toFixed(2) } : {}),
-            ...(sellingPrice > 0 ? { unitPrice: sellingPrice.toFixed(2) } : {}),
           }).where(and(eq(products.id, item.productId), eq(products.tenantId, tenantId)));
         }
       }

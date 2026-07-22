@@ -114,56 +114,27 @@ export default function PnL() {
   };
 
   const handleExportExcel = async () => {
+    const num = (v: unknown) => Number(v ?? 0);
     const rows: Record<string, unknown>[] = [
       { Показатель: "Период", Значение: `${from} — ${to}` },
-      { Показатель: "Выручка", Сумма: (current?.revenue ?? 0).toFixed(0) },
-      { Показатель: "Скидки", Сумма: (current?.discount ?? 0).toFixed(0) },
-      {
-        Показатель: "Себестоимость (COGS)",
-        Сумма: (current?.cogs ?? 0).toFixed(0),
-      },
-      {
-        Показатель: "Валовая прибыль",
-        Сумма: (current?.grossProfit ?? 0).toFixed(0),
-      },
-      {
-        Показатель: "Валовая маржа",
-        Сумма: `${(current?.grossMarginPct ?? 0).toFixed(1)}%`,
-      },
-      {
-        Показатель: "Расходы на доставку",
-        Сумма: (current?.operatingExpenses ?? 0).toFixed(0),
-      },
-      {
-        Показатель: "Чистая прибыль",
-        Сумма: (current?.netProfit ?? 0).toFixed(0),
-      },
-      {
-        Показатель: "Чистая маржа",
-        Сумма: `${(current?.netMarginPct ?? 0).toFixed(1)}%`,
-      },
+      { Показатель: "Выручка", Сумма: num(current?.revenue).toFixed(0) },
+      { Показатель: "Скидки", Сумма: num(current?.discount).toFixed(0) },
+      { Показатель: "Себестоимость (COGS)", Сумма: num(current?.cogs).toFixed(0) },
+      { Показатель: "Валовая прибыль", Сумма: num(current?.grossProfit).toFixed(0) },
+      { Показатель: "Валовая маржа", Сумма: `${num(current?.grossMarginPct).toFixed(1)}%` },
+      { Показатель: "Расходы на доставку", Сумма: num(current?.operatingExpenses).toFixed(0) },
+      { Показатель: "Чистая прибыль", Сумма: num(current?.netProfit).toFixed(0) },
+      { Показатель: "Чистая маржа", Сумма: `${num(current?.netMarginPct).toFixed(1)}%` },
       { Показатель: "Заказов", Сумма: current?.orderCount ?? 0 },
     ];
     if (data?.previous) {
       rows.push(
         { Показатель: "" },
         { Показатель: "--- ПРЕДЫДУЩИЙ ПЕРИОД ---" },
-        {
-          Показатель: "Выручка (прошл.)",
-          Сумма: data.previous.revenue.toFixed(0),
-        },
-        {
-          Показатель: "COGS (прошл.)",
-          Сумма: data.previous.cogs.toFixed(0),
-        },
-        {
-          Показатель: "Валовая прибыль (прошл.)",
-          Сумма: data.previous.grossProfit.toFixed(0),
-        },
-        {
-          Показатель: "Чистая прибыль (прошл.)",
-          Сумма: data.previous.netProfit.toFixed(0),
-        }
+        { Показатель: "Выручка (прошл.)", Сумма: num(data.previous.revenue).toFixed(0) },
+        { Показатель: "COGS (прошл.)", Сумма: num(data.previous.cogs).toFixed(0) },
+        { Показатель: "Валовая прибыль (прошл.)", Сумма: num(data.previous.grossProfit).toFixed(0) },
+        { Показатель: "Чистая прибыль (прошл.)", Сумма: num(data.previous.netProfit).toFixed(0) }
       );
     }
     if (cogsByProduct.data && cogsByProduct.data.length > 0) {
@@ -172,13 +143,13 @@ export default function PnL() {
         { Показатель: "--- ПО ТОВАРАМ ---" }
       );
       cogsByProduct.data.forEach((p) => {
-        const rev = Number(p.totalRevenue);
-        const cost = Number(p.totalCost);
+        const rev = Number(p.totalRevenue ?? 0);
+        const cost = Number(p.totalCost ?? 0);
         const profit = rev - cost;
         const margin = rev > 0 ? (profit / rev) * 100 : 0;
         rows.push({
           Показатель: p.productName,
-          Объём: Number(p.totalQty).toFixed(0),
+          Объём: Number(p.totalQty ?? 0).toFixed(0),
           Выручка: rev.toFixed(0),
           Себестоимость: cost.toFixed(0),
           Прибыль: profit.toFixed(0),
@@ -195,11 +166,11 @@ export default function PnL() {
         const label = PAYMENT_LABELS[row.paymentMethod]?.ru ?? row.paymentMethod;
         rows.push({
           Показатель: label,
-          Выручка: row.revenue.toFixed(0),
-          Себестоимость: row.cogs.toFixed(0),
-          Прибыль: row.grossProfit.toFixed(0),
-          "Маржа %": `${row.grossMarginPct.toFixed(0)}%`,
-          Заказов: row.orderCount,
+          Выручка: num(row.revenue).toFixed(0),
+          Себестоимость: num(row.cogs).toFixed(0),
+          Прибыль: num(row.grossProfit).toFixed(0),
+          "Маржа %": `${num(row.grossMarginPct).toFixed(0)}%`,
+          Заказов: row.orderCount ?? 0,
         });
       });
     }
