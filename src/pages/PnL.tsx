@@ -114,67 +114,208 @@ export default function PnL() {
   };
 
   const handleExportExcel = async () => {
+    const ExcelJS = (await import("exceljs")).default;
+    const wb = new ExcelJS.Workbook();
+    wb.creator = "Warehouse Pro";
+    wb.created = new Date();
+
     const num = (v: unknown) => Number(v ?? 0);
-    const rows: Record<string, unknown>[] = [
-      { Показатель: "Период", Значение: `${from} — ${to}` },
-      { Показатель: "Выручка", Сумма: num(current?.revenue).toFixed(0) },
-      { Показатель: "Скидки", Сумма: num(current?.discount).toFixed(0) },
-      { Показатель: "Себестоимость (COGS)", Сумма: num(current?.cogs).toFixed(0) },
-      { Показатель: "Валовая прибыль", Сумма: num(current?.grossProfit).toFixed(0) },
-      { Показатель: "Валовая маржа", Сумма: `${num(current?.grossMarginPct).toFixed(1)}%` },
-      { Показатель: "Расходы на доставку", Сумма: num(current?.operatingExpenses).toFixed(0) },
-      { Показатель: "Чистая прибыль", Сумма: num(current?.netProfit).toFixed(0) },
-      { Показатель: "Чистая маржа", Сумма: `${num(current?.netMarginPct).toFixed(1)}%` },
-      { Показатель: "Заказов", Сумма: current?.orderCount ?? 0 },
-    ];
-    if (data?.previous) {
-      rows.push(
-        { Показатель: "" },
-        { Показатель: "--- ПРЕДЫДУЩИЙ ПЕРИОД ---" },
-        { Показатель: "Выручка (прошл.)", Сумма: num(data.previous.revenue).toFixed(0) },
-        { Показатель: "COGS (прошл.)", Сумма: num(data.previous.cogs).toFixed(0) },
-        { Показатель: "Валовая прибыль (прошл.)", Сумма: num(data.previous.grossProfit).toFixed(0) },
-        { Показатель: "Чистая прибыль (прошл.)", Сумма: num(data.previous.netProfit).toFixed(0) }
-      );
-    }
+    const fmtMoney = (n: number) => n.toLocaleString("ru-RU");
+
+    // ── Sheet 1: Сводка P&L ──────────────────────────────────────────────
+    const ws1 = wb.addWorksheet("Сводка P&L", { properties: { defaultColWidth: 22 } });
+
+    // Title
+    ws1.mergeCells("A1:C1");
+    const titleCell = ws1.getCell("A1");
+    titleCell.value = `P&L Отчёт: ${from} — ${to}`;
+    titleCell.font = { bold: true, size: 16, color: { argb: "FF1E293B" } };
+    titleCell.alignment = { horizontal: "left" };
+
+    ws1.mergeCells("A2:C2");
+    ws1.getCell("A2").value = `Сформирован: ${new Date().toLocaleDateString("ru-RU", { day: "2-digit", month: "long", year: "numeric" })}`;
+    ws1.getCell("A2").font = { size: 10, color: { argb: "FF64748B" } };
+
+    ws1.addRow([]);
+
+    // Header
+    const h1 = ws1.addRow(["Показатель", "Сумма", "Маржа %"]);
+    h1.eachCell(c => {
+      c.font = { bold: true, size: 11, color: { argb: "FFFFFFFF" } };
+      c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E293B" } };
+      c.border = { bottom: { style: "medium", color: { argb: "FF1E293B" } } };
+      c.alignment = { horizontal: "center", vertical: "middle" };
+    });
+    h1.height = 28;
+
+    const addRow = (label: string, value: number, margin?: number, bold?: boolean, highlight?: string) => {
+      const row = ws1.addRow([label, fmtMoney(value), margin != null ? `${margin.toFixed(1)}%` : ""]);
+      row.getCell(2).numFmt = "#,##0";
+      row.getCell(2).alignment = { horizontal: "right" };
+      row.getCell(3).alignment = { horizontal: "right" };
+      if (bold) row.eachCell(c => { c.font = { bold: true, size: 11 }; });
+      if (highlight) row.getCell(2).font = { bold: true, color: { argb: highlight } };
+      row.eachCell(c => { c.border = { bottom: { style: "thin", color: { argb: "FFE2E8F0" } } }; });
+      return row;
+    };
+
+    addRow("Выручка", num(current?.revenue), null, true);
+    addRow("Скидки", num(current?.discount));
+    addRow("Себестоимость (COGS)", num(current?.cogs));
+    const gpRow = addRow("Валовая прибыль", num(current?.grossProfit), num(current?.grossMarginPct), true, "FF16A34A");
+
+    ws1.addRow([]);
+    addRow("Расходы на доставку", num(current?.operatingExpenses));
+    const npRow = addRow("Чистая прибыль", num(current?.netProfit), num(current?.netMarginPct), true, num(current?.netProfit) >= 0 ? "FF16A34A" : "FFDC2626");
+
+    ws1.addRow([]);
+    addRow("Заказов", num(current?.orderCount));
+
+    ws1.getColumn(1).width = 30;
+    ws1.getColumn(2).width = 22;
+    ws1.getColumn(3).width = 14;
+
+    // ── Sheet 2: По товарам ──────────────────────────────────────────────
     if (cogsByProduct.data && cogsByProduct.data.length > 0) {
-      rows.push(
-        { Показатель: "" },
-        { Показатель: "--- ПО ТОВАРАМ ---" }
-      );
-      cogsByProduct.data.forEach((p) => {
+      const ws2 = wb.addWorksheet("По товарам");
+
+      ws2.mergeCells("A1:F1");
+      ws2.getCell("A1").value = "Разбивка по товарам";
+      ws2.getCell("A1").font = { bold: true, size: 14, color: { argb: "FF1E293B" } };
+
+      ws2.addRow([]);
+      const h2 = ws2.addRow(["Товар", "Объём", "Выручка", "Себестоимость", "Прибыль", "Маржа %"]);
+      h2.eachCell(c => {
+        c.font = { bold: true, size: 10, color: { argb: "FFFFFFFF" } };
+        c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4F46E5" } };
+        c.alignment = { horizontal: "center", vertical: "middle" };
+        c.border = { bottom: { style: "medium", color: { argb: "FF4F46E5" } } };
+      });
+      h2.height = 26;
+
+      let totalRev = 0, totalCost = 0;
+      cogsByProduct.data.forEach((p, i) => {
         const rev = Number(p.totalRevenue ?? 0);
         const cost = Number(p.totalCost ?? 0);
         const profit = rev - cost;
         const margin = rev > 0 ? (profit / rev) * 100 : 0;
-        rows.push({
-          Показатель: p.productName,
-          Объём: Number(p.totalQty ?? 0).toFixed(0),
-          Выручка: rev.toFixed(0),
-          Себестоимость: cost.toFixed(0),
-          Прибыль: profit.toFixed(0),
-          "Маржа %": `${margin.toFixed(0)}%`,
+        totalRev += rev; totalCost += cost;
+        const row = ws2.addRow([p.productName, Number(p.totalQty ?? 0), rev, cost, profit, `${margin.toFixed(1)}%`]);
+        row.getCell(2).numFmt = "#,##0";
+        [3, 4, 5].forEach(c => row.getCell(c).numFmt = "#,##0");
+        row.getCell(6).alignment = { horizontal: "right" };
+        const bg = i % 2 === 0 ? "FFF8FAFC" : "FFFFFFFF";
+        row.eachCell(c => {
+          c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bg } };
+          c.border = { bottom: { style: "thin", color: { argb: "FFF0F0F0" } } };
         });
       });
+
+      // Totals
+      ws2.addRow([]);
+      const totalRow = ws2.addRow(["ИТОГО", "", totalRev, totalCost, totalRev - totalCost, totalRev > 0 ? `${((totalRev - totalCost) / totalRev * 100).toFixed(1)}%` : "0%"]);
+      totalRow.eachCell(c => {
+        c.font = { bold: true, size: 11 };
+        c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE0E7FF" } };
+        c.border = { top: { style: "medium", color: { argb: "FF4F46E5" } } };
+      });
+      [3, 4, 5].forEach(c => totalRow.getCell(c).numFmt = "#,##0");
+
+      ws2.getColumn(1).width = 35;
+      ws2.getColumn(2).width = 12;
+      ws2.getColumn(3).width = 18;
+      ws2.getColumn(4).width = 18;
+      ws2.getColumn(5).width = 18;
+      ws2.getColumn(6).width = 12;
     }
+
+    // ── Sheet 3: По методам оплаты ───────────────────────────────────────
     if (paymentBreakdown.data && paymentBreakdown.data.length > 0) {
-      rows.push(
-        { Показатель: "" },
-        { Показатель: "--- ПО МЕТОДАМ ОПЛАТЫ ---" }
-      );
-      paymentBreakdown.data.forEach((row) => {
+      const ws3 = wb.addWorksheet("По методам оплаты");
+
+      ws3.mergeCells("A1:F1");
+      ws3.getCell("A1").value = "Выручка по методам оплаты";
+      ws3.getCell("A1").font = { bold: true, size: 14, color: { argb: "FF1E293B" } };
+
+      ws3.addRow([]);
+      const h3 = ws3.addRow(["Метод оплаты", "Выручка", "Себестоимость", "Прибыль", "Маржа %", "Заказов"]);
+      h3.eachCell(c => {
+        c.font = { bold: true, size: 10, color: { argb: "FFFFFFFF" } };
+        c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4F46E5" } };
+        c.alignment = { horizontal: "center", vertical: "middle" };
+      });
+      h3.height = 26;
+
+      paymentBreakdown.data.forEach((row, i) => {
         const label = PAYMENT_LABELS[row.paymentMethod]?.ru ?? row.paymentMethod;
-        rows.push({
-          Показатель: label,
-          Выручка: num(row.revenue).toFixed(0),
-          Себестоимость: num(row.cogs).toFixed(0),
-          Прибыль: num(row.grossProfit).toFixed(0),
-          "Маржа %": `${num(row.grossMarginPct).toFixed(0)}%`,
-          Заказов: row.orderCount ?? 0,
+        const r = ws3.addRow([label, num(row.revenue), num(row.cogs), num(row.grossProfit), `${num(row.grossMarginPct).toFixed(1)}%`, row.orderCount ?? 0]);
+        [2, 3, 4].forEach(c => r.getCell(c).numFmt = "#,##0");
+        const bg = i % 2 === 0 ? "FFF8FAFC" : "FFFFFFFF";
+        r.eachCell(c => {
+          c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bg } };
+          c.border = { bottom: { style: "thin", color: { argb: "FFF0F0F0" } } };
         });
       });
+
+      ws3.getColumn(1).width = 22;
+      ws3.getColumn(2).width = 18;
+      ws3.getColumn(3).width = 18;
+      ws3.getColumn(4).width = 18;
+      ws3.getColumn(5).width = 12;
+      ws3.getColumn(6).width = 12;
     }
-    await exportToExcel(rows, `pnl-${from}-${to}`);
+
+    // ── Sheet 4: Сравнение периодов ──────────────────────────────────────
+    if (data?.previous) {
+      const ws4 = wb.addWorksheet("Сравнение периодов");
+
+      ws4.mergeCells("A1:D1");
+      ws4.getCell("A1").value = "Сравнение с предыдущим периодом";
+      ws4.getCell("A1").font = { bold: true, size: 14, color: { argb: "FF1E293B" } };
+
+      ws4.addRow([]);
+      const h4 = ws4.addRow(["Показатель", "Текущий", "Прошлый", "Изменение"]);
+      h4.eachCell(c => {
+        c.font = { bold: true, size: 10, color: { argb: "FFFFFFFF" } };
+        c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4F46E5" } };
+        c.alignment = { horizontal: "center", vertical: "middle" };
+      });
+      h4.height = 26;
+
+      const comparisons: Array<[string, number, number]> = [
+        ["Выручка", num(current?.revenue), num(data.previous.revenue)],
+        ["COGS", num(current?.cogs), num(data.previous.cogs)],
+        ["Валовая прибыль", num(current?.grossProfit), num(data.previous.grossProfit)],
+        ["Чистая прибыль", num(current?.netProfit), num(data.previous.netProfit)],
+      ];
+      comparisons.forEach(([label, curr, prev], i) => {
+        const delta = prev > 0 ? ((curr - prev) / prev * 100) : 0;
+        const r = ws4.addRow([label, curr, prev, `${delta >= 0 ? "+" : ""}${delta.toFixed(1)}%`]);
+        [2, 3].forEach(c => r.getCell(c).numFmt = "#,##0");
+        r.getCell(4).alignment = { horizontal: "right" };
+        r.getCell(4).font = { color: { argb: delta >= 0 ? "FF16A34A" : "FFDC2626" } };
+        const bg = i % 2 === 0 ? "FFF8FAFC" : "FFFFFFFF";
+        r.eachCell(c => {
+          c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bg } };
+          c.border = { bottom: { style: "thin", color: { argb: "FFF0F0F0" } } };
+        });
+      });
+
+      ws4.getColumn(1).width = 22;
+      ws4.getColumn(2).width = 18;
+      ws4.getColumn(3).width = 18;
+      ws4.getColumn(4).width = 14;
+    }
+
+    // Download
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `PnL-${from}-${to}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleExportPDF = async () => {
