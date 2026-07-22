@@ -312,14 +312,17 @@ export const importRouter = createRouter({
 
         // Insert all rows — duplicates handled by unique constraint catch
         await db.transaction(async (tx) => {
-          // Get default warehouse for tenant
-          const [defaultWarehouse] = await tx.select({ id: warehouses.id })
+          // Get default warehouse for tenant — auto-create if missing
+          let [defaultWarehouse] = await tx.select({ id: warehouses.id })
             .from(warehouses)
             .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true)))
             .limit(1);
 
           if (!defaultWarehouse) {
-            throw new TRPCError({ code: "BAD_REQUEST", message: "Не найден склад по умолчанию" });
+            const [created] = await tx.insert(warehouses).values({
+              tenantId, name: "Основной склад", isDefault: true, status: "active",
+            });
+            defaultWarehouse = { id: Number(created.insertId) };
           }
 
           for (const row of parsedRows) {
