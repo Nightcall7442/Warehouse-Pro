@@ -526,6 +526,10 @@ export default function Arrivals() {
     onSuccess: () => { utils.arrival.list.invalidate(); notify.success(t("Статус обновлён", "Holat yangilandi")); },
     onError: (e) => notify.error(e.message),
   });
+  const deleteMutation = trpc.arrival.delete.useMutation({
+    onSuccess: () => { utils.arrival.list.invalidate(); notify.success(t("Приход удалён", "Kelish o'chirildi")); },
+    onError: (e) => notify.error(e.message),
+  });
 
   const arrivals = data?.data ?? [];
   const kpis = useMemo(() => {
@@ -673,6 +677,7 @@ export default function Arrivals() {
                     <StatusBadge status={a.status ?? "pending"} lang={lang as "ru" | "uz"} />
                     {a.status === "pending" && <button onClick={(e) => { e.stopPropagation(); updateStatus.mutate({ id: a.id, status: "unloading" }); }} style={{ padding: "6px 12px", borderRadius: "8px", fontSize: "11px", fontWeight: 600, fontFamily: F.body, color: COLORS.primary, background: "rgba(75,108,246,0.08)", border: "none", cursor: "pointer" }}>{t("Разгрузка", "Tushirish")}</button>}
                     {a.status === "unloading" && <button onClick={(e) => { e.stopPropagation(); updateStatus.mutate({ id: a.id, status: "completed" }); }} className="neo-btn-primary neo-btn-sm">{t("Завершить", "Yakunlash")}</button>}
+                    {a.status !== "completed" && <button onClick={(e) => { e.stopPropagation(); if (confirm(t("Удалить приход?", "Kelish o'chirilsinmi?"))) deleteMutation.mutate({ id: a.id }); }} style={{ padding: "6px 10px", borderRadius: "8px", fontSize: "11px", fontWeight: 600, fontFamily: F.body, color: COLORS.danger, background: "rgba(212,80,80,0.08)", border: "none", cursor: "pointer" }}>{t("Удалить", "O'chirish")}</button>}
                   </div>
                 </td>
               </tr>

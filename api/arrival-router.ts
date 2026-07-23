@@ -223,4 +223,25 @@ export const arrivalRouter = createRouter({
       await db.update(arrivals).set(data).where(and(eq(arrivals.id, id), eq(arrivals.tenantId, tenantId)));
       return { success: true };
     }),
+
+  delete: operatorQuery
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+      const tenantId = ctx.tenant.id;
+
+      // Only allow deleting pending arrivals
+      const [arrival] = await db.select({ id: arrivals.id, status: arrivals.status })
+        .from(arrivals).where(and(eq(arrivals.id, input.id), eq(arrivals.tenantId, tenantId))).limit(1);
+      if (!arrival) throw new Error("Приход не найден");
+      if (arrival.status === "completed") throw new Error("Нельзя удалить завершённый приход");
+
+      await db.transaction(async (tx) => {
+        // Delete items first (FK)
+        await tx.execute(sql.raw(`DELETE FROM arrival_items WHERE arrival_id = ${input.id}`));
+        await tx.delete(arrivals).where(and(eq(arrivals.id, input.id), eq(arrivals.tenantId, tenantId)));
+      });
+
+      return { success: true };
+    }),
 });
