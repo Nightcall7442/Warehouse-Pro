@@ -83,13 +83,14 @@ export const settingsRouter = createRouter({
         }
       }
 
-      const [existing] = await db.select().from(settings).where(eq(settings.tenantId, tenantId)).limit(1);
-
-      if (existing) {
-        await db.update(settings).set({ ...sanitized, updatedAt: new Date() }).where(eq(settings.tenantId, tenantId));
-      } else {
-        await db.insert(settings).values({ tenantId, ...sanitized });
-      }
+      await db.transaction(async (tx) => {
+        const [existing] = await tx.select().from(settings).where(eq(settings.tenantId, tenantId)).limit(1);
+        if (existing) {
+          await tx.update(settings).set({ ...sanitized, updatedAt: new Date() }).where(eq(settings.tenantId, tenantId));
+        } else {
+          await tx.insert(settings).values({ tenantId, ...sanitized });
+        }
+      });
 
       // Invalidate all settings caches for this tenant
       cache.invalidatePrefix(`settings:${tenantId}`);

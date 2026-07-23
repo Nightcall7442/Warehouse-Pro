@@ -52,36 +52,23 @@ export const arrivalRouter = createRouter({
         .where(and(eq(arrivals.id, input.id), eq(arrivals.tenantId, tenantId))).limit(1);
       if (!arrival) return null;
 
-      // Try selecting with new columns, fallback to basic select if columns don't exist
+      // Use raw SQL to avoid Drizzle selecting columns that may not exist (cost_price, sellingPrice)
       let items: any[];
       try {
-        items = await db.select({
-          id: arrivalItems.id, quantity: arrivalItems.quantity,
-          costPrice: arrivalItems.costPrice, sellingPrice: arrivalItems.sellingPrice,
-          condition: arrivalItems.condition, notes: arrivalItems.notes,
-          productId: arrivalItems.productId,
-          productName: products.name, productCode: products.code,
-        })
-          .from(arrivalItems)
-          .leftJoin(products, eq(arrivalItems.productId, products.id))
-          .where(eq(arrivalItems.arrivalId, arrival.id));
+        const [rows] = await db.execute(sql.raw(
+          `SELECT ai.id, ai.arrival_id, ai.product_id, ai.quantity, ai.\`condition\`, ai.notes,
+                  p.name AS productName, p.code AS productCode
+           FROM arrival_items ai
+           LEFT JOIN products p ON ai.product_id = p.id
+           WHERE ai.arrival_id = ${arrival.id}`
+        ));
+        items = Array.isArray(rows) ? rows.map((r: any) => ({
+          ...r,
+          costPrice: r.cost_price ?? "0.00",
+          sellingPrice: r.selling_price ?? "0.00",
+        })) : [];
       } catch {
-        // Fallback: columns cost_price/selling_price don't exist yet
-        items = await db.select({
-          id: arrivalItems.id, quantity: arrivalItems.quantity,
-          condition: arrivalItems.condition, notes: arrivalItems.notes,
-          productId: arrivalItems.productId,
-          productName: products.name, productCode: products.code,
-        })
-          .from(arrivalItems)
-          .leftJoin(products, eq(arrivalItems.productId, products.id))
-          .where(eq(arrivalItems.arrivalId, arrival.id));
-        // Use product's own prices as fallback
-        items = items.map((item: any) => ({
-          ...item,
-          costPrice: item.costPrice ?? "0.00",
-          sellingPrice: item.sellingPrice ?? "0.00",
-        }));
+        items = [];
       }
 
       return { ...arrival, items };
@@ -165,8 +152,11 @@ export const arrivalRouter = createRouter({
         const arrivalNumber = arrivalRow?.arrivalNumber ?? `#${id}`;
 
         await db.transaction(async (tx) => {
-          const items = await tx.select().from(arrivalItems)
-            .where(eq(arrivalItems.arrivalId, id));
+          // Use raw SQL to avoid Drizzle selecting columns that may not exist (cost_price, selling_price)
+          const [itemsResult] = await tx.execute(sql.raw(
+            `SELECT id, arrival_id, product_id, quantity, \`condition\`, notes FROM arrival_items WHERE arrival_id = ${Number(id)}`
+          ));
+          const items = Array.isArray(itemsResult) ? itemsResult : [];
 
           // Get default warehouse
           const [warehouse] = await tx.select({ id: warehouses.id })

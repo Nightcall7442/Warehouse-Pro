@@ -259,14 +259,10 @@ export const warehouseRouter = createRouter({
       const db = ctx.db;
       const tenantId = ctx.tenant.id;
 
-      // Удаляем все записи стока
-      await db.delete(warehouseStock)
-        .where(eq(warehouseStock.tenantId, tenantId));
-
-      // Помечаем все товары как inactive
-      await db.update(products)
-        .set({ status: "inactive", updatedAt: new Date() })
-        .where(eq(products.tenantId, tenantId));
+      await db.transaction(async (tx) => {
+        await tx.delete(warehouseStock).where(eq(warehouseStock.tenantId, tenantId));
+        await tx.update(products).set({ status: "inactive", updatedAt: new Date() }).where(eq(products.tenantId, tenantId));
+      });
 
       return { success: true };
     }),

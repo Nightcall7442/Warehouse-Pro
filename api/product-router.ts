@@ -258,13 +258,20 @@ export const productRouter = createRouter({
         : and(eq(warehouseStock.productId, input.id), eq(warehouseStock.tenantId, tenantId));
       await db.delete(warehouseStock).where(deleteStockWhere);
 
-      // Try hard delete — if FK constraints (order_items, stock_movements) block it, fall back to soft delete
+      // Try hard delete — if FK constraints block it, fall back to soft delete
       try {
         await db.delete(products).where(and(eq(products.id, input.id), eq(products.tenantId, tenantId)));
-      } catch {
-        await db.update(products)
-          .set({ status: "inactive", updatedAt: new Date() })
-          .where(and(eq(products.id, input.id), eq(products.tenantId, tenantId)));
+      } catch (err: any) {
+        const code = err?.cause?.code || err?.code || "";
+        const msg = err?.cause?.message || err?.message || "";
+        // Only soft-delete if it's an FK constraint error, re-throw otherwise
+        if (code === "ER_NO_REFERENCED_ROW_2" || code === "ER_ROW_IS_REFERENCED" || msg.includes("foreign key") || msg.includes("a child row")) {
+          await db.update(products)
+            .set({ status: "inactive", updatedAt: new Date() })
+            .where(and(eq(products.id, input.id), eq(products.tenantId, tenantId)));
+        } else {
+          throw err;
+        }
       }
 
       cache.invalidatePrefix(`products:${tenantId}`);
@@ -299,12 +306,17 @@ export const productRouter = createRouter({
             } else {
               softDeleted++;
             }
-          } catch {
-            // FK constraint (order_items, stock_movements) — fall back to soft delete
-            await tx.update(products)
-              .set({ status: "inactive", updatedAt: new Date() })
-              .where(and(eq(products.id, id), eq(products.tenantId, tenantId)));
-            softDeleted++;
+          } catch (err: any) {
+            const code = err?.cause?.code || err?.code || "";
+            const msg = err?.cause?.message || err?.message || "";
+            if (code === "ER_NO_REFERENCED_ROW_2" || code === "ER_ROW_IS_REFERENCED" || msg.includes("foreign key") || msg.includes("a child row")) {
+              await tx.update(products)
+                .set({ status: "inactive", updatedAt: new Date() })
+                .where(and(eq(products.id, id), eq(products.tenantId, tenantId)));
+              softDeleted++;
+            } else {
+              throw err;
+            }
           }
         }
       });

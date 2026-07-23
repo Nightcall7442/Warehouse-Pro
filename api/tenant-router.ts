@@ -268,14 +268,14 @@ export const tenantRouter = createRouter({
       const db          = getDb();
       const planExpires = new Date(Date.now() + input.expiryDays * 86_400_000);
 
-      await db.update(tenants)
-        .set({ plan: input.plan, planExpiresAt: planExpires, updatedAt: new Date() })
-        .where(eq(tenants.id, input.tenantId));
-
-      // Обновить subscription запись если есть
-      await db.update(subscriptions)
-        .set({ plan: input.plan, status: "active", currentPeriodEnds: planExpires, updatedAt: new Date() })
-        .where(eq(subscriptions.tenantId, input.tenantId));
+      await db.transaction(async (tx) => {
+        await tx.update(tenants)
+          .set({ plan: input.plan, planExpiresAt: planExpires, updatedAt: new Date() })
+          .where(eq(tenants.id, input.tenantId));
+        await tx.update(subscriptions)
+          .set({ plan: input.plan, status: "active", currentPeriodEnds: planExpires, updatedAt: new Date() })
+          .where(eq(subscriptions.tenantId, input.tenantId));
+      });
 
       return { success: true };
     }),
@@ -309,13 +309,14 @@ export const tenantRouter = createRouter({
         : new Date();
       const newDate = new Date(base.getTime() + input.days * 86_400_000);
 
-      await db.update(tenants)
-        .set({ trialEndsAt: newDate, updatedAt: new Date() })
-        .where(eq(tenants.id, input.tenantId));
-
-      await db.update(subscriptions)
-        .set({ trialEndsAt: newDate, updatedAt: new Date() })
-        .where(eq(subscriptions.tenantId, input.tenantId));
+      await db.transaction(async (tx) => {
+        await tx.update(tenants)
+          .set({ trialEndsAt: newDate, updatedAt: new Date() })
+          .where(eq(tenants.id, input.tenantId));
+        await tx.update(subscriptions)
+          .set({ trialEndsAt: newDate, updatedAt: new Date() })
+          .where(eq(subscriptions.tenantId, input.tenantId));
+      });
 
       return { success: true, trialEndsAt: newDate };
     }),
