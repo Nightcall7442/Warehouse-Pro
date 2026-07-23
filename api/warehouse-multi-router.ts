@@ -78,8 +78,16 @@ export const warehouseMultiRouter = createRouter({
       const pageSize = input?.pageSize ?? 25;
       const offset   = (page - 1) * pageSize;
 
+      // Check if warehouse_id column exists
+      let hasWarehouseId = true;
+      try {
+        await db.execute(sql`SELECT warehouse_id FROM warehouse_stock LIMIT 1`);
+      } catch {
+        hasWarehouseId = false;
+      }
+
       const stockCond = [eq(warehouseStock.tenantId, tenantId)];
-      if (input?.warehouseId) stockCond.push(eq(warehouseStock.warehouseId, input.warehouseId));
+      if (hasWarehouseId && input?.warehouseId) stockCond.push(eq(warehouseStock.warehouseId, input.warehouseId));
       if (input?.search) stockCond.push(like(products.name, `%${input.search}%`));
       const where = and(...stockCond);
 

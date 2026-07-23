@@ -54,21 +54,29 @@ export const arrivalRouter = createRouter({
 
       let items: any[];
       try {
-        const result = await db.execute(sql`
-          SELECT ai.id, ai.arrival_id, ai.product_id, ai.quantity, ai.condition, ai.notes,
-                 p.name AS productName, p.code AS productCode
-          FROM arrival_items ai
-          LEFT JOIN products p ON ai.product_id = p.id
-          WHERE ai.arrival_id = ${arrival.id}
-        `);
-        const rows = (result as any)[0];
-        items = Array.isArray(rows) ? rows.map((r: any) => ({
-          ...r,
-          costPrice: r.cost_price ?? "0.00",
-          sellingPrice: r.selling_price ?? "0.00",
-        })) : [];
+        items = await db.select({
+          id: arrivalItems.id, productId: arrivalItems.productId,
+          quantity: arrivalItems.quantity, condition: arrivalItems.condition, notes: arrivalItems.notes,
+          productName: products.name, productCode: products.code,
+        })
+          .from(arrivalItems)
+          .leftJoin(products, eq(arrivalItems.productId, products.id))
+          .where(eq(arrivalItems.arrivalId, arrival.id));
+        // Add costPrice/sellingPrice with defaults (columns may not exist yet)
+        items = items.map((item: any) => ({
+          ...item,
+          costPrice: item.costPrice ?? "0.00",
+          sellingPrice: item.sellingPrice ?? "0.00",
+        }));
       } catch {
-        items = [];
+        // Fallback: columns may not exist — try minimal select
+        try {
+          const result = await db.execute(sql`SELECT ai.id, ai.product_id, ai.quantity, ai.condition, ai.notes, p.name AS productName, p.code AS productCode FROM arrival_items ai LEFT JOIN products p ON ai.product_id = p.id WHERE ai.arrival_id = ${arrival.id}`);
+          const rows = (result as any)[0];
+          items = Array.isArray(rows) ? rows.map((r: any) => ({ ...r, costPrice: "0.00", sellingPrice: "0.00" })) : [];
+        } catch {
+          items = [];
+        }
       }
 
       return { ...arrival, items };
