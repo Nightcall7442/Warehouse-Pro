@@ -81,7 +81,6 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
     if (isNaN(qty) || qty <= 0) return;
     addToCart(product, qty);
     searchRef.current?.focus();
-  }
   }, [quickQty, addToCart]);
 
   const validItems = items.filter(i => i.productId > 0);
