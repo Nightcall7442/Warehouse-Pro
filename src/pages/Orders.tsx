@@ -171,7 +171,7 @@ export default function Orders() {
     const processingCount = orders.filter(o => o.status === "processing").length;
     const completedCount = orders.filter(o => o.status === "completed").length;
     const cancelledCount = orders.filter(o => o.status === "cancelled").length;
-    const totalRevenue = orders.reduce((sum, o) => sum + (o.total ?? 0), 0);
+    const totalRevenue = orders.reduce((sum, o) => sum + Number(o.total ?? 0), 0);
     return { total, newCount, processingCount, completedCount, cancelledCount, totalRevenue };
   }, [allOrders?.data]);
 

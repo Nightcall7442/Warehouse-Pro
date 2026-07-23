@@ -78,7 +78,7 @@ export const courierRouter = createRouter({
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
 
-      const [order] = await db.select({ id: orders.id, status: orders.status, courierId: orders.courierId }).from(orders)
+      const [order] = await db.select({ id: orders.id, status: orders.status, courierId: orders.courierId, shopId: orders.shopId, orderNumber: orders.orderNumber }).from(orders)
         .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, ctx.tenant.id)))
         .limit(1);
       if (!order) throw new Error("Заказ не найден");
@@ -177,6 +177,16 @@ export const courierRouter = createRouter({
           .set({ deliveryStatus: "delivered", deliveredAt: new Date(), status: "completed" })
           .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, ctx.tenant.id)));
 
+        const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, input.orderId));
+        for (const item of items) {
+          const qty = Number(item.quantity);
+          await tx.execute(sql`
+            UPDATE warehouse_stock
+            SET current_stock = current_stock - ${qty}, reserved = reserved - ${qty}, available = available + ${qty}
+            WHERE product_id = ${item.productId} AND tenant_id = ${ctx.tenant.id}
+          `);
+        }
+
         if (input.cashAmount && Number(input.cashAmount) > 0) {
           await tx.insert(payments).values({
             tenantId: ctx.tenant.id,
@@ -234,7 +244,7 @@ export const courierRouter = createRouter({
       if (!order) throw new Error("Заказ не найден или не назначен на вас");
 
       await db.update(orders)
-        .set({ deliveryStatus: "failed" })
+        .set({ deliveryStatus: "failed", status: "new" })
         .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, ctx.tenant.id)));
 
       const [ceo] = await db.select({ id: users.id }).from(users)

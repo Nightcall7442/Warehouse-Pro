@@ -1,5 +1,5 @@
 import { eq, and, desc, sql, isNull } from "drizzle-orm";
-import { orders, orderItems, warehouseStock, shops, users, products } from "@db/schema";
+import { orders, orderItems, warehouseStock, shops, users, products, notifications } from "@db/schema";
 import { cache, CacheKeys } from "../lib/cache";
 import { NotificationService } from "./NotificationService";
 
@@ -57,7 +57,7 @@ export const OrderService = {
     }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt))).limit(1);
     if (!order) return null;
 
-    const [items, [shop]] = await Promise.all([
+    const [items, [shop], [agent]] = await Promise.all([
       db.select({
         id: orderItems.id, productId: orderItems.productId, quantity: orderItems.quantity,
         unitPrice: orderItems.unitPrice, subtotal: orderItems.subtotal,
@@ -67,9 +67,12 @@ export const OrderService = {
         .where(eq(orderItems.orderId, orderId)),
       db.select({ id: shops.id, name: shops.name, address: shops.address, city: shops.city, phone: shops.phone })
         .from(shops).where(eq(shops.id, order.shopId)).limit(1),
+      order.agentId
+        ? db.select({ id: users.id, name: users.name }).from(users).where(eq(users.id, order.agentId)).limit(1)
+        : Promise.resolve([]),
     ]);
 
-    return { ...order, items, shop: shop ?? null, shopName: shop?.name ?? null };
+    return { ...order, items, shop: shop ?? null, shopName: shop?.name ?? null, agent: agent ?? null };
   },
 
   async myOrders(db: Db, tenantId: number, agentId: number) {
@@ -390,26 +393,32 @@ export const OrderService = {
   },
 
   async update(db: Db, tenantId: number, orderId: number, data: { notes?: string; discount?: string }) {
-    const [order] = await db.select({
-      id: orders.id,
-      subtotal: orders.subtotal,
-      deletedAt: orders.deletedAt,
-    }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt))).limit(1);
-    if (!order) throw new Error("Заказ не найден");
-
-    const updates: Record<string, unknown> = {};
-    if (data.notes !== undefined) updates.notes = data.notes;
-    if (data.discount !== undefined) {
-      updates.discount = data.discount;
-      // Recalculate total
-      const subtotal = Number(order.subtotal);
-      const discount = Number(data.discount);
-      updates.total = String(subtotal - discount);
+    if (data.discount !== undefined && Number(data.discount) < 0) {
+      throw new Error("Скидка не может быть отрицательной");
     }
 
-    if (Object.keys(updates).length > 0) {
-      await db.update(orders).set(updates).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)));
-    }
+    await db.transaction(async (tx) => {
+      const [order] = await tx.select({
+        id: orders.id,
+        subtotal: orders.subtotal,
+        deletedAt: orders.deletedAt,
+      }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt))).limit(1);
+      if (!order) throw new Error("Заказ не найден");
+
+      const updates: Record<string, unknown> = {};
+      if (data.notes !== undefined) updates.notes = data.notes;
+      if (data.discount !== undefined) {
+        updates.discount = data.discount;
+        // Recalculate total
+        const subtotal = Number(order.subtotal);
+        const discount = Number(data.discount);
+        updates.total = String(subtotal - discount);
+      }
+
+      if (Object.keys(updates).length > 0) {
+        await tx.update(orders).set(updates).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)));
+      }
+    });
 
     cache.invalidate(CacheKeys.dashboardKpis(Number(tenantId)));
 
