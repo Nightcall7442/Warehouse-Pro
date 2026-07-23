@@ -238,7 +238,7 @@ export const courierRouter = createRouter({
         .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, ctx.tenant.id)));
 
       const [ceo] = await db.select({ id: users.id }).from(users)
-        .where(and(eq(orders.tenantId, ctx.tenant.id), eq(users.role, "ceo")))
+        .where(and(eq(users.tenantId, ctx.tenant.id), eq(users.role, "ceo")))
         .limit(1);
 
       if (ceo) {

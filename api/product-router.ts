@@ -192,18 +192,22 @@ export const productRouter = createRouter({
         category: input.category ? sanitizeString(input.category) : undefined,
         description: input.description ? sanitizeString(input.description) : undefined,
       };
-      const [result] = await db.insert(products).values({ tenantId, ...sanitized, status: "active" });
-      const productId = Number(result.insertId);
 
-      // Get default warehouse for tenant
-      const [defaultWarehouse] = await db.select({ id: warehouses.id })
-        .from(warehouses)
-        .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true)))
-        .limit(1);
+      const productId = await db.transaction(async (tx) => {
+        const [result] = await tx.insert(products).values({ tenantId, ...sanitized, status: "active" });
+        const id = Number(result.insertId);
 
-      if (defaultWarehouse) {
-        await db.insert(warehouseStock).values({ tenantId, warehouseId: defaultWarehouse.id, productId, currentStock: "0.00", reserved: "0.00", available: "0.00" });
-      }
+        const [defaultWarehouse] = await tx.select({ id: warehouses.id })
+          .from(warehouses)
+          .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true)))
+          .limit(1);
+
+        if (defaultWarehouse) {
+          await tx.insert(warehouseStock).values({ tenantId, warehouseId: defaultWarehouse.id, productId: id, currentStock: "0.00", reserved: "0.00", available: "0.00" });
+        }
+
+        return id;
+      });
 
       cache.invalidatePrefix(`products:${tenantId}`);
       return { id: productId };
@@ -377,9 +381,20 @@ export const productRouter = createRouter({
       const db = getDb();
       const tenantId = ctx.tenant.id;
 
-      await db.delete(warehouseStock).where(eq(warehouseStock.tenantId, tenantId));
-      try { await db.delete(stockMovements).where(eq(stockMovements.tenantId, tenantId)); } catch { /* table may not exist */ }
-      await db.delete(products).where(eq(products.tenantId, tenantId));
+      // FK-safe delete order in a single transaction
+      await db.transaction(async (tx) => {
+        // Delete child tables first (order_items may reference products)
+        try {
+          const { orderItems, orders } = await import("@db/schema");
+          // Delete order items for this tenant's orders
+          const tenantOrderIds = tx.select({ id: orders.id }).from(orders).where(eq(orders.tenantId, tenantId));
+          await tx.delete(orderItems).where(sql`${orderItems.orderId} IN (${tenantOrderIds})`);
+          await tx.delete(orders).where(eq(orders.tenantId, tenantId));
+        } catch { /* tables may not exist or no FK */ }
+        await tx.delete(warehouseStock).where(eq(warehouseStock.tenantId, tenantId));
+        try { await tx.delete(stockMovements).where(eq(stockMovements.tenantId, tenantId)); } catch { /* table may not exist */ }
+        await tx.delete(products).where(eq(products.tenantId, tenantId));
+      });
 
       cache.invalidatePrefix(`products:${tenantId}`);
       cache.invalidatePrefix(`product_cats:${tenantId}`);

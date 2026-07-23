@@ -102,8 +102,6 @@ export const arrivalRouter = createRouter({
     .mutation(async ({ input, ctx }) => {
       const db       = ctx.db;
       const tenantId = ctx.tenant.id;
-      // SECURITY FIX 1.1: Use random arrival number instead of predictable timestamp
-      // EXPANDED: 12 hex chars = 48 bits entropy, safe for billions of arrivals
       const raw = crypto.randomUUID().replace(/-/g, "");
       const arrivalNumber = `ARR-${raw.slice(0, 12).toUpperCase()}`;
       const totalExpense  = (Number(input.fuelCost) + Number(input.tollCost) + Number(input.otherCost)).toFixed(2);
@@ -125,23 +123,17 @@ export const arrivalRouter = createRouter({
       const arrivalId = Number(result.insertId);
 
       if (input.items && input.items.length > 0) {
-        // Try inserting with new columns, fallback to basic insert
+        // Build raw SQL to avoid Drizzle mapping issues with optional columns
+        const valuesSql = input.items.map(item => {
+          const cond = item.condition ? sanitizeString(item.condition).replace(/'/g, "\\'") : "";
+          return `(${arrivalId}, ${item.productId}, ${item.quantity}, '${cond}', '')`;
+        }).join(", ");
         try {
-          await db.insert(arrivalItems).values(input.items.map(item => ({
-            arrivalId,
-            productId: item.productId,
-            quantity: item.quantity,
-            costPrice: item.costPrice ?? "0.00",
-            sellingPrice: item.sellingPrice ?? "0.00",
-            condition: item.condition ? sanitizeString(item.condition) : undefined,
-          })));
+          await db.execute(sql.raw(`INSERT INTO arrival_items (arrival_id, product_id, quantity, \`condition\`, notes) VALUES ${valuesSql}`));
         } catch {
-          await db.insert(arrivalItems).values(input.items.map(item => ({
-            arrivalId,
-            productId: item.productId,
-            quantity: item.quantity,
-            condition: item.condition ? sanitizeString(item.condition) : undefined,
-          })));
+          // Fallback: minimal columns only
+          const minValues = input.items.map(item => `(${arrivalId}, ${item.productId}, ${item.quantity})`).join(", ");
+          await db.execute(sql.raw(`INSERT INTO arrival_items (arrival_id, product_id, quantity) VALUES ${minValues}`));
         }
       }
 
@@ -165,57 +157,66 @@ export const arrivalRouter = createRouter({
       const tenantId = ctx.tenant.id;
       const { id, ...data } = input;
 
-      // When completing an arrival, update warehouse stock
+      // When completing an arrival, update warehouse stock in a transaction
       if (data.status === "completed") {
-        const items = await db.select().from(arrivalItems)
-          .where(eq(arrivalItems.arrivalId, id));
+        // Get arrival number for stock movement notes
+        const [arrivalRow] = await db.select({ arrivalNumber: arrivals.arrivalNumber })
+          .from(arrivals).where(and(eq(arrivals.id, id), eq(arrivals.tenantId, tenantId))).limit(1);
+        const arrivalNumber = arrivalRow?.arrivalNumber ?? `#${id}`;
 
-        // Get default warehouse
-        const [warehouse] = await db.select({ id: warehouses.id })
-          .from(warehouses)
-          .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true)))
-          .limit(1);
+        await db.transaction(async (tx) => {
+          const items = await tx.select().from(arrivalItems)
+            .where(eq(arrivalItems.arrivalId, id));
 
-        if (!warehouse) throw new Error("Склад не найден — создайте склад в настройках");
+          // Get default warehouse
+          const [warehouse] = await tx.select({ id: warehouses.id })
+            .from(warehouses)
+            .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true)))
+            .limit(1);
 
-        for (const item of items) {
-          const qty = Number(item.quantity);
+          if (!warehouse) throw new Error("Склад не найден — создайте склад в настройках");
 
-          // Update warehouse_stock (the source of truth for stock levels)
-          const [existingStock] = await db.select().from(warehouseStock)
-            .where(and(
-              eq(warehouseStock.productId, item.productId),
-              eq(warehouseStock.tenantId, tenantId),
-              eq(warehouseStock.warehouseId, warehouse.id),
-            )).limit(1);
+          // Batch update: for each product, update stock in one query
+          for (const item of items) {
+            const qty = Number(item.quantity);
 
-          if (existingStock) {
-            const newCurrent = Number(existingStock.currentStock) + qty;
-            const newAvailable = newCurrent - Number(existingStock.reserved);
-            await db.update(warehouseStock)
-              .set({ currentStock: String(newCurrent), available: String(newAvailable) })
-              .where(eq(warehouseStock.id, existingStock.id));
-          } else {
-            await db.insert(warehouseStock).values({
-              tenantId, warehouseId: warehouse.id,
-              productId: item.productId,
-              currentStock: String(qty), reserved: "0.00", available: String(qty),
-            });
+            // Upsert warehouse_stock using INSERT ... ON DUPLICATE KEY UPDATE
+            await tx.execute(sql`
+              INSERT INTO warehouse_stock (tenant_id, warehouse_id, product_id, current_stock, reserved, available)
+              VALUES (${tenantId}, ${warehouse.id}, ${item.productId}, ${qty}, 0, ${qty})
+              ON DUPLICATE KEY UPDATE
+                current_stock = current_stock + ${qty},
+                available = available + ${qty}
+            `);
+
+            // Create stock movement record
+            try {
+              const { stockMovements } = await import("@db/schema");
+              await tx.insert(stockMovements).values({
+                tenantId, productId: item.productId,
+                type: "in", quantity: String(qty),
+                referenceType: "arrival", referenceId: id,
+                notes: `Приход ${arrivalNumber}`,
+              });
+            } catch { /* stock_movements table may not exist */ }
           }
 
-          // Also create a stock movement record
-          try {
-            const { stockMovements } = await import("@db/schema");
-            await db.insert(stockMovements).values({
-              tenantId, productId: item.productId,
-              type: "in", quantity: String(qty),
-              referenceType: "arrival", referenceId: id,
-              notes: `Приход ${arrivalNumber}`,
-            });
-          } catch { /* stock_movements table may not exist */ }
-        }
+          // Update arrival status
+          if (data.fuelCost || data.tollCost || data.otherCost) {
+            const fuel  = Number(data.fuelCost  ?? "0");
+            const toll  = Number(data.tollCost  ?? "0");
+            const other = Number(data.otherCost ?? "0");
+            await tx.update(arrivals).set({ ...data, totalExpense: (fuel + toll + other).toFixed(2) })
+              .where(and(eq(arrivals.id, id), eq(arrivals.tenantId, tenantId)));
+          } else {
+            await tx.update(arrivals).set(data).where(and(eq(arrivals.id, id), eq(arrivals.tenantId, tenantId)));
+          }
+        });
+
+        return { success: true };
       }
 
+      // Non-completion status changes
       if (data.fuelCost || data.tollCost || data.otherCost) {
         const [existing] = await db.select().from(arrivals)
           .where(and(eq(arrivals.id, id), eq(arrivals.tenantId, tenantId))).limit(1);
