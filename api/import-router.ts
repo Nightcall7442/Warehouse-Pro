@@ -390,15 +390,14 @@ export const importRouter = createRouter({
               });
               success++;
             } catch (err: unknown) {
-              console.error(`[IMPORT] Row ${row.rowNum} (${row.code}) full error:`, JSON.stringify(err, Object.getOwnPropertyNames(err as object)));
               const anyErr = err as any;
-              const sqlMsg = anyErr?.sqlMessage || anyErr?.message || String(err);
-              const code = anyErr?.code || anyErr?.errno || "";
-              const detail = code ? `[${code}] ${sqlMsg}` : sqlMsg;
-              if (sqlMsg.includes("Duplicate") || sqlMsg.includes("duplicate") || sqlMsg.includes("uq_product") || code === "ER_DUP_ENTRY") {
+              // drizzle-orm wraps the real MySQL error in .cause, not .message
+              const causeMsg = anyErr?.cause?.message || "";
+              const fullMsg = [anyErr?.message, causeMsg, anyErr?.sqlMessage].filter(Boolean).join(" | ");
+              if (causeMsg.includes("Duplicate") || fullMsg.includes("Duplicate") || fullMsg.includes("uq_product") || anyErr?.code === "ER_DUP_ENTRY") {
                 skipped.push(`${row.code} — уже существует`);
               } else {
-                errors.push(`Строка ${row.rowNum}: ${detail}`);
+                errors.push(`Строка ${row.rowNum}: ${fullMsg}`);
               }
             }
           }
@@ -426,7 +425,14 @@ export const importRouter = createRouter({
             });
             success++;
           } catch (err: unknown) {
-            errors.push(`Строка ${rowNum}: ${err instanceof Error ? err.message : String(err)}`);
+            const anyErr = err as any;
+            const causeMsg = anyErr?.cause?.message || "";
+            const fullMsg = [anyErr?.message, causeMsg, anyErr?.sqlMessage].filter(Boolean).join(" | ");
+            if (causeMsg.includes("Duplicate") || fullMsg.includes("Duplicate") || anyErr?.code === "ER_DUP_ENTRY") {
+              skipped.push(`${rowNum}: магазин "${name}" — уже существует`);
+            } else {
+              errors.push(`Строка ${rowNum}: ${fullMsg}`);
+            }
           }
         }
       }
