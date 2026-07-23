@@ -52,16 +52,16 @@ export const arrivalRouter = createRouter({
         .where(and(eq(arrivals.id, input.id), eq(arrivals.tenantId, tenantId))).limit(1);
       if (!arrival) return null;
 
-      // Use raw SQL to avoid Drizzle selecting columns that may not exist (cost_price, sellingPrice)
       let items: any[];
       try {
-        const [rows] = await db.execute(sql.raw(
-          `SELECT ai.id, ai.arrival_id, ai.product_id, ai.quantity, ai.\`condition\`, ai.notes,
-                  p.name AS productName, p.code AS productCode
-           FROM arrival_items ai
-           LEFT JOIN products p ON ai.product_id = p.id
-           WHERE ai.arrival_id = ${arrival.id}`
-        ));
+        const result = await db.execute(sql`
+          SELECT ai.id, ai.arrival_id, ai.product_id, ai.quantity, ai.condition, ai.notes,
+                 p.name AS productName, p.code AS productCode
+          FROM arrival_items ai
+          LEFT JOIN products p ON ai.product_id = p.id
+          WHERE ai.arrival_id = ${arrival.id}
+        `);
+        const rows = (result as any)[0];
         items = Array.isArray(rows) ? rows.map((r: any) => ({
           ...r,
           costPrice: r.cost_price ?? "0.00",
@@ -152,11 +152,12 @@ export const arrivalRouter = createRouter({
         const arrivalNumber = arrivalRow?.arrivalNumber ?? `#${id}`;
 
         await db.transaction(async (tx) => {
-          // Use raw SQL to avoid Drizzle selecting columns that may not exist (cost_price, selling_price)
-          const [itemsResult] = await tx.execute(sql.raw(
-            `SELECT id, arrival_id, product_id, quantity, \`condition\`, notes FROM arrival_items WHERE arrival_id = ${Number(id)}`
-          ));
-          const items = Array.isArray(itemsResult) ? itemsResult : [];
+          // Use sql template (not Drizzle select) to avoid selecting non-existent columns
+          const itemsResult = await tx.execute(
+            sql`SELECT ai.id, ai.arrival_id, ai.product_id, ai.quantity, ai.condition, ai.notes FROM arrival_items ai WHERE ai.arrival_id = ${id}`
+          );
+          const rows = (itemsResult as any)[0];
+          const items = Array.isArray(rows) ? rows : [];
 
           // Get default warehouse
           const [warehouse] = await tx.select({ id: warehouses.id })
