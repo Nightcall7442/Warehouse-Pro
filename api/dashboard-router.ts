@@ -137,4 +137,32 @@ export const dashboardRouter = createRouter({
       pendingPlans:  Number(pendingPlans[0]?.count ?? 0),
     };
   }),
+
+  /** Revenue trend for sparkline — last N days daily revenue */
+  revenueTrend: fieldSalesQuery
+    .input(z.object({ days: z.number().default(7) }).optional())
+    .query(async ({ input, ctx }) => {
+      const db = ctx.db;
+      const tenantId = ctx.tenant.id;
+      const days = input?.days ?? 7;
+      const startDate = subDays(new Date(), days).toISOString().split("T")[0];
+
+      const rows = await db.select({
+        date: sql<string>`DATE(${orders.createdAt})`,
+        revenue: sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'completed' THEN ${orders.total} ELSE 0 END), 0)`,
+      })
+        .from(orders)
+        .where(and(eq(orders.tenantId, tenantId), sql`DATE(${orders.createdAt}) >= ${startDate}`, isNull(orders.deletedAt)))
+        .groupBy(sql`DATE(${orders.createdAt})`)
+        .orderBy(sql`DATE(${orders.createdAt})`);
+
+      // Fill missing days with 0
+      const result: number[] = [];
+      for (let i = 0; i < days; i++) {
+        const d = subDays(new Date(), days - 1 - i).toISOString().split("T")[0];
+        const found = rows.find(r => r.date === d);
+        result.push(Number(found?.revenue ?? 0));
+      }
+      return result;
+    }),
 });
