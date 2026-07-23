@@ -12,7 +12,7 @@ const PRODUCT_COLUMNS: Record<string, string> = {
   "код": "code", "code": "code", "артикул": "code",
   "название": "name", "name": "name", "наименование": "name",
   "категория": "category", "category": "category",
-  "цена продажи": "unitPrice", "цена": "unitPrice", "price": "unitPrice", "unitprice": "unitPrice", "продажа": "unitPrice",
+  "цена продажи": "unitPrice", "цена продажи (сум)": "unitPrice", "цена": "unitPrice", "price": "unitPrice", "unitprice": "unitPrice", "продажа": "unitPrice",
   "себестоимость": "costPrice", "cost": "costPrice", "costprice": "costPrice", "себестоимость (сум)": "costPrice",
   "ед. измерения": "unit", "unit": "unit", "единица": "unit",
   "вес (кг)": "unitWeight", "weight": "unitWeight", "unitweight": "unitWeight", "вес": "unitWeight",
@@ -244,8 +244,16 @@ export const importRouter = createRouter({
           const rawPrice = String(row.unitPrice ?? "0").replace(/\s/g, "").replace(/[^\d.]/g, "");
           const rawCost = String(row.costPrice ?? "0").replace(/\s/g, "").replace(/[^\d.]/g, "");
           const validUnits = ["kg", "l", "pcs", "box", "pack", "m"];
+          const unitTranslations: Record<string, string> = {
+            "шт": "pcs", "штук": "pcs", "дона": "pcs",
+            "кг": "kg", "kilogram": "kg",
+            "л": "l", "литр": "l", "litr": "l",
+            "ящ": "box", "ящик": "box", "quti": "box",
+            "упак": "pack", "упаковка": "pack", "pachka": "pack",
+            "м": "m", "метр": "m", "metr": "m",
+          };
           const rawUnit = String(row.unit ?? "pcs").trim().toLowerCase();
-          const unit = validUnits.includes(rawUnit) ? rawUnit : "pcs";
+          const unit = unitTranslations[rawUnit] ?? (validUnits.includes(rawUnit) ? rawUnit : "pcs");
 
           parsedRows.push({
             rowNum, name, code,
