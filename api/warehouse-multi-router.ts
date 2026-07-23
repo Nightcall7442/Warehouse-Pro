@@ -78,35 +78,38 @@ export const warehouseMultiRouter = createRouter({
       const pageSize = input?.pageSize ?? 25;
       const offset   = (page - 1) * pageSize;
 
-      // Use raw SQL to avoid Drizzle referencing columns that may not exist (warehouse_id)
+      // Use raw SQL: show ALL products with their stock (or 0 if no warehouse_stock record)
       const searchClause = input?.search ? `AND p.name LIKE '%${input.search.replace(/'/g, "\\'")}%'` : "";
 
       const dataQuery = sql.raw(`
-        SELECT ws.id, ws.product_id AS productId, ws.current_stock AS currentStock,
-               ws.reserved, ws.available, p.name AS productName, p.code AS productCode,
-               p.category, p.unit, p.unit_weight AS unitWeight, p.unit_price AS unitPrice,
-               p.cost_price AS costPrice, p.reorder_point AS reorderPoint
-        FROM warehouse_stock ws
-        LEFT JOIN products p ON ws.product_id = p.id
-        WHERE ws.tenant_id = ${tenantId} ${searchClause}
+        SELECT COALESCE(ws.id, 0) AS id, p.id AS productId,
+               COALESCE(ws.current_stock, '0') AS currentStock,
+               COALESCE(ws.reserved, '0') AS reserved,
+               COALESCE(ws.available, '0') AS available,
+               p.name AS productName, p.code AS productCode,
+               p.category, p.unit, p.unit_weight AS unitWeight,
+               p.unit_price AS unitPrice, p.cost_price AS costPrice,
+               p.reorder_point AS reorderPoint
+        FROM products p
+        LEFT JOIN warehouse_stock ws ON ws.product_id = p.id AND ws.tenant_id = p.tenant_id
+        WHERE p.tenant_id = ${tenantId} AND p.status = 'active' ${searchClause}
         ORDER BY p.name
         LIMIT ${pageSize} OFFSET ${offset}
       `);
 
       const countQuery = sql.raw(`
         SELECT COUNT(*) AS cnt
-        FROM warehouse_stock ws
-        LEFT JOIN products p ON ws.product_id = p.id
-        WHERE ws.tenant_id = ${tenantId} ${searchClause}
+        FROM products p
+        WHERE p.tenant_id = ${tenantId} AND p.status = 'active' ${searchClause}
       `);
 
       const summaryQuery = sql.raw(`
         SELECT COUNT(*) AS totalSKUs,
-               COALESCE(SUM(CAST(ws.current_stock AS DECIMAL) * CAST(COALESCE(p.unit_weight, '0') AS DECIMAL)), 0) AS totalWeight,
-               COUNT(CASE WHEN ws.available < p.reorder_point THEN 1 END) AS lowStockCount
-        FROM warehouse_stock ws
-        LEFT JOIN products p ON ws.product_id = p.id
-        WHERE ws.tenant_id = ${tenantId} ${searchClause}
+               COALESCE(SUM(CAST(COALESCE(ws.current_stock, '0') AS DECIMAL) * CAST(COALESCE(p.unit_weight, '0') AS DECIMAL)), 0) AS totalWeight,
+               COUNT(CASE WHEN CAST(COALESCE(ws.available, '0') AS DECIMAL) < CAST(p.reorder_point AS DECIMAL) THEN 1 END) AS lowStockCount
+        FROM products p
+        LEFT JOIN warehouse_stock ws ON ws.product_id = p.id AND ws.tenant_id = p.tenant_id
+        WHERE p.tenant_id = ${tenantId} AND p.status = 'active' ${searchClause}
       `);
 
       const [dataResult, countResult, summaryResult] = await Promise.all([
