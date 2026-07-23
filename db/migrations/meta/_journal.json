@@ -92,6 +92,41 @@
       "when": 1784588081208,
       "tag": "0012_friendly_silvermane",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "5",
+      "when": 1784674481208,
+      "tag": "0013_add_territories",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "5",
+      "when": 1784760881208,
+      "tag": "0014_add_daily_plans_photo_url",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "5",
+      "when": 1784847281208,
+      "tag": "0015_add_battery_level_to_agent_locations",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "5",
+      "when": 1784933681208,
+      "tag": "0016_add_arrival_items_price_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "5",
+      "when": 1785020081208,
+      "tag": "0017_ensure_warehouse_stock_warehouse_id",
+      "breakpoints": true
     }
   ]
 }

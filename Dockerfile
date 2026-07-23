@@ -23,10 +23,12 @@ COPY --from=builder --chown=appuser:appgroup /app/dist ./dist
 COPY --from=builder --chown=appuser:appgroup /app/package.json /app/package-lock.json ./
 RUN npm ci --omit=dev --legacy-peer-deps && npm cache clean --force
 COPY --from=builder --chown=appuser:appgroup /app/db ./db
+COPY --from=builder --chown=appuser:appgroup /app/drizzle.config.ts ./
 USER appuser
 ENV NODE_ENV=production
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD wget -qO- http://localhost:3000/health || exit 1
 ENTRYPOINT ["dumb-init", "--"]
-CMD ["node", "dist/boot.js"]
+# Install drizzle-kit, run migrations, then start server
+CMD ["sh", "-c", "npm install drizzle-kit --no-save --legacy-peer-deps && npx drizzle-kit migrate && node dist/boot.js"]
