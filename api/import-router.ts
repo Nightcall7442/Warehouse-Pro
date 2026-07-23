@@ -390,11 +390,15 @@ export const importRouter = createRouter({
               });
               success++;
             } catch (err: unknown) {
-              const msg = err instanceof Error ? err.message : String(err);
-              if (msg.includes("Duplicate") || msg.includes("duplicate") || msg.includes("uq_product")) {
+              // Extract actual MySQL error — drizzle/mysql2 wraps it poorly
+              const anyErr = err as any;
+              const sqlMsg = anyErr?.sqlMessage || anyErr?.message || String(err);
+              const code = anyErr?.code || "";
+              const detail = code ? `[${code}] ${sqlMsg}` : sqlMsg;
+              if (sqlMsg.includes("Duplicate") || sqlMsg.includes("duplicate") || sqlMsg.includes("uq_product") || code === "ER_DUP_ENTRY") {
                 skipped.push(`${row.code} — уже существует`);
               } else {
-                errors.push(`Строка ${row.rowNum}: ${msg}`);
+                errors.push(`Строка ${row.rowNum}: ${detail}`);
               }
             }
           }
