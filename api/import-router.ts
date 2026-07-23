@@ -352,16 +352,17 @@ export const importRouter = createRouter({
           });
         }
 
-        // Insert all rows — duplicates handled by unique constraint catch
-        await db.transaction(async (tx) => {
-          // Get default warehouse for tenant — auto-create if missing
-          let [defaultWarehouse] = await tx.select({ id: warehouses.id })
+        // Import products — no transaction to avoid MySQL error state cascading
+        // Each row has its own try/catch for partial success
+        {
+          // Get or create default warehouse
+          let [defaultWarehouse] = await db.select({ id: warehouses.id })
             .from(warehouses)
             .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true)))
             .limit(1);
 
           if (!defaultWarehouse) {
-            const [created] = await tx.insert(warehouses).values({
+            const [created] = await db.insert(warehouses).values({
               tenantId, name: "Основной склад", isDefault: true, status: "active",
             });
             defaultWarehouse = { id: Number(created.insertId) };
@@ -369,31 +370,32 @@ export const importRouter = createRouter({
 
           for (const row of parsedRows) {
             try {
-              // Upload base64 photo to S3 if needed
               let photoUrl = row.photoUrl;
               if (photoUrl && photoUrl.startsWith("data:image/")) {
                 photoUrl = await uploadBase64ToS3(photoUrl, "products", tenantId);
               }
 
-              const [r] = await tx.insert(products).values({
+              const [r] = await db.insert(products).values({
                 tenantId, code: row.code, name: row.name, barcode: row.barcode,
                 category: row.category, costPrice: row.costPrice, unitPrice: row.unitPrice,
                 unit: row.unit as any, unitWeight: row.unitWeight,
                 reorderPoint: row.reorderPoint, description: row.description,
                 photoUrl, status: "active",
               });
-              // Use raw SQL to handle case where warehouse_id column may not exist
+
+              // Create warehouse_stock record — try with warehouse_id first, fallback without
               try {
-                await tx.execute(sql`INSERT INTO warehouse_stock (tenant_id, warehouse_id, product_id, current_stock, reserved, available) VALUES (${tenantId}, ${defaultWarehouse.id}, ${Number(r.insertId)}, ${row.initialStock}, '0.00', ${row.initialStock})`);
+                await db.execute(sql`INSERT INTO warehouse_stock (tenant_id, warehouse_id, product_id, current_stock, reserved, available) VALUES (${tenantId}, ${defaultWarehouse.id}, ${Number(r.insertId)}, ${row.initialStock}, '0.00', ${row.initialStock})`);
               } catch {
                 try {
-                  await tx.execute(sql`INSERT INTO warehouse_stock (tenant_id, product_id, current_stock, reserved, available) VALUES (${tenantId}, ${Number(r.insertId)}, ${row.initialStock}, '0.00', ${row.initialStock})`);
-                } catch { /* give up */ }
+                  await db.execute(sql`INSERT INTO warehouse_stock (tenant_id, product_id, current_stock, reserved, available) VALUES (${tenantId}, ${Number(r.insertId)}, ${row.initialStock}, '0.00', ${row.initialStock})`);
+                } catch (stockErr: any) {
+                  console.error(`[IMPORT] Failed to create warehouse_stock for product ${row.code}:`, stockErr?.cause?.message || stockErr?.message || stockErr);
+                }
               }
               success++;
             } catch (err: unknown) {
               const anyErr = err as any;
-              // drizzle-orm wraps the real MySQL error in .cause, not .message
               const causeMsg = anyErr?.cause?.message || "";
               const fullMsg = [anyErr?.message, causeMsg, anyErr?.sqlMessage].filter(Boolean).join(" | ");
               if (causeMsg.includes("Duplicate") || fullMsg.includes("Duplicate") || fullMsg.includes("uq_product") || anyErr?.code === "ER_DUP_ENTRY") {
@@ -403,7 +405,7 @@ export const importRouter = createRouter({
               }
             }
           }
-        });
+        }
       } else {
         // Shops import
         for (let i = 0; i < dataRows.length; i++) {
