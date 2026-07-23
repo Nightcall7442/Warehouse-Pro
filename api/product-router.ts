@@ -216,6 +216,9 @@ export const productRouter = createRouter({
       });
 
       cache.invalidatePrefix(`products:${tenantId}`);
+      cache.invalidatePrefix(`product_cats:${tenantId}`);
+      cache.invalidatePrefix(`warehouse:${tenantId}`);
+      cache.invalidatePrefix(`warehouse_valuation:${tenantId}`);
       return { id: productId };
     }),
 
@@ -244,6 +247,8 @@ export const productRouter = createRouter({
         .where(and(eq(products.id, id), eq(products.tenantId, ctx.tenant.id)));
       cache.invalidatePrefix(`products:${ctx.tenant.id}`);
       cache.invalidatePrefix(`product_cats:${ctx.tenant.id}`);
+      cache.invalidatePrefix(`warehouse:${ctx.tenant.id}`);
+      cache.invalidatePrefix(`warehouse_valuation:${ctx.tenant.id}`);
       return { success: true };
     }),
 
@@ -282,6 +287,8 @@ export const productRouter = createRouter({
 
       cache.invalidatePrefix(`products:${tenantId}`);
       cache.invalidatePrefix(`product_cats:${tenantId}`);
+      cache.invalidatePrefix(`warehouse:${tenantId}`);
+      cache.invalidatePrefix(`warehouse_valuation:${tenantId}`);
       return { success: true };
     }),
 
@@ -329,6 +336,8 @@ export const productRouter = createRouter({
 
       cache.invalidatePrefix(`products:${tenantId}`);
       cache.invalidatePrefix(`product_cats:${tenantId}`);
+      cache.invalidatePrefix(`warehouse:${tenantId}`);
+      cache.invalidatePrefix(`warehouse_valuation:${tenantId}`);
       return { deleted, softDeleted, total: input.ids.length };
     }),
 
@@ -416,6 +425,8 @@ export const productRouter = createRouter({
 
       cache.invalidatePrefix(`products:${tenantId}`);
       cache.invalidatePrefix(`product_cats:${tenantId}`);
+      cache.invalidatePrefix(`warehouse:${tenantId}`);
+      cache.invalidatePrefix(`warehouse_valuation:${tenantId}`);
       return { success: true };
     }),
 });
