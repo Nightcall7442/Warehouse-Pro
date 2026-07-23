@@ -87,7 +87,10 @@ export const warehouseMultiRouter = createRouter({
       }
 
       const stockCond = [eq(warehouseStock.tenantId, tenantId)];
-      if (hasWarehouseId && input?.warehouseId) stockCond.push(eq(warehouseStock.warehouseId, input.warehouseId));
+      if (hasWarehouseId && input?.warehouseId) {
+        // Show products in selected warehouse OR products with NULL warehouse_id (legacy)
+        stockCond.push(sql`(${warehouseStock.warehouseId} = ${input.warehouseId} OR ${warehouseStock.warehouseId} IS NULL)`);
+      }
       if (input?.search) stockCond.push(like(products.name, `%${input.search}%`));
       const where = and(...stockCond);
 

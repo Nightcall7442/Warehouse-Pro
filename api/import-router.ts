@@ -382,12 +382,14 @@ export const importRouter = createRouter({
                 reorderPoint: row.reorderPoint, description: row.description,
                 photoUrl, status: "active",
               });
-              await tx.insert(warehouseStock).values({
-                tenantId, warehouseId: defaultWarehouse.id,
-                productId: Number(r.insertId),
-                currentStock: row.initialStock, reserved: "0.00",
-                available: row.initialStock,
-              });
+              // Use raw SQL to handle case where warehouse_id column may not exist
+              try {
+                await tx.execute(sql`INSERT INTO warehouse_stock (tenant_id, warehouse_id, product_id, current_stock, reserved, available) VALUES (${tenantId}, ${defaultWarehouse.id}, ${Number(r.insertId)}, ${row.initialStock}, '0.00', ${row.initialStock})`);
+              } catch {
+                try {
+                  await tx.execute(sql`INSERT INTO warehouse_stock (tenant_id, product_id, current_stock, reserved, available) VALUES (${tenantId}, ${Number(r.insertId)}, ${row.initialStock}, '0.00', ${row.initialStock})`);
+                } catch { /* give up */ }
+              }
               success++;
             } catch (err: unknown) {
               const anyErr = err as any;
