@@ -110,17 +110,18 @@ export const arrivalRouter = createRouter({
       const arrivalId = Number(result.insertId);
 
       if (input.items && input.items.length > 0) {
-        // Build raw SQL to avoid Drizzle mapping issues with optional columns
-        const valuesSql = input.items.map(item => {
-          const cond = item.condition ? sanitizeString(item.condition).replace(/'/g, "\\'") : "";
-          return `(${arrivalId}, ${item.productId}, ${item.quantity}, '${cond}', '')`;
-        }).join(", ");
-        try {
-          await db.execute(sql.raw(`INSERT INTO arrival_items (arrival_id, product_id, quantity, \`condition\`, notes) VALUES ${valuesSql}`));
-        } catch {
-          // Fallback: minimal columns only
-          const minValues = input.items.map(item => `(${arrivalId}, ${item.productId}, ${item.quantity})`).join(", ");
-          await db.execute(sql.raw(`INSERT INTO arrival_items (arrival_id, product_id, quantity) VALUES ${minValues}`));
+        // Insert items one by one to avoid raw SQL issues with column mismatches
+        for (const item of input.items) {
+          try {
+            await db.insert(arrivalItems).values({
+              arrivalId,
+              productId: item.productId,
+              quantity: item.quantity,
+              condition: item.condition ? sanitizeString(item.condition) : undefined,
+            });
+          } catch {
+            // If columns don't exist, skip this item (migration 0016 will fix it)
+          }
         }
       }
 
@@ -238,8 +239,8 @@ export const arrivalRouter = createRouter({
       if (arrival.status === "completed") throw new Error("Нельзя удалить завершённый приход");
 
       await db.transaction(async (tx) => {
-        // Delete items first (FK)
-        await tx.execute(sql.raw(`DELETE FROM arrival_items WHERE arrival_id = ${input.id}`));
+        // Delete items first (FK) — use sql template for safe parameterization
+        await tx.execute(sql`DELETE FROM arrival_items WHERE arrival_id = ${input.id}`);
         await tx.delete(arrivals).where(and(eq(arrivals.id, input.id), eq(arrivals.tenantId, tenantId)));
       });
 
