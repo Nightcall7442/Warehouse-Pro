@@ -197,14 +197,20 @@ export const productRouter = createRouter({
         const [result] = await tx.insert(products).values({ tenantId, ...sanitized, status: "active" });
         const id = Number(result.insertId);
 
-        const [defaultWarehouse] = await tx.select({ id: warehouses.id })
+        // Get or create default warehouse
+        let [defaultWarehouse] = await tx.select({ id: warehouses.id })
           .from(warehouses)
           .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true)))
           .limit(1);
 
-        if (defaultWarehouse) {
-          await tx.insert(warehouseStock).values({ tenantId, warehouseId: defaultWarehouse.id, productId: id, currentStock: "0.00", reserved: "0.00", available: "0.00" });
+        if (!defaultWarehouse) {
+          const [created] = await tx.insert(warehouses).values({
+            tenantId, name: "Основной склад", isDefault: true, status: "active",
+          });
+          defaultWarehouse = { id: Number(created.insertId) };
         }
+
+        await tx.insert(warehouseStock).values({ tenantId, warehouseId: defaultWarehouse.id, productId: id, currentStock: "0.00", reserved: "0.00", available: "0.00" });
 
         return id;
       });
