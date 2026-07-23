@@ -228,7 +228,7 @@ export default function Shops() {
             data={data?.data} isLoading={isLoading} lang={lang} fmt={fmt}
             selected={selected} allSelected={allSelected}
             onSelectAll={toggleSelectAll} onToggleSelect={toggleSelect}
-            onBulkDelete={handleBulkDelete} onNavigate={id => navigate(`/shops/${id}`)}
+            onBulkDelete={handleBulkDelete} onNavigate={id => navigate(`/shops/${id}?fromPage=${page}${search ? `&search=${encodeURIComponent(search)}` : ""}${city ? `&city=${encodeURIComponent(city)}` : ""}${district ? `&district=${encodeURIComponent(district)}` : ""}`)}
             isDeleting={deleteMutation.isPending} page={page} setPage={setPage}
             total={data?.total ?? 0} city={city} district={district} t={t}
           />

@@ -3,7 +3,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { notify } from "@/lib/toast";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { Plus, Upload, FileDown, Box, Tag, AlertTriangle, BarChart3, Trash2, CheckSquare, Square } from "lucide-react";
 import { ExcelImport } from "@/components/ExcelImport";
 import { useConfirm } from "@/components/ConfirmDialog";
@@ -11,7 +11,16 @@ import { exportToExcel, formatProductsForExport } from "@/lib/excel";
 import { ProductCard, ProductForm, ProductList, ProductFilters, KpiCard, F, COLORS } from "@/components/products";
 
 export default function Products() {
-  const [page, setPage] = useState(1);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [page, setPage] = useState(() => Math.max(1, parseInt(searchParams.get("page") || "1", 10) || 1));
+
+  const updatePage = useCallback((p: number | ((prev: number) => number)) => {
+    setPage(prev => {
+      const next = typeof p === "function" ? p(prev) : p;
+      setSearchParams(sp => { sp.set("page", String(next)); return sp; });
+      return next;
+    });
+  }, [setSearchParams]);
   const { fmt } = useCurrency();
   const { lang } = useLang();
   const [search, setSearch] = useState("");
@@ -181,9 +190,9 @@ export default function Products() {
       {/* Search and Filter */}
       <ProductFilters
         search={search}
-        onSearchChange={v => { setSearch(v); setPage(1); }}
+        onSearchChange={v => { setSearch(v); updatePage(1); }}
         category={category}
-        onCategoryChange={v => { setCategory(v); setPage(1); }}
+        onCategoryChange={v => { setCategory(v); updatePage(1); }}
         categories={(categories ?? []).map(c => String(c))}
         lang={lang}
       />
@@ -236,7 +245,7 @@ export default function Products() {
         isLoading={isLoading}
         lang={lang}
         fmt={fmt}
-        onProductClick={(p) => navigate(`/products/${p.id}`)}
+        onProductClick={(p) => navigate(`/products/${p.id}?fromPage=${page}${search ? `&search=${encodeURIComponent(search)}` : ""}${category ? `&category=${encodeURIComponent(category)}` : ""}`)}
         onDelete={(id, name) => handleDelete(id, name)}
         selected={selected}
         onToggleSelect={toggleSelect}
@@ -253,7 +262,7 @@ export default function Products() {
           </span>
           <div style={{ display: "flex", gap: "8px" }}>
             <button
-              onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+              onClick={() => updatePage(p => Math.max(1, p - 1))} disabled={page === 1}
               style={{
                 padding: "8px 16px", fontSize: "13px", fontWeight: 500, fontFamily: F.body,
                 borderRadius: "8px", border: `1px solid ${COLORS.border}`, cursor: "pointer",
@@ -264,7 +273,7 @@ export default function Products() {
               {t("Назад", "Orqaga")}
             </button>
             <button
-              onClick={() => setPage(p => p + 1)} disabled={page * 25 >= data.total}
+              onClick={() => updatePage(p => p + 1)} disabled={page * 25 >= data.total}
               className="neo-btn-primary"
               style={{
                 padding: "8px 16px",

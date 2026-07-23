@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useParams, useNavigate } from "react-router";
+import { useParams, useNavigate, useSearchParams } from "react-router";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useRef, useState } from "react";
 import { trpc } from "@/providers/trpc";
@@ -37,6 +37,10 @@ export default function ProductDetail() {
   const { fmt } = useCurrency();
   const tr = useTranslate();
   const navigate         = useNavigate();
+  const [searchParams]   = useSearchParams();
+  const fromPage         = searchParams.get("fromPage") || "1";
+  const fromSearch       = searchParams.get("search") || "";
+  const fromCategory     = searchParams.get("category") || "";
   const { confirm, dialog } = useConfirm();
   const [editing, setEditing] = useState(false);
   const [editData, setEditData] = useState<Record<string, unknown>>({});
@@ -51,7 +55,7 @@ export default function ProductDetail() {
   });
 
   const deleteProduct = trpc.product.delete.useMutation({
-    onSuccess: () => { navigate("/products"); notify.success(tr("Товар удалён", "Mahsulot o'chirildi")); },
+    onSuccess: () => { navigate(`/products?page=${fromPage}${fromSearch ? `&search=${encodeURIComponent(fromSearch)}` : ""}${fromCategory ? `&category=${encodeURIComponent(fromCategory)}` : ""}`); notify.success(tr("Товар удалён", "Mahsulot o'chirildi")); },
     onError:   (e) => notify.error(e.message),
   });
 
@@ -89,7 +93,7 @@ export default function ProductDetail() {
     <div className="max-w-3xl mx-auto space-y-4">
       {dialog}
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <button onClick={()=>navigate("/products")} className="neo-btn flex items-center gap-2 py-1.5 px-3 text-sm">
+        <button onClick={()=>navigate(`/products?page=${fromPage}${fromSearch ? `&search=${encodeURIComponent(fromSearch)}` : ""}${fromCategory ? `&category=${encodeURIComponent(fromCategory)}` : ""}`)} className="neo-btn flex items-center gap-2 py-1.5 px-3 text-sm">
           <ArrowLeft size={18}/><span className="text-sm">{tr("Назад","Orqaga")}</span>
         </button>
         <div className="flex gap-2">

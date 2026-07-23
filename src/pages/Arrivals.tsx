@@ -88,7 +88,7 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
   const { lang } = useLang();
   const { fmt } = useCurrency();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
-  const { data: products, isLoading: productsLoading } = trpc.product.list.useQuery({ page: 1, pageSize: 200, includeAll: true }) as { data: any; isLoading: boolean };
+  const { data: products, isLoading: productsLoading } = trpc.product.list.useQuery({ page: 1, pageSize: 10000, includeAll: true }) as { data: any; isLoading: boolean };
 
   const [form, setForm] = useState({
     truckId: "", driverName: "", driverPhone: "",

@@ -15,12 +15,12 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
   const { fmt } = useCurrency();
   const { lang } = useLang();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
-  const { data: products } = trpc.product.list.useQuery({ page: 1, pageSize: 200 }) as { data: any };
+  const { data: products } = trpc.product.listAll.useQuery(undefined) as { data: any };
   const [search, setSearch] = useState("");
   const [quickQty, setQuickQty] = useState<Record<number, string>>({});
   const searchRef = useRef<HTMLInputElement>(null);
 
-  const filtered = (products?.data ?? []).filter((p: any) =>
+  const filtered = (products ?? []).filter((p: any) =>
     !search || p.name?.toLowerCase().includes(search.toLowerCase()) || (p.code ?? "").toLowerCase().includes(search.toLowerCase())
   );
 

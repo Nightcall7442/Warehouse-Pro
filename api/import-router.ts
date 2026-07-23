@@ -4,6 +4,7 @@ import { createRouter, operatorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { products, shops, warehouseStock, warehouses } from "@db/schema";
 import { eq, and } from "drizzle-orm";
+import { cache } from "./lib/cache";
 
 type ParsedRow = Record<string, string | number | null>;
 
@@ -378,6 +379,15 @@ export const importRouter = createRouter({
           }
         }
       }
+
+      // Invalidate server-side cache so lists reflect imported data
+      cache.invalidatePrefix(`products:${tenantId}`);
+      cache.invalidatePrefix(`product_cats:${tenantId}`);
+      cache.invalidatePrefix(`shops:${tenantId}`);
+      cache.invalidatePrefix(`shop_cities:${tenantId}`);
+      cache.invalidatePrefix(`shop_districts:${tenantId}`);
+      cache.invalidatePrefix(`warehouse:${tenantId}`);
+      cache.invalidatePrefix(`warehouse_valuation:${tenantId}`);
 
       return { success, errors, skipped, total: dataRows.length };
     }),

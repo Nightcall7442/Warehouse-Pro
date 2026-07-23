@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from "react-router";
+import { useParams, useNavigate, useSearchParams } from "react-router";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useRef, useState, useMemo } from "react";
 import { trpc } from "@/providers/trpc";
@@ -105,6 +105,11 @@ export default function ShopDetail() {
   const { fmt }  = useCurrency();
   const { lang } = useLang();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const fromPage   = searchParams.get("fromPage") || "1";
+  const fromSearch = searchParams.get("search") || "";
+  const fromCity   = searchParams.get("city") || "";
+  const fromDistrict = searchParams.get("district") || "";
   const { confirm, dialog } = useConfirm();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
 
@@ -135,7 +140,7 @@ export default function ShopDetail() {
     onError:   (e) => notify.error(e.message),
   });
   const deleteShop = trpc.shop.delete.useMutation({
-    onSuccess: () => { navigate("/shops"); notify.success(t("Магазин удалён", "Do'kon o'chirildi")); },
+    onSuccess: () => { navigate(`/shops?page=${fromPage}${fromSearch ? `&search=${encodeURIComponent(fromSearch)}` : ""}${fromCity ? `&city=${encodeURIComponent(fromCity)}` : ""}${fromDistrict ? `&district=${encodeURIComponent(fromDistrict)}` : ""}`); notify.success(t("Магазин удалён", "Do'kon o'chirildi")); },
     onError:   (e) => notify.error(e.message),
   });
 
@@ -166,7 +171,7 @@ export default function ShopDetail() {
 
       {/* Навигация */}
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <button onClick={() => navigate("/shops")} className="neo-btn flex items-center gap-2 py-1.5 px-3 text-sm">
+        <button onClick={() => navigate(`/shops?page=${fromPage}${fromSearch ? `&search=${encodeURIComponent(fromSearch)}` : ""}${fromCity ? `&city=${encodeURIComponent(fromCity)}` : ""}${fromDistrict ? `&district=${encodeURIComponent(fromDistrict)}` : ""}`)} className="neo-btn flex items-center gap-2 py-1.5 px-3 text-sm">
           <ArrowLeft size={18} /><span className="text-sm">{t("Магазины", "Do'konlar")}</span>
         </button>
         <div className="flex gap-2">

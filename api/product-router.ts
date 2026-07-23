@@ -16,6 +16,54 @@ async function getDefaultWarehouseId(db: ReturnType<typeof getDb>, tenantId: num
 }
 
 export const productRouter = createRouter({
+  /** All active products for a tenant — no pagination, used by mobile catalog & selectors */
+  listAll: fieldSalesQuery
+    .input(z.object({ search: z.string().optional(), category: z.string().optional() }).optional())
+    .query(async ({ input, ctx }) => {
+      const db       = getDb();
+      const tenantId = ctx.tenant.id;
+
+      const cacheKey = `products:${tenantId}:listAll:${input?.search ?? ""}:${input?.category ?? ""}`;
+      const cached = cache.get(cacheKey);
+      if (cached) return cached;
+
+      const warehouseId = await getDefaultWarehouseId(db, tenantId);
+
+      const conditions = [eq(products.tenantId, tenantId), eq(products.status, "active")];
+      if (input?.search)   conditions.push(like(products.name, `%${sanitizeSearch(input.search)}%`));
+      if (input?.category) conditions.push(eq(products.category, input?.category));
+      const where = and(...conditions);
+
+      const stockJoinCond = warehouseId
+        ? and(eq(products.id, warehouseStock.productId), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, warehouseId))
+        : and(eq(products.id, warehouseStock.productId), eq(warehouseStock.tenantId, tenantId));
+
+      const data = await db.select({
+        id:           products.id,
+        code:         products.code,
+        name:         products.name,
+        category:     products.category,
+        costPrice:    products.costPrice,
+        unitPrice:    products.unitPrice,
+        unit:         products.unit,
+        unitWeight:   products.unitWeight,
+        description:  products.description,
+        photoUrl:     products.photoUrl,
+        reorderPoint: products.reorderPoint,
+        status:       products.status,
+        createdAt:    products.createdAt,
+        currentStock: warehouseStock.currentStock,
+        available:    warehouseStock.available,
+      })
+        .from(products)
+        .leftJoin(warehouseStock, stockJoinCond)
+        .where(where)
+        .orderBy(products.name);
+
+      cache.set(cacheKey, data, CacheTTL.products);
+      return data;
+    }),
+
   list: fieldSalesQuery
     .input(z.object({
       page:       z.number().default(1),
