@@ -237,7 +237,6 @@ export const productRouter = createRouter({
       return { success: true };
     }),
 
-  // SECURITY FIX 1.4: Block deletion if product has linked order items or warehouse stock
   delete: operatorQuery
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
@@ -249,20 +248,66 @@ export const productRouter = createRouter({
         .where(and(eq(products.id, input.id), eq(products.tenantId, tenantId))).limit(1);
       if (!existingProduct) throw new Error("Товар не найден");
 
-      // Soft delete — помечаем inactive вместо удаления (FK на order_items, stock_movements мешает удалению)
-      await db.update(products)
-        .set({ status: "inactive", updatedAt: new Date() })
-        .where(and(eq(products.id, input.id), eq(products.tenantId, tenantId)));
-
-      // Полностью удаляем запись стока
+      // Delete warehouse_stock
       const deleteStockWhere = warehouseId
         ? and(eq(warehouseStock.productId, input.id), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, warehouseId))
         : and(eq(warehouseStock.productId, input.id), eq(warehouseStock.tenantId, tenantId));
       await db.delete(warehouseStock).where(deleteStockWhere);
 
+      // Try hard delete — if FK constraints (order_items, stock_movements) block it, fall back to soft delete
+      try {
+        await db.delete(products).where(and(eq(products.id, input.id), eq(products.tenantId, tenantId)));
+      } catch {
+        await db.update(products)
+          .set({ status: "inactive", updatedAt: new Date() })
+          .where(and(eq(products.id, input.id), eq(products.tenantId, tenantId)));
+      }
+
       cache.invalidatePrefix(`products:${tenantId}`);
       cache.invalidatePrefix(`product_cats:${tenantId}`);
       return { success: true };
+    }),
+
+  bulkDelete: operatorQuery
+    .input(z.object({ ids: z.array(z.number()).min(1).max(200) }))
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+      const tenantId = ctx.tenant.id;
+      const warehouseId = await getDefaultWarehouseId(db, tenantId);
+
+      let deleted = 0;
+      let softDeleted = 0;
+
+      await db.transaction(async (tx) => {
+        for (const id of input.ids) {
+          try {
+            // Delete warehouse_stock
+            const stockWhere = warehouseId
+              ? and(eq(warehouseStock.productId, id), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, warehouseId))
+              : and(eq(warehouseStock.productId, id), eq(warehouseStock.tenantId, tenantId));
+            await tx.delete(warehouseStock).where(stockWhere);
+
+            // Try hard delete
+            const [result] = await tx.delete(products)
+              .where(and(eq(products.id, id), eq(products.tenantId, tenantId)));
+            if ((result as any).affectedRows > 0) {
+              deleted++;
+            } else {
+              softDeleted++;
+            }
+          } catch {
+            // FK constraint (order_items, stock_movements) — fall back to soft delete
+            await tx.update(products)
+              .set({ status: "inactive", updatedAt: new Date() })
+              .where(and(eq(products.id, id), eq(products.tenantId, tenantId)));
+            softDeleted++;
+          }
+        }
+      });
+
+      cache.invalidatePrefix(`products:${tenantId}`);
+      cache.invalidatePrefix(`product_cats:${tenantId}`);
+      return { deleted, softDeleted, total: input.ids.length };
     }),
 
   uploadPhoto: operatorQuery

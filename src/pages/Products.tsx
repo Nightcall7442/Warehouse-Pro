@@ -41,6 +41,17 @@ export default function Products() {
     onSuccess: () => { utils.product.list.invalidate(); notify.success("Товар удалён"); },
     onError: (e) => notify.error(e.message),
   });
+  const bulkDeleteMutation = trpc.product.bulkDelete.useMutation({
+    onSuccess: (res) => {
+      utils.product.list.invalidate();
+      setSelected(new Set());
+      const msg = res.softDeleted > 0
+        ? t(`Удалено: ${res.deleted}, скрыто: ${res.softDeleted}`, `${res.deleted} o'chirildi, ${res.softDeleted} yashirildi`)
+        : t(`Удалено: ${res.deleted}`, `${res.deleted} o'chirildi`);
+      notify.success(msg);
+    },
+    onError: (e) => notify.error(e.message),
+  });
   const { confirm, dialog } = useConfirm();
   const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);
 
@@ -87,9 +98,7 @@ export default function Products() {
       danger: true,
     });
     if (ok) {
-      for (const id of selected) {
-        await deleteMutation.mutateAsync({ id });
-      }
+      bulkDeleteMutation.mutate({ ids: Array.from(selected) });
     }
   };
 
@@ -212,12 +221,12 @@ export default function Products() {
             <button onClick={() => setSelected(new Set())} className="neo-btn text-xs py-1.5 px-3">
               {t("Сбросить", "Bekor qilish")}
             </button>
-            <button onClick={handleBulkDelete} disabled={deleteMutation.isPending}
+            <button onClick={handleBulkDelete} disabled={bulkDeleteMutation.isPending}
               style={{
                 display: "flex", alignItems: "center", gap: "5px", padding: "6px 14px",
                 fontSize: "12px", fontWeight: 600, borderRadius: "8px",
                 border: "none", cursor: "pointer", color: "#fff",
-                background: "#d45050", opacity: deleteMutation.isPending ? 0.5 : 1,
+                background: "#d45050", opacity: bulkDeleteMutation.isPending ? 0.5 : 1,
               }}>
               <Trash2 size={13} />{t("Удалить", "O'chirish")}
             </button>
