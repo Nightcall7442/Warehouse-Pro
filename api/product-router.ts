@@ -244,16 +244,29 @@ export const productRouter = createRouter({
   uploadPhoto: operatorQuery
     .input(z.object({
       productId: z.number(),
-      // ~2MB after base64 encoding (base64 inflates by ~33%, plus the
-      // "data:image/jpeg;base64," prefix). The 2MB limit shown to the user
-      // in the upload UI (web Products.tsx, mobile forms) is only a
-      // client-side hint — without this server-side cap, a direct API call
-      // bypassing the UI could store an arbitrarily large string in the DB.
-      dataUrl: z.string().startsWith("data:image/").max(2_800_000, "Файл слишком большой (макс. 2 МБ)"),
+      dataUrl: z.string().startsWith("data:image/").max(5_000_000, "Файл слишком большой (макс. 4 МБ)"),
     }))
     .mutation(async ({ input, ctx }) => {
+      const { env } = await import("./lib/env");
+      const isS3 = !!(env.s3Bucket && env.s3AccessKey && env.s3SecretKey);
+      let photoUrl = input.dataUrl;
+      if (isS3) {
+        const match = input.dataUrl.match(/^data:image\/(\w+);base64,(.+)$/);
+        if (match) {
+          const { S3Client, PutObjectCommand } = await import("@aws-sdk/client-s3");
+          const ext = match[1].toLowerCase() === "jpeg" ? "jpg" : match[1].toLowerCase();
+          const buffer = Buffer.from(match[2], "base64");
+          const key = `products/${ctx.tenant.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+          const s3 = new S3Client({
+            region: env.s3Region || "us-east-1",
+            credentials: { accessKeyId: env.s3AccessKey || "", secretAccessKey: env.s3SecretKey || "" },
+          });
+          await s3.send(new PutObjectCommand({ Bucket: env.s3Bucket!, Key: key, Body: buffer, ContentType: `image/${ext === "jpg" ? "jpeg" : ext}` }));
+          photoUrl = `https://${env.s3Bucket}.s3.${env.s3Region || "us-east-1"}.amazonaws.com/${key}`;
+        }
+      }
       await getDb().update(products)
-        .set({ photoUrl: input.dataUrl })
+        .set({ photoUrl })
         .where(and(eq(products.id, input.productId), eq(products.tenantId, ctx.tenant.id)));
       return { success: true };
     }),
