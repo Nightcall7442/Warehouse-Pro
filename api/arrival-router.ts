@@ -84,7 +84,7 @@ export const arrivalRouter = createRouter({
       tollCost:    z.string().default("0.00"),
       otherCost:   z.string().default("0.00"),
       notes:       z.string().optional(),
-      items:       z.array(z.object({ productId: z.number(), quantity: z.string(), costPrice: z.string().optional(), sellingPrice: z.string().optional(), condition: z.string().optional() })).optional(),
+      items:       z.array(z.object({ productId: z.number(), quantity: z.string(), costPrice: z.string().optional(), sellingPrice: z.string().optional(), condition: z.string().optional(), warehouseId: z.number().optional() })).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const db       = ctx.db;
@@ -135,6 +135,7 @@ export const arrivalRouter = createRouter({
       driverName:  z.string().optional(),
       driverPhone: z.string().optional(),
       status:      z.enum(["pending", "unloading", "completed"]).optional(),
+      warehouseId: z.number().optional(),
       fuelCost:    z.string().optional(),
       tollCost:    z.string().optional(),
       otherCost:   z.string().optional(),
@@ -144,6 +145,8 @@ export const arrivalRouter = createRouter({
       const db       = ctx.db;
       const tenantId = ctx.tenant.id;
       const { id, ...data } = input;
+      const targetWarehouseId = data.warehouseId;
+      delete data.warehouseId;
 
       // When completing an arrival, update warehouse stock in a transaction
       if (data.status === "completed") {
@@ -160,13 +163,23 @@ export const arrivalRouter = createRouter({
           const rows = (itemsResult as any)[0];
           const items = Array.isArray(rows) ? rows : [];
 
-          // Get default warehouse
-          const [warehouse] = await tx.select({ id: warehouses.id })
-            .from(warehouses)
-            .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true)))
-            .limit(1);
-
-          if (!warehouse) throw new Error("Склад не найден — создайте склад в настройках");
+          // Use provided warehouseId, or fall back to default warehouse
+          let warehouseId: number;
+          if (targetWarehouseId) {
+            const [warehouse] = await tx.select({ id: warehouses.id })
+              .from(warehouses)
+              .where(and(eq(warehouses.id, targetWarehouseId), eq(warehouses.tenantId, tenantId)))
+              .limit(1);
+            if (!warehouse) throw new Error("Указанный склад не найден");
+            warehouseId = warehouse.id;
+          } else {
+            const [warehouse] = await tx.select({ id: warehouses.id })
+              .from(warehouses)
+              .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true)))
+              .limit(1);
+            if (!warehouse) throw new Error("Склад не найден — создайте склад в настройках");
+            warehouseId = warehouse.id;
+          }
 
           // Batch update: for each product, update stock in one query
           for (const item of items) {
@@ -175,7 +188,7 @@ export const arrivalRouter = createRouter({
             // Upsert warehouse_stock using INSERT ... ON DUPLICATE KEY UPDATE
             await tx.execute(sql`
               INSERT INTO warehouse_stock (tenant_id, warehouse_id, product_id, current_stock, reserved, available)
-              VALUES (${tenantId}, ${warehouse.id}, ${item.productId}, ${qty}, 0, ${qty})
+              VALUES (${tenantId}, ${warehouseId}, ${item.productId}, ${qty}, 0, ${qty})
               ON DUPLICATE KEY UPDATE
                 current_stock = current_stock + ${qty},
                 available = available + ${qty}

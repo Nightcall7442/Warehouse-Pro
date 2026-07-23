@@ -98,8 +98,9 @@ export const warehouseRouter = createRouter({
 
   adjustStock: operatorQuery
     .input(z.object({
-      productId: z.number().int().positive(),
-      quantity:  z.string().refine(v => {
+      productId:   z.number().int().positive(),
+      warehouseId: z.number().int().positive().optional(),
+      quantity:    z.string().refine(v => {
         const n = Number(v);
         return Number.isFinite(n) && n > 0;
       }, "Количество должно быть положительным числом"),
@@ -112,7 +113,7 @@ export const warehouseRouter = createRouter({
         id: ctx.user.id,
         name: ctx.user.name,
         ip: getClientIp(ctx.req),
-      });
+      }, input.warehouseId);
     }),
 
   // ── Stock Valuation ─────────────────────────────────────────────────────────

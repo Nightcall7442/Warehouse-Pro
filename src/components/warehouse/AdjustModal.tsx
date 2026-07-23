@@ -3,9 +3,9 @@ import { X, TrendingUp, TrendingDown, ArrowUpDown, Scale, Loader2 } from "lucide
 import { useLang } from "@/i18n";
 import { toKg } from "./warehouse-utils";
 
-export const AdjustModal = memo(function AdjustModal({ productId, productName, currentStock, unit, unitWeight, onSave, onClose, isPending }: {
+export const AdjustModal = memo(function AdjustModal({ productId, productName, currentStock, unit, unitWeight, warehouseId, onSave, onClose, isPending }: {
   productId: number; productName: string; currentStock: number;
-  unit: string; unitWeight: number;
+  unit: string; unitWeight: number; warehouseId?: number;
   onSave: (d: unknown) => void; onClose: () => void; isPending: boolean;
 }) {
   const { lang } = useLang();
@@ -142,7 +142,7 @@ export const AdjustModal = memo(function AdjustModal({ productId, productName, c
             style={{ background: "var(--color-surface-light, #f0f3f8)", color: "var(--color-text-secondary, #6a7290)" }}>
             {t("Отмена", "Bekor")}
           </button>
-          <button onClick={() => qty && numQty > 0 && onSave({ productId, quantity: qty, type, notes })}
+          <button onClick={() => qty && numQty > 0 && onSave({ productId, warehouseId, quantity: qty, type, notes })}
             disabled={!qty || numQty <= 0 || isPending}
             className="flex-1 py-3 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 transition-all disabled:opacity-40"
             style={{ background: `linear-gradient(135deg, ${currentType.color}, ${currentType.color}cc)`, boxShadow: `0 4px 16px ${currentType.color}30` }}>

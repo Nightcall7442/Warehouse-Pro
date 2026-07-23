@@ -140,8 +140,9 @@ export const ru = {
   },
   // Warehouse
   warehouse: {
-    title:       "Склад",
-    adjust:      "Корректировка",
+    title:         "Склад",
+    allWarehouses: "Все склады",
+    adjust:        "Корректировка",
     stockIn:     "Приход (+)",
     stockOut:    "Расход (−)",
     adjustment:  "Корректировка",

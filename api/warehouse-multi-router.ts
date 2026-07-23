@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createRouter, adminQuery, authedQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { warehouses, warehouseStock, stockTransfers, products } from "@db/schema";
-import { eq, and, sql, desc } from "drizzle-orm";
+import { eq, and, like, sql, desc } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 
 export const warehouseMultiRouter = createRouter({
@@ -63,33 +63,49 @@ export const warehouseMultiRouter = createRouter({
       return { success: true };
     }),
 
-  /** Get stock for a specific warehouse */
+  /** Get stock for a specific warehouse — same shape as warehouse.list */
   getStock: authedQuery
     .input(z.object({
       warehouseId: z.number().optional(),
+      search:      z.string().optional(),
+      page:        z.number().default(1),
+      pageSize:    z.number().min(1).max(100).default(25),
     }).optional())
     .query(async ({ input, ctx }) => {
-      const db = getDb();
-      const conditions = [eq(warehouseStock.tenantId, ctx.tenant.id)];
+      const db       = getDb();
+      const tenantId = ctx.tenant.id;
+      const page     = input?.page ?? 1;
+      const pageSize = input?.pageSize ?? 25;
+      const offset   = (page - 1) * pageSize;
 
-      if (input?.warehouseId) {
-        conditions.push(eq(warehouseStock.warehouseId, input.warehouseId));
-      }
+      const stockCond = [eq(warehouseStock.tenantId, tenantId)];
+      if (input?.warehouseId) stockCond.push(eq(warehouseStock.warehouseId, input.warehouseId));
+      if (input?.search) stockCond.push(like(products.name, `%${input.search}%`));
+      const where = and(...stockCond);
 
-      return db.select({
-        id: warehouseStock.id,
-        productId: warehouseStock.productId,
-        warehouseId: warehouseStock.warehouseId,
-        currentStock: warehouseStock.currentStock,
-        reserved: warehouseStock.reserved,
-        available: warehouseStock.available,
-        productName: products.name,
-        productCode: products.code,
-      })
-        .from(warehouseStock)
-        .innerJoin(products, eq(warehouseStock.productId, products.id))
-        .where(and(...conditions))
-        .orderBy(products.name);
+      const [data, countResult, summary] = await Promise.all([
+        db.select({
+          id: warehouseStock.id, productId: warehouseStock.productId,
+          warehouseId: warehouseStock.warehouseId,
+          currentStock: warehouseStock.currentStock, reserved: warehouseStock.reserved,
+          available: warehouseStock.available, productName: products.name,
+          productCode: products.code, category: products.category,
+          unit: products.unit, unitWeight: products.unitWeight,
+          unitPrice: products.unitPrice, costPrice: products.costPrice, reorderPoint: products.reorderPoint,
+        })
+          .from(warehouseStock)
+          .leftJoin(products, eq(warehouseStock.productId, products.id))
+          .where(where).limit(pageSize).offset(offset).orderBy(products.name),
+        db.select({ count: sql<number>`count(*)` })
+          .from(warehouseStock).leftJoin(products, eq(warehouseStock.productId, products.id)).where(where),
+        db.select({
+          totalSKUs:     sql<number>`count(*)`,
+          totalWeight:   sql<string>`COALESCE(SUM(CAST(${warehouseStock.currentStock} AS DECIMAL) * CAST(COALESCE(${products.unitWeight}, '0') AS DECIMAL)), 0)`,
+          lowStockCount: sql<number>`count(CASE WHEN ${warehouseStock.available} < ${products.reorderPoint} THEN 1 END)`,
+        }).from(warehouseStock).leftJoin(products, eq(warehouseStock.productId, products.id)).where(where),
+      ]);
+
+      return { data, total: Number(countResult[0]?.count ?? 0), page, pageSize, summary: summary[0] };
     }),
 
   /** Create a stock transfer between warehouses */

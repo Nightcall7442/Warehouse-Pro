@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router'
 import './index.css'
 import { TRPCProvider } from "@/providers/trpc"
+import { WarehouseProvider } from "@/providers/WarehouseContext"
 import { Toaster } from "@/components/ui/sonner"
 import { LangProvider } from "@/i18n"
 import { InstallPrompt } from "@/components/InstallPrompt"
@@ -28,11 +29,13 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
       <TRPCProvider>
+        <WarehouseProvider>
         <LangProvider>
           <App />
           <Toaster richColors position="top-right" />
         <InstallPrompt />
         </LangProvider>
+        </WarehouseProvider>
       </TRPCProvider>
     </BrowserRouter>
   </StrictMode>,

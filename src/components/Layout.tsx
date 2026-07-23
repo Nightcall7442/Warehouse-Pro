@@ -8,6 +8,7 @@ import { TrialBanner } from "@/components/TrialBanner";
 import { OfflineQueueBadge } from "@/components/OfflineQueueBadge";
 import { useTheme } from "@/hooks/useTheme";
 import { useLang } from "@/i18n";
+import { useWarehouse } from "@/providers/WarehouseContext";
 import { trpc } from "@/providers/trpc";
 import {
   LayoutDashboard, Store, Package, ClipboardList, Truck,
@@ -64,10 +65,12 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
   const { user, logout } = useAuth();
   const { theme, toggle } = useTheme();
   const { lang, setLang, t } = useLang();
+  const { selectedId, setSelectedId, warehouses, isLoading: whLoading } = useWarehouse();
   const location = useLocation();
   const navigate = useNavigate();
   const role     = user?.role ?? "agent";
   const items    = NAV_ITEMS[role] ?? [];
+  const showWarehouseSelector = role === "ceo" || role === "operator";
 
   return (
     <div className="flex flex-col h-full sidebar-collapse-transition" style={{ background: "var(--color-surface, #e0e5ec)" }}>
@@ -109,6 +112,46 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
           )}
         </div>
       </div>
+
+      {/* Warehouse selector */}
+      {showWarehouseSelector && warehouses.length > 0 && (
+        <div className="px-4 pb-2">
+          <label className="block" style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-text-tertiary, #8b9bb4)", marginBottom: "6px" }}>
+            {t("nav.warehouse", "Склад")}
+          </label>
+          <div className="relative">
+            <select
+              value={selectedId ?? ""}
+              onChange={(e) => setSelectedId(Number(e.target.value))}
+              disabled={whLoading}
+              className="w-full appearance-none cursor-pointer"
+              style={{
+                fontSize: "13px",
+                fontWeight: 500,
+                color: "var(--color-text-primary, #2d3748)",
+                background: "var(--color-surface, #e0e5ec)",
+                border: "1px solid var(--color-border-subtle, #d1d9e6)",
+                borderRadius: "12px",
+                padding: "10px 32px 10px 14px",
+                outline: "none",
+                boxShadow: "var(--shadow-pressed)",
+              }}
+            >
+              <option value="">{t("warehouse.allWarehouses", "Все склады")}</option>
+              {warehouses.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.name}{w.isDefault ? " ★" : ""}
+                </option>
+              ))}
+            </select>
+            <Warehouse
+              size={14}
+              className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2"
+              style={{ color: "var(--color-text-tertiary, #8b9bb4)" }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Navigation */}
       <nav className="flex-1 py-2 overflow-y-auto premium-scrollbar">

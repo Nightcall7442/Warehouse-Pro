@@ -2,6 +2,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { trpc } from "@/providers/trpc";
+import { useWarehouse } from "@/providers/WarehouseContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useLang } from "@/i18n";
 import { format } from "date-fns";
@@ -23,6 +24,7 @@ export default function Warehouse() {
   const isMobile = useIsMobile();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const { confirm, dialog } = useConfirm();
+  const { selectedId: warehouseId } = useWarehouse();
 
   const [search, setSearch] = useState("");
   const [adjusting, setAdjusting] = useState<{ id: number; name: string; stock: number; unit: string; unitWeight: number } | null>(null);
@@ -31,7 +33,7 @@ export default function Warehouse() {
   const [showLowStock, setShowLowStock] = useState(false);
 
 
-  const { data, isLoading } = trpc.warehouse.list.useQuery({ search: search || undefined }) as { data: any; isLoading: boolean };
+  const { data, isLoading } = trpc.warehouseMulti.getStock.useQuery({ warehouseId: warehouseId ?? undefined, search: search || undefined }) as { data: any; isLoading: boolean };
   const { data: valuation, isLoading: valLoading } = trpc.warehouse.valuation.useQuery() as { data: any; isLoading: boolean };
   const { data: reorderSuggestions } = trpc.warehouse.reorderSuggestions.useQuery() as { data: any };
   const { data: deadStockItems, isLoading: deadStockLoading } = trpc.warehouse.deadStock.useQuery({ days: deadStockDays }) as { data: any; isLoading: boolean };
@@ -43,7 +45,7 @@ export default function Warehouse() {
 
   const deleteMutation = trpc.product.delete.useMutation({
     onSuccess: () => {
-      utils.warehouse.list.invalidate();
+      utils.warehouseMulti.getStock.invalidate();
       notify.success(t("Товар удалён", "Mahsulot o'chirildi"));
     },
     onError: (e) => notify.error(e.message),
@@ -55,7 +57,7 @@ export default function Warehouse() {
 
   const adjustMutation = trpc.warehouse.adjustStock.useMutation({
     onSuccess: () => {
-      utils.warehouse.list.invalidate();
+      utils.warehouseMulti.getStock.invalidate();
       setAdjusting(null);
       notify.success(t("Сток обновлён", "Stok yangilandi"));
     },
@@ -64,7 +66,7 @@ export default function Warehouse() {
 
   const backfillMutation = trpc.warehouse.backfillStock.useMutation({
     onSuccess: (result) => {
-      utils.warehouse.list.invalidate();
+      utils.warehouseMulti.getStock.invalidate();
       if (result.created > 0) {
         notify.success(t(`Создано ${result.created} строк стока`, `${result.created} ta stok satiri yaratildi`));
       } else {
@@ -76,7 +78,7 @@ export default function Warehouse() {
 
   const deleteAllMutation = trpc.warehouse.deleteAll.useMutation({
     onSuccess: () => {
-      utils.warehouse.list.invalidate();
+      utils.warehouseMulti.getStock.invalidate();
       utils.warehouse.valuation.invalidate();
       notify.success(t("Все товары удалены со склада", "Barcha mahsulotlar o'chirildi"));
     },
@@ -110,6 +112,7 @@ export default function Warehouse() {
           currentStock={adjusting.stock}
           unit={adjusting.unit}
           unitWeight={adjusting.unitWeight}
+          warehouseId={warehouseId ?? undefined}
           onSave={d => adjustMutation.mutate(d as Parameters<typeof adjustMutation.mutate>[0])}
           onClose={() => setAdjusting(null)}
           isPending={adjustMutation.isPending}

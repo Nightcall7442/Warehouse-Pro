@@ -134,8 +134,9 @@ export const uz = {
     },
   },
   warehouse: {
-    title:       "Ombor",
-    adjust:      "Tuzatish",
+    title:         "Ombor",
+    allWarehouses: "Barcha omborlar",
+    adjust:        "Tuzatish",
     stockIn:     "Kirim (+)",
     stockOut:    "Chiqim (−)",
     adjustment:  "Tuzatish",
