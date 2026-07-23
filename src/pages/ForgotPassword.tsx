@@ -27,7 +27,7 @@ export default function ForgotPassword() {
           <ArrowLeft size={14} /> {t("auth.forgotPassword.backToLogin")}
         </Link>
 
-        <div style={{ background: "var(--color-surface, #ffffff)", borderRadius: 16, border: "1px solid #dde2ec", padding: "32px 28px" }}>
+        <div className="animate-fade-up" style={{ background: "var(--color-surface, #ffffff)", borderRadius: 16, border: "1px solid #dde2ec", padding: "32px 28px" }}>
           {sent ? (
             /* Success state */
             <div style={{ textAlign: "center" }}>
@@ -62,7 +62,7 @@ export default function ForgotPassword() {
               <form onSubmit={handleSubmit}>
                 <div style={{ marginBottom: 16 }}>
                   <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--color-text-secondary, #6a7290)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>
-                    EMAIL
+                    {t("auth.login.email")}
                   </label>
                   <input
                     type="email"
@@ -81,7 +81,7 @@ export default function ForgotPassword() {
                 </div>
 
                 {requestReset.isError && (
-                  <p style={{ fontSize: 13, color: "#d45050", marginBottom: 12 }}>
+                  <p role="alert" style={{ fontSize: 13, color: "#d45050", marginBottom: 12 }}>
                     {requestReset.error.message}
                   </p>
                 )}

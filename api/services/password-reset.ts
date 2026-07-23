@@ -1,6 +1,6 @@
 import { randomBytes, createHash } from "crypto";
 import { passwordResetTokens, users } from "@db/schema";
-import { eq, and, gt, isNull } from "drizzle-orm";
+import { eq, and, gt, isNull, sql } from "drizzle-orm";
 import { hashPassword } from "../auth/password";
 import { sendEmail } from "../lib/mailer";
 import { logger } from "../lib/logger";
@@ -97,6 +97,10 @@ export const PasswordResetService = {
     await db.transaction(async (tx) => {
       await tx.update(users)
         .set({ passwordHash: newHash })
+        .where(eq(users.id, resetToken.userId));
+
+      await tx.update(users)
+        .set({ tokenVersion: sql`COALESCE(${users.tokenVersion}, 0) + 1` })
         .where(eq(users.id, resetToken.userId));
 
       await tx.update(passwordResetTokens)

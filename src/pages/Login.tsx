@@ -147,7 +147,7 @@ export default function Login() {
         </div>
 
         {/* Form card */}
-        <div style={{ width: "100%", maxWidth: 400, position: "relative", zIndex: 1 }}>
+        <div className="animate-fade-up" style={{ width: "100%", maxWidth: 400, position: "relative", zIndex: 1 }}>
           <div style={{
             background: "#fff", borderRadius: 16, padding: "40px 36px",
             boxShadow: "0 1px 3px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.06)",
@@ -180,11 +180,11 @@ export default function Login() {
                   }} />
                   <input
                     type="email"
+                    className="login-input"
                     style={{
                       width: "100%", padding: "12px 12px 12px 40px",
                       borderRadius: 10, fontSize: "14px", fontFamily: F.body,
-                      border: "1px solid #e5e7eb", background: "#fff", color: "#111827",
-                      outline: "none", transition: "border-color 0.15s, box-shadow 0.15s",
+                      background: "#fff", color: "#111827",
                       boxSizing: "border-box",
                     }}
                     placeholder="you@company.com"
@@ -192,8 +192,6 @@ export default function Login() {
                     onChange={e => setEmail(e.target.value)}
                     autoComplete="email"
                     disabled={isPending}
-                    onFocus={e => { e.currentTarget.style.borderColor = "#4f46e5"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(79,70,229,0.1)"; }}
-                    onBlur={e => { e.currentTarget.style.borderColor = "#e5e7eb"; e.currentTarget.style.boxShadow = "none"; }}
                   />
                 </div>
               </div>
@@ -210,11 +208,11 @@ export default function Login() {
                   }} />
                   <input
                     type={showPw ? "text" : "password"}
+                    className="login-input"
                     style={{
                       width: "100%", padding: "12px 44px 12px 40px",
                       borderRadius: 10, fontSize: "14px", fontFamily: F.body,
-                      border: "1px solid #e5e7eb", background: "#fff", color: "#111827",
-                      outline: "none", transition: "border-color 0.15s, box-shadow 0.15s",
+                      background: "#fff", color: "#111827",
                       boxSizing: "border-box",
                     }}
                     placeholder="••••••••"
@@ -222,21 +220,17 @@ export default function Login() {
                     onChange={e => setPassword(e.target.value)}
                     autoComplete="current-password"
                     disabled={isPending}
-                    onFocus={e => { e.currentTarget.style.borderColor = "#4f46e5"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(79,70,229,0.1)"; }}
-                    onBlur={e => { e.currentTarget.style.borderColor = "#e5e7eb"; e.currentTarget.style.boxShadow = "none"; }}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPw(!showPw)}
+                    className="pw-toggle-btn"
                     style={{
                       position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)",
                       background: "none", border: "none", cursor: "pointer",
                       color: "#9ca3af", padding: 4, display: "flex",
-                      transition: "color 0.15s",
                     }}
-                    tabIndex={-1}
-                    onMouseEnter={e => e.currentTarget.style.color = "#6b7280"}
-                    onMouseLeave={e => e.currentTarget.style.color = "#9ca3af"}
+                    aria-label={showPw ? "Hide password" : "Show password"}
                   >
                     {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
@@ -247,9 +241,8 @@ export default function Login() {
               <div style={{ textAlign: "right", marginTop: -4 }}>
                 <Link
                   to="/forgot-password"
+                  className="forgot-link"
                   style={{ fontSize: "13px", color: "#4f46e5", textDecoration: "none", fontWeight: 500 }}
-                  onMouseEnter={e => e.currentTarget.style.color = "#4338ca"}
-                  onMouseLeave={e => e.currentTarget.style.color = "#4f46e5"}
                 >
                   {t("auth.login.forgotPassword")}
                 </Link>
@@ -271,6 +264,7 @@ export default function Login() {
               <button
                 type="submit"
                 disabled={isPending}
+                className="submit-btn"
                 style={{
                   width: "100%", padding: "12px 24px", borderRadius: 10,
                   fontSize: "14px", fontWeight: 600, fontFamily: F.body,
@@ -281,10 +275,6 @@ export default function Login() {
                   transition: "background 0.15s, transform 0.1s",
                   boxShadow: "0 1px 2px rgba(79,70,229,0.3)",
                 }}
-                onMouseEnter={e => { if (!isPending) e.currentTarget.style.background = "#4338ca"; }}
-                onMouseLeave={e => { if (!isPending) e.currentTarget.style.background = "#4f46e5"; }}
-                onMouseDown={e => { if (!isPending) e.currentTarget.style.transform = "scale(0.98)"; }}
-                onMouseUp={e => e.currentTarget.style.transform = "scale(1)"}
               >
                 {isPending ? (
                   <><Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} />{t("auth.login.submitting")}</>
@@ -298,9 +288,8 @@ export default function Login() {
                 {t("auth.login.noAccount")}{""}
                 <Link
                   to="/register"
+                  className="register-link"
                   style={{ fontWeight: 600, color: "#4f46e5", textDecoration: "none", marginLeft: 4 }}
-                  onMouseEnter={e => e.currentTarget.style.color = "#4338ca"}
-                  onMouseLeave={e => e.currentTarget.style.color = "#4f46e5"}
                 >
                   {t("auth.login.createAccount")}
                 </Link>
@@ -312,6 +301,20 @@ export default function Login() {
 
       {/* Responsive */}
       <style>{`
+        .login-input {
+          border: 1px solid #e5e7eb;
+          outline: none;
+          transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        .login-input:focus {
+          border-color: #4f46e5 !important;
+          box-shadow: 0 0 0 3px rgba(79,70,229,0.1) !important;
+        }
+        .pw-toggle-btn:hover { color: #6b7280 !important; }
+        .forgot-link:hover { color: #4338ca !important; }
+        .register-link:hover { color: #4338ca !important; }
+        .submit-btn:not(:disabled):hover { background: #4338ca !important; }
+        .submit-btn:not(:disabled):active { transform: scale(0.98); }
         @media (min-width: 1024px) {
           .login-left { display: flex !important; }
           .login-mobile-bar { display: none !important; }

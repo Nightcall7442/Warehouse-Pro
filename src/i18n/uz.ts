@@ -314,6 +314,7 @@ export const uz = {
       backToLogin:   "Kirishga qaytish",
       minLength:     "Parol kamida 8 ta belgi bo'lishi kerak",
       noMatch:       "Parollar mos kelmaydi",
+      confirmPassword: "Parolni tasdiqlang",
     },
     notFound: {
       title:   "Sahifa topilmadi",

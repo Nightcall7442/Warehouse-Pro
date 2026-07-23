@@ -326,6 +326,7 @@ export const ru = {
       backToLogin:   "Назад к входу",
       minLength:     "Пароль должен быть не менее 8 символов",
       noMatch:       "Пароли не совпадают",
+      confirmPassword: "Подтвердите пароль",
     },
     notFound: {
       title:   "Страница не найдена",

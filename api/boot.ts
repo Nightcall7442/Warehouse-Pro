@@ -144,11 +144,13 @@ app.post("/api/login", async (c) => {
       ? await verifyPassword(password, user.passwordHash)
       : await verifyPassword(password, dummyHash).then(() => false);
 
-    if (!user || !valid) return c.json({ error: "Invalid email or password" }, 401);
-    if (user.status !== "active") return c.json({ error: "Account is inactive" }, 403);
+    const GENERIC_AUTH_ERROR = "Неверный email или пароль";
+
+    if (!user || !valid) return c.json({ error: GENERIC_AUTH_ERROR }, 401);
+    if (user.status !== "active") return c.json({ error: GENERIC_AUTH_ERROR }, 401);
 
     const tenant = await findTenantById(user.tenantId);
-    if (!tenant || tenant.status !== "active") return c.json({ error: "Organisation is suspended" }, 403);
+    if (!tenant || tenant.status !== "active") return c.json({ error: GENERIC_AUTH_ERROR }, 401);
 
     await updateUserLastSignIn(user.id);
     const token = await signSessionToken({ userId: user.id, tv: user.tokenVersion ?? 0 });
@@ -163,7 +165,6 @@ app.post("/api/login", async (c) => {
 
     return c.json({
       success: true,
-      token,
       user: { id: user.id, name: user.name, email: user.email, role: user.role, tenant: { id: tenant.id, name: tenant.name, slug: tenant.slug } },
     });
   } catch (e) {

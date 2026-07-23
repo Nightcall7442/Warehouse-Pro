@@ -68,9 +68,9 @@ export default function Register() {
   };
 
   const STEPS = [
-    { num: "01", title: t("auth.register.title"), desc: t("auth.register.char8") },
-    { num: "02", title: t("auth.register.title"), desc: t("auth.register.char8") },
-    { num: "03", title: t("auth.register.title"), desc: t("auth.register.char8") },
+    { num: "01", title: t("Создайте аккаунт", "Hisob yarating"), desc: t("Заполните информацию о компании", "Kompaniya ma'lumotlarini to'ldiring") },
+    { num: "02", title: t("Настройте систему", "Tizimni sozlang"), desc: t("Добавьте товары и склады", "Mahsulotlar va omborlarni qo'shing") },
+    { num: "03", title: t("Начните работу", "Ishni boshlang"), desc: t("Создавайте заказы и отслеживайте", "Buyurtmalar yarating va kuzatib boring") },
   ];
 
   return (
@@ -99,10 +99,10 @@ export default function Register() {
         <div className="relative space-y-10">
           <div>
             <p className="text-[11px] font-semibold tracking-[.14em] uppercase mb-3" style={{ color: "#34c473" }}>
-              {t("auth.register.title")}
+              {t("Начните бесплатно", "Bepul boshlang")}
             </p>
             <h1 className="text-[38px] font-bold leading-[1.15] tracking-tight text-primary">
-              {t("auth.register.title")}
+              {t("Создайте аккаунт за 2 минуты", "2 daqiqada hisob yarating")}
             </h1>
           </div>
 
@@ -124,7 +124,7 @@ export default function Register() {
           <div className="flex items-center gap-3 px-4 py-3 rounded-xl"
             style={{ background: "color-mix(in srgb, #34c473 8%, transparent)", border: "1px solid color-mix(in srgb, #34c473 20%, transparent)" }}>
             <CheckCircle2 size={16} className="text-success flex-shrink-0" />
-            <p className="text-sm text-primary">{t("auth.register.title")}</p>
+            <p className="text-sm text-primary">{t("Бесплатный пробный период на 14 дней", "14 kunlik bepul sinov muddati")}</p>
           </div>
         </div>
 
@@ -132,7 +132,7 @@ export default function Register() {
       </div>
 
       {/* ── Form ── */}
-      <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
+      <div className="flex-1 flex flex-col items-center justify-center px-6 py-12 animate-fade-up">
         <div className="lg:hidden flex items-center gap-2.5 mb-8">
           <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "#5b6d8a" }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -144,18 +144,18 @@ export default function Register() {
 
         <div className="w-full max-w-[380px]">
           <div className="mb-8">
-            <h2 className="font-display text-2xl text-primary mb-1.5">{t("auth.register.title")}</h2>
+            <h2 className="font-display text-2xl text-primary mb-1.5">{t("Создайте аккаунт", "Hisob yarating")}</h2>
             <p className="text-sm" style={{ color: "var(--color-text-secondary, #6a7290)" }}>
-              {t("auth.login.noAccount")}{" "}
-              <Link to="/login" className="font-medium hover:underline" style={{ color: "#5b6d8a" }}>{t("auth.login.submit")}</Link>
+              {t("Уже есть аккаунт?", "Hisobingiz bormi?")}{" "}
+              <Link to="/login" className="font-medium hover:underline" style={{ color: "#5b6d8a" }}>{t("Войти", "Kirish")}</Link>
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {[
-              { key: "name",        type: "text",     placeholder: t("auth.register.title"),  label: t("auth.register.title") },
-              { key: "companyName", type: "text",     placeholder: t("auth.register.title"),  label: t("auth.register.title") },
-              { key: "email",       type: "email",    placeholder: "you@company.com",         label: t("auth.login.email") },
+              { key: "name",        type: "text",     placeholder: t("Ваше имя", "Ismingiz"),             label: t("Ваше имя", "Ismingiz") },
+              { key: "companyName", type: "text",     placeholder: t("Название компании", "Kompaniya nomi"), label: t("Название компании", "Kompaniya nomi") },
+              { key: "email",       type: "email",    placeholder: "you@company.com",                     label: "Email" },
             ].map(f => (
               <div key={f.key} className="space-y-1.5">
                 <label className="block text-xs font-medium" style={{ color: "var(--color-text-secondary, #6a7290)" }}>{f.label}</label>
@@ -170,7 +170,7 @@ export default function Register() {
               <label className="block text-xs font-medium" style={{ color: "var(--color-text-secondary, #6a7290)" }}>{t("auth.login.password")}</label>
               <div className="relative">
                 <input type={showPw ? "text" : "password"} className="neo-input pr-10"
-                  placeholder={t("auth.register.char8")}
+                  placeholder={t("Пароль (мин. 8 символов)", "Parol (kamida 8 ta belgi)")}
                   value={form.password}
                   onChange={e => setForm({ ...form, password: e.target.value })}
                   disabled={registerMutation.isPending} />
@@ -201,7 +201,7 @@ export default function Register() {
             </button>
 
             <p className="text-xs text-center" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
-              {t("auth.register.title")}
+              {t("Нажимая «Зарегистрироваться», вы соглашаетесь с условиями", "«Ro'yxatdan o'tish» tugmasini bosish orqali siz shartlarga rozilik bildirasiz")}
             </p>
           </form>
         </div>
