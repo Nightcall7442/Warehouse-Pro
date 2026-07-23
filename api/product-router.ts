@@ -416,19 +416,26 @@ export const productRouter = createRouter({
       const db = getDb();
       const tenantId = ctx.tenant.id;
 
-      // FK-safe delete order in a single transaction
+      // FK-safe delete order using raw SQL (Drizzle can't handle all FK combos)
       await db.transaction(async (tx) => {
-        // Delete child tables first (order_items may reference products)
-        try {
-          const { orderItems, orders } = await import("@db/schema");
-          // Delete order items for this tenant's orders
-          const tenantOrderIds = tx.select({ id: orders.id }).from(orders).where(eq(orders.tenantId, tenantId));
-          await tx.delete(orderItems).where(sql`${orderItems.orderId} IN (${tenantOrderIds})`);
-          await tx.delete(orders).where(eq(orders.tenantId, tenantId));
-        } catch { /* tables may not exist or no FK */ }
-        await tx.delete(warehouseStock).where(eq(warehouseStock.tenantId, tenantId));
-        try { await tx.delete(stockMovements).where(eq(stockMovements.tenantId, tenantId)); } catch { /* table may not exist */ }
-        await tx.delete(products).where(eq(products.tenantId, tenantId));
+        // 1. Delete all child tables that reference products
+        const del = (table: string) => tx.execute(sql.raw(`DELETE FROM ${table} WHERE product_id IN (SELECT id FROM products WHERE tenant_id = ${tenantId})`));
+        const delByTenant = (table: string) => tx.execute(sql.raw(`DELETE FROM ${table} WHERE tenant_id = ${tenantId}`));
+
+        await del("order_items").catch(() => {});
+        await del("arrival_items").catch(() => {});
+        await del("return_items").catch(() => {});
+        await del("price_list_items").catch(() => {});
+        await delByTenant("stock_transfers").catch(() => {});
+        await delByTenant("stock_movements").catch(() => {});
+        await delByTenant("warehouse_stock").catch(() => {});
+
+        // 2. Delete orders and returns (reference products via order_items/return_items)
+        await delByTenant("orders").catch(() => {});
+        await delByTenant("returns").catch(() => {});
+
+        // 3. Now safe to delete products
+        await tx.execute(sql.raw(`DELETE FROM products WHERE tenant_id = ${tenantId}`));
       });
 
       cache.invalidatePrefix(`products:${tenantId}`);
