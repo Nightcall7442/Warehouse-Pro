@@ -9,7 +9,7 @@ import { findTenantBySlug, listTenants } from "./queries/tenants";
 import { checkRateLimit, getClientIp } from "./lib/rate-limit";
 import { createTrialSubscription } from "./lib/subscription";
 import { logger } from "./lib/logger";
-import { checkPlanLimits } from "../lib/plan-limits";
+import { checkPlanLimits } from "./lib/plan-limits";
 
 const REGISTER_RATE_LIMIT = { windowMs: 60 * 60 * 1000, limit: 5, namespace: "register" };
 
