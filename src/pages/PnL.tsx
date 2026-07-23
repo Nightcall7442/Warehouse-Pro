@@ -258,7 +258,7 @@ export default function PnL() {
 
       paymentBreakdown.data.forEach((row, i) => {
         const label = PAYMENT_LABELS[row.paymentMethod]?.ru ?? row.paymentMethod;
-        const r = ws3.addRow([label, num(row.revenue), num(row.cogs), num(row.grossProfit), `${num(row.grossMarginPct).toFixed(1)}%`, row.orderCount ?? 0]);
+        const r = ws3.addRow([label, num(row.revenue), num(row.cogs ?? 0), num(row.grossProfit ?? 0), `${num(row.grossMarginPct ?? 0).toFixed(1)}%`, row.orderCount ?? 0]);
         [2, 3, 4].forEach(c => r.getCell(c).numFmt = "#,##0");
         const bg = i % 2 === 0 ? "FFF8FAFC" : "FFFFFFFF";
         r.eachCell(c => {
@@ -402,7 +402,7 @@ export default function PnL() {
         <table><thead><tr><th>Метод</th><th class="right">Выручка</th><th class="right">COGS</th><th class="right">Прибыль</th><th class="right">Маржа</th><th class="right">Заказов</th></tr></thead><tbody>`;
       for (const row of paymentBreakdown.data) {
         const label = PAYMENT_LABELS[row.paymentMethod]?.ru ?? row.paymentMethod;
-        html += `<tr><td>${label}</td><td class="right">${fmtNum(row.revenue)}</td><td class="right">${fmtNum(row.cogs)}</td><td class="right bold">${fmtNum(row.grossProfit)}</td><td class="right">${row.grossMarginPct.toFixed(1)}%</td><td class="right">${row.orderCount}</td></tr>`;
+        html += `<tr><td>${label}</td><td class="right">${fmtNum(row.revenue)}</td><td class="right">${fmtNum(row.cogs ?? 0)}</td><td class="right bold">${fmtNum(row.grossProfit ?? 0)}</td><td class="right">${(row.grossMarginPct ?? 0).toFixed(1)}%</td><td class="right">${row.orderCount}</td></tr>`;
       }
       html += `</tbody></table></div>`;
     }

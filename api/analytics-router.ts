@@ -60,6 +60,9 @@ export const analyticsRouter = createRouter({
     }),
 
   // ── COGS + Margins ──────────────────────────────────────────────────────────
+  // NOTE: COGS uses current `products.costPrice`, not historical. If product costs
+  // change over time, historical P&L and COGS reports will be inaccurate.
+  // Consider adding `costPrice` to `orderItems` to snapshot the cost at order time.
   cogsByProduct: reportsQuery
     .input(z.object({ dateFrom: z.string().optional(), dateTo: z.string().optional() }).optional())
     .query(async ({ input, ctx }) => {
@@ -330,9 +333,11 @@ export const analyticsRouter = createRouter({
         paymentMethod: orders.paymentMethod,
         revenue: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
         orderCount: sql<number>`count(*)`,
-        discount: sql<string>`COALESCE(SUM(${orders.discount}), 0)`,
+        cogs: sql<string>`COALESCE(SUM(${orderItems.quantity} * COALESCE(${products.costPrice}, 0)), 0)`,
       })
         .from(orders)
+        .leftJoin(orderItems, eq(orderItems.orderId, orders.id))
+        .leftJoin(products, eq(orderItems.productId, products.id))
         .where(and(
           eq(orders.tenantId, tid),
           eq(orders.status, "completed"),
@@ -341,13 +346,20 @@ export const analyticsRouter = createRouter({
         ))
         .groupBy(orders.paymentMethod);
 
-      return rows.map(r => ({
-        method: r.paymentMethod ?? "unknown",
-        revenue: Number(r.revenue),
-        orderCount: Number(r.orderCount),
-        discount: Number(r.discount),
-        netRevenue: Number(r.revenue) - Number(r.discount),
-      }));
+      return rows.map(r => {
+        const revenue = Number(r.revenue);
+        const cogs = Number(r.cogs);
+        const grossProfit = revenue - cogs;
+        const grossMarginPct = revenue > 0 ? (grossProfit / revenue) * 100 : 0;
+        return {
+          paymentMethod: r.paymentMethod ?? "unknown",
+          revenue,
+          cogs,
+          grossProfit,
+          grossMarginPct,
+          orderCount: Number(r.orderCount),
+        };
+      });
     }),
 
   // ── Payment Method Trend ──────────────────────────────────────────────────
@@ -358,10 +370,9 @@ export const analyticsRouter = createRouter({
       const tid = ctx.tenant.id;
 
       const rows = await db.select({
-        date: sql<string>`DATE(${orders.createdAt})`,
+        month: sql<string>`DATE_FORMAT(${orders.createdAt}, '%Y-%m')`,
         paymentMethod: orders.paymentMethod,
         revenue: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
-        orderCount: sql<number>`count(*)`,
       })
         .from(orders)
         .where(and(
@@ -370,14 +381,23 @@ export const analyticsRouter = createRouter({
           sql`${orders.createdAt} >= ${input.from}`,
           sql`${orders.createdAt} <= ${input.to + " 23:59:59"}`,
         ))
-        .groupBy(sql`DATE(${orders.createdAt})`, orders.paymentMethod)
-        .orderBy(sql`DATE(${orders.createdAt})`);
+        .groupBy(sql`DATE_FORMAT(${orders.createdAt}, '%Y-%m')`, orders.paymentMethod)
+        .orderBy(sql`DATE_FORMAT(${orders.createdAt}, '%Y-%m')`);
 
-      return rows.map(r => ({
-        date: r.date,
-        method: r.paymentMethod ?? "unknown",
-        revenue: Number(r.revenue),
-        orderCount: Number(r.orderCount),
-      }));
+      // Pivot: group by month, columns per payment method
+      const pivot: Record<string, { month: string; cash: number; transfer: number; debt: number; card: number }> = {};
+      for (const r of rows) {
+        const m = r.month;
+        if (!pivot[m]) pivot[m] = { month: m, cash: 0, transfer: 0, debt: 0, card: 0 };
+        const method = (r.paymentMethod ?? "unknown").toLowerCase();
+        const key = method === "cash" || method === "naqd" ? "cash"
+          : method === "transfer" || method === "perevod" ? "transfer"
+          : method === "debt" || method === "qarz" ? "debt"
+          : method === "card" || method === "plastic" ? "card"
+          : "cash";
+        pivot[m][key] += Number(r.revenue);
+      }
+
+      return Object.values(pivot).sort((a, b) => a.month.localeCompare(b.month));
     }),
 });

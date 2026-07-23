@@ -25,7 +25,7 @@ export const reportsRouter = createRouter({
         .where(and(eq(dailyPlans.tenantId, tenantId), sql`DATE(${dailyPlans.planDate}) = ${today}`, eq(dailyPlans.status, "visited"))),
 
       db.select({ count: sql<number>`count(*)` }).from(orders)
-        .where(and(eq(orders.tenantId, tenantId), gte(orders.createdAt, new Date(d30ago)))),
+        .where(and(eq(orders.tenantId, tenantId), eq(orders.status, "completed"), gte(orders.createdAt, new Date(d30ago)))),
 
       db.select({ total: sql<string>`COALESCE(SUM(${orders.total}), 0)` }).from(orders)
         .where(and(eq(orders.tenantId, tenantId), eq(orders.status, "completed"), gte(orders.createdAt, new Date(d30ago)))),
