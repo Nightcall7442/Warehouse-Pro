@@ -362,7 +362,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
 
   const { data: sub } = trpc.stripe.getSubscription.useQuery(undefined, {
-    enabled: !!user && !["superadmin", "supervisor", "merchandiser"].includes(user.role),
+    enabled: !!user && user.role !== "superadmin",
     staleTime: 5 * 60 * 1000,
   });
 
@@ -373,8 +373,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     }
   }, [user, isLoading, navigate, location.pathname]);
 
+  // NOTE: This is a client-side check only and can be bypassed. The real fix
+  // requires server-side subscription gating on all API endpoints (see Bug 1 fix
+  // in api/lib/feature-gating.ts).
   useEffect(() => {
-    if (user?.role === "superadmin" || user?.role === "supervisor" || user?.role === "merchandiser") return;
+    if (user?.role === "superadmin") return;
     if (sub && !sub.isActive && sub.status !== "trialing") {
       navigate("/subscription-blocked", { replace: true });
     }
@@ -392,7 +395,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <MobileDrawer open={drawerOpen} onClose={closeDrawer} unreadCount={unreadCount} />
 
       <div className="md:ml-[280px]">
-        {user?.role !== "superadmin" && user?.role !== "supervisor" && user?.role !== "merchandiser" && <TrialBanner />}
+        {user?.role !== "superadmin" && <TrialBanner />}
       </div>
 
       {/* Floating sidebar — neumorphic card */}

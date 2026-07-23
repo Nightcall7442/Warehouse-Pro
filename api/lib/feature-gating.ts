@@ -15,6 +15,15 @@ export async function checkSubscriptionAccess(tenantId: number): Promise<boolean
 
   if (!sub) return false; // No subscription — should not happen after tenant.register creates one
 
+  // Check trial expiration
+  if (sub.status === "trialing" && sub.trialEndsAt && new Date(sub.trialEndsAt) < new Date()) {
+    return false;
+  }
+  // Check period expiration
+  if (sub.status === "active" && sub.currentPeriodEnds && new Date(sub.currentPeriodEnds) < new Date()) {
+    return false;
+  }
+
   if (sub.status === "active" || sub.status === "trialing") return true;
 
   // Grace period: 7 days for past_due before blocking

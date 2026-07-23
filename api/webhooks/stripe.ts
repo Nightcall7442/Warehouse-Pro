@@ -47,10 +47,11 @@ export function registerStripeWebhook(app: Hono) {
             const session  = event.data.object as Stripe.Checkout.Session;
             const tenantId = Number(session.metadata?.tenantId);
             if (!tenantId) break;
+            const plan = (session.metadata?.plan as string) || 'basic';
             await tx.update(subscriptions).set({
               stripeSubscriptionId: typeof session.subscription === "string" ? session.subscription : session.subscription?.id ?? null,
               stripeCustomerId:     typeof session.customer === "string" ? session.customer : session.customer?.id ?? null,
-              plan: "basic", status: "active", updatedAt: new Date(),
+              plan, status: "active", updatedAt: new Date(),
             }).where(eq(subscriptions.tenantId, tenantId));
             break;
           }

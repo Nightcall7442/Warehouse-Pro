@@ -46,7 +46,7 @@ export const TenantService = {
     const trialDays = data.trialDays ?? 14;
     const trialEndsAt = new Date(Date.now() + trialDays * 86_400_000);
     const plan = data.plan ?? "trial";
-    const planExpiresAt = new Date(Date.now() + 30 * 86_400_000);
+    const planExpiresAt = plan !== 'trial' ? new Date(Date.now() + 30 * 86_400_000) : null;
 
     let tenantId: number;
     await db.transaction(async (tx) => {

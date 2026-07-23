@@ -647,7 +647,7 @@ export type InsertSubscription = typeof subscriptions.$inferInsert;
 // ============================================
 export const billingEvents = mysqlTable("billing_events", {
   id:            varchar("id", { length: 36 }).primaryKey(),
-  tenantId:      bigint("tenant_id", { mode: "number", unsigned: true }).references(() => tenants.id, { onDelete: "restrict" }),
+  tenantId:      bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
   type:          varchar("type", { length: 100 }).notNull(),
   stripeEventId: varchar("stripe_event_id", { length: 255 }).unique(),
   payload:       text("payload"),

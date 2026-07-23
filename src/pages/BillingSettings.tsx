@@ -6,6 +6,7 @@ import {
   CheckCircle2, AlertTriangle, Zap, ExternalLink, Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
+import { PLAN_PRICES_UZS } from '../../contracts/constants';
 
 const PLAN_FEATURES: Record<string, string[]> = {
   trial:     ["3 пользователя", "20 товаров", "50 заказов/мес", "Базовый склад", "14 дней бесплатно"],
@@ -111,9 +112,9 @@ export default function BillingSettings() {
         <h2 className="font-label text-secondary tracking-wider text-xs mb-4">ТАРИФЫ</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[
-            { key: "basic",     name: "Basic",     price: "299 000 сум/мес",  highlight: false },
-            { key: "pro",       name: "Pro",       price: "599 000 сум/мес",  highlight: true  },
-            { key: "exclusive", name: "Exclusive", price: "1 299 000 сум/мес", highlight: false },
+            { key: "basic",     name: "Basic",     price: `${PLAN_PRICES_UZS.basic.toLocaleString('ru-RU')} сум/мес`,  highlight: false },
+            { key: "pro",       name: "Pro",       price: `${PLAN_PRICES_UZS.pro.toLocaleString('ru-RU')} сум/мес`,  highlight: true  },
+            { key: "exclusive", name: "Exclusive", price: `${PLAN_PRICES_UZS.exclusive.toLocaleString('ru-RU')} сум/мес`, highlight: false },
           ].map(plan => {
             const isCurrent = sub.plan === plan.key && sub.isActive;
             const features  = PLAN_FEATURES[plan.key] ?? [];

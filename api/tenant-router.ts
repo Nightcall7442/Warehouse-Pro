@@ -9,6 +9,7 @@ import { findTenantBySlug, listTenants } from "./queries/tenants";
 import { checkRateLimit, getClientIp } from "./lib/rate-limit";
 import { createTrialSubscription } from "./lib/subscription";
 import { logger } from "./lib/logger";
+import { checkPlanLimits } from "../lib/plan-limits";
 
 const REGISTER_RATE_LIMIT = { windowMs: 60 * 60 * 1000, limit: 5, namespace: "register" };
 
@@ -51,9 +52,12 @@ export const tenantRouter = createRouter({
 
       const passwordHash = await hashPassword(input.password);
 
+      const trialEnds = new Date(Date.now() + 14 * 86_400_000);
+
       await db.transaction(async (tx) => {
         const [tenantResult] = await tx.insert(tenants).values({
           slug, name: input.orgName, plan: "trial", status: "active",
+          trialEndsAt: trialEnds,
         });
         const tenantId = Number(tenantResult.insertId);
         await tx.insert(users).values({
@@ -94,6 +98,11 @@ export const tenantRouter = createRouter({
       const existing = await db.select({ id: users.id }).from(users)
         .where(eq(users.email, input.email)).limit(1);
       if (existing.length) throw new TRPCError({ code: "CONFLICT", message: "Email already registered." });
+
+      const limits = await checkPlanLimits(db, ctx.tenant.id, 'users');
+      if (!limits.allowed) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: `Достигнут лимит пользователей (${limits.current}/${limits.limit})` });
+      }
 
       const passwordHash = await hashPassword(input.password);
       await db.insert(users).values({
