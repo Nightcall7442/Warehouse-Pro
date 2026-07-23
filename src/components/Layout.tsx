@@ -333,6 +333,13 @@ const BottomNav = memo(function BottomNav() {
 
 // ── Mobile drawer ─────────────────────────────────────────────────────────────
 const MobileDrawer = memo(function MobileDrawer({ open, onClose, unreadCount }: { open: boolean; onClose: () => void; unreadCount: number }) {
+  useEffect(() => {
+    if (open) {
+      document.body.style.overflow = 'hidden';
+      return () => { document.body.style.overflow = ''; };
+    }
+  }, [open]);
+
   return open ? (
     <div className="fixed inset-0 z-50 flex md:hidden">
       <div className="absolute inset-0 glass-overlay" onClick={onClose} />
@@ -394,7 +401,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       </aside>
 
       <main className="md:ml-[280px] min-h-screen">
-        <div key={location.pathname} className="p-5 md:p-6 pb-[84px] md:pb-6 animate-fade-up">
+        <div key={location.pathname} className="p-5 md:p-6 pb-[calc(60px+env(safe-area-inset-bottom,0px))] md:pb-6 animate-fade-up">
           {children}
         </div>
       </main>

@@ -106,7 +106,7 @@ function PlanCard({ plan, onDone, onSkip, isPending }: {
           <button
             onClick={onSkip}
             disabled={isPending}
-            className="btn-ghost py-1 px-2 text-xs"
+            className="btn-ghost py-1 px-2 text-xs min-w-[44px] min-h-[44px] flex items-center justify-center"
             style={{ color: "var(--color-text-secondary, #6a7290)" }}
             title={t("Пропустить", "O'tkazib yuborish")}
           >
@@ -115,7 +115,7 @@ function PlanCard({ plan, onDone, onSkip, isPending }: {
           <button
             onClick={onDone}
             disabled={isPending}
-            className="neo-btn-primary py-1 px-3 text-xs"
+            className="neo-btn-primary py-1 px-3 text-xs min-w-[44px] min-h-[44px]"
           >
             {t("Готово", "Bajarildi")}
           </button>

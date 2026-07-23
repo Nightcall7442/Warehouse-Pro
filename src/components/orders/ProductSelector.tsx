@@ -114,7 +114,7 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
         </div>
 
         {/* Product list */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "520px", overflowY: "auto" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "520px", overflowY: "auto", touchAction: "manipulation" }}>
           {filtered.map((product: any) => {
             const inCart = items.find(i => i.productId === product.id);
             const lowStock = Number(product.available ?? 0) < 10;
@@ -154,8 +154,8 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
                 {inCart ? (
                   <div style={{ display: "flex", alignItems: "center", gap: "4px", flexShrink: 0 }}>
                     <button onClick={(e) => { e.stopPropagation(); updateQuantity(product.id, -1); }}
-                      style={{ width: "28px", height: "28px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--color-text-secondary)" }}>
-                      <Minus size={12} />
+                      style={{ width: "44px", height: "44px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--color-text-secondary)" }}>
+                      <Minus size={16} />
                     </button>
                     <input
                       type="number"
@@ -163,11 +163,11 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
                       value={inCart.quantity}
                       onChange={(e) => { e.stopPropagation(); setQuantityDirect(product.id, e.target.value); }}
                       onClick={(e) => e.stopPropagation()}
-                      style={{ width: "44px", height: "28px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface)", textAlign: "center", fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary)", fontFamily: "'DM Sans', sans-serif", outline: "none" }}
+                      style={{ width: "44px", height: "44px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface)", textAlign: "center", fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary)", fontFamily: "'DM Sans', sans-serif", outline: "none" }}
                     />
                     <button onClick={(e) => { e.stopPropagation(); updateQuantity(product.id, 1); }}
-                      style={{ width: "28px", height: "28px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--color-text-secondary)" }}>
-                      <Plus size={12} />
+                      style={{ width: "44px", height: "44px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--color-text-secondary)" }}>
+                      <Plus size={16} />
                     </button>
                   </div>
                 ) : (
@@ -180,11 +180,11 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
                       value={inputVal}
                       onChange={(e) => setQuickQty(prev => ({ ...prev, [product.id]: e.target.value }))}
                       onKeyDown={(e) => { if (e.key === "Enter") handleQuickAdd(product); }}
-                      style={{ width: "44px", height: "28px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface)", textAlign: "center", fontSize: "12px", color: "var(--color-text-primary)", fontFamily: "'DM Sans', sans-serif", outline: "none" }}
+                      style={{ width: "44px", height: "44px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface)", textAlign: "center", fontSize: "12px", color: "var(--color-text-primary)", fontFamily: "'DM Sans', sans-serif", outline: "none" }}
                     />
                     <button onClick={() => handleQuickAdd(product)}
-                      style={{ width: "28px", height: "28px", borderRadius: "6px", border: "none", background: "var(--color-primary)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#fff" }}>
-                      <Plus size={12} />
+                      style={{ width: "44px", height: "44px", borderRadius: "6px", border: "none", background: "var(--color-primary)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#fff" }}>
+                      <Plus size={16} />
                     </button>
                   </div>
                 )}
@@ -218,7 +218,7 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
           </div>
         ) : (
           <>
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "16px", maxHeight: "320px", overflowY: "auto" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "16px", maxHeight: "320px", overflowY: "auto", touchAction: "manipulation" }}>
               {validItems.map((item) => (
                 <div key={item.productId} style={{
                   display: "flex", alignItems: "center", gap: "8px", padding: "8px 10px",
@@ -234,32 +234,32 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: "3px" }}>
                     <button onClick={() => updateQuantity(item.productId, -1)} style={{
-                      width: "22px", height: "22px", borderRadius: "4px", border: "1px solid var(--color-border)",
+                      width: "44px", height: "44px", borderRadius: "6px", border: "1px solid var(--color-border)",
                       background: "var(--color-surface)", display: "flex", alignItems: "center", justifyContent: "center",
-                      cursor: "pointer", fontSize: "12px", color: "var(--color-text-secondary)",
+                      cursor: "pointer", fontSize: "14px", color: "var(--color-text-secondary)",
                     }}>−</button>
                     <input
                       type="number"
                       min="0"
                       value={item.quantity}
                       onChange={(e) => setQuantityDirect(item.productId, e.target.value)}
-                      style={{ width: "36px", height: "22px", borderRadius: "4px", border: "1px solid var(--color-border)", background: "var(--color-surface)", textAlign: "center", fontSize: "12px", fontWeight: 600, color: "var(--color-text-primary)", fontFamily: "'DM Sans', sans-serif", outline: "none" }}
+                      style={{ width: "44px", height: "44px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface)", textAlign: "center", fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary)", fontFamily: "'DM Sans', sans-serif", outline: "none" }}
                     />
                     <button onClick={() => updateQuantity(item.productId, 1)} style={{
-                      width: "22px", height: "22px", borderRadius: "4px", border: "1px solid var(--color-border)",
+                      width: "44px", height: "44px", borderRadius: "6px", border: "1px solid var(--color-border)",
                       background: "var(--color-surface)", display: "flex", alignItems: "center", justifyContent: "center",
-                      cursor: "pointer", fontSize: "12px", color: "var(--color-text-secondary)",
+                      cursor: "pointer", fontSize: "14px", color: "var(--color-text-secondary)",
                     }}>+</button>
                   </div>
                   <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--color-text-primary)", minWidth: "55px", textAlign: "right" }}>
                     {fmt((Number(item.unitPrice) * Number(item.quantity)).toFixed(2))}
                   </span>
                   <button onClick={() => removeItem(item.productId)} style={{
-                    width: "20px", height: "20px", borderRadius: "4px", border: "none",
+                    width: "44px", height: "44px", borderRadius: "6px", border: "none",
                     background: "none", display: "flex", alignItems: "center", justifyContent: "center",
                     cursor: "pointer", color: "var(--color-text-tertiary)", flexShrink: 0,
                   }}>
-                    <Trash2 size={12} />
+                    <Trash2 size={14} />
                   </button>
                 </div>
               ))}
