@@ -3,6 +3,7 @@ import path from "path";
 const __dirname = import.meta.dirname;
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
+import { sentryVitePlugin } from "@sentry/vite-plugin";
 
 let VitePWA: any = () => ({});
 try {
@@ -14,12 +15,21 @@ export default defineConfig({
   plugins: [
     devServer({
       entry: "api/boot.ts",
-      // Только /api/* идёт на Hono. Всё остальное — Vite (фронт).
       exclude: [
         /^(?!\/api\/)/,
       ],
     }),
     react(),
+    // Sentry source maps upload — only when SENTRY_AUTH_TOKEN is set
+    process.env.SENTRY_AUTH_TOKEN && sentryVitePlugin({
+      org: process.env.SENTRY_ORG || "nightcall",
+      project: process.env.SENTRY_PROJECT || "warehouse-pro",
+      authToken: process.env.SENTRY_AUTH_TOKEN,
+      sourcemaps: {
+        assets: "./dist/**",
+        ignore: ["node_modules"],
+      },
+    }),
     VitePWA({      registerType:  "autoUpdate",
       includeAssets: ["icon-192.png", "icon-512.png", "offline.html"],
       manifest: {
@@ -76,8 +86,9 @@ export default defineConfig({
   build: {
     outDir:      path.resolve(__dirname, "dist/public"),
     emptyOutDir: true,
-    target:      "es2022",           // Smaller output than default es2015
+    target:      "es2022",
     cssTarget:   "es2022",
+    sourcemap:   true, // Required for Sentry source maps
     rollupOptions: {
       output: {
         manualChunks: {

@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router'
+import './sentry' // Must be first — initializes Sentry before anything else
 import './index.css'
 import { TRPCProvider } from "@/providers/trpc"
 import { WarehouseProvider } from "@/providers/WarehouseContext"
@@ -10,18 +11,18 @@ import { InstallPrompt } from "@/components/InstallPrompt"
 import { notify } from "@/lib/toast"
 import App from './App.tsx'
 
-// Глобальный обработчик необработанных ошибок JS — показывает toast
+// Sentry captures errors via globalHandlers integration
+// These handlers show toast notifications to the user
 window.onerror = (message) => {
   const msg = typeof message === "string" ? message : "Неизвестная ошибка";
   if (msg.includes("workbox") || msg.includes("non-precached-url") || msg.includes("createHandlerBoundToURL") || msg.includes("Loading chunk")) return;
   notify.error(`Ошибка: ${msg}`);
 };
 
-// Необработанные промисы (fetch, async/await без catch)
 window.addEventListener("unhandledrejection", (event) => {
   const msg = event.reason?.message || String(event.reason) || "Необработанная ошибка";
   if (msg.includes("workbox") || msg.includes("non-precached-url") || msg.includes("net::ERR") || msg.includes("createHandlerBoundToURL")) return;
-  if (msg.includes("TRPCClientError")) return; // tRPC ошибки уже показываются в компонентах
+  if (msg.includes("TRPCClientError")) return;
   notify.error(`Ошибка: ${msg}`);
 });
 

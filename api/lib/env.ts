@@ -75,4 +75,7 @@ export const env = {
 
   // OpenTelemetry
   otelExporterUrl:     optional("OTEL_EXPORTER_OTLP_ENDPOINT"),
+
+  // Sentry
+  sentryDsn:           optional("SENTRY_DSN"),
 } as const;

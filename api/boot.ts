@@ -23,6 +23,18 @@ import { logError } from "./lib/error-log";
 import { safeEqual } from "./lib/safe-compare";
 
 
+import * as Sentry from "@sentry/node";
+
+// Initialize Sentry before anything else
+if (env.sentryDsn) {
+  Sentry.init({
+    dsn: env.sentryDsn,
+    environment: env.isProduction ? "production" : "development",
+    release: APP_VERSION,
+    tracesSampleRate: env.isProduction ? 0.2 : 1.0,
+  });
+}
+
 const APP_VERSION = "1.0.0";
 
 const app = new Hono<{ Bindings: HttpBindings }>();
@@ -47,6 +59,18 @@ if (env.isProduction) {
   });
 } else {
   app.use(honoLogger());
+}
+
+// ── Sentry error handler (must be before other error handlers) ────────────────
+if (env.sentryDsn) {
+  app.use("*", async (c, next) => {
+    try {
+      await next();
+    } catch (err) {
+      Sentry.captureException(err);
+      throw err;
+    }
+  });
 }
 
 // ── Security headers ─────────────────────────────────────────────────────────
