@@ -214,7 +214,7 @@ export const orders = mysqlTable("orders", {
   tenantId:    bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
   orderNumber: varchar("order_number", { length: 50 }).notNull(),
   shopId:      bigint("shop_id", { mode: "number", unsigned: true }).notNull().references(() => shops.id, { onDelete: "restrict" }),
-  agentId:     bigint("agent_id", { mode: "number", unsigned: true }).notNull().references(() => users.id, { onDelete: "set null" }),
+  agentId:     bigint("agent_id", { mode: "number", unsigned: true }).notNull().references(() => users.id, { onDelete: "restrict" }),
   status:      mysqlEnum("status", ["new", "processing", "completed", "cancelled"]).default("new").notNull(),
   subtotal:    decimal("subtotal", { precision: 12, scale: 2 }).default("0.00").notNull(),
   discount:    decimal("discount", { precision: 12, scale: 2 }).default("0.00").notNull(),

@@ -1,6 +1,7 @@
 import { useCurrency } from "@/hooks/useCurrency";
 import { useLang } from "@/i18n";
 import { Store, AlertTriangle } from "lucide-react";
+import { calcDiscount, calcSubtotal } from "@/lib/order-calculations";
 import { PAYMENT_METHODS, unitLabel } from "./types";
 import type { OrderItem, PaymentMethod } from "./types";
 
@@ -25,8 +26,8 @@ export function OrderReview({
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
 
   const validItems = items.filter(i => i.productId > 0 && Number(i.quantity) > 0);
-  const subtotal = validItems.reduce((s, i) => s + Number(i.unitPrice) * Number(i.quantity), 0);
-  const disc = Math.min(Number(discount || 0), subtotal);
+  const subtotal = calcSubtotal(validItems);
+  const disc = calcDiscount(discount, subtotal);
   const total = subtotal - disc;
   const totalWeightKg = validItems.reduce((s, i) => s + Number(i.quantity) * (i.unitWeight || 1), 0);
 

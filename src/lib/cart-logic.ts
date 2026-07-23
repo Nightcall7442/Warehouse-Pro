@@ -56,7 +56,7 @@ export function updateQuantity(items: CartItem[], productId: number, delta: numb
  * Set quantity directly. Removes item if quantity is 0.
  */
 export function setQuantityDirect(items: CartItem[], productId: number, value: string): CartItem[] {
-  const num = parseInt(value, 10);
+  const num = parseFloat(value);
   if (isNaN(num) || num < 0) return items;
   if (num === 0) {
     return items.filter(i => i.productId !== productId);

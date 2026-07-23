@@ -408,10 +408,10 @@ export const OrderService = {
       const updates: Record<string, unknown> = {};
       if (data.notes !== undefined) updates.notes = data.notes;
       if (data.discount !== undefined) {
-        updates.discount = data.discount;
-        // Recalculate total
         const subtotal = Number(order.subtotal);
         const discount = Number(data.discount);
+        if (discount > subtotal) throw new Error("Скидка не может превышать сумму заказа");
+        updates.discount = data.discount;
         updates.total = String(subtotal - discount);
       }
 
@@ -426,11 +426,26 @@ export const OrderService = {
   },
 
   async restore(db: Db, tenantId: number, orderId: number) {
-    const [order] = await db.select({ id: orders.id, deletedAt: orders.deletedAt }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId))).limit(1);
+    const [order] = await db.select({ id: orders.id, deletedAt: orders.deletedAt, status: orders.status }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId))).limit(1);
     if (!order) throw new Error("Заказ не найден");
     if (!order.deletedAt) throw new Error("Заказ не удалён");
 
-    await db.update(orders).set({ deletedAt: null }).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)));
+    await db.transaction(async (tx) => {
+      await tx.update(orders).set({ deletedAt: null }).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)));
+
+      // Re-reserve stock if order was new/processing when deleted
+      if (order.status === "new" || order.status === "processing") {
+        const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
+        for (const item of items) {
+          const qty = Number(item.quantity);
+          await tx.execute(sql`
+            UPDATE warehouse_stock
+            SET available = available - ${qty}, reserved = reserved + ${qty}
+            WHERE product_id = ${item.productId} AND tenant_id = ${tenantId}
+          `);
+        }
+      }
+    });
 
     cache.invalidate(CacheKeys.dashboardKpis(Number(tenantId)));
 

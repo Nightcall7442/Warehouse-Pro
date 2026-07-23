@@ -59,7 +59,7 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
   }, [items, onChange]);
 
   const setQuantityDirect = useCallback((productId: number, value: string) => {
-    const num = parseInt(value, 10);
+    const num = parseFloat(value);
     if (isNaN(num) || num < 0) return;
     const next = [...items];
     const itemIdx = next.findIndex(i => i.productId === productId);
@@ -77,11 +77,11 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
   }, [items, onChange]);
 
   const handleQuickAdd = useCallback((product: any) => {
-    const qty = parseInt(quickQty[product.id] || "1", 10);
-    if (qty > 0) {
-      addToCart(product, qty);
-      searchRef.current?.focus();
-    }
+    const qty = parseFloat(quickQty[product.id] || "1");
+    if (isNaN(qty) || qty <= 0) return;
+    addToCart(product, qty);
+    searchRef.current?.focus();
+  }
   }, [quickQty, addToCart]);
 
   const validItems = items.filter(i => i.productId > 0);
@@ -253,7 +253,7 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
                     }}>+</button>
                   </div>
                   <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--color-text-primary)", minWidth: "55px", textAlign: "right" }}>
-                    {fmt((Number(item.unitPrice) * Number(item.quantity)).toFixed(0))}
+                    {fmt((Number(item.unitPrice) * Number(item.quantity)).toFixed(2))}
                   </span>
                   <button onClick={() => removeItem(item.productId)} style={{
                     width: "20px", height: "20px", borderRadius: "4px", border: "none",
@@ -270,7 +270,7 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
             <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: "12px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
                 <span style={{ fontSize: "13px", color: "var(--color-text-secondary)" }}>{t("Подитого", "Jami")}</span>
-                <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--color-text-primary)" }}>{fmt(subtotal.toFixed(0))}</span>
+                <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--color-text-primary)" }}>{fmt(subtotal.toFixed(2))}</span>
               </div>
               {totalWeightKg > 0 && (
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
@@ -280,7 +280,7 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
               )}
               <div style={{ display: "flex", justifyContent: "space-between", paddingTop: "8px", borderTop: "1px solid var(--color-border)" }}>
                 <span style={{ fontSize: "15px", fontWeight: 700, color: "var(--color-text-primary)" }}>{t("ИТОГО", "JAMI")}</span>
-                <span style={{ fontSize: "15px", fontWeight: 700, color: "var(--color-primary)" }}>{fmt(subtotal.toFixed(0))}</span>
+                <span style={{ fontSize: "15px", fontWeight: 700, color: "var(--color-primary)" }}>{fmt(subtotal.toFixed(2))}</span>
               </div>
             </div>
           </>

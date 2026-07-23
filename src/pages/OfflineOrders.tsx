@@ -60,6 +60,8 @@ export default function OfflineOrders() {
           items:    order.items as any,
           notes:    order.notes as string | undefined,
           discount: order.discount as string | number | undefined,
+          paymentMethod: (order.paymentMethod as string) || 'cash',
+          idempotencyKey: (order.idempotencyKey as string) || crypto.randomUUID(),
         });
                             await deletePendingOrder(order.localId as number);
         synced++;
@@ -189,6 +191,8 @@ export default function OfflineOrders() {
                               items:    order.items as any,
                               notes:    order.notes as string | undefined,
                               discount: order.discount as string | number | undefined,
+                              paymentMethod: (order.paymentMethod as string) || 'cash',
+                              idempotencyKey: (order.idempotencyKey as string) || crypto.randomUUID(),
                             });
         await deletePendingOrder(order.localId as number);
                             await loadPending();
