@@ -5,8 +5,41 @@ import { getDb } from "./queries/connection";
 import { products, shops, warehouseStock, warehouses } from "@db/schema";
 import { eq, and } from "drizzle-orm";
 import { cache } from "./lib/cache";
+import { env } from "./lib/env";
 
 type ParsedRow = Record<string, string | number | null>;
+
+/** Upload base64 data URI to S3. Returns the S3 URL or empty string if S3 not configured. */
+async function uploadBase64ToS3(dataUrl: string, folder: string, tenantId: number): Promise<string> {
+  const isS3 = !!(env.s3Bucket && env.s3AccessKey && env.s3SecretKey);
+  if (!isS3) {
+    // S3 not configured — skip base64 data to avoid DB size limits
+    return "";
+  }
+
+  const match = dataUrl.match(/^data:image\/(\w+);base64,(.+)$/);
+  if (!match) return dataUrl;
+
+  const ext = match[1].toLowerCase() === "jpeg" ? "jpg" : match[1].toLowerCase();
+  const buffer = Buffer.from(match[2], "base64");
+  const key = `${folder}/${tenantId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+  const { S3Client, PutObjectCommand } = await import("@aws-sdk/client-s3");
+  const s3 = new S3Client({
+    region: env.s3Region || "us-east-1",
+    credentials: {
+      accessKeyId: env.s3AccessKey || "",
+      secretAccessKey: env.s3SecretKey || "",
+    },
+  });
+  await s3.send(new PutObjectCommand({
+    Bucket: env.s3Bucket!,
+    Key: key,
+    Body: buffer,
+    ContentType: `image/${ext === "jpg" ? "jpeg" : ext}`,
+  }));
+  return `https://${env.s3Bucket}.s3.${env.s3Region || "us-east-1"}.amazonaws.com/${key}`;
+}
 
 // ── Column mappings (all supported columns) ──────────────────────────────────
 const PRODUCT_COLUMNS: Record<string, string> = {
@@ -336,12 +369,18 @@ export const importRouter = createRouter({
 
           for (const row of parsedRows) {
             try {
+              // Upload base64 photo to S3 if needed
+              let photoUrl = row.photoUrl;
+              if (photoUrl && photoUrl.startsWith("data:image/")) {
+                photoUrl = await uploadBase64ToS3(photoUrl, "products", tenantId);
+              }
+
               const [r] = await tx.insert(products).values({
                 tenantId, code: row.code, name: row.name, barcode: row.barcode,
                 category: row.category, costPrice: row.costPrice, unitPrice: row.unitPrice,
                 unit: row.unit as any, unitWeight: row.unitWeight,
                 reorderPoint: row.reorderPoint, description: row.description,
-                photoUrl: row.photoUrl, status: "active",
+                photoUrl, status: "active",
               });
               await tx.insert(warehouseStock).values({
                 tenantId, warehouseId: defaultWarehouse.id,
