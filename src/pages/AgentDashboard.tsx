@@ -190,7 +190,7 @@ export default function AgentDashboard() {
       </div>
 
       {/* ── KPI карточки ── */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <AgentKpi
           label={t("ЗАКАЗОВ", "BUYURTMA")}
           value={kpis?.todayOrders ?? 0}

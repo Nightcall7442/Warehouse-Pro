@@ -13,8 +13,8 @@
   ],
   "categories": ["business", "productivity"],
   "shortcuts": [
-    { "name": "New Order", "url": "/orders/new",  "description": "Create a new order" },
-    { "name": "My Plans",  "url": "/agent/plans", "description": "View daily plans"   },
-    { "name": "GPS",       "url": "/agent/gps",   "description": "Share location"     }
+    { "name": "Новый заказ", "short_name": "Заказ", "url": "/orders/new",  "description": "Create a new order" },
+    { "name": "Мои планы",   "short_name": "Планы", "url": "/agent/plans", "description": "View daily plans"   },
+    { "name": "GPS трекинг", "short_name": "GPS",   "url": "/agent/gps",   "description": "Share location"     }
   ]
 }

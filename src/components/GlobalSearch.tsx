@@ -94,9 +94,8 @@ export function GlobalSearch() {
                   <p style={{ padding: "8px 16px", fontSize: "10px", fontWeight: 600, color: "var(--color-text-tertiary, #98a0b8)", textTransform: "uppercase", letterSpacing: "0.08em", background: "var(--color-surface-light, #f0f3f8)" }}>{tr("МАГАЗИНЫ","DO'KONLAR")}</p>
                   {shops!.data.map((s: any) => (
                     <button key={s.id} onClick={() => go(`/shops/${s.id}`)}
-                      style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", borderBottom: "1px solid var(--color-border, #f0f3f8)", textAlign: "left", background: "transparent", border: "none", cursor: "pointer", borderBottomLeftRadius: "8px", borderBottomRightRadius: "8px" }}
-                      onMouseEnter={e => (e.currentTarget.style.background = "var(--color-surface-light, #f0f3f8)")}
-                      onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                      className="search-result-item"
+                      style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", borderBottom: "1px solid var(--color-border, #f0f3f8)", textAlign: "left", border: "none", cursor: "pointer", borderBottomLeftRadius: "8px", borderBottomRightRadius: "8px" }}>
                       <Store size={16} style={{ color: "#5b6d8a", flexShrink: 0 }}/>
                       <div>
                         <p style={{ fontSize: "13px", color: "var(--color-text-primary, #2b3450)", margin: 0 }}>{s.name}</p>
@@ -115,9 +114,8 @@ export function GlobalSearch() {
                   <p style={{ padding: "8px 16px", fontSize: "10px", fontWeight: 600, color: "var(--color-text-tertiary, #98a0b8)", textTransform: "uppercase", letterSpacing: "0.08em", background: "var(--color-surface-light, #f0f3f8)" }}>{tr("ТОВАРЫ","MAHSULOTLAR")}</p>
                   {products!.data.map((p: any) => (
                     <button key={p.id} onClick={() => go(`/products/${p.id}`)}
-                      style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", borderBottom: "1px solid var(--color-border, #f0f3f8)", textAlign: "left", background: "transparent", border: "none", cursor: "pointer" }}
-                      onMouseEnter={e => (e.currentTarget.style.background = "var(--color-surface-light, #f0f3f8)")}
-                      onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                      className="search-result-item"
+                      style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", borderBottom: "1px solid var(--color-border, #f0f3f8)", textAlign: "left", border: "none", cursor: "pointer" }}>
                       <Package size={16} style={{ color: "#5b6d8a", flexShrink: 0 }}/>
                       <div>
                         <p style={{ fontSize: "13px", color: "var(--color-text-primary, #2b3450)", margin: 0 }}>{p.name}</p>
@@ -134,9 +132,8 @@ export function GlobalSearch() {
                   <p style={{ padding: "8px 16px", fontSize: "10px", fontWeight: 600, color: "var(--color-text-tertiary, #98a0b8)", textTransform: "uppercase", letterSpacing: "0.08em", background: "var(--color-surface-light, #f0f3f8)" }}>{tr("ЗАКАЗЫ","BUYURTMALAR")}</p>
                   {orders!.data.map((o: any) => (
                     <button key={o.id} onClick={() => go(`/orders/${o.id}`)}
-                      style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", borderBottom: "1px solid var(--color-border, #f0f3f8)", textAlign: "left", background: "transparent", border: "none", cursor: "pointer" }}
-                      onMouseEnter={e => (e.currentTarget.style.background = "var(--color-surface-light, #f0f3f8)")}
-                      onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                      className="search-result-item"
+                      style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", borderBottom: "1px solid var(--color-border, #f0f3f8)", textAlign: "left", border: "none", cursor: "pointer" }}>
                       <ClipboardList size={16} style={{ color: "#5b6d8a", flexShrink: 0 }}/>
                       <div>
                         <p style={{ fontSize: "13px", color: "var(--color-text-primary, #2b3450)", margin: 0, fontWeight: 500 }}>{o.orderNumber}</p>

@@ -135,7 +135,7 @@ export default function AgentPlans() {
           </p>
         </div>
       ) : (
-        <div className="space-y-2.5">
+        <div className="space-y-2.5" style={{ touchAction: 'manipulation' }}>
           {plans?.map((plan, idx) => {
             const key  = (plan.status ?? "planned") as keyof typeof STATUS_CONFIG;
             const cfg  = STATUS_CONFIG[key] ?? STATUS_CONFIG.planned;

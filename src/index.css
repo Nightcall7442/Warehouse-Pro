@@ -595,6 +595,21 @@
   }
 
   /* ══════════════════════════════════════════════════════════════════════
+     ORDER GRID — ProductSelector responsive layout
+     ══════════════════════════════════════════════════════════════════════ */
+  .order-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+    align-items: start;
+  }
+  @media (min-width: 768px) {
+    .order-grid {
+      grid-template-columns: 1fr 320px;
+    }
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
      DASHBOARD RESPONSIVE GRIDS
      ══════════════════════════════════════════════════════════════════════ */
   .dashboard-kpi-grid {
@@ -778,6 +793,21 @@
     background: var(--color-primary, #4b6cf6);
     color: #fff;
     box-shadow: 2px 2px 4px rgba(75,108,246,0.3);
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     SEARCH RESULT ITEM — Touch-friendly hover/tap feedback
+     ══════════════════════════════════════════════════════════════════════ */
+  .search-result-item {
+    background: transparent;
+    transition: background 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .search-result-item:hover {
+    background: var(--color-surface-light, #f0f3f8);
+  }
+  .search-result-item:active {
+    background: var(--color-surface-hover, #e5e3de);
   }
 
   /* ══════════════════════════════════════════════════════════════════════

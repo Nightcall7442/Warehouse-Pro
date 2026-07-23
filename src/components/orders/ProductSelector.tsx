@@ -88,8 +88,7 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
   const subtotal = validItems.reduce((s, i) => s + Number(i.unitPrice) * Number(i.quantity), 0);
 
   return (
-    <div className="animate-fade-up order-grid" style={{ display: "grid", gridTemplateColumns: "1fr", gap: "20px", alignItems: "start" }}>
-      <style>{`@media (min-width: 768px) { .order-grid { grid-template-columns: 1fr 320px !important; } }`}</style>
+    <div className="animate-fade-up order-grid">
 
       {/* Product catalog */}
       <div>

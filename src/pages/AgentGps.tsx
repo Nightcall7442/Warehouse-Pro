@@ -15,7 +15,7 @@ export default function AgentGps() {
   const [error,     setError]     = useState("");
   const [autoTrack, setAutoTrack] = useState(false);
   const [lastSent,  setLastSent]  = useState<Date | null>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const watchIdRef = useRef<number | null>(null);
 
   const saveMutation = trpc.agent.saveLocation.useMutation({
     onSuccess: () => setLastSent(new Date()),
@@ -68,17 +68,59 @@ export default function AgentGps() {
     );
   }, [saveMutation, t]);
 
-  // Авто-трекинг каждые 2 минуты
+  // Авто-трекинг через watchPosition (батарея-эффективно, реалтайм)
   useEffect(() => {
-    if (autoTrack) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      locate();
-      intervalRef.current = setInterval(locate, 2 * 60 * 1000);
-    } else {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+    if (!autoTrack) {
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+      return;
     }
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [autoTrack, locate]);
+    if (!navigator.geolocation) {
+      setError(t(
+        "GPS недоступен в этом браузере.",
+        "Bu brauzerda GPS mavjud emas."
+      ));
+      setState("error");
+      return;
+    }
+    setState("locating");
+    setError("");
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        const c = { lat, lng, accuracy: pos.coords.accuracy };
+        setCoords(c);
+        setState("success");
+        saveMutation.mutate({ lat: String(c.lat), lng: String(c.lng), accuracy: String(c.accuracy) });
+      },
+      (err) => {
+        const msg =
+          err.code === 1 ? t(
+            "Доступ к геолокации запрещён. Разрешите доступ в настройках браузера.",
+            "Geolokatsiyaga kirish taqiqlangan. Brauzer sozlamalarida ruxsat bering."
+          ) :
+          err.code === 2 ? t(
+            "Местоположение недоступно. Перейдите на открытое место.",
+            "Joylashuv aniqlanmadi. Ochiq joyga o'ting."
+          ) :
+          t(
+            "Превышено время ожидания GPS. Попробуйте снова.",
+            "GPS vaqti tugadi. Qayta urinib ko'ring."
+          );
+        setError(msg);
+        setState("error");
+      },
+      { enableHighAccuracy: true, maximumAge: 30000, timeout: 15000 }
+    );
+    return () => {
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+    };
+  }, [autoTrack, saveMutation, t]);
 
   const mapsUrl = coords
     ? `https://maps.google.com/?q=${coords.lat},${coords.lng}`
@@ -193,6 +235,7 @@ export default function AgentGps() {
         </div>
         <button
           onClick={() => setAutoTrack(v => !v)}
+          aria-label={t("Авто-трекинг", "Avtomatik kuzatuv")}
           className="w-12 h-6 rounded-full relative transition-colors flex-shrink-0"
           style={{ background: autoTrack ? "#5b6d8a" : "var(--color-surface-light, #f0f3f8)", border: autoTrack ? "none" : "1px solid var(--color-border, #dde2ec)" }}
         >
