@@ -3,7 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { createRouter, operatorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { products, shops, warehouseStock, warehouses } from "@db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { cache } from "./lib/cache";
 import { env } from "./lib/env";
 
