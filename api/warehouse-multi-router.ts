@@ -78,44 +78,48 @@ export const warehouseMultiRouter = createRouter({
       const pageSize = input?.pageSize ?? 25;
       const offset   = (page - 1) * pageSize;
 
-      // Check if warehouse_id column exists
-      let hasWarehouseId = true;
-      try {
-        await db.execute(sql`SELECT warehouse_id FROM warehouse_stock LIMIT 1`);
-      } catch {
-        hasWarehouseId = false;
-      }
+      // Use raw SQL to avoid Drizzle referencing columns that may not exist (warehouse_id)
+      const searchClause = input?.search ? `AND p.name LIKE '%${input.search.replace(/'/g, "\\'")}%'` : "";
 
-      const stockCond = [eq(warehouseStock.tenantId, tenantId)];
-      if (hasWarehouseId && input?.warehouseId) {
-        // Show products in selected warehouse OR products with NULL warehouse_id (legacy)
-        stockCond.push(sql`(${warehouseStock.warehouseId} = ${input.warehouseId} OR ${warehouseStock.warehouseId} IS NULL)`);
-      }
-      if (input?.search) stockCond.push(like(products.name, `%${input.search}%`));
-      const where = and(...stockCond);
+      const dataQuery = sql.raw(`
+        SELECT ws.id, ws.product_id AS productId, ws.current_stock AS currentStock,
+               ws.reserved, ws.available, p.name AS productName, p.code AS productCode,
+               p.category, p.unit, p.unit_weight AS unitWeight, p.unit_price AS unitPrice,
+               p.cost_price AS costPrice, p.reorder_point AS reorderPoint
+        FROM warehouse_stock ws
+        LEFT JOIN products p ON ws.product_id = p.id
+        WHERE ws.tenant_id = ${tenantId} ${searchClause}
+        ORDER BY p.name
+        LIMIT ${pageSize} OFFSET ${offset}
+      `);
 
-      const [data, countResult, summary] = await Promise.all([
-        db.select({
-          id: warehouseStock.id, productId: warehouseStock.productId,
-          currentStock: warehouseStock.currentStock, reserved: warehouseStock.reserved,
-          available: warehouseStock.available, productName: products.name,
-          productCode: products.code, category: products.category,
-          unit: products.unit, unitWeight: products.unitWeight,
-          unitPrice: products.unitPrice, costPrice: products.costPrice, reorderPoint: products.reorderPoint,
-        })
-          .from(warehouseStock)
-          .leftJoin(products, eq(warehouseStock.productId, products.id))
-          .where(where).limit(pageSize).offset(offset).orderBy(products.name),
-        db.select({ count: sql<number>`count(*)` })
-          .from(warehouseStock).leftJoin(products, eq(warehouseStock.productId, products.id)).where(where),
-        db.select({
-          totalSKUs:     sql<number>`count(*)`,
-          totalWeight:   sql<string>`COALESCE(SUM(CAST(${warehouseStock.currentStock} AS DECIMAL) * CAST(COALESCE(${products.unitWeight}, '0') AS DECIMAL)), 0)`,
-          lowStockCount: sql<number>`count(CASE WHEN ${warehouseStock.available} < ${products.reorderPoint} THEN 1 END)`,
-        }).from(warehouseStock).leftJoin(products, eq(warehouseStock.productId, products.id)).where(where),
+      const countQuery = sql.raw(`
+        SELECT COUNT(*) AS cnt
+        FROM warehouse_stock ws
+        LEFT JOIN products p ON ws.product_id = p.id
+        WHERE ws.tenant_id = ${tenantId} ${searchClause}
+      `);
+
+      const summaryQuery = sql.raw(`
+        SELECT COUNT(*) AS totalSKUs,
+               COALESCE(SUM(CAST(ws.current_stock AS DECIMAL) * CAST(COALESCE(p.unit_weight, '0') AS DECIMAL)), 0) AS totalWeight,
+               COUNT(CASE WHEN ws.available < p.reorder_point THEN 1 END) AS lowStockCount
+        FROM warehouse_stock ws
+        LEFT JOIN products p ON ws.product_id = p.id
+        WHERE ws.tenant_id = ${tenantId} ${searchClause}
+      `);
+
+      const [dataResult, countResult, summaryResult] = await Promise.all([
+        db.execute(dataQuery),
+        db.execute(countQuery),
+        db.execute(summaryQuery),
       ]);
 
-      return { data, total: Number(countResult[0]?.count ?? 0), page, pageSize, summary: summary[0] };
+      const data = Array.isArray((dataResult as any)[0]) ? (dataResult as any)[0] : [];
+      const total = Number(((countResult as any)[0] as any)?.cnt ?? 0);
+      const summary = Array.isArray((summaryResult as any)[0]) ? (summaryResult as any)[0] : [{}];
+
+      return { data, total, page, pageSize, summary: summary[0] ?? {} };
     }),
 
   /** Create a stock transfer between warehouses */
