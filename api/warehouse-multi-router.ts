@@ -97,7 +97,6 @@ export const warehouseMultiRouter = createRouter({
       const [data, countResult, summary] = await Promise.all([
         db.select({
           id: warehouseStock.id, productId: warehouseStock.productId,
-          warehouseId: warehouseStock.warehouseId,
           currentStock: warehouseStock.currentStock, reserved: warehouseStock.reserved,
           available: warehouseStock.available, productName: products.name,
           productCode: products.code, category: products.category,
