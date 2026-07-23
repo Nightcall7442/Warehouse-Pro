@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { createRouter, operatorQuery } from "./middleware";
-import { arrivals, arrivalItems, products } from "@db/schema";
+import { arrivals, arrivalItems, products, warehouseStock, warehouses } from "@db/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { sanitizeString } from "./lib/sanitize";
 
@@ -166,18 +166,53 @@ export const arrivalRouter = createRouter({
       const { id, ...data } = input;
 
       // When completing an arrival, update warehouse stock
-      // Only add quantity; prices are NOT overwritten for existing products
       if (data.status === "completed") {
         const items = await db.select().from(arrivalItems)
           .where(eq(arrivalItems.arrivalId, id));
 
+        // Get default warehouse
+        const [warehouse] = await db.select({ id: warehouses.id })
+          .from(warehouses)
+          .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true)))
+          .limit(1);
+
+        if (!warehouse) throw new Error("Склад не найден — создайте склад в настройках");
+
         for (const item of items) {
           const qty = Number(item.quantity);
 
-          // Only increase stock quantity — never touch prices
-          await db.update(products).set({
-            currentStock: sql`${products.currentStock} + ${qty}`,
-          }).where(and(eq(products.id, item.productId), eq(products.tenantId, tenantId)));
+          // Update warehouse_stock (the source of truth for stock levels)
+          const [existingStock] = await db.select().from(warehouseStock)
+            .where(and(
+              eq(warehouseStock.productId, item.productId),
+              eq(warehouseStock.tenantId, tenantId),
+              eq(warehouseStock.warehouseId, warehouse.id),
+            )).limit(1);
+
+          if (existingStock) {
+            const newCurrent = Number(existingStock.currentStock) + qty;
+            const newAvailable = newCurrent - Number(existingStock.reserved);
+            await db.update(warehouseStock)
+              .set({ currentStock: String(newCurrent), available: String(newAvailable) })
+              .where(eq(warehouseStock.id, existingStock.id));
+          } else {
+            await db.insert(warehouseStock).values({
+              tenantId, warehouseId: warehouse.id,
+              productId: item.productId,
+              currentStock: String(qty), reserved: "0.00", available: String(qty),
+            });
+          }
+
+          // Also create a stock movement record
+          try {
+            const { stockMovements } = await import("@db/schema");
+            await db.insert(stockMovements).values({
+              tenantId, productId: item.productId,
+              type: "in", quantity: String(qty),
+              referenceType: "arrival", referenceId: id,
+              notes: `Приход ${arrivalNumber}`,
+            });
+          } catch { /* stock_movements table may not exist */ }
         }
       }
 

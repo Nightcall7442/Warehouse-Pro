@@ -316,27 +316,35 @@ export const productRouter = createRouter({
       dataUrl: z.string().startsWith("data:image/").max(5_000_000, "Файл слишком большой (макс. 4 МБ)"),
     }))
     .mutation(async ({ input, ctx }) => {
-      // Upload to S3 first, store only the URL (not base64) in the DB
       const { env } = await import("./lib/env");
       const isS3 = !!(env.s3Bucket && env.s3AccessKey && env.s3SecretKey);
 
-      let photoUrl = input.dataUrl;
-      if (isS3) {
-        const match = input.dataUrl.match(/^data:image\/(\w+);base64,(.+)$/);
-        if (match) {
-          const { S3Client, PutObjectCommand } = await import("@aws-sdk/client-s3");
-          const ext = match[1].toLowerCase() === "jpeg" ? "jpg" : match[1].toLowerCase();
-          const buffer = Buffer.from(match[2], "base64");
-          const key = `products/${ctx.tenant.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-          const s3 = new S3Client({
-            region: env.s3Region || "us-east-1",
-            credentials: { accessKeyId: env.s3AccessKey || "", secretAccessKey: env.s3SecretKey || "" },
-          });
-          await s3.send(new PutObjectCommand({ Bucket: env.s3Bucket!, Key: key, Body: buffer, ContentType: `image/${ext === "jpg" ? "jpeg" : ext}` }));
-          photoUrl = `https://${env.s3Bucket}.s3.${env.s3Region || "us-east-1"}.amazonaws.com/${key}`;
-        }
+      if (!isS3) {
+        // No S3 configured — store base64 directly (will bloat DB, but functional)
+        await getDb().update(products)
+          .set({ photoUrl: input.dataUrl })
+          .where(and(eq(products.id, input.productId), eq(products.tenantId, ctx.tenant.id)));
+        return { success: true, warning: "S3 не настроен — фото сохранено в БД (рекомендуется настроить S3)" };
       }
 
+      const match = input.dataUrl.match(/^data:image\/(\w+);base64,([\s\S]+)$/);
+      if (!match) throw new Error("Неверный формат изображения");
+
+      const ext = match[1].toLowerCase() === "jpeg" ? "jpg" : match[1].toLowerCase();
+      const buffer = Buffer.from(match[2].replace(/\s/g, ""), "base64");
+      const key = `products/${ctx.tenant.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+      const { S3Client, PutObjectCommand } = await import("@aws-sdk/client-s3");
+      const s3 = new S3Client({
+        region: env.s3Region || "us-east-1",
+        credentials: { accessKeyId: env.s3AccessKey || "", secretAccessKey: env.s3SecretKey || "" },
+      });
+      await s3.send(new PutObjectCommand({
+        Bucket: env.s3Bucket!, Key: key, Body: buffer,
+        ContentType: `image/${ext === "jpg" ? "jpeg" : ext}`,
+      }));
+
+      const photoUrl = `https://${env.s3Bucket}.s3.${env.s3Region || "us-east-1"}.amazonaws.com/${key}`;
       await getDb().update(products)
         .set({ photoUrl })
         .where(and(eq(products.id, input.productId), eq(products.tenantId, ctx.tenant.id)));
@@ -362,4 +370,19 @@ export const productRouter = createRouter({
     cache.set(cacheKey, cats, CacheTTL.categories);
     return cats;
   }),
+
+  /** Delete ALL products for this tenant — clears stock, movements, and product records */
+  clearAll: operatorQuery
+    .mutation(async ({ ctx }) => {
+      const db = getDb();
+      const tenantId = ctx.tenant.id;
+
+      await db.delete(warehouseStock).where(eq(warehouseStock.tenantId, tenantId));
+      try { await db.delete(stockMovements).where(eq(stockMovements.tenantId, tenantId)); } catch { /* table may not exist */ }
+      await db.delete(products).where(eq(products.tenantId, tenantId));
+
+      cache.invalidatePrefix(`products:${tenantId}`);
+      cache.invalidatePrefix(`product_cats:${tenantId}`);
+      return { success: true };
+    }),
 });
