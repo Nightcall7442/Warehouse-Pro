@@ -23,7 +23,7 @@ import { logError } from "./lib/error-log";
 import { safeEqual } from "./lib/safe-compare";
 
 
-import * as Sentry from "@sentry/hono/node";
+import * as Sentry from "@sentry/node";
 
 const APP_VERSION = "1.0.0";
 
@@ -38,9 +38,16 @@ if (env.sentryDsn) {
 
 const app = new Hono<{ Bindings: HttpBindings }>();
 
-// ── Sentry error tracking middleware ──────────────────────────────────────────
+// ── Sentry error handler ─────────────────────────────────────────────────────
 if (env.sentryDsn) {
-  app.use(sentry(app));
+  app.use("*", async (c, next) => {
+    try {
+      await next();
+    } catch (err) {
+      Sentry.captureException(err);
+      throw err;
+    }
+  });
 }
 
 // ── Request logging with correlation IDs ──────────────────────────────────────
