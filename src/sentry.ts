@@ -6,7 +6,6 @@ import {
   createRoutesFromChildren,
   matchRoutes,
 } from "react-router";
-import { router } from "./trpc.client";
 
 Sentry.init({
   dsn: import.meta.env.VITE_SENTRY_DSN || "",
@@ -17,7 +16,6 @@ Sentry.init({
       useRoutes,
       createRoutesFromChildren,
       matchRoutes,
-      router,
     }),
     Sentry.replayIntegration(),
   ],
