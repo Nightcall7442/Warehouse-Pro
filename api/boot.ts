@@ -29,14 +29,9 @@ const APP_VERSION = "1.0.0";
 
 const app = new Hono<{ Bindings: HttpBindings }>();
 
-// ── Sentry error tracking (must be first middleware) ──────────────────────────
+// ── Sentry error tracking (initialized in instrument.mjs via --import) ────────
 if (env.sentryDsn) {
-  app.use("*", sentry({
-    dsn: env.sentryDsn,
-    environment: env.isProduction ? "production" : "development",
-    release: APP_VERSION,
-    tracesSampleRate: env.isProduction ? 0.2 : 1.0,
-  }));
+  app.use(sentry(app));
 }
 
 // ── Request logging with correlation IDs ──────────────────────────────────────

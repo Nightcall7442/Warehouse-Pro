@@ -8,7 +8,7 @@
     "build": "vite build && esbuild api/boot.ts --platform=node --bundle --format=esm --conditions=node --external:@sentry/* --outdir=dist --banner:js=\"import { createRequire } from 'module';const require = createRequire(import.meta.url);\"",
     "lint": "eslint .",
     "preview": "vite preview",
-    "start": "NODE_ENV=production node dist/boot.js",
+    "start": "NODE_ENV=production node --import ./api/instrument.mjs dist/boot.js",
     "check": "tsc -b",
     "format": "prettier --write .",
     "test": "vitest run --coverage",
