@@ -23,13 +23,22 @@ import { logError } from "./lib/error-log";
 import { safeEqual } from "./lib/safe-compare";
 
 
-import { sentry } from "@sentry/hono/node";
+import * as Sentry from "@sentry/hono/node";
 
 const APP_VERSION = "1.0.0";
 
+// Initialize Sentry before anything else
+if (env.sentryDsn) {
+  Sentry.init({
+    dsn: env.sentryDsn,
+    environment: env.isProduction ? "production" : "development",
+    tracesSampleRate: env.isProduction ? 0.2 : 1.0,
+  });
+}
+
 const app = new Hono<{ Bindings: HttpBindings }>();
 
-// ── Sentry error tracking (initialized in instrument.mjs via --import) ────────
+// ── Sentry error tracking middleware ──────────────────────────────────────────
 if (env.sentryDsn) {
   app.use(sentry(app));
 }
