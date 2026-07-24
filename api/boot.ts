@@ -23,7 +23,7 @@ import { logError } from "./lib/error-log";
 import { safeEqual } from "./lib/safe-compare";
 
 
-import { sentry } from "@sentry/hono";
+import { sentry } from "@sentry/hono/node";
 
 const APP_VERSION = "1.0.0";
 
