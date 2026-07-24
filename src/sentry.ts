@@ -55,7 +55,7 @@ Sentry.init({
 
 // Global error handler — Sentry captures, toast shows to user
 window.onerror = (message) => {
-  const msg = typeof message === "string" : message : "Неизвестная ошибка";
+  const msg = typeof message === "string" ? message : "Неизвестная ошибка";
   if (
     msg.includes("workbox") ||
     msg.includes("non-precached-url") ||
