@@ -31,6 +31,7 @@ const AgentDashboard       = lazy(() => import("./pages/AgentDashboard"));
 const AgentShops           = lazy(() => import("./pages/AgentShops"));
 const AgentPlans           = lazy(() => import("./pages/AgentPlans"));
 const AgentGps             = lazy(() => import("./pages/AgentGps"));
+const AgentKpi             = lazy(() => import("./pages/AgentKpi"));
 const CourierDeliveries    = lazy(() => import("./pages/CourierDeliveries"));
 const SupervisorTracking   = lazy(() => import("./pages/SupervisorTracking"));
 const SupervisorPlans      = lazy(() => import("./pages/SupervisorPlans"));
@@ -125,6 +126,7 @@ export default function App() {
           <Route path="/agent/plans"   element={<RoleGuard roles={["ceo","agent","merchandiser"]}><AgentPlans /></RoleGuard>} />
           <Route path="/agent/visit/:id" element={<RoleGuard roles={["ceo","agent","merchandiser"]}><MerchandiserVisit /></RoleGuard>} />
           <Route path="/agent/gps"     element={<RoleGuard roles={["ceo","agent"]}><AgentGps /></RoleGuard>} />
+          <Route path="/agent/kpi"     element={<RoleGuard roles={["ceo","agent","merchandiser"]}><AgentKpi /></RoleGuard>} />
 
           {/* Courier */}
           <Route path="/deliveries"    element={<RoleGuard roles={["ceo","operator","courier"]}><CourierDeliveries /></RoleGuard>} />
