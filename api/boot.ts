@@ -133,9 +133,9 @@ app.use("*", async (c, next) => {
     c.header("set-cookie", cookie, { append: true });
   }
 });
-// Validate CSRF on state-changing POST requests (skip webhooks, tRPC, public API, and logout)
+// Validate CSRF on state-changing POST requests (skip webhooks, tRPC, public API, auth endpoints)
 app.use("/api/*", async (c, next) => {
-  if (c.req.method === "POST" && !c.req.path.includes("/webhooks/") && !c.req.path.includes("/trpc/") && !c.req.path.includes("/logout")) {
+  if (c.req.method === "POST" && !c.req.path.includes("/webhooks/") && !c.req.path.includes("/trpc/") && !c.req.path.includes("/logout") && !c.req.path.includes("/login")) {
     const cookieToken = c.req.header("cookie")?.match(new RegExp(`${CSRF_COOKIE}=([^;]+)`))?.[1];
     const headerToken = c.req.header(CSRF_HEADER);
     if (!cookieToken || !headerToken || cookieToken !== headerToken) {
