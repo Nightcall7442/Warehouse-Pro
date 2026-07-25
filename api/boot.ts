@@ -76,7 +76,8 @@ app.use(secureHeaders({
     scriptSrc:  ["'self'", "https://api-maps.yandex.ru", "https://core.apimaps.yandex.ru", "https://yastatic.net", "https://*.maps.yandex.net", "https://*.yandex.ru"],
     styleSrc:   ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],  // Google Fonts + Tailwind
     imgSrc:     ["'self'", "data:", "https:"],  // product photos, S3, base64 avatars
-    connectSrc: ["'self'", "https://api-maps.yandex.ru", "https://*.ingest.de.sentry.io", "https://*.sentry.io"],                      // tRPC, SSE, WebSocket, Yandex Maps
+    connectSrc: ["'self'", "https://api-maps.yandex.ru", "https://*.ingest.de.sentry.io", "https://*.sentry.io"],
+    workerSrc:  ["'self'", "blob:"],                      // tRPC, SSE, WebSocket, Yandex Maps
     fontSrc:    ["'self'", "data:", "https://fonts.gstatic.com"],             // Google Fonts files
     frameAncestors: ["'none'"],
     objectSrc:  ["'none'"],
