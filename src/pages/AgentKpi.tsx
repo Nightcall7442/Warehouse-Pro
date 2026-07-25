@@ -2,7 +2,6 @@ import { useState, useMemo } from "react";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { useCurrency } from "@/hooks/useCurrency";
-import { useAuthStore } from "@/store/auth";
 import { TrendingUp, TrendingDown, Target, ShoppingCart, DollarSign, Users, Package, Star, Award, Clock, BarChart3, AlertTriangle } from "lucide-react";
 
 const PERIODS = [
@@ -28,7 +27,7 @@ export default function AgentKpi() {
   const { fmt } = useCurrency();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const [period, setPeriod] = useState<"week" | "month" | "quarter">("month");
-  const { user } = useAuthStore();
+  const { data: user } = trpc.auth.me.useQuery();
 
   const isSupervisor = user?.role === "ceo" || user?.role === "operator" || user?.role === "supervisor";
 
