@@ -128,7 +128,9 @@ function AgentView({ kpi, salary, fmt, t, lang }: { kpi: KpiData; salary?: Salar
           <h3 style={{ fontFamily: F.display, fontSize: "14px", fontWeight: 600, color: COLORS.textPrimary, marginBottom: "14px" }}>
             {t("Зарплата", "Oylik")}
           </h3>
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+
+          {/* Summary row */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">
             <SalaryItem label={t("Оклад", "Oylik")} value={fmt(salary.baseSalary)} />
             <SalaryItem label={t("Комиссия", "Komissiya")} value={`${fmt(salary.commissionAmount)} (${salary.commissionRate}%)`} />
             <SalaryItem label={t("Бонус", "Bonus")} value={fmt(salary.bonusAmount)} />
@@ -136,6 +138,45 @@ function AgentView({ kpi, salary, fmt, t, lang }: { kpi: KpiData; salary?: Salar
               <SalaryItem label={t("Штраф фрод", "Jazo")} value={fmt(salary.breakdown.fraudDeduction)} danger />
             )}
             <SalaryItem label={t("ИТОГО", "JAMI")} value={fmt(salary.totalSalary)} bold />
+          </div>
+
+          {/* Detailed breakdown */}
+          <div className="p-3 rounded-xl" style={{ background: "var(--color-surface-light)", border: "1px solid var(--color-border)" }}>
+            <p className="text-[10px] font-semibold tracking-wider uppercase mb-2" style={{ color: COLORS.textTertiary }}>
+              {t("Детализация расчёта", "Hisoblash tafsilotlari")}
+            </p>
+            <div className="space-y-1.5 text-xs" style={{ color: COLORS.textSecondary }}>
+              <div className="flex justify-between">
+                <span>{t("Выручка за период", "Davr uchun tushum")}</span>
+                <span className="font-semibold" style={{ color: COLORS.textPrimary }}>{fmt(salary.salesAmount)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>{t("Ставка комиссии", "Komissiya stavkasi")}</span>
+                <span className="font-semibold" style={{ color: COLORS.textPrimary }}>{salary.commissionRate}%</span>
+              </div>
+              <div className="flex justify-between">
+                <span>{t("Расчёт комиссии", "Komissiya hisoblash")}</span>
+                <span className="font-semibold" style={{ color: COLORS.textPrimary }}>{fmt(salary.salesAmount)} × {salary.commissionRate}% = {fmt(salary.commissionAmount)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>{t("KPI балл", "KPI bali")}</span>
+                <span className="font-semibold" style={{ color: COLORS.textPrimary }}>{salary.kpiScore}/100</span>
+              </div>
+              <div className="flex justify-between">
+                <span>{t("Расчёт бонуса", "Bonus hisoblash")}</span>
+                <span className="font-semibold" style={{ color: COLORS.textPrimary }}>2% × {fmt(salary.salesAmount)} × {salary.kpiScore}/100 = {fmt(salary.bonusAmount)}</span>
+              </div>
+              {salary.breakdown.fraudDeduction < 0 && (
+                <div className="flex justify-between">
+                  <span>{t("Штраф за фрод", "Frod uchun jazo")}</span>
+                  <span className="font-semibold" style={{ color: "#d45050" }}>{fmt(salary.baseSalary)} × {Math.round((Math.abs(salary.breakdown.fraudDeduction) / salary.baseSalary) * 100)}% = {fmt(salary.breakdown.fraudDeduction)}</span>
+                </div>
+              )}
+              <div className="flex justify-between pt-1.5 mt-1.5" style={{ borderTop: "1px solid var(--color-border)" }}>
+                <span className="font-semibold" style={{ color: COLORS.textPrimary }}>{t("ИТОГО К ВЫПЛАТЕ", "JAMI TO'LOV")}</span>
+                <span className="font-bold" style={{ color: "#34c473", fontSize: "14px" }}>{fmt(salary.totalSalary)}</span>
+              </div>
+            </div>
           </div>
         </div>
       )}
