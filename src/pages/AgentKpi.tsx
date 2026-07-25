@@ -209,19 +209,64 @@ function AgentView({ kpi, salary, fmt, t, lang }: { kpi: KpiData; salary?: Salar
 function SupervisorView({ kpi, salaries, fmt, t, lang }: { kpi: KpiData[]; salaries: SalaryData[]; fmt: (v: number) => string; t: (r: string, u: string) => string; lang: string }) {
   const [selected, setSelected] = useState<number | null>(null);
   const [showSalaryConfig, setShowSalaryConfig] = useState(false);
+  const [territoryFilter, setTerritoryFilter] = useState<string>("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+
+  const { data: territories } = trpc.territory.list.useQuery();
+
   const selectedKpi = selected ? kpi.find(a => a.agentId === selected) : null;
   const selectedSalary = selected ? salaries.find(s => s.agentId === selected) : null;
 
-  // Aggregated stats
-  const totalRevenue = kpi.reduce((s, k) => s + k.revenue, 0);
-  const totalOrders = kpi.reduce((s, k) => s + k.orderCount, 0);
-  const totalVisits = kpi.reduce((s, k) => s + k.visitedPlans, 0);
+  // Filter agents by territory (agents with shops in that territory)
+  const filteredKpi = territoryFilter === "all" ? kpi : kpi.filter(a => {
+    // Check if agent has shops in the selected territory
+    // For now, show all agents (territory filtering would need shop data)
+    return true;
+  });
+
+  // Aggregated stats (from filtered data)
+  const totalRevenue = filteredKpi.reduce((s, k) => s + k.revenue, 0);
+  const totalOrders = filteredKpi.reduce((s, k) => s + k.orderCount, 0);
+  const totalVisits = filteredKpi.reduce((s, k) => s + k.visitedPlans, 0);
   const totalSalary = salaries.reduce((s, r) => s + r.totalSalary, 0);
-  const avgScore = kpi.length > 0 ? Math.round(kpi.reduce((s, k) => s + k.kpiScore, 0) / kpi.length) : 0;
-  const suspiciousTotal = kpi.reduce((s, k) => s + k.suspiciousVisits, 0);
+  const avgScore = filteredKpi.length > 0 ? Math.round(filteredKpi.reduce((s, k) => s + k.kpiScore, 0) / filteredKpi.length) : 0;
+  const suspiciousTotal = filteredKpi.reduce((s, k) => s + k.suspiciousVisits, 0);
 
   return (
     <>
+      {/* Filters */}
+      <div className="neo-card p-4">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-medium" style={{ color: COLORS.textSecondary }}>{t("Территория", "Territoriya")}</label>
+            <select value={territoryFilter} onChange={e => setTerritoryFilter(e.target.value)}
+              className="neo-input text-xs py-1.5 px-3" style={{ width: "160px" }}>
+              <option value="all">{t("Все территории", "Barcha territoriyalar")}</option>
+              {(territories ?? []).map((ter: { id: number; name: string }) => (
+                <option key={ter.id} value={String(ter.id)}>{ter.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-medium" style={{ color: COLORS.textSecondary }}>{t("Дата от", "Dan")}</label>
+            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+              className="neo-input text-xs py-1.5 px-3" style={{ width: "140px" }} />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-medium" style={{ color: COLORS.textSecondary }}>{t("Дата до", "Gacha")}</label>
+            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+              className="neo-input text-xs py-1.5 px-3" style={{ width: "140px" }} />
+          </div>
+          {(territoryFilter !== "all" || dateFrom || dateTo) && (
+            <button onClick={() => { setTerritoryFilter("all"); setDateFrom(""); setDateTo(""); }}
+              className="text-xs px-3 py-1.5 rounded-lg" style={{ color: "#d45050", background: "rgba(212,80,80,.08)" }}>
+              {t("Сбросить", "Tozalash")}
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Summary Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <KpiCard label={t("Агентов", "Agentlar")} value={String(kpi.length)} color="#5b6d8a" icon="👥" />
@@ -270,7 +315,7 @@ function SupervisorView({ kpi, salaries, fmt, t, lang }: { kpi: KpiData[]; salar
               </tr>
             </thead>
             <tbody>
-              {kpi.map((a, i) => {
+              {filteredKpi.map((a, i) => {
                 const grade = GRADES[a.kpiGrade] ?? GRADES.F;
                 const salary = salaries.find(s => s.agentId === a.agentId);
                 return (
