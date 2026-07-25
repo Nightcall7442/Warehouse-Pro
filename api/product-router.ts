@@ -251,6 +251,10 @@ export const productRouter = createRouter({
       if (typeof data.name === "string") sanitized.name = sanitizeString(data.name);
       if (typeof data.category === "string") sanitized.category = sanitizeString(data.category);
       if (typeof data.description === "string") sanitized.description = sanitizeString(data.description);
+
+      // Skip update if no fields to set
+      if (Object.keys(sanitized).length === 0) return { success: true };
+
       await getDb().update(products).set(sanitized)
         .where(and(eq(products.id, id), eq(products.tenantId, ctx.tenant.id)));
       cache.invalidatePrefix(`products:${ctx.tenant.id}`);

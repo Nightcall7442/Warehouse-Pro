@@ -173,6 +173,10 @@ export const shopRouter = createRouter({
       if (typeof data.city === "string") sanitized.city = sanitizeString(data.city);
       if (typeof data.district === "string") sanitized.district = sanitizeString(data.district);
       if (typeof data.notes === "string") sanitized.notes = sanitizeString(data.notes);
+
+      // Skip update if no fields to set
+      if (Object.keys(sanitized).length === 0) return { success: true };
+
       await getDb().update(shops).set(sanitized)
         .where(and(eq(shops.id, id), eq(shops.tenantId, ctx.tenant.id)));
       cache.invalidatePrefix(`shops:${ctx.tenant.id}`);

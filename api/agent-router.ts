@@ -448,6 +448,10 @@ export const agentRouter = createRouter({
       if (typeof rest.city === "string") sanitized.city = sanitizeString(rest.city);
       if (typeof rest.district === "string") sanitized.district = sanitizeString(rest.district);
       if (typeof rest.notes === "string") sanitized.notes = sanitizeString(rest.notes);
+
+      // Skip update if no fields to set
+      if (Object.keys(sanitized).length === 0) return { success: true };
+
       await getDb().update(shops).set(sanitized)
         .where(and(eq(shops.id, id), eq(shops.tenantId, ctx.tenant.id), eq(shops.agentId, ctx.user.id)));
       return { success: true };
