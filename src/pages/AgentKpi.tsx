@@ -237,7 +237,7 @@ function SupervisorView({ kpi, salaries, fmt, t, lang }: { kpi: KpiData[]; salar
         </div>
 
         {/* Salary configuration (toggle) */}
-        {showSalaryConfig && <SalaryConfig t={t} lang={lang} />}
+        {showSalaryConfig && <SalaryConfig t={t} />}
 
         <div className="space-y-2">
           {kpi.map((a, i) => {
@@ -270,7 +270,7 @@ function SupervisorView({ kpi, salaries, fmt, t, lang }: { kpi: KpiData[]; salar
 
 // ── Salary Configuration ──────────────────────────────────────────────────────
 
-function SalaryConfig({ t, lang }: { t: (r: string, u: string) => string; lang: string }) {
+function SalaryConfig({ t }: { t: (r: string, u: string) => string }) {
   const { data: usersData } = trpc.user.list.useQuery({ page: 1, pageSize: 100 });
   const { data: commissionData } = trpc.commission.list.useQuery();
   const utils = trpc.useContext();
@@ -288,8 +288,8 @@ function SalaryConfig({ t, lang }: { t: (r: string, u: string) => string; lang: 
   });
 
   const getRate = (agentId: number) => {
-    const record = (commissionData ?? []).find((c: { userId: number }) => c.userId === agentId);
-    return record ? Number(record.commissionRate) : 0;
+    const record = (commissionData ?? []).find((c: { userId: number; commissionRate: string | number }) => c.userId === agentId);
+    return record ? Math.round(Number(record.commissionRate) * 10) / 10 : 0;
   };
 
   return (
@@ -304,7 +304,7 @@ function SalaryConfig({ t, lang }: { t: (r: string, u: string) => string; lang: 
             <div className="flex items-center gap-1">
               <input type="number" min="0" max="50" step="0.5"
                 className="neo-input w-16 text-center text-xs py-1"
-                defaultValue={getRate(agent.id)}
+                defaultValue={String(getRate(agent.id))}
                 onBlur={(e) => {
                   const newRate = Number(e.target.value);
                   const current = getRate(agent.id);
