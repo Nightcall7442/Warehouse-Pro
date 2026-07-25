@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { useCurrency } from "@/hooks/useCurrency";
-import { TrendingUp, TrendingDown, Target, ShoppingCart, DollarSign, Users, Package, Star, Award, Clock, BarChart3, AlertTriangle, MapPin, Radio, Camera } from "lucide-react";
+import { TrendingUp, TrendingDown, Target, ShoppingCart, DollarSign, Users, Package, Star, Award, Clock, BarChart3, AlertTriangle, MapPin, Radio, Camera, CheckCircle, XCircle } from "lucide-react";
 
 const PERIODS = [
   { value: "week", labelRu: "Неделя", labelUz: "Hafta" },
@@ -83,6 +83,7 @@ export default function AgentKpi() {
           <ScoreBreakdown kpi={myKpi} t={t} />
           {mySalary && <SalarySection salary={mySalary} fmt={fmt} t={t} />}
           <VisitDetails kpi={myKpi} t={t} />
+          {myKpi.deliveryCount > 0 && <DeliveryDetails kpi={myKpi} fmt={fmt} t={t} />}
           <GpsSection kpi={myKpi} t={t} />
           <VisitReportsSection kpi={myKpi} t={t} />
         </>
@@ -205,6 +206,28 @@ function VisitDetails({ kpi, t }: { kpi: any; t: (ru: string, uz: string) => str
   );
 }
 
+function DeliveryDetails({ kpi, fmt, t }: { kpi: any; fmt: (v: number) => string; t: (ru: string, uz: string) => string }) {
+  return (
+    <div style={{ background: "#fff", borderRadius: "16px", padding: "20px", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+      <h3 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 600, color: "#2b3450", marginBottom: "16px" }}>
+        {t("Доставки", "Yetkazishlar")}
+      </h3>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px" }}>
+        <StatBlock label={t("Всего", "Jami")} value={String(kpi.deliveryCount)} icon={<Package size={16} color="#6a7290" />} />
+        <StatBlock label={t("Доставлено", "Yetkazilgan")} value={String(kpi.deliveredCount)} icon={<CheckCircle size={16} color="#22c55e" />} />
+        <StatBlock label={t("Ошибки", "Xatolar")} value={String(kpi.failedCount)} icon={<XCircle size={16} color="#ef4444" />} />
+        <StatBlock label={t("Успешность", "Muvaffaqiyat")} value={`${kpi.deliverySuccessRate}%`} icon={<TrendingUp size={16} color="#3b82f6" />} />
+      </div>
+      {kpi.cashCollected > 0 && (
+        <div style={{ marginTop: "12px", padding: "12px", borderRadius: "10px", background: "#f0f3f8", borderLeft: "3px solid #22c55e" }}>
+          <p style={{ fontSize: "11px", color: "#6a7290" }}>{t("Собрано наличными", "Naqd pul yig'ilgan")}</p>
+          <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 600, color: "#2b3450" }}>{fmt(kpi.cashCollected)}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Supervisor view: agents table ─────────────────────────────────────────────
 
 function AgentsTable({ agents, salaries, fmt, t, lang }: {
@@ -267,6 +290,7 @@ function AgentsTable({ agents, salaries, fmt, t, lang }: {
           <ScoreBreakdown kpi={selectedKpi} t={t} />
           {selectedSalary && <SalarySection salary={selectedSalary} fmt={fmt} t={t} />}
           <VisitDetails kpi={selectedKpi} t={t} />
+          {selectedKpi.deliveryCount > 0 && <DeliveryDetails kpi={selectedKpi} fmt={fmt} t={t} />}
           <GpsSection kpi={selectedKpi} t={t} />
           <VisitReportsSection kpi={selectedKpi} t={t} />
         </>

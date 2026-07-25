@@ -36,6 +36,13 @@ export interface AgentKpiData {
   returnCount: number;
   returnRate: number; // 0-100
 
+  // Delivery metrics (for couriers)
+  deliveryCount: number;
+  deliveredCount: number;
+  failedCount: number;
+  deliverySuccessRate: number; // 0-100
+  cashCollected: number;
+
   // Shop metrics
   assignedShops: number;
   totalDebt: number;
@@ -160,7 +167,40 @@ export async function calculateAgentKpi(
   const returnCount = Number(returnStats?.count ?? 0);
   const returnRate = orderCount > 0 ? Math.round((returnCount / orderCount) * 100) : 0;
 
-  // 4. Shop metrics
+  // 4. Delivery metrics (for couriers)
+  const [deliveryStats] = await db.select({
+    total: sql<number>`count(*)`,
+    delivered: sql<number>`count(CASE WHEN delivery_status = 'delivered' THEN 1 END)`,
+    failed: sql<number>`count(CASE WHEN delivery_status = 'failed' THEN 1 END)`,
+  }).from(orders)
+    .where(and(
+      eq(orders.tenantId, tenantId),
+      eq(orders.courierId, agentId),
+      sql`${orders.deliveryStatus} IN ('assigned', 'out_for_delivery', 'delivered', 'failed')`,
+      gte(orders.createdAt, periodStart),
+      lte(orders.createdAt, periodEnd),
+    ));
+
+  const deliveryCount = Number(deliveryStats?.total ?? 0);
+  const deliveredCount = Number(deliveryStats?.delivered ?? 0);
+  const failedCount = Number(deliveryStats?.failed ?? 0);
+  const deliverySuccessRate = deliveryCount > 0 ? Math.round((deliveredCount / deliveryCount) * 100) : 0;
+
+  // Cash collected from deliveries
+  const [cashStats] = await db.select({
+    total: sql<string>`COALESCE(SUM(CAST(total AS DECIMAL(10,2))), 0)`,
+  }).from(orders)
+    .where(and(
+      eq(orders.tenantId, tenantId),
+      eq(orders.courierId, agentId),
+      eq(orders.deliveryStatus, "delivered"),
+      gte(orders.createdAt, periodStart),
+      lte(orders.createdAt, periodEnd),
+    ));
+
+  const cashCollected = Number(cashStats?.total ?? 0);
+
+  // 5. Shop metrics
   const [shopStats] = await db.select({
     count: sql<number>`count(*)`,
     totalDebt: sql<string>`COALESCE(SUM(CAST(debt AS DECIMAL(10,2))), 0)`,
@@ -243,6 +283,11 @@ export async function calculateAgentKpi(
     avgOrderValue,
     returnCount,
     returnRate,
+    deliveryCount,
+    deliveredCount,
+    failedCount,
+    deliverySuccessRate,
+    cashCollected,
     assignedShops,
     totalDebt,
     debtCollectionRate,

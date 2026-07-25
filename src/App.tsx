@@ -126,7 +126,7 @@ export default function App() {
           <Route path="/agent/plans"   element={<RoleGuard roles={["ceo","agent","merchandiser"]}><AgentPlans /></RoleGuard>} />
           <Route path="/agent/visit/:id" element={<RoleGuard roles={["ceo","agent","merchandiser"]}><MerchandiserVisit /></RoleGuard>} />
           <Route path="/agent/gps"     element={<RoleGuard roles={["ceo","agent"]}><AgentGps /></RoleGuard>} />
-          <Route path="/agent/kpi"     element={<RoleGuard roles={["ceo","agent","merchandiser","operator","supervisor"]}><AgentKpi /></RoleGuard>} />
+          <Route path="/agent/kpi"     element={<RoleGuard roles={["ceo","agent","merchandiser","operator","supervisor","courier"]}><AgentKpi /></RoleGuard>} />
 
           {/* Courier */}
           <Route path="/deliveries"    element={<RoleGuard roles={["ceo","operator","courier"]}><CourierDeliveries /></RoleGuard>} />
