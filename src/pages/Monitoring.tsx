@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { trpc } from "@/providers/trpc";
+import { notify } from "@/lib/toast";
 import {
   Zap, Timer, Gauge, AlertCircle, Clock, RefreshCw,
   Server, Database, Layers,
@@ -52,6 +53,16 @@ export default function Monitoring() {
 
   const { data: errorStats } = trpc.system.errorStats.useQuery(undefined, {
     refetchInterval: autoRefresh ? 10_000 : false,
+  });
+
+  const checkAlertsMutation = trpc.system.checkAlerts.useMutation({
+    onSuccess: (data) => {
+      if (data.alerts.length > 0) {
+        notify.error(`Алерты: ${data.alerts.join(", ")}`);
+      } else {
+        notify.success("Все нормально — алертов нет");
+      }
+    },
   });
 
   useEffect(() => {
@@ -165,6 +176,15 @@ export default function Monitoring() {
           }}>
             <RefreshCw size={12} style={{ animation: isRefetching ? "spin 1s linear infinite" : undefined }} /> Обновить
           </button>
+          <button onClick={() => checkAlertsMutation.mutate()} disabled={checkAlertsMutation.isPending} style={{
+            display: "flex", alignItems: "center", gap: "6px", padding: "6px 12px",
+            borderRadius: "8px", fontSize: "12px", fontWeight: 600, fontFamily: F.body,
+            background: COLORS.surface, color: COLORS.textSecondary,
+            border: `1px solid ${COLORS.border}`, cursor: "pointer",
+            opacity: checkAlertsMutation.isPending ? 0.4 : 1, transition: "all 0.2s",
+          }}>
+            <AlertCircle size={12} /> Проверить алерты
+          </button>
         </div>
       </div>
 
@@ -220,6 +240,12 @@ export default function Monitoring() {
                 fontFamily: F.display, fontSize: "14px", fontWeight: 600,
                 color: (data?.database.responseTimeMs ?? 0) > 200 ? COLORS.warning : COLORS.success,
               }}>{data?.database.responseTimeMs ?? 0} мс</span>],
+              ["Соединения", <span style={{ fontFamily: F.display, fontSize: "14px", fontWeight: 600, color: COLORS.textPrimary }}>{data?.database.connections?.total ?? 0}</span>],
+              ["Активные", <span style={{
+                fontFamily: F.display, fontSize: "14px", fontWeight: 600,
+                color: (data?.database.connections?.active ?? 0) > 10 ? COLORS.warning : COLORS.success,
+              }}>{data?.database.connections?.active ?? 0}</span>],
+              ["Ожидание", <span style={{ fontFamily: F.display, fontSize: "14px", fontWeight: 600, color: COLORS.textPrimary }}>{data?.database.connections?.idle ?? 0}</span>],
             ].map(([label, val], i) => (
               <div key={i} style={{
                 display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0",
@@ -248,6 +274,29 @@ export default function Monitoring() {
           </div>
         </Section>
       </div>
+
+      {/* Business Metrics */}
+      {data?.business && (
+        <Section title="Бизнес-метрики (24ч)" icon={Zap} delay={0.1}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px" }}>
+            {[
+              { label: "Заказы", value: data.business.orders24h, icon: "📦", color: COLORS.primary },
+              { label: "Выручка", value: `${Number(data.business.revenue24h).toLocaleString("ru")} сум`, icon: "💰", color: COLORS.success },
+              { label: "Новых товаров", value: data.business.newProducts, icon: "📋", color: COLORS.info },
+              { label: "Активных юзеров", value: data.business.activeUsers, icon: "👥", color: COLORS.warning },
+              { label: "Магазинов", value: data.business.totalShops, icon: "🏪", color: COLORS.primary },
+            ].map((item, i) => (
+              <div key={i} style={{
+                padding: "12px", borderRadius: "10px", background: COLORS.surfaceLight,
+                border: `1px solid ${COLORS.border}`,
+              }}>
+                <div style={{ fontSize: "12px", color: COLORS.textSecondary, fontFamily: F.body, marginBottom: "4px" }}>{item.icon} {item.label}</div>
+                <div style={{ fontFamily: F.display, fontSize: "18px", fontWeight: 700, color: item.color }}>{item.value}</div>
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
 
       {/* Error Log */}
       <ErrorLogViewer

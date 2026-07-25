@@ -5,9 +5,10 @@ import { cache } from "./lib/cache";
 import { sseBus } from "./lib/sse";
 import { getMetricsSummary } from "./lib/metrics";
 import { env } from "./lib/env";
-import { sql } from "drizzle-orm";
+import { sql, eq } from "drizzle-orm";
 import { getReqStats, getAllSeries, recordRequestPoint } from "./lib/timeseries";
 import { getErrors, getErrorById, getErrorStats } from "./lib/error-log";
+import { orders, products, shops, users } from "@db/schema";
 
 const APP_VERSION = process.env.APP_VERSION ?? "2.0.0";
 
@@ -29,18 +30,59 @@ export const systemRouter = createRouter({
     const uptime = Math.floor(process.uptime());
     const mem = process.memoryUsage();
 
-    // DB health + response time
+    // DB health + response time + connection pool
     let dbHealthy = false;
     let dbResponseMs = 0;
+    let dbConnections = { active: 0, idle: 0, total: 0 };
     try {
       const dbStart = Date.now();
       const db = getDb();
       await db.execute(sql`SELECT 1`);
       dbResponseMs = Date.now() - dbStart;
       dbHealthy = true;
+
+      // Connection pool stats (MySQL SHOW STATUS)
+      try {
+        const [connResult] = await db.execute(sql`SHOW STATUS WHERE Variable_name IN ('Threads_connected', 'Threads_running')`);
+        const rows = (connResult as unknown[][])[0] as Record<string, string>[] | undefined;
+        if (rows) {
+          for (const row of rows) {
+            if (row.Variable_name === "Threads_connected") dbConnections.total = Number(row.Value);
+            if (row.Variable_name === "Threads_running") dbConnections.active = Number(row.Value);
+          }
+          dbConnections.idle = dbConnections.total - dbConnections.active;
+        }
+      } catch { /* SHOW STATUS may not be available */ }
     } catch {
       dbHealthy = false;
     }
+
+    // Business metrics (last 24h)
+    let businessMetrics = { orders24h: 0, revenue24h: "0", newProducts: 0, activeUsers: 0, totalShops: 0 };
+    try {
+      const db = getDb();
+      const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+      const [orderCount] = await db.select({ count: sql<number>`count(*)` })
+        .from(orders).where(sql`${orders.createdAt} >= ${dayAgo}`);
+      businessMetrics.orders24h = Number(orderCount?.count ?? 0);
+
+      const [revenue] = await db.select({ total: sql<string>`COALESCE(SUM(CAST(total AS DECIMAL(10,2))), 0)` })
+        .from(orders).where(sql`${orders.createdAt} >= ${dayAgo} AND status = 'completed'`);
+      businessMetrics.revenue24h = String(revenue?.total ?? "0");
+
+      const [prodCount] = await db.select({ count: sql<number>`count(*)` })
+        .from(products).where(sql`${products.createdAt} >= ${dayAgo}`);
+      businessMetrics.newProducts = Number(prodCount?.count ?? 0);
+
+      const [userCount] = await db.select({ count: sql<number>`count(*)` })
+        .from(users).where(sql`${users.lastSignInAt} >= ${dayAgo}`);
+      businessMetrics.activeUsers = Number(userCount?.count ?? 0);
+
+      const [shopCount] = await db.select({ count: sql<number>`count(*)` })
+        .from(shops).where(eq(shops.status, "active"));
+      businessMetrics.totalShops = Number(shopCount?.count ?? 0);
+    } catch { /* business metrics are optional */ }
 
     // Cache stats
     const cacheStats = cache.getStats();
@@ -70,6 +112,7 @@ export const systemRouter = createRouter({
       database: {
         connected: dbHealthy,
         responseTimeMs: dbResponseMs,
+        connections: dbConnections,
       },
       cache: {
         hits: cacheStats.hits,
@@ -106,6 +149,7 @@ export const systemRouter = createRouter({
         windowErrors: reqStats.errors,
       },
       metrics: metricsSummary,
+      business: businessMetrics,
       series,
       timestamp: new Date().toISOString(),
     };
@@ -134,6 +178,33 @@ export const systemRouter = createRouter({
   /** Error statistics */
   errorStats: superAdminQuery.query(() => {
     return getErrorStats();
+  }),
+
+  /** Check and send alerts if thresholds exceeded */
+  checkAlerts: superAdminQuery.query(async () => {
+    const reqStats = getReqStats();
+    const alerts: string[] = [];
+
+    // Error rate alert (> 5%)
+    if (Number(reqStats.errorRate) > 5) {
+      alerts.push(`🔴 Error rate: ${reqStats.errorRate}% (${reqStats.windowErrors} errors in window)`);
+    }
+
+    // P95 latency alert (> 500ms)
+    if (reqStats.p95 > 500) {
+      alerts.push(`🟡 P95 latency: ${reqStats.p95}ms (threshold: 500ms)`);
+    }
+
+    // Send Telegram alert if any
+    if (alerts.length > 0) {
+      try {
+        const { notifyAdmin } = await import("./telegram-router");
+        const msg = `⚠️ <b>System Alert</b>\n\n${alerts.join("\n")}`;
+        await notifyAdmin(msg);
+      } catch { /* Telegram not configured */ }
+    }
+
+    return { alerts, checked: new Date().toISOString() };
   }),
 });
 
