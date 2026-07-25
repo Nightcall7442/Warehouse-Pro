@@ -1,8 +1,8 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { useCurrency } from "@/hooks/useCurrency";
-import { TrendingUp, TrendingDown, Target, ShoppingCart, DollarSign, Users, Package, Star, Award, Clock, BarChart3, AlertTriangle, MapPin, Radio, Camera, CheckCircle, XCircle } from "lucide-react";
+import { TrendingUp, Target, ShoppingCart, DollarSign, Users, Package, Star, Award, Clock, BarChart3, AlertTriangle, MapPin, Radio, Camera, CheckCircle, XCircle } from "lucide-react";
 
 const PERIODS = [
   { value: "week", labelRu: "Неделя", labelUz: "Hafta" },
@@ -108,9 +108,27 @@ export default function AgentKpi() {
   );
 }
 
+interface KpiData {
+  agentId: number; agentName: string; period: string;
+  totalPlans: number; visitedPlans: number; skippedPlans: number; visitCompletionRate: number;
+  orderCount: number; revenue: number; avgOrderValue: number;
+  returnCount: number; returnRate: number;
+  deliveryCount: number; deliveredCount: number; failedCount: number; deliverySuccessRate: number; cashCollected: number;
+  assignedShops: number; totalDebt: number; debtCollectionRate: number;
+  kpiScore: number; kpiGrade: string;
+  gpsPings: number; lastGpsTime: string | null; isOnline: boolean;
+  visitReportCount: number; lastReportTime: string | null;
+}
+
+interface SalaryData {
+  agentId: number; agentName: string; period: string;
+  baseSalary: number; commissionRate: number; salesAmount: number;
+  commissionAmount: number; kpiScore: number; bonusAmount: number; totalSalary: number;
+}
+
 // ── Agent view components ─────────────────────────────────────────────────────
 
-function ScoreCards({ kpi, fmt, t, lang }: { kpi: any; fmt: (v: number) => string; t: (ru: string, uz: string) => string; lang: string }) {
+function ScoreCards({ kpi, fmt, t, lang }: { kpi: KpiData; fmt: (v: number) => string; t: (ru: string, uz: string) => string; lang: string }) {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
       <ScoreCard label={t("Общий балл", "Umumiy ball")} value={`${kpi.kpiScore}`} sub={GRADE_LABELS[kpi.kpiGrade]?.[lang] ?? kpi.kpiGrade}
@@ -129,7 +147,7 @@ function ScoreCards({ kpi, fmt, t, lang }: { kpi: any; fmt: (v: number) => strin
   );
 }
 
-function ScoreBreakdown({ kpi, t }: { kpi: any; t: (ru: string, uz: string) => string }) {
+function ScoreBreakdown({ kpi, t }: { kpi: KpiData; t: (ru: string, uz: string) => string }) {
   return (
     <div style={{ background: "#fff", borderRadius: "16px", padding: "20px", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
       <h3 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 600, color: "#2b3450", marginBottom: "16px" }}>
@@ -146,7 +164,7 @@ function ScoreBreakdown({ kpi, t }: { kpi: any; t: (ru: string, uz: string) => s
   );
 }
 
-function GpsSection({ kpi, t }: { kpi: any; t: (ru: string, uz: string) => string }) {
+function GpsSection({ kpi, t }: { kpi: KpiData; t: (ru: string, uz: string) => string }) {
   return (
     <div style={{ background: "#fff", borderRadius: "16px", padding: "20px", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
       <h3 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 600, color: "#2b3450", marginBottom: "16px" }}>
@@ -161,7 +179,7 @@ function GpsSection({ kpi, t }: { kpi: any; t: (ru: string, uz: string) => strin
   );
 }
 
-function VisitReportsSection({ kpi, t }: { kpi: any; t: (ru: string, uz: string) => string }) {
+function VisitReportsSection({ kpi, t }: { kpi: KpiData; t: (ru: string, uz: string) => string }) {
   return (
     <div style={{ background: "#fff", borderRadius: "16px", padding: "20px", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
       <h3 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 600, color: "#2b3450", marginBottom: "16px" }}>
@@ -175,7 +193,7 @@ function VisitReportsSection({ kpi, t }: { kpi: any; t: (ru: string, uz: string)
   );
 }
 
-function SalarySection({ salary, fmt, t }: { salary: any; fmt: (v: number) => string; t: (ru: string, uz: string) => string }) {
+function SalarySection({ salary, fmt, t }: { salary: SalaryData; fmt: (v: number) => string; t: (ru: string, uz: string) => string }) {
   return (
     <div style={{ background: "#fff", borderRadius: "16px", padding: "20px", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
       <h3 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 600, color: "#2b3450", marginBottom: "16px" }}>
@@ -191,7 +209,7 @@ function SalarySection({ salary, fmt, t }: { salary: any; fmt: (v: number) => st
   );
 }
 
-function VisitDetails({ kpi, t }: { kpi: any; t: (ru: string, uz: string) => string }) {
+function VisitDetails({ kpi, t }: { kpi: KpiData; t: (ru: string, uz: string) => string }) {
   return (
     <div style={{ background: "#fff", borderRadius: "16px", padding: "20px", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
       <h3 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 600, color: "#2b3450", marginBottom: "16px" }}>
@@ -206,7 +224,7 @@ function VisitDetails({ kpi, t }: { kpi: any; t: (ru: string, uz: string) => str
   );
 }
 
-function DeliveryDetails({ kpi, fmt, t }: { kpi: any; fmt: (v: number) => string; t: (ru: string, uz: string) => string }) {
+function DeliveryDetails({ kpi, fmt, t }: { kpi: KpiData; fmt: (v: number) => string; t: (ru: string, uz: string) => string }) {
   return (
     <div style={{ background: "#fff", borderRadius: "16px", padding: "20px", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
       <h3 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 600, color: "#2b3450", marginBottom: "16px" }}>
@@ -231,7 +249,7 @@ function DeliveryDetails({ kpi, fmt, t }: { kpi: any; fmt: (v: number) => string
 // ── Supervisor view: agents table ─────────────────────────────────────────────
 
 function AgentsTable({ agents, salaries, fmt, t, lang }: {
-  agents: any[]; salaries: any[]; fmt: (v: number) => string; t: (ru: string, uz: string) => string; lang: string;
+  agents: KpiData[]; salaries: SalaryData[]; fmt: (v: number) => string; t: (ru: string, uz: string) => string; lang: string;
 }) {
   const [selectedAgent, setSelectedAgent] = useState<number | null>(null);
 
@@ -363,17 +381,4 @@ function formatTime(dateStr: string): string {
   if (diffH < 24) return `${diffH} ч назад`;
   const diffD = Math.floor(diffH / 24);
   return `${diffD} дн назад`;
-}
-
-// Store icon (not in lucide)
-function Store({ size, color }: { size: number; color: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7" />
-      <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
-      <path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4" />
-      <path d="M2 7h20" />
-      <path d="M22 7v3a2 2 0 0 1-2 2v0a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 16 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 12 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 8 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 4 12v0a2 2 0 0 1-2-2V7" />
-    </svg>
-  );
 }
