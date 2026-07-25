@@ -16,12 +16,15 @@ interface KpiData {
   kpiScore: number; kpiGrade: string;
   gpsPings: number; lastGpsTime: string | null; isOnline: boolean;
   visitReportCount: number; lastReportTime: string | null;
+  suspiciousVisits: number; fraudRate: number; avgVisitDuration: number;
+  targetRevenue: number; targetProgress: number;
 }
 
 interface SalaryData {
   agentId: number; agentName: string; period: string;
   baseSalary: number; commissionRate: number; salesAmount: number;
   commissionAmount: number; kpiScore: number; bonusAmount: number; totalSalary: number;
+  breakdown: { base: number; commission: number; bonus: number; fraudDeduction: number };
 }
 
 const PERIODS = [
@@ -125,11 +128,53 @@ function AgentView({ kpi, salary, fmt, t, lang }: { kpi: KpiData; salary?: Salar
           <h3 style={{ fontFamily: F.display, fontSize: "14px", fontWeight: 600, color: COLORS.textPrimary, marginBottom: "14px" }}>
             {t("Зарплата", "Oylik")}
           </h3>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
             <SalaryItem label={t("Оклад", "Oylik")} value={fmt(salary.baseSalary)} />
             <SalaryItem label={t("Комиссия", "Komissiya")} value={`${fmt(salary.commissionAmount)} (${salary.commissionRate}%)`} />
             <SalaryItem label={t("Бонус", "Bonus")} value={fmt(salary.bonusAmount)} />
+            {salary.breakdown.fraudDeduction < 0 && (
+              <SalaryItem label={t("Штраф фрод", "Jazo")} value={fmt(salary.breakdown.fraudDeduction)} danger />
+            )}
             <SalaryItem label={t("ИТОГО", "JAMI")} value={fmt(salary.totalSalary)} bold />
+          </div>
+        </div>
+      )}
+
+      {/* Revenue Target */}
+      {kpi.targetRevenue > 0 && (
+        <div className="neo-card p-5">
+          <h3 style={{ fontFamily: F.display, fontSize: "14px", fontWeight: 600, color: COLORS.textPrimary, marginBottom: "14px" }}>
+            {t("Таргет по выручке", "Tushum maqsadi")}
+          </h3>
+          <div className="flex items-center gap-4">
+            <div className="flex-1">
+              <div className="flex justify-between mb-1">
+                <span className="text-xs" style={{ color: COLORS.textSecondary }}>{fmt(kpi.revenue)} / {fmt(kpi.targetRevenue)}</span>
+                <span className="text-xs font-bold" style={{ color: kpi.targetProgress >= 100 ? "#34c473" : kpi.targetProgress >= 70 ? "#d4973a" : "#d45050" }}>
+                  {kpi.targetProgress}%
+                </span>
+              </div>
+              <div className="h-2.5 rounded-full" style={{ background: "var(--color-surface-light)" }}>
+                <div className="h-full rounded-full transition-all" style={{
+                  width: `${Math.min(100, kpi.targetProgress)}%`,
+                  background: kpi.targetProgress >= 100 ? "#34c473" : kpi.targetProgress >= 70 ? "#d4973a" : "#d45050",
+                }} />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fraud Alerts */}
+      {kpi.suspiciousVisits > 0 && (
+        <div className="neo-card p-5" style={{ borderLeft: "4px solid #d45050" }}>
+          <h3 style={{ fontFamily: F.display, fontSize: "14px", fontWeight: 600, color: "#d45050", marginBottom: "14px" }}>
+            {t("⚠ Подозрительная активность", "⚠ Shubhali faoliyat")}
+          </h3>
+          <div className="grid grid-cols-3 gap-3">
+            <StatCard label={t("Подозр. визитов", "Shubhali tashrif")} value={String(kpi.suspiciousVisits)} />
+            <StatCard label={t("Уровень фрода", "Daraja")} value={`${kpi.fraudRate}%`} />
+            <StatCard label={t("Ср. время визита", "O'rtacha vaqt")} value={`${kpi.avgVisitDuration} мин`} />
           </div>
         </div>
       )}
@@ -318,11 +363,11 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
   );
 }
 
-function SalaryItem({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
+function SalaryItem({ label, value, bold, danger }: { label: string; value: string; bold?: boolean; danger?: boolean }) {
   return (
-    <div className="p-3 rounded-xl" style={{ background: "var(--color-surface-light)", borderLeft: `3px solid ${COLORS.border}` }}>
-      <p className="text-[11px]" style={{ color: COLORS.textSecondary }}>{label}</p>
-      <p style={{ fontFamily: F.display, fontSize: bold ? "16px" : "14px", fontWeight: bold ? 700 : 600, color: COLORS.textPrimary }}>{value}</p>
+    <div className="p-3 rounded-xl" style={{ background: danger ? "rgba(212,80,80,.08)" : "var(--color-surface-light)", borderLeft: `3px solid ${danger ? "#d45050" : COLORS.border}` }}>
+      <p className="text-[11px]" style={{ color: danger ? "#d45050" : COLORS.textSecondary }}>{label}</p>
+      <p style={{ fontFamily: F.display, fontSize: bold ? "16px" : "14px", fontWeight: bold ? 700 : 600, color: danger ? "#d45050" : COLORS.textPrimary }}>{value}</p>
     </div>
   );
 }

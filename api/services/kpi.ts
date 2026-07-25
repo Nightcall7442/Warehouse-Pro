@@ -15,6 +15,7 @@
 import { sql, eq, and, gte, lte } from "drizzle-orm";
 import type { DrizzleInstance } from "../queries/connection";
 import { orders, dailyPlans, returns, shops, salesTargets, commissions, agentLocations, visitReports } from "@db/schema";
+import { calculateFraudMetrics } from "./anti-fraud";
 
 export interface AgentKpiData {
   agentId: number;
@@ -60,6 +61,15 @@ export interface AgentKpiData {
   // Visit reports
   visitReportCount: number;
   lastReportTime: string | null;
+
+  // Fraud metrics
+  suspiciousVisits: number;
+  fraudRate: number;
+  avgVisitDuration: number;
+
+  // Revenue targets
+  targetRevenue: number;
+  targetProgress: number; // 0-100
 }
 
 export interface SalaryData {
@@ -87,6 +97,7 @@ export interface SalaryData {
     base: number;
     commission: number;
     bonus: number;
+    fraudDeduction: number;
   };
 }
 
@@ -251,14 +262,31 @@ export async function calculateAgentKpi(
   const visitReportCount = Number(reportStats?.count ?? 0);
   const lastReportTime = reportStats?.lastReport ?? null;
 
-  // 5. Composite KPI score
-  const kpiScore = calculateCompositeScore({
+  // 6. Fraud metrics
+  const fraudMetrics = await calculateFraudMetrics(db, agentId, tenantId, periodStart, periodEnd);
+
+  // 7. Revenue targets
+  const [targetRecord] = await db.select({
+    targetAmount: sql<string>`COALESCE(target_amount, '0')`,
+  }).from(salesTargets)
+    .where(and(
+      eq(salesTargets.tenantId, tenantId),
+      eq(salesTargets.userId, agentId),
+    ))
+    .limit(1);
+
+  const targetRevenue = Number(targetRecord?.targetAmount ?? 0);
+  const targetProgress = targetRevenue > 0 ? Math.min(100, Math.round((revenue / targetRevenue) * 100)) : 0;
+
+  // 8. Composite KPI score (with fraud penalty)
+  const fraudPenalty = fraudMetrics.fraudRate * 0.3; // 30% penalty for fraud
+  const kpiScore = Math.max(0, calculateCompositeScore({
     visitCompletion: visitCompletionRate,
     revenue,
     conversion: orderCount > 0 && totalPlans > 0 ? Math.round((orderCount / totalPlans) * 100) : 0,
-    returnRate: 100 - returnRate, // Invert: lower return rate = higher score
+    returnRate: 100 - returnRate,
     debtCollection: debtCollectionRate,
-  });
+  }) - fraudPenalty);
 
   const kpiGrade = getGrade(kpiScore);
 
@@ -298,6 +326,11 @@ export async function calculateAgentKpi(
     isOnline,
     visitReportCount,
     lastReportTime,
+    suspiciousVisits: fraudMetrics.suspiciousVisits,
+    fraudRate: fraudMetrics.fraudRate,
+    avgVisitDuration: fraudMetrics.avgVisitDuration,
+    targetRevenue,
+    targetProgress,
   };
 }
 
@@ -386,7 +419,12 @@ export async function calculateSalary(
     .limit(1);
 
   const baseSalary = Number(targetRecord?.targetAmount ?? 0);
-  const totalSalary = baseSalary + commissionAmount + bonusAmount;
+
+  // Fraud deductions
+  const fraudMetrics = await calculateFraudMetrics(db, agentId, tenantId, periodStart, periodEnd);
+  const fraudDeduction = Math.round(baseSalary * (fraudMetrics.fraudRate / 100) * 0.5); // 50% of base salary for fraud rate
+
+  const totalSalary = Math.max(0, baseSalary + commissionAmount + bonusAmount - fraudDeduction);
 
   const periodLabel = `${periodStart.toISOString().slice(0, 10)} — ${periodEnd.toISOString().slice(0, 10)}`;
 
@@ -411,6 +449,7 @@ export async function calculateSalary(
       base: baseSalary,
       commission: commissionAmount,
       bonus: bonusAmount,
+      fraudDeduction: -fraudDeduction,
     },
   };
 }
