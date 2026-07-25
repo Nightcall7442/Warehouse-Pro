@@ -33,16 +33,38 @@ Sentry.init({
   environment: env.isProduction ? "production" : "development",
   tracesSampleRate: env.isProduction ? 0.2 : 1.0,
   debug: !env.isProduction,
+  release: APP_VERSION,
+  sendDefaultPii: false,
 });
 
 const app = new Hono<{ Bindings: HttpBindings }>();
 
-// ── Sentry error handler ─────────────────────────────────────────────────────
+// ── Sentry error handler + Telegram notification ─────────────────────────────
 app.use("*", async (c, next) => {
   try {
     await next();
   } catch (err) {
+    // Set user context for Sentry
+    try {
+      const auth = await authenticateRequest(c.req.raw.headers);
+      if (auth.user) {
+        Sentry.setUser({ id: String(auth.user.id), username: auth.user.email });
+        Sentry.setContext("tenant", { id: auth.tenant?.id, slug: auth.tenant?.slug });
+      }
+    } catch { /* not authenticated — skip user context */ }
+
     Sentry.captureException(err);
+
+    // Telegram alert for server errors (5xx)
+    const status = c.res?.status ?? 500;
+    if (status >= 500 || !(err instanceof Error && err.message.includes("ZodError"))) {
+      try {
+        const { notifyAdmin } = await import("./telegram-router");
+        const msg = `🔴 <b>Server Error</b>\n<code>${c.req.method} ${c.req.path}</code>\n${err instanceof Error ? err.message : String(err).slice(0, 200)}`;
+        notifyAdmin(msg);
+      } catch { /* Telegram not configured — skip */ }
+    }
+
     throw err;
   }
 });

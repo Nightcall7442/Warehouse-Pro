@@ -1,7 +1,11 @@
 /**
- * In-memory error log with detail capture.
+ * Persistent error log with file-based storage.
  * Stores recent errors with full context for debugging.
+ * Writes to error-log.jsonl (append-only JSON Lines) for persistence across restarts.
  */
+
+import { appendFileSync, readFileSync, existsSync, mkdirSync } from "fs";
+import { join } from "path";
 
 export interface ErrorEntry {
   id: string;
@@ -20,10 +24,29 @@ export interface ErrorEntry {
   meta?: Record<string, unknown>;
 }
 
-const MAX_ERRORS = 200;
-const errors: ErrorEntry[] = [];
+const MAX_ERRORS = 500;
+const LOG_DIR = join(process.cwd(), "logs");
+const LOG_FILE = join(LOG_DIR, "error-log.jsonl");
 
+// In-memory cache for fast reads
+let errors: ErrorEntry[] = [];
 let errorCounter = 0;
+
+// Load existing errors from file on startup
+function loadErrors(): void {
+  try {
+    if (!existsSync(LOG_DIR)) mkdirSync(LOG_DIR, { recursive: true });
+    if (existsSync(LOG_FILE)) {
+      const data = readFileSync(LOG_FILE, "utf-8").trim();
+      if (data) {
+        const lines = data.split("\n").filter(Boolean);
+        errors = lines.slice(-MAX_ERRORS).map((line) => JSON.parse(line));
+      }
+    }
+  } catch { /* ignore load errors */ }
+}
+
+loadErrors();
 
 export function logError(entry: Omit<ErrorEntry, "id" | "timestamp">): ErrorEntry {
   const full: ErrorEntry = {
@@ -31,8 +54,17 @@ export function logError(entry: Omit<ErrorEntry, "id" | "timestamp">): ErrorEntr
     timestamp: Date.now(),
     ...entry,
   };
+
+  // In-memory cache
   errors.unshift(full);
   if (errors.length > MAX_ERRORS) errors.pop();
+
+  // Persist to file (append-only, non-blocking)
+  try {
+    if (!existsSync(LOG_DIR)) mkdirSync(LOG_DIR, { recursive: true });
+    appendFileSync(LOG_FILE, JSON.stringify(full) + "\n");
+  } catch { /* ignore write errors */ }
+
   return full;
 }
 

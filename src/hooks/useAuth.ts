@@ -2,6 +2,7 @@ import { trpc } from "@/providers/trpc";
 import { useCallback, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router";
 import { LOGIN_PATH } from "@/const";
+import * as Sentry from "@sentry/react";
 
 declare global {
   interface Window { __LOGGING_OUT?: boolean }
@@ -27,6 +28,16 @@ export function useAuth(options?: UseAuthOptions) {
     staleTime: 1000 * 60 * 5,
     retry: false,
   });
+
+  // Set Sentry user context when user data loads
+  useEffect(() => {
+    if (user) {
+      Sentry.setUser({ id: String(user.id), username: user.email });
+      Sentry.setContext("tenant", { id: (user as any).tenantId, role: user.role });
+    } else if (!isLoading) {
+      Sentry.setUser(null);
+    }
+  }, [user, isLoading]);
 
   const logout = useCallback(async () => {
     // Прямой POST на простой эндпоинт (без tRPC, без React state)
