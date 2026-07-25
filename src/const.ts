@@ -18,6 +18,7 @@ export const NAV_ITEMS: Record<string, Array<{ labelKey: string; path: string; i
   ],
   ceo: [
     { labelKey: "nav.dashboard",  path: "/",          icon: "LayoutDashboard" },
+    { labelKey: "nav.kpi",        path: "/agent/kpi",  icon: "BarChart3"        },
     { labelKey: "nav.reports",    path: "/reports",   icon: "Activity"        },
     { labelKey: "nav.shops",      path: "/shops",     icon: "Store"           },
     { labelKey: "nav.products",   path: "/products",  icon: "Package"         },
@@ -33,6 +34,7 @@ export const NAV_ITEMS: Record<string, Array<{ labelKey: string; path: string; i
   ],
   operator: [
     { labelKey: "nav.dashboard",  path: "/",          icon: "LayoutDashboard" },
+    { labelKey: "nav.kpi",        path: "/agent/kpi",  icon: "BarChart3"       },
     { labelKey: "nav.reports",    path: "/reports",   icon: "Activity"       },
     { labelKey: "nav.orders",     path: "/orders",    icon: "ClipboardList"   },
     { labelKey: "nav.products",   path: "/products",  icon: "Package"         },
@@ -43,12 +45,14 @@ export const NAV_ITEMS: Record<string, Array<{ labelKey: string; path: string; i
   ],
   agent: [
     { labelKey: "nav.agent",      path: "/agent",          icon: "LayoutDashboard" },
+    { labelKey: "nav.kpi",        path: "/agent/kpi",      icon: "BarChart3"       },
     { labelKey: "nav.myShops",    path: "/agent/shops",    icon: "Store"           },
     { labelKey: "nav.newOrder",   path: "/orders/new",     icon: "PlusCircle"      },
     { labelKey: "nav.gps",        path: "/agent/gps",      icon: "MapPin"          },
     { labelKey: "nav.settings",   path: "/settings",       icon: "Settings"        },
   ],
   supervisor: [
+    { labelKey: "nav.kpi",        path: "/agent/kpi",       icon: "BarChart3"     },
     { labelKey: "nav.tracking",   path: "/supervisor",       icon: "MapPin"     },
     { labelKey: "nav.plans",      path: "/supervisor/plans", icon: "Calendar"   },
     { labelKey: "nav.reports",    path: "/reports",          icon: "Activity"  },
@@ -56,12 +60,14 @@ export const NAV_ITEMS: Record<string, Array<{ labelKey: string; path: string; i
   ],
   merchandiser: [
     { labelKey: "nav.agent",      path: "/agent",          icon: "LayoutDashboard" },
+    { labelKey: "nav.kpi",        path: "/agent/kpi",      icon: "BarChart3"       },
     { labelKey: "nav.myShops",    path: "/agent/shops",    icon: "Store"           },
     { labelKey: "nav.plans",      path: "/agent/plans",    icon: "Calendar"        },
     { labelKey: "nav.reports",    path: "/reports",         icon: "Activity"        },
     { labelKey: "nav.settings",   path: "/settings",        icon: "Settings"        },
   ],
   courier: [
+    { labelKey: "nav.kpi",        path: "/agent/kpi",  icon: "BarChart3"       },
     { labelKey: "nav.deliveries", path: "/deliveries",  icon: "Truck"           },
     { labelKey: "nav.settings",   path: "/settings",    icon: "Settings"        },
   ],

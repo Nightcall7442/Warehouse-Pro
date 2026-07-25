@@ -2,6 +2,7 @@ export const ru = {
   // Navigation
   nav: {
     dashboard:   "Главная",
+    kpi:         "KPI",
     shops:       "Магазины",
     products:    "Товары",
     orders:      "Заказы",
