@@ -195,11 +195,24 @@ export const StockService = {
         eq(warehouseStock.tenantId, tenantId),
         eq(warehouseStock.warehouseId, whId),
       );
-      const [currentStock] = await tx.select({
+      let [currentStock] = await tx.select({
         currentStock: warehouseStock.currentStock,
         available: warehouseStock.available,
       })
         .from(warehouseStock).where(stockWhere).limit(1).for("update");
+
+      // If no stock row exists, create one
+      if (!currentStock) {
+        await tx.insert(warehouseStock).values({
+          tenantId,
+          warehouseId: whId,
+          productId,
+          currentStock: "0.00",
+          reserved: "0.00",
+          available: "0.00",
+        });
+        currentStock = { currentStock: "0.00", available: "0.00" };
+      }
 
       const currentQty = Number(currentStock?.currentStock ?? 0);
 
