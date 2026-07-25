@@ -3,7 +3,8 @@ import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { useCurrency } from "@/hooks/useCurrency";
 import { notify } from "@/lib/toast";
-import { COLORS, F, SHADOW } from "@/components/products/constants";
+import { COLORS, F } from "@/components/products/constants";
+import { Settings, Loader2 } from "lucide-react";
 
 interface KpiData {
   agentId: number; agentName: string; period: string;
@@ -162,6 +163,7 @@ function AgentView({ kpi, salary, fmt, t, lang }: { kpi: KpiData; salary?: Salar
 
 function SupervisorView({ kpi, salaries, fmt, t, lang }: { kpi: KpiData[]; salaries: SalaryData[]; fmt: (v: number) => string; t: (r: string, u: string) => string; lang: string }) {
   const [selected, setSelected] = useState<number | null>(null);
+  const [showSalaryConfig, setShowSalaryConfig] = useState(false);
   const selectedKpi = selected ? kpi.find(a => a.agentId === selected) : null;
   const selectedSalary = selected ? salaries.find(s => s.agentId === selected) : null;
 
@@ -177,9 +179,21 @@ function SupervisorView({ kpi, salaries, fmt, t, lang }: { kpi: KpiData[]; salar
 
       {/* Agents ranking */}
       <div className="neo-card p-5">
-        <h3 style={{ fontFamily: F.display, fontSize: "14px", fontWeight: 600, color: COLORS.textPrimary, marginBottom: "14px" }}>
-          {t("Рейтинг", "Reyting")}
-        </h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 style={{ fontFamily: F.display, fontSize: "14px", fontWeight: 600, color: COLORS.textPrimary }}>
+            {t("Рейтинг", "Reyting")}
+          </h3>
+          <button onClick={() => setShowSalaryConfig(!showSalaryConfig)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+            style={{ background: showSalaryConfig ? "rgba(75,108,246,.10)" : "var(--color-surface-light)", color: showSalaryConfig ? "#5b6d8a" : COLORS.textSecondary }}>
+            <Settings size={14} />
+            {t("Настройка ЗП", "Oylik sozlash")}
+          </button>
+        </div>
+
+        {/* Salary configuration (toggle) */}
+        {showSalaryConfig && <SalaryConfig t={t} lang={lang} />}
+
         <div className="space-y-2">
           {kpi.map((a, i) => {
             const grade = GRADES[a.kpiGrade] ?? GRADES.F;
@@ -206,6 +220,64 @@ function SupervisorView({ kpi, salaries, fmt, t, lang }: { kpi: KpiData[]; salar
       {/* Selected agent details */}
       {selectedKpi && <AgentView kpi={selectedKpi} salary={selectedSalary} fmt={fmt} t={t} lang={lang} />}
     </>
+  );
+}
+
+// ── Salary Configuration ──────────────────────────────────────────────────────
+
+function SalaryConfig({ t, lang }: { t: (r: string, u: string) => string; lang: string }) {
+  const { data: usersData } = trpc.user.list.useQuery({ page: 1, pageSize: 100 });
+  const { data: commissionData } = trpc.commission.list.useQuery();
+  const utils = trpc.useContext();
+
+  const agents = (usersData?.data ?? []).filter((u: { role: string; status: string }) => u.role === "agent" && u.status === "active");
+
+  const setRateMutation = trpc.commission.setRate.useMutation({
+    onSuccess: () => { utils.commission.list.invalidate(); notify.success(t("Комиссия сохранена", "Komissiya saqlandi")); },
+    onError: (e) => notify.error(e.message),
+  });
+
+  const calcMutation = trpc.commission.calculate.useMutation({
+    onSuccess: () => { utils.commission.list.invalidate(); notify.success(t("Комиссия рассчитана", "Komissiya hisoblandi")); },
+    onError: (e) => notify.error(e.message),
+  });
+
+  const getRate = (agentId: number) => {
+    const record = (commissionData ?? []).find((c: { userId: number }) => c.userId === agentId);
+    return record ? Number(record.commissionRate) : 0;
+  };
+
+  return (
+    <div className="mb-4 p-4 rounded-xl" style={{ background: "var(--color-surface-light)", border: "1px solid var(--color-border)" }}>
+      <p className="text-xs mb-3" style={{ color: COLORS.textSecondary }}>
+        {t("Настройте комиссию (%) для каждого агента", "Har bir agent uchun komissiya (%) ni sozlang")}
+      </p>
+      <div className="space-y-2">
+        {agents.map((agent: { id: number; name: string }) => (
+          <div key={agent.id} className="flex items-center gap-3">
+            <span className="text-sm flex-1 truncate" style={{ color: COLORS.textPrimary }}>{agent.name}</span>
+            <div className="flex items-center gap-1">
+              <input type="number" min="0" max="50" step="0.5"
+                className="neo-input w-16 text-center text-xs py-1"
+                defaultValue={getRate(agent.id)}
+                onBlur={(e) => {
+                  const newRate = Number(e.target.value);
+                  const current = getRate(agent.id);
+                  if (newRate !== current && newRate >= 0 && newRate <= 50) {
+                    setRateMutation.mutate({ userId: agent.id, commissionRate: newRate });
+                  }
+                }} />
+              <span className="text-xs" style={{ color: COLORS.textSecondary }}>%</span>
+            </div>
+          </div>
+        ))}
+      </div>
+      <button onClick={() => calcMutation.mutate()} disabled={calcMutation.isPending}
+        className="mt-3 neo-btn-primary text-xs flex items-center gap-1.5">
+        {calcMutation.isPending && <Loader2 size={12} className="animate-spin" />}
+        {t("Рассчитать", "Hisoblash")}
+      </button>
+    </div>
   );
 }
 

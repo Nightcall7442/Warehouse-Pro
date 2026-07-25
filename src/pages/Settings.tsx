@@ -7,7 +7,7 @@ import { notify } from "@/lib/toast";
 import {
   User, Bell, Building2, Loader2,
   Send, CheckCircle2, XCircle, Moon,
-  Upload, Database, RefreshCw, AlertTriangle, Warehouse, Plus, Star, Pencil, MapPin, DollarSign,
+  Upload, Database, RefreshCw, AlertTriangle, Warehouse, Plus, Star, Pencil, MapPin,
 } from "lucide-react";
 import { PremiumSelect } from "@/components/PremiumSelect";
 
@@ -656,94 +656,11 @@ function WarehouseSettings() {
   );
 }
 
-// ── Зарплата / Комиссия ──────────────────────────────────────────────────────
-function SalarySettings() {
-  const { lang } = useLang();
-  const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
-  const { user } = useAuth();
-  const { data: usersData } = trpc.user.list.useQuery({ page: 1, pageSize: 100 });
-  const { data: commissionData } = trpc.commission.list.useQuery();
-  const utils = trpc.useContext();
-
-  const agents = (usersData?.data ?? []).filter((u: { role: string; status: string }) => u.role === "agent" && u.status === "active");
-
-  const setRateMutation = trpc.commission.setRate.useMutation({
-    onSuccess: () => { utils.commission.list.invalidate(); notify.success(t("Комиссия сохранена", "Komissiya saqlandi")); },
-    onError: (e) => notify.error(e.message),
-  });
-
-  const calcMutation = trpc.commission.calculate.useMutation({
-    onSuccess: () => { utils.commission.list.invalidate(); notify.success(t("Комиссия рассчитана", "Komissiya hisoblandi")); },
-    onError: (e) => notify.error(e.message),
-  });
-
-  // Get current commission rate for each agent
-  const getRate = (agentId: number) => {
-    const record = (commissionData ?? []).find((c: { userId: number }) => c.userId === agentId);
-    return record ? Number(record.commissionRate) : 0;
-  };
-
-  if (agents.length === 0) {
-    return (
-      <div className="text-center py-8">
-        <DollarSign size={32} className="mx-auto text-secondary opacity-40 mb-3" />
-        <p className="text-sm text-secondary">{t("Нет агентов", "Agentlar yo'q")}</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      <p className="text-xs text-secondary">{t("Настройте комиссию (%) для каждого агента. Комиссия рассчитывается от выручки.", "Har bir agent uchun komissiya (%) ni sozlang. Komissiya tushumdan hisoblanadi.")}</p>
-
-      {/* Agent commission rates */}
-      <div className="space-y-2">
-        {agents.map((agent: { id: number; name: string }) => {
-          const currentRate = getRate(agent.id);
-          return (
-            <div key={agent.id} className="flex items-center gap-3 px-4 py-3 rounded-lg"
-              style={{ background: "var(--color-surface-light, #f0f3f8)", border: "1px solid var(--color-border, #dde2ec)" }}>
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                style={{ background: "var(--color-surface, #ffffff)" }}>
-                <User size={14} className="text-secondary" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-primary truncate">{agent.name}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <input type="number" min="0" max="50" step="0.5"
-                  className="neo-input w-20 text-center text-sm"
-                  defaultValue={currentRate}
-                  onBlur={(e) => {
-                    const newRate = Number(e.target.value);
-                    if (newRate !== currentRate && newRate >= 0 && newRate <= 50) {
-                      setRateMutation.mutate({ userId: agent.id, commissionRate: newRate });
-                    }
-                  }} />
-                <span className="text-xs text-secondary">%</span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Calculate button */}
-      <button onClick={() => calcMutation.mutate()}
-        disabled={calcMutation.isPending}
-        className="neo-btn-primary flex items-center gap-2 text-sm">
-        {calcMutation.isPending && <Loader2 size={14} className="animate-spin" />}
-        {t("Рассчитать комиссии за текущий месяц", "Joriy oy uchun komissiyalarni hisoblash")}
-      </button>
-    </div>
-  );
-}
-
 // ── Секции ────────────────────────────────────────────────────────────────────
 const SECTIONS = [
   { key: "profile",    iconRu: "Профиль",    iconUz: "Profil",        Icon: User,      Comp: ProfileSettings    },
   { key: "company",   iconRu: "Компания",   iconUz: "Kompaniya",     Icon: Building2, Comp: CompanySettings    },
   { key: "warehouses",iconRu: "Склады",     iconUz: "Omborxona",     Icon: Warehouse, Comp: WarehouseSettings  },
-  { key: "salary",    iconRu: "Зарплата",   iconUz: "Oylik",         Icon: DollarSign, Comp: SalarySettings   },
   { key: "telegram",  iconRu: "Telegram",   iconUz: "Telegram",      Icon: Bell,      Comp: TelegramSettings   },
   { key: "onec",      iconRu: "1С",         iconUz: "1C",            Icon: Database,  Comp: OneCSettings       },
   { key: "appearance",iconRu: "Внешний вид",iconUz: "Ko'rinish",     Icon: Moon,      Comp: AppearanceSettings },
