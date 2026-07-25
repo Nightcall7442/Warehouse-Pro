@@ -5,6 +5,7 @@ import { orders, shops, users, payments, notifications, orderItems, products, wa
 import { eq, and, sql, desc } from "drizzle-orm";
 import { sseBus } from "./lib/sse";
 import { logger } from "./lib/logger";
+import { sendPushToUser } from "./services/push-service";
 
 export const courierRouter = createRouter({
   listMyDeliveries: courierQuery.query(async ({ ctx }) => {
@@ -225,6 +226,13 @@ export const courierRouter = createRouter({
           userId: ceo.id,
           data: { title: "Заказ доставлен", orderNumber: order.orderNumber },
         });
+
+        // Push notification to CEO
+        sendPushToUser(ceo.id, {
+          title: "Заказ доставлен",
+          body: `Заказ ${order.orderNumber} доставлен${input.cashAmount ? `, наличные: ${input.cashAmount}` : ""}`,
+          data: { type: "order.delivered", orderId: input.orderId },
+        }).catch(() => {});
       }
 
       logger.info("order delivered", { orderId: input.orderId, courierId, cashAmount: input.cashAmount });
@@ -284,6 +292,13 @@ export const courierRouter = createRouter({
           userId: ceo.id,
           data: { title: "Доставка не состоялась", orderNumber: order.orderNumber },
         });
+
+        // Push notification to CEO
+        sendPushToUser(ceo.id, {
+          title: "Доставка не состоялась",
+          body: `Заказ ${order.orderNumber}${input.reason ? ` — ${input.reason}` : ""}`,
+          data: { type: "order.failed", orderId: input.orderId },
+        }).catch(() => {});
       }
 
       logger.info("order delivery failed", { orderId: input.orderId, courierId, reason: input.reason });
