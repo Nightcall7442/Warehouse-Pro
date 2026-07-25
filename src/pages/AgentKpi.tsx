@@ -4,7 +4,8 @@ import { useLang } from "@/i18n";
 import { useCurrency } from "@/hooks/useCurrency";
 import { notify } from "@/lib/toast";
 import { COLORS, F } from "@/components/products/constants";
-import { Settings, Loader2 } from "lucide-react";
+import { exportToExcel } from "@/lib/excel";
+import { Settings, Loader2, FileDown } from "lucide-react";
 
 interface KpiData {
   agentId: number; agentName: string; period: string;
@@ -57,6 +58,30 @@ export default function AgentKpi() {
 
   const isLoading = isSupervisor ? allLoading : myLoading;
 
+  const handleExport = async () => {
+    if (!isSupervisor || !allKpi) return;
+    const rows = allKpi.map((a, i) => ({
+      "#": i + 1,
+      "Агент": a.agentName,
+      "Балл": a.kpiScore,
+      "Грейд": a.kpiGrade,
+      "Заказы": a.orderCount,
+      "Выручка": a.revenue,
+      "Средний чек": a.avgOrderValue,
+      "Визиты": `${a.visitedPlans}/${a.totalPlans}`,
+      "Выполнение плана %": a.visitCompletionRate,
+      "Возвраты %": a.returnRate,
+      "Фрод %": a.fraudRate,
+      "Подозр. визиты": a.suspiciousVisits,
+      "GPS пингов": a.gpsPings,
+      "Магазины": a.assignedShops,
+      "Долг": a.totalDebt,
+      "Таргет": a.targetRevenue,
+      "Прогресс таргета %": a.targetProgress,
+    }));
+    await exportToExcel(rows, `kpi-agents-${period}`, "KPI Агентов", `KPI ${period}`);
+  };
+
   return (
     <div className="space-y-5 animate-fade-up">
       {/* Header */}
@@ -76,6 +101,13 @@ export default function AgentKpi() {
               {lang === "uz" ? p.uz : p.ru}
             </button>
           ))}
+          {isSupervisor && allKpi && allKpi.length > 0 && (
+            <button onClick={handleExport}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all bg-[var(--color-surface-light)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface)]">
+              <FileDown size={14} />
+              Excel
+            </button>
+          )}
         </div>
       </div>
 
