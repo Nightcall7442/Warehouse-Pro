@@ -185,14 +185,18 @@ export const courierRouter = createRouter({
             .where(and(eq(warehouseStock.productId, item.productId), eq(warehouseStock.tenantId, ctx.tenant.id)))
             .for("update");
         }
-        // Now safely deduct stock
+        // Now safely deduct stock — verify each deduction
         for (const item of items) {
           const qty = Number(item.quantity);
-          await tx.execute(sql`
+          const [result] = await tx.execute(sql`
             UPDATE warehouse_stock
             SET current_stock = current_stock - ${qty}, reserved = reserved - ${qty}, available = available + ${qty}
             WHERE product_id = ${item.productId} AND tenant_id = ${ctx.tenant.id}
           `);
+          // If no rows affected, stock row doesn't exist — log warning but continue
+          if (result && typeof result === "object" && "affectedRows" in result && (result as any).affectedRows === 0) {
+            console.warn(`[Stock] No stock row for product ${item.productId} in tenant ${ctx.tenant.id}`);
+          }
         }
 
         if (input.cashAmount && Number(input.cashAmount) > 0) {
