@@ -69,7 +69,7 @@ export const warehouseMultiRouter = createRouter({
       warehouseId: z.number().optional(),
       search:      z.string().optional(),
       page:        z.number().default(1),
-      pageSize:    z.number().min(1).max(100).default(25),
+      pageSize:    z.number().min(1).max(10000).default(25),
     }).optional())
     .query(async ({ input, ctx }) => {
       const db       = getDb();
