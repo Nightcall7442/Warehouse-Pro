@@ -454,6 +454,13 @@ function SalaryConfig({ t }: { t: (r: string, u: string) => string }) {
     onError: (e) => notify.error(e.message),
   });
 
+  const handleCalc = () => {
+    const now = new Date();
+    const periodStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
+    const periodEnd = now.toISOString().split("T")[0];
+    calcMutation.mutate({ periodType: "monthly", periodStart, periodEnd });
+  };
+
   const getRate = (agentId: number) => {
     if (rates[agentId] !== undefined) return rates[agentId];
     const record = (commissionData ?? []).find((c: { userId: number; commissionRate: string | number }) => c.userId === agentId);
@@ -510,7 +517,7 @@ function SalaryConfig({ t }: { t: (r: string, u: string) => string }) {
           );
         })}
       </div>
-      <button onClick={() => calcMutation.mutate()} disabled={calcMutation.isPending}
+      <button onClick={handleCalc} disabled={calcMutation.isPending}
         className="mt-3 w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all"
         style={{
           background: "linear-gradient(135deg, #5b6d8a, #4a5c78)",
