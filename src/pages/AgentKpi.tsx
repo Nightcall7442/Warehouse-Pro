@@ -219,7 +219,7 @@ function SupervisorView({ kpi, salaries, fmt, t, lang }: { kpi: KpiData[]; salar
   const selectedSalary = selected ? salaries.find(s => s.agentId === selected) : null;
 
   // Filter agents by territory (agents with shops in that territory)
-  const filteredKpi = territoryFilter === "all" ? kpi : kpi.filter(a => {
+  const filteredKpi = territoryFilter === "all" ? kpi : kpi.filter(() => {
     // Check if agent has shops in the selected territory
     // For now, show all agents (territory filtering would need shop data)
     return true;
@@ -367,6 +367,7 @@ function SalaryConfig({ t }: { t: (r: string, u: string) => string }) {
   const { data: usersData } = trpc.user.list.useQuery({ page: 1, pageSize: 100 });
   const { data: commissionData } = trpc.commission.list.useQuery();
   const utils = trpc.useContext();
+  const [rates, setRates] = useState<Record<number, number>>({});
 
   const agents = (usersData?.data ?? []).filter((u: { role: string; status: string }) => u.role === "agent" && u.status === "active");
 
@@ -381,39 +382,70 @@ function SalaryConfig({ t }: { t: (r: string, u: string) => string }) {
   });
 
   const getRate = (agentId: number) => {
+    if (rates[agentId] !== undefined) return rates[agentId];
     const record = (commissionData ?? []).find((c: { userId: number; commissionRate: string | number }) => c.userId === agentId);
     return record ? Math.round(Number(record.commissionRate) * 10) / 10 : 0;
   };
 
   return (
-    <div className="mb-4 p-4 rounded-xl" style={{ background: "var(--color-surface-light)", border: "1px solid var(--color-border)" }}>
+    <div className="p-4 rounded-xl" style={{ background: "var(--color-surface-light)", border: "1px solid var(--color-border)" }}>
       <p className="text-xs mb-3" style={{ color: COLORS.textSecondary }}>
         {t("Настройте комиссию (%) для каждого агента", "Har bir agent uchun komissiya (%) ni sozlang")}
       </p>
       <div className="space-y-2">
-        {agents.map((agent: { id: number; name: string }) => (
-          <div key={agent.id} className="flex items-center gap-3">
-            <span className="text-sm flex-1 truncate" style={{ color: COLORS.textPrimary }}>{agent.name}</span>
-            <div className="flex items-center gap-1">
-              <input type="number" min="0" max="50" step="0.5"
-                className="neo-input w-16 text-center text-xs py-1"
-                defaultValue={String(getRate(agent.id))}
-                onBlur={(e) => {
-                  const newRate = Number(e.target.value);
-                  const current = getRate(agent.id);
-                  if (newRate !== current && newRate >= 0 && newRate <= 50) {
-                    setRateMutation.mutate({ userId: agent.id, commissionRate: newRate });
-                  }
-                }} />
-              <span className="text-xs" style={{ color: COLORS.textSecondary }}>%</span>
+        {agents.map((agent: { id: number; name: string }) => {
+          const rate = getRate(agent.id);
+          return (
+            <div key={agent.id} className="flex items-center gap-3 p-2 rounded-lg transition-all"
+              style={{ background: "var(--color-surface, #fff)", border: "1px solid var(--color-border)" }}>
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                style={{ background: "rgba(75,108,246,.10)" }}>
+                <span className="text-xs font-bold" style={{ color: "#5b6d8a" }}>{agent.name.charAt(0).toUpperCase()}</span>
+              </div>
+              <span className="text-sm flex-1 truncate" style={{ color: COLORS.textPrimary }}>{agent.name}</span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  max="50"
+                  step="0.5"
+                  value={rate}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value) || 0;
+                    setRates(prev => ({ ...prev, [agent.id]: val }));
+                  }}
+                  onBlur={(e) => {
+                    const val = parseFloat(e.target.value) || 0;
+                    if (val >= 0 && val <= 50) {
+                      setRateMutation.mutate({ userId: agent.id, commissionRate: val });
+                    }
+                  }}
+                  className="w-20 text-center text-sm py-1.5 px-2 rounded-lg outline-none transition-all"
+                  style={{
+                    background: "var(--color-surface, #fff)",
+                    border: "1.5px solid var(--color-border)",
+                    color: COLORS.textPrimary,
+                    fontFamily: F.display,
+                    fontWeight: 600,
+                  }}
+                  onFocus={(e) => e.currentTarget.style.borderColor = "#5b6d8a"}
+                  onBlurCapture={(e) => e.currentTarget.style.borderColor = "var(--color-border)"}
+                />
+                <span className="text-xs font-medium" style={{ color: COLORS.textSecondary }}>%</span>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       <button onClick={() => calcMutation.mutate()} disabled={calcMutation.isPending}
-        className="mt-3 neo-btn-primary text-xs flex items-center gap-1.5">
-        {calcMutation.isPending && <Loader2 size={12} className="animate-spin" />}
-        {t("Рассчитать", "Hisoblash")}
+        className="mt-3 w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all"
+        style={{
+          background: "linear-gradient(135deg, #5b6d8a, #4a5c78)",
+          color: "#fff",
+          boxShadow: "0 4px 12px rgba(91,109,138,0.3)",
+        }}>
+        {calcMutation.isPending && <Loader2 size={14} className="animate-spin" />}
+        {t("Рассчитать комиссии", "Komissiyalarni hisoblash")}
       </button>
     </div>
   );
