@@ -258,20 +258,23 @@ export const courierRouter = createRouter({
         )).limit(1);
       if (!order) throw new Error("Заказ не найден или не назначен на вас");
 
-      await db.update(orders)
-        .set({ deliveryStatus: "failed", status: "new" })
-        .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, ctx.tenant.id)));
+      await db.transaction(async (tx) => {
+        // Update order status
+        await tx.update(orders)
+          .set({ deliveryStatus: "failed", status: "new" })
+          .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, ctx.tenant.id)));
 
-      // Restore reserved stock — the delivery failed, so reserved qty goes back to available
-      const items = await db.select().from(orderItems).where(eq(orderItems.orderId, input.orderId));
-      for (const item of items) {
-        const qty = Number(item.quantity);
-        await db.execute(sql`
-          UPDATE warehouse_stock
-          SET reserved = reserved - ${qty}, available = available + ${qty}
-          WHERE product_id = ${item.productId} AND tenant_id = ${ctx.tenant.id}
-        `);
-      }
+        // Restore reserved stock — the delivery failed, so reserved qty goes back to available
+        const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, input.orderId));
+        for (const item of items) {
+          const qty = Number(item.quantity);
+          await tx.execute(sql`
+            UPDATE warehouse_stock
+            SET reserved = reserved - ${qty}, available = available + ${qty}
+            WHERE product_id = ${item.productId} AND tenant_id = ${ctx.tenant.id}
+          `);
+        }
+      });
 
       const [ceo] = await db.select({ id: users.id }).from(users)
         .where(and(eq(users.tenantId, ctx.tenant.id), eq(users.role, "ceo")))

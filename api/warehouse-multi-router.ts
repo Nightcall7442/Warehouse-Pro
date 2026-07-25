@@ -56,9 +56,16 @@ export const warehouseMultiRouter = createRouter({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
+      // Verify target warehouse exists before resetting defaults
+      const [target] = await db.select({ id: warehouses.id })
+        .from(warehouses)
+        .where(and(eq(warehouses.id, input.id), eq(warehouses.tenantId, ctx.tenant.id)))
+        .limit(1);
+      if (!target) throw new Error("Склад не найден");
+
       await db.transaction(async (tx) => {
         await tx.update(warehouses).set({ isDefault: false }).where(eq(warehouses.tenantId, ctx.tenant.id));
-        await tx.update(warehouses).set({ isDefault: true }).where(and(eq(warehouses.id, input.id), eq(warehouses.tenantId, ctx.tenant.id)));
+        await tx.update(warehouses).set({ isDefault: true }).where(eq(warehouses.id, input.id));
       });
       return { success: true };
     }),
