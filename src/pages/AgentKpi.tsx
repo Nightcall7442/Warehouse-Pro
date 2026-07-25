@@ -212,21 +212,42 @@ function SupervisorView({ kpi, salaries, fmt, t, lang }: { kpi: KpiData[]; salar
   const selectedKpi = selected ? kpi.find(a => a.agentId === selected) : null;
   const selectedSalary = selected ? salaries.find(s => s.agentId === selected) : null;
 
+  // Aggregated stats
+  const totalRevenue = kpi.reduce((s, k) => s + k.revenue, 0);
+  const totalOrders = kpi.reduce((s, k) => s + k.orderCount, 0);
+  const totalVisits = kpi.reduce((s, k) => s + k.visitedPlans, 0);
+  const totalSalary = salaries.reduce((s, r) => s + r.totalSalary, 0);
+  const avgScore = kpi.length > 0 ? Math.round(kpi.reduce((s, k) => s + k.kpiScore, 0) / kpi.length) : 0;
+  const suspiciousTotal = kpi.reduce((s, k) => s + k.suspiciousVisits, 0);
+
   return (
     <>
-      {/* Summary */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <KpiCard label={t("Агентов", "Agentlar")} value={String(kpi.length)} color="#5b6d8a" icon="👥" />
-        <KpiCard label={t("Средний балл", "O'rtacha")} value={String(Math.round(kpi.reduce((s, k) => s + k.kpiScore, 0) / (kpi.length || 1)))} color="#5b6d8a" icon="★" />
-        <KpiCard label={t("Выручка", "Tushum")} value={fmt(kpi.reduce((s, k) => s + k.revenue, 0))} color="#34c473" icon="$" />
-        <KpiCard label={t("ФОТ", "Oylik")} value={fmt(salaries.reduce((s, r) => s + r.totalSalary, 0))} color="#d4973a" icon="💰" />
+        <KpiCard label={t("Средний балл", "O'rtacha")} value={String(avgScore)} color="#5b6d8a" icon="★" />
+        <KpiCard label={t("Выручка", "Tushum")} value={fmt(totalRevenue)} color="#34c473" icon="$" />
+        <KpiCard label={t("Заказы", "Buyurtma")} value={String(totalOrders)} color="#5b6d8a" icon="🛒" />
+        <KpiCard label={t("Визиты", "Tashrif")} value={String(totalVisits)} color="#d4973a" icon="📍" />
+        <KpiCard label={t("ФОТ", "Oylik")} value={fmt(totalSalary)} color="#d4973a" icon="💰" />
       </div>
 
-      {/* Agents ranking */}
-      <div className="neo-card p-5">
-        <div className="flex items-center justify-between mb-3">
+      {/* Fraud summary (if any) */}
+      {suspiciousTotal > 0 && (
+        <div className="neo-card p-4" style={{ borderLeft: "4px solid #d45050" }}>
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-semibold" style={{ color: "#d45050" }}>
+              ⚠ {t("Подозрительная активность", "Shubhali faoliyat")}: {suspiciousTotal} {t("визитов", "tashrif")}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Agents Table */}
+      <div className="neo-card overflow-hidden">
+        <div className="flex items-center justify-between p-4 border-b" style={{ borderColor: "var(--color-border)" }}>
           <h3 style={{ fontFamily: F.display, fontSize: "14px", fontWeight: 600, color: COLORS.textPrimary }}>
-            {t("Рейтинг", "Reyting")}
+            {t("Дашборд агентов", "Agentlar dashboard")}
           </h3>
           <button onClick={() => setShowSalaryConfig(!showSalaryConfig)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
@@ -236,29 +257,56 @@ function SupervisorView({ kpi, salaries, fmt, t, lang }: { kpi: KpiData[]; salar
           </button>
         </div>
 
-        {/* Salary configuration (toggle) */}
-        {showSalaryConfig && <SalaryConfig t={t} />}
+        {showSalaryConfig && <div className="p-4 border-b" style={{ borderColor: "var(--color-border)" }}><SalaryConfig t={t} /></div>}
 
-        <div className="space-y-2">
-          {kpi.map((a, i) => {
-            const grade = GRADES[a.kpiGrade] ?? GRADES.F;
-            return (
-              <div key={a.agentId} onClick={() => setSelected(selected === a.agentId ? null : a.agentId)}
-                className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all border ${selected === a.agentId ? "border-[#5b6d8a] bg-[var(--color-surface-light)]" : "border-transparent hover:bg-[var(--color-surface-light)]"}`}>
-                <div className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold"
-                  style={{ background: i < 3 ? ["#d4973a", "#9ca3af", "#cd7f32"][i] : "var(--color-surface-light)", color: i < 3 ? "#fff" : COLORS.textSecondary }}>
-                  {i + 1}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold truncate" style={{ color: COLORS.textPrimary }}>{a.agentName}</p>
-                  <p className="text-xs" style={{ color: COLORS.textSecondary }}>{a.orderCount} {t("заказов", "buyurtma")} • {fmt(a.revenue)}</p>
-                </div>
-                <span className="px-2.5 py-1 rounded-lg text-xs font-bold" style={{ background: `${grade.color}15`, color: grade.color }}>
-                  {a.kpiScore} • {a.kpiGrade}
-                </span>
-              </div>
-            );
-          })}
+        {/* Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr style={{ background: "var(--color-surface-light)" }}>
+                {["", t("Агент", "Agent"), t("Балл", "Ball"), t("Заказы", "Buyurtma"), t("Выручка", "Tushum"), t("Визиты", "Tashrif"), t("Фрод", "Frod"), t("Зарплата", "Oylik")].map((h, i) => (
+                  <th key={i} className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider" style={{ color: COLORS.textTertiary }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {kpi.map((a, i) => {
+                const grade = GRADES[a.kpiGrade] ?? GRADES.F;
+                const salary = salaries.find(s => s.agentId === a.agentId);
+                return (
+                  <tr key={a.agentId} onClick={() => setSelected(selected === a.agentId ? null : a.agentId)}
+                    className="cursor-pointer transition-all"
+                    style={{ borderBottom: "1px solid var(--color-border)", background: selected === a.agentId ? "var(--color-surface-light)" : "transparent" }}>
+                    <td className="px-3 py-2.5">
+                      <div className="w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-bold"
+                        style={{ background: i < 3 ? ["#d4973a", "#9ca3af", "#cd7f32"][i] : "var(--color-surface-light)", color: i < 3 ? "#fff" : COLORS.textSecondary }}>
+                        {i + 1}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5 font-semibold" style={{ color: COLORS.textPrimary }}>{a.agentName}</td>
+                    <td className="px-3 py-2.5">
+                      <span className="px-2 py-0.5 rounded text-xs font-bold" style={{ background: `${grade.color}15`, color: grade.color }}>
+                        {a.kpiScore} • {a.kpiGrade}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5" style={{ color: COLORS.textPrimary }}>{a.orderCount}</td>
+                    <td className="px-3 py-2.5 font-semibold" style={{ color: COLORS.textPrimary }}>{fmt(a.revenue)}</td>
+                    <td className="px-3 py-2.5" style={{ color: COLORS.textPrimary }}>{a.visitedPlans}/{a.totalPlans}</td>
+                    <td className="px-3 py-2.5">
+                      {a.suspiciousVisits > 0 ? (
+                        <span className="px-2 py-0.5 rounded text-xs font-bold" style={{ background: "rgba(212,80,80,.10)", color: "#d45050" }}>
+                          {a.suspiciousVisits} ({a.fraudRate}%)
+                        </span>
+                      ) : (
+                        <span className="text-xs" style={{ color: COLORS.textTertiary }}>✓</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5 font-semibold" style={{ color: COLORS.textPrimary }}>{fmt(salary?.totalSalary ?? 0)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
 
