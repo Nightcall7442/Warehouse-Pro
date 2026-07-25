@@ -13,6 +13,14 @@ COPY contracts/ contracts/
 COPY src/ src/
 COPY public/ public/
 COPY .env.example .env
+
+# Build-time env vars — Vite inlines these at bundle time.
+# Railway: set these in Project → Settings → Variables (they're passed to docker build).
+ARG VITE_SENTRY_DSN=""
+ARG VITE_APP_VERSION=""
+ENV VITE_SENTRY_DSN=${VITE_SENTRY_DSN}
+ENV VITE_APP_VERSION=${VITE_APP_VERSION}
+
 ENV NODE_ENV=production
 RUN npm run build
 
