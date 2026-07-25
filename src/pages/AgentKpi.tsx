@@ -7,6 +7,7 @@ import { COLORS, F } from "@/components/products/constants";
 import { exportToExcel } from "@/lib/excel";
 import { Settings, Loader2, FileDown, TrendingUp, TrendingDown, Target, ShoppingCart, DollarSign, Users, Package, Star, Clock, BarChart3, AlertTriangle, MapPin, Radio, Camera, CheckCircle, XCircle } from "lucide-react";
 import { ProgressRing } from "@/components/ProgressRing";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, Radar } from "recharts";
 
 interface KpiData {
   agentId: number; agentName: string; period: string;
@@ -126,7 +127,7 @@ function AgentView({ kpi, salary, fmt, t, lang }: { kpi: KpiData; salary?: Salar
         <KpiHero label={t("Магазины", "Do'kon")} value={String(kpi.assignedShops)} sub={fmt(kpi.totalDebt) + " долг"} color="#7a6db5" progress={Math.min(1, kpi.assignedShops / 20)} icon={<Package size={20} color="#7a6db5" />} />
       </div>
 
-      {/* Score Breakdown + Revenue Target */}
+      {/* Score Breakdown + KPI Radar */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="neo-card p-5">
           <h3 style={{ fontFamily: F.display, fontSize: "14px", fontWeight: 600, color: COLORS.textPrimary, marginBottom: "14px" }}>
@@ -141,31 +142,53 @@ function AgentView({ kpi, salary, fmt, t, lang }: { kpi: KpiData; salary?: Salar
           </div>
         </div>
 
-        {kpi.targetRevenue > 0 && (
-          <div className="neo-card p-5">
-            <h3 style={{ fontFamily: F.display, fontSize: "14px", fontWeight: 600, color: COLORS.textPrimary, marginBottom: "14px" }}>
-              {t("Таргет по выручке", "Tushum maqsadi")}
-            </h3>
-            <div className="flex items-center gap-4">
-              <ProgressRing value={kpi.targetProgress} size={80} strokeWidth={6} color={kpi.targetProgress >= 100 ? "#34c473" : kpi.targetProgress >= 70 ? "#d4973a" : "#d45050"} />
-              <div className="flex-1">
-                <div className="flex justify-between mb-1">
-                  <span className="text-xs" style={{ color: COLORS.textSecondary }}>{fmt(kpi.revenue)} / {fmt(kpi.targetRevenue)}</span>
-                  <span className="text-xs font-bold" style={{ color: kpi.targetProgress >= 100 ? "#34c473" : kpi.targetProgress >= 70 ? "#d4973a" : "#d45050" }}>
-                    {kpi.targetProgress}%
-                  </span>
-                </div>
-                <div className="h-2.5 rounded-full" style={{ background: "var(--color-surface-light)" }}>
-                  <div className="h-full rounded-full transition-all" style={{
-                    width: `${Math.min(100, kpi.targetProgress)}%`,
-                    background: kpi.targetProgress >= 100 ? "#34c473" : kpi.targetProgress >= 70 ? "#d4973a" : "#d45050",
-                  }} />
-                </div>
+        {/* KPI Radar Chart */}
+        <div className="neo-card p-5">
+          <h3 style={{ fontFamily: F.display, fontSize: "14px", fontWeight: 600, color: COLORS.textPrimary, marginBottom: "14px" }}>
+            {t("Профиль агента", "Agent profili")}
+          </h3>
+          <ResponsiveContainer width="100%" height={220}>
+            <RadarChart data={[
+              { metric: t("План", "Reja"), value: kpi.visitCompletionRate },
+              { metric: t("Выручка", "Tushum"), value: Math.min(100, Math.round((kpi.revenue / 10_000_000) * 100)) },
+              { metric: t("Конверсия", "Konversiya"), value: kpi.orderCount > 0 && kpi.totalPlans > 0 ? Math.round((kpi.orderCount / kpi.totalPlans) * 100) : 0 },
+              { metric: t("Возвраты", "Qaytarish"), value: 100 - kpi.returnRate },
+              { metric: t("Долги", "Qarz"), value: kpi.debtCollectionRate },
+              { metric: t("Фрод", "Frod"), value: 100 - kpi.fraudRate },
+            ]}>
+              <PolarGrid stroke="var(--color-border)" />
+              <PolarAngleAxis dataKey="metric" tick={{ fontSize: 11, fill: "var(--color-text-secondary)" }} />
+              <Radar name="KPI" dataKey="value" stroke="#5b6d8a" fill="#5b6d8a" fillOpacity={0.15} strokeWidth={2} />
+            </RadarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Revenue Target */}
+      {kpi.targetRevenue > 0 && (
+        <div className="neo-card p-5">
+          <h3 style={{ fontFamily: F.display, fontSize: "14px", fontWeight: 600, color: COLORS.textPrimary, marginBottom: "14px" }}>
+            {t("Таргет по выручке", "Tushum maqsadi")}
+          </h3>
+          <div className="flex items-center gap-4">
+            <ProgressRing value={kpi.targetProgress} size={80} strokeWidth={6} color={kpi.targetProgress >= 100 ? "#34c473" : kpi.targetProgress >= 70 ? "#d4973a" : "#d45050"} />
+            <div className="flex-1">
+              <div className="flex justify-between mb-1">
+                <span className="text-xs" style={{ color: COLORS.textSecondary }}>{fmt(kpi.revenue)} / {fmt(kpi.targetRevenue)}</span>
+                <span className="text-xs font-bold" style={{ color: kpi.targetProgress >= 100 ? "#34c473" : kpi.targetProgress >= 70 ? "#d4973a" : "#d45050" }}>
+                  {kpi.targetProgress}%
+                </span>
+              </div>
+              <div className="h-2.5 rounded-full" style={{ background: "var(--color-surface-light)" }}>
+                <div className="h-full rounded-full transition-all" style={{
+                  width: `${Math.min(100, kpi.targetProgress)}%`,
+                  background: kpi.targetProgress >= 100 ? "#34c473" : kpi.targetProgress >= 70 ? "#d4973a" : "#d45050",
+                }} />
               </div>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Fraud Alerts */}
       {kpi.suspiciousVisits > 0 && (
