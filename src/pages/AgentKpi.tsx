@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { useCurrency } from "@/hooks/useCurrency";
-import { TrendingUp, TrendingDown, Target, ShoppingCart, DollarSign, Users, Package, Star, Award, Clock, BarChart3, AlertTriangle } from "lucide-react";
+import { TrendingUp, TrendingDown, Target, ShoppingCart, DollarSign, Users, Package, Star, Award, Clock, BarChart3, AlertTriangle, MapPin, Radio, Camera } from "lucide-react";
 
 const PERIODS = [
   { value: "week", labelRu: "Неделя", labelUz: "Hafta" },
@@ -83,6 +83,8 @@ export default function AgentKpi() {
           <ScoreBreakdown kpi={myKpi} t={t} />
           {mySalary && <SalarySection salary={mySalary} fmt={fmt} t={t} />}
           <VisitDetails kpi={myKpi} t={t} />
+          <GpsSection kpi={myKpi} t={t} />
+          <VisitReportsSection kpi={myKpi} t={t} />
         </>
       )}
 
@@ -138,6 +140,35 @@ function ScoreBreakdown({ kpi, t }: { kpi: any; t: (ru: string, uz: string) => s
         <ScoreBar label={t("Конверсия", "Konversiya")} value={kpi.orderCount > 0 && kpi.totalPlans > 0 ? Math.round((kpi.orderCount / kpi.totalPlans) * 100) : 0} weight={20} color="#f59e0b" />
         <ScoreBar label={t("Без возвратов", "Qaytarishsiz")} value={100 - kpi.returnRate} weight={15} color="#8b5cf6" />
         <ScoreBar label={t("Сбор долгов", "Qarz yig'ish")} value={kpi.debtCollectionRate} weight={10} color="#06b6d4" />
+      </div>
+    </div>
+  );
+}
+
+function GpsSection({ kpi, t }: { kpi: any; t: (ru: string, uz: string) => string }) {
+  return (
+    <div style={{ background: "#fff", borderRadius: "16px", padding: "20px", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+      <h3 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 600, color: "#2b3450", marginBottom: "16px" }}>
+        {t("GPS Трекинг", "GPS kuzatuv")}
+      </h3>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
+        <StatBlock label={t("Пингов", "Pinglar")} value={String(kpi.gpsPings)} icon={<MapPin size={16} color="#3b82f6" />} />
+        <StatBlock label={t("Статус", "Holat")} value={kpi.isOnline ? t("Онлайн", "Onlayn") : t("Оффлайн", "Oflayn")} icon={<Radio size={16} color={kpi.isOnline ? "#22c55e" : "#ef4444"} />} />
+        <StatBlock label={t("Последний пинг", "Oxirgi ping")} value={kpi.lastGpsTime ? formatTime(kpi.lastGpsTime) : "—"} icon={<Clock size={16} color="#6a7290" />} />
+      </div>
+    </div>
+  );
+}
+
+function VisitReportsSection({ kpi, t }: { kpi: any; t: (ru: string, uz: string) => string }) {
+  return (
+    <div style={{ background: "#fff", borderRadius: "16px", padding: "20px", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+      <h3 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 600, color: "#2b3450", marginBottom: "16px" }}>
+        {t("Фотоотчёты", "Foto hisobotlar")}
+      </h3>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "12px" }}>
+        <StatBlock label={t("Отчётов", "Hisobotlar")} value={String(kpi.visitReportCount)} icon={<Camera size={16} color="#8b5cf6" />} />
+        <StatBlock label={t("Последний отчёт", "Oxirgi hisobot")} value={kpi.lastReportTime ? formatTime(kpi.lastReportTime) : "—"} icon={<Clock size={16} color="#6a7290" />} />
       </div>
     </div>
   );
@@ -236,6 +267,8 @@ function AgentsTable({ agents, salaries, fmt, t, lang }: {
           <ScoreBreakdown kpi={selectedKpi} t={t} />
           {selectedSalary && <SalarySection salary={selectedSalary} fmt={fmt} t={t} />}
           <VisitDetails kpi={selectedKpi} t={t} />
+          <GpsSection kpi={selectedKpi} t={t} />
+          <VisitReportsSection kpi={selectedKpi} t={t} />
         </>
       )}
     </div>
@@ -293,6 +326,19 @@ function SalaryItem({ label, value, color, bold }: { label: string; value: strin
       <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: bold ? "18px" : "14px", fontWeight: bold ? 700 : 600, color: "#2b3450" }}>{value}</p>
     </div>
   );
+}
+
+function formatTime(dateStr: string): string {
+  const d = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return "только что";
+  if (diffMin < 60) return `${diffMin} мин назад`;
+  const diffH = Math.floor(diffMin / 60);
+  if (diffH < 24) return `${diffH} ч назад`;
+  const diffD = Math.floor(diffH / 24);
+  return `${diffD} дн назад`;
 }
 
 // Store icon (not in lucide)

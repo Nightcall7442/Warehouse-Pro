@@ -14,7 +14,7 @@
 
 import { sql, eq, and, gte, lte } from "drizzle-orm";
 import type { DrizzleInstance } from "../queries/connection";
-import { orders, dailyPlans, returns, shops, salesTargets, commissions } from "@db/schema";
+import { orders, dailyPlans, returns, shops, salesTargets, commissions, agentLocations, visitReports } from "@db/schema";
 
 export interface AgentKpiData {
   agentId: number;
@@ -44,6 +44,15 @@ export interface AgentKpiData {
   // Composite score
   kpiScore: number; // 0-100
   kpiGrade: "A" | "B" | "C" | "D" | "F";
+
+  // GPS metrics
+  gpsPings: number;
+  lastGpsTime: string | null;
+  isOnline: boolean;
+
+  // Visit reports
+  visitReportCount: number;
+  lastReportTime: string | null;
 }
 
 export interface SalaryData {
@@ -169,6 +178,39 @@ export async function calculateAgentKpi(
   const totalOwed = revenue + totalDebt;
   const debtCollectionRate = totalOwed > 0 ? Math.round((revenue / totalOwed) * 100) : 100;
 
+  // 5. GPS metrics
+  const [gpsStats] = await db.select({
+    pingCount: sql<number>`count(*)`,
+    lastPing: sql<string>`MAX(created_at)`,
+  }).from(agentLocations)
+    .where(and(
+      eq(agentLocations.tenantId, tenantId),
+      eq(agentLocations.agentId, agentId),
+      gte(agentLocations.createdAt, periodStart),
+      lte(agentLocations.createdAt, periodEnd),
+    ));
+
+  const gpsPings = Number(gpsStats?.pingCount ?? 0);
+  const lastGpsTime = gpsStats?.lastPing ?? null;
+  // Agent is online if last GPS ping was within last 10 minutes
+  const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000);
+  const isOnline = lastGpsTime ? new Date(lastGpsTime) > tenMinAgo : false;
+
+  // 6. Visit reports
+  const [reportStats] = await db.select({
+    count: sql<number>`count(*)`,
+    lastReport: sql<string>`MAX(created_at)`,
+  }).from(visitReports)
+    .where(and(
+      eq(visitReports.tenantId, tenantId),
+      eq(visitReports.userId, agentId),
+      gte(visitReports.createdAt, periodStart),
+      lte(visitReports.createdAt, periodEnd),
+    ));
+
+  const visitReportCount = Number(reportStats?.count ?? 0);
+  const lastReportTime = reportStats?.lastReport ?? null;
+
   // 5. Composite KPI score
   const kpiScore = calculateCompositeScore({
     visitCompletion: visitCompletionRate,
@@ -206,6 +248,11 @@ export async function calculateAgentKpi(
     debtCollectionRate,
     kpiScore,
     kpiGrade,
+    gpsPings,
+    lastGpsTime,
+    isOnline,
+    visitReportCount,
+    lastReportTime,
   };
 }
 
