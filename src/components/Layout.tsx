@@ -261,6 +261,7 @@ const BOTTOM_NAV: Record<string, Array<{ ru: string; uz: string; path: string; i
   ],
   ceo: [
     { ru: "Главная",   uz: "Bosh",      path: "/",          icon: "LayoutDashboard", exact: true },
+    { ru: "KPI",       uz: "KPI",       path: "/agent/kpi",  icon: "BarChart3" },
     { ru: "Заказы",    uz: "Buyurtma",  path: "/orders",    icon: "ClipboardList" },
     { ru: "Магазины",  uz: "Do'konlar", path: "/shops",     icon: "Store" },
     { ru: "Склад",     uz: "Ombor",     path: "/warehouse", icon: "Warehouse" },
@@ -268,6 +269,7 @@ const BOTTOM_NAV: Record<string, Array<{ ru: string; uz: string; path: string; i
   ],
   operator: [
     { ru: "Главная",  uz: "Bosh",      path: "/",          icon: "LayoutDashboard", exact: true },
+    { ru: "KPI",      uz: "KPI",       path: "/agent/kpi",  icon: "BarChart3" },
     { ru: "Заказы",   uz: "Buyurtma",  path: "/orders",    icon: "ClipboardList" },
     { ru: "Магазины", uz: "Do'konlar", path: "/shops",     icon: "Store" },
     { ru: "Приходы",  uz: "Kirimlar",  path: "/arrivals",  icon: "Truck" },
@@ -275,16 +277,18 @@ const BOTTOM_NAV: Record<string, Array<{ ru: string; uz: string; path: string; i
   ],
   agent: [
     { ru: "День",     uz: "Kun",       path: "/agent",          icon: "LayoutDashboard", exact: true },
+    { ru: "KPI",      uz: "KPI",       path: "/agent/kpi",      icon: "BarChart3" },
     { ru: "Магазины", uz: "Do'konlar", path: "/agent/shops",    icon: "Store" },
     { ru: "Заказ",    uz: "Buyurtma",  path: "/orders/new",     icon: "PlusCircle" },
     { ru: "Сканер",   uz: "Skaner",    path: "/barcode",        icon: "Scan" },
     { ru: "Офлайн",   uz: "Oflayn",    path: "/offline-orders", icon: "WifiOff" },
   ],
   supervisor: [
-    { ru: "Карта",    uz: "Xarita",    path: "/supervisor",       icon: "MapPin", exact: true },
-    { ru: "Планы",    uz: "Rejalar",   path: "/supervisor/plans", icon: "Calendar" },
-    { ru: "Отчёты",   uz: "Hisobot",   path: "/reports",          icon: "BarChart3" },
-    { ru: "Настройки",uz: "Sozlamalar",path: "/settings",         icon: "Settings" },
+    { ru: "KPI",       uz: "KPI",       path: "/agent/kpi",       icon: "BarChart3" },
+    { ru: "Карта",     uz: "Xarita",    path: "/supervisor",       icon: "MapPin", exact: true },
+    { ru: "Планы",     uz: "Rejalar",   path: "/supervisor/plans", icon: "Calendar" },
+    { ru: "Отчёты",    uz: "Hisobot",   path: "/reports",          icon: "BarChart3" },
+    { ru: "Настройки", uz: "Sozlamalar",path: "/settings",         icon: "Settings" },
   ],
   merchandiser: [
     { ru: "День",     uz: "Kun",       path: "/agent",       icon: "LayoutDashboard", exact: true },
