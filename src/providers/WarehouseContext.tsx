@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
+import { createContext, useContext, useState, useMemo, type ReactNode } from "react";
 import { trpc } from "./trpc.client";
 
 const STORAGE_KEY = "selectedWarehouseId";
@@ -25,16 +25,19 @@ export function WarehouseProvider({ children }: { children: ReactNode }) {
     return stored !== null ? Number(stored) : null;
   });
 
-  // Set default when warehouses load and nothing is selected
-  useEffect(() => {
-    if (!isLoading && warehouses.length > 0 && selectedId === null) {
-      const defaultWarehouse = warehouses.find((w) => w.isDefault);
-      if (defaultWarehouse) {
-        setSelectedIdState(defaultWarehouse.id);
-        localStorage.setItem(STORAGE_KEY, String(defaultWarehouse.id));
+  // Resolve the effective selectedId: stored value > default warehouse from data > null.
+  // This avoids the useEffect-based setState that caused an extra render on mount.
+  const effectiveId = useMemo(() => {
+    if (selectedId !== null) return selectedId;
+    if (warehouses.length > 0) {
+      const def = warehouses.find((w) => w.isDefault);
+      if (def) {
+        localStorage.setItem(STORAGE_KEY, String(def.id));
+        return def.id;
       }
     }
-  }, [isLoading, warehouses, selectedId]);
+    return null;
+  }, [selectedId, warehouses]);
 
   const setSelectedId = (id: number) => {
     setSelectedIdState(id);
@@ -49,13 +52,14 @@ export function WarehouseProvider({ children }: { children: ReactNode }) {
 
   return (
     <WarehouseContext.Provider
-      value={{ selectedId, setSelectedId, warehouses: trimmedWarehouses, isLoading }}
+      value={{ selectedId: effectiveId, setSelectedId, warehouses: trimmedWarehouses, isLoading }}
     >
       {children}
     </WarehouseContext.Provider>
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useWarehouse(): WarehouseContextValue {
   const ctx = useContext(WarehouseContext);
   if (!ctx) {

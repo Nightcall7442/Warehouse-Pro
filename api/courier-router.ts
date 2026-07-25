@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createRouter, courierQuery, operatorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { orders, shops, users, payments, notifications, orderItems, products } from "@db/schema";
+import { orders, shops, users, payments, notifications, orderItems, products, warehouseStock } from "@db/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { sseBus } from "./lib/sse";
 import { logger } from "./lib/logger";
@@ -178,6 +178,13 @@ export const courierRouter = createRouter({
           .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, ctx.tenant.id)));
 
         const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, input.orderId));
+        // Lock stock rows with FOR UPDATE to prevent race conditions
+        for (const item of items) {
+          await tx.select({ id: warehouseStock.id }).from(warehouseStock)
+            .where(and(eq(warehouseStock.productId, item.productId), eq(warehouseStock.tenantId, ctx.tenant.id)))
+            .for("update");
+        }
+        // Now safely deduct stock
         for (const item of items) {
           const qty = Number(item.quantity);
           await tx.execute(sql`
@@ -246,6 +253,17 @@ export const courierRouter = createRouter({
       await db.update(orders)
         .set({ deliveryStatus: "failed", status: "new" })
         .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, ctx.tenant.id)));
+
+      // Restore reserved stock — the delivery failed, so reserved qty goes back to available
+      const items = await db.select().from(orderItems).where(eq(orderItems.orderId, input.orderId));
+      for (const item of items) {
+        const qty = Number(item.quantity);
+        await db.execute(sql`
+          UPDATE warehouse_stock
+          SET reserved = reserved - ${qty}, available = available + ${qty}
+          WHERE product_id = ${item.productId} AND tenant_id = ${ctx.tenant.id}
+        `);
+      }
 
       const [ceo] = await db.select({ id: users.id }).from(users)
         .where(and(eq(users.tenantId, ctx.tenant.id), eq(users.role, "ceo")))

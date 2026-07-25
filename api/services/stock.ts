@@ -153,6 +153,17 @@ export const StockService = {
           AND tenant_id = ${tenantId}
           AND warehouse_id = ${whId}
       `);
+
+      // Log stock movements for audit trail
+      for (const item of items) {
+        await tx.insert(stockMovements).values({
+          tenantId,
+          productId: item.productId,
+          type: "out",
+          quantity: String(item.quantity),
+          notes: "Списание по заказу",
+        });
+      }
     });
 
     return { success: true };

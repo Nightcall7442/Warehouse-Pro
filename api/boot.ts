@@ -27,28 +27,25 @@ import * as Sentry from "@sentry/node";
 
 const APP_VERSION = "1.0.0";
 
-// Initialize Sentry before anything else
-if (env.sentryDsn) {
-  Sentry.init({
-    dsn: env.sentryDsn,
-    environment: env.isProduction ? "production" : "development",
-    tracesSampleRate: env.isProduction ? 0.2 : 1.0,
-  });
-}
+// Always init Sentry — if DSN is empty, it's a no-op
+Sentry.init({
+  dsn: env.sentryDsn || undefined,
+  environment: env.isProduction ? "production" : "development",
+  tracesSampleRate: env.isProduction ? 0.2 : 1.0,
+  debug: !env.isProduction,
+});
 
 const app = new Hono<{ Bindings: HttpBindings }>();
 
 // ── Sentry error handler ─────────────────────────────────────────────────────
-if (env.sentryDsn) {
-  app.use("*", async (c, next) => {
-    try {
-      await next();
-    } catch (err) {
-      Sentry.captureException(err);
-      throw err;
-    }
-  });
-}
+app.use("*", async (c, next) => {
+  try {
+    await next();
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
+});
 
 // ── Request logging with correlation IDs ──────────────────────────────────────
 if (env.isProduction) {
@@ -91,14 +88,39 @@ app.use(secureHeaders({
 
 // ── CORS ─────────────────────────────────────────────────────────────────────
 app.use("/api/*", cors({
-  origin: env.isProduction
-    ? (origin) => (origin && env.allowedOrigins.includes(origin)) ? origin : null
-    : (origin) => (origin && env.allowedOrigins.includes(origin)) ? origin : null,
+  origin: (origin) => (origin && env.allowedOrigins.includes(origin)) ? origin : null,
   allowMethods: ["GET", "POST", "OPTIONS"],
-  allowHeaders: ["Content-Type", "Authorization", "ngrok-skip-browser-warning", "x-correlation-id", "Last-Event-ID"],
+  allowHeaders: ["Content-Type", "Authorization", "ngrok-skip-browser-warning", "x-correlation-id", "x-csrf-token", "Last-Event-ID"],
   credentials: true,
   maxAge: 86400,
 }));
+
+// ── CSRF double-submit cookie ────────────────────────────────────────────────
+// State-changing POST requests must echo the CSRF cookie value in x-csrf-token header.
+// This prevents cross-site form submissions from triggering mutations.
+const CSRF_COOKIE = "csrf_token";
+const CSRF_HEADER = "x-csrf-token";
+// Set CSRF cookie on every response so the client can read it (non-httpOnly)
+app.use("*", async (c, next) => {
+  await next();
+  const existing = c.req.header("cookie")?.match(new RegExp(`${CSRF_COOKIE}=([^;]+)`));
+  if (!existing) {
+    const token = crypto.randomUUID();
+    const cookie = `${CSRF_COOKIE}=${token}; Path=/; SameSite=Strict; ${env.isProduction ? "Secure; " : ""}Max-Age=86400`;
+    c.header("set-cookie", cookie, { append: true });
+  }
+});
+// Validate CSRF on state-changing POST requests (skip webhooks, tRPC, and public API)
+app.use("/api/*", async (c, next) => {
+  if (c.req.method === "POST" && !c.req.path.includes("/webhooks/") && !c.req.path.includes("/trpc/")) {
+    const cookieToken = c.req.header("cookie")?.match(new RegExp(`${CSRF_COOKIE}=([^;]+)`))?.[1];
+    const headerToken = c.req.header(CSRF_HEADER);
+    if (!cookieToken || !headerToken || cookieToken !== headerToken) {
+      return c.json({ error: "CSRF token mismatch" }, 403);
+    }
+  }
+  await next();
+});
 
 // ── Stripe webhook (must be BEFORE bodyLimit — needs raw body) ───────────────
 registerStripeWebhook(app);

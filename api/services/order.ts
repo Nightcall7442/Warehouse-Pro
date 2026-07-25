@@ -273,6 +273,12 @@ export const OrderService = {
 
       const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
       if (items.length > 0) {
+        // Lock stock rows to prevent race conditions
+        for (const item of items) {
+          await tx.select({ id: warehouseStock.id }).from(warehouseStock)
+            .where(and(eq(warehouseStock.productId, item.productId), eq(warehouseStock.tenantId, tenantId)))
+            .for("update");
+        }
         await tx.execute(sql`
           UPDATE warehouse_stock
           SET
@@ -299,6 +305,7 @@ export const OrderService = {
       const [order] = await tx.select({
         id: orders.id, status: orders.status, shopId: orders.shopId,
         agentId: orders.agentId, total: orders.total, subtotal: orders.subtotal,
+        deliveryStatus: orders.deliveryStatus,
       }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId))).limit(1);
       if (!order) throw new Error("Заказ не найден");
 
@@ -316,20 +323,38 @@ export const OrderService = {
       const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
       if (items.length > 0) {
         if (newStatus === "completed") {
-          await tx.execute(sql`
-            UPDATE warehouse_stock
-            SET
-              current_stock = CASE ${sql.join(items.map(i =>
-                sql`WHEN product_id = ${i.productId} THEN current_stock - ${Number(i.quantity)}`
-              ), sql`\n`)} ELSE current_stock END,
-              reserved = CASE ${sql.join(items.map(i =>
-                sql`WHEN product_id = ${i.productId} THEN reserved - ${Number(i.quantity)}`
-              ), sql`\n`)} ELSE reserved END
-            WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
-              AND tenant_id = ${tenantId}
-          `);
+          // Skip stock deduction if courier already delivered (markDelivered handles it)
+          if (order.deliveryStatus !== "delivered") {
+            // Lock stock rows to prevent race conditions
+            for (const item of items) {
+              await tx.select({ id: warehouseStock.id }).from(warehouseStock)
+                .where(and(eq(warehouseStock.productId, item.productId), eq(warehouseStock.tenantId, tenantId)))
+                .for("update");
+            }
+            await tx.execute(sql`
+              UPDATE warehouse_stock
+              SET
+                current_stock = CASE ${sql.join(items.map(i =>
+                  sql`WHEN product_id = ${i.productId} THEN current_stock - ${Number(i.quantity)}`
+                ), sql`\n`)} ELSE current_stock END,
+                reserved = CASE ${sql.join(items.map(i =>
+                  sql`WHEN product_id = ${i.productId} THEN reserved - ${Number(i.quantity)}`
+                ), sql`\n`)} ELSE reserved END,
+                available = CASE ${sql.join(items.map(i =>
+                  sql`WHEN product_id = ${i.productId} THEN available + ${Number(i.quantity)}`
+                ), sql`\n`)} ELSE available END
+              WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
+                AND tenant_id = ${tenantId}
+            `);
+          }
         }
         if (newStatus === "cancelled") {
+          // Lock stock rows to prevent race conditions
+          for (const item of items) {
+            await tx.select({ id: warehouseStock.id }).from(warehouseStock)
+              .where(and(eq(warehouseStock.productId, item.productId), eq(warehouseStock.tenantId, tenantId)))
+              .for("update");
+          }
           await tx.execute(sql`
             UPDATE warehouse_stock
             SET
@@ -438,6 +463,15 @@ export const OrderService = {
         const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
         for (const item of items) {
           const qty = Number(item.quantity);
+          // Check available stock before re-reserving
+          const [stock] = await tx.select({ available: warehouseStock.available })
+            .from(warehouseStock)
+            .where(and(eq(warehouseStock.productId, item.productId), eq(warehouseStock.tenantId, tenantId)))
+            .limit(1);
+          const available = Number(stock?.available ?? 0);
+          if (available < qty) {
+            throw new Error(`Недостаточно товара на складе для восстановления (товар ID ${item.productId}: доступно ${available}, нужно ${qty})`);
+          }
           await tx.execute(sql`
             UPDATE warehouse_stock
             SET available = available - ${qty}, reserved = reserved + ${qty}

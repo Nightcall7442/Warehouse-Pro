@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { Package, Camera, X, Loader2 } from "lucide-react";
 import { PremiumSelect } from "@/components/PremiumSelect";
+import { CategoryAutocomplete } from "./CategoryAutocomplete";
 import { notify } from "@/lib/toast";
 import { COLORS, SHADOW, F, UNITS } from "./constants";
 
@@ -9,9 +10,10 @@ export interface ProductFormProps {
   onCancel: () => void;
   isPending: boolean;
   lang: string;
+  categories?: string[];
 }
 
-export function ProductForm({ onSave, onCancel, isPending, lang }: ProductFormProps) {
+export function ProductForm({ onSave, onCancel, isPending, lang, categories = [] }: ProductFormProps) {
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const [d, setD] = useState({ code: "", barcode: "", name: "", category: "", costPrice: "", unitPrice: "", unit: "pcs", unitWeight: "", reorderPoint: "10.00", description: "" });
   const [photo, setPhoto] = useState<string | null>(null);
@@ -60,7 +62,7 @@ export function ProductForm({ onSave, onCancel, isPending, lang }: ProductFormPr
           <input className="neo-input" placeholder={t("Код *", "Kod *")} value={d.code} onChange={e => setD({ ...d, code: e.target.value })} />
           <input className="neo-input" placeholder={t("Штрих-код (необязательно)", "Shtrix-kod (ixtiyoriy)")} value={d.barcode} onChange={e => setD({ ...d, barcode: e.target.value })} />
           <input className="neo-input" placeholder={t("Название *", "Nomi *")} value={d.name} onChange={e => setD({ ...d, name: e.target.value })} />
-          <input className="neo-input" placeholder={t("Категория", "Kategoriya")} value={d.category} onChange={e => setD({ ...d, category: e.target.value })} />
+          <CategoryAutocomplete value={d.category} onChange={v => setD({ ...d, category: v })} categories={categories} placeholder={t("Категория", "Kategoriya")} />
           <PremiumSelect value={d.unit} onChange={v => setD({ ...d, unit: v })}
             options={UNITS.map(u => ({ value: u.value, label: lang === "uz" ? u.uz : u.ru }))}
             width="100%" />

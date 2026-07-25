@@ -270,7 +270,8 @@ export const agentQuery = fieldSalesQuery;
 export const supervisorQuery = authedQuery.use(requireRole(["ceo", "supervisor"])).use(mutationRateLimit("supervisor", 120));
 export const merchQuery      = authedQuery.use(requireRole(["ceo", "supervisor", "merchandiser"]));
 export const courierQuery    = authedQuery.use(requireRole(["ceo", "operator", "courier"])).use(mutationRateLimit("courier", 200));
-export const reportsQuery    = authedQuery.use(requireRole(["ceo", "operator", "supervisor"]));
+export const reportsQuery    = authedQuery.use(requireRole(["ceo", "operator", "supervisor", "merchandiser"]));
+export const auditQuery      = authedQuery.use(requireRole(["ceo", "superadmin"]));
 
 // Subscription-gated variants
 export const billedQuery     = authedQuery.use(requireActiveSubscription);

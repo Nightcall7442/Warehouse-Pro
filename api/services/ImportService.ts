@@ -128,10 +128,10 @@ export const ImportService = {
           });
           success.count++;
         } catch (err: unknown) {
-          const anyErr = err as any;
-          const causeMsg = anyErr?.cause?.message || "";
-          const fullMsg = [anyErr?.message, causeMsg, anyErr?.sqlMessage].filter(Boolean).join(" | ");
-          if (causeMsg.includes("Duplicate") || fullMsg.includes("Duplicate") || fullMsg.includes("uq_product") || anyErr?.code === "ER_DUP_ENTRY") {
+          const e = err as { cause?: { message?: string }; message?: string; sqlMessage?: string; code?: string };
+          const causeMsg = e?.cause?.message || "";
+          const fullMsg = [e?.message, causeMsg, e?.sqlMessage].filter(Boolean).join(" | ");
+          if (causeMsg.includes("Duplicate") || fullMsg.includes("Duplicate") || fullMsg.includes("uq_product") || e?.code === "ER_DUP_ENTRY") {
             skipped.push(`${row.code} — уже существует`);
           } else {
             errors.push(`Строка ${row.rowNum}: ${fullMsg}`);
@@ -165,10 +165,10 @@ export const ImportService = {
         });
         success.count++;
       } catch (err: unknown) {
-        const anyErr = err as any;
-        const causeMsg = anyErr?.cause?.message || "";
-        const fullMsg = [anyErr?.message, causeMsg, anyErr?.sqlMessage].filter(Boolean).join(" | ");
-        if (causeMsg.includes("Duplicate") || fullMsg.includes("Duplicate") || anyErr?.code === "ER_DUP_ENTRY") {
+        const e = err as { cause?: { message?: string }; message?: string; sqlMessage?: string; code?: string };
+        const causeMsg = e?.cause?.message || "";
+        const fullMsg = [e?.message, causeMsg, e?.sqlMessage].filter(Boolean).join(" | ");
+        if (causeMsg.includes("Duplicate") || fullMsg.includes("Duplicate") || e?.code === "ER_DUP_ENTRY") {
           skipped.push(`${name} — уже существует`);
         } else {
           errors.push(`Строка ${rowNum}: ${fullMsg}`);

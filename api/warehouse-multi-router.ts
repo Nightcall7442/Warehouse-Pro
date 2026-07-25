@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createRouter, adminQuery, authedQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { warehouses, warehouseStock, stockTransfers, products } from "@db/schema";
-import { eq, and, like, sql, desc } from "drizzle-orm";
+import { eq, and, sql, desc } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 
 export const warehouseMultiRouter = createRouter({
@@ -77,11 +77,12 @@ export const warehouseMultiRouter = createRouter({
       const page     = input?.page ?? 1;
       const pageSize = input?.pageSize ?? 25;
       const offset   = (page - 1) * pageSize;
+      const search   = input?.search ?? "";
 
-      // Use raw SQL: show ALL products with their stock (or 0 if no warehouse_stock record)
-      const searchClause = input?.search ? `AND p.name LIKE '%${input.search.replace(/'/g, "\\'")}%'` : "";
+      // Use parameterized Drizzle sql templates to prevent SQL injection
+      const searchCondition = search ? sql`AND p.name LIKE ${"%" + search + "%"}` : sql``;
 
-      const dataQuery = sql.raw(`
+      const dataQuery = sql`
         SELECT COALESCE(ws.id, 0) AS id, p.id AS productId,
                COALESCE(ws.current_stock, '0') AS currentStock,
                COALESCE(ws.reserved, '0') AS reserved,
@@ -92,25 +93,25 @@ export const warehouseMultiRouter = createRouter({
                p.reorder_point AS reorderPoint
         FROM products p
         LEFT JOIN warehouse_stock ws ON ws.product_id = p.id AND ws.tenant_id = p.tenant_id
-        WHERE p.tenant_id = ${tenantId} AND p.status = 'active' ${searchClause}
+        WHERE p.tenant_id = ${tenantId} AND p.status = 'active' ${searchCondition}
         ORDER BY p.name
         LIMIT ${pageSize} OFFSET ${offset}
-      `);
+      `;
 
-      const countQuery = sql.raw(`
+      const countQuery = sql`
         SELECT COUNT(*) AS cnt
         FROM products p
-        WHERE p.tenant_id = ${tenantId} AND p.status = 'active' ${searchClause}
-      `);
+        WHERE p.tenant_id = ${tenantId} AND p.status = 'active' ${searchCondition}
+      `;
 
-      const summaryQuery = sql.raw(`
+      const summaryQuery = sql`
         SELECT COUNT(*) AS totalSKUs,
                COALESCE(SUM(CAST(COALESCE(ws.current_stock, '0') AS DECIMAL) * CAST(COALESCE(p.unit_weight, '0') AS DECIMAL)), 0) AS totalWeight,
                COUNT(CASE WHEN CAST(COALESCE(ws.available, '0') AS DECIMAL) < CAST(p.reorder_point AS DECIMAL) THEN 1 END) AS lowStockCount
         FROM products p
         LEFT JOIN warehouse_stock ws ON ws.product_id = p.id AND ws.tenant_id = p.tenant_id
-        WHERE p.tenant_id = ${tenantId} AND p.status = 'active' ${searchClause}
-      `);
+        WHERE p.tenant_id = ${tenantId} AND p.status = 'active' ${searchCondition}
+      `;
 
       const [dataResult, countResult, summaryResult] = await Promise.all([
         db.execute(dataQuery),
@@ -118,9 +119,9 @@ export const warehouseMultiRouter = createRouter({
         db.execute(summaryQuery),
       ]);
 
-      const data = Array.isArray((dataResult as any)[0]) ? (dataResult as any)[0] : [];
-      const total = Number(((countResult as any)[0] as any)?.cnt ?? 0);
-      const summary = Array.isArray((summaryResult as any)[0]) ? (summaryResult as any)[0] : [{}];
+      const data = Array.isArray((dataResult as unknown[][])[0]) ? (dataResult as unknown[][])[0] : [];
+      const total = Number(((countResult as unknown[][])[0] as Record<string, unknown>)?.cnt ?? 0);
+      const summary = Array.isArray((summaryResult as unknown[][])[0]) ? (summaryResult as unknown[][])[0] : [{}];
 
       return { data, total, page, pageSize, summary: summary[0] ?? {} };
     }),
@@ -214,7 +215,7 @@ export const warehouseMultiRouter = createRouter({
             eq(warehouseStock.productId, transfer.productId),
           ));
 
-        // Add to destination (upsert)
+        // Add to destination (upsert) with FOR UPDATE lock
         const [existing] = await tx.select()
           .from(warehouseStock)
           .where(and(
@@ -222,6 +223,7 @@ export const warehouseMultiRouter = createRouter({
             eq(warehouseStock.warehouseId, transfer.toWarehouseId),
             eq(warehouseStock.productId, transfer.productId),
           ))
+          .for("update")
           .limit(1);
 
         if (existing) {

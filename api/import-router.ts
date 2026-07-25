@@ -378,7 +378,7 @@ export const importRouter = createRouter({
               const [r] = await db.insert(products).values({
                 tenantId, code: row.code, name: row.name, barcode: row.barcode,
                 category: row.category, costPrice: row.costPrice, unitPrice: row.unitPrice,
-                unit: row.unit as any, unitWeight: row.unitWeight,
+                unit: (["kg", "l", "pcs", "box", "pack", "m"].includes(row.unit) ? row.unit : "pcs") as "kg" | "l" | "pcs" | "box" | "pack" | "m", unitWeight: row.unitWeight,
                 reorderPoint: row.reorderPoint, description: row.description,
                 photoUrl, status: "active",
               });
@@ -389,16 +389,16 @@ export const importRouter = createRouter({
               } catch {
                 try {
                   await db.execute(sql`INSERT INTO warehouse_stock (tenant_id, product_id, current_stock, reserved, available) VALUES (${tenantId}, ${Number(r.insertId)}, ${row.initialStock}, '0.00', ${row.initialStock})`);
-                } catch (stockErr: any) {
-                  console.error(`[IMPORT] Failed to create warehouse_stock for product ${row.code}:`, stockErr?.cause?.message || stockErr?.message || stockErr);
+                } catch (stockErr: unknown) {
+                  console.error(`[IMPORT] Failed to create warehouse_stock for product ${row.code}:`, (stockErr as { cause?: { message?: string }; message?: string })?.cause?.message ?? (stockErr as { message?: string })?.message ?? stockErr);
                 }
               }
               success++;
             } catch (err: unknown) {
-              const anyErr = err as any;
-              const causeMsg = anyErr?.cause?.message || "";
-              const fullMsg = [anyErr?.message, causeMsg, anyErr?.sqlMessage].filter(Boolean).join(" | ");
-              if (causeMsg.includes("Duplicate") || fullMsg.includes("Duplicate") || fullMsg.includes("uq_product") || anyErr?.code === "ER_DUP_ENTRY") {
+              const e = err as { cause?: { message?: string }; message?: string; sqlMessage?: string; code?: string };
+              const causeMsg = e?.cause?.message || "";
+              const fullMsg = [e?.message, causeMsg, e?.sqlMessage].filter(Boolean).join(" | ");
+              if (causeMsg.includes("Duplicate") || fullMsg.includes("Duplicate") || fullMsg.includes("uq_product") || e?.code === "ER_DUP_ENTRY") {
                 skipped.push(`${row.code} — уже существует`);
               } else {
                 errors.push(`Строка ${row.rowNum}: ${fullMsg}`);
@@ -429,10 +429,10 @@ export const importRouter = createRouter({
             });
             success++;
           } catch (err: unknown) {
-            const anyErr = err as any;
-            const causeMsg = anyErr?.cause?.message || "";
-            const fullMsg = [anyErr?.message, causeMsg, anyErr?.sqlMessage].filter(Boolean).join(" | ");
-            if (causeMsg.includes("Duplicate") || fullMsg.includes("Duplicate") || anyErr?.code === "ER_DUP_ENTRY") {
+            const e = err as { cause?: { message?: string }; message?: string; sqlMessage?: string; code?: string };
+            const causeMsg = e?.cause?.message || "";
+            const fullMsg = [e?.message, causeMsg, e?.sqlMessage].filter(Boolean).join(" | ");
+            if (causeMsg.includes("Duplicate") || fullMsg.includes("Duplicate") || e?.code === "ER_DUP_ENTRY") {
               skipped.push(`${rowNum}: магазин "${name}" — уже существует`);
             } else {
               errors.push(`Строка ${rowNum}: ${fullMsg}`);

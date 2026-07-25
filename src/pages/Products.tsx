@@ -9,6 +9,7 @@ import { ExcelImport } from "@/components/ExcelImport";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { exportToExcel, formatProductsForExport } from "@/lib/excel";
 import { ProductCard, ProductForm, ProductList, ProductFilters, KpiCard, F, COLORS } from "@/components/products";
+import { CategoryManager } from "@/components/products/CategoryManager";
 
 export default function Products() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -27,6 +28,7 @@ export default function Products() {
   const [category, setCategory] = useState<string | undefined>(undefined);
   const [showForm, setShowForm] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const navigate = useNavigate();
   const { data, isLoading } = trpc.product.list.useQuery({ page, pageSize: 25, search: search || undefined, category }) as { data: any; isLoading: boolean };
@@ -181,7 +183,7 @@ export default function Products() {
       {showImport && <ExcelImport type="products" onDone={() => { setShowImport(false); utils.product.list.invalidate(); }} onCancel={() => setShowImport(false)} />}
 
       {/* Form Section */}
-      {showForm && <ProductForm isPending={createMutation.isPending} lang={lang} onSave={d => createMutation.mutate(d)} onCancel={() => setShowForm(false)} />}
+      {showForm && <ProductForm isPending={createMutation.isPending} lang={lang} categories={(categories ?? []).map(c => String(c))} onSave={d => createMutation.mutate(d)} onCancel={() => setShowForm(false)} />}
 
       {/* KPI Cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
@@ -227,6 +229,7 @@ export default function Products() {
         onCategoryChange={v => { setCategory(v); updatePage(1); }}
         categories={(categories ?? []).map(c => String(c))}
         lang={lang}
+        onManageCategories={() => setShowCategoryManager(true)}
       />
 
       {/* Selection bar */}
@@ -325,6 +328,8 @@ export default function Products() {
           to { opacity: 1; transform: translateY(0); }
         }
       `}</style>
+
+      {showCategoryManager && <CategoryManager lang={lang} onClose={() => setShowCategoryManager(false)} />}
     </div>
   );
 }

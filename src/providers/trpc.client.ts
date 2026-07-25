@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { createTRPCReact } from "@trpc/react-query";
 import { httpBatchLink, httpLink, splitLink } from "@trpc/client";
 import { QueryClient } from "@tanstack/react-query";
@@ -41,14 +40,14 @@ export const queryClient = new QueryClient({
 });
 
 // Глобальный обработчик ошибок API — показывает toast для всех необработанных ошибок запросов
-queryClient.getQueryCache().config.onError = (error: any) => {
+queryClient.getQueryCache().config.onError = (error: Error) => {
   const raw = error?.message || "Ошибка загрузки данных";
   const msg = translateClientError(raw);
   // Не дублируем если компонент уже показал свой toast через onError callback
   console.error("[Query error]", msg);
 };
 
-queryClient.getMutationCache().config.onError = (error: any) => {
+queryClient.getMutationCache().config.onError = (error: Error) => {
   const raw = error?.message || "Ошибка сервера";
   const msg = translateClientError(raw);
   console.error("[Mutation error]", msg);

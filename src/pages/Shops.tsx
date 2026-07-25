@@ -11,6 +11,7 @@ import { useConfirm } from "@/components/ConfirmDialog";
 import {
   ShopForm, ShopStats, ShopFilters, TerritoriesGrid, ShopList, SelectionBar, CityBreadcrumb,
 } from "@/components/shops";
+import { TerritoryManager } from "@/components/shops/TerritoryManager";
 import type { ShopKpiStats } from "@/components/shops/ShopStats";
 import type { ShopCardData } from "@/components/shops/ShopCard";
 import { COLORS, SHADOW } from "@/components/shops/constants";
@@ -28,6 +29,7 @@ export default function Shops() {
   const [agentFilter, setAgentFilter] = useState<string | undefined>(undefined);
   const [showForm, setShowForm] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [showTerritoryManager, setShowTerritoryManager] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [viewMode, setViewMode] = useState<"territories" | "list">("territories");
 
@@ -36,6 +38,7 @@ export default function Shops() {
   const { data: cities } = trpc.shop.cities.useQuery();
   const { data: districts } = trpc.shop.districts.useQuery({ city });
   const { data: territories } = trpc.shop.territories.useQuery() as { data: any };
+  const { data: realTerritories } = trpc.territory.list.useQuery();
   const { data: usersData } = trpc.user.list.useQuery({ page: 1, pageSize: 100 });
   const agents = useMemo(() => (usersData?.data ?? []).filter((u: { role: string }) => u.role === "agent"), [usersData?.data]);
   const utils = trpc.useUtils();
@@ -186,10 +189,16 @@ export default function Shops() {
           <button onClick={() => setShowForm(!showForm)} className="neo-btn-primary flex items-center gap-2">
             <Plus size={16} /><span className="hidden sm:inline">{t("Добавить", "Qo'shish")}</span>
           </button>
+          <button onClick={() => setShowTerritoryManager(true)} style={{
+            display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px", fontSize: "13px", fontWeight: 500, borderRadius: "10px",
+            border: `1px solid ${COLORS.border}`, cursor: "pointer", background: COLORS.surface, color: COLORS.textSecondary,
+          }}>
+            {t("Территории", "Territoriyalar")}
+          </button>
         </div>
       </div>
 
-      {showForm && <ShopForm isPending={createMutation.isPending} lang={lang} agents={agents} onSave={d => createMutation.mutate(d)} onCancel={() => setShowForm(false)} />}
+      {showForm && <ShopForm isPending={createMutation.isPending} lang={lang} agents={agents} territories={(realTerritories ?? []) as any} onSave={d => createMutation.mutate(d)} onCancel={() => setShowForm(false)} />}
 
       {showImport && <ExcelImport type="shops" onDone={() => { setShowImport(false); utils.shop.list.invalidate(); }} onCancel={() => setShowImport(false)} />}
 
@@ -234,6 +243,8 @@ export default function Shops() {
           />
         </>
       )}
+
+      {showTerritoryManager && <TerritoryManager lang={lang} onClose={() => setShowTerritoryManager(false)} />}
     </div>
   );
 }

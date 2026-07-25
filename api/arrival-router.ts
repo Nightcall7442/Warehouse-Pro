@@ -1,8 +1,10 @@
 import { z } from "zod";
 import { createRouter, operatorQuery } from "./middleware";
-import { arrivals, arrivalItems, products, warehouseStock, warehouses } from "@db/schema";
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- kept for schema reference
+import { arrivals, arrivalItems, products, warehouseStock, warehouses, stockMovements } from "@db/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { sanitizeString } from "./lib/sanitize";
+import { sseBus } from "./lib/sse";
 
 export const arrivalRouter = createRouter({
   list: operatorQuery
@@ -53,11 +55,21 @@ export const arrivalRouter = createRouter({
       if (!arrival) return null;
 
       // Always use raw SQL for items — avoids Drizzle referencing non-existent columns
-      let items: any[];
+      let items: Array<{ id: number; productId: number; quantity: number; condition: string; notes: string; productName: string; productCode: string; costPrice: string; sellingPrice: string }>;
       try {
-        const result = await db.execute(sql`SELECT ai.id, ai.product_id AS productId, ai.quantity, ai.condition, ai.notes, p.name AS productName, p.code AS productCode FROM arrival_items ai LEFT JOIN products p ON ai.product_id = p.id WHERE ai.arrival_id = ${arrival.id}`);
-        const rows = (result as any)[0];
-        items = Array.isArray(rows) ? rows.map((r: any) => ({ ...r, costPrice: "0.00", sellingPrice: "0.00" })) : [];
+        const result = await db.execute(sql`SELECT ai.id, ai.product_id AS productId, ai.quantity, ai.condition, ai.notes, ai.cost_price AS costPrice, ai.selling_price AS sellingPrice, p.name AS productName, p.code AS productCode FROM arrival_items ai LEFT JOIN products p ON ai.product_id = p.id WHERE ai.arrival_id = ${arrival.id}`);
+        const rows = (result as unknown[][])[0];
+        items = Array.isArray(rows) ? rows.map((r: Record<string, unknown>) => ({
+          id: Number(r.id),
+          productId: Number(r.productId),
+          quantity: Number(r.quantity),
+          condition: String(r.condition ?? ""),
+          notes: String(r.notes ?? ""),
+          productName: String(r.productName ?? ""),
+          productCode: String(r.productCode ?? ""),
+          costPrice: String(r.costPrice ?? "0.00"),
+          sellingPrice: String(r.sellingPrice ?? "0.00"),
+        })) : [];
       } catch {
         items = [];
       }
@@ -108,6 +120,8 @@ export const arrivalRouter = createRouter({
               arrivalId,
               productId: item.productId,
               quantity: item.quantity,
+              costPrice: item.costPrice ?? "0.00",
+              sellingPrice: item.sellingPrice ?? "0.00",
               condition: item.condition ? sanitizeString(item.condition) : undefined,
             });
           } catch {
@@ -139,6 +153,15 @@ export const arrivalRouter = createRouter({
       const targetWarehouseId = data.warehouseId;
       delete data.warehouseId;
 
+      // Validate status transitions: completed cannot go back to pending/unloading
+      if (data.status && data.status !== "completed") {
+        const [current] = await db.select({ status: arrivals.status })
+          .from(arrivals).where(and(eq(arrivals.id, id), eq(arrivals.tenantId, tenantId))).limit(1);
+        if (current?.status === "completed") {
+          throw new Error("Нельзя изменить статус завершённого прихода");
+        }
+      }
+
       // When completing an arrival, update warehouse stock in a transaction
       if (data.status === "completed") {
         // Get arrival number for stock movement notes
@@ -151,7 +174,7 @@ export const arrivalRouter = createRouter({
           const itemsResult = await tx.execute(
             sql`SELECT ai.id, ai.arrival_id, ai.product_id, ai.quantity, ai.condition, ai.notes FROM arrival_items ai WHERE ai.arrival_id = ${id}`
           );
-          const rows = (itemsResult as any)[0];
+          const rows = (itemsResult as unknown[][])[0];
           const items = Array.isArray(rows) ? rows : [];
 
           // Use provided warehouseId, or fall back to default warehouse
@@ -187,7 +210,6 @@ export const arrivalRouter = createRouter({
 
             // Create stock movement record
             try {
-              const { stockMovements } = await import("@db/schema");
               await tx.insert(stockMovements).values({
                 tenantId, productId: item.productId,
                 type: "in", quantity: String(qty),
@@ -208,6 +230,9 @@ export const arrivalRouter = createRouter({
             await tx.update(arrivals).set(data).where(and(eq(arrivals.id, id), eq(arrivals.tenantId, tenantId)));
           }
         });
+
+        // Notify connected frontends that stock has changed
+        sseBus.emit({ type: "notification.new", tenantId, data: { type: "arrival.completed", arrivalId: id, arrivalNumber } });
 
         return { success: true };
       }
@@ -233,7 +258,7 @@ export const arrivalRouter = createRouter({
   delete: operatorQuery
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const tenantId = ctx.tenant.id;
 
       // Only allow deleting pending arrivals

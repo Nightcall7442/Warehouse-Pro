@@ -3,11 +3,13 @@ import { getDb } from "../queries/connection";
 import { tenants, users, products, orders } from "@db/schema";
 import { PLANS } from "../../contracts/constants";
 
+type DbInstance = ReturnType<typeof getDb>;
+
 /**
  * Check if a tenant has reached their plan limit for a given resource.
  */
 export async function checkPlanLimits(
-  db: any,
+  db: DbInstance,
   tenantId: number,
   resource: "users" | "products" | "orders"
 ): Promise<{ allowed: boolean; current: number; limit: number | null }> {

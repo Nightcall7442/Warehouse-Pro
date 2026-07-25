@@ -214,14 +214,43 @@ function makeMockDb() {
     delete: (ref: unknown) => ({
       where: (cond: Record<string, unknown>) => {
         const table = tableOf(ref);
+        // Always simulate FK constraint error for products table (production DB always has FKs)
+        if (table === "products") {
+          return Promise.reject({ cause: { code: "ER_ROW_IS_REFERENCED", message: "Cannot delete or update a parent row: a foreign key constraint fails" } });
+        }
         const keep = rowsFor(table).filter((r) => !evalCond(r, cond));
-        if (table === "products") productsTable = keep as unknown as FakeProduct[];
         if (table === "warehouseStock") stockTable = keep as unknown as FakeStock[];
         if (table === "orderItems") orderItemsTable = keep as unknown as FakeOrderItem[];
         return Promise.resolve();
       },
     }),
     transaction: async (fn: (tx: Record<string, unknown>) => Promise<unknown>) => fn(db),
+    // Simulate raw SQL execution for INSERT INTO warehouse_stock
+    execute: (query: { values?: unknown[]; strings?: string[] }) => {
+      const vals = query.values ?? [];
+      // The sql template tag only captures interpolated ${...} values, not literal strings.
+      // INSERT INTO warehouse_stock (...) VALUES (${tenantId}, ${warehouseId}, ${productId}, '0.00', '0.00', '0.00')
+      // → values = [tenantId, warehouseId, productId]
+      if (vals.length >= 3) {
+        const tenantId = Number(vals[0]);
+        const warehouseId = vals[1] !== undefined ? Number(vals[1]) : 1;
+        const productId = Number(vals[2]);
+        // Check if a stock row already exists for this product+warehouse
+        const existing = stockTable.find((s) => s.productId === productId && s.warehouseId === warehouseId);
+        if (existing) {
+          existing.currentStock = "0.00";
+          existing.reserved = "0.00";
+          existing.available = "0.00";
+        } else {
+          const id = nextStockId++;
+          stockTable.push({
+            id, tenantId, productId, warehouseId,
+            currentStock: "0.00", reserved: "0.00", available: "0.00",
+          });
+        }
+      }
+      return Promise.resolve();
+    },
   };
   return db;
 }

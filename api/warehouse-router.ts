@@ -229,7 +229,7 @@ export const warehouseRouter = createRouter({
           AND ws.id IS NULL
       `);
 
-      const rows = (missing as any).rows ?? missing;
+      const rows = Array.isArray(missing) ? missing : (missing as unknown[][])[0] ?? [];
       if (rows.length === 0) return { created: 0 };
 
       // Get default warehouse for tenant

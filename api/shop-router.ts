@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createRouter, operatorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { shops, users, orders, payments } from "@db/schema";
+import { shops, users, orders, payments, dailyPlans } from "@db/schema";
 import { eq, like, and, sql, desc } from "drizzle-orm";
 import { sanitizeString, sanitizeSearch } from "./lib/sanitize";
 import { PaymentService } from "./services/payment";
@@ -127,6 +127,7 @@ export const shopRouter = createRouter({
       gpsLat:   z.string().optional(),
       gpsLng:   z.string().optional(),
       agentId:  z.number().optional(),
+      territoryId: z.number().optional(),
       notes:    z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
@@ -159,6 +160,7 @@ export const shopRouter = createRouter({
       gpsLat:   z.string().optional(),
       gpsLng:   z.string().optional(),
       agentId:  z.number().optional(),
+      territoryId: z.number().nullable().optional(),
       notes:    z.string().optional(),
       status:   z.enum(["active", "inactive"]).optional(),
     }))
@@ -199,6 +201,12 @@ export const shopRouter = createRouter({
         .from(payments).where(and(eq(payments.shopId, input.id), eq(payments.tenantId, tenantId)));
       if (Number(paymentCount.count) > 0) {
         throw new Error(`Невозможно удалить магазин: связано ${paymentCount.count} платёж(ей)`);
+      }
+
+      const [planCount] = await db.select({ count: sql<number>`count(*)` })
+        .from(dailyPlans).where(and(eq(dailyPlans.shopId, input.id), eq(dailyPlans.tenantId, tenantId)));
+      if (Number(planCount.count) > 0) {
+        throw new Error(`Невозможно удалить магазин: связано ${planCount.count} план(ов) посещений`);
       }
 
       await db.delete(shops)

@@ -255,16 +255,31 @@ export const agentRouter = createRouter({
         currentLng = Number(nearest.lng) || currentLng;
       }
 
-      // Calculate total distance
+      // Calculate total distance (inter-stop distances, not from origin)
       let totalDistance = 0;
-      for (let i = 1; i < sorted.length; i++) {
-        totalDistance += sorted[i].distance;
+      let prevLat = input.currentLat;
+      let prevLng = input.currentLng;
+      let noGpsCount = 0;
+      for (let i = 0; i < sorted.length; i++) {
+        const lat = Number(sorted[i].lat);
+        const lng = Number(sorted[i].lng);
+        if (!lat || !lng) { noGpsCount++; continue; }
+        const dLat = (lat - prevLat) * Math.PI / 180;
+        const dLng = (lng - prevLng) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos(prevLat * Math.PI / 180) * Math.cos(lat * Math.PI / 180) *
+          Math.sin(dLng / 2) * Math.sin(dLng / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        totalDistance += R * c;
+        prevLat = lat;
+        prevLng = lng;
       }
 
       return {
         plans: sorted,
         totalDistance: Math.round(totalDistance * 10) / 10,
         totalStops: sorted.length,
+        noGpsCount,
       };
     }),
 
@@ -289,18 +304,48 @@ export const agentRouter = createRouter({
   saveVisitPhoto: merchVisitQuery
     .input(z.object({ planId: z.number(), photoUrl: z.string().startsWith("data:image/").max(5_000_000, "Файл слишком большой (макс. 5 МБ)"), notes: z.string().optional() }))
     .mutation(async ({ input, ctx }) => {
+      const isPrivileged = ["ceo", "supervisor", "superadmin"].includes(ctx.user.role);
+      const conditions = [
+        eq(dailyPlans.id, input.planId),
+        eq(dailyPlans.tenantId, ctx.tenant.id),
+      ];
+      // Non-privileged users can only update their own plans
+      if (!isPrivileged) {
+        conditions.push(eq(dailyPlans.agentId, ctx.user.id));
+      }
       await getDb().update(dailyPlans).set({
         status: "visited",
         photoUrl: input.photoUrl,
         notes: input.notes ?? undefined,
-      }).where(and(eq(dailyPlans.id, input.planId), eq(dailyPlans.tenantId, ctx.tenant.id)));
+      }).where(and(...conditions));
       return { success: true };
     }),
 
   createPlan: supervisorQuery
     .input(z.object({ agentId: z.number(), shopId: z.number(), planDate: z.string(), notes: z.string().optional() }))
     .mutation(async ({ input, ctx }) => {
-      const [result] = await getDb().insert(dailyPlans).values({
+      const db = getDb();
+      // Validate that agentId belongs to this tenant
+      const [agent] = await db.select({ id: users.id }).from(users)
+        .where(and(eq(users.id, input.agentId), eq(users.tenantId, ctx.tenant.id))).limit(1);
+      if (!agent) throw new Error("Агент не найден в вашем тенанте");
+
+      // Validate that shopId belongs to this tenant
+      const [shop] = await db.select({ id: shops.id }).from(shops)
+        .where(and(eq(shops.id, input.shopId), eq(shops.tenantId, ctx.tenant.id))).limit(1);
+      if (!shop) throw new Error("Магазин не найден в вашем тенанте");
+
+      // Check for duplicate plan (same agent + shop + date)
+      const [existing] = await db.select({ id: dailyPlans.id }).from(dailyPlans)
+        .where(and(
+          eq(dailyPlans.tenantId, ctx.tenant.id),
+          eq(dailyPlans.agentId, input.agentId),
+          eq(dailyPlans.shopId, input.shopId),
+          eq(dailyPlans.planDate, new Date(input.planDate)),
+        )).limit(1);
+      if (existing) throw new Error("План для этого агента и магазина на эту дату уже существует");
+
+      const [result] = await db.insert(dailyPlans).values({
         tenantId:  ctx.tenant.id,
         agentId:   input.agentId,
         shopId:    input.shopId,

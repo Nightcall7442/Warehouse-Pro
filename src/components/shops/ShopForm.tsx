@@ -4,14 +4,15 @@ import { Store, Camera, Loader2, X } from "lucide-react";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { F, COLORS, SHADOW } from "./constants";
 
-export interface ShopFormData { name: string; ownerName: string; phone: string; address: string; city: string; district: string; agentId: number | undefined; notes: string; photoUrl?: string; }
+export interface ShopFormData { name: string; ownerName: string; phone: string; address: string; city: string; district: string; agentId: number | undefined; territoryId: number | undefined; notes: string; photoUrl?: string; }
 export interface AgentOption { id: number; name: string; }
+export interface TerritoryOption { id: number; name: string; color?: string | null; }
 
-export function ShopForm({ onSave, onCancel, isPending, lang, agents }: {
-  onSave: (d: ShopFormData) => void; onCancel: () => void; isPending: boolean; lang: string; agents: AgentOption[];
+export function ShopForm({ onSave, onCancel, isPending, lang, agents, territories = [] }: {
+  onSave: (d: ShopFormData) => void; onCancel: () => void; isPending: boolean; lang: string; agents: AgentOption[]; territories?: TerritoryOption[];
 }) {
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
-  const [d, setD] = useState({ name: "", ownerName: "", phone: "", address: "", city: "", district: "", agentId: "", notes: "" });
+  const [d, setD] = useState({ name: "", ownerName: "", phone: "", address: "", city: "", district: "", agentId: "", territoryId: "", notes: "" });
   const [photo, setPhoto] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const handlePhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -68,11 +69,16 @@ export function ShopForm({ onSave, onCancel, isPending, lang, agents }: {
               options={[{ value: "", label: t("— Агент —", "— Agent —") }, ...(agents ?? []).map((a: AgentOption) => ({ value: String(a.id), label: String(a.name) }))]}
               width="100%" />
           )}
+          {territories.length > 0 && (
+            <PremiumSelect value={d.territoryId} onChange={v => setD({ ...d, territoryId: v })}
+              options={[{ value: "", label: t("— Территория —", "— Territoriya —") }, ...territories.map((ter: TerritoryOption) => ({ value: String(ter.id), label: ter.name }))]}
+              width="100%" />
+          )}
           <textarea className="neo-input resize-none" style={{ gridColumn: "span 2" }} rows={2} placeholder={t("Заметки", "Izoh")} value={d.notes} onChange={e => setD({ ...d, notes: e.target.value })} />
         </div>
       </div>
       <div style={{ display: "flex", gap: "12px", marginTop: "20px" }}>
-        <button onClick={() => d.name && onSave({ ...d, agentId: d.agentId ? Number(d.agentId) : undefined, photoUrl: photo ?? undefined } as ShopFormData)}
+        <button onClick={() => d.name && onSave({ ...d, agentId: d.agentId ? Number(d.agentId) : undefined, territoryId: d.territoryId ? Number(d.territoryId) : undefined, photoUrl: photo ?? undefined } as ShopFormData)}
           disabled={isPending} className="neo-btn-primary flex-1 sm:flex-none flex items-center justify-center gap-2">
           {isPending && <Loader2 size={14} className="animate-spin" />}{t("Сохранить", "Saqlash")}
         </button>

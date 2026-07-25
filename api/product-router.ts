@@ -280,9 +280,9 @@ export const productRouter = createRouter({
       // Try hard delete — if FK constraints block it, fall back to soft delete
       try {
         await db.delete(products).where(and(eq(products.id, input.id), eq(products.tenantId, tenantId)));
-      } catch (err: any) {
-        const code = err?.cause?.code || err?.code || "";
-        const msg = err?.cause?.message || err?.message || "";
+      } catch (err: unknown) {
+        const code = (err as { cause?: { code?: string }; code?: string })?.cause?.code ?? (err as { code?: string })?.code ?? "";
+        const msg = (err as { cause?: { message?: string }; message?: string })?.cause?.message ?? (err as { message?: string })?.message ?? "";
         // Only soft-delete if it's an FK constraint error, re-throw otherwise
         if (code === "ER_NO_REFERENCED_ROW_2" || code === "ER_ROW_IS_REFERENCED" || msg.includes("foreign key") || msg.includes("a child row")) {
           await db.update(products)
@@ -322,14 +322,14 @@ export const productRouter = createRouter({
             // Try hard delete
             const [result] = await tx.delete(products)
               .where(and(eq(products.id, id), eq(products.tenantId, tenantId)));
-            if ((result as any).affectedRows > 0) {
+            if (((result as { affectedRows?: number }).affectedRows ?? 0) > 0) {
               deleted++;
             } else {
               softDeleted++;
             }
-          } catch (err: any) {
-            const code = err?.cause?.code || err?.code || "";
-            const msg = err?.cause?.message || err?.message || "";
+          } catch (err: unknown) {
+            const code = (err as { cause?: { code?: string }; code?: string })?.cause?.code ?? (err as { code?: string })?.code ?? "";
+            const msg = (err as { cause?: { message?: string }; message?: string })?.cause?.message ?? (err as { message?: string })?.message ?? "";
             if (code === "ER_NO_REFERENCED_ROW_2" || code === "ER_ROW_IS_REFERENCED" || msg.includes("foreign key") || msg.includes("a child row")) {
               await tx.update(products)
                 .set({ status: "inactive", updatedAt: new Date() })
@@ -409,6 +409,30 @@ export const productRouter = createRouter({
     cache.set(cacheKey, cats, CacheTTL.categories);
     return cats;
   }),
+
+  renameCategory: operatorQuery
+    .input(z.object({ from: z.string().min(1), to: z.string().min(1) }))
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+      const tenantId = ctx.tenant.id;
+      await db.update(products)
+        .set({ category: sanitizeString(input.to) })
+        .where(and(eq(products.tenantId, tenantId), eq(products.category, input.from)));
+      cache.invalidatePrefix(`product_cats:${tenantId}`);
+      return { success: true };
+    }),
+
+  deleteCategory: operatorQuery
+    .input(z.object({ category: z.string().min(1) }))
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+      const tenantId = ctx.tenant.id;
+      await db.update(products)
+        .set({ category: null })
+        .where(and(eq(products.tenantId, tenantId), eq(products.category, input.category)));
+      cache.invalidatePrefix(`product_cats:${tenantId}`);
+      return { success: true };
+    }),
 
   /** Delete ALL products for this tenant — clears stock, movements, and product records */
   clearAll: operatorQuery

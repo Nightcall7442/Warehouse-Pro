@@ -1,10 +1,10 @@
 import { z } from "zod";
-import { createRouter, adminQuery, superAdminQuery } from "./middleware";
+import { createRouter, auditQuery, superAdminQuery } from "./middleware";
 import { getAuditLog, exportAuditCsv, purgeOldAuditLogs } from "./services/audit-log";
 
 export const auditRouter = createRouter({
   /** List audit log entries with extended filters */
-  list: adminQuery
+  list: auditQuery
     .input(z.object({
       action:   z.string().optional(),
       actorId:  z.number().optional(),
@@ -18,7 +18,7 @@ export const auditRouter = createRouter({
     }),
 
   /** Export audit log as CSV */
-  exportCsv: adminQuery
+  exportCsv: auditQuery
     .input(z.object({
       action:   z.string().optional(),
       actorId:  z.number().optional(),
