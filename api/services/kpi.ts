@@ -1,4 +1,4 @@
-import { sql, eq, and, gte, lte } from "drizzle-orm";
+import { sql, eq, and, gte, lte, inArray } from "drizzle-orm";
 import type { DrizzleInstance } from "../queries/connection";
 import { orders, dailyPlans, returns, shops, salesTargets, commissions, agentLocations, visitReports, users, payments } from "@db/schema";
 import { calculateFraudMetrics } from "./anti-fraud";
@@ -69,6 +69,19 @@ export interface SalaryData {
     bonus: number;
     fraudDeduction: number;
   };
+}
+
+export interface AgentListEntry {
+  agentId: number;
+  agentName: string;
+  orderCount: number;
+  revenue: number;
+  totalPlans: number;
+  visitedPlans: number;
+  kpiScore: number;
+  kpiGrade: "A" | "B" | "C" | "D" | "F";
+  suspiciousVisits: number;
+  fraudRate: number;
 }
 
 const KPI_WEIGHTS = {
@@ -449,4 +462,120 @@ function getGrade(score: number): "A" | "B" | "C" | "D" | "F" {
 function calculateBonus(kpiScore: number, revenue: number): number {
   const baseBonus = Math.round(revenue * 0.02);
   return Math.round(baseBonus * (kpiScore / 100));
+}
+
+export async function getAgentList(
+  db: DrizzleInstance,
+  tenantId: number,
+  periodStart: Date,
+  periodEnd: Date,
+): Promise<AgentListEntry[]> {
+  const agents = await db.select({ agentId: users.id, agentName: users.name })
+    .from(users)
+    .where(and(
+      eq(users.tenantId, tenantId),
+      eq(users.role, "agent"),
+      eq(users.status, "active"),
+    ));
+
+  if (agents.length === 0) return [];
+
+  const agentIds = agents.map(a => a.agentId);
+
+  const [orderRows, planRows, returnRows, fraudRows] = await Promise.all([
+    db.select({
+      agentId: orders.agentId,
+      orderCount: sql<number>`count(*)`,
+      revenue: sql<string>`COALESCE(SUM(CAST(total AS DECIMAL(10,2))), 0)`,
+    }).from(orders)
+      .where(and(
+        eq(orders.tenantId, tenantId),
+        eq(orders.status, "completed"),
+        gte(orders.createdAt, periodStart),
+        lte(orders.createdAt, periodEnd),
+        inArray(orders.agentId, agentIds),
+      )).groupBy(orders.agentId),
+
+    db.select({
+      agentId: dailyPlans.agentId,
+      totalPlans: sql<number>`count(*)`,
+      visitedPlans: sql<number>`count(CASE WHEN ${dailyPlans.status} = 'visited' THEN 1 END)`,
+    }).from(dailyPlans)
+      .where(and(
+        eq(dailyPlans.tenantId, tenantId),
+        gte(dailyPlans.planDate, periodStart),
+        lte(dailyPlans.planDate, periodEnd),
+        inArray(dailyPlans.agentId, agentIds),
+      )).groupBy(dailyPlans.agentId),
+
+    db.select({
+      agentId: returns.agentId,
+      returnCount: sql<number>`count(*)`,
+    }).from(returns)
+      .where(and(
+        eq(returns.tenantId, tenantId),
+        gte(returns.createdAt, periodStart),
+        lte(returns.createdAt, periodEnd),
+        inArray(returns.agentId, agentIds),
+      )).groupBy(returns.agentId),
+
+    db.select({
+      agentId: agentLocations.agentId,
+      gpsCount: sql<number>`count(*)`,
+    }).from(agentLocations)
+      .where(and(
+        eq(agentLocations.tenantId, tenantId),
+        gte(agentLocations.createdAt, periodStart),
+        lte(agentLocations.createdAt, periodEnd),
+        inArray(agentLocations.agentId, agentIds),
+      )).groupBy(agentLocations.agentId),
+  ]);
+
+  const orderMap = new Map(orderRows.map(r => [r.agentId, r]));
+  const planMap = new Map(planRows.map(r => [r.agentId, r]));
+  const returnMap = new Map(returnRows.map(r => [r.agentId, r]));
+  const gpsMap = new Map(fraudRows.map(r => [r.agentId, r]));
+
+  return agents.map((agent) => {
+    const orders = orderMap.get(agent.agentId);
+    const plans = planMap.get(agent.agentId);
+    const rets = returnMap.get(agent.agentId);
+    const gps = gpsMap.get(agent.agentId);
+
+    const orderCount = Number(orders?.orderCount ?? 0);
+    const revenue = Number(orders?.revenue ?? 0);
+    const totalPlans = Number(plans?.totalPlans ?? 0);
+    const visitedPlans = Number(plans?.visitedPlans ?? 0);
+    const returnCount = Number(rets?.returnCount ?? 0);
+
+    const visitCompletionRate = totalPlans > 0 ? Math.round((visitedPlans / totalPlans) * 100) : 0;
+    const returnRate = orderCount > 0 ? Math.round((returnCount / orderCount) * 100) : 0;
+    const conversion = orderCount > 0 && totalPlans > 0 ? Math.round((orderCount / totalPlans) * 100) : 0;
+    const gpsPings = Number(gps?.gpsCount ?? 0);
+
+    const suspiciousVisits = gpsPings === 0 && visitedPlans > 0 ? visitedPlans : 0;
+    const fraudRate = visitedPlans > 0 ? Math.round((suspiciousVisits / visitedPlans) * 100) : 0;
+
+    const revenueNormalized = Math.min(100, (revenue / 10_000_000) * 100);
+    const kpiScore = Math.max(0, Math.round(
+      visitCompletionRate * 0.30 +
+      revenueNormalized * 0.25 +
+      conversion * 0.20 +
+      (100 - returnRate) * 0.15 +
+      100 * 0.10
+    ));
+
+    return {
+      agentId: agent.agentId,
+      agentName: agent.agentName,
+      orderCount,
+      revenue,
+      totalPlans,
+      visitedPlans,
+      kpiScore,
+      kpiGrade: getGrade(kpiScore),
+      suspiciousVisits,
+      fraudRate,
+    };
+  });
 }

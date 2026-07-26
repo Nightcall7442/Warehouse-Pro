@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createRouter, fieldSalesQuery, supervisorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { calculateAgentKpi, calculateAllAgentsKpi, calculateSalary } from "./services/kpi";
+import { calculateAgentKpi, calculateAllAgentsKpi, calculateSalary, getAgentList } from "./services/kpi";
 import { cache, CacheTTL } from "./lib/cache";
 
 export const kpiRouter = createRouter({
@@ -39,6 +39,30 @@ export const kpiRouter = createRouter({
       const result = await calculateAllAgentsKpi(db, ctx.tenant.id, periodStart, periodEnd);
       cache.set(cacheKey, result, CacheTTL.kpis);
       return result;
+    }),
+
+  agentList: supervisorQuery
+    .input(z.object({
+      period: z.enum(["week", "month", "quarter"]).default("month"),
+    }).optional())
+    .query(async ({ input, ctx }) => {
+      const db = getDb();
+      const period = input?.period ?? "month";
+      const { periodStart, periodEnd } = getPeriod(period);
+
+      return getAgentList(db, ctx.tenant.id, periodStart, periodEnd);
+    }),
+
+  agentDetail: supervisorQuery
+    .input(z.object({
+      agentId: z.number().int().positive(),
+      period: z.enum(["week", "month", "quarter"]).default("month"),
+    }))
+    .query(async ({ input, ctx }) => {
+      const db = getDb();
+      const { periodStart, periodEnd } = getPeriod(input.period);
+
+      return calculateAgentKpi(db, input.agentId, ctx.tenant.id, periodStart, periodEnd);
     }),
 
   salary: fieldSalesQuery

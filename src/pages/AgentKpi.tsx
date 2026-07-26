@@ -23,6 +23,14 @@ interface KpiData {
   targetRevenue: number; targetProgress: number;
 }
 
+interface AgentListEntry {
+  agentId: number; agentName: string;
+  orderCount: number; revenue: number;
+  totalPlans: number; visitedPlans: number;
+  kpiScore: number; kpiGrade: string;
+  suspiciousVisits: number; fraudRate: number;
+}
+
 interface SalaryData {
   agentId: number; agentName: string; period: string;
   baseSalary: number; commissionRate: number; salesAmount: number;
@@ -54,19 +62,28 @@ export default function AgentKpi() {
   const isSupervisor = user?.role === "ceo" || user?.role === "operator" || user?.role === "supervisor";
 
   const { data: myKpi, isLoading: myLoading } = trpc.kpi.agentKpi.useQuery({ period }, { enabled: !isSupervisor });
-  const { data: allKpi, isLoading: allLoading } = trpc.kpi.supervisorKpi.useQuery({ period }, { enabled: isSupervisor });
-  const { data: salaryReport } = trpc.kpi.salaryReport.useQuery({ period }, { enabled: isSupervisor });
+  const { data: agentList, isLoading: listLoading } = trpc.kpi.agentList.useQuery({ period }, { enabled: isSupervisor });
   const { data: mySalary } = trpc.kpi.salary.useQuery({ period }, { enabled: !isSupervisor });
 
-  const isLoading = isSupervisor ? allLoading : myLoading;
+  const [selectedAgentId, setSelectedAgentId] = useState<number | null>(null);
+  const { data: selectedKpi, isLoading: detailLoading } = trpc.kpi.agentDetail.useQuery(
+    { agentId: selectedAgentId!, period },
+    { enabled: isSupervisor && selectedAgentId !== null },
+  );
+  const { data: selectedSalary } = trpc.kpi.salary.useQuery(
+    { period },
+    { enabled: isSupervisor && selectedAgentId !== null },
+  );
+
+  const allKpi = agentList ?? [];
+  const isLoading = isSupervisor ? listLoading : myLoading;
 
   const handleExport = useCallback(async () => {
     if (!isSupervisor || !allKpi) return;
     const rows = allKpi.map((a, i) => ({
       "#": i + 1, "Агент": a.agentName, "Балл": a.kpiScore, "Грейд": a.kpiGrade,
-      "Заказы": a.orderCount, "Выручка": a.revenue, "Средний чек": a.avgOrderValue,
+      "Заказы": a.orderCount, "Выручка": a.revenue,
       "Визиты": `${a.visitedPlans}/${a.totalPlans}`, "Фрод %": a.fraudRate,
-      "Таргет": a.targetRevenue, "Прогресс %": a.targetProgress,
     }));
     await exportToExcel(rows, `kpi-agents-${period}`, "KPI Агентов", `KPI ${period}`);
   }, [allKpi, isSupervisor, period]);
@@ -103,7 +120,7 @@ export default function AgentKpi() {
           <div className="w-8 h-8 rounded-full border-3 border-[var(--color-border)] border-t-[#5b6d8a] animate-spin" />
         </div>
       ) : isSupervisor ? (
-        <SupervisorView kpi={allKpi ?? []} salaries={salaryReport ?? []} fmt={fmt} t={t} lang={lang} />
+        <SupervisorView kpi={allKpi} selectedKpi={selectedKpi ?? null} selectedSalary={selectedSalary} detailLoading={detailLoading} onSelect={setSelectedAgentId} selectedAgentId={selectedAgentId} fmt={fmt} t={t} lang={lang} />
       ) : myKpi ? (
         <AgentView kpi={myKpi} salary={mySalary} fmt={fmt} t={t} lang={lang} />
       ) : null}
@@ -273,21 +290,26 @@ function SalarySection({ salary, fmt, t }: { salary: SalaryData; fmt: (v: number
 
 // ── Supervisor View ───────────────────────────────────────────────────────────
 
-function SupervisorView({ kpi, salaries, fmt, t, lang }: { kpi: KpiData[]; salaries: SalaryData[]; fmt: (v: number) => string; t: (r: string, u: string) => string; lang: string }) {
-  const [selected, setSelected] = useState<number | null>(null);
+function SupervisorView({ kpi, selectedKpi, selectedSalary, detailLoading, onSelect, selectedAgentId, fmt, t, lang }: {
+  kpi: AgentListEntry[];
+  selectedKpi: KpiData | null;
+  selectedSalary?: SalaryData;
+  detailLoading: boolean;
+  onSelect: (id: number | null) => void;
+  selectedAgentId: number | null;
+  fmt: (v: number) => string;
+  t: (r: string, u: string) => string;
+  lang: string;
+}) {
   const [showSalaryConfig, setShowSalaryConfig] = useState(false);
   const [territoryFilter, setTerritoryFilter] = useState<string>("all");
   const { data: territories } = trpc.territory.list.useQuery();
-
-  const selectedKpi = selected ? kpi.find(a => a.agentId === selected) : null;
-  const selectedSalary = selected ? salaries.find(s => s.agentId === selected) : null;
 
   const filteredKpi = territoryFilter === "all" ? kpi : kpi.filter(() => true);
 
   const totalRevenue = filteredKpi.reduce((s, k) => s + k.revenue, 0);
   const totalOrders = filteredKpi.reduce((s, k) => s + k.orderCount, 0);
   const totalVisits = filteredKpi.reduce((s, k) => s + k.visitedPlans, 0);
-  const totalSalary = salaries.reduce((s, r) => s + r.totalSalary, 0);
   const avgScore = filteredKpi.length > 0 ? Math.round(filteredKpi.reduce((s, k) => s + k.kpiScore, 0) / filteredKpi.length) : 0;
   const suspiciousTotal = filteredKpi.reduce((s, k) => s + k.suspiciousVisits, 0);
 
@@ -316,7 +338,7 @@ function SupervisorView({ kpi, salaries, fmt, t, lang }: { kpi: KpiData[]; salar
         <KpiHero label={t("Выручка", "Tushum")} value={fmt(totalRevenue)} color="#34c473" progress={Math.min(1, totalRevenue / 10_000_000)} icon={<DollarSign size={20} color="#34c473" />} />
         <KpiHero label={t("Заказы", "Buyurtma")} value={String(totalOrders)} color="#5b6d8a" progress={Math.min(1, totalOrders / 500)} icon={<ShoppingCart size={20} color="#5b6d8a" />} />
         <KpiHero label={t("Визиты", "Tashrif")} value={String(totalVisits)} color="#d4973a" progress={Math.min(1, totalVisits / 200)} icon={<MapPin size={20} color="#d4973a" />} />
-        <KpiHero label={t("ФОТ", "Oylik")} value={fmt(totalSalary)} color="#d4973a" progress={Math.min(1, totalSalary / 5_000_000)} icon={<DollarSign size={20} color="#d4973a" />} />
+        <KpiHero label={t("Фрод", "Frod")} value={String(suspiciousTotal)} color="#d45050" progress={Math.min(1, suspiciousTotal / 20)} icon={<AlertTriangle size={20} color="#d45050" />} />
       </div>
 
       {suspiciousTotal > 0 && (
@@ -346,7 +368,7 @@ function SupervisorView({ kpi, salaries, fmt, t, lang }: { kpi: KpiData[]; salar
           <table className="w-full text-sm">
             <thead>
               <tr style={{ background: "var(--color-surface-light)" }}>
-                {["", t("Агент", "Agent"), t("Балл", "Ball"), t("Заказы", "Buyurtma"), t("Выручка", "Tushum"), t("Визиты", "Tashrif"), t("Фрод", "Frod"), t("Зарплата", "Oylik")].map((h, i) => (
+                {["", t("Агент", "Agent"), t("Балл", "Ball"), t("Заказы", "Buyurtma"), t("Выручка", "Tushum"), t("Визиты", "Tashrif"), t("Фрод", "Frod")].map((h, i) => (
                   <th key={i} className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider" style={{ color: COLORS.textTertiary }}>{h}</th>
                 ))}
               </tr>
@@ -354,11 +376,10 @@ function SupervisorView({ kpi, salaries, fmt, t, lang }: { kpi: KpiData[]; salar
             <tbody>
               {filteredKpi.map((a, i) => {
                 const grade = GRADES[a.kpiGrade] ?? GRADES.F;
-                const salary = salaries.find(s => s.agentId === a.agentId);
                 return (
-                  <tr key={a.agentId} onClick={() => setSelected(selected === a.agentId ? null : a.agentId)}
+                  <tr key={a.agentId} onClick={() => onSelect(selectedAgentId === a.agentId ? null : a.agentId)}
                     className="cursor-pointer transition-all hover:bg-[var(--color-surface-light)]"
-                    style={{ borderBottom: "1px solid var(--color-border)", background: selected === a.agentId ? "var(--color-surface-light)" : "transparent" }}>
+                    style={{ borderBottom: "1px solid var(--color-border)", background: selectedAgentId === a.agentId ? "var(--color-surface-light)" : "transparent" }}>
                     <td className="px-3 py-2.5">
                       <div className="w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-bold"
                         style={{ background: i < 3 ? ["#d4973a", "#9ca3af", "#cd7f32"][i] : "var(--color-surface-light)", color: i < 3 ? "#fff" : COLORS.textSecondary }}>
@@ -375,7 +396,6 @@ function SupervisorView({ kpi, salaries, fmt, t, lang }: { kpi: KpiData[]; salar
                         <span className="px-2 py-0.5 rounded text-xs font-bold" style={{ background: "rgba(212,80,80,.10)", color: "#d45050" }}>{a.suspiciousVisits} ({a.fraudRate}%)</span>
                       ) : <span className="text-xs" style={{ color: COLORS.textTertiary }}>✓</span>}
                     </td>
-                    <td className="px-3 py-2.5 font-semibold" style={{ color: COLORS.textPrimary }}>{fmt(salary?.totalSalary ?? 0)}</td>
                   </tr>
                 );
               })}
@@ -384,6 +404,11 @@ function SupervisorView({ kpi, salaries, fmt, t, lang }: { kpi: KpiData[]; salar
         </div>
       </div>
 
+      {detailLoading && (
+        <div className="flex items-center justify-center py-8">
+          <div className="w-6 h-6 rounded-full border-2 border-[var(--color-border)] border-t-[#5b6d8a] animate-spin" />
+        </div>
+      )}
       {selectedKpi && <AgentView kpi={selectedKpi} salary={selectedSalary} fmt={fmt} t={t} lang={lang} />}
     </>
   );
