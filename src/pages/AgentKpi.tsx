@@ -7,7 +7,7 @@ import { COLORS, F } from "@/components/products/constants";
 import { exportToExcel } from "@/lib/excel";
 import { Settings, Loader2, FileDown, Target, ShoppingCart, DollarSign, Users, Package, Star, MapPin, AlertTriangle } from "lucide-react";
 import { ProgressRing } from "@/components/ProgressRing";
-import { RadarChart, PolarGrid, PolarAngleAxis, Radar } from "recharts";
+import { RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer } from "recharts";
 
 interface KpiData {
   agentId: number; agentName: string; period: string;

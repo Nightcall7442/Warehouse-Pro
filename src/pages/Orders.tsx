@@ -426,11 +426,11 @@ export default function Orders() {
                       style={{
                         borderBottom: `1px solid ${COLORS.border}`,
                         cursor: "pointer", transition: "background 0.15s",
-                        opacity: (o as { deletedAt: Date | null }).deletedAt ? 0.5 : 1,
-                        background: (o as { deletedAt: Date | null }).deletedAt ? `${COLORS.danger}08` : "transparent",
+                        opacity: o.deletedAt ? 0.5 : 1,
+                        background: o.deletedAt ? `${COLORS.danger}08` : "transparent",
                       }}
                       onMouseEnter={e => (e.currentTarget.style.background = `${COLORS.surfaceLight}80`)}
-                      onMouseLeave={e => (e.currentTarget.style.background = (o as { deletedAt: Date | null }).deletedAt ? `${COLORS.danger}08` : "transparent")}
+                      onMouseLeave={e => (e.currentTarget.style.background = o.deletedAt ? `${COLORS.danger}08` : "transparent")}
                       onClick={() => navigate(`/orders/${o.id}`)}
                     >
                       <td style={{ padding: "14px 16px", fontFamily: F.display, fontSize: "13px", fontWeight: 600, color: COLORS.primary }}>{o.orderNumber}</td>
@@ -456,7 +456,7 @@ export default function Orders() {
                         <StatusBadge status={o.status} lang={lang} />
                       </td>
                       <td style={{ padding: "14px 16px" }} onClick={e => e.stopPropagation()}>
-                        {(o as { deletedAt: Date | null }).deletedAt ? (
+                        {o.deletedAt ? (
                           isCeo && (
                             <button
                               onClick={() => restoreOrder.mutate({ id: o.id })}
