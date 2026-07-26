@@ -1,6 +1,6 @@
 import { sql, eq, and, gte, lte } from "drizzle-orm";
 import type { DrizzleInstance } from "../queries/connection";
-import { orders, dailyPlans, returns, shops, salesTargets, commissions, agentLocations, visitReports, users } from "@db/schema";
+import { orders, dailyPlans, returns, shops, salesTargets, commissions, agentLocations, visitReports, users, payments } from "@db/schema";
 import { calculateFraudMetrics } from "./anti-fraud";
 
 export interface AgentKpiData {
