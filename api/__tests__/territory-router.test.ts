@@ -296,3 +296,51 @@ describe("territory.getShops", () => {
     expect(result.every((s: any) => s.name !== "Inactive")).toBe(true);
   });
 });
+
+describe("territory.delete — cascading", () => {
+  it("nullifies territoryId on all shops referencing deleted territory", async () => {
+    const { territoryRouter } = await import("../territory-router");
+    const caller = territoryRouter.createCaller(makeCtx(1, 1, "supervisor"));
+
+    const shopBefore = shopsTable.find(s => s.id === 1)!;
+    expect(shopBefore.territoryId).toBe(1);
+
+    await caller.delete({ id: 1 });
+
+    const shopAfter = shopsTable.find(s => s.id === 1)!;
+    expect(shopAfter.territoryId).toBeNull();
+  });
+
+  it("does not affect shops in other territories", async () => {
+    const { territoryRouter } = await import("../territory-router");
+    const caller = territoryRouter.createCaller(makeCtx(1, 1, "supervisor"));
+
+    await caller.delete({ id: 1 });
+
+    const shop2 = shopsTable.find(s => s.id === 2)!;
+    expect(shop2.territoryId).toBe(2);
+  });
+
+  it("does not affect shops with null territoryId", async () => {
+    const { territoryRouter } = await import("../territory-router");
+    const caller = territoryRouter.createCaller(makeCtx(1, 1, "supervisor"));
+
+    const shop3 = shopsTable.find(s => s.id === 3)!;
+    expect(shop3.territoryId).toBeNull();
+
+    await caller.delete({ id: 1 });
+
+    const shop3After = shopsTable.find(s => s.id === 3)!;
+    expect(shop3After.territoryId).toBeNull();
+  });
+});
+
+describe("territory.getShops — filtering", () => {
+  it("only returns shops belonging to current tenant", async () => {
+    shopsTable.push({ id: 99, tenantId: 999, name: "Other Tenant Shop", city: "X", address: "Y", status: "active", territoryId: 1 });
+    const { territoryRouter } = await import("../territory-router");
+    const caller = territoryRouter.createCaller(makeCtx(1, 10));
+    const result = await caller.getShops({ territoryId: 1 }) as any;
+    expect(result.every((s: any) => s.tenantId !== 999)).toBe(true);
+  });
+});

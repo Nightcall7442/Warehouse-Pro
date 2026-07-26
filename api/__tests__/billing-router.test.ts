@@ -464,3 +464,70 @@ describe("billing.requestUpgrade", () => {
     expect(result.success).toBe(true);
   });
 });
+
+describe("billing.status — usage limits", () => {
+  it("returns basic plan limits from PLANS constant", async () => {
+    const { billingRouter } = await import("../billing-router");
+    const caller = billingRouter.createCaller(makeCtx(1, 10));
+    const result = await caller.status();
+    expect(result.limits.maxUsers).toBe(5);
+    expect(result.limits.maxProducts).toBe(50);
+    expect(result.limits.maxOrdersMonth).toBeNull();
+  });
+
+  it("returns exclusive plan limits (all null/unlimited)", async () => {
+    tenantsTable[0].plan = "exclusive";
+    const { billingRouter } = await import("../billing-router");
+    const caller = billingRouter.createCaller(makeCtx(1, 10));
+    const result = await caller.status();
+    expect(result.limits.maxUsers).toBeNull();
+    expect(result.limits.maxProducts).toBeNull();
+    expect(result.limits.maxOrdersMonth).toBeNull();
+  });
+
+  it("returns pro plan limits from PLANS constant", async () => {
+    tenantsTable[0].plan = "pro";
+    const { billingRouter } = await import("../billing-router");
+    const caller = billingRouter.createCaller(makeCtx(1, 10));
+    const result = await caller.status();
+    expect(result.limits.maxUsers).toBe(20);
+    expect(result.limits.maxProducts).toBe(100);
+  });
+});
+
+describe("billing.status — plan comparison", () => {
+  it("returns correct price for pro plan", async () => {
+    tenantsTable[0].plan = "pro";
+    tenantsTable[0].trialEndsAt = null;
+    tenantsTable[0].planExpiresAt = new Date(Date.now() + 30 * 86_400_000);
+
+    const { billingRouter } = await import("../billing-router");
+    const caller = billingRouter.createCaller(makeCtx(1, 10));
+    const result = await caller.status();
+    expect(result.plan).toBe("pro");
+    expect(result.price).toBe(599000);
+  });
+
+  it("returns correct price for exclusive plan", async () => {
+    tenantsTable[0].plan = "exclusive";
+    tenantsTable[0].trialEndsAt = null;
+    tenantsTable[0].planExpiresAt = new Date(Date.now() + 30 * 86_400_000);
+
+    const { billingRouter } = await import("../billing-router");
+    const caller = billingRouter.createCaller(makeCtx(1, 10));
+    const result = await caller.status();
+    expect(result.plan).toBe("exclusive");
+    expect(result.price).toBe(1_299_000);
+  });
+
+  it("pro plan has higher limits than basic", async () => {
+    tenantsTable[0].plan = "pro";
+
+    const { billingRouter } = await import("../billing-router");
+    const caller = billingRouter.createCaller(makeCtx(1, 10));
+    const result = await caller.status();
+    const basicPlan = result.plans.find((p: any) => p.key === "basic");
+    const proPlan = result.plans.find((p: any) => p.key === "pro");
+    expect(proPlan.maxUsers).toBeGreaterThanOrEqual(basicPlan.maxUsers);
+  });
+});

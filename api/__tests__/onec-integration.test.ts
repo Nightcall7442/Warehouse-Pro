@@ -104,3 +104,69 @@ describe('1C Integration', () => {
     });
   });
 });
+
+describe('1C Edge Cases', () => {
+  describe('Transform — edge cases', () => {
+    it('normalizes money strings correctly', async () => {
+      const { normalizeMoney } = await import('../services/onec-transform');
+      expect(normalizeMoney("1500.5")).toBe("1500.50");
+      expect(normalizeMoney("0")).toBe("0.00");
+    });
+
+    it('maps Russian units to English', async () => {
+      const { mapUnit } = await import('../services/onec-transform');
+      expect(mapUnit("шт")).toBe("pcs");
+      expect(mapUnit("кг")).toBe("kg");
+      expect(mapUnit("л")).toBe("l");
+      expect(mapUnit("м")).toBe("m");
+      expect(mapUnit("ящ")).toBe("box");
+      expect(mapUnit("уп")).toBe("pack");
+      expect(mapUnit("unknown")).toBe("pcs");
+    });
+
+    it('sanitizeText removes control characters but preserves text', async () => {
+      const { sanitizeText } = await import('../services/onec-transform');
+      const result = sanitizeText("Hello\x00World");
+      expect(result).toBe("HelloWorld");
+      expect(sanitizeText("Normal text")).toBe("Normal text");
+    });
+
+    it('from1CDate parses date string', async () => {
+      const { from1CDate } = await import('../services/onec-transform');
+      const result = from1CDate("2025-01-15");
+      expect(result).toBeInstanceOf(Date);
+      expect(result.getFullYear()).toBe(2025);
+    });
+
+    it('to1CDate returns ISO-like format', async () => {
+      const { to1CDate } = await import('../services/onec-transform');
+      const result = to1CDate(new Date("2025-01-15T00:00:00Z"));
+      expect(result).toContain("2025");
+      expect(result).toContain("01");
+      expect(result).toContain("15");
+    });
+  });
+
+  describe('Mapper — edge cases', () => {
+    it('upsert creates new mapping when none exists', async () => {
+      const { OneCMapper } = await import('../services/onec-mapper');
+      (OneCMapper.getInternalId as any).mockResolvedValueOnce(null);
+      await OneCMapper.upsert({} as any, 1, 'product', 'ext-uuid', 42);
+      expect(OneCMapper.upsert).toHaveBeenCalled();
+    });
+
+    it('upsert updates existing mapping', async () => {
+      const { OneCMapper } = await import('../services/onec-mapper');
+      (OneCMapper.getInternalId as any).mockResolvedValueOnce(42);
+      await OneCMapper.upsert({} as any, 1, 'product', 'ext-uuid', 42);
+      expect(OneCMapper.upsert).toHaveBeenCalled();
+    });
+
+    it('getAll returns empty array for tenant with no mappings', async () => {
+      const { OneCMapper } = await import('../services/onec-mapper');
+      (OneCMapper.getAll as any).mockResolvedValueOnce([]);
+      const result = await OneCMapper.getAll({} as any, 1, 'product');
+      expect(result).toHaveLength(0);
+    });
+  });
+});

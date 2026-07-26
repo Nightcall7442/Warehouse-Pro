@@ -35,6 +35,7 @@ vi.mock("drizzle-orm", () => {
     eq:  (col: unknown, val: unknown) => ({ __kind: "eq", col, val }),
     and: (...conds: unknown[]) => ({ __kind: "and", conds }),
     desc: (col: unknown) => ({ __kind: "desc", col }),
+    isNull: (col: unknown) => ({ __kind: "isNull", col }),
     sql: sqlFn,
   };
 });
@@ -47,7 +48,7 @@ vi.mock("../telegram-router", () => ({
 import { orders, orderItems, warehouseStock, products, warehouses } from "@db/schema";
 
 // ── Fake in-memory tables ─────────────────────────────────────────────────────
-interface FakeOrder { id: number; tenantId: number; agentId: number; shopId: number; status: string; }
+interface FakeOrder { id: number; tenantId: number; agentId: number; shopId: number; status: string; deletedAt: Date | null; }
 interface FakeOrderItem { id: number; orderId: number; productId: number; quantity: string; }
 interface FakeStock { productId: number; tenantId: number; currentStock: string; reserved: string; available: string; }
 interface FakeProduct { id: number; tenantId: number; name: string; unitPrice: string; status: string; }
@@ -115,6 +116,10 @@ function evalCond(row: unknown, cond: unknown): boolean {
   if (c.__kind === "eq") {
     const fieldName = columnToFieldName.get(c.col) ?? (c.col as Record<string, unknown>)?.name ?? c.col;
     return r[fieldName as string] === c.val || String(r[fieldName as string]) === String(c.val);
+  }
+  if (c.__kind === "isNull") {
+    const fieldName = columnToFieldName.get(c.col) ?? (c.col as Record<string, unknown>)?.name ?? c.col;
+    return r[fieldName as string] === null || r[fieldName as string] === undefined;
   }
   return true;
 }
@@ -205,13 +210,28 @@ function makeMockDb() {
       const fullSql = s.strings.join("");
       if (!fullSql.includes("UPDATE warehouse_stock")) return Promise.resolve();
 
-      // Parse the batch CASE/WHEN query
-      // Create pattern: reserved = reserved + CASE ... / available = available - CASE ...
-      // Cancel pattern: reserved = CASE ... ELSE reserved END / available = CASE ... ELSE available END
+      // Simple pattern: SET available = available - X, reserved = reserved + X WHERE product_id = Y AND tenant_id = Z
+      // Note: qty appears twice in the SQL (available - qty, reserved + qty), so numericValues may be [qty, qty, productId, tenantId]
+      if (fullSql.includes("available = available -") && fullSql.includes("reserved = reserved +") && !fullSql.includes("CASE")) {
+        const numericValues = s.values.filter(v => typeof v === "number");
+        if (numericValues.length >= 3) {
+          const qty = numericValues[0];
+          const offset = numericValues.length >= 4 ? 2 : 1;
+          const productId = numericValues[offset];
+          const tenantId = numericValues[offset + 1];
+          for (const row of stockTable) {
+            if (row.productId === productId && row.tenantId === tenantId) {
+              row.available = (Number(row.available) - qty).toFixed(2);
+              row.reserved = (Number(row.reserved) + qty).toFixed(2);
+            }
+          }
+        }
+        return Promise.resolve();
+      }
 
+      // Parse the batch CASE/WHEN query
       const updates: Array<{ productId: number; field: string; op: string; amount: number }> = [];
 
-      // Detect pattern
       const isCreatePattern = fullSql.includes("reserved = reserved +") || fullSql.includes("available = available -");
       const isCompletePattern = fullSql.includes("current_stock = CASE") && !fullSql.includes("reserved = reserved +");
 
@@ -414,5 +434,95 @@ describe("order.updateStatus — no double-apply on stock", () => {
 
     const stock = stockTable.find(s => s.productId === 1)!;
     expect(stock.available).toBe("100.00");
+  });
+});
+
+describe("order.delete — soft delete with stock release", () => {
+  it("releases stock when deleting a new order", async () => {
+    const { orderRouter } = await import("../order-router");
+    const caller = orderRouter.createCaller(makeCtx(1, 10, "agent"));
+    const opCaller = orderRouter.createCaller(makeCtx(1, 1, "operator"));
+
+    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 15, unitPrice: 100 }] });
+    expect(stockTable.find(s => s.productId === 1)!.reserved).toBe("15.00");
+
+    await opCaller.delete({ id: 1 });
+
+    const stock = stockTable.find(s => s.productId === 1)!;
+    expect(stock.reserved).toBe("0.00");
+    expect(stock.available).toBe("100.00");
+    expect(stock.currentStock).toBe("100.00");
+  });
+
+  it("does not double-release if order was already cancelled", async () => {
+    const { orderRouter } = await import("../order-router");
+    const caller = orderRouter.createCaller(makeCtx(1, 10, "agent"));
+    const opCaller = orderRouter.createCaller(makeCtx(1, 1, "operator"));
+
+    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 10, unitPrice: 100 }] });
+    await opCaller.cancel({ id: 1 });
+    await opCaller.delete({ id: 1 });
+
+    const stock = stockTable.find(s => s.productId === 1)!;
+    expect(stock.available).toBe("100.00");
+  });
+});
+
+describe("order.restore — restore soft-deleted order", () => {
+  it("restores a deleted order and re-reserves stock", async () => {
+    const { orderRouter } = await import("../order-router");
+    const caller = orderRouter.createCaller(makeCtx(1, 10, "agent"));
+    const opCaller = orderRouter.createCaller(makeCtx(1, 1, "operator"));
+
+    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 10, unitPrice: 100 }] });
+    await opCaller.delete({ id: 1 });
+
+    const stockBefore = stockTable.find(s => s.productId === 1)!;
+    expect(stockBefore.reserved).toBe("0.00");
+
+    await opCaller.restore({ id: 1 });
+
+    const stockAfter = stockTable.find(s => s.productId === 1)!;
+    expect(stockAfter.reserved).toBe("10.00");
+    expect(stockAfter.available).toBe("90.00");
+  });
+});
+
+describe("order.create — multi-product reservation", () => {
+  it("reserves stock for multiple products in a single order", async () => {
+    const { orderRouter } = await import("../order-router");
+    const caller = orderRouter.createCaller(makeCtx(1, 10, "agent"));
+
+    await caller.create({
+      shopId: 1,
+      items: [
+        { productId: 1, quantity: 5, unitPrice: 100 },
+        { productId: 2, quantity: 3, unitPrice: 50 },
+      ],
+    });
+
+    const stock1 = stockTable.find(s => s.productId === 1)!;
+    const stock2 = stockTable.find(s => s.productId === 2)!;
+    expect(stock1.reserved).toBe("5.00");
+    expect(stock1.available).toBe("95.00");
+    expect(stock2.reserved).toBe("3.00");
+    expect(stock2.available).toBe("2.00");
+  });
+
+  it("rejects entire order if any single product exceeds available", async () => {
+    const { orderRouter } = await import("../order-router");
+    const caller = orderRouter.createCaller(makeCtx(1, 10, "agent"));
+
+    await expect(caller.create({
+      shopId: 1,
+      items: [
+        { productId: 1, quantity: 5, unitPrice: 100 },
+        { productId: 2, quantity: 50, unitPrice: 50 },
+      ],
+    })).rejects.toThrow(/Недостаточно товара/);
+
+    expect(stockTable.find(s => s.productId === 1)!.reserved).toBe("0.00");
+    expect(stockTable.find(s => s.productId === 2)!.reserved).toBe("0.00");
+    expect(ordersTable).toHaveLength(0);
   });
 });
