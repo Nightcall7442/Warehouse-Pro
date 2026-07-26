@@ -1,4 +1,4 @@
-import { sql, eq, and, gte, lte, inArray } from "drizzle-orm";
+import { sql, eq, and, gte, lte, inArray, isNull } from "drizzle-orm";
 import type { DrizzleInstance } from "../queries/connection";
 import { orders, dailyPlans, returns, shops, salesTargets, commissions, agentLocations, visitReports, users, payments } from "@db/schema";
 import { calculateFraudMetrics } from "./anti-fraud";
@@ -133,12 +133,29 @@ export async function calculateAgentKpi(
       eq(orders.tenantId, tenantId),
       eq(orders.agentId, agentId),
       eq(orders.status, "completed"),
+      isNull(orders.deletedAt),
       gte(orders.createdAt, periodStart),
       lte(orders.createdAt, periodEnd),
     ));
 
   const orderCount = Number(orderStats?.count ?? 0);
-  const revenue = Number(orderStats?.revenue ?? 0);
+  const grossRevenue = Number(orderStats?.revenue ?? 0);
+
+  // Subtract completed returns from revenue so commission/KPI reflect net sales
+  const [returnRevenue] = await db.select({
+    total: sql<string>`COALESCE(SUM(${returns.totalAmount}), 0)`,
+  }).from(returns)
+    .innerJoin(orders, eq(returns.orderId, orders.id))
+    .where(and(
+      eq(returns.tenantId, tenantId),
+      eq(orders.agentId, agentId),
+      eq(returns.status, "completed"),
+      isNull(orders.deletedAt),
+      gte(orders.createdAt, periodStart),
+      lte(orders.createdAt, periodEnd),
+    ));
+
+  const revenue = Math.max(0, grossRevenue - Number(returnRevenue?.total ?? 0));
   const avgOrderValue = orderCount > 0 ? Math.round(revenue / orderCount) : 0;
 
   const [returnStats] = preloadedKpis?.returnCount != null ? [{ count: preloadedKpis.returnCount }] : await db.select({
@@ -353,11 +370,25 @@ export async function calculateSalary(
       eq(orders.tenantId, tenantId),
       eq(orders.agentId, agentId),
       eq(orders.status, "completed"),
+      isNull(orders.deletedAt),
       gte(orders.createdAt, periodStart),
       lte(orders.createdAt, periodEnd),
     ));
 
-  const salesAmount = Number(salesStats?.salesAmount ?? 0);
+  const [returnSales] = await db.select({
+    total: sql<string>`COALESCE(SUM(${returns.totalAmount}), 0)`,
+  }).from(returns)
+    .innerJoin(orders, eq(returns.orderId, orders.id))
+    .where(and(
+      eq(returns.tenantId, tenantId),
+      eq(orders.agentId, agentId),
+      eq(returns.status, "completed"),
+      isNull(orders.deletedAt),
+      gte(orders.createdAt, periodStart),
+      lte(orders.createdAt, periodEnd),
+    ));
+
+  const salesAmount = Math.max(0, Number(salesStats?.salesAmount ?? 0) - Number(returnSales?.total ?? 0));
   const commissionAmount = Number((salesAmount * (commissionRate / 100)).toFixed(2));
 
   const kpi = preloadedKpi ?? await calculateAgentKpi(db, agentId, tenantId, periodStart, periodEnd);

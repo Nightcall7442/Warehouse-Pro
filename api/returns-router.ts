@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createRouter, fieldSalesQuery, operatorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { returns, returnItems, orderItems, shops, users, products, warehouseStock } from "@db/schema";
+import { returns, returnItems, orderItems, shops, users, products, orders, warehouseStock } from "@db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { cache, CacheKeys } from "./lib/cache";
 import { sanitizeString } from "./lib/sanitize";
@@ -124,13 +124,25 @@ export const returnsRouter = createRouter({
           .where(and(eq(orderItems.orderId, input.orderId)))
           .leftJoin(products, eq(orderItems.productId, products.id));
 
+        // Sum quantities already returned for this order
+        const existingReturns = await db.select({
+          productId: returnItems.productId,
+          totalReturned: sql<string>`COALESCE(SUM(${returnItems.quantity}), 0)`,
+        }).from(returnItems)
+          .innerJoin(returns, eq(returnItems.returnId, returns.id))
+          .where(and(eq(returns.orderId, input.orderId), eq(returns.tenantId, ctx.tenant.id)))
+          .groupBy(returnItems.productId);
+        const returnedMap = new Map<number, number>();
+        for (const er of existingReturns) returnedMap.set(er.productId, Number(er.totalReturned));
+
         for (const item of input.items) {
           const original = orderItemsData.find(o => o.order_items.productId === item.productId);
           if (!original) {
             throw new Error(`Товар ID ${item.productId} отсутствует в заказе #${input.orderId}`);
           }
-          if (Number(item.quantity) > Number(original.order_items.quantity)) {
-            throw new Error(`Количество возврата превышает количество в заказе для товара ID ${item.productId}`);
+          const alreadyReturned = returnedMap.get(item.productId) ?? 0;
+          if (alreadyReturned + Number(item.quantity) > Number(original.order_items.quantity)) {
+            throw new Error(`Количество возврата превышает остаток для товара ID ${item.productId} (уже возвращено: ${alreadyReturned}, заказано: ${original.order_items.quantity})`);
           }
         }
         // Use original order unit prices, not client-supplied

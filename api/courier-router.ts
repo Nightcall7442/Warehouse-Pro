@@ -170,6 +170,10 @@ export const courierRouter = createRouter({
         )).limit(1);
       if (!order) throw new Error("Заказ не найден или не назначен на вас");
 
+      if (order.status === "completed" || order.status === "cancelled") {
+        throw new Error("Заказ уже завершён или отменён — повторное списание невозможно");
+      }
+
       if (input.cashAmount && Number(input.cashAmount) > Number(order.total) * 1.2) {
         throw new Error("Сумма наличных превышает сумму заказа");
       }
@@ -269,6 +273,10 @@ export const courierRouter = createRouter({
           sql`${orders.deliveryStatus} IN ('assigned', 'out_for_delivery')`,
         )).limit(1);
       if (!order) throw new Error("Заказ не найден или не назначен на вас");
+
+      if (order.status === "completed" || order.status === "cancelled") {
+        throw new Error("Заказ уже завершён или отменён — повторное действие невозможно");
+      }
 
       const safeReason = input.reason ? sanitizeString(input.reason) : "";
 

@@ -32,6 +32,7 @@ export const OrderService = {
       shopName: shops.name,
       agentName: users.name,
       paymentMethod: orders.paymentMethod,
+      deletedAt: orders.deletedAt,
     }).from(orders)
       .leftJoin(shops, eq(orders.shopId, shops.id))
       .leftJoin(users, eq(orders.agentId, users.id))

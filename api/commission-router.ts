@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createRouter, operatorQuery, authedQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { commissions, users } from "@db/schema";
-import { eq, and, gte, lte, desc } from "drizzle-orm";
+import { eq, and, gte, lte, desc, isNull } from "drizzle-orm";
 import { cache, CacheKeys } from "./lib/cache";
 
 export const commissionRouter = createRouter({
@@ -101,23 +101,37 @@ export const commissionRouter = createRouter({
           lte(commissions.periodEnd, input.periodEnd),
         ));
 
-      const { orders } = await import("@db/schema");
+      const { orders, returns } = await import("@db/schema");
       const { sql: sqlFn } = await import("drizzle-orm");
       const periodEndDate = new Date(input.periodEnd + "T23:59:59");
 
       const results = await Promise.all(
         agentCommissions.map(async (agent) => {
-          const [result] = await db.select({
+          const [orderResult] = await db.select({
             total: sqlFn<string>`COALESCE(SUM(${orders.total}), 0)`,
           }).from(orders).where(and(
             eq(orders.tenantId, ctx.tenant.id),
             eq(orders.agentId, agent.userId),
             eq(orders.status, "completed"),
+            isNull(orders.deletedAt),
             gte(orders.createdAt, agent.periodStart),
             lte(orders.createdAt, periodEndDate),
           ));
 
-          const salesAmount = Number(result.total);
+          const [returnResult] = await db.select({
+            total: sqlFn<string>`COALESCE(SUM(${returns.totalAmount}), 0)`,
+          }).from(returns)
+            .innerJoin(orders, eq(returns.orderId, orders.id))
+            .where(and(
+              eq(returns.tenantId, ctx.tenant.id),
+              eq(orders.agentId, agent.userId),
+              eq(returns.status, "completed"),
+              isNull(orders.deletedAt),
+              gte(orders.createdAt, agent.periodStart),
+              lte(orders.createdAt, periodEndDate),
+            ));
+
+          const salesAmount = Math.max(0, Number(orderResult.total) - Number(returnResult.total));
           const commissionAmount = salesAmount * (Number(agent.commissionRate) / 100);
 
           await db.update(commissions)
