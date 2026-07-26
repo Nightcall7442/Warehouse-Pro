@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useParams, useNavigate, useSearchParams } from "react-router";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useRef, useState } from "react";
@@ -82,12 +81,12 @@ export default function ProductDetail() {
   if (isLoading) return <div className="h-64 bg-surface-light animate-pulse rounded"/>;
   if (!product) return <div className="text-center py-20 text-secondary">{tr("Товар не найден","Mahsulot topilmadi")}</div>;
 
-  const stock      = product.stock as any;
-  const movements  = (product.movements ?? []) as any[];
-  const low        = stock && Number(stock.available) < Number((product as any).reorderPoint);
+  const stock      = product.stock;
+  const movements  = (product.movements ?? []);
+  const low        = stock && Number(stock.available) < Number(product.reorderPoint);
 
   const unitLabel = (u?:string) => { const e = UNIT_LABELS[u||"pcs"]; return e ? tr(e[0],e[1]) : (u||""); };
-  const totalWeightKg = stock ? (Number(stock.currentStock) * Number((product as any).unitWeight||0)) : 0;
+  const totalWeightKg = stock ? (Number(stock.currentStock) * Number(product.unitWeight||0)) : 0;
 
   return (
     <div className="max-w-3xl mx-auto space-y-4">
@@ -132,27 +131,27 @@ export default function ProductDetail() {
               <div className="grid grid-cols-2 gap-3">
                 {[["code","Код"],["name","Название"],["category","Категория"]].map(([k,p])=>(
                   <input key={k} className="neo-input" placeholder={p}
-                    defaultValue={(product as any)[k] ?? ""}
+                    defaultValue={product[k as keyof typeof product] ?? ""}
                     onChange={e=>setEditData((d: Record<string, unknown>)=>({...d,[k]:e.target.value}))}/>
                 ))}
-                <PremiumSelect value={(product as any).unit ?? "pcs"}
+                <PremiumSelect value={product.unit ?? "pcs"}
                   onChange={v=>setEditData((d: Record<string, unknown>)=>({...d,unit:v}))}
                   options={Object.keys(UNIT_LABELS).map(u=>({value:u,label:unitLabel(u)}))}
                   width="100%" />
                 <input className="neo-input font-data" placeholder={tr("Себестоимость","Tannarx")}
-                  defaultValue={(product as any).costPrice} type="number" step="0.01"
+                  defaultValue={product.costPrice} type="number" step="0.01"
                   onChange={e=>setEditData((d: Record<string, unknown>)=>({...d,costPrice:e.target.value}))}/>
                 <input className="neo-input font-data" placeholder={tr("Цена продажи","Sotish narxi")}
-                  defaultValue={(product as any).unitPrice} type="number" step="0.01"
+                  defaultValue={product.unitPrice} type="number" step="0.01"
                   onChange={e=>setEditData((d: Record<string, unknown>)=>({...d,unitPrice:e.target.value}))}/>
                 <input className="neo-input font-data" placeholder={tr("Масса 1 ед. (кг)","1 dona vazni (kg)")}
-                  defaultValue={(product as any).unitWeight} type="number" step="0.001"
+                  defaultValue={product.unitWeight} type="number" step="0.001"
                   onChange={e=>setEditData((d: Record<string, unknown>)=>({...d,unitWeight:e.target.value}))}/>
                 <input className="neo-input font-data" placeholder={tr("Порог дозаказа","Qayta buyurtma chegarasi")}
-                  defaultValue={(product as any).reorderPoint} type="number" step="0.01"
+                  defaultValue={product.reorderPoint} type="number" step="0.01"
                   onChange={e=>setEditData((d: Record<string, unknown>)=>({...d,reorderPoint:e.target.value}))}/>
                 <input className="neo-input col-span-2" placeholder={tr("Описание","Tavsif")}
-                  defaultValue={(product as any).description ?? ""}
+                  defaultValue={product.description ?? ""}
                   onChange={e=>setEditData((d: Record<string, unknown>)=>({...d,description:e.target.value}))}/>
                 <div className="col-span-2 flex gap-2">
                   <button onClick={()=>updateProduct.mutate({id:product.id,...editData})} disabled={updateProduct.isPending}
@@ -222,7 +221,7 @@ export default function ProductDetail() {
         <div className="px-4 pt-4 pb-2 border-b border-border-subtle flex items-center justify-between">
           <span className="font-label text-primary tracking-wider text-xs">{tr("ИСТОРИЯ ДВИЖЕНИЙ","HARAKATLAR TARIXI")}</span>
           {movements.length>0 && (
-            <button onClick={()=>exportToExcel(formatMovementsForExport(movements as any),`movements-${product.name}`)}
+            <button onClick={()=>exportToExcel(formatMovementsForExport(movements),`movements-${product.name}`)}
               className="neo-btn py-1 px-3 text-xs">{tr("Экспорт","Eksport")}</button>
           )}
         </div>

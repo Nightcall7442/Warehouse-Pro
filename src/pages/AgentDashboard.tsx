@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -50,7 +49,7 @@ function AgentKpi({ label, value, icon: Icon, color = "indigo" }: {
 
 // ── Карточка визита ───────────────────────────────────────────────────────────
 function PlanCard({ plan, onDone, onSkip, isPending }: {
-  plan: { id: number; status: string; shopName: string | null; shopDebt: string | null; shopAddress: string | null; shopCity: string | null; [key: string]: any };
+  plan: { id: number; status: string; shopName: string | null; shopDebt: string | null; shopAddress: string | null; shopCity: string | null };
   onDone: () => void;
   onSkip: () => void;
   isPending: boolean;

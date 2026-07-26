@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { trpc } from "@/providers/trpc";
@@ -14,7 +13,7 @@ import {
 import { exportToExcel, formatWarehouseForExport, formatStockValuationForExport, formatDeadStockForExport, formatReorderForExport } from "@/lib/excel";
 import { useCurrency } from "@/hooks/useCurrency";
 import { notify } from "@/lib/toast";
-import { AdjustModal, MovementHistory, LowStockModal, unitLabel, toKg } from "@/components/warehouse";
+import { AdjustModal, unitLabel, toKg } from "@/components/warehouse";
 import { useConfirm } from "@/components/ConfirmDialog";
 
 // ── Main warehouse page ───────────────────────────────────────────────────────
@@ -33,10 +32,10 @@ export default function Warehouse() {
   const [showLowStock, setShowLowStock] = useState(false);
 
 
-  const { data, isLoading } = trpc.warehouseMulti.getStock.useQuery({ warehouseId: warehouseId ?? undefined, search: search || undefined }) as { data: any; isLoading: boolean };
-  const { data: valuation, isLoading: valLoading } = trpc.warehouse.valuation.useQuery() as { data: any; isLoading: boolean };
-  const { data: reorderSuggestions } = trpc.warehouse.reorderSuggestions.useQuery() as { data: any };
-  const { data: deadStockItems, isLoading: deadStockLoading } = trpc.warehouse.deadStock.useQuery({ days: deadStockDays }) as { data: any; isLoading: boolean };
+  const { data, isLoading } = trpc.warehouseMulti.getStock.useQuery({ warehouseId: warehouseId ?? undefined, search: search || undefined });
+  const { data: valuation, isLoading: valLoading } = trpc.warehouse.valuation.useQuery();
+  const { data: reorderSuggestions } = trpc.warehouse.reorderSuggestions.useQuery();
+  const { data: deadStockItems, isLoading: deadStockLoading } = trpc.warehouse.deadStock.useQuery({ days: deadStockDays });
   const utils = trpc.useUtils();
 
   const handleAdjust = useCallback((item: { id: number; name: string; stock: number; unit: string; unitWeight: number }) => {
@@ -142,7 +141,7 @@ export default function Warehouse() {
               </button>
             </div>
             <div className="space-y-2">
-              {reorderSuggestions?.map((item: any, i: number) => (
+                {reorderSuggestions?.map((item, i) => (
                 <div key={i} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: "var(--color-surface-light, #f0f3f8)" }}>
                   <div className="w-2 h-8 rounded-full flex-shrink-0" style={{ background: "linear-gradient(180deg, #d45050, #d45050)" }} />
                   <div className="flex-1 min-w-0">
@@ -222,8 +221,8 @@ export default function Warehouse() {
           return (
             <Wrapper key={k.label}
               className="kpi-hero"
-              style={{ animationDelay: `${i * 0.05}s`, cursor: k.onClick ? "pointer" : "default", border: 'none', textAlign: 'left', width: '100%' } as any}
-              onClick={k.onClick as any}>
+              style={{ animationDelay: `${i * 0.05}s`, cursor: k.onClick ? "pointer" : "default", border: 'none', textAlign: 'left', width: '100%' }}
+              onClick={k.onClick}>
               <div className="flex justify-between items-start mb-4">
                 <span className="text-[10px] font-semibold tracking-wider uppercase" style={{ color: "var(--color-text-tertiary, #98a0b8)", fontFamily: "'DM Sans', sans-serif" }}>
                   {k.label}
@@ -298,7 +297,7 @@ export default function Warehouse() {
                 ? Array.from({ length: 4 }).map((_, i) => (
                     <div key={i} className="h-28 rounded-2xl animate-pulse" style={{ background: "var(--color-surface-light, #f0f3f8)" }} />
                   ))
-                : data?.data.map((item: any) => {
+                : data?.data.map((item) => {
                     const low = Number(item.available ?? 0) < Number(item.reorderPoint ?? 0);
                     return (
                       <div key={item.id} className="rounded-2xl overflow-hidden"
@@ -371,7 +370,7 @@ export default function Warehouse() {
                     ? <tr><td colSpan={9} className="text-center py-16 text-sm" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
                         {t("Нет товаров на складе","Omborda mahsulot yo'q")}
                       </td></tr>
-                    : data?.data.map((item: any) => {
+                    : data?.data.map((item) => {
                         const low = Number(item.available ?? 0) < Number(item.reorderPoint ?? 0);
                         return (
                           <tr key={item.id} style={low ? { background: "rgba(232,80,80,0.03)" } : undefined}>
@@ -466,7 +465,7 @@ export default function Warehouse() {
             </div>
           ) : isMobile ? (
             <div className="space-y-3">
-              {deadStockItems.map((item: any, i: any) => {
+              {deadStockItems.map((item, i) => {
                 const days = Number(item.daysSinceOrder ?? 99999);
                 const isUrgent = days > 90;
                 const isWarning = days > 30;
@@ -510,7 +509,7 @@ export default function Warehouse() {
                   </tr>
                 </thead>
                 <tbody>
-                  {deadStockItems.map((item: any) => {
+                  {deadStockItems.map((item) => {
                     const days = Number(item.daysSinceOrder ?? 99999);
                     const isUrgent = days > 90;
                     const isWarning = days > 30;
@@ -556,7 +555,7 @@ export default function Warehouse() {
           {deadStockItems && deadStockItems.length > 0 && (
             <div className="flex items-center justify-between text-xs px-2" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
               <span>{deadStockItems.length} {t("товаров", "mahsulot")}</span>
-              <span>{t("Общая стоимость:", "Umumiy qiymat:")} {fmt(deadStockItems.reduce((acc: any, r: any) => acc + Number(r.value ?? 0), 0).toFixed(0))}</span>
+              <span>{t("Общая стоимость:", "Umumiy qiymat:")} {fmt(deadStockItems.reduce((acc, r) => acc + Number(r.value ?? 0), 0).toFixed(0))}</span>
             </div>
           )}
         </>
@@ -579,7 +578,7 @@ export default function Warehouse() {
             </div>
           ) : isMobile ? (
             <div className="space-y-3">
-              {reorderSuggestions.map((item: any, i: any) => {
+              {reorderSuggestions.map((item, i) => {
                 const daysLeft = Number(item.daysUntilStockout ?? 999);
                 const isUrgent = daysLeft <= 3;
                 const isWarning = daysLeft <= 7;
@@ -619,7 +618,7 @@ export default function Warehouse() {
                   </tr>
                 </thead>
                 <tbody>
-                  {reorderSuggestions.map((item: any) => {
+                  {reorderSuggestions.map((item) => {
                     const daysLeft = Number(item.daysUntilStockout ?? 999);
                     const isUrgent = daysLeft <= 3;
                     const isWarning = daysLeft <= 7;
@@ -665,7 +664,7 @@ export default function Warehouse() {
           {reorderSuggestions && reorderSuggestions.length > 0 && (
             <div className="flex items-center justify-between text-xs px-2" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
               <span>{reorderSuggestions.length} {t("товаров", "mahsulot")}</span>
-              <span>{t("Общая стоимость дозаказа:", "Umumiy buyurtma qiymati:")} {fmt(reorderSuggestions.reduce((acc: number, r: any) => acc + Number(r.suggestedCost ?? 0), 0).toFixed(0))}</span>
+              <span>{t("Общая стоимость дозаказа:", "Umumiy buyurtma qiymati:")} {fmt(reorderSuggestions.reduce((acc, r) => acc + Number(r.suggestedCost ?? 0), 0).toFixed(0))}</span>
             </div>
           )}
         </>

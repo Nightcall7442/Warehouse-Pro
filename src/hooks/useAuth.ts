@@ -33,7 +33,7 @@ export function useAuth(options?: UseAuthOptions) {
   useEffect(() => {
     if (user) {
       Sentry.setUser({ id: String(user.id), username: user.email });
-      Sentry.setContext("tenant", { id: (user as any).tenantId, role: user.role });
+      Sentry.setContext("tenant", { id: user.tenantId, role: user.role });
     } else if (!isLoading) {
       Sentry.setUser(null);
     }

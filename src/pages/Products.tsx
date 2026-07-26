@@ -31,8 +31,8 @@ export default function Products() {
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const navigate = useNavigate();
-  const { data, isLoading } = trpc.product.list.useQuery({ page, pageSize: 25, search: search || undefined, category }) as { data: any; isLoading: boolean };
-  const { data: allProductsData } = trpc.product.list.useQuery({ page: 1, pageSize: 10000, includeAll: true }) as { data: any };
+  const { data, isLoading } = trpc.product.list.useQuery({ page, pageSize: 25, search: search || undefined, category });
+  const { data: allProductsData } = trpc.product.list.useQuery({ page: 1, pageSize: 10000, includeAll: true });
   const { data: categories } = trpc.product.categories.useQuery();
   const utils = trpc.useUtils();
   const createMutation = trpc.product.create.useMutation({
@@ -62,7 +62,7 @@ export default function Products() {
   const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);
 
   const totalCount = data?.total ?? 0;
-  const lowStockCount = data?.data?.filter((p: any) => Number(p.available ?? 0) < Number(p.reorderPoint)).length ?? 0;
+  const lowStockCount = data?.data?.filter((p) => Number(p.available ?? 0) < Number(p.reorderPoint)).length ?? 0;
   const categoryCount = categories?.length ?? 0;
 
   const handleDelete = async (id: number, name: string) => {
@@ -75,7 +75,7 @@ export default function Products() {
     if (ok) deleteMutation.mutate({ id });
   };
 
-  const allVisibleIds = useMemo(() => (data?.data ?? []).map((p: any) => p.id as number), [data]);
+  const allVisibleIds = useMemo(() => (data?.data ?? []).map((p) => p.id as number), [data]);
   const allSelected = allVisibleIds.length > 0 && allVisibleIds.every(id => selected.has(id));
 
   const toggleSelect = useCallback((id: number) => {

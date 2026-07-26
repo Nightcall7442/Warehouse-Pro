@@ -5,9 +5,9 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { notify } from "@/lib/toast";
 import { COLORS, F } from "@/components/products/constants";
 import { exportToExcel } from "@/lib/excel";
-import { Settings, Loader2, FileDown, TrendingUp, TrendingDown, Target, ShoppingCart, DollarSign, Users, Package, Star, Clock, BarChart3, AlertTriangle, MapPin, Radio, Camera, CheckCircle, XCircle } from "lucide-react";
+import { Settings, Loader2, FileDown, Target, ShoppingCart, DollarSign, Users, Package, Star, MapPin, AlertTriangle } from "lucide-react";
 import { ProgressRing } from "@/components/ProgressRing";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, Radar } from "recharts";
+import { RadarChart, PolarGrid, PolarAngleAxis, Radar } from "recharts";
 
 interface KpiData {
   agentId: number; agentName: string; period: string;
@@ -205,7 +205,7 @@ function AgentView({ kpi, salary, fmt, t, lang }: { kpi: KpiData; salary?: Salar
       )}
 
       {/* Salary */}
-      {salary && <SalarySection salary={salary} kpi={kpi} fmt={fmt} t={t} />}
+      {salary && <SalarySection salary={salary} fmt={fmt} t={t} />}
 
       {/* Visits + GPS + Reports */}
       <div className="grid grid-cols-3 gap-3">
@@ -233,7 +233,7 @@ function AgentView({ kpi, salary, fmt, t, lang }: { kpi: KpiData; salary?: Salar
 
 // ── Salary Section ─────────────────────────────────────────────────────────────
 
-function SalarySection({ salary, kpi, fmt, t }: { salary: SalaryData; kpi: KpiData; fmt: (v: number) => string; t: (r: string, u: string) => string }) {
+function SalarySection({ salary, fmt, t }: { salary: SalaryData; fmt: (v: number) => string; t: (r: string, u: string) => string }) {
   return (
     <div className="neo-card p-5">
       <h3 style={{ fontFamily: F.display, fontSize: "14px", fontWeight: 600, color: COLORS.textPrimary, marginBottom: "14px" }}>
@@ -448,11 +448,14 @@ function SalaryConfig({ t }: { t: (r: string, u: string) => string }) {
           );
         })}
       </div>
+      <p className="text-xs mb-2" style={{ color: COLORS.textTertiary }}>
+        {t("Комиссии рассчитываются автоматически при просмотре зарплаты", "Ko'rish vaqtida komissiyalar avtomatik hisoblanadi")}
+      </p>
       <button onClick={handleCalc} disabled={calcMutation.isPending}
-        className="mt-3 w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
+        className="mt-2 w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
         style={{ background: "linear-gradient(135deg, #5b6d8a, #4a5c78)", color: "#fff", boxShadow: "0 4px 12px rgba(91,109,138,0.3)" }}>
         {calcMutation.isPending && <Loader2 size={14} className="animate-spin" />}
-        {t("Рассчитать комиссии", "Komissiyalarni hisoblash")}
+        {t("Пересчитать комиссии", "Komissiyalarni qayta hisoblash")}
       </button>
     </div>
   );

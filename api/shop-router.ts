@@ -223,7 +223,7 @@ export const shopRouter = createRouter({
   addPayment: operatorQuery
     .input(z.object({
       shopId: z.number(),
-      amount: z.string(),
+      amount: z.string().refine(v => /^\d+(\.\d{1,2})?$/.test(v) && Number(v) > 0, "Неверный формат суммы"),
       type:   z.enum(["payment", "debt"]).default("payment"),
       notes:  z.string().optional(),
     }))
@@ -303,7 +303,7 @@ export const shopRouter = createRouter({
       agentName: users.name,
     })
       .from(shops).leftJoin(users, eq(shops.agentId, users.id))
-      .where(and(eq(shops.tenantId, ctx.tenant.id), sql`${shops.debt} > 0`))
+      .where(and(eq(shops.tenantId, ctx.tenant.id), sql`${shops.debt} != 0`))
       .orderBy(desc(sql`CAST(${shops.debt} AS DECIMAL)`));
   }),
 });

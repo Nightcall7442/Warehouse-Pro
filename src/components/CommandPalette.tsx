@@ -74,7 +74,7 @@ export function CommandPalette() {
   const searchResults = useMemo(() => {
     const results: CommandItem[] = [];
     if (products?.data) {
-      products.data.forEach((p: any) => {
+      products.data.forEach((p) => {
         results.push({
           id: `product-${p.id}`,
           label: `${p.name} — ${fmt(p.unitPrice)}`,
@@ -85,7 +85,7 @@ export function CommandPalette() {
       });
     }
     if (shops?.data) {
-      shops.data.forEach((s: any) => {
+      shops.data.forEach((s) => {
         results.push({
           id: `shop-${s.id}`,
           label: `${s.name}${s.city ? `, ${s.city}` : ""}`,
@@ -96,7 +96,7 @@ export function CommandPalette() {
       });
     }
     if (orders?.data) {
-      orders.data.forEach((o: any) => {
+      orders.data.forEach((o) => {
         results.push({
           id: `order-${o.id}`,
           label: `${o.orderNumber} — ${fmt(Number(o.total))}`,

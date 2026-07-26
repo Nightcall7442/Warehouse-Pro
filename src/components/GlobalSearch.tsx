@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
@@ -33,9 +32,9 @@ export function GlobalSearch() {
     }
   }, [open]);
 
-  const { data: shops    } = trpc.shop.list.useQuery(    { search: query, pageSize: 5 }, { enabled: query.length > 1 }) as { data: any };
-  const { data: products } = trpc.product.list.useQuery( { search: query, pageSize: 5 }, { enabled: query.length > 1 }) as { data: any };
-  const { data: orders   } = trpc.order.list.useQuery(   { search: query, pageSize: 5 }, { enabled: query.length > 1 }) as { data: any };
+  const { data: shops    } = trpc.shop.list.useQuery(    { search: query, pageSize: 5 }, { enabled: query.length > 1 });
+  const { data: products } = trpc.product.list.useQuery( { search: query, pageSize: 5 }, { enabled: query.length > 1 });
+  const { data: orders   } = trpc.order.list.useQuery(   { search: query, pageSize: 5 }, { enabled: query.length > 1 });
 
   const hasResults = (shops?.data?.length ?? 0) + (products?.data?.length ?? 0) + (orders?.data?.length ?? 0) > 0;
 
@@ -92,7 +91,7 @@ export function GlobalSearch() {
               {(shops?.data?.length ?? 0) > 0 && (
                 <div>
                   <p style={{ padding: "8px 16px", fontSize: "10px", fontWeight: 600, color: "var(--color-text-tertiary, #98a0b8)", textTransform: "uppercase", letterSpacing: "0.08em", background: "var(--color-surface-light, #f0f3f8)" }}>{tr("МАГАЗИНЫ","DO'KONLAR")}</p>
-                  {shops!.data.map((s: any) => (
+                  {shops!.data.map((s) => (
                     <button key={s.id} onClick={() => go(`/shops/${s.id}`)}
                       className="search-result-item"
                       style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", borderBottom: "1px solid var(--color-border, #f0f3f8)", textAlign: "left", border: "none", cursor: "pointer", borderBottomLeftRadius: "8px", borderBottomRightRadius: "8px" }}>
@@ -112,7 +111,7 @@ export function GlobalSearch() {
               {(products?.data?.length ?? 0) > 0 && (
                 <div>
                   <p style={{ padding: "8px 16px", fontSize: "10px", fontWeight: 600, color: "var(--color-text-tertiary, #98a0b8)", textTransform: "uppercase", letterSpacing: "0.08em", background: "var(--color-surface-light, #f0f3f8)" }}>{tr("ТОВАРЫ","MAHSULOTLAR")}</p>
-                  {products!.data.map((p: any) => (
+                  {products!.data.map((p) => (
                     <button key={p.id} onClick={() => go(`/products/${p.id}`)}
                       className="search-result-item"
                       style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", borderBottom: "1px solid var(--color-border, #f0f3f8)", textAlign: "left", border: "none", cursor: "pointer" }}>
@@ -130,7 +129,7 @@ export function GlobalSearch() {
               {(orders?.data?.length ?? 0) > 0 && (
                 <div>
                   <p style={{ padding: "8px 16px", fontSize: "10px", fontWeight: 600, color: "var(--color-text-tertiary, #98a0b8)", textTransform: "uppercase", letterSpacing: "0.08em", background: "var(--color-surface-light, #f0f3f8)" }}>{tr("ЗАКАЗЫ","BUYURTMALAR")}</p>
-                  {orders!.data.map((o: any) => (
+                  {orders!.data.map((o) => (
                     <button key={o.id} onClick={() => go(`/orders/${o.id}`)}
                       className="search-result-item"
                       style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", borderBottom: "1px solid var(--color-border, #f0f3f8)", textAlign: "left", border: "none", cursor: "pointer" }}>

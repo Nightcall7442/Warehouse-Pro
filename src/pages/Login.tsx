@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router";
 import { useAuth } from "@/hooks/useAuth";
@@ -44,7 +43,7 @@ export default function Login() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Login failed");
       window.location.replace("/");
-    } catch (err: any) {
+    } catch {
       setError(err.message || t("auth.login.error"));
     } finally {
       setIsPending(false);

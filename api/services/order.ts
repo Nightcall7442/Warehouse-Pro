@@ -339,10 +339,7 @@ export const OrderService = {
                 ), sql`\n`)} ELSE current_stock END,
                 reserved = CASE ${sql.join(items.map(i =>
                   sql`WHEN product_id = ${i.productId} THEN reserved - ${Number(i.quantity)}`
-                ), sql`\n`)} ELSE reserved END,
-                available = CASE ${sql.join(items.map(i =>
-                  sql`WHEN product_id = ${i.productId} THEN available + ${Number(i.quantity)}`
-                ), sql`\n`)} ELSE available END
+                ), sql`\n`)} ELSE reserved END
               WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
                 AND tenant_id = ${tenantId}
             `);
@@ -393,6 +390,12 @@ export const OrderService = {
           quantity: orderItems.quantity,
         }).from(orderItems).where(eq(orderItems.orderId, orderId));
         if (items.length > 0) {
+          // Lock stock rows before releasing
+          for (const item of items) {
+            await tx.select({ id: warehouseStock.id }).from(warehouseStock)
+              .where(and(eq(warehouseStock.productId, item.productId), eq(warehouseStock.tenantId, tenantId)))
+              .for("update");
+          }
           await tx.execute(sql`
             UPDATE warehouse_stock
             SET
@@ -437,7 +440,7 @@ export const OrderService = {
         const discount = Number(data.discount);
         if (discount > subtotal) throw new Error("Скидка не может превышать сумму заказа");
         updates.discount = data.discount;
-        updates.total = String(subtotal - discount);
+        updates.total = (subtotal - discount).toFixed(2);
       }
 
       if (Object.keys(updates).length > 0) {
@@ -461,9 +464,14 @@ export const OrderService = {
       // Re-reserve stock if order was new/processing when deleted
       if (order.status === "new" || order.status === "processing") {
         const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
+        // Lock stock rows before checking and updating
+        for (const item of items) {
+          await tx.select({ id: warehouseStock.id }).from(warehouseStock)
+            .where(and(eq(warehouseStock.productId, item.productId), eq(warehouseStock.tenantId, tenantId)))
+            .for("update");
+        }
         for (const item of items) {
           const qty = Number(item.quantity);
-          // Check available stock before re-reserving
           const [stock] = await tx.select({ available: warehouseStock.available })
             .from(warehouseStock)
             .where(and(eq(warehouseStock.productId, item.productId), eq(warehouseStock.tenantId, tenantId)))

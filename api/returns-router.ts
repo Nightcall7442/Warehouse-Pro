@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { createRouter, fieldSalesQuery, operatorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { returns, returnItems, orders, shops, users, products, warehouseStock } from "@db/schema";
+import { returns, returnItems, orderItems, shops, users, products, warehouseStock } from "@db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { cache, CacheKeys } from "./lib/cache";
+import { sanitizeString } from "./lib/sanitize";
 
 export const returnsRouter = createRouter({
   // List returns
@@ -84,8 +85,9 @@ export const returnsRouter = createRouter({
         reason: returnItems.reason,
         condition: returnItems.condition,
       }).from(returnItems)
+        .innerJoin(returns, eq(returnItems.returnId, returns.id))
         .leftJoin(products, eq(returnItems.productId, products.id))
-        .where(eq(returnItems.returnId, input.id));
+        .where(and(eq(returnItems.returnId, input.id), eq(returns.tenantId, ctx.tenant.id)));
 
       return { ...ret, items };
     }),
@@ -110,6 +112,37 @@ export const returnsRouter = createRouter({
       const raw = crypto.randomUUID().replace(/-/g, "");
       const returnNumber = `RET-${raw.slice(0, 12).toUpperCase()}`;
 
+      // Validate items against original order if provided
+      if (input.orderId) {
+        const [order] = await db.select({ tenantId: orders.tenantId })
+          .from(orders).where(eq(orders.id, input.orderId)).limit(1);
+        if (!order || order.tenantId !== ctx.tenant.id) {
+          throw new Error(`Заказ #${input.orderId} не найден`);
+        }
+
+        const orderItemsData = await db.select().from(orderItems)
+          .where(and(eq(orderItems.orderId, input.orderId)))
+          .leftJoin(products, eq(orderItems.productId, products.id));
+
+        for (const item of input.items) {
+          const original = orderItemsData.find(o => o.order_items.productId === item.productId);
+          if (!original) {
+            throw new Error(`Товар ID ${item.productId} отсутствует в заказе #${input.orderId}`);
+          }
+          if (Number(item.quantity) > Number(original.order_items.quantity)) {
+            throw new Error(`Количество возврата превышает количество в заказе для товара ID ${item.productId}`);
+          }
+        }
+        // Use original order unit prices, not client-supplied
+        input.items = input.items.map(item => {
+          const original = orderItemsData.find(o => o.order_items.productId === item.productId);
+          return {
+            ...item,
+            unitPrice: Number(original!.order_items.unitPrice),
+          };
+        });
+      }
+
       const totalAmount = input.items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
 
       // Use transaction for atomicity
@@ -121,7 +154,7 @@ export const returnsRouter = createRouter({
           agentId: ctx.user.id,
           returnNumber,
           reason: input.reason,
-          notes: input.notes,
+          notes: input.notes ? sanitizeString(input.notes) : null,
           totalAmount: totalAmount.toFixed(2),
           createdBy: ctx.user.id,
         });
@@ -135,26 +168,9 @@ export const returnsRouter = createRouter({
           quantity: item.quantity.toFixed(2),
           unitPrice: item.unitPrice.toFixed(2),
           subtotal: (item.unitPrice * item.quantity).toFixed(2),
-          reason: item.reason,
-          condition: item.condition,
+          reason: item.reason ? sanitizeString(item.reason) : null,
+          condition: item.condition ? sanitizeString(item.condition) : null,
         })));
-
-        // Update stock (return items back to inventory) — batch update
-        if (input.items.length > 0) {
-          const productIds = input.items.map(i => i.productId);
-          await tx.execute(sql`
-            UPDATE warehouse_stock
-            SET
-              current_stock = current_stock + CASE ${sql.join(input.items.map(i =>
-                sql`WHEN product_id = ${i.productId} THEN ${i.quantity}`
-              ), sql`\n`)} ELSE 0 END,
-              available = available + CASE ${sql.join(input.items.map(i =>
-                sql`WHEN product_id = ${i.productId} THEN ${i.quantity}`
-              ), sql`\n`)} ELSE 0 END
-            WHERE product_id IN (${sql.join(productIds.map(id => sql`${id}`), sql`, `)})
-              AND tenant_id = ${ctx.tenant.id}
-          `);
-        }
 
         return id;
       });
@@ -171,9 +187,70 @@ export const returnsRouter = createRouter({
     }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
-      await db.update(returns)
-        .set({ status: input.status })
-        .where(and(eq(returns.id, input.id), eq(returns.tenantId, ctx.tenant.id)));
+      const tenantId = ctx.tenant.id;
+
+      // Validate status transitions
+      const [ret] = await db.select({ status: returns.status, totalAmount: returns.totalAmount })
+        .from(returns).where(and(eq(returns.id, input.id), eq(returns.tenantId, tenantId)))
+        .limit(1);
+      if (!ret) throw new Error("Возврат не найден");
+
+      const validTransitions: Record<string, string[]> = {
+        pending: ["approved", "rejected"],
+        approved: ["completed"],
+        rejected: [],
+        completed: [],
+      };
+      const allowed = validTransitions[ret.status];
+      if (!allowed || !allowed.includes(input.status)) {
+        throw new Error(`Невозможно перевести из "${ret.status}" в "${input.status}"`);
+      }
+
+      // Only add stock on "completed" — never before approval
+      if (input.status === "completed") {
+        await db.transaction(async (tx) => {
+          // Lock stock rows and add items back to inventory
+          const items = await tx.select().from(returnItems).where(eq(returnItems.returnId, input.id));
+          for (const item of items) {
+            await tx.select({ id: warehouseStock.id }).from(warehouseStock)
+              .where(and(eq(warehouseStock.productId, item.productId), eq(warehouseStock.tenantId, tenantId)))
+              .for("update");
+          }
+          if (items.length > 0) {
+            await tx.execute(sql`
+              UPDATE warehouse_stock
+              SET
+                current_stock = current_stock + CASE ${sql.join(items.map(i =>
+                  sql`WHEN product_id = ${i.productId} THEN ${Number(i.quantity)}`
+                ), sql`\n`)} ELSE 0 END,
+                available = available + CASE ${sql.join(items.map(i =>
+                  sql`WHEN product_id = ${i.productId} THEN ${Number(i.quantity)}`
+                ), sql`\n`)} ELSE 0 END
+              WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
+                AND tenant_id = ${tenantId}
+            `);
+          }
+
+          // Adjust shop debt: reduce it by the return amount
+          if (ret.totalAmount && Number(ret.totalAmount) > 0) {
+            await tx.execute(sql`
+              UPDATE shops
+              SET debt = GREATEST(0, CAST(debt AS DECIMAL(12,2)) - ${Number(ret.totalAmount)})
+              WHERE id = (SELECT shop_id FROM returns WHERE id = ${input.id} AND tenant_id = ${tenantId})
+                AND tenant_id = ${tenantId}
+            `);
+          }
+
+          await tx.update(returns).set({ status: input.status })
+            .where(and(eq(returns.id, input.id), eq(returns.tenantId, tenantId)));
+        });
+      } else {
+        await db.update(returns)
+          .set({ status: input.status })
+          .where(and(eq(returns.id, input.id), eq(returns.tenantId, tenantId)));
+      }
+
+      cache.invalidate(CacheKeys.returns(tenantId));
       return { success: true };
     }),
 

@@ -26,11 +26,11 @@ export default function SupervisorTracking() {
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
 
   const { data: locations, isLoading, refetch, dataUpdatedAt } = trpc.agent.getLocations.useQuery(
-    {} as any, { refetchInterval: 30_000 }
-  ) as { data: any; isLoading: boolean; refetch: () => void; dataUpdatedAt: number | null };
-  const mapRef     = useRef<any>(null);
+    {}, { refetchInterval: 30_000 }
+  );
+  const mapRef     = useRef<unknown>(null);
   const mapDivRef  = useRef<HTMLDivElement>(null);
-  const markersMapRef = useRef<Map<number, any>>(new Map());
+  const markersMapRef = useRef<Map<number, unknown>>(new Map());
   const [selected, setSelected] = useState<number | null>(null);
   const lastUpdate = dataUpdatedAt ? new Date(dataUpdatedAt) : null;
 
@@ -80,7 +80,7 @@ export default function SupervisorTracking() {
 
       const coords: number[][] = [];
 
-      locations.forEach((loc: any) => {
+      locations.forEach((loc) => {
         const lat = Number(loc.lat);
         const lng = Number(loc.lng);
         if (!lat || !lng) return;
@@ -140,7 +140,7 @@ export default function SupervisorTracking() {
   // Focus on agent when selected from list
   useEffect(() => {
     if (!selected || !mapRef.current || !locations) return;
-    const loc = locations.find((l: any) => l.agentId === selected);
+    const loc = locations.find((l) => l.agentId === selected);
     if (loc && Number(loc.lat) && Number(loc.lng)) {
       mapRef.current.setCenter([Number(loc.lat), Number(loc.lng)], 15);
       // Open balloon
@@ -149,7 +149,7 @@ export default function SupervisorTracking() {
     }
   }, [selected]);
 
-  const onlineCount  = locations?.filter((l: any) => isOnline(l.createdAt)).length ?? 0;
+  const onlineCount  = locations?.filter((l) => isOnline(l.createdAt)).length ?? 0;
   const offlineCount = (locations?.length ?? 0) - onlineCount;
 
   return (
@@ -222,7 +222,7 @@ export default function SupervisorTracking() {
                   </p>
                 </div>
               )
-              : locations?.map((loc: any) => {
+              : locations?.map((loc) => {
                   const online = isOnline(loc.createdAt);
                   return (
                     <div
@@ -300,6 +300,6 @@ export default function SupervisorTracking() {
 // Yandex Maps type declarations
 declare global {
   interface Window {
-    ymaps: any;
+    ymaps: unknown;
   }
 }

@@ -472,3 +472,86 @@ describe("arrival — tenant isolation", () => {
     expect(result.data.every((a) => a.id !== 99)).toBe(true);
   });
 });
+
+describe("arrival.create — edge cases", () => {
+  it("creates arrival with empty items array", async () => {
+    const { arrivalRouter } = await import("../arrival-router");
+    const caller = arrivalRouter.createCaller(makeCtx(1, 1));
+    const result = await caller.create({ arrivalDate: "2025-03-01", items: [] });
+    expect(result.id).toBe(10);
+    expect(arrivalItemsTable.filter((i) => i.arrivalId === result.id)).toHaveLength(0);
+  });
+
+  it("creates arrival with all optional fields", async () => {
+    const { arrivalRouter } = await import("../arrival-router");
+    const caller = arrivalRouter.createCaller(makeCtx(1, 1));
+    const result = await caller.create({
+      arrivalDate: "2025-03-01",
+      truckId: "T-500",
+      driverName: "Али",
+      driverPhone: "+998901112233",
+      fuelCost: "75.00",
+      tollCost: "15.00",
+      otherCost: "10.00",
+      notes: "Test arrival",
+      items: [{ productId: 1, quantity: "25", costPrice: "45.00", sellingPrice: "70.00", condition: "good" }],
+    });
+    const created = arrivalsTable.find((a) => a.id === result.id)!;
+    expect(created.totalExpense).toBe("100.00");
+    expect(created.driverName).toBe("Али");
+    expect(created.driverPhone).toBe("+998901112233");
+    expect(created.notes).toBe("Test arrival");
+    expect(arrivalItemsTable.filter((i) => i.arrivalId === result.id)).toHaveLength(1);
+  });
+
+  it("generates unique arrival numbers", async () => {
+    const { arrivalRouter } = await import("../arrival-router");
+    const caller = arrivalRouter.createCaller(makeCtx(1, 1));
+    const r1 = await caller.create({ arrivalDate: "2025-03-01" });
+    const r2 = await caller.create({ arrivalDate: "2025-03-02" });
+    expect(r1.arrivalNumber).not.toBe(r2.arrivalNumber);
+  });
+});
+
+describe("arrival.update — edge cases", () => {
+  it("updates notes on an arrival", async () => {
+    const { arrivalRouter } = await import("../arrival-router");
+    const caller = arrivalRouter.createCaller(makeCtx(1, 10));
+    await caller.update({ id: 1, notes: "Updated notes" });
+    expect(arrivalsTable.find((a) => a.id === 1)!.notes).toBe("Updated notes");
+  });
+
+  it("updates driverName and driverPhone", async () => {
+    const { arrivalRouter } = await import("../arrival-router");
+    const caller = arrivalRouter.createCaller(makeCtx(1, 10));
+    await caller.update({ id: 1, driverName: "New Driver", driverPhone: "+998909998877" });
+    const updated = arrivalsTable.find((a) => a.id === 1)!;
+    expect(updated.driverName).toBe("New Driver");
+    expect(updated.driverPhone).toBe("+998909998877");
+  });
+
+  it("transitions from pending to unloading", async () => {
+    const { arrivalRouter } = await import("../arrival-router");
+    const caller = arrivalRouter.createCaller(makeCtx(1, 10));
+    await caller.update({ id: 1, status: "unloading" });
+    expect(arrivalsTable.find((a) => a.id === 1)!.status).toBe("unloading");
+  });
+});
+
+describe("arrival.delete — edge cases", () => {
+  it("deletes unloading arrival", async () => {
+    arrivalsTable[0].status = "unloading";
+    const { arrivalRouter } = await import("../arrival-router");
+    const caller = arrivalRouter.createCaller(makeCtx(1, 10));
+    const result = await caller.delete({ id: 1 });
+    expect(result.success).toBe(true);
+    expect(arrivalsTable.find((a) => a.id === 1)).toBeUndefined();
+  });
+
+  it("does not affect other arrivals when deleting", async () => {
+    const { arrivalRouter } = await import("../arrival-router");
+    const caller = arrivalRouter.createCaller(makeCtx(1, 10));
+    await caller.delete({ id: 1 });
+    expect(arrivalsTable.find((a) => a.id === 2)).toBeDefined();
+  });
+});

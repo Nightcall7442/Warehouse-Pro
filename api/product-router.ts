@@ -175,8 +175,8 @@ export const productRouter = createRouter({
       barcode:      z.string().optional(),
       name:         z.string().min(1),
       category:     z.string().optional(),
-      costPrice:    z.string().default("0.00"),
-      unitPrice:    z.string(),
+      costPrice:    z.string().refine(v => Number(v) >= 0, "Цена не может быть отрицательной").default("0.00"),
+      unitPrice:    z.string().refine(v => Number(v) > 0, "Цена должна быть положительной"),
       unit:         z.enum(["kg", "l", "pcs", "box", "pack", "m"]).default("pcs"),
       unitWeight:   z.string().default("0.000"),
       description:  z.string().optional(),
@@ -188,6 +188,7 @@ export const productRouter = createRouter({
       const tenantId = ctx.tenant.id;
       const sanitized = {
         ...input,
+        code: sanitizeString(input.code),
         name: sanitizeString(input.name),
         category: input.category ? sanitizeString(input.category) : undefined,
         description: input.description ? sanitizeString(input.description) : undefined,
@@ -236,8 +237,8 @@ export const productRouter = createRouter({
       code:         z.string().min(1).optional(),
       name:         z.string().min(1).optional(),
       category:     z.string().optional(),
-      costPrice:    z.string().optional(),
-      unitPrice:    z.string().optional(),
+      costPrice:    z.string().refine(v => v === undefined || Number(v) >= 0, "Цена не может быть отрицательной").optional(),
+      unitPrice:    z.string().refine(v => v === undefined || Number(v) > 0, "Цена должна быть положительной").optional(),
       unit:         z.enum(["kg", "l", "pcs", "box", "pack", "m"]).optional(),
       unitWeight:   z.string().optional(),
       description:  z.string().optional(),
@@ -248,6 +249,7 @@ export const productRouter = createRouter({
     .mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;
       const sanitized: Record<string, unknown> = { ...data };
+      if (typeof data.code === "string") sanitized.code = sanitizeString(data.code);
       if (typeof data.name === "string") sanitized.name = sanitizeString(data.name);
       if (typeof data.category === "string") sanitized.category = sanitizeString(data.category);
       if (typeof data.description === "string") sanitized.description = sanitizeString(data.description);
@@ -444,12 +446,23 @@ export const productRouter = createRouter({
       const db = getDb();
       const tenantId = ctx.tenant.id;
 
+      const ALLOWED_TABLES = new Set([
+        "order_items", "arrival_items", "return_items", "price_list_items",
+        "stock_transfers", "stock_movements", "warehouse_stock",
+        "orders", "returns", "products",
+      ]);
+
+      const del = (table: string) => {
+        if (!ALLOWED_TABLES.has(table)) throw new Error(`Invalid table: ${table}`);
+        return tx.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE product_id IN (SELECT id FROM products WHERE tenant_id = ${tenantId})`);
+      };
+      const delByTenant = (table: string) => {
+        if (!ALLOWED_TABLES.has(table)) throw new Error(`Invalid table: ${table}`);
+        return tx.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE tenant_id = ${tenantId}`);
+      };
+
       // FK-safe delete order using raw SQL (Drizzle can't handle all FK combos)
       await db.transaction(async (tx) => {
-        // 1. Delete all child tables that reference products
-        const del = (table: string) => tx.execute(sql.raw(`DELETE FROM ${table} WHERE product_id IN (SELECT id FROM products WHERE tenant_id = ${tenantId})`));
-        const delByTenant = (table: string) => tx.execute(sql.raw(`DELETE FROM ${table} WHERE tenant_id = ${tenantId}`));
-
         await del("order_items").catch(() => {});
         await del("arrival_items").catch(() => {});
         await del("return_items").catch(() => {});
@@ -458,12 +471,10 @@ export const productRouter = createRouter({
         await delByTenant("stock_movements").catch(() => {});
         await delByTenant("warehouse_stock").catch(() => {});
 
-        // 2. Delete orders and returns (reference products via order_items/return_items)
         await delByTenant("orders").catch(() => {});
         await delByTenant("returns").catch(() => {});
 
-        // 3. Now safe to delete products
-        await tx.execute(sql.raw(`DELETE FROM products WHERE tenant_id = ${tenantId}`));
+        await tx.execute(sql`DELETE FROM products WHERE tenant_id = ${tenantId}`);
       });
 
       cache.invalidatePrefix(`products:${tenantId}`);

@@ -12,7 +12,7 @@ type Step = "welcome" | "config" | "test" | "schedule" | "done";
 export function OneCSetupWizard({ onClose }: { onClose: () => void }) {
   const [step, setStep] = useState<Step>("welcome");
   const [config, setConfig] = useState({ url: "", username: "", password: "" });
-  const [testResult, setTestResult] = useState<any>(null);
+  const [testResult, setTestResult] = useState<unknown>(null);
   const { lang } = useLang();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
 

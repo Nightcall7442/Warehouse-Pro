@@ -20,20 +20,20 @@ export function ShopSelector({ shopId, onSelect }: ShopSelectorProps) {
   const isAgent = user?.role === "agent" || user?.role === "merchandiser";
   const useMyShops = isAgent || user?.role === "ceo" || user?.role === "operator";
 
-  const { data: myShops, isLoading: myShopsLoading } = trpc.agent.myShops.useQuery(undefined, { enabled: useMyShops }) as { data: any; isLoading: boolean };
-  const { data: allShopsData, isLoading: allShopsLoading } = trpc.shop.list.useQuery({ page: 1, pageSize: 200 }, { enabled: !useMyShops }) as { data: any; isLoading: boolean };
+  const { data: myShops, isLoading: myShopsLoading } = trpc.agent.myShops.useQuery(undefined, { enabled: useMyShops });
+  const { data: allShopsData, isLoading: allShopsLoading } = trpc.shop.list.useQuery({ page: 1, pageSize: 200 }, { enabled: !useMyShops });
 
   const shops = useMyShops ? myShops : allShopsData?.data;
   const isLoading = useMyShops ? myShopsLoading : allShopsLoading;
 
   const cities = useMemo(() => {
     const set = new Set<string>();
-    (shops ?? []).forEach((s: any) => { if (s.city) set.add(s.city); });
+    (shops ?? []).forEach((s) => { if (s.city) set.add(s.city); });
     return Array.from(set).sort();
   }, [shops]);
 
   const filtered = useMemo(() => {
-    return (shops ?? []).filter((s: any) => {
+    return (shops ?? []).filter((s) => {
       const matchCity = !selectedCity || s.city === selectedCity;
       const matchSearch = !search ||
         s.name?.toLowerCase().includes(search.toLowerCase()) ||
@@ -139,7 +139,7 @@ export function ShopSelector({ shopId, onSelect }: ShopSelectorProps) {
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "420px", overflowY: "auto", paddingBottom: "4px" }}>
-          {filtered?.map((shop: any) => (
+          {filtered?.map((shop) => (
             <button
               key={shop.id}
               onClick={() => onSelect(shop.id, shop.name ?? "")}

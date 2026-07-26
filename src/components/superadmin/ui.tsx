@@ -22,7 +22,7 @@ export function StatusBadge({ status }: { status: string }) {
 
 // ── KPI Card ────────────────────────────────────────────────────────────────
 export function KpiCard({ label, value, icon: Icon, gradient, loading }: {
-  label: string; value: string | number; icon: any; gradient: string; loading?: boolean;
+  label: string; value: string | number; icon: React.ComponentType<{ size?: number }>; gradient: string; loading?: boolean;
 }) {
   return (
     <div className="kpi-hero" style={{ padding: "22px", position: "relative", overflow: "hidden" }}>
@@ -42,7 +42,7 @@ export function KpiCard({ label, value, icon: Icon, gradient, loading }: {
 
 // ── Section wrapper ─────────────────────────────────────────────────────────
 export function Section({ title, icon: Icon, children }: {
-  title: string; icon: any; children: React.ReactNode;
+  title: string; icon: React.ComponentType<{ size?: number }>; children: React.ReactNode;
 }) {
   return (
     <div style={{ background: COLORS.surface, borderRadius: "20px", boxShadow: "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04))" }}>

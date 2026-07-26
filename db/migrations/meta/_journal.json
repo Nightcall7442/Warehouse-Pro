@@ -127,6 +127,13 @@
       "when": 1785020081208,
       "tag": "0017_ensure_warehouse_stock_warehouse_id",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1786000000000,
+      "tag": "0018_add_kpi_performance_indexes",
+      "breakpoints": true
     }
   ]
 }

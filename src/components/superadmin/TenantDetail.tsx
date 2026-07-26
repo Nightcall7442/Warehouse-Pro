@@ -103,7 +103,7 @@ export function TenantDetail({ tenantId, onBack }: TenantDetailProps) {
         <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", marginTop: "20px", paddingTop: "16px", borderTop: `1px solid ${COLORS.border}` }}>
           {showPlan ? (
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <PremiumSelect value={selectedPlan} onChange={v => setSelectedPlan(v as any)} options={[{ value: "trial", label: "Trial" }, { value: "basic", label: "Basic" }, { value: "pro", label: "Pro" }, { value: "exclusive", label: "Exclusive" }]} width="120px" />
+              <PremiumSelect value={selectedPlan} onChange={v => setSelectedPlan(v)} options={[{ value: "trial", label: "Trial" }, { value: "basic", label: "Basic" }, { value: "pro", label: "Pro" }, { value: "exclusive", label: "Exclusive" }]} width="120px" />
               <input type="number" min="1" max="3650" value={planDays} onChange={e => setPlanDays(Number(e.target.value))} style={{ width: "80px", padding: "6px 10px", borderRadius: "8px", border: `1px solid ${COLORS.border}`, background: COLORS.surfaceLight, color: COLORS.textPrimary, fontSize: "12px" }} />
               <BtnPrimary onClick={() => updatePlan.mutate({ tenantId, plan: selectedPlan, expiryDays: planDays })} disabled={updatePlan.isPending} style={{ padding: "6px 14px", fontSize: "12px" }}>{updatePlan.isPending ? "…" : "Сохранить"}</BtnPrimary>
               <BtnSecondary onClick={() => setShowPlan(false)} style={{ padding: "6px 10px", fontSize: "12px" }}>✕</BtnSecondary>

@@ -29,7 +29,7 @@ export function ExcelImport({ type, onDone, onCancel }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState("");
   const [base64, setBase64] = useState("");
-  const [preview, setPreview] = useState<any[]>([]);
+  const [preview, setPreview] = useState<unknown[]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
   const [totalRows, setTotalRows] = useState(0);
   const [errors, setErrors] = useState<string[]>([]);

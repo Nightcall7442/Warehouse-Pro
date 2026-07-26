@@ -15,16 +15,16 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
   const { fmt } = useCurrency();
   const { lang } = useLang();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
-  const { data: products } = trpc.product.listAll.useQuery(undefined) as { data: any };
+  const { data: products } = trpc.product.listAll.useQuery(undefined);
   const [search, setSearch] = useState("");
   const [quickQty, setQuickQty] = useState<Record<number, string>>({});
   const searchRef = useRef<HTMLInputElement>(null);
 
-  const filtered = (products ?? []).filter((p: any) =>
+  const filtered = (products ?? []).filter((p) =>
     !search || p.name?.toLowerCase().includes(search.toLowerCase()) || (p.code ?? "").toLowerCase().includes(search.toLowerCase())
   );
 
-  const addToCart = useCallback((product: any, qty?: number) => {
+  const addToCart = useCallback((product, qty?: number) => {
     const addQty = qty ?? 1;
     const existing = items.findIndex(i => i.productId === (product.id as number));
     if (existing >= 0) {
@@ -76,7 +76,7 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
     onChange(items.filter(i => i.productId !== productId));
   }, [items, onChange]);
 
-  const handleQuickAdd = useCallback((product: any) => {
+  const handleQuickAdd = useCallback((product) => {
     const qty = parseFloat(quickQty[product.id] || "1");
     if (isNaN(qty) || qty <= 0) return;
     addToCart(product, qty);
@@ -114,7 +114,7 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
 
         {/* Product list */}
         <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "520px", overflowY: "auto", touchAction: "manipulation" }}>
-          {filtered.map((product: any) => {
+          {filtered.map((product) => {
             const inCart = items.find(i => i.productId === product.id);
             const lowStock = Number(product.available ?? 0) < 10;
             const inputVal = quickQty[product.id] || "";

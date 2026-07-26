@@ -43,16 +43,18 @@ export const priceListRouter = createRouter({
         minQuantity: priceListItems.minQuantity,
         unitPrice: products.unitPrice,
       }).from(priceListItems)
+        .innerJoin(priceLists, eq(priceListItems.priceListId, priceLists.id))
         .leftJoin(products, eq(priceListItems.productId, products.id))
-        .where(eq(priceListItems.priceListId, input.id));
+        .where(and(eq(priceListItems.priceListId, input.id), eq(priceLists.tenantId, ctx.tenant.id)));
 
       const assignments = await db.select({
         id: priceListAssignments.id,
         shopId: priceListAssignments.shopId,
         shopName: shops.name,
       }).from(priceListAssignments)
+        .innerJoin(priceLists, eq(priceListAssignments.priceListId, priceLists.id))
         .leftJoin(shops, eq(priceListAssignments.shopId, shops.id))
-        .where(eq(priceListAssignments.priceListId, input.id));
+        .where(and(eq(priceListAssignments.priceListId, input.id), eq(priceLists.tenantId, ctx.tenant.id)));
 
       return { ...list, items, assignments };
     }),
@@ -110,11 +112,19 @@ export const priceListRouter = createRouter({
     .input(z.object({
       priceListId: z.number(),
       productId: z.number(),
-      price: z.number(),
+      price: z.number().min(0, "Цена не может быть отрицательной"),
       minQuantity: z.number().default(1),
     }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
+      const tenantId = ctx.tenant.id;
+
+      // Verify price list belongs to tenant
+      const [priceList] = await db.select({ id: priceLists.id })
+        .from(priceLists)
+        .where(and(eq(priceLists.id, input.priceListId), eq(priceLists.tenantId, tenantId)))
+        .limit(1);
+      if (!priceList) throw new Error("Прайс-лист не найден");
 
       // Check if item exists
       const [existing] = await db.select()
@@ -143,8 +153,18 @@ export const priceListRouter = createRouter({
   // Remove item from price list
   removeItem: operatorQuery
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = getDb();
+      const tenantId = ctx.tenant.id;
+
+      // Verify the item belongs to a price list owned by this tenant
+      const [item] = await db.select({ id: priceListItems.id })
+        .from(priceListItems)
+        .innerJoin(priceLists, eq(priceListItems.priceListId, priceLists.id))
+        .where(and(eq(priceListItems.id, input.id), eq(priceLists.tenantId, tenantId)))
+        .limit(1);
+      if (!item) throw new Error("Позиция не найдена");
+
       await db.delete(priceListItems).where(eq(priceListItems.id, input.id));
       return { success: true };
     }),
@@ -155,8 +175,24 @@ export const priceListRouter = createRouter({
       priceListId: z.number(),
       shopId: z.number(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = getDb();
+      const tenantId = ctx.tenant.id;
+
+      // Verify price list belongs to tenant
+      const [priceList] = await db.select({ id: priceLists.id })
+        .from(priceLists)
+        .where(and(eq(priceLists.id, input.priceListId), eq(priceLists.tenantId, tenantId)))
+        .limit(1);
+      if (!priceList) throw new Error("Прайс-лист не найден");
+
+      // Verify shop belongs to tenant
+      const [shop] = await db.select({ id: shops.id })
+        .from(shops)
+        .where(and(eq(shops.id, input.shopId), eq(shops.tenantId, tenantId)))
+        .limit(1);
+      if (!shop) throw new Error("Магазин не найден");
+
       await db.insert(priceListAssignments).values({
         priceListId: input.priceListId,
         shopId: input.shopId,
@@ -170,8 +206,24 @@ export const priceListRouter = createRouter({
       priceListId: z.number(),
       shopId: z.number(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = getDb();
+      const tenantId = ctx.tenant.id;
+
+      // Verify price list belongs to tenant
+      const [priceList] = await db.select({ id: priceLists.id })
+        .from(priceLists)
+        .where(and(eq(priceLists.id, input.priceListId), eq(priceLists.tenantId, tenantId)))
+        .limit(1);
+      if (!priceList) throw new Error("Прайс-лист не найден");
+
+      // Verify shop belongs to tenant
+      const [shop] = await db.select({ id: shops.id })
+        .from(shops)
+        .where(and(eq(shops.id, input.shopId), eq(shops.tenantId, tenantId)))
+        .limit(1);
+      if (!shop) throw new Error("Магазин не найден");
+
       await db.delete(priceListAssignments)
         .where(and(
           eq(priceListAssignments.priceListId, input.priceListId),
@@ -189,6 +241,14 @@ export const priceListRouter = createRouter({
     }))
     .query(async ({ input, ctx }) => {
       const db = getDb();
+      const tenantId = ctx.tenant.id;
+
+      // Verify shop belongs to tenant
+      const [shop] = await db.select({ id: shops.id })
+        .from(shops)
+        .where(and(eq(shops.id, input.shopId), eq(shops.tenantId, tenantId)))
+        .limit(1);
+      if (!shop) throw new Error("Магазин не найден");
 
       // Find price lists assigned to this shop
       const assignedLists = await db.select({ priceListId: priceListAssignments.priceListId })

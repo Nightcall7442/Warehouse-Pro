@@ -6,6 +6,7 @@ import { eq, and, sql, desc } from "drizzle-orm";
 import { sseBus } from "./lib/sse";
 import { logger } from "./lib/logger";
 import { sendPushToUser } from "./services/push-service";
+import { sanitizeString } from "./lib/sanitize";
 
 export const courierRouter = createRouter({
   listMyDeliveries: courierQuery.query(async ({ ctx }) => {
@@ -190,16 +191,17 @@ export const courierRouter = createRouter({
           const qty = Number(item.quantity);
           const [result] = await tx.execute(sql`
             UPDATE warehouse_stock
-            SET current_stock = current_stock - ${qty}, reserved = reserved - ${qty}, available = available + ${qty}
+            SET current_stock = current_stock - ${qty}, reserved = reserved - ${qty}
             WHERE product_id = ${item.productId} AND tenant_id = ${ctx.tenant.id}
           `);
           // If no rows affected, stock row doesn't exist — log warning but continue
-          if (result && typeof result === "object" && "affectedRows" in result && (result as any).affectedRows === 0) {
+          if (result && typeof result === "object" && "affectedRows" in result && (result as Record<string, unknown>).affectedRows === 0) {
             console.warn(`[Stock] No stock row for product ${item.productId} in tenant ${ctx.tenant.id}`);
           }
         }
 
         if (input.cashAmount && Number(input.cashAmount) > 0) {
+          const cashAmount = Number(input.cashAmount);
           await tx.insert(payments).values({
             tenantId: ctx.tenant.id,
             shopId: order.shopId,
@@ -208,6 +210,12 @@ export const courierRouter = createRouter({
             notes: `Доставка ${order.orderNumber} — наличные от курьера`,
             createdBy: courierId,
           });
+          // Update shop debt: amount paid reduces the debt
+          await tx.execute(sql`
+            UPDATE shops
+            SET debt = GREATEST(0, CAST(debt AS DECIMAL(12,2)) - ${cashAmount})
+            WHERE id = ${order.shopId} AND tenant_id = ${ctx.tenant.id}
+          `);
         }
       });
 
@@ -262,14 +270,23 @@ export const courierRouter = createRouter({
         )).limit(1);
       if (!order) throw new Error("Заказ не найден или не назначен на вас");
 
+      const safeReason = input.reason ? sanitizeString(input.reason) : "";
+
       await db.transaction(async (tx) => {
-        // Update order status
+        // Lock stock rows before releasing
+        const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, input.orderId));
+        for (const item of items) {
+          await tx.select({ id: warehouseStock.id }).from(warehouseStock)
+            .where(and(eq(warehouseStock.productId, item.productId), eq(warehouseStock.tenantId, ctx.tenant.id)))
+            .for("update");
+        }
+
+        // Update order status — keep deliveryStatus for history, but allow reassignment
         await tx.update(orders)
-          .set({ deliveryStatus: "failed", status: "new" })
+          .set({ deliveryStatus: "failed", status: "new", courierId: null })
           .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, ctx.tenant.id)));
 
         // Restore reserved stock — the delivery failed, so reserved qty goes back to available
-        const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, input.orderId));
         for (const item of items) {
           const qty = Number(item.quantity);
           await tx.execute(sql`
@@ -290,7 +307,7 @@ export const courierRouter = createRouter({
           userId: ceo.id,
           type: "order",
           title: "Доставка не состоялась",
-          message: `Заказ ${order.orderNumber}${input.reason ? ` — ${input.reason}` : ""}`,
+          message: `Заказ ${order.orderNumber}${safeReason ? ` — ${safeReason}` : ""}`,
         });
 
         sseBus.emit({
@@ -303,7 +320,7 @@ export const courierRouter = createRouter({
         // Push notification to CEO
         sendPushToUser(ceo.id, {
           title: "Доставка не состоялась",
-          body: `Заказ ${order.orderNumber}${input.reason ? ` — ${input.reason}` : ""}`,
+          body: `Заказ ${order.orderNumber}${safeReason ? ` — ${safeReason}` : ""}`,
           data: { type: "order.failed", orderId: input.orderId },
         }).catch(() => {});
       }

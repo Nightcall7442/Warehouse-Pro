@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useParams, useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
@@ -43,7 +42,7 @@ export default function OrderDetail() {
     { id: Number(id) }, { enabled: !!id }
   );
 
-  const { data: settings } = trpc.settings.get.useQuery() as { data: any };
+  const { data: settings } = trpc.settings.get.useQuery();
 
   const { data: couriers } = trpc.user.list.useQuery(
     { role: "courier" },
@@ -91,7 +90,7 @@ export default function OrderDetail() {
         : "",
       seller,
       buyer,
-      items:    (order.items ?? []).map((i: any) => ({
+      items:    (order.items ?? []).map((i) => ({
         name:  i.productName ?? "",
         code:  i.productCode ?? "",
         unit:  "кг",
@@ -109,10 +108,10 @@ export default function OrderDetail() {
 
   const handleExport = async () => {
     if (!order) return;
-    const rows = (order.items ?? []).map((i: any) => ({
+    const rows = (order.items ?? []).map((i) => ({
       [t("orders.number")]:   order.orderNumber,
       [t("orders.shop")]:     order.shop?.name ?? "",
-      [t("orders.agent")]:    (order as any).agent?.name ?? "",
+      [t("orders.agent")]:    order.agent?.name ?? "",
       [t("common.status")]:   order.status,
       [t("products.name")]:   i.productName ?? "",
       [t("products.code")]:   i.productCode ?? "",
@@ -195,7 +194,7 @@ export default function OrderDetail() {
               {t(`orders.status.${order.status}` as string) || order.status.toUpperCase()}
             </span>
             {(() => {
-              const pm = PAYMENT_METHODS[(order as any).paymentMethod ?? "cash"];
+              const pm = PAYMENT_METHODS[order.paymentMethod ?? "cash"];
               if (!pm) return null;
               return (
                 <span className="badge mt-2 ml-2 inline-block" style={{
@@ -216,14 +215,14 @@ export default function OrderDetail() {
               {lang === "uz" ? "XARIDOR" : "ПОКУПАТЕЛЬ"}
             </p>
             <p className="text-sm font-medium text-primary">{order.shop?.name ?? "—"}</p>
-            <p className="text-xs text-secondary">{(order.shop as any)?.ownerName ?? ""}</p>
+            <p className="text-xs text-secondary">{order.shop?.ownerName ?? ""}</p>
             <p className="text-xs text-secondary">{((order.shop as Record<string, unknown>)?.phone as string) ?? ""}</p>
           </div>
           <div>
             <p className="font-label text-secondary text-[10px] tracking-wider mb-1">
               {lang === "uz" ? "AGENT" : "АГЕНТ"}
             </p>
-            <p className="text-sm text-primary">{(order as any).agent?.name ?? "—"}</p>
+            <p className="text-sm text-primary">{order.agent?.name ?? "—"}</p>
           </div>
           <div>
             <p className="font-label text-secondary text-[10px] tracking-wider mb-1">
@@ -249,7 +248,7 @@ export default function OrderDetail() {
             </tr>
           </thead>
           <tbody>
-            {order.items?.map((item: any, i) => (
+            {order.items?.map((item, i) => (
               <tr key={item.id ?? i} className="border-b border-border-subtle">
                 <td className="px-3 py-2.5 text-sm text-primary">{item.productName ?? "—"}</td>
                 <td className="px-3 py-2.5 font-data text-xs text-secondary">{item.productCode ?? "—"}</td>
@@ -331,7 +330,7 @@ export default function OrderDetail() {
               value={order.courierId ? String(order.courierId) : ""}
               options={[
                 { value: "", label: lang === "uz" ? "Kuryer tanlang" : "Выберите курьера" },
-                ...(couriers?.data?.map((c: any) => ({ value: String(c.id), label: c.name })) ?? []),
+                ...(couriers?.data?.map((c) => ({ value: String(c.id), label: c.name })) ?? []),
               ]}
               onChange={(val) => {
                 const courierId = Number(val);

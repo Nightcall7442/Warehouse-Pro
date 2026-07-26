@@ -499,7 +499,7 @@ export default function Reports() {
                 {t("По методам оплаты", "To'lov usullari bo'yicha")}
               </h2>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "10px" }}>
-                {byPayment.map((p: any) => {
+                {byPayment.map((p) => {
                   const pm = PAYMENT_MAP[p.method] ?? { label: p.method, color: COLORS.textTertiary };
                   return (
                     <div key={p.method} className="neo-card-sm" style={{ padding: "14px", textAlign: "center" }}>

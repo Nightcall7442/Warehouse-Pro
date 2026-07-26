@@ -97,7 +97,7 @@ export function exportToPDF(title: string, contentHtml: string) {
     <html>
     <head>
       <meta charset="utf-8">
-      <title>${title}</title>
+      <title>${escapeHtml(title)}</title>
       <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 32px; color: #111; font-size: 12px; }
@@ -120,7 +120,7 @@ export function exportToPDF(title: string, contentHtml: string) {
       </style>
     </head>
     <body>
-      <h1>${title}</h1>
+      <h1>${escapeHtml(title)}</h1>
       <div class="subtitle">Warehouse Pro — ${new Date().toLocaleDateString("ru")}</div>
       ${contentHtml}
       <script>window.onload = () => { window.print(); }</script>
@@ -131,6 +131,10 @@ export function exportToPDF(title: string, contentHtml: string) {
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

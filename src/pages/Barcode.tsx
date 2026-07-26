@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Barcode page — scan products for quick stock lookup + label printing.
  * Also supports scanning to find a product and add it to a new order.
@@ -47,7 +46,9 @@ function LabelSheet({ products }: { products: Array<{ name: string; code: string
 export default function BarcodePage() {
   const [scanning, setScanning]     = useState(false);
   const [searchCode, setSearchCode] = useState("");
-  const [labelQueue, setLabelQueue] = useState<any[]>([]);
+  const [labelQueue, setLabelQueue] = useState<
+    Array<{ id: number; name: string; code: string; unitPrice: string }>
+  >([]);
   const { fmt, currency } = useCurrency();
   const { lang }          = useLang();
   const navigate          = useNavigate();
@@ -55,15 +56,15 @@ export default function BarcodePage() {
   const { data: products, isLoading } = trpc.product.list.useQuery(
     { search: searchCode, pageSize: 10 },
     { enabled: searchCode.length > 1 }
-  ) as { data: any; isLoading: boolean };
+  );
 
   const handleScan = (code: string) => {
     setScanning(false);
     setSearchCode(code);
   };
 
-  const addToLabelQueue = (product: any) => {
-    if (!labelQueue.find((p: any) => p.id === product.id)) {
+  const addToLabelQueue = (product: (typeof labelQueue)[number]) => {
+    if (!labelQueue.find((p) => p.id === product.id)) {
       setLabelQueue(q => [...q, product]);
     }
   };
@@ -82,7 +83,7 @@ export default function BarcodePage() {
         />
       )}
 
-      <LabelSheet products={labelQueue.map((p: any) => ({
+      <LabelSheet products={labelQueue.map((p) => ({
         name:     p.name,
         code:     p.code ?? "",
         price:    p.unitPrice ?? "0",
@@ -131,7 +132,7 @@ export default function BarcodePage() {
             </div>
           ) : (
             <div className="divide-y divide-border-subtle">
-              {products?.data.map((p: any) => (
+              {products?.data.map((p) => (
                 <div key={p.id} className="p-4 flex items-center gap-3">
                   <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
                     <Package size={18} className="text-primary"/>
@@ -186,7 +187,7 @@ export default function BarcodePage() {
             </button>
           </div>
           <div className="space-y-1.5">
-            {labelQueue.map((p: any, i: number) => (
+            {labelQueue.map((p, i: number) => (
               <div key={i} className="flex items-center justify-between text-sm">
                 <span className="text-primary">{p.name}</span>
                 <div className="flex items-center gap-2">

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { memo, useCallback, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { trpc } from "@/providers/trpc";
@@ -88,7 +87,7 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
   const { lang } = useLang();
   const { fmt } = useCurrency();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
-  const { data: products, isLoading: productsLoading } = trpc.product.list.useQuery({ page: 1, pageSize: 10000, includeAll: true }) as { data: any; isLoading: boolean };
+  const { data: products, isLoading: productsLoading } = trpc.product.list.useQuery({ page: 1, pageSize: 10000, includeAll: true });
 
   const [form, setForm] = useState({
     truckId: "", driverName: "", driverPhone: "",
@@ -110,7 +109,7 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
       if (idx !== i) return item;
       const updated = { ...item, [field]: val };
       if (field === "productId") {
-        const product = products?.data?.find((pr: any) => pr.id === Number(val));
+        const product = products?.data?.find((pr) => pr.id === Number(val));
         if (product) {
           updated.unit = product.unit ?? "pcs";
           updated.unitWeight = Number(product.unitWeight ?? 0);
@@ -198,7 +197,8 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
               {items.map((item, i) => (
                 <div key={i} className="neo-card-sm p-4 space-y-3" style={{ border: "1px solid var(--color-border, #f0f3f8)", borderRadius: "16px" }}>
                   <PremiumSelect value={String(item.productId)} onChange={v => updateItem(i, "productId", Number(v))}
-                    options={[{ value: "0", label: productsLoading ? t("Загрузка товаров...", "Mahsulotlar yuklanmoqda...") : t("Выберите товар…", "Mahsulot tanlang…") }, ...(products?.data ?? []).map((p: any) => ({ value: String(p.id), label: `${p.name} · ${fmt(p.unitPrice)}/${unitLabel(p.unit)}` }))]}
+                    options={[{ value: "0", label: productsLoading ? t("Загрузка товаров...", "Mahsulotlar yuklanmoqda...") : t("Выберите товар…", "Mahsulot tanlang…") },
+                      ...(products?.data ?? []).map((p) => ({ value: String(p.id), label: `${p.name} · ${fmt(p.unitPrice)}/${unitLabel(p.unit)}` }))]}
                     width="100%" />
                   <div className="grid grid-cols-5 gap-3 items-end">
                     <div>
@@ -268,7 +268,7 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
   const { fmt } = useCurrency();
   const { lang } = useLang();
   const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);
-  const { data: detail, isLoading } = trpc.arrival.getById.useQuery({ id: arrivalId }) as { data: any; isLoading: boolean };
+  const { data: detail, isLoading } = trpc.arrival.getById.useQuery({ id: arrivalId });
 
   const handlePrintInvoice = () => {
     if (!detail) return;
@@ -431,7 +431,7 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
                     </tr>
                   </thead>
                   <tbody>
-                    {detail.items.map((item: any, i: number) => (
+                    {detail.items.map((item, i) => (
                       <tr key={i} style={{ transition: "background 0.15s" }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(75,108,246,0.02)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
                         <td style={{ padding: "12px 14px", fontSize: "13px", color: "var(--color-text-primary)", borderBottom: "1px solid var(--color-border)" }}>{item.productName ?? "—"}</td>
                         <td style={{ padding: "12px 14px", fontSize: "12px", color: "var(--color-text-tertiary)", fontFamily: "monospace", borderBottom: "1px solid var(--color-border)" }}>{item.productCode ?? "—"}</td>
@@ -467,7 +467,7 @@ function ArrivalReceipt({ arrival }: { arrival: { id: number } }) {
   useCurrency();
   const { lang } = useLang();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
-  const { data: detail } = trpc.arrival.getById.useQuery({ id: arrival.id }, { enabled: open }) as { data: any };
+  const { data: detail } = trpc.arrival.getById.useQuery({ id: arrival.id }, { enabled: open });
 
   return (
     <div>
@@ -484,7 +484,7 @@ function ArrivalReceipt({ arrival }: { arrival: { id: number } }) {
               ))}</tr>
             </thead>
             <tbody>
-              {detail.items.map((raw: any, i: number) => {
+              {detail.items.map((raw, i) => {
                 const item = raw as Record<string, unknown>;
                 return (
                 <tr key={i}>
@@ -534,9 +534,9 @@ export default function Arrivals() {
   const arrivals = data?.data ?? [];
   const kpis = useMemo(() => {
     const total = arrivals.length;
-    const totalExpenses = arrivals.reduce((s: number, a: any) => s + Number(a.totalExpense ?? 0), 0);
-    const completed = arrivals.filter((a: any) => a.status === "completed").length;
-    const pending = arrivals.filter((a: any) => a.status === "pending").length;
+    const totalExpenses = arrivals.reduce((s, a) => s + Number(a.totalExpense ?? 0), 0);
+    const completed = arrivals.filter((a) => a.status === "completed").length;
+    const pending = arrivals.filter((a) => a.status === "pending").length;
     return { total, totalExpenses, completed, pending };
   }, [arrivals]);
 
@@ -570,7 +570,7 @@ export default function Arrivals() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-      {showForm && <ArrivalForm onSave={(d: any) => createMutation.mutate(d)} onClose={() => setShowForm(false)} isPending={createMutation.isPending} />}
+      {showForm && <ArrivalForm onSave={(d) => createMutation.mutate(d)} onClose={() => setShowForm(false)} isPending={createMutation.isPending} />}
 
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
@@ -665,7 +665,7 @@ export default function Arrivals() {
               <tr key={i}><td colSpan={6} style={{ padding: "16px" }}><div style={{ height: 16, background: COLORS.surfaceLight, borderRadius: 8, width: "60%" }} /></td></tr>
             )) : arrivals.length === 0 ? (
               <tr><td colSpan={6} style={{ textAlign: "center", padding: "48px 16px", color: COLORS.textTertiary, fontSize: "14px" }}>{t("Нет приходов", "Kelishlar yo'q")}</td></tr>
-            ) : arrivals.map((a: any) => (
+            ) : arrivals.map((a) => (
               <tr key={a.id} style={{ transition: "background 0.15s", cursor: "pointer" }} onClick={() => setDetailId(a.id)} onMouseEnter={e => (e.currentTarget.style.background = "rgba(75,108,246,0.02)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
                 <td style={{ ...tdStyle, fontWeight: 500 }}>{a.arrivalNumber}</td>
                 <td style={{ ...tdStyle, color: COLORS.textSecondary }}>{a.arrivalDate ? format(new Date(a.arrivalDate), "dd.MM.yyyy") : "—"}</td>

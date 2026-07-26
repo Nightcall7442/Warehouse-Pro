@@ -33,11 +33,11 @@ export default function Shops() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [viewMode, setViewMode] = useState<"territories" | "list">("territories");
 
-  const { data, isLoading } = trpc.shop.list.useQuery({ page, pageSize: 25, search: search || undefined, city, district, agentId: agentFilter ? Number(agentFilter) : undefined }) as { data: any; isLoading: boolean };
-  const { data: allShopsData } = trpc.shop.list.useQuery({ page: 1, pageSize: 5000 }) as { data: any };
+  const { data, isLoading } = trpc.shop.list.useQuery({ page, pageSize: 25, search: search || undefined, city, district, agentId: agentFilter ? Number(agentFilter) : undefined });
+  const { data: allShopsData } = trpc.shop.list.useQuery({ page: 1, pageSize: 5000 });
   const { data: cities } = trpc.shop.cities.useQuery();
   const { data: districts } = trpc.shop.districts.useQuery({ city });
-  const { data: territories } = trpc.shop.territories.useQuery() as { data: any };
+  const { data: territories } = trpc.shop.territories.useQuery();
   const { data: realTerritories } = trpc.territory.list.useQuery();
   const { data: usersData } = trpc.user.list.useQuery({ page: 1, pageSize: 100 });
   const agents = useMemo(() => (usersData?.data ?? []).filter((u: { role: string }) => u.role === "agent"), [usersData?.data]);
@@ -56,13 +56,13 @@ export default function Shops() {
   const kpiStats = useMemo<ShopKpiStats>(() => {
     const shops = data?.data ?? [];
     const total = data?.total ?? 0;
-    const activeCount = shops.filter((s: any) => s.status === "active").length;
-    const debtCount = shops.filter((s: any) => Number(s.debt ?? 0) > 0).length;
-    const totalDebt = shops.reduce((sum: number, s: any) => sum + Number(s.debt ?? 0), 0);
+    const activeCount = shops.filter((s) => s.status === "active").length;
+    const debtCount = shops.filter((s) => Number(s.debt ?? 0) > 0).length;
+    const totalDebt = shops.reduce((sum: number, s) => sum + Number(s.debt ?? 0), 0);
     return { total, activeCount, debtCount, totalDebt };
   }, [data]);
 
-  const allVisibleIds = useMemo(() => (data?.data ?? []).map((s: any) => s.id as number), [data]);
+  const allVisibleIds = useMemo(() => (data?.data ?? []).map((s) => s.id as number), [data]);
   const allSelected = allVisibleIds.length > 0 && allVisibleIds.every(id => selected.has(id));
 
   const toggleSelect = useCallback((id: number) => {
@@ -143,7 +143,7 @@ export default function Shops() {
             const allShops = allShopsData?.data ?? [];
             if (!allShops.length) return;
             // Group by territory
-            const grouped = new Map<string, any[]>();
+            const grouped = new Map<string, unknown[]>();
             for (const s of allShops) {
               const territory = s.district || s.city || "Другие";
               if (!grouped.has(territory)) grouped.set(territory, []);
@@ -198,7 +198,7 @@ export default function Shops() {
         </div>
       </div>
 
-      {showForm && <ShopForm isPending={createMutation.isPending} lang={lang} agents={agents} territories={(realTerritories ?? []) as any} onSave={d => createMutation.mutate(d)} onCancel={() => setShowForm(false)} />}
+      {showForm && <ShopForm isPending={createMutation.isPending} lang={lang} agents={agents} territories={realTerritories ?? []} onSave={d => createMutation.mutate(d)} onCancel={() => setShowForm(false)} />}
 
       {showImport && <ExcelImport type="shops" onDone={() => { setShowImport(false); utils.shop.list.invalidate(); }} onCancel={() => setShowImport(false)} />}
 

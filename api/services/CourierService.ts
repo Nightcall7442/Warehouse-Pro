@@ -127,11 +127,28 @@ export const CourierService = {
     if (!order) throw new Error("Заказ не найден или не назначен на вас");
 
     await db.transaction(async (tx) => {
+      // Lock and deduct stock
+      const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
+      for (const item of items) {
+        await tx.select({ id: warehouseStock.id }).from(warehouseStock)
+          .where(and(eq(warehouseStock.productId, item.productId), eq(warehouseStock.tenantId, tenantId)))
+          .for("update");
+      }
+      for (const item of items) {
+        const qty = Number(item.quantity);
+        await tx.execute(sql`
+          UPDATE warehouse_stock
+          SET current_stock = current_stock - ${qty}, reserved = reserved - ${qty}
+          WHERE product_id = ${item.productId} AND tenant_id = ${tenantId}
+        `);
+      }
+
       await tx.update(orders)
         .set({ deliveryStatus: "delivered", deliveredAt: new Date(), status: "completed" })
         .where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)));
 
       if (data?.cashAmount && Number(data.cashAmount) > 0) {
+        const cashAmount = Number(data.cashAmount);
         await tx.insert(payments).values({
           tenantId,
           shopId: order.shopId,
@@ -140,6 +157,12 @@ export const CourierService = {
           notes: `Доставка ${order.orderNumber} — наличные от курьера`,
           createdBy: courierId,
         });
+        // Update shop debt
+        await tx.execute(sql`
+          UPDATE shops
+          SET debt = GREATEST(0, CAST(debt AS DECIMAL(12,2)) - ${cashAmount})
+          WHERE id = ${order.shopId} AND tenant_id = ${tenantId}
+        `);
       }
     });
 

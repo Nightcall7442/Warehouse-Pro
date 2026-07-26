@@ -1,13 +1,12 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState } from "react";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { useCurrency } from "@/hooks/useCurrency";
 import {
-  BarChart3, TrendingUp, Package, Truck, RefreshCw,
+  TrendingUp, Package,
   ArrowUpRight, ArrowDownRight, Minus, Layers,
-  Download, FileSpreadsheet, FileText, ShoppingCart,
-  DollarSign, AlertTriangle,
+  FileSpreadsheet, FileText,
+  AlertTriangle,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -45,7 +44,7 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
   );
 }
 
-function KpiCard({ label, value, delta, icon, gradient, delay }: {
+function KpiCard({ label, value, delta, icon, gradient }: {
   label: string; value: string; delta?: number | null;
   icon: React.ReactNode; gradient: string; delay: number;
 }) {

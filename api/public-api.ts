@@ -132,7 +132,9 @@ app.get("/orders/:id", async (c) => {
     .where(and(eq(orders.id, id), eq(orders.tenantId, tenantId))).limit(1);
   if (!order) return c.json({ error: "Order not found" }, 404);
 
-  const items = await db.select().from(orderItems).where(eq(orderItems.orderId, id));
+  const items = await db.select().from(orderItems)
+    .innerJoin(orders, eq(orderItems.orderId, orders.id))
+    .where(and(eq(orderItems.orderId, id), eq(orders.tenantId, tenantId)));
   return c.json({ data: { ...order, items } });
 });
 

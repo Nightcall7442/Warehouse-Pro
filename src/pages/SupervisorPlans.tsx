@@ -38,7 +38,7 @@ function CreatePlanForm({ date, onDone, lang }: { date: string; onDone: () => vo
     onError: (e) => notify.error(e.message),
   });
 
-  const selectedTerritory = territories?.find((tr: any) => tr.id === territoryId);
+  const selectedTerritory = territories?.find((tr) => tr.id === territoryId);
   const shopCount = selectedTerritory?.shopCount ?? 0;
 
   const handleCreate = async () => {
@@ -48,7 +48,7 @@ function CreatePlanForm({ date, onDone, lang }: { date: string; onDone: () => vo
       notify.error(t("В территории нет магазинов", "Territoriyada do'konlar yo'q"));
       return;
     }
-    const promises = shopsInTerritory.map((shop: any) =>
+    const promises = shopsInTerritory.map((shop) =>
       createPlan.mutateAsync({ agentId, shopId: shop.id, planDate: date, notes: notes || undefined })
     );
     await Promise.all(promises);
@@ -80,7 +80,7 @@ function CreatePlanForm({ date, onDone, lang }: { date: string; onDone: () => vo
         </label>
         <PremiumSelect value={String(agentId)}
           onChange={v => setAgentId(Number(v))}
-          options={[{value:"0",label:t("Выберите агента…", "Agent tanlang…")},...(agents??[]).map((a:any)=>({value:String(a.id),label:String(a.name)}))]}
+          options={[{value:"0",label:t("Выберите агента…", "Agent tanlang…")},...(agents??[]).map((a)=>({value:String(a.id),label:String(a.name)}))]}
           width="100%" />
       </div>
 
@@ -90,7 +90,7 @@ function CreatePlanForm({ date, onDone, lang }: { date: string; onDone: () => vo
         </label>
         <PremiumSelect value={String(territoryId)}
           onChange={v => setTerritoryId(Number(v))}
-          options={[{value:"0",label:t("Выберите территорию…", "Territoriya tanlang…")},...(territories??[]).map((tr:any)=>({value:String(tr.id),label:`${tr.name} (${tr.shopCount} ${t("магазинов","do'kon")})`}))]}
+          options={[{value:"0",label:t("Выберите территорию…", "Territoriya tanlang…")},...(territories??[]).map((tr)=>({value:String(tr.id),label:`${tr.name} (${tr.shopCount} ${t("магазинов","do'kon")})`}))]}
           width="100%" />
         {selectedTerritory && (
           <p style={{ fontSize: "12px", color: "var(--color-text-tertiary)", margin: "6px 0 0" }}>
@@ -145,9 +145,9 @@ export default function SupervisorPlans() {
     if (!plans) return [];
     const map = new Map<number, { agentName: string; agentId: number; shops: typeof plans; visited: number; total: number }>();
     for (const p of plans) {
-      const agentId = (p as any).agentId ?? 0;
+      const agentId = p.agentId ?? 0;
       if (!map.has(agentId)) {
-        map.set(agentId, { agentName: (p as any).agentName ?? "—", agentId, shops: [], visited: 0, total: 0 });
+        map.set(agentId, { agentName: p.agentName ?? "—", agentId, shops: [], visited: 0, total: 0 });
       }
       const g = map.get(agentId)!;
       g.shops.push(p);
@@ -317,7 +317,7 @@ export default function SupervisorPlans() {
                             {plan.shopName ?? "—"}
                           </span>
                           <span style={{ fontSize: "11px", color: "var(--color-text-tertiary)" }}>
-                            {(plan as any).shopCity ?? ""}
+                            {plan.shopCity ?? ""}
                           </span>
                           {hasDebt && (
                             <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--color-danger)" }}>

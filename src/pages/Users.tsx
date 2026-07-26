@@ -248,7 +248,7 @@ export default function Users() {
     page, pageSize: 25,
     search: search || undefined,
     role: role || undefined,
-  }) as { data: any; isLoading: boolean };
+  });
   const utils = trpc.useUtils();
   const { confirm, dialog } = useConfirm();
 
@@ -280,8 +280,8 @@ export default function Users() {
     const list = data?.data ?? [];
     return {
       total: data?.total ?? 0,
-      active: list.filter((u: any) => u.status === "active").length,
-      inactive: list.filter((u: any) => u.status !== "active").length,
+      active: list.filter((u) => u.status === "active").length,
+      inactive: list.filter((u) => u.status !== "active").length,
     };
   }, [data]);
 

@@ -1,55 +1,46 @@
-/**
- * Anti-Fraud Service — verifies agent visit authenticity.
- *
- * Checks:
- * 1. GPS geofencing: was agent within X meters of the shop?
- * 2. Visit duration: was the visit long enough?
- * 3. Duplicate detection: same shop on same day
- * 4. Photo timing: was photo taken during the visit?
- */
-
 import { sql, eq, and, gte, lte } from "drizzle-orm";
 import type { DrizzleInstance } from "../queries/connection";
 import { agentLocations, dailyPlans, shops } from "@db/schema";
 
 export interface FraudCheckResult {
   isSuspicious: boolean;
-  fraudScore: number; // 0-100, higher = more suspicious
+  fraudScore: number;
   reasons: string[];
   details: {
     gpsVerified: boolean;
-    distanceToShop: number; // meters
-    visitDuration: number; // minutes
+    distanceToShop: number;
+    visitDuration: number;
     duplicateVisit: boolean;
     photoTimingValid: boolean;
   };
 }
 
-// Geofence radius in meters
 const GEOFENCE_RADIUS = 500;
-// Minimum visit duration in minutes
 const MIN_VISIT_DURATION = 5;
-// Maximum visits to same shop per day
 const MAX_SAME_SHOP_VISITS = 2;
 
-/**
- * Verify a visit's authenticity based on GPS, timing, and other signals.
- */
+interface GpsPing {
+  lat: string;
+  lng: string;
+  createdAt: Date;
+}
+
 export async function verifyVisit(
   db: DrizzleInstance,
   planId: number,
   tenantId: number,
+  gpsPings?: GpsPing[],
 ): Promise<FraudCheckResult> {
   const reasons: string[] = [];
   let fraudScore = 0;
 
-  // Get the plan details
   const [plan] = await db.select({
     id: dailyPlans.id,
     shopId: dailyPlans.shopId,
     planDate: dailyPlans.planDate,
     agentId: dailyPlans.agentId,
     status: dailyPlans.status,
+    photoUrl: dailyPlans.photoUrl,
   }).from(dailyPlans)
     .where(and(eq(dailyPlans.id, planId), eq(dailyPlans.tenantId, tenantId)))
     .limit(1);
@@ -58,7 +49,6 @@ export async function verifyVisit(
     return { isSuspicious: false, fraudScore: 0, reasons: [], details: { gpsVerified: false, distanceToShop: 0, visitDuration: 0, duplicateVisit: false, photoTimingValid: false } };
   }
 
-  // Get shop coordinates
   const [shop] = await db.select({
     gpsLat: shops.gpsLat,
     gpsLng: shops.gpsLng,
@@ -67,17 +57,11 @@ export async function verifyVisit(
     .where(eq(shops.id, plan.shopId!))
     .limit(1);
 
-  // 1. GPS Geofencing
-  let gpsVerified = false;
-  let distanceToShop = 0;
-
-  if (shop?.gpsLat && shop?.gpsLng) {
-    // Get agent's GPS pings around the visit time
+  if (!gpsPings) {
     const planDate = new Date(plan.planDate);
     const dayStart = new Date(planDate.getFullYear(), planDate.getMonth(), planDate.getDate());
     const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
-
-    const gpsPings = await db.select({
+    gpsPings = await db.select({
       lat: agentLocations.lat,
       lng: agentLocations.lng,
       createdAt: agentLocations.createdAt,
@@ -89,8 +73,12 @@ export async function verifyVisit(
         lte(agentLocations.createdAt, dayEnd),
       ))
       .orderBy(agentLocations.createdAt);
+  }
 
-    // Find closest GPS ping to shop
+  let gpsVerified = false;
+  let distanceToShop = 0;
+
+  if (shop?.gpsLat && shop?.gpsLng) {
     let minDistance = Infinity;
     for (const ping of gpsPings) {
       const dist = haversineDistance(
@@ -108,32 +96,12 @@ export async function verifyVisit(
       fraudScore += 40;
     }
   } else {
-    // No GPS data for shop — can't verify
     reasons.push("Нет GPS координат у магазина");
     fraudScore += 10;
   }
 
-  // 2. Visit Duration
   let visitDuration = 0;
   if (shop?.gpsLat && shop?.gpsLng) {
-    const planDate = new Date(plan.planDate);
-    const dayStart = new Date(planDate.getFullYear(), planDate.getMonth(), planDate.getDate());
-    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
-
-    const gpsPings = await db.select({
-      lat: agentLocations.lat,
-      lng: agentLocations.lng,
-      createdAt: agentLocations.createdAt,
-    }).from(agentLocations)
-      .where(and(
-        eq(agentLocations.tenantId, tenantId),
-        eq(agentLocations.agentId, plan.agentId!),
-        gte(agentLocations.createdAt, dayStart),
-        lte(agentLocations.createdAt, dayEnd),
-      ))
-      .orderBy(agentLocations.createdAt);
-
-    // Count pings within geofence
     const pingsAtShop = gpsPings.filter(p => {
       const dist = haversineDistance(
         Number(shop.gpsLat), Number(shop.gpsLng),
@@ -154,7 +122,6 @@ export async function verifyVisit(
     }
   }
 
-  // 3. Duplicate Visit Detection
   let duplicateVisit = false;
   const planDate = new Date(plan.planDate);
   const dayStart = new Date(planDate.getFullYear(), planDate.getMonth(), planDate.getDate());
@@ -178,10 +145,7 @@ export async function verifyVisit(
     fraudScore += 25;
   }
 
-  // 4. Photo timing (if photo exists)
-  let photoTimingValid = true;
-  // Photo timing check would require photo timestamp metadata
-  // For now, we assume photos are valid if they exist
+  const photoTimingValid = plan.photoUrl != null;
 
   const isSuspicious = fraudScore >= 30;
 
@@ -199,9 +163,6 @@ export async function verifyVisit(
   };
 }
 
-/**
- * Calculate fraud metrics for an agent over a period.
- */
 export async function calculateFraudMetrics(
   db: DrizzleInstance,
   agentId: number,
@@ -215,10 +176,10 @@ export async function calculateFraudMetrics(
   avgVisitDuration: number;
   avgDistanceToShop: number;
 }> {
-  // Get all visited plans in period
   const plans = await db.select({
     id: dailyPlans.id,
     shopId: dailyPlans.shopId,
+    planDate: dailyPlans.planDate,
   }).from(dailyPlans)
     .where(and(
       eq(dailyPlans.tenantId, tenantId),
@@ -228,13 +189,41 @@ export async function calculateFraudMetrics(
       lte(dailyPlans.planDate, periodEnd),
     ));
 
+  const plansByDay = new Map<string, typeof plans>();
+  for (const plan of plans) {
+    const dayKey = new Date(plan.planDate).toISOString().slice(0, 10);
+    if (!plansByDay.has(dayKey)) plansByDay.set(dayKey, []);
+    plansByDay.get(dayKey)!.push(plan);
+  }
+
+  const gpsCache = new Map<string, GpsPing[]>();
+  for (const [dayKey] of plansByDay) {
+    const dayStart = new Date(dayKey + "T00:00:00");
+    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+    const pings = await db.select({
+      lat: agentLocations.lat,
+      lng: agentLocations.lng,
+      createdAt: agentLocations.createdAt,
+    }).from(agentLocations)
+      .where(and(
+        eq(agentLocations.tenantId, tenantId),
+        eq(agentLocations.agentId, agentId),
+        gte(agentLocations.createdAt, dayStart),
+        lte(agentLocations.createdAt, dayEnd),
+      ))
+      .orderBy(agentLocations.createdAt);
+    gpsCache.set(dayKey, pings);
+  }
+
   let suspiciousVisits = 0;
   let totalDuration = 0;
   let totalDistance = 0;
   let validChecks = 0;
 
   for (const plan of plans) {
-    const check = await verifyVisit(db, plan.id, tenantId);
+    const dayKey = new Date(plan.planDate).toISOString().slice(0, 10);
+    const dayPings = gpsCache.get(dayKey) ?? [];
+    const check = await verifyVisit(db, plan.id, tenantId, dayPings);
     if (check.isSuspicious) suspiciousVisits++;
     if (check.details.visitDuration > 0) {
       totalDuration += check.details.visitDuration;
@@ -259,11 +248,8 @@ export async function calculateFraudMetrics(
   };
 }
 
-/**
- * Haversine distance between two GPS coordinates (in meters).
- */
 function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371000; // Earth's radius in meters
+  const R = 6371000;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
   const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Offline Orders — agent can create orders without internet.
  * Orders are saved to IndexedDB and synced when connection is restored.
@@ -57,7 +56,7 @@ export default function OfflineOrders() {
         await createOrder.mutateAsync({
           shopId:   order.shopId as number,
           agentId:  (order.agentId as number) ?? user?.id ?? 0,
-          items:    order.items as any,
+          items:    order.items as Array<{ productId: number; quantity: string | number }>,
           notes:    order.notes as string | undefined,
           discount: order.discount as string | number | undefined,
           paymentMethod: (order.paymentMethod as string) || 'cash',
@@ -160,11 +159,11 @@ export default function OfflineOrders() {
       ) : (
         <div className="space-y-3">
           {pending.map(order => {
-            const total = (order.items as any)?.reduce(
-              (s: number, i: any) => s + Number(i.unitPrice) * Number(i.quantity), 0
+            const total = (order.items as Array<{ unitPrice: string | number; quantity: string | number }>)?.reduce(
+              (s: number, i) => s + Number(i.unitPrice) * Number(i.quantity), 0
             ) ?? 0;
             return (
-              <div key={order.localId as any} className="neo-card p-4 border-l-2 border-warning">
+              <div key={order.localId as number} className="neo-card p-4 border-l-2 border-warning">
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <div className="flex items-center gap-2">
@@ -177,7 +176,7 @@ export default function OfflineOrders() {
                       {lang === "uz" ? "Saqlangan:" : "Сохранён:"} {new Date(order.savedAt as string).toLocaleString("ru-RU")}
                     </p>
                     <p className="text-xs text-secondary">
-                      {(order.items as any)?.length ?? 0} {lang === "uz" ? "ta mahsulot" : "товаров"} · {fmt(total)}
+                      {(order.items as Array<unknown>)?.length ?? 0} {lang === "uz" ? "ta mahsulot" : "товаров"} · {fmt(total)}
                     </p>
                   </div>
                   <div className="flex gap-1 flex-shrink-0">
@@ -188,7 +187,7 @@ export default function OfflineOrders() {
                             await createOrder.mutateAsync({
                               shopId:   order.shopId as number,
                               agentId:  (order.agentId as number) ?? user?.id ?? 0,
-                              items:    order.items as any,
+                              items:    order.items as Array<{ productId: number; quantity: string | number }>,
                               notes:    order.notes as string | undefined,
                               discount: order.discount as string | number | undefined,
                               paymentMethod: (order.paymentMethod as string) || 'cash',

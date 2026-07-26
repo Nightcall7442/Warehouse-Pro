@@ -92,7 +92,6 @@ export const commissionRouter = createRouter({
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
 
-      // Get all agents with commission rates for this period
       const agentCommissions = await db.select()
         .from(commissions)
         .where(and(
@@ -102,36 +101,37 @@ export const commissionRouter = createRouter({
           lte(commissions.periodEnd, input.periodEnd),
         ));
 
-      let updated = 0;
-      for (const agent of agentCommissions) {
-        // Calculate sales amount from orders
-        const { orders } = await import("@db/schema");
-        const { sql: sqlFn } = await import("drizzle-orm");
+      const { orders } = await import("@db/schema");
+      const { sql: sqlFn } = await import("drizzle-orm");
+      const periodEndDate = new Date(input.periodEnd + "T23:59:59");
 
-        const [result] = await db.select({
-          total: sqlFn<string>`COALESCE(SUM(${orders.total}), 0)`,
-        }).from(orders).where(and(
-          eq(orders.tenantId, ctx.tenant.id),
-          eq(orders.agentId, agent.userId),
-          eq(orders.status, "completed"),
-          gte(orders.createdAt, agent.periodStart),
-          lte(orders.createdAt, agent.periodEnd + "T23:59:59"),
-        ));
+      const results = await Promise.all(
+        agentCommissions.map(async (agent) => {
+          const [result] = await db.select({
+            total: sqlFn<string>`COALESCE(SUM(${orders.total}), 0)`,
+          }).from(orders).where(and(
+            eq(orders.tenantId, ctx.tenant.id),
+            eq(orders.agentId, agent.userId),
+            eq(orders.status, "completed"),
+            gte(orders.createdAt, agent.periodStart),
+            lte(orders.createdAt, periodEndDate),
+          ));
 
-        const salesAmount = Number(result.total);
-        const commissionAmount = salesAmount * (Number(agent.commissionRate) / 100);
+          const salesAmount = Number(result.total);
+          const commissionAmount = salesAmount * (Number(agent.commissionRate) / 100);
 
-        await db.update(commissions)
-          .set({
-            salesAmount: salesAmount.toFixed(2),
-            commissionAmount: commissionAmount.toFixed(2),
-          })
-          .where(eq(commissions.id, agent.id));
+          await db.update(commissions)
+            .set({
+              salesAmount: salesAmount.toFixed(2),
+              commissionAmount: commissionAmount.toFixed(2),
+            })
+            .where(eq(commissions.id, agent.id));
 
-        updated++;
-      }
+          return agent.id;
+        })
+      );
 
-      return { success: true, updated };
+      return { success: true, updated: results.length };
     }),
 
   // Approve/paid commission

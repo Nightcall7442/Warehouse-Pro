@@ -107,7 +107,7 @@ export function printUzWaybill(data: OrderDocData) {
   const itemRows = data.items.map((item, i) => `
     <tr>
       <td class="center">${i + 1}</td>
-      <td>${item.name}${item.code ? ` (${item.code})` : ""}</td>
+      <td>${escapeHtml(item.name)}${item.code ? ` (${escapeHtml(item.code)})` : ""}</td>
       <td class="center">${item.unit ?? "кг"}</td>
       <td class="center">${item.qty.toFixed(2)}</td>
       <td class="right">${item.price.toLocaleString("ru-RU")}</td>
@@ -180,7 +180,7 @@ export function printUzWaybill(data: OrderDocData) {
           <div class="sig-col">
             <div class="sig-label">Отпустил (Сдал)</div>
             <div class="sig-line"></div>
-            <div class="sig-label">${data.seller.director ? `Директор: ${data.seller.director}` : "___________________________"}</div>
+            <div class="sig-label">${data.seller.director ? `Директор: ${escapeHtml(data.seller.director)}` : "___________________________"}</div>
           </div>
           <div class="sig-col">
             <div class="sig-label">Получил (Принял)</div>
@@ -213,7 +213,7 @@ export function printArrivalReceipt(data: ArrivalDocData) {
   const itemRows = data.items.map((item, i) => `
     <tr>
       <td class="center">${i + 1}</td>
-      <td>${item.name}${item.code ? ` (${item.code})` : ""}</td>
+      <td>${escapeHtml(item.name)}${item.code ? ` (${escapeHtml(item.code)})` : ""}</td>
       <td class="center">${item.unit ?? "кг"}</td>
       <td class="center">${item.qty.toFixed(2)}</td>
       <td class="center">${(item as Record<string, unknown>).condition ?? "Хорошее"}</td>
@@ -304,8 +304,8 @@ export function printTorg12(data: OrderDocData) {
     <tr>
       <td class="center">${i + 1}</td>
       <td></td>
-      <td>${item.name}</td>
-      <td class="center">${item.code ?? ""}</td>
+      <td>${escapeHtml(item.name)}</td>
+      <td class="center">${escapeHtml(item.code ?? "")}</td>
       <td class="center">${item.unit ?? "кг"}</td>
       <td class="center">796</td>
       <td class="center">${item.qty.toFixed(3)}</td>
@@ -443,7 +443,7 @@ export function printInvoice(data: OrderDocData) {
   const itemRows = data.items.map((item, i) => `
     <tr>
       <td class="center">${i + 1}</td>
-      <td>${item.name}</td>
+      <td>${escapeHtml(item.name)}</td>
       <td class="center">${item.unit ?? "кг"}</td>
       <td class="right">${item.qty.toFixed(2)}</td>
       <td class="right">${item.price.toLocaleString("ru-RU")}</td>

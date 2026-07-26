@@ -87,7 +87,7 @@ export const arrivalRouter = createRouter({
       tollCost:    z.string().default("0.00"),
       otherCost:   z.string().default("0.00"),
       notes:       z.string().optional(),
-      items:       z.array(z.object({ productId: z.number(), quantity: z.string(), costPrice: z.string().optional(), sellingPrice: z.string().optional(), condition: z.string().optional(), warehouseId: z.number().optional() })).optional(),
+      items:       z.array(z.object({ productId: z.number(), quantity: z.string().refine(v => Number(v) > 0, "Количество должно быть положительным"), costPrice: z.string().optional(), sellingPrice: z.string().optional(), condition: z.string().optional(), warehouseId: z.number().optional() })).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const db       = ctx.db;
@@ -159,6 +159,15 @@ export const arrivalRouter = createRouter({
           .from(arrivals).where(and(eq(arrivals.id, id), eq(arrivals.tenantId, tenantId))).limit(1);
         if (current?.status === "completed") {
           throw new Error("Нельзя изменить статус завершённого прихода");
+        }
+      }
+
+      // Prevent duplicate completion
+      if (data.status === "completed") {
+        const [current] = await db.select({ status: arrivals.status })
+          .from(arrivals).where(and(eq(arrivals.id, id), eq(arrivals.tenantId, tenantId))).limit(1);
+        if (current?.status === "completed") {
+          throw new Error("Приход уже завершён");
         }
       }
 

@@ -17,7 +17,7 @@ import {
   TrendingUp, CreditCard, ChevronLeft, Bell, Zap,
 } from "lucide-react";
 
-const iconMap: Record<string, any> = {
+const iconMap: Record<string, React.ComponentType<{ size?: number }>> = {
   LayoutDashboard, Store, Package, ClipboardList, Truck,
   Warehouse, BarChart3, Users, Settings, PlusCircle, MapPin,
   Calendar, WifiOff, Scan, Activity, TrendingUp, CreditCard, Zap,

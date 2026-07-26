@@ -2,9 +2,10 @@ import { z } from "zod";
 import { createRouter, fieldSalesQuery, merchVisitQuery, supervisorQuery, authedQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { agentLocations, dailyPlans, shops, users } from "@db/schema";
-import { eq, and, sql, desc } from "drizzle-orm";
+import { eq, and, sql, desc, gte, lte } from "drizzle-orm";
 import { sseBus } from "./lib/sse";
 import { sanitizeString } from "./lib/sanitize";
+import { verifyVisit } from "./services/anti-fraud";
 
 export const agentRouter = createRouter({
   // Supervisor needs a lightweight agent picker for "assign plan to agent" —
@@ -313,7 +314,37 @@ export const agentRouter = createRouter({
       if (!isPrivileged) {
         conditions.push(eq(dailyPlans.agentId, ctx.user.id));
       }
-      await getDb().update(dailyPlans).set({
+      const db = getDb();
+
+      // Run fraud check before saving visit
+      if (!isPrivileged) {
+        const [plan] = await db.select({ agentId: dailyPlans.agentId, planDate: dailyPlans.planDate })
+          .from(dailyPlans).where(and(eq(dailyPlans.id, input.planId), eq(dailyPlans.tenantId, ctx.tenant.id)))
+          .limit(1);
+        if (plan) {
+          const dayStart = new Date(new Date(plan.planDate).toISOString().slice(0, 10));
+          const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+          const gpsPings = await db.select({
+            lat: agentLocations.lat,
+            lng: agentLocations.lng,
+            createdAt: agentLocations.createdAt,
+          }).from(agentLocations)
+            .where(and(
+              eq(agentLocations.tenantId, ctx.tenant.id),
+              eq(agentLocations.agentId, plan.agentId!),
+              gte(agentLocations.createdAt, dayStart),
+              lte(agentLocations.createdAt, dayEnd),
+            ))
+            .orderBy(agentLocations.createdAt);
+
+          const check = await verifyVisit(db, input.planId, ctx.tenant.id, gpsPings);
+          if (check.fraudScore >= 70) {
+            throw new Error(`Визит заблокирован системой фрод-мониторинга: ${check.reasons.join("; ")}`);
+          }
+        }
+      }
+
+      await db.update(dailyPlans).set({
         status: "visited",
         photoUrl: input.photoUrl,
         notes: input.notes ?? undefined,
@@ -350,7 +381,7 @@ export const agentRouter = createRouter({
         agentId:   input.agentId,
         shopId:    input.shopId,
         planDate:  new Date(input.planDate),
-        notes:     input.notes,
+        notes:     input.notes ? sanitizeString(input.notes) : null,
         createdBy: ctx.user.id,
       });
       return { id: Number(result.insertId) };

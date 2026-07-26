@@ -1,10 +1,10 @@
 import { z } from "zod";
-import { createRouter, fieldSalesQuery, supervisorQuery, adminQuery } from "./middleware";
+import { createRouter, fieldSalesQuery, supervisorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { calculateAgentKpi, calculateAllAgentsKpi, calculateSalary } from "./services/kpi";
+import { cache, CacheTTL } from "./lib/cache";
 
 export const kpiRouter = createRouter({
-  /** Agent's own KPI dashboard */
   agentKpi: fieldSalesQuery
     .input(z.object({
       period: z.enum(["week", "month", "quarter"]).default("month"),
@@ -13,11 +13,16 @@ export const kpiRouter = createRouter({
       const db = getDb();
       const period = input?.period ?? "month";
       const { periodStart, periodEnd } = getPeriod(period);
+      const cacheKey = `kpi:agent:${ctx.tenant.id}:${ctx.user.id}:${period}`;
 
-      return calculateAgentKpi(db, ctx.user.id, ctx.tenant.id, periodStart, periodEnd);
+      const cached = cache.get(cacheKey);
+      if (cached) return cached;
+
+      const result = await calculateAgentKpi(db, ctx.user.id, ctx.tenant.id, periodStart, periodEnd);
+      cache.set(cacheKey, result, CacheTTL.kpis);
+      return result;
     }),
 
-  /** Supervisor: all agents' KPIs */
   supervisorKpi: supervisorQuery
     .input(z.object({
       period: z.enum(["week", "month", "quarter"]).default("month"),
@@ -26,11 +31,16 @@ export const kpiRouter = createRouter({
       const db = getDb();
       const period = input?.period ?? "month";
       const { periodStart, periodEnd } = getPeriod(period);
+      const cacheKey = `kpi:supervisor:${ctx.tenant.id}:${period}`;
 
-      return calculateAllAgentsKpi(db, ctx.tenant.id, periodStart, periodEnd);
+      const cached = cache.get(cacheKey);
+      if (cached) return cached;
+
+      const result = await calculateAllAgentsKpi(db, ctx.tenant.id, periodStart, periodEnd);
+      cache.set(cacheKey, result, CacheTTL.kpis);
+      return result;
     }),
 
-  /** Agent's salary calculation */
   salary: fieldSalesQuery
     .input(z.object({
       period: z.enum(["week", "month", "quarter"]).default("month"),
@@ -43,7 +53,6 @@ export const kpiRouter = createRouter({
       return calculateSalary(db, ctx.user.id, ctx.tenant.id, periodStart, periodEnd);
     }),
 
-  /** Supervisor: all agents' salaries */
   salaryReport: supervisorQuery
     .input(z.object({
       period: z.enum(["week", "month", "quarter"]).default("month"),
@@ -53,19 +62,22 @@ export const kpiRouter = createRouter({
       const period = input?.period ?? "month";
       const { periodStart, periodEnd } = getPeriod(period);
 
-      // Get all agents
       const { users } = await import("@db/schema");
       const { eq: eqFn } = await import("drizzle-orm");
       const agentsList = await db.select({ id: users.id, name: users.name })
         .from(users)
         .where(eqFn(users.tenantId, ctx.tenant.id) && eqFn(users.role, "agent") && eqFn(users.status, "active"));
 
-      const salaries = [];
-      for (const agent of agentsList) {
-        const salary = await calculateSalary(db, agent.id, ctx.tenant.id, periodStart, periodEnd);
-        salary.agentName = agent.name;
-        salaries.push(salary);
-      }
+      const kpis = await calculateAllAgentsKpi(db, ctx.tenant.id, periodStart, periodEnd);
+
+      const kpiMap = new Map(kpis.map(k => [k.agentId, k]));
+
+      const salaries = await Promise.all(
+        agentsList.map(agent =>
+          calculateSalary(db, agent.id, ctx.tenant.id, periodStart, periodEnd, kpiMap.get(agent.id))
+            .then(salary => { salary.agentName = agent.name; return salary; })
+        )
+      );
 
       return salaries;
     }),
@@ -82,7 +94,6 @@ function getPeriod(period: string): { periodStart: Date; periodEnd: Date } {
     const quarter = Math.floor(now.getMonth() / 3);
     periodStart = new Date(now.getFullYear(), quarter * 3, 1);
   } else {
-    // month
     periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
   }
 

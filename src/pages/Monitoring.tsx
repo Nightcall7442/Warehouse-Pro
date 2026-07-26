@@ -84,7 +84,7 @@ export default function Monitoring() {
     const errData = data.series.errors_per_sec?.data ?? [];
     const heapData = data.series.heap_used_mb?.data ?? [];
 
-    const tsMap = new Map<number, any>();
+    const tsMap = new Map<number, unknown>();
     const fmtTime = (ts: number) => new Date(ts).toLocaleTimeString("ru", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
     for (const d of reqData) {

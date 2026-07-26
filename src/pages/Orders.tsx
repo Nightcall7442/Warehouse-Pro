@@ -118,7 +118,7 @@ export default function Orders() {
   const { data, isLoading } = trpc.order.list.useQuery({
     page, pageSize: 25,
     search: search || undefined,
-    status: (status || undefined) as any,
+    status: (status || undefined),
     showDeleted: isCeo && showDeleted ? true : undefined,
     dateFrom: dateFrom || undefined,
     dateTo: dateTo || undefined,
@@ -355,14 +355,14 @@ export default function Orders() {
                                 {o.agentName ?? "—"} · {o.createdAt ? format(new Date(o.createdAt), "d MMM") : ""}
                               </span>
                             </div>
-                            {(o as any).paymentMethod && PAYMENT[(o as any).paymentMethod] && (
+                            {o.paymentMethod && PAYMENT[o.paymentMethod] && (
                               <span style={{
                                 display: "inline-flex", alignItems: "center", gap: "4px", marginTop: "4px",
-                                fontSize: "10px", fontWeight: 600, color: PAYMENT[(o as any).paymentMethod].color,
-                                background: `${PAYMENT[(o as any).paymentMethod].color}12`,
+                                fontSize: "10px", fontWeight: 600, color: PAYMENT[o.paymentMethod].color,
+                                background: `${PAYMENT[o.paymentMethod].color}12`,
                                 padding: "2px 6px", borderRadius: "4px",
                               }}>
-                                {PAYMENT[(o as any).paymentMethod][lang]}
+                                {PAYMENT[o.paymentMethod][lang]}
                               </span>
                             )}
                           </div>
@@ -426,11 +426,11 @@ export default function Orders() {
                       style={{
                         borderBottom: `1px solid ${COLORS.border}`,
                         cursor: "pointer", transition: "background 0.15s",
-                        opacity: (o as any).deletedAt ? 0.5 : 1,
-                        background: (o as any).deletedAt ? `${COLORS.danger}08` : "transparent",
+                        opacity: (o as { deletedAt: Date | null }).deletedAt ? 0.5 : 1,
+                        background: (o as { deletedAt: Date | null }).deletedAt ? `${COLORS.danger}08` : "transparent",
                       }}
                       onMouseEnter={e => (e.currentTarget.style.background = `${COLORS.surfaceLight}80`)}
-                      onMouseLeave={e => (e.currentTarget.style.background = (o as any).deletedAt ? `${COLORS.danger}08` : "transparent")}
+                      onMouseLeave={e => (e.currentTarget.style.background = (o as { deletedAt: Date | null }).deletedAt ? `${COLORS.danger}08` : "transparent")}
                       onClick={() => navigate(`/orders/${o.id}`)}
                     >
                       <td style={{ padding: "14px 16px", fontFamily: F.display, fontSize: "13px", fontWeight: 600, color: COLORS.primary }}>{o.orderNumber}</td>
@@ -440,14 +440,14 @@ export default function Orders() {
                       <td style={{ padding: "14px 16px", fontSize: "13px", color: COLORS.textPrimary }}>{o.shopName ?? "—"}</td>
                       <td style={{ padding: "14px 16px", fontSize: "13px", color: COLORS.textSecondary }}>{o.agentName ?? "—"}</td>
                       <td style={{ padding: "14px 16px" }}>
-                        {(o as any).paymentMethod && PAYMENT[(o as any).paymentMethod] ? (
+                        {o.paymentMethod && PAYMENT[o.paymentMethod] ? (
                           <span style={{
                             display: "inline-flex", alignItems: "center", gap: "4px",
-                            fontSize: "11px", fontWeight: 600, color: PAYMENT[(o as any).paymentMethod].color,
-                            background: `${PAYMENT[(o as any).paymentMethod].color}12`,
+                            fontSize: "11px", fontWeight: 600, color: PAYMENT[o.paymentMethod].color,
+                            background: `${PAYMENT[o.paymentMethod].color}12`,
                             padding: "3px 8px", borderRadius: "6px",
                           }}>
-                            {PAYMENT[(o as any).paymentMethod][lang]}
+                            {PAYMENT[o.paymentMethod][lang]}
                           </span>
                         ) : "—"}
                       </td>
@@ -456,7 +456,7 @@ export default function Orders() {
                         <StatusBadge status={o.status} lang={lang} />
                       </td>
                       <td style={{ padding: "14px 16px" }} onClick={e => e.stopPropagation()}>
-                        {(o as any).deletedAt ? (
+                        {(o as { deletedAt: Date | null }).deletedAt ? (
                           isCeo && (
                             <button
                               onClick={() => restoreOrder.mutate({ id: o.id })}

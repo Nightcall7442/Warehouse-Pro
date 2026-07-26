@@ -126,7 +126,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);
 
-  const { data: kpis, isLoading } = trpc.dashboard.kpis.useQuery() as { data: any; isLoading: boolean };
+  const { data: kpis, isLoading } = trpc.dashboard.kpis.useQuery();
   const { data: trends } = trpc.dashboard.trends.useQuery({ range });
   const { data: statusData } = trpc.dashboard.statusBreakdown.useQuery();
   const { data: activity } = trpc.dashboard.activity.useQuery();
@@ -139,12 +139,12 @@ export default function Dashboard() {
   const calcDelta = useCallback((curr: number[], prev: number[]): number => { const sumPrev = prev.reduce((a, b) => a + b, 0); const sumCurr = curr.reduce((a, b) => a + b, 0); if (sumPrev === 0) return sumCurr > 0 ? 100 : 0; return Math.round(((sumCurr - sumPrev) / sumPrev) * 1000) / 10; }, []);
   const revenueDelta = useMemo(() => calcDelta(revenueTrend, prev7.map(tr => Number(tr.revenue))), [calcDelta, revenueTrend, prev7]);
   const ordersDelta = useMemo(() => calcDelta(ordersTrend, prev7.map(tr => tr.orderCount)), [calcDelta, ordersTrend, prev7]);
-  const statusTotal = useMemo(() => statusData?.reduce((s: number, d: any) => s + Number(d.count), 0) ?? 1, [statusData]);
+  const statusTotal = useMemo(() => statusData?.reduce((s: number, d) => s + Number(d.count), 0) ?? 1, [statusData]);
   const greeting = getGreeting(t);
 
   // Pie chart data
   const pieData = useMemo(() =>
-    statusData?.map((s: any, i: number) => ({
+    statusData?.map((s, i: number) => ({
       name: STATUS_LABEL[s.status ?? ""]?.[lang] ?? s.status,
       value: Number(s.count),
       color: STATUS_COLOR[s.status ?? ""] ?? CHART_COLORS[i % CHART_COLORS.length],
@@ -250,9 +250,9 @@ export default function Dashboard() {
       </div>
 
       {/* Smart Alerts */}
-      {alerts && (alerts as any[]).length > 0 && (
+      {alerts && alerts.length > 0 && (
         <div style={{ display: "flex", gap: "12px", overflowX: "auto", paddingBottom: "4px" }}>
-          {(alerts as any[]).slice(0, 4).map((alert: any, i: any) => {
+          {alerts.slice(0, 4).map((alert, i) => {
             const colors: Record<string, { bg: string; icon: string }> = {
               info: { bg: "var(--color-info-subtle)", icon: "var(--color-info, #4a9de8)" },
               warning: { bg: "var(--color-warning-subtle)", icon: "var(--color-warning, #d4973a)" },
@@ -340,7 +340,7 @@ export default function Dashboard() {
                     animationDuration={800}
                     strokeWidth={0}
                   >
-                    {pieData.map((entry: any, index: number) => (
+                    {pieData.map((entry, index: number) => (
                       <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
                     ))}
                   </Pie>
@@ -355,7 +355,7 @@ export default function Dashboard() {
             </div>
             {/* Legend */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 12px", marginTop: "20px", width: "100%" }}>
-              {pieData.map((entry: any, i: number) => (
+              {pieData.map((entry, i: number) => (
                 <div key={i} style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", minWidth: 0 }} onClick={() => navigate(`/orders?status=${entry.status}`)}>
                   <span style={{ width: "10px", height: "10px", borderRadius: "3px", background: entry.color, boxShadow: "var(--shadow-xs)", flexShrink: 0 }} />
                   <span style={{ fontSize: "12px", color: "var(--color-text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.name}</span>
@@ -394,7 +394,7 @@ export default function Dashboard() {
               </p>
             </div>
           ) : (
-            activity.slice(0, 8).map((e: any) => (
+            activity.slice(0, 8).map((e) => (
               <div key={e.id} onClick={() => navigate(`/orders/${e.id}`)} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px 8px", cursor: "pointer", borderRadius: "12px", transition: "all 0.15s", marginBottom: "2px" }}
                 onMouseEnter={ev => { ev.currentTarget.style.background = "rgba(75,108,246,.04)"; }}
                 onMouseLeave={ev => { ev.currentTarget.style.background = "transparent"; }}

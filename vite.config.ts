@@ -5,7 +5,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import { sentryVitePlugin } from "@sentry/vite-plugin";
 
-let VitePWA: any = () => ({});
+let VitePWA: () => unknown = () => ({});
 try {
   const mod = await import("vite-plugin-pwa");
   VitePWA = mod.VitePWA;

@@ -27,7 +27,7 @@ export default function CourierDeliveries() {
   const utils = trpc.useUtils();
   const [cashInput, setCashInput] = useState<Record<number, string>>({});
 
-  const { data: deliveries, isLoading } = trpc.courier.listMyDeliveries.useQuery(undefined) as { data: any; isLoading: boolean };
+  const { data: deliveries, isLoading } = trpc.courier.listMyDeliveries.useQuery(undefined);
 
   const markOutForDelivery = trpc.courier.markOutForDelivery.useMutation({
     onSuccess: () => {
@@ -68,8 +68,8 @@ export default function CourierDeliveries() {
     );
   }
 
-  const assigned = (deliveries ?? []).filter((d: any) => d.deliveryStatus === "assigned");
-  const inTransit = (deliveries ?? []).filter((d: any) => d.deliveryStatus === "out_for_delivery");
+  const assigned = (deliveries ?? []).filter((d) => d.deliveryStatus === "assigned");
+  const inTransit = (deliveries ?? []).filter((d) => d.deliveryStatus === "out_for_delivery");
 
   return (
     <div className="max-w-3xl mx-auto space-y-4 p-4">
@@ -108,16 +108,16 @@ export default function CourierDeliveries() {
       {/* Map with delivery locations */}
       {(() => {
         const YANDEX_API_KEY = import.meta.env.VITE_YANDEX_MAPS_API_KEY || "dd072e98-24e7-4b2e-b328-2989bd981fa5";
-        const mapRef = useRef<any>(null);
+        const mapRef = useRef<unknown>(null);
         const mapDivRef = useRef<HTMLDivElement>(null);
-        const markersRef = useRef<any[]>([]);
+        const markersRef = useRef<unknown[]>([]);
 
         const allDeliveries = useMemo(() => deliveries ?? [], [deliveries]);
 
         const mapMarkers = useMemo(() =>
           allDeliveries
-            .filter((d: any) => d.shopGpsLat && d.shopGpsLng)
-            .map((d: any) => ({
+            .filter((d) => d.shopGpsLat && d.shopGpsLng)
+            .map((d) => ({
               lat: Number(d.shopGpsLat),
               lng: Number(d.shopGpsLng),
               name: d.shopName ?? "Магазин",

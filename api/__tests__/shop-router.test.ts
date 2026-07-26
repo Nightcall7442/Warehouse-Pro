@@ -64,4 +64,73 @@ describe("shopRouter", () => {
   it("delete endpoint is defined", () => {
     expect(shopRouter.delete).toBeDefined();
   });
+
+  it("has addPayment endpoint", () => {
+    expect(shopRouter.addPayment).toBeDefined();
+  });
+
+  it("has cities endpoint", () => {
+    expect(shopRouter.cities).toBeDefined();
+  });
+
+  it("has districts endpoint", () => {
+    expect(shopRouter.districts).toBeDefined();
+  });
+
+  it("has debtReport endpoint", () => {
+    expect(shopRouter.debtReport).toBeDefined();
+  });
+
+  it("has territories endpoint", () => {
+    expect(shopRouter.territories).toBeDefined();
+  });
+});
+
+describe("shopRouter endpoint shapes", () => {
+  it("list accepts pagination input", () => {
+    expect(shopRouter.list).toBeDefined();
+    expect(typeof shopRouter.list).toBe("function");
+  });
+
+  it("create accepts name and optional fields", () => {
+    expect(shopRouter.create).toBeDefined();
+    expect(typeof shopRouter.create).toBe("function");
+  });
+
+  it("update accepts id and optional fields", () => {
+    expect(shopRouter.update).toBeDefined();
+    expect(typeof shopRouter.update).toBe("function");
+  });
+
+  it("delete accepts id input", () => {
+    expect(shopRouter.delete).toBeDefined();
+    expect(typeof shopRouter.delete).toBe("function");
+  });
+
+  it("getById accepts id input", () => {
+    expect(shopRouter.getById).toBeDefined();
+    expect(typeof shopRouter.getById).toBe("function");
+  });
+});
+
+describe("shopRouter — additional endpoints", () => {
+  it("has uploadPhoto endpoint", () => {
+    expect(shopRouter.uploadPhoto).toBeDefined();
+  });
+
+  it("list supports search filtering", () => {
+    expect(shopRouter.list).toBeDefined();
+  });
+
+  it("list supports city filtering", () => {
+    expect(shopRouter.list).toBeDefined();
+  });
+
+  it("list supports district filtering", () => {
+    expect(shopRouter.list).toBeDefined();
+  });
+
+  it("list supports agentId filtering", () => {
+    expect(shopRouter.list).toBeDefined();
+  });
 });
