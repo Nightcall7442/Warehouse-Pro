@@ -3,6 +3,8 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 
 vi.mock("drizzle-orm", () => ({
   eq:  (col: unknown, val: unknown) => ({ __kind: "eq", col, val }),
+  gte: (col: unknown, val: unknown) => ({ __kind: "gte", col, val }),
+  lte: (col: unknown, val: unknown) => ({ __kind: "lte", col, val }),
   and: (...conds: unknown[]) => ({ __kind: "and", conds }),
   desc: (col: unknown) => ({ __kind: "desc", col }),
   sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ __kind: "sql", strings, values }),
