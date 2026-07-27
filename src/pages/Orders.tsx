@@ -11,7 +11,7 @@ import {
   ShoppingCart, Clock, CheckCircle2, XCircle, DollarSign,
   ArrowUpRight, ArrowDownRight, Minus, Trash2, RotateCcw, Printer,
 } from "lucide-react";
-import { format, subDays, startOfMonth } from "date-fns";
+import { format, startOfMonth } from "date-fns";
 import { exportToExcel, formatOrdersForExport } from "@/lib/excel";
 import { exportToPDF } from "@/lib/export";
 import { PremiumSelect } from "@/components/PremiumSelect";
@@ -141,11 +141,13 @@ export default function Orders() {
     onError:   (e) => notify.error(e.message),
   });
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const handleExport = useCallback(async () => {
     if (!allOrders?.data) return;
     await exportToExcel(formatOrdersForExport(allOrders.data), `orders-${dateFrom}-${dateTo}`, "Заказы", `Заказы ${dateFrom} — ${dateTo}`);
   }, [allOrders?.data, dateFrom, dateTo]);
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const handleExportPDF = useCallback(() => {
     if (!allOrders?.data) return;
     const fmtNum = (n: number) => n.toLocaleString("ru");

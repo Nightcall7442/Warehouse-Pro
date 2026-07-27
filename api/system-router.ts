@@ -33,7 +33,7 @@ export const systemRouter = createRouter({
     // DB health + response time + connection pool
     let dbHealthy = false;
     let dbResponseMs = 0;
-    let dbConnections = { active: 0, idle: 0, total: 0 };
+    const dbConnections = { active: 0, idle: 0, total: 0 };
     try {
       const dbStart = Date.now();
       const db = getDb();
@@ -58,7 +58,7 @@ export const systemRouter = createRouter({
     }
 
     // Business metrics (last 24h)
-    let businessMetrics = { orders24h: 0, revenue24h: "0", newProducts: 0, activeUsers: 0, totalShops: 0 };
+    const businessMetrics = { orders24h: 0, revenue24h: "0", newProducts: 0, activeUsers: 0, totalShops: 0 };
     try {
       const db = getDb();
       const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);

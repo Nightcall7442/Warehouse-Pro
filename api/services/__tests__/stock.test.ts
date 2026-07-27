@@ -183,8 +183,8 @@ function makeMockDb() {
         const obj = val as Record<string, unknown>;
         if (obj.__kind === "sql_join" && Array.isArray(obj.chunks)) {
           if (caseIndex < 2) {
-            let field = isDeductPattern ? (caseIndex === 0 ? "currentStock" : "reserved") : (caseIndex === 0 ? "reserved" : "available");
-            let op = isCreatePattern ? (caseIndex === 0 ? "+" : "-") : (isDeductPattern ? "-" : (caseIndex === 0 ? "-" : "+"));
+            const field = isDeductPattern ? (caseIndex === 0 ? "currentStock" : "reserved") : (caseIndex === 0 ? "reserved" : "available");
+            const op = isCreatePattern ? (caseIndex === 0 ? "+" : "-") : (isDeductPattern ? "-" : (caseIndex === 0 ? "-" : "+"));
             for (const chunk of obj.chunks) {
               if (!chunk || typeof chunk !== "object") continue;
               const c = chunk as { __kind: string; strings: string[]; values: unknown[] };

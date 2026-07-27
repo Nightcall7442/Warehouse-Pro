@@ -1,13 +1,76 @@
 import { z } from "zod";
 import { createRouter, adminQuery } from "./middleware";
+import { getDb } from "./queries/connection";
 import { oneCSync } from "./services/onec-sync";
-import { getBridge, OneCBridge } from "./lib/onec-bridge";
+import { getBridge, getBridgeForTenant, OneCBridge, clearBridgeCache } from "./lib/onec-bridge";
+import { onecConfig } from "@db/schema";
+import { eq } from "drizzle-orm";
 import { logger } from "./lib/logger";
 import { getMetricsSummary } from "./lib/metrics";
 
 export const onecRouter = createRouter({
   // ── Setup Wizard ──────────────────────────────────────────────────────────
   wizard: {
+    /** Save per-tenant 1C Bridge configuration */
+    saveConfig: adminQuery
+      .input(z.object({
+        url: z.string().url(),
+        username: z.string(),
+        password: z.string(),
+        syncProducts: z.boolean().optional().default(true),
+        syncOrders: z.boolean().optional().default(true),
+        intervalMinutes: z.number().min(5).max(1440).optional().default(60),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const db = getDb();
+        const existing = await db.select({ id: onecConfig.id })
+          .from(onecConfig)
+          .where(eq(onecConfig.tenantId, ctx.tenant.id))
+          .limit(1);
+
+        if (existing[0]) {
+          await db.update(onecConfig)
+            .set({
+              url: input.url,
+              username: input.username,
+              password: input.password,
+              syncProducts: input.syncProducts,
+              syncOrders: input.syncOrders,
+              intervalMinutes: input.intervalMinutes,
+            })
+            .where(eq(onecConfig.id, existing[0].id));
+        } else {
+          await db.insert(onecConfig).values({
+            tenantId: ctx.tenant.id,
+            url: input.url,
+            username: input.username,
+            password: input.password,
+            syncProducts: input.syncProducts,
+            syncOrders: input.syncOrders,
+            intervalMinutes: input.intervalMinutes,
+          });
+        }
+
+        clearBridgeCache();
+        logger.info("1C config saved", { tenantId: ctx.tenant.id });
+        return { success: true };
+      }),
+
+    /** Get current per-tenant 1C config (password masked) */
+    getConfig: adminQuery.query(async ({ ctx }) => {
+      const db = getDb();
+      const [config] = await db.select()
+        .from(onecConfig)
+        .where(eq(onecConfig.tenantId, ctx.tenant.id))
+        .limit(1);
+
+      if (!config) return null;
+      return {
+        ...config,
+        password: "********",
+      };
+    }),
+
     /** Test connection to 1C Bridge */
     testConnection: adminQuery
       .input(z.object({
@@ -15,7 +78,7 @@ export const onecRouter = createRouter({
         username: z.string(),
         password: z.string(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         try {
           const bridge = new OneCBridge({
             url: input.url,
@@ -39,6 +102,18 @@ export const onecRouter = createRouter({
               const companies = await bridge.odataQuery("Catalog_Контрагенты?$select=Ref_Key&$top=1");
               companiesCount = companies.length;
             } catch { /* OData might not be available */ }
+          }
+
+          // Record test result in per-tenant config if it exists
+          const db = getDb();
+          const [existing] = await db.select({ id: onecConfig.id })
+            .from(onecConfig)
+            .where(eq(onecConfig.tenantId, ctx.tenant.id))
+            .limit(1);
+          if (existing) {
+            await db.update(onecConfig)
+              .set({ lastTestedAt: new Date(), lastTestOk: healthy })
+              .where(eq(onecConfig.id, existing.id));
           }
 
           return {
@@ -110,9 +185,9 @@ export const onecRouter = createRouter({
       }),
   },
 
-  health: adminQuery.query(async () => {
+  health: adminQuery.query(async ({ ctx }) => {
     try {
-      const bridge = getBridge();
+      const bridge = await getBridgeForTenant(ctx.tenant.id);
       const healthy = await bridge.healthCheck();
       return { healthy, timestamp: new Date().toISOString() };
     } catch (e) {
@@ -121,9 +196,8 @@ export const onecRouter = createRouter({
   }),
 
   syncProducts: adminQuery
-    .input(z.object({ tenantId: z.number() }).optional())
-    .mutation(async ({ ctx, input }) => {
-      const tenantId = input?.tenantId ?? ctx.tenant.id;
+    .mutation(async ({ ctx }) => {
+      const tenantId = ctx.tenant.id;
       const result = await oneCSync.syncProducts(tenantId);
       logger.info("Manual product sync triggered", { tenantId, ...result });
       return result;

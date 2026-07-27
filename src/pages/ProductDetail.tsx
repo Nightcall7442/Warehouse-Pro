@@ -15,7 +15,7 @@ const UNIT_LABELS: Record<string,[string,string]> = {
   box:  ["ящ","quti"], pack: ["упак","pachka"], m: ["м","m"],
 };
 
-const COLORS = {
+const _COLORS = {
   primary: "var(--color-primary, #3a9ab5)",
   secondary: "var(--color-text-secondary, #a39d92)",
   danger: "var(--color-danger, #ff4d6a)",

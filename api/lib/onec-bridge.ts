@@ -1,3 +1,7 @@
+import { eq } from "drizzle-orm";
+import { getDb } from "../queries/connection";
+import { onecConfig } from "@db/schema";
+
 export interface OneCBridgeConfig {
   url: string;
   username: string;
@@ -89,8 +93,45 @@ export class OneCBridge {
   }
 }
 
+// ── Bridge cache (per-tenant) ─────────────────────────────────────────────────
+const bridgeCache = new Map<number, { bridge: OneCBridge; config: OneCBridgeConfig }>();
+
+/**
+ * Get a 1C Bridge instance configured for a specific tenant.
+ * Falls back to global env-based config if no per-tenant config is saved.
+ */
+export async function getBridgeForTenant(tenantId: number): Promise<OneCBridge> {
+  const cached = bridgeCache.get(tenantId);
+  if (cached) return cached.bridge;
+
+  const db = getDb();
+  const [config] = await db.select()
+    .from(onecConfig)
+    .where(eq(onecConfig.tenantId, tenantId))
+    .limit(1);
+
+  if (config) {
+    const cfg: OneCBridgeConfig = {
+      url: config.url,
+      username: config.username,
+      password: config.password,
+      timeout: 10000,
+    };
+    const bridge = new OneCBridge(cfg);
+    bridgeCache.set(tenantId, { bridge, config: cfg });
+    return bridge;
+  }
+
+  // Fallback to global env config
+  return getBridge();
+}
+
 let bridgeInstance: OneCBridge | null = null;
 
+/**
+ * Global fallback bridge — configured from environment variables.
+ * Used only when no per-tenant config is saved, or for global operations.
+ */
 export function getBridge(): OneCBridge {
   if (!bridgeInstance) {
     const { ONEC_BRIDGE_URL, ONEC_USERNAME, ONEC_PASSWORD } = process.env;
@@ -104,4 +145,8 @@ export function getBridge(): OneCBridge {
     });
   }
   return bridgeInstance;
+}
+
+export function clearBridgeCache(): void {
+  bridgeCache.clear();
 }

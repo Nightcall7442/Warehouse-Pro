@@ -1,10 +1,9 @@
 import { useState } from "react";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
-import { notify } from "@/lib/toast";
 import {
-  CheckCircle2, XCircle, Loader2, Settings, Server,
-  Database, RefreshCw, AlertTriangle, ArrowRight, ArrowLeft,
+  CheckCircle2, XCircle, Loader2,
+  Database, ArrowRight, ArrowLeft,
 } from "lucide-react";
 
 type Step = "welcome" | "config" | "test" | "schedule" | "done";

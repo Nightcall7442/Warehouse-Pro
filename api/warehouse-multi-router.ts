@@ -182,21 +182,24 @@ export const warehouseMultiRouter = createRouter({
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
 
-      const [transfer] = await db.select()
-        .from(stockTransfers)
-        .where(and(
-          eq(stockTransfers.id, input.transferId),
-          eq(stockTransfers.tenantId, ctx.tenant.id),
-          eq(stockTransfers.status, "pending"),
-        ))
-        .limit(1);
-
-      if (!transfer) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Перемещение не найдено или уже выполнено" });
-      }
-
       await db.transaction(async (tx) => {
-        // Lock source stock row to prevent race conditions
+        // Lock transfer row inside transaction — this is the critical fix
+        // for race conditions: two concurrent calls queue on this lock,
+        // and only the first one sees status === "pending".
+        const [transfer] = await tx.select()
+          .from(stockTransfers)
+          .where(and(
+            eq(stockTransfers.id, input.transferId),
+            eq(stockTransfers.tenantId, ctx.tenant.id),
+          ))
+          .for("update")
+          .limit(1);
+
+        if (!transfer || transfer.status !== "pending") {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Перемещение не найдено или уже выполнено" });
+        }
+
+        // Lock source stock row
         const [lockedStock] = await tx.select()
           .from(warehouseStock)
           .where(and(
@@ -222,7 +225,7 @@ export const warehouseMultiRouter = createRouter({
             eq(warehouseStock.productId, transfer.productId),
           ));
 
-        // Add to destination (upsert) with FOR UPDATE lock
+        // Add to destination (upsert)
         const [existing] = await tx.select()
           .from(warehouseStock)
           .where(and(
@@ -251,10 +254,17 @@ export const warehouseMultiRouter = createRouter({
           });
         }
 
-        // Mark transfer as completed
-        await tx.update(stockTransfers)
+        // Mark transfer as completed — with status check for double-execution safety
+        const [updateResult] = await tx.update(stockTransfers)
           .set({ status: "completed", completedAt: new Date() })
-          .where(eq(stockTransfers.id, input.transferId));
+          .where(and(
+            eq(stockTransfers.id, input.transferId),
+            eq(stockTransfers.status, "pending"),
+          ));
+
+        if ((updateResult as { affectedRows?: number }).affectedRows !== 1) {
+          throw new TRPCError({ code: "CONFLICT", message: "Перемещение уже было выполнено" });
+        }
       });
 
       return { success: true };

@@ -8,6 +8,7 @@ vi.mock("drizzle-orm", () => ({
   gte: (col: unknown, val: unknown) => ({ __kind: "gte", col, val }),
   lte: (col: unknown, val: unknown) => ({ __kind: "lte", col, val }),
   sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ __kind: "sql", strings, values }),
+  isNull: (col: unknown) => ({ __kind: "isNull", col }),
 }));
 
 vi.mock("../lib/feature-gating", () => ({
@@ -164,6 +165,7 @@ function makeMockDb() {
 
       const api: Record<string, any> = {
         from(ref: unknown) { currentTable = tableOf(ref); return api; },
+        innerJoin() { return api; },
         where(cond: unknown) {
           latestFiltered = rowsFor(currentTable).filter((r) => evalCond(r, cond as Record<string, unknown>));
           if (isAggregate) {

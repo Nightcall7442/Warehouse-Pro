@@ -5,9 +5,8 @@ import { useLang } from "@/i18n";
 import { format, isToday, isYesterday } from "date-fns";
 import { ru as dateRu } from "date-fns/locale";
 import {
-  Bell, ShoppingCart, AlertTriangle, Package,
-  Users, CheckCheck, Loader2, ExternalLink,
-  Filter, Warehouse, CreditCard, Zap, Settings,
+  Bell, ShoppingCart, CheckCheck, Loader2, ExternalLink,
+  Filter, Warehouse, CreditCard, Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 

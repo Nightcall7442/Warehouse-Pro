@@ -1,5 +1,5 @@
 import { Zap } from "lucide-react";
-import { COLORS, GRADIENTS, SHADOWS } from "./designTokens";
+import { COLORS } from "./designTokens";
 
 interface PaymentMethodsCardProps {
   t: (ru: string, uz: string) => string;

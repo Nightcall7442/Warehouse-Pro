@@ -237,7 +237,7 @@ export const shopRouter = createRouter({
   uploadPhoto: operatorQuery
     .input(z.object({
       shopId:  z.number(),
-      dataUrl: z.string().startsWith("data:image/").max(5_000_000, "Файл слишком большой (макс. 4 МБ)"),
+      dataUrl: z.string().refine((val) => val.startsWith("data:image/") || val.startsWith("http://") || val.startsWith("https://"), "Неверный формат изображения (data URL или HTTP/HTTPS URL)").max(5_000_000, "Файл слишком большой (макс. 4 МБ)"),
     }))
     .mutation(async ({ input, ctx }) => {
       const { env } = await import("./lib/env");

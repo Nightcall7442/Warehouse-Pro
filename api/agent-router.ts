@@ -303,7 +303,7 @@ export const agentRouter = createRouter({
 
   // ── Visit Photo Proof ───────────────────────────────────────────────────────
   saveVisitPhoto: merchVisitQuery
-    .input(z.object({ planId: z.number(), photoUrl: z.string().startsWith("data:image/").max(5_000_000, "Файл слишком большой (макс. 5 МБ)"), notes: z.string().optional() }))
+    .input(z.object({ planId: z.number(), photoUrl: z.string().url().or(z.string().startsWith("data:image/")).refine(v => v.length <= 5_000_000, "Файл слишком большой (макс. 5 МБ)"), notes: z.string().optional() }))
     .mutation(async ({ input, ctx }) => {
       const isPrivileged = ["ceo", "supervisor", "superadmin"].includes(ctx.user.role);
       const conditions = [
@@ -337,7 +337,7 @@ export const agentRouter = createRouter({
             ))
             .orderBy(agentLocations.createdAt);
 
-          const check = await verifyVisit(db, input.planId, ctx.tenant.id, gpsPings);
+          const check = await verifyVisit(db, input.planId, ctx.tenant.id, gpsPings, input.photoUrl);
           if (check.fraudScore >= 70) {
             throw new Error(`Визит заблокирован системой фрод-мониторинга: ${check.reasons.join("; ")}`);
           }
@@ -400,6 +400,7 @@ export const agentRouter = createRouter({
       gpsLat:    z.string().optional(),
       gpsLng:    z.string().optional(),
       notes:     z.string().optional(),
+      territoryId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
@@ -414,6 +415,7 @@ export const agentRouter = createRouter({
         gpsLat:    input.gpsLat,
         gpsLng:    input.gpsLng,
         notes:     input.notes ? sanitizeString(input.notes) : undefined,
+        territoryId: input.territoryId,
         tenantId: ctx.tenant.id,
         agentId:  ctx.user.id,   // автоматически привязываем к агенту
         debt:     "0.00",
@@ -469,6 +471,7 @@ export const agentRouter = createRouter({
       city:      z.string().optional(),
       district:  z.string().optional(),
       notes:     z.string().optional(),
+      territoryId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const { id, ...rest } = input;
@@ -479,6 +482,7 @@ export const agentRouter = createRouter({
       if (typeof rest.city === "string") sanitized.city = sanitizeString(rest.city);
       if (typeof rest.district === "string") sanitized.district = sanitizeString(rest.district);
       if (typeof rest.notes === "string") sanitized.notes = sanitizeString(rest.notes);
+      if (typeof rest.territoryId === "number") sanitized.territoryId = rest.territoryId;
 
       // Skip update if no fields to set
       if (Object.keys(sanitized).length === 0) return { success: true };
@@ -490,7 +494,7 @@ export const agentRouter = createRouter({
 
   // Мобильное приложение: агент загружает фото ТОЛЬКО своего магазина
   uploadMyShopPhoto: fieldSalesQuery
-    .input(z.object({ shopId: z.number(), dataUrl: z.string().startsWith("data:image/").max(2_800_000, "Файл слишком большой (макс. 2 МБ)") }))
+    .input(z.object({ shopId: z.number(), dataUrl: z.string().url().or(z.string().startsWith("data:image/")).refine(v => v.length <= 2_800_000, "Файл слишком большой (макс. 2 МБ)") }))
     .mutation(async ({ input, ctx }) => {
       await getDb().update(shops).set({ photoUrl: input.dataUrl })
         .where(and(eq(shops.id, input.shopId), eq(shops.tenantId, ctx.tenant.id), eq(shops.agentId, ctx.user.id)));

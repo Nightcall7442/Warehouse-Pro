@@ -33,7 +33,12 @@ vi.mock("../../queries/connection", () => {
         select: vi.fn().mockReturnValue({
           from: vi.fn().mockReturnValue({
             where: vi.fn().mockReturnValue({
-              limit: vi.fn().mockResolvedValue([{ debt: "5000", reserved: "0.00" }]),
+              limit: vi.fn().mockImplementation(() => {
+                const data = [{ debt: "5000", reserved: "0.00" }];
+                const chain = Promise.resolve(data) as Promise<unknown[]> & { for: ReturnType<typeof vi.fn> };
+                chain.for = vi.fn().mockResolvedValue(data);
+                return chain;
+              }),
             }),
           }),
         }),

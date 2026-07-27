@@ -170,7 +170,7 @@ app.get("/stock", async (c) => {
 app.get("/shops", async (c) => {
   const tenantId = c.get("tenantId") as number;
   const scopes = c.get("scopes") as string[];
-  if (!requireScope(scopes, "read")) return c.json({ error: "Scope 'read' required" }, 403);
+  if (!requireScope(scopes, "shops")) return c.json({ error: "Scope 'shops' required" }, 403);
 
   const db = getDb();
   const limit = Math.min(Number(c.req.query("limit") ?? 50), 200);

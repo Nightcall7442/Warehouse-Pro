@@ -76,8 +76,6 @@ export async function exportToExcel(
   });
   headerRow.height = 20;
 
-  const dataStartRow = 5; // 1-based: row 5
-
   // Data rows
   rows.forEach((r, rowIdx) => {
     const dataRow = ws.addRow(headers.map(h => r[h] ?? ""));
@@ -140,7 +138,7 @@ export async function exportToExcel(
   });
 
   // Column widths
-  ws.columns = headers.map((h, i) => {
+  ws.columns = headers.map((h) => {
     const max = Math.max(
       h.length,
       ...rows.map(r => String(r[h] ?? "").length),

@@ -9,7 +9,7 @@ import {
   Users as UsersIcon, UserCheck, UserX, ArrowUpRight, ArrowDownRight, Minus,
 } from "lucide-react";
 import { PremiumSelect } from "@/components/PremiumSelect";
-import { F, COLORS, SHADOW, ROLE_LABELS, type Lang } from "@/components/users/types";
+import { F, COLORS, SHADOW, ROLE_LABELS } from "@/components/users/types";
 import { UserFilters } from "@/components/users/UserFilters";
 import { UserTable } from "@/components/users/UserTable";
 

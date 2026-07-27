@@ -161,11 +161,13 @@ function makeMockDb() {
     set: (patch: Record<string, unknown>) => ({
       where: (cond: unknown) => {
         const tbl = table === warehouses ? warehousesTable : table === warehouseStock ? warehouseStockTable : table === stockTransfers ? stockTransfersTable : [];
+        let affected = 0;
         for (const row of tbl) {
           if (!evalCond(row, cond)) continue;
           Object.assign(row, patch);
+          affected++;
         }
-        return Promise.resolve();
+        return Promise.resolve([{ affectedRows: affected }]);
       },
     }),
   });

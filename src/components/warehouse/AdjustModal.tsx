@@ -3,9 +3,9 @@ import { X, TrendingUp, TrendingDown, ArrowUpDown, Scale, Loader2 } from "lucide
 import { useLang } from "@/i18n";
 import { toKg } from "./warehouse-utils";
 
-export const AdjustModal = memo(function AdjustModal({ productId, productName, currentStock, unit, unitWeight, warehouseId, onSave, onClose, isPending }: {
+export const AdjustModal = memo(function AdjustModal({ productId, productName, currentStock, unitWeight, warehouseId, onSave, onClose, isPending }: {
   productId: number; productName: string; currentStock: number;
-  unit: string; unitWeight: number; warehouseId?: number;
+  unitWeight: number; warehouseId?: number;
   onSave: (d: unknown) => void; onClose: () => void; isPending: boolean;
 }) {
   const { lang } = useLang();
@@ -23,7 +23,6 @@ export const AdjustModal = memo(function AdjustModal({ productId, productName, c
   const currentType = types.find(t => t.value === type)!;
   const numQty = Number(qty) || 0;
   const newStock = type === "in" ? currentStock + numQty : type === "out" ? currentStock - numQty : numQty;
-  const unitLabelLocal = unit === "kg" ? "кг" : unit === "l" ? "л" : unit === "pcs" ? "шт" : unit === "box" ? "ящ" : unit === "pack" ? "упак" : unit === "м" ? "м" : unit;
   const previewWeightKg = unitWeight > 0 ? (numQty * unitWeight).toFixed(1) : null;
 
   return (

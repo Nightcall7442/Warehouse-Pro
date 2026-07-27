@@ -69,6 +69,12 @@ app.use("*", async (c, next) => {
   }
 });
 
+// ── Global JSON error handler (catches unhandled throws) ─────────────────────
+app.onError((err, c) => {
+  logger.error("Unhandled error", { error: err.message, stack: err.stack });
+  return c.json({ error: "Internal server error" }, 500);
+});
+
 // ── Request logging with correlation IDs ──────────────────────────────────────
 if (env.isProduction) {
   app.use("*", async (c, next) => {

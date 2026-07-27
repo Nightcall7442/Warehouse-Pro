@@ -270,7 +270,7 @@ function makeMockDb() {
       };
 
       from.where = (cond: unknown) => {
-        let filtered = primaryRows.filter((r: any) => evalCond(r, cond));
+        const filtered = primaryRows.filter((r: any) => evalCond(r, cond));
         return buildChain(applyJoins(filtered), fields);
       };
 

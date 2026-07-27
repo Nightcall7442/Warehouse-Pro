@@ -10,6 +10,7 @@ vi.mock("drizzle-orm", () => {
     lte: (col: unknown, val: unknown) => ({ __kind: "lte", col, val }),
     desc: (col: unknown) => ({ __kind: "desc", col }),
     sql: sqlFn,
+    isNull: (col: unknown) => ({ __kind: "isNull", col }),
     relations: () => ({}),
   };
 });

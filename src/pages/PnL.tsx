@@ -2,7 +2,6 @@ import { useState, useMemo } from "react";
 import { trpc } from "@/providers/trpc";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useLang } from "@/i18n";
-import { exportToExcel } from "@/lib/excel";
 import { exportToPDF } from "@/lib/export";
 import { subDays, format, subMonths, startOfYear } from "date-fns";
 import { PAYMENT_LABELS } from "@/components/pnl/styles";
@@ -167,11 +166,11 @@ export default function PnL() {
     addRow("Выручка", num(current?.revenue), null, true);
     addRow("Скидки", num(current?.discount));
     addRow("Себестоимость (COGS)", num(current?.cogs));
-    const gpRow = addRow("Валовая прибыль", num(current?.grossProfit), num(current?.grossMarginPct), true, "FF16A34A");
+    addRow("Валовая прибыль", num(current?.grossProfit), num(current?.grossMarginPct), true, "FF16A34A");
 
     ws1.addRow([]);
     addRow("Расходы на доставку", num(current?.operatingExpenses));
-    const npRow = addRow("Чистая прибыль", num(current?.netProfit), num(current?.netMarginPct), true, num(current?.netProfit) >= 0 ? "FF16A34A" : "FFDC2626");
+    addRow("Чистая прибыль", num(current?.netProfit), num(current?.netMarginPct), true, num(current?.netProfit) >= 0 ? "FF16A34A" : "FFDC2626");
 
     ws1.addRow([]);
     addRow("Заказов", num(current?.orderCount));

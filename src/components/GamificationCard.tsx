@@ -2,7 +2,7 @@ import { memo } from "react";
 import { useNavigate } from "react-router";
 import { useLang } from "@/i18n";
 import { useCurrency } from "@/hooks/useCurrency";
-import { Trophy, Flame, Target, Award, Star, TrendingUp } from "lucide-react";
+import { Trophy, Flame, Target, Award, TrendingUp } from "lucide-react";
 
 interface LeaderboardEntry {
   rank: number;

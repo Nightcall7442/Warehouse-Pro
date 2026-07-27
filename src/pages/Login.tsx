@@ -43,8 +43,8 @@ export default function Login() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Login failed");
       window.location.replace("/");
-    } catch {
-      setError(err.message || t("auth.login.error"));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("auth.login.error"));
     } finally {
       setIsPending(false);
     }

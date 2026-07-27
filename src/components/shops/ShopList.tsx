@@ -3,15 +3,14 @@ import { ShopCard } from "./ShopCard";
 import type { ShopCardData } from "./ShopCard";
 import { COLORS } from "./constants";
 
-export function ShopList({ data, isLoading, lang, fmt, selected, allSelected, onSelectAll, onToggleSelect, onBulkDelete, onNavigate, isDeleting, page, setPage, total, t }: {
+export function ShopList({ data, isLoading, lang, fmt, selected, allSelected, onSelectAll, onToggleSelect, onNavigate, page, setPage, total, t }: {
   data: ShopCardData[] | undefined; isLoading: boolean; lang: string;
   fmt: (v: number | string | null | undefined, opts?: { decimals?: number }) => string;
   selected: Set<number>; allSelected: boolean; onSelectAll: () => void; onToggleSelect: (id: number) => void;
-  onBulkDelete: () => void; onNavigate: (id: number) => void; isDeleting: boolean;
+  onNavigate: (id: number) => void;
   page: number; setPage: (v: number | ((p: number) => number)) => void;
   total: number; city?: string; district?: string; t: (ru: string, uz: string) => string;
 }) {
-  const count = selected.size;
   return (
     <>
       {/* Loading skeletons */}

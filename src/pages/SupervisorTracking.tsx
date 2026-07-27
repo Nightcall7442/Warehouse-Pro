@@ -66,7 +66,7 @@ export default function SupervisorTracking() {
     script.onload = () => initMap();
     script.onerror = () => setMapError(true);
     document.head.appendChild(script);
-    // eslint-disable-next-line react-hooks/immutability
+     
   }, []);
 
   // Update markers when locations change

@@ -96,27 +96,26 @@ export const arrivalRouter = createRouter({
       const arrivalNumber = `ARR-${raw.slice(0, 12).toUpperCase()}`;
       const totalExpense  = (Number(input.fuelCost) + Number(input.tollCost) + Number(input.otherCost)).toFixed(2);
 
-      const [result] = await db.insert(arrivals).values({
-        tenantId, arrivalNumber,
-        truckId:     input.truckId ? sanitizeString(input.truckId) : undefined,
-        driverName:  input.driverName ? sanitizeString(input.driverName) : undefined,
-        driverPhone: input.driverPhone,
-        arrivalDate: new Date(input.arrivalDate),
-        fuelCost:    input.fuelCost,
-        tollCost:    input.tollCost,
-        otherCost:   input.otherCost,
-        totalExpense,
-        notes:       input.notes ? sanitizeString(input.notes) : undefined,
-        status:      "pending",
-      });
+      return db.transaction(async (tx) => {
+        const [result] = await tx.insert(arrivals).values({
+          tenantId, arrivalNumber,
+          truckId:     input.truckId ? sanitizeString(input.truckId) : undefined,
+          driverName:  input.driverName ? sanitizeString(input.driverName) : undefined,
+          driverPhone: input.driverPhone,
+          arrivalDate: new Date(input.arrivalDate),
+          fuelCost:    input.fuelCost,
+          tollCost:    input.tollCost,
+          otherCost:   input.otherCost,
+          totalExpense,
+          notes:       input.notes ? sanitizeString(input.notes) : undefined,
+          status:      "pending",
+        });
 
-      const arrivalId = Number(result.insertId);
+        const arrivalId = Number(result.insertId);
 
-      if (input.items && input.items.length > 0) {
-        // Insert items one by one to avoid raw SQL issues with column mismatches
-        for (const item of input.items) {
-          try {
-            await db.insert(arrivalItems).values({
+        if (input.items && input.items.length > 0) {
+          for (const item of input.items) {
+            await tx.insert(arrivalItems).values({
               arrivalId,
               productId: item.productId,
               quantity: item.quantity,
@@ -124,13 +123,11 @@ export const arrivalRouter = createRouter({
               sellingPrice: item.sellingPrice ?? "0.00",
               condition: item.condition ? sanitizeString(item.condition) : undefined,
             });
-          } catch {
-            // If columns don't exist, skip this item (migration 0016 will fix it)
           }
         }
-      }
 
-      return { id: arrivalId, arrivalNumber };
+        return { id: arrivalId, arrivalNumber };
+      });
     }),
 
   update: operatorQuery

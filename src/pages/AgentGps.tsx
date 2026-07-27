@@ -78,14 +78,18 @@ export default function AgentGps() {
       return;
     }
     if (!navigator.geolocation) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setError(t(
         "GPS недоступен в этом браузере.",
         "Bu brauzerda GPS mavjud emas."
       ));
+       
       setState("error");
       return;
     }
+     
     setState("locating");
+     
     setError("");
     watchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => {

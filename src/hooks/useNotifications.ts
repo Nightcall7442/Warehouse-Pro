@@ -25,6 +25,7 @@ export function useNotifications() {
 
   useEffect(() => {
     if (countData?.count !== undefined) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setUnreadCount(countData.count);
     }
   }, [countData?.count]);
@@ -64,7 +65,10 @@ export function useNotifications() {
       eventSourceRef.current = null;
       es.close();
       // Reconnect after 5 seconds
-      reconnectTimerRef.current = setTimeout(connect, 5000);
+      reconnectTimerRef.current = setTimeout(() => {
+        // eslint-disable-next-line react-hooks/immutability
+        connect();
+      }, 5000);
     };
   }, []);
 

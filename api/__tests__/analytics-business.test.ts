@@ -220,7 +220,7 @@ function makeMockDb() {
       };
       from.innerJoin = from.leftJoin;
       from.where = (cond: unknown) => {
-        let filtered = primaryRows.filter((r: any) => evalCond(r, cond as Record<string, unknown>));
+        const filtered = primaryRows.filter((r: any) => evalCond(r, cond as Record<string, unknown>));
 
         let expanded: Record<string, unknown>[] = filtered;
         for (const join of joins) {

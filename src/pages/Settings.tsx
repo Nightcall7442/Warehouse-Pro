@@ -329,7 +329,6 @@ function AppearanceSettings() {
 function OneCSettings() {
   const { lang } = useLang();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
-  const utils = trpc.useUtils();
 
   const { data: health, isLoading: healthLoading } = trpc.onec.health.useQuery();
   const { data: status } = trpc.onec.status.useQuery();

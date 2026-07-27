@@ -86,32 +86,34 @@ export const ArrivalService = {
     const arrivalNumber = `ARR-${raw.slice(0, 12).toUpperCase()}`;
     const totalExpense = (Number(data.fuelCost ?? "0") + Number(data.tollCost ?? "0") + Number(data.otherCost ?? "0")).toFixed(2);
 
-    const [result] = await db.insert(arrivals).values({
-      tenantId, arrivalNumber,
-      truckId: data.truckId ? sanitizeString(data.truckId) : undefined,
-      driverName: data.driverName ? sanitizeString(data.driverName) : undefined,
-      driverPhone: data.driverPhone,
-      arrivalDate: new Date(data.arrivalDate),
-      fuelCost: data.fuelCost ?? "0.00",
-      tollCost: data.tollCost ?? "0.00",
-      otherCost: data.otherCost ?? "0.00",
-      totalExpense,
-      notes: data.notes ? sanitizeString(data.notes) : undefined,
-      status: "pending",
+    return db.transaction(async (tx) => {
+      const [result] = await tx.insert(arrivals).values({
+        tenantId, arrivalNumber,
+        truckId: data.truckId ? sanitizeString(data.truckId) : undefined,
+        driverName: data.driverName ? sanitizeString(data.driverName) : undefined,
+        driverPhone: data.driverPhone,
+        arrivalDate: new Date(data.arrivalDate),
+        fuelCost: data.fuelCost ?? "0.00",
+        tollCost: data.tollCost ?? "0.00",
+        otherCost: data.otherCost ?? "0.00",
+        totalExpense,
+        notes: data.notes ? sanitizeString(data.notes) : undefined,
+        status: "pending",
+      });
+
+      const arrivalId = Number(result.insertId);
+
+      if (data.items && data.items.length > 0) {
+        await tx.insert(arrivalItems).values(data.items.map(item => ({
+          arrivalId,
+          productId: item.productId,
+          quantity: item.quantity,
+          condition: item.condition ? sanitizeString(item.condition) : undefined,
+        })));
+      }
+
+      return { id: arrivalId, arrivalNumber };
     });
-
-    const arrivalId = Number(result.insertId);
-
-    if (data.items && data.items.length > 0) {
-      await db.insert(arrivalItems).values(data.items.map(item => ({
-        arrivalId,
-        productId: item.productId,
-        quantity: item.quantity,
-        condition: item.condition ? sanitizeString(item.condition) : undefined,
-      })));
-    }
-
-    return { id: arrivalId, arrivalNumber };
   },
 
   async update(db: Db, tenantId: number, arrivalId: number, data: ArrivalUpdateInput) {

@@ -326,12 +326,24 @@ export const OrderService = {
         if (newStatus === "completed") {
           // Skip stock deduction if courier already delivered (markDelivered handles it)
           if (order.deliveryStatus !== "delivered") {
-            // Lock stock rows to prevent race conditions
-            for (const item of items) {
-              await tx.select({ id: warehouseStock.id }).from(warehouseStock)
-                .where(and(eq(warehouseStock.productId, item.productId), eq(warehouseStock.tenantId, tenantId)))
-                .for("update");
+            // Lock all stock rows in one batch query (prevents deadlock)
+            const stockRows = await tx.select({ productId: warehouseStock.productId, currentStock: warehouseStock.currentStock })
+              .from(warehouseStock)
+              .where(and(
+                eq(warehouseStock.tenantId, tenantId),
+                sql`${warehouseStock.productId} IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})`
+              ))
+              .for("update");
+
+            // Check for sufficient stock before deducting
+            const insufficient = items.filter(i => {
+              const row = stockRows.find(r => Number(r.productId) === i.productId);
+              return !row || Number(row.currentStock) < Number(i.quantity);
+            });
+            if (insufficient.length > 0) {
+              throw new Error(`Недостаточно товара на складе: ${insufficient.map(i => `${i.productId}`).join(", ")}`);
             }
+
             await tx.execute(sql`
               UPDATE warehouse_stock
               SET
@@ -344,6 +356,33 @@ export const OrderService = {
               WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
                 AND tenant_id = ${tenantId}
             `);
+
+            // Verify no negative stock (rollback if needed — should not happen due to check above)
+            const updated = await tx.select({ productId: warehouseStock.productId, currentStock: warehouseStock.currentStock })
+              .from(warehouseStock)
+              .where(and(
+                eq(warehouseStock.tenantId, tenantId),
+                sql`${warehouseStock.productId} IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})`
+              ));
+            const short = items.filter(i => {
+              const row = updated.find(r => Number(r.productId) === i.productId);
+              return row && Number(row.currentStock) < 0;
+            });
+            if (short.length > 0) {
+              await tx.execute(sql`
+                UPDATE warehouse_stock
+                SET
+                  current_stock = CASE ${sql.join(short.map(i =>
+                    sql`WHEN product_id = ${i.productId} THEN current_stock + ${Number(i.quantity)}`
+                  ), sql`\n`)} ELSE current_stock END,
+                  reserved = CASE ${sql.join(short.map(i =>
+                    sql`WHEN product_id = ${i.productId} THEN reserved + ${Number(i.quantity)}`
+                  ), sql`\n`)} ELSE reserved END
+                WHERE product_id IN (${sql.join(short.map(i => sql`${i.productId}`), sql`, `)})
+                  AND tenant_id = ${tenantId}
+              `);
+              throw new Error(`Недостаточно товара на складе: ${short.map(i => `${i.productId}`).join(", ")}`);
+            }
           }
         }
         if (newStatus === "cancelled") {

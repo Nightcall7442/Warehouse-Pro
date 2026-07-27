@@ -1,7 +1,7 @@
 import { eq, and, inArray } from "drizzle-orm";
 import { getDb } from "../queries/connection";
 import { products, orders, orderItems, warehouseStock, warehouses } from "@db/schema";
-import { getBridge } from "../lib/onec-bridge";
+import { getBridgeForTenant } from "../lib/onec-bridge";
 import { OneCMapper } from "./onec-mapper";
 import { mapProduct1C, mapOrder1C, mapUnit } from "./onec-transform";
 import type { Product1C } from "./onec-transform";
@@ -12,7 +12,7 @@ import { record1CSync } from "../lib/metrics";
 export class OneCSyncService {
   async syncProducts(tenantId: number): Promise<{ synced: number; errors: number }> {
     const db = getDb();
-    const bridge = getBridge();
+    const bridge = await getBridgeForTenant(tenantId);
     let synced = 0;
     let errors = 0;
     const startTime = Date.now();
@@ -120,13 +120,13 @@ export class OneCSyncService {
 
   async syncOrderTo1C(tenantId: number, orderId: number): Promise<void> {
     const db = getDb();
-    const bridge = getBridge();
+    const bridge = await getBridgeForTenant(tenantId);
     const startTime = Date.now();
 
     try {
       await updateSyncStatus(tenantId, "order", "to1c", "processing");
 
-      const order = await db.select({ id: orders.id, status: orders.status, total: orders.total, orderNumber: orders.orderNumber }).from(orders).where(eq(orders.id, orderId)).limit(1);
+      const order = await db.select({ id: orders.id, status: orders.status, total: orders.total, orderNumber: orders.orderNumber }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId))).limit(1);
       if (!order[0]) throw new Error(`Order ${orderId} not found`);
 
       const items = await db.select({
@@ -137,7 +137,10 @@ export class OneCSyncService {
         unitWeight: products.unitWeight,
       }).from(orderItems)
         .leftJoin(products, eq(orderItems.productId, products.id))
-        .where(eq(orderItems.orderId, orderId));
+        .where(and(
+          eq(orderItems.orderId, orderId),
+          eq(products.tenantId, tenantId),
+        ));
       const shopExternalId = await OneCMapper.getExternalId(db, tenantId, "shop", order[0].shopId);
 
       if (!shopExternalId) {

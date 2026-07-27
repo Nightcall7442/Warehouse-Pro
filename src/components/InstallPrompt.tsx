@@ -29,7 +29,9 @@ export function InstallPrompt() {
     if (isIOS()) {
       const iosDismissed = localStorage.getItem(iOSDismissKey);
       if (iosDismissed === "true") return;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsIos(true);
+       
       setVisible(true);
       return;
     }

@@ -8,6 +8,7 @@ vi.mock("drizzle-orm", () => ({
   and: (...conds: unknown[]) => ({ __kind: "and", conds }),
   desc: (col: unknown) => ({ __kind: "desc", col }),
   sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ __kind: "sql", strings, values }),
+  isNull: (col: unknown) => ({ __kind: "isNull", col }),
 }));
 
 vi.mock("../telegram-router", () => ({

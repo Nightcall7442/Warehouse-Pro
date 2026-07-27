@@ -1,5 +1,5 @@
 import { Users, Package, ClipboardList } from "lucide-react";
-import { COLORS, GRADIENTS, SHADOWS } from "./designTokens";
+import { COLORS } from "./designTokens";
 import { UsageBar } from "./UsageBar";
 
 interface UsageData {

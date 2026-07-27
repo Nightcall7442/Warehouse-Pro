@@ -80,7 +80,7 @@ function KpiCard({ label, value, delta, icon, gradient }: {
   );
 }
 
-function ChartPanel({ title, children, delay = 0 }: { title: string; children: React.ReactNode; delay?: number }) {
+function ChartPanel({ title, children, delay: _delay = 0 }: { title: string; children: React.ReactNode; delay?: number }) {
   return (
     <div style={{
       background: THEME.surface, borderRadius: "20px", padding: "24px",

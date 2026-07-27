@@ -12,6 +12,15 @@ vi.mock('../lib/onec-bridge', () => ({
     postDocument: vi.fn().mockResolvedValue(undefined),
     healthCheck: vi.fn().mockResolvedValue(true),
   }),
+  getBridgeForTenant: () => Promise.resolve({
+    odataQuery: vi.fn().mockResolvedValue([
+      { Ref_Key: 'uuid-001', Code: '001', Description: 'Test Product', Price: 1500, Unit: 'шт' },
+      { Ref_Key: 'uuid-002', Code: '002', Description: 'Another Product', Price: 2500, Unit: 'кг' },
+    ]),
+    createDocument: vi.fn().mockResolvedValue({ id: 'doc-123' }),
+    postDocument: vi.fn().mockResolvedValue(undefined),
+    healthCheck: vi.fn().mockResolvedValue(true),
+  }),
 }));
 
 vi.mock('../lib/logger', () => ({

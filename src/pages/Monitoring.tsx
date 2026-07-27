@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import {
@@ -6,7 +6,7 @@ import {
   Server, Database, Layers,
 } from "lucide-react";
 import {
-  COLORS, F, SHADOW,
+  COLORS, F,
 } from "@/components/monitoring";
 import { KpiCard } from "@/components/monitoring/KpiCard";
 import { Section } from "@/components/monitoring/Section";
@@ -77,6 +77,7 @@ export default function Monitoring() {
   }, [refetch, refetchErrors]);
 
   // Chart data
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const chartData = useMemo(() => {
     if (!data?.series) return [];
     const reqData = data.series.req_per_sec?.data ?? [];

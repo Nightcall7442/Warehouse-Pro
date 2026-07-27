@@ -65,7 +65,8 @@ app.post("/payment", async (c) => {
       const [shop] = await tx.select({ debt: shops.debt })
         .from(shops)
         .where(and(eq(shops.id, shopId), eq(shops.tenantId, tenantId)))
-        .limit(1);
+        .limit(1)
+        .for("update");
 
       if (!shop) {
         throw new Error("Shop not found");
@@ -126,7 +127,8 @@ app.post("/stock", async (c) => {
       const [existingStock] = await tx.select({ reserved: warehouseStock.reserved })
         .from(warehouseStock)
         .where(and(eq(warehouseStock.productId, productId), eq(warehouseStock.tenantId, tenantId)))
-        .limit(1);
+        .limit(1)
+        .for("update");
       const reserved = Number(existingStock?.reserved ?? 0);
       const available = parsedQty - reserved;
 

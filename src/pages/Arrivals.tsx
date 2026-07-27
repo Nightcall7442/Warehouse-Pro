@@ -5,7 +5,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { useLang } from "@/i18n";
 import { format } from "date-fns";
 import {
-  Plus, X, Search, FileDown, ChevronDown, ChevronUp, Loader2, Printer,
+  Plus, X, Search, FileDown, Loader2, Printer,
   ArrowUpRight, ArrowDownRight, Minus, Truck, Package, CheckCircle2, Clock,
 } from "lucide-react";
 import { exportToExcel, formatArrivalsForExport } from "@/lib/excel";
@@ -121,7 +121,6 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
     }));
   };
 
-  const inputCls = "neo-input";
   const sectionLabel = "font-label text-[10px] tracking-wider uppercase mb-3 block";
 
   return createPortal(
@@ -458,48 +457,6 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
       </div>
     </div>,
     document.body
-  );
-}
-
-// ── Receipt ──────────────────────────────────────────────────────────────────
-function ArrivalReceipt({ arrival }: { arrival: { id: number } }) {
-  const [open, setOpen] = useState(false);
-  useCurrency();
-  const { lang } = useLang();
-  const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
-  const { data: detail } = trpc.arrival.getById.useQuery({ id: arrival.id }, { enabled: open });
-
-  return (
-    <div>
-      <button onClick={() => setOpen(v => !v)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 20px", border: "none", background: "transparent", cursor: "pointer", color: COLORS.textTertiary, fontSize: "12px", fontFamily: F.body }}>
-        <span>{t("Накладная", "Hujjat")}</span>
-        {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-      </button>
-      {open && detail?.items && (
-        <div style={{ padding: "0 20px 16px" }}>
-          <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
-            <thead>
-              <tr>{[t("Товар", "Mahsulot"), t("Код", "Kod"), t("Кол-во", "Miqdor"), t("Состояние", "Holat")].map(h => (
-                <th key={h} style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: COLORS.textTertiary, padding: "8px 12px", textAlign: "left", borderBottom: `1px solid ${COLORS.border}` }}>{h}</th>
-              ))}</tr>
-            </thead>
-            <tbody>
-              {detail.items.map((raw, i) => {
-                const item = raw as Record<string, unknown>;
-                return (
-                <tr key={i}>
-                  <td style={{ padding: "10px 12px", fontSize: "13px", color: COLORS.textPrimary, borderBottom: `1px solid ${COLORS.border}` }}>{String(item.productName)}</td>
-                  <td style={{ padding: "10px 12px", fontSize: "12px", color: COLORS.textTertiary, borderBottom: `1px solid ${COLORS.border}` }}>{String(item.productCode)}</td>
-                  <td style={{ padding: "10px 12px", fontSize: "13px", fontWeight: 600, color: COLORS.textPrimary, borderBottom: `1px solid ${COLORS.border}` }}>{Number(item.quantity).toFixed(2)}</td>
-                  <td style={{ padding: "10px 12px", fontSize: "13px", color: COLORS.textSecondary, borderBottom: `1px solid ${COLORS.border}` }}>{String(item.condition ?? "—")}</td>
-                </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
   );
 }
 

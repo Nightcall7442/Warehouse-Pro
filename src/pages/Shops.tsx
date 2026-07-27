@@ -3,18 +3,16 @@ import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { useCurrency } from "@/hooks/useCurrency";
 import { notify } from "@/lib/toast";
-import { exportToExcel, formatShopsForExport } from "@/lib/excel";
 import { ExcelImport } from "@/components/ExcelImport";
 import { useNavigate } from "react-router";
-import { Store, FileDown, Upload, Plus } from "lucide-react";
+import { FileDown, Upload, Plus } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
 import {
   ShopForm, ShopStats, ShopFilters, TerritoriesGrid, ShopList, SelectionBar, CityBreadcrumb,
 } from "@/components/shops";
 import { TerritoryManager } from "@/components/shops/TerritoryManager";
 import type { ShopKpiStats } from "@/components/shops/ShopStats";
-import type { ShopCardData } from "@/components/shops/ShopCard";
-import { COLORS, SHADOW } from "@/components/shops/constants";
+import { COLORS } from "@/components/shops/constants";
 
 export default function Shops() {
   const { lang } = useLang();
@@ -35,8 +33,6 @@ export default function Shops() {
 
   const { data, isLoading } = trpc.shop.list.useQuery({ page, pageSize: 25, search: search || undefined, city, district, agentId: agentFilter ? Number(agentFilter) : undefined });
   const { data: allShopsData } = trpc.shop.list.useQuery({ page: 1, pageSize: 5000 });
-  const { data: cities } = trpc.shop.cities.useQuery();
-  const { data: districts } = trpc.shop.districts.useQuery({ city });
   const { data: territories } = trpc.shop.territories.useQuery();
   const { data: realTerritories } = trpc.territory.list.useQuery();
   const { data: usersData } = trpc.user.list.useQuery({ page: 1, pageSize: 100 });

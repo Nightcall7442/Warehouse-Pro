@@ -20,12 +20,10 @@ function MarginRing({
   pct,
   label,
   delta,
-  lang,
 }: {
   pct: number;
   label: string;
   delta?: number | null;
-  lang: string;
 }) {
   const ringColor =
     pct >= 20 ? "#34c473" : pct >= 10 ? "#d4973a" : "#d45050";
@@ -104,13 +102,11 @@ export function PnLMarginRings({ current, deltas, lang }: PnLMarginRingsProps) {
         pct={grossPct}
         label={lang === "uz" ? "YALPI MARJA" : "ВАЛОВАЯ МАРЖА"}
         delta={deltas?.grossMarginPct}
-        lang={lang}
       />
       <MarginRing
         pct={netPct}
         label={lang === "uz" ? "TOZA MARJA" : "ЧИСТАЯ МАРЖА"}
         delta={deltas?.netMarginPct}
-        lang={lang}
       />
       <div
         style={{

@@ -11,7 +11,7 @@ import {
   Users, MapPin, ClipboardList, TrendingUp, Activity, FileDown, Printer,
   LayoutDashboard, ShoppingCart, Award, Package, BarChart3,
 } from "lucide-react";
-import { exportToExcel, formatAgentsForExport } from "@/lib/excel";
+import { exportToExcel } from "@/lib/excel";
 import { exportToPDF } from "@/lib/export";
 import { ProgressRing } from "@/components/ProgressRing";
 
@@ -35,9 +35,9 @@ const PAYMENT_MAP: Record<string, { label: string; color: string }> = {
 type TabKey = "overview" | "sales" | "agents";
 
 // ── Premium KPI Card ──────────────────────────────────────────────────────────
-const KpiCard = memo(function KpiCard({ label, value, sub, icon, gradient, delay }: {
+const KpiCard = memo(function KpiCard({ label, value, sub, icon, gradient }: {
   label: string; value: string; sub?: string;
-  icon: React.ReactNode; gradient: string; delay: number;
+  icon: React.ReactNode; gradient: string;
 }) {
   return (
     <div className="kpi-hero" style={{

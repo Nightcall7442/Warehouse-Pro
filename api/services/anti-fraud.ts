@@ -30,6 +30,7 @@ export async function verifyVisit(
   planId: number,
   tenantId: number,
   gpsPings?: GpsPing[],
+  providedPhotoUrl?: string,
 ): Promise<FraudCheckResult> {
   const reasons: string[] = [];
   let fraudScore = 0;
@@ -145,7 +146,7 @@ export async function verifyVisit(
     fraudScore += 25;
   }
 
-  const photoTimingValid = plan.photoUrl != null;
+  const photoTimingValid = providedPhotoUrl != null || plan.photoUrl != null;
 
   const isSuspicious = fraudScore >= 30;
 

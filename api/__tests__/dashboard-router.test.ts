@@ -196,7 +196,7 @@ function makeMockDb() {
         return from;
       };
       from.then = (resolve: any, reject: any) => {
-        let rows = getRows();
+        const rows = getRows();
         if (fields && typeof fields === "object" && !Array.isArray(fields)) {
           const hasAgg = Object.values(fields).some((d: any) => isAggSql(d));
           if (hasAgg) {

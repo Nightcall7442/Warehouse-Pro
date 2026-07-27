@@ -11,7 +11,7 @@ interface KpiCardProps {
   delay: number;
 }
 
-export function KpiCard({ label, value, delta, icon, gradient, delay }: KpiCardProps) {
+export function KpiCard({ label, value, delta, icon, gradient }: KpiCardProps) {
   const isPositive = delta !== null && delta > 0;
   const isNegative = delta !== null && delta < 0;
 

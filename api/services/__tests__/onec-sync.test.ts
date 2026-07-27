@@ -147,7 +147,7 @@ const mockBridge = {
   postDocument: vi.fn().mockResolvedValue(undefined),
 };
 
-vi.mock("../../lib/onec-bridge", () => ({ getBridge: () => mockBridge }));
+vi.mock("../../lib/onec-bridge", () => ({ getBridge: () => mockBridge, getBridgeForTenant: () => Promise.resolve(mockBridge) }));
 
 function makeMockDb() {
   function selectBuilder(_proj?: unknown) {

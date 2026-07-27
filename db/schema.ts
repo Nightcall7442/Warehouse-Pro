@@ -844,3 +844,26 @@ export const apiKeys = mysqlTable("api_keys", {
 
 export type ApiKey       = typeof apiKeys.$inferSelect;
 export type InsertApiKey = typeof apiKeys.$inferInsert;
+
+// ============================================
+// 1C CONFIG — per-tenant 1C Bridge connection settings
+// ============================================
+export const onecConfig = mysqlTable("onec_config", {
+  id:            serial("id").primaryKey(),
+  tenantId:      bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  url:           varchar("url", { length: 500 }).notNull(),
+  username:      varchar("username", { length: 100 }).notNull(),
+  password:      varchar("password", { length: 500 }).notNull(),
+  syncProducts:  boolean("sync_products").default(true),
+  syncOrders:    boolean("sync_orders").default(true),
+  intervalMinutes: int("interval_minutes").default(60),
+  lastTestedAt:  timestamp("last_tested_at"),
+  lastTestOk:    boolean("last_test_ok"),
+  createdAt:     timestamp("created_at").defaultNow().notNull(),
+  updatedAt:     timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
+}, (t) => ({
+  tenantIdx: uniqueIndex("uq_onec_config_tenant").on(t.tenantId),
+}));
+
+export type OneCConfig       = typeof onecConfig.$inferSelect;
+export type InsertOneCConfig = typeof onecConfig.$inferInsert;

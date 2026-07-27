@@ -8,7 +8,7 @@ import { Plus, Upload, FileDown, Box, Tag, AlertTriangle, BarChart3, Trash2, Che
 import { ExcelImport } from "@/components/ExcelImport";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { exportToExcel, formatProductsForExport } from "@/lib/excel";
-import { ProductCard, ProductForm, ProductList, ProductFilters, KpiCard, F, COLORS } from "@/components/products";
+import { ProductForm, ProductList, ProductFilters, KpiCard, F, COLORS } from "@/components/products";
 import { CategoryManager } from "@/components/products/CategoryManager";
 
 export default function Products() {

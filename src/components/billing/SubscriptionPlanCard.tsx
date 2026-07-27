@@ -1,4 +1,4 @@
-import { CheckCircle2, AlertTriangle, Zap } from "lucide-react";
+import { Zap } from "lucide-react";
 import { COLORS, FONTS, GRADIENTS, SHADOWS } from "./designTokens";
 
 export interface Plan {

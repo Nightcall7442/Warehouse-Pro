@@ -106,112 +106,7 @@ export default function CourierDeliveries() {
       </div>
 
       {/* Map with delivery locations */}
-      {(() => {
-        const YANDEX_API_KEY = import.meta.env.VITE_YANDEX_MAPS_API_KEY || "dd072e98-24e7-4b2e-b328-2989bd981fa5";
-        const mapRef = useRef<unknown>(null);
-        const mapDivRef = useRef<HTMLDivElement>(null);
-        const markersRef = useRef<unknown[]>([]);
-
-        const allDeliveries = useMemo(() => deliveries ?? [], [deliveries]);
-
-        const mapMarkers = useMemo(() =>
-          allDeliveries
-            .filter((d) => d.shopGpsLat && d.shopGpsLng)
-            .map((d) => ({
-              lat: Number(d.shopGpsLat),
-              lng: Number(d.shopGpsLng),
-              name: d.shopName ?? "Магазин",
-              status: d.deliveryStatus,
-            })),
-          [allDeliveries]
-        );
-
-        useEffect(() => {
-          if (!mapDivRef.current || mapRef.current || !window.ymaps) return;
-
-          window.ymaps.ready(() => {
-            const center = mapMarkers.length > 0
-              ? [mapMarkers.reduce((s, m) => s + m.lat, 0) / mapMarkers.length, mapMarkers.reduce((s, m) => s + m.lng, 0) / mapMarkers.length]
-              : [41.2995, 69.2401];
-
-            const map = new window.ymaps.Map(mapDivRef.current!, {
-              center,
-              zoom: 12,
-              controls: ["zoomControl", "fullscreenControl"],
-            });
-
-            mapRef.current = map;
-
-            mapMarkers.forEach((m) => {
-              const color = m.status === "out_for_delivery" ? "#d4973a" : m.status === "delivered" ? "#34c473" : "#5b6d8a";
-              const placemark = new window.ymaps.Placemark(
-                [m.lat, m.lng],
-                {
-                  balloonContentHeader: `<b style="font-family:Inter,sans-serif;font-size:14px">${m.name}</b>`,
-                  hintContent: m.name,
-                },
-                {
-                  iconLayout: "default#imageWithContent",
-                  iconImageHref: `data:image/svg+xml,${encodeURIComponent(`
-                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
-                      <circle cx="16" cy="16" r="14" fill="${color}" stroke="white" stroke-width="2"/>
-                    </svg>
-                  `)}`,
-                  iconImageSize: [32, 32],
-                  iconImageOffset: [-16, -16],
-                }
-              );
-              map.geoObjects.add(placemark);
-              markersRef.current.push(placemark);
-            });
-
-            if (mapMarkers.length > 1) {
-              map.setBounds(map.geoObjects.getBounds(), { checkZoomRange: true, zoomMargin: 40 });
-            }
-          });
-        }, [mapMarkers]);
-
-        useEffect(() => {
-          if (!window.ymaps || !mapRef.current) return;
-          window.ymaps.ready(() => {
-            markersRef.current.forEach(m => mapRef.current!.geoObjects.remove(m));
-            markersRef.current = [];
-            mapMarkers.forEach((m) => {
-              const color = m.status === "out_for_delivery" ? "#d4973a" : m.status === "delivered" ? "#34c473" : "#5b6d8a";
-              const placemark = new window.ymaps.Placemark(
-                [m.lat, m.lng],
-                {
-                  balloonContentHeader: `<b style="font-family:Inter,sans-serif;font-size:14px">${m.name}</b>`,
-                  hintContent: m.name,
-                },
-                {
-                  iconLayout: "default#imageWithContent",
-                  iconImageHref: `data:image/svg+xml,${encodeURIComponent(`
-                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
-                      <circle cx="16" cy="16" r="14" fill="${color}" stroke="white" stroke-width="2"/>
-                    </svg>
-                  `)}`,
-                  iconImageSize: [32, 32],
-                  iconImageOffset: [-16, -16],
-                }
-              );
-              mapRef.current!.geoObjects.add(placemark);
-              markersRef.current.push(placemark);
-            });
-            if (mapMarkers.length > 1) {
-              mapRef.current!.setBounds(mapRef.current!.geoObjects.getBounds(), { checkZoomRange: true, zoomMargin: 40 });
-            }
-          });
-        }, [mapMarkers]);
-
-        if (mapMarkers.length === 0) return null;
-
-        return (
-          <div className="neo-card overflow-hidden" style={{ minHeight: 300, position: "relative" }}>
-            <div ref={mapDivRef} style={{ width: "100%", height: "300px", position: "relative" }} />
-          </div>
-        );
-      })()}
+      <MapView deliveries={deliveries} />
 
       {/* In Transit */}
       {inTransit.length > 0 && (
@@ -311,6 +206,115 @@ export default function CourierDeliveries() {
           <p>{t("Нет заказов на доставку", "Yetkazish uchun buyurtmalar yo'q")}</p>
         </div>
       )}
+    </div>
+  );
+}
+
+function MapView({ deliveries }: { deliveries: unknown[] | undefined }) {
+  const mapRef = useRef<unknown>(null);
+  const mapDivRef = useRef<HTMLDivElement>(null);
+  const markersRef = useRef<unknown[]>([]);
+
+  const allDeliveries = useMemo(() => deliveries ?? [], [deliveries]);
+
+  const mapMarkers = useMemo(() =>
+    allDeliveries
+      .filter((d: Record<string, unknown>) => d.shopGpsLat && d.shopGpsLng)
+      .map((d: Record<string, unknown>) => ({
+        lat: Number(d.shopGpsLat),
+        lng: Number(d.shopGpsLng),
+        name: d.shopName ?? "Магазин",
+        status: d.deliveryStatus,
+      })),
+    [allDeliveries]
+  );
+
+  useEffect(() => {
+    if (!mapDivRef.current || mapRef.current || !window.ymaps) return;
+
+    window.ymaps.ready(() => {
+      const center = mapMarkers.length > 0
+        ? [mapMarkers.reduce((s, m) => s + m.lat, 0) / mapMarkers.length, mapMarkers.reduce((s, m) => s + m.lng, 0) / mapMarkers.length]
+        : [41.2995, 69.2401];
+
+      const map = new window.ymaps.Map(mapDivRef.current!, {
+        center,
+        zoom: 12,
+        controls: ["zoomControl", "fullscreenControl"],
+      });
+
+      mapRef.current = map;
+
+      mapMarkers.forEach((m) => {
+        const color = m.status === "out_for_delivery" ? "#d4973a" : m.status === "delivered" ? "#34c473" : "#5b6d8a";
+        const placemark = new window.ymaps.Placemark(
+          [m.lat, m.lng],
+          {
+            balloonContentHeader: `<b style="font-family:Inter,sans-serif;font-size:14px">${m.name}</b>`,
+            hintContent: m.name,
+          },
+          {
+            iconLayout: "default#imageWithContent",
+            iconImageHref: `data:image/svg+xml,${encodeURIComponent(`
+              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+                <circle cx="16" cy="16" r="14" fill="${color}" stroke="white" stroke-width="2"/>
+              </svg>
+            `)}`,
+            iconImageSize: [32, 32],
+            iconImageOffset: [-16, -16],
+          }
+        );
+        map.geoObjects.add(placemark);
+        markersRef.current.push(placemark);
+      });
+
+      if (mapMarkers.length > 1) {
+        map.setBounds(map.geoObjects.getBounds(), { checkZoomRange: true, zoomMargin: 40 });
+      }
+    });
+  }, [mapMarkers]);
+
+  useEffect(() => {
+    if (!window.ymaps || !mapRef.current) return;
+    window.ymaps.ready(() => {
+      markersRef.current.forEach((m: unknown) => (mapRef.current as { geoObjects: { remove: (m: unknown) => void } }).geoObjects.remove(m));
+      markersRef.current = [];
+      mapMarkers.forEach((m) => {
+        const color = m.status === "out_for_delivery" ? "#d4973a" : m.status === "delivered" ? "#34c473" : "#5b6d8a";
+        const placemark = new window.ymaps.Placemark(
+          [m.lat, m.lng],
+          {
+            balloonContentHeader: `<b style="font-family:Inter,sans-serif;font-size:14px">${m.name}</b>`,
+            hintContent: m.name,
+          },
+          {
+            iconLayout: "default#imageWithContent",
+            iconImageHref: `data:image/svg+xml,${encodeURIComponent(`
+              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+                <circle cx="16" cy="16" r="14" fill="${color}" stroke="white" stroke-width="2"/>
+              </svg>
+            `)}`,
+            iconImageSize: [32, 32],
+            iconImageOffset: [-16, -16],
+          }
+        );
+        (mapRef.current as { geoObjects: { add: (m: unknown) => void } }).geoObjects.add(placemark);
+        markersRef.current.push(placemark);
+      });
+      if (mapMarkers.length > 1) {
+        (mapRef.current as { setBounds: (b: unknown, o: unknown) => void }).setBounds(
+          (mapRef.current as { geoObjects: { getBounds: () => unknown } }).geoObjects.getBounds(),
+          { checkZoomRange: true, zoomMargin: 40 }
+        );
+      }
+    });
+  }, [mapMarkers]);
+
+  if (mapMarkers.length === 0) return null;
+
+  return (
+    <div className="neo-card overflow-hidden" style={{ minHeight: 300, position: "relative" }}>
+      <div ref={mapDivRef} style={{ width: "100%", height: "300px", position: "relative" }} />
     </div>
   );
 }

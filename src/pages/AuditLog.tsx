@@ -4,7 +4,7 @@ import { useLang } from "@/i18n";
 import { format } from "date-fns";
 import { ru as dateRu } from "date-fns/locale";
 import {
-  Shield, Filter, Loader2, ChevronLeft, ChevronRight,
+  Shield, Filter, ChevronLeft, ChevronRight,
   User, Package, Settings, AlertTriangle, Key,
   RefreshCw, ArrowUpRight, ArrowDownRight, Minus,
 } from "lucide-react";

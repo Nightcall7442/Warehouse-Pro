@@ -1,5 +1,5 @@
 import React from "react";
-import { F, COLORS, SHADOW } from "./styles";
+import { F, COLORS } from "./styles";
 
 interface ComparisonItem {
   label: string;

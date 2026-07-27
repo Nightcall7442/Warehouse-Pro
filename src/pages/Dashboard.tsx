@@ -7,7 +7,7 @@ import { useNavigate } from "react-router";
 import { getGreeting } from "@/lib/utils";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
-import { ClipboardList, TrendingUp, TrendingDown, Sparkles, AlertCircle, ArrowRight, BarChart3, PieChart, Activity } from "lucide-react";
+import { ClipboardList, TrendingUp, TrendingDown, Sparkles, AlertCircle, ArrowRight, PieChart, Activity } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart as RePieChart, Pie, Cell, BarChart, Bar } from "recharts";
 import { ProgressRing } from "@/components/ProgressRing";
 
@@ -103,7 +103,6 @@ function CircularKpiCard({ label, value, subValue, color, icon, delay, onClick }
 
 /* ── Bar Chart Mini ──────────────────────────────────────────────────────── */
 function MiniBarChart({ data, color }: { data: number[]; color: string }) {
-  const max = Math.max(...data, 1);
   const barData = data.map((v, i) => ({ value: v, i }));
   return (
     <ResponsiveContainer width="100%" height={60}>

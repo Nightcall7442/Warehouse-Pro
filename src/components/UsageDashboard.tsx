@@ -3,7 +3,7 @@ import { useNavigate } from "react-router";
 import { useLang } from "@/i18n";
 import { trpc } from "@/providers/trpc";
 import { Users, Package, ShoppingCart, AlertTriangle, ArrowRight, Zap } from "lucide-react";
-import { ProgressRing } from "@/components/ProgressRing";
+
 
 interface UsageData {
   plan: string;
@@ -30,7 +30,7 @@ export const UsageDashboard = memo(function UsageDashboard() {
 
   if (!billing) return null;
 
-  const { limits, usage, plan, daysLeft, isExpired } = billing;
+  const { limits, usage, daysLeft, isExpired } = billing;
 
   const metrics = [
     {

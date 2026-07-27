@@ -31,7 +31,7 @@ export const uploadRouter = createRouter({
    *  Falls back to returning the dataUrl directly if S3 is not configured. */
   file: authedQuery
     .input(z.object({
-      dataUrl: z.string().startsWith("data:image/").max(5_000_000, "Макс. 4 МБ"),
+      dataUrl: z.string().refine((val) => val.startsWith("data:image/") || val.startsWith("http://") || val.startsWith("https://"), "Неверный формат изображения (data URL или HTTP/HTTPS URL)").max(5_000_000, "Макс. 4 МБ"),
       folder: z.enum(["products", "shops", "avatars", "visits"]).default("products"),
     }))
     .mutation(async ({ input, ctx }) => {
