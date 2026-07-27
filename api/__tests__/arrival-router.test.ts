@@ -220,6 +220,36 @@ function makeMockDb() {
         return Promise.resolve();
       }
 
+      // SELECT FROM warehouse_stock (FOR UPDATE lock)
+      // mysql2 format: [rows, fields]
+      if (rawSql.includes("SELECT") && rawSql.includes("warehouse_stock")) {
+        const tenantId = Number(vals[0]);
+        const warehouseId = Number(vals[1]);
+        const productId = Number(vals[2]);
+        const existing = stockTable.filter(
+          (s) => s.tenantId === tenantId && s.warehouseId === warehouseId && s.productId === productId,
+        );
+        return Promise.resolve([existing.map((s) => ({ id: s.id })), []]);
+      }
+
+      // UPDATE warehouse_stock
+      if (rawSql.includes("UPDATE") && rawSql.includes("warehouse_stock")) {
+        // SET current_stock = current_stock + qty, available = available + qty
+        // WHERE tenant_id = ? AND warehouse_id = ? AND product_id = ?
+        const qty = Number(vals[0]);
+        const tenantId = Number(vals[2]);
+        const warehouseId = Number(vals[3]);
+        const productId = Number(vals[4]);
+        const existing = stockTable.find(
+          (s) => s.tenantId === tenantId && s.warehouseId === warehouseId && s.productId === productId,
+        );
+        if (existing) {
+          existing.currentStock = String(Number(existing.currentStock) + qty);
+          existing.available = String(Number(existing.available) + qty);
+        }
+        return Promise.resolve();
+      }
+
       // INSERT INTO warehouse_stock
       if (rawSql.includes("INSERT") && rawSql.includes("warehouse_stock")) {
         if (vals.length >= 3) {

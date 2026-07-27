@@ -206,11 +206,13 @@ export const arrivalRouter = createRouter({
             const qty = Number(item.quantity);
 
             // Lock the row first to prevent race conditions on concurrent arrivals
-            const [existing] = await tx.execute(sql`
+            // mysql2 returns [rows, fields]; rows is an empty array [] when no match
+            const [rows] = await tx.execute(sql`
               SELECT id FROM warehouse_stock
               WHERE tenant_id = ${tenantId} AND warehouse_id = ${warehouseId} AND product_id = ${item.productId}
               FOR UPDATE
             `);
+            const existing = (rows as unknown[])?.[0];
 
             if (existing) {
               await tx.execute(sql`
