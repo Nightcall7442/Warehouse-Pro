@@ -120,6 +120,9 @@ const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
   errorFormatter: ({ shape, error }) => {
     const isInternal = error.code === "INTERNAL_SERVER_ERROR";
+    if (isInternal) {
+      console.error(`[tRPC INTERNAL] ${error.message}`, error.cause ?? error);
+    }
     let message = isInternal && env.isProduction
       ? "Внутренняя ошибка сервера. Попробуйте позже."
       : shape.message;
