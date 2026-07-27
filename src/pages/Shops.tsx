@@ -3,6 +3,7 @@ import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { useCurrency } from "@/hooks/useCurrency";
 import { notify } from "@/lib/toast";
+import { exportToExcel } from "@/lib/excel";
 import { ExcelImport } from "@/components/ExcelImport";
 import { useNavigate } from "react-router";
 import { FileDown, Upload, Plus } from "lucide-react";
