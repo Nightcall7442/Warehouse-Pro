@@ -132,7 +132,7 @@ export const products = mysqlTable("products", {
   category:     varchar("category", { length: 100 }),
   costPrice:    decimal("cost_price", { precision: 10, scale: 2 }).default("0.00").notNull(),
   unitPrice:    decimal("unit_price", { precision: 10, scale: 2 }).notNull(),
-  unit:         mysqlEnum("unit", ["kg", "l", "pcs", "box", "pack", "m"]).default("pcs").notNull(),
+  unit:         mysqlEnum("unit", ["kg", "l", "pcs", "box", "pack", "m", "block"]).default("pcs").notNull(),
   unitWeight:   decimal("unit_weight", { precision: 10, scale: 3 }).default("0.000").notNull(),
   description:  text("description"),
   photoUrl:     text("photo_url"),

@@ -8,7 +8,7 @@ export const MOVE_TYPE: Record<string, { icon: React.ComponentType<{ size?: numb
 
 export const UNIT_LABELS: Record<string, [string, string]> = {
   kg: ["кг", "kg"], l: ["л", "l"], pcs: ["шт", "dona"],
-  box: ["ящ", "quti"], pack: ["упак", "pachka"], m: ["м", "m"],
+  box: ["ящ", "quti"], pack: ["упак", "pachka"], m: ["м", "m"], block: ["бл", "blok"],
 };
 
 export function unitLabel(unit: string | undefined, lang: "ru" | "uz"): string {

@@ -316,16 +316,26 @@ export const importRouter = createRouter({
           description?: string; photoUrl?: string;
         }> = [];
 
+        // Auto-generate product codes for rows without one
+        let nextCodeNum = 1;
+        const currentMax = await db.execute<{ maxCode: string | null }>(sql`
+          SELECT MAX(CAST(code AS UNSIGNED)) AS maxCode FROM products
+          WHERE tenant_id = ${tenantId} AND code REGEXP '^[0-9]+$'
+        `);
+        const maxVal = Number((currentMax as unknown as Array<{ maxCode: string | null }>)?.[0]?.maxCode ?? 0);
+        if (maxVal > 0) nextCodeNum = maxVal + 1;
+
         for (let i = 0; i < dataRows.length; i++) {
           const rowNum = i + 2;
           const row = parseRow(dataRows[i], mapping);
           const name = String(row.name ?? "").trim();
-          const code = String(row.code ?? `IMPORT-${rowNum}`).trim();
+          const rawCode = String(row.code ?? "").trim();
+          const code = rawCode || String(nextCodeNum++).padStart(6, "0");
           if (!name) { errors.push(`Строка ${rowNum}: нет названия`); continue; }
 
           const rawPrice = String(row.unitPrice ?? "0").replace(/\s/g, "").replace(/[^\d.]/g, "");
           const rawCost = String(row.costPrice ?? "0").replace(/\s/g, "").replace(/[^\d.]/g, "");
-          const validUnits = ["kg", "l", "pcs", "box", "pack", "m"];
+          const validUnits = ["kg", "l", "pcs", "box", "pack", "m", "block"];
           const unitTranslations: Record<string, string> = {
             "шт": "pcs", "штук": "pcs", "дона": "pcs",
             "кг": "kg", "kilogram": "kg",
@@ -333,6 +343,7 @@ export const importRouter = createRouter({
             "ящ": "box", "ящик": "box", "quti": "box",
             "упак": "pack", "упаковка": "pack", "pachka": "pack",
             "м": "m", "метр": "m", "metr": "m",
+            "бл": "block", "блок": "block", "blok": "block",
           };
           const rawUnit = String(row.unit ?? "pcs").trim().toLowerCase();
           const unit = unitTranslations[rawUnit] ?? (validUnits.includes(rawUnit) ? rawUnit : "pcs");
@@ -378,7 +389,7 @@ export const importRouter = createRouter({
               const [r] = await db.insert(products).values({
                 tenantId, code: row.code, name: row.name, barcode: row.barcode,
                 category: row.category, costPrice: row.costPrice, unitPrice: row.unitPrice,
-                unit: (["kg", "l", "pcs", "box", "pack", "m"].includes(row.unit) ? row.unit : "pcs") as "kg" | "l" | "pcs" | "box" | "pack" | "m", unitWeight: row.unitWeight,
+                unit: (["kg", "l", "pcs", "box", "pack", "m", "block"].includes(row.unit) ? row.unit : "pcs") as "kg" | "l" | "pcs" | "box" | "pack" | "m" | "block", unitWeight: row.unitWeight,
                 reorderPoint: row.reorderPoint, description: row.description,
                 photoUrl, status: "active",
               });

@@ -14,7 +14,8 @@ export const UNITS = [
   { value: "pcs",  ru: "штук",     uz: "dona" },
   { value: "box",  ru: "ящик",     uz: "quti" },
   { value: "pack", ru: "упаковка", uz: "pachka" },
-  { value: "m",    ru: "метр",     uz: "metr" },
+  { value: "m",     ru: "метр",     uz: "metr" },
+  { value: "block", ru: "блок",     uz: "blok" },
 ];
 
 export const unitLabel = (u: string | undefined, lang: string) => {

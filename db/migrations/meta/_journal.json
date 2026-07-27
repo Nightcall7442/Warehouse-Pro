@@ -148,6 +148,13 @@
       "when": 1786600000000,
       "tag": "0020_add_orders_deleted_at_index",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "5",
+      "when": 1785159763169,
+      "tag": "0021_add_block_unit",
+      "breakpoints": true
     }
   ]
 }
