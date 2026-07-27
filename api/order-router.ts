@@ -48,7 +48,18 @@ export const orderRouter = createRouter({
       paymentMethod:  z.enum(["cash", "card", "transfer", "debt"]).default("cash"),
     }))
     .mutation(async ({ input, ctx }) => {
-      return OrderService.create(ctx.db, ctx.tenant.id, ctx.user.id, input);
+      try {
+        return await OrderService.create(ctx.db, ctx.tenant.id, ctx.user.id, input);
+      } catch (err) {
+        console.error("[order.create FAILED]", {
+          message: err instanceof Error ? err.message : String(err),
+          code: err && typeof err === "object" && "code" in err ? (err as Record<string, unknown>).code : undefined,
+          errno: err && typeof err === "object" && "errno" in err ? (err as Record<string, unknown>).errno : undefined,
+          sqlMessage: err && typeof err === "object" && "sqlMessage" in err ? (err as Record<string, unknown>).sqlMessage : undefined,
+          input: { shopId: input.shopId, itemCount: input.items.length, paymentMethod: input.paymentMethod },
+        });
+        throw err;
+      }
     }),
 
   cancel: fieldSalesQuery
