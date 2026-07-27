@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import { Routes, Route, Navigate, Outlet } from "react-router";
 import { useAuth } from "@/hooks/useAuth";
+import { useHotkeys } from "@/hooks/useHotkeys";
 import Layout from "@/components/Layout";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { CommandPalette } from "@/components/CommandPalette";
@@ -69,10 +70,16 @@ function AppLayout() {
   return <Layout><ErrorBoundary pageName="Страница"><Outlet /></ErrorBoundary></Layout>;
 }
 
+function HotkeysListener() {
+  useHotkeys();
+  return null;
+}
+
 export default function App() {
   return (
     <Suspense fallback={<PageLoader />}>
       <ErrorBoundary pageName="Приложение">
+      <HotkeysListener />
       <CommandPalette />
       <Routes>
         {/* Public */}

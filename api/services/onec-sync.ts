@@ -19,10 +19,22 @@ export class OneCSyncService {
 
     try {
       await updateSyncStatus(tenantId, "product", "from1c", "processing");
-      const items = await bridge.odataQuery<Product1C>("Catalog_Номенклатура", {
-        $top: "500",
-        $select: "Ref_Key,Code,Description,Price,Unit",
-      });
+
+      // Paginate through all products (1C OData default limit is 500)
+      const allItems: Product1C[] = [];
+      const PAGE_SIZE = 500;
+      let skip = 0;
+      while (true) {
+        const page = await bridge.odataQuery<Product1C>("Catalog_Номенклатура", {
+          $top: String(PAGE_SIZE),
+          $skip: String(skip),
+          $select: "Ref_Key,Code,Description,Price,Unit",
+        });
+        allItems.push(...page);
+        if (page.length < PAGE_SIZE) break;
+        skip += PAGE_SIZE;
+      }
+      const items = allItems;
 
       // Batch-load all existing mappings upfront (avoid N+1 SELECT per item)
       const existingMappings = await OneCMapper.getAll(db, tenantId, "product");

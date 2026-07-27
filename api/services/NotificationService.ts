@@ -109,7 +109,10 @@ export const NotificationService = {
     }
   },
 
-  async list(db: Db, tenantId: number, userId: number) {
+  async list(db: Db, tenantId: number, userId: number, opts?: { page?: number; pageSize?: number }) {
+    const page = opts?.page ?? 1;
+    const pageSize = Math.min(opts?.pageSize ?? 50, 100);
+    const offset = (page - 1) * pageSize;
     return db.select({
       id: notifications.id, type: notifications.type, title: notifications.title,
       message: notifications.message, isRead: notifications.isRead,
@@ -117,7 +120,8 @@ export const NotificationService = {
     }).from(notifications)
       .where(and(eq(notifications.userId, userId), eq(notifications.tenantId, tenantId)))
       .orderBy(desc(notifications.createdAt))
-      .limit(50);
+      .limit(pageSize)
+      .offset(offset);
   },
 
   async unreadCount(db: Db, tenantId: number, userId: number): Promise<number> {

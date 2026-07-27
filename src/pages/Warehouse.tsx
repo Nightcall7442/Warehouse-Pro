@@ -15,6 +15,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { notify } from "@/lib/toast";
 import { AdjustModal, unitLabel, toKg } from "@/components/warehouse";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 
 // ── Main warehouse page ───────────────────────────────────────────────────────
 export default function Warehouse() {
@@ -32,7 +33,7 @@ export default function Warehouse() {
   const [showLowStock, setShowLowStock] = useState(false);
 
 
-  const { data, isLoading } = trpc.warehouseMulti.getStock.useQuery({ warehouseId: warehouseId ?? undefined, search: search || undefined });
+  const { data, isLoading, isError, refetch } = trpc.warehouseMulti.getStock.useQuery({ warehouseId: warehouseId ?? undefined, search: search || undefined });
   const { data: valuation, isLoading: valLoading } = trpc.warehouse.valuation.useQuery();
   const { data: reorderSuggestions } = trpc.warehouse.reorderSuggestions.useQuery();
   const { data: deadStockItems, isLoading: deadStockLoading } = trpc.warehouse.deadStock.useQuery({ days: deadStockDays });
@@ -100,6 +101,8 @@ export default function Warehouse() {
     { key: "deadstock" as const, label: t("Мёртвый сток", "O'lik stok"), count: deadStockItems?.length ?? 0 },
     { key: "reorder" as const, label: t("Дозаказ", "Qayta buyurtma"), count: reorderSuggestions?.length ?? 0 },
   ], [summary, deadStockItems, reorderSuggestions, t]);
+
+  if (isError) return <QueryErrorFallback onRetry={refetch} />;
 
   return (
     <>

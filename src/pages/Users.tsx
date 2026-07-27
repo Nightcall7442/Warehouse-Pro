@@ -12,6 +12,7 @@ import { PremiumSelect } from "@/components/PremiumSelect";
 import { F, COLORS, SHADOW, ROLE_LABELS } from "@/components/users/types";
 import { UserFilters } from "@/components/users/UserFilters";
 import { UserTable } from "@/components/users/UserTable";
+import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 
 /* ── KPI Card ──────────────────────────────────────────────────────────────── */
 function KpiCard({
@@ -244,7 +245,7 @@ export default function Users() {
   const { lang } = useLang();
   const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
 
-  const { data, isLoading } = trpc.user.list.useQuery({
+  const { data, isLoading, isError, refetch } = trpc.user.list.useQuery({
     page, pageSize: 25,
     search: search || undefined,
     role: role || undefined,
@@ -284,6 +285,8 @@ export default function Users() {
       inactive: list.filter((u) => u.status !== "active").length,
     };
   }, [data]);
+
+  if (isError) return <QueryErrorFallback onRetry={refetch} />;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>

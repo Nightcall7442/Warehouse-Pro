@@ -7,7 +7,6 @@ import { getDb } from "./queries/connection";
 import { apiKeys, products, orders, orderItems, warehouseStock, shops } from "../db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { createHash } from "crypto";
-import { logger } from "./lib/logger";
 import { checkRateLimit as sharedCheckRateLimit } from "./lib/rate-limit";
 
 const app = new Hono();

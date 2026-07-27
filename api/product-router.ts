@@ -58,7 +58,8 @@ export const productRouter = createRouter({
         .from(products)
         .leftJoin(warehouseStock, stockJoinCond)
         .where(where)
-        .orderBy(products.name);
+        .orderBy(products.name)
+        .limit(10000);
 
       cache.set(cacheKey, data, CacheTTL.products);
       return data;

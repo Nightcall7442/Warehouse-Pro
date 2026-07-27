@@ -75,7 +75,7 @@ export const analyticsRouter = createRouter({
         productCode:  products.code,
         totalQty:     sql<string>`COALESCE(SUM(${orderItems.quantity}), 0)`,
         totalRevenue: sql<string>`COALESCE(SUM(${orderItems.subtotal}), 0)`,
-        totalCost:    sql<string>`COALESCE(SUM(${orderItems.quantity} * COALESCE(${products.costPrice}, 0)), 0)`,
+        totalCost:    sql<string>`COALESCE(SUM(${orderItems.quantity} * COALESCE(${orderItems.costPrice}, 0)), 0)`,
       })
         .from(orderItems)
         .leftJoin(products, eq(orderItems.productId, products.id))
@@ -92,7 +92,7 @@ export const analyticsRouter = createRouter({
 
       const result = await getDb().select({
         totalRevenue: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
-        totalCost:    sql<string>`COALESCE(SUM(${orderItems.quantity} * COALESCE(${products.costPrice}, 0)), 0)`,
+        totalCost:    sql<string>`COALESCE(SUM(${orderItems.quantity} * COALESCE(${orderItems.costPrice}, 0)), 0)`,
         totalDiscount: sql<string>`COALESCE(SUM(${orders.discount}), 0)`,
       })
         .from(orders)
@@ -196,7 +196,7 @@ export const analyticsRouter = createRouter({
           .where(and(...orderConds));
 
         const cogsRow = await db.select({
-          totalCOGS: sql<string>`COALESCE(SUM(${orderItems.quantity} * COALESCE(${products.costPrice}, 0)), 0)`,
+          totalCOGS: sql<string>`COALESCE(SUM(${orderItems.quantity} * COALESCE(${orderItems.costPrice}, 0)), 0)`,
         })
           .from(orderItems)
           .leftJoin(products, eq(orderItems.productId, products.id))
@@ -251,7 +251,7 @@ export const analyticsRouter = createRouter({
       const monthlyRows = await db.select({
         month: sql<string>`DATE_FORMAT(${orders.createdAt}, '%Y-%m')`,
         revenue: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
-        cogs: sql<string>`COALESCE(SUM(${orderItems.quantity} * COALESCE(${products.costPrice}, 0)), 0)`,
+        cogs: sql<string>`COALESCE(SUM(${orderItems.quantity} * COALESCE(${orderItems.costPrice}, 0)), 0)`,
         orderCount: sql<number>`count(DISTINCT ${orders.id})`,
       })
         .from(orders)
@@ -333,7 +333,7 @@ export const analyticsRouter = createRouter({
         paymentMethod: orders.paymentMethod,
         revenue: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
         orderCount: sql<number>`count(*)`,
-        cogs: sql<string>`COALESCE(SUM(${orderItems.quantity} * COALESCE(${products.costPrice}, 0)), 0)`,
+        cogs: sql<string>`COALESCE(SUM(${orderItems.quantity} * COALESCE(${orderItems.costPrice}, 0)), 0)`,
       })
         .from(orders)
         .leftJoin(orderItems, eq(orderItems.orderId, orders.id))

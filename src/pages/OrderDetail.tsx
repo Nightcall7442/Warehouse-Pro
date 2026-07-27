@@ -5,13 +5,15 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { useLang } from "@/i18n";
 import { format } from "date-fns";
 import { ru as dateRu } from "date-fns/locale";
-import { ArrowLeft, Printer, FileDown, CheckCircle2, XCircle, RefreshCw, ChevronDown, Truck } from "lucide-react";
+import { ArrowLeft, Printer, FileDown, CheckCircle2, XCircle, RefreshCw, ChevronDown, Truck, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { exportToExcel } from "@/lib/excel";
 import { printUzWaybill, printTorg12, printInvoice } from "@/lib/documents";
 import type { OrderDocData, CompanyInfo } from "@/lib/documents";
 import { notify } from "@/lib/toast";
+import { useConfirm } from "@/components/ConfirmDialog";
+import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 
 const STATUS_STYLES: Record<string, string> = {
   new:        "bg-info/15 text-info border-info/30",
@@ -37,8 +39,9 @@ export default function OrderDetail() {
   const [printMenu, setPrintMenu] = useState(false);
 
   const isOperatorOrCeo = user?.role === "ceo" || user?.role === "operator";
+  const { confirm, dialog } = useConfirm();
 
-  const { data: order, isLoading } = trpc.order.getById.useQuery(
+  const { data: order, isLoading, isError, refetch } = trpc.order.getById.useQuery(
     { id: Number(id) }, { enabled: !!id }
   );
 
@@ -65,6 +68,14 @@ export default function OrderDetail() {
     onError: (e) => notify.error(e.message),
   });
 
+  const deleteOrder = trpc.order.delete.useMutation({
+    onSuccess: () => {
+      notify.success(lang === "uz" ? "Buyurtma o'chirildi" : "Заказ удалён");
+      navigate("/orders");
+    },
+    onError: (e) => notify.error(e.message),
+  });
+
   // Build document data
   const buildDocData = (): OrderDocData | null => {
     if (!order) return null;
@@ -83,6 +94,7 @@ export default function OrderDetail() {
       address: (shopExtra?.address as string) ?? "",
       inn:     (shopExtra?.inn as string) ?? "",
     };
+    const pm = PAYMENT_METHODS[order.paymentMethod ?? "cash"];
     return {
       number:   order.orderNumber,
       date:     order.createdAt
@@ -103,6 +115,10 @@ export default function OrderDetail() {
       total:    Number(order.total),
       notes:    order.notes ?? "",
       currency,
+      paymentMethodLabel: pm ? (lang === "uz" ? pm.uz : pm.ru) : undefined,
+      paymentMethodColor: pm?.color,
+      shopOwner:  order.shop?.ownerName ?? undefined,
+      shopPhone:  ((order.shop as Record<string, unknown>)?.phone as string) ?? undefined,
     };
   };
 
@@ -122,6 +138,7 @@ export default function OrderDetail() {
     await exportToExcel(rows, `order-${order.orderNumber}`);
   };
 
+  if (isError) return <QueryErrorFallback onRetry={refetch} />;
   if (isLoading) return (
     <div className="space-y-4 max-w-3xl mx-auto">
       <div className="h-8 w-48 bg-surface-light animate-pulse rounded"/>
@@ -137,6 +154,7 @@ export default function OrderDetail() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-4">
+      {dialog}
       {/* Toolbar */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <button onClick={() => navigate("/orders")}
@@ -304,17 +322,53 @@ export default function OrderDetail() {
                 {lang === "uz" ? "Jarayonda" : "В обработку"}
               </button>
             )}
-            <button onClick={() => updateStatus.mutate({ id: order.id, status: "completed" })}
+            <button onClick={async () => {
+              const ok = await confirm({
+                title: lang === "uz" ? "Buyurtma bajarildimi?" : "Заказ выполнен?",
+                message: lang === "uz" ? "Omborxona zaxirasi yangilanadi" : "Остатки на складе будут списаны",
+                confirmText: lang === "uz" ? "Bajarildi" : "Выполнен",
+              });
+              if (ok) updateStatus.mutate({ id: order.id, status: "completed" });
+            }}
               className="neo-btn-primary flex items-center gap-2 text-sm">
               <CheckCircle2 size={14}/>
               {lang === "uz" ? "Bajarildi" : "Выполнен"}
             </button>
-            <button onClick={() => updateStatus.mutate({ id: order.id, status: "cancelled" })}
+            <button onClick={async () => {
+              const ok = await confirm({
+                title: lang === "uz" ? "Buyurtmani bekor qilish?" : "Отменить заказ?",
+                message: lang === "uz" ? "Bu amalni qaytarib bo'lmaydi" : "Это действие нельзя отменить",
+                confirmText: lang === "uz" ? "Bekor qilish" : "Отменить",
+                danger: true,
+              });
+              if (ok) updateStatus.mutate({ id: order.id, status: "cancelled" });
+            }}
               className="neo-btn flex items-center gap-2 text-sm text-danger border-danger/30">
               <XCircle size={14}/>
               {lang === "uz" ? "Bekor" : "Отменить"}
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Delete order (operator/ceo only) */}
+      {isOperatorOrCeo && (order.status === "new" || order.status === "processing" || order.status === "cancelled") && (
+        <div className="neo-card p-4">
+          <button
+            onClick={async () => {
+              const ok = await confirm({
+                title: lang === "uz" ? "Buyurtmani o'chirish?" : "Удалить заказ?",
+                message: lang === "uz" ? "Bu amalni qaytarib bo'lmaydi" : "Это действие нельзя отменить. Заказ будет скрыт из списка.",
+                confirmText: lang === "uz" ? "O'chirish" : "Удалить",
+                danger: true,
+              });
+              if (ok) deleteOrder.mutate({ id: order.id });
+            }}
+            className="neo-btn flex items-center gap-2 text-sm text-danger border-danger/30"
+          >
+            <Trash2 size={14}/>
+            {lang === "uz" ? "Buyurtmani o'chirish" : "Удалить заказ"}
+          </button>
         </div>
       )}
 

@@ -1,7 +1,6 @@
 import { eq, and, desc, sql, isNull } from "drizzle-orm";
 import { orders, orderItems, warehouseStock, shops, users, products, notifications } from "@db/schema";
 import { cache, CacheKeys } from "../lib/cache";
-import { NotificationService } from "./NotificationService";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -122,7 +121,7 @@ export const OrderService = {
       const txResult = await db.transaction(async (tx) => {
       // #FIX1: Look up prices from the database, never trust client
       const productIds = input.items.map(i => i.productId);
-      const productRows = await tx.select({ id: products.id, unitPrice: products.unitPrice })
+      const productRows = await tx.select({ id: products.id, unitPrice: products.unitPrice, costPrice: products.costPrice })
         .from(products)
         .where(and(
           sql`${products.id} IN (${sql.join(productIds.map(id => sql`${id}`), sql`, `)})`,
@@ -130,7 +129,11 @@ export const OrderService = {
           eq(products.status, "active"),
         ));
       const priceMap = new Map<number, string>();
-      for (const p of productRows) priceMap.set(p.id, p.unitPrice);
+      const costMap = new Map<number, string>();
+      for (const p of productRows) {
+        priceMap.set(p.id, p.unitPrice);
+        costMap.set(p.id, p.costPrice);
+      }
 
       // Validate all products exist and are active
       for (const item of input.items) {
@@ -186,6 +189,7 @@ export const OrderService = {
         return {
           orderId: id, productId: item.productId, quantity: item.quantity,
           unitPrice: unitPrice.toFixed(2),
+          costPrice: costMap.get(item.productId) ?? "0.00",
           subtotal: (unitPrice * Number(item.quantity)).toFixed(2),
         };
       }));
@@ -254,6 +258,7 @@ export const OrderService = {
       await Promise.all([
         sendPushToRole(tenantId, "ceo", pushMsg),
         sendPushToRole(tenantId, "operator", pushMsg),
+        sendPushToRole(tenantId, "supervisor", pushMsg),
       ]);
     } catch { /* notification is non-critical */ }
 
@@ -410,6 +415,23 @@ export const OrderService = {
     });
 
     cache.invalidate(CacheKeys.dashboardKpis(Number(tenantId)));
+
+    // Notify agent about status change (non-blocking)
+    try {
+      const [orderRow] = await db.select({ orderNumber: orders.orderNumber, agentId: orders.agentId, shopId: orders.shopId })
+        .from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId))).limit(1);
+      if (orderRow?.agentId) {
+        const [shop] = await db.select({ name: shops.name }).from(shops).where(eq(shops.id, orderRow.shopId)).limit(1);
+        const statusLabels: Record<string, string> = { completed: "выполнен", cancelled: "отменён", processing: "в обработке" };
+        const label = statusLabels[newStatus] ?? newStatus;
+        const { sendPushToUser } = await import("./push-service");
+        await sendPushToUser(orderRow.agentId, {
+          title: `Заказ ${orderRow.orderNumber}`,
+          body: `Статус изменён: ${label}${shop?.name ? ` (${shop.name})` : ""}`,
+          data: { type: "order.status_changed", orderId },
+        }).catch(() => {});
+      }
+    } catch { /* notification is non-critical */ }
 
     return { success: true };
   },

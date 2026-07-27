@@ -2,7 +2,7 @@ import { useState, useRef, useCallback } from "react";
 import { useCurrency } from "@/hooks/useCurrency";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
-import { Package, Search, ShoppingCart, Plus, Minus, Trash2 } from "lucide-react";
+import { Package, Search, ShoppingCart, Plus, Minus, Trash2, ChevronUp, ChevronDown } from "lucide-react";
 import { unitLabel } from "./types";
 import type { OrderItem } from "./types";
 
@@ -74,6 +74,20 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
 
   const removeItem = useCallback((productId: number) => {
     onChange(items.filter(i => i.productId !== productId));
+  }, [items, onChange]);
+
+  const moveItem = useCallback((productId: number, direction: -1 | 1) => {
+    const validOnly = items.filter(i => i.productId > 0);
+    const posInValid = validOnly.findIndex(i => i.productId === productId);
+    const newPos = posInValid + direction;
+    if (newPos < 0 || newPos >= validOnly.length) return;
+
+    const targetProductId = validOnly[newPos].productId;
+    const fromIdx = items.findIndex(i => i.productId === productId);
+    const toIdx = items.findIndex(i => i.productId === targetProductId);
+    const next = [...items];
+    [next[fromIdx], next[toIdx]] = [next[toIdx], next[fromIdx]];
+    onChange(next);
   }, [items, onChange]);
 
   const handleQuickAdd = useCallback((product) => {
@@ -253,6 +267,22 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
                   <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--color-text-primary)", minWidth: "55px", textAlign: "right" }}>
                     {fmt((Number(item.unitPrice) * Number(item.quantity)).toFixed(2))}
                   </span>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "1px", flexShrink: 0 }}>
+                    <button onClick={() => moveItem(item.productId, -1)} style={{
+                      width: "24px", height: "22px", borderRadius: "4px 4px 0 0", border: "1px solid var(--color-border)",
+                      background: "var(--color-surface)", display: "flex", alignItems: "center", justifyContent: "center",
+                      cursor: "pointer", color: "var(--color-text-tertiary)",
+                    }}>
+                      <ChevronUp size={12} />
+                    </button>
+                    <button onClick={() => moveItem(item.productId, 1)} style={{
+                      width: "24px", height: "22px", borderRadius: "0 0 4px 4px", border: "1px solid var(--color-border)",
+                      background: "var(--color-surface)", display: "flex", alignItems: "center", justifyContent: "center",
+                      cursor: "pointer", color: "var(--color-text-tertiary)",
+                    }}>
+                      <ChevronDown size={12} />
+                    </button>
+                  </div>
                   <button onClick={() => removeItem(item.productId)} style={{
                     width: "44px", height: "44px", borderRadius: "6px", border: "none",
                     background: "none", display: "flex", alignItems: "center", justifyContent: "center",

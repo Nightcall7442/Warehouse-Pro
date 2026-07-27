@@ -42,37 +42,18 @@ Sentry.init({
       msg.includes("workbox") ||
       msg.includes("non-precached-url") ||
       msg.includes("net::ERR") ||
-      msg.includes("Loading chunk") ||
-      msg.includes("TRPCClientError")
+      msg.includes("Loading chunk")
     ) {
+      return null;
+    }
+    // Filter tRPC errors only if they're network-level (no server response)
+    // Let server-side 500s and business logic errors through to Sentry
+    if (msg.includes("TRPCClientError") && !msg.includes("500") && !msg.includes("INTERNAL_SERVER_ERROR")) {
       return null;
     }
     return event;
   },
 });
 
-// Global error handler — Sentry captures, toast shows to user
-window.onerror = (message) => {
-  const msg = typeof message === "string" ? message : "Неизвестная ошибка";
-  if (
-    msg.includes("workbox") ||
-    msg.includes("non-precached-url") ||
-    msg.includes("createHandlerBoundToURL") ||
-    msg.includes("Loading chunk")
-  )
-    return;
-  // Sentry already captures via globalHandlers integration
-};
-
-window.addEventListener("unhandledrejection", (event) => {
-  const msg = event.reason?.message || String(event.reason) || "Необработанная ошибка";
-  if (
-    msg.includes("workbox") ||
-    msg.includes("non-precached-url") ||
-    msg.includes("net::ERR") ||
-    msg.includes("createHandlerBoundToURL") ||
-    msg.includes("TRPCClientError")
-  )
-    return;
-  // Sentry already captures via globalHandlers integration
-});
+// Note: window.onerror and unhandledrejection handlers are in main.tsx
+// (shows toast notifications to users). Sentry captures via globalHandlers integration.

@@ -57,7 +57,7 @@ function parseSchema(filePath) {
   return tables;
 }
 
-function await_import_fs() {
+async function await_import_fs() {
   return await import("fs");
 }
 

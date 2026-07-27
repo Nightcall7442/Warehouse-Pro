@@ -44,23 +44,44 @@ app.use("*", async (c, next) => {
   try {
     await next();
   } catch (err) {
-    // Set user context for Sentry
-    try {
-      const auth = await authenticateRequest(c.req.raw.headers);
-      if (auth.user) {
-        Sentry.setUser({ id: String(auth.user.id), username: auth.user.email });
-        Sentry.setContext("tenant", { id: auth.tenant?.id, slug: auth.tenant?.slug });
-      }
-    } catch { /* not authenticated — skip user context */ }
+    const status = c.res?.status ?? 500;
+    const method = c.req.method;
+    const path = c.req.path;
 
-    Sentry.captureException(err);
+    // Set Sentry context and tags for alert targeting
+    Sentry.withScope((scope) => {
+      scope.setTag("method", method);
+      scope.setTag("path", path);
+      scope.setTag("status", String(status));
+      scope.setTag("error_type", err instanceof Error ? err.constructor.name : "Unknown");
+
+      // Set user context
+      try {
+        authenticateRequest(c.req.raw.headers).then((auth) => {
+          if (auth.user) {
+            scope.setUser({ id: String(auth.user.id), username: auth.user.email });
+            scope.setContext("tenant", { id: auth.tenant?.id, slug: auth.tenant?.slug });
+          }
+        }).catch(() => {});
+      } catch { /* not authenticated */ }
+
+      // Set request context
+      scope.setContext("request", {
+        method,
+        path,
+        url: c.req.url,
+        userAgent: c.req.header("user-agent"),
+        ip: c.req.header("x-forwarded-for")?.split(",")[0]?.trim(),
+      });
+
+      Sentry.captureException(err);
+    });
 
     // Telegram alert for server errors (5xx)
-    const status = c.res?.status ?? 500;
     if (status >= 500 || !(err instanceof Error && err.message.includes("ZodError"))) {
       try {
         const { notifyAdmin } = await import("./telegram-router");
-        const msg = `🔴 <b>Server Error</b>\n<code>${c.req.method} ${c.req.path}</code>\n${err instanceof Error ? err.message : String(err).slice(0, 200)}`;
+        const msg = `🔴 <b>Server Error</b>\n<code>${method} ${path}</code>\n${err instanceof Error ? err.message : String(err).slice(0, 200)}`;
         notifyAdmin(msg);
       } catch { /* Telegram not configured — skip */ }
     }
@@ -71,7 +92,9 @@ app.use("*", async (c, next) => {
 
 // ── Global JSON error handler (catches unhandled throws) ─────────────────────
 app.onError((err, c) => {
-  logger.error("Unhandled error", { error: err.message, stack: err.stack });
+  const message = err instanceof Error ? err.message : String(err);
+  const stack = err instanceof Error ? err.stack : undefined;
+  logger.error("Unhandled error", { error: message, stack });
   return c.json({ error: "Internal server error" }, 500);
 });
 
@@ -175,6 +198,20 @@ app.get("/api/cron/trial-reminders", async (c) => {
   return c.json(result);
 });
 
+// ── Cron: daily database backup ──────────────────────────────────────────────
+app.get("/api/cron/backup", async (c) => {
+  if (!env.cronSecret) {
+    return c.json({ error: "Cron endpoint not configured" }, 401);
+  }
+  const secret = c.req.query("secret") ?? c.req.header("x-cron-secret");
+  if (!safeEqual(secret ?? "", env.cronSecret)) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+  const { runBackup } = await import("./cron/backup");
+  const result = await runBackup();
+  return c.json(result);
+});
+
 app.use(bodyLimit({ maxSize: 10 * 1024 * 1024 }));
 
 // ── SSE endpoint ─────────────────────────────────────────────────────────────
@@ -259,6 +296,34 @@ app.post("/api/logout", async (c) => {
   return c.json({ success: true });
 });
 
+// Token refresh — issue a new session token before the current one expires
+app.post("/api/refresh-token", async (c) => {
+  const authHeader = c.req.header("authorization");
+  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : undefined;
+  if (!token) return c.json({ error: "No token" }, 401);
+
+  try {
+    const { verifySessionToken, signSessionToken } = await import("./auth/session");
+    const { getDb } = await import("./queries/connection");
+    const { users } = await import("@db/schema");
+    const { eq } = await import("drizzle-orm");
+
+    const claim = await verifySessionToken(token);
+    if (!claim) return c.json({ error: "Invalid token" }, 401);
+
+    const db = getDb();
+    const [user] = await db.select({ id: users.id, status: users.status, tokenVersion: users.tokenVersion })
+      .from(users).where(eq(users.id, claim.userId)).limit(1);
+    if (!user || user.status !== "active") return c.json({ error: "User not found or inactive" }, 401);
+    if ((user.tokenVersion ?? 0) !== claim.tv) return c.json({ error: "Token revoked" }, 401);
+
+    const newToken = await signSessionToken({ userId: user.id, tv: user.tokenVersion ?? 0 });
+    return c.json({ token: newToken });
+  } catch {
+    return c.json({ error: "Refresh failed" }, 500);
+  }
+});
+
 // Logout all devices — invalidate all tokens by incrementing tokenVersion
 app.post("/api/logout-all", async (c) => {
   // Rate limit: 5 per 15 minutes per IP
@@ -329,6 +394,17 @@ app.use("/api/trpc/*", async (c) => {
         statusCode: 500,
         stack: error.cause instanceof Error ? error.cause.stack : undefined,
       });
+
+      // Capture tRPC errors in Sentry with tags for alert targeting
+      if (error.code === "INTERNAL_SERVER_ERROR") {
+        Sentry.withScope((scope) => {
+          scope.setTag("error_type", "trpc");
+          scope.setTag("trpc_path", path ?? "unknown");
+          scope.setTag("trpc_code", error.code);
+          scope.setContext("trpc", { path, code: error.code, message: error.message });
+          Sentry.captureException(error.cause ?? new Error(error.message));
+        });
+      }
     },
   });
 

@@ -5,6 +5,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { useState, useRef, useEffect, useMemo } from "react";
 import { Truck, MapPin, CheckCircle2, Package, ArrowRight } from "lucide-react";
 import { notify } from "@/lib/toast";
+import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 
 const DELIVERY_STATUS_STYLES: Record<string, string> = {
   assigned:        "bg-info/15 text-info border-info/30",
@@ -27,7 +28,7 @@ export default function CourierDeliveries() {
   const utils = trpc.useUtils();
   const [cashInput, setCashInput] = useState<Record<number, string>>({});
 
-  const { data: deliveries, isLoading } = trpc.courier.listMyDeliveries.useQuery(undefined);
+  const { data: deliveries, isLoading, isError, refetch } = trpc.courier.listMyDeliveries.useQuery(undefined);
 
   const markOutForDelivery = trpc.courier.markOutForDelivery.useMutation({
     onSuccess: () => {
@@ -58,6 +59,7 @@ export default function CourierDeliveries() {
     onError: (e) => notify.error(e.message),
   });
 
+  if (isError) return <QueryErrorFallback onRetry={refetch} />;
   if (isLoading) {
     return (
       <div className="max-w-3xl mx-auto space-y-4 p-4">

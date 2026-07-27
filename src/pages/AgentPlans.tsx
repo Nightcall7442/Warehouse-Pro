@@ -10,6 +10,7 @@ import {
   Clock, Calendar, MapPin, AlertCircle, PlusCircle, ClipboardList,
 } from "lucide-react";
 import { useNavigate } from "react-router";
+import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 
 const STATUS_CONFIG = {
   visited: { ru: "Посещён",         uz: "Borildi",              color: "text-success", border: "border-success", dot: "#34c473" },
@@ -34,7 +35,7 @@ export default function AgentPlans() {
   const dateStr   = format(date, "yyyy-MM-dd");
   const isToday   = dateStr === format(new Date(), "yyyy-MM-dd");
 
-  const { data: plans, isLoading } = trpc.agent.getPlans.useQuery({ date: dateStr });
+  const { data: plans, isLoading, isError, refetch } = trpc.agent.getPlans.useQuery({ date: dateStr });
   const utils  = trpc.useUtils();
   const update = trpc.agent.updatePlanStatus.useMutation({
     onSuccess: () => utils.agent.getPlans.invalidate(),
@@ -116,6 +117,8 @@ export default function AgentPlans() {
           )}
         </div>
       )}
+
+      {isError && <QueryErrorFallback onRetry={refetch} />}
 
       {/* Список */}
       {isLoading ? (

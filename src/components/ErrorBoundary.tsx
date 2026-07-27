@@ -50,7 +50,7 @@ export default class ErrorBoundary extends Component<Props, State> {
               ? `Ошибка на странице «${this.props.pageName}». Попробуйте обновить.`
               : "Произошла непредвиденная ошибка. Попробуйте обновить страницу."}
           </p>
-          {this.state.error && (
+          {process.env.NODE_ENV !== "production" && this.state.error && (
             <details style={{
               marginBottom: "20px", padding: "12px 16px", borderRadius: "10px",
               background: "var(--color-surface-light, #f0f3f8)", fontSize: "11px",

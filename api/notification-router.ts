@@ -3,9 +3,13 @@ import { createRouter, authedQuery } from "./middleware";
 import { NotificationService } from "./services/NotificationService";
 
 export const notificationRouter = createRouter({
-  list: authedQuery.query(async ({ ctx }) => {
-    return NotificationService.list(ctx.db, ctx.tenant.id, ctx.user.id);
-  }),
+  list: authedQuery
+    .input(z.object({ page: z.number().default(1), pageSize: z.number().default(50) }).optional())
+    .query(async ({ input, ctx }) => {
+      const page = input?.page ?? 1;
+      const pageSize = Math.min(input?.pageSize ?? 50, 100);
+      return NotificationService.list(ctx.db, ctx.tenant.id, ctx.user.id, { page, pageSize });
+    }),
 
   unreadCount: authedQuery.query(async ({ ctx }) => {
     const count = await NotificationService.unreadCount(ctx.db, ctx.tenant.id, ctx.user.id);

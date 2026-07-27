@@ -23,11 +23,12 @@ export const PaymentService = {
     }
 
     await db.transaction(async (tx) => {
-      // Verify shop exists and belongs to tenant
+      // Verify shop exists and belongs to tenant (lock row to prevent concurrent payment race)
       const [shop] = await tx.select({ id: shops.id, debt: shops.debt })
         .from(shops)
         .where(and(eq(shops.id, shopId), eq(shops.tenantId, tenantId)))
-        .limit(1);
+        .limit(1)
+        .for("update");
       if (!shop) {
         throw new Error("Магазин не найден");
       }

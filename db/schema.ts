@@ -253,6 +253,7 @@ export const orderItems = mysqlTable("order_items", {
   productId: bigint("product_id", { mode: "number", unsigned: true }).notNull().references(() => products.id, { onDelete: "restrict" }),
   quantity:  decimal("quantity", { precision: 10, scale: 2 }).notNull(),
   unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).notNull(),
+  costPrice: decimal("cost_price", { precision: 10, scale: 2 }).default("0.00").notNull(),
   subtotal:  decimal("subtotal", { precision: 12, scale: 2 }).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({

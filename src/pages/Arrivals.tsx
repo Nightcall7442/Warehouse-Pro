@@ -11,6 +11,7 @@ import {
 import { exportToExcel, formatArrivalsForExport } from "@/lib/excel";
 import { notify } from "@/lib/toast";
 import { PremiumSelect } from "@/components/PremiumSelect";
+import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 
 const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
 const COLORS = {
@@ -271,6 +272,7 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
 
   const handlePrintInvoice = () => {
     if (!detail) return;
+    const esc = (s: string | null | undefined) => (s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     const fmtNum = (n: number | string) => Number(n ?? 0).toLocaleString("ru");
     let html = `<table style="width:100%;border-collapse:collapse;font-size:12px">
       <thead><tr>
@@ -289,8 +291,8 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
       const sum = qty * sp;
       totalSum += sum;
       html += `<tr>
-        <td style="padding:5px 8px;border-bottom:1px solid #eee">${item.productName ?? "—"}</td>
-        <td style="padding:5px 8px;border-bottom:1px solid #eee;color:#888">${item.productCode ?? ""}</td>
+        <td style="padding:5px 8px;border-bottom:1px solid #eee">${esc(item.productName) ?? "—"}</td>
+        <td style="padding:5px 8px;border-bottom:1px solid #eee;color:#888">${esc(item.productCode)}</td>
         <td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right">${qty.toFixed(2)}</td>
         <td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right">${fmtNum(cp)}</td>
         <td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right">${fmtNum(sp)}</td>
@@ -302,19 +304,19 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
 
     const w = window.open("", "_blank");
     if (!w) return;
-    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Накладная ${detail.arrivalNumber}</title>
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Накладная ${esc(detail.arrivalNumber)}</title>
       <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,sans-serif;padding:32px;color:#111;font-size:12px}
       h1{font-size:18px;margin-bottom:4px}.sub{color:#666;font-size:11px;margin-bottom:20px}
       .info{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:20px;font-size:12px}
       .info span{color:#888}.info strong{color:#111}
       @media print{body{padding:20px}}</style></head><body>
       <h1>Накладная прихода</h1>
-      <div class="sub">${detail.arrivalNumber} — ${detail.arrivalDate ? new Date(detail.arrivalDate).toLocaleDateString("ru") : ""}</div>
+      <div class="sub">${esc(detail.arrivalNumber)} — ${detail.arrivalDate ? new Date(detail.arrivalDate).toLocaleDateString("ru") : ""}</div>
       <div class="info">
-        <div><span>Машина:</span> <strong>${detail.truckId ?? "—"}</strong></div>
-        <div><span>Водитель:</span> <strong>${detail.driverName ?? "—"}</strong></div>
-        <div><span>Телефон:</span> <strong>${detail.driverPhone ?? "—"}</strong></div>
-        <div><span>Статус:</span> <strong>${detail.status}</strong></div>
+        <div><span>Машина:</span> <strong>${esc(detail.truckId) ?? "—"}</strong></div>
+        <div><span>Водитель:</span> <strong>${esc(detail.driverName) ?? "—"}</strong></div>
+        <div><span>Телефон:</span> <strong>${esc(detail.driverPhone) ?? "—"}</strong></div>
+        <div><span>Статус:</span> <strong>${esc(detail.status)}</strong></div>
       </div>
       ${html}
       <script>window.onload=()=>window.print()</script>
@@ -471,7 +473,7 @@ export default function Arrivals() {
   const { lang } = useLang();
   const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);
 
-  const { data, isLoading } = trpc.arrival.list.useQuery({ page, pageSize: 25, status: (status || undefined) as "pending" | "unloading" | "completed" | undefined });
+  const { data, isLoading, isError, refetch } = trpc.arrival.list.useQuery({ page, pageSize: 25, status: (status || undefined) as "pending" | "unloading" | "completed" | undefined });
   const { data: all } = trpc.arrival.list.useQuery({ page: 1, pageSize: 500 });
   const utils = trpc.useUtils();
 
@@ -507,6 +509,7 @@ export default function Arrivals() {
     fontSize: "13px", fontFamily: F.body, color: COLORS.textPrimary,
   };
 
+  if (isError) return <QueryErrorFallback onRetry={refetch} />;
   if (isLoading) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>

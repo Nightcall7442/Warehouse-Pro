@@ -205,14 +205,25 @@ export const arrivalRouter = createRouter({
           for (const item of items) {
             const qty = Number(item.quantity);
 
-            // Upsert warehouse_stock using INSERT ... ON DUPLICATE KEY UPDATE
-            await tx.execute(sql`
-              INSERT INTO warehouse_stock (tenant_id, warehouse_id, product_id, current_stock, reserved, available)
-              VALUES (${tenantId}, ${warehouseId}, ${item.productId}, ${qty}, 0, ${qty})
-              ON DUPLICATE KEY UPDATE
-                current_stock = current_stock + ${qty},
-                available = available + ${qty}
+            // Lock the row first to prevent race conditions on concurrent arrivals
+            const [existing] = await tx.execute(sql`
+              SELECT id FROM warehouse_stock
+              WHERE tenant_id = ${tenantId} AND warehouse_id = ${warehouseId} AND product_id = ${item.productId}
+              FOR UPDATE
             `);
+
+            if (existing) {
+              await tx.execute(sql`
+                UPDATE warehouse_stock
+                SET current_stock = current_stock + ${qty}, available = available + ${qty}
+                WHERE tenant_id = ${tenantId} AND warehouse_id = ${warehouseId} AND product_id = ${item.productId}
+              `);
+            } else {
+              await tx.execute(sql`
+                INSERT INTO warehouse_stock (tenant_id, warehouse_id, product_id, current_stock, reserved, available)
+                VALUES (${tenantId}, ${warehouseId}, ${item.productId}, ${qty}, 0, ${qty})
+              `);
+            }
 
             // Create stock movement record
             try {

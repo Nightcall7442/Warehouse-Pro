@@ -13,6 +13,7 @@ import {
 } from "@/components/shops";
 import { TerritoryManager } from "@/components/shops/TerritoryManager";
 import type { ShopKpiStats } from "@/components/shops/ShopStats";
+import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { COLORS } from "@/components/shops/constants";
 
 export default function Shops() {
@@ -32,8 +33,8 @@ export default function Shops() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [viewMode, setViewMode] = useState<"territories" | "list">("territories");
 
-  const { data, isLoading } = trpc.shop.list.useQuery({ page, pageSize: 25, search: search || undefined, city, district, agentId: agentFilter ? Number(agentFilter) : undefined });
-  const { data: allShopsData } = trpc.shop.list.useQuery({ page: 1, pageSize: 5000 });
+  const { data, isLoading, isError, refetch } = trpc.shop.list.useQuery({ page, pageSize: 25, search: search || undefined, city, district, agentId: agentFilter ? Number(agentFilter) : undefined });
+  const { data: allShopsData, refetch: refetchAllShops } = trpc.shop.list.useQuery({ page: 1, pageSize: 5000 }, { enabled: false });
   const { data: territories } = trpc.shop.territories.useQuery();
   const { data: realTerritories } = trpc.territory.list.useQuery();
   const { data: usersData } = trpc.user.list.useQuery({ page: 1, pageSize: 100 });
@@ -101,6 +102,7 @@ export default function Shops() {
     setPage(1);
   }, []);
 
+  if (isError) return <QueryErrorFallback onRetry={refetch} />;
   if (isLoading && !data) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
@@ -137,7 +139,8 @@ export default function Shops() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <button onClick={async () => {
-            const allShops = allShopsData?.data ?? [];
+            const { data: exported } = await refetchAllShops();
+            const allShops = exported?.data ?? [];
             if (!allShops.length) return;
             // Group by territory
             const grouped = new Map<string, unknown[]>();

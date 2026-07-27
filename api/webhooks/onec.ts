@@ -39,7 +39,7 @@ app.use("/*", async (c, next) => {
 
 app.post("/payment", async (c) => {
   try {
-    const body = c.get("validatedBody") ?? await c.req.json();
+    const body = c.get("validatedBody");
     const { tenantId: tenantIdRaw, shopExternalId, amount, reference } = body;
 
     const tenantId = Number(tenantIdRaw);
@@ -58,6 +58,16 @@ app.post("/payment", async (c) => {
     const shopId = await OneCMapper.getInternalId(db, tenantId, "shop", shopExternalId);
     if (!shopId) {
       return c.json({ error: "Shop not mapped" }, 400);
+    }
+
+    // Idempotency: skip if this reference was already processed
+    if (reference) {
+      const [existing] = await db.select({ id: payments.id }).from(payments)
+        .where(and(eq(payments.tenantId, tenantId), eq(payments.notes, `1C: ${reference}`)))
+        .limit(1);
+      if (existing) {
+        return c.json({ success: true, duplicate: true });
+      }
     }
 
     await db.transaction(async (tx) => {
@@ -102,7 +112,7 @@ app.post("/payment", async (c) => {
 
 app.post("/stock", async (c) => {
   try {
-    const body = c.get("validatedBody") ?? await c.req.json();
+    const body = c.get("validatedBody");
     const { tenantId: tenantIdRaw, productExternalId, quantity } = body;
 
     const tenantId = Number(tenantIdRaw);

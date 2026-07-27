@@ -28,7 +28,7 @@ export function CommandPalette() {
 
   // Search products
   const { data: products } = trpc.product.list.useQuery(
-    { page: 1, pageSize: 10, search: query.length > 1 ? query : undefined },
+    { page: 1, pageSize: 5, search: query.length > 1 ? query : undefined },
     { enabled: open && query.length > 1 }
   );
 
@@ -40,6 +40,12 @@ export function CommandPalette() {
 
   // Search orders
   const { data: orders } = trpc.order.list.useQuery(
+    { page: 1, pageSize: 5, search: query.length > 1 ? query : undefined },
+    { enabled: open && query.length > 1 }
+  );
+
+  // Search users (admin-only endpoint; silently returns nothing for non-admins)
+  const { data: usersData } = trpc.user.list.useQuery(
     { page: 1, pageSize: 5, search: query.length > 1 ? query : undefined },
     { enabled: open && query.length > 1 }
   );
@@ -70,46 +76,63 @@ export function CommandPalette() {
     );
   }, [query, navItems]);
 
-  // Search results
-  const searchResults = useMemo(() => {
-    const results: CommandItem[] = [];
-    if (products?.data) {
-      products.data.forEach((p) => {
-        results.push({
+  // Grouped search results
+  const groupedSearchResults = useMemo(() => {
+    const groups: { label: string; items: CommandItem[] }[] = [];
+
+    if (products?.data?.length) {
+      groups.push({
+        label: t("Товары", "Mahsulotlar"),
+        items: products.data.map((p) => ({
           id: `product-${p.id}`,
           label: `${p.name} — ${fmt(p.unitPrice)}`,
           icon: <Package size={16} />,
           path: `/products/${p.id}`,
-          category: "search",
-        });
+          category: "search" as const,
+        })),
       });
     }
-    if (shops?.data) {
-      shops.data.forEach((s) => {
-        results.push({
+    if (shops?.data?.length) {
+      groups.push({
+        label: t("Магазины", "Do'konlar"),
+        items: shops.data.map((s) => ({
           id: `shop-${s.id}`,
           label: `${s.name}${s.city ? `, ${s.city}` : ""}`,
           icon: <Store size={16} />,
           path: `/shops/${s.id}`,
-          category: "search",
-        });
+          category: "search" as const,
+        })),
       });
     }
-    if (orders?.data) {
-      orders.data.forEach((o) => {
-        results.push({
+    if (orders?.data?.length) {
+      groups.push({
+        label: t("Заказы", "Buyurtmalar"),
+        items: orders.data.map((o) => ({
           id: `order-${o.id}`,
           label: `${o.orderNumber} — ${fmt(Number(o.total))}`,
           icon: <ShoppingCart size={16} />,
           path: `/orders/${o.id}`,
-          category: "search",
-        });
+          category: "search" as const,
+        })),
       });
     }
-    return results;
-  }, [products, shops, orders, fmt]);
+    if (usersData?.data?.length) {
+      groups.push({
+        label: t("Пользователи", "Foydalanuvchilar"),
+        items: usersData.data.map((u) => ({
+          id: `user-${u.id}`,
+          label: `${u.name}${u.email ? ` — ${u.email}` : ""}`,
+          icon: <Users size={16} />,
+          path: `/users`,
+          category: "search" as const,
+        })),
+      });
+    }
 
-  const allItems = query.length > 1 ? [...searchResults, ...filteredItems] : filteredItems;
+    return groups;
+  }, [products, shops, orders, usersData, fmt, t]);
+
+  const hasSearchResults = query.length > 1 && groupedSearchResults.length > 0;
 
   // Keyboard shortcut
   useEffect(() => {
@@ -160,7 +183,7 @@ export function CommandPalette() {
             ref={inputRef}
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder={t("Поиск товаров, магазинов, заказов…", "Mahsulot, do'kon, buyurtma qidirish…")}
+            placeholder={t("Поиск товаров, магазинов, заказов, пользователей…", "Mahsulot, do'kon, buyurtma, foydalanuvchi qidirish…")}
             style={{ flex: 1, border: "none", outline: "none", background: "transparent", fontSize: "15px", fontFamily: "'DM Sans', sans-serif", color: "var(--color-text-primary)" }}
           />
           <kbd style={{ fontSize: "11px", padding: "2px 6px", borderRadius: "4px", background: "var(--color-surface-light)", color: "var(--color-text-tertiary)", border: "1px solid var(--color-border)" }}>
@@ -169,39 +192,74 @@ export function CommandPalette() {
         </div>
 
         {/* Results */}
-        <div style={{ maxHeight: "360px", overflowY: "auto", padding: "8px" }}>
-          {allItems.length === 0 ? (
+        <div style={{ maxHeight: "400px", overflowY: "auto", padding: "8px" }}>
+          {!hasSearchResults && filteredItems.length === 0 ? (
             <div style={{ padding: "32px", textAlign: "center", color: "var(--color-text-tertiary)", fontSize: "13px" }}>
               {t("Ничего не найдено", "Hech narsa topilmadi")}
             </div>
           ) : (
             <>
-              {query.length > 1 && searchResults.length > 0 && (
-                <div style={{ padding: "8px 12px", fontSize: "10px", fontWeight: 600, color: "var(--color-text-tertiary)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                  {t("Результаты поиска", "Qidiruv natijalari")}
-                </div>
-              )}
-              {allItems.map(item => (
-                <button
-                  key={item.id}
-                  onClick={() => handleSelect(item)}
-                  style={{
-                    display: "flex", alignItems: "center", gap: "12px", width: "100%", padding: "10px 12px",
-                    borderRadius: "10px", border: "none", cursor: "pointer", background: "transparent",
-                    transition: "background 0.1s", textAlign: "left",
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.background = "var(--color-surface-light)"}
-                  onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-                >
-                  <div style={{ width: "32px", height: "32px", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--color-surface-light)", color: "var(--color-text-secondary)", flexShrink: 0 }}>
-                    {item.icon}
+              {/* Grouped search results */}
+              {groupedSearchResults.map((group) => (
+                <div key={group.label}>
+                  <div style={{ padding: "8px 12px 4px", fontSize: "10px", fontWeight: 600, color: "var(--color-text-tertiary)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                    {group.label}
                   </div>
-                  <span style={{ flex: 1, fontSize: "14px", color: "var(--color-text-primary)", fontFamily: "'DM Sans', sans-serif" }}>
-                    {lang === "uz" && item.labelUz ? item.labelUz : item.label}
-                  </span>
-                  {item.path && <ArrowRight size={14} style={{ color: "var(--color-text-tertiary)" }} />}
-                </button>
+                  {group.items.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => handleSelect(item)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: "12px", width: "100%", padding: "10px 12px",
+                        borderRadius: "10px", border: "none", cursor: "pointer", background: "transparent",
+                        transition: "background 0.1s", textAlign: "left",
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = "var(--color-surface-light)"}
+                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                    >
+                      <div style={{ width: "32px", height: "32px", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--color-surface-light)", color: "var(--color-text-secondary)", flexShrink: 0 }}>
+                        {item.icon}
+                      </div>
+                      <span style={{ flex: 1, fontSize: "14px", color: "var(--color-text-primary)", fontFamily: "'DM Sans', sans-serif" }}>
+                        {item.label}
+                      </span>
+                      {item.path && <ArrowRight size={14} style={{ color: "var(--color-text-tertiary)" }} />}
+                    </button>
+                  ))}
+                </div>
               ))}
+
+              {/* Navigation items */}
+              {filteredItems.length > 0 && (
+                <>
+                  {hasSearchResults && (
+                    <div style={{ padding: "12px 12px 4px", fontSize: "10px", fontWeight: 600, color: "var(--color-text-tertiary)", textTransform: "uppercase", letterSpacing: "0.06em", borderTop: "1px solid var(--color-border)", marginTop: "4px" }}>
+                      {t("Навигация", "Navigatsiya")}
+                    </div>
+                  )}
+                  {filteredItems.map(item => (
+                    <button
+                      key={item.id}
+                      onClick={() => handleSelect(item)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: "12px", width: "100%", padding: "10px 12px",
+                        borderRadius: "10px", border: "none", cursor: "pointer", background: "transparent",
+                        transition: "background 0.1s", textAlign: "left",
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = "var(--color-surface-light)"}
+                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                    >
+                      <div style={{ width: "32px", height: "32px", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--color-surface-light)", color: "var(--color-text-secondary)", flexShrink: 0 }}>
+                        {item.icon}
+                      </div>
+                      <span style={{ flex: 1, fontSize: "14px", color: "var(--color-text-primary)", fontFamily: "'DM Sans', sans-serif" }}>
+                        {lang === "uz" && item.labelUz ? item.labelUz : item.label}
+                      </span>
+                      {item.path && <ArrowRight size={14} style={{ color: "var(--color-text-tertiary)" }} />}
+                    </button>
+                  ))}
+                </>
+              )}
             </>
           )}
         </div>

@@ -11,6 +11,7 @@ import {
   AlertCircle, Loader2, CheckCircle2, X, Trash2, ChevronRight, Camera,
 } from "lucide-react";
 import { PremiumSelect } from "@/components/PremiumSelect";
+import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 
 const STATUS_COLORS: Record<string, string> = {
   new: "#5b6d8a", processing: "#d4973a", completed: "#34c473", cancelled: "#d45050",
@@ -119,7 +120,7 @@ export default function ShopDetail() {
   const fileRef = useRef<HTMLInputElement>(null);
   const utils = trpc.useUtils();
 
-  const { data: shop, isLoading } = trpc.shop.getById.useQuery({ id: Number(id) }, { enabled: !!id });
+  const { data: shop, isLoading, isError, refetch } = trpc.shop.getById.useQuery({ id: Number(id) }, { enabled: !!id });
   const { data: usersData } = trpc.user.list.useQuery({ page: 1, pageSize: 100 });
   const agents = useMemo(() => (usersData?.data ?? []).filter((u: { role: string }) => u.role === "agent"), [usersData?.data]);
 
@@ -153,6 +154,7 @@ export default function ShopDetail() {
     if (ok) deleteShop.mutate({ id: Number(id) });
   };
 
+  if (isError) return <QueryErrorFallback onRetry={refetch} />;
   if (isLoading) return (
     <div className="space-y-4">
       <div className="h-8 w-48 bg-surface-light animate-pulse rounded" />

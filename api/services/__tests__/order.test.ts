@@ -22,11 +22,11 @@ import { orders, orderItems, warehouseStock, shops, users, products, warehouses 
 type FakeOrder = {
   id: number; tenantId: number; orderNumber: string; shopId: number;
   agentId: number; status: string; subtotal: string; discount: string;
-  total: string; notes?: string; createdAt: Date;
+  total: string; notes?: string; idempotencyKey?: string; createdAt: Date;
 };
 type FakeOrderItem = {
   id: number; orderId: number; productId: number; quantity: string;
-  unitPrice: string; subtotal: string; createdAt: Date;
+  unitPrice: string; costPrice: string; subtotal: string; createdAt: Date;
 };
 type FakeStock = {
   productId: number; tenantId: number; currentStock: string;
@@ -34,7 +34,7 @@ type FakeStock = {
 };
 type FakeShop = { id: number; tenantId: number; name: string };
 type FakeUser = { id: number; tenantId: number; name: string };
-type FakeProduct = { id: number; tenantId: number; name: string; unitPrice: string; status: string };
+type FakeProduct = { id: number; tenantId: number; name: string; unitPrice: string; costPrice: string; status: string };
 
 let ordersTable: FakeOrder[] = [];
 let orderItemsTable: FakeOrderItem[] = [];
@@ -56,8 +56,8 @@ function resetTables() {
   shopsTable = [{ id: 1, tenantId: 1, name: "Shop Alpha" }];
   usersTable = [{ id: 10, tenantId: 1, name: "Agent One" }];
   productsTable = [
-    { id: 1, tenantId: 1, name: "Product 1", unitPrice: "100.00", status: "active" },
-    { id: 2, tenantId: 1, name: "Product 2", unitPrice: "200.00", status: "active" },
+    { id: 1, tenantId: 1, name: "Product 1", unitPrice: "100.00", costPrice: "60.00", status: "active" },
+    { id: 2, tenantId: 1, name: "Product 2", unitPrice: "200.00", costPrice: "120.00", status: "active" },
   ];
   warehousesTable = [
     { id: 1, tenantId: 1, name: "Main", isDefault: true, status: "active" },
@@ -238,7 +238,8 @@ function makeMockDb() {
             id, tenantId: v.tenantId as number, orderNumber: v.orderNumber as string,
             shopId: v.shopId as number, agentId: v.agentId as number, status: v.status as string,
             subtotal: v.subtotal as string, discount: v.discount as string, total: v.total as string,
-            notes: v.notes as string | undefined, createdAt: new Date(),
+            notes: v.notes as string | undefined, idempotencyKey: v.idempotencyKey as string | undefined,
+            createdAt: new Date(),
           });
           return Promise.resolve([{ insertId: id }]);
         }
@@ -248,6 +249,7 @@ function makeMockDb() {
             orderItemsTable.push({
               id: nextItemId++, orderId: v.orderId as number, productId: v.productId as number,
               quantity: String(v.quantity), unitPrice: String(v.unitPrice),
+              costPrice: String(v.costPrice ?? "0.00"),
               subtotal: String(Number(v.unitPrice) * Number(v.quantity)),
               createdAt: new Date(),
             });
@@ -520,5 +522,59 @@ describe("OrderService.list", () => {
     const result = await OrderService.list(mockDb as any, 999, {}, { userId: 10, userRole: "agent" });
     expect(result.data).toHaveLength(0);
     expect(result.total).toBe(0);
+  });
+});
+
+describe("OrderService.create — costPrice snapshot", () => {
+  it("snapshots costPrice from product into order items", async () => {
+    await OrderService.create(mockDb as any, 1, 10, {
+      shopId: 1, items: [{ productId: 1, quantity: "5", unitPrice: "100" }],
+    });
+
+    expect(orderItemsTable).toHaveLength(1);
+    expect(orderItemsTable[0].costPrice).toBe("60.00");
+  });
+
+  it("uses server-side unitPrice, not client-provided", async () => {
+    await OrderService.create(mockDb as any, 1, 10, {
+      shopId: 1, items: [{ productId: 1, quantity: "5", unitPrice: "999" }],
+    });
+
+    // Server should use DB price (100.00), not client price (999)
+    expect(ordersTable[0].subtotal).toBe("500.00");
+    expect(orderItemsTable[0].unitPrice).toBe("100.00");
+  });
+});
+
+describe("OrderService.create — idempotency", () => {
+  it("returns existing order when idempotencyKey matches", async () => {
+    const first = await OrderService.create(mockDb as any, 1, 10, {
+      shopId: 1, items: [{ productId: 1, quantity: "5", unitPrice: "100" }],
+      idempotencyKey: "test-key-123",
+    });
+
+    const second = await OrderService.create(mockDb as any, 1, 10, {
+      shopId: 1, items: [{ productId: 1, quantity: "5", unitPrice: "100" }],
+      idempotencyKey: "test-key-123",
+    });
+
+    expect(second.id).toBe(first.id);
+    expect(second.orderNumber).toBe(first.orderNumber);
+    expect(second.idempotent).toBe(true);
+    expect(ordersTable).toHaveLength(1); // Only one order created
+  });
+
+  it("creates different orders for different idempotencyKeys", async () => {
+    await OrderService.create(mockDb as any, 1, 10, {
+      shopId: 1, items: [{ productId: 1, quantity: "5", unitPrice: "100" }],
+      idempotencyKey: "key-1",
+    });
+
+    await OrderService.create(mockDb as any, 1, 10, {
+      shopId: 1, items: [{ productId: 1, quantity: "3", unitPrice: "100" }],
+      idempotencyKey: "key-2",
+    });
+
+    expect(ordersTable).toHaveLength(2);
   });
 });

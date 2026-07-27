@@ -28,7 +28,7 @@ export const settingsRouter = createRouter({
   }),
 
   // Branding endpoint — lightweight, cached, public (needed before login)
-  branding: publicQuery.query(async ({ ctx }) => {
+  branding: publicQuery.query(async () => {
     // For public access, return default branding (tenant-specific branding requires auth)
     return { companyName: "Warehouse Pro", logoUrl: null, currency: "UZS", currencySymbol: "сум" };
   }),

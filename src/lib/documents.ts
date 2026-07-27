@@ -49,10 +49,11 @@ const BASE_STYLES = `
   @page { margin: 10mm; size: A4; }
 `;
 
-function openPrintWindow(html: string, title: string) {
+function openPrintWindow(html: string, title: string, customStyles?: string) {
   const w = window.open("", "_blank", "width=900,height=700");
   if (!w) { window.print(); return; }
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title><style>${BASE_STYLES}</style></head><body>${html}</body></html>`);
+  const styles = customStyles ?? BASE_STYLES;
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title><style>${styles}</style></head><body>${html}</body></html>`);
   w.document.close();
   w.onload = () => { w.print(); setTimeout(() => w.close(), 800); };
 }
@@ -88,6 +89,10 @@ export type OrderDocData = {
   total:     number;
   notes?:    string;
   currency:  string;
+  paymentMethodLabel?: string;
+  paymentMethodColor?: string;
+  shopOwner?: string;
+  shopPhone?: string;
 };
 
 export type ArrivalDocData = {
@@ -438,48 +443,100 @@ export function printTorg12(data: OrderDocData) {
   openPrintWindow(html, `ТОРГ-12 № ${data.number}`);
 }
 
-// ── 4. СЧЁТ-ФАКТУРА (Invoice for payment) ────────────────────────────────────
+// ── 4. СЧЁТ-ФАКТУРА (Invoice for payment) — professional template ───────────
 export function printInvoice(data: OrderDocData) {
   const itemRows = data.items.map((item, i) => `
     <tr>
-      <td class="center">${i + 1}</td>
-      <td>${escapeHtml(item.name)}</td>
-      <td class="center">${item.unit ?? "кг"}</td>
-      <td class="right">${item.qty.toFixed(2)}</td>
-      <td class="right">${item.price.toLocaleString("ru-RU")}</td>
-      <td class="right">${item.total.toLocaleString("ru-RU")}</td>
+      <td style="text-align:center;padding:8px 6px;color:#64748b;font-size:9pt">${i + 1}</td>
+      <td style="padding:8px 10px">${escapeHtml(item.name)}${item.code ? `<br><span style="font-size:8pt;color:#94a3b8">Арт: ${escapeHtml(item.code)}</span>` : ""}</td>
+      <td style="text-align:center;padding:8px 6px;color:#64748b">${item.unit ?? "кг"}</td>
+      <td style="text-align:right;padding:8px 10px;font-variant-numeric:tabular-nums">${item.qty.toFixed(2)}</td>
+      <td style="text-align:right;padding:8px 10px;color:#64748b;font-variant-numeric:tabular-nums">${item.price.toLocaleString("ru-RU")}</td>
+      <td style="text-align:right;padding:8px 10px;font-weight:600;font-variant-numeric:tabular-nums">${item.total.toLocaleString("ru-RU")}</td>
     </tr>`).join("");
 
+  const sellerInitials = (data.seller.name || "WP")
+    .split(/\s+/).map(w => w[0]).join("").toUpperCase().slice(0, 2);
+
+  const pmBadge = data.paymentMethodLabel
+    ? `<span style="display:inline-block;padding:3px 12px;border-radius:20px;font-size:9pt;font-weight:600;background:${data.paymentMethodColor ?? "#5b6d8a"}18;color:${data.paymentMethodColor ?? "#5b6d8a"};border:1px solid ${data.paymentMethodColor ?? "#5b6d8a"}30">${escapeHtml(data.paymentMethodLabel)}</span>`
+    : "";
+
+  const INVOICE_STYLES = `
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      font-size: 10pt;
+      color: #1e293b;
+      background: #fff;
+      padding: 12mm 15mm 10mm;
+      line-height: 1.5;
+    }
+    @page { margin: 8mm; size: A4; }
+    @media print {
+      body { padding: 0; }
+      .no-print { display: none !important; }
+    }
+    table { width: 100%; border-collapse: collapse; }
+  `;
+
   const html = `
-    <div style="background:#f0f0f0;padding:8px;margin-bottom:12px;text-align:center">
-      <div style="font-size:16pt;font-weight:bold">СЧЁТ НА ОПЛАТУ № ${data.number}</div>
-      <div>от ${data.date}</div>
+    <!-- Header -->
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:16px;border-bottom:2px solid #e2e8f0">
+      <div style="display:flex;align-items:center;gap:14px">
+        <div style="width:48px;height:48px;background:linear-gradient(135deg,#3b82f6,#1d4ed8);border-radius:12px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:16pt;letter-spacing:1px">${sellerInitials}</div>
+        <div>
+          <div style="font-size:14pt;font-weight:700;color:#0f172a;letter-spacing:-0.3px">${escapeHtml(data.seller.name)}</div>
+          <div style="font-size:8.5pt;color:#94a3b8;margin-top:2px">${data.seller.address ? escapeHtml(data.seller.address) : ""}</div>
+        </div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:8pt;text-transform:uppercase;letter-spacing:2px;color:#94a3b8;margin-bottom:2px">Счёт на оплату</div>
+        <div style="font-size:20pt;font-weight:800;color:#0f172a;letter-spacing:-0.5px">№ ${escapeHtml(data.number)}</div>
+        <div style="font-size:9pt;color:#64748b;margin-top:2px">${data.date}</div>
+      </div>
     </div>
 
-    <table class="no-border" style="margin-bottom:10px">
-      <tr>
-        <td style="width:15%;font-weight:bold">Поставщик:</td>
-        <td>
-          <b>${escapeHtml(data.seller.name)}</b><br>
-          ИНН/СТИР: ${escapeHtml(data.seller.inn ?? "")} &nbsp;|&nbsp;
-          Банк: ${escapeHtml(data.seller.bank ?? "")} &nbsp;|&nbsp;
-          Р/с: ${escapeHtml(data.seller.account ?? "")} &nbsp;|&nbsp;
-          МФО: ${escapeHtml(data.seller.mfo ?? "")}<br>
-          Адрес: ${escapeHtml(data.seller.address ?? "")}
-        </td>
-      </tr>
-      <tr><td style="font-weight:bold">Покупатель:</td><td><b>${escapeHtml(data.buyer.name)}</b></td></tr>
-    </table>
+    <!-- Payment method & order badge -->
+    <div style="display:flex;gap:8px;margin-bottom:18px;align-items:center">
+      ${pmBadge}
+      <span style="display:inline-block;padding:3px 12px;border-radius:20px;font-size:8.5pt;color:#64748b;background:#f1f5f9;border:1px solid #e2e8f0">Заказ № ${escapeHtml(data.number)}</span>
+    </div>
 
-    <table>
+    <!-- Parties -->
+    <div style="display:flex;gap:16px;margin-bottom:20px">
+      <div style="flex:1;padding:14px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">
+        <div style="font-size:7.5pt;text-transform:uppercase;letter-spacing:1.5px;color:#94a3b8;margin-bottom:6px;font-weight:600">Поставщик</div>
+        <div style="font-size:10.5pt;font-weight:600;color:#0f172a;margin-bottom:6px">${escapeHtml(data.seller.name)}</div>
+        <div style="font-size:8.5pt;color:#64748b;line-height:1.7">
+          ${data.seller.inn ? `ИНН/СТИР: ${escapeHtml(data.seller.inn)}<br>` : ""}
+          ${data.seller.bank ? `Банк: ${escapeHtml(data.seller.bank)}<br>` : ""}
+          ${data.seller.account ? `Р/с: ${escapeHtml(data.seller.account)}<br>` : ""}
+          ${data.seller.mfo ? `МФО: ${escapeHtml(data.seller.mfo)}` : ""}
+        </div>
+      </div>
+      <div style="flex:1;padding:14px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">
+        <div style="font-size:7.5pt;text-transform:uppercase;letter-spacing:1.5px;color:#94a3b8;margin-bottom:6px;font-weight:600">Покупатель</div>
+        <div style="font-size:10.5pt;font-weight:600;color:#0f172a;margin-bottom:6px">${escapeHtml(data.buyer.name)}</div>
+        <div style="font-size:8.5pt;color:#64748b;line-height:1.7">
+          ${data.buyer.inn ? `ИНН/СТИР: ${escapeHtml(data.buyer.inn)}<br>` : ""}
+          ${data.buyer.address ? `Адрес: ${escapeHtml(data.buyer.address)}<br>` : ""}
+          ${data.shopOwner ? `Владелец: ${escapeHtml(data.shopOwner)}<br>` : ""}
+          ${data.shopPhone ? `Тел: ${escapeHtml(data.shopPhone)}` : ""}
+        </div>
+      </div>
+    </div>
+
+    <!-- Items table -->
+    <table style="margin-bottom:16px">
       <thead>
-        <tr>
-          <th style="width:4%">№</th>
-          <th>Наименование</th>
-          <th style="width:8%">Ед.</th>
-          <th style="width:10%">Кол-во</th>
-          <th style="width:14%">Цена (${data.currency})</th>
-          <th style="width:16%">Сумма (${data.currency})</th>
+        <tr style="background:#f1f5f9">
+          <th style="width:4%;text-align:center;padding:8px 6px;font-size:8pt;text-transform:uppercase;letter-spacing:1px;color:#64748b;font-weight:600;border-bottom:2px solid #e2e8f0">№</th>
+          <th style="text-align:left;padding:8px 10px;font-size:8pt;text-transform:uppercase;letter-spacing:1px;color:#64748b;font-weight:600;border-bottom:2px solid #e2e8f0">Наименование</th>
+          <th style="width:7%;text-align:center;padding:8px 6px;font-size:8pt;text-transform:uppercase;letter-spacing:1px;color:#64748b;font-weight:600;border-bottom:2px solid #e2e8f0">Ед.</th>
+          <th style="width:10%;text-align:right;padding:8px 10px;font-size:8pt;text-transform:uppercase;letter-spacing:1px;color:#64748b;font-weight:600;border-bottom:2px solid #e2e8f0">Кол-во</th>
+          <th style="width:14%;text-align:right;padding:8px 10px;font-size:8pt;text-transform:uppercase;letter-spacing:1px;color:#64748b;font-weight:600;border-bottom:2px solid #e2e8f0">Цена (${data.currency})</th>
+          <th style="width:16%;text-align:right;padding:8px 10px;font-size:8pt;text-transform:uppercase;letter-spacing:1px;color:#64748b;font-weight:600;border-bottom:2px solid #e2e8f0">Сумма (${data.currency})</th>
         </tr>
       </thead>
       <tbody>
@@ -487,23 +544,68 @@ export function printInvoice(data: OrderDocData) {
       </tbody>
     </table>
 
-    <table class="no-border totals-table" style="width:300px;margin-left:auto;margin-top:4px">
-      <tr><td>Итого:</td><td class="right">${data.subtotal.toLocaleString("ru-RU")} ${data.currency}</td></tr>
-      ${data.discount && data.discount > 0 ? `<tr><td>Скидка:</td><td class="right">−${data.discount.toLocaleString("ru-RU")} ${data.currency}</td></tr>` : ""}
-      <tr><td>НДС:</td><td class="right">Без НДС</td></tr>
-      <tr class="total-row"><td><b>К ОПЛАТЕ:</b></td><td class="right bold">${data.total.toLocaleString("ru-RU")} ${data.currency}</td></tr>
-    </table>
+    <!-- Totals -->
+    <div style="display:flex;justify-content:flex-end">
+      <div style="width:280px">
+        <table style="font-size:9.5pt">
+          <tr>
+            <td style="padding:6px 0;color:#64748b">Итого</td>
+            <td style="padding:6px 0;text-align:right;font-variant-numeric:tabular-nums">${data.subtotal.toLocaleString("ru-RU")} ${data.currency}</td>
+          </tr>
+          ${data.discount && data.discount > 0 ? `<tr>
+            <td style="padding:6px 0;color:#64748b">Скидка</td>
+            <td style="padding:6px 0;text-align:right;color:#16a34a;font-weight:600;font-variant-numeric:tabular-nums">−${data.discount.toLocaleString("ru-RU")} ${data.currency}</td>
+          </tr>` : ""}
+          <tr>
+            <td style="padding:6px 0;color:#64748b">НДС</td>
+            <td style="padding:6px 0;text-align:right;color:#64748b">Без НДС</td>
+          </tr>
+          <tr>
+            <td colspan="2" style="padding:2px 0"><div style="border-top:2px solid #0f172a"></div></td>
+          </tr>
+          <tr>
+            <td style="padding:8px 0;font-size:11pt;font-weight:700;color:#0f172a">К ОПЛАТЕ</td>
+            <td style="padding:8px 0;text-align:right;font-size:13pt;font-weight:800;color:#0f172a;font-variant-numeric:tabular-nums">${data.total.toLocaleString("ru-RU")} ${data.currency}</td>
+          </tr>
+        </table>
+      </div>
+    </div>
 
-    <div style="margin-top:16px;padding:8px;border:1px solid #000;font-size:10pt">
-      <b>Оплата данного счёта означает согласие с условиями поставки.</b><br>
+    <!-- Notes -->
+    ${data.notes ? `<div style="margin-top:16px;padding:10px 14px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;font-size:9pt;color:#92400e">
+      <b>Примечание:</b> ${escapeHtml(data.notes)}
+    </div>` : ""}
+
+    <!-- Payment terms -->
+    <div style="margin-top:18px;padding:12px 14px;border:1px solid #e2e8f0;border-radius:8px;font-size:8.5pt;color:#64748b;line-height:1.6">
+      <b style="color:#1e293b">Условия оплаты:</b> Оплата данного счёта означает согласие с условиями поставки.
       Уведомление об оплате обязательно. Счёт действителен в течение 5 банковских дней.
     </div>
 
-    <div class="sig-row" style="margin-top:20px;display:flex;gap:40px">
-      <div>Руководитель: <span style="display:inline-block;width:200px;border-bottom:1px solid #000">&nbsp;</span> ${escapeHtml(data.seller.director ?? "")}</div>
-      <div>Бухгалтер: <span style="display:inline-block;width:200px;border-bottom:1px solid #000">&nbsp;</span></div>
+    <!-- Signatures -->
+    <div style="display:flex;gap:40px;margin-top:28px;padding-top:16px;border-top:1px solid #e2e8f0">
+      <div style="flex:1">
+        <div style="font-size:8pt;color:#94a3b8;margin-bottom:4px">Руководитель</div>
+        <div style="display:flex;align-items:baseline;gap:8px">
+          <div style="flex:1;border-bottom:1px solid #cbd5e1;min-height:20px"></div>
+          <span style="font-size:8.5pt;color:#64748b;white-space:nowrap">${escapeHtml(data.seller.director ?? "")}</span>
+        </div>
+      </div>
+      <div style="flex:1">
+        <div style="font-size:8pt;color:#94a3b8;margin-bottom:4px">Бухгалтер</div>
+        <div style="border-bottom:1px solid #cbd5e1;min-height:20px"></div>
+      </div>
+      <div style="flex:1">
+        <div style="font-size:8pt;color:#94a3b8;margin-bottom:4px">М.П.</div>
+        <div style="border-bottom:1px solid #cbd5e1;min-height:20px"></div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div style="margin-top:24px;text-align:center;font-size:7.5pt;color:#cbd5e1;padding-top:10px;border-top:1px solid #f1f5f9">
+      Документ сформирован автоматически в системе Warehouse Pro &bull; ${data.date}
     </div>
   `;
 
-  openPrintWindow(html, `Счёт № ${data.number}`);
+  openPrintWindow(html, `Счёт № ${data.number}`, INVOICE_STYLES);
 }

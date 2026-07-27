@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createRouter, adminQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { oneCSync } from "./services/onec-sync";
-import { getBridge, getBridgeForTenant, OneCBridge, clearBridgeCache } from "./lib/onec-bridge";
+import { getBridgeForTenant, OneCBridge, clearBridgeCache } from "./lib/onec-bridge";
 import { onecConfig } from "@db/schema";
 import { eq } from "drizzle-orm";
 import { logger } from "./lib/logger";
@@ -184,6 +184,63 @@ export const onecRouter = createRouter({
         };
       }),
   },
+
+  /** Test connection using saved per-tenant config */
+  testSavedConnection: adminQuery.mutation(async ({ ctx }) => {
+    try {
+      const db = getDb();
+      const [config] = await db.select()
+        .from(onecConfig)
+        .where(eq(onecConfig.tenantId, ctx.tenant.id))
+        .limit(1);
+
+      if (!config) {
+        return { success: false, error: "1C config not found", details: null };
+      }
+
+      const bridge = new OneCBridge({
+        url: config.url,
+        username: config.username,
+        password: config.password,
+        timeout: 10000,
+      });
+
+      const healthy = await bridge.healthCheck();
+
+      let productsCount = 0;
+      let companiesCount = 0;
+      if (healthy) {
+        try {
+          const products = await bridge.odataQuery("Catalog_Товары?$select=Ref_Key&$top=1");
+          productsCount = products.length;
+        } catch { /* OData might not be available */ }
+        try {
+          const companies = await bridge.odataQuery("Catalog_Контрагенты?$select=Ref_Key&$top=1");
+          companiesCount = companies.length;
+        } catch { /* OData might not be available */ }
+      }
+
+      await db.update(onecConfig)
+        .set({ lastTestedAt: new Date(), lastTestOk: healthy })
+        .where(eq(onecConfig.id, config.id));
+
+      return {
+        success: healthy,
+        details: {
+          health: healthy,
+          productsAccessible: productsCount > 0,
+          companiesAccessible: companiesCount > 0,
+          timestamp: new Date().toISOString(),
+        },
+      };
+    } catch (e) {
+      return {
+        success: false,
+        error: (e as Error).message,
+        details: null,
+      };
+    }
+  }),
 
   health: adminQuery.query(async ({ ctx }) => {
     try {

@@ -10,6 +10,7 @@ import { useConfirm } from "@/components/ConfirmDialog";
 import { exportToExcel, formatProductsForExport } from "@/lib/excel";
 import { ProductForm, ProductList, ProductFilters, KpiCard, F, COLORS } from "@/components/products";
 import { CategoryManager } from "@/components/products/CategoryManager";
+import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 
 export default function Products() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -31,8 +32,8 @@ export default function Products() {
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const navigate = useNavigate();
-  const { data, isLoading } = trpc.product.list.useQuery({ page, pageSize: 25, search: search || undefined, category });
-  const { data: allProductsData } = trpc.product.list.useQuery({ page: 1, pageSize: 10000, includeAll: true });
+  const { data, isLoading, isError, refetch } = trpc.product.list.useQuery({ page, pageSize: 25, search: search || undefined, category });
+  const { data: allProductsData, refetch: refetchAllProducts } = trpc.product.list.useQuery({ page: 1, pageSize: 10000, includeAll: true }, { enabled: false });
   const { data: categories } = trpc.product.categories.useQuery();
   const utils = trpc.useUtils();
   const createMutation = trpc.product.create.useMutation({
@@ -108,6 +109,8 @@ export default function Products() {
     }
   };
 
+  if (isError) return <QueryErrorFallback onRetry={refetch} />;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
       {dialog}
@@ -154,7 +157,8 @@ export default function Products() {
           </button>
           <button
             onClick={async () => {
-              const allProds = allProductsData?.data ?? [];
+              const { data: exported } = await refetchAllProducts();
+              const allProds = exported?.data ?? [];
               if (!allProds.length) return;
               await exportToExcel(formatProductsForExport(allProds), `products-all`, "Товары", `Все товары (${allProds.length})`);
             }}

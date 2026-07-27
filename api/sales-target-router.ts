@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createRouter, operatorQuery, authedQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { salesTargets, commissions, users, orders, orderItems, products } from "@db/schema";
+import { salesTargets, users, orders } from "@db/schema";
 import { eq, and, gte, lte, sql, desc } from "drizzle-orm";
 import { cache, CacheKeys } from "./lib/cache";
 

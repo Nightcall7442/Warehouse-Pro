@@ -79,12 +79,16 @@ function makeMockDb() {
       from(ref: unknown) { tbl = tableOf(ref); return api; },
       where(cond: unknown) {
         const filtered = rowsFor(tbl).filter((r) => evalCond(r, cond));
-        return Object.assign(Promise.resolve(filtered), {
+        const chainable = Object.assign(Promise.resolve(filtered), {
           orderBy: () => Object.assign(Promise.resolve(filtered), {
             limit: (n: number) => Promise.resolve(filtered.slice(0, n)),
           }),
-          limit: (n: number) => Promise.resolve(filtered.slice(0, n)),
+          limit: (n: number) => Object.assign(Promise.resolve(filtered.slice(0, n)), {
+            for: () => Promise.resolve(filtered.slice(0, n)),
+          }),
+          for: () => Promise.resolve(filtered),
         });
+        return chainable;
       },
       limit(n: number) { return Promise.resolve(rowsFor(tbl).slice(0, n)); },
     };

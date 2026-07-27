@@ -10,9 +10,11 @@ import {
   Search, Plus, FileDown, ChevronRight, Store, User,
   ShoppingCart, Clock, CheckCircle2, XCircle, DollarSign,
   ArrowUpRight, ArrowDownRight, Minus, Trash2, RotateCcw, Printer,
+  CheckSquare, Square,
 } from "lucide-react";
 import { format, startOfMonth } from "date-fns";
 import { exportToExcel, formatOrdersForExport } from "@/lib/excel";
+import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { exportToPDF } from "@/lib/export";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { useConfirm } from "@/components/ConfirmDialog";
@@ -112,14 +114,17 @@ export default function Orders() {
   const utils               = trpc.useUtils();
   const { user }            = useAuth();
   const isCeo               = user?.role === "ceo";
+  const isOperator          = user?.role === "operator";
+  const isOperatorOrCeo     = isCeo || isOperator;
+  const [selected, setSelected] = useState<Set<number>>(new Set());
   const { confirm, dialog } = useConfirm();
   const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);
 
-  const { data, isLoading } = trpc.order.list.useQuery({
+  const { data, isLoading, isError, refetch } = trpc.order.list.useQuery({
     page, pageSize: 25,
     search: search || undefined,
     status: (status || undefined),
-    showDeleted: isCeo && showDeleted ? true : undefined,
+    showDeleted: isOperatorOrCeo && showDeleted ? true : undefined,
     dateFrom: dateFrom || undefined,
     dateTo: dateTo || undefined,
   });
@@ -165,6 +170,45 @@ export default function Orders() {
 
   const handleNewOrder = useCallback(() => navigate("/orders/new"), [navigate]);
 
+  const allVisibleIds = useMemo(() => (data?.data ?? []).map(o => o.id as number), [data]);
+  const allSelected = allVisibleIds.length > 0 && allVisibleIds.every(id => selected.has(id));
+
+  const toggleSelect = useCallback((id: number) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback(() => {
+    setSelected(allSelected ? new Set() : new Set(allVisibleIds));
+  }, [allSelected, allVisibleIds]);
+
+  const selectedNewIds = useMemo(
+    () => (data?.data ?? []).filter(o => selected.has(o.id as number) && o.status === "new").map(o => o.id as number),
+    [data, selected],
+  );
+  const selectedProcessingIds = useMemo(
+    () => (data?.data ?? []).filter(o => selected.has(o.id as number) && o.status === "processing").map(o => o.id as number),
+    [data, selected],
+  );
+
+  const handleBulkStatus = useCallback(async (ids: number[], status: string) => {
+    if (ids.length === 0) return;
+    for (const id of ids) {
+      await updateStatus.mutateAsync({ id, status });
+    }
+    setSelected(new Set());
+  }, [updateStatus]);
+
+  const handleExportSelected = useCallback(async () => {
+    if (!allOrders?.data) return;
+    const rows = allOrders.data.filter(o => selected.has(o.id as number));
+    if (rows.length === 0) return;
+    await exportToExcel(formatOrdersForExport(rows), `orders-selected`, "Заказы", `Выбранные заказы`);
+  }, [allOrders?.data, selected]);
+
   /* ─── Compute KPI stats from allOrders ─── */
   const stats = useMemo(() => {
     const orders = allOrders?.data ?? [];
@@ -176,6 +220,8 @@ export default function Orders() {
     const totalRevenue = orders.reduce((sum, o) => sum + Number(o.total ?? 0), 0);
     return { total, newCount, processingCount, completedCount, cancelledCount, totalRevenue };
   }, [allOrders?.data]);
+
+  if (isError) return <QueryErrorFallback onRetry={refetch} />;
 
   return (
     <>
@@ -296,7 +342,7 @@ export default function Orders() {
         <PremiumSelect value={status} onChange={v => { setStatus(v); setPage(1); }}
           options={[{value:"",label:t("Все статусы","Barcha holatlar")},...Object.entries(STATUS).map(([k,v])=>({value:k,label:lang==="uz"?v.uz:v.ru}))]}
           width="180px" />
-        {isCeo && (
+        {isOperatorOrCeo && (
           <button
             onClick={() => setShowDeleted(v => !v)}
             style={{
@@ -312,6 +358,57 @@ export default function Orders() {
           </button>
         )}
       </div>
+
+      {/* ─── Selection Bar ─── */}
+      {selected.size > 0 && (
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "8px",
+          padding: "12px 20px", borderRadius: "14px",
+          background: "var(--color-primary-subtle, rgba(75,108,246,.10))",
+          border: "1px solid rgba(75,108,246,.20)",
+        }}>
+          <span style={{ fontSize: "13px", fontWeight: 600, color: "#5b6d8a" }}>
+            {selected.size} {t("выбрано", "tanlangan")}
+          </span>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            {selectedNewIds.length > 0 && (
+              <button onClick={() => handleBulkStatus(selectedNewIds, "processing")}
+                style={{
+                  display: "flex", alignItems: "center", gap: "5px", padding: "6px 14px",
+                  fontSize: "12px", fontWeight: 600, fontFamily: F.body, borderRadius: "8px",
+                  border: `1px solid ${COLORS.border}`, cursor: "pointer",
+                  background: COLORS.surface, color: COLORS.textSecondary,
+                }}>
+                {t("В обработку", "Jarayonga")} ({selectedNewIds.length})
+              </button>
+            )}
+            {selectedProcessingIds.length > 0 && (
+              <button onClick={() => handleBulkStatus(selectedProcessingIds, "completed")}
+                style={{
+                  display: "flex", alignItems: "center", gap: "5px", padding: "6px 14px",
+                  fontSize: "12px", fontWeight: 600, fontFamily: F.body, borderRadius: "8px",
+                  border: "none", cursor: "pointer",
+                  background: "linear-gradient(135deg, #5b6d8a, #5b6d8a)", color: "#fff",
+                }}>
+                {t("Выполнен", "Bajarildi")} ({selectedProcessingIds.length})
+              </button>
+            )}
+            <button onClick={handleExportSelected}
+              style={{
+                display: "flex", alignItems: "center", gap: "5px", padding: "6px 14px",
+                fontSize: "12px", fontWeight: 600, fontFamily: F.body, borderRadius: "8px",
+                border: `1px solid ${COLORS.border}`, cursor: "pointer",
+                background: COLORS.surface, color: COLORS.textSecondary,
+              }}>
+              <FileDown size={13} /> {t("Экспорт", "Eksport")}
+            </button>
+            <button onClick={() => setSelected(new Set())}
+              className="neo-btn text-xs py-1.5 px-3">
+              {t("Сбросить", "Bekor qilish")}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ─── Mobile Cards ─── */}
       {isMobile ? (
@@ -390,6 +487,14 @@ export default function Orders() {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: COLORS.surfaceLight }}>
+                <th style={{ width: "40px", padding: "12px 8px 12px 16px", textAlign: "center" }}>
+                  <button onClick={toggleSelectAll} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    {allSelected
+                      ? <CheckSquare size={16} style={{ color: COLORS.primary }} />
+                      : <Square size={16} style={{ color: COLORS.textTertiary }} />
+                    }
+                  </button>
+                </th>
                 {[
                   t("ЗАКАЗ",  "BUYURTMA"),
                   t("ДАТА",   "SANA"),
@@ -415,13 +520,13 @@ export default function Orders() {
               {isLoading
                 ? Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i} style={{ borderBottom: `1px solid ${COLORS.border}` }}>
-                      <td colSpan={8} style={{ padding: "16px" }}>
+                      <td colSpan={9} style={{ padding: "16px" }}>
                         <div style={{ height: "16px", borderRadius: "6px", background: COLORS.surfaceLight, animation: `slideUp ${0.4 + i * 0.05}s ease forwards` }} />
                       </td>
                     </tr>
                   ))
                 : data?.data.length === 0
-                ? <tr><td colSpan={8} style={{ padding: "56px 16px", textAlign: "center", color: COLORS.textSecondary, fontSize: "13px", fontFamily: F.body }}>{t("Нет заказов", "Buyurtma yo'q")}</td></tr>
+                ? <tr><td colSpan={9} style={{ padding: "56px 16px", textAlign: "center", color: COLORS.textSecondary, fontSize: "13px", fontFamily: F.body }}>{t("Нет заказов", "Buyurtma yo'q")}</td></tr>
                 : data?.data.map(o => (
                     <tr
                       key={o.id}
@@ -435,6 +540,15 @@ export default function Orders() {
                       onMouseLeave={e => (e.currentTarget.style.background = o.deletedAt ? `${COLORS.danger}08` : "transparent")}
                       onClick={() => navigate(`/orders/${o.id}`)}
                     >
+                      <td style={{ padding: "14px 8px 14px 16px", textAlign: "center" }} onClick={e => e.stopPropagation()}>
+                        <button onClick={() => toggleSelect(o.id as number)}
+                          style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          {selected.has(o.id as number)
+                            ? <CheckSquare size={16} style={{ color: COLORS.primary }} />
+                            : <Square size={16} style={{ color: COLORS.textTertiary }} />
+                          }
+                        </button>
+                      </td>
                       <td style={{ padding: "14px 16px", fontFamily: F.display, fontSize: "13px", fontWeight: 600, color: COLORS.primary }}>{o.orderNumber}</td>
                       <td style={{ padding: "14px 16px", fontSize: "13px", color: COLORS.textSecondary }}>
                         {o.createdAt ? format(new Date(o.createdAt), "dd.MM.yyyy") : ""}
@@ -459,7 +573,7 @@ export default function Orders() {
                       </td>
                       <td style={{ padding: "14px 16px" }} onClick={e => e.stopPropagation()}>
                         {o.deletedAt ? (
-                          isCeo && (
+                          isOperatorOrCeo && (
                             <button
                               onClick={() => restoreOrder.mutate({ id: o.id })}
                               style={{
@@ -498,7 +612,7 @@ export default function Orders() {
                             </button>
                           </div>
                         ) : (
-                          (o.status === "new" || o.status === "processing" || o.status === "cancelled") && isCeo && (
+                          (o.status === "new" || o.status === "processing" || o.status === "cancelled") && isOperatorOrCeo && (
                             <button
                               onClick={async () => {
                                 const ok = await confirm({ title: t("Удалить заказ?", "Buyurtmani o'chirish?"), danger: true, confirmText: t("Удалить", "O'chirish") });

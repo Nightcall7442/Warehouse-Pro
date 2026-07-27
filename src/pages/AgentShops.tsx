@@ -8,6 +8,7 @@ import {
   Store, Phone, MapPin, AlertCircle, PlusCircle,
   Search, X, Loader2, Plus,
 } from "lucide-react";
+import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 
 // ── Форма добавления магазина агентом ─────────────────────────────────────────
 function AddShopModal({ onClose }: { onClose: () => void }) {
@@ -207,7 +208,7 @@ export default function AgentShops() {
   const { lang }                  = useLang();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
 
-  const { data: shops, isLoading } = trpc.agent.myShops.useQuery();
+  const { data: shops, isLoading, isError, refetch } = trpc.agent.myShops.useQuery();
   const navigate                   = useNavigate();
 
   const filtered = shops?.filter(s =>
@@ -216,6 +217,7 @@ export default function AgentShops() {
     s.ownerName?.toLowerCase().includes(search.toLowerCase())
   );
 
+  if (isError) return <QueryErrorFallback onRetry={refetch} />;
   if (isLoading) {
     return (
       <div className="space-y-4">

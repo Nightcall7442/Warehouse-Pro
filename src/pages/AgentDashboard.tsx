@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { ProgressRing } from "@/components/ProgressRing";
 import { KpiIcon } from "@/components/KpiIcon";
+import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import type { KpiColor } from "@/components/KpiIcon";
 
 // ── Статусы визитов ───────────────────────────────────────────────────────────
@@ -140,7 +141,7 @@ export default function AgentDashboard() {
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
 
   const { data: kpis }                 = trpc.dashboard.agentDashboard.useQuery();
-  const { data: plans, isLoading }     = trpc.agent.getPlans.useQuery({});
+  const { data: plans, isLoading, isError, refetch } = trpc.agent.getPlans.useQuery({});
   const utils                          = trpc.useUtils();
 
   const updatePlan = trpc.agent.updatePlanStatus.useMutation({
@@ -156,6 +157,8 @@ export default function AgentDashboard() {
   const greeting = getGreeting(t);
 
   const firstName = user?.name?.split(" ")[0] ?? "";
+
+  if (isError) return <QueryErrorFallback onRetry={refetch} />;
 
   return (
     <div className="space-y-4 animate-fade-up">

@@ -9,6 +9,7 @@ import { format } from "date-fns";
 import { ArrowLeft, Package, Edit2, TrendingUp, TrendingDown, ArrowUpDown, Loader2, Camera } from "lucide-react";
 import { exportToExcel, formatMovementsForExport } from "@/lib/excel";
 import { PremiumSelect } from "@/components/PremiumSelect";
+import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 
 const UNIT_LABELS: Record<string,[string,string]> = {
   kg:   ["кг","kg"], l: ["л","l"], pcs: ["шт","dona"],
@@ -46,7 +47,7 @@ export default function ProductDetail() {
   const fileRef = useRef<HTMLInputElement>(null);
   const utils = trpc.useUtils();
 
-  const { data: product, isLoading } = trpc.product.getById.useQuery({ id: Number(id) }, { enabled: !!id });
+  const { data: product, isLoading, isError, refetch } = trpc.product.getById.useQuery({ id: Number(id) }, { enabled: !!id });
 
   const updateProduct = trpc.product.update.useMutation({
     onSuccess: () => { utils.product.getById.invalidate({id:Number(id)}); setEditing(false); notify.success(tr("Товар обновлён", "Mahsulot yangilandi")); },
@@ -78,6 +79,7 @@ export default function ProductDetail() {
     if (ok) deleteProduct.mutate({ id: Number(id) });
   };
 
+  if (isError) return <QueryErrorFallback onRetry={refetch} />;
   if (isLoading) return <div className="h-64 bg-surface-light animate-pulse rounded"/>;
   if (!product) return <div className="text-center py-20 text-secondary">{tr("Товар не найден","Mahsulot topilmadi")}</div>;
 

@@ -22,7 +22,8 @@ window.onerror = (message) => {
 window.addEventListener("unhandledrejection", (event) => {
   const msg = event.reason?.message || String(event.reason) || "Необработанная ошибка";
   if (msg.includes("workbox") || msg.includes("non-precached-url") || msg.includes("net::ERR") || msg.includes("createHandlerBoundToURL")) return;
-  if (msg.includes("TRPCClientError")) return;
+  // Only filter network-level tRPC errors; let server errors through
+  if (msg.includes("TRPCClientError") && !msg.includes("500") && !msg.includes("INTERNAL_SERVER_ERROR")) return;
   notify.error(`Ошибка: ${msg}`);
 });
 

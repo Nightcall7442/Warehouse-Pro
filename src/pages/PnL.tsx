@@ -17,6 +17,7 @@ import {
   PnLTransportExpenses,
 } from "@/components/pnl";
 import type { Range } from "@/components/pnl";
+import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 
 const COLORS = {
   surface: "var(--color-surface, #ffffff)",
@@ -76,7 +77,7 @@ export default function PnL() {
     }
   }, [range, customFrom, customTo]);
 
-  const { data, isLoading } = trpc.analytics.pnl.useQuery({
+  const { data, isLoading, isError, refetch } = trpc.analytics.pnl.useQuery({
     from,
     to,
     compareWithPrev: true,
@@ -409,6 +410,7 @@ export default function PnL() {
     exportToPDF(`P&L Отчёт: ${from} — ${to}`, html);
   };
 
+  if (isError) return <QueryErrorFallback onRetry={refetch} />;
   if (isLoading) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>

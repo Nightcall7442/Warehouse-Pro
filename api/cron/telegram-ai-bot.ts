@@ -11,7 +11,7 @@
 import { Hono } from "hono";
 import { getDb } from "../queries/connection";
 import { products, warehouseStock, orders, orderItems, users, shops } from "@db/schema";
-import { eq, and, sql, desc, gte, lte, like } from "drizzle-orm";
+import { eq, and, sql, desc, gte, like } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { sendTelegram } from "../telegram-router";
 import { env } from "../lib/env";
