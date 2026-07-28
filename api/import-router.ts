@@ -453,7 +453,10 @@ export const importRouter = createRouter({
           // Resolve territory
           let territoryId: number | undefined;
           const terrName = String(row.territory ?? "").trim();
-          if (terrName) territoryId = territoryMap.get(terrName.toLowerCase());
+          if (terrName) {
+            territoryId = territoryMap.get(terrName.toLowerCase());
+            if (!territoryId) newDistricts.add(terrName);
+          }
 
           const districtName = String(row.district ?? "").trim();
           if (!territoryId && districtName) {
