@@ -6,7 +6,7 @@ import { subDays } from "date-fns";
 import { cache, CacheKeys, CacheTTL } from "./lib/cache";
 
 export const dashboardRouter = createRouter({
-  kpis: operatorQuery.query(async ({ ctx }) => {
+  kpis: supervisorQuery.query(async ({ ctx }) => {
     const tenantId = ctx.tenant.id;
     const cacheKey = CacheKeys.dashboardKpis(tenantId);
     const cached = cache.get(cacheKey);
@@ -55,7 +55,7 @@ export const dashboardRouter = createRouter({
     return result;
   }),
 
-  trends: operatorQuery
+  trends: supervisorQuery
     .input(z.object({ range: z.enum(["7d", "30d", "month"]) }))
     .query(async ({ input, ctx }) => {
       const db        = ctx.db;
@@ -73,12 +73,12 @@ export const dashboardRouter = createRouter({
         .groupBy(sql`DATE(${orders.createdAt})`).orderBy(sql`DATE(${orders.createdAt})`);
     }),
 
-  statusBreakdown: operatorQuery.query(async ({ ctx }) => {
+  statusBreakdown: supervisorQuery.query(async ({ ctx }) => {
     return ctx.db.select({ status: orders.status, count: sql<number>`count(*)` })
       .from(orders).where(and(eq(orders.tenantId, ctx.tenant.id), isNull(orders.deletedAt))).groupBy(orders.status);
   }),
 
-  activity: operatorQuery.query(async ({ ctx }) => {
+  activity: supervisorQuery.query(async ({ ctx }) => {
     return ctx.db.select({
       id: orders.id, orderNumber: orders.orderNumber, status: orders.status,
       total: orders.total, createdAt: orders.createdAt, shopName: shops.name, agentName: users.name,
