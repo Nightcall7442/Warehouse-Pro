@@ -43,7 +43,7 @@ export const shopRouter = createRouter({
       const pageSize = input?.pageSize ?? 25;
       const offset   = (page - 1) * pageSize;
 
-      const cacheKey = CacheKeys.shopList(tenantId, page, input?.search, input?.city, input?.district, input?.agentId);
+      const cacheKey = CacheKeys.shopList(tenantId, page, input?.search, input?.city, input?.district, input?.agentId, input?.territoryId);
       const cached = cache.get(cacheKey);
       if (cached) return cached;
 
