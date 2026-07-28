@@ -322,4 +322,26 @@ export const shopRouter = createRouter({
       .where(and(eq(shops.tenantId, ctx.tenant.id), sql`${shops.debt} != 0`))
       .orderBy(desc(sql`CAST(${shops.debt} AS DECIMAL)`));
   }),
+
+  /** Delete ALL shops for this tenant */
+  clearAll: operatorQuery
+    .mutation(async ({ ctx }) => {
+      const db = getDb();
+      const tenantId = ctx.tenant.id;
+
+      await db.transaction(async (tx) => {
+        // Delete child records first (FK-safe order)
+        await tx.execute(sql`DELETE FROM visit_reports WHERE shop_id IN (SELECT id FROM shops WHERE tenant_id = ${tenantId})`);
+        await tx.execute(sql`DELETE FROM daily_plans WHERE shop_id IN (SELECT id FROM shops WHERE tenant_id = ${tenantId})`);
+        await tx.execute(sql`DELETE FROM payments WHERE shop_id IN (SELECT id FROM shops WHERE tenant_id = ${tenantId})`);
+        await tx.execute(sql`DELETE FROM returns WHERE shop_id IN (SELECT id FROM shops WHERE tenant_id = ${tenantId})`);
+        await tx.execute(sql`DELETE FROM agent_territories WHERE tenant_id = ${tenantId}`);
+        await tx.execute(sql`DELETE FROM shops WHERE tenant_id = ${tenantId}`);
+      });
+
+      cache.invalidatePrefix(`shops:${tenantId}`);
+      cache.invalidate(CacheKeys.shopCities(tenantId));
+      cache.invalidate(CacheKeys.shopDistricts(tenantId));
+      return { success: true };
+    }),
 });
