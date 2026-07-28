@@ -56,14 +56,16 @@ export const warehouseMultiRouter = createRouter({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
-      // Verify target warehouse exists before resetting defaults
-      const [target] = await db.select({ id: warehouses.id })
-        .from(warehouses)
-        .where(and(eq(warehouses.id, input.id), eq(warehouses.tenantId, ctx.tenant.id)))
-        .limit(1);
-      if (!target) throw new Error("Склад не найден");
 
       await db.transaction(async (tx) => {
+        // Lock target row inside transaction to prevent race condition
+        const [target] = await tx.select({ id: warehouses.id })
+          .from(warehouses)
+          .where(and(eq(warehouses.id, input.id), eq(warehouses.tenantId, ctx.tenant.id)))
+          .for("update")
+          .limit(1);
+        if (!target) throw new TRPCError({ code: "NOT_FOUND", message: "Склад не найден" });
+
         await tx.update(warehouses).set({ isDefault: false }).where(eq(warehouses.tenantId, ctx.tenant.id));
         await tx.update(warehouses).set({ isDefault: true }).where(eq(warehouses.id, input.id));
       });
@@ -76,7 +78,7 @@ export const warehouseMultiRouter = createRouter({
       warehouseId: z.number().optional(),
       search:      z.string().optional(),
       page:        z.number().default(1),
-      pageSize:    z.number().min(1).max(10000).default(25),
+      pageSize:    z.number().min(1).max(500).default(25),
     }).optional())
     .query(async ({ input, ctx }) => {
       const db       = getDb();
@@ -149,31 +151,34 @@ export const warehouseMultiRouter = createRouter({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Нельзя перемещать товар на тот же склад" });
       }
 
-      // Check available stock in source warehouse
-      const [sourceStock] = await db.select()
-        .from(warehouseStock)
-        .where(and(
-          eq(warehouseStock.tenantId, ctx.tenant.id),
-          eq(warehouseStock.warehouseId, input.fromWarehouseId),
-          eq(warehouseStock.productId, input.productId),
-        ))
-        .limit(1);
+      return db.transaction(async (tx) => {
+        // Lock source stock row inside transaction to prevent race condition
+        const [sourceStock] = await tx.select()
+          .from(warehouseStock)
+          .where(and(
+            eq(warehouseStock.tenantId, ctx.tenant.id),
+            eq(warehouseStock.warehouseId, input.fromWarehouseId),
+            eq(warehouseStock.productId, input.productId),
+          ))
+          .for("update")
+          .limit(1);
 
-      if (!sourceStock || Number(sourceStock.available) < input.quantity) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Недостаточно товара на складе отправителе" });
-      }
+        if (!sourceStock || Number(sourceStock.available) < input.quantity) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Недостаточно товара на складе отправителе" });
+        }
 
-      const [result] = await db.insert(stockTransfers).values({
-        tenantId: ctx.tenant.id,
-        fromWarehouseId: input.fromWarehouseId,
-        toWarehouseId: input.toWarehouseId,
-        productId: input.productId,
-        quantity: String(input.quantity),
-        notes: input.notes,
-        createdBy: ctx.user.id,
+        const [result] = await tx.insert(stockTransfers).values({
+          tenantId: ctx.tenant.id,
+          fromWarehouseId: input.fromWarehouseId,
+          toWarehouseId: input.toWarehouseId,
+          productId: input.productId,
+          quantity: String(input.quantity),
+          notes: input.notes,
+          createdBy: ctx.user.id,
+        });
+
+        return { id: Number(result.insertId) };
       });
-
-      return { id: Number(result.insertId) };
     }),
 
   /** Complete a stock transfer */

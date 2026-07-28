@@ -18,7 +18,7 @@ export function ShopSelector({ shopId, onSelect }: ShopSelectorProps) {
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const { user } = useAuth();
   const isAgent = user?.role === "agent" || user?.role === "merchandiser";
-  const useMyShops = isAgent || user?.role === "ceo" || user?.role === "operator";
+  const useMyShops = isAgent;
 
   const { data: myShops, isLoading: myShopsLoading } = trpc.agent.myShops.useQuery(undefined, { enabled: useMyShops });
   const { data: allShopsData, isLoading: allShopsLoading } = trpc.shop.list.useQuery({ page: 1, pageSize: 200 }, { enabled: !useMyShops });

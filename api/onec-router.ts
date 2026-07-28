@@ -169,10 +169,36 @@ export const onecRouter = createRouter({
         syncProducts: z.boolean().default(true),
         syncOrders: z.boolean().default(true),
       }))
-      .mutation(async ({ input }) => {
-        // Store sync schedule in settings (would need settings table update)
-        // For now, return confirmation
-        logger.info("1C sync schedule configured", input);
+      .mutation(async ({ input, ctx }) => {
+        const db = getDb();
+
+        // Persist schedule to onecConfig
+        const [existing] = await db.select({ id: onecConfig.id })
+          .from(onecConfig)
+          .where(eq(onecConfig.tenantId, ctx.tenant.id))
+          .limit(1);
+
+        if (existing) {
+          await db.update(onecConfig)
+            .set({
+              intervalMinutes: input.intervalMinutes,
+              syncProducts: input.syncProducts,
+              syncOrders: input.syncOrders,
+            })
+            .where(eq(onecConfig.id, existing.id));
+        } else {
+          await db.insert(onecConfig).values({
+            tenantId: ctx.tenant.id,
+            url: "", // Must be configured separately via testConnection
+            username: "",
+            password: "",
+            intervalMinutes: input.intervalMinutes,
+            syncProducts: input.syncProducts,
+            syncOrders: input.syncOrders,
+          });
+        }
+
+        logger.info("1C sync schedule configured", { tenantId: ctx.tenant.id, ...input });
         return {
           success: true,
           schedule: {
@@ -267,12 +293,40 @@ export const onecRouter = createRouter({
       return { success: true };
     }),
 
-  status: adminQuery.query(async () => {
+  status: adminQuery.query(async ({ ctx }) => {
+    const db = getDb();
+
+    const [config] = await db.select({
+      lastTestedAt: onecConfig.lastTestedAt,
+      lastTestOk: onecConfig.lastTestOk,
+      syncProducts: onecConfig.syncProducts,
+      syncOrders: onecConfig.syncOrders,
+      intervalMinutes: onecConfig.intervalMinutes,
+    }).from(onecConfig)
+      .where(eq(onecConfig.tenantId, ctx.tenant.id))
+      .limit(1);
+
+    if (!config) {
+      return {
+        configured: false,
+        lastProductSync: null,
+        lastOrderSync: null,
+        pendingOrders: 0,
+        errors: 0,
+      };
+    }
+
     return {
-      lastProductSync: null,
-      lastOrderSync: null,
-      pendingOrders: 0,
-      errors: 0,
+      configured: true,
+      lastProductSync: config.lastTestedAt?.toISOString() ?? null,
+      lastOrderSync: null, // TODO: track per-type sync timestamps
+      pendingOrders: 0, // TODO: count unsynced orders
+      errors: config.lastTestOk === false ? 1 : 0,
+      schedule: {
+        intervalMinutes: config.intervalMinutes,
+        syncProducts: config.syncProducts,
+        syncOrders: config.syncOrders,
+      },
     };
   }),
 

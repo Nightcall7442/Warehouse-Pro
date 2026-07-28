@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { getDb } from "../queries/connection";
-import { payments, shops, warehouseStock, tenants, warehouses } from "@db/schema";
+import { payments, shops, warehouseStock, tenants, warehouses, onecConfig } from "@db/schema";
 import { eq, and } from "drizzle-orm";
 import { OneCMapper } from "../services/onec-mapper";
 import { logger } from "../lib/logger";
@@ -9,26 +9,31 @@ import { safeEqual } from "../lib/safe-compare";
 
 const app = new Hono<{ Variables: { validatedBody: Record<string, unknown> } }>();
 
-// ── Auth: global secret + validate tenantId exists ───────────────────────────
+// ── Auth: global secret + validate tenantId exists and has 1C configured ─────
+// TODO: Replace global secret with per-tenant webhook secret for proper isolation
 app.use("/*", async (c, next) => {
   const secret = c.req.header("X-1C-Secret");
   if (!safeEqual(secret ?? "", env.onecWebhookSecret)) {
     return c.json({ error: "Unauthorized" }, 401);
   }
 
-  // #FIX2: Validate tenantId from body exists in DB — prevents cross-tenant forgery
   try {
     const body = await c.req.json();
     if (!body?.tenantId) {
       return c.json({ error: "Missing tenantId" }, 400);
     }
     const db = getDb();
-    const [tenant] = await db.select({ id: tenants.id }).from(tenants)
-      .where(eq(tenants.id, body.tenantId)).limit(1);
-    if (!tenant) {
-      return c.json({ error: "Invalid tenant" }, 403);
+
+    // Validate tenant exists AND has 1C integration configured
+    const [config] = await db.select({ tenantId: onecConfig.tenantId })
+      .from(onecConfig)
+      .where(eq(onecConfig.tenantId, body.tenantId))
+      .limit(1);
+    if (!config) {
+      logger.warn("1C webhook: tenant not found or not configured", { tenantId: body.tenantId });
+      return c.json({ error: "Tenant not configured for 1C integration" }, 403);
     }
-    // Re-inject validated body so downstream handlers don't re-parse
+
     c.set("validatedBody", body);
   } catch {
     return c.json({ error: "Invalid request" }, 400);

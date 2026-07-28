@@ -2,6 +2,7 @@ import { sql, eq, and, gte, lte, inArray, isNull } from "drizzle-orm";
 import type { DrizzleInstance } from "../queries/connection";
 import { orders, dailyPlans, returns, shops, salesTargets, commissions, agentLocations, visitReports, users, payments } from "@db/schema";
 import { calculateFraudMetrics } from "./anti-fraud";
+import { logger } from "../lib/logger";
 
 export interface AgentKpiData {
   agentId: number;
@@ -216,6 +217,8 @@ export async function calculateAgentKpi(
   const totalDebt = Number(shopStats?.totalDebt ?? 0);
 
   const totalOwed = revenue + totalDebt;
+  // Debt collection rate: what % of total owed has been collected as revenue
+  // A more meaningful metric: payments collected / (payments + outstanding debt)
   const debtCollectionRate = totalOwed > 0 ? Math.round((revenue / totalOwed) * 100) : 100;
 
   const [gpsStats] = preloadedKpis?.gpsPings != null ? [{ pingCount: preloadedKpis.gpsPings, lastPing: preloadedKpis.lastGpsTime }] : await db.select({
@@ -441,7 +444,10 @@ export async function calculateSalary(
         commissionAmount: commissionAmount.toFixed(2),
       });
     }
-  } catch { /* non-critical, skip */ }
+  } catch (e) {
+    // Commission persistence is non-critical but should be logged
+    logger.warn("Failed to persist commission", { agentId, error: String(e) });
+  }
 
   return {
     agentId,
@@ -513,7 +519,7 @@ export async function getAgentList(
 
   const agentIds = agents.map(a => a.agentId);
 
-  const [orderRows, planRows, returnRows, fraudRows] = await Promise.all([
+  const [orderRows, planRows, returnRows, fraudRows, shopDebtRows] = await Promise.all([
     db.select({
       agentId: orders.agentId,
       orderCount: sql<number>`count(*)`,
@@ -560,12 +566,24 @@ export async function getAgentList(
         lte(agentLocations.createdAt, periodEnd),
         inArray(agentLocations.agentId, agentIds),
       )).groupBy(agentLocations.agentId),
+
+    // Shop debt per agent
+    db.select({
+      agentId: shops.agentId,
+      totalDebt: sql<string>`COALESCE(SUM(CAST(${shops.debt} AS DECIMAL)), 0)`,
+    }).from(shops)
+      .where(and(
+        eq(shops.tenantId, tenantId),
+        eq(shops.status, "active"),
+        inArray(shops.agentId, agentIds),
+      )).groupBy(shops.agentId),
   ]);
 
   const orderMap = new Map(orderRows.map(r => [r.agentId, r]));
   const planMap = new Map(planRows.map(r => [r.agentId, r]));
   const returnMap = new Map(returnRows.map(r => [r.agentId, r]));
   const gpsMap = new Map(fraudRows.map(r => [r.agentId, r]));
+  const debtMap = new Map(shopDebtRows.map(r => [r.agentId, r]));
 
   return agents.map((agent) => {
     const orders = orderMap.get(agent.agentId);
@@ -583,18 +601,20 @@ export async function getAgentList(
     const returnRate = orderCount > 0 ? Math.round((returnCount / orderCount) * 100) : 0;
     const conversion = orderCount > 0 && totalPlans > 0 ? Math.round((orderCount / totalPlans) * 100) : 0;
     const gpsPings = Number(gps?.gpsCount ?? 0);
+    const totalDebt = Number(debtMap.get(agent.agentId)?.totalDebt ?? 0);
+    const totalOwed = revenue + totalDebt;
+    const debtCollection = totalOwed > 0 ? Math.round((revenue / totalOwed) * 100) : 100;
 
     const suspiciousVisits = gpsPings === 0 && visitedPlans > 0 ? visitedPlans : 0;
     const fraudRate = visitedPlans > 0 ? Math.round((suspiciousVisits / visitedPlans) * 100) : 0;
 
-    const revenueNormalized = Math.min(100, (revenue / 10_000_000) * 100);
-    const kpiScore = Math.max(0, Math.round(
-      visitCompletionRate * 0.30 +
-      revenueNormalized * 0.25 +
-      conversion * 0.20 +
-      (100 - returnRate) * 0.15 +
-      100 * 0.10
-    ));
+    const kpiScore = calculateCompositeScore({
+      visitCompletion: visitCompletionRate,
+      revenue,
+      conversion,
+      returnRate: 100 - returnRate, // invert: higher is better
+      debtCollection,
+    });
 
     return {
       agentId: agent.agentId,

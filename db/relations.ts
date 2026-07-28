@@ -19,6 +19,17 @@ import {
   tenants,
   tenantBranding,
   visitReports,
+  territories,
+  visitSchedules,
+  returns,
+  returnItems,
+  warehouses,
+  stockTransfers,
+  salesTargets,
+  commissions,
+  priceLists,
+  priceListItems,
+  priceListAssignments,
 } from "./schema";
 
 export const usersRelations = relations(users, ({ many }) => ({
@@ -31,9 +42,14 @@ export const usersRelations = relations(users, ({ many }) => ({
 
 export const shopsRelations = relations(shops, ({ one, many }) => ({
   agent: one(users, { fields: [shops.agentId], references: [users.id] }),
+  territory: one(territories, { fields: [shops.territoryId], references: [territories.id] }),
   orders: many(orders),
   payments: many(payments),
   dailyPlans: many(dailyPlans),
+}));
+
+export const territoriesRelations = relations(territories, ({ many }) => ({
+  shops: many(shops),
 }));
 
 export const productsRelations = relations(products, ({ many }) => ({
@@ -111,4 +127,66 @@ export const visitReportsRelations = relations(visitReports, ({ one }) => ({
   shop: one(shops, { fields: [visitReports.shopId], references: [shops.id] }),
   user: one(users, { fields: [visitReports.userId], references: [users.id] }),
   plan: one(dailyPlans, { fields: [visitReports.planId], references: [dailyPlans.id] }),
+}));
+
+export const visitSchedulesRelations = relations(visitSchedules, ({ one }) => ({
+  agent: one(users, { fields: [visitSchedules.agentId], references: [users.id] }),
+  shop: one(shops, { fields: [visitSchedules.shopId], references: [shops.id] }),
+}));
+
+export const returnsRelations = relations(returns, ({ one, many }) => ({
+  shop: one(shops, { fields: [returns.shopId], references: [shops.id] }),
+  agent: one(users, { fields: [returns.agentId], references: [users.id] }),
+  order: one(orders, { fields: [returns.orderId], references: [orders.id] }),
+  items: many(returnItems),
+}));
+
+export const returnItemsRelations = relations(returnItems, ({ one }) => ({
+  return: one(returns, { fields: [returnItems.returnId], references: [returns.id] }),
+  product: one(products, { fields: [returnItems.productId], references: [products.id] }),
+}));
+
+export const warehousesRelations = relations(warehouses, ({ one, many }) => ({
+  tenant: one(tenants, { fields: [warehouses.tenantId], references: [tenants.id] }),
+  stock: many(warehouseStock),
+}));
+
+export const stockTransfersRelations = relations(stockTransfers, ({ one }) => ({
+  tenant: one(tenants, { fields: [stockTransfers.tenantId], references: [tenants.id] }),
+  product: one(products, { fields: [stockTransfers.productId], references: [products.id] }),
+  fromWarehouse: one(warehouses, { fields: [stockTransfers.fromWarehouseId], references: [warehouses.id] }),
+  toWarehouse: one(warehouses, { fields: [stockTransfers.toWarehouseId], references: [warehouses.id] }),
+}));
+
+export const salesTargetsRelations = relations(salesTargets, ({ one }) => ({
+  user: one(users, { fields: [salesTargets.userId], references: [users.id] }),
+  shop: one(shops, { fields: [salesTargets.shopId], references: [shops.id] }),
+  territory: one(territories, { fields: [salesTargets.territoryId], references: [territories.id] }),
+}));
+
+export const commissionsRelations = relations(commissions, ({ one }) => ({
+  user: one(users, { fields: [commissions.userId], references: [users.id] }),
+}));
+
+export const priceListsRelations = relations(priceLists, ({ many }) => ({
+  items: many(priceListItems),
+  assignments: many(priceListAssignments),
+}));
+
+export const priceListItemsRelations = relations(priceListItems, ({ one }) => ({
+  priceList: one(priceLists, { fields: [priceListItems.priceListId], references: [priceLists.id] }),
+  product: one(products, { fields: [priceListItems.productId], references: [products.id] }),
+}));
+
+export const priceListAssignmentsRelations = relations(priceListAssignments, ({ one }) => ({
+  priceList: one(priceLists, { fields: [priceListAssignments.priceListId], references: [priceLists.id] }),
+  shop: one(shops, { fields: [priceListAssignments.shopId], references: [shops.id] }),
+}));
+
+export const tenantsRelations = relations(tenants, ({ many }) => ({
+  users: many(users),
+  shops: many(shops),
+  products: many(products),
+  orders: many(orders),
+  warehouses: many(warehouses),
 }));

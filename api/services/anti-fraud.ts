@@ -11,7 +11,7 @@ export interface FraudCheckResult {
     distanceToShop: number;
     visitDuration: number;
     duplicateVisit: boolean;
-    photoTimingValid: boolean;
+    photoTimingValid: boolean; // NOTE: actually checks if photo EXISTS, not timing
   };
 }
 

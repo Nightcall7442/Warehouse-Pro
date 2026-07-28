@@ -34,6 +34,7 @@ import { commissionRouter } from "./commission-router";
 import { returnsRouter } from "./returns-router";
 import { priceListRouter } from "./price-list-router";
 import { kpiRouter } from "./kpi-router";
+import { scheduleRouter } from "./schedule-router";
 import { createRouter, publicQuery } from "./middleware";
 
 export const appRouter = createRouter({
@@ -74,6 +75,7 @@ export const appRouter = createRouter({
   returns:      returnsRouter,
   priceList:    priceListRouter,
   kpi:          kpiRouter,
+  schedule:     scheduleRouter,
 });
 
 export type AppRouter = typeof appRouter;

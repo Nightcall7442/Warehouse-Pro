@@ -96,19 +96,25 @@ export const returnsRouter = createRouter({
   create: fieldSalesQuery
     .input(z.object({
       orderId: z.number().optional(),
-      shopId: z.number(),
+      shopId: z.number().int().positive(),
       reason: z.enum(["defect", "wrong_item", "expired", "damaged", "other"]),
       notes: z.string().optional(),
       items: z.array(z.object({
         productId: z.number(),
-        quantity: z.number(),
-        unitPrice: z.number(),
+        quantity: z.number().positive(),
+        unitPrice: z.number().positive(),
         reason: z.string().optional(),
         condition: z.string().optional(),
       })).min(1),
     }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
+
+      // Validate shop belongs to tenant
+      const [shop] = await db.select({ id: shops.id }).from(shops)
+        .where(and(eq(shops.id, input.shopId), eq(shops.tenantId, ctx.tenant.id))).limit(1);
+      if (!shop) throw new Error("Магазин не найден");
+
       const raw = crypto.randomUUID().replace(/-/g, "");
       const returnNumber = `RET-${raw.slice(0, 12).toUpperCase()}`;
 

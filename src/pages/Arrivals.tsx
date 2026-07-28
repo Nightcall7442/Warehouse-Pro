@@ -12,6 +12,7 @@ import { exportToExcel, formatArrivalsForExport } from "@/lib/excel";
 import { notify } from "@/lib/toast";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
+import { useConfirm } from "@/components/ConfirmDialog";
 
 const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
 const COLORS = {
@@ -472,6 +473,7 @@ export default function Arrivals() {
   const { fmt } = useCurrency();
   const { lang } = useLang();
   const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);
+  const { confirm, dialog } = useConfirm();
 
   const { data, isLoading, isError, refetch } = trpc.arrival.list.useQuery({ page, pageSize: 25, status: (status || undefined) as "pending" | "unloading" | "completed" | undefined });
   const { data: all } = trpc.arrival.list.useQuery({ page: 1, pageSize: 500 });
@@ -637,7 +639,7 @@ export default function Arrivals() {
                     <StatusBadge status={a.status ?? "pending"} lang={lang as "ru" | "uz"} />
                     {a.status === "pending" && <button onClick={(e) => { e.stopPropagation(); updateStatus.mutate({ id: a.id, status: "unloading" }); }} style={{ padding: "6px 12px", borderRadius: "8px", fontSize: "11px", fontWeight: 600, fontFamily: F.body, color: COLORS.primary, background: "rgba(75,108,246,0.08)", border: "none", cursor: "pointer" }}>{t("Разгрузка", "Tushirish")}</button>}
                     {a.status === "unloading" && <button onClick={(e) => { e.stopPropagation(); updateStatus.mutate({ id: a.id, status: "completed" }); }} className="neo-btn-primary neo-btn-sm">{t("Завершить", "Yakunlash")}</button>}
-                    {a.status !== "completed" && <button onClick={(e) => { e.stopPropagation(); if (confirm(t("Удалить приход?", "Kelish o'chirilsinmi?"))) deleteMutation.mutate({ id: a.id }); }} style={{ padding: "6px 10px", borderRadius: "8px", fontSize: "11px", fontWeight: 600, fontFamily: F.body, color: COLORS.danger, background: "rgba(212,80,80,0.08)", border: "none", cursor: "pointer" }}>{t("Удалить", "O'chirish")}</button>}
+                    {a.status !== "completed" && <button onClick={async (e) => { e.stopPropagation(); const ok = await confirm({ title: t("Удалить приход?", "Kelish o'chirilsinmi?"), message: t("Данные будут удалены безвозвратно.", "Ma'lumotlar qaytarib bo'lmaydigan tarzda o'chiriladi."), confirmText: t("Удалить", "O'chirish"), danger: true }); if (ok) deleteMutation.mutate({ id: a.id }); }} style={{ padding: "6px 10px", borderRadius: "8px", fontSize: "11px", fontWeight: 600, fontFamily: F.body, color: COLORS.danger, background: "rgba(212,80,80,0.08)", border: "none", cursor: "pointer" }}>{t("Удалить", "O'chirish")}</button>}
                   </div>
                 </td>
               </tr>
@@ -667,6 +669,7 @@ export default function Arrivals() {
 
       {/* Detail Modal */}
       {detailId && <ArrivalDetail arrivalId={detailId} onClose={() => setDetailId(null)} />}
+      {dialog}
     </div>
   );
 }

@@ -49,12 +49,17 @@ export const agentRouter = createRouter({
       debt: shops.debt, gpsLat: shops.gpsLat, gpsLng: shops.gpsLng,
     })
       .from(shops)
-      .where(and(eq(shops.tenantId, ctx.tenant.id), eq(shops.status, "active")))
+      .where(and(eq(shops.tenantId, ctx.tenant.id), eq(shops.status, "active"), eq(shops.agentId, ctx.user.id)))
       .limit(500);
   }),
 
   saveLocation: fieldSalesQuery
-    .input(z.object({ lat: z.string(), lng: z.string(), accuracy: z.string().optional(), batteryLevel: z.number().optional() }))
+    .input(z.object({
+      lat: z.string().refine(v => { const n = Number(v); return Number.isFinite(n) && n >= -90 && n <= 90; }, "Широта должна быть от -90 до 90"),
+      lng: z.string().refine(v => { const n = Number(v); return Number.isFinite(n) && n >= -180 && n <= 180; }, "Долгота должна быть от -180 до 180"),
+      accuracy: z.string().optional(),
+      batteryLevel: z.number().optional(),
+    }))
     .mutation(async ({ input, ctx }) => {
       await getDb().insert(agentLocations).values({
         tenantId: ctx.tenant.id,
@@ -397,8 +402,8 @@ export const agentRouter = createRouter({
       city:      z.string().optional(),
       district:  z.string().optional(),
       photoUrl:  z.string().max(2_800_000, "Файл слишком большой (макс. 2 МБ)").optional(),
-      gpsLat:    z.string().optional(),
-      gpsLng:    z.string().optional(),
+      gpsLat:    z.string().refine(v => { const n = Number(v); return Number.isFinite(n) && n >= -90 && n <= 90; }, "Широта должна быть от -90 до 90").optional(),
+      gpsLng:    z.string().refine(v => { const n = Number(v); return Number.isFinite(n) && n >= -180 && n <= 180; }, "Долгота должна быть от -180 до 180").optional(),
       notes:     z.string().optional(),
       territoryId: z.number().optional(),
     }))
@@ -552,10 +557,15 @@ export const agentRouter = createRouter({
       .orderBy(desc(sql`DATE(${orders.createdAt})`));
 
     let streak = 0;
+    // Start from the most recent active day, not necessarily today
     for (let i = 0; i < streakData.length; i++) {
       const expectedDate = new Date(now.getTime() - i * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
       if (streakData[i]?.day === expectedDate && Number(streakData[i]?.count) > 0) {
         streak++;
+      } else if (i === 0 && streakData[0]?.day !== expectedDate) {
+        // Today has no orders yet — check if yesterday started a streak
+        // Skip the gap and start counting from the last active day
+        continue;
       } else {
         break;
       }

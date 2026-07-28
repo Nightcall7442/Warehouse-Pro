@@ -304,8 +304,12 @@ function SupervisorView({ kpi, selectedKpi, selectedSalary, detailLoading, onSel
   const [showSalaryConfig, setShowSalaryConfig] = useState(false);
   const [territoryFilter, setTerritoryFilter] = useState<string>("all");
   const { data: territories } = trpc.territory.list.useQuery();
+  const { data: territoryKpiData } = trpc.kpi.territoryKpi.useQuery(
+    { territoryId: Number(territoryFilter), period: "month" },
+    { enabled: territoryFilter !== "all" }
+  );
 
-  const filteredKpi = territoryFilter === "all" ? kpi : kpi.filter(() => true);
+  const filteredKpi = territoryFilter === "all" ? kpi : (territoryKpiData?.agents ?? []);
 
   const totalRevenue = filteredKpi.reduce((s, k) => s + k.revenue, 0);
   const totalOrders = filteredKpi.reduce((s, k) => s + k.orderCount, 0);

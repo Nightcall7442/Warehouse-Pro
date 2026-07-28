@@ -3,6 +3,8 @@ import { createRouter, fieldSalesQuery, supervisorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { calculateAgentKpi, calculateAllAgentsKpi, calculateSalary, getAgentList } from "./services/kpi";
 import { cache, CacheTTL } from "./lib/cache";
+import { shops } from "@db/schema";
+import { eq, and, sql } from "drizzle-orm";
 
 export const kpiRouter = createRouter({
   agentKpi: fieldSalesQuery
@@ -63,6 +65,60 @@ export const kpiRouter = createRouter({
       const { periodStart, periodEnd } = getPeriod(input.period);
 
       return calculateAgentKpi(db, input.agentId, ctx.tenant.id, periodStart, periodEnd);
+    }),
+
+  territoryKpi: supervisorQuery
+    .input(z.object({
+      territoryId: z.number().int().positive(),
+      period: z.enum(["week", "month", "quarter"]).default("month"),
+    }))
+    .query(async ({ input, ctx }) => {
+      const db = getDb();
+      const { periodStart, periodEnd } = getPeriod(input.period);
+
+      // Get unique agents in this territory
+      const territoryAgentRows = await db.select({ agentId: shops.agentId })
+        .from(shops)
+        .where(and(
+          eq(shops.tenantId, ctx.tenant.id),
+          eq(shops.territoryId, input.territoryId),
+          eq(shops.status, "active"),
+          sql`${shops.agentId} IS NOT NULL`,
+        ))
+        .groupBy(shops.agentId);
+
+      const agentIds = territoryAgentRows.map(r => r.agentId).filter(Boolean) as number[];
+
+      if (agentIds.length === 0) {
+        return {
+          territoryId: input.territoryId,
+          agentCount: 0,
+          avgScore: 0,
+          totalRevenue: 0,
+          totalOrders: 0,
+          totalVisits: 0,
+          agents: [],
+        };
+      }
+
+      const allKpi = await Promise.all(
+        agentIds.map(id => calculateAgentKpi(db, id, ctx.tenant.id, periodStart, periodEnd))
+      );
+
+      const totalRevenue = allKpi.reduce((s, k) => s + k.revenue, 0);
+      const totalOrders = allKpi.reduce((s, k) => s + k.orderCount, 0);
+      const totalVisits = allKpi.reduce((s, k) => s + k.visitedPlans, 0);
+      const avgScore = allKpi.length > 0 ? Math.round(allKpi.reduce((s, k) => s + k.kpiScore, 0) / allKpi.length) : 0;
+
+      return {
+        territoryId: input.territoryId,
+        agentCount: allKpi.length,
+        avgScore,
+        totalRevenue,
+        totalOrders,
+        totalVisits,
+        agents: allKpi.sort((a, b) => b.kpiScore - a.kpiScore),
+      };
     }),
 
   salary: fieldSalesQuery

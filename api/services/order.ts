@@ -1,6 +1,7 @@
 import { eq, and, desc, sql, isNull } from "drizzle-orm";
 import { orders, orderItems, warehouseStock, shops, users, products, notifications } from "@db/schema";
 import { cache, CacheKeys } from "../lib/cache";
+import { logger } from "../lib/logger";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -260,7 +261,9 @@ export const OrderService = {
         sendPushToRole(tenantId, "operator", pushMsg),
         sendPushToRole(tenantId, "supervisor", pushMsg),
       ]);
-    } catch { /* notification is non-critical */ }
+    } catch (e) {
+      logger.warn("Order notification failed", { error: String(e) });
+    }
 
     return { id: orderId, orderNumber };
   },
@@ -431,7 +434,9 @@ export const OrderService = {
           data: { type: "order.status_changed", orderId },
         }).catch(() => {});
       }
-    } catch { /* notification is non-critical */ }
+    } catch (e) {
+      logger.warn("Status change notification failed", { error: String(e) });
+    }
 
     return { success: true };
   },

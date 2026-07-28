@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createRouter, operatorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { shops, users, orders, payments, dailyPlans } from "@db/schema";
+import { shops, users, orders, payments, dailyPlans, territories } from "@db/schema";
 import { eq, like, and, sql, desc } from "drizzle-orm";
 import { sanitizeString, sanitizeSearch } from "./lib/sanitize";
 import { PaymentService } from "./services/payment";
@@ -9,33 +9,30 @@ import { cache, CacheKeys, CacheTTL } from "./lib/cache";
 
 export const shopRouter = createRouter({
   territories: operatorQuery.query(async ({ ctx }) => {
-    const tenantId = ctx.tenant.id;
-    const results = await getDb().select({
-      city: shops.city,
-      district: shops.district,
-      count: sql<number>`count(*)`,
+    const rows = await getDb().select({
+      id: territories.id,
+      name: territories.name,
+      color: territories.color,
+      shopCount: sql<number>`count(${shops.id})`,
       totalDebt: sql<string>`COALESCE(SUM(CAST(${shops.debt} AS DECIMAL)), 0)`,
     })
-      .from(shops)
-      .where(eq(shops.tenantId, tenantId))
-      .groupBy(shops.city, shops.district)
-      .orderBy(sql`count(*) DESC`);
-    return results.map(r => ({
-      city: r.city ?? "",
-      district: r.district ?? "",
-      count: Number(r.count),
-      totalDebt: Number(r.totalDebt),
-    }));
+      .from(territories)
+      .leftJoin(shops, eq(territories.id, shops.territoryId))
+      .where(eq(territories.tenantId, ctx.tenant.id))
+      .groupBy(territories.id)
+      .orderBy(sql`count(${shops.id}) DESC`);
+    return rows;
   }),
 
   list: operatorQuery
     .input(z.object({
       page:     z.number().default(1),
-      pageSize: z.number().min(1).max(10000).default(25),
-      search:   z.string().optional(),
-      city:     z.string().optional(),
-      district: z.string().optional(),
-      agentId:  z.number().optional(),
+      pageSize: z.number().min(1).max(500).default(25),
+      search:     z.string().optional(),
+      city:       z.string().optional(),
+      district:   z.string().optional(),
+      agentId:    z.number().optional(),
+      territoryId: z.number().optional(),
     }).optional())
     .query(async ({ input, ctx }) => {
       const db       = getDb();
@@ -52,7 +49,8 @@ export const shopRouter = createRouter({
       if (input?.search)   conditions.push(like(shops.name, `%${sanitizeSearch(input.search)}%`));
       if (input?.city)     conditions.push(eq(shops.city, input.city));
       if (input?.district) conditions.push(eq(shops.district, input.district));
-      if (input?.agentId)  conditions.push(eq(shops.agentId, input.agentId));
+      if (input?.agentId)    conditions.push(eq(shops.agentId, input.agentId));
+      if (input?.territoryId) conditions.push(eq(shops.territoryId, input.territoryId));
       const where = and(...conditions);
 
       const [data, countResult] = await Promise.all([

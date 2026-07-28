@@ -1,5 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useCallback, type ReactNode } from "react";
 import { trpc, trpcClient, queryClient } from "./trpc.client";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -9,17 +9,12 @@ export { trpc, queryClient };
 function SSEListener() {
   const { user } = useAuth();
   const esRef = useRef<EventSource | null>(null);
+  const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    if (!user) return;
-
-    const es = new EventSource("/api/events", { withCredentials: true });
-    esRef.current = es;
-
+  const attachListeners = useCallback((es: EventSource) => {
     es.addEventListener("notification.new", (e) => {
       try {
         const data = JSON.parse(e.data);
-        // Invalidate relevant queries based on event type
         if (data.type === "order.created" || data.type === "order.status_changed") {
           queryClient.invalidateQueries({ queryKey: [["order", "list"]] });
           queryClient.invalidateQueries({ queryKey: [["dashboard", "kpis"]] });
@@ -34,20 +29,31 @@ function SSEListener() {
     });
 
     es.onerror = () => {
-      // Reconnect after 5s
-      setTimeout(() => {
-        if (esRef.current === es) {
-          es.close();
-          esRef.current = new EventSource("/api/events", { withCredentials: true });
+      es.close();
+      // Reconnect after 5s with listeners re-attached
+      reconnectTimer.current = setTimeout(() => {
+        if (esRef.current !== null) {
+          const newEs = new EventSource("/api/events", { withCredentials: true });
+          esRef.current = newEs;
+          attachListeners(newEs);
         }
       }, 5000);
     };
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const es = new EventSource("/api/events", { withCredentials: true });
+    esRef.current = es;
+    attachListeners(es);
 
     return () => {
+      if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
       es.close();
       esRef.current = null;
     };
-  }, [user]);
+  }, [user, attachListeners]);
 
   return null;
 }

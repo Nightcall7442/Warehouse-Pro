@@ -3,7 +3,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { notify } from "@/lib/toast";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -105,12 +105,12 @@ export default function Orders() {
   const { fmt }             = useCurrency();
   const { lang }            = useLang();
   const [search, setSearch] = useState("");
-  const [status, setStatus] = useState("");
   const [showDeleted, setShowDeleted] = useState(false);
   const [dateFrom, setDateFrom] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
   const [dateTo, setDateTo] = useState(format(new Date(), "yyyy-MM-dd"));
   const isMobile            = useIsMobile();
   const navigate            = useNavigate();
+  const [searchParams]      = useSearchParams();
   const utils               = trpc.useUtils();
   const { user }            = useAuth();
   const isCeo               = user?.role === "ceo";
@@ -119,6 +119,8 @@ export default function Orders() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const { confirm, dialog } = useConfirm();
   const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);
+
+  const [status, setStatus] = useState(searchParams.get("status") ?? "");
 
   const { data, isLoading, isError, refetch } = trpc.order.list.useQuery({
     page, pageSize: 25,
@@ -129,7 +131,10 @@ export default function Orders() {
     dateTo: dateTo || undefined,
   });
 
-  const { data: allOrders } = trpc.order.list.useQuery({ page: 1, pageSize: 1000, showDeleted: false, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined });
+  const { data: allOrders, refetch: refetchAllOrders } = trpc.order.list.useQuery(
+    { page: 1, pageSize: 5000, showDeleted: false, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined },
+    { enabled: false }
+  );
 
   const updateStatus = trpc.order.updateStatus.useMutation({
     onSuccess: () => { utils.order.list.invalidate(); notify.success("Заказ обновлён"); },
@@ -148,25 +153,27 @@ export default function Orders() {
 
   // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const handleExport = useCallback(async () => {
-    if (!allOrders?.data) return;
-    await exportToExcel(formatOrdersForExport(allOrders.data), `orders-${dateFrom}-${dateTo}`, "Заказы", `Заказы ${dateFrom} — ${dateTo}`);
-  }, [allOrders?.data, dateFrom, dateTo]);
+    const result = await refetchAllOrders();
+    if (!result.data?.data) return;
+    await exportToExcel(formatOrdersForExport(result.data.data), `orders-${dateFrom}-${dateTo}`, "Заказы", `Заказы ${dateFrom} — ${dateTo}`);
+  }, [refetchAllOrders, dateFrom, dateTo]);
 
   // eslint-disable-next-line react-hooks/preserve-manual-memoization
-  const handleExportPDF = useCallback(() => {
-    if (!allOrders?.data) return;
+  const handleExportPDF = useCallback(async () => {
+    const result = await refetchAllOrders();
+    if (!result.data?.data) return;
     const fmtNum = (n: number) => n.toLocaleString("ru");
     let html = `<div class="section"><h2>Заказы за ${dateFrom} — ${dateTo}</h2>
       <table><thead><tr><th>№</th><th>Дата</th><th>Магазин</th><th>Агент</th><th>Статус</th><th class="right">Сумма</th></tr></thead><tbody>`;
-    for (const o of allOrders.data) {
+    for (const o of result.data.data) {
       const dateStr = o.createdAt ? format(new Date(o.createdAt), "dd.MM.yyyy") : "—";
       html += `<tr><td>${o.orderNumber}</td><td>${dateStr}</td><td>${o.shopName ?? "—"}</td><td>${o.agentName ?? "—"}</td><td>${o.status}</td><td class="right bold">${fmtNum(Number(o.total ?? 0))}</td></tr>`;
     }
     html += `</tbody></table></div>`;
-    const total = allOrders.data.reduce((s, o) => s + Number(o.total ?? 0), 0);
-    html += `<div style="margin-top:16px;text-align:right;font-size:14px;font-weight:700">Итого: ${fmtNum(total)} сум · ${allOrders.data.length} заказов</div>`;
+    const total = result.data.data.reduce((s: number, o: { total?: string | null }) => s + Number(o.total ?? 0), 0);
+    html += `<div style="margin-top:16px;text-align:right;font-size:14px;font-weight:700">Итого: ${fmtNum(total)} сум · ${result.data.data.length} заказов</div>`;
     exportToPDF(`Заказы ${dateFrom} — ${dateTo}`, html);
-  }, [allOrders?.data, dateFrom, dateTo]);
+  }, [refetchAllOrders, dateFrom, dateTo]);
 
   const handleNewOrder = useCallback(() => navigate("/orders/new"), [navigate]);
 
@@ -203,15 +210,16 @@ export default function Orders() {
   }, [updateStatus]);
 
   const handleExportSelected = useCallback(async () => {
-    if (!allOrders?.data) return;
-    const rows = allOrders.data.filter(o => selected.has(o.id as number));
+    const result = await refetchAllOrders();
+    if (!result.data?.data) return;
+    const rows = result.data.data.filter((o: { id: number }) => selected.has(o.id));
     if (rows.length === 0) return;
     await exportToExcel(formatOrdersForExport(rows), `orders-selected`, "Заказы", `Выбранные заказы`);
-  }, [allOrders?.data, selected]);
+  }, [refetchAllOrders, selected]);
 
-  /* ─── Compute KPI stats from allOrders ─── */
+  /* ─── Compute KPI stats from current page data ─── */
   const stats = useMemo(() => {
-    const orders = allOrders?.data ?? [];
+    const orders = data?.data ?? [];
     const total = orders.length;
     const newCount = orders.filter(o => o.status === "new").length;
     const processingCount = orders.filter(o => o.status === "processing").length;
@@ -219,7 +227,7 @@ export default function Orders() {
     const cancelledCount = orders.filter(o => o.status === "cancelled").length;
     const totalRevenue = orders.reduce((sum, o) => sum + Number(o.total ?? 0), 0);
     return { total, newCount, processingCount, completedCount, cancelledCount, totalRevenue };
-  }, [allOrders?.data]);
+  }, [data?.data]);
 
   if (isError) return <QueryErrorFallback onRetry={refetch} />;
 

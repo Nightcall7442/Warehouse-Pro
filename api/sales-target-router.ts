@@ -12,6 +12,7 @@ export const salesTargetRouter = createRouter({
     .input(z.object({
       periodType: z.enum(["daily", "weekly", "monthly"]).optional(),
       userId: z.number().optional(),
+      territoryId: z.number().optional(),
       dateFrom: z.string().optional(),
       dateTo: z.string().optional(),
     }).optional())
@@ -21,6 +22,7 @@ export const salesTargetRouter = createRouter({
 
       if (input?.periodType) conditions.push(eq(salesTargets.periodType, input.periodType));
       if (input?.userId) conditions.push(eq(salesTargets.userId, input.userId));
+      if (input?.territoryId) conditions.push(eq(salesTargets.territoryId, input.territoryId));
       if (input?.dateFrom) conditions.push(gte(salesTargets.periodStart, input.dateFrom));
       if (input?.dateTo) conditions.push(lte(salesTargets.periodEnd, input.dateTo));
 
@@ -29,6 +31,7 @@ export const salesTargetRouter = createRouter({
         userId: salesTargets.userId,
         userName: users.name,
         shopId: salesTargets.shopId,
+        territoryId: salesTargets.territoryId,
         periodType: salesTargets.periodType,
         periodStart: salesTargets.periodStart,
         periodEnd: salesTargets.periodEnd,
@@ -51,6 +54,7 @@ export const salesTargetRouter = createRouter({
       id: z.number().optional(),
       userId: z.number(),
       shopId: z.number().optional(),
+      territoryId: z.number().optional(),
       periodType: z.enum(["daily", "weekly", "monthly"]),
       periodStart: z.string(),
       periodEnd: z.string(),
@@ -79,6 +83,7 @@ export const salesTargetRouter = createRouter({
         tenantId: ctx.tenant.id,
         userId: input.userId,
         shopId: input.shopId ?? null,
+        territoryId: input.territoryId ?? null,
         periodType: input.periodType,
         periodStart: input.periodStart,
         periodEnd: input.periodEnd,

@@ -78,6 +78,9 @@ export const territories = mysqlTable("territories", {
   tenantId:  bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
   name:      varchar("name", { length: 255 }).notNull(),
   color:     varchar("color", { length: 7 }),
+  centerLat: decimal("center_lat", { precision: 10, scale: 8 }),
+  centerLng: decimal("center_lng", { precision: 11, scale: 8 }),
+  radiusKm:  decimal("radius_km", { precision: 6, scale: 2 }).default("10.00"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
 }, (t) => ({
@@ -523,6 +526,30 @@ export type DailyPlan       = typeof dailyPlans.$inferSelect;
 export type InsertDailyPlan = typeof dailyPlans.$inferInsert;
 
 // ============================================
+// VISIT SCHEDULES — recurring visit templates
+// ============================================
+export const visitSchedules = mysqlTable("visit_schedules", {
+  id:        serial("id").primaryKey(),
+  tenantId:  bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  agentId:   bigint("agent_id", { mode: "number", unsigned: true }).notNull().references(() => users.id, { onDelete: "restrict" }),
+  shopId:    bigint("shop_id", { mode: "number", unsigned: true }).notNull().references(() => shops.id, { onDelete: "restrict" }),
+  dayOfWeek: tinyint("day_of_week").notNull(), // 0=Sunday, 1=Monday, ..., 6=Saturday
+  active:    boolean("active").default(true).notNull(),
+  createdBy: bigint("created_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
+}, (t) => ({
+  tenantIdx:     index("idx_schedules_tenant").on(t.tenantId),
+  agentIdx:      index("idx_schedules_agent").on(t.agentId),
+  shopIdx:       index("idx_schedules_shop").on(t.shopId),
+  tenantAgentIdx: index("idx_schedules_tenant_agent").on(t.tenantId, t.agentId),
+  uniqueEntry:   unique("uq_schedule_agent_shop_day").on(t.agentId, t.shopId, t.dayOfWeek),
+}));
+
+export type VisitSchedule       = typeof visitSchedules.$inferSelect;
+export type InsertVisitSchedule = typeof visitSchedules.$inferInsert;
+
+// ============================================
 // SALES TARGETS — планы продаж (план/факт)
 // ============================================
 export const salesTargets = mysqlTable("sales_targets", {
@@ -530,6 +557,7 @@ export const salesTargets = mysqlTable("sales_targets", {
   tenantId:     bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
   userId:       bigint("user_id", { mode: "number", unsigned: true }).notNull().references(() => users.id, { onDelete: "restrict" }),
   shopId:       bigint("shop_id", { mode: "number", unsigned: true }).references(() => shops.id, { onDelete: "restrict" }),
+  territoryId:  bigint("territory_id", { mode: "number", unsigned: true }).references(() => territories.id, { onDelete: "restrict" }),
   periodType:   mysqlEnum("period_type", ["daily", "weekly", "monthly"]).default("monthly").notNull(),
   periodStart:  date("period_start").notNull(),
   periodEnd:    date("period_end").notNull(),
@@ -546,6 +574,7 @@ export const salesTargets = mysqlTable("sales_targets", {
   tenantIdx: index("idx_sales_targets_tenant").on(t.tenantId),
   userPeriodIdx: index("idx_sales_targets_user_period").on(t.userId, t.periodType, t.periodStart),
   tenantPeriodIdx: index("idx_sales_targets_tenant_period").on(t.tenantId, t.periodType, t.periodStart),
+  territoryIdx: index("idx_sales_targets_territory").on(t.territoryId),
 }));
 
 export type SalesTarget       = typeof salesTargets.$inferSelect;

@@ -27,13 +27,14 @@ export default function Shops() {
   const [city, setCity] = useState<string | undefined>(undefined);
   const [district, setDistrict] = useState<string | undefined>(undefined);
   const [agentFilter, setAgentFilter] = useState<string | undefined>(undefined);
+  const [territoryFilter, setTerritoryFilter] = useState<number | undefined>(undefined);
   const [showForm, setShowForm] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showTerritoryManager, setShowTerritoryManager] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [viewMode, setViewMode] = useState<"territories" | "list">("territories");
 
-  const { data, isLoading, isError, refetch } = trpc.shop.list.useQuery({ page, pageSize: 25, search: search || undefined, city, district, agentId: agentFilter ? Number(agentFilter) : undefined });
+  const { data, isLoading, isError, refetch } = trpc.shop.list.useQuery({ page, pageSize: 25, search: search || undefined, city, district, agentId: agentFilter ? Number(agentFilter) : undefined, territoryId: territoryFilter });
   const { data: allShopsData, refetch: refetchAllShops } = trpc.shop.list.useQuery({ page: 1, pageSize: 5000 }, { enabled: false });
   const { data: territories } = trpc.shop.territories.useQuery();
   const { data: realTerritories } = trpc.territory.list.useQuery();
@@ -98,6 +99,7 @@ export default function Shops() {
   const resetFilters = useCallback(async () => {
     setCity(undefined);
     setDistrict(undefined);
+    setTerritoryFilter(undefined);
     setSearch("");
     setPage(1);
   }, []);
@@ -213,17 +215,17 @@ export default function Shops() {
       />
 
       {/* Territories grid */}
-      {viewMode === "territories" && !city && !district && (
+      {viewMode === "territories" && !territoryFilter && (
         <TerritoriesGrid
           territories={territories ?? []}
           totalShops={data?.total ?? 0}
           lang={lang} fmt={fmt}
           onSelectAll={() => setViewMode("list")}
-          onSelectTerritory={(c, d) => { setCity(c); setDistrict(d); setViewMode("list"); setPage(1); }}
+          onSelectTerritory={(territoryId) => { setTerritoryFilter(territoryId); setViewMode("list"); setPage(1); }}
         />
       )}
 
-      {(viewMode === "list" || city || district) && (
+      {(viewMode === "list" || city || district || territoryFilter) && (
         <>
           {(city || district) && (
             <CityBreadcrumb city={city} district={district} total={data?.total ?? 0} lang={lang} />

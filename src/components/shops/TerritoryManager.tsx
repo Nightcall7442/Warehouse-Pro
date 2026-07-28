@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X, Pencil, Trash2, Loader2, Plus } from "lucide-react";
+import { X, Pencil, Trash2, Loader2, Plus, MapPin } from "lucide-react";
 import { trpc } from "@/providers/trpc.client";
 import { notify } from "@/lib/toast";
 import { COLORS, SHADOW, F } from "./constants";
@@ -16,17 +16,27 @@ export function TerritoryManager({ lang, onClose }: TerritoryManagerProps) {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
   const [editColor, setEditColor] = useState("#5b6d8a");
+  const [editLat, setEditLat] = useState("");
+  const [editLng, setEditLng] = useState("");
+  const [editRadius, setEditRadius] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState("#5b6d8a");
+  const [newLat, setNewLat] = useState("");
+  const [newLng, setNewLng] = useState("");
+  const [newRadius, setNewRadius] = useState("10");
 
   const createMutation = trpc.territory.create.useMutation({
     onSuccess: () => {
       utils.territory.list.invalidate();
+      utils.shop.territories.invalidate();
       notify.success(t("Территория создана", "Territoriya yaratildi"));
       setShowCreate(false);
       setNewName("");
+      setNewLat("");
+      setNewLng("");
+      setNewRadius("10");
     },
     onError: (e) => notify.error(e.message),
   });
@@ -34,6 +44,7 @@ export function TerritoryManager({ lang, onClose }: TerritoryManagerProps) {
   const updateMutation = trpc.territory.update.useMutation({
     onSuccess: () => {
       utils.territory.list.invalidate();
+      utils.shop.territories.invalidate();
       notify.success(t("Территория обновлена", "Territoriya yangilandi"));
       setEditingId(null);
     },
@@ -43,20 +54,39 @@ export function TerritoryManager({ lang, onClose }: TerritoryManagerProps) {
   const deleteMutation = trpc.territory.delete.useMutation({
     onSuccess: () => {
       utils.territory.list.invalidate();
+      utils.shop.territories.invalidate();
       notify.success(t("Территория удалена", "Territoriya o'chirildi"));
       setDeleteConfirm(null);
     },
     onError: (e) => notify.error(e.message),
   });
 
+  const autoAssignMutation = trpc.territory.autoAssign.useMutation({
+    onSuccess: (data) => {
+      utils.territory.list.invalidate();
+      utils.shop.list.invalidate();
+      notify.success(t(`Назначено ${data.assigned} из ${data.total} магазинов`, `${data.assigned} / ${data.total} do'kon tayinlandi`));
+    },
+    onError: (e) => notify.error(e.message),
+  });
+
   const PRESET_COLORS = ["#5b6d8a", "#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4"];
+
+  const startEditing = (ter: { id: number; name: string; color?: string | null; centerLat?: string | null; centerLng?: string | null; radiusKm?: string | null }) => {
+    setEditingId(ter.id);
+    setEditName(ter.name);
+    setEditColor(ter.color || "#5b6d8a");
+    setEditLat(ter.centerLat ?? "");
+    setEditLng(ter.centerLng ?? "");
+    setEditRadius(ter.radiusKm ?? "");
+  };
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)" }} onClick={onClose} />
       <div style={{
         position: "relative", background: COLORS.surface, borderRadius: "20px", padding: "24px",
-        boxShadow: SHADOW, width: "440px", maxWidth: "90vw", maxHeight: "80vh", display: "flex", flexDirection: "column",
+        boxShadow: SHADOW, width: "480px", maxWidth: "90vw", maxHeight: "80vh", display: "flex", flexDirection: "column",
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
           <h3 style={{ fontFamily: F.display, fontSize: "16px", fontWeight: 600, color: COLORS.textPrimary, margin: 0 }}>
@@ -80,7 +110,17 @@ export function TerritoryManager({ lang, onClose }: TerritoryManagerProps) {
               ))}
             </div>
             <div style={{ display: "flex", gap: "8px" }}>
-              <button onClick={() => newName.trim() && createMutation.mutate({ name: newName.trim(), color: newColor })}
+              <input className="neo-input" type="number" step="any" placeholder={t("Широта", "Kenglik")} value={newLat} onChange={e => setNewLat(e.target.value)} style={{ flex: 1 }} />
+              <input className="neo-input" type="number" step="any" placeholder={t("Долгота", "Uzunlik")} value={newLng} onChange={e => setNewLng(e.target.value)} style={{ flex: 1 }} />
+              <input className="neo-input" type="number" step="any" placeholder={t("Радиус км", "Radius km")} value={newRadius} onChange={e => setNewRadius(e.target.value)} style={{ width: "80px" }} />
+            </div>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button onClick={() => newName.trim() && createMutation.mutate({
+                name: newName.trim(), color: newColor,
+                centerLat: newLat ? Number(newLat) : undefined,
+                centerLng: newLng ? Number(newLng) : undefined,
+                radiusKm: newRadius ? Number(newRadius) : undefined,
+              })}
                 disabled={!newName.trim() || createMutation.isPending}
                 className="neo-btn-primary" style={{ flex: 1, fontSize: "12px", padding: "8px" }}>
                 {createMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : t("Создать", "Yaratish")}
@@ -100,15 +140,15 @@ export function TerritoryManager({ lang, onClose }: TerritoryManagerProps) {
               {t("Нет территорий", "Territoriyalar yo'q")}
             </div>
           ) : (
-            territories.map((ter: { id: number; name: string; color?: string | null; shopCount?: number }) => (
+            territories.map((ter: { id: number; name: string; color?: string | null; shopCount?: number; centerLat?: string | null; centerLng?: string | null; radiusKm?: string | null }) => (
               <div key={ter.id} style={{
                 display: "flex", alignItems: "center", gap: "8px",
                 padding: "8px 12px", borderRadius: "10px",
                 background: deleteConfirm === ter.id ? "rgba(212,80,80,0.06)" : "transparent",
               }}>
                 {editingId === ter.id ? (
-                  <>
-                    <input className="neo-input" style={{ flex: 1, padding: "4px 8px", fontSize: "13px" }} value={editName} onChange={e => setEditName(e.target.value)}
+                  <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <input className="neo-input" style={{ padding: "4px 8px", fontSize: "13px" }} value={editName} onChange={e => setEditName(e.target.value)}
                       onKeyDown={e => { if (e.key === "Enter" && editName.trim()) updateMutation.mutate({ id: ter.id, name: editName.trim(), color: editColor }); if (e.key === "Escape") setEditingId(null); }} autoFocus />
                     <div style={{ display: "flex", gap: "4px" }}>
                       {PRESET_COLORS.slice(0, 4).map(c => (
@@ -117,11 +157,37 @@ export function TerritoryManager({ lang, onClose }: TerritoryManagerProps) {
                         }} />
                       ))}
                     </div>
-                  </>
+                    <div style={{ display: "flex", gap: "6px" }}>
+                      <input className="neo-input" type="number" step="any" placeholder={t("Широта", "Kenglik")} value={editLat} onChange={e => setEditLat(e.target.value)} style={{ flex: 1, padding: "4px 8px", fontSize: "12px" }} />
+                      <input className="neo-input" type="number" step="any" placeholder={t("Долгота", "Uzunlik")} value={editLng} onChange={e => setEditLng(e.target.value)} style={{ flex: 1, padding: "4px 8px", fontSize: "12px" }} />
+                      <input className="neo-input" type="number" step="any" placeholder={t("Радиус", "Radius")} value={editRadius} onChange={e => setEditRadius(e.target.value)} style={{ width: "70px", padding: "4px 8px", fontSize: "12px" }} />
+                    </div>
+                    <div style={{ display: "flex", gap: "4px" }}>
+                      <button onClick={() => editName.trim() && updateMutation.mutate({
+                        id: ter.id, name: editName.trim(), color: editColor,
+                        centerLat: editLat ? Number(editLat) : undefined,
+                        centerLng: editLng ? Number(editLng) : undefined,
+                        radiusKm: editRadius ? Number(editRadius) : undefined,
+                      })} disabled={updateMutation.isPending}
+                        className="neo-btn-primary" style={{ flex: 1, fontSize: "11px", padding: "4px" }}>
+                        {updateMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : t("Сохранить", "Saqlash")}
+                      </button>
+                      <button onClick={() => setEditingId(null)} className="neo-btn" style={{ fontSize: "11px", padding: "4px" }}>
+                        {t("Отмена", "Bekor")}
+                      </button>
+                    </div>
+                  </div>
                 ) : (
                   <>
                     <div style={{ width: "12px", height: "12px", borderRadius: "3px", background: ter.color || COLORS.primary, flexShrink: 0 }} />
-                    <span style={{ flex: 1, fontSize: "13px", color: COLORS.textPrimary }}>{ter.name}</span>
+                    <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+                      <span style={{ fontSize: "13px", color: COLORS.textPrimary }}>{ter.name}</span>
+                      {ter.centerLat && ter.centerLng && (
+                        <span style={{ fontSize: "10px", color: COLORS.textTertiary }}>
+                          GPS: {Number(ter.centerLat).toFixed(4)}, {Number(ter.centerLng).toFixed(4)} ({ter.radiusKm || 10} km)
+                        </span>
+                      )}
+                    </div>
                     {ter.shopCount > 0 && <span style={{ fontSize: "11px", color: COLORS.textSecondary }}>{ter.shopCount} {t("магазин(ов)", "do'kon(lar)")}</span>}
                   </>
                 )}
@@ -139,7 +205,7 @@ export function TerritoryManager({ lang, onClose }: TerritoryManagerProps) {
                   </div>
                 ) : editingId !== ter.id && (
                   <div style={{ display: "flex", gap: "2px" }}>
-                    <button onClick={() => { setEditingId(ter.id); setEditName(ter.name); setEditColor(ter.color || "#5b6d8a"); }}
+                    <button onClick={() => startEditing(ter)}
                       style={{ background: "none", border: "none", cursor: "pointer", padding: "4px", borderRadius: "6px" }}>
                       <Pencil size={14} style={{ color: COLORS.textSecondary }} />
                     </button>
@@ -154,11 +220,18 @@ export function TerritoryManager({ lang, onClose }: TerritoryManagerProps) {
           )}
         </div>
 
-        {!showCreate && (
-          <button onClick={() => setShowCreate(true)} className="neo-btn" style={{ marginTop: "12px", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", fontSize: "13px" }}>
-            <Plus size={14} /> {t("Добавить территорию", "Territoriya qo'shish")}
+        <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
+          {!showCreate && (
+            <button onClick={() => setShowCreate(true)} className="neo-btn" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", fontSize: "13px" }}>
+              <Plus size={14} /> {t("Добавить территорию", "Territoriya qo'shish")}
+            </button>
+          )}
+          <button onClick={() => autoAssignMutation.mutate()} disabled={autoAssignMutation.isPending}
+            className="neo-btn" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", fontSize: "13px" }}>
+            {autoAssignMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <MapPin size={14} />}
+            {t("Авто-назначение", "Avtotayinlash")}
           </button>
-        )}
+        </div>
       </div>
     </div>
   );
