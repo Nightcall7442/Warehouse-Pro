@@ -97,7 +97,7 @@ export const OrderService = {
     return { data, total: Number(countResult[0]?.count ?? 0) };
   },
 
-  async create(db: Db, tenantId: number, agentId: number, input: { shopId: number; items: Array<{ productId: number; quantity: string }>; notes?: string; discount?: string; idempotencyKey?: string; paymentMethod?: "cash" | "card" | "transfer" | "debt" }) {
+  async create(db: Db, tenantId: number, agentId: number, input: { shopId: number; warehouseId?: number; items: Array<{ productId: number; quantity: string }>; notes?: string; discount?: string; idempotencyKey?: string; paymentMethod?: "cash" | "card" | "transfer" | "debt" }) {
     const discount = Number(input.discount ?? "0");
 
     // #FIX1-IDEMPOTENCY: Check for existing order with same key
@@ -155,11 +155,15 @@ export const OrderService = {
       const total = subtotal - discount;
 
       // SELECT stock rows with row-level locking to prevent race conditions
+      const stockConditions = [
+        sql`${warehouseStock.productId} IN (${sql.join(input.items.map(i => sql`${i.productId}`), sql`, `)})`,
+        eq(warehouseStock.tenantId, tenantId),
+      ];
+      if (input.warehouseId) {
+        stockConditions.push(eq(warehouseStock.warehouseId, input.warehouseId));
+      }
       const stockRows = await tx.select().from(warehouseStock)
-        .where(and(
-          sql`${warehouseStock.productId} IN (${sql.join(input.items.map(i => sql`${i.productId}`), sql`, `)})`,
-          eq(warehouseStock.tenantId, tenantId),
-        ))
+        .where(and(...stockConditions))
         .for("update");
 
       const stockMap = new Map<number, typeof stockRows[number]>();

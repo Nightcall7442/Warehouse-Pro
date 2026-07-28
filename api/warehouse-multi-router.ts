@@ -90,6 +90,7 @@ export const warehouseMultiRouter = createRouter({
 
       // Use parameterized Drizzle sql templates to prevent SQL injection
       const searchCondition = search ? sql`AND p.name LIKE ${"%" + search + "%"}` : sql``;
+      const warehouseCondition = input?.warehouseId ? sql`AND ws.warehouse_id = ${input.warehouseId}` : sql``;
 
       const dataQuery = sql`
         SELECT COALESCE(ws.id, 0) AS id, p.id AS productId,
@@ -101,7 +102,7 @@ export const warehouseMultiRouter = createRouter({
                p.unit_price AS unitPrice, p.cost_price AS costPrice,
                p.reorder_point AS reorderPoint
         FROM products p
-        LEFT JOIN warehouse_stock ws ON ws.product_id = p.id AND ws.tenant_id = p.tenant_id
+        LEFT JOIN warehouse_stock ws ON ws.product_id = p.id AND ws.tenant_id = p.tenant_id ${warehouseCondition}
         WHERE p.tenant_id = ${tenantId} AND p.status = 'active' ${searchCondition}
         ORDER BY p.name
         LIMIT ${pageSize} OFFSET ${offset}
@@ -118,7 +119,7 @@ export const warehouseMultiRouter = createRouter({
                COALESCE(SUM(CAST(COALESCE(ws.current_stock, '0') AS DECIMAL) * CAST(COALESCE(p.unit_weight, '0') AS DECIMAL)), 0) AS totalWeight,
                COUNT(CASE WHEN CAST(COALESCE(ws.available, '0') AS DECIMAL) < CAST(p.reorder_point AS DECIMAL) THEN 1 END) AS lowStockCount
         FROM products p
-        LEFT JOIN warehouse_stock ws ON ws.product_id = p.id AND ws.tenant_id = p.tenant_id
+        LEFT JOIN warehouse_stock ws ON ws.product_id = p.id AND ws.tenant_id = p.tenant_id ${warehouseCondition}
         WHERE p.tenant_id = ${tenantId} AND p.status = 'active' ${searchCondition}
       `;
 

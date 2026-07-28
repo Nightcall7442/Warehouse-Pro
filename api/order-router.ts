@@ -38,6 +38,7 @@ export const orderRouter = createRouter({
     .input(z.object({
       shopId:         z.number().int().positive(),
       agentId:        z.number().int().positive().optional(),
+      warehouseId:    z.number().int().positive().optional(),
       idempotencyKey: z.string().uuid().optional(),
       items:          z.array(z.object({
         productId: z.number().int().positive(),

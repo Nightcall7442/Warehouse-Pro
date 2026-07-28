@@ -376,7 +376,7 @@ export const warehouseStock = mysqlTable("warehouse_stock", {
   reorderPoint: decimal("reorder_point", { precision: 12, scale: 2 }).default("0.00").notNull(),
   updatedAt:    timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
 }, (t) => ({
-  productPerTenant: uniqueIndex("uq_stock_product_tenant").on(t.productId, t.tenantId),
+  productWarehouseTenant: uniqueIndex("uq_stock_product_warehouse_tenant").on(t.productId, t.warehouseId, t.tenantId),
   tenantIdx:        index("idx_stock_tenant").on(t.tenantId),
   warehouseIdx:     index("idx_stock_warehouse").on(t.warehouseId),
 }));
