@@ -6,6 +6,7 @@ import { eq, like, and, sql, desc } from "drizzle-orm";
 import { sanitizeString, sanitizeSearch } from "./lib/sanitize";
 import { PaymentService } from "./services/payment";
 import { cache, CacheKeys, CacheTTL } from "./lib/cache";
+import { parseLocationFromUrl } from "./lib/parse-location";
 
 export const shopRouter = createRouter({
   territories: operatorQuery.query(async ({ ctx }) => {
@@ -124,12 +125,25 @@ export const shopRouter = createRouter({
       photoUrl: z.string().max(2_800_000, "Файл слишком большой (макс. 2 МБ)").optional(),
       gpsLat:   z.string().optional(),
       gpsLng:   z.string().optional(),
+      telegramLink: z.string().optional(),
       agentId:  z.number().optional(),
       territoryId: z.number().optional(),
       notes:    z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
+
+      // Parse GPS from Telegram link if provided and no manual GPS
+      let gpsLat = input.gpsLat;
+      let gpsLng = input.gpsLng;
+      if (input.telegramLink && !gpsLat && !gpsLng) {
+        const parsed = parseLocationFromUrl(input.telegramLink);
+        if (parsed) {
+          gpsLat = parsed.lat.toFixed(8);
+          gpsLng = parsed.lng.toFixed(8);
+        }
+      }
+
       const sanitized = {
         ...input,
         name: sanitizeString(input.name),
@@ -138,8 +152,12 @@ export const shopRouter = createRouter({
         city: input.city ? sanitizeString(input.city) : undefined,
         district: input.district ? sanitizeString(input.district) : undefined,
         notes: input.notes ? sanitizeString(input.notes) : undefined,
+        gpsLat,
+        gpsLng,
       };
-      const [result] = await db.insert(shops).values({ ...sanitized, tenantId: ctx.tenant.id, debt: "0.00", status: "active" });
+      // Remove telegramLink from DB insert (not a DB column)
+      const { telegramLink: _, ...dbData } = sanitized;
+      const [result] = await db.insert(shops).values({ ...dbData, tenantId: ctx.tenant.id, debt: "0.00", status: "active" });
       cache.invalidatePrefix(`shops:${ctx.tenant.id}`);
       cache.invalidate(CacheKeys.shopCities(ctx.tenant.id));
       return { id: Number(result.insertId) };

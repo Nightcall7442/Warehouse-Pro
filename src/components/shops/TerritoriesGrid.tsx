@@ -1,5 +1,5 @@
-import { Store, MapPin, AlertCircle } from "lucide-react";
-import { F, COLORS, SHADOW } from "./constants";
+import { Store, MapPin, AlertCircle, ChevronRight } from "lucide-react";
+import { F, COLORS } from "./constants";
 
 interface Territory { id: number; name: string; color: string | null; shopCount: number; totalDebt: string | null; }
 
@@ -9,76 +9,77 @@ export function TerritoriesGrid({ territories, totalShops, lang, fmt, onSelectAl
   onSelectAll: () => void; onSelectTerritory: (territoryId: number) => void;
 }) {
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
+
+  const rowStyle = (isHover: boolean) => ({
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+    padding: "10px 14px",
+    borderRadius: "10px",
+    cursor: "pointer" as const,
+    background: isHover ? COLORS.surfaceHover : "transparent",
+    transition: "background 0.15s",
+  });
+
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "16px" }}>
-      {/* All shops card */}
-      <div className="kpi-hero" style={{
-        borderRadius: "24px", padding: "24px", cursor: "pointer",
-        animation: "slideUp 0.4s ease forwards",
-        display: "flex", flexDirection: "column", justifyContent: "space-between",
-      }}
-      onClick={onSelectAll}
-      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = "translateY(-2px)"; (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 20px rgba(0,0,0,0.08)"; }}
-      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = "translateY(0)"; (e.currentTarget as HTMLElement).style.boxShadow = SHADOW; }}
+    <div style={{ background: COLORS.surface, borderRadius: "16px", boxShadow: "0 1px 3px rgba(0,0,0,0.06)", overflow: "hidden" }}>
+      {/* All shops row */}
+      <div
+        style={rowStyle(false)}
+        onClick={onSelectAll}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = COLORS.surfaceHover; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
-          <span style={{ fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: COLORS.textTertiary }}>
-            {t("ВСЕ МАГАЗИНЫ", "BARCHA DO'KONLAR")}
-          </span>
-          <div style={{ width: "44px", height: "44px", borderRadius: "12px", background: "linear-gradient(135deg, #5b6d8a, #5b6d8a)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Store size={20} color="#fff" />
-          </div>
+        <div style={{ width: "28px", height: "28px", borderRadius: "8px", background: "#5b6d8a", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <Store size={14} color="#fff" />
         </div>
-        <div style={{ fontFamily: F.display, fontSize: "32px", fontWeight: 700, color: COLORS.textPrimary, lineHeight: 1, letterSpacing: "-0.03em" }}>
-          {totalShops}
-        </div>
-        <span style={{ fontSize: "12px", color: COLORS.textSecondary, marginTop: "6px" }}>
-          {t("магазинов", "do'kon")}
+        <span style={{ flex: 1, fontSize: "13px", fontWeight: 600, color: COLORS.textPrimary, fontFamily: F.body }}>
+          {t("Все магазины", "Barcha do'konlar")}
         </span>
+        <span style={{ fontSize: "13px", fontWeight: 600, color: COLORS.textSecondary, fontFamily: F.body }}>
+          {totalShops}
+        </span>
+        <ChevronRight size={14} style={{ color: COLORS.textTertiary }} />
       </div>
 
-      {/* Territory cards */}
-      {territories.map((t_: Territory, i: number) => {
+      {/* Territory rows */}
+      {territories.map((t_: Territory) => {
         const debt = Number(t_.totalDebt ?? 0);
-        const bgColor = t_.color || "#5b6d8a";
+        const dotColor = t_.color || "#5b6d8a";
         return (
-          <div key={t_.id} className="kpi-hero" style={{
-            borderRadius: "24px", padding: "24px", cursor: "pointer",
-            animation: `slideUp ${0.4 + (i + 1) * 0.05}s ease forwards`,
-            display: "flex", flexDirection: "column", justifyContent: "space-between",
-          }}
-          onClick={() => onSelectTerritory(t_.id)}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = "translateY(-2px)"; (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 20px rgba(0,0,0,0.08)"; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = "translateY(0)"; (e.currentTarget as HTMLElement).style.boxShadow = SHADOW; }}
+          <div
+            key={t_.id}
+            style={rowStyle(false)}
+            onClick={() => onSelectTerritory(t_.id)}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = COLORS.surfaceHover; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
-              <span style={{ fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: COLORS.textTertiary }}>
-                {t_.name}
+            <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: dotColor, flexShrink: 0, marginLeft: "9px" }} />
+            <span style={{ flex: 1, fontSize: "13px", color: COLORS.textPrimary, fontFamily: F.body }}>
+              {t_.name}
+            </span>
+            {debt > 0 && (
+              <span style={{
+                display: "inline-flex", alignItems: "center", gap: "3px", fontSize: "11px", fontWeight: 600,
+                padding: "2px 7px", borderRadius: "9999px", background: "rgba(232,80,80,.12)",
+                color: "#d45050", fontFamily: F.body,
+              }}>
+                <AlertCircle size={9} />{fmt(debt, { decimals: 0 })}
               </span>
-              <div style={{ width: "44px", height: "44px", borderRadius: "12px", background: debt > 0 ? "linear-gradient(135deg, #d45050, #d45050)" : `linear-gradient(135deg, ${bgColor}, ${bgColor})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <MapPin size={20} color="#fff" />
-              </div>
-            </div>
-            <div style={{ fontFamily: F.display, fontSize: "32px", fontWeight: 700, color: COLORS.textPrimary, lineHeight: 1, letterSpacing: "-0.03em" }}>
+            )}
+            <span style={{ fontSize: "13px", color: COLORS.textSecondary, fontFamily: F.body }}>
               {t_.shopCount}
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "6px" }}>
-              <span style={{ fontSize: "12px", color: COLORS.textSecondary }}>
-                {t("магазинов", "do'kon")}
-              </span>
-              {debt > 0 && (
-                <span style={{
-                  display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", fontWeight: 600,
-                  padding: "2px 8px", borderRadius: "9999px", background: "rgba(232,80,80,.15)",
-                  color: "#d45050", fontFamily: F.body, marginLeft: "auto",
-                }}>
-                  <AlertCircle size={10} />{fmt(debt, { decimals: 0 })}
-                </span>
-              )}
-            </div>
+            </span>
+            <ChevronRight size={14} style={{ color: COLORS.textTertiary }} />
           </div>
         );
       })}
+
+      {territories.length === 0 && (
+        <div style={{ padding: "20px", textAlign: "center", color: COLORS.textTertiary, fontSize: "13px" }}>
+          {t("Нет территорий", "Territoriyalar yo'q")}
+        </div>
+      )}
     </div>
   );
 }

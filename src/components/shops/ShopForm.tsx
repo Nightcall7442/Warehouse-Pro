@@ -1,10 +1,10 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useCallback } from "react";
 import { notify } from "@/lib/toast";
-import { Store, Camera, Loader2, X } from "lucide-react";
+import { Store, Camera, Loader2, X, MapPin } from "lucide-react";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { F, COLORS, SHADOW } from "./constants";
 
-export interface ShopFormData { name: string; ownerName: string; phone: string; address: string; city: string; district: string; agentId: number | undefined; territoryId: number | undefined; notes: string; photoUrl?: string; }
+export interface ShopFormData { name: string; ownerName: string; phone: string; address: string; city: string; district: string; agentId: number | undefined; territoryId: number | undefined; notes: string; photoUrl?: string; telegramLink?: string; gpsLat?: string; gpsLng?: string; }
 export interface AgentOption { id: number; name: string; }
 export interface TerritoryOption { id: number; name: string; color?: string | null; }
 
@@ -13,8 +13,64 @@ export function ShopForm({ onSave, onCancel, isPending, lang, agents, territorie
 }) {
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const [d, setD] = useState({ name: "", ownerName: "", phone: "", address: "", city: "", district: "", agentId: "", territoryId: "", notes: "" });
+  const [telegramLink, setTelegramLink] = useState("");
+  const [parsedGps, setParsedGps] = useState<{ lat: number; lng: number } | null>(null);
   const [photo, setPhoto] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const parseGpsFromLink = useCallback((link: string) => {
+    if (!link.trim()) { setParsedGps(null); return; }
+    // Try to parse GPS from various URL formats
+    try {
+      const url = new URL(link.trim());
+      // Google Maps: ?q=lat,lng
+      const q = url.searchParams.get("q") || url.searchParams.get("query");
+      if (q) {
+        const parts = q.split(",").map(Number);
+        if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1]) && Math.abs(parts[0]) <= 90 && Math.abs(parts[1]) <= 180) {
+          setParsedGps({ lat: parts[0], lng: parts[1] });
+          return;
+        }
+      }
+      // Yandex Maps: ?pt=lng,lat
+      const pt = url.searchParams.get("pt");
+      if (pt) {
+        const parts = pt.split(",").map(Number);
+        if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1]) && Math.abs(parts[1]) <= 90 && Math.abs(parts[0]) <= 180) {
+          setParsedGps({ lat: parts[1], lng: parts[0] });
+          return;
+        }
+      }
+      // Telegram share: ?url=<encoded>
+      const innerUrl = url.searchParams.get("url");
+      if (innerUrl) {
+        parseGpsFromLink(decodeURIComponent(innerUrl));
+        return;
+      }
+      // Google Maps @lat,lng in path
+      const atMatch = link.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+      if (atMatch) {
+        const lat = parseFloat(atMatch[1]);
+        const lng = parseFloat(atMatch[2]);
+        if (Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+          setParsedGps({ lat, lng });
+          return;
+        }
+      }
+    } catch {
+      // Not a valid URL — try regex
+      const fallback = link.match(/(-?\d+\.\d{4,})\s*[,;]\s*(-?\d+\.\d{4,})/);
+      if (fallback) {
+        const lat = parseFloat(fallback[1]);
+        const lng = parseFloat(fallback[2]);
+        if (Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+          setParsedGps({ lat, lng });
+          return;
+        }
+      }
+    }
+    setParsedGps(null);
+  }, []);
   const handlePhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return;
     if (file.size > 2 * 1024 * 1024) { notify.error("Макс. 2 МБ"); return; }
@@ -64,6 +120,17 @@ export function ShopForm({ onSave, onCancel, isPending, lang, agents, territorie
           <input className="neo-input" placeholder={t("Город", "Shahar")} value={d.city} onChange={e => setD({ ...d, city: e.target.value })} />
           <input className="neo-input" placeholder={t("Район", "Tuman")} value={d.district} onChange={e => setD({ ...d, district: e.target.value })} />
           <input className="neo-input" placeholder={t("Адрес", "Manzil")} value={d.address} onChange={e => setD({ ...d, address: e.target.value })} />
+          <div style={{ gridColumn: "span 2", position: "relative" }}>
+            <input className="neo-input" placeholder={t("Telegram ссылка (для GPS)", "Telegram havolasi (GPS uchun)")} value={telegramLink}
+              onChange={e => { setTelegramLink(e.target.value); parseGpsFromLink(e.target.value); }}
+              style={{ paddingRight: parsedGps ? "32px" : undefined }} />
+            {parsedGps && (
+              <div style={{ position: "absolute", right: "8px", top: "50%", transform: "translateY(-50%)", display: "flex", alignItems: "center", gap: "4px" }}>
+                <MapPin size={14} style={{ color: COLORS.success }} />
+                <span style={{ fontSize: "10px", color: COLORS.success }}>{parsedGps.lat.toFixed(4)}, {parsedGps.lng.toFixed(4)}</span>
+              </div>
+            )}
+          </div>
           {agents.length > 0 && (
             <PremiumSelect value={d.agentId} onChange={v => setD({ ...d, agentId: v })}
               options={[{ value: "", label: t("— Агент —", "— Agent —") }, ...(agents ?? []).map((a: AgentOption) => ({ value: String(a.id), label: String(a.name) }))]}
@@ -78,7 +145,7 @@ export function ShopForm({ onSave, onCancel, isPending, lang, agents, territorie
         </div>
       </div>
       <div style={{ display: "flex", gap: "12px", marginTop: "20px" }}>
-        <button onClick={() => d.name && onSave({ ...d, agentId: d.agentId ? Number(d.agentId) : undefined, territoryId: d.territoryId ? Number(d.territoryId) : undefined, photoUrl: photo ?? undefined } as ShopFormData)}
+        <button onClick={() => d.name && onSave({ ...d, agentId: d.agentId ? Number(d.agentId) : undefined, territoryId: d.territoryId ? Number(d.territoryId) : undefined, photoUrl: photo ?? undefined, telegramLink: telegramLink || undefined, gpsLat: parsedGps ? String(parsedGps.lat) : undefined, gpsLng: parsedGps ? String(parsedGps.lng) : undefined } as ShopFormData)}
           disabled={isPending} className="neo-btn-primary flex-1 sm:flex-none flex items-center justify-center gap-2">
           {isPending && <Loader2 size={14} className="animate-spin" />}{t("Сохранить", "Saqlash")}
         </button>
