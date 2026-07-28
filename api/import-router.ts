@@ -428,71 +428,109 @@ export const importRouter = createRouter({
           }
         }
       } else {
-        // Shops import
+        // Shops import — optimized with batch operations
         // Pre-load territories for this tenant for name lookup
         const allTerritories = await db.select({ id: territories.id, name: territories.name })
           .from(territories)
           .where(eq(territories.tenantId, tenantId));
         const territoryMap = new Map(allTerritories.map(t => [t.name.toLowerCase().trim(), t.id]));
 
+        // Phase 1: Parse all rows and collect unique districts for auto-creation
+        type ParsedShop = {
+          rowNum: number; name: string; ownerName?: string; phone?: string;
+          city?: string; district?: string; address?: string; debt: string;
+          gpsLat?: string; gpsLng?: string; territoryId?: number; notes?: string;
+        };
+        const parsedShops: ParsedShop[] = [];
+        const newDistricts = new Set<string>();
+
         for (let i = 0; i < dataRows.length; i++) {
           const rowNum = i + 2;
           const row = parseRow(dataRows[i], mapping);
+          const name = String(row.name ?? "").trim();
+          if (!name || name.toLowerCase() === "итого" || name.toLowerCase() === "итог") { continue; }
+
+          // Resolve territory
+          let territoryId: number | undefined;
+          const terrName = String(row.territory ?? "").trim();
+          if (terrName) territoryId = territoryMap.get(terrName.toLowerCase());
+
+          const districtName = String(row.district ?? "").trim();
+          if (!territoryId && districtName) {
+            territoryId = territoryMap.get(districtName.toLowerCase());
+            if (!territoryId) newDistricts.add(districtName);
+          }
+
+          parsedShops.push({
+            rowNum, name,
+            ownerName: String(row.ownerName ?? "").trim() || undefined,
+            phone: String(row.phone ?? "").trim() || undefined,
+            city: String(row.city ?? "").trim() || undefined,
+            district: districtName || undefined,
+            address: String(row.address ?? "").trim() || undefined,
+            debt: String(Number(String(row.debt ?? "0").replace(/[^\d.]/g, "")) || 0),
+            gpsLat: row.gpsLat ? String(row.gpsLat) : undefined,
+            gpsLng: row.gpsLng ? String(row.gpsLng) : undefined,
+            territoryId,
+            notes: String(row.notes ?? "").trim() || undefined,
+          });
+        }
+
+        // Phase 2: Batch create missing territories
+        for (const districtName of newDistricts) {
           try {
-            const name = String(row.name ?? "").trim();
-            if (!name || name.toLowerCase() === "итого" || name.toLowerCase() === "итог") { continue; }
+            const [newTerr] = await db.insert(territories).values({ tenantId, name: districtName });
+            territoryMap.set(districtName.toLowerCase(), Number(newTerr.insertId));
+          } catch {
+            // Duplicate — fetch existing
+            const [existing] = await db.select({ id: territories.id }).from(territories)
+              .where(and(eq(territories.tenantId, tenantId), eq(territories.name, districtName))).limit(1);
+            if (existing) territoryMap.set(districtName.toLowerCase(), existing.id);
+          }
+        }
 
-            // Resolve territory by name, fallback to district, auto-create if needed
-            let territoryId: number | undefined;
-            const terrName = String(row.territory ?? "").trim();
-            if (terrName) {
-              territoryId = territoryMap.get(terrName.toLowerCase());
+        // Phase 3: Batch insert shops (chunks of 200)
+        const BATCH_SIZE = 200;
+        for (let batch = 0; batch < parsedShops.length; batch += BATCH_SIZE) {
+          const chunk = parsedShops.slice(batch, batch + BATCH_SIZE);
+          const values = chunk.map(shop => {
+            // Resolve territoryId from map (might have been created in phase 2)
+            let tid = shop.territoryId;
+            if (!tid && shop.district) {
+              tid = territoryMap.get(shop.district.toLowerCase());
             }
-            // If territory column is empty or not found, try matching district
-            if (!territoryId) {
-              const districtName = String(row.district ?? "").trim();
-              if (districtName) {
-                territoryId = territoryMap.get(districtName.toLowerCase());
-                // Auto-create territory from district if no match found
-                if (!territoryId) {
-                  try {
-                    const [newTerr] = await db.insert(territories).values({
-                      tenantId, name: districtName,
-                    });
-                    territoryId = Number(newTerr.insertId);
-                    territoryMap.set(districtName.toLowerCase(), territoryId);
-                  } catch {
-                    // Duplicate territory name — try to fetch it
-                    const existing = territoryMap.get(districtName.toLowerCase());
-                    if (existing) territoryId = existing;
-                  }
-                }
-              }
-            }
+            return {
+              tenantId, name: shop.name,
+              ownerName: shop.ownerName, phone: shop.phone,
+              city: shop.city, district: shop.district,
+              address: shop.address, debt: shop.debt,
+              gpsLat: shop.gpsLat, gpsLng: shop.gpsLng,
+              territoryId: tid ?? null,
+              notes: shop.notes, status: "active" as const,
+            };
+          });
 
-            await db.insert(shops).values({
-              tenantId, name,
-              ownerName: String(row.ownerName ?? "").trim() || undefined,
-              phone: String(row.phone ?? "").trim() || undefined,
-              city: String(row.city ?? "").trim() || undefined,
-              district: String(row.district ?? "").trim() || undefined,
-              address: String(row.address ?? "").trim() || undefined,
-              debt: String(Number(String(row.debt ?? "0").replace(/[^\d.]/g, "")) || 0),
-              gpsLat: row.gpsLat ? String(row.gpsLat) : undefined,
-              gpsLng: row.gpsLng ? String(row.gpsLng) : undefined,
-              territoryId: territoryId ?? null,
-              notes: String(row.notes ?? "").trim() || undefined,
-              status: "active",
-            });
-            success++;
+          try {
+            await db.insert(shops).values(values);
+            success += values.length;
           } catch (err: unknown) {
-            const e = err as { cause?: { message?: string }; message?: string; sqlMessage?: string; code?: string };
-            const causeMsg = e?.cause?.message || "";
-            const fullMsg = [e?.message, causeMsg, e?.sqlMessage].filter(Boolean).join(" | ");
-            if (causeMsg.includes("Duplicate") || fullMsg.includes("Duplicate") || e?.code === "ER_DUP_ENTRY") {
-              skipped.push(`${rowNum}: магазин "${name}" — уже существует`);
-            } else {
-              errors.push(`Строка ${rowNum}: ${fullMsg}`);
+            // If batch fails, fall back to individual inserts for this chunk
+            for (const shop of chunk) {
+              try {
+                let tid = shop.territoryId;
+                if (!tid && shop.district) tid = territoryMap.get(shop.district.toLowerCase());
+                await db.insert(shops).values({
+                  tenantId, name: shop.name, ownerName: shop.ownerName, phone: shop.phone,
+                  city: shop.city, district: shop.district, address: shop.address, debt: shop.debt,
+                  gpsLat: shop.gpsLat, gpsLng: shop.gpsLng, territoryId: tid ?? null,
+                  notes: shop.notes, status: "active",
+                });
+                success++;
+              } catch (e: unknown) {
+                const msg = (e as { message?: string })?.message ?? "";
+                if (msg.includes("Duplicate")) skipped.push(`${shop.rowNum}: "${shop.name}" — дубликат`);
+                else errors.push(`${shop.rowNum}: ${msg.substring(0, 100)}`);
+              }
             }
           }
         }
