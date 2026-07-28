@@ -359,6 +359,7 @@ export const shopRouter = createRouter({
         await tx.execute(sql`DELETE FROM returns WHERE shop_id IN (SELECT id FROM shops WHERE tenant_id = ${tenantId})`);
         await tx.execute(sql`DELETE FROM agent_territories WHERE tenant_id = ${tenantId}`);
         await tx.execute(sql`DELETE FROM shops WHERE tenant_id = ${tenantId}`);
+        await tx.execute(sql`DELETE FROM territories WHERE tenant_id = ${tenantId}`);
       });
 
       cache.invalidatePrefix(`shops:${tenantId}`);
