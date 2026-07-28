@@ -81,7 +81,10 @@ export function ExcelImport({ type, onDone, onCancel }: Props) {
         notify.success(`Импортировано ${result.success} из ${result.total} записей`);
         if (result.errors.length > 0) setErrors(result.errors);
         if (result.skipped.length > 0) setErrors(prev => [...prev, ...result.skipped.map(s => `Пропущено: ${s}`)]);
-        onDone();
+        // Only close if no errors
+        if (result.errors.length === 0) {
+          onDone();
+        }
       } else if (result.errors.length > 0) {
         setErrors(result.errors);
         notify.error("Импорт не удался");
@@ -219,13 +222,20 @@ export function ExcelImport({ type, onDone, onCancel }: Props) {
 
       {/* Actions */}
       <div style={{ display: "flex", gap: "12px", marginTop: "20px", paddingTop: "16px", borderTop: "1px solid var(--color-border, #f0f3f8)" }}>
-        <button onClick={handleImport} disabled={!base64 || importing}
-          style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "10px 20px", borderRadius: "12px", fontSize: "13px", fontWeight: 600, color: "#fff", background: "linear-gradient(135deg, #5b6d8a, #5b6d8a)", border: "none", cursor: !base64 || importing ? "not-allowed" : "pointer", opacity: !base64 || importing ? 0.5 : 1, transition: "all 0.2s" }}>
-          {importing ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <Upload size={14} />}
-          {importing ? "Импортирую..." : `Импортировать${totalRows > 0 ? ` ${totalRows} строк` : ""}`}
-        </button>
+        {executeMutation.isSuccess ? (
+          <button onClick={onDone}
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "10px 20px", borderRadius: "12px", fontSize: "13px", fontWeight: 600, color: "#fff", background: "linear-gradient(135deg, #34c473, #22c47a)", border: "none", cursor: "pointer", transition: "all 0.2s" }}>
+            <CheckCircle2 size={14} /> Готово
+          </button>
+        ) : (
+          <button onClick={handleImport} disabled={!base64 || importing}
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "10px 20px", borderRadius: "12px", fontSize: "13px", fontWeight: 600, color: "#fff", background: "linear-gradient(135deg, #5b6d8a, #5b6d8a)", border: "none", cursor: !base64 || importing ? "not-allowed" : "pointer", opacity: !base64 || importing ? 0.5 : 1, transition: "all 0.2s" }}>
+            {importing ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <Upload size={14} />}
+            {importing ? "Импортирую..." : `Импортировать${totalRows > 0 ? ` ${totalRows} строк` : ""}`}
+          </button>
+        )}
         <button onClick={onCancel} style={{ padding: "10px 20px", borderRadius: "12px", fontSize: "13px", fontWeight: 600, color: "var(--color-text-secondary, #6a7290)", background: "var(--color-surface, #ffffff)", border: "1px solid var(--color-border, #f0f3f8)", cursor: "pointer" }}>
-          Отмена
+          {executeMutation.isSuccess ? "Закрыть" : "Отмена"}
         </button>
       </div>
     </div>

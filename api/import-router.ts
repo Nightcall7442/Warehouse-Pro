@@ -394,14 +394,23 @@ export const importRouter = createRouter({
                 photoUrl, status: "active",
               });
 
-              // Create warehouse_stock record — try with warehouse_id first, fallback without
+              const productId = Number(r.insertId);
+
+              // Create warehouse_stock record
               try {
-                await db.execute(sql`INSERT INTO warehouse_stock (tenant_id, warehouse_id, product_id, current_stock, reserved, available) VALUES (${tenantId}, ${defaultWarehouse.id}, ${Number(r.insertId)}, ${row.initialStock}, '0.00', ${row.initialStock})`);
-              } catch {
-                try {
-                  await db.execute(sql`INSERT INTO warehouse_stock (tenant_id, product_id, current_stock, reserved, available) VALUES (${tenantId}, ${Number(r.insertId)}, ${row.initialStock}, '0.00', ${row.initialStock})`);
-                } catch (stockErr: unknown) {
-                  console.error(`[IMPORT] Failed to create warehouse_stock for product ${row.code}:`, (stockErr as { cause?: { message?: string }; message?: string })?.cause?.message ?? (stockErr as { message?: string })?.message ?? stockErr);
+                await db.execute(sql`INSERT INTO warehouse_stock (tenant_id, warehouse_id, product_id, current_stock, reserved, available) VALUES (${tenantId}, ${defaultWarehouse.id}, ${productId}, ${row.initialStock}, '0.00', ${row.initialStock})`);
+              } catch (stockErr: unknown) {
+                const stockMsg = (stockErr as { message?: string })?.message ?? "";
+                // If duplicate, try update instead
+                if (stockMsg.includes("Duplicate") || stockMsg.includes("uq_stock")) {
+                  await db.execute(sql`UPDATE warehouse_stock SET current_stock = ${row.initialStock}, available = ${row.initialStock} WHERE product_id = ${productId} AND tenant_id = ${tenantId}`);
+                } else {
+                  // Try without warehouse_id as fallback
+                  try {
+                    await db.execute(sql`INSERT INTO warehouse_stock (tenant_id, product_id, current_stock, reserved, available) VALUES (${tenantId}, ${productId}, ${row.initialStock}, '0.00', ${row.initialStock})`);
+                  } catch (fallbackErr: unknown) {
+                    console.error(`[IMPORT] warehouse_stock failed for ${row.code}:`, (fallbackErr as { message?: string })?.message);
+                  }
                 }
               }
               success++;
