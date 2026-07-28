@@ -440,9 +440,9 @@ export const importRouter = createRouter({
           const row = parseRow(dataRows[i], mapping);
           try {
             const name = String(row.name ?? "").trim();
-            if (!name) { errors.push(`Строка ${rowNum}: нет названия`); continue; }
+            if (!name || name.toLowerCase() === "итого" || name.toLowerCase() === "итог") { continue; }
 
-            // Resolve territory by name, fallback to district
+            // Resolve territory by name, fallback to district, auto-create if needed
             let territoryId: number | undefined;
             const terrName = String(row.territory ?? "").trim();
             if (terrName) {
@@ -453,6 +453,20 @@ export const importRouter = createRouter({
               const districtName = String(row.district ?? "").trim();
               if (districtName) {
                 territoryId = territoryMap.get(districtName.toLowerCase());
+                // Auto-create territory from district if no match found
+                if (!territoryId) {
+                  try {
+                    const [newTerr] = await db.insert(territories).values({
+                      tenantId, name: districtName,
+                    });
+                    territoryId = Number(newTerr.insertId);
+                    territoryMap.set(districtName.toLowerCase(), territoryId);
+                  } catch {
+                    // Duplicate territory name — try to fetch it
+                    const existing = territoryMap.get(districtName.toLowerCase());
+                    if (existing) territoryId = existing;
+                  }
+                }
               }
             }
 
