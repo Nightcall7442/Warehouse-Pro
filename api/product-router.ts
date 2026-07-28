@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, operatorQuery, fieldSalesQuery } from "./middleware";
+import { createRouter, operatorQuery, fieldSalesQuery, supervisorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { products, warehouseStock, stockMovements, warehouses } from "@db/schema";
 import { eq, like, and, sql, desc } from "drizzle-orm";
