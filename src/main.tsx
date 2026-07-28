@@ -8,6 +8,7 @@ import { WarehouseProvider } from "@/providers/WarehouseContext"
 import { Toaster } from "@/components/ui/sonner"
 import { LangProvider } from "@/i18n"
 import { InstallPrompt } from "@/components/InstallPrompt"
+import { UpdatePrompt } from "@/components/UpdatePrompt"
 import { notify } from "@/lib/toast"
 import App from './App.tsx'
 
@@ -36,6 +37,7 @@ createRoot(document.getElementById('root')!).render(
           <App />
           <Toaster richColors position="top-right" />
         <InstallPrompt />
+        <UpdatePrompt />
         </LangProvider>
         </WarehouseProvider>
       </TRPCProvider>

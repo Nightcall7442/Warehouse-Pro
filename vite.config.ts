@@ -30,8 +30,9 @@ export default defineConfig({
         ignore: ["node_modules"],
       },
     }),
-    VitePWA({      registerType:  "autoUpdate",
-      includeAssets: ["icon-192.png", "icon-512.png", "offline.html"],
+    VitePWA({
+      registerType:         "prompt",
+      includeAssets:        ["icon-192.png", "icon-512.png", "offline.html"],
       manifest: {
         name:             "Warehouse Pro",
         short_name:       "WH Pro",
@@ -55,6 +56,9 @@ export default defineConfig({
         navigateFallback:         "/index.html",
         navigateFallbackDenylist: [/^\/api\//],
         globPatterns:             ["**/*.{js,css,html,json,png,svg,ico}"],
+        cleanupOutdatedCaches:    true,
+        clientsClaim:             true,
+        skipWaiting:              true,
         runtimeCaching: [
           {
             urlPattern: /^\/api\/trpc\//,
