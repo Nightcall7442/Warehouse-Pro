@@ -11,9 +11,10 @@ interface UserTableProps {
   onDeactivate: (id: number, name: string) => void;
   onReactivate: (id: number) => void;
   onPageChange: (page: number) => void;
+  onWorkZone?: (id: number, name: string) => void;
 }
 
-export function UserTable({ users, isLoading, page, total, lang, onResetPassword, onDeactivate, onReactivate, onPageChange }: UserTableProps) {
+export function UserTable({ users, isLoading, page, total, lang, onResetPassword, onDeactivate, onReactivate, onPageChange, onWorkZone }: UserTableProps) {
   const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
 
   return (
@@ -33,6 +34,7 @@ export function UserTable({ users, isLoading, page, total, lang, onResetPassword
                   t("СТАТУС", "HOLAT"),
                   t("ПОСЛЕДНИЙ ВХОД", "SO'NGGI KIRISH"),
                   "",
+                  "",
                 ].map((h, i) => (
                   <th key={i} style={thStyle}>{h}</th>
                 ))}
@@ -50,7 +52,7 @@ export function UserTable({ users, isLoading, page, total, lang, onResetPassword
                 : users.length === 0
                 ? (
                   <tr>
-                    <td colSpan={6} style={{ textAlign: "center", padding: "48px 16px", color: COLORS.textSecondary, fontSize: "14px", fontFamily: "var(--font-body, 'DM Sans', -apple-system, sans-serif)" }}>
+                    <td colSpan={7} style={{ textAlign: "center", padding: "48px 16px", color: COLORS.textSecondary, fontSize: "14px", fontFamily: "var(--font-body, 'DM Sans', -apple-system, sans-serif)" }}>
                       {t("Пользователи не найдены", "Foydalanuvchilar topilmadi")}
                     </td>
                   </tr>
@@ -63,6 +65,7 @@ export function UserTable({ users, isLoading, page, total, lang, onResetPassword
                       onResetPassword={onResetPassword}
                       onDeactivate={onDeactivate}
                       onReactivate={onReactivate}
+                      onWorkZone={onWorkZone}
                     />
                   ))}
             </tbody>

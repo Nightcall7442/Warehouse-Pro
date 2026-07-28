@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createRouter, fieldSalesQuery, merchVisitQuery, supervisorQuery, authedQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { agentLocations, dailyPlans, shops, users } from "@db/schema";
+import { agentLocations, dailyPlans, shops, users, agentTerritories, territories } from "@db/schema";
 import { eq, and, sql, desc, gte, lte } from "drizzle-orm";
 import { sseBus } from "./lib/sse";
 import { sanitizeString } from "./lib/sanitize";
@@ -619,6 +619,67 @@ export const agentRouter = createRouter({
         revenue: Number(topAgent.revenue),
       } : null,
     };
+  }),
+
+  /** Get work zones (territories) for a specific agent */
+  listWorkZones: supervisorQuery
+    .input(z.object({ agentId: z.number() }))
+    .query(async ({ input, ctx }) => {
+      return getDb().select({
+        id: territories.id,
+        name: territories.name,
+        color: territories.color,
+      })
+        .from(agentTerritories)
+        .innerJoin(territories, eq(agentTerritories.territoryId, territories.id))
+        .where(and(
+          eq(agentTerritories.agentId, input.agentId),
+          eq(agentTerritories.tenantId, ctx.tenant.id),
+        ))
+        .orderBy(territories.name);
+    }),
+
+  /** Set work zones for an agent (replaces all) */
+  setWorkZones: supervisorQuery
+    .input(z.object({
+      agentId: z.number(),
+      territoryIds: z.array(z.number()),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+      // Remove existing
+      await db.delete(agentTerritories)
+        .where(and(
+          eq(agentTerritories.agentId, input.agentId),
+          eq(agentTerritories.tenantId, ctx.tenant.id),
+        ));
+      // Insert new
+      if (input.territoryIds.length > 0) {
+        await db.insert(agentTerritories).values(
+          input.territoryIds.map(tid => ({
+            tenantId: ctx.tenant.id,
+            agentId: input.agentId,
+            territoryId: tid,
+          })),
+        );
+      }
+      return { success: true, count: input.territoryIds.length };
+    }),
+
+  /** Agent views own work zones */
+  myWorkZones: fieldSalesQuery.query(async ({ ctx }) => {
+    return getDb().select({
+      id: territories.id,
+      name: territories.name,
+      color: territories.color,
+    })
+      .from(agentTerritories)
+      .innerJoin(territories, eq(agentTerritories.territoryId, territories.id))
+      .where(and(
+        eq(agentTerritories.agentId, ctx.user.id),
+        eq(agentTerritories.tenantId, ctx.tenant.id),
+      ))
+      .orderBy(territories.name);
   }),
 });
 

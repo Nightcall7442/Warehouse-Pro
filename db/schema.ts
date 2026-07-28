@@ -552,6 +552,25 @@ export type VisitSchedule       = typeof visitSchedules.$inferSelect;
 export type InsertVisitSchedule = typeof visitSchedules.$inferInsert;
 
 // ============================================
+// AGENT TERRITORIES — рабочие зоны агентов
+// ============================================
+export const agentTerritories = mysqlTable("agent_territories", {
+  id:          serial("id").primaryKey(),
+  tenantId:    bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  agentId:     bigint("agent_id", { mode: "number", unsigned: true }).notNull().references(() => users.id, { onDelete: "restrict" }),
+  territoryId: bigint("territory_id", { mode: "number", unsigned: true }).notNull().references(() => territories.id, { onDelete: "restrict" }),
+  createdAt:   timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  tenantIdx:    index("idx_agent_territories_tenant").on(t.tenantId),
+  agentIdx:     index("idx_agent_territories_agent").on(t.agentId),
+  territoryIdx: index("idx_agent_territories_territory").on(t.territoryId),
+  uniqueEntry:  unique("uq_agent_territory").on(t.agentId, t.territoryId),
+}));
+
+export type AgentTerritory       = typeof agentTerritories.$inferSelect;
+export type InsertAgentTerritory = typeof agentTerritories.$inferInsert;
+
+// ============================================
 // SALES TARGETS — планы продаж (план/факт)
 // ============================================
 export const salesTargets = mysqlTable("sales_targets", {

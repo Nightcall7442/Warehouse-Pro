@@ -21,6 +21,7 @@ import {
   visitReports,
   territories,
   visitSchedules,
+  agentTerritories,
   returns,
   returnItems,
   warehouses,
@@ -38,6 +39,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   locations: many(agentLocations),
   dailyPlans: many(dailyPlans),
   notifications: many(notifications),
+  workZones: many(agentTerritories),
 }));
 
 export const shopsRelations = relations(shops, ({ one, many }) => ({
@@ -50,6 +52,12 @@ export const shopsRelations = relations(shops, ({ one, many }) => ({
 
 export const territoriesRelations = relations(territories, ({ many }) => ({
   shops: many(shops),
+  agentLinks: many(agentTerritories),
+}));
+
+export const agentTerritoriesRelations = relations(agentTerritories, ({ one }) => ({
+  agent: one(users, { fields: [agentTerritories.agentId], references: [users.id] }),
+  territory: one(territories, { fields: [agentTerritories.territoryId], references: [territories.id] }),
 }));
 
 export const productsRelations = relations(products, ({ many }) => ({

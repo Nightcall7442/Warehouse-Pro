@@ -13,6 +13,7 @@ import { F, COLORS, SHADOW, ROLE_LABELS } from "@/components/users/types";
 import { UserFilters } from "@/components/users/UserFilters";
 import { UserTable } from "@/components/users/UserTable";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
+import { WorkZoneSelector } from "@/components/agents/WorkZoneSelector";
 
 /* ── KPI Card ──────────────────────────────────────────────────────────────── */
 function KpiCard({
@@ -242,6 +243,7 @@ export default function Users() {
   const [role, setRole] = useState("");
   const [showInvite, setShowInvite] = useState(false);
   const [resetUser, setResetUser] = useState<{ id: number; name: string } | null>(null);
+  const [workZoneAgent, setWorkZoneAgent] = useState<{ id: number; name: string } | null>(null);
   const { lang } = useLang();
   const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
 
@@ -399,7 +401,19 @@ export default function Users() {
         onDeactivate={handleDeactivate}
         onReactivate={(id) => updateUser.mutate({ id, status: "active" })}
         onPageChange={setPage}
+        onWorkZone={(id, name) => setWorkZoneAgent({ id, name })}
       />
+
+      {/* ── Work Zone Modal ───────────────────────────────────────────────── */}
+      {workZoneAgent && (
+        <WorkZoneSelector
+          agentId={workZoneAgent.id}
+          agentName={workZoneAgent.name}
+          lang={lang}
+          onClose={() => setWorkZoneAgent(null)}
+          onSaved={() => setWorkZoneAgent(null)}
+        />
+      )}
     </div>
   );
 }

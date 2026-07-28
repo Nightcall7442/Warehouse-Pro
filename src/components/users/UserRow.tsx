@@ -1,5 +1,5 @@
 import { format } from "date-fns";
-import { KeyRound, Power } from "lucide-react";
+import { KeyRound, Power, MapPin } from "lucide-react";
 import { tdStyle, COLORS, F, type User, type Lang } from "./types";
 import { RoleBadge } from "./RoleBadge";
 
@@ -9,9 +9,10 @@ interface UserRowProps {
   onResetPassword: (id: number, name: string) => void;
   onDeactivate: (id: number, name: string) => void;
   onReactivate: (id: number) => void;
+  onWorkZone?: (id: number, name: string) => void;
 }
 
-export function UserRow({ user, lang, onResetPassword, onDeactivate, onReactivate }: UserRowProps) {
+export function UserRow({ user, lang, onResetPassword, onDeactivate, onReactivate, onWorkZone }: UserRowProps) {
   const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
 
   return (
@@ -86,6 +87,16 @@ export function UserRow({ user, lang, onResetPassword, onDeactivate, onReactivat
               style={{ borderColor: "rgba(74,222,128,.30)" }}
             >
               <Power size={14} />
+            </button>
+          )}
+          {user.role === "agent" && onWorkZone && (
+            <button
+              title={t("Рабочая зона", "Ish zonasi")}
+              onClick={() => onWorkZone(user.id, user.name)}
+              className="neo-btn p-1.5"
+              style={{ borderColor: "rgba(75,108,246,.30)" }}
+            >
+              <MapPin size={14} />
             </button>
           )}
         </div>
