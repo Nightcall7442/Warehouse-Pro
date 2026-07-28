@@ -11,6 +11,7 @@ import {
   date,
   time,
   int,
+  tinyint,
   json,
   uniqueIndex,
   index,
