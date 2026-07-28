@@ -14,6 +14,7 @@ import {
   tinyint,
   json,
   uniqueIndex,
+  unique,
   index,
 } from "drizzle-orm/mysql-core";
 
