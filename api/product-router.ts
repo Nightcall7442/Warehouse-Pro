@@ -398,7 +398,7 @@ export const productRouter = createRouter({
     }),
 
   // ── Find by Barcode ─────────────────────────────────────────────────────────
-  findByBarcode: fieldSalesQuery
+  findByBarcode: supervisorQuery
     .input(z.object({ barcode: z.string() }))
     .query(async ({ input, ctx }) => {
       return ProductService.searchByBarcode(getDb(), ctx.tenant.id, input.barcode);

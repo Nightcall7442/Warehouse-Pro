@@ -6,7 +6,7 @@ import { eq, and, desc, sql } from "drizzle-orm";
 
 export const priceListRouter = createRouter({
   // List price lists
-  list: operatorQuery.query(async ({ ctx }) => {
+  list: supervisorQuery.query(async ({ ctx }) => {
     const db = getDb();
     return db.select({
       id: priceLists.id,
@@ -24,7 +24,7 @@ export const priceListRouter = createRouter({
   }),
 
   // Get price list with items
-  getById: operatorQuery
+  getById: supervisorQuery
     .input(z.object({ id: z.number() }))
     .query(async ({ input, ctx }) => {
       const db = getDb();

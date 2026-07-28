@@ -19,7 +19,7 @@ import {
 
 export const forecastRouter = createRouter({
   /** Demand forecast for a specific product */
-  demandForecast: operatorQuery
+  demandForecast: supervisorQuery
     .input(z.object({
       productId: z.number(),
       horizon: z.number().min(1).max(90).default(14),
@@ -60,7 +60,7 @@ export const forecastRouter = createRouter({
     }),
 
   /** Stockout predictions for all products */
-  stockoutPrediction: operatorQuery
+  stockoutPrediction: supervisorQuery
     .input(z.object({
       lookbackDays: z.number().min(7).max(90).default(30),
     }).optional())
@@ -71,7 +71,7 @@ export const forecastRouter = createRouter({
     }),
 
   /** Reorder recommendations */
-  reorderRecommendation: operatorQuery
+  reorderRecommendation: supervisorQuery
     .input(z.object({
       lookbackDays: z.number().min(7).max(90).default(30),
       leadTimeDays: z.number().min(1).max(30).default(3),
@@ -84,7 +84,7 @@ export const forecastRouter = createRouter({
     }),
 
   /** Category-level demand trend */
-  categoryTrend: operatorQuery
+  categoryTrend: supervisorQuery
     .input(z.object({
       category: z.string(),
       period: z.enum(["7d", "30d", "90d"]).default("30d"),
@@ -125,7 +125,7 @@ export const forecastRouter = createRouter({
     }),
 
   /** Top products by demand velocity */
-  trendingProducts: operatorQuery
+  trendingProducts: supervisorQuery
     .input(z.object({
       period: z.enum(["7d", "30d"]).default("7d"),
     }).optional())

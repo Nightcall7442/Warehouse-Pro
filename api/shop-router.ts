@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, operatorQuery } from "./middleware";
+import { createRouter, operatorQuery, supervisorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { shops, users, orders, payments, dailyPlans, territories } from "@db/schema";
 import { eq, like, and, sql, desc } from "drizzle-orm";
@@ -10,7 +10,7 @@ import { parseLocationFromUrl } from "./lib/parse-location";
 import { haversineKm } from "./lib/geo";
 
 export const shopRouter = createRouter({
-  territories: operatorQuery.query(async ({ ctx }) => {
+  territories: supervisorQuery.query(async ({ ctx }) => {
     const rows = await getDb().select({
       id: territories.id,
       name: territories.name,
@@ -26,7 +26,7 @@ export const shopRouter = createRouter({
     return rows;
   }),
 
-  list: operatorQuery
+  list: supervisorQuery
     .input(z.object({
       page:     z.number().default(1),
       pageSize: z.number().min(1).max(500).default(25),
@@ -86,7 +86,7 @@ export const shopRouter = createRouter({
       return result;
     }),
 
-  getById: operatorQuery
+  getById: supervisorQuery
     .input(z.object({ id: z.number() }))
     .query(async ({ input, ctx }) => {
       const db       = getDb();
@@ -302,7 +302,7 @@ export const shopRouter = createRouter({
       return { success: true };
     }),
 
-  cities: operatorQuery.query(async ({ ctx }) => {
+  cities: supervisorQuery.query(async ({ ctx }) => {
     const tenantId = ctx.tenant.id;
     const cacheKey = CacheKeys.shopCities(tenantId);
     const cached = cache.get<string[]>(cacheKey);
@@ -315,7 +315,7 @@ export const shopRouter = createRouter({
     return cities;
   }),
 
-  districts: operatorQuery
+  districts: supervisorQuery
     .input(z.object({ city: z.string().optional() }).optional())
     .query(async ({ input, ctx }) => {
       const tenantId = ctx.tenant.id;
@@ -333,7 +333,7 @@ export const shopRouter = createRouter({
     }),
 
   // ── Debt Report ─────────────────────────────────────────────────────────────
-  debtReport: operatorQuery.query(async ({ ctx }) => {
+  debtReport: supervisorQuery.query(async ({ ctx }) => {
     return getDb().select({
       shopName: shops.name,
       city: shops.city,

@@ -9,7 +9,7 @@ import { eq, and, sql, desc } from "drizzle-orm";
 
 export const warehouseReportsRouter = createRouter({
   /** Stock breakdown by product category */
-  stockByCategory: operatorQuery.query(async ({ ctx }) => {
+  stockByCategory: supervisorQuery.query(async ({ ctx }) => {
     const db = getDb();
     const tenantId = ctx.tenant.id;
 
@@ -31,7 +31,7 @@ export const warehouseReportsRouter = createRouter({
   }),
 
   /** Stock movement trends — daily in/out for last N days */
-  movementTrends: operatorQuery
+  movementTrends: supervisorQuery
     .input(z.object({ days: z.number().default(30) }).optional())
     .query(async ({ input, ctx }) => {
       const db = getDb();
@@ -161,7 +161,7 @@ export const warehouseReportsRouter = createRouter({
     }),
 
   /** Dynamic reorder point — calculates days until stockout based on sales velocity */
-  reorderAlerts: operatorQuery
+  reorderAlerts: supervisorQuery
     .input(z.object({ days: z.number().default(30) }).optional())
     .query(async ({ input, ctx }) => {
       const db = getDb();
