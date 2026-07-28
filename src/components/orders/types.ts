@@ -26,6 +26,7 @@ export const UNIT_LABELS: Record<string, { ru: string; uz: string; short: string
   box:  { ru: "ящ",      uz: "quti", short: "ящ" },
   pack: { ru: "упак",    uz: "pach", short: "упак" },
   m:    { ru: "метр",    uz: "metr", short: "м" },
+  block: { ru: "блок",   uz: "blok", short: "бл" },
 };
 
 export function unitLabel(unit: string | undefined, lang: "ru" | "uz"): string {

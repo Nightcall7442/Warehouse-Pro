@@ -13,7 +13,7 @@ import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 
 const UNIT_LABELS: Record<string,[string,string]> = {
   kg:   ["кг","kg"], l: ["л","l"], pcs: ["шт","dona"],
-  box:  ["ящ","quti"], pack: ["упак","pachka"], m: ["м","m"],
+  box:  ["ящ","quti"], pack: ["упак","pachka"], m: ["м","m"], block: ["бл","blok"],
 };
 
 const _COLORS = {

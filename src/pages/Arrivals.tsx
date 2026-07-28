@@ -61,7 +61,7 @@ function KpiCard({ label, value, delta, icon, gradient, delay }: {
   );
 }
 
-const UNIT_LABELS: Record<string, string> = { kg: "кг", l: "л", pcs: "шт", box: "ящ", pack: "упак", m: "м" };
+const UNIT_LABELS: Record<string, string> = { kg: "кг", l: "л", pcs: "шт", box: "ящ", pack: "упак", m: "м", block: "бл" };
 function unitLabel(unit: string | undefined): string { return UNIT_LABELS[unit ?? "pcs"] ?? "шт"; }
 
 const STATUS: Record<string, { ru: string; uz: string; color: string }> = {
