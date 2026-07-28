@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, operatorQuery, authedQuery } from "./middleware";
+import { createRouter, operatorQuery, authedQuery, supervisorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { salesTargets, users, orders, dailyPlans } from "@db/schema";
 import { eq, and, gte, lte, sql, desc } from "drizzle-orm";
@@ -49,7 +49,7 @@ export const salesTargetRouter = createRouter({
     }),
 
   // Create or update sales target
-  upsert: operatorQuery
+  upsert: supervisorQuery
     .input(z.object({
       id: z.number().optional(),
       userId: z.number(),
@@ -98,7 +98,7 @@ export const salesTargetRouter = createRouter({
     }),
 
   // Bulk create/update targets (supervisor applies suggestions)
-  bulkUpsert: operatorQuery
+  bulkUpsert: supervisorQuery
     .input(z.object({
       periodStart: z.string(),
       periodEnd: z.string(),

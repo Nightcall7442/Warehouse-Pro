@@ -226,6 +226,16 @@ export const userRouter = createRouter({
         if (existing) throw new TRPCError({ code: "CONFLICT", message: "Email already in use in this organization." });
       }
 
+      // Prevent deactivating last active CEO via transferCredentials
+      if (deactivate && target.role === "ceo") {
+        const [{ count }] = await db.select({ count: sql<number>`count(*)` })
+          .from(users)
+          .where(and(eq(users.tenantId, ctx.tenant.id), eq(users.role, "ceo"), eq(users.status, "active")));
+        if (count <= 1) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Cannot deactivate the last active CEO. Transfer credentials without deactivation instead." });
+        }
+      }
+
       const newHash = await hashPassword(password);
       const updateData: Record<string, unknown> = {
         email,
