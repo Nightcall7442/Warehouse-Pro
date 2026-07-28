@@ -144,9 +144,16 @@ export default function Shops() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <button onClick={async () => {
-            // Fetch all shops via utils
-            const result = await utils.shop.list.fetch({ page: 1, pageSize: 500 });
-            const allShops = result?.data ?? [];
+            // Fetch all shops via pagination
+            const allShops: Record<string, unknown>[] = [];
+            let page = 1;
+            while (true) {
+              const result = await utils.shop.list.fetch({ page, pageSize: 500 });
+              if (!result?.data?.length) break;
+              allShops.push(...result.data as Record<string, unknown>[]);
+              if (allShops.length >= (result?.total ?? 0)) break;
+              page++;
+            }
             if (!allShops.length) {
               notify.error(t("Нет магазинов для экспорта", "Eksport uchun do'konlar yo'q"));
               return;
