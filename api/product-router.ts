@@ -453,17 +453,17 @@ export const productRouter = createRouter({
         "orders", "returns", "products",
       ]);
 
-      const del = (table: string) => {
-        if (!ALLOWED_TABLES.has(table)) throw new Error(`Invalid table: ${table}`);
-        return tx.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE product_id IN (SELECT id FROM products WHERE tenant_id = ${tenantId})`);
-      };
-      const delByTenant = (table: string) => {
-        if (!ALLOWED_TABLES.has(table)) throw new Error(`Invalid table: ${table}`);
-        return tx.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE tenant_id = ${tenantId}`);
-      };
-
       // FK-safe delete order using raw SQL (Drizzle can't handle all FK combos)
       await db.transaction(async (tx) => {
+        const del = (table: string) => {
+          if (!ALLOWED_TABLES.has(table)) throw new Error(`Invalid table: ${table}`);
+          return tx.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE product_id IN (SELECT id FROM products WHERE tenant_id = ${tenantId})`);
+        };
+        const delByTenant = (table: string) => {
+          if (!ALLOWED_TABLES.has(table)) throw new Error(`Invalid table: ${table}`);
+          return tx.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE tenant_id = ${tenantId}`);
+        };
+
         await del("order_items").catch(() => {});
         await del("arrival_items").catch(() => {});
         await del("return_items").catch(() => {});
