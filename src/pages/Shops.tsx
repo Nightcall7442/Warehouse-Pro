@@ -158,25 +158,26 @@ export default function Shops() {
               if (!grouped.has(territory)) grouped.set(territory, []);
               grouped.get(territory)!.push(s);
             }
-            // Build rows with territory headers
+            // Build rows with consistent columns
             const rows: Record<string, unknown>[] = [];
             for (const [territory, shops] of Array.from(grouped.entries()).sort(([a], [b]) => a.localeCompare(b, "ru"))) {
-              rows.push({ "=== ТЕРРИТОРИЯ ===": territory });
+              rows.push({ Территория: territory, Название: "", Владелец: "", Телефон: "", Город: "", Район: "", Адрес: "", Агент: "", Долг: "", Статус: "" });
               for (const s of shops) {
                 const shop = s as Record<string, unknown>;
                 rows.push({
-                  "Название": shop.name ?? "",
-                  "Владелец": shop.ownerName ?? "",
-                  "Телефон": shop.phone ?? "",
-                  "Город": shop.city ?? "",
-                  "Район": shop.district ?? "",
-                  "Адрес": shop.address ?? "",
-                  "Агент": shop.agentName ?? "",
-                  "Долг": Number(shop.debt ?? 0).toFixed(0),
-                  "Статус": shop.status ?? "",
+                  Территория: "",
+                  Название: shop.name ?? "",
+                  Владелец: shop.ownerName ?? "",
+                  Телефон: shop.phone ?? "",
+                  Город: shop.city ?? "",
+                  Район: shop.district ?? "",
+                  Адрес: shop.address ?? "",
+                  Агент: shop.agentName ?? "",
+                  Долг: Number(shop.debt ?? 0).toFixed(0),
+                  Статус: shop.status ?? "",
                 });
               }
-              rows.push({});
+              rows.push({ Территория: "", Название: "", Владелец: "", Телефон: "", Город: "", Район: "", Адрес: "", Агент: "", Долг: "", Статус: "" });
             }
             await exportToExcel(rows, `shops-all`, "Магазины", `Магазины по территориям`);
           }}
