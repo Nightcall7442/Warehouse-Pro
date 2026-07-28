@@ -35,7 +35,6 @@ export default function Shops() {
   const [viewMode, setViewMode] = useState<"territories" | "list">("territories");
 
   const { data, isLoading, isError, refetch } = trpc.shop.list.useQuery({ page, pageSize: 25, search: search || undefined, city, district, agentId: agentFilter ? Number(agentFilter) : undefined, territoryId: territoryFilter });
-  const { data: allShopsData, refetch: refetchAllShops } = trpc.shop.list.useQuery({ page: 1, pageSize: 500 }, { enabled: false });
   const { data: territories } = trpc.shop.territories.useQuery();
   const { data: realTerritories } = trpc.territory.list.useQuery();
   const { data: usersData } = trpc.user.list.useQuery({ page: 1, pageSize: 100 });
@@ -145,13 +144,17 @@ export default function Shops() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <button onClick={async () => {
-            const { data: exported } = await refetchAllShops();
-            const allShops = exported?.data ?? [];
-            if (!allShops.length) return;
+            // Fetch all shops via utils
+            const result = await utils.shop.list.fetch({ page: 1, pageSize: 500 });
+            const allShops = result?.data ?? [];
+            if (!allShops.length) {
+              notify.error(t("Нет магазинов для экспорта", "Eksport uchun do'konlar yo'q"));
+              return;
+            }
             // Group by territory
-            const grouped = new Map<string, unknown[]>();
+            const grouped = new Map<string, typeof allShops>();
             for (const s of allShops) {
-              const territory = s.district || s.city || "Другие";
+              const territory = (s as Record<string, unknown>).district as string || (s as Record<string, unknown>).city as string || t("Другие", "Boshqalar");
               if (!grouped.has(territory)) grouped.set(territory, []);
               grouped.get(territory)!.push(s);
             }
@@ -160,16 +163,17 @@ export default function Shops() {
             for (const [territory, shops] of Array.from(grouped.entries()).sort(([a], [b]) => a.localeCompare(b, "ru"))) {
               rows.push({ "=== ТЕРРИТОРИЯ ===": territory });
               for (const s of shops) {
+                const shop = s as Record<string, unknown>;
                 rows.push({
-                  "Название": s.name ?? "",
-                  "Владелец": s.ownerName ?? "",
-                  "Телефон": s.phone ?? "",
-                  "Город": s.city ?? "",
-                  "Район": s.district ?? "",
-                  "Адрес": s.address ?? "",
-                  "Агент": s.agentName ?? "",
-                  "Долг": Number(s.debt ?? 0).toFixed(0),
-                  "Статус": s.status ?? "",
+                  "Название": shop.name ?? "",
+                  "Владелец": shop.ownerName ?? "",
+                  "Телефон": shop.phone ?? "",
+                  "Город": shop.city ?? "",
+                  "Район": shop.district ?? "",
+                  "Адрес": shop.address ?? "",
+                  "Агент": shop.agentName ?? "",
+                  "Долг": Number(shop.debt ?? 0).toFixed(0),
+                  "Статус": shop.status ?? "",
                 });
               }
               rows.push({});
