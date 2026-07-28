@@ -12,9 +12,10 @@ interface UserTableProps {
   onReactivate: (id: number) => void;
   onPageChange: (page: number) => void;
   onWorkZone?: (id: number, name: string) => void;
+  onTransferCredentials?: (id: number, name: string, email: string) => void;
 }
 
-export function UserTable({ users, isLoading, page, total, lang, onResetPassword, onDeactivate, onReactivate, onPageChange, onWorkZone }: UserTableProps) {
+export function UserTable({ users, isLoading, page, total, lang, onResetPassword, onDeactivate, onReactivate, onPageChange, onWorkZone, onTransferCredentials }: UserTableProps) {
   const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
 
   return (
@@ -66,6 +67,7 @@ export function UserTable({ users, isLoading, page, total, lang, onResetPassword
                       onDeactivate={onDeactivate}
                       onReactivate={onReactivate}
                       onWorkZone={onWorkZone}
+                      onTransferCredentials={onTransferCredentials}
                     />
                   ))}
             </tbody>

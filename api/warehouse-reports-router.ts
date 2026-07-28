@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, operatorQuery } from "./middleware";
+import { createRouter, operatorQuery, supervisorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import {
   warehouseStock, products, stockMovements,

@@ -202,6 +202,60 @@ export const userRouter = createRouter({
       return { success: true };
     }),
 
+  // Admin: transfer credentials (change email + password) — e.g. on employee departure
+  transferCredentials: adminQuery
+    .input(z.object({
+      id:         z.number(),
+      email:      z.string().email(),
+      password:   z.string().min(8),
+      deactivate: z.boolean().default(false),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+      const { id, email, password, deactivate } = input;
+
+      // Check target exists in same tenant
+      const [target] = await db.select({ id: users.id, name: users.name, role: users.role, email: users.email })
+        .from(users).where(and(eq(users.id, id), eq(users.tenantId, ctx.tenant.id))).limit(1);
+      if (!target) throw new TRPCError({ code: "NOT_FOUND", message: "User not found." });
+
+      // Check email uniqueness within tenant (if changed)
+      if (email !== target.email) {
+        const [existing] = await db.select({ id: users.id })
+          .from(users).where(and(eq(users.tenantId, ctx.tenant.id), eq(users.email, email))).limit(1);
+        if (existing) throw new TRPCError({ code: "CONFLICT", message: "Email already in use in this organization." });
+      }
+
+      const newHash = await hashPassword(password);
+      const updateData: Record<string, unknown> = {
+        email,
+        passwordHash: newHash,
+        tokenVersion: sql`COALESCE(${users.tokenVersion}, 0) + 1`,
+      };
+      if (deactivate) updateData.status = "inactive";
+
+      await db.update(users).set(updateData)
+        .where(and(eq(users.id, id), eq(users.tenantId, ctx.tenant.id)));
+
+      recordAudit(db, {
+        tenantId: ctx.tenant.id,
+        actorId: ctx.user.id,
+        actorName: ctx.user.name,
+        action: "user.credentials_transferred",
+        targetType: "user",
+        targetId: id,
+        meta: {
+          userName: target.name,
+          oldEmail: target.email,
+          newEmail: email,
+          deactivated: deactivate,
+        },
+        ip: getClientIp(ctx.req),
+      });
+
+      return { success: true };
+    }),
+
   // Logout all devices — increment tokenVersion to invalidate all sessions
   logoutAll: authedQuery
     .mutation(async ({ ctx }) => {

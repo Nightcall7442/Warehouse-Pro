@@ -19,6 +19,39 @@ export const agentRouter = createRouter({
       .limit(500);
   }),
 
+  /** All agents with their assigned territories in one query */
+  listAgentsWithZones: supervisorQuery.query(async ({ ctx }) => {
+    const db = getDb();
+    const agents = await db.select({ id: users.id, name: users.name })
+      .from(users)
+      .where(and(eq(users.tenantId, ctx.tenant.id), eq(users.role, "agent"), eq(users.status, "active")))
+      .limit(500);
+
+    if (agents.length === 0) return [];
+
+    const rows = await db.select({
+      agentId:     agentTerritories.agentId,
+      territoryId: territories.id,
+      name:        territories.name,
+      color:       territories.color,
+    })
+      .from(agentTerritories)
+      .innerJoin(territories, eq(agentTerritories.territoryId, territories.id))
+      .where(eq(agentTerritories.tenantId, ctx.tenant.id));
+
+    const zoneMap = new Map<number, { id: number; name: string; color: string | null }[]>();
+    for (const r of rows) {
+      const list = zoneMap.get(r.agentId) ?? [];
+      list.push({ id: r.territoryId, name: r.name, color: r.color });
+      zoneMap.set(r.agentId, list);
+    }
+
+    return agents.map((a) => ({
+      ...a,
+      zones: zoneMap.get(a.id) ?? [],
+    }));
+  }),
+
   // Same reasoning as listAgents — supervisor only needs name+city for the
   // shop picker, not the full shop.list (operator-only) response.
   listShopsForPlan: supervisorQuery.query(async ({ ctx }) => {

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, operatorQuery } from "./middleware";
+import { createRouter, supervisorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { orderItems, orders, products } from "@db/schema";
 import { eq, and, sql, gte, desc } from "drizzle-orm";

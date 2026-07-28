@@ -14,6 +14,8 @@ import { UserFilters } from "@/components/users/UserFilters";
 import { UserTable } from "@/components/users/UserTable";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { WorkZoneSelector } from "@/components/agents/WorkZoneSelector";
+import { AgentTerritoriesSection } from "@/components/users/AgentTerritoriesSection";
+import { TransferCredentialsModal } from "@/components/users/TransferCredentialsModal";
 
 /* ── KPI Card ──────────────────────────────────────────────────────────────── */
 function KpiCard({
@@ -244,6 +246,7 @@ export default function Users() {
   const [showInvite, setShowInvite] = useState(false);
   const [resetUser, setResetUser] = useState<{ id: number; name: string } | null>(null);
   const [workZoneAgent, setWorkZoneAgent] = useState<{ id: number; name: string } | null>(null);
+  const [transferUser, setTransferUser] = useState<{ id: number; name: string; email: string } | null>(null);
   const { lang } = useLang();
   const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
 
@@ -306,6 +309,16 @@ export default function Users() {
           userName={resetUser.name}
           onClose={() => setResetUser(null)}
           lang={lang}
+        />
+      )}
+      {transferUser && (
+        <TransferCredentialsModal
+          userId={transferUser.id}
+          userName={transferUser.name}
+          userEmail={transferUser.email}
+          lang={lang}
+          onClose={() => setTransferUser(null)}
+          onDone={() => { setTransferUser(null); utils.user.list.invalidate(); }}
         />
       )}
 
@@ -402,7 +415,11 @@ export default function Users() {
         onReactivate={(id) => updateUser.mutate({ id, status: "active" })}
         onPageChange={setPage}
         onWorkZone={(id, name) => setWorkZoneAgent({ id, name })}
+        onTransferCredentials={(id, name, email) => setTransferUser({ id, name, email })}
       />
+
+      {/* ── Agent Territories ────────────────────────────────────────────── */}
+      <AgentTerritoriesSection lang={lang} />
 
       {/* ── Work Zone Modal ───────────────────────────────────────────────── */}
       {workZoneAgent && (

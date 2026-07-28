@@ -1,5 +1,5 @@
 import { format } from "date-fns";
-import { KeyRound, Power, MapPin } from "lucide-react";
+import { KeyRound, Power, MapPin, ShieldCheck } from "lucide-react";
 import { tdStyle, COLORS, F, type User, type Lang } from "./types";
 import { RoleBadge } from "./RoleBadge";
 
@@ -10,9 +10,10 @@ interface UserRowProps {
   onDeactivate: (id: number, name: string) => void;
   onReactivate: (id: number) => void;
   onWorkZone?: (id: number, name: string) => void;
+  onTransferCredentials?: (id: number, name: string, email: string) => void;
 }
 
-export function UserRow({ user, lang, onResetPassword, onDeactivate, onReactivate, onWorkZone }: UserRowProps) {
+export function UserRow({ user, lang, onResetPassword, onDeactivate, onReactivate, onWorkZone, onTransferCredentials }: UserRowProps) {
   const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
 
   return (
@@ -70,6 +71,16 @@ export function UserRow({ user, lang, onResetPassword, onDeactivate, onReactivat
           >
             <KeyRound size={14} />
           </button>
+          {onTransferCredentials && (
+            <button
+              title={t("Передать доступ", "Kirish huquqini o'tkazish")}
+              onClick={() => onTransferCredentials(user.id, user.name, user.email)}
+              className="neo-btn p-1.5"
+              style={{ borderColor: "rgba(212,151,58,.30)" }}
+            >
+              <ShieldCheck size={14} />
+            </button>
+          )}
           {user.status === "active" ? (
             <button
               title={t("Деактивировать", "O'chirish")}
