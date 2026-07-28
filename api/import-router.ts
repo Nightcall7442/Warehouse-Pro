@@ -442,12 +442,18 @@ export const importRouter = createRouter({
             const name = String(row.name ?? "").trim();
             if (!name) { errors.push(`Строка ${rowNum}: нет названия`); continue; }
 
-            // Resolve territory by name
+            // Resolve territory by name, fallback to district
             let territoryId: number | undefined;
             const terrName = String(row.territory ?? "").trim();
             if (terrName) {
               territoryId = territoryMap.get(terrName.toLowerCase());
-              // If not found, skip (don't create automatically)
+            }
+            // If territory column is empty or not found, try matching district
+            if (!territoryId) {
+              const districtName = String(row.district ?? "").trim();
+              if (districtName) {
+                territoryId = territoryMap.get(districtName.toLowerCase());
+              }
             }
 
             await db.insert(shops).values({

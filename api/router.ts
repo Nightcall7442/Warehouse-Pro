@@ -35,6 +35,7 @@ import { returnsRouter } from "./returns-router";
 import { priceListRouter } from "./price-list-router";
 import { kpiRouter } from "./kpi-router";
 import { scheduleRouter } from "./schedule-router";
+import { forecastRouter } from "./forecast-router";
 import { createRouter, publicQuery } from "./middleware";
 
 export const appRouter = createRouter({
@@ -76,6 +77,7 @@ export const appRouter = createRouter({
   priceList:    priceListRouter,
   kpi:          kpiRouter,
   schedule:     scheduleRouter,
+  forecast:     forecastRouter,
 });
 
 export type AppRouter = typeof appRouter;

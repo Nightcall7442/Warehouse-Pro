@@ -6,6 +6,7 @@ import { eq, and, sql, desc, gte, lte } from "drizzle-orm";
 import { sseBus } from "./lib/sse";
 import { sanitizeString } from "./lib/sanitize";
 import { verifyVisit } from "./services/anti-fraud";
+import { haversineKm } from "./lib/geo";
 
 export const agentRouter = createRouter({
   // Supervisor needs a lightweight agent picker for "assign plan to agent" —
@@ -209,20 +210,12 @@ export const agentRouter = createRouter({
         .limit(50);
 
       // Calculate distance from current location and sort
-      const R = 6371; // Earth's radius in km
       const withDistance = plans.map(p => {
         const lat = Number(p.lat);
         const lng = Number(p.lng);
         if (!lat || !lng) return { ...p, distance: 9999 };
 
-        const dLat = (lat - input.currentLat) * Math.PI / 180;
-        const dLng = (lng - input.currentLng) * Math.PI / 180;
-        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-          Math.cos(input.currentLat * Math.PI / 180) * Math.cos(lat * Math.PI / 180) *
-          Math.sin(dLng / 2) * Math.sin(dLng / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        const distance = R * c;
-
+        const distance = haversineKm(input.currentLat, input.currentLng, lat, lng);
         return { ...p, distance: Math.round(distance * 10) / 10 };
       });
 
@@ -682,16 +675,5 @@ export const agentRouter = createRouter({
       .orderBy(territories.name);
   }),
 });
-
-// ── Haversine distance in km ─────────────────────────────────────────────────
-function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
 
 // Supervisor: list all agent plans (not just own)

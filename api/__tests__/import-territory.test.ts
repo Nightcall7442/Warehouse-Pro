@@ -170,4 +170,50 @@ describe("Import — territory column", () => {
 
     expect(territoryId).toBeUndefined();
   });
+
+  it("falls back to district when territory is empty", () => {
+    territoriesTable.push(
+      { id: 1, tenantId: 1, name: "Ташкент" },
+      { id: 2, tenantId: 1, name: "Юнусабад" },
+    );
+
+    const territoryMap = new Map(territoriesTable.map(t => [t.name.toLowerCase().trim(), t.id]));
+
+    // Simulate the import logic: try territory first, then district
+    let territoryId: number | undefined;
+    const terrName = ""; // empty territory column
+    const districtName = "Юнусабад";
+
+    if (terrName) {
+      territoryId = territoryMap.get(terrName.toLowerCase());
+    }
+    // Fallback to district
+    if (!territoryId && districtName) {
+      territoryId = territoryMap.get(districtName.toLowerCase());
+    }
+
+    expect(territoryId).toBe(2);
+  });
+
+  it("territory column takes priority over district", () => {
+    territoriesTable.push(
+      { id: 1, tenantId: 1, name: "Ташкент" },
+      { id: 2, tenantId: 1, name: "Юнусабад" },
+    );
+
+    const territoryMap = new Map(territoriesTable.map(t => [t.name.toLowerCase().trim(), t.id]));
+
+    let territoryId: number | undefined;
+    const terrName = "Ташкент";
+    const districtName = "Юнусабад";
+
+    if (terrName) {
+      territoryId = territoryMap.get(terrName.toLowerCase());
+    }
+    if (!territoryId && districtName) {
+      territoryId = territoryMap.get(districtName.toLowerCase());
+    }
+
+    expect(territoryId).toBe(1); // territory takes priority
+  });
 });

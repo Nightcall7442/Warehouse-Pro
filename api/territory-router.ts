@@ -36,7 +36,8 @@ export const territoryRouter = createRouter({
       radiusKm: z.number().min(0.1).max(1000).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const [result] = await getDb().insert(territories).values({
+      const db = getDb();
+      const [result] = await db.insert(territories).values({
         tenantId: ctx.tenant.id,
         name: input.name,
         color: input.color,
@@ -44,7 +45,31 @@ export const territoryRouter = createRouter({
         centerLng: input.centerLng?.toFixed(8) ?? null,
         radiusKm: input.radiusKm?.toFixed(2) ?? "10.00",
       });
-      return { id: Number(result.insertId) };
+      const territoryId = Number(result.insertId);
+
+      // Auto-assign unassigned shops with GPS to this new territory
+      if (input.centerLat && input.centerLng) {
+        const radius = input.radiusKm ?? 10;
+        const unassigned = await db.select({
+          id: shops.id,
+          gpsLat: shops.gpsLat,
+          gpsLng: shops.gpsLng,
+        }).from(shops).where(and(
+          eq(shops.tenantId, ctx.tenant.id),
+          isNull(shops.territoryId),
+          eq(shops.status, "active"),
+          sql`${shops.gpsLat} IS NOT NULL AND ${shops.gpsLng} IS NOT NULL`,
+        ));
+
+        for (const shop of unassigned) {
+          const dist = haversineKm(Number(shop.gpsLat), Number(shop.gpsLng), input.centerLat, input.centerLng);
+          if (dist <= radius) {
+            await db.update(shops).set({ territoryId }).where(eq(shops.id, shop.id));
+          }
+        }
+      }
+
+      return { id: territoryId };
     }),
 
   /** Update territory */
@@ -58,6 +83,7 @@ export const territoryRouter = createRouter({
       radiusKm: z.number().min(0.1).max(1000).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
+      const db = getDb();
       const { id, ...rest } = input;
       const data: Record<string, unknown> = {};
       if (rest.name !== undefined) data.name = rest.name;
@@ -65,8 +91,38 @@ export const territoryRouter = createRouter({
       if (rest.centerLat !== undefined) data.centerLat = rest.centerLat.toFixed(8);
       if (rest.centerLng !== undefined) data.centerLng = rest.centerLng.toFixed(8);
       if (rest.radiusKm !== undefined) data.radiusKm = rest.radiusKm.toFixed(2);
-      await getDb().update(territories).set(data)
+      await db.update(territories).set(data)
         .where(and(eq(territories.id, id), eq(territories.tenantId, ctx.tenant.id)));
+
+      // Re-assign shops with GPS if geo params changed
+      if (rest.centerLat !== undefined || rest.centerLng !== undefined || rest.radiusKm !== undefined) {
+        const [terr] = await db.select({
+          centerLat: territories.centerLat,
+          centerLng: territories.centerLng,
+          radiusKm: territories.radiusKm,
+        }).from(territories).where(eq(territories.id, id)).limit(1);
+
+        if (terr?.centerLat && terr?.centerLng) {
+          const shopsWithGps = await db.select({
+            id: shops.id,
+            gpsLat: shops.gpsLat,
+            gpsLng: shops.gpsLng,
+          }).from(shops).where(and(
+            eq(shops.tenantId, ctx.tenant.id),
+            eq(shops.status, "active"),
+            sql`${shops.gpsLat} IS NOT NULL AND ${shops.gpsLng} IS NOT NULL`,
+          ));
+
+          const radius = Number(terr.radiusKm ?? 10);
+          for (const shop of shopsWithGps) {
+            const dist = haversineKm(Number(shop.gpsLat), Number(shop.gpsLng), Number(terr.centerLat), Number(terr.centerLng));
+            if (dist <= radius) {
+              await db.update(shops).set({ territoryId: id }).where(eq(shops.id, shop.id));
+            }
+          }
+        }
+      }
+
       return { success: true };
     }),
 

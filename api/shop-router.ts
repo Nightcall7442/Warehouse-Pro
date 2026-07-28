@@ -7,6 +7,7 @@ import { sanitizeString, sanitizeSearch } from "./lib/sanitize";
 import { PaymentService } from "./services/payment";
 import { cache, CacheKeys, CacheTTL } from "./lib/cache";
 import { parseLocationFromUrl } from "./lib/parse-location";
+import { haversineKm } from "./lib/geo";
 
 export const shopRouter = createRouter({
   territories: operatorQuery.query(async ({ ctx }) => {
@@ -158,9 +159,30 @@ export const shopRouter = createRouter({
       // Remove telegramLink from DB insert (not a DB column)
       const { telegramLink: _, ...dbData } = sanitized;
       const [result] = await db.insert(shops).values({ ...dbData, tenantId: ctx.tenant.id, debt: "0.00", status: "active" });
+      const shopId = Number(result.insertId);
+
+      // Auto-assign territory by GPS if no territoryId was provided
+      if (gpsLat && gpsLng && !input.territoryId) {
+        const allTerritories = await db.select({
+          id: territories.id,
+          centerLat: territories.centerLat,
+          centerLng: territories.centerLng,
+          radiusKm: territories.radiusKm,
+        }).from(territories).where(eq(territories.tenantId, ctx.tenant.id));
+
+        for (const terr of allTerritories) {
+          if (!terr.centerLat || !terr.centerLng) continue;
+          const dist = haversineKm(Number(gpsLat), Number(gpsLng), Number(terr.centerLat), Number(terr.centerLng));
+          if (dist <= Number(terr.radiusKm ?? 10)) {
+            await db.update(shops).set({ territoryId: terr.id }).where(eq(shops.id, shopId));
+            break;
+          }
+        }
+      }
+
       cache.invalidatePrefix(`shops:${ctx.tenant.id}`);
       cache.invalidate(CacheKeys.shopCities(ctx.tenant.id));
-      return { id: Number(result.insertId) };
+      return { id: shopId };
     }),
 
   update: operatorQuery
