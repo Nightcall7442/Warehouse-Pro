@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { X, Pencil, Trash2, Loader2, Plus, MapPin } from "lucide-react";
 import { trpc } from "@/providers/trpc.client";
 import { notify } from "@/lib/toast";
@@ -81,7 +82,7 @@ export function TerritoryManager({ lang, onClose }: TerritoryManagerProps) {
     setEditRadius(ter.radiusKm ?? "");
   };
 
-  return (
+  return createPortal(
     <div style={{ position: "fixed", inset: 0, zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)" }} onClick={onClose} />
       <div style={{
@@ -233,6 +234,7 @@ export function TerritoryManager({ lang, onClose }: TerritoryManagerProps) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

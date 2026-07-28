@@ -35,7 +35,7 @@ export default function Shops() {
   const [viewMode, setViewMode] = useState<"territories" | "list">("territories");
 
   const { data, isLoading, isError, refetch } = trpc.shop.list.useQuery({ page, pageSize: 25, search: search || undefined, city, district, agentId: agentFilter ? Number(agentFilter) : undefined, territoryId: territoryFilter });
-  const { data: allShopsData, refetch: refetchAllShops } = trpc.shop.list.useQuery({ page: 1, pageSize: 5000 }, { enabled: false });
+  const { data: allShopsData, refetch: refetchAllShops } = trpc.shop.list.useQuery({ page: 1, pageSize: 500 }, { enabled: false });
   const { data: territories } = trpc.shop.territories.useQuery();
   const { data: realTerritories } = trpc.territory.list.useQuery();
   const { data: usersData } = trpc.user.list.useQuery({ page: 1, pageSize: 100 });
