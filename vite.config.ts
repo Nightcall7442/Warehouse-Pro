@@ -31,7 +31,7 @@ export default defineConfig({
       },
     }),
     VitePWA({
-      registerType:         "prompt",
+      registerType:         "autoUpdate",
       includeAssets:        ["icon-192.png", "icon-512.png", "offline.html"],
       manifest: {
         name:             "Warehouse Pro",
