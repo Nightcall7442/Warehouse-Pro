@@ -169,12 +169,17 @@ app.use("*", async (c, next) => {
 });
 // Validate CSRF on state-changing POST requests (skip webhooks, tRPC, public API, auth endpoints)
 app.use("/api/*", async (c, next) => {
-  // P0-9 FIX: Removed /trpc/ exclusion — tRPC mutations must be CSRF-protected
+  // P0-9 FIX: CSRF protection for cookie-based auth (browser).
+  // Skip for Bearer token auth (mobile/API) — token is explicitly set in header, not auto-sent like cookies.
   if (c.req.method === "POST" && !c.req.path.includes("/webhooks/") && !c.req.path.includes("/logout") && !c.req.path.includes("/login")) {
-    const cookieToken = c.req.header("cookie")?.match(new RegExp(`${CSRF_COOKIE}=([^;]+)`))?.[1];
-    const headerToken = c.req.header(CSRF_HEADER);
-    if (!cookieToken || !headerToken || cookieToken !== headerToken) {
-      return c.json({ error: "CSRF token mismatch" }, 403);
+    const authHeader = c.req.header("authorization");
+    const isBearerAuth = authHeader?.startsWith("Bearer ");
+    if (!isBearerAuth) {
+      const cookieToken = c.req.header("cookie")?.match(new RegExp(`${CSRF_COOKIE}=([^;]+)`))?.[1];
+      const headerToken = c.req.header(CSRF_HEADER);
+      if (!cookieToken || !headerToken || cookieToken !== headerToken) {
+        return c.json({ error: "CSRF token mismatch" }, 403);
+      }
     }
   }
   await next();
