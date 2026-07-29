@@ -48,11 +48,26 @@ export function registerStripeWebhook(app: Hono) {
             const tenantId = Number(session.metadata?.tenantId);
             if (!tenantId) break;
             const plan = (session.metadata?.plan as string) || 'basic';
-            await tx.update(subscriptions).set({
-              stripeSubscriptionId: typeof session.subscription === "string" ? session.subscription : session.subscription?.id ?? null,
-              stripeCustomerId:     typeof session.customer === "string" ? session.customer : session.customer?.id ?? null,
-              plan, status: "active", updatedAt: new Date(),
-            }).where(eq(subscriptions.tenantId, tenantId));
+            // P0-8 FIX: Use upsert to handle missing subscription rows
+            const stripeSubId = typeof session.subscription === "string" ? session.subscription : session.subscription?.id ?? null;
+            const stripeCustId = typeof session.customer === "string" ? session.customer : session.customer?.id ?? null;
+            const [existingSub] = await tx.select({ id: subscriptions.id }).from(subscriptions).where(eq(subscriptions.tenantId, tenantId)).limit(1);
+            if (existingSub) {
+              await tx.update(subscriptions).set({
+                stripeSubscriptionId: stripeSubId,
+                stripeCustomerId: stripeCustId,
+                plan, status: "active", updatedAt: new Date(),
+              }).where(eq(subscriptions.tenantId, tenantId));
+            } else {
+              await tx.insert(subscriptions).values({
+                id: randomUUID(), tenantId,
+                stripeSubscriptionId: stripeSubId,
+                stripeCustomerId: stripeCustId,
+                plan, status: "active",
+              });
+            }
+            // P0-8 FIX: Sync plan to tenants table (single source of truth)
+            await tx.update(tenants).set({ plan: plan as "basic" | "pro" | "exclusive", updatedAt: new Date() }).where(eq(tenants.id, tenantId));
             break;
           }
           case "customer.subscription.updated": {
@@ -63,12 +78,22 @@ export function registerStripeWebhook(app: Hono) {
             let plan: "basic" | "pro" | "exclusive" = "basic";
             if (priceId === env.stripeProPriceId) plan = "pro";
             else if (priceId === env.stripeExclusivePriceId) plan = "exclusive";
-            await tx.update(subscriptions).set({
+            const [existingSub] = await tx.select({ id: subscriptions.id }).from(subscriptions).where(eq(subscriptions.tenantId, tenantId)).limit(1);
+            const subData = {
               plan, status: sub.status as "active" | "past_due" | "canceled" | "trialing" | "incomplete",
               currentPeriodEnds: sub.current_period_end
                 ? new Date(sub.current_period_end * 1000) : null,
               updatedAt: new Date(),
-            }).where(eq(subscriptions.tenantId, tenantId));
+            };
+            if (existingSub) {
+              await tx.update(subscriptions).set(subData).where(eq(subscriptions.tenantId, tenantId));
+            } else {
+              await tx.insert(subscriptions).values({ id: randomUUID(), tenantId, ...subData });
+            }
+            // P0-8 FIX: Sync plan to tenants table
+            if (sub.status === "active") {
+              await tx.update(tenants).set({ plan, updatedAt: new Date() }).where(eq(tenants.id, tenantId));
+            }
             break;
           }
           case "customer.subscription.deleted": {

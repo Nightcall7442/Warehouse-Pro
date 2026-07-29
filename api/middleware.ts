@@ -181,7 +181,7 @@ const GLOBAL_RATE_LIMIT = { windowMs: 60 * 1000, limit: 120, namespace: "global"
 
 const withGlobalRateLimit = t.middleware(async ({ ctx, next }) => {
   const ip = getClientIp(ctx.req);
-  if (!checkRateLimit(ip, GLOBAL_RATE_LIMIT)) {
+  if (!(await checkRateLimit(ip, GLOBAL_RATE_LIMIT))) {
     throw new TRPCError({
       code:    "TOO_MANY_REQUESTS",
       message: "Слишком много запросов. Подождите минуту.",
@@ -213,7 +213,7 @@ const mutationRateLimit = (namespace: string, limit: number, windowMs: number = 
   t.middleware(async ({ ctx, next }) => {
     if (ctx.req.method === "POST" || ctx.req.method === "PUT" || ctx.req.method === "DELETE") {
       const ip = getClientIp(ctx.req);
-      if (!checkRateLimit(ip, { windowMs, limit, namespace })) {
+      if (!(await checkRateLimit(ip, { windowMs, limit, namespace }))) {
         throw new TRPCError({
           code:    "TOO_MANY_REQUESTS",
           message: "Слишком много запросов. Попробуйте позже.",

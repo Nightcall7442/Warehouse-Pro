@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { randomUUID } from "crypto";
 import { TRPCError } from "@trpc/server";
 import { createRouter, publicQuery, adminQuery, superAdminQuery } from "./middleware";
 import { getDb } from "./queries/connection";
@@ -7,7 +8,6 @@ import { eq, and, ne, sql, count, sum } from "drizzle-orm";
 import { hashPassword } from "./auth/password";
 import { findTenantBySlug, listTenants } from "./queries/tenants";
 import { checkRateLimit, getClientIp } from "./lib/rate-limit";
-import { createTrialSubscription } from "./lib/subscription";
 import { logger } from "./lib/logger";
 import { checkPlanLimits } from "./lib/plan-limits";
 
@@ -33,7 +33,7 @@ export const tenantRouter = createRouter({
     }))
     .mutation(async ({ input, ctx }) => {
       const ip = getClientIp(ctx.req);
-      if (!checkRateLimit(ip, REGISTER_RATE_LIMIT)) {
+      if (!(await checkRateLimit(ip, REGISTER_RATE_LIMIT))) {
         throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Too many registration attempts." });
       }
 
@@ -65,12 +65,15 @@ export const tenantRouter = createRouter({
           passwordHash, role: "ceo", status: "active", lastSignInAt: new Date(),
         });
         await tx.insert(settings).values({ tenantId, companyName: input.orgName });
-      });
-
-      const [newTenant] = await db.select({ id: tenants.id })
-        .from(tenants).where(eq(tenants.slug, slug)).limit(1);
-      if (newTenant?.id) await createTrialSubscription(newTenant.id).catch((err) => {
-        logger.error("Failed to create trial subscription during registration", { tenantId: newTenant.id, error: err instanceof Error ? err.message : String(err) });
+        // P1-13 FIX: Create trial subscription inside the transaction to prevent tenant without subscription
+        await tx.insert(subscriptions).values({
+          id: randomUUID(),
+          tenantId,
+          plan: "trial",
+          status: "trialing",
+          trialEndsAt: trialEnds,
+          currentPeriodEnds: trialEnds,
+        });
       });
 
       return { slug, message: "Organisation created. You can now sign in." };
@@ -259,7 +262,16 @@ export const tenantRouter = createRouter({
         await tx.insert(settings).values({ tenantId, companyName: input.orgName });
       });
 
-      await createTrialSubscription(tenantId!).catch((err) => {
+      // Create trial subscription for admin-created tenant
+      const subTrialEnds = new Date(Date.now() + 14 * 86_400_000);
+      await db.insert(subscriptions).values({
+        id: randomUUID(),
+        tenantId: tenantId!,
+        plan: "trial",
+        status: "trialing",
+        trialEndsAt: subTrialEnds,
+        currentPeriodEnds: subTrialEnds,
+      }).catch((err) => {
         logger.error("Failed to create trial subscription for admin-created tenant", { tenantId: tenantId!, error: err instanceof Error ? err.message : String(err) });
       });
 

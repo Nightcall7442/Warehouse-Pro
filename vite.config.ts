@@ -60,14 +60,10 @@ export default defineConfig({
         clientsClaim:             true,
         skipWaiting:              true,
         runtimeCaching: [
+          // P0-12 FIX: Do not cache tRPC responses — sensitive tenant/user data must not persist in Cache Storage
           {
             urlPattern: /^\/api\/trpc\//,
-            handler:    "NetworkFirst",
-            options: {
-              cacheName:             "trpc-cache",
-              networkTimeoutSeconds: 3,
-              expiration:            { maxEntries: 50, maxAgeSeconds: 300 },
-            },
+            handler:    "NetworkOnly",
           },
         ],
       },

@@ -11,7 +11,8 @@ export const analyticsRouter = createRouter({
     .query(async ({ input, ctx }) => {
       const conditions = [eq(orders.tenantId, ctx.tenant.id), eq(orders.status, "completed")];
       if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
-      if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo}`);
+      // P1-15 FIX: Include full last day by adding 23:59:59
+      if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`);
 
       return getDb().select({
         shopName:   shops.name,
@@ -27,7 +28,7 @@ export const analyticsRouter = createRouter({
     .query(async ({ input, ctx }) => {
       const conditions = [eq(orders.tenantId, ctx.tenant.id), eq(orders.status, "completed")];
       if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
-      if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo}`);
+      if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`);
 
       return getDb().select({
         productName:  products.name,
@@ -46,7 +47,7 @@ export const analyticsRouter = createRouter({
     .query(async ({ input, ctx }) => {
       const conditions = [eq(orders.tenantId, ctx.tenant.id)];
       if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
-      if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo}`);
+      if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`);
 
       return getDb().select({
         agentName:     users.name,
@@ -68,7 +69,7 @@ export const analyticsRouter = createRouter({
     .query(async ({ input, ctx }) => {
       const conditions = [eq(orders.tenantId, ctx.tenant.id), eq(orders.status, "completed")];
       if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
-      if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo}`);
+      if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`);
 
       return getDb().select({
         productName:  products.name,
@@ -88,19 +89,27 @@ export const analyticsRouter = createRouter({
     .query(async ({ input, ctx }) => {
       const conditions = [eq(orders.tenantId, ctx.tenant.id), eq(orders.status, "completed")];
       if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
-      if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo}`);
+      if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`);
 
-      const result = await getDb().select({
+      // P0-10 FIX: Use separate queries to avoid fan-out from LEFT JOIN order_items
+      const [revenueRow] = await getDb().select({
         totalRevenue: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
-        totalCost:    sql<string>`COALESCE(SUM(${orderItems.quantity} * COALESCE(${orderItems.costPrice}, 0)), 0)`,
         totalDiscount: sql<string>`COALESCE(SUM(${orders.discount}), 0)`,
+      }).from(orders).where(and(...conditions));
+
+      const [costRow] = await getDb().select({
+        totalCost: sql<string>`COALESCE(SUM(${orderItems.quantity} * COALESCE(${orderItems.costPrice}, 0)), 0)`,
       })
         .from(orders)
         .leftJoin(orderItems, eq(orderItems.orderId, orders.id))
         .leftJoin(products, eq(orderItems.productId, products.id))
         .where(and(...conditions));
 
-      return result[0] ?? { totalRevenue: "0", totalCost: "0", totalDiscount: "0" };
+      return {
+        totalRevenue: revenueRow?.totalRevenue ?? "0",
+        totalCost: costRow?.totalCost ?? "0",
+        totalDiscount: revenueRow?.totalDiscount ?? "0",
+      };
     }),
 
   // ── Per-Shop Revenue Trend ──────────────────────────────────────────────────

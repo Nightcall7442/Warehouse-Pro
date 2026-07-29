@@ -45,7 +45,7 @@ vi.mock("../telegram-router", () => ({
   tgMessages: { newOrder: vi.fn(() => "mock message") },
 }));
 
-import { orders, orderItems, warehouseStock, products, warehouses } from "@db/schema";
+import { orders, orderItems, warehouseStock, products, warehouses, shops } from "@db/schema";
 
 // ── Fake in-memory tables ─────────────────────────────────────────────────────
 interface FakeOrder { id: number; tenantId: number; agentId: number; shopId: number; status: string; deletedAt: Date | null; }
@@ -58,6 +58,7 @@ let orderItemsTable: FakeOrderItem[] = [];
 let stockTable: FakeStock[]          = [];
 let productsTable: FakeProduct[]     = [];
 let warehousesTable: { id: number; tenantId: number; name: string; isDefault: boolean; status: string }[] = [];
+let shopsTable: { id: number; tenantId: number; name: string }[] = [];
 let nextOrderId = 1;
 let nextItemId  = 1;
 
@@ -75,6 +76,9 @@ function resetFakeTables() {
   warehousesTable = [
     { id: 1, tenantId: 1, name: "Main", isDefault: true, status: "active" },
   ];
+  shopsTable = [
+    { id: 1, tenantId: 1, name: "Test Shop" },
+  ];
   nextOrderId = 1;
   nextItemId  = 1;
 }
@@ -85,6 +89,7 @@ function tableOf(ref: unknown): "orders" | "orderItems" | "warehouseStock" | "ot
   if (ref === warehouseStock) return "warehouseStock";
   if (ref === products) return "products";
   if (ref === warehouses) return "warehouses";
+  if (ref === shops) return "shops";
   return "other";
 }
 
@@ -94,6 +99,7 @@ function rowsFor(table: ReturnType<typeof tableOf>): unknown[] {
   if (table === "warehouseStock") return stockTable;
   if (table === "products") return productsTable;
   if (table === "warehouses") return warehousesTable;
+  if (table === "shops") return shopsTable;
   return [];
 }
 
@@ -107,6 +113,7 @@ for (const [field, col] of Object.entries(orderItems))    columnToFieldName.set(
 for (const [field, col] of Object.entries(warehouseStock)) columnToFieldName.set(col, field);
 for (const [field, col] of Object.entries(products)) columnToFieldName.set(col, field);
 for (const [field, col] of Object.entries(warehouses)) columnToFieldName.set(col, field);
+for (const [field, col] of Object.entries(shops)) columnToFieldName.set(col, field);
 
 function evalCond(row: unknown, cond: unknown): boolean {
   if (!cond || typeof cond !== "object") return true;

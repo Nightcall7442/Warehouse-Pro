@@ -1,13 +1,13 @@
 import { eq, and, desc, sql, isNull } from "drizzle-orm";
-import { orders, orderItems, warehouseStock, shops, users, products, notifications } from "@db/schema";
+import { orders, orderItems, warehouseStock, shops, users, products, notifications, warehouses } from "@db/schema";
 import { cache, CacheKeys } from "../lib/cache";
 import { logger } from "../lib/logger";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 
 export const OrderService = {
-  async list(db: Db, tenantId: number, filters: Record<string, unknown>, _opts?: { userId: number; userRole: string }) {
-    const f = filters as { status?: "new" | "processing" | "completed" | "cancelled"; agentId?: number; page?: number; pageSize?: number; search?: string; showDeleted?: boolean };
+  async list(db: Db, tenantId: number, filters: Record<string, unknown>, opts?: { userId: number; userRole: string }) {
+    const f = filters as { status?: "new" | "processing" | "completed" | "cancelled"; agentId?: number; page?: number; pageSize?: number; search?: string; showDeleted?: boolean; dateFrom?: string; dateTo?: string };
     const page = f.page ?? 1;
     const limit = f.pageSize ?? 25;
     const offset = (page - 1) * limit;
@@ -15,8 +15,17 @@ export const OrderService = {
     const conditions = [eq(orders.tenantId, tenantId)];
     if (f.status) conditions.push(eq(orders.status, f.status));
     if (f.agentId) conditions.push(eq(orders.agentId, f.agentId));
+    // P0-14 FIX: Implement search filter
+    if (f.search) conditions.push(sql`(${orders.orderNumber} LIKE ${'%' + f.search + '%'} OR ${shops.name} LIKE ${'%' + f.search + '%'})`);
+    // P0-14 FIX: Implement date filters
+    if (f.dateFrom) conditions.push(sql`${orders.createdAt} >= ${f.dateFrom}`);
+    if (f.dateTo) conditions.push(sql`${orders.createdAt} <= ${f.dateTo + ' 23:59:59'}`);
     // Hide deleted orders unless explicitly requested
     if (!f.showDeleted) conditions.push(isNull(orders.deletedAt));
+    // P0-14 FIX: Non-privileged users see only their own orders
+    if (opts && !["ceo", "operator", "supervisor", "superadmin"].includes(opts.userRole)) {
+      conditions.push(eq(orders.agentId, opts.userId));
+    }
 
     const baseQuery = db.select({
       id: orders.id,
@@ -67,7 +76,7 @@ export const OrderService = {
         .innerJoin(products, eq(orderItems.productId, products.id))
         .where(eq(orderItems.orderId, orderId)),
       db.select({ id: shops.id, name: shops.name, address: shops.address, city: shops.city, phone: shops.phone })
-        .from(shops).where(eq(shops.id, order.shopId)).limit(1),
+        .from(shops).where(and(eq(shops.id, order.shopId), eq(shops.tenantId, tenantId))).limit(1),
       order.agentId
         ? db.select({ id: users.id, name: users.name }).from(users).where(eq(users.id, order.agentId)).limit(1)
         : Promise.resolve([]),
@@ -99,6 +108,11 @@ export const OrderService = {
 
   async create(db: Db, tenantId: number, agentId: number, input: { shopId: number; warehouseId?: number; items: Array<{ productId: number; quantity: string }>; notes?: string; discount?: string; idempotencyKey?: string; paymentMethod?: "cash" | "card" | "transfer" | "debt" }) {
     const discount = Number(input.discount ?? "0");
+
+    // P0-1 FIX: Validate shop belongs to this tenant
+    const [shop] = await db.select({ id: shops.id }).from(shops)
+      .where(and(eq(shops.id, input.shopId), eq(shops.tenantId, tenantId))).limit(1);
+    if (!shop) throw new Error("Магазин не найден в вашей организации");
 
     // #FIX1-IDEMPOTENCY: Check for existing order with same key
     if (input.idempotencyKey) {
@@ -200,6 +214,9 @@ export const OrderService = {
       }));
 
       if (input.items.length > 0) {
+        // P0-2 FIX: Include warehouse_id in UPDATE to prevent cross-warehouse corruption
+        const reserveWarehouseId = input.warehouseId ?? stockRows[0]?.warehouseId;
+        if (!reserveWarehouseId) throw new Error("Склад не определён");
         await tx.execute(sql`
           UPDATE warehouse_stock
           SET
@@ -211,6 +228,7 @@ export const OrderService = {
             ), sql`\n`)} ELSE 0 END
           WHERE product_id IN (${sql.join(input.items.map(i => sql`${i.productId}`), sql`, `)})
             AND tenant_id = ${tenantId}
+            AND warehouse_id = ${reserveWarehouseId}
         `);
       }
 
@@ -286,10 +304,16 @@ export const OrderService = {
 
       const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
       if (items.length > 0) {
+        // P0-2 FIX: Get default warehouse for this tenant
+        const [defaultWh] = await tx.select({ id: warehouses.id }).from(warehouses)
+          .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true))).limit(1);
+        const cancelWhId = defaultWh?.id;
+        if (!cancelWhId) throw new Error("Склад по умолчанию не найден");
+
         // Lock stock rows to prevent race conditions
         for (const item of items) {
           await tx.select({ id: warehouseStock.id }).from(warehouseStock)
-            .where(and(eq(warehouseStock.productId, item.productId), eq(warehouseStock.tenantId, tenantId)))
+            .where(and(eq(warehouseStock.productId, item.productId), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, cancelWhId)))
             .for("update");
         }
         await tx.execute(sql`
@@ -303,6 +327,7 @@ export const OrderService = {
             ), sql`\n`)} ELSE available END
           WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
             AND tenant_id = ${tenantId}
+            AND warehouse_id = ${cancelWhId}
         `);
       }
       await tx.update(orders).set({ status: "cancelled" }).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)));
@@ -338,11 +363,18 @@ export const OrderService = {
         if (newStatus === "completed") {
           // Skip stock deduction if courier already delivered (markDelivered handles it)
           if (order.deliveryStatus !== "delivered") {
+            // P0-2 FIX: Get default warehouse for stock operations
+            const [defaultWh] = await tx.select({ id: warehouses.id }).from(warehouses)
+              .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true))).limit(1);
+            const stockWhId = defaultWh?.id;
+            if (!stockWhId) throw new Error("Склад по умолчанию не найден");
+
             // Lock all stock rows in one batch query (prevents deadlock)
             const stockRows = await tx.select({ productId: warehouseStock.productId, currentStock: warehouseStock.currentStock })
               .from(warehouseStock)
               .where(and(
                 eq(warehouseStock.tenantId, tenantId),
+                eq(warehouseStock.warehouseId, stockWhId),
                 sql`${warehouseStock.productId} IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})`
               ))
               .for("update");
@@ -367,6 +399,7 @@ export const OrderService = {
                 ), sql`\n`)} ELSE reserved END
               WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
                 AND tenant_id = ${tenantId}
+                AND warehouse_id = ${stockWhId}
             `);
 
             // Verify no negative stock (rollback if needed — should not happen due to check above)
@@ -374,6 +407,7 @@ export const OrderService = {
               .from(warehouseStock)
               .where(and(
                 eq(warehouseStock.tenantId, tenantId),
+                eq(warehouseStock.warehouseId, stockWhId),
                 sql`${warehouseStock.productId} IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})`
               ));
             const short = items.filter(i => {
@@ -392,16 +426,23 @@ export const OrderService = {
                   ), sql`\n`)} ELSE reserved END
                 WHERE product_id IN (${sql.join(short.map(i => sql`${i.productId}`), sql`, `)})
                   AND tenant_id = ${tenantId}
+                  AND warehouse_id = ${stockWhId}
               `);
               throw new Error(`Недостаточно товара на складе: ${short.map(i => `${i.productId}`).join(", ")}`);
             }
           }
         }
         if (newStatus === "cancelled") {
+          // P0-2 FIX: Get default warehouse for cancellation
+          const [cancelWh] = await tx.select({ id: warehouses.id }).from(warehouses)
+            .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true))).limit(1);
+          const cancelWhId = cancelWh?.id;
+          if (!cancelWhId) throw new Error("Склад по умолчанию не найден");
+
           // Lock stock rows to prevent race conditions
           for (const item of items) {
             await tx.select({ id: warehouseStock.id }).from(warehouseStock)
-              .where(and(eq(warehouseStock.productId, item.productId), eq(warehouseStock.tenantId, tenantId)))
+              .where(and(eq(warehouseStock.productId, item.productId), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, cancelWhId)))
               .for("update");
           }
           await tx.execute(sql`
@@ -415,6 +456,7 @@ export const OrderService = {
               ), sql`\n`)} ELSE available END
             WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
               AND tenant_id = ${tenantId}
+              AND warehouse_id = ${cancelWhId}
           `);
         }
       }

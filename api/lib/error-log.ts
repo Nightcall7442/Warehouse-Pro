@@ -4,7 +4,7 @@
  * Writes to error-log.jsonl (append-only JSON Lines) for persistence across restarts.
  */
 
-import { appendFileSync, readFileSync, existsSync, mkdirSync } from "fs";
+import { appendFileSync, readFileSync, existsSync, mkdirSync, statSync } from "fs";
 import { join } from "path";
 
 export interface ErrorEntry {
@@ -25,6 +25,7 @@ export interface ErrorEntry {
 }
 
 const MAX_ERRORS = 500;
+const MAX_LOG_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB rotation threshold
 const LOG_DIR = join(process.cwd(), "logs");
 const LOG_FILE = join(LOG_DIR, "error-log.jsonl");
 
@@ -59,9 +60,20 @@ export function logError(entry: Omit<ErrorEntry, "id" | "timestamp">): ErrorEntr
   errors.unshift(full);
   if (errors.length > MAX_ERRORS) errors.pop();
 
-  // Persist to file (append-only, non-blocking)
+  // P1-12 FIX: Add log rotation to prevent unbounded growth
   try {
     if (!existsSync(LOG_DIR)) mkdirSync(LOG_DIR, { recursive: true });
+    // Rotate if file exceeds threshold
+    try {
+      if (existsSync(LOG_FILE)) {
+        const stats = statSync(LOG_FILE);
+        if (stats.size > MAX_LOG_SIZE_BYTES) {
+          const rotated = LOG_FILE + "." + Date.now();
+          const { renameSync } = require("fs");
+          renameSync(LOG_FILE, rotated);
+        }
+      }
+    } catch { /* rotation best-effort */ }
     appendFileSync(LOG_FILE, JSON.stringify(full) + "\n");
   } catch { /* ignore write errors */ }
 

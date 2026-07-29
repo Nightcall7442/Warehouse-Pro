@@ -257,8 +257,9 @@ export const priceListRouter = createRouter({
 
       if (assignedLists.length === 0) {
         // No custom price list, return default product price
+        // P2 FIX: Filter by tenant to prevent cross-tenant price leak
         const [product] = await db.select({ unitPrice: products.unitPrice })
-          .from(products).where(eq(products.id, input.productId)).limit(1);
+          .from(products).where(and(eq(products.id, input.productId), eq(products.tenantId, ctx.tenant.id))).limit(1);
         return { price: product?.unitPrice ?? "0", source: "default" };
       }
 
@@ -285,8 +286,9 @@ export const priceListRouter = createRouter({
       }
 
       // Fallback to default price
+      // P2 FIX: Filter by tenant to prevent cross-tenant price leak
       const [product] = await db.select({ unitPrice: products.unitPrice })
-        .from(products).where(eq(products.id, input.productId)).limit(1);
+        .from(products).where(and(eq(products.id, input.productId), eq(products.tenantId, ctx.tenant.id))).limit(1);
       return { price: product?.unitPrice ?? "0", source: "default" };
     }),
 });

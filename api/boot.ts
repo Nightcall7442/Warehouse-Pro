@@ -48,6 +48,15 @@ app.use("*", async (c, next) => {
     const method = c.req.method;
     const path = c.req.path;
 
+    // P1-10 FIX: Resolve auth before withScope so user context is available when scope closes
+    let authUser: { id: number; email: string } | undefined;
+    let authTenant: { id: number; slug: string } | undefined;
+    try {
+      const auth = await authenticateRequest(c.req.raw.headers);
+      if (auth.user) authUser = { id: auth.user.id, email: auth.user.email };
+      if (auth.tenant) authTenant = { id: auth.tenant.id, slug: auth.tenant.slug };
+    } catch { /* not authenticated */ }
+
     // Set Sentry context and tags for alert targeting
     Sentry.withScope((scope) => {
       scope.setTag("method", method);
@@ -55,15 +64,10 @@ app.use("*", async (c, next) => {
       scope.setTag("status", String(status));
       scope.setTag("error_type", err instanceof Error ? err.constructor.name : "Unknown");
 
-      // Set user context
-      try {
-        authenticateRequest(c.req.raw.headers).then((auth) => {
-          if (auth.user) {
-            scope.setUser({ id: String(auth.user.id), username: auth.user.email });
-            scope.setContext("tenant", { id: auth.tenant?.id, slug: auth.tenant?.slug });
-          }
-        }).catch(() => {});
-      } catch { /* not authenticated */ }
+      if (authUser) {
+        scope.setUser({ id: String(authUser.id), username: authUser.email });
+        scope.setContext("tenant", authTenant);
+      }
 
       // Set request context
       scope.setContext("request", {
@@ -78,7 +82,8 @@ app.use("*", async (c, next) => {
     });
 
     // Telegram alert for server errors (5xx)
-    if (status >= 500 || !(err instanceof Error && err.message.includes("ZodError"))) {
+    // P1-11 FIX: Only alert on 5xx errors that are not Zod validation errors
+    if (status >= 500 && !(err instanceof Error && err.message.includes("ZodError"))) {
       try {
         const { notifyAdmin } = await import("./telegram-router");
         const msg = `🔴 <b>Server Error</b>\n<code>${method} ${path}</code>\n${err instanceof Error ? err.message : String(err).slice(0, 200)}`;
@@ -164,7 +169,8 @@ app.use("*", async (c, next) => {
 });
 // Validate CSRF on state-changing POST requests (skip webhooks, tRPC, public API, auth endpoints)
 app.use("/api/*", async (c, next) => {
-  if (c.req.method === "POST" && !c.req.path.includes("/webhooks/") && !c.req.path.includes("/trpc/") && !c.req.path.includes("/logout") && !c.req.path.includes("/login")) {
+  // P0-9 FIX: Removed /trpc/ exclusion — tRPC mutations must be CSRF-protected
+  if (c.req.method === "POST" && !c.req.path.includes("/webhooks/") && !c.req.path.includes("/logout") && !c.req.path.includes("/login")) {
     const cookieToken = c.req.header("cookie")?.match(new RegExp(`${CSRF_COOKIE}=([^;]+)`))?.[1];
     const headerToken = c.req.header(CSRF_HEADER);
     if (!cookieToken || !headerToken || cookieToken !== headerToken) {
@@ -242,7 +248,7 @@ const LOGIN_RATE_LIMIT = { windowMs: 15 * 60 * 1000, limit: 20, namespace: "logi
 app.post("/api/login", async (c) => {
   try {
     const ip = getClientIp(c.req.raw);
-    if (!checkRateLimit(ip, LOGIN_RATE_LIMIT)) {
+    if (!(await checkRateLimit(ip, LOGIN_RATE_LIMIT))) {
       return c.json({ error: "Too many login attempts. Please try again in 15 minutes." }, 429);
     }
 
@@ -328,7 +334,7 @@ app.post("/api/refresh-token", async (c) => {
 app.post("/api/logout-all", async (c) => {
   // Rate limit: 5 per 15 minutes per IP
   const ip = getClientIp(c.req.raw);
-  if (!checkRateLimit(ip, { windowMs: 15 * 60 * 1000, limit: 5, namespace: "logout-all" })) {
+  if (!(await checkRateLimit(ip, { windowMs: 15 * 60 * 1000, limit: 5, namespace: "logout-all" }))) {
     return c.json({ error: "Too many requests. Try again later." }, 429);
   }
 
@@ -348,7 +354,7 @@ app.post("/api/logout-all", async (c) => {
 
     const db = getDb();
     await db.update(users)
-      .set({ tokenVersion: (await import("@db/schema")).sql`COALESCE(${users.tokenVersion}, 0) + 1` })
+      .set({ tokenVersion: sql`COALESCE(${users.tokenVersion}, 0) + 1` })
       .where(eq(users.id, claim.userId));
 
     c.header("set-cookie", cookie.serialize(Session.cookieName, "", {
@@ -525,7 +531,11 @@ if (env.isProduction) {
   const { serve }            = await import("@hono/node-server");
   const { serveStaticFiles } = await import("./lib/vite");
   const { attachWebSocket }  = await import("./lib/ws");
+  const { connectRedis }     = await import("./lib/redis");
   serveStaticFiles(app);
+
+  // P1-6 FIX: Connect Redis on startup for multi-instance support
+  await connectRedis();
   const port = parseInt(process.env.PORT ?? "3000", 10);
   const server = serve({ fetch: app.fetch, port }, () => {
     logger.info("server started", { port, version: APP_VERSION });

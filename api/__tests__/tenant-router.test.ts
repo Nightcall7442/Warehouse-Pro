@@ -289,7 +289,7 @@ function makeMockDb() {
       else if (table === users) usersTable.push({ id, ...vals, createdAt: new Date(), updatedAt: new Date() });
       else if (table === settings) settingsTable.push({ id, ...vals });
       else if (table === subscriptions) subscriptionsTable.push({ id, ...vals });
-      return [{ insertId: id }];
+      return Promise.resolve([{ insertId: id }]);
     }),
   });
 
@@ -395,12 +395,13 @@ describe("tenant.register", () => {
       .rejects.toThrow(/Too many/i);
   });
 
-  it("calls createTrialSubscription after registration", async () => {
-    const { createTrialSubscription } = await import("../lib/subscription");
+  it("creates trial subscription during registration", async () => {
     const { tenantRouter } = await import("../tenant-router");
     const caller = tenantRouter.createCaller(buildCtx({ user: undefined, tenant: undefined }));
     await caller.register({ orgName: "SubCo", name: "Admin", email: "x@sub.com", password: "password123" });
-    expect(createTrialSubscription).toHaveBeenCalled();
+    // Check subscription was created in the table (inlined from createTrialSubscription)
+    const sub = subscriptionsTable.find((s: any) => s.plan === "trial" && s.status === "trialing");
+    expect(sub).toBeTruthy();
   });
 
   it("rejects short password", async () => {

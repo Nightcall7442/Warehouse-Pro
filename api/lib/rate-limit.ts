@@ -24,7 +24,7 @@ export type RateLimitOptions = {
  * Returns true if the request is allowed, false if blocked.
  * Uses Redis sorted sets when available, in-memory fallback otherwise.
  */
-export function checkRateLimit(ip: string, opts: RateLimitOptions): boolean {
+export async function checkRateLimit(ip: string, opts: RateLimitOptions): Promise<boolean> {
   if (isRedisAvailable()) {
     return checkRateLimitRedis(ip, opts);
   }
@@ -49,7 +49,7 @@ function checkRateLimitMemory(ip: string, opts: RateLimitOptions): boolean {
   return true;
 }
 
-function checkRateLimitRedis(ip: string, opts: RateLimitOptions): boolean {
+async function checkRateLimitRedis(ip: string, opts: RateLimitOptions): Promise<boolean> {
   try {
     const key = `ratelimit:${opts.namespace}:${ip}`;
     const now = Date.now();
@@ -68,7 +68,8 @@ function checkRateLimitRedis(ip: string, opts: RateLimitOptions): boolean {
     // Set TTL on the key
     multi.expire(key, windowSeconds * 2);
 
-    const results = multi.exec() as unknown as [Error | null, unknown][] | null;
+    // P0-5 FIX: ioredis multi.exec() returns a Promise, not an array
+    const results = await multi.exec();
     if (!results) return checkRateLimitMemory(ip, opts);
 
     const count = Number(results[1]?.[1] ?? 0);
@@ -85,10 +86,12 @@ export function getClientIp(req: Request): string {
     const idx = Math.max(0, parts.length - TRUSTED_PROXY_COUNT);
     return parts[idx] ?? "unknown";
   }
-  return (
-    req.headers.get("x-real-ip") ??
-    "unknown"
-  );
+  // P0-4 FIX: Only trust x-real-ip when TRUSTED_PROXY_COUNT > 0 (reverse proxy configured).
+  // Otherwise fall back to "unknown" to prevent client-side header spoofing.
+  if (TRUSTED_PROXY_COUNT > 0) {
+    return req.headers.get("x-real-ip") ?? "unknown";
+  }
+  return "unknown";
 }
 
 /**

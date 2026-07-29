@@ -109,11 +109,15 @@ function makeMockDb() {
   };
   db.insert = (table: any) => ({
     values: vi.fn((vals: any) => {
-      const id = nextId++;
-      if (table === products) productsTable.push({ id, ...vals, createdAt: new Date() });
-      else if (table === shops) shopsTable.push({ id, ...vals, createdAt: new Date() });
-      else if (table === warehouses) warehousesTable.push({ id, ...vals });
-      return [{ insertId: id }];
+      const list = Array.isArray(vals) ? vals : [vals];
+      const firstId = nextId;
+      for (const v of list) {
+        const id = nextId++;
+        if (table === products) productsTable.push({ id, ...v, createdAt: new Date() });
+        else if (table === shops) shopsTable.push({ id, ...v, createdAt: new Date() });
+        else if (table === warehouses) warehousesTable.push({ id, ...v });
+      }
+      return [{ insertId: firstId }];
     }),
   });
   db.execute = (sqlObj: any) => {

@@ -14,7 +14,7 @@ export const authRouter = createRouter({
     .input(z.object({ email: z.string().email() }))
     .mutation(async ({ input, ctx }) => {
       const ip = getClientIp(ctx.req);
-      if (!checkRateLimit(ip, { windowMs: 60_000, limit: 5, namespace: "forgotPassword" })) {
+      if (!(await checkRateLimit(ip, { windowMs: 60_000, limit: 5, namespace: "forgotPassword" }))) {
         throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Слишком много запросов. Попробуйте позже." });
       }
 
@@ -32,6 +32,11 @@ export const authRouter = createRouter({
       newPassword: z.string().min(8, "Пароль должен быть не менее 8 символов"),
     }))
     .mutation(async ({ input, ctx }) => {
+      // P0-11 FIX: Rate limit password reset confirmation
+      const ip = getClientIp(ctx.req);
+      if (!(await checkRateLimit(ip, { windowMs: 15 * 60_000, limit: 5, namespace: "confirmReset" }))) {
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Слишком много запросов. Попробуйте позже." });
+      }
       return confirmPasswordReset(ctx.db, input.token, input.newPassword);
     }),
 });

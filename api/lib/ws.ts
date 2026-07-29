@@ -54,6 +54,13 @@ export function attachWebSocket(server: ServerType) {
           return;
         }
 
+        // P0-13 FIX: Check tokenVersion to reject revoked tokens
+        if ((user.tokenVersion ?? 0) !== claim.tv) {
+          socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+          socket.destroy();
+          return;
+        }
+
         const tenant = await findTenantById(user.tenantId);
         if (!tenant || tenant.status !== "active") {
           socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");

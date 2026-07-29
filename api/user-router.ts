@@ -73,7 +73,7 @@ export const userRouter = createRouter({
     }))
     .mutation(async ({ input, ctx }) => {
       const ip = getClientIp(ctx.req);
-      if (!checkRateLimit(ip, { windowMs: 15 * 60 * 1000, limit: 5, namespace: "changePassword" })) {
+      if (!(await checkRateLimit(ip, { windowMs: 15 * 60 * 1000, limit: 5, namespace: "changePassword" }))) {
         throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Too many attempts. Try again in 15 minutes." });
       }
 

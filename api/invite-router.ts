@@ -10,6 +10,8 @@ import { sendInviteEmail } from "./lib/mailer";
 import { env } from "./lib/env";
 import { logger } from "./lib/logger";
 import { INVITE_EXPIRY_MS } from "./lib/constants";
+import { checkRateLimit, getClientIp } from "./lib/rate-limit";
+import { checkPlanLimits } from "./lib/plan-limits";
 
 export const inviteRouter = createRouter({
   /** CEO sends an invitation email */
@@ -59,7 +61,12 @@ export const inviteRouter = createRouter({
   /** Verify invite token (called on /invite/:token page load) */
   verify: publicQuery
     .input(z.object({ token: z.string() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      // P0-11 FIX: Rate limit invite verification
+      const ip = getClientIp(ctx.req);
+      if (!(await checkRateLimit(ip, { windowMs: 60_000, limit: 30, namespace: "invite.verify" }))) {
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Слишком много запросов." });
+      }
       const db  = getDb();
       const now = new Date();
 
@@ -95,7 +102,12 @@ export const inviteRouter = createRouter({
       name:     z.string().min(2),
       password: z.string().min(8),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      // P0-11 FIX: Rate limit invite acceptance
+      const ip = getClientIp(ctx.req);
+      if (!(await checkRateLimit(ip, { windowMs: 60 * 60_000, limit: 10, namespace: "invite.accept" }))) {
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Слишком много запросов." });
+      }
       const db  = getDb();
       const now = new Date();
 
@@ -106,6 +118,15 @@ export const inviteRouter = createRouter({
 
       if (!invite) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Приглашение недействительно или истекло." });
+      }
+
+      // P0-11 FIX: Check plan user limits before accepting invite
+      const limits = await checkPlanLimits(db, invite.tenantId, "users");
+      if (!limits.allowed) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: `Достигнут лимит пользователей тарифа (${limits.limit}). Обновите тариф для добавления новых пользователей.`,
+        });
       }
 
       const passwordHash = await hashPassword(input.password);
