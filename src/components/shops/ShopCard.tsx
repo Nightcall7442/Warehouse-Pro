@@ -1,6 +1,7 @@
 import { memo, useRef } from "react";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
+import { compressImage } from "@/lib/compress-image";
 import { Store, MapPin, Phone, Camera, Loader2, AlertCircle, ChevronRight, CheckSquare, Square } from "lucide-react";
 import { F, COLORS, SHADOW } from "./constants";
 
@@ -15,10 +16,14 @@ export function ShopPhoto({ shopId, photoUrl, size = "md" }: { shopId: number; p
   });
   const dim = size === "sm" ? "w-12 h-12" : size === "lg" ? "w-20 h-20" : "w-16 h-16";
   const iconSize = size === "sm" ? 18 : size === "lg" ? 32 : 22;
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return;
-    if (file.size > 2 * 1024 * 1024) { notify.error("Макс. 2 МБ"); return; }
-    const r = new FileReader(); r.onload = () => upload.mutate({ shopId, dataUrl: r.result as string }); r.readAsDataURL(file); e.target.value = "";
+    if (file.size > 10 * 1024 * 1024) { notify.error("Макс. 10 МБ"); return; }
+    try {
+      const compressed = await compressImage(file);
+      upload.mutate({ shopId, dataUrl: compressed });
+    } catch { notify.error("Ошибка обработки изображения"); }
+    e.target.value = "";
   };
   return (
     <div className="relative group" onClick={e => e.stopPropagation()}>

@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { notify } from "@/lib/toast";
+import { compressImage } from "@/lib/compress-image";
 import { Loader2, Upload } from "lucide-react";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
@@ -27,13 +28,14 @@ export function CompanySettings() {
     onError:   (e) => notify.error(e.message),
   });
 
-  const handleLogo = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 1024 * 1024) { notify.error(t("Макс. 1 МБ", "Maks. 1 MB")); return; }
-    const reader = new FileReader();
-    reader.onload = () => setForm((f: CompanyForm | null) => ({ ...f, logoUrl: reader.result as string } as CompanyForm));
-    reader.readAsDataURL(file);
+    if (file.size > 10 * 1024 * 1024) { notify.error(t("Макс. 10 МБ", "Maks. 10 MB")); return; }
+    try {
+      const compressed = await compressImage(file);
+      setForm((f: CompanyForm | null) => ({ ...f, logoUrl: compressed } as CompanyForm));
+    } catch { notify.error("Ошибка обработки изображения"); }
   };
 
   if (isError) return <QueryErrorFallback onRetry={refetch} />;

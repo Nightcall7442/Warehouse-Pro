@@ -3,6 +3,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { useRef, useState, useMemo } from "react";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
+import { compressImage } from "@/lib/compress-image";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { useLang } from "@/i18n";
 import { format } from "date-fns";
@@ -128,12 +129,14 @@ export default function ShopDetail() {
     onSuccess: () => { utils.shop.getById.invalidate({ id: Number(id) }); notify.success(t("Фото обновлено", "Rasm yangilandi")); },
     onError:   (e) => notify.error(e.message),
   });
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return;
-    if (file.size > 2*1024*1024) { notify.error("Макс. 2 МБ"); return; }
-    const r = new FileReader();
-    r.onload = () => uploadPhoto.mutate({ shopId: Number(id), dataUrl: r.result as string });
-    r.readAsDataURL(file); e.target.value = "";
+    if (file.size > 10*1024*1024) { notify.error("Макс. 10 МБ"); return; }
+    try {
+      const compressed = await compressImage(file);
+      uploadPhoto.mutate({ shopId: Number(id), dataUrl: compressed });
+    } catch { notify.error("Ошибка обработки изображения"); }
+    e.target.value = "";
   };
 
   const updateShop = trpc.shop.update.useMutation({

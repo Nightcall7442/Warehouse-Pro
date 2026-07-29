@@ -3,6 +3,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { useRef, useState } from "react";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
+import { compressImage } from "@/lib/compress-image";
 import { useTranslate } from "@/i18n";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { format } from "date-fns";
@@ -64,13 +65,14 @@ export default function ProductDetail() {
     onError:   (e) => notify.error(e.message),
   });
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) { notify.error(tr("Файл слишком большой (макс. 2 МБ)", "Fayl juda katta (maks. 2 MB)")); return; }
-    const reader = new FileReader();
-    reader.onload = () => uploadPhoto.mutate({ productId: Number(id), dataUrl: reader.result as string });
-    reader.readAsDataURL(file);
+    if (file.size > 10 * 1024 * 1024) { notify.error(tr("Файл слишком большой (макс. 10 МБ)", "Fayl juda katta (maks. 10 MB)")); return; }
+    try {
+      const compressed = await compressImage(file);
+      uploadPhoto.mutate({ productId: Number(id), dataUrl: compressed });
+    } catch { notify.error("Ошибка обработки изображения"); }
     e.target.value = "";
   };
 
