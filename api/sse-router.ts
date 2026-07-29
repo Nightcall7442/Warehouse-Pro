@@ -56,7 +56,7 @@ export function createSSEResponse(
         }
       }
 
-      // Heartbeat every 30 seconds to keep connection alive
+      // Heartbeat every 15 seconds to keep connection alive through proxies
       heartbeat = setInterval(() => {
         try {
           const ping = `:heartbeat ${Date.now()}\n\n`;
@@ -65,7 +65,7 @@ export function createSSEResponse(
           if (heartbeat) clearInterval(heartbeat);
           if (unsubscribe) unsubscribe();
         }
-      }, 30_000);
+      }, 15_000);
     },
     cancel() {
       if (heartbeat) clearInterval(heartbeat);
