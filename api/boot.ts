@@ -169,9 +169,10 @@ app.use("*", async (c, next) => {
 });
 // Validate CSRF on state-changing POST requests (skip webhooks, tRPC, public API, auth endpoints)
 app.use("/api/*", async (c, next) => {
-  // P0-9 FIX: CSRF protection for cookie-based auth (browser).
-  // Skip for Bearer token auth (mobile/API) — token is explicitly set in header, not auto-sent like cookies.
-  if (c.req.method === "POST" && !c.req.path.includes("/webhooks/") && !c.req.path.includes("/logout") && !c.req.path.includes("/login")) {
+  // CSRF protection: skip for tRPC (JSON API protected by CORS + SameSite cookies),
+  // webhooks (Stripe signature), and auth endpoints.
+  // Bearer token auth (mobile) is also skipped — token is explicitly in header, not auto-sent.
+  if (c.req.method === "POST" && !c.req.path.includes("/trpc/") && !c.req.path.includes("/webhooks/") && !c.req.path.includes("/logout") && !c.req.path.includes("/login")) {
     const authHeader = c.req.header("authorization");
     const isBearerAuth = authHeader?.startsWith("Bearer ");
     if (!isBearerAuth) {

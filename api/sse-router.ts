@@ -77,9 +77,9 @@ export function createSSEResponse(
     status: 200,
     headers: {
       "Content-Type":  "text/event-stream",
-      "Cache-Control": "no-cache, no-transform",
-      "Connection":    "keep-alive",
+      "Cache-Control": "no-cache, no-store, no-transform",
       "X-Accel-Buffering": "no",
+      "Transfer-Encoding": "chunked",
     },
   });
 }
