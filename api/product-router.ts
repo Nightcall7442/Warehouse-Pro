@@ -215,11 +215,13 @@ export const productRouter = createRouter({
         // Use raw SQL to handle case where warehouse_id column may not exist yet
         try {
           await tx.execute(sql`INSERT INTO warehouse_stock (tenant_id, warehouse_id, product_id, current_stock, reserved, available) VALUES (${tenantId}, ${defaultWarehouse.id}, ${id}, '0.00', '0.00', '0.00')`);
-        } catch {
+        } catch (e1) {
           // Fallback: try without warehouse_id (column may not exist)
           try {
             await tx.execute(sql`INSERT INTO warehouse_stock (tenant_id, product_id, current_stock, reserved, available) VALUES (${tenantId}, ${id}, '0.00', '0.00', '0.00')`);
-          } catch { /* give up */ }
+          } catch (e2) {
+            console.warn(`[product.create] Failed to create warehouse_stock for product ${id}: ${e2}`);
+          }
         }
 
         return id;

@@ -294,14 +294,14 @@ export default function Users() {
   if (isError) return <QueryErrorFallback onRetry={refetch} />;
 
   return (
+    <>
+    <style>{`
+      @keyframes slideUp {
+        from { opacity: 0; transform: translateY(12px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+    `}</style>
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-      <style>{`
-        @keyframes slideUp {
-          from { opacity: 0; transform: translateY(12px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
-
       {dialog}
       {resetUser && (
         <ResetPasswordModal
@@ -432,5 +432,6 @@ export default function Users() {
         />
       )}
     </div>
+    </>
   );
 }

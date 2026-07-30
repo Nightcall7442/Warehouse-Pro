@@ -47,7 +47,7 @@ export function AgentTerritoriesSection({ lang }: Props) {
         background: COLORS.surface,
         borderRadius: "24px",
         boxShadow: SHADOW,
-        overflow: "hidden",
+        overflow: "visible",
       }}
     >
       {/* Header */}

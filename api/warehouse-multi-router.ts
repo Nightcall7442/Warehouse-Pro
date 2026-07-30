@@ -24,11 +24,17 @@ export const warehouseMultiRouter = createRouter({
     }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
+      // If this is the first warehouse for the tenant, make it the default
+      const [existing] = await db.select({ id: warehouses.id }).from(warehouses)
+        .where(eq(warehouses.tenantId, ctx.tenant.id)).limit(1);
+      const isDefault = !existing;
+
       const [result] = await db.insert(warehouses).values({
         tenantId: ctx.tenant.id,
         name: input.name,
         address: input.address,
         city: input.city,
+        isDefault,
       });
       return { id: Number(result.insertId) };
     }),

@@ -3,7 +3,7 @@ import { randomUUID } from "crypto";
 import { TRPCError } from "@trpc/server";
 import { createRouter, publicQuery, adminQuery, superAdminQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { tenants, users, settings, orders, products, shops, subscriptions } from "@db/schema";
+import { tenants, users, settings, orders, products, shops, subscriptions, warehouses } from "@db/schema";
 import { eq, and, ne, sql, count, sum } from "drizzle-orm";
 import { hashPassword } from "./auth/password";
 import { findTenantBySlug, listTenants } from "./queries/tenants";
@@ -65,6 +65,10 @@ export const tenantRouter = createRouter({
           passwordHash, role: "ceo", status: "active", lastSignInAt: new Date(),
         });
         await tx.insert(settings).values({ tenantId, companyName: input.orgName });
+        // Create default warehouse so products get stock rows
+        await tx.insert(warehouses).values({
+          tenantId, name: "Основной склад", isDefault: true, status: "active",
+        });
         // P1-13 FIX: Create trial subscription inside the transaction to prevent tenant without subscription
         await tx.insert(subscriptions).values({
           id: randomUUID(),

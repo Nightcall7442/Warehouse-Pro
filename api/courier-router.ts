@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createRouter, courierQuery, operatorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { orders, shops, users, payments, notifications, orderItems, products, warehouseStock } from "@db/schema";
+import { orders, shops, users, payments, notifications, orderItems, products, warehouseStock, warehouses } from "@db/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { sseBus } from "./lib/sse";
 import { logger } from "./lib/logger";
@@ -184,10 +184,16 @@ export const courierRouter = createRouter({
           .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, ctx.tenant.id)));
 
         const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, input.orderId));
+        // Get default warehouse for stock operations
+        const [defaultWh] = await tx.select({ id: warehouses.id }).from(warehouses)
+          .where(and(eq(warehouses.tenantId, ctx.tenant.id), eq(warehouses.isDefault, true))).limit(1);
+        const whId = defaultWh?.id;
+        if (!whId) throw new Error("Склад по умолчанию не найден");
+
         // Lock stock rows with FOR UPDATE to prevent race conditions
         for (const item of items) {
           await tx.select({ id: warehouseStock.id }).from(warehouseStock)
-            .where(and(eq(warehouseStock.productId, item.productId), eq(warehouseStock.tenantId, ctx.tenant.id)))
+            .where(and(eq(warehouseStock.productId, item.productId), eq(warehouseStock.tenantId, ctx.tenant.id), eq(warehouseStock.warehouseId, whId)))
             .for("update");
         }
         // Now safely deduct stock — verify each deduction
@@ -196,7 +202,7 @@ export const courierRouter = createRouter({
           const [result] = await tx.execute(sql`
             UPDATE warehouse_stock
             SET current_stock = current_stock - ${qty}, reserved = reserved - ${qty}
-            WHERE product_id = ${item.productId} AND tenant_id = ${ctx.tenant.id}
+            WHERE product_id = ${item.productId} AND tenant_id = ${ctx.tenant.id} AND warehouse_id = ${whId}
           `);
           // If no rows affected, stock row doesn't exist — log warning but continue
           if (result && typeof result === "object" && "affectedRows" in result && (result as Record<string, unknown>).affectedRows === 0) {
@@ -281,11 +287,17 @@ export const courierRouter = createRouter({
       const safeReason = input.reason ? sanitizeString(input.reason) : "";
 
       await db.transaction(async (tx) => {
+        // Get default warehouse for stock operations
+        const [defaultWh] = await tx.select({ id: warehouses.id }).from(warehouses)
+          .where(and(eq(warehouses.tenantId, ctx.tenant.id), eq(warehouses.isDefault, true))).limit(1);
+        const whId = defaultWh?.id;
+        if (!whId) throw new Error("Склад по умолчанию не найден");
+
         // Lock stock rows before releasing
         const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, input.orderId));
         for (const item of items) {
           await tx.select({ id: warehouseStock.id }).from(warehouseStock)
-            .where(and(eq(warehouseStock.productId, item.productId), eq(warehouseStock.tenantId, ctx.tenant.id)))
+            .where(and(eq(warehouseStock.productId, item.productId), eq(warehouseStock.tenantId, ctx.tenant.id), eq(warehouseStock.warehouseId, whId)))
             .for("update");
         }
 
@@ -300,7 +312,7 @@ export const courierRouter = createRouter({
           await tx.execute(sql`
             UPDATE warehouse_stock
             SET reserved = reserved - ${qty}, available = available + ${qty}
-            WHERE product_id = ${item.productId} AND tenant_id = ${ctx.tenant.id}
+            WHERE product_id = ${item.productId} AND tenant_id = ${ctx.tenant.id} AND warehouse_id = ${whId}
           `);
         }
       });

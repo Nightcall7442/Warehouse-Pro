@@ -49,7 +49,9 @@ export const OrderService = {
 
     const [data, countResult] = await Promise.all([
       baseQuery.orderBy(desc(orders.createdAt)).limit(limit).offset(offset),
-      db.select({ count: sql<number>`count(*)` }).from(orders).where(and(...conditions)),
+      db.select({ count: sql<number>`count(*)` }).from(orders)
+        .leftJoin(shops, eq(orders.shopId, shops.id))
+        .where(and(...conditions)),
     ]);
 
     return { data, total: Number(countResult[0]?.count ?? 0), page, pageSize: limit };
@@ -108,6 +110,7 @@ export const OrderService = {
 
   async create(db: Db, tenantId: number, agentId: number, input: { shopId: number; warehouseId?: number; items: Array<{ productId: number; quantity: string }>; notes?: string; discount?: string; idempotencyKey?: string; paymentMethod?: "cash" | "card" | "transfer" | "debt" }) {
     const discount = Number(input.discount ?? "0");
+    if (discount < 0) throw new Error("Скидка не может быть отрицательной");
 
     // P0-1 FIX: Validate shop belongs to this tenant
     const [shop] = await db.select({ id: shops.id }).from(shops)
@@ -232,6 +235,13 @@ export const OrderService = {
         `);
       }
 
+      // Update shop debt if payment method is "debt"
+      if (input.paymentMethod === "debt" && total > 0) {
+        await tx.execute(sql`
+          UPDATE shops SET debt = debt + ${total} WHERE id = ${input.shopId} AND tenant_id = ${tenantId}
+        `);
+      }
+
       return { id, total };
     });
       orderId = txResult.id;
@@ -330,7 +340,7 @@ export const OrderService = {
             AND warehouse_id = ${cancelWhId}
         `);
       }
-      await tx.update(orders).set({ status: "cancelled" }).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)));
+      await tx.update(orders).set({ status: "cancelled" }).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), eq(orders.status, "new")));
     });
 
     cache.invalidate(CacheKeys.dashboardKpis(Number(tenantId)));
@@ -503,10 +513,16 @@ export const OrderService = {
           quantity: orderItems.quantity,
         }).from(orderItems).where(eq(orderItems.orderId, orderId));
         if (items.length > 0) {
+          // Get default warehouse for stock release
+          const [defaultWh] = await tx.select({ id: warehouses.id }).from(warehouses)
+            .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true))).limit(1);
+          const deleteWhId = defaultWh?.id;
+          if (!deleteWhId) throw new Error("Склад по умолчанию не найден");
+
           // Lock stock rows before releasing
           for (const item of items) {
             await tx.select({ id: warehouseStock.id }).from(warehouseStock)
-              .where(and(eq(warehouseStock.productId, item.productId), eq(warehouseStock.tenantId, tenantId)))
+              .where(and(eq(warehouseStock.productId, item.productId), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, deleteWhId)))
               .for("update");
           }
           await tx.execute(sql`
@@ -520,6 +536,7 @@ export const OrderService = {
               ), sql`\n`)} ELSE available END
             WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
               AND tenant_id = ${tenantId}
+              AND warehouse_id = ${deleteWhId}
           `);
         }
       }
@@ -577,17 +594,23 @@ export const OrderService = {
       // Re-reserve stock if order was new/processing when deleted
       if (order.status === "new" || order.status === "processing") {
         const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
+        // Get default warehouse for stock operations
+        const [defaultWh] = await tx.select({ id: warehouses.id }).from(warehouses)
+          .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true))).limit(1);
+        const restoreWhId = defaultWh?.id;
+        if (!restoreWhId) throw new Error("Склад по умолчанию не найден");
+
         // Lock stock rows before checking and updating
         for (const item of items) {
           await tx.select({ id: warehouseStock.id }).from(warehouseStock)
-            .where(and(eq(warehouseStock.productId, item.productId), eq(warehouseStock.tenantId, tenantId)))
+            .where(and(eq(warehouseStock.productId, item.productId), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, restoreWhId)))
             .for("update");
         }
         for (const item of items) {
           const qty = Number(item.quantity);
           const [stock] = await tx.select({ available: warehouseStock.available })
             .from(warehouseStock)
-            .where(and(eq(warehouseStock.productId, item.productId), eq(warehouseStock.tenantId, tenantId)))
+            .where(and(eq(warehouseStock.productId, item.productId), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, restoreWhId)))
             .limit(1);
           const available = Number(stock?.available ?? 0);
           if (available < qty) {
@@ -596,7 +619,7 @@ export const OrderService = {
           await tx.execute(sql`
             UPDATE warehouse_stock
             SET available = available - ${qty}, reserved = reserved + ${qty}
-            WHERE product_id = ${item.productId} AND tenant_id = ${tenantId}
+            WHERE product_id = ${item.productId} AND tenant_id = ${tenantId} AND warehouse_id = ${restoreWhId}
           `);
         }
       }

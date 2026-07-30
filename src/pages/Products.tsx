@@ -112,6 +112,13 @@ export default function Products() {
   if (isError) return <QueryErrorFallback onRetry={refetch} />;
 
   return (
+    <>
+    <style>{`
+      @keyframes slideUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+    `}</style>
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
       {dialog}
       {/* Header */}
@@ -325,15 +332,8 @@ export default function Products() {
         </div>
       )}
 
-      {/* SlideUp Animation Keyframes */}
-      <style>{`
-        @keyframes slideUp {
-          from { opacity: 0; transform: translateY(20px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
-
       {showCategoryManager && <CategoryManager lang={lang} onClose={() => setShowCategoryManager(false)} />}
     </div>
+    </>
   );
 }

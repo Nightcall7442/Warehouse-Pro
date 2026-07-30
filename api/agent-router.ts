@@ -74,7 +74,7 @@ export const agentRouter = createRouter({
       .limit(500);
   }),
 
-  // Agent: list all shops in tenant (for order creation, shop picker)
+  // Agent: list shops assigned to this agent
   myShops: fieldSalesQuery.query(async ({ ctx }) => {
     return getDb().select({
       id: shops.id, name: shops.name, ownerName: shops.ownerName,
@@ -84,6 +84,19 @@ export const agentRouter = createRouter({
     })
       .from(shops)
       .where(and(eq(shops.tenantId, ctx.tenant.id), eq(shops.status, "active"), eq(shops.agentId, ctx.user.id)))
+      .limit(500);
+  }),
+
+  // All active shops in tenant — for order creation & shop picker
+  availableShops: fieldSalesQuery.query(async ({ ctx }) => {
+    return getDb().select({
+      id: shops.id, name: shops.name, ownerName: shops.ownerName,
+      phone: shops.phone, address: shops.address, city: shops.city,
+      district: shops.district, photoUrl: shops.photoUrl, status: shops.status,
+      debt: shops.debt, gpsLat: shops.gpsLat, gpsLng: shops.gpsLng,
+    })
+      .from(shops)
+      .where(and(eq(shops.tenantId, ctx.tenant.id), eq(shops.status, "active")))
       .limit(500);
   }),
 
@@ -267,13 +280,7 @@ export const agentRouter = createRouter({
           const lng = Number(remaining[i].lng);
           if (!lat || !lng) continue;
 
-          const dLat = (lat - currentLat) * Math.PI / 180;
-          const dLng = (lng - currentLng) * Math.PI / 180;
-          const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(currentLat * Math.PI / 180) * Math.cos(lat * Math.PI / 180) *
-            Math.sin(dLng / 2) * Math.sin(dLng / 2);
-          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-          const dist = R * c;
+          const dist = haversineKm(currentLat, currentLng, lat, lng);
 
           if (dist < nearestDist) {
             nearestDist = dist;
@@ -296,13 +303,7 @@ export const agentRouter = createRouter({
         const lat = Number(sorted[i].lat);
         const lng = Number(sorted[i].lng);
         if (!lat || !lng) { noGpsCount++; continue; }
-        const dLat = (lat - prevLat) * Math.PI / 180;
-        const dLng = (lng - prevLng) * Math.PI / 180;
-        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-          Math.cos(prevLat * Math.PI / 180) * Math.cos(lat * Math.PI / 180) *
-          Math.sin(dLng / 2) * Math.sin(dLng / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        totalDistance += R * c;
+        totalDistance += haversineKm(prevLat, prevLng, lat, lng);
         prevLat = lat;
         prevLng = lng;
       }
