@@ -120,7 +120,7 @@ export default function Products() {
       }
     `}</style>
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-      {dialog}
+      <div key="confirm-dialog">{dialog}</div>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
         <div>
@@ -191,10 +191,14 @@ export default function Products() {
       </div>
 
       {/* Import Section */}
-      {showImport && <ExcelImport type="products" onDone={() => { setShowImport(false); utils.product.list.invalidate(); }} onCancel={() => setShowImport(false)} />}
+      <div key="import-section">
+        {showImport && <ExcelImport type="products" onDone={() => { setShowImport(false); utils.product.list.invalidate(); }} onCancel={() => setShowImport(false)} />}
+      </div>
 
       {/* Form Section */}
-      {showForm && <ProductForm isPending={createMutation.isPending} lang={lang} categories={(categories ?? []).map(c => String(c))} onSave={d => createMutation.mutate(d)} onCancel={() => setShowForm(false)} />}
+      <div key="form-section">
+        {showForm && <ProductForm isPending={createMutation.isPending} lang={lang} categories={(categories ?? []).map(c => String(c))} onSave={d => createMutation.mutate(d)} onCancel={() => setShowForm(false)} />}
+      </div>
 
       {/* KPI Cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
@@ -244,6 +248,7 @@ export default function Products() {
       />
 
       {/* Selection bar */}
+      <div key="selection-bar">
       {selected.size > 0 && (
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -270,6 +275,8 @@ export default function Products() {
           </div>
         </div>
       )}
+
+      </div>
 
       {/* Select all */}
       {data && data.data.length > 0 && (
@@ -332,7 +339,9 @@ export default function Products() {
         </div>
       )}
 
-      {showCategoryManager && <CategoryManager lang={lang} onClose={() => setShowCategoryManager(false)} />}
+      <div key="category-manager">
+        {showCategoryManager && <CategoryManager lang={lang} onClose={() => setShowCategoryManager(false)} />}
+      </div>
     </div>
     </>
   );
