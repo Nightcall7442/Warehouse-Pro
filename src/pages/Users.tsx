@@ -302,25 +302,30 @@ export default function Users() {
       }
     `}</style>
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-      {dialog}
-      {resetUser && (
-        <ResetPasswordModal
-          userId={resetUser.id}
-          userName={resetUser.name}
-          onClose={() => setResetUser(null)}
-          lang={lang}
-        />
-      )}
-      {transferUser && (
-        <TransferCredentialsModal
-          userId={transferUser.id}
-          userName={transferUser.name}
-          userEmail={transferUser.email}
+      <div key="confirm-dialog">{dialog}</div>
+      <div key="reset-password-modal">
+        {resetUser && (
+          <ResetPasswordModal
+            userId={resetUser.id}
+            userName={resetUser.name}
+            onClose={() => setResetUser(null)}
+            lang={lang}
+          />
+        )}
+      </div>
+      <div key="transfer-modal">
+        {transferUser && (
+          <TransferCredentialsModal
+            userId={transferUser.id}
+            userName={transferUser.name}
+            userEmail={transferUser.email}
           lang={lang}
           onClose={() => setTransferUser(null)}
           onDone={() => { setTransferUser(null); utils.user.list.invalidate(); }}
         />
       )}
+
+      </div>
 
       {/* ── Header ───────────────────────────────────────────────────────── */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
@@ -422,15 +427,17 @@ export default function Users() {
       <AgentTerritoriesSection lang={lang} />
 
       {/* ── Work Zone Modal ───────────────────────────────────────────────── */}
-      {workZoneAgent && (
-        <WorkZoneSelector
-          agentId={workZoneAgent.id}
-          agentName={workZoneAgent.name}
-          lang={lang}
-          onClose={() => setWorkZoneAgent(null)}
-          onSaved={() => setWorkZoneAgent(null)}
-        />
-      )}
+      <div key="work-zone-modal">
+        {workZoneAgent && (
+          <WorkZoneSelector
+            agentId={workZoneAgent.id}
+            agentName={workZoneAgent.name}
+            lang={lang}
+            onClose={() => setWorkZoneAgent(null)}
+            onSaved={() => setWorkZoneAgent(null)}
+          />
+        )}
+      </div>
     </div>
     </>
   );
