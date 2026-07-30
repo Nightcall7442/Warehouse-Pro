@@ -113,6 +113,70 @@ export function getErrorById(id: string): ErrorEntry | undefined {
   return errors.find((e) => e.id === id);
 }
 
+/** Grouped errors — deduplicated by message+path, with count and severity */
+export function getGroupedErrors(opts?: { since?: number; limit?: number }): Array<{
+  key: string; message: string; path: string; code: string; statusCode: number;
+  count: number; severity: "critical" | "warning" | "info";
+  firstSeen: number; lastSeen: number; sampleId: string;
+}> {
+  const since = opts?.since ?? Date.now() - 60 * 60_000; // default 1 hour
+  const limit = opts?.limit ?? 50;
+  const recent = errors.filter(e => e.timestamp > since);
+
+  const groups = new Map<string, { message: string; path: string; code: string; statusCode: number; count: number; firstSeen: number; lastSeen: number; sampleId: string }>();
+  for (const e of recent) {
+    const key = `${e.statusCode}:${e.path}:${e.message}`.slice(0, 200);
+    const existing = groups.get(key);
+    if (existing) {
+      existing.count++;
+      if (e.timestamp < existing.firstSeen) existing.firstSeen = e.timestamp;
+      if (e.timestamp > existing.lastSeen) { existing.lastSeen = e.timestamp; existing.sampleId = e.id; }
+    } else {
+      groups.set(key, { message: e.message, path: e.path, code: e.code, statusCode: e.statusCode, count: 1, firstSeen: e.timestamp, lastSeen: e.timestamp, sampleId: e.id });
+    }
+  }
+
+  return Array.from(groups.values())
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit)
+    .map(g => ({
+      ...g,
+      key: `${g.statusCode}:${g.path}:${g.message}`.slice(0, 200),
+      severity: g.statusCode >= 500 ? "critical" as const : g.statusCode >= 400 ? "warning" as const : "info" as const,
+    }));
+}
+
+/** Error trend — error counts per minute for the last N minutes */
+export function getErrorTrend(minutes: number = 60): Array<{ minute: string; count: number }> {
+  const now = Date.now();
+  const buckets = new Map<string, number>();
+
+  // Initialize all minutes to 0
+  for (let i = minutes - 1; i >= 0; i--) {
+    const t = new Date(now - i * 60_000);
+    const key = `${t.getHours().toString().padStart(2, "0")}:${t.getMinutes().toString().padStart(2, "0")}`;
+    buckets.set(key, 0);
+  }
+
+  // Fill in actual counts
+  const since = now - minutes * 60_000;
+  for (const e of errors) {
+    if (e.timestamp < since) continue;
+    const t = new Date(e.timestamp);
+    const key = `${t.getHours().toString().padStart(2, "0")}:${t.getMinutes().toString().padStart(2, "0")}`;
+    buckets.set(key, (buckets.get(key) ?? 0) + 1);
+  }
+
+  return Array.from(buckets.entries()).map(([minute, count]) => ({ minute, count }));
+}
+
+/** Purge old errors from memory (keeps file intact) */
+export function purgeOldErrors(keepLastN: number = 100): { purged: number; remaining: number } {
+  const before = errors.length;
+  errors = errors.slice(0, keepLastN);
+  return { purged: before - errors.length, remaining: errors.length };
+}
+
 export function getErrorStats() {
   const now = Date.now();
   const last5m = errors.filter((e) => e.timestamp > now - 5 * 60_000);

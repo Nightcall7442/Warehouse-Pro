@@ -39,20 +39,32 @@ if (typeof document !== "undefined" && !document.getElementById("monitoring-keyf
 export default function Monitoring() {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [selectedErrorId, setSelectedErrorId] = useState<string | null>(null);
-  const [errorFilter, setErrorFilter] = useState<string>("");
 
   const { data, isLoading, refetch, isRefetching } = trpc.system.status.useQuery(undefined, {
     refetchInterval: autoRefresh ? REFRESH_INTERVAL : false,
     refetchOnWindowFocus: true,
   });
 
-  const { data: errorData, refetch: refetchErrors } = trpc.system.errors.useQuery(
-    { limit: 50, code: errorFilter || undefined },
-    { refetchInterval: autoRefresh ? 5_000 : false }
-  );
-
   const { data: errorStats } = trpc.system.errorStats.useQuery(undefined, {
     refetchInterval: autoRefresh ? 10_000 : false,
+  });
+
+  const { data: groupedErrors } = trpc.system.groupedErrors.useQuery(
+    { minutes: 60 },
+    { refetchInterval: autoRefresh ? 10_000 : false }
+  );
+
+  const { data: errorTrend } = trpc.system.errorTrend.useQuery(
+    { minutes: 60 },
+    { refetchInterval: autoRefresh ? 30_000 : false }
+  );
+
+  const clearCacheMutation = trpc.system.clearCache.useMutation({
+    onSuccess: () => notify.success("Кэш очищен"),
+  });
+
+  const purgeErrorsMutation = trpc.system.purgeErrors.useMutation({
+    onSuccess: (data) => notify.success(`Очищено ${data.purged} ошибок, осталось ${data.remaining}`),
   });
 
   const checkAlertsMutation = trpc.system.checkAlerts.useMutation({
@@ -69,12 +81,11 @@ export default function Monitoring() {
     const h = (e: KeyboardEvent) => {
       if (e.key === "r" && !e.ctrlKey && !e.metaKey && e.target === document.body) {
         refetch();
-        refetchErrors();
       }
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [refetch, refetchErrors]);
+  }, [refetch]);
 
   // Chart data
   // eslint-disable-next-line react-hooks/preserve-manual-memoization
@@ -185,6 +196,15 @@ export default function Monitoring() {
             opacity: checkAlertsMutation.isPending ? 0.4 : 1, transition: "all 0.2s",
           }}>
             <AlertCircle size={12} /> Проверить алерты
+          </button>
+          <button onClick={() => clearCacheMutation.mutate()} disabled={clearCacheMutation.isPending} style={{
+            display: "flex", alignItems: "center", gap: "6px", padding: "6px 12px",
+            borderRadius: "8px", fontSize: "12px", fontWeight: 600, fontFamily: F.body,
+            background: COLORS.surface, color: COLORS.textSecondary,
+            border: `1px solid ${COLORS.border}`, cursor: "pointer",
+            opacity: clearCacheMutation.isPending ? 0.4 : 1, transition: "all 0.2s",
+          }}>
+            <RefreshCw size={12} /> Очистить кэш
           </button>
         </div>
       </div>
@@ -301,12 +321,11 @@ export default function Monitoring() {
 
       {/* Error Log */}
       <ErrorLogViewer
-        errors={errorData?.errors ?? []}
-        total={errorData?.total ?? 0}
+        groupedErrors={groupedErrors ?? []}
         errorStats={errorStats}
-        errorFilter={errorFilter}
-        onFilterChange={setErrorFilter}
+        errorTrend={errorTrend}
         onSelectError={setSelectedErrorId}
+        onPurgeErrors={() => purgeErrorsMutation.mutate()}
       />
 
       {/* Metrics */}

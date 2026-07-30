@@ -7,7 +7,7 @@ import { getMetricsSummary } from "./lib/metrics";
 import { env } from "./lib/env";
 import { sql, eq } from "drizzle-orm";
 import { getReqStats, getAllSeries, recordRequestPoint } from "./lib/timeseries";
-import { getErrors, getErrorById, getErrorStats } from "./lib/error-log";
+import { getErrors, getErrorById, getErrorStats, getGroupedErrors, getErrorTrend, purgeOldErrors } from "./lib/error-log";
 import { orders, products, shops, users } from "@db/schema";
 
 const APP_VERSION = process.env.APP_VERSION ?? "2.0.0";
@@ -205,6 +205,44 @@ export const systemRouter = createRouter({
     }
 
     return { alerts, checked: new Date().toISOString() };
+  }),
+
+  /** Grouped errors — deduplicated by message+path with count and severity */
+  groupedErrors: superAdminQuery
+    .input(z.object({ minutes: z.number().optional() }).optional())
+    .query(({ input }) => {
+      return getGroupedErrors({ since: Date.now() - (input?.minutes ?? 60) * 60_000 });
+    }),
+
+  /** Error trend — error counts per minute for the last N minutes */
+  errorTrend: superAdminQuery
+    .input(z.object({ minutes: z.number().optional() }).optional())
+    .query(({ input }) => {
+      return getErrorTrend(input?.minutes ?? 60);
+    }),
+
+  /** Quick action: clear cache */
+  clearCache: superAdminQuery.mutation(() => {
+    cache.clear();
+    return { success: true, message: "Cache cleared" };
+  }),
+
+  /** Quick action: purge old errors from memory */
+  purgeErrors: superAdminQuery.mutation(() => {
+    return purgeOldErrors(100);
+  }),
+
+  /** Quick action: DB health check */
+  dbHealth: superAdminQuery.query(async () => {
+    try {
+      const start = Date.now();
+      const db = getDb();
+      await db.execute(sql`SELECT 1`);
+      const ms = Date.now() - start;
+      return { healthy: true, responseMs: ms };
+    } catch (e) {
+      return { healthy: false, error: String(e) };
+    }
   }),
 });
 
