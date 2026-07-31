@@ -1,6 +1,7 @@
 import { eq, and, desc, sql, isNull } from "drizzle-orm";
 import { orders, orderItems, warehouseStock, shops, users, products, notifications, warehouses } from "@db/schema";
 import { cache, CacheKeys } from "../lib/cache";
+import { beforeNextDay, safeDateParse, sinceDay } from "../lib/date-range";
 import { logger } from "../lib/logger";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
@@ -52,8 +53,12 @@ export const OrderService = {
     // P0-14 FIX: Implement search filter
     if (f.search) conditions.push(sql`(${orders.orderNumber} LIKE ${'%' + f.search + '%'} OR ${shops.name} LIKE ${'%' + f.search + '%'})`);
     // P0-14 FIX: Implement date filters
-    if (f.dateFrom) conditions.push(sql`${orders.createdAt} >= ${f.dateFrom}`);
-    if (f.dateTo) conditions.push(sql`${orders.createdAt} <= ${f.dateTo + ' 23:59:59'}`);
+    // FIX: P0.1 — filters arrive as unknown values, so validate the days and use
+    // sargable day boundaries instead of comparing against a built-up string.
+    const dateFrom = safeDateParse(f.dateFrom);
+    const dateTo = safeDateParse(f.dateTo);
+    if (dateFrom) conditions.push(sinceDay(orders.createdAt, dateFrom));
+    if (dateTo) conditions.push(beforeNextDay(orders.createdAt, dateTo));
     // Hide deleted orders unless explicitly requested
     if (!f.showDeleted) conditions.push(isNull(orders.deletedAt));
     // P0-14 FIX: Non-privileged users see only their own orders

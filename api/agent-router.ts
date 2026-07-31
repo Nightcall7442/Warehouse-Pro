@@ -7,7 +7,7 @@ import { sseBus } from "./lib/sse";
 import { sanitizeString } from "./lib/sanitize";
 import { verifyVisit } from "./services/anti-fraud";
 import { haversineKm } from "./lib/geo";
-import { onDate } from "./lib/date-range";
+import { isoDaySchema, onDate, onDay, safeDateParse } from "./lib/date-range";
 import { photoRef } from "./lib/photo-url";
 
 export const agentRouter = createRouter({
@@ -163,12 +163,12 @@ export const agentRouter = createRouter({
 
   // ── GPS Trail History ───────────────────────────────────────────────────────
   getTrail: supervisorQuery
-    .input(z.object({ agentId: z.number(), date: z.string().optional() }).optional())
+    .input(z.object({ agentId: z.number(), date: isoDaySchema.optional() }).optional())
     .query(async ({ input, ctx }) => {
       if (!input?.agentId) return [];
-      const dateStr = input.date ?? new Date().toISOString().split("T")[0];
-      const start = `${dateStr}T00:00:00`;
-      const end = `${dateStr}T23:59:59`;
+      // FIX: P0.1 — one validated day, bounded by onDay instead of a hand-built
+      // `T00:00:00`/`T23:59:59` pair that dropped points in the final second.
+      const day = safeDateParse(input.date) ?? new Date().toISOString().slice(0, 10);
 
       return getDb().select({
         id: agentLocations.id,
@@ -181,8 +181,7 @@ export const agentRouter = createRouter({
         .where(and(
           eq(agentLocations.tenantId, ctx.tenant.id),
           eq(agentLocations.agentId, input.agentId),
-          sql`${agentLocations.createdAt} >= ${start}`,
-          sql`${agentLocations.createdAt} <= ${end}`,
+          onDay(agentLocations.createdAt, day),
         ))
         .orderBy(agentLocations.createdAt);
     }),

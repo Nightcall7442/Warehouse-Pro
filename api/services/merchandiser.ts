@@ -1,6 +1,7 @@
 import { eq, and, sql, desc } from "drizzle-orm";
 import { visitReports, dailyPlans, shops, users } from "@db/schema";
 import { cache, CacheKeys } from "../lib/cache";
+import { beforeNextDay, safeDateParse, sinceDay } from "../lib/date-range";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -87,10 +88,17 @@ export const MerchandiserService = {
     const limit = opts?.pageSize ?? 25;
     const offset = (page - 1) * limit;
 
+    // FIX: P0.1 — the upper bound used to read `<= ${dateTo} 23:59:59`, where the
+    // trailing time landed in the SQL text after the placeholder and produced a
+    // syntactically invalid query. Both bounds are now validated day boundaries.
+    const from = safeDateParse(dateFrom);
+    const to = safeDateParse(dateTo);
+    if (!from || !to) throw new Error("Некорректный период: ожидается формат ГГГГ-ММ-ДД");
+
     const conditions = [
       eq(visitReports.tenantId, tenantId),
-      sql`${visitReports.createdAt} >= ${dateFrom}`,
-      sql`${visitReports.createdAt} <= ${dateTo} 23:59:59`,
+      sinceDay(visitReports.createdAt, from),
+      beforeNextDay(visitReports.createdAt, to),
     ];
 
     const [data, countResult] = await Promise.all([

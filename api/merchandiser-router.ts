@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { createRouter, merchQuery, reportsQuery } from "./middleware";
+import { isoDaySchema } from "./lib/date-range";
 import { MerchandiserService } from "./services/merchandiser";
 
 export const merchandiserRouter = createRouter({
@@ -36,8 +37,8 @@ export const merchandiserRouter = createRouter({
 
   getReportsByDateRange: reportsQuery
     .input(z.object({
-      dateFrom: z.string(),
-      dateTo: z.string(),
+      dateFrom: isoDaySchema,
+      dateTo: isoDaySchema,
       page: z.number().int().min(1).default(1),
       pageSize: z.number().int().min(1).max(1000).default(25),
     }))

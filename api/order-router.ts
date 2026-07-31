@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { createRouter, operatorQuery, fieldSalesQuery } from "./middleware";
+import { isoDaySchema } from "./lib/date-range";
 import { OrderService } from "./services/order";
 
 export const orderRouter = createRouter({
@@ -10,8 +11,8 @@ export const orderRouter = createRouter({
       search:      z.string().max(200).optional(),
       status:      z.enum(["new", "processing", "completed", "cancelled"]).optional(),
       agentId:     z.number().int().positive().optional(),
-      dateFrom:    z.string().optional(),
-      dateTo:      z.string().optional(),
+      dateFrom:    isoDaySchema.optional(),
+      dateTo:      isoDaySchema.optional(),
       showDeleted: z.boolean().optional(),
     }).optional())
     .query(async ({ input, ctx }) => {

@@ -4,6 +4,7 @@ import { getDb } from "./queries/connection";
 import { commissions, users } from "@db/schema";
 import { eq, and, gte, lte, desc, isNull } from "drizzle-orm";
 import { cache, CacheKeys } from "./lib/cache";
+import { beforeNextDay, isoDaySchema, sinceDay, toIsoDay } from "./lib/date-range";
 
 export const commissionRouter = createRouter({
   // List commissions for a period
@@ -86,8 +87,8 @@ export const commissionRouter = createRouter({
   calculate: operatorQuery
     .input(z.object({
       periodType: z.enum(["monthly", "quarterly"]),
-      periodStart: z.string(),
-      periodEnd: z.string(),
+      periodStart: isoDaySchema,
+      periodEnd: isoDaySchema,
     }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
@@ -103,10 +104,13 @@ export const commissionRouter = createRouter({
 
       const { orders, returns } = await import("@db/schema");
       const { sql: sqlFn } = await import("drizzle-orm");
-      const periodEndDate = new Date(input.periodEnd + "T23:59:59");
+      // FIX: P0.1 — validated day, exclusive next-day bound (see lib/date-range).
+      const periodEnd = input.periodEnd;
 
       const results = await Promise.all(
         agentCommissions.map(async (agent) => {
+          // period_start is a DATE column, so it arrives as a Date object.
+          const periodStart = toIsoDay(agent.periodStart) ?? input.periodStart;
           const [orderResult] = await db.select({
             total: sqlFn<string>`COALESCE(SUM(${orders.total}), 0)`,
           }).from(orders).where(and(
@@ -114,8 +118,8 @@ export const commissionRouter = createRouter({
             eq(orders.agentId, agent.userId),
             eq(orders.status, "completed"),
             isNull(orders.deletedAt),
-            gte(orders.createdAt, agent.periodStart),
-            lte(orders.createdAt, periodEndDate),
+            sinceDay(orders.createdAt, periodStart),
+            beforeNextDay(orders.createdAt, periodEnd),
           ));
 
           const [returnResult] = await db.select({
@@ -127,8 +131,8 @@ export const commissionRouter = createRouter({
               eq(orders.agentId, agent.userId),
               eq(returns.status, "completed"),
               isNull(orders.deletedAt),
-              gte(orders.createdAt, agent.periodStart),
-              lte(orders.createdAt, periodEndDate),
+              sinceDay(orders.createdAt, periodStart),
+              beforeNextDay(orders.createdAt, periodEnd),
             ));
 
           const salesAmount = Math.max(0, Number(orderResult.total) - Number(returnResult.total));

@@ -3,13 +3,23 @@ import { orders, orderItems, products, shops, users, dailyPlans, arrivals } from
 import { eq, and, sql, desc } from "drizzle-orm";
 import { MS_PER_DAY } from "../lib/constants";
 import { cache, CacheTTL } from "../lib/cache";
+import { beforeNextDay, safeDateParse, sinceDay, untilDate } from "../lib/date-range";
 
 type DateRange = { dateFrom?: string; dateTo?: string };
 
+/**
+ * FIX: P0.1 — validate the requested days before they reach a comparison.
+ *
+ * The old upper bound was `createdAt <= '<day>'`, which resolves to midnight and
+ * therefore excluded the whole of the last requested day; `beforeNextDay` makes
+ * the range inclusive and keeps the index on created_at usable.
+ */
 function dateConditions(tenantId: number, range?: DateRange) {
   const conditions = [eq(orders.tenantId, tenantId), eq(orders.status, "completed")];
-  if (range?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${range.dateFrom}`);
-  if (range?.dateTo) conditions.push(sql`${orders.createdAt} <= ${range.dateTo}`);
+  const from = safeDateParse(range?.dateFrom);
+  const to = safeDateParse(range?.dateTo);
+  if (from) conditions.push(sinceDay(orders.createdAt, from));
+  if (to) conditions.push(beforeNextDay(orders.createdAt, to));
   return conditions;
 }
 
@@ -88,7 +98,13 @@ export const AnalyticsService = {
   async getPnL(tenantId: number, dateRange: { from: string; to: string; compareWithPrev?: boolean }) {
     const tid = tenantId;
     const db = getDb();
-    const { from, to, compareWithPrev = true } = dateRange;
+    const { compareWithPrev = true } = dateRange;
+
+    // FIX: P0.1 — the period is mandatory here, so reject a malformed day
+    // outright rather than silently reporting P&L over all of history.
+    const from = safeDateParse(dateRange.from);
+    const to = safeDateParse(dateRange.to);
+    if (!from || !to) throw new Error("Некорректный период: ожидается формат ГГГГ-ММ-ДД");
 
     const currFromMs = new Date(from).getTime();
     const currToMs = new Date(to).getTime();
@@ -100,8 +116,8 @@ export const AnalyticsService = {
       const orderConds = [
         eq(orders.tenantId, tid),
         eq(orders.status, "completed"),
-        sql`${orders.createdAt} >= ${dateFrom}`,
-        sql`${orders.createdAt} <= ${dateTo + " 23:59:59"}`,
+        sinceDay(orders.createdAt, dateFrom),
+        beforeNextDay(orders.createdAt, dateTo),
       ];
       const revRow = await db.select({
         totalRevenue: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
@@ -120,8 +136,8 @@ export const AnalyticsService = {
         .where(and(
           eq(orders.tenantId, tid),
           eq(orders.status, "completed"),
-          sql`${orders.createdAt} >= ${dateFrom}`,
-          sql`${orders.createdAt} <= ${dateTo + " 23:59:59"}`,
+          sinceDay(orders.createdAt, dateFrom),
+          beforeNextDay(orders.createdAt, dateTo),
         ));
 
       const expenseRow = await db.select({
@@ -133,7 +149,7 @@ export const AnalyticsService = {
           eq(arrivals.tenantId, tid),
           eq(arrivals.status, "completed"),
           sql`${arrivals.arrivalDate} >= ${dateFrom}`,
-          sql`${arrivals.arrivalDate} <= ${dateTo}`,
+          untilDate(arrivals.arrivalDate, dateTo),
         ));
 
       const revenue = Number(revRow[0]?.totalRevenue ?? 0);
@@ -173,8 +189,8 @@ export const AnalyticsService = {
       .where(and(
         eq(orders.tenantId, tid),
         eq(orders.status, "completed"),
-        sql`${orders.createdAt} >= ${from}`,
-        sql`${orders.createdAt} <= ${to + " 23:59:59"}`,
+        sinceDay(orders.createdAt, from),
+        beforeNextDay(orders.createdAt, to),
       ))
       .groupBy(sql`DATE_FORMAT(${orders.createdAt}, '%Y-%m')`)
       .orderBy(sql`DATE_FORMAT(${orders.createdAt}, '%Y-%m')`);
@@ -188,7 +204,7 @@ export const AnalyticsService = {
         eq(arrivals.tenantId, tid),
         eq(arrivals.status, "completed"),
         sql`${arrivals.arrivalDate} >= ${from}`,
-        sql`${arrivals.arrivalDate} <= ${to}`,
+        untilDate(arrivals.arrivalDate, to),
       ))
       .groupBy(sql`DATE_FORMAT(${arrivals.arrivalDate}, '%Y-%m')`);
 

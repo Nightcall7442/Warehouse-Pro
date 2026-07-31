@@ -23,6 +23,7 @@ import { logger } from "./lib/logger";
 import { recordRequest } from "./system-router";
 import { logError } from "./lib/error-log";
 import { safeEqual } from "./lib/safe-compare";
+import { rememberSocketIp, warnIfClientIpUnavailable } from "./lib/rate-limit";
 
 
 import * as Sentry from "@sentry/node";
@@ -46,6 +47,15 @@ const app = new Hono<{ Bindings: HttpBindings }>();
 // tRPC JSON alike. text/event-stream is excluded by the middleware itself, so
 // the SSE endpoint keeps streaming uncompressed.
 app.use("*", compress());
+
+// ── Client identity for rate limiting ────────────────────────────────────────
+// FIX: P0.2 — a Fetch Request exposes no connection info, so record the TCP peer
+// address while the Node request object is still reachable. getClientIp() falls
+// back to it when TRUSTED_PROXY_COUNT=0, where proxy headers can't be trusted.
+app.use("*", async (c, next) => {
+  rememberSocketIp(c.req.raw, c.env?.incoming?.socket?.remoteAddress);
+  return next();
+});
 
 // ── Sentry error handler + Telegram notification ─────────────────────────────
 app.use("*", async (c, next) => {
@@ -557,6 +567,7 @@ if (env.isProduction) {
 
   // P1-6 FIX: Connect Redis on startup for multi-instance support
   await connectRedis();
+  warnIfClientIpUnavailable();
   const port = parseInt(process.env.PORT ?? "3000", 10);
   const server = serve({ fetch: app.fetch, port }, () => {
     logger.info("server started", { port, version: APP_VERSION });

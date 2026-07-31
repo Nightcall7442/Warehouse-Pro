@@ -2,17 +2,38 @@ import { z } from "zod";
 import { createRouter, reportsQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { orders, orderItems, products, shops, users, dailyPlans, arrivals } from "@db/schema";
-import { eq, and, sql, desc } from "drizzle-orm";
+import { eq, and, sql, desc, type SQL } from "drizzle-orm";
 import { MS_PER_DAY } from "./lib/constants";
+import { beforeNextDay, isoDaySchema, safeDateParse, sinceDay, untilDate } from "./lib/date-range";
+
+/** Optional "YYYY-MM-DD" range, rejected at the API boundary when malformed. */
+const dateRangeInput = z.object({
+  dateFrom: isoDaySchema.optional(),
+  dateTo:   isoDaySchema.optional(),
+}).optional();
+
+/**
+ * FIX: P0.1 — build the order date-range predicates from validated days.
+ *
+ * Both bounds go through `safeDateParse`, so a caller that bypasses the zod
+ * schema (internal call, stale client) drops the filter instead of comparing
+ * against an arbitrary string. `beforeNextDay` replaces the old
+ * `<= '<day> 23:59:59'` bound, which missed rows in the last second of the day.
+ */
+function orderDateRange(range?: { dateFrom?: string; dateTo?: string }): SQL[] {
+  const conditions: SQL[] = [];
+  const from = safeDateParse(range?.dateFrom);
+  const to   = safeDateParse(range?.dateTo);
+  if (from) conditions.push(sinceDay(orders.createdAt, from));
+  if (to)   conditions.push(beforeNextDay(orders.createdAt, to));
+  return conditions;
+}
 
 export const analyticsRouter = createRouter({
   salesByShop: reportsQuery
-    .input(z.object({ dateFrom: z.string().optional(), dateTo: z.string().optional() }).optional())
+    .input(dateRangeInput)
     .query(async ({ input, ctx }) => {
-      const conditions = [eq(orders.tenantId, ctx.tenant.id), eq(orders.status, "completed")];
-      if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
-      // P1-15 FIX: Include full last day by adding 23:59:59
-      if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`);
+      const conditions = [eq(orders.tenantId, ctx.tenant.id), eq(orders.status, "completed"), ...orderDateRange(input)];
 
       return getDb().select({
         shopName:   shops.name,
@@ -24,11 +45,9 @@ export const analyticsRouter = createRouter({
     }),
 
   topProducts: reportsQuery
-    .input(z.object({ dateFrom: z.string().optional(), dateTo: z.string().optional() }).optional())
+    .input(dateRangeInput)
     .query(async ({ input, ctx }) => {
-      const conditions = [eq(orders.tenantId, ctx.tenant.id), eq(orders.status, "completed")];
-      if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
-      if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`);
+      const conditions = [eq(orders.tenantId, ctx.tenant.id), eq(orders.status, "completed"), ...orderDateRange(input)];
 
       return getDb().select({
         productName:  products.name,
@@ -43,11 +62,9 @@ export const analyticsRouter = createRouter({
     }),
 
   agentPerformance: reportsQuery
-    .input(z.object({ dateFrom: z.string().optional(), dateTo: z.string().optional() }).optional())
+    .input(dateRangeInput)
     .query(async ({ input, ctx }) => {
-      const conditions = [eq(orders.tenantId, ctx.tenant.id)];
-      if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
-      if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`);
+      const conditions = [eq(orders.tenantId, ctx.tenant.id), ...orderDateRange(input)];
 
       return getDb().select({
         agentName:     users.name,
@@ -65,11 +82,9 @@ export const analyticsRouter = createRouter({
   // change over time, historical P&L and COGS reports will be inaccurate.
   // Consider adding `costPrice` to `orderItems` to snapshot the cost at order time.
   cogsByProduct: reportsQuery
-    .input(z.object({ dateFrom: z.string().optional(), dateTo: z.string().optional() }).optional())
+    .input(dateRangeInput)
     .query(async ({ input, ctx }) => {
-      const conditions = [eq(orders.tenantId, ctx.tenant.id), eq(orders.status, "completed")];
-      if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
-      if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`);
+      const conditions = [eq(orders.tenantId, ctx.tenant.id), eq(orders.status, "completed"), ...orderDateRange(input)];
 
       return getDb().select({
         productName:  products.name,
@@ -85,11 +100,9 @@ export const analyticsRouter = createRouter({
     }),
 
   cogsSummary: reportsQuery
-    .input(z.object({ dateFrom: z.string().optional(), dateTo: z.string().optional() }).optional())
+    .input(dateRangeInput)
     .query(async ({ input, ctx }) => {
-      const conditions = [eq(orders.tenantId, ctx.tenant.id), eq(orders.status, "completed")];
-      if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
-      if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`);
+      const conditions = [eq(orders.tenantId, ctx.tenant.id), eq(orders.status, "completed"), ...orderDateRange(input)];
 
       // P0-10 FIX: Use separate queries to avoid fan-out from LEFT JOIN order_items
       const [revenueRow] = await getDb().select({
@@ -172,8 +185,8 @@ export const analyticsRouter = createRouter({
   // ── Full P&L Report ─────────────────────────────────────────────────────────
   pnl: reportsQuery
     .input(z.object({
-      from: z.string(),
-      to: z.string(),
+      from: isoDaySchema,
+      to: isoDaySchema,
       compareWithPrev: z.boolean().default(true),
     }))
     .query(async ({ input, ctx }) => {
@@ -193,8 +206,8 @@ export const analyticsRouter = createRouter({
         const orderConds = [
           eq(orders.tenantId, tid),
           eq(orders.status, "completed"),
-          sql`${orders.createdAt} >= ${dateFrom}`,
-          sql`${orders.createdAt} <= ${dateTo + " 23:59:59"}`,
+          sinceDay(orders.createdAt, dateFrom),
+          beforeNextDay(orders.createdAt, dateTo),
         ];
         const revRow = await db.select({
           totalRevenue: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
@@ -213,8 +226,8 @@ export const analyticsRouter = createRouter({
           .where(and(
             eq(orders.tenantId, tid),
             eq(orders.status, "completed"),
-            sql`${orders.createdAt} >= ${dateFrom}`,
-            sql`${orders.createdAt} <= ${dateTo + " 23:59:59"}`,
+            sinceDay(orders.createdAt, dateFrom),
+            beforeNextDay(orders.createdAt, dateTo),
           ));
 
         const expenseRow = await db.select({
@@ -225,8 +238,9 @@ export const analyticsRouter = createRouter({
           .where(and(
             eq(arrivals.tenantId, tid),
             eq(arrivals.status, "completed"),
+            // arrival_date is a DATE column — no time component to bound.
             sql`${arrivals.arrivalDate} >= ${dateFrom}`,
-            sql`${arrivals.arrivalDate} <= ${dateTo}`,
+            untilDate(arrivals.arrivalDate, dateTo),
           ));
 
         const revenue = Number(revRow[0]?.totalRevenue ?? 0);
@@ -269,8 +283,8 @@ export const analyticsRouter = createRouter({
         .where(and(
           eq(orders.tenantId, tid),
           eq(orders.status, "completed"),
-          sql`${orders.createdAt} >= ${from}`,
-          sql`${orders.createdAt} <= ${to + " 23:59:59"}`,
+          sinceDay(orders.createdAt, from),
+          beforeNextDay(orders.createdAt, to),
         ))
         .groupBy(sql`DATE_FORMAT(${orders.createdAt}, '%Y-%m')`)
         .orderBy(sql`DATE_FORMAT(${orders.createdAt}, '%Y-%m')`);
@@ -284,7 +298,7 @@ export const analyticsRouter = createRouter({
           eq(arrivals.tenantId, tid),
           eq(arrivals.status, "completed"),
           sql`${arrivals.arrivalDate} >= ${from}`,
-          sql`${arrivals.arrivalDate} <= ${to}`,
+          untilDate(arrivals.arrivalDate, to),
         ))
         .groupBy(sql`DATE_FORMAT(${arrivals.arrivalDate}, '%Y-%m')`);
 
@@ -333,7 +347,7 @@ export const analyticsRouter = createRouter({
 
   // ── P&L by Payment Method ──────────────────────────────────────────────────
   pnlByPaymentMethod: reportsQuery
-    .input(z.object({ from: z.string(), to: z.string() }))
+    .input(z.object({ from: isoDaySchema, to: isoDaySchema }))
     .query(async ({ input, ctx }) => {
       const db = getDb();
       const tid = ctx.tenant.id;
@@ -350,8 +364,8 @@ export const analyticsRouter = createRouter({
         .where(and(
           eq(orders.tenantId, tid),
           eq(orders.status, "completed"),
-          sql`${orders.createdAt} >= ${input.from}`,
-          sql`${orders.createdAt} <= ${input.to + " 23:59:59"}`,
+          sinceDay(orders.createdAt, input.from),
+          beforeNextDay(orders.createdAt, input.to),
         ))
         .groupBy(orders.paymentMethod);
 
@@ -373,7 +387,7 @@ export const analyticsRouter = createRouter({
 
   // ── Payment Method Trend ──────────────────────────────────────────────────
   paymentMethodTrend: reportsQuery
-    .input(z.object({ from: z.string(), to: z.string() }))
+    .input(z.object({ from: isoDaySchema, to: isoDaySchema }))
     .query(async ({ input, ctx }) => {
       const db = getDb();
       const tid = ctx.tenant.id;
@@ -387,8 +401,8 @@ export const analyticsRouter = createRouter({
         .where(and(
           eq(orders.tenantId, tid),
           eq(orders.status, "completed"),
-          sql`${orders.createdAt} >= ${input.from}`,
-          sql`${orders.createdAt} <= ${input.to + " 23:59:59"}`,
+          sinceDay(orders.createdAt, input.from),
+          beforeNextDay(orders.createdAt, input.to),
         ))
         .groupBy(sql`DATE_FORMAT(${orders.createdAt}, '%Y-%m')`, orders.paymentMethod)
         .orderBy(sql`DATE_FORMAT(${orders.createdAt}, '%Y-%m')`);

@@ -1,10 +1,18 @@
+import { logger } from "./logger";
 import { getRedis, isRedisAvailable } from "./redis";
 
 type Entry = { timestamps: number[] };
 
 const store = new Map<string, Entry>();
 
-const TRUSTED_PROXY_COUNT = parseInt(process.env.TRUSTED_PROXY_COUNT ?? "0", 10);
+/**
+ * How many reverse proxies sit in front of the app. Read per call rather than at
+ * import time so it survives dotenv loading order and can be exercised in tests.
+ */
+function trustedProxyCount(): number {
+  const parsed = parseInt(process.env.TRUSTED_PROXY_COUNT ?? "0", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
 
 setInterval(() => {
   const cutoff = Date.now() - 60 * 60 * 1000;
@@ -79,19 +87,61 @@ async function checkRateLimitRedis(ip: string, opts: RateLimitOptions): Promise<
   }
 }
 
+/**
+ * FIX: P0.2 — socket peer address per in-flight request.
+ *
+ * `Request` carries no connection info, so the HTTP layer records the TCP peer
+ * address here (see `rememberSocketIp` in boot.ts). Keyed weakly: entries go away
+ * with the request object, nothing to clean up.
+ */
+const socketIpByRequest = new WeakMap<Request, string>();
+
+/** Strip the IPv4-mapped IPv6 prefix so ::ffff:1.2.3.4 and 1.2.3.4 share a bucket. */
+function normalizeIp(ip: string): string {
+  const trimmed = ip.trim();
+  return trimmed.startsWith("::ffff:") ? trimmed.slice(7) : trimmed;
+}
+
+/** Called once per request by the HTTP layer with the TCP peer address. */
+export function rememberSocketIp(req: Request, ip: string | undefined | null): void {
+  if (ip) socketIpByRequest.set(req, normalizeIp(ip));
+}
+
+/**
+ * Warn when rate limiting has no usable client identity in production.
+ * Called at startup so a misconfigured deployment is visible in the logs.
+ */
+export function warnIfClientIpUnavailable(): void {
+  if (trustedProxyCount() === 0 && process.env.NODE_ENV === "production") {
+    logger.warn(
+      "TRUSTED_PROXY_COUNT=0: proxy headers are ignored and rate limiting falls back to the socket address. " +
+      "Set TRUSTED_PROXY_COUNT to the number of reverse proxies in front of the app, otherwise every client " +
+      "behind that proxy shares one rate-limit bucket.",
+    );
+  }
+}
+
 export function getClientIp(req: Request): string {
-  const forwarded = req.headers.get("x-forwarded-for");
-  if (forwarded && TRUSTED_PROXY_COUNT > 0) {
-    const parts = forwarded.split(",").map(p => p.trim()).filter(Boolean);
-    const idx = Math.max(0, parts.length - TRUSTED_PROXY_COUNT);
-    return parts[idx] ?? "unknown";
+  const trusted = trustedProxyCount();
+
+  // P0-4 FIX: Only trust proxy headers when TRUSTED_PROXY_COUNT > 0 (reverse proxy
+  // configured). Otherwise they are attacker-controlled and must be ignored.
+  if (trusted > 0) {
+    const forwarded = req.headers.get("x-forwarded-for");
+    if (forwarded) {
+      const parts = forwarded.split(",").map(p => p.trim()).filter(Boolean);
+      const idx = Math.max(0, parts.length - trusted);
+      const hop = parts[idx];
+      if (hop) return normalizeIp(hop);
+    }
+    const realIp = req.headers.get("x-real-ip");
+    if (realIp) return normalizeIp(realIp);
   }
-  // P0-4 FIX: Only trust x-real-ip when TRUSTED_PROXY_COUNT > 0 (reverse proxy configured).
-  // Otherwise fall back to "unknown" to prevent client-side header spoofing.
-  if (TRUSTED_PROXY_COUNT > 0) {
-    return req.headers.get("x-real-ip") ?? "unknown";
-  }
-  return "unknown";
+
+  // FIX: P0.2 — without a trusted proxy, fall back to the TCP peer address instead
+  // of lumping every request into a single "unknown" bucket, which disabled rate
+  // limiting entirely on the default configuration.
+  return socketIpByRequest.get(req) ?? "unknown";
 }
 
 /**

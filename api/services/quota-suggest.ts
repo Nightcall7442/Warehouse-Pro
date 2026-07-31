@@ -1,6 +1,7 @@
 import { eq, and, gte, lte, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import { orders, dailyPlans, users, salesTargets } from "@db/schema";
+import { beforeNextDay, safeDateParse, sinceDay } from "../lib/date-range";
 
 type Db = MySql2Database<Record<string, never>>;
 
@@ -34,7 +35,12 @@ export async function suggestQuotas(
   tenantId: number,
   targetMonth: string,
 ): Promise<QuotaSuggestion[]> {
-  const end = new Date(targetMonth);
+  // FIX: P0.1 — an unvalidated month reached `new Date()` and then
+  // `toISOString()`, which throws an opaque RangeError on garbage input.
+  const month = safeDateParse(targetMonth);
+  if (!month) throw new Error("Некорректный месяц: ожидается формат ГГГГ-ММ-ДД");
+
+  const end = new Date(`${month}T00:00:00Z`);
   const start = new Date(end);
   start.setMonth(start.getMonth() - 3);
   const startStr = start.toISOString().split("T")[0];
@@ -55,8 +61,8 @@ export async function suggestQuotas(
         eq(orders.tenantId, tenantId),
         eq(orders.agentId, agent.id),
         eq(orders.status, "completed"),
-        gte(orders.createdAt, startStr),
-        lte(orders.createdAt, endStr + " 23:59:59"),
+        sinceDay(orders.createdAt, startStr),
+        beforeNextDay(orders.createdAt, endStr),
       ))
       .groupBy(sql`DATE_FORMAT(${orders.createdAt}, '%Y-%m-01')`);
 
@@ -68,8 +74,8 @@ export async function suggestQuotas(
         eq(orders.tenantId, tenantId),
         eq(orders.agentId, agent.id),
         eq(orders.status, "completed"),
-        gte(orders.createdAt, startStr),
-        lte(orders.createdAt, endStr + " 23:59:59"),
+        sinceDay(orders.createdAt, startStr),
+        beforeNextDay(orders.createdAt, endStr),
       ))
       .groupBy(sql`DATE_FORMAT(${orders.createdAt}, '%Y-%m-01')`);
 

@@ -4,6 +4,7 @@ import { getDb } from "./queries/connection";
 import { salesTargets, users, orders, dailyPlans } from "@db/schema";
 import { eq, and, gte, lte, sql, desc } from "drizzle-orm";
 import { cache, CacheKeys } from "./lib/cache";
+import { beforeNextDay, isoDaySchema, sinceDay, toIsoDay } from "./lib/date-range";
 import { suggestQuotas } from "./services/quota-suggest";
 
 export const salesTargetRouter = createRouter({
@@ -13,8 +14,8 @@ export const salesTargetRouter = createRouter({
       periodType: z.enum(["daily", "weekly", "monthly"]).optional(),
       userId: z.number().optional(),
       territoryId: z.number().optional(),
-      dateFrom: z.string().optional(),
-      dateTo: z.string().optional(),
+      dateFrom: isoDaySchema.optional(),
+      dateTo: isoDaySchema.optional(),
     }).optional())
     .query(async ({ input, ctx }) => {
       const db = getDb();
@@ -56,8 +57,8 @@ export const salesTargetRouter = createRouter({
       shopId: z.number().optional(),
       territoryId: z.number().optional(),
       periodType: z.enum(["daily", "weekly", "monthly"]),
-      periodStart: z.string(),
-      periodEnd: z.string(),
+      periodStart: isoDaySchema,
+      periodEnd: isoDaySchema,
       targetAmount: z.number(),
       orderCountTarget: z.number().optional(),
       visitTarget: z.number().min(0).max(100).optional(),
@@ -100,8 +101,8 @@ export const salesTargetRouter = createRouter({
   // Bulk create/update targets (supervisor applies suggestions)
   bulkUpsert: supervisorQuery
     .input(z.object({
-      periodStart: z.string(),
-      periodEnd: z.string(),
+      periodStart: isoDaySchema,
+      periodEnd: isoDaySchema,
       targets: z.array(z.object({
         userId: z.number(),
         targetAmount: z.number(),
@@ -157,8 +158,8 @@ export const salesTargetRouter = createRouter({
   recalculateActuals: operatorQuery
     .input(z.object({
       periodType: z.enum(["daily", "weekly", "monthly"]),
-      periodStart: z.string(),
-      periodEnd: z.string(),
+      periodStart: isoDaySchema,
+      periodEnd: isoDaySchema,
     }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
@@ -173,12 +174,16 @@ export const salesTargetRouter = createRouter({
         ));
 
       for (const target of targets) {
+        // period_start/period_end are DATE columns — they arrive as Date objects.
+        const periodStart = toIsoDay(target.periodStart) ?? input.periodStart;
+        const periodEnd = toIsoDay(target.periodEnd) ?? input.periodEnd;
         const conditions = [
           eq(orders.tenantId, ctx.tenant.id),
           eq(orders.agentId, target.userId),
           eq(orders.status, "completed"),
-          gte(orders.createdAt, target.periodStart),
-          lte(orders.createdAt, target.periodEnd + " 23:59:59"),
+          // periodStart/periodEnd are DATE columns, so they are already valid days.
+          sinceDay(orders.createdAt, periodStart),
+          beforeNextDay(orders.createdAt, periodEnd),
         ];
         if (target.shopId) conditions.push(eq(orders.shopId, target.shopId));
 
@@ -217,7 +222,7 @@ export const salesTargetRouter = createRouter({
 
   // Auto-suggest quotas from 3-month history
   autoSuggest: operatorQuery
-    .input(z.object({ targetMonth: z.string() }))
+    .input(z.object({ targetMonth: isoDaySchema }))
     .query(async ({ input, ctx }) => {
       const db = getDb();
       return suggestQuotas(db, ctx.tenant.id, input.targetMonth);
