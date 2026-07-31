@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { compress } from "hono/compress";
 import { secureHeaders } from "hono/secure-headers";
 import { bodyLimit } from "hono/body-limit";
 import { logger as honoLogger } from "hono/logger";
@@ -11,6 +12,7 @@ import { env } from "./lib/env";
 import { registerStripeWebhook } from "./webhooks/stripe";
 import onecWebhooks from "./webhooks/onec";
 import publicApi from "./public-api";
+import photos from "./photos";
 import { createSSEResponse } from "./sse-router";
 import { authenticateRequest } from "./auth";
 import { cache } from "./lib/cache";
@@ -38,6 +40,12 @@ Sentry.init({
 });
 
 const app = new Hono<{ Bindings: HttpBindings }>();
+
+// ── Response compression ─────────────────────────────────────────────────────
+// Must be the outermost middleware so it wraps every body: JS/CSS bundles and
+// tRPC JSON alike. text/event-stream is excluded by the middleware itself, so
+// the SSE endpoint keeps streaming uncompressed.
+app.use("*", compress());
 
 // ── Sentry error handler + Telegram notification ─────────────────────────────
 app.use("*", async (c, next) => {
@@ -130,8 +138,8 @@ app.use(secureHeaders({
   contentSecurityPolicy: {
     defaultSrc: ["'self'"],
     scriptSrc:  ["'self'", "https://api-maps.yandex.ru", "https://core.apimaps.yandex.ru", "https://yastatic.net", "https://*.maps.yandex.net", "https://*.yandex.ru"],
-    styleSrc:   ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],  // Google Fonts + Tailwind
-    imgSrc:     ["'self'", "data:", "https:"],  // product photos, S3, base64 avatars
+    styleSrc:   ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://*.gstatic.com"],  // Google Fonts + Tailwind + Translate
+    imgSrc:     ["'self'", "data:", "blob:", "https:"],  // product photos, S3, base64 avatars, blob previews
     connectSrc: ["'self'", "https://api-maps.yandex.ru", "https://*.ingest.de.sentry.io", "https://*.sentry.io"],
     workerSrc:  ["'self'", "blob:"],                      // tRPC, SSE, WebSocket, Yandex Maps
     fontSrc:    ["'self'", "data:", "https://fonts.gstatic.com"],             // Google Fonts files
@@ -157,10 +165,14 @@ app.use("/api/*", cors({
 // This prevents cross-site form submissions from triggering mutations.
 const CSRF_COOKIE = "csrf_token";
 const CSRF_HEADER = "x-csrf-token";
-// Set CSRF cookie on every response so the client can read it (non-httpOnly)
+const CSRF_COOKIE_RE = new RegExp(`${CSRF_COOKIE}=([^;]+)`);
+// Set CSRF cookie on every response so the client can read it (non-httpOnly).
+// Skipped for hashed static assets — a Set-Cookie there only makes long-lived
+// cacheable responses harder for proxies to reuse.
 app.use("*", async (c, next) => {
   await next();
-  const existing = c.req.header("cookie")?.match(new RegExp(`${CSRF_COOKIE}=([^;]+)`));
+  if (c.req.path.startsWith("/assets/")) return;
+  const existing = c.req.header("cookie")?.match(CSRF_COOKIE_RE);
   if (!existing) {
     const token = crypto.randomUUID();
     const cookie = `${CSRF_COOKIE}=${token}; Path=/; SameSite=Strict; ${env.isProduction ? "Secure; " : ""}Max-Age=86400`;
@@ -195,6 +207,9 @@ app.route("/api/webhooks/1c", onecWebhooks);
 
 // ── Public REST API (Exclusive tier) ─────────────────────────────────────────
 app.route("/api/v1", publicApi);
+
+// ── Photo delivery (keeps base64 blobs out of list responses) ────────────────
+app.route("/api/photos", photos);
 
 // ── Cron: trial ending reminders ─────────────────────────────────────────────
 app.get("/api/cron/trial-reminders", async (c) => {
