@@ -5,6 +5,7 @@ import { products, warehouseStock, stockMovements, warehouses } from "@db/schema
 import { eq, like, and, sql, desc } from "drizzle-orm";
 import { sanitizeString, sanitizeSearch } from "./lib/sanitize";
 import { cache, CacheKeys, CacheTTL } from "./lib/cache";
+import { photoRef } from "./lib/photo-url";
 import { ProductService } from "./services/ProductService";
 
 async function getDefaultWarehouseId(db: ReturnType<typeof getDb>, tenantId: number): Promise<number | null> {
@@ -48,7 +49,7 @@ export const productRouter = createRouter({
         unit:         products.unit,
         unitWeight:   products.unitWeight,
         description:  products.description,
-        photoUrl:     products.photoUrl,
+        photoUrl:     photoRef("product", products.id, products.photoUrl, products.updatedAt),
         reorderPoint: products.reorderPoint,
         status:       products.status,
         createdAt:    products.createdAt,
@@ -107,7 +108,7 @@ export const productRouter = createRouter({
           unit:         products.unit,
           unitWeight:   products.unitWeight,
           description:  products.description,
-          photoUrl:     products.photoUrl,
+          photoUrl:     photoRef("product", products.id, products.photoUrl, products.updatedAt),
           reorderPoint: products.reorderPoint,
           status:       products.status,
           createdAt:    products.createdAt,
@@ -373,6 +374,7 @@ export const productRouter = createRouter({
           await getDb().update(products)
             .set({ photoUrl: input.dataUrl })
             .where(and(eq(products.id, input.productId), eq(products.tenantId, ctx.tenant.id)));
+          cache.invalidatePrefix(`products:${ctx.tenant.id}`);
           return { success: true, warning: "S3 не настроен — фото сохранено в БД (рекомендуется настроить S3)" };
         }
 
@@ -397,6 +399,7 @@ export const productRouter = createRouter({
         await getDb().update(products)
           .set({ photoUrl })
           .where(and(eq(products.id, input.productId), eq(products.tenantId, ctx.tenant.id)));
+        cache.invalidatePrefix(`products:${ctx.tenant.id}`);
         return { success: true };
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
