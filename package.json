@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && esbuild api/boot.ts --platform=node --bundle --format=esm --conditions=node --external:@sentry/* --outdir=dist --banner:js=\"import { createRequire } from 'module';const require = createRequire(import.meta.url);\"",
+    "build": "vite build && esbuild api/boot.ts --platform=node --bundle --format=esm --conditions=node --external:@sentry/* --outdir=dist --banner:js=\"import { createRequire } from 'module';const require = createRequire(import.meta.url);\" && esbuild api/cron/backup-runner.ts --platform=node --bundle --format=esm --conditions=node --external:@sentry/* --outdir=dist/cron --banner:js=\"import { createRequire } from 'module';const require = createRequire(import.meta.url);\"",
     "lint": "eslint .",
     "preview": "vite preview",
     "start": "NODE_ENV=production node dist/boot.js",
@@ -83,6 +83,7 @@
     "mysql2": "^3.14.1",
     "nanoid": "^5.1.6",
     "next-themes": "^0.4.6",
+    "node-cron": "^4.6.0",
     "nodemailer": "^9.0.3",
     "react": "^19.2.0",
     "react-day-picker": "^9.13.0",

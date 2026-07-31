@@ -248,7 +248,11 @@ app.get("/api/cron/backup", async (c) => {
   }
   const { runBackup } = await import("./cron/backup");
   const result = await runBackup();
-  return c.json(result);
+  // FIX: P0.4 — a failed backup must answer non-2xx, otherwise the external cron
+  // caller records a success and nobody notices there is no artifact. Note this
+  // endpoint needs the MySQL client binaries, which only the `backup` image ships;
+  // the scheduled run happens there (see dist/cron/backup-runner.js).
+  return c.json(result, result.success ? 200 : 500);
 });
 
 app.use(bodyLimit({ maxSize: 10 * 1024 * 1024 }));

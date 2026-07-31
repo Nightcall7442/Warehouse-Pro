@@ -49,3 +49,17 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 ENTRYPOINT ["dumb-init", "--"]
 # Install drizzle-kit, run migrations, then start server
 CMD ["sh", "-c", "npm install drizzle-kit --no-save --legacy-peer-deps && npx drizzle-kit migrate && node dist/boot.js"]
+
+# Backup worker — kept as a separate stage so the web image stays free of
+# database client tools. Alpine's mariadb-client provides `mysqldump`/`mysql`,
+# whose output is compatible with MySQL 8, but it cannot authenticate against a
+# MySQL 8 account using the default caching_sha2_password plugin: give the backup
+# account mysql_native_password, or set MYSQLDUMP_PATH/MYSQL_PATH to Oracle's
+# client binaries instead.
+FROM runtime AS backup
+USER root
+RUN apk add --no-cache mariadb-client mariadb-connector-c
+USER appuser
+# Long-running scheduler, not an HTTP server: drop the inherited HTTP healthcheck.
+HEALTHCHECK NONE
+CMD ["node", "dist/cron/backup-runner.js"]

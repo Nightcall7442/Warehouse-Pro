@@ -50,5 +50,43 @@ services:
       start_period: 30s
     restart: unless-stopped
 
+  backup:
+    build:
+      context: .
+      target: backup
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=mysql://warehouse:warehouse@mysql:3306/warehouse_pro
+      - BACKUP_ENCRYPTION_KEY=${BACKUP_ENCRYPTION_KEY:?Set BACKUP_ENCRYPTION_KEY in .env}
+      - BACKUP_SCHEDULE=${BACKUP_SCHEDULE:-0 2 * * *}
+      - BACKUP_VERIFY_DATABASE_URL=mysql://root:verify@mysql-verify:3306/verify
+      - S3_BUCKET=${S3_BUCKET:-}
+      - S3_REGION=${S3_REGION:-}
+      - S3_ACCESS_KEY=${S3_ACCESS_KEY:-}
+      - S3_SECRET_KEY=${S3_SECRET_KEY:-}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      mysql-verify:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Scratch instance used only to verify that each dump restores; tmpfs storage
+  # means its data is wiped on every restart. Never point app services at it.
+  mysql-verify:
+    image: mysql:8
+    environment:
+      - MYSQL_ROOT_PASSWORD=verify
+      - MYSQL_DATABASE=verify
+    tmpfs:
+      - /var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
 volumes:
   mysql_data:

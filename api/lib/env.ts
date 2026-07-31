@@ -64,6 +64,13 @@ export const env = {
   s3AccessKey:  optional("S3_ACCESS_KEY"),
   s3SecretKey:  optional("S3_SECRET_KEY"),
 
+  // Backups
+  backupEncryptionKey:     optional("BACKUP_ENCRYPTION_KEY"),
+  backupSchedule:          optional("BACKUP_SCHEDULE", "0 2 * * *"),
+  backupVerifyDatabaseUrl: optional("BACKUP_VERIFY_DATABASE_URL"),
+  mysqldumpPath:           optional("MYSQLDUMP_PATH", "mysqldump"),
+  mysqlClientPath:         optional("MYSQL_PATH", "mysql"),
+
   // 1C Bridge
   oneCBridgeUrl:       optional("ONEC_BRIDGE_URL"),
   oneCUsername:        optional("ONEC_USERNAME"),

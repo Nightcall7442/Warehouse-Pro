@@ -135,7 +135,7 @@ own handle: with the plain form, such a callee runs on a different pooled
 connection, outside the transaction, and a rollback cannot undo its writes. That
 hazard existed before this change; it is now avoidable rather than invisible.
 
-### Testing
+### Testing (P0.3)
 
 `runWithDb(fakeHandle, fn)` injects a handle without patching the module, and
 `api/queries/__tests__/connection.test.ts` covers the scoping, transaction
@@ -147,3 +147,82 @@ MySQL — is **not** part of this change. SQLite would diverge from the schema
 testcontainers needs a Docker daemon that neither this environment nor the current
 CI job provides. Existing tests keep mocking `../queries/connection`, which still
 works because `getDb()` remains a zero-argument export.
+
+## P0.4 — Real database backups
+
+**What changed.** `api/cron/backup.ts` used to `SELECT COUNT(*)` from eight tables
+and upload that JSON summary to a key ending in `.sql`. There was no dump, so
+there was nothing to restore from — and with no S3 configured it logged
+"Backup verified" and returned success. It now runs `mysqldump`, streams the
+output through gzip and AES-256-GCM into S3, keeps 7 daily / 4 weekly / 12
+monthly copies, and verifies that the uploaded artifact actually restores.
+
+The artifact is `backups/<tier>/warehouse-pro-<YYYY-MM-DD>.sql.gz.enc`. Object
+metadata carries what a restore needs: `iv`, `authtag`, `checksum` (of the
+encrypted bytes), `plaintext-checksum`, `plaintext-size`, `timestamp`, `database`,
+`algorithm`, `compression`.
+
+**New configuration** (see `.env.example` for the full text):
+
+| Variable | Meaning |
+| --- | --- |
+| `BACKUP_ENCRYPTION_KEY` | 32 bytes hex (`openssl rand -hex 32`). **Required** — without it the job refuses to run rather than uploading a plaintext dump. Store it outside the backup bucket; if it is lost, every backup is unrecoverable. |
+| `BACKUP_SCHEDULE` | 5-field cron for the scheduler container, UTC. Default `0 2 * * *`. |
+| `BACKUP_VERIFY_DATABASE_URL` | Scratch database the restore check loads each dump into. Empty skips the check. **Must not point at production** — the check drops and recreates the schema. |
+| `MYSQLDUMP_PATH` / `MYSQL_PATH` | Override when the client binaries are not on `PATH`. |
+
+**Behaviour changes to expect:**
+
+- **The job now fails loudly.** No S3 configuration, a missing or malformed
+  encryption key, a `mysqldump` that exits non-zero, an empty dump, or a failed
+  restore check all return `success: false`, and `GET /api/cron/backup` answers
+  **500** instead of 200 so an external cron caller notices.
+- **`mysqldump` is required.** The web image deliberately does not ship MySQL
+  client binaries, so `GET /api/cron/backup` on the web container now fails with
+  "Не найден исполняемый файл mysqldump". Scheduled backups run in the new
+  `backup` container instead (`docker compose up backup`); for a one-off run
+  there, use `node dist/cron/backup-runner.js --now`. If you must keep driving
+  backups through the HTTP endpoint on the web image, add `mariadb-client` to the
+  `runtime` stage or point `MYSQLDUMP_PATH` at a mounted client.
+- **Alpine's client caveat.** The `backup` stage installs `mariadb-client`, whose
+  `mysqldump` writes MySQL 8-compatible output but cannot authenticate against an
+  account using MySQL 8's default `caching_sha2_password`. Give the backup account
+  `mysql_native_password`, or point `MYSQLDUMP_PATH`/`MYSQL_PATH` at Oracle's
+  client build.
+- **Credentials never reach argv.** Both binaries are invoked with
+  `--defaults-extra-file` pointing at a 0600 file in a private temp directory,
+  which is removed in a `finally` along with the plaintext dump. `--password=` on
+  the command line is readable by any process via `ps`, and `MYSQL_PWD` leaks the
+  same way through `/proc`.
+- **Restore drill.** `verifyBackup(key)` downloads the object, checks the
+  ciphertext checksum against the metadata, decrypts, compares the plaintext
+  checksum, then drops/recreates the scratch schema, loads the dump and asserts
+  `SELECT COUNT(*) FROM tenants >= 1`. Downloading rather than reusing the local
+  file is deliberate: it also proves the upload arrived intact.
+
+### Deployment checklist
+
+1. Generate and store `BACKUP_ENCRYPTION_KEY` (`openssl rand -hex 32`) in the
+   secret manager — **not** in the backup bucket.
+2. Set the `S3_*` variables; without them there is nowhere to upload.
+3. Deploy the `backup` service (`docker compose up -d backup`, or the equivalent
+   separate service on your platform). Confirm the startup log line
+   `backup scheduler started` shows the expected `nextRun`.
+4. Point `BACKUP_VERIFY_DATABASE_URL` at a scratch instance (compose provides
+   `mysql-verify`, tmpfs-backed and wiped on restart) and confirm the first run
+   logs `verified: true`.
+5. Grant the backup account `SELECT, LOCK TABLES, SHOW VIEW, EVENT, TRIGGER`, and
+   check that its auth plugin works with the client in the image (see above).
+
+### Not verified in this environment
+
+The restore path — `mysqldump`, the `mysql` client and the scratch instance — was
+**not** executed end to end here: this environment has no Docker daemon and no
+MySQL server. What is covered by tests: the encryption/compression round trip and
+its tamper detection (17 tests), retention tiering and pruning (21), argument and
+credential handling plus every failure guard including a real `spawn` of a missing
+and of a failing binary (20), and the full upload path against a fake `mysqldump`
+and an intercepted S3 client, asserting that what lands in the bucket decrypts
+back to the exact dump (13). The claim "restore verification passes in under 5
+minutes" therefore still needs one real run against a live database — step 4 of
+the checklist above is that run.
