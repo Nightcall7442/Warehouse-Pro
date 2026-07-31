@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { createRouter, authedQuery, supervisorQuery } from "./middleware";
-import { getDb } from "./queries/connection";
 import { territories, shops } from "@db/schema";
 import { eq, and, sql, isNull } from "drizzle-orm";
 import { haversineKm } from "./lib/geo";
@@ -8,7 +7,7 @@ import { haversineKm } from "./lib/geo";
 export const territoryRouter = createRouter({
   /** List all territories for current tenant */
   list: authedQuery.query(async ({ ctx }) => {
-    const rows = await getDb().select({
+    const rows = await ctx.db.select({
       id: territories.id,
       name: territories.name,
       color: territories.color,
@@ -36,7 +35,7 @@ export const territoryRouter = createRouter({
       radiusKm: z.number().min(0.1).max(1000).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const [result] = await db.insert(territories).values({
         tenantId: ctx.tenant.id,
         name: input.name,
@@ -83,7 +82,7 @@ export const territoryRouter = createRouter({
       radiusKm: z.number().min(0.1).max(1000).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const { id, ...rest } = input;
       const data: Record<string, unknown> = {};
       if (rest.name !== undefined) data.name = rest.name;
@@ -130,9 +129,9 @@ export const territoryRouter = createRouter({
   delete: supervisorQuery
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      await getDb().update(shops).set({ territoryId: null })
+      await ctx.db.update(shops).set({ territoryId: null })
         .where(and(eq(shops.territoryId, input.id), eq(shops.tenantId, ctx.tenant.id)));
-      await getDb().delete(territories)
+      await ctx.db.delete(territories)
         .where(and(eq(territories.id, input.id), eq(territories.tenantId, ctx.tenant.id)));
       return { success: true };
     }),
@@ -141,7 +140,7 @@ export const territoryRouter = createRouter({
   getShops: authedQuery
     .input(z.object({ territoryId: z.number() }))
     .query(async ({ input, ctx }) => {
-      return getDb().select({
+      return ctx.db.select({
         id: shops.id, name: shops.name, city: shops.city, address: shops.address,
       })
         .from(shops)
@@ -152,7 +151,7 @@ export const territoryRouter = createRouter({
   /** Auto-assign shops without territory to nearest territory center */
   autoAssign: supervisorQuery
     .mutation(async ({ ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const tenantId = ctx.tenant.id;
 
       // Get all territories with geo data

@@ -3,6 +3,13 @@ import * as schema from "@db/schema";
 import type { InsertUser } from "@db/schema";
 import { getDb } from "./connection";
 
+/**
+ * These helpers resolve their handle through `getDb()` on purpose: they run during
+ * authentication — before a tRPC context exists — and from the WebSocket upgrade
+ * path, which never passes through the request middleware. Inside a request the
+ * ambient handle is the request's own (see runWithDb in api/boot.ts); outside one
+ * it is the pooled instance.
+ */
 export async function findUserById(id: number) {
   const rows = await getDb()
     .select({

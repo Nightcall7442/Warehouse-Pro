@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { createRouter, operatorQuery, supervisorQuery } from "./middleware";
-import { getDb } from "./queries/connection";
 import {
   warehouseStock, products, stockMovements,
   orderItems, orders, arrivals, arrivalItems,
@@ -10,7 +9,7 @@ import { eq, and, sql, desc } from "drizzle-orm";
 export const warehouseReportsRouter = createRouter({
   /** Stock breakdown by product category */
   stockByCategory: supervisorQuery.query(async ({ ctx }) => {
-    const db = getDb();
+    const db = ctx.db;
     const tenantId = ctx.tenant.id;
 
     const result = await db.select({
@@ -34,7 +33,7 @@ export const warehouseReportsRouter = createRouter({
   movementTrends: supervisorQuery
     .input(z.object({ days: z.number().default(30) }).optional())
     .query(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const tenantId = ctx.tenant.id;
       const days = input?.days ?? 30;
       const cutoff = new Date(Date.now() - days * 86400000);
@@ -61,7 +60,7 @@ export const warehouseReportsRouter = createRouter({
   topByValue: operatorQuery
     .input(z.object({ limit: z.number().default(10) }).optional())
     .query(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const tenantId = ctx.tenant.id;
 
       return db.select({
@@ -89,7 +88,7 @@ export const warehouseReportsRouter = createRouter({
   arrivalCosts: operatorQuery
     .input(z.object({ days: z.number().default(30) }).optional())
     .query(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const tenantId = ctx.tenant.id;
       const days = input?.days ?? 30;
       const cutoff = new Date(Date.now() - days * 86400000);
@@ -131,7 +130,7 @@ export const warehouseReportsRouter = createRouter({
   turnover: operatorQuery
     .input(z.object({ days: z.number().default(30) }).optional())
     .query(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const tenantId = ctx.tenant.id;
       const days = input?.days ?? 30;
       const cutoff = new Date(Date.now() - days * 86400000);
@@ -164,7 +163,7 @@ export const warehouseReportsRouter = createRouter({
   reorderAlerts: supervisorQuery
     .input(z.object({ days: z.number().default(30) }).optional())
     .query(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const tenantId = ctx.tenant.id;
       const days = input?.days ?? 30;
       const cutoff = new Date(Date.now() - days * 86400000);

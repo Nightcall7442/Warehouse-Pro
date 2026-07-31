@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { createRouter, courierQuery, operatorQuery } from "./middleware";
-import { getDb } from "./queries/connection";
 import { orders, shops, users, payments, notifications, orderItems, products, warehouseStock, warehouses } from "@db/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { sseBus } from "./lib/sse";
@@ -10,7 +9,7 @@ import { sanitizeString } from "./lib/sanitize";
 
 export const courierRouter = createRouter({
   listMyDeliveries: courierQuery.query(async ({ ctx }) => {
-    const db = getDb();
+    const db = ctx.db;
     const courierId = ctx.user.role === "courier" ? ctx.user.id : undefined;
 
     if (!courierId) {
@@ -78,7 +77,7 @@ export const courierRouter = createRouter({
   assignCourier: operatorQuery
     .input(z.object({ orderId: z.number().int().positive(), courierId: z.number().int().positive() }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
 
       const [order] = await db.select({ id: orders.id, status: orders.status, courierId: orders.courierId, shopId: orders.shopId, orderNumber: orders.orderNumber }).from(orders)
         .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, ctx.tenant.id)))
@@ -133,7 +132,7 @@ export const courierRouter = createRouter({
   markOutForDelivery: courierQuery
     .input(z.object({ orderId: z.number().int().positive() }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const courierId = ctx.user.id;
 
       const [order] = await db.select({ id: orders.id, orderNumber: orders.orderNumber, shopId: orders.shopId, status: orders.status, deliveryStatus: orders.deliveryStatus }).from(orders)
@@ -158,7 +157,7 @@ export const courierRouter = createRouter({
       cashAmount: z.string().regex(/^\d+(\.\d{1,2})?$/, "Неверный формат суммы").optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const courierId = ctx.user.id;
 
       const [order] = await db.select({ id: orders.id, orderNumber: orders.orderNumber, shopId: orders.shopId, status: orders.status, deliveryStatus: orders.deliveryStatus, total: orders.total }).from(orders)
@@ -268,7 +267,7 @@ export const courierRouter = createRouter({
       reason: z.string().max(500).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const courierId = ctx.user.id;
 
       const [order] = await db.select({ id: orders.id, status: orders.status, deliveryStatus: orders.deliveryStatus, orderNumber: orders.orderNumber }).from(orders)

@@ -3,7 +3,6 @@ import { randomBytes } from "crypto";
 import { and, eq, gt, isNull } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { createRouter, adminQuery, publicQuery } from "./middleware";
-import { getDb } from "./queries/connection";
 import { invites, users, tenants } from "@db/schema";
 import { hashPassword } from "./auth/password";
 import { sendInviteEmail } from "./lib/mailer";
@@ -21,7 +20,7 @@ export const inviteRouter = createRouter({
       role:  z.enum(["operator", "agent", "supervisor", "merchandiser", "courier"]),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db       = getDb();
+      const db       = ctx.db;
       const tenantId = ctx.tenant.id;
 
       // Check not already a user
@@ -67,7 +66,7 @@ export const inviteRouter = createRouter({
       if (!(await checkRateLimit(ip, { windowMs: 60_000, limit: 30, namespace: "invite.verify" }))) {
         throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Слишком много запросов." });
       }
-      const db  = getDb();
+      const db  = ctx.db;
       const now = new Date();
 
       const [invite] = await db.select({
@@ -108,7 +107,7 @@ export const inviteRouter = createRouter({
       if (!(await checkRateLimit(ip, { windowMs: 60 * 60_000, limit: 10, namespace: "invite.accept" }))) {
         throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Слишком много запросов." });
       }
-      const db  = getDb();
+      const db  = ctx.db;
       const now = new Date();
 
       const [invite] = await db.select()
@@ -152,7 +151,7 @@ export const inviteRouter = createRouter({
 
   /** List pending invites for tenant */
   list: adminQuery.query(async ({ ctx }) => {
-    const db = getDb();
+    const db = ctx.db;
     return db.select({
       id:        invites.id,
       email:     invites.email,

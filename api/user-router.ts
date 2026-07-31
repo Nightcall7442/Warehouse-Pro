@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { createRouter, adminQuery, authedQuery } from "./middleware";
-import { getDb } from "./queries/connection";
 import { users } from "@db/schema";
 import { eq, like, and, sql, desc } from "drizzle-orm";
 import { hashPassword, verifyPassword } from "./auth/password";
@@ -19,7 +18,7 @@ export const userRouter = createRouter({
       role:     z.enum(ROLES).optional(),
     }).optional())
     .query(async ({ input, ctx }) => {
-      const db       = getDb();
+      const db       = ctx.db;
       const tenantId = ctx.tenant!.id;
       const page     = input?.page ?? 1;
       const pageSize = input?.pageSize ?? 25;
@@ -44,7 +43,7 @@ export const userRouter = createRouter({
   getById: adminQuery
     .input(z.object({ id: z.number() }))
     .query(async ({ input, ctx }) => {
-      const [user] = await getDb().select({ id: users.id, name: users.name, email: users.email,
+      const [user] = await ctx.db.select({ id: users.id, name: users.name, email: users.email,
         phone: users.phone, role: users.role, status: users.status, createdAt: users.createdAt,
         lastSignInAt: users.lastSignInAt, avatar: users.avatar, tenantId: users.tenantId })
         .from(users).where(and(eq(users.id, input.id), eq(users.tenantId, ctx.tenant.id))).limit(1);
@@ -61,7 +60,7 @@ export const userRouter = createRouter({
       avatar: z.string().max(5000000).optional(), // base64 data URL, max 5MB
     }))
     .mutation(async ({ input, ctx }) => {
-      await getDb().update(users).set(input).where(eq(users.id, ctx.user.id));
+      await ctx.db.update(users).set(input).where(eq(users.id, ctx.user.id));
       return { success: true };
     }),
 
@@ -77,7 +76,7 @@ export const userRouter = createRouter({
         throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Too many attempts. Try again in 15 minutes." });
       }
 
-      const [user] = await getDb().select({
+      const [user] = await ctx.db.select({
         id: users.id, passwordHash: users.passwordHash,
       }).from(users).where(eq(users.id, ctx.user.id)).limit(1);
       if (!user) throw new TRPCError({ code: "NOT_FOUND", message: "User not found." });
@@ -87,7 +86,7 @@ export const userRouter = createRouter({
 
       const newHash = await hashPassword(input.newPassword);
       // Increment tokenVersion to invalidate all existing sessions
-      await getDb().update(users).set({
+      await ctx.db.update(users).set({
         passwordHash: newHash,
         tokenVersion: sql`COALESCE(${users.tokenVersion}, 0) + 1`,
       }).where(eq(users.id, ctx.user.id));
@@ -104,7 +103,7 @@ export const userRouter = createRouter({
       status: z.enum(["active","inactive"]).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const { id, ...data } = input;
 
       // #FIX4: Prevent removing last active CEO
@@ -151,7 +150,7 @@ export const userRouter = createRouter({
       newPassword: z.string().min(8),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const newHash = await hashPassword(input.newPassword);
       await db.update(users).set({ passwordHash: newHash })
         .where(and(eq(users.id, input.id), eq(users.tenantId, ctx.tenant.id)));
@@ -172,7 +171,7 @@ export const userRouter = createRouter({
   deactivate: adminQuery
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
 
       // #FIX4: Prevent deactivating last active CEO
       const [target] = await db.select({ role: users.role, status: users.status, name: users.name })
@@ -211,7 +210,7 @@ export const userRouter = createRouter({
       deactivate: z.boolean().default(false),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const { id, email, password, deactivate } = input;
 
       // Check target exists in same tenant
@@ -269,7 +268,7 @@ export const userRouter = createRouter({
   // Logout all devices — increment tokenVersion to invalidate all sessions
   logoutAll: authedQuery
     .mutation(async ({ ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       await db.update(users)
         .set({ tokenVersion: sql`COALESCE(${users.tokenVersion}, 0) + 1` })
         .where(eq(users.id, ctx.user.id));
@@ -280,7 +279,7 @@ export const userRouter = createRouter({
   registerPushToken: authedQuery
     .input(z.object({ pushToken: z.string().min(1) }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       await db.update(users)
         .set({ pushToken: input.pushToken })
         .where(eq(users.id, ctx.user.id));
@@ -290,7 +289,7 @@ export const userRouter = createRouter({
   // Remove push token (on logout)
   removePushToken: authedQuery
     .mutation(async ({ ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       await db.update(users)
         .set({ pushToken: null })
         .where(eq(users.id, ctx.user.id));

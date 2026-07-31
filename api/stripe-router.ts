@@ -2,7 +2,6 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
 import { createRouter, authedQuery, adminQuery } from "./middleware";
-import { getDb } from "./queries/connection";
 import { subscriptions } from "@db/schema";
 import { getStripe, PLANS } from "./lib/stripe";
 import { getOrCreateSubscription } from "./lib/subscription";
@@ -58,7 +57,7 @@ export const stripeRouter = createRouter({
           metadata: { tenantId: String(ctx.tenant.id) },
         });
         customerId = customer.id;
-        await getDb().update(subscriptions)
+        await ctx.db.update(subscriptions)
           .set({ stripeCustomerId: customerId })
           .where(eq(subscriptions.tenantId, ctx.tenant.id));
       }

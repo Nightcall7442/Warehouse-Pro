@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { createRouter, operatorQuery, authedQuery } from "./middleware";
-import { getDb } from "./queries/connection";
 import { commissions, users } from "@db/schema";
 import { eq, and, gte, lte, desc, isNull } from "drizzle-orm";
 import { cache, CacheKeys } from "./lib/cache";
@@ -15,7 +14,7 @@ export const commissionRouter = createRouter({
       status: z.enum(["pending", "approved", "paid"]).optional(),
     }).optional())
     .query(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const conditions = [eq(commissions.tenantId, ctx.tenant.id)];
 
       if (input?.periodType) conditions.push(eq(commissions.periodType, input.periodType));
@@ -46,7 +45,7 @@ export const commissionRouter = createRouter({
       commissionRate: z.number().min(0).max(100),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
 
       // Update or create monthly commission record for current period
       const now = new Date();
@@ -91,7 +90,7 @@ export const commissionRouter = createRouter({
       periodEnd: isoDaySchema,
     }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
 
       const agentCommissions = await db.select()
         .from(commissions)
@@ -159,7 +158,7 @@ export const commissionRouter = createRouter({
       status: z.enum(["pending", "approved", "paid"]),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       await db.update(commissions)
         .set({ status: input.status })
         .where(and(eq(commissions.id, input.id), eq(commissions.tenantId, ctx.tenant.id)));

@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { createRouter, adminQuery, authedQuery } from "./middleware";
-import { getDb } from "./queries/connection";
 import { warehouses, warehouseStock, stockTransfers, products } from "@db/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
@@ -8,7 +7,7 @@ import { TRPCError } from "@trpc/server";
 export const warehouseMultiRouter = createRouter({
   /** List all warehouses for current tenant */
   list: authedQuery.query(async ({ ctx }) => {
-    const db = getDb();
+    const db = ctx.db;
     return db.select()
       .from(warehouses)
       .where(eq(warehouses.tenantId, ctx.tenant.id))
@@ -23,7 +22,7 @@ export const warehouseMultiRouter = createRouter({
       city:    z.string().max(100).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       // If this is the first warehouse for the tenant, make it the default
       const [existing] = await db.select({ id: warehouses.id }).from(warehouses)
         .where(eq(warehouses.tenantId, ctx.tenant.id)).limit(1);
@@ -49,7 +48,7 @@ export const warehouseMultiRouter = createRouter({
       status:  z.enum(["active", "inactive"]).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const { id, ...data } = input;
       await db.update(warehouses)
         .set(data)
@@ -61,7 +60,7 @@ export const warehouseMultiRouter = createRouter({
   setDefault: adminQuery
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
 
       await db.transaction(async (tx) => {
         // Lock target row inside transaction to prevent race condition
@@ -87,7 +86,7 @@ export const warehouseMultiRouter = createRouter({
       pageSize:    z.number().min(1).max(500).default(25),
     }).optional())
     .query(async ({ input, ctx }) => {
-      const db       = getDb();
+      const db       = ctx.db;
       const tenantId = ctx.tenant.id;
       const page     = input?.page ?? 1;
       const pageSize = input?.pageSize ?? 25;
@@ -152,7 +151,7 @@ export const warehouseMultiRouter = createRouter({
       notes:           z.string().max(500).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
 
       if (input.fromWarehouseId === input.toWarehouseId) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Нельзя перемещать товар на тот же склад" });
@@ -192,7 +191,7 @@ export const warehouseMultiRouter = createRouter({
   completeTransfer: adminQuery
     .input(z.object({ transferId: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
 
       await db.transaction(async (tx) => {
         // Lock transfer row inside transaction — this is the critical fix
@@ -289,7 +288,7 @@ export const warehouseMultiRouter = createRouter({
       limit:  z.number().int().min(1).max(100).default(20),
     }).optional())
     .query(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const conditions = [eq(stockTransfers.tenantId, ctx.tenant.id)];
 
       if (input?.status && input.status !== "all") {

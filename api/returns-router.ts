@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { createRouter, fieldSalesQuery, operatorQuery } from "./middleware";
-import { getDb } from "./queries/connection";
 import { returns, returnItems, orderItems, shops, users, products, orders, warehouseStock, warehouses } from "@db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { cache, CacheKeys } from "./lib/cache";
@@ -17,7 +16,7 @@ export const returnsRouter = createRouter({
       pageSize: z.number().default(25),
     }).optional())
     .query(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const f = input ?? {};
       const conditions = [eq(returns.tenantId, ctx.tenant.id)];
       if (f.status) conditions.push(eq(returns.status, f.status));
@@ -52,7 +51,7 @@ export const returnsRouter = createRouter({
   getById: fieldSalesQuery
     .input(z.object({ id: z.number() }))
     .query(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const [ret] = await db.select({
         id: returns.id,
         returnNumber: returns.returnNumber,
@@ -108,7 +107,7 @@ export const returnsRouter = createRouter({
       })).min(1),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
 
       // Validate shop belongs to tenant
       const [shop] = await db.select({ id: shops.id }).from(shops)
@@ -204,7 +203,7 @@ export const returnsRouter = createRouter({
       status: z.enum(["pending", "approved", "rejected", "completed"]),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const tenantId = ctx.tenant.id;
 
       // Validate status transitions
@@ -283,7 +282,7 @@ export const returnsRouter = createRouter({
 
   // Returns summary by reason
   summary: operatorQuery.query(async ({ ctx }) => {
-    const db = getDb();
+    const db = ctx.db;
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
 

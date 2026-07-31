@@ -2,7 +2,6 @@ import { z } from "zod";
 import { randomUUID } from "crypto";
 import { TRPCError } from "@trpc/server";
 import { createRouter, publicQuery, adminQuery, superAdminQuery } from "./middleware";
-import { getDb } from "./queries/connection";
 import { tenants, users, settings, orders, products, shops, subscriptions, warehouses } from "@db/schema";
 import { eq, and, ne, sql, count, sum } from "drizzle-orm";
 import { hashPassword } from "./auth/password";
@@ -37,7 +36,7 @@ export const tenantRouter = createRouter({
         throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Too many registration attempts." });
       }
 
-      const db = getDb();
+      const db = ctx.db;
       let slug = slugify(input.orgName);
       const base = slug;
       let attempt = 1;
@@ -101,7 +100,7 @@ export const tenantRouter = createRouter({
       role:     z.enum(["ceo", "operator", "agent", "supervisor", "merchandiser", "courier"]),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const existing = await db.select({ id: users.id }).from(users)
         .where(eq(users.email, input.email)).limit(1);
       if (existing.length) throw new TRPCError({ code: "CONFLICT", message: "Email already registered." });
@@ -124,8 +123,8 @@ export const tenantRouter = createRouter({
   // ══════════════════════════════════════════════════════════════════════════
 
   /** Список всех тенантов с основной статистикой */
-  list: superAdminQuery.query(async () => {
-    const db = getDb();
+  list: superAdminQuery.query(async ({ ctx }) => {
+    const db = ctx.db;
 
     const allTenants = await listTenants();
 
@@ -158,8 +157,8 @@ export const tenantRouter = createRouter({
   /** Детальный профиль одного тенанта */
   getDetail: superAdminQuery
     .input(z.object({ tenantId: z.number() }))
-    .query(async ({ input }) => {
-      const db = getDb();
+    .query(async ({ input, ctx }) => {
+      const db = ctx.db;
 
       const [tenant] = await db.select({
         id: tenants.id, slug: tenants.slug, name: tenants.name, plan: tenants.plan,
@@ -229,8 +228,8 @@ export const tenantRouter = createRouter({
       plan:          z.enum(["trial", "basic", "pro", "exclusive"]).default("trial"),
       trialDays:     z.number().min(1).max(365).default(14),
     }))
-    .mutation(async ({ input }) => {
-      const db = getDb();
+    .mutation(async ({ input, ctx }) => {
+      const db = ctx.db;
 
       let slug = slugify(input.orgName);
       const base = slug;
@@ -289,8 +288,8 @@ export const tenantRouter = createRouter({
       plan:       z.enum(["trial", "basic", "pro", "exclusive"]),
       expiryDays: z.number().min(1).max(3650).default(30),
     }))
-    .mutation(async ({ input }) => {
-      const db          = getDb();
+    .mutation(async ({ input, ctx }) => {
+      const db          = ctx.db;
       const planExpires = new Date(Date.now() + input.expiryDays * 86_400_000);
 
       await db.transaction(async (tx) => {
@@ -311,8 +310,8 @@ export const tenantRouter = createRouter({
       tenantId: z.number(),
       status:   z.enum(["active", "suspended"]),
     }))
-    .mutation(async ({ input }) => {
-      await getDb().update(tenants)
+    .mutation(async ({ input, ctx }) => {
+      await ctx.db.update(tenants)
         .set({ status: input.status, updatedAt: new Date() })
         .where(eq(tenants.id, input.tenantId));
       return { success: true };
@@ -324,8 +323,8 @@ export const tenantRouter = createRouter({
       tenantId: z.number(),
       days:     z.number().min(1).max(365),
     }))
-    .mutation(async ({ input }) => {
-      const db = getDb();
+    .mutation(async ({ input, ctx }) => {
+      const db = ctx.db;
       const [tenant] = await db.select({ trialEndsAt: tenants.trialEndsAt })
         .from(tenants).where(eq(tenants.id, input.tenantId)).limit(1);
 
@@ -353,8 +352,8 @@ export const tenantRouter = createRouter({
       userId:      z.number(),
       newPassword: z.string().min(8),
     }))
-    .mutation(async ({ input }) => {
-      const db           = getDb();
+    .mutation(async ({ input, ctx }) => {
+      const db           = ctx.db;
       const passwordHash = await hashPassword(input.newPassword);
       await db.update(users)
         .set({ passwordHash, updatedAt: new Date() })
@@ -363,8 +362,8 @@ export const tenantRouter = createRouter({
     }),
 
   /** Общая сводка платформы */
-  platformStats: superAdminQuery.query(async () => {
-    const db = getDb();
+  platformStats: superAdminQuery.query(async ({ ctx }) => {
+    const db = ctx.db;
 
     // Исключаем системный тенант из всей статистики
     const [tenantStat] = await db.select({ total: count(tenants.id) }).from(tenants).where(ne(tenants.slug, "system"));

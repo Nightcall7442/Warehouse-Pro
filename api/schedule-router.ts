@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { createRouter, supervisorQuery, authedQuery } from "./middleware";
-import { getDb } from "./queries/connection";
 import { visitSchedules, dailyPlans, shops, users } from "@db/schema";
 import { eq, and, sql } from "drizzle-orm";
 
@@ -16,7 +15,7 @@ export const scheduleRouter = createRouter({
       if (input?.agentId) conditions.push(eq(visitSchedules.agentId, input.agentId));
       if (input?.shopId) conditions.push(eq(visitSchedules.shopId, input.shopId));
 
-      return getDb().select({
+      return ctx.db.select({
         id: visitSchedules.id,
         agentId: visitSchedules.agentId,
         agentName: users.name,
@@ -40,7 +39,7 @@ export const scheduleRouter = createRouter({
       dayOfWeek: z.number().min(0).max(6),
     }))
     .mutation(async ({ input, ctx }) => {
-      const [result] = await getDb().insert(visitSchedules).values({
+      const [result] = await ctx.db.insert(visitSchedules).values({
         tenantId: ctx.tenant.id,
         agentId: input.agentId,
         shopId: input.shopId,
@@ -54,7 +53,7 @@ export const scheduleRouter = createRouter({
   delete: supervisorQuery
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      await getDb().delete(visitSchedules)
+      await ctx.db.delete(visitSchedules)
         .where(and(eq(visitSchedules.id, input.id), eq(visitSchedules.tenantId, ctx.tenant.id)));
       return { success: true };
     }),
@@ -67,7 +66,7 @@ export const scheduleRouter = createRouter({
       agentId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const tenantId = ctx.tenant.id;
 
       const conditions = [eq(visitSchedules.tenantId, tenantId), eq(visitSchedules.active, true)];

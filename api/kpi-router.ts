@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { createRouter, fieldSalesQuery, supervisorQuery } from "./middleware";
-import { getDb } from "./queries/connection";
 import { calculateAgentKpi, calculateAllAgentsKpi, calculateSalary, getAgentList } from "./services/kpi";
 import { cache, CacheTTL } from "./lib/cache";
 import { shops } from "@db/schema";
@@ -12,7 +11,7 @@ export const kpiRouter = createRouter({
       period: z.enum(["week", "month", "quarter"]).default("month"),
     }).optional())
     .query(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const period = input?.period ?? "month";
       const { periodStart, periodEnd } = getPeriod(period);
       const cacheKey = `kpi:agent:${ctx.tenant.id}:${ctx.user.id}:${period}`;
@@ -30,7 +29,7 @@ export const kpiRouter = createRouter({
       period: z.enum(["week", "month", "quarter"]).default("month"),
     }).optional())
     .query(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const period = input?.period ?? "month";
       const { periodStart, periodEnd } = getPeriod(period);
       const cacheKey = `kpi:supervisor:${ctx.tenant.id}:${period}`;
@@ -48,7 +47,7 @@ export const kpiRouter = createRouter({
       period: z.enum(["week", "month", "quarter"]).default("month"),
     }).optional())
     .query(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const period = input?.period ?? "month";
       const { periodStart, periodEnd } = getPeriod(period);
 
@@ -61,7 +60,7 @@ export const kpiRouter = createRouter({
       period: z.enum(["week", "month", "quarter"]).default("month"),
     }))
     .query(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const { periodStart, periodEnd } = getPeriod(input.period);
 
       return calculateAgentKpi(db, input.agentId, ctx.tenant.id, periodStart, periodEnd);
@@ -73,7 +72,7 @@ export const kpiRouter = createRouter({
       period: z.enum(["week", "month", "quarter"]).default("month"),
     }))
     .query(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const { periodStart, periodEnd } = getPeriod(input.period);
 
       // Get unique agents in this territory
@@ -126,7 +125,7 @@ export const kpiRouter = createRouter({
       period: z.enum(["week", "month", "quarter"]).default("month"),
     }).optional())
     .query(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const period = input?.period ?? "month";
       const { periodStart, periodEnd } = getPeriod(period);
 
@@ -138,7 +137,7 @@ export const kpiRouter = createRouter({
       period: z.enum(["week", "month", "quarter"]).default("month"),
     }).optional())
     .query(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const period = input?.period ?? "month";
       const { periodStart, periodEnd } = getPeriod(period);
 

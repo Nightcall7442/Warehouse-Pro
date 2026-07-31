@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { createRouter, operatorQuery, authedQuery, supervisorQuery } from "./middleware";
-import { getDb } from "./queries/connection";
 import { salesTargets, users, orders, dailyPlans } from "@db/schema";
 import { eq, and, gte, lte, sql, desc } from "drizzle-orm";
 import { cache, CacheKeys } from "./lib/cache";
@@ -18,7 +17,7 @@ export const salesTargetRouter = createRouter({
       dateTo: isoDaySchema.optional(),
     }).optional())
     .query(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const conditions = [eq(salesTargets.tenantId, ctx.tenant.id)];
 
       if (input?.periodType) conditions.push(eq(salesTargets.periodType, input.periodType));
@@ -65,7 +64,7 @@ export const salesTargetRouter = createRouter({
       notes: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
 
       if (input.id) {
         await db.update(salesTargets)
@@ -111,7 +110,7 @@ export const salesTargetRouter = createRouter({
       })),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       let created = 0;
       let updated = 0;
 
@@ -162,7 +161,7 @@ export const salesTargetRouter = createRouter({
       periodEnd: isoDaySchema,
     }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
 
       const targets = await db.select()
         .from(salesTargets)
@@ -224,7 +223,7 @@ export const salesTargetRouter = createRouter({
   autoSuggest: operatorQuery
     .input(z.object({ targetMonth: isoDaySchema }))
     .query(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       return suggestQuotas(db, ctx.tenant.id, input.targetMonth);
     }),
 
@@ -232,7 +231,7 @@ export const salesTargetRouter = createRouter({
   myQuota: authedQuery
     .input(z.object({ month: z.string().optional() }).optional())
     .query(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const now = input?.month ? new Date(input.month) : new Date();
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
       const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split("T")[0];
@@ -285,7 +284,7 @@ export const salesTargetRouter = createRouter({
   // Get sales target summary for dashboard
   summary: authedQuery
     .query(async ({ ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const now = new Date();
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
       const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split("T")[0];

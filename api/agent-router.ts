@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { createRouter, fieldSalesQuery, merchVisitQuery, supervisorQuery, authedQuery } from "./middleware";
-import { getDb } from "./queries/connection";
 import { agentLocations, dailyPlans, shops, users, agentTerritories, territories } from "@db/schema";
 import { eq, and, sql, desc, gte, lte } from "drizzle-orm";
 import { sseBus } from "./lib/sse";
@@ -15,7 +14,7 @@ export const agentRouter = createRouter({
   // full CRUD access to users (user.list) is ceo-only, and giving supervisor
   // that would be over-broad just to populate a dropdown.
   listAgents: supervisorQuery.query(async ({ ctx }) => {
-    return getDb().select({ id: users.id, name: users.name })
+    return ctx.db.select({ id: users.id, name: users.name })
       .from(users)
       .where(and(eq(users.tenantId, ctx.tenant.id), eq(users.role, "agent"), eq(users.status, "active")))
       .limit(500);
@@ -23,7 +22,7 @@ export const agentRouter = createRouter({
 
   /** All agents with their assigned territories in one query */
   listAgentsWithZones: supervisorQuery.query(async ({ ctx }) => {
-    const db = getDb();
+    const db = ctx.db;
     const agents = await db.select({ id: users.id, name: users.name })
       .from(users)
       .where(and(eq(users.tenantId, ctx.tenant.id), eq(users.role, "agent"), eq(users.status, "active")))
@@ -57,14 +56,14 @@ export const agentRouter = createRouter({
   // Same reasoning as listAgents — supervisor only needs name+city for the
   // shop picker, not the full shop.list (operator-only) response.
   listShopsForPlan: supervisorQuery.query(async ({ ctx }) => {
-    return getDb().select({ id: shops.id, name: shops.name, city: shops.city })
+    return ctx.db.select({ id: shops.id, name: shops.name, city: shops.city })
       .from(shops)
       .where(and(eq(shops.tenantId, ctx.tenant.id), eq(shops.status, "active")));
   }),
 
   // Supervisor: full shop list for the Shops tab (same fields as agent.myShops)
   listAllShops: supervisorQuery.query(async ({ ctx }) => {
-    return getDb().select({
+    return ctx.db.select({
       id: shops.id, name: shops.name, ownerName: shops.ownerName,
       phone: shops.phone, address: shops.address, city: shops.city,
       district: shops.district, status: shops.status,
@@ -77,7 +76,7 @@ export const agentRouter = createRouter({
 
   // Agent: list shops assigned to this agent
   myShops: fieldSalesQuery.query(async ({ ctx }) => {
-    return getDb().select({
+    return ctx.db.select({
       id: shops.id, name: shops.name, ownerName: shops.ownerName,
       phone: shops.phone, address: shops.address, city: shops.city,
       district: shops.district, status: shops.status,
@@ -90,7 +89,7 @@ export const agentRouter = createRouter({
 
   // All active shops in tenant — for order creation & shop picker
   availableShops: fieldSalesQuery.query(async ({ ctx }) => {
-    return getDb().select({
+    return ctx.db.select({
       id: shops.id, name: shops.name, ownerName: shops.ownerName,
       phone: shops.phone, address: shops.address, city: shops.city,
       district: shops.district, status: shops.status,
@@ -109,7 +108,7 @@ export const agentRouter = createRouter({
       batteryLevel: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      await getDb().insert(agentLocations).values({
+      await ctx.db.insert(agentLocations).values({
         tenantId: ctx.tenant.id,
         agentId:  ctx.user.id,
         lat:      input.lat,
@@ -130,7 +129,7 @@ export const agentRouter = createRouter({
 
   getLocations: supervisorQuery.query(async ({ ctx }) => {
     // Get latest location per agent using a simpler approach
-    const db = getDb();
+    const db = ctx.db;
     
     // First get the max IDs per agent
     const maxIds = await db.select({
@@ -170,7 +169,7 @@ export const agentRouter = createRouter({
       // `T00:00:00`/`T23:59:59` pair that dropped points in the final second.
       const day = safeDateParse(input.date) ?? new Date().toISOString().slice(0, 10);
 
-      return getDb().select({
+      return ctx.db.select({
         id: agentLocations.id,
         lat: agentLocations.lat,
         lng: agentLocations.lng,
@@ -202,7 +201,7 @@ export const agentRouter = createRouter({
         conditions.push(eq(dailyPlans.agentId, agentId));
       }
 
-      return getDb().select({
+      return ctx.db.select({
         // photoUrl is deliberately not selected: visit photos are base64 blobs of up
         // to 5 MB and nothing in the plan list renders them.
         id: dailyPlans.id, planDate: dailyPlans.planDate, status: dailyPlans.status,
@@ -226,7 +225,7 @@ export const agentRouter = createRouter({
       currentLng: z.number(),
     }))
     .query(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const dateStr = input.date ?? new Date().toISOString().split("T")[0];
       const isPrivileged = ["ceo", "supervisor", "superadmin"].includes(ctx.user.role);
       const agentId = input.agentId ?? (isPrivileged ? undefined : ctx.user.id);
@@ -330,7 +329,7 @@ export const agentRouter = createRouter({
       if (!isPrivileged) {
         conditions.push(eq(dailyPlans.agentId, ctx.user.id));
       }
-      await getDb().update(dailyPlans).set({ status: input.status })
+      await ctx.db.update(dailyPlans).set({ status: input.status })
         .where(and(...conditions));
       return { success: true };
     }),
@@ -348,7 +347,7 @@ export const agentRouter = createRouter({
       if (!isPrivileged) {
         conditions.push(eq(dailyPlans.agentId, ctx.user.id));
       }
-      const db = getDb();
+      const db = ctx.db;
 
       // Run fraud check before saving visit
       if (!isPrivileged) {
@@ -389,7 +388,7 @@ export const agentRouter = createRouter({
   createPlan: supervisorQuery
     .input(z.object({ agentId: z.number(), shopId: z.number(), planDate: z.string(), notes: z.string().optional() }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       // Validate that agentId belongs to this tenant
       const [agent] = await db.select({ id: users.id }).from(users)
         .where(and(eq(users.id, input.agentId), eq(users.tenantId, ctx.tenant.id))).limit(1);
@@ -437,7 +436,7 @@ export const agentRouter = createRouter({
       territoryId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const [result] = await db.insert(shops).values({
         name:      sanitizeString(input.name),
         ownerName: input.ownerName ? sanitizeString(input.ownerName) : undefined,
@@ -461,7 +460,7 @@ export const agentRouter = createRouter({
   nearbyShops: fieldSalesQuery
     .input(z.object({ lat: z.number(), lng: z.number(), radius: z.number().default(5) }))
     .query(async ({ input, ctx }) => {
-      const agentShops = await getDb().select().from(shops)
+      const agentShops = await ctx.db.select().from(shops)
         .where(and(eq(shops.agentId, ctx.user.id), eq(shops.tenantId, ctx.tenant.id)));
       return agentShops.filter((shop) => {
         if (!shop.gpsLat || !shop.gpsLng) return false;
@@ -474,7 +473,7 @@ export const agentRouter = createRouter({
   getShopById: fieldSalesQuery
     .input(z.object({ id: z.number() }))
     .query(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const [shop] = await db.select().from(shops)
         .where(and(eq(shops.id, input.id), eq(shops.tenantId, ctx.tenant.id)))
         .limit(1);
@@ -486,7 +485,7 @@ export const agentRouter = createRouter({
   getShopByIdSupervisor: supervisorQuery
     .input(z.object({ id: z.number() }))
     .query(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const [shop] = await db.select().from(shops)
         .where(and(eq(shops.id, input.id), eq(shops.tenantId, ctx.tenant.id)))
         .limit(1);
@@ -521,7 +520,7 @@ export const agentRouter = createRouter({
       // Skip update if no fields to set
       if (Object.keys(sanitized).length === 0) return { success: true };
 
-      await getDb().update(shops).set(sanitized)
+      await ctx.db.update(shops).set(sanitized)
         .where(and(eq(shops.id, id), eq(shops.tenantId, ctx.tenant.id), eq(shops.agentId, ctx.user.id)));
       return { success: true };
     }),
@@ -530,14 +529,14 @@ export const agentRouter = createRouter({
   uploadMyShopPhoto: fieldSalesQuery
     .input(z.object({ shopId: z.number(), dataUrl: z.string().url().or(z.string().startsWith("data:image/")).refine(v => v.length <= 2_800_000, "Файл слишком большой (макс. 2 МБ)") }))
     .mutation(async ({ input, ctx }) => {
-      await getDb().update(shops).set({ photoUrl: input.dataUrl })
+      await ctx.db.update(shops).set({ photoUrl: input.dataUrl })
         .where(and(eq(shops.id, input.shopId), eq(shops.tenantId, ctx.tenant.id), eq(shops.agentId, ctx.user.id)));
       return { success: true };
     }),
 
   // ── Gamification: Leaderboard + Streaks + Achievements ─────────────────────
   gamification: authedQuery.query(async ({ ctx }) => {
-    const db = getDb();
+    const db = ctx.db;
     const tenantId = ctx.tenant.id;
     const now = new Date();
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -654,7 +653,7 @@ export const agentRouter = createRouter({
   listWorkZones: supervisorQuery
     .input(z.object({ agentId: z.number() }))
     .query(async ({ input, ctx }) => {
-      return getDb().select({
+      return ctx.db.select({
         id: territories.id,
         name: territories.name,
         color: territories.color,
@@ -675,7 +674,7 @@ export const agentRouter = createRouter({
       territoryIds: z.array(z.number()),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       // Remove existing
       await db.delete(agentTerritories)
         .where(and(
@@ -697,7 +696,7 @@ export const agentRouter = createRouter({
 
   /** Agent views own work zones */
   myWorkZones: fieldSalesQuery.query(async ({ ctx }) => {
-    return getDb().select({
+    return ctx.db.select({
       id: territories.id,
       name: territories.name,
       color: territories.color,

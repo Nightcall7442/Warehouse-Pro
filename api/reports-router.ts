@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { createRouter, reportsQuery } from "./middleware";
-import { getDb } from "./queries/connection";
 import { orders, users, dailyPlans, agentLocations, subscriptions } from "@db/schema";
 import { eq, and, sql, gte, desc } from "drizzle-orm";
 import { subDays, format } from "date-fns";
@@ -9,7 +8,7 @@ import { onDate } from "./lib/date-range";
 export const reportsRouter = createRouter({
   /** KPI summary for the Reports page */
   getDashboardSummary: reportsQuery.query(async ({ ctx }) => {
-    const db       = getDb();
+    const db       = ctx.db;
     const tenantId = ctx.tenant.id;
     const now      = new Date();
     const today    = format(now, "yyyy-MM-dd");
@@ -61,7 +60,7 @@ export const reportsRouter = createRouter({
   getVisitChart: reportsQuery
     .input(z.object({ days: z.number().default(30) }))
     .query(async ({ input, ctx }) => {
-      const db       = getDb();
+      const db       = ctx.db;
       const tenantId = ctx.tenant.id;
       const since    = subDays(new Date(), input.days);
 
@@ -104,7 +103,7 @@ export const reportsRouter = createRouter({
   getAgentPerformance: reportsQuery
     .input(z.object({ days: z.number().default(30) }))
     .query(async ({ input, ctx }) => {
-      const db       = getDb();
+      const db       = ctx.db;
       const tenantId = ctx.tenant.id;
       const since    = subDays(new Date(), input.days);
 
@@ -133,7 +132,7 @@ export const reportsRouter = createRouter({
 
   /** Today's plan completion per agent */
   getPlanCompletion: reportsQuery.query(async ({ ctx }) => {
-    const db       = getDb();
+    const db       = ctx.db;
     const tenantId = ctx.tenant.id;
     const today    = format(new Date(), "yyyy-MM-dd");
 

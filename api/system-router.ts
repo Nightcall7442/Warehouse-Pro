@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { createRouter, superAdminQuery } from "./middleware";
-import { getDb } from "./queries/connection";
 import { cache } from "./lib/cache";
 import { sseBus } from "./lib/sse";
 import { getMetricsSummary } from "./lib/metrics";
@@ -26,7 +25,7 @@ export function recordRequest(responseTimeMs: number, isError: boolean) {
 
 export const systemRouter = createRouter({
   /** Full system status — health, DB, cache, SSE, memory, metrics */
-  status: superAdminQuery.query(async () => {
+  status: superAdminQuery.query(async ({ ctx }) => {
     const uptime = Math.floor(process.uptime());
     const mem = process.memoryUsage();
 
@@ -36,7 +35,7 @@ export const systemRouter = createRouter({
     const dbConnections = { active: 0, idle: 0, total: 0 };
     try {
       const dbStart = Date.now();
-      const db = getDb();
+      const db = ctx.db;
       await db.execute(sql`SELECT 1`);
       dbResponseMs = Date.now() - dbStart;
       dbHealthy = true;
@@ -60,7 +59,7 @@ export const systemRouter = createRouter({
     // Business metrics (last 24h)
     const businessMetrics = { orders24h: 0, revenue24h: "0", newProducts: 0, activeUsers: 0, totalShops: 0 };
     try {
-      const db = getDb();
+      const db = ctx.db;
       const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
       const [orderCount] = await db.select({ count: sql<number>`count(*)` })
@@ -233,10 +232,10 @@ export const systemRouter = createRouter({
   }),
 
   /** Quick action: DB health check */
-  dbHealth: superAdminQuery.query(async () => {
+  dbHealth: superAdminQuery.query(async ({ ctx }) => {
     try {
       const start = Date.now();
-      const db = getDb();
+      const db = ctx.db;
       await db.execute(sql`SELECT 1`);
       const ms = Date.now() - start;
       return { healthy: true, responseMs: ms };

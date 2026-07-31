@@ -4,7 +4,6 @@
  */
 import { z } from "zod";
 import { createRouter, authedQuery } from "./middleware";
-import { getDb } from "./queries/connection";
 import { apiKeys } from "../db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { createHash, randomBytes } from "crypto";
@@ -24,7 +23,7 @@ function generateApiKey(): { raw: string; hash: string; prefix: string } {
 export const apiKeyRouter = createRouter({
   /** List all API keys for current tenant */
   list: authedQuery.query(async ({ ctx }) => {
-    const db = getDb();
+    const db = ctx.db;
     const rows = await db.select().from(apiKeys)
       .where(eq(apiKeys.tenantId, ctx.user.tenantId))
       .orderBy(desc(apiKeys.createdAt));
@@ -43,7 +42,7 @@ export const apiKeyRouter = createRouter({
       if (ctx.user.role !== "superadmin" && ctx.user.role !== "ceo") {
         throw new TRPCError({ code: "FORBIDDEN", message: "Only CEO or SuperAdmin can manage API keys." });
       }
-      const db = getDb();
+      const db = ctx.db;
       const { raw, hash, prefix } = generateApiKey();
       const expiresAt = input.expiresInDays
         ? new Date(Date.now() + input.expiresInDays * 86_400_000)
@@ -69,7 +68,7 @@ export const apiKeyRouter = createRouter({
       if (ctx.user.role !== "superadmin" && ctx.user.role !== "ceo") {
         throw new TRPCError({ code: "FORBIDDEN", message: "Only CEO or SuperAdmin can manage API keys." });
       }
-      const db = getDb();
+      const db = ctx.db;
       await db.delete(apiKeys).where(
         and(eq(apiKeys.id, input.id), eq(apiKeys.tenantId, ctx.user.tenantId))
       );
@@ -83,7 +82,7 @@ export const apiKeyRouter = createRouter({
       if (ctx.user.role !== "superadmin" && ctx.user.role !== "ceo") {
         throw new TRPCError({ code: "FORBIDDEN", message: "Only CEO or SuperAdmin can manage API keys." });
       }
-      const db = getDb();
+      const db = ctx.db;
       await db.update(apiKeys)
         .set({ status: input.status })
         .where(and(eq(apiKeys.id, input.id), eq(apiKeys.tenantId, ctx.user.tenantId)));

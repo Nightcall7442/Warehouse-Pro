@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { createRouter, adminQuery, authedQuery, publicQuery } from "./middleware";
-import { getDb } from "./queries/connection";
 import { settings } from "@db/schema";
 import { eq } from "drizzle-orm";
 import { cache, CacheKeys, CacheTTL } from "./lib/cache";
@@ -12,7 +11,7 @@ export const settingsRouter = createRouter({
     const cached = cache.get(cacheKey);
     if (cached) return cached;
 
-    const [row] = await getDb().select({
+    const [row] = await ctx.db.select({
       id: settings.id, tenantId: settings.tenantId, companyName: settings.companyName,
       currency: settings.currency, currencySymbol: settings.currencySymbol,
       symbolPosition: settings.symbolPosition, defaultReorderPoint: settings.defaultReorderPoint,
@@ -39,7 +38,7 @@ export const settingsRouter = createRouter({
     const cached = cache.get(cacheKey);
     if (cached) return cached;
 
-    const [row] = await getDb().select({
+    const [row] = await ctx.db.select({
       companyName: settings.companyName,
       logoUrl: settings.logoUrl,
       currency: settings.currency,
@@ -68,7 +67,7 @@ export const settingsRouter = createRouter({
       logoUrl:             z.string().optional().nullable(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db       = getDb();
+      const db       = ctx.db;
       const tenantId = ctx.tenant.id;
 
       // Sanitize string inputs

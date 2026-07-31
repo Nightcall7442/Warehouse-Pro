@@ -220,7 +220,7 @@ function makeCtx(tenantId: number, userId: number, role = "operator"): any {
     resHeaders: new Headers(),
     user: { id: userId, tenantId, role, status: "active" as const, name: "Test User", email: "t@t.com", passwordHash: "x", avatar: null, phone: null, createdAt: new Date(), updatedAt: new Date(), lastSignInAt: new Date() },
     tenant: { id: tenantId, slug: "test-co", name: "Test Co", plan: "basic" as const, status: "active" as const, ownerPhone: "+998901234567", ownerEmail: "owner@test.com", createdAt: new Date(), updatedAt: new Date() },
-    db: null as unknown,
+    db: mockDb as unknown,
   };
 }
 

@@ -1,13 +1,12 @@
 import { z } from "zod";
 import { createRouter, operatorQuery, authedQuery, supervisorQuery } from "./middleware";
-import { getDb } from "./queries/connection";
 import { priceLists, priceListItems, priceListAssignments, products, shops } from "@db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 
 export const priceListRouter = createRouter({
   // List price lists
   list: supervisorQuery.query(async ({ ctx }) => {
-    const db = getDb();
+    const db = ctx.db;
     return db.select({
       id: priceLists.id,
       name: priceLists.name,
@@ -27,7 +26,7 @@ export const priceListRouter = createRouter({
   getById: supervisorQuery
     .input(z.object({ id: z.number() }))
     .query(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const [list] = await db.select().from(priceLists)
         .where(and(eq(priceLists.id, input.id), eq(priceLists.tenantId, ctx.tenant.id)))
         .limit(1);
@@ -68,7 +67,7 @@ export const priceListRouter = createRouter({
       priority: z.number().default(0),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const [result] = await db.insert(priceLists).values({
         tenantId: ctx.tenant.id,
         name: input.name,
@@ -89,7 +88,7 @@ export const priceListRouter = createRouter({
       priority: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const { id, ...data } = input;
       await db.update(priceLists)
         .set(data)
@@ -101,7 +100,7 @@ export const priceListRouter = createRouter({
   delete: operatorQuery
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       await db.delete(priceLists)
         .where(and(eq(priceLists.id, input.id), eq(priceLists.tenantId, ctx.tenant.id)));
       return { success: true };
@@ -116,7 +115,7 @@ export const priceListRouter = createRouter({
       minQuantity: z.number().default(1),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const tenantId = ctx.tenant.id;
 
       // Verify price list belongs to tenant
@@ -154,7 +153,7 @@ export const priceListRouter = createRouter({
   removeItem: operatorQuery
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const tenantId = ctx.tenant.id;
 
       // Verify the item belongs to a price list owned by this tenant
@@ -176,7 +175,7 @@ export const priceListRouter = createRouter({
       shopId: z.number(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const tenantId = ctx.tenant.id;
 
       // Verify price list belongs to tenant
@@ -207,7 +206,7 @@ export const priceListRouter = createRouter({
       shopId: z.number(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const tenantId = ctx.tenant.id;
 
       // Verify price list belongs to tenant
@@ -240,7 +239,7 @@ export const priceListRouter = createRouter({
       quantity: z.number().default(1),
     }))
     .query(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const tenantId = ctx.tenant.id;
 
       // Verify shop belongs to tenant

@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { createRouter, operatorQuery } from "./middleware";
-import { getDb } from "./queries/connection";
 import { products, shops, warehouses, territories } from "@db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { cache } from "./lib/cache";
@@ -298,7 +297,7 @@ export const importRouter = createRouter({
     }))
     .mutation(async ({ input, ctx }) => {
       const tenantId = ctx.tenant.id;
-      const db = getDb();
+      const db = ctx.db;
 
       const { headers, rows: dataRows } = await parseFile(input.base64, input.filename);
       const mapping = input.type === "products"

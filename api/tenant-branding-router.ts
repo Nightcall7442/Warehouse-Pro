@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { createRouter, authedQuery, adminQuery } from "./middleware";
-import { getDb } from "./queries/connection";
 import { tenantBranding } from "@db/schema";
 import { eq } from "drizzle-orm";
 import { cache, CacheKeys, CacheTTL } from "./lib/cache";
@@ -54,7 +53,7 @@ export const tenantBrandingRouter = createRouter({
     const cached = cache.get(cacheKey);
     if (cached) return cached;
 
-    const db = getDb();
+    const db = ctx.db;
     const [row] = await db.select().from(tenantBranding)
       .where(eq(tenantBranding.tenantId, ctx.tenant.id)).limit(1);
 
@@ -80,7 +79,7 @@ export const tenantBrandingRouter = createRouter({
       const cached = cache.get<BrandingRow>(cacheKey);
       if (cached) return cached;
 
-      const db = getDb();
+      const db = ctx.db;
       const [row] = await db.select().from(tenantBranding)
         .where(eq(tenantBranding.tenantId, ctx.tenant.id)).limit(1);
       return row ?? { primaryColor: "#2563eb", secondaryColor: "#1e40af", accentColor: "#3b82f6", logoUrl: null, companyName: null, appName: "Warehouse Pro" };
@@ -116,7 +115,7 @@ export const tenantBrandingRouter = createRouter({
       mobileTheme:    z.enum(["light", "dark", "auto"]).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const tenantId = ctx.tenant.id;
 
       // Sanitize string inputs
@@ -154,7 +153,7 @@ export const tenantBrandingRouter = createRouter({
       dataUrl: z.string().refine((val) => val.startsWith("data:image/") || val.startsWith("http://") || val.startsWith("https://"), "Неверный формат изображения (data URL или HTTP/HTTPS URL)").max(5_000_000, "Файл слишком большой (макс. 4 МБ)"),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const tenantId = ctx.tenant.id;
 
       const [existing] = await db.select().from(tenantBranding)

@@ -16,8 +16,7 @@ import photos from "./photos";
 import { createSSEResponse } from "./sse-router";
 import { authenticateRequest } from "./auth";
 import { cache } from "./lib/cache";
-import { getDb } from "./queries/connection";
-import { tenants } from "@db/schema";
+import { checkDatabaseHealth, closeDb, getDb, runWithDb, waitForDatabase } from "./queries/connection";
 import { sql } from "drizzle-orm";
 import { logger } from "./lib/logger";
 import { recordRequest } from "./system-router";
@@ -54,7 +53,10 @@ app.use("*", compress());
 // back to it when TRUSTED_PROXY_COUNT=0, where proxy headers can't be trusted.
 app.use("*", async (c, next) => {
   rememberSocketIp(c.req.raw, c.env?.incoming?.socket?.remoteAddress);
-  return next();
+  // FIX: P0.3 — bind the database handle for this request's async context, so
+  // getDb() deep inside a call chain resolves the same handle the request started
+  // with (and joins an open transaction instead of committing beside it).
+  return runWithDb(getDb(), () => next());
 });
 
 // ── Sentry error handler + Telegram notification ─────────────────────────────
@@ -517,13 +519,9 @@ app.get("/health", async (c) => {
 
 // ── Readiness probe (for k8s/PM2 — checks DB connectivity) ───────────────────
 app.get("/health/ready", async (c) => {
-  try {
-    const db = getDb();
-    await db.execute(sql`SELECT 1`);
-    return c.json({ status: "ok" }, 200);
-  } catch {
-    return c.json({ status: "error" }, 503);
-  }
+  return (await checkDatabaseHealth())
+    ? c.json({ status: "ok" }, 200)
+    : c.json({ status: "error" }, 503);
 });
 
 // ── API version info ─────────────────────────────────────────────────────────
@@ -546,16 +544,6 @@ app.get("/api/debug/cache", (c) => {
 
 app.all("/api/*", (c) => c.json({ error: "Not Found" }, 404));
 
-async function checkDatabaseHealth(): Promise<boolean> {
-  try {
-    const db = getDb();
-    await db.select({ id: tenants.id }).from(tenants).limit(1);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 export default app;
 
 if (env.isProduction) {
@@ -568,6 +556,14 @@ if (env.isProduction) {
   // P1-6 FIX: Connect Redis on startup for multi-instance support
   await connectRedis();
   warnIfClientIpUnavailable();
+
+  // FIX: P0.3 — refuse to serve traffic before the database answers. Retries with
+  // exponential backoff (1s, 2s, 4s, 8s); a server that can't reach its database
+  // would otherwise come up healthy and answer every request with a 500.
+  if (!(await waitForDatabase())) {
+    logger.error("startup aborted: database unreachable");
+    process.exit(1);
+  }
   const port = parseInt(process.env.PORT ?? "3000", 10);
   const server = serve({ fetch: app.fetch, port }, () => {
     logger.info("server started", { port, version: APP_VERSION });
@@ -583,9 +579,7 @@ if (env.isProduction) {
     });
     // Close DB connections
     try {
-      const { getDb } = await import("./queries/connection");
-      const db = getDb();
-      await db.$client.end();
+      await closeDb();
       logger.info("Database connections closed");
     } catch (e) {
       logger.error("Error closing database", { error: String(e) });

@@ -67,3 +67,83 @@ only trusted when `TRUSTED_PROXY_COUNT > 0`.
 2. Redeploy and confirm the startup log has no "TRUSTED_PROXY_COUNT=0" warning.
 3. Verify a couple of report screens (Reports, P&L) still return the expected
    totals — figures for the last day of a range may rise slightly, see above.
+
+## P0.3 — Request-scoped database handle
+
+**What changed.** `api/queries/connection.ts` keeps one pooled Drizzle instance per
+process, but the handle callers get is now resolved from an `AsyncLocalStorage`
+scope. The HTTP layer opens that scope once per request (`api/boot.ts`), so
+`getDb()` deep inside a call chain returns the same handle the request started
+with, and `withTransaction` can make an open transaction the ambient handle.
+
+New exports from `api/queries/connection.ts`:
+
+| Export | Purpose |
+| --- | --- |
+| `runWithDb(handle, fn)` | Run `fn` with `handle` as the ambient handle. Used per request; also the clean way to inject a fake in tests. |
+| `withTransaction(fn)` | Open a transaction **and** bind it to the async context, so callees that resolve their own handle join it. |
+| `inTransaction()` | Whether the ambient handle is a transaction. |
+| `checkDatabaseHealth()` | One-round-trip probe, used by `/health` and `/health/ready`. |
+| `waitForDatabase(delays?)` | Startup gate; retries with 1s/2s/4s/8s backoff. |
+| `closeDb()` | End the pool and drop the cached instance (shutdown). |
+| `DrizzleInstance`, `DbHandle` | The handle types, now exported — `api/services/kpi.ts` and `anti-fraud.ts` were already importing `DrizzleInstance` as if it were. |
+
+**Behaviour changes to expect:**
+
+- **Startup blocks on the database.** In production the server probes the database
+  before accepting traffic and retries with backoff (1s, 2s, 4s, 8s). If it is
+  still unreachable the process exits with code 1 instead of coming up and
+  answering every request with a 500. Deployments that used to start "successfully"
+  against a cold or misconfigured database will now fail fast and visibly — check
+  `DATABASE_URL` first if a deploy starts crash-looping.
+- **Shutdown closes the pool through `closeDb()`** rather than reaching into
+  `db.$client.end()`, and a failure there is logged instead of thrown.
+- **Routers no longer call `getDb()`.** All resolver call sites now use `ctx.db`
+  (the same handle). No API surface changed.
+- **`getDb()` is still the right call in three places**, deliberately: during
+  authentication and the WebSocket upgrade (`api/queries/users.ts`,
+  `api/queries/tenants.ts` — no tRPC context exists yet), in Hono handlers
+  (webhooks, `public-api.ts`, `photos.ts`, cron endpoints — inside the request
+  scope, so they get the request's handle), and in background/off-request work
+  (`api/lib/ws.ts` debounced location writes, push/1C services, `api/cron/*`),
+  where it resolves to the pooled instance as before.
+
+### Why one connection per request was **not** implemented
+
+The original plan called for checking a connection out of the pool per request and
+releasing it at the end. That would break this codebase in three ways, so the
+scope is an async-context-bound *handle*, not a pinned connection:
+
+1. **SSE never ends.** `GET /api/events` holds its response open for hours; a
+   connection released "at end of request" would never be released. With
+   `DB_CONNECTION_LIMIT` at 20, roughly 20 open dashboards would exhaust the pool.
+   The same applies to the WebSocket upgrade path, which bypasses Hono middleware
+   entirely.
+2. **Parallel queries would serialize.** 36 call sites fan out with `Promise.all`
+   — the dashboard issues 7 aggregates at once. A single mysql2 connection runs
+   statements one at a time, so those would become sequential round-trips.
+3. **Minutes-long requests would squat a connection.** `import.executeImport` and
+   the 1C sync interleave DB writes with S3/OData calls, and the cron endpoints run
+   in the same process.
+
+### Transaction safety
+
+`db.transaction(...)` is still correct wherever the callback only uses its `tx`
+handle — which is the case at all 40 current call sites. Use `withTransaction`
+instead when a transaction callback needs to call a **service** that resolves its
+own handle: with the plain form, such a callee runs on a different pooled
+connection, outside the transaction, and a rollback cannot undo its writes. That
+hazard existed before this change; it is now avoidable rather than invisible.
+
+### Testing
+
+`runWithDb(fakeHandle, fn)` injects a handle without patching the module, and
+`api/queries/__tests__/connection.test.ts` covers the scoping, transaction
+propagation, backoff and shutdown paths against a faked mysql2 pool.
+
+The `createTestDb()` from the original plan — in-memory SQLite or a testcontainers
+MySQL — is **not** part of this change. SQLite would diverge from the schema
+(mysql-core column types, `DATE_FORMAT`, `FOR UPDATE`, `ON DUPLICATE KEY`), and
+testcontainers needs a Docker daemon that neither this environment nor the current
+CI job provides. Existing tests keep mocking `../queries/connection`, which still
+works because `getDb()` remains a zero-argument export.

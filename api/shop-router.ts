@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { createRouter, operatorQuery, supervisorQuery } from "./middleware";
-import { getDb } from "./queries/connection";
 import { shops, users, orders, payments, dailyPlans, territories } from "@db/schema";
 import { eq, like, and, sql, desc } from "drizzle-orm";
 import { sanitizeString, sanitizeSearch } from "./lib/sanitize";
@@ -12,7 +11,7 @@ import { photoRef } from "./lib/photo-url";
 
 export const shopRouter = createRouter({
   territories: supervisorQuery.query(async ({ ctx }) => {
-    const rows = await getDb().select({
+    const rows = await ctx.db.select({
       id: territories.id,
       name: territories.name,
       color: territories.color,
@@ -38,7 +37,7 @@ export const shopRouter = createRouter({
       territoryId: z.number().optional(),
     }).optional())
     .query(async ({ input, ctx }) => {
-      const db       = getDb();
+      const db       = ctx.db;
       const tenantId = ctx.tenant.id;
       const page     = input?.page ?? 1;
       const pageSize = input?.pageSize ?? 25;
@@ -90,7 +89,7 @@ export const shopRouter = createRouter({
   getById: supervisorQuery
     .input(z.object({ id: z.number() }))
     .query(async ({ input, ctx }) => {
-      const db       = getDb();
+      const db       = ctx.db;
       const tenantId = ctx.tenant.id;
       const [shop]   = await db.select({
         id: shops.id, name: shops.name, ownerName: shops.ownerName, phone: shops.phone,
@@ -133,7 +132,7 @@ export const shopRouter = createRouter({
       notes:    z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
 
       // Parse GPS from Telegram link if provided and no manual GPS
       let gpsLat = input.gpsLat;
@@ -216,7 +215,7 @@ export const shopRouter = createRouter({
       // Skip update if no fields to set
       if (Object.keys(sanitized).length === 0) return { success: true };
 
-      await getDb().update(shops).set(sanitized)
+      await ctx.db.update(shops).set(sanitized)
         .where(and(eq(shops.id, id), eq(shops.tenantId, ctx.tenant.id)));
       cache.invalidatePrefix(`shops:${ctx.tenant.id}`);
       cache.invalidate(CacheKeys.shopCities(ctx.tenant.id));
@@ -227,7 +226,7 @@ export const shopRouter = createRouter({
   delete: operatorQuery
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const tenantId = ctx.tenant.id;
 
       const [existingShop] = await db.select().from(shops)
@@ -297,7 +296,7 @@ export const shopRouter = createRouter({
           photoUrl = `https://${env.s3Bucket}.s3.${env.s3Region || "us-east-1"}.amazonaws.com/${key}`;
         }
       }
-      await getDb().update(shops)
+      await ctx.db.update(shops)
         .set({ photoUrl })
         .where(and(eq(shops.id, input.shopId), eq(shops.tenantId, ctx.tenant.id)));
       return { success: true };
@@ -309,7 +308,7 @@ export const shopRouter = createRouter({
     const cached = cache.get<string[]>(cacheKey);
     if (cached) return cached;
 
-    const results = await getDb().select({ city: shops.city })
+    const results = await ctx.db.select({ city: shops.city })
       .from(shops).where(eq(shops.tenantId, tenantId)).groupBy(shops.city);
     const cities = results.map(r => r.city).filter(Boolean);
     cache.set(cacheKey, cities, CacheTTL.categories);
@@ -326,7 +325,7 @@ export const shopRouter = createRouter({
 
       const conditions = [eq(shops.tenantId, tenantId)];
       if (input?.city) conditions.push(eq(shops.city, input.city));
-      const results = await getDb().select({ district: shops.district })
+      const results = await ctx.db.select({ district: shops.district })
         .from(shops).where(and(...conditions)).groupBy(shops.district);
       const districts = results.map(r => r.district).filter(Boolean);
       cache.set(cacheKey, districts, CacheTTL.categories);
@@ -335,7 +334,7 @@ export const shopRouter = createRouter({
 
   // ── Debt Report ─────────────────────────────────────────────────────────────
   debtReport: supervisorQuery.query(async ({ ctx }) => {
-    return getDb().select({
+    return ctx.db.select({
       shopName: shops.name,
       city: shops.city,
       debt: shops.debt,
@@ -349,7 +348,7 @@ export const shopRouter = createRouter({
   /** Delete ALL shops for this tenant */
   clearAll: operatorQuery
     .mutation(async ({ ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const tenantId = ctx.tenant.id;
 
       await db.transaction(async (tx) => {

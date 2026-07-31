@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { createRouter, supervisorQuery } from "./middleware";
-import { getDb } from "./queries/connection";
 import { orderItems, orders, products } from "@db/schema";
 import { eq, and, sql, gte, desc } from "drizzle-orm";
 import { cache, CacheTTL } from "./lib/cache";
@@ -90,7 +89,7 @@ export const forecastRouter = createRouter({
       period: z.enum(["7d", "30d", "90d"]).default("30d"),
     }))
     .query(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const tenantId = ctx.tenant.id;
       const days = input.period === "7d" ? 7 : input.period === "90d" ? 90 : 30;
       const startDate = new Date();
@@ -130,7 +129,7 @@ export const forecastRouter = createRouter({
       period: z.enum(["7d", "30d"]).default("7d"),
     }).optional())
     .query(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const tenantId = ctx.tenant.id;
       const period = input?.period ?? "7d";
       const days = period === "7d" ? 7 : 30;

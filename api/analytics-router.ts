@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { createRouter, reportsQuery } from "./middleware";
-import { getDb } from "./queries/connection";
 import { orders, orderItems, products, shops, users, dailyPlans, arrivals } from "@db/schema";
 import { eq, and, sql, desc, type SQL } from "drizzle-orm";
 import { MS_PER_DAY } from "./lib/constants";
@@ -35,7 +34,7 @@ export const analyticsRouter = createRouter({
     .query(async ({ input, ctx }) => {
       const conditions = [eq(orders.tenantId, ctx.tenant.id), eq(orders.status, "completed"), ...orderDateRange(input)];
 
-      return getDb().select({
+      return ctx.db.select({
         shopName:   shops.name,
         revenue:    sql<string>`COALESCE(SUM(${orders.total}), 0)`,
         orderCount: sql<number>`count(*)`,
@@ -49,7 +48,7 @@ export const analyticsRouter = createRouter({
     .query(async ({ input, ctx }) => {
       const conditions = [eq(orders.tenantId, ctx.tenant.id), eq(orders.status, "completed"), ...orderDateRange(input)];
 
-      return getDb().select({
+      return ctx.db.select({
         productName:  products.name,
         productCode:  products.code,
         totalQty:     sql<string>`COALESCE(SUM(${orderItems.quantity}), 0)`,
@@ -66,7 +65,7 @@ export const analyticsRouter = createRouter({
     .query(async ({ input, ctx }) => {
       const conditions = [eq(orders.tenantId, ctx.tenant.id), ...orderDateRange(input)];
 
-      return getDb().select({
+      return ctx.db.select({
         agentName:     users.name,
         agentId:       users.id,
         orderCount:    sql<number>`count(*)`,
@@ -86,7 +85,7 @@ export const analyticsRouter = createRouter({
     .query(async ({ input, ctx }) => {
       const conditions = [eq(orders.tenantId, ctx.tenant.id), eq(orders.status, "completed"), ...orderDateRange(input)];
 
-      return getDb().select({
+      return ctx.db.select({
         productName:  products.name,
         productCode:  products.code,
         totalQty:     sql<string>`COALESCE(SUM(${orderItems.quantity}), 0)`,
@@ -105,12 +104,12 @@ export const analyticsRouter = createRouter({
       const conditions = [eq(orders.tenantId, ctx.tenant.id), eq(orders.status, "completed"), ...orderDateRange(input)];
 
       // P0-10 FIX: Use separate queries to avoid fan-out from LEFT JOIN order_items
-      const [revenueRow] = await getDb().select({
+      const [revenueRow] = await ctx.db.select({
         totalRevenue: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
         totalDiscount: sql<string>`COALESCE(SUM(${orders.discount}), 0)`,
       }).from(orders).where(and(...conditions));
 
-      const [costRow] = await getDb().select({
+      const [costRow] = await ctx.db.select({
         totalCost: sql<string>`COALESCE(SUM(${orderItems.quantity} * COALESCE(${orderItems.costPrice}, 0)), 0)`,
       })
         .from(orders)
@@ -132,7 +131,7 @@ export const analyticsRouter = createRouter({
       if (!input?.shopId) return [];
       const cutoff = new Date(Date.now() - input.days * MS_PER_DAY).toISOString();
 
-      return getDb().select({
+      return ctx.db.select({
         date: sql<string>`DATE(${orders.createdAt})`,
         revenue: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
         orderCount: sql<number>`count(*)`,
@@ -144,7 +143,7 @@ export const analyticsRouter = createRouter({
 
   // ── Debt Report ─────────────────────────────────────────────────────────────
   debtReport: reportsQuery.query(async ({ ctx }) => {
-    return getDb().select({
+    return ctx.db.select({
       shopName: shops.name,
       city: shops.city,
       debt: shops.debt,
@@ -162,7 +161,7 @@ export const analyticsRouter = createRouter({
       const days = input?.days ?? 30;
       const cutoff = new Date(Date.now() - days * MS_PER_DAY).toISOString();
 
-      const rows = await getDb().select({
+      const rows = await ctx.db.select({
         agentName: users.name,
         agentId: users.id,
         visits: sql<number>`count(DISTINCT ${dailyPlans.id})`,
@@ -191,7 +190,7 @@ export const analyticsRouter = createRouter({
     }))
     .query(async ({ input, ctx }) => {
       const tid = ctx.tenant.id;
-      const db = getDb();
+      const db = ctx.db;
       const from = input.from;
       const to = input.to;
 
@@ -349,7 +348,7 @@ export const analyticsRouter = createRouter({
   pnlByPaymentMethod: reportsQuery
     .input(z.object({ from: isoDaySchema, to: isoDaySchema }))
     .query(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const tid = ctx.tenant.id;
 
       const rows = await db.select({
@@ -389,7 +388,7 @@ export const analyticsRouter = createRouter({
   paymentMethodTrend: reportsQuery
     .input(z.object({ from: isoDaySchema, to: isoDaySchema }))
     .query(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const tid = ctx.tenant.id;
 
       const rows = await db.select({

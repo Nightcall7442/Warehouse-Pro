@@ -28,8 +28,9 @@ export async function notifyAdmin(message: string) {
   return sendTelegram(env.telegramAdminChatId, message);
 }
 
-export async function notifyUserById(userId: number, message: string) {
-  const db = getDb();
+export async function notifyUserById(
+  userId: number, message: string, db: ReturnType<typeof getDb> = getDb()
+) {
   const [user] = await db.select({ chatId: users.telegramChatId })
     .from(users).where(eq(users.id, userId)).limit(1);
   if (user?.chatId) return sendTelegram(user.chatId, message);
@@ -37,9 +38,8 @@ export async function notifyUserById(userId: number, message: string) {
 }
 
 export async function notifyTenantRole(
-  tenantId: number, role: Role, message: string
+  tenantId: number, role: Role, message: string, db: ReturnType<typeof getDb> = getDb()
 ) {
-  const db     = getDb();
   const targets = await db.select({ id: users.id, chatId: users.telegramChatId })
     .from(users)
     .where(and(eq(users.tenantId, tenantId), eq(users.role, role)));
@@ -80,7 +80,7 @@ export const telegramRouter = createRouter({
   saveChatId: authedQuery
     .input(z.object({ chatId: z.string().regex(/^\d+$/, "chat_id должен быть числом") }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       await db.update(users)
         .set({ telegramChatId: input.chatId })
         .where(eq(users.id, ctx.user.id));
@@ -96,7 +96,7 @@ export const telegramRouter = createRouter({
 
   /** Remove own chat_id (disable notifications) */
   removeChatId: authedQuery.mutation(async ({ ctx }) => {
-    const db = getDb();
+    const db = ctx.db;
     await db.update(users)
       .set({ telegramChatId: null })
       .where(eq(users.id, ctx.user.id));
@@ -105,7 +105,7 @@ export const telegramRouter = createRouter({
 
   /** Get own chat_id status */
   myStatus: authedQuery.query(async ({ ctx }) => {
-    const db = getDb();
+    const db = ctx.db;
     const [user] = await db.select({ chatId: users.telegramChatId })
       .from(users).where(eq(users.id, ctx.user.id)).limit(1);
     return { connected: !!user?.chatId, chatId: user?.chatId ?? null };
@@ -115,7 +115,7 @@ export const telegramRouter = createRouter({
   testBroadcast: adminQuery
     .input(z.object({ message: z.string().min(1) }))
     .mutation(async ({ input, ctx }) => {
-      await notifyTenantRole(ctx.tenant.id, "agent", input.message);
+      await notifyTenantRole(ctx.tenant.id, "agent", input.message, ctx.db);
       return { success: true };
     }),
 
@@ -139,7 +139,7 @@ export const telegramRouter = createRouter({
 
   /** Daily digest: orders summary, low stock, agent performance */
   dailyDigest: authedQuery.query(async ({ ctx }) => {
-    const db = getDb();
+    const db = ctx.db;
     const tenantId = ctx.tenant.id;
     const today = new Date().toISOString().split("T")[0];
 

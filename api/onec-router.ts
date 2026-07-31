@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { createRouter, adminQuery } from "./middleware";
-import { getDb } from "./queries/connection";
 import { oneCSync } from "./services/onec-sync";
 import { getBridgeForTenant, OneCBridge, clearBridgeCache } from "./lib/onec-bridge";
 import { onecConfig } from "@db/schema";
@@ -22,7 +21,7 @@ export const onecRouter = createRouter({
         intervalMinutes: z.number().min(5).max(1440).optional().default(60),
       }))
       .mutation(async ({ input, ctx }) => {
-        const db = getDb();
+        const db = ctx.db;
         const existing = await db.select({ id: onecConfig.id })
           .from(onecConfig)
           .where(eq(onecConfig.tenantId, ctx.tenant.id))
@@ -58,7 +57,7 @@ export const onecRouter = createRouter({
 
     /** Get current per-tenant 1C config (password masked) */
     getConfig: adminQuery.query(async ({ ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const [config] = await db.select()
         .from(onecConfig)
         .where(eq(onecConfig.tenantId, ctx.tenant.id))
@@ -105,7 +104,7 @@ export const onecRouter = createRouter({
           }
 
           // Record test result in per-tenant config if it exists
-          const db = getDb();
+          const db = ctx.db;
           const [existing] = await db.select({ id: onecConfig.id })
             .from(onecConfig)
             .where(eq(onecConfig.tenantId, ctx.tenant.id))
@@ -170,7 +169,7 @@ export const onecRouter = createRouter({
         syncOrders: z.boolean().default(true),
       }))
       .mutation(async ({ input, ctx }) => {
-        const db = getDb();
+        const db = ctx.db;
 
         // Persist schedule to onecConfig
         const [existing] = await db.select({ id: onecConfig.id })
@@ -214,7 +213,7 @@ export const onecRouter = createRouter({
   /** Test connection using saved per-tenant config */
   testSavedConnection: adminQuery.mutation(async ({ ctx }) => {
     try {
-      const db = getDb();
+      const db = ctx.db;
       const [config] = await db.select()
         .from(onecConfig)
         .where(eq(onecConfig.tenantId, ctx.tenant.id))
@@ -294,7 +293,7 @@ export const onecRouter = createRouter({
     }),
 
   status: adminQuery.query(async ({ ctx }) => {
-    const db = getDb();
+    const db = ctx.db;
 
     const [config] = await db.select({
       lastTestedAt: onecConfig.lastTestedAt,

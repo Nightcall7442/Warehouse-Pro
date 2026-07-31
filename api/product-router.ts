@@ -21,7 +21,7 @@ export const productRouter = createRouter({
   listAll: fieldSalesQuery
     .input(z.object({ search: z.string().optional(), category: z.string().optional() }).optional())
     .query(async ({ input, ctx }) => {
-      const db       = getDb();
+      const db       = ctx.db;
       const tenantId = ctx.tenant.id;
 
       const cacheKey = `products:${tenantId}:listAll:${input?.search ?? ""}:${input?.category ?? ""}`;
@@ -75,7 +75,7 @@ export const productRouter = createRouter({
       includeAll: z.boolean().optional(),
     }).optional())
     .query(async ({ input, ctx }) => {
-      const db       = getDb();
+      const db       = ctx.db;
       const tenantId = ctx.tenant.id;
       const page     = input?.page ?? 1;
       const pageSize = input?.pageSize ?? 25;
@@ -132,7 +132,7 @@ export const productRouter = createRouter({
   getById: fieldSalesQuery
     .input(z.object({ id: z.number() }))
     .query(async ({ input, ctx }) => {
-      const db       = getDb();
+      const db       = ctx.db;
       const tenantId = ctx.tenant.id;
       const warehouseId = await getDefaultWarehouseId(db, tenantId);
 
@@ -186,7 +186,7 @@ export const productRouter = createRouter({
       reorderPoint: z.string().default("10.00"),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db       = getDb();
+      const db       = ctx.db;
       const tenantId = ctx.tenant.id;
       const sanitized = {
         ...input,
@@ -261,7 +261,7 @@ export const productRouter = createRouter({
       // Skip update if no fields to set
       if (Object.keys(sanitized).length === 0) return { success: true };
 
-      await getDb().update(products).set(sanitized)
+      await ctx.db.update(products).set(sanitized)
         .where(and(eq(products.id, id), eq(products.tenantId, ctx.tenant.id)));
       cache.invalidatePrefix(`products:${ctx.tenant.id}`);
       cache.invalidatePrefix(`product_cats:${ctx.tenant.id}`);
@@ -273,7 +273,7 @@ export const productRouter = createRouter({
   delete: operatorQuery
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const tenantId = ctx.tenant.id;
       const warehouseId = await getDefaultWarehouseId(db, tenantId);
 
@@ -313,7 +313,7 @@ export const productRouter = createRouter({
   bulkDelete: operatorQuery
     .input(z.object({ ids: z.array(z.number()).min(1).max(200) }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const tenantId = ctx.tenant.id;
       const warehouseId = await getDefaultWarehouseId(db, tenantId);
 
@@ -371,7 +371,7 @@ export const productRouter = createRouter({
 
         if (!isS3) {
           // No S3 configured — store base64 directly (will bloat DB, but functional)
-          await getDb().update(products)
+          await ctx.db.update(products)
             .set({ photoUrl: input.dataUrl })
             .where(and(eq(products.id, input.productId), eq(products.tenantId, ctx.tenant.id)));
           cache.invalidatePrefix(`products:${ctx.tenant.id}`);
@@ -396,7 +396,7 @@ export const productRouter = createRouter({
         }));
 
         const photoUrl = `https://${env.s3Bucket}.s3.${env.s3Region || "us-east-1"}.amazonaws.com/${key}`;
-        await getDb().update(products)
+        await ctx.db.update(products)
           .set({ photoUrl })
           .where(and(eq(products.id, input.productId), eq(products.tenantId, ctx.tenant.id)));
         cache.invalidatePrefix(`products:${ctx.tenant.id}`);
@@ -413,7 +413,7 @@ export const productRouter = createRouter({
   findByBarcode: fieldSalesQuery
     .input(z.object({ barcode: z.string() }))
     .query(async ({ input, ctx }) => {
-      return ProductService.searchByBarcode(getDb(), ctx.tenant.id, input.barcode);
+      return ProductService.searchByBarcode(ctx.db, ctx.tenant.id, input.barcode);
     }),
 
   categories: fieldSalesQuery.query(async ({ ctx }) => {
@@ -422,7 +422,7 @@ export const productRouter = createRouter({
     const cached = cache.get<string[]>(cacheKey);
     if (cached) return cached;
 
-    const results = await getDb().select({ category: products.category })
+    const results = await ctx.db.select({ category: products.category })
       .from(products).where(and(eq(products.tenantId, tenantId), eq(products.status, "active"))).groupBy(products.category);
     const cats = results.map(r => r.category).filter(Boolean);
     cache.set(cacheKey, cats, CacheTTL.categories);
@@ -432,7 +432,7 @@ export const productRouter = createRouter({
   renameCategory: operatorQuery
     .input(z.object({ from: z.string().min(1), to: z.string().min(1) }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const tenantId = ctx.tenant.id;
       await db.update(products)
         .set({ category: sanitizeString(input.to) })
@@ -444,7 +444,7 @@ export const productRouter = createRouter({
   deleteCategory: operatorQuery
     .input(z.object({ category: z.string().min(1) }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const tenantId = ctx.tenant.id;
       await db.update(products)
         .set({ category: null })
@@ -456,7 +456,7 @@ export const productRouter = createRouter({
   /** Delete ALL products for this tenant — clears stock, movements, and product records */
   clearAll: operatorQuery
     .mutation(async ({ ctx }) => {
-      const db = getDb();
+      const db = ctx.db;
       const tenantId = ctx.tenant.id;
 
       const ALLOWED_TABLES = new Set([

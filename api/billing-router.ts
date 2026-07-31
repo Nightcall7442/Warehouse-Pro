@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { createRouter, authedQuery, adminQuery } from "./middleware";
 import { notifyAdmin, tgMessages } from "./telegram-router";
-import { getDb } from "./queries/connection";
 import { tenants, users, orders, products } from "@db/schema";
 import { eq, and, sql, gte } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
@@ -11,7 +10,7 @@ import { logger } from "./lib/logger";
 export const billingRouter = createRouter({
   /** Current tenant subscription status */
   status: authedQuery.query(async ({ ctx }) => {
-    const db       = getDb();
+    const db       = ctx.db;
     const tenantId = ctx.tenant.id;
 
     const [tenant] = await db.select().from(tenants)
@@ -82,7 +81,7 @@ export const billingRouter = createRouter({
     .mutation(async ({ input, ctx }) => {
       // In production: integrate with payment gateway (Payme, Click, Uzum Pay)
       // For now: mark tenant as pending upgrade and notify admin via Telegram
-      const db = getDb();
+      const db = ctx.db;
       await db.update(tenants)
         .set({ updatedAt: new Date() })
         .where(eq(tenants.id, ctx.tenant.id));
