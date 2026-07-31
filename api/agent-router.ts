@@ -7,6 +7,8 @@ import { sseBus } from "./lib/sse";
 import { sanitizeString } from "./lib/sanitize";
 import { verifyVisit } from "./services/anti-fraud";
 import { haversineKm } from "./lib/geo";
+import { onDate } from "./lib/date-range";
+import { photoRef } from "./lib/photo-url";
 
 export const agentRouter = createRouter({
   // Supervisor needs a lightweight agent picker for "assign plan to agent" —
@@ -57,8 +59,7 @@ export const agentRouter = createRouter({
   listShopsForPlan: supervisorQuery.query(async ({ ctx }) => {
     return getDb().select({ id: shops.id, name: shops.name, city: shops.city })
       .from(shops)
-      .where(and(eq(shops.tenantId, ctx.tenant.id), eq(shops.status, "active")))
-      .limit(500);
+      .where(and(eq(shops.tenantId, ctx.tenant.id), eq(shops.status, "active")));
   }),
 
   // Supervisor: full shop list for the Shops tab (same fields as agent.myShops)
@@ -66,12 +67,12 @@ export const agentRouter = createRouter({
     return getDb().select({
       id: shops.id, name: shops.name, ownerName: shops.ownerName,
       phone: shops.phone, address: shops.address, city: shops.city,
-      district: shops.district, photoUrl: shops.photoUrl, status: shops.status,
+      district: shops.district, status: shops.status,
+      photoUrl: photoRef("shop", shops.id, shops.photoUrl, shops.updatedAt),
       debt: shops.debt, gpsLat: shops.gpsLat, gpsLng: shops.gpsLng,
     })
       .from(shops)
-      .where(and(eq(shops.tenantId, ctx.tenant.id), eq(shops.status, "active")))
-      .limit(500);
+      .where(and(eq(shops.tenantId, ctx.tenant.id), eq(shops.status, "active")));
   }),
 
   // Agent: list shops assigned to this agent
@@ -79,12 +80,12 @@ export const agentRouter = createRouter({
     return getDb().select({
       id: shops.id, name: shops.name, ownerName: shops.ownerName,
       phone: shops.phone, address: shops.address, city: shops.city,
-      district: shops.district, photoUrl: shops.photoUrl, status: shops.status,
+      district: shops.district, status: shops.status,
+      photoUrl: photoRef("shop", shops.id, shops.photoUrl, shops.updatedAt),
       debt: shops.debt, gpsLat: shops.gpsLat, gpsLng: shops.gpsLng,
     })
       .from(shops)
-      .where(and(eq(shops.tenantId, ctx.tenant.id), eq(shops.status, "active"), eq(shops.agentId, ctx.user.id)))
-      .limit(500);
+      .where(and(eq(shops.tenantId, ctx.tenant.id), eq(shops.status, "active"), eq(shops.agentId, ctx.user.id)));
   }),
 
   // All active shops in tenant — for order creation & shop picker
@@ -92,12 +93,12 @@ export const agentRouter = createRouter({
     return getDb().select({
       id: shops.id, name: shops.name, ownerName: shops.ownerName,
       phone: shops.phone, address: shops.address, city: shops.city,
-      district: shops.district, photoUrl: shops.photoUrl, status: shops.status,
+      district: shops.district, status: shops.status,
+      photoUrl: photoRef("shop", shops.id, shops.photoUrl, shops.updatedAt),
       debt: shops.debt, gpsLat: shops.gpsLat, gpsLng: shops.gpsLng,
     })
       .from(shops)
-      .where(and(eq(shops.tenantId, ctx.tenant.id), eq(shops.status, "active")))
-      .limit(500);
+      .where(and(eq(shops.tenantId, ctx.tenant.id), eq(shops.status, "active")));
   }),
 
   saveLocation: fieldSalesQuery
@@ -196,15 +197,17 @@ export const agentRouter = createRouter({
 
       const conditions = [
         eq(dailyPlans.tenantId, ctx.tenant.id),
-        sql`DATE(${dailyPlans.planDate}) = ${dateStr}`,
+        onDate(dailyPlans.planDate, dateStr),
       ];
       if (agentId !== undefined) {
         conditions.push(eq(dailyPlans.agentId, agentId));
       }
 
       return getDb().select({
+        // photoUrl is deliberately not selected: visit photos are base64 blobs of up
+        // to 5 MB and nothing in the plan list renders them.
         id: dailyPlans.id, planDate: dailyPlans.planDate, status: dailyPlans.status,
-        photoUrl: dailyPlans.photoUrl, notes: dailyPlans.notes, createdAt: dailyPlans.createdAt,
+        notes: dailyPlans.notes, createdAt: dailyPlans.createdAt,
         shopName: shops.name, shopAddress: shops.address, shopDebt: shops.debt,
         shopCity: shops.city, agentName: users.name, shopId: dailyPlans.shopId,
       })
@@ -231,7 +234,7 @@ export const agentRouter = createRouter({
 
       const conditions = [
         eq(dailyPlans.tenantId, ctx.tenant.id),
-        sql`DATE(${dailyPlans.planDate}) = ${dateStr}`,
+        onDate(dailyPlans.planDate, dateStr),
         eq(dailyPlans.status, "planned"), // Only unvisited plans
       ];
       if (agentId !== undefined) {
