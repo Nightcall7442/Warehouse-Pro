@@ -4,6 +4,7 @@ import { getDb } from "./queries/connection";
 import { orders, users, dailyPlans, agentLocations, subscriptions } from "@db/schema";
 import { eq, and, sql, gte, desc } from "drizzle-orm";
 import { subDays, format } from "date-fns";
+import { onDate } from "./lib/date-range";
 
 export const reportsRouter = createRouter({
   /** KPI summary for the Reports page */
@@ -22,7 +23,7 @@ export const reportsRouter = createRouter({
         .where(and(eq(users.tenantId, tenantId), eq(users.role, "agent"), eq(users.status, "active"))),
 
       db.select({ count: sql<number>`count(*)` }).from(dailyPlans)
-        .where(and(eq(dailyPlans.tenantId, tenantId), sql`DATE(${dailyPlans.planDate}) = ${today}`, eq(dailyPlans.status, "visited"))),
+        .where(and(eq(dailyPlans.tenantId, tenantId), onDate(dailyPlans.planDate, today), eq(dailyPlans.status, "visited"))),
 
       db.select({ count: sql<number>`count(*)` }).from(orders)
         .where(and(eq(orders.tenantId, tenantId), eq(orders.status, "completed"), gte(orders.createdAt, new Date(d30ago)))),
@@ -146,7 +147,7 @@ export const reportsRouter = createRouter({
     })
       .from(dailyPlans)
       .leftJoin(users, eq(dailyPlans.agentId, users.id))
-      .where(and(eq(dailyPlans.tenantId, tenantId), sql`DATE(${dailyPlans.planDate}) = ${today}`))
+      .where(and(eq(dailyPlans.tenantId, tenantId), onDate(dailyPlans.planDate, today)))
       .groupBy(dailyPlans.agentId);
 
     return rows.map(r => ({

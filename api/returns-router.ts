@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createRouter, fieldSalesQuery, operatorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { returns, returnItems, orderItems, shops, users, products, orders, warehouseStock } from "@db/schema";
+import { returns, returnItems, orderItems, shops, users, products, orders, warehouseStock, warehouses } from "@db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { cache, CacheKeys } from "./lib/cache";
 import { sanitizeString } from "./lib/sanitize";
@@ -227,11 +227,19 @@ export const returnsRouter = createRouter({
       // Only add stock on "completed" — never before approval
       if (input.status === "completed") {
         await db.transaction(async (tx) => {
+          // Returned goods land in one warehouse. Without this filter the quantity
+          // was added to every warehouse holding the product, inflating stock by a
+          // multiple of the return for multi-warehouse tenants.
+          const [defaultWh] = await tx.select({ id: warehouses.id }).from(warehouses)
+            .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true))).limit(1);
+          const whId = defaultWh?.id;
+          if (!whId) throw new Error("Склад по умолчанию не найден");
+
           // Lock stock rows and add items back to inventory
           const items = await tx.select().from(returnItems).where(eq(returnItems.returnId, input.id));
           for (const item of items) {
             await tx.select({ id: warehouseStock.id }).from(warehouseStock)
-              .where(and(eq(warehouseStock.productId, item.productId), eq(warehouseStock.tenantId, tenantId)))
+              .where(and(eq(warehouseStock.productId, item.productId), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, whId)))
               .for("update");
           }
           if (items.length > 0) {
@@ -246,6 +254,7 @@ export const returnsRouter = createRouter({
                 ), sql`\n`)} ELSE 0 END
               WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
                 AND tenant_id = ${tenantId}
+                AND warehouse_id = ${whId}
             `);
           }
 

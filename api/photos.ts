@@ -27,7 +27,14 @@ async function serve(
 
   let tenantId: number;
   try {
-    const auth = await authenticateRequest(c.req.raw.headers);
+    // Support both cookie auth (web) and Bearer token via query param (mobile <Image>)
+    const authHeader = c.req.header("authorization");
+    const token = c.req.query("token");
+    const headers = new Headers(c.req.raw.headers);
+    if (!authHeader && token) {
+      headers.set("Authorization", `Bearer ${token}`);
+    }
+    const auth = await authenticateRequest(headers);
     if (!auth.tenant) return c.json({ error: "Unauthorized" }, 401);
     tenantId = auth.tenant.id;
   } catch {

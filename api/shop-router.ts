@@ -8,6 +8,7 @@ import { PaymentService } from "./services/payment";
 import { cache, CacheKeys, CacheTTL } from "./lib/cache";
 import { parseLocationFromUrl } from "./lib/parse-location";
 import { haversineKm } from "./lib/geo";
+import { photoRef } from "./lib/photo-url";
 
 export const shopRouter = createRouter({
   territories: supervisorQuery.query(async ({ ctx }) => {
@@ -64,7 +65,7 @@ export const shopRouter = createRouter({
           address:   shops.address,
           city:      shops.city,
           district:  shops.district,
-          photoUrl:  shops.photoUrl,
+          photoUrl:  photoRef("shop", shops.id, shops.photoUrl, shops.updatedAt),
           gpsLat:    shops.gpsLat,
           gpsLng:    shops.gpsLng,
           debt:      shops.debt,

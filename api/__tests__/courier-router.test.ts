@@ -34,7 +34,7 @@ vi.mock("../services/push-service", () => ({
   sendPushToUser: vi.fn(async () => {}),
 }));
 
-import { orders, shops, users, payments, notifications, orderItems, products, warehouseStock } from "@db/schema";
+import { orders, shops, users, payments, notifications, orderItems, products, warehouseStock, warehouses } from "@db/schema";
 
 // ── Fake tables ──────────────────────────────────────────────────────────────
 interface FakeOrder { id: number; tenantId: number; orderNumber: string; status: string; deliveryStatus: string; total: string; shopId: number; courierId: number | null; agentId: number; deliveredAt: Date | null; createdAt: Date; }
@@ -44,8 +44,10 @@ interface FakePayment { id: number; tenantId: number; shopId: number; amount: st
 interface FakeNotification { id: number; tenantId: number; userId: number; type: string; title: string; message: string; createdAt: Date; }
 interface FakeOrderItem { id: number; orderId: number; productId: number; quantity: string; }
 interface FakeStock { id: number; productId: number; tenantId: number; warehouseId: number; currentStock: string; reserved: string; available: string; }
+interface FakeWarehouse { id: number; tenantId: number; name: string; isDefault: boolean; status: string; }
 
 let ordersTable: FakeOrder[] = [];
+let warehousesTable: FakeWarehouse[] = [];
 let shopsTable: FakeShop[] = [];
 let usersTable: FakeUser[] = [];
 let paymentsTable: FakePayment[] = [];
@@ -80,6 +82,11 @@ function resetTables() {
     { id: 1, productId: 1, tenantId: 1, warehouseId: 1, currentStock: "100.00", reserved: "15.00", available: "85.00" },
     { id: 2, productId: 2, tenantId: 1, warehouseId: 1, currentStock: "50.00", reserved: "5.00", available: "45.00" },
   ];
+  // Stock operations resolve the tenant's default warehouse — without this row
+  // every delivery path fails with "Склад по умолчанию не найден".
+  warehousesTable = [
+    { id: 1, tenantId: 1, name: "Main", isDefault: true, status: "active" },
+  ];
   nextPaymentId = 10;
   nextNotifId = 10;
 }
@@ -92,6 +99,7 @@ function tableOf(ref: unknown): string {
   if (ref === notifications) return "notifications";
   if (ref === orderItems) return "orderItems";
   if (ref === warehouseStock) return "warehouseStock";
+  if (ref === warehouses) return "warehouses";
   return "other";
 }
 
@@ -103,6 +111,7 @@ function rowsFor(table: string): Record<string, unknown>[] {
   if (table === "notifications") return notificationsTable as unknown as Record<string, unknown>[];
   if (table === "orderItems") return orderItemsTable as unknown as Record<string, unknown>[];
   if (table === "warehouseStock") return stocksTable as unknown as Record<string, unknown>[];
+  if (table === "warehouses") return warehousesTable as unknown as Record<string, unknown>[];
   return [];
 }
 
@@ -363,12 +372,18 @@ describe("courier.markFailed", () => {
     await expect(caller.markFailed({ orderId: 2 })).rejects.toThrow("Заказ не найден");
   });
 
-  it("restores reserved stock on failed delivery", async () => {
+  it("keeps the reservation on failed delivery so the order still owns the goods", async () => {
     const { courierRouter } = await import("../courier-router");
     const caller = courierRouter.createCaller(makeCtx(1, 100));
+    const before = stocksTable.map((s) => ({ ...s }));
+
     await caller.markFailed({ orderId: 1 });
-    // The execute mock handles the stock restore; order status should reset
+
+    // Order goes back into the delivery pool...
     expect(ordersTable.find((o) => o.id === 1)!.status).toBe("new");
+    // ...but the goods stay committed to it. Releasing them here would let the
+    // same units be sold twice and push `reserved` negative on the retry.
+    expect(stocksTable).toEqual(before);
   });
 });
 

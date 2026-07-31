@@ -34,6 +34,9 @@ FROM base AS runtime
 WORKDIR /app
 RUN addgroup -g 1001 -S appgroup && adduser -S appuser -u 1001 -G appgroup
 COPY --from=builder --chown=appuser:appgroup /app/dist ./dist
+# Source maps were already uploaded to Sentry during the build stage — they are
+# ~10 MB of publicly served files that no browser requests.
+RUN find ./dist -name "*.map" -delete
 COPY --from=builder --chown=appuser:appgroup /app/package.json /app/package-lock.json ./
 RUN npm ci --omit=dev --legacy-peer-deps && npm cache clean --force
 COPY --from=builder --chown=appuser:appgroup /app/db ./db

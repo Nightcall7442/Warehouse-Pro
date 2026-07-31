@@ -4,6 +4,40 @@ import { cache, CacheKeys } from "../lib/cache";
 import { logger } from "../lib/logger";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
+type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+
+/**
+ * Every stock movement in an order's lifecycle must target the same warehouse.
+ * The order row does not record one, so the default warehouse is the single
+ * source of truth: reservation on create, release on cancel/delete, deduction on
+ * completion. An explicit non-default warehouseId is rejected rather than
+ * silently reserved in one warehouse and released from another.
+ */
+async function resolveOrderWarehouse(tx: Tx, tenantId: number, requested?: number): Promise<number> {
+  const [defaultWh] = await tx.select({ id: warehouses.id }).from(warehouses)
+    .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true))).limit(1);
+  const whId = defaultWh?.id;
+  if (!whId) throw new Error("Склад по умолчанию не найден");
+  if (requested !== undefined && requested !== whId) {
+    throw new Error("Заказ можно оформить только со склада по умолчанию");
+  }
+  return whId;
+}
+
+/** Orders paid on credit add to the shop's debt; reversing them must take it back. */
+async function adjustShopDebt(tx: Tx, tenantId: number, shopId: number, delta: number): Promise<void> {
+  if (delta === 0) return;
+  await tx.execute(sql`
+    UPDATE shops
+    SET debt = GREATEST(0, CAST(debt AS DECIMAL(12,2)) + ${delta})
+    WHERE id = ${shopId} AND tenant_id = ${tenantId}
+  `);
+}
+
+/** Stock is only committed to an order while it is new or processing. */
+function holdsStock(status: string): boolean {
+  return status === "new" || status === "processing";
+}
 
 export const OrderService = {
   async list(db: Db, tenantId: number, filters: Record<string, unknown>, opts?: { userId: number; userRole: string }) {
@@ -171,16 +205,18 @@ export const OrderService = {
       }
       const total = subtotal - discount;
 
+      // Reserve from one explicit warehouse. Without this filter a product with
+      // stock rows in several warehouses yielded an arbitrary row for the
+      // availability check and a different one for the reservation.
+      const reserveWarehouseId = await resolveOrderWarehouse(tx, tenantId, input.warehouseId);
+
       // SELECT stock rows with row-level locking to prevent race conditions
-      const stockConditions = [
-        sql`${warehouseStock.productId} IN (${sql.join(input.items.map(i => sql`${i.productId}`), sql`, `)})`,
-        eq(warehouseStock.tenantId, tenantId),
-      ];
-      if (input.warehouseId) {
-        stockConditions.push(eq(warehouseStock.warehouseId, input.warehouseId));
-      }
       const stockRows = await tx.select().from(warehouseStock)
-        .where(and(...stockConditions))
+        .where(and(
+          sql`${warehouseStock.productId} IN (${sql.join(input.items.map(i => sql`${i.productId}`), sql`, `)})`,
+          eq(warehouseStock.tenantId, tenantId),
+          eq(warehouseStock.warehouseId, reserveWarehouseId),
+        ))
         .for("update");
 
       const stockMap = new Map<number, typeof stockRows[number]>();
@@ -218,8 +254,6 @@ export const OrderService = {
 
       if (input.items.length > 0) {
         // P0-2 FIX: Include warehouse_id in UPDATE to prevent cross-warehouse corruption
-        const reserveWarehouseId = input.warehouseId ?? stockRows[0]?.warehouseId;
-        if (!reserveWarehouseId) throw new Error("Склад не определён");
         await tx.execute(sql`
           UPDATE warehouse_stock
           SET
@@ -308,17 +342,24 @@ export const OrderService = {
       if (!isPrivileged) {
         conditions.push(eq(orders.agentId, opts.userId));
       }
-      const [order] = await tx.select({ id: orders.id, status: orders.status }).from(orders).where(and(...conditions)).limit(1);
+      // A soft-deleted order has already had its stock released — cancelling it
+      // again would credit the warehouse twice.
+      conditions.push(isNull(orders.deletedAt));
+      const [order] = await tx.select({
+        id: orders.id, status: orders.status, shopId: orders.shopId,
+        total: orders.total, paymentMethod: orders.paymentMethod,
+      }).from(orders).where(and(...conditions)).limit(1);
       if (!order) throw new Error("Заказ не найден");
       if (order.status !== "new") throw new Error("Можно отменить только новые заказы");
 
+      // Credit orders added to the shop's debt at creation — take it back.
+      if (order.paymentMethod === "debt") {
+        await adjustShopDebt(tx, tenantId, order.shopId, -Number(order.total));
+      }
+
       const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
       if (items.length > 0) {
-        // P0-2 FIX: Get default warehouse for this tenant
-        const [defaultWh] = await tx.select({ id: warehouses.id }).from(warehouses)
-          .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true))).limit(1);
-        const cancelWhId = defaultWh?.id;
-        if (!cancelWhId) throw new Error("Склад по умолчанию не найден");
+        const cancelWhId = await resolveOrderWarehouse(tx, tenantId);
 
         // Lock stock rows to prevent race conditions
         for (const item of items) {
@@ -353,8 +394,12 @@ export const OrderService = {
       const [order] = await tx.select({
         id: orders.id, status: orders.status, shopId: orders.shopId,
         agentId: orders.agentId, total: orders.total, subtotal: orders.subtotal,
-        deliveryStatus: orders.deliveryStatus,
-      }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId))).limit(1);
+        deliveryStatus: orders.deliveryStatus, paymentMethod: orders.paymentMethod,
+      }).from(orders)
+        // Soft-deleted orders already gave their stock back; moving them through
+        // the lifecycle again would double-count it.
+        .where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt)))
+        .limit(1);
       if (!order) throw new Error("Заказ не найден");
 
       if (order.status === newStatus) {
@@ -368,16 +413,18 @@ export const OrderService = {
         throw new Error(`Невозможно перевести из "${order.status}" в "${newStatus}"`);
       }
 
+      // Cancelling a credit order releases the receivable it created. Completed
+      // orders are left alone — the goods changed hands and the debt stands.
+      if (newStatus === "cancelled" && order.paymentMethod === "debt" && holdsStock(order.status)) {
+        await adjustShopDebt(tx, tenantId, order.shopId, -Number(order.total));
+      }
+
       const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
       if (items.length > 0) {
         if (newStatus === "completed") {
           // Skip stock deduction if courier already delivered (markDelivered handles it)
           if (order.deliveryStatus !== "delivered") {
-            // P0-2 FIX: Get default warehouse for stock operations
-            const [defaultWh] = await tx.select({ id: warehouses.id }).from(warehouses)
-              .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true))).limit(1);
-            const stockWhId = defaultWh?.id;
-            if (!stockWhId) throw new Error("Склад по умолчанию не найден");
+            const stockWhId = await resolveOrderWarehouse(tx, tenantId);
 
             // Lock all stock rows in one batch query (prevents deadlock)
             const stockRows = await tx.select({ productId: warehouseStock.productId, currentStock: warehouseStock.currentStock })
@@ -443,11 +490,7 @@ export const OrderService = {
           }
         }
         if (newStatus === "cancelled") {
-          // P0-2 FIX: Get default warehouse for cancellation
-          const [cancelWh] = await tx.select({ id: warehouses.id }).from(warehouses)
-            .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true))).limit(1);
-          const cancelWhId = cancelWh?.id;
-          if (!cancelWhId) throw new Error("Склад по умолчанию не найден");
+          const cancelWhId = await resolveOrderWarehouse(tx, tenantId);
 
           // Lock stock rows to prevent race conditions
           for (const item of items) {
@@ -503,21 +546,26 @@ export const OrderService = {
         id: orders.id,
         status: orders.status,
         deletedAt: orders.deletedAt,
+        shopId: orders.shopId,
+        total: orders.total,
+        paymentMethod: orders.paymentMethod,
       }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt))).limit(1);
       if (!order) throw new Error("Заказ не найден или уже удалён");
 
+      // Deleting a still-open credit order withdraws the receivable it created.
+      // Completed orders keep theirs — the goods were handed over.
+      if (order.paymentMethod === "debt" && holdsStock(order.status)) {
+        await adjustShopDebt(tx, tenantId, order.shopId, -Number(order.total));
+      }
+
       // Release reserved stock if order is new or processing
-      if (order.status === "new" || order.status === "processing") {
+      if (holdsStock(order.status)) {
         const items = await tx.select({
           productId: orderItems.productId,
           quantity: orderItems.quantity,
         }).from(orderItems).where(eq(orderItems.orderId, orderId));
         if (items.length > 0) {
-          // Get default warehouse for stock release
-          const [defaultWh] = await tx.select({ id: warehouses.id }).from(warehouses)
-            .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true))).limit(1);
-          const deleteWhId = defaultWh?.id;
-          if (!deleteWhId) throw new Error("Склад по умолчанию не найден");
+          const deleteWhId = await resolveOrderWarehouse(tx, tenantId);
 
           // Lock stock rows before releasing
           for (const item of items) {
@@ -530,10 +578,10 @@ export const OrderService = {
             SET
               reserved = reserved - CASE ${sql.join(items.map(i =>
                 sql`WHEN product_id = ${i.productId} THEN ${Number(i.quantity)}`
-              ), sql`\n`)} ELSE reserved END,
+              ), sql`\n`)} ELSE 0 END,
               available = available + CASE ${sql.join(items.map(i =>
                 sql`WHEN product_id = ${i.productId} THEN ${Number(i.quantity)}`
-              ), sql`\n`)} ELSE available END
+              ), sql`\n`)} ELSE 0 END
             WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
               AND tenant_id = ${tenantId}
               AND warehouse_id = ${deleteWhId}
@@ -558,7 +606,11 @@ export const OrderService = {
     await db.transaction(async (tx) => {
       const [order] = await tx.select({
         id: orders.id,
+        status: orders.status,
         subtotal: orders.subtotal,
+        total: orders.total,
+        shopId: orders.shopId,
+        paymentMethod: orders.paymentMethod,
         deletedAt: orders.deletedAt,
       }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt))).limit(1);
       if (!order) throw new Error("Заказ не найден");
@@ -569,8 +621,15 @@ export const OrderService = {
         const subtotal = Number(order.subtotal);
         const discount = Number(data.discount);
         if (discount > subtotal) throw new Error("Скидка не может превышать сумму заказа");
+        const newTotal = subtotal - discount;
         updates.discount = data.discount;
-        updates.total = (subtotal - discount).toFixed(2);
+        updates.total = newTotal.toFixed(2);
+
+        // The shop's debt was booked from the old total — move it by the difference,
+        // otherwise a re-discounted credit order leaves the receivable overstated.
+        if (order.paymentMethod === "debt" && holdsStock(order.status)) {
+          await adjustShopDebt(tx, tenantId, order.shopId, newTotal - Number(order.total));
+        }
       }
 
       if (Object.keys(updates).length > 0) {
@@ -584,21 +643,25 @@ export const OrderService = {
   },
 
   async restore(db: Db, tenantId: number, orderId: number) {
-    const [order] = await db.select({ id: orders.id, deletedAt: orders.deletedAt, status: orders.status }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId))).limit(1);
+    const [order] = await db.select({
+      id: orders.id, deletedAt: orders.deletedAt, status: orders.status,
+      shopId: orders.shopId, total: orders.total, paymentMethod: orders.paymentMethod,
+    }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId))).limit(1);
     if (!order) throw new Error("Заказ не найден");
     if (!order.deletedAt) throw new Error("Заказ не удалён");
 
     await db.transaction(async (tx) => {
       await tx.update(orders).set({ deletedAt: null }).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)));
 
+      // Mirror of delete(): the receivable comes back with the order.
+      if (order.paymentMethod === "debt" && holdsStock(order.status)) {
+        await adjustShopDebt(tx, tenantId, order.shopId, Number(order.total));
+      }
+
       // Re-reserve stock if order was new/processing when deleted
-      if (order.status === "new" || order.status === "processing") {
+      if (holdsStock(order.status)) {
         const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
-        // Get default warehouse for stock operations
-        const [defaultWh] = await tx.select({ id: warehouses.id }).from(warehouses)
-          .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true))).limit(1);
-        const restoreWhId = defaultWh?.id;
-        if (!restoreWhId) throw new Error("Склад по умолчанию не найден");
+        const restoreWhId = await resolveOrderWarehouse(tx, tenantId);
 
         // Lock stock rows before checking and updating
         for (const item of items) {

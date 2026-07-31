@@ -404,14 +404,19 @@ export const importRouter = createRouter({
                 const stockMsg = (stockErr as { message?: string })?.message ?? "";
                 // If duplicate, try update instead
                 if (stockMsg.includes("Duplicate") || stockMsg.includes("uq_stock")) {
-                  await db.execute(sql`UPDATE warehouse_stock SET current_stock = ${row.initialStock}, available = ${row.initialStock} WHERE product_id = ${productId} AND tenant_id = ${tenantId}`);
+                  // Scope to the same warehouse the INSERT targeted — an unscoped
+                  // UPDATE overwrote the product's stock in every warehouse. And
+                  // `available` must account for what is already reserved.
+                  await db.execute(sql`
+                    UPDATE warehouse_stock
+                    SET current_stock = ${row.initialStock},
+                        available = GREATEST(0, ${row.initialStock} - reserved)
+                    WHERE product_id = ${productId}
+                      AND tenant_id = ${tenantId}
+                      AND warehouse_id = ${defaultWarehouse.id}
+                  `);
                 } else {
-                  // Try without warehouse_id as fallback
-                  try {
-                    await db.execute(sql`INSERT INTO warehouse_stock (tenant_id, product_id, current_stock, reserved, available) VALUES (${tenantId}, ${productId}, ${row.initialStock}, '0.00', ${row.initialStock})`);
-                  } catch (fallbackErr: unknown) {
-                    console.error(`[IMPORT] warehouse_stock failed for ${row.code}:`, (fallbackErr as { message?: string })?.message);
-                  }
+                  console.error(`[IMPORT] warehouse_stock failed for ${row.code}:`, stockMsg);
                 }
               }
               success++;

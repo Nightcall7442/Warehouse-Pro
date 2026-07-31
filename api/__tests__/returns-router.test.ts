@@ -27,7 +27,7 @@ vi.mock("../lib/sanitize", () => ({
 let mockDb: any;
 vi.mock("../queries/connection", () => ({ getDb: () => mockDb }));
 
-import { returns, returnItems, orderItems, shops, users, products, orders, warehouseStock } from "@db/schema";
+import { returns, returnItems, orderItems, shops, users, products, orders, warehouseStock, warehouses } from "@db/schema";
 
 interface FakeReturn { id: number; tenantId: number; orderId: number | null; shopId: number; agentId: number; returnNumber: string; reason: string; notes: string | null; status: string; totalAmount: string; createdBy: number; }
 interface FakeReturnItem { id: number; returnId: number; productId: number; quantity: string; unitPrice: string; subtotal: string; reason: string | null; condition: string | null; }
@@ -37,7 +37,9 @@ interface FakeStock { productId: number; tenantId: number; currentStock: string;
 interface FakeProduct { id: number; tenantId: number; name: string; unitPrice: string; status: string; }
 interface FakeShop { id: number; tenantId: number; name: string; debt: string; }
 interface FakeUser { id: number; tenantId: number; name: string; role: string; }
+interface FakeWarehouse { id: number; tenantId: number; name: string; isDefault: boolean; }
 
+let warehousesTable: FakeWarehouse[] = [];
 let returnsTable: FakeReturn[] = [];
 let returnItemsTable: FakeReturnItem[] = [];
 let ordersTable: FakeOrder[] = [];
@@ -64,6 +66,11 @@ function resetTables() {
     { productId: 1, tenantId: 1, currentStock: "100.00", reserved: "10.00", available: "90.00" },
     { productId: 2, tenantId: 1, currentStock: "50.00", reserved: "5.00", available: "45.00" },
     { productId: 1, tenantId: 2, currentStock: "30.00", reserved: "0.00", available: "30.00" },
+  ];
+  // Completing a return puts the goods into the tenant's default warehouse.
+  warehousesTable = [
+    { id: 1, tenantId: 1, name: "Main", isDefault: true },
+    { id: 2, tenantId: 2, name: "Main", isDefault: true },
   ];
   productsTable = [
     { id: 1, tenantId: 1, name: "Product A", unitPrice: "50.00", status: "active" },
@@ -97,6 +104,7 @@ reg(orders, "id"); reg(orders, "tenantId"); reg(orders, "status"); reg(orders, "
 reg(products, "id"); reg(products, "name"); reg(products, "unitPrice"); reg(products, "tenantId");
 reg(warehouseStock, "productId"); reg(warehouseStock, "tenantId");
 reg(warehouseStock, "currentStock"); reg(warehouseStock, "reserved"); reg(warehouseStock, "available");
+reg(warehouses, "id"); reg(warehouses, "tenantId"); reg(warehouses, "isDefault");
 reg(shops, "id"); reg(shops, "tenantId"); reg(shops, "name"); reg(shops, "debt");
 reg(users, "id"); reg(users, "name"); reg(users, "role");
 
@@ -112,6 +120,7 @@ function useTable(col: unknown) {
   else if (col === orderItems) { currentTable = orderItemsTable; currentTableName = "order_items"; }
   else if (col === orders) { currentTable = ordersTable; currentTableName = "orders"; }
   else if (col === warehouseStock) { currentTable = stockTable; currentTableName = "warehouse_stock"; }
+  else if (col === warehouses) { currentTable = warehousesTable; currentTableName = "warehouses"; }
   else if (col === products) { currentTable = productsTable; currentTableName = "products"; }
   else if (col === shops) { currentTable = shopsTable; currentTableName = "shops"; }
   else if (col === users) { currentTable = usersTable; currentTableName = "users"; }

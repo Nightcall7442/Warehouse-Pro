@@ -287,34 +287,17 @@ export const courierRouter = createRouter({
       const safeReason = input.reason ? sanitizeString(input.reason) : "";
 
       await db.transaction(async (tx) => {
-        // Get default warehouse for stock operations
-        const [defaultWh] = await tx.select({ id: warehouses.id }).from(warehouses)
-          .where(and(eq(warehouses.tenantId, ctx.tenant.id), eq(warehouses.isDefault, true))).limit(1);
-        const whId = defaultWh?.id;
-        if (!whId) throw new Error("Склад по умолчанию не найден");
-
-        // Lock stock rows before releasing
-        const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, input.orderId));
-        for (const item of items) {
-          await tx.select({ id: warehouseStock.id }).from(warehouseStock)
-            .where(and(eq(warehouseStock.productId, item.productId), eq(warehouseStock.tenantId, ctx.tenant.id), eq(warehouseStock.warehouseId, whId)))
-            .for("update");
-        }
-
         // Update order status — keep deliveryStatus for history, but allow reassignment
         await tx.update(orders)
           .set({ deliveryStatus: "failed", status: "new", courierId: null })
           .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, ctx.tenant.id)));
 
-        // Restore reserved stock — the delivery failed, so reserved qty goes back to available
-        for (const item of items) {
-          const qty = Number(item.quantity);
-          await tx.execute(sql`
-            UPDATE warehouse_stock
-            SET reserved = reserved - ${qty}, available = available + ${qty}
-            WHERE product_id = ${item.productId} AND tenant_id = ${ctx.tenant.id} AND warehouse_id = ${whId}
-          `);
-        }
+        // The reservation deliberately stays in place. The goods never left the
+        // warehouse (current_stock is only touched on delivery) and the order goes
+        // back to "new" for another delivery attempt, so it still owns them.
+        // Releasing here made the same units sellable twice and drove `reserved`
+        // negative once the retried delivery completed. Stock is returned only
+        // when the order is cancelled or deleted.
       });
 
       const [ceo] = await db.select({ id: users.id }).from(users)

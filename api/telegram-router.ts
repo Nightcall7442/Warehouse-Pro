@@ -1,9 +1,10 @@
 import { z } from "zod";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { createRouter, authedQuery, adminQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { users } from "@db/schema";
 import { env } from "./lib/env";
+import { onDay, onDate } from "./lib/date-range";
 import type { Role } from "@contracts/types";
 
 // ── Core send function ───────────────────────────────────────────────────────
@@ -153,7 +154,7 @@ export const telegramRouter = createRouter({
         totalRevenue: sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'completed' THEN ${orders.total} ELSE 0 END), 0)`,
       }).from(orders).where(and(
         eq(orders.tenantId, tenantId),
-        sql`DATE(${orders.createdAt}) = ${today}`,
+        onDay(orders.createdAt, today),
       )),
 
       // Low stock items
@@ -171,7 +172,7 @@ export const telegramRouter = createRouter({
         visited: sql<number>`count(CASE WHEN ${dailyPlans.status} = 'visited' THEN 1 END)`,
       }).from(dailyPlans).where(and(
         eq(dailyPlans.tenantId, tenantId),
-        sql`DATE(${dailyPlans.planDate}) = ${today}`,
+        onDate(dailyPlans.planDate, today),
       )),
     ]);
 

@@ -4,6 +4,7 @@ import { cache, CacheKeys, CacheTTL } from "../lib/cache";
 import { sseBus } from "../lib/sse";
 import { DEBT_NOTIFICATION_THRESHOLD } from "../lib/constants";
 import { logger } from "../lib/logger";
+import { onDate } from "../lib/date-range";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -201,7 +202,7 @@ export const NotificationService = {
         visited: sql<number>`count(CASE WHEN ${dailyPlans.status} = 'visited' THEN 1 END)`,
       })
         .from(dailyPlans)
-        .where(and(eq(dailyPlans.tenantId, tenantId), sql`DATE(${dailyPlans.planDate}) = ${today}`)),
+        .where(and(eq(dailyPlans.tenantId, tenantId), onDate(dailyPlans.planDate, today))),
 
       db.select({
         shopName: shops.name,

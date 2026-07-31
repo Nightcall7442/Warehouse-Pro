@@ -48,7 +48,7 @@ vi.mock("../telegram-router", () => ({
 import { orders, orderItems, warehouseStock, products, warehouses, shops } from "@db/schema";
 
 // ── Fake in-memory tables ─────────────────────────────────────────────────────
-interface FakeOrder { id: number; tenantId: number; agentId: number; shopId: number; status: string; deletedAt: Date | null; }
+interface FakeOrder { id: number; tenantId: number; agentId: number; shopId: number; status: string; deletedAt: Date | null; subtotal: string; discount: string; total: string; paymentMethod: string; }
 interface FakeOrderItem { id: number; orderId: number; productId: number; quantity: string; }
 interface FakeStock { productId: number; tenantId: number; currentStock: string; reserved: string; available: string; }
 interface FakeProduct { id: number; tenantId: number; name: string; unitPrice: string; status: string; }
@@ -58,7 +58,7 @@ let orderItemsTable: FakeOrderItem[] = [];
 let stockTable: FakeStock[]          = [];
 let productsTable: FakeProduct[]     = [];
 let warehousesTable: { id: number; tenantId: number; name: string; isDefault: boolean; status: string }[] = [];
-let shopsTable: { id: number; tenantId: number; name: string }[] = [];
+let shopsTable: { id: number; tenantId: number; name: string; debt: string }[] = [];
 let nextOrderId = 1;
 let nextItemId  = 1;
 
@@ -77,7 +77,7 @@ function resetFakeTables() {
     { id: 1, tenantId: 1, name: "Main", isDefault: true, status: "active" },
   ];
   shopsTable = [
-    { id: 1, tenantId: 1, name: "Test Shop" },
+    { id: 1, tenantId: 1, name: "Test Shop", debt: "0.00" },
   ];
   nextOrderId = 1;
   nextItemId  = 1;
@@ -189,7 +189,19 @@ function makeMockDb() {
         const table = tableOf(ref);
         if (table === "orders") {
           const id = nextOrderId++;
-          ordersTable.push({ id, tenantId: vals.tenantId as number, agentId: vals.agentId as number, shopId: vals.shopId as number, status: vals.status as string });
+          ordersTable.push({
+            id,
+            tenantId: vals.tenantId as number,
+            agentId: vals.agentId as number,
+            shopId: vals.shopId as number,
+            status: vals.status as string,
+            deletedAt: null,
+            // Money fields drive the debt logic — the fake has to carry them.
+            subtotal: String(vals.subtotal ?? "0.00"),
+            discount: String(vals.discount ?? "0.00"),
+            total: String(vals.total ?? "0.00"),
+            paymentMethod: String(vals.paymentMethod ?? "cash"),
+          });
           return Promise.resolve([{ insertId: id }]);
         }
         if (table === "orderItems") {
@@ -215,6 +227,20 @@ function makeMockDb() {
       if (!sqlObj || typeof sqlObj !== "object" || (sqlObj as Record<string, unknown>).__kind !== "sql") return Promise.resolve();
       const s = sqlObj as { strings: string[]; values: unknown[] };
       const fullSql = s.strings.join("");
+
+      // Shop debt: both the create-time `debt + total` and the reversal
+      // `GREATEST(0, debt + delta)` bind [delta, shopId, tenantId] in that order.
+      if (fullSql.includes("UPDATE shops") && fullSql.includes("debt")) {
+        const nums = s.values.filter((v): v is number => typeof v === "number");
+        const [delta, shopId, tenantId] = nums;
+        for (const shop of shopsTable) {
+          if (shop.id === shopId && shop.tenantId === tenantId) {
+            shop.debt = Math.max(0, Number(shop.debt) + delta).toFixed(2);
+          }
+        }
+        return Promise.resolve();
+      }
+
       if (!fullSql.includes("UPDATE warehouse_stock")) return Promise.resolve();
 
       // Simple pattern: SET available = available - X, reserved = reserved + X WHERE product_id = Y AND tenant_id = Z
@@ -531,5 +557,108 @@ describe("order.create — multi-product reservation", () => {
     expect(stockTable.find(s => s.productId === 1)!.reserved).toBe("0.00");
     expect(stockTable.find(s => s.productId === 2)!.reserved).toBe("0.00");
     expect(ordersTable).toHaveLength(0);
+  });
+});
+
+describe("order lifecycle — shop debt", () => {
+  it("books the debt on a credit order and takes it back on cancel", async () => {
+    const { orderRouter } = await import("../order-router");
+    const caller = orderRouter.createCaller(makeCtx(1, 10, "agent"));
+
+    const created = await caller.create({
+      shopId: 1,
+      items: [{ productId: 1, quantity: 5, unitPrice: 100 }],
+      paymentMethod: "debt",
+    }) as { id: number };
+
+    expect(shopsTable[0].debt).toBe("500.00");
+
+    await caller.cancel({ id: created.id });
+
+    expect(shopsTable[0].debt).toBe("0.00");
+  });
+
+  it("leaves the debt alone for a cash order", async () => {
+    const { orderRouter } = await import("../order-router");
+    const caller = orderRouter.createCaller(makeCtx(1, 10, "agent"));
+
+    const created = await caller.create({
+      shopId: 1,
+      items: [{ productId: 1, quantity: 5, unitPrice: 100 }],
+      paymentMethod: "cash",
+    }) as { id: number };
+
+    expect(shopsTable[0].debt).toBe("0.00");
+
+    await caller.cancel({ id: created.id });
+
+    expect(shopsTable[0].debt).toBe("0.00");
+  });
+
+  it("withdraws the debt on delete and restores it with the order", async () => {
+    const { orderRouter } = await import("../order-router");
+    const caller = orderRouter.createCaller(makeCtx(1, 1, "operator"));
+
+    const created = await caller.create({
+      shopId: 1,
+      items: [{ productId: 1, quantity: 4, unitPrice: 100 }],
+      paymentMethod: "debt",
+    }) as { id: number };
+    expect(shopsTable[0].debt).toBe("400.00");
+
+    await caller.delete({ id: created.id });
+    expect(shopsTable[0].debt).toBe("0.00");
+
+    await caller.restore({ id: created.id });
+    expect(shopsTable[0].debt).toBe("400.00");
+  });
+
+  it("moves the debt by the difference when the discount changes", async () => {
+    const { orderRouter } = await import("../order-router");
+    const caller = orderRouter.createCaller(makeCtx(1, 1, "operator"));
+
+    const created = await caller.create({
+      shopId: 1,
+      items: [{ productId: 1, quantity: 5, unitPrice: 100 }],
+      paymentMethod: "debt",
+    }) as { id: number };
+    expect(shopsTable[0].debt).toBe("500.00");
+
+    await caller.update({ id: created.id, discount: 150 });
+
+    expect(shopsTable[0].debt).toBe("350.00");
+  });
+});
+
+describe("order lifecycle — soft-deleted orders are out of play", () => {
+  it("refuses to cancel an order that was already deleted", async () => {
+    const { orderRouter } = await import("../order-router");
+    const caller = orderRouter.createCaller(makeCtx(1, 1, "operator"));
+
+    const created = await caller.create({
+      shopId: 1,
+      items: [{ productId: 1, quantity: 10, unitPrice: 100 }],
+    }) as { id: number };
+
+    await caller.delete({ id: created.id });
+    const releasedStock = { ...stockTable.find(s => s.productId === 1)! };
+
+    // Cancelling now would hand the same 10 units back a second time.
+    await expect(caller.cancel({ id: created.id })).rejects.toThrow(/не найден/);
+    expect(stockTable.find(s => s.productId === 1)).toEqual(releasedStock);
+  });
+
+  it("refuses to complete an order that was already deleted", async () => {
+    const { orderRouter } = await import("../order-router");
+    const caller = orderRouter.createCaller(makeCtx(1, 1, "operator"));
+
+    const created = await caller.create({
+      shopId: 1,
+      items: [{ productId: 1, quantity: 10, unitPrice: 100 }],
+    }) as { id: number };
+
+    await caller.delete({ id: created.id });
+
+    await expect(caller.updateStatus({ id: created.id, status: "completed" })).rejects.toThrow(/не найден/);
   });
 });

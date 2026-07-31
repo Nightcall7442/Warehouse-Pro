@@ -88,17 +88,13 @@ export default defineConfig({
     emptyOutDir: true,
     target:      "es2022",
     cssTarget:   "es2022",
-    sourcemap:   true, // Required for Sentry source maps
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          "vendor-react":    ["react", "react-dom", "react-router"],
-          "vendor-charts":   ["recharts"],
-          "vendor-excel":     ["exceljs"],
-          "vendor-ui":       ["@radix-ui/react-dialog", "@radix-ui/react-select", "@radix-ui/react-popover", "@radix-ui/react-dropdown-menu"],
-          "vendor-utils":    ["date-fns", "clsx", "tailwind-merge"],
-        },
-      },
-    },
+    // "hidden" — maps are generated for Sentry upload but not referenced from the
+    // bundles, and they are stripped from the runtime image (see Dockerfile).
+    sourcemap:   "hidden",
+    // NOTE: no manualChunks here on purpose. The previous hand-written grouping
+    // pulled react-dom into "vendor-charts" (recharts + lodash + d3), which made
+    // that 448 KB chunk a static dependency of the entry — recharts was downloaded
+    // on the login screen. Rollup's automatic splitting keeps chart code inside the
+    // lazy page chunks that actually import it.
   },
 });
