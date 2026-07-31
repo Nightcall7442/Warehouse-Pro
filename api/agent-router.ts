@@ -471,13 +471,13 @@ export const agentRouter = createRouter({
       });
     }),
 
-  // Мобильное приложение: агент смотрит детальные данные ТОЛЬКО своего магазина
+  // Мобильное приложение: агент смотрит детали любого магазина в тенанте
   getShopById: fieldSalesQuery
     .input(z.object({ id: z.number() }))
     .query(async ({ input, ctx }) => {
       const db = getDb();
       const [shop] = await db.select().from(shops)
-        .where(and(eq(shops.id, input.id), eq(shops.tenantId, ctx.tenant.id), eq(shops.agentId, ctx.user.id)))
+        .where(and(eq(shops.id, input.id), eq(shops.tenantId, ctx.tenant.id)))
         .limit(1);
       if (!shop) return null;
       return shop;
