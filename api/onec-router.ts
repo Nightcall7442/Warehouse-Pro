@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
+import { randomBytes } from "node:crypto";
 import { createRouter, adminQuery } from "./middleware";
 import { oneCSync } from "./services/onec-sync";
 import { getBridgeForTenant, OneCBridge, clearBridgeCache } from "./lib/onec-bridge";
@@ -67,6 +69,8 @@ export const onecRouter = createRouter({
       return {
         ...config,
         password: "********",
+        // Never echo the webhook secret back — it is shown once, at rotation.
+        webhookSecret: config.webhookSecret ? "********" : null,
       };
     }),
 
@@ -265,6 +269,38 @@ export const onecRouter = createRouter({
         details: null,
       };
     }
+  }),
+
+  /**
+   * Issue or rotate this tenant's 1C webhook secret.
+   * Until a tenant has one, its webhooks still authenticate with the deprecated
+   * global ONEC_WEBHOOK_SECRET; rotating here ends that fallback for the tenant.
+   */
+  rotateWebhookSecret: adminQuery.mutation(async ({ ctx }) => {
+    const db = ctx.db;
+    const [config] = await db.select({ id: onecConfig.id })
+      .from(onecConfig)
+      .where(eq(onecConfig.tenantId, ctx.tenant.id))
+      .limit(1);
+
+    if (!config) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: "Настройки 1С не найдены — сначала сохраните конфигурацию.",
+      });
+    }
+
+    // 32 random bytes → 64 hex chars, exactly the width of webhook_secret.
+    const webhookSecret = randomBytes(32).toString("hex");
+
+    await db.update(onecConfig)
+      .set({ webhookSecret })
+      .where(eq(onecConfig.id, config.id));
+
+    logger.info("1C webhook secret rotated", { tenantId: ctx.tenant.id });
+
+    // This is the only time the secret is returned — it is never readable again.
+    return { tenantId: ctx.tenant.id, webhookSecret };
   }),
 
   health: adminQuery.query(async ({ ctx }) => {

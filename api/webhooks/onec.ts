@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { getDb } from "../queries/connection";
-import { payments, shops, warehouseStock, tenants, warehouses, onecConfig } from "@db/schema";
+import { payments, shops, warehouseStock, warehouses, onecConfig } from "@db/schema";
 import { eq, and } from "drizzle-orm";
 import { OneCMapper } from "../services/onec-mapper";
 import { logger } from "../lib/logger";
@@ -9,11 +9,13 @@ import { safeEqual } from "../lib/safe-compare";
 
 const app = new Hono<{ Variables: { validatedBody: Record<string, unknown> } }>();
 
-// ── Auth: global secret + validate tenantId exists and has 1C configured ─────
-// TODO: Replace global secret with per-tenant webhook secret for proper isolation
+// ── Auth: per-tenant webhook secret + validate tenantId has 1C configured ────
+// The secret is per tenant, so the tenant must be identified *before* anything
+// can be compared. Only the presence of the header is checked up front — that
+// depends solely on the caller's own request and leaks nothing about any tenant.
 app.use("/*", async (c, next) => {
-  const secret = c.req.header("X-1C-Secret");
-  if (!safeEqual(secret ?? "", env.onecWebhookSecret)) {
+  const presented = c.req.header("X-1C-Secret");
+  if (!presented) {
     return c.json({ error: "Unauthorized" }, 401);
   }
 
@@ -24,14 +26,41 @@ app.use("/*", async (c, next) => {
     }
     const db = getDb();
 
-    // Validate tenant exists AND has 1C integration configured
-    const [config] = await db.select({ tenantId: onecConfig.tenantId })
+    // Validate tenant exists AND has 1C integration configured, and fetch its
+    // webhook secret in the same round trip.
+    const [config] = await db.select({
+      tenantId: onecConfig.tenantId,
+      webhookSecret: onecConfig.webhookSecret,
+    })
       .from(onecConfig)
       .where(eq(onecConfig.tenantId, body.tenantId))
       .limit(1);
     if (!config) {
       logger.warn("1C webhook: tenant not found or not configured", { tenantId: body.tenantId });
       return c.json({ error: "Tenant not configured for 1C integration" }, 403);
+    }
+
+    // A tenant that has been issued its own secret is authenticated against it
+    // and nothing else — the global secret no longer works for that tenant.
+    // Tenants without one (NULL) still fall back to the deprecated global
+    // secret. Both branches run exactly one `safeEqual` and share a single 401,
+    // so the response does not reveal which of the two a tenant is on.
+    const usingGlobalFallback = config.webhookSecret == null;
+    const expected = usingGlobalFallback ? env.onecWebhookSecret : config.webhookSecret;
+
+    // An unset/empty expected secret must never authorise anything. Guard
+    // explicitly here instead of relying on how `safeEqual` treats empty
+    // inputs, so an unset ONEC_WEBHOOK_SECRET can't become an open door.
+    const authorised = !!expected && expected.length > 0 && safeEqual(presented, expected);
+    if (!authorised) {
+      return c.json({ error: "Unauthorized" }, 401);
+    }
+
+    if (usingGlobalFallback) {
+      logger.warn(
+        "1C webhook: tenant authenticated with the deprecated global secret — rotate to a per-tenant secret",
+        { tenantId: body.tenantId },
+      );
     }
 
     c.set("validatedBody", body);

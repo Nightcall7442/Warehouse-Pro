@@ -6,19 +6,10 @@ import { z } from "zod";
 import { createRouter, authedQuery } from "./middleware";
 import { apiKeys } from "../db/schema";
 import { eq, and, desc } from "drizzle-orm";
-import { createHash, randomBytes } from "crypto";
 import { TRPCError } from "@trpc/server";
+import { generateApiKey } from "./lib/api-key";
 
 const SCOPE_LIST = ["read", "write", "orders", "products", "stock", "shops", "webhooks"] as const;
-
-function hashKey(key: string): string {
-  return createHash("sha256").update(key).digest("hex");
-}
-
-function generateApiKey(): { raw: string; hash: string; prefix: string } {
-  const raw = "wp_live_" + randomBytes(24).toString("hex");
-  return { raw, hash: hashKey(raw), prefix: raw.slice(0, 12) };
-}
 
 export const apiKeyRouter = createRouter({
   /** List all API keys for current tenant */
@@ -27,7 +18,14 @@ export const apiKeyRouter = createRouter({
     const rows = await db.select().from(apiKeys)
       .where(eq(apiKeys.tenantId, ctx.user.tenantId))
       .orderBy(desc(apiKeys.createdAt));
-    return rows.map(r => ({ ...r, keyHash: undefined, keyPrefix: r.keyPrefix + "…" }));
+    // Never expose either hash: the lookup hash is enough to impersonate a key
+    // against the DB, and the Argon2 hash is offline-crackable material.
+    return rows.map(r => ({
+      ...r,
+      keyHash: undefined,
+      keySecretHash: undefined,
+      keyPrefix: r.keyPrefix + "…",
+    }));
   }),
 
   /** Create a new API key. Returns the raw key ONCE — it cannot be retrieved later. */
@@ -43,7 +41,7 @@ export const apiKeyRouter = createRouter({
         throw new TRPCError({ code: "FORBIDDEN", message: "Only CEO or SuperAdmin can manage API keys." });
       }
       const db = ctx.db;
-      const { raw, hash, prefix } = generateApiKey();
+      const { raw, lookupHash, secretHash, prefix } = await generateApiKey();
       const expiresAt = input.expiresInDays
         ? new Date(Date.now() + input.expiresInDays * 86_400_000)
         : null;
@@ -51,7 +49,8 @@ export const apiKeyRouter = createRouter({
       await db.insert(apiKeys).values({
         tenantId: ctx.user.tenantId,
         name: input.name,
-        keyHash: hash,
+        keyHash: lookupHash,
+        keySecretHash: secretHash,
         keyPrefix: prefix,
         scopes: input.scopes.join(","),
         rateLimit: input.rateLimit,

@@ -884,7 +884,12 @@ export const apiKeys = mysqlTable("api_keys", {
   id:          serial("id").primaryKey(),
   tenantId:    bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
   name:        varchar("name", { length: 100 }).notNull(),
+  // Deterministic lookup hash. Legacy rows hold sha256(raw); rows upgraded or
+  // created after P1.3 hold hmac-sha256(raw) keyed with APP_SECRET.
   keyHash:     varchar("key_hash", { length: 64 }).notNull(),
+  // Argon2id hash of the raw key, verified after the lookup. NULL on legacy rows
+  // until their first successful verification rehashes them.
+  keySecretHash: varchar("key_secret_hash", { length: 255 }),
   keyPrefix:   varchar("key_prefix", { length: 12 }).notNull(),   // first 8 chars for display: "wp_live_..."
   scopes:      varchar("scopes", { length: 500 }).default("read").notNull(), // comma-separated: read,write,orders,products,stock
   rateLimit:   int("rate_limit").default(100).notNull(),       // requests per minute
@@ -910,6 +915,9 @@ export const onecConfig = mysqlTable("onec_config", {
   url:           varchar("url", { length: 500 }).notNull(),
   username:      varchar("username", { length: 100 }).notNull(),
   password:      varchar("password", { length: 500 }).notNull(),
+  // Per-tenant webhook secret (hex). NULL means this tenant still falls back to
+  // the global ONEC_WEBHOOK_SECRET; rotate to issue one.
+  webhookSecret: varchar("webhook_secret", { length: 64 }),
   syncProducts:  boolean("sync_products").default(true),
   syncOrders:    boolean("sync_orders").default(true),
   intervalMinutes: int("interval_minutes").default(60),

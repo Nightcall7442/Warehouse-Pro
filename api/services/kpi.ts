@@ -419,17 +419,17 @@ export async function calculateSalary(
     .where(eq(users.id, agentId))
     .limit(1);
 
-  // Auto-persist commission record to DB
-  const monthStart = periodStart.toISOString().slice(0, 10);
-  const monthEnd = periodEnd.toISOString().slice(0, 10);
+  // Auto-persist commission record to DB. period_start/period_end are DATE
+  // columns, so the Date objects go in as-is — drizzle serialises them to
+  // YYYY-MM-DD, which is what the hand-sliced strings used to produce.
   try {
     if (commissionRecord?.id) {
       await db.update(commissions)
         .set({
           salesAmount: salesAmount.toFixed(2),
           commissionAmount: commissionAmount.toFixed(2),
-          periodStart: monthStart,
-          periodEnd: monthEnd,
+          periodStart,
+          periodEnd,
         })
         .where(eq(commissions.id, commissionRecord.id));
     } else if (commissionRate > 0) {
@@ -438,8 +438,8 @@ export async function calculateSalary(
         userId: agentId,
         commissionRate: commissionRate.toFixed(2),
         periodType: "monthly",
-        periodStart: monthStart,
-        periodEnd: monthEnd,
+        periodStart,
+        periodEnd,
         salesAmount: salesAmount.toFixed(2),
         commissionAmount: commissionAmount.toFixed(2),
       });

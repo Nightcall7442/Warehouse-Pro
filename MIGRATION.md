@@ -226,3 +226,115 @@ and an intercepted S3 client, asserting that what lands in the bucket decrypts
 back to the exact dump (13). The claim "restore verification passes in under 5
 minutes" therefore still needs one real run against a live database — step 4 of
 the checklist above is that run.
+
+## P1.1 — OrderService split into domain modules
+
+**What changed.** `api/services/order.ts` (700 lines) became `api/services/order/`:
+
+| Module | Lines | Responsibility |
+| --- | --- | --- |
+| `index.ts` | 176 | Composition root — the public `OrderService`, unchanged surface |
+| `create.ts` | 98 | Order creation, the one flow with enough steps to stand alone |
+| `read-model.ts` | 121 | `list` / `getById` / `myOrders` — what the UI reads |
+| `repository.ts` | 107 | Order writes and single-row lookups |
+| `stock-manager.ts` | 199 | reserve / release / deduct / re-reserve, with the row locking |
+| `debt-calculator.ts` | 80 | When and by how much a shop's receivable moves |
+| `validator.ts` | 107 | Pure rules: transitions, discounts, availability |
+| `notifier.ts` | 74 | Post-commit notifications and push |
+| `types.ts`, `cache.ts` | 57 | Shared types; the one dashboard cache key |
+
+No API surface changed — `api/order-router.ts` and every test call the same methods
+with the same arguments, and the 109 existing order tests pass untouched. Imports
+resolve through the directory's `index.ts`, so `from "./services/order"` still works.
+
+**Worth knowing:**
+
+- `withTransaction` (P0.3) is now the safer default for these flows, but the split
+  deliberately kept `db.transaction(...)` where it already was — the callbacks only
+  use their `tx`, so behaviour is identical and the diff stays reviewable.
+- Two rules that were duplicated inline in four places are now single functions:
+  "does this order still hold stock" (`holdsStock`) and "should the receivable
+  move" (`OrderDebtCalculator.*`). They had already drifted apart once — `cancel`
+  reversed a credit order's debt without checking the status, while `delete` and
+  `update` did check it.
+- 36 new unit tests cover the pure rules and the debt decisions directly
+  (`validator.test.ts`, `debt-calculator.test.ts`), which previously could only be
+  reached through a mocked query builder.
+
+## P1.2 — safeEqual no longer leaks the secret's length
+
+`api/lib/safe-compare.ts` used to `return false` as soon as the two buffers
+differed in length, which is measurably faster than a full comparison. Both
+buffers are now padded to the longer length before `timingSafeEqual`, and the
+length equality is ANDed in afterwards, with both operands evaluated first.
+
+The accompanying timing test interleaves its cases round-robin and asserts that no
+input shape is more than 2.5× faster than the slowest — measured spread on the
+fixed implementation is 1.2–1.5×, against 2.8–3.2× on the old one. The assertion
+was verified to fail against the reverted implementation.
+
+## P1.3 — API keys: Argon2id verification with a peppered lookup
+
+**Schema:** `api_keys.key_secret_hash VARCHAR(255) NULL` (migration `0030`).
+
+`key_hash` stays the deterministic **lookup** column and `key_secret_hash` holds
+the Argon2id hash that is verified after the lookup. That split matters: Argon2
+hashes are salted, so looking a key up by one is impossible, and looking up by the
+12-character `key_prefix` (16 bits of entropy) would mean running Argon2 once per
+candidate row — a CPU-exhaustion vector.
+
+- New keys: `key_hash = hmac-sha256(raw, APP_SECRET)`, `key_secret_hash = argon2id`
+  (memoryCost 65536, timeCost 3, parallelism 4).
+- Existing keys keep working: lookup matches either the HMAC or the legacy
+  `sha256(raw)`, compared with `safeEqual`. A legacy match rehashes the row in
+  place (detached, failures logged) so the estate migrates as keys are used.
+- Verification is rate-limited to 10/min per key prefix **before** any Argon2 work.
+- **Bug fixed in passing:** the per-key limiter read `if (!checkRateLimit(...))`
+  without `await`, testing a Promise for falsiness — so the public API had no
+  per-key rate limiting at all.
+
+**Honest assessment.** Argon2 does not materially harden a 192-bit random token:
+brute-forcing sha256 of `randomBytes(24)` was never feasible, and a KDF only pays
+off against low-entropy secrets. The real gains here are the pepper (a leaked
+database alone can no longer *recognise* a key) and the two rate-limit fixes.
+Argon2 is worth keeping as insurance if key generation ever changes, but budget for
+its cost: ~50–100 ms and 64 MiB per verification, on a 4-thread libuv pool.
+
+## P1.4 — Per-tenant 1C webhook secret
+
+**Schema:** `onec_config.webhook_secret VARCHAR(64) NULL` (migration `0031`).
+
+The webhook authenticated every tenant against one global `ONEC_WEBHOOK_SECRET`,
+so any tenant's integration credentials authorised webhooks for every other tenant.
+The middleware now resolves the tenant first, loads that tenant's secret with the
+config row it already fetched, and compares against it.
+
+- `onec.rotateWebhookSecret` (CEO-only, same guard as the other 1C mutations)
+  issues `randomBytes(32).toString("hex")` and returns it **once**.
+- A tenant with no secret yet falls back to the global one and logs a deprecation
+  warning naming the tenantId — the warning volume is your rotation checklist.
+- An empty global secret can never authorise anything: that is guarded explicitly
+  rather than relying on `safeEqual("", "")`.
+- Once `ONEC_WEBHOOK_SECRET` is removed from the environment, any tenant that has
+  not rotated starts getting 401s. Rotate first, then remove.
+- `onec.wizard.getConfig` now masks `webhookSecret` the way it already masked the
+  password, so the secret is not echoed back on every config read.
+
+### Heads-up: the migration journal is out of sync
+
+`db/migrations/meta/_journal.json` lists entries up to `0021`, but the directory
+contains hand-written SQL through `0029` — `0022`–`0029` and `001_photo_url_mediumtext`
+are **not journaled**, so `drizzle-kit migrate` never applies them. Those schema
+changes exist in production only because they were applied by hand or by `db push`.
+
+The two migrations added here (`0030`, `0031`) follow the same hand-written
+convention, which means **they must be applied manually too**:
+
+```sql
+ALTER TABLE `api_keys`    ADD COLUMN `key_secret_hash` VARCHAR(255) NULL AFTER `key_hash`;
+ALTER TABLE `onec_config` ADD COLUMN `webhook_secret`  VARCHAR(64)  NULL AFTER `password`;
+```
+
+Regenerating the journal properly needs a `drizzle-kit generate` run against a
+database that matches `schema.ts`, plus snapshot files for the gap — worth doing as
+its own change, before the next schema edit, rather than folded into this one.

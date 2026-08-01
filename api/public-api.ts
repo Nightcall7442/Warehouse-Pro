@@ -5,11 +5,15 @@
 import { Hono } from "hono";
 import { getDb } from "./queries/connection";
 import { apiKeys, products, orders, orderItems, warehouseStock, shops } from "../db/schema";
-import { eq, and, desc, sql } from "drizzle-orm";
-import { createHash } from "crypto";
+import { eq, and, desc, inArray, sql } from "drizzle-orm";
 import { checkRateLimit as sharedCheckRateLimit } from "./lib/rate-limit";
+import { logger } from "./lib/logger";
+import { apiKeyPrefix, lookupHashes, upgradeApiKeyHashes, verifyKey } from "./lib/api-key";
 
 const app = new Hono();
+
+/** Verification attempts allowed per minute per key prefix (Argon2 is expensive). */
+const VERIFY_ATTEMPTS_PER_MINUTE = 10;
 
 // ── API Key validation middleware ─────────────────────────────────────────────
 app.use("*", async (c, next) => {
@@ -18,18 +22,59 @@ app.use("*", async (c, next) => {
     return c.json({ error: "Missing or invalid Authorization header. Use: Authorization: Bearer wp_live_..." }, 401);
   }
   const rawKey = authHeader.slice(7);
-  const keyHash = createHash("sha256").update(rawKey).digest("hex");
 
+  // Throttle *before* any Argon2 work so a flood of guesses cannot burn CPU.
+  // Keyed on the (public, low-entropy) prefix, which is all we know pre-lookup.
+  const verifyAllowed = await sharedCheckRateLimit(apiKeyPrefix(rawKey), {
+    windowMs: 60_000,
+    limit: VERIFY_ATTEMPTS_PER_MINUTE,
+    namespace: "api-key-verify",
+  });
+  if (!verifyAllowed) {
+    return c.json({ error: "Rate limit exceeded", retryAfter: 60 }, 429);
+  }
+
+  // O(1) indexed lookup that matches both the peppered HMAC (current) and the
+  // unsalted sha256 (legacy) forms of `keyHash`.
+  const hashes = lookupHashes(rawKey);
   const db = getDb();
-  const [key] = await db.select().from(apiKeys).where(eq(apiKeys.keyHash, keyHash)).limit(1);
+  const [key] = await db.select().from(apiKeys)
+    .where(inArray(apiKeys.keyHash, [hashes.current, hashes.legacy]))
+    .limit(1);
 
   if (!key) return c.json({ error: "Invalid API key" }, 401);
+
+  // Argon2id verification when the row has a secret hash; legacy rows fall back
+  // to the deterministic lookup value and get rehashed below.
+  const verification = await verifyKey(key, rawKey);
+  if (verification.status === "rejected") return c.json({ error: "Invalid API key" }, 401);
+
   if (key.status !== "active") return c.json({ error: "API key is suspended" }, 403);
   if (key.expiresAt && new Date(key.expiresAt) < new Date()) return c.json({ error: "API key has expired" }, 403);
 
-  // Rate limit (using shared Redis-backed limiter)
-  if (!sharedCheckRateLimit(keyHash, { windowMs: 60_000, limit: key.rateLimit, namespace: "public-api" })) {
+  // Rate limit (using shared Redis-backed limiter).
+  // FIX: this was called without `await`, so a Promise (always truthy) was
+  // negated and the per-key limit never triggered.
+  const allowed = await sharedCheckRateLimit(key.keyHash, {
+    windowMs: 60_000,
+    limit: key.rateLimit,
+    namespace: "public-api",
+  });
+  if (!allowed) {
     return c.json({ error: "Rate limit exceeded", retryAfter: 60 }, 429);
+  }
+
+  // Rehash legacy rows in place. Detached so the request is not held up by a
+  // second Argon2 hash, but failures are logged rather than swallowed.
+  if (verification.needsUpgrade) {
+    void upgradeApiKeyHashes(rawKey)
+      .then(fields => db.update(apiKeys).set(fields).where(eq(apiKeys.id, key.id)))
+      .then(() => logger.info("Upgraded API key hash to argon2id", { apiKeyId: key.id, tenantId: key.tenantId }))
+      .catch((err: unknown) => logger.error("Failed to upgrade API key hash to argon2id", {
+        apiKeyId: key.id,
+        tenantId: key.tenantId,
+        error: err instanceof Error ? err.message : String(err),
+      }));
   }
 
   // Update last used
