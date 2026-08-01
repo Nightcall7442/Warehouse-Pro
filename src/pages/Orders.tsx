@@ -765,7 +765,7 @@ export default function Orders() {
       open={!!slideOverOrderId}
       onOpenChange={(v) => { if (!v) setSlideOverOrderId(null); }}
       orderId={slideOverOrderId}
-      currency={currency}
+      currency={symbol}
     />
 
     {/* ── Quick Order Modal ── */}
