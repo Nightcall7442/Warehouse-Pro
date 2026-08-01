@@ -1,3 +1,4 @@
+import { DomainError } from "../../lib/domain-error";
 import type { OrderLine, OrderStatus } from "./types";
 
 /**
@@ -23,23 +24,23 @@ export function canTransition(from: string, to: OrderStatus): boolean {
 
 export function assertTransition(from: string, to: OrderStatus): void {
   if (!canTransition(from, to)) {
-    throw new Error(`Невозможно перевести из "${from}" в "${to}"`);
+    throw DomainError.conflict(`Невозможно перевести из "${from}" в "${to}"`);
   }
 }
 
 export function assertDiscountNotNegative(discount: number): void {
-  if (discount < 0) throw new Error("Скидка не может быть отрицательной");
+  if (discount < 0) throw DomainError.badRequest("Скидка не может быть отрицательной");
 }
 
 export function assertDiscountWithinSubtotal(discount: number, subtotal: number): void {
   if (discount > subtotal) {
-    throw new Error(`Скидка (${discount}) не может превышать сумму заказа (${subtotal})`);
+    throw DomainError.badRequest(`Скидка (${discount}) не может превышать сумму заказа (${subtotal})`);
   }
 }
 
 /** The message differs from the create path's — kept as-is, it is user-visible. */
 export function assertUpdatedDiscountWithinSubtotal(discount: number, subtotal: number): void {
-  if (discount > subtotal) throw new Error("Скидка не может превышать сумму заказа");
+  if (discount > subtotal) throw DomainError.badRequest("Скидка не может превышать сумму заказа");
 }
 
 /**
@@ -52,7 +53,7 @@ export function priceOrderLines(
 ): { subtotal: number } {
   for (const item of items) {
     if (!priceMap.has(item.productId)) {
-      throw new Error(`Товар #${item.productId} не найден или неактивен`);
+      throw DomainError.notFound(`Товар #${item.productId} не найден или неактивен`);
     }
   }
 
@@ -72,10 +73,10 @@ export function assertAvailableForReservation(
   for (const item of items) {
     const available = availableByProduct.get(item.productId) ?? 0;
     if (available < 0) {
-      throw new Error(`Некорректный остаток товара на складе (доступно: ${available}). Обратитесь к администратору.`);
+      throw DomainError.conflict(`Некорректный остаток товара на складе (доступно: ${available}). Обратитесь к администратору.`);
     }
     if (available < Number(item.quantity)) {
-      throw new Error(`Недостаточно товара на складе (доступно: ${available}, запрошено: ${item.quantity})`);
+      throw DomainError.conflict(`Недостаточно товара на складе (доступно: ${available}, запрошено: ${item.quantity})`);
     }
   }
 }
@@ -94,14 +95,14 @@ export function insufficientForDeduction(
 export function assertSufficientForDeduction(items: OrderLine[], currentByProduct: Map<number, number>): void {
   const insufficient = insufficientForDeduction(items, currentByProduct);
   if (insufficient.length > 0) {
-    throw new Error(`Недостаточно товара на складе: ${insufficient.map(i => `${i.productId}`).join(", ")}`);
+    throw DomainError.conflict(`Недостаточно товара на складе: ${insufficient.map(i => `${i.productId}`).join(", ")}`);
   }
 }
 
 export function assertRestorable(order: { deletedAt: Date | null }): void {
-  if (!order.deletedAt) throw new Error("Заказ не удалён");
+  if (!order.deletedAt) throw DomainError.conflict("Заказ не удалён");
 }
 
 export function assertCancellable(status: string): void {
-  if (status !== "new") throw new Error("Можно отменить только новые заказы");
+  if (status !== "new") throw DomainError.conflict("Можно отменить только новые заказы");
 }

@@ -1,6 +1,7 @@
 import { eq, and, sql } from "drizzle-orm";
 import { warehouseStock, warehouses } from "@db/schema";
 import { assertAvailableForReservation, assertSufficientForDeduction } from "./validator";
+import { DomainError } from "../../lib/domain-error";
 import type { OrderLine, Tx } from "./types";
 
 /**
@@ -23,9 +24,9 @@ export async function resolveOrderWarehouse(tx: Tx, tenantId: number, requested?
   const [defaultWh] = await tx.select({ id: warehouses.id }).from(warehouses)
     .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true))).limit(1);
   const whId = defaultWh?.id;
-  if (!whId) throw new Error("Склад по умолчанию не найден");
+  if (!whId) throw DomainError.conflict("Склад по умолчанию не найден");
   if (requested !== undefined && requested !== whId) {
-    throw new Error("Заказ можно оформить только со склада по умолчанию");
+    throw DomainError.badRequest("Заказ можно оформить только со склада по умолчанию");
   }
   return whId;
 }
@@ -160,7 +161,7 @@ export const OrderStockManager = {
         AND tenant_id = ${tenantId}
         AND warehouse_id = ${warehouseId}
     `);
-    throw new Error(`Недостаточно товара на складе: ${short.map(i => `${i.productId}`).join(", ")}`);
+    throw DomainError.conflict(`Недостаточно товара на складе: ${short.map(i => `${i.productId}`).join(", ")}`);
   },
 
   /**
@@ -187,7 +188,7 @@ export const OrderStockManager = {
         .limit(1);
       const available = Number(stock?.available ?? 0);
       if (available < qty) {
-        throw new Error(`Недостаточно товара на складе для восстановления (товар ID ${item.productId}: доступно ${available}, нужно ${qty})`);
+        throw DomainError.conflict(`Недостаточно товара на складе для восстановления (товар ID ${item.productId}: доступно ${available}, нужно ${qty})`);
       }
       await tx.execute(sql`
         UPDATE warehouse_stock

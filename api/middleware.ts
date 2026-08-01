@@ -6,6 +6,7 @@ import type { Role } from "@contracts/types";
 import { env } from "./lib/env";
 import { checkSubscriptionAccess } from "./lib/feature-gating";
 import { checkRateLimit, getClientIp } from "./lib/rate-limit";
+import { isDomainError } from "./lib/domain-error";
 
 // ── Translate ZodError codes into user-friendly Russian messages ─────────────
 const FIELD_LABELS: Record<string, string> = {
@@ -238,14 +239,44 @@ export const requireActiveSubscription = t.middleware(async ({ ctx, next }) => {
   return next({ ctx });
 });
 
+// ── Domain errors → tRPC codes ───────────────────────────────────────────────
+/**
+ * Services throw `DomainError` for conditions that are the caller's, not the
+ * server's: a row that is gone, a status that does not allow the transition, stock
+ * that ran out. Without this they arrive as plain Errors and tRPC reports
+ * INTERNAL_SERVER_ERROR — a 500 in the monitoring feed, a Sentry event and a
+ * "внутренняя ошибка сервера" toast for what is really a 404 or a 409.
+ */
+const DOMAIN_ERROR_CODES = {
+  NOT_FOUND:   "NOT_FOUND",
+  CONFLICT:    "CONFLICT",
+  FORBIDDEN:   "FORBIDDEN",
+  BAD_REQUEST: "BAD_REQUEST",
+} as const;
+
+const withDomainErrors = t.middleware(async ({ next }) => {
+  try {
+    return await next();
+  } catch (err) {
+    if (isDomainError(err)) {
+      throw new TRPCError({
+        code: DOMAIN_ERROR_CODES[err.code],
+        message: err.message,
+        cause: err,
+      });
+    }
+    throw err;
+  }
+});
+
 // ── Base public procedure with correlation ID ─────────────────────────────────
-const basePublic = t.procedure.use(withCorrelationId);
+const basePublic = t.procedure.use(withCorrelationId).use(withDomainErrors);
 
 // Re-export as `publicQuery` — all public procedures get correlation IDs
 export const publicQuery = basePublic;
 
 // ── Compose authenticated procedures ──────────────────────────────────────────
-export const authedQuery     = t.procedure.use(withCorrelationId).use(withTenantIsolation).use(withGlobalRateLimit).use(requireAuth);
+export const authedQuery     = t.procedure.use(withCorrelationId).use(withDomainErrors).use(withTenantIsolation).use(withGlobalRateLimit).use(requireAuth);
 
 // superAdminQuery — platform-level operations: manage tenants, billing, platform stats.
 // Only superadmin can access these endpoints.

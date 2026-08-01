@@ -13,6 +13,7 @@ import {
   assertUpdatedDiscountWithinSubtotal,
   holdsStock,
 } from "./validator";
+import { DomainError } from "../../lib/domain-error";
 import type { ActorOpts, CreateOrderInput, Db, ListFilters, OrderStatus } from "./types";
 
 /**
@@ -53,7 +54,7 @@ export const OrderService = {
         ownAgentId: isPrivileged ? undefined : opts.userId,
         excludeDeleted: true,
       });
-      if (!order) throw new Error("Заказ не найден");
+      if (!order) throw DomainError.notFound("Заказ не найден");
       assertCancellable(order.status);
 
       await OrderDebtCalculator.onCancel(tx, tenantId, order);
@@ -73,7 +74,7 @@ export const OrderService = {
       // Soft-deleted orders already gave their stock back; moving them through
       // the lifecycle again would double-count it.
       const order = await OrderRepository.snapshotForUpdate(tx, tenantId, orderId, { excludeDeleted: true });
-      if (!order) throw new Error("Заказ не найден");
+      if (!order) throw DomainError.notFound("Заказ не найден");
 
       if (order.status === newStatus && (order.status === "completed" || order.status === "cancelled")) {
         return { success: true };
@@ -105,7 +106,7 @@ export const OrderService = {
   async delete(db: Db, tenantId: number, orderId: number) {
     await db.transaction(async (tx) => {
       const order = await OrderRepository.snapshotForUpdate(tx, tenantId, orderId, { excludeDeleted: true });
-      if (!order) throw new Error("Заказ не найден или уже удалён");
+      if (!order) throw DomainError.notFound("Заказ не найден или уже удалён");
 
       await OrderDebtCalculator.onDelete(tx, tenantId, order);
 
@@ -126,7 +127,7 @@ export const OrderService = {
 
     await db.transaction(async (tx) => {
       const order = await OrderRepository.snapshotForUpdate(tx, tenantId, orderId, { excludeDeleted: true });
-      if (!order) throw new Error("Заказ не найден");
+      if (!order) throw DomainError.notFound("Заказ не найден");
 
       const updates: Record<string, unknown> = {};
       if (data.notes !== undefined) updates.notes = data.notes;
@@ -149,7 +150,7 @@ export const OrderService = {
 
   async restore(db: Db, tenantId: number, orderId: number) {
     const order = await OrderRepository.findForRestore(db, tenantId, orderId);
-    if (!order) throw new Error("Заказ не найден");
+    if (!order) throw DomainError.notFound("Заказ не найден");
     assertRestorable(order);
 
     await db.transaction(async (tx) => {

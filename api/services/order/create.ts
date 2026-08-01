@@ -4,6 +4,7 @@ import { OrderNotifier } from "./notifier";
 import { OrderRepository } from "./repository";
 import { OrderStockManager } from "./stock-manager";
 import { assertDiscountNotNegative, assertDiscountWithinSubtotal, priceOrderLines } from "./validator";
+import { DomainError } from "../../lib/domain-error";
 import type { CreateOrderInput, Db } from "./types";
 
 /**
@@ -30,7 +31,7 @@ export async function createOrder(db: Db, tenantId: number, agentId: number, inp
 
   // P0-1 FIX: Validate shop belongs to this tenant
   const shop = await OrderRepository.findShop(db, tenantId, input.shopId);
-  if (!shop) throw new Error("Магазин не найден в вашей организации");
+  if (!shop) throw DomainError.notFound("Магазин не найден в вашей организации");
 
   // #FIX1-IDEMPOTENCY: Check for existing order with same key
   if (input.idempotencyKey) {
