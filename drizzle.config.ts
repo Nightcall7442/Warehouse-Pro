@@ -19,6 +19,7 @@ function isRemote(u: string): boolean {
   }
 }
 
+// Touched to trigger .github/workflows/test-migrations.yml's push-path filter.
 export default defineConfig({
   schema: "./db/schema.ts",
   out: "./db/migrations",
