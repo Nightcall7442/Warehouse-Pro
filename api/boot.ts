@@ -21,6 +21,7 @@ import { sql } from "drizzle-orm";
 import { logger } from "./lib/logger";
 import { recordRequest } from "./system-router";
 import { logError, logTrpcError } from "./lib/error-log";
+import { stripBoundParams } from "./lib/db-error";
 import { safeEqual } from "./lib/safe-compare";
 import { rememberSocketIp, warnIfClientIpUnavailable } from "./lib/rate-limit";
 
@@ -141,8 +142,10 @@ app.use("*", async (c, next) => {
 
 // ── Global JSON error handler (catches unhandled throws) ─────────────────────
 app.onError((err, c) => {
-  const message = err instanceof Error ? err.message : String(err);
-  const stack = err instanceof Error ? err.stack : undefined;
+  // Scrubbed for the same reason as the tRPC path: a Drizzle failure reaching
+  // here carries its bound parameters in both the message and the stack.
+  const message = stripBoundParams(err instanceof Error ? err.message : String(err));
+  const stack = err instanceof Error && err.stack ? stripBoundParams(err.stack) : undefined;
   logger.error("Unhandled error", { error: message, stack });
   return c.json({ error: "Internal server error" }, 500);
 });
@@ -455,7 +458,10 @@ app.use("/api/trpc/*", async (c) => {
       // 500/POST, which turned one expired session into three "server errors".
       // logTrpcError also picks the sink: the error feed for 5xx, the client-issue
       // counters for 4xx, so an expected condition never pollutes the feed.
-      const { statusCode, method, isServerFault } = logTrpcError({
+      // `db` is the driver-level reason (ER_TRUNCATED_WRONG_VALUE, sqlMessage,
+      // column) when the failure came from MySQL — the detail that used to stop
+      // at Drizzle's `.cause` and never reach any sink.
+      const { statusCode, method, isServerFault, db } = logTrpcError({
         error,
         path,
         method: req?.method,
@@ -477,14 +483,32 @@ app.use("/api/trpc/*", async (c) => {
         return;
       }
 
-      logger.error("tRPC internal error", { path: errorPath, method, statusCode, code: error.code, error: error.cause ?? error.message });
+      // Log the message, not the error object: a DrizzleQueryError keeps `query`
+      // and `params` as own enumerable properties, so serialising it writes every
+      // bound value — customer names, prices, phone numbers — to stderr.
+      logger.error("tRPC internal error", {
+        path: errorPath,
+        method,
+        statusCode,
+        code: error.code,
+        error: stripBoundParams(error.message),
+        db,
+      });
 
       // Capture tRPC errors in Sentry with tags for alert targeting
       Sentry.withScope((scope) => {
         scope.setTag("error_type", "trpc");
         scope.setTag("trpc_path", errorPath);
         scope.setTag("trpc_code", error.code);
-        scope.setContext("trpc", { path, code: error.code, message: error.message });
+        // Alertable on its own: a spike of one driver code is a schema or data
+        // problem, not a generic 500.
+        if (db?.driverCode) scope.setTag("db_code", db.driverCode);
+        scope.setContext("trpc", {
+          path,
+          code: error.code,
+          message: stripBoundParams(error.message),
+        });
+        if (db) scope.setContext("db", { ...db });
         Sentry.captureException(error.cause ?? new Error(error.message));
       });
     },

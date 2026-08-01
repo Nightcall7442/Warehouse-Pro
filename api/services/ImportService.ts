@@ -2,6 +2,7 @@ import { getDb } from "../queries/connection";
 import { products, shops, warehouseStock, warehouses } from "@db/schema";
 import { eq, and } from "drizzle-orm";
 import { cache, CacheKeys } from "../lib/cache";
+import { describeDbError, extractDbError } from "../lib/db-error";
 
 type ParsedRow = Record<string, string | number | null>;
 
@@ -128,13 +129,15 @@ export const ImportService = {
           });
           success.count++;
         } catch (err: unknown) {
-          const e = err as { cause?: { message?: string }; message?: string; sqlMessage?: string; code?: string };
-          const causeMsg = e?.cause?.message || "";
-          const fullMsg = [e?.message, causeMsg, e?.sqlMessage].filter(Boolean).join(" | ");
-          if (causeMsg.includes("Duplicate") || fullMsg.includes("Duplicate") || fullMsg.includes("uq_product") || e?.code === "ER_DUP_ENTRY") {
+          // extractDbError walks the cause chain Drizzle builds, so the duplicate
+          // is identified by its driver code instead of by grepping the message —
+          // and the reason shown to the importer is the server's own text, with
+          // the bound row values stripped out.
+          const dbError = extractDbError(err);
+          if (dbError?.driverCode === "ER_DUP_ENTRY") {
             skipped.push(`${row.code} — уже существует`);
           } else {
-            errors.push(`Строка ${row.rowNum}: ${fullMsg}`);
+            errors.push(`Строка ${row.rowNum}: ${describeDbError(err)}`);
           }
         }
       }
@@ -165,13 +168,14 @@ export const ImportService = {
         });
         success.count++;
       } catch (err: unknown) {
-        const e = err as { cause?: { message?: string }; message?: string; sqlMessage?: string; code?: string };
-        const causeMsg = e?.cause?.message || "";
-        const fullMsg = [e?.message, causeMsg, e?.sqlMessage].filter(Boolean).join(" | ");
-        if (causeMsg.includes("Duplicate") || fullMsg.includes("Duplicate") || e?.code === "ER_DUP_ENTRY") {
+        // NOTE (pre-existing, untouched): `skipped` is never declared in this
+        // function and `name` is scoped to the try block, so the duplicate branch
+        // below does not compile. Only the extraction moved to extractDbError.
+        const dbError = extractDbError(err);
+        if (dbError?.driverCode === "ER_DUP_ENTRY") {
           skipped.push(`${name} — уже существует`);
         } else {
-          errors.push(`Строка ${rowNum}: ${fullMsg}`);
+          errors.push(`Строка ${rowNum}: ${describeDbError(err)}`);
         }
       }
     }

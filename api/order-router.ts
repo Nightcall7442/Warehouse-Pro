@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createRouter, operatorQuery, fieldSalesQuery } from "./middleware";
 import { isoDaySchema } from "./lib/date-range";
 import { decimalString, requiredDecimalString } from "./lib/zod-decimal";
+import { extractDbError, stripBoundParams } from "./lib/db-error";
 import { OrderService } from "./services/order";
 
 /** Clients send order numbers as either a number or a string; both land on a DECIMAL column. */
@@ -57,16 +58,13 @@ export const orderRouter = createRouter({
       try {
         return await OrderService.create(ctx.db, ctx.tenant.id, ctx.user.id, input);
       } catch (err) {
-        const cause = err instanceof Error ? err.cause : undefined;
+        // The driver detail this used to dig out by hand now comes from
+        // extractDbError, which walks the whole cause chain and drops the bound
+        // parameters. The rethrow reaches the tRPC onError handler, which records
+        // the same detail in the error feed.
         console.error("[order.create FAILED]", {
-          message: err instanceof Error ? err.message : String(err),
-          code: err && typeof err === "object" && "code" in err ? (err as Record<string, unknown>).code : undefined,
-          errno: err && typeof err === "object" && "errno" in err ? (err as Record<string, unknown>).errno : undefined,
-          sqlMessage: err && typeof err === "object" && "sqlMessage" in err ? (err as Record<string, unknown>).sqlMessage : undefined,
-          causeCode: cause && typeof cause === "object" && "code" in cause ? (cause as Record<string, unknown>).code : undefined,
-          causeErrno: cause && typeof cause === "object" && "errno" in cause ? (cause as Record<string, unknown>).errno : undefined,
-          causeSqlMessage: cause && typeof cause === "object" && "sqlMessage" in cause ? (cause as Record<string, unknown>).sqlMessage : undefined,
-          causeMessage: cause instanceof Error ? cause.message : String(cause),
+          message: stripBoundParams(err instanceof Error ? err.message : String(err)),
+          db: extractDbError(err),
           input: { shopId: input.shopId, itemCount: input.items.length, paymentMethod: input.paymentMethod },
         });
         throw err;

@@ -8,6 +8,7 @@ import { appendFileSync, readFileSync, existsSync, mkdirSync, renameSync, statSy
 import { join } from "path";
 import { getHTTPStatusCodeFromError } from "@trpc/server/http";
 import type { TRPCError } from "@trpc/server";
+import { extractDbError, stripBoundParams, type DbErrorDetail } from "./db-error";
 
 export interface ErrorEntry {
   id: string;
@@ -24,6 +25,13 @@ export interface ErrorEntry {
   stack?: string;
   duration?: number;
   meta?: Record<string, unknown>;
+  /**
+   * Driver-level detail when the failure came from the database: the code,
+   * errno, sqlState and the server's own message. Absent for everything else.
+   * Without it a failed insert reads as `Failed query: … values (?, ?)` and no
+   * reason at all — see api/lib/db-error.ts.
+   */
+  db?: DbErrorDetail;
 }
 
 const MAX_ERRORS = 500;
@@ -51,11 +59,28 @@ function loadErrors(): void {
 
 loadErrors();
 
-export function logError(entry: Omit<ErrorEntry, "id" | "timestamp">): ErrorEntry {
+/**
+ * Append an entry to the error feed.
+ *
+ * Pass `error` (anything thrown) to have the driver-level detail extracted for
+ * you; pass `db` directly if the caller already has it. Either way the message
+ * and stack are scrubbed of Drizzle's bound parameters before anything is
+ * written — the feed is persisted to disk and read from a monitoring page, and
+ * those values are customer data.
+ */
+export function logError(
+  entry: Omit<ErrorEntry, "id" | "timestamp"> & { error?: unknown },
+): ErrorEntry {
+  const { error, ...rest } = entry;
+  const db = rest.db ?? (error === undefined ? undefined : extractDbError(error) ?? undefined);
+
   const full: ErrorEntry = {
     id: `err_${Date.now()}_${++errorCounter}`,
     timestamp: Date.now(),
-    ...entry,
+    ...rest,
+    message: stripBoundParams(rest.message),
+    ...(rest.stack ? { stack: stripBoundParams(rest.stack) } : {}),
+    ...(db ? { db } : {}),
   };
 
   // In-memory cache
@@ -198,13 +223,15 @@ export function resetClientIssues(): void {
  *
  * The caller stays responsible for `logger`/Sentry, using the returned
  * classification: `logger.error` + Sentry for a server fault, a lower level for
- * a client condition.
+ * a client condition. `db` is returned alongside so those sinks can carry the
+ * same driver detail the feed got, instead of logging the raw Drizzle error
+ * (which holds `query` and `params` as own properties and would leak them).
  */
 export function logTrpcError(opts: {
   error: Pick<TRPCError, "code" | "message"> & { cause?: unknown };
   path?: string | null;
   method?: string | null;
-}): TrpcErrorClassification & { entry?: ErrorEntry } {
+}): TrpcErrorClassification & { entry?: ErrorEntry; db?: DbErrorDetail } {
   const classification = classifyTrpcError({ error: opts.error, method: opts.method });
   const path = opts.path ?? "unknown";
 
@@ -213,6 +240,11 @@ export function logTrpcError(opts: {
     return classification;
   }
 
+  // Walk from the tRPC error itself: the driver error is usually two levels
+  // down (TRPCError → DrizzleQueryError → mysql2), but a service that catches
+  // and rethrows can add another.
+  const db = extractDbError(opts.error) ?? undefined;
+
   const entry = logError({
     message: opts.error.message,
     code: opts.error.code,
@@ -220,9 +252,10 @@ export function logTrpcError(opts: {
     method: classification.method,
     statusCode: classification.statusCode,
     stack: opts.error.cause instanceof Error ? opts.error.cause.stack : undefined,
+    db,
   });
 
-  return { ...classification, entry };
+  return { ...classification, entry, db };
 }
 
 export function getErrors(opts?: {
