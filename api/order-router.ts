@@ -1,7 +1,11 @@
 import { z } from "zod";
 import { createRouter, operatorQuery, fieldSalesQuery } from "./middleware";
 import { isoDaySchema } from "./lib/date-range";
+import { decimalString, requiredDecimalString } from "./lib/zod-decimal";
 import { OrderService } from "./services/order";
+
+/** Clients send order numbers as either a number or a string; both land on a DECIMAL column. */
+const numericInput = z.union([z.number(), z.string()]).transform(String);
 
 export const orderRouter = createRouter({
   list: fieldSalesQuery
@@ -43,10 +47,10 @@ export const orderRouter = createRouter({
       idempotencyKey: z.string().uuid().optional(),
       items:          z.array(z.object({
         productId: z.number().int().positive(),
-        quantity:  z.union([z.number(), z.string()]).transform(String),
+        quantity:  numericInput.pipe(requiredDecimalString({ message: "Количество обязательно" })),
       })).min(1).max(100),
       notes:          z.string().max(500).optional(),
-      discount:       z.union([z.number(), z.string()]).transform(String).default("0.00"),
+      discount:       numericInput.optional().pipe(decimalString({ default: "0.00" })),
       paymentMethod:  z.enum(["cash", "card", "transfer", "debt"]).default("cash"),
     }))
     .mutation(async ({ input, ctx }) => {
@@ -88,7 +92,7 @@ export const orderRouter = createRouter({
     .input(z.object({
       id: z.number().int().positive(),
       notes: z.string().max(500).optional(),
-      discount: z.union([z.number(), z.string()]).transform(String).optional(),
+      discount: numericInput.optional().pipe(decimalString()),
     }))
     .mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;

@@ -4,6 +4,7 @@ import { settings } from "@db/schema";
 import { eq } from "drizzle-orm";
 import { cache, CacheKeys, CacheTTL } from "./lib/cache";
 import { sanitizeString, isSafeUrl } from "./lib/sanitize";
+import { decimalString } from "./lib/zod-decimal";
 
 export const settingsRouter = createRouter({
   get: authedQuery.query(async ({ ctx }) => {
@@ -55,8 +56,8 @@ export const settingsRouter = createRouter({
       currency:            z.string().max(10).optional(),
       currencySymbol:      z.string().max(10).optional(),
       symbolPosition:      z.enum(["before", "after"]).optional(),
-      defaultReorderPoint: z.string().optional(),
-      lowStockThreshold:   z.string().optional(),
+      defaultReorderPoint: decimalString({ min: 0, message: "Точка заказа не может быть отрицательной" }),
+      lowStockThreshold:   decimalString({ min: 0, message: "Порог остатка не может быть отрицательным" }),
       companyAddress:      z.string().nullable().optional(),
       companyPhone:        z.string().max(50).nullable().optional(),
       companyInn:          z.string().nullable().optional(),
@@ -73,6 +74,8 @@ export const settingsRouter = createRouter({
       // Sanitize string inputs
       const sanitized: Record<string, unknown> = {};
       for (const [key, value] of Object.entries(input)) {
+        // A blank decimal field resolves to `undefined` — leave the column alone.
+        if (value === undefined) continue;
         if (key === "logoUrl" && typeof value === "string") {
           sanitized[key] = isSafeUrl(value) ? value : null;
         } else if (typeof value === "string") {

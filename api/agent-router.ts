@@ -8,6 +8,7 @@ import { verifyVisit } from "./services/anti-fraud";
 import { haversineKm } from "./lib/geo";
 import { isoDaySchema, onDate, onDay, safeDateParse } from "./lib/date-range";
 import { photoRef } from "./lib/photo-url";
+import { decimalString, requiredDecimalString } from "./lib/zod-decimal";
 
 export const agentRouter = createRouter({
   // Supervisor needs a lightweight agent picker for "assign plan to agent" —
@@ -102,9 +103,9 @@ export const agentRouter = createRouter({
 
   saveLocation: fieldSalesQuery
     .input(z.object({
-      lat: z.string().refine(v => { const n = Number(v); return Number.isFinite(n) && n >= -90 && n <= 90; }, "Широта должна быть от -90 до 90"),
-      lng: z.string().refine(v => { const n = Number(v); return Number.isFinite(n) && n >= -180 && n <= 180; }, "Долгота должна быть от -180 до 180"),
-      accuracy: z.string().optional(),
+      lat: requiredDecimalString({ min: -90, max: 90, scale: 8, message: "Широта должна быть от -90 до 90" }),
+      lng: requiredDecimalString({ min: -180, max: 180, scale: 8, message: "Долгота должна быть от -180 до 180" }),
+      accuracy: decimalString({ min: 0, message: "Некорректная точность" }),
       batteryLevel: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {

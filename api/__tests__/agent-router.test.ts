@@ -322,14 +322,23 @@ describe("agent.saveLocation", () => {
     const result = await caller.saveLocation({ lat: "41.3111", lng: "69.2797" });
     expect(result.success).toBe(true);
     expect(locationsTable.length).toBe(1);
-    expect(locationsTable[0].lat).toBe("41.3111");
+    // Normalised to the column's scale (decimal(10,8)) before it reaches the DB
+    expect(locationsTable[0].lat).toBe("41.31110000");
+    expect(locationsTable[0].lng).toBe("69.27970000");
+  });
+
+  it("rejects a blank lat — it used to reach MySQL as '' and blow up", async () => {
+    const { agentRouter } = await import("../agent-router");
+    const caller = agentRouter.createCaller(makeCtx(1, 10, "agent"));
+    await expect(caller.saveLocation({ lat: "", lng: "69.2797" })).rejects.toThrow();
+    expect(locationsTable.length).toBe(0);
   });
 
   it("saves accuracy and battery level", async () => {
     const { agentRouter } = await import("../agent-router");
     const caller = agentRouter.createCaller(makeCtx(1, 10, "agent"));
     await caller.saveLocation({ lat: "41.3111", lng: "69.2797", accuracy: "10", batteryLevel: 85 });
-    expect(locationsTable[0].accuracy).toBe("10");
+    expect(locationsTable[0].accuracy).toBe("10.00");
     expect(locationsTable[0].batteryLevel).toBe(85);
   });
 });
