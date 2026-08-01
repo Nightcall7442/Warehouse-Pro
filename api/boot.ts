@@ -282,6 +282,22 @@ app.get("/api/cron/backup", async (c) => {
   return c.json(result, result.success ? 200 : 500);
 });
 
+// ── Cron: data retention ─────────────────────────────────────────────────────
+app.get("/api/cron/retention", async (c) => {
+  if (!env.cronSecret) {
+    return c.json({ error: "Cron endpoint not configured" }, 401);
+  }
+  const secret = c.req.query("secret") ?? c.req.header("x-cron-secret");
+  if (!safeEqual(secret ?? "", env.cronSecret)) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+  const { runRetention } = await import("./cron/retention");
+  const result = await runRetention();
+  // Same convention as the backup endpoint: a failure must not answer 2xx, or the
+  // external caller records a success while the tables keep growing.
+  return c.json(result, result.success ? 200 : 500);
+});
+
 app.use(bodyLimit({ maxSize: 10 * 1024 * 1024 }));
 
 // ── SSE endpoint ─────────────────────────────────────────────────────────────

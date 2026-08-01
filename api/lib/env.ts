@@ -71,6 +71,12 @@ export const env = {
   mysqldumpPath:           optional("MYSQLDUMP_PATH", "mysqldump"),
   mysqlClientPath:         optional("MYSQL_PATH", "mysql"),
 
+  // Retention (P2.2) — 0 or unset means "keep forever" for that table
+  retentionAgentLocationsDays: parseInt(optional("RETENTION_AGENT_LOCATIONS_DAYS", "90"), 10),
+  retentionStockMovementsDays: parseInt(optional("RETENTION_STOCK_MOVEMENTS_DAYS", "730"), 10),
+  retentionAuditLogDays:       parseInt(optional("RETENTION_AUDIT_LOG_DAYS", "730"), 10),
+  retentionSchedule:           optional("RETENTION_SCHEDULE", "30 3 * * *"),
+
   // 1C Bridge
   oneCBridgeUrl:       optional("ONEC_BRIDGE_URL"),
   oneCUsername:        optional("ONEC_USERNAME"),

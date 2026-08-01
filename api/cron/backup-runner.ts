@@ -2,6 +2,7 @@ import cron from "node-cron";
 import { env } from "../lib/env";
 import { logger } from "../lib/logger";
 import { runBackup } from "./backup";
+import { runRetention } from "./retention";
 
 /**
  * FIX: P0.4 — entry point for the backup container.
@@ -42,13 +43,42 @@ async function runAndLog(trigger: string): Promise<boolean> {
   }
 }
 
+/**
+ * Retention runs on its own schedule, half an hour after the backup by default.
+ * The ordering is the point: a row it deletes is already in that night's dump, so
+ * the two must not overlap and retention must not go first.
+ */
+async function runRetentionAndLog(trigger: string): Promise<boolean> {
+  logger.info("retention started", { trigger });
+  try {
+    const result = await runRetention();
+    const meta = {
+      trigger,
+      durationMs: result.durationMs,
+      tables: result.tables.map(t => ({ table: t.table, status: t.status, rows: t.rowsDeleted })),
+    };
+    if (result.success) logger.info("retention finished", meta);
+    else logger.error("retention unsuccessful", { ...meta, message: result.message });
+    return result.success;
+  } catch (err) {
+    logger.error("retention threw", { trigger, error: err instanceof Error ? err.message : String(err) });
+    return false;
+  }
+}
+
 if (runOnce) {
-  const ok = await runAndLog("manual");
-  process.exit(ok ? 0 : 1);
+  const backupOk = await runAndLog("manual");
+  const retentionOk = process.argv.includes("--skip-retention") ? true : await runRetentionAndLog("manual");
+  process.exit(backupOk && retentionOk ? 0 : 1);
 }
 
 if (!cron.validate(env.backupSchedule)) {
   logger.error("invalid BACKUP_SCHEDULE, refusing to start", { schedule: env.backupSchedule });
+  process.exit(1);
+}
+
+if (!cron.validate(env.retentionSchedule)) {
+  logger.error("invalid RETENTION_SCHEDULE, refusing to start", { schedule: env.retentionSchedule });
   process.exit(1);
 }
 
@@ -60,15 +90,22 @@ const task = cron.schedule(env.backupSchedule, () => runAndLog("schedule"), {
   noOverlap: true,
 });
 
+const retentionTask = cron.schedule(env.retentionSchedule, () => runRetentionAndLog("schedule"), {
+  timezone: "UTC",
+  noOverlap: true,
+});
+
 logger.info("backup scheduler started", {
   schedule: env.backupSchedule,
+  retentionSchedule: env.retentionSchedule,
   timezone: "UTC",
   nextRun: task.getNextRun()?.toISOString() ?? null,
+  nextRetentionRun: retentionTask.getNextRun()?.toISOString() ?? null,
 });
 
 const shutdown = async (signal: string) => {
   logger.info(`${signal} received, stopping backup scheduler`);
-  await task.stop();
+  await Promise.all([task.stop(), retentionTask.stop()]);
   process.exit(0);
 };
 

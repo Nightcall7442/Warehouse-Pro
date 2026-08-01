@@ -528,3 +528,57 @@ the diagnosis of each is in its commit message.
   nothing user-visible changed, but they should be aligned.
 
 The quality baselines drop with these fixes: typecheck 1150 → 1143, lint 45 → 43.
+
+## P2.2 — Retention instead of partitioning (and why)
+
+**Partitioning is blocked, not skipped.** `agent_locations`, `stock_movements` and
+`audit_log` all carry foreign keys — `tenant_id → tenants`, `agent_id`/`actor_id →
+users`, `product_id → products` — and **InnoDB does not support foreign keys on a
+partitioned table**. `ALTER TABLE … PARTITION BY` fails with ERROR 1506 while they
+exist. MySQL also requires every unique/primary key to contain the partitioning
+column, so the `id` primary key would have to become `(id, created_at)`.
+
+So partitioning these three tables means giving up referential integrity on them
+and reshaping their primary keys. That is a trade the owner makes, not a refactor
+decision, and it is still open:
+
+- **(a) Drop the foreign keys** and partition by month. Gets partition pruning and
+  makes dropping an old month instant. Integrity moves to application code, and
+  nothing stops an orphan row afterwards.
+- **(b) Keep the keys and prune on a schedule** — implemented below. The tables
+  stay bounded, queries keep using `idx_*_tenant_date`, and deleting is a nightly
+  batch job rather than an instant `DROP PARTITION`.
+- **(c) Defer** until one of these tables actually hurts, measured rather than
+  assumed.
+
+**What is implemented (option b):** `api/cron/retention.ts`, scheduled in the same
+container as the backup and half an hour after it — the ordering is the point, so a
+row it deletes is already in that night's dump. Also reachable as
+`GET /api/cron/retention` with the usual `CRON_SECRET` guard, answering 500 on
+failure so an external caller notices.
+
+| Variable | Default | Table |
+| --- | --- | --- |
+| `RETENTION_AGENT_LOCATIONS_DAYS` | 90 | GPS trail — the fastest-growing of the three |
+| `RETENTION_STOCK_MOVEMENTS_DAYS` | 730 | stock movement history |
+| `RETENTION_AUDIT_LOG_DAYS` | 730 | audit trail |
+| `RETENTION_SCHEDULE` | `30 3 * * *` | after `BACKUP_SCHEDULE` |
+
+Safety properties, all tested:
+
+- **`0` or unset means keep forever.** Explicit, because the failure mode of
+  guessing is deleting live data.
+- **A window under 7 days is refused**, not applied — that reads as a misread
+  environment variable far more often than as a policy.
+- **Deletes run in 5 000-row batches** with a 200 ms pause between them. A single
+  `DELETE` covering months of GPS points holds locks long enough to stall writers
+  and to lag a replica badly.
+- **500 000 rows per table per run** is the ceiling; hitting it logs a warning that
+  a backlog remains, so the first run against a large table cannot monopolise the
+  night.
+- **One table failing does not stop the others.**
+
+Before the first production run, check how much would go: `SELECT COUNT(*) FROM
+agent_locations WHERE created_at < NOW() - INTERVAL 90 DAY;` — if that is tens of
+millions, expect several nights of capped runs, or raise the cap deliberately for a
+one-off backfill.
