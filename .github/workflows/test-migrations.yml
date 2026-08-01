@@ -1,0 +1,99 @@
+name: Test migrations
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "db/migrations/**"
+      - "db/schema.ts"
+      - "drizzle.config.ts"
+  pull_request:
+    branches: [main]
+    paths:
+      - "db/migrations/**"
+      - "db/schema.ts"
+      - "drizzle.config.ts"
+
+jobs:
+  migrate-fresh:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: yes
+          MYSQL_DATABASE: warehouse_pro_migrate_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm install --legacy-peer-deps
+
+      # The whole point of this job: verify the full migration history
+      # (0000 through the latest file) applies cleanly to a brand-new MySQL 8
+      # database via the exact command the Dockerfile runs on every deploy.
+      # This is what would have caught migrations 0022-0029 never having been
+      # registered in the journal before that was fixed.
+      - name: Run drizzle-kit migrate against a fresh database
+        env:
+          DATABASE_URL: mysql://root@127.0.0.1:3306/warehouse_pro_migrate_test
+        run: npx drizzle-kit migrate
+
+      # Spot-check a few things that previously silently failed to apply
+      # (order_items.cost_price and onec_config were undocumented manual
+      # changes with no migration file until this was fixed) — a clean exit
+      # code alone wouldn't have caught those, since IF NOT EXISTS guards can
+      # mask a statement that never ran for an unrelated reason.
+      - name: Verify expected schema objects exist
+        run: |
+          mysql -h 127.0.0.1 -u root warehouse_pro_migrate_test -e "
+            SELECT 'order_items.cost_price' AS check_name, COUNT(*) AS ok FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'order_items' AND COLUMN_NAME = 'cost_price'
+            UNION ALL
+            SELECT 'onec_config table', COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'onec_config'
+            UNION ALL
+            SELECT 'visit_schedules table', COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'visit_schedules'
+            UNION ALL
+            SELECT 'agent_territories table', COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'agent_territories'
+            UNION ALL
+            SELECT 'sales_targets.territory_id', COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sales_targets' AND COLUMN_NAME = 'territory_id'
+            UNION ALL
+            SELECT 'warehouse_stock 3-col unique index', COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'warehouse_stock' AND INDEX_NAME = 'uq_stock_product_warehouse_tenant';
+          "
+          # Fail the job if any check above returned 0.
+          missing=$(mysql -h 127.0.0.1 -u root -N -B warehouse_pro_migrate_test -e "
+            SELECT COUNT(*) FROM (
+              SELECT COUNT(*) AS c FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'order_items' AND COLUMN_NAME = 'cost_price'
+              UNION ALL SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'onec_config'
+              UNION ALL SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'visit_schedules'
+              UNION ALL SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'agent_territories'
+              UNION ALL SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sales_targets' AND COLUMN_NAME = 'territory_id'
+              UNION ALL SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'warehouse_stock' AND INDEX_NAME = 'uq_stock_product_warehouse_tenant'
+            ) checks WHERE c = 0;
+          ")
+          if [ "$missing" -ne 0 ]; then
+            echo "::error::$missing expected schema object(s) missing after migrate — see table above"
+            exit 1
+          fi
+
+      # Re-run migrate against the now-migrated database. drizzle-kit tracks
+      # applied migrations in __drizzle_migrations and skips them, so this
+      # mainly guards against the command itself erroring on a second run
+      # (e.g. a missing journal/snapshot file) rather than re-exercising every
+      # statement's idempotency — that was verified manually against a
+      # database seeded to look like production's untracked history (see
+      # AUDIT_2026-08-01.md) rather than in this CI job, since faking
+      # "schema already matches but migrations were never tracked" reliably
+      # here would need scripting drizzle's internal tracking-table format.
+      - name: Re-run migrate (should be a fast no-op)
+        env:
+          DATABASE_URL: mysql://root@127.0.0.1:3306/warehouse_pro_migrate_test
+        run: npx drizzle-kit migrate
