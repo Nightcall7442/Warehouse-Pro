@@ -407,3 +407,36 @@ JSON
 
 The check names must match the `name:` of each job exactly, and they only become
 selectable once the workflow has reported them at least once.
+
+## P2.3 — Graceful shutdown
+
+**What changed.** The old handler called `server.close()` without awaiting it,
+ended the database pool, and called `process.exit(0)` immediately — so in-flight
+requests died mid-query and SSE/WebSocket clients just saw a dropped socket. The
+handler now drains in dependency order:
+
+1. `draining = true` — new requests get `503`, health probes keep answering so the
+   load balancer learns to stop routing here.
+2. `server.close()`, awaited (with a 5s cap, since long-lived streams hold it open).
+3. `sseBus.closeAll()` sends an `event: shutdown` frame and closes every stream;
+   `closeWebSockets()` closes every socket with **1001 "Going Away"** so clients
+   can tell a deploy from a network failure, and drops pending debounced GPS writes.
+4. Wait for in-flight requests, capped at 30s — the platform's own SIGKILL is
+   usually 30s behind SIGTERM, so exiting first beats being killed mid-cleanup.
+   A timeout logs how many requests were still running.
+5. `disconnectRedis()`, then `closeDb()`.
+
+A second signal during shutdown is ignored rather than re-entering the sequence.
+
+**Probes:**
+
+| Endpoint | Answers |
+| --- | --- |
+| `/health` | `status`, `database`, `redis` (`not_configured` when no `REDIS_URL` — the in-memory fallback is not a degradation), `inFlight`, `cache`, `s3`, `uptime`. **Now returns 503 when degraded** instead of 200 with a `"degraded"` body. |
+| `/health/ready` | 503 while draining, otherwise gated on the database. |
+| `/health/live` | New. Deliberately dependency-free — it answers "this process's event loop is running". Tying liveness to the database would turn a recoverable database blip into a container crash loop. |
+
+**Watch out:** `/health` returning 503 when degraded is a behaviour change. If an
+uptime monitor currently treats any 200 as healthy it will start alerting on a
+degraded database or a configured-but-down Redis — which is the point, but worth
+knowing before the deploy.

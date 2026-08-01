@@ -51,12 +51,36 @@ app.use("*", compress());
 // FIX: P0.2 — a Fetch Request exposes no connection info, so record the TCP peer
 // address while the Node request object is still reachable. getClientIp() falls
 // back to it when TRUSTED_PROXY_COUNT=0, where proxy headers can't be trusted.
+/**
+ * FIX: P2.3 — in-flight request accounting for graceful shutdown.
+ *
+ * `server.close()` stops accepting connections but says nothing about requests
+ * already running; without this the process either exits mid-write or hangs.
+ */
+let inFlight = 0;
+let draining = false;
+
+function activeRequests(): number {
+  return inFlight;
+}
+
 app.use("*", async (c, next) => {
   rememberSocketIp(c.req.raw, c.env?.incoming?.socket?.remoteAddress);
-  // FIX: P0.3 — bind the database handle for this request's async context, so
-  // getDb() deep inside a call chain resolves the same handle the request started
-  // with (and joins an open transaction instead of committing beside it).
-  return runWithDb(getDb(), () => next());
+  // Health probes must keep answering while draining — that is how the load
+  // balancer learns to stop sending traffic here.
+  if (draining && !c.req.path.startsWith("/health")) {
+    return c.json({ error: "Server is shutting down" }, 503, { "connection": "close" });
+  }
+
+  inFlight += 1;
+  try {
+    // FIX: P0.3 — bind the database handle for this request's async context, so
+    // getDb() deep inside a call chain resolves the same handle the request
+    // started with (and joins an open transaction instead of committing beside it).
+    return await runWithDb(getDb(), () => next());
+  } finally {
+    inFlight -= 1;
+  }
 });
 
 // ── Sentry error handler + Telegram notification ─────────────────────────────
@@ -508,7 +532,13 @@ app.get("/health", async (c) => {
     }
   }
 
-  const status = dbHealthy ? "ok" : "degraded";
+  const { isRedisAvailable } = await import("./lib/redis");
+  const redisConfigured = Boolean(env.redisUrl);
+  const redisHealthy = redisConfigured ? isRedisAvailable() : true;
+
+  // Redis is optional (in-memory fallback), so a missing one is not degraded —
+  // a configured one that is down is.
+  const status = dbHealthy && redisHealthy ? "ok" : "degraded";
   return c.json({
     status,
     version: APP_VERSION,
@@ -517,16 +547,29 @@ app.get("/health", async (c) => {
     env: env.isProduction ? "production" : "development",
     cache: cache.getStats(),
     database: dbHealthy ? "connected" : "disconnected",
+    redis: !redisConfigured ? "not_configured" : redisHealthy ? "connected" : "disconnected",
+    inFlight: activeRequests(),
     s3: s3Status,
-  });
+  }, status === "ok" ? 200 : 503);
 });
 
 // ── Readiness probe (for k8s/PM2 — checks DB connectivity) ───────────────────
 app.get("/health/ready", async (c) => {
+  if (draining) return c.json({ status: "draining" }, 503);
   return (await checkDatabaseHealth())
     ? c.json({ status: "ok" }, 200)
     : c.json({ status: "error" }, 503);
 });
+
+// ── Liveness probe ───────────────────────────────────────────────────────────
+// Deliberately dependency-free: it answers "this process is still running its
+// event loop". Tying it to the database would make a database blip restart every
+// container, which turns a recoverable outage into a crash loop.
+app.get("/health/live", (c) => c.json({
+  status: draining ? "draining" : "ok",
+  uptime: Math.floor(process.uptime()),
+  inFlight: activeRequests(),
+}, draining ? 503 : 200));
 
 // ── API version info ─────────────────────────────────────────────────────────
 app.get("/api/v1/version", (c) => c.json({
@@ -575,22 +618,83 @@ if (env.isProduction) {
   attachWebSocket(server);
   logger.info("websocket attached");
 
-  // Graceful shutdown
+  /**
+   * FIX: P2.3 — drain, then close, in dependency order.
+   *
+   * The previous handler called `server.close()` without awaiting it, then ended
+   * the pool and called `process.exit(0)` immediately — killing in-flight
+   * requests mid-query and leaving SSE and WebSocket clients to notice a dropped
+   * socket. Order matters here: stop taking work, let what is running finish,
+   * then take away the resources it was using.
+   */
+  const SHUTDOWN_TIMEOUT_MS = 30_000;
+  let shuttingDown = false;
+
   const shutdown = async (signal: string) => {
-    logger.info(`${signal} received, starting graceful shutdown`);
-    server.close(() => {
-      logger.info("HTTP server closed");
+    if (shuttingDown) {
+      logger.warn(`${signal} received while already shutting down, ignoring`);
+      return;
+    }
+    shuttingDown = true;
+    draining = true;
+    const startedAt = Date.now();
+    logger.info(`${signal} received, starting graceful shutdown`, { inFlight: activeRequests() });
+
+    // 1. Stop accepting new connections. Existing ones keep going.
+    await new Promise<void>((resolve) => {
+      server.close(() => {
+        logger.info("HTTP server closed to new connections");
+        resolve();
+      });
+      // Long-lived streams keep the server "open" — the drain below bounds it.
+      setTimeout(resolve, 5_000);
     });
-    // Close DB connections
+
+    // 2. End the streams that would otherwise never finish on their own.
+    try {
+      const { sseBus } = await import("./lib/sse");
+      const closedSse = sseBus.closeAll();
+      const { closeWebSockets } = await import("./lib/ws");
+      const closedWs = await closeWebSockets();
+      logger.info("streams closed", { sse: closedSse, websocket: closedWs });
+    } catch (e) {
+      logger.error("Error closing streams", { error: String(e) });
+    }
+
+    // 3. Wait for in-flight requests, but not forever: the platform's own
+    //    SIGKILL is usually 30s behind SIGTERM, so exiting first is better than
+    //    being killed halfway through cleanup.
+    const deadline = Date.now() + SHUTDOWN_TIMEOUT_MS;
+    while (activeRequests() > 0 && Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    if (activeRequests() > 0) {
+      logger.warn("shutdown timeout reached with requests still running", {
+        inFlight: activeRequests(),
+        timeoutMs: SHUTDOWN_TIMEOUT_MS,
+      });
+    }
+
+    // 4. Release resources, most dependent first.
+    try {
+      const { disconnectRedis } = await import("./lib/redis");
+      await disconnectRedis();
+      logger.info("Redis disconnected");
+    } catch (e) {
+      logger.error("Error disconnecting Redis", { error: String(e) });
+    }
+
     try {
       await closeDb();
       logger.info("Database connections closed");
     } catch (e) {
       logger.error("Error closing database", { error: String(e) });
     }
+
+    logger.info("graceful shutdown complete", { durationMs: Date.now() - startedAt });
     process.exit(0);
   };
 
-  process.on("SIGTERM", () => shutdown("SIGTERM"));
-  process.on("SIGINT", () => shutdown("SIGINT"));
+  process.on("SIGTERM", () => void shutdown("SIGTERM"));
+  process.on("SIGINT", () => void shutdown("SIGINT"));
 }

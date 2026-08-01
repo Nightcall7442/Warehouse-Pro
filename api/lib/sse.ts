@@ -166,6 +166,36 @@ class SSEBus {
     }
     return { channels: this.listeners.size, totalListeners: total };
   }
+
+  /**
+   * FIX: P2.3 — end every open stream so the process can exit.
+   *
+   * A shutdown that only closes the HTTP server leaves these streams pending and
+   * the process hangs until the platform SIGKILLs it. Clients are told to
+   * reconnect first: EventSource retries on its own, so a rolling deploy shows up
+   * as a reconnect rather than a gap in the feed.
+   */
+  closeAll(reason = "server_shutdown"): number {
+    const encoder = new TextEncoder();
+    let closed = 0;
+
+    for (const listeners of this.listeners.values()) {
+      for (const listener of listeners) {
+        try {
+          listener.controller.enqueue(encoder.encode(
+            `event: shutdown\ndata: ${JSON.stringify({ reason, timestamp: Date.now() })}\n\n`,
+          ));
+        } catch { /* stream already gone */ }
+        try {
+          listener.controller.close();
+          closed += 1;
+        } catch { /* already closed */ }
+      }
+    }
+
+    this.listeners.clear();
+    return closed;
+  }
 }
 
 export const sseBus = new SSEBus();

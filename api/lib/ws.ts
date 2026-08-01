@@ -13,6 +13,9 @@ const DEBOUNCE_MS = 3_000;
 const tenantRooms = new Map<number, Set<WebSocket>>();
 const pendingSaves = new Map<string, ReturnType<typeof setTimeout>>();
 
+/** Held so shutdown can stop accepting upgrades and close what is open. */
+let activeServer: WebSocketServer | null = null;
+
 async function saveLocation(userId: number, tenantId: number, lat: string, lng: string) {
   try {
     await getDb().insert(agentLocations).values({
@@ -28,6 +31,7 @@ async function saveLocation(userId: number, tenantId: number, lat: string, lng: 
 
 export function attachWebSocket(server: ServerType) {
   const wss = new WebSocketServer({ noServer: true, maxPayload: 100 * 1024 }); // 100KB max
+  activeServer = wss;
 
   server.on("upgrade", (req: IncomingMessage, socket, head) => {
     const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
@@ -124,4 +128,37 @@ export function attachWebSocket(server: ServerType) {
   });
 
   return wss;
+}
+
+/**
+ * FIX: P2.3 — close every socket with 1001 "Going Away".
+ *
+ * 1001 is the code a client should treat as "the server is going away, reconnect
+ * later"; without it the browser sees an abnormal 1006 close and cannot tell a
+ * deploy from a network failure. Pending debounced location writes are dropped —
+ * they are at most 3s of GPS trail and the pool is about to close underneath them.
+ */
+export async function closeWebSockets(): Promise<number> {
+  let closed = 0;
+
+  for (const timer of pendingSaves.values()) clearTimeout(timer);
+  pendingSaves.clear();
+
+  for (const clients of tenantRooms.values()) {
+    for (const ws of clients) {
+      try {
+        ws.close(1001, "Server shutting down");
+        closed += 1;
+      } catch { /* socket already gone */ }
+    }
+  }
+  tenantRooms.clear();
+
+  if (activeServer) {
+    const wss = activeServer;
+    activeServer = null;
+    await new Promise<void>(resolve => wss.close(() => resolve()));
+  }
+
+  return closed;
 }
