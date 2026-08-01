@@ -241,6 +241,20 @@ app.get("/api/cron/backup", async (c) => {
   return c.json(result, result.success ? 200 : 500);
 });
 
+// ── Cron: debt reminders ────────────────────────────────────────────────────
+app.get("/api/cron/debt-reminders", async (c) => {
+  if (!env.cronSecret) {
+    return c.json({ error: "Cron endpoint not configured" }, 401);
+  }
+  const secret = c.req.query("secret") ?? c.req.header("x-cron-secret");
+  if (!safeEqual(secret ?? "", env.cronSecret)) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+  const { runDebtReminders } = await import("./cron/debt-reminders");
+  const result = await runDebtReminders();
+  return c.json(result, result.success ? 200 : 500);
+});
+
 app.use(bodyLimit({ maxSize: 10 * 1024 * 1024 }));
 
 // ── SSE endpoint ─────────────────────────────────────────────────────────────

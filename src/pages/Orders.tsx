@@ -10,7 +10,7 @@ import {
   Search, Plus, FileDown, ChevronRight, Store, User,
   ShoppingCart, Clock, CheckCircle2, XCircle, DollarSign,
   ArrowUpRight, ArrowDownRight, Minus, Trash2, RotateCcw, Printer,
-  CheckSquare, Square,
+  CheckSquare, Square, LayoutGrid, Table as TableIcon, Eye,
 } from "lucide-react";
 import { format, startOfMonth } from "date-fns";
 import { exportToExcel, formatOrdersForExport } from "@/lib/excel";
@@ -18,6 +18,14 @@ import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { exportToPDF } from "@/lib/export";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { OrderFilterChips, type ActiveFilters } from "@/components/orders/OrderFilterChips";
+import { OrderBulkActions } from "@/components/orders/OrderBulkActions";
+import { InvoicePrintModal } from "@/components/orders/InvoicePrintModal";
+import { LoadingListModal } from "@/components/orders/LoadingListModal";
+import { OrderSlideOver } from "@/components/orders/OrderSlideOver";
+import { OrderKanbanBoard } from "@/components/orders/OrderKanbanBoard";
+import { QuickOrderModal } from "@/components/orders/QuickOrderModal";
 
 /* ─── Premium Design Constants ─── */
 const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
@@ -40,10 +48,12 @@ const PAYMENT: Record<string, { ru: string; uz: string; color: string }> = {
 
 /* ─── Status Config ─── */
 const STATUS: Record<string, { ru: string; uz: string; dot: string; bg: string; text: string; border: string }> = {
-  new:        { ru: "Новый",       uz: "Yangi",         dot: "#5b6d8a", bg: "bg-info/10",    text: "text-info",    border: "border-info/25" },
-  processing: { ru: "В обработке", uz: "Jarayonda",     dot: "#d4973a", bg: "bg-warning/10", text: "text-warning", border: "border-warning/25" },
-  completed:  { ru: "Выполнен",    uz: "Bajarildi",     dot: "#34c473", bg: "bg-success/10", text: "text-success", border: "border-success/25" },
-  cancelled:  { ru: "Отменён",     uz: "Bekor qilindi", dot: "#d45050", bg: "bg-danger/10",  text: "text-danger",  border: "border-danger/25" },
+  new:                  { ru: "Новый",            uz: "Yangi",              dot: "#5b6d8a", bg: "bg-info/10",    text: "text-info",    border: "border-info/25" },
+  processing:           { ru: "В обработке",      uz: "Jarayonda",          dot: "#d4973a", bg: "bg-warning/10", text: "text-warning", border: "border-warning/25" },
+  completed:            { ru: "Выполнен",         uz: "Bajarildi",          dot: "#34c473", bg: "bg-success/10", text: "text-success", border: "border-success/25" },
+  cancelled:            { ru: "Отменён",          uz: "Bekor qilindi",      dot: "#d45050", bg: "bg-danger/10",  text: "text-danger",  border: "border-danger/25" },
+  partially_delivered:  { ru: "Част. доставка",   uz: "Qisman yetkazildi",  dot: "#d4973a", bg: "bg-warning/10", text: "text-warning", border: "border-warning/25" },
+  partially_paid:       { ru: "Част. оплата",     uz: "Qisman to'landi",    dot: "#5b6d8a", bg: "bg-info/10",    text: "text-info",    border: "border-info/25" },
 };
 
 /* ─── Premium KpiCard Component ─── */
@@ -102,7 +112,7 @@ const StatusBadge = memo(function StatusBadge({ status, lang }: { status: string
 
 export default function Orders() {
   const [page, setPage]     = useState(1);
-  const { fmt }             = useCurrency();
+  const { fmt, symbol }     = useCurrency();
   const { lang }            = useLang();
   const [search, setSearch] = useState("");
   const [showDeleted, setShowDeleted] = useState(false);
@@ -122,13 +132,54 @@ export default function Orders() {
 
   const [status, setStatus] = useState(searchParams.get("status") ?? "");
 
+  // ── New feature state ──
+  const [viewMode, setViewMode] = useState<"table" | "kanban">("table");
+  const [chipFilters, setChipFilters] = useState<ActiveFilters>({});
+  const [slideOverOrderId, setSlideOverOrderId] = useState<number | null>(null);
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [showLoadingListModal, setShowLoadingListModal] = useState(false);
+  const [showQuickOrder, setShowQuickOrder] = useState(false);
+
+  const { data: savedFilters } = trpc.order.listFilters.useQuery();
+  const saveFilterMut = trpc.order.saveFilter.useMutation({
+    onSuccess: () => { utils.order.listFilters.invalidate(); notify.success(t("Фильтр сохранён", "Filter saqlandi")); },
+  });
+  const deleteFilterMut = trpc.order.deleteFilter.useMutation({
+    onSuccess: () => utils.order.listFilters.invalidate(),
+  });
+  const bulkUpdateStatus = trpc.order.bulkUpdateStatus.useMutation({
+    onSuccess: (r) => { utils.order.list.invalidate(); setSelected(new Set()); notify.success(t(`Обновлено: ${r.updated}`, `Yangilandi: ${r.updated}`)); },
+    onError: (e) => notify.error(e.message),
+  });
+  const bulkAssignAgent = trpc.order.bulkAssignAgent.useMutation({
+    onSuccess: (r) => { utils.order.list.invalidate(); setSelected(new Set()); notify.success(t(`Назначено: ${r.updated}`, `Tayinlandi: ${r.updated}`)); },
+    onError: (e) => notify.error(e.message),
+  });
+  const { data: agentsData } = trpc.user.list.useQuery({ role: "agent", pageSize: 200 });
+
+  // Apply chip filters to date range
+  const effectiveDateFrom = useMemo(() => {
+    if (chipFilters.datePreset === "today") return format(new Date(), "yyyy-MM-dd");
+    if (chipFilters.datePreset === "yesterday") { const d = new Date(); d.setDate(d.getDate() - 1); return format(d, "yyyy-MM-dd"); }
+    if (chipFilters.datePreset === "week") { const d = new Date(); d.setDate(d.getDate() - d.getDay()); return format(d, "yyyy-MM-dd"); }
+    if (chipFilters.datePreset === "month") return format(startOfMonth(new Date()), "yyyy-MM-dd");
+    return dateFrom;
+  }, [chipFilters.datePreset, dateFrom]);
+  const effectiveDateTo = useMemo(() => {
+    if (chipFilters.datePreset) return format(new Date(), "yyyy-MM-dd");
+    return dateTo;
+  }, [chipFilters.datePreset, dateTo]);
+  const effectiveStatus = chipFilters.status ?? status;
+  const effectivePaymentMethod = chipFilters.paymentMethod;
+
   const { data, isLoading, isError, refetch } = trpc.order.list.useQuery({
     page, pageSize: 25,
     search: search || undefined,
-    status: (status || undefined),
+    status: (effectiveStatus || undefined) as "new" | "processing" | "completed" | "cancelled" | undefined,
     showDeleted: isOperatorOrCeo && showDeleted ? true : undefined,
-    dateFrom: dateFrom || undefined,
-    dateTo: dateTo || undefined,
+    dateFrom: effectiveDateFrom || undefined,
+    dateTo: effectiveDateTo || undefined,
+    paymentMethod: effectivePaymentMethod as "cash" | "card" | "transfer" | "debt" | undefined,
   });
 
   const { data: allOrders, refetch: refetchAllOrders } = trpc.order.list.useQuery(
@@ -269,7 +320,7 @@ export default function Orders() {
           }}>
             <Printer size={14} /> PDF
           </button>
-          <button onClick={handleNewOrder} className="neo-btn-primary neo-btn-sm">
+          <button onClick={() => setShowQuickOrder(true)} className="neo-btn-primary neo-btn-sm">
             <Plus size={16} />
             <span>{t("Новый заказ", "Yangi buyurtma")}</span>
           </button>
@@ -328,6 +379,26 @@ export default function Orders() {
         />
       </div>
 
+      {/* ─── View Mode Toggle + Filter Chips ─── */}
+      {!isMobile && (
+        <div className="flex items-center justify-between">
+          <OrderFilterChips
+            filters={chipFilters}
+            onChange={setChipFilters}
+            savedFilters={savedFilters?.map(f => ({ id: f.id, name: f.name, filterConfig: f.filterConfig }))}
+            onSave={(name, config) => saveFilterMut.mutate({ name, config: config as Record<string, unknown> })}
+            onDelete={(id) => deleteFilterMut.mutate({ id })}
+            onLoad={setChipFilters}
+          />
+          <Tabs value={viewMode} onValueChange={v => setViewMode(v as typeof viewMode)}>
+            <TabsList className="h-8">
+              <TabsTrigger value="table" className="px-2.5 h-6 text-xs"><TableIcon className="h-3.5 w-3.5" /></TabsTrigger>
+              <TabsTrigger value="kanban" className="px-2.5 h-6 text-xs"><LayoutGrid className="h-3.5 w-3.5" /></TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+      )}
+
       {/* ─── Filters ─── */}
       <div style={{
         display: "flex", gap: "12px", flexWrap: "wrap",
@@ -367,55 +438,22 @@ export default function Orders() {
         )}
       </div>
 
-      {/* ─── Selection Bar ─── */}
-      {selected.size > 0 && (
-        <div style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "8px",
-          padding: "12px 20px", borderRadius: "14px",
-          background: "var(--color-primary-subtle, rgba(75,108,246,.10))",
-          border: "1px solid rgba(75,108,246,.20)",
-        }}>
-          <span style={{ fontSize: "13px", fontWeight: 600, color: "#5b6d8a" }}>
-            {selected.size} {t("выбрано", "tanlangan")}
-          </span>
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-            {selectedNewIds.length > 0 && (
-              <button onClick={() => handleBulkStatus(selectedNewIds, "processing")}
-                style={{
-                  display: "flex", alignItems: "center", gap: "5px", padding: "6px 14px",
-                  fontSize: "12px", fontWeight: 600, fontFamily: F.body, borderRadius: "8px",
-                  border: `1px solid ${COLORS.border}`, cursor: "pointer",
-                  background: COLORS.surface, color: COLORS.textSecondary,
-                }}>
-                {t("В обработку", "Jarayonga")} ({selectedNewIds.length})
-              </button>
-            )}
-            {selectedProcessingIds.length > 0 && (
-              <button onClick={() => handleBulkStatus(selectedProcessingIds, "completed")}
-                style={{
-                  display: "flex", alignItems: "center", gap: "5px", padding: "6px 14px",
-                  fontSize: "12px", fontWeight: 600, fontFamily: F.body, borderRadius: "8px",
-                  border: "none", cursor: "pointer",
-                  background: "linear-gradient(135deg, #5b6d8a, #5b6d8a)", color: "#fff",
-                }}>
-                {t("Выполнен", "Bajarildi")} ({selectedProcessingIds.length})
-              </button>
-            )}
-            <button onClick={handleExportSelected}
-              style={{
-                display: "flex", alignItems: "center", gap: "5px", padding: "6px 14px",
-                fontSize: "12px", fontWeight: 600, fontFamily: F.body, borderRadius: "8px",
-                border: `1px solid ${COLORS.border}`, cursor: "pointer",
-                background: COLORS.surface, color: COLORS.textSecondary,
-              }}>
-              <FileDown size={13} /> {t("Экспорт", "Eksport")}
-            </button>
-            <button onClick={() => setSelected(new Set())}
-              className="neo-btn text-xs py-1.5 px-3">
-              {t("Сбросить", "Bekor qilish")}
-            </button>
-          </div>
-        </div>
+      {/* Kanban view */}
+      {viewMode === "kanban" && !isMobile && (
+        <OrderKanbanBoard
+          orders={(data?.data ?? []).map(o => ({
+            id: o.id as number,
+            orderNumber: o.orderNumber,
+            status: o.status,
+            total: o.total ?? "0",
+            shopName: o.shopName,
+            agentName: o.agentName,
+            paymentMethod: o.paymentMethod ?? "cash",
+          }))}
+          onOrderClick={setSlideOverOrderId}
+          onStatusChange={(orderId, newStatus) => updateStatus.mutate({ id: orderId, status: newStatus as "new" | "processing" | "completed" | "cancelled" })}
+          currency={symbol}
+        />
       )}
 
       {/* ─── Mobile Cards ─── */}
@@ -486,7 +524,7 @@ export default function Orders() {
                 );
               })}
         </div>
-      ) : (
+      ) : viewMode === "kanban" ? null : (
         /* ─── Desktop Table ─── */
         <div style={{
           background: COLORS.surface, borderRadius: "24px", overflow: "hidden",
@@ -546,7 +584,7 @@ export default function Orders() {
                       }}
                       onMouseEnter={e => (e.currentTarget.style.background = `${COLORS.surfaceLight}80`)}
                       onMouseLeave={e => (e.currentTarget.style.background = o.deletedAt ? `${COLORS.danger}08` : "transparent")}
-                      onClick={() => navigate(`/orders/${o.id}`)}
+                      onClick={() => setSlideOverOrderId(o.id as number)}
                     >
                       <td style={{ padding: "14px 8px 14px 16px", textAlign: "center" }} onClick={e => e.stopPropagation()}>
                         <button onClick={() => toggleSelect(o.id as number)}
@@ -557,7 +595,9 @@ export default function Orders() {
                           }
                         </button>
                       </td>
-                      <td style={{ padding: "14px 16px", fontFamily: F.display, fontSize: "13px", fontWeight: 600, color: COLORS.primary }}>{o.orderNumber}</td>
+                      <td style={{ padding: "14px 16px", fontFamily: F.display, fontSize: "13px", fontWeight: 600, color: COLORS.primary }}>
+                        <span className="flex items-center gap-1">{o.orderNumber} <Eye className="h-3 w-3 opacity-0 group-hover:opacity-50" /></span>
+                      </td>
                       <td style={{ padding: "14px 16px", fontSize: "13px", color: COLORS.textSecondary }}>
                         {o.createdAt ? format(new Date(o.createdAt), "dd.MM.yyyy") : ""}
                       </td>
@@ -686,6 +726,55 @@ export default function Orders() {
         </div>
       )}
     </div>
+    {/* ── Bulk Actions Bar ── */}
+    <OrderBulkActions
+      selectedCount={selected.size}
+      onClearSelection={() => setSelected(new Set())}
+      onPrintInvoices={() => setShowInvoiceModal(true)}
+      onCreateLoadingList={() => setShowLoadingListModal(true)}
+      onChangeStatus={(newStatus) => {
+        const ids = Array.from(selected);
+        bulkUpdateStatus.mutate({ orderIds: ids, status: newStatus as "new" | "processing" | "completed" | "cancelled" });
+      }}
+      onAssignAgent={(agentId) => {
+        const ids = Array.from(selected);
+        bulkAssignAgent.mutate({ orderIds: ids, agentId });
+      }}
+      onExportExcel={handleExportSelected}
+      agents={agentsData?.data?.map(a => ({ id: a.id, name: a.name }))}
+    />
+
+    {/* ── Invoice Print Modal ── */}
+    <InvoicePrintModal
+      open={showInvoiceModal}
+      onOpenChange={setShowInvoiceModal}
+      orderIds={Array.from(selected)}
+      onDone={() => { setSelected(new Set()); utils.order.list.invalidate(); }}
+    />
+
+    {/* ── Loading List Modal ── */}
+    <LoadingListModal
+      open={showLoadingListModal}
+      onOpenChange={setShowLoadingListModal}
+      orderIds={Array.from(selected)}
+      onDone={() => { setSelected(new Set()); utils.order.list.invalidate(); }}
+    />
+
+    {/* ── Order Slide-Over ── */}
+    <OrderSlideOver
+      open={!!slideOverOrderId}
+      onOpenChange={(v) => { if (!v) setSlideOverOrderId(null); }}
+      orderId={slideOverOrderId}
+      currency={currency}
+    />
+
+    {/* ── Quick Order Modal ── */}
+    <QuickOrderModal
+      open={showQuickOrder}
+      onOpenChange={setShowQuickOrder}
+      onCreated={() => utils.order.list.invalidate()}
+    />
+
     {dialog}
     </>
   );

@@ -17,6 +17,7 @@ import {
   uniqueIndex,
   unique,
   index,
+  primaryKey,
 } from "drizzle-orm/mysql-core";
 
 // ============================================
@@ -221,7 +222,7 @@ export const orders = mysqlTable("orders", {
   orderNumber: varchar("order_number", { length: 50 }).notNull(),
   shopId:      bigint("shop_id", { mode: "number", unsigned: true }).notNull().references(() => shops.id, { onDelete: "restrict" }),
   agentId:     bigint("agent_id", { mode: "number", unsigned: true }).notNull().references(() => users.id, { onDelete: "restrict" }),
-  status:      mysqlEnum("status", ["new", "processing", "completed", "cancelled"]).default("new").notNull(),
+  status:      mysqlEnum("status", ["new", "processing", "completed", "cancelled", "partially_delivered", "partially_paid"]).default("new").notNull(),
   subtotal:    decimal("subtotal", { precision: 12, scale: 2 }).default("0.00").notNull(),
   discount:    decimal("discount", { precision: 12, scale: 2 }).default("0.00").notNull(),
   total:       decimal("total", { precision: 12, scale: 2 }).default("0.00").notNull(),
@@ -231,6 +232,8 @@ export const orders = mysqlTable("orders", {
   paymentMethod: mysqlEnum("payment_method", ["cash", "card", "transfer", "debt"]).default("cash").notNull(),
   deliveryStatus: mysqlEnum("delivery_status", ["not_assigned", "assigned", "out_for_delivery", "delivered", "failed"]).default("not_assigned").notNull(),
   deliveredAt: timestamp("delivered_at"),
+  invoicePrintedAt: timestamp("invoice_printed_at"),
+  priority:    mysqlEnum("priority", ["low", "normal", "high"]).default("normal").notNull(),
   deletedAt:   timestamp("deleted_at"),
   createdAt:   timestamp("created_at").defaultNow().notNull(),
   updatedAt:   timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
@@ -261,6 +264,10 @@ export const orderItems = mysqlTable("order_items", {
   unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).notNull(),
   costPrice: decimal("cost_price", { precision: 10, scale: 2 }).default("0.00").notNull(),
   subtotal:  decimal("subtotal", { precision: 12, scale: 2 }).notNull(),
+  // Partial delivery fields
+  deliveredQuantity: decimal("delivered_quantity", { precision: 10, scale: 2 }),
+  returnReason:      varchar("return_reason", { length: 100 }),
+  returnPhotos:      json("return_photos").$type<string[]>(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({
   orderIdx: index("idx_order_items_order").on(t.orderId),
@@ -466,14 +473,24 @@ export const payments = mysqlTable("payments", {
   id:        serial("id").primaryKey(),
   tenantId:  bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
   shopId:    bigint("shop_id", { mode: "number", unsigned: true }).notNull().references(() => shops.id, { onDelete: "restrict" }),
+  orderId:   bigint("order_id", { mode: "number", unsigned: true }).references(() => orders.id, { onDelete: "set null" }),
   amount:    decimal("amount", { precision: 12, scale: 2 }).notNull(),
   type:      mysqlEnum("type", ["payment", "debt"]).default("payment").notNull(),
+  // Partial payment fields
+  paymentMethod:   mysqlEnum("payment_method", ["cash", "card", "transfer"]).default("cash"),
+  status:          varchar("status", { length: 30 }).default("paid"), // paid, partially_paid
+  totalOrderAmount: decimal("total_order_amount", { precision: 15, scale: 2 }),
+  paidAmount:      decimal("paid_amount", { precision: 15, scale: 2 }),
+  debtAmount:      decimal("debt_amount", { precision: 15, scale: 2 }).default("0.00"),
+  debtDueDate:     date("debt_due_date"),
+  paidAt:          timestamp("paid_at"),
   notes:     text("notes"),
   createdBy: bigint("created_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({
   tenantIdx: index("idx_payments_tenant").on(t.tenantId),
   shopIdx:   index("idx_payments_shop").on(t.shopId),
+  orderIdx:  index("idx_payments_order").on(t.orderId),
   tenantShopIdx: index("idx_payments_tenant_shop").on(t.tenantId, t.shopId),
   createdAtIdx:  index("idx_payments_created_at").on(t.createdAt),
 }));
@@ -757,6 +774,8 @@ export const tenantBranding = mysqlTable("tenant_branding", {
   loginSubtitle: varchar("login_subtitle", { length: 255 }),
   footerText:    varchar("footer_text", { length: 500 }),
   mobileTheme:   varchar("mobile_theme", { length: 10 }).default("auto"),
+  inn:           varchar("inn", { length: 20 }),
+  legalAddress:  varchar("legal_address", { length: 500 }),
   createdAt:     timestamp("created_at").defaultNow().notNull(),
   updatedAt:     timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
 }, (t) => ({
@@ -923,3 +942,126 @@ export const onecConfig = mysqlTable("onec_config", {
 
 export type OneCConfig       = typeof onecConfig.$inferSelect;
 export type InsertOneCConfig = typeof onecConfig.$inferInsert;
+
+// ============================================
+// LOADING LISTS — загрузочные листы для кладовщика
+// ============================================
+export const loadingLists = mysqlTable("loading_lists", {
+  id:           serial("id").primaryKey(),
+  tenantId:     bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  listNumber:   varchar("list_number", { length: 50 }).notNull(),
+  warehouseId:  bigint("warehouse_id", { mode: "number", unsigned: true }).references(() => warehouses.id, { onDelete: "set null" }),
+  agentId:      bigint("agent_id", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "set null" }),
+  routeData:    json("route_data"),
+  status:       mysqlEnum("status", ["preparing", "ready", "loading", "loaded", "delivered"]).default("preparing").notNull(),
+  totalOrders:  int("total_orders").default(0).notNull(),
+  totalItems:   int("total_items").default(0).notNull(),
+  totalWeight:  decimal("total_weight", { precision: 10, scale: 3 }),
+  createdBy:    bigint("created_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "set null" }),
+  createdAt:    timestamp("created_at").defaultNow().notNull(),
+  loadedAt:     timestamp("loaded_at"),
+  deliveredAt:  timestamp("delivered_at"),
+}, (t) => ({
+  listNumPerTenant: uniqueIndex("uq_list_number_tenant").on(t.listNumber, t.tenantId),
+  tenantStatusIdx:  index("idx_lists_tenant_status").on(t.tenantId, t.status),
+  agentIdx:         index("idx_lists_agent").on(t.agentId),
+}));
+
+export type LoadingList       = typeof loadingLists.$inferSelect;
+export type InsertLoadingList = typeof loadingLists.$inferInsert;
+
+// ============================================
+// LOADING LIST ORDERS — состав загрузочного листа
+// ============================================
+export const loadingListOrders = mysqlTable("loading_list_orders", {
+  listId:  bigint("list_id", { mode: "number", unsigned: true }).notNull().references(() => loadingLists.id, { onDelete: "cascade" }),
+  orderId: bigint("order_id", { mode: "number", unsigned: true }).notNull().references(() => orders.id, { onDelete: "cascade" }),
+}, (t) => ({
+  pk:       primaryKey({ columns: [t.listId, t.orderId] }),
+  orderIdx: index("idx_llo_order").on(t.orderId),
+}));
+
+export type LoadingListOrder       = typeof loadingListOrders.$inferSelect;
+export type InsertLoadingListOrder = typeof loadingListOrders.$inferInsert;
+
+// ============================================
+// SAVED FILTERS — сохранённые наборы фильтров (заказы и т.п.)
+// ============================================
+export const savedFilters = mysqlTable("saved_filters", {
+  id:           serial("id").primaryKey(),
+  tenantId:     bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  userId:       bigint("user_id", { mode: "number", unsigned: true }).notNull().references(() => users.id, { onDelete: "cascade" }),
+  name:         varchar("name", { length: 100 }).notNull(),
+  filterConfig: json("filter_config").notNull(),
+  isDefault:    boolean("is_default").default(false).notNull(),
+  createdAt:    timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  userIdx: index("idx_filters_user").on(t.userId),
+}));
+
+export type SavedFilter       = typeof savedFilters.$inferSelect;
+export type InsertSavedFilter = typeof savedFilters.$inferInsert;
+
+// ============================================
+// ORDER COMMENTS — комментарии к заказам (threaded)
+// ============================================
+export const orderComments = mysqlTable("order_comments", {
+  id:        serial("id").primaryKey(),
+  tenantId:  bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  orderId:   bigint("order_id", { mode: "number", unsigned: true }).notNull().references(() => orders.id, { onDelete: "cascade" }),
+  userId:    bigint("user_id", { mode: "number", unsigned: true }).notNull().references(() => users.id, { onDelete: "restrict" }),
+  content:   text("content").notNull(),
+  parentId:  bigint("parent_id", { mode: "number", unsigned: true }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  orderIdx: index("idx_comments_order").on(t.orderId, t.createdAt),
+}));
+
+export type OrderComment       = typeof orderComments.$inferSelect;
+export type InsertOrderComment = typeof orderComments.$inferInsert;
+
+// ============================================
+// DEBT REMINDERS — напоминания о долгах
+// ============================================
+export const debtReminders = mysqlTable("debt_reminders", {
+  id:        serial("id").primaryKey(),
+  tenantId:  bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  shopId:    bigint("shop_id", { mode: "number", unsigned: true }).notNull().references(() => shops.id, { onDelete: "restrict" }),
+  orderId:   bigint("order_id", { mode: "number", unsigned: true }).references(() => orders.id, { onDelete: "set null" }),
+  amount:    decimal("amount", { precision: 15, scale: 2 }).notNull(),
+  dueDate:   date("due_date").notNull(),
+  sentAt:    timestamp("sent_at"),
+  paidAt:    timestamp("paid_at"),
+  status:    mysqlEnum("status", ["pending", "sent", "paid", "overdue"]).default("pending").notNull(),
+  reminderCount: int("reminder_count").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  tenantIdx:  index("idx_reminders_tenant").on(t.tenantId, t.status),
+  shopIdx:    index("idx_reminders_shop").on(t.shopId, t.status),
+  dueDateIdx: index("idx_reminders_due").on(t.dueDate, t.status),
+}));
+
+export type DebtReminder       = typeof debtReminders.$inferSelect;
+export type InsertDebtReminder = typeof debtReminders.$inferInsert;
+
+// ============================================
+// ORDER ADJUSTMENTS — история корректировок
+// ============================================
+export const orderAdjustments = mysqlTable("order_adjustments", {
+  id:          serial("id").primaryKey(),
+  tenantId:    bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  orderId:     bigint("order_id", { mode: "number", unsigned: true }).notNull().references(() => orders.id, { onDelete: "cascade" }),
+  adjustedBy:  bigint("adjusted_by", { mode: "number", unsigned: true }).notNull().references(() => users.id, { onDelete: "restrict" }),
+  type:        mysqlEnum("type", ["partial_delivery", "partial_payment", "price_change", "quantity_change"]).notNull(),
+  oldValue:    json("old_value").notNull(),
+  newValue:    json("new_value").notNull(),
+  reason:      text("reason"),
+  photos:      json("photos").$type<string[]>(),
+  createdAt:   timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  orderIdx:  index("idx_adjustments_order").on(t.orderId),
+  tenantIdx: index("idx_adjustments_tenant").on(t.tenantId, t.createdAt),
+}));
+
+export type OrderAdjustment       = typeof orderAdjustments.$inferSelect;
+export type InsertOrderAdjustment = typeof orderAdjustments.$inferInsert;

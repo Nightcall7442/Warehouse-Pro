@@ -67,4 +67,22 @@ export const PaymentService = {
       .orderBy(desc(payments.createdAt))
       .limit(20);
   },
+
+  async getPaymentHistoryRange(db: DrizzleInstance, tenantId: number, shopId: number, days: number = 30) {
+    return db.select({
+      id: payments.id,
+      amount: payments.amount,
+      type: payments.type,
+      notes: payments.notes,
+      createdAt: payments.createdAt,
+    })
+      .from(payments)
+      .where(and(
+        eq(payments.shopId, shopId),
+        eq(payments.tenantId, tenantId),
+        sql`${payments.createdAt} >= NOW() - INTERVAL ${days} DAY`,
+      ))
+      .orderBy(desc(payments.createdAt))
+      .limit(50);
+  },
 };

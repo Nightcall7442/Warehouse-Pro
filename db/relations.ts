@@ -31,6 +31,8 @@ import {
   priceLists,
   priceListItems,
   priceListAssignments,
+  debtReminders,
+  orderAdjustments,
 } from "./schema";
 
 export const usersRelations = relations(users, ({ many }) => ({
@@ -94,10 +96,6 @@ export const arrivalsRelations = relations(arrivals, ({ many }) => ({
 export const arrivalItemsRelations = relations(arrivalItems, ({ one }) => ({
   arrival: one(arrivals, { fields: [arrivalItems.arrivalId], references: [arrivals.id] }),
   product: one(products, { fields: [arrivalItems.productId], references: [products.id] }),
-}));
-
-export const paymentsRelations = relations(payments, ({ one }) => ({
-  shop: one(shops, { fields: [payments.shopId], references: [shops.id] }),
 }));
 
 export const agentLocationsRelations = relations(agentLocations, ({ one }) => ({
@@ -197,4 +195,19 @@ export const tenantsRelations = relations(tenants, ({ many }) => ({
   products: many(products),
   orders: many(orders),
   warehouses: many(warehouses),
+}));
+
+export const debtRemindersRelations = relations(debtReminders, ({ one }) => ({
+  shop: one(shops, { fields: [debtReminders.shopId], references: [shops.id] }),
+  order: one(orders, { fields: [debtReminders.orderId], references: [orders.id] }),
+}));
+
+export const orderAdjustmentsRelations = relations(orderAdjustments, ({ one }) => ({
+  order: one(orders, { fields: [orderAdjustments.orderId], references: [orders.id] }),
+  adjuster: one(users, { fields: [orderAdjustments.adjustedBy], references: [users.id] }),
+}));
+
+export const paymentsRelations = relations(payments, ({ one }) => ({
+  shop: one(shops, { fields: [payments.shopId], references: [shops.id] }),
+  order: one(orders, { fields: [payments.orderId], references: [orders.id] }),
 }));

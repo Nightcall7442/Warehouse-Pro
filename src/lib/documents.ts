@@ -76,6 +76,10 @@ export type DocItem = {
   qty:      number;
   price:    number;
   total:    number;
+  // Partial delivery support
+  orderedQty?: number;
+  deliveredQty?: number;
+  returnReason?: string;
 };
 
 export type OrderDocData = {
@@ -608,4 +612,365 @@ export function printInvoice(data: OrderDocData) {
   `;
 
   openPrintWindow(html, `Счёт № ${data.number}`, INVOICE_STYLES);
+}
+
+// ── 5. BATCH INVOICES — mass print with debt info ──────────────────────────
+
+export type BatchOrderData = {
+  id: number;
+  orderNumber: string;
+  status: string;
+  total: string;
+  subtotal: string;
+  discount: string;
+  notes: string | null;
+  createdAt: Date;
+  shopId: number;
+  shopName: string | null;
+  shopAddress: string | null;
+  shopCity: string | null;
+  shopPhone: string | null;
+  shopDebt: string;
+  shopDebtAmount: number;
+  agentName: string | null;
+  paymentMethod: string;
+  invoicePrintedAt: Date | null;
+  isPartial?: boolean;
+  items: Array<{
+    productId: number;
+    quantity: string;
+    unitPrice: string;
+    costPrice: string;
+    subtotal: string;
+    productName: string;
+    productCode: string | null;
+    unit: string;
+  }>;
+  paymentHistory: Array<{
+    amount: string;
+    type: string;
+    createdAt: Date;
+  }>;
+};
+
+export type BatchPrintOptions = {
+  includeQrCode: boolean;
+  includeBarcodes: boolean;
+  includeCostPrice: boolean;
+  includeSignature: boolean;
+  includeNotes: boolean;
+  pageBreakPerOrder: boolean;
+  sortBy: "orderNumber" | "shop" | "agentRoute";
+};
+
+function debtStatusColor(amount: number): string {
+  if (amount <= 0) return "#16a34a";
+  if (amount <= 500_000) return "#ca8a04";
+  if (amount <= 1_000_000) return "#dc2626";
+  return "#dc2626";
+}
+
+function debtStatusLabel(amount: number): string {
+  if (amount <= 0) return "Оплачено полностью";
+  if (amount <= 500_000) return "Небольшая задолженность";
+  if (amount <= 1_000_000) return "Крупная задолженность! Обратите внимание";
+  return "КРИТИЧЕСКИЙ ДОЛГ! Требуется срочная оплата";
+}
+
+function buildDebtBlock(order: BatchOrderData, currency: string): string {
+  const debt = order.shopDebtAmount;
+  const color = debtStatusColor(debt);
+  const label = debtStatusLabel(debt);
+
+  const paymentsHtml = order.paymentHistory.length > 0
+    ? order.paymentHistory.slice(0, 5).map(p => `
+        <tr>
+          <td style="padding:2px 6px;font-size:8pt">${new Date(p.createdAt).toLocaleDateString("ru-RU")}</td>
+          <td style="padding:2px 6px;font-size:8pt;text-align:right">${Number(p.amount).toLocaleString("ru-RU")} ${currency}</td>
+          <td style="padding:2px 6px;font-size:8pt">${p.type === "payment" ? "Оплата" : "Долг"}</td>
+        </tr>`).join("")
+    : '<tr><td colspan="3" style="padding:4px 6px;font-size:8pt;color:#94a3b8;text-align:center">Нет платежей за 30 дней</td></tr>';
+
+  return `
+    <div style="margin:10px 0;padding:10px 12px;border:1px solid #e2e8f0;border-radius:6px;background:#f8fafc">
+      <div style="font-size:9pt;font-weight:700;margin-bottom:6px">Информация о задолженности магазина</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <span style="font-size:14pt;font-weight:800;color:${color}">${debt.toLocaleString("ru-RU")} ${currency}</span>
+        <span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:7.5pt;font-weight:600;background:${color}18;color:${color};border:1px solid ${color}30">${label}</span>
+      </div>
+      ${debt > 0 && Number(order.total) > 0 ? `
+        <div style="font-size:8.5pt;color:#64748b;margin-bottom:6px">
+          В том числе по текущему заказу: <b>${Number(order.total).toLocaleString("ru-RU")} ${currency}</b><br>
+          Рекомендуемая сумма к оплате: <b style="color:${color}">${(debt + Number(order.total)).toLocaleString("ru-RU")} ${currency}</b>
+        </div>` : ""}
+      <table style="width:100%;border-collapse:collapse;margin-top:4px">
+        <tr style="background:#f1f5f9">
+          <th style="padding:3px 6px;font-size:7.5pt;text-align:left;color:#64748b;font-weight:600">Дата</th>
+          <th style="padding:3px 6px;font-size:7.5pt;text-align:right;color:#64748b;font-weight:600">Сумма</th>
+          <th style="padding:3px 6px;font-size:7.5pt;text-align:left;color:#64748b;font-weight:600">Тип</th>
+        </tr>
+        ${paymentsHtml}
+      </table>
+      <div style="font-size:7pt;color:#94a3b8;margin-top:6px">Данные актуальны на ${new Date().toLocaleString("ru-RU")}. Для уточнения обращайтесь в офис.</div>
+    </div>`;
+}
+
+function buildSingleInvoice(order: BatchOrderData, opts: BatchPrintOptions, company: CompanyInfo, currency: string): string {
+  const itemRows = order.items.map((item, i) => {
+    const costCol = opts.includeCostPrice ? `<td style="text-align:right;padding:4px 6px;font-size:8pt;color:#94a3b8">${Number(item.costPrice).toLocaleString("ru-RU")}</td>` : "";
+    const qtyCol = order.isPartial
+      ? `<td style="text-align:right;padding:4px 6px;font-size:8.5pt;text-decoration:line-through;color:#94a3b8">${Number(item.quantity).toFixed(2)}</td>
+         <td style="text-align:right;padding:4px 6px;font-size:8.5pt;font-weight:600">${Number(item.quantity).toFixed(2)}</td>`
+      : `<td style="text-align:right;padding:4px 6px;font-size:8.5pt">${Number(item.quantity).toFixed(2)}</td>`;
+    return `
+      <tr>
+        <td style="text-align:center;padding:4px 6px;font-size:8.5pt">${i + 1}</td>
+        <td style="padding:4px 6px;font-size:8.5pt">${escapeHtml(item.productName)}${item.productCode ? ` <span style="color:#94a3b8;font-size:7pt">(${escapeHtml(item.productCode)})</span>` : ""}</td>
+        <td style="text-align:center;padding:4px 6px;font-size:8.5pt">${escapeHtml(item.unit)}</td>
+        ${qtyCol}
+        <td style="text-align:right;padding:4px 6px;font-size:8.5pt">${Number(item.unitPrice).toLocaleString("ru-RU")}</td>
+        ${costCol}
+        <td style="text-align:right;padding:4px 6px;font-size:8.5pt;font-weight:600">${Number(item.subtotal).toLocaleString("ru-RU")}</td>
+      </tr>`;
+  }).join("");
+
+  const costHeader = opts.includeCostPrice ? '<th style="width:10%;text-align:right;padding:4px 6px;font-size:7.5pt;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Себест.</th>' : "";
+
+  // Show ordered vs delivered columns if partial delivery
+  const qtyHeader = order.isPartial
+    ? '<th style="width:9%;text-align:right;padding:4px 6px;font-size:7.5pt;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Заказ</th><th style="width:9%;text-align:right;padding:4px 6px;font-size:7.5pt;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Отдали</th>'
+    : '<th style="width:9%;text-align:right;padding:4px 6px;font-size:7.5pt;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Кол-во</th>';
+
+  const partialBanner = order.isPartial
+    ? `<div style="margin-bottom:10px;padding:8px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;font-size:9pt;color:#92400e;font-weight:600">
+        ⚠️ СКОРРЕКТИРОВАНА: частичная доставка
+      </div>`
+    : "";
+
+  return `
+    <div style="padding:15mm 15mm 10mm;font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif">
+      ${partialBanner}
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid #e2e8f0">
+        <div>
+          <div style="font-size:12pt;font-weight:700;color:#0f172a">${escapeHtml(company.name)}</div>
+          ${company.inn ? `<div style="font-size:8pt;color:#94a3b8">ИНН/СТИР: ${escapeHtml(company.inn)}</div>` : ""}
+          ${company.address ? `<div style="font-size:8pt;color:#94a3b8">${escapeHtml(company.address)}</div>` : ""}
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:7pt;text-transform:uppercase;letter-spacing:2px;color:#94a3b8">Накладная</div>
+          <div style="font-size:14pt;font-weight:800;color:#0f172a">№ ${escapeHtml(order.orderNumber)}</div>
+          <div style="font-size:8pt;color:#64748b">от ${new Date(order.createdAt).toLocaleDateString("ru-RU")}</div>
+        </div>
+      </div>
+
+      ${buildDebtBlock(order, currency)}
+
+      <table style="width:100%;border-collapse:collapse;margin:10px 0">
+        <thead>
+          <tr style="background:#f1f5f9">
+            <th style="width:4%;text-align:center;padding:4px 6px;font-size:7.5pt;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">№</th>
+            <th style="text-align:left;padding:4px 6px;font-size:7.5pt;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Наименование</th>
+            <th style="width:7%;text-align:center;padding:4px 6px;font-size:7.5pt;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Ед.</th>
+            ${qtyHeader}
+            <th style="width:12%;text-align:right;padding:4px 6px;font-size:7.5pt;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Цена</th>
+            ${costHeader}
+            <th style="width:14%;text-align:right;padding:4px 6px;font-size:7.5pt;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Сумма</th>
+          </tr>
+        </thead>
+        <tbody>${itemRows}</tbody>
+      </table>
+
+      <div style="display:flex;justify-content:flex-end;margin-top:8px">
+        <div style="width:220px">
+          <table style="font-size:9pt;width:100%">
+            <tr><td style="padding:3px 0;color:#64748b">Итого позиций:</td><td style="padding:3px 0;text-align:right">${order.items.length}</td></tr>
+            <tr><td style="padding:3px 0;color:#64748b">Сумма:</td><td style="padding:3px 0;text-align:right">${Number(order.subtotal).toLocaleString("ru-RU")} ${currency}</td></tr>
+            ${Number(order.discount) > 0 ? `<tr><td style="padding:3px 0;color:#64748b">Скидка:</td><td style="padding:3px 0;text-align:right;color:#16a34a">−${Number(order.discount).toLocaleString("ru-RU")} ${currency}</td></tr>` : ""}
+            <tr style="border-top:2px solid #0f172a"><td style="padding:6px 0;font-weight:700">ИТОГО:</td><td style="padding:6px 0;text-align:right;font-size:11pt;font-weight:800">${Number(order.total).toLocaleString("ru-RU")} ${currency}</td></tr>
+          </table>
+        </div>
+      </div>
+
+      ${opts.includeNotes && order.notes ? `<div style="margin-top:10px;padding:8px 10px;background:#fffbeb;border:1px solid #fde68a;border-radius:4px;font-size:8pt;color:#92400e"><b>Примечание:</b> ${escapeHtml(order.notes)}</div>` : ""}
+
+      ${opts.includeSignature ? `
+      <div style="display:flex;gap:30px;margin-top:20px;padding-top:12px;border-top:1px solid #e2e8f0">
+        <div style="flex:1"><div style="font-size:7pt;color:#94a3b8">Отпустил</div><div style="border-bottom:1px solid #cbd5e1;min-height:18px;margin-top:4px"></div></div>
+        <div style="flex:1"><div style="font-size:7pt;color:#94a3b8">Получил</div><div style="border-bottom:1px solid #cbd5e1;min-height:18px;margin-top:4px"></div></div>
+        <div style="flex:1"><div style="font-size:7pt;color:#94a3b8">Дата</div><div style="border-bottom:1px solid #cbd5e1;min-height:18px;margin-top:4px"></div></div>
+      </div>` : ""}
+    </div>`;
+}
+
+export function printBatchInvoices(orders: BatchOrderData[], opts: BatchPrintOptions, company: CompanyInfo, currency: string = "сум") {
+  // Sort orders
+  const sorted = [...orders];
+  if (opts.sortBy === "shop") sorted.sort((a, b) => (a.shopName ?? "").localeCompare(b.shopName ?? ""));
+  else if (opts.sortBy === "agentRoute") sorted.sort((a, b) => (a.agentName ?? "").localeCompare(b.agentName ?? ""));
+  else sorted.sort((a, b) => a.orderNumber.localeCompare(b.orderNumber));
+
+  const pages = sorted.map(o => buildSingleInvoice(o, opts, company, currency));
+  const separator = opts.pageBreakPerOrder ? '<div style="page-break-before:always"></div>' : '<hr style="margin:20px 0;border:none;border-top:1px dashed #ccc">';
+  const html = pages.join(separator);
+
+  const BATCH_STYLES = `
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; background: #fff; color: #1e293b; }
+    @page { margin: 5mm; size: A4; }
+    @media print { .no-print { display: none !important; } }
+  `;
+
+  openPrintWindow(html, `Накладные — ${orders.length} заказ(ов)`, BATCH_STYLES);
+}
+
+// ── 6. LOADING LIST — for warehouse workers ────────────────────────────────
+
+export type LoadingListData = {
+  listId: number;
+  listNumber: string;
+  totalOrders: number;
+  totalItems: number;
+  totalWeight: number;
+  orders: Array<{
+    id: number;
+    orderNumber: string;
+    shopName: string | null;
+    shopAddress: string | null;
+    shopCity: string | null;
+    shopPhone: string | null;
+    shopGpsLat: string | null;
+    shopGpsLng: string | null;
+    shopDebt: string;
+    agentName: string | null;
+    total: string;
+  }>;
+  items: Array<{
+    productId: number;
+    productName: string;
+    productCode: string | null;
+    unit: string;
+    unitWeight: string;
+    totalQty: string;
+    totalPrice: string;
+  }>;
+};
+
+function buildLoadingListAggregated(data: LoadingListData, currency: string): string {
+  const itemRows = data.items.map((item, i) => `
+    <tr>
+      <td style="text-align:center;padding:5px 6px;font-size:9pt">${i + 1}</td>
+      <td style="padding:5px 6px;font-size:9pt">${escapeHtml(item.productCode ?? "")}</td>
+      <td style="padding:5px 6px;font-size:9pt">${escapeHtml(item.productName)}</td>
+      <td style="text-align:center;padding:5px 6px;font-size:9pt">${escapeHtml(item.unit)}</td>
+      <td style="text-align:right;padding:5px 6px;font-size:9pt;font-weight:600">${Number(item.totalQty).toFixed(2)}</td>
+      <td style="text-align:right;padding:5px 6px;font-size:9pt">${(Number(item.totalQty) * Number(item.unitWeight)).toFixed(2)}</td>
+    </tr>`).join("");
+
+  return `
+    <div style="text-align:center;margin-bottom:10px">
+      <div style="font-size:16pt;font-weight:800;color:#0f172a">ЗАГРУЗОЧНЫЙ ЛИСТ</div>
+      <div style="font-size:11pt;color:#64748b">№ ${escapeHtml(data.listNumber)}</div>
+    </div>
+    <div style="display:flex;gap:20px;margin-bottom:12px;font-size:9pt;color:#64748b">
+      <div>Дата: <b>${new Date().toLocaleDateString("ru-RU")}</b></div>
+      <div>Заказов: <b>${data.totalOrders}</b></div>
+      <div>Позиций: <b>${data.totalItems}</b></div>
+      <div>Общий вес: <b>${data.totalWeight.toFixed(1)} кг</b></div>
+    </div>
+    <table style="width:100%;border-collapse:collapse">
+      <thead>
+        <tr style="background:#f1f5f9">
+          <th style="width:4%;padding:5px 6px;font-size:8pt;color:#64748b;font-weight:600;border-bottom:2px solid #e2e8f0">№</th>
+          <th style="width:10%;padding:5px 6px;font-size:8pt;color:#64748b;font-weight:600;border-bottom:2px solid #e2e8f0;text-align:left">Код</th>
+          <th style="padding:5px 6px;font-size:8pt;color:#64748b;font-weight:600;border-bottom:2px solid #e2e8f0;text-align:left">Наименование</th>
+          <th style="width:8%;padding:5px 6px;font-size:8pt;color:#64748b;font-weight:600;border-bottom:2px solid #e2e8f0">Ед.</th>
+          <th style="width:12%;padding:5px 6px;font-size:8pt;color:#64748b;font-weight:600;border-bottom:2px solid #e2e8f0;text-align:right">Кол-во</th>
+          <th style="width:12%;padding:5px 6px;font-size:8pt;color:#64748b;font-weight:600;border-bottom:2px solid #e2e8f0;text-align:right">Вес (кг)</th>
+        </tr>
+      </thead>
+      <tbody>${itemRows}</tbody>
+    </table>
+    <div style="display:flex;gap:30px;margin-top:20px;padding-top:12px;border-top:1px solid #e2e8f0">
+      <div style="flex:1"><div style="font-size:8pt;color:#94a3b8">Проверил кладовщик</div><div style="border-bottom:1px solid #cbd5e1;min-height:20px;margin-top:4px"></div></div>
+      <div style="flex:1"><div style="font-size:8pt;color:#94a3b8">Отпустил</div><div style="border-bottom:1px solid #cbd5e1;min-height:20px;margin-top:4px"></div></div>
+      <div style="flex:1"><div style="font-size:8pt;color:#94a3b8">Дата</div><div style="border-bottom:1px solid #cbd5e1;min-height:20px;margin-top:4px"></div></div>
+    </div>`;
+}
+
+function buildLoadingListByOrder(data: LoadingListData, currency: string): string {
+  const orderSections = data.orders.map(order => {
+    const orderItems = data.items; // In byOrder mode, items are already per-order
+    const itemRows = orderItems.map((item, i) => `
+      <tr>
+        <td style="text-align:center;padding:4px 6px;font-size:8.5pt">${i + 1}</td>
+        <td style="padding:4px 6px;font-size:8.5pt">${escapeHtml(item.productName)}</td>
+        <td style="text-align:right;padding:4px 6px;font-size:8.5pt">${Number(item.totalQty).toFixed(2)}</td>
+        <td style="text-align:right;padding:4px 6px;font-size:8.5pt">${Number(item.totalPrice).toLocaleString("ru-RU")}</td>
+      </tr>`).join("");
+
+    const debt = Number(order.shopDebt);
+    const debtColor = debtStatusColor(debt);
+
+    return `
+      <div style="margin-bottom:16px;padding:12px;border:1px solid #e2e8f0;border-radius:8px;page-break-inside:avoid">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+          <div>
+            <div style="font-size:11pt;font-weight:700;color:#0f172a">ЗАКАЗ № ${escapeHtml(order.orderNumber)}</div>
+            <div style="font-size:9pt;color:#64748b">→ ${escapeHtml(order.shopName ?? "Магазин")}</div>
+            <div style="font-size:8pt;color:#94a3b8">${escapeHtml(order.shopAddress ?? "")} ${order.shopCity ? `, ${escapeHtml(order.shopCity)}` : ""}</div>
+            ${order.shopPhone ? `<div style="font-size:8pt;color:#94a3b8">Тел: ${escapeHtml(order.shopPhone)}</div>` : ""}
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:11pt;font-weight:700">${Number(order.total).toLocaleString("ru-RU")} ${currency}</div>
+            ${debt > 0 ? `<div style="font-size:8pt;color:${debtColor};font-weight:600">Долг: ${debt.toLocaleString("ru-RU")} ${currency}</div>` : ""}
+          </div>
+        </div>
+        <table style="width:100%;border-collapse:collapse">
+          <thead><tr style="background:#f8fafc">
+            <th style="width:4%;padding:4px 6px;font-size:7.5pt;color:#64748b;border-bottom:1px solid #e2e8f0">№</th>
+            <th style="padding:4px 6px;font-size:7.5pt;color:#64748b;border-bottom:1px solid #e2e8f0;text-align:left">Товар</th>
+            <th style="width:12%;padding:4px 6px;font-size:7.5pt;color:#64748b;border-bottom:1px solid #e2e8f0;text-align:right">Кол-во</th>
+            <th style="width:14%;padding:4px 6px;font-size:7.5pt;color:#64748b;border-bottom:1px solid #e2e8f0;text-align:right">Сумма</th>
+          </tr></thead>
+          <tbody>${itemRows}</tbody>
+        </table>
+        <div style="display:flex;gap:16px;margin-top:10px;font-size:8pt">
+          <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" style="width:14px;height:14px"> Товар проверен</label>
+          <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" style="width:14px;height:14px"> Упаковка целая</label>
+          <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" style="width:14px;height:14px"> Документы переданы</label>
+        </div>
+        <div style="display:flex;gap:20px;margin-top:10px;font-size:8pt;color:#94a3b8">
+          <div>Подпись получателя: _______________</div>
+          <div>Дата/время: _______________</div>
+        </div>
+      </div>`;
+  }).join("");
+
+  return `
+    <div style="text-align:center;margin-bottom:10px">
+      <div style="font-size:16pt;font-weight:800;color:#0f172a">ЗАГРУЗОЧНЫЙ ЛИСТ</div>
+      <div style="font-size:11pt;color:#64748b">№ ${escapeHtml(data.listNumber)} — По заказам</div>
+    </div>
+    <div style="display:flex;gap:20px;margin-bottom:12px;font-size:9pt;color:#64748b">
+      <div>Заказов: <b>${data.totalOrders}</b></div>
+      <div>Позиций: <b>${data.totalItems}</b></div>
+      <div>Общий вес: <b>${data.totalWeight.toFixed(1)} кг</b></div>
+    </div>
+    ${orderSections}`;
+}
+
+export function printLoadingList(data: LoadingListData, format: "aggregated" | "byOrder" | "byRoute", currency: string = "сум") {
+  const html = format === "aggregated"
+    ? buildLoadingListAggregated(data, currency)
+    : buildLoadingListByOrder(data, currency);
+
+  const STYLES = `
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; background: #fff; color: #1e293b; padding: 12mm 15mm; }
+    @page { margin: 8mm; size: A4; }
+    table { width: 100%; border-collapse: collapse; }
+    @media print { .no-print { display: none !important; } }
+  `;
+
+  openPrintWindow(html, `Загрузочный лист № ${data.listNumber}`, STYLES);
 }

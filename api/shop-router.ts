@@ -333,6 +333,38 @@ export const shopRouter = createRouter({
       return districts;
     }),
 
+  // ── Debt Details (for invoice printing) ─────────────────────────────────────
+  getDebtDetails: supervisorQuery
+    .input(z.object({ shopId: z.number() }))
+    .query(async ({ input, ctx }) => {
+      const db = getDb();
+      const tenantId = ctx.tenant.id;
+
+      const [shop] = await db.select({
+        id: shops.id, name: shops.name, debt: shops.debt,
+      }).from(shops)
+        .where(and(eq(shops.id, input.shopId), eq(shops.tenantId, tenantId)))
+        .limit(1);
+      if (!shop) throw new Error("Магазин не найден");
+
+      const paymentHistory = await PaymentService.getPaymentHistoryRange(db, tenantId, input.shopId, 30);
+
+      const debtAmount = Number(shop.debt);
+      let debtStatus: "paid" | "low" | "medium" | "high" | "critical" = "paid";
+      if (debtAmount > 1_000_000) debtStatus = "critical";
+      else if (debtAmount > 500_000) debtStatus = "high";
+      else if (debtAmount > 0) debtStatus = "low";
+
+      return {
+        shopId: shop.id,
+        shopName: shop.name,
+        currentDebt: shop.debt,
+        debtAmount,
+        debtStatus,
+        paymentHistory,
+      };
+    }),
+
   // ── Debt Report ─────────────────────────────────────────────────────────────
   debtReport: supervisorQuery.query(async ({ ctx }) => {
     return getDb().select({

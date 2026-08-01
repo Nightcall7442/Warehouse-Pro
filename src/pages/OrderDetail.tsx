@@ -20,6 +20,27 @@ const STATUS_STYLES: Record<string, string> = {
   processing: "bg-warning/15 text-warning border-warning/30",
   completed:  "bg-success/15 text-success border-success/30",
   cancelled:  "bg-danger/15 text-danger border-danger/30",
+  partially_delivered: "bg-amber-100 text-amber-700 border-amber-300",
+  partially_paid: "bg-blue-100 text-blue-700 border-blue-300",
+};
+
+const STATUS_LABELS: Record<string, { ru: string; uz: string }> = {
+  new:                  { ru: "Новый",          uz: "Yangi" },
+  processing:           { ru: "В обработке",    uz: "Jarayonda" },
+  completed:            { ru: "Выполнен",       uz: "Bajarildi" },
+  cancelled:            { ru: "Отменён",        uz: "Bekor qilindi" },
+  partially_delivered:  { ru: "Част. доставка", uz: "Qisman yetkazildi" },
+  partially_paid:       { ru: "Част. оплата",   uz: "Qisman to'landi" },
+};
+
+const UNIT_LABELS: Record<string, { ru: string; uz: string }> = {
+  kg:   { ru: "кг",  uz: "kg" },
+  l:    { ru: "л",   uz: "l" },
+  pcs:  { ru: "шт",  uz: "dona" },
+  box:  { ru: "блок", uz: "blok" },
+  pack: { ru: "упак", uz: "upk" },
+  m:    { ru: "м",   uz: "m" },
+  block:{ ru: "блок", uz: "blok" },
 };
 
 const PAYMENT_METHODS: Record<string, { ru: string; uz: string; color: string }> = {
@@ -105,10 +126,13 @@ export default function OrderDetail() {
       items:    (order.items ?? []).map((i) => ({
         name:  i.productName ?? "",
         code:  i.productCode ?? "",
-        unit:  "кг",
-        qty:   Number(i.quantity),
+        unit:  UNIT_LABELS[i.unit ?? "pcs"]?.ru ?? "шт",
+        qty:   Number(i.deliveredQuantity ?? i.quantity),
         price: Number(i.unitPrice),
         total: Number(i.subtotal),
+        orderedQty: Number(i.quantity),
+        deliveredQty: i.deliveredQuantity != null ? Number(i.deliveredQuantity) : undefined,
+        returnReason: i.returnReason ?? undefined,
       })),
       subtotal: Number(order.subtotal),
       discount: Number(order.discount ?? 0),
@@ -124,17 +148,21 @@ export default function OrderDetail() {
 
   const handleExport = async () => {
     if (!order) return;
-    const rows = (order.items ?? []).map((i) => ({
-      [t("orders.number")]:   order.orderNumber,
-      [t("orders.shop")]:     order.shop?.name ?? "",
-      [t("orders.agent")]:    order.agent?.name ?? "",
-      [t("common.status")]:   order.status,
-      [t("products.name")]:   i.productName ?? "",
-      [t("products.code")]:   i.productCode ?? "",
-      "Кол-во (кг)":         Number(i.quantity).toFixed(2),
-      "Цена":                 Number(i.unitPrice).toFixed(2),
-      [t("common.total")]:    Number(i.subtotal).toFixed(2),
-    }));
+    const rows = (order.items ?? []).map((i) => {
+      const ul = UNIT_LABELS[i.unit ?? "pcs"] ?? { ru: "шт", uz: "dona" };
+      return {
+        [t("orders.number")]:   order.orderNumber,
+        [t("orders.shop")]:     order.shop?.name ?? "",
+        [t("orders.agent")]:    order.agent?.name ?? "",
+        [t("common.status")]:   order.status,
+        [t("products.name")]:   i.productName ?? "",
+        [t("products.code")]:   i.productCode ?? "",
+        [`Кол-во (${ul.ru})`]:  Number(i.quantity).toFixed(2),
+        ...(i.deliveredQuantity != null ? { [`Отдано (${ul.ru})`]: Number(i.deliveredQuantity).toFixed(2) } : {}),
+        "Цена":                 Number(i.unitPrice).toFixed(2),
+        [t("common.total")]:    Number(i.subtotal).toFixed(2),
+      };
+    });
     await exportToExcel(rows, `order-${order.orderNumber}`);
   };
 
@@ -209,7 +237,7 @@ export default function OrderDetail() {
                 : ""}
             </p>
             <span className={`badge ${STATUS_STYLES[order.status]} mt-2 inline-block`}>
-              {t(`orders.status.${order.status}` as string) || order.status.toUpperCase()}
+              {STATUS_LABELS[order.status]?.[lang] ?? order.status}
             </span>
             {(() => {
               const pm = PAYMENT_METHODS[order.paymentMethod ?? "cash"];
@@ -260,21 +288,50 @@ export default function OrderDetail() {
                 {lang === "uz" ? "MAHSULOT" : "ТОВАР"}
               </th>
               <th className="text-left px-3 py-2 font-h3 text-secondary text-xs">КОД</th>
-              <th className="text-right px-3 py-2 font-h3 text-secondary text-xs">КГ</th>
+              <th className="text-right px-3 py-2 font-h3 text-secondary text-xs">
+                {(() => {
+                  const firstUnit = order.items?.[0]?.unit;
+                  const ul = firstUnit ? UNIT_LABELS[firstUnit] : null;
+                  return ul ? (lang === "uz" ? ul.uz : ul.ru).toUpperCase() : (lang === "uz" ? "MIQDOR" : "КОЛ-ВО");
+                })()}
+              </th>
               <th className="text-right px-3 py-2 font-h3 text-secondary text-xs">ЦЕНА</th>
               <th className="text-right px-3 py-2 font-h3 text-secondary text-xs">СУММА</th>
             </tr>
           </thead>
           <tbody>
-            {order.items?.map((item, i) => (
-              <tr key={item.id ?? i} className="border-b border-border-subtle">
-                <td className="px-3 py-2.5 text-sm text-primary">{item.productName ?? "—"}</td>
-                <td className="px-3 py-2.5 font-data text-xs text-secondary">{item.productCode ?? "—"}</td>
-                <td className="px-3 py-2.5 font-data text-sm text-right">{Number(item.quantity).toFixed(2)}</td>
-                <td className="px-3 py-2.5 font-data text-sm text-right text-secondary">{fmt(item.unitPrice)}</td>
-                <td className="px-3 py-2.5 font-data text-sm text-right">{fmt(item.subtotal)}</td>
-              </tr>
-            ))}
+            {order.items?.map((item, i) => {
+              const ul = UNIT_LABELS[item.unit ?? "pcs"] ?? { ru: "шт", uz: "dona" };
+              const unitLabel = lang === "uz" ? ul.uz : ul.ru;
+              const hasPartial = item.deliveredQuantity != null && Number(item.deliveredQuantity) < Number(item.quantity);
+              return (
+                <tr key={item.id ?? i} className="border-b border-border-subtle">
+                  <td className="px-3 py-2.5 text-sm text-primary">
+                    {item.productName ?? "—"}
+                    {hasPartial && (
+                      <div className="text-xs text-amber-600 mt-0.5">
+                        {lang === "uz" ? "Qisman yetkazildi" : "Частичная доставка"}
+                        {item.returnReason && ` — ${item.returnReason}`}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5 font-data text-xs text-secondary">{item.productCode ?? "—"}</td>
+                  <td className="px-3 py-2.5 font-data text-sm text-right">
+                    {hasPartial ? (
+                      <span>
+                        <span className="line-through text-muted-foreground">{Number(item.quantity).toFixed(2)}</span>
+                        <span className="ml-1 text-amber-600 font-medium">{Number(item.deliveredQuantity).toFixed(2)}</span>
+                        <span className="text-xs text-muted-foreground ml-0.5">{unitLabel}</span>
+                      </span>
+                    ) : (
+                      <span>{Number(item.quantity).toFixed(2)} <span className="text-xs text-muted-foreground">{unitLabel}</span></span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5 font-data text-sm text-right text-secondary">{fmt(item.unitPrice)}</td>
+                  <td className="px-3 py-2.5 font-data text-sm text-right">{fmt(item.subtotal)}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
 
