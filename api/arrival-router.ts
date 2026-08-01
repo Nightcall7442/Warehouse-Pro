@@ -4,6 +4,7 @@ import { createRouter, operatorQuery } from "./middleware";
 import { arrivals, arrivalItems, products, warehouseStock, warehouses, stockMovements } from "@db/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { sanitizeString } from "./lib/sanitize";
+import { decimalOrDefault } from "./lib/zod-decimal";
 import { sseBus } from "./lib/sse";
 
 export const arrivalRouter = createRouter({
@@ -83,11 +84,11 @@ export const arrivalRouter = createRouter({
       driverName:  z.string().optional(),
       driverPhone: z.string().optional(),
       arrivalDate: z.string(),
-      fuelCost:    z.string().default("0.00"),
-      tollCost:    z.string().default("0.00"),
-      otherCost:   z.string().default("0.00"),
+      fuelCost:    decimalOrDefault("0.00").default("0.00"),
+      tollCost:    decimalOrDefault("0.00").default("0.00"),
+      otherCost:   decimalOrDefault("0.00").default("0.00"),
       notes:       z.string().optional(),
-      items:       z.array(z.object({ productId: z.number(), quantity: z.string().refine(v => Number(v) > 0, "Количество должно быть положительным"), costPrice: z.string().optional(), sellingPrice: z.string().optional(), condition: z.string().optional(), warehouseId: z.number().optional() })).optional(),
+      items:       z.array(z.object({ productId: z.number(), quantity: z.string().refine(v => Number(v) > 0, "Количество должно быть положительным"), costPrice: decimalOrDefault("0.00").optional(), sellingPrice: decimalOrDefault("0.00").optional(), condition: z.string().optional(), warehouseId: z.number().optional() })).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const db       = ctx.db;
@@ -138,9 +139,9 @@ export const arrivalRouter = createRouter({
       driverPhone: z.string().optional(),
       status:      z.enum(["pending", "unloading", "completed"]).optional(),
       warehouseId: z.number().optional(),
-      fuelCost:    z.string().optional(),
-      tollCost:    z.string().optional(),
-      otherCost:   z.string().optional(),
+      fuelCost:    decimalOrDefault("0.00").optional(),
+      tollCost:    decimalOrDefault("0.00").optional(),
+      otherCost:   decimalOrDefault("0.00").optional(),
       notes:       z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {

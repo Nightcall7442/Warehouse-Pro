@@ -618,6 +618,22 @@ export default function Orders() {
                             >
                               {t("Выполнен", "Bajarildi")}
                             </button>
+                            {isOperatorOrCeo && (
+                              <button
+                                onClick={async () => {
+                                  const ok = await confirm({ title: t("Удалить заказ?", "Buyurtmani o'chirish?"), danger: true, confirmText: t("Удалить", "O'chirish") });
+                                  if (ok) deleteOrder.mutate({ id: o.id });
+                                }}
+                                style={{
+                                  display: "flex", alignItems: "center", gap: "4px",
+                                  padding: "4px 10px", fontSize: "11px", fontWeight: 500, fontFamily: F.body,
+                                  borderRadius: "8px", border: `1px solid ${COLORS.danger}40`, cursor: "pointer",
+                                  background: `${COLORS.danger}10`, color: COLORS.danger,
+                                }}
+                              >
+                                <Trash2 size={11} />
+                              </button>
+                            )}
                           </div>
                         ) : (
                           (o.status === "new" || o.status === "processing" || o.status === "cancelled") && isOperatorOrCeo && (

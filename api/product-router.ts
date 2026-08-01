@@ -4,6 +4,7 @@ import { getDb } from "./queries/connection";
 import { products, warehouseStock, stockMovements, warehouses } from "@db/schema";
 import { eq, like, and, sql, desc } from "drizzle-orm";
 import { sanitizeString, sanitizeSearch } from "./lib/sanitize";
+import { decimalOrDefault } from "./lib/zod-decimal";
 import { cache, CacheKeys, CacheTTL } from "./lib/cache";
 import { photoRef } from "./lib/photo-url";
 import { ProductService } from "./services/ProductService";
@@ -177,13 +178,13 @@ export const productRouter = createRouter({
       barcode:      z.string().optional(),
       name:         z.string().min(1),
       category:     z.string().optional(),
-      costPrice:    z.string().refine(v => Number(v) >= 0, "Цена не может быть отрицательной").default("0.00"),
+      costPrice:    decimalOrDefault("0.00").refine(v => Number(v) >= 0, "Цена не может быть отрицательной").default("0.00"),
       unitPrice:    z.string().refine(v => Number(v) > 0, "Цена должна быть положительной"),
       unit:         z.enum(["kg", "l", "pcs", "box", "pack", "m", "block"]).default("pcs"),
-      unitWeight:   z.string().default("0.000"),
+      unitWeight:   decimalOrDefault("0.000").default("0.000"),
       description:  z.string().optional(),
       photoUrl:     z.string().max(2_800_000, "Файл слишком большой (макс. 2 МБ)").optional(),
-      reorderPoint: z.string().default("10.00"),
+      reorderPoint: decimalOrDefault("10.00").default("10.00"),
     }))
     .mutation(async ({ input, ctx }) => {
       const db       = getDb();
@@ -241,13 +242,13 @@ export const productRouter = createRouter({
       code:         z.string().min(1).optional(),
       name:         z.string().min(1).optional(),
       category:     z.string().optional(),
-      costPrice:    z.string().refine(v => v === undefined || Number(v) >= 0, "Цена не может быть отрицательной").optional(),
+      costPrice:    decimalOrDefault("0.00").refine(v => v === undefined || Number(v) >= 0, "Цена не может быть отрицательной").optional(),
       unitPrice:    z.string().refine(v => v === undefined || Number(v) > 0, "Цена должна быть положительной").optional(),
       unit:         z.enum(["kg", "l", "pcs", "box", "pack", "m", "block"]).optional(),
-      unitWeight:   z.string().optional(),
+      unitWeight:   decimalOrDefault("0.000").optional(),
       description:  z.string().optional(),
       photoUrl:     z.string().max(2_800_000, "Файл слишком большой (макс. 2 МБ)").nullable().optional(),
-      reorderPoint: z.string().optional(),
+      reorderPoint: decimalOrDefault("10.00").optional(),
       status:       z.enum(["active", "inactive"]).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
