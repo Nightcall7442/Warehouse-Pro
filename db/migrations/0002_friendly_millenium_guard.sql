@@ -87,8 +87,31 @@ CREATE INDEX `idx_plans_shop` ON `daily_plans` (`shop_id`);--> statement-breakpo
 CREATE INDEX `idx_plans_status` ON `daily_plans` (`status`);--> statement-breakpoint
 CREATE INDEX `idx_notif_user_tenant` ON `notifications` (`user_id`,`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_notif_user_tenant_read` ON `notifications` (`user_id`,`tenant_id`,`is_read`);--> statement-breakpoint
-CREATE INDEX `idx_order_items_order` ON `order_items` (`order_id`);--> statement-breakpoint
-CREATE INDEX `idx_order_items_product` ON `order_items` (`product_id`);--> statement-breakpoint
+-- idx_order_items_order / idx_order_items_product were already created by
+-- 0001_add_performance_indexes.sql (this migration was hand-written from a
+-- schema.ts diff that didn't know 0001 had added them) — guarded instead of
+-- plain CREATE INDEX so a fresh `drizzle-kit migrate` run doesn't hit
+-- "Duplicate key name" on the second of the two files.
+SET @idx_exists = (SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'order_items' AND INDEX_NAME = 'idx_order_items_order');
+--> statement-breakpoint
+SET @ddl = IF(@idx_exists = 0, 'CREATE INDEX `idx_order_items_order` ON `order_items` (`order_id`)', 'SELECT 1');
+--> statement-breakpoint
+PREPARE stmt FROM @ddl;
+--> statement-breakpoint
+EXECUTE stmt;
+--> statement-breakpoint
+DEALLOCATE PREPARE stmt;
+--> statement-breakpoint
+SET @idx_exists = (SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'order_items' AND INDEX_NAME = 'idx_order_items_product');
+--> statement-breakpoint
+SET @ddl = IF(@idx_exists = 0, 'CREATE INDEX `idx_order_items_product` ON `order_items` (`product_id`)', 'SELECT 1');
+--> statement-breakpoint
+PREPARE stmt FROM @ddl;
+--> statement-breakpoint
+EXECUTE stmt;
+--> statement-breakpoint
+DEALLOCATE PREPARE stmt;
+--> statement-breakpoint
 CREATE INDEX `idx_orders_tenant_status` ON `orders` (`tenant_id`,`status`);--> statement-breakpoint
 CREATE INDEX `idx_orders_tenant_agent` ON `orders` (`tenant_id`,`agent_id`);--> statement-breakpoint
 CREATE INDEX `idx_orders_tenant_date` ON `orders` (`tenant_id`,`created_at`);--> statement-breakpoint
@@ -104,6 +127,16 @@ CREATE INDEX `idx_products_tenant_category` ON `products` (`tenant_id`,`category
 CREATE INDEX `idx_products_tenant_status` ON `products` (`tenant_id`,`status`);--> statement-breakpoint
 CREATE INDEX `idx_shops_agent` ON `shops` (`agent_id`);--> statement-breakpoint
 CREATE INDEX `idx_shops_tenant_status` ON `shops` (`tenant_id`,`status`);--> statement-breakpoint
-CREATE INDEX `idx_movements_product` ON `stock_movements` (`product_id`);--> statement-breakpoint
+-- Also already created by 0001_add_performance_indexes.sql — see note above.
+SET @idx_exists = (SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'stock_movements' AND INDEX_NAME = 'idx_movements_product');
+--> statement-breakpoint
+SET @ddl = IF(@idx_exists = 0, 'CREATE INDEX `idx_movements_product` ON `stock_movements` (`product_id`)', 'SELECT 1');
+--> statement-breakpoint
+PREPARE stmt FROM @ddl;
+--> statement-breakpoint
+EXECUTE stmt;
+--> statement-breakpoint
+DEALLOCATE PREPARE stmt;
+--> statement-breakpoint
 CREATE INDEX `idx_movements_tenant_product` ON `stock_movements` (`tenant_id`,`product_id`);--> statement-breakpoint
 CREATE INDEX `idx_movements_tenant_created` ON `stock_movements` (`tenant_id`,`created_at`);

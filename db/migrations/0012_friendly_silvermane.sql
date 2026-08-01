@@ -1,4 +1,8 @@
-CREATE TABLE `api_keys` (
+-- api_keys was already created by 0006_add_api_keys.sql (without the
+-- uq_apikey_hash unique constraint declared here) — IF NOT EXISTS so this is
+-- a safe no-op on a database that already has it; the constraint is added
+-- separately below (guarded) so it lands either way.
+CREATE TABLE IF NOT EXISTS `api_keys` (
 	`id` serial AUTO_INCREMENT NOT NULL,
 	`tenant_id` bigint unsigned NOT NULL,
 	`name` varchar(100) NOT NULL,
@@ -10,11 +14,22 @@ CREATE TABLE `api_keys` (
 	`expires_at` timestamp,
 	`status` varchar(20) NOT NULL DEFAULT 'active',
 	`created_at` timestamp NOT NULL DEFAULT (now()),
-	CONSTRAINT `api_keys_id` PRIMARY KEY(`id`),
-	CONSTRAINT `uq_apikey_hash` UNIQUE(`key_hash`)
+	CONSTRAINT `api_keys_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
-CREATE TABLE `audit_log` (
+SET @c_exists = (SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = 'api_keys' AND CONSTRAINT_NAME = 'uq_apikey_hash');
+--> statement-breakpoint
+SET @ddl = IF(@c_exists = 0, 'ALTER TABLE `api_keys` ADD CONSTRAINT `uq_apikey_hash` UNIQUE(`key_hash`)', 'SELECT 1');
+--> statement-breakpoint
+PREPARE stmt FROM @ddl;
+--> statement-breakpoint
+EXECUTE stmt;
+--> statement-breakpoint
+DEALLOCATE PREPARE stmt;
+--> statement-breakpoint
+-- audit_log was already created by 0004_add_audit_log.sql (with fewer
+-- explicitly-named constraints) — IF NOT EXISTS so this is a safe no-op.
+CREATE TABLE IF NOT EXISTS `audit_log` (
 	`id` serial AUTO_INCREMENT NOT NULL,
 	`tenant_id` bigint unsigned NOT NULL,
 	`actor_id` bigint unsigned,
@@ -44,7 +59,10 @@ CREATE TABLE `commissions` (
 	CONSTRAINT `commissions_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
-CREATE TABLE `password_reset_tokens` (
+-- password_reset_tokens was already created by 0005_add_password_reset_tokens.sql
+-- (with the same uq_reset_token_hash unique constraint name) — IF NOT EXISTS
+-- so this is a safe no-op.
+CREATE TABLE IF NOT EXISTS `password_reset_tokens` (
 	`id` serial AUTO_INCREMENT NOT NULL,
 	`user_id` bigint unsigned NOT NULL,
 	`token_hash` varchar(64) NOT NULL,
@@ -295,11 +313,62 @@ ALTER TABLE `stock_transfers` ADD CONSTRAINT `stock_transfers_product_id_product
 ALTER TABLE `stock_transfers` ADD CONSTRAINT `stock_transfers_created_by_users_id_fk` FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE `territories` ADD CONSTRAINT `territories_tenant_id_tenants_id_fk` FOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`) ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE `warehouses` ADD CONSTRAINT `warehouses_tenant_id_tenants_id_fk` FOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`) ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX `idx_apikey_tenant` ON `api_keys` (`tenant_id`);--> statement-breakpoint
-CREATE INDEX `idx_apikey_prefix` ON `api_keys` (`key_prefix`);--> statement-breakpoint
-CREATE INDEX `idx_audit_tenant_created` ON `audit_log` (`tenant_id`,`created_at`);--> statement-breakpoint
-CREATE INDEX `idx_audit_tenant_action` ON `audit_log` (`tenant_id`,`action`);--> statement-breakpoint
-CREATE INDEX `idx_audit_actor` ON `audit_log` (`actor_id`);--> statement-breakpoint
+-- idx_apikey_tenant / idx_apikey_prefix were already created by
+-- 0006_add_api_keys.sql — guarded instead of plain CREATE INDEX so a fresh
+-- `drizzle-kit migrate` run doesn't hit "Duplicate key name".
+SET @idx_exists = (SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'api_keys' AND INDEX_NAME = 'idx_apikey_tenant');
+--> statement-breakpoint
+SET @ddl = IF(@idx_exists = 0, 'CREATE INDEX `idx_apikey_tenant` ON `api_keys` (`tenant_id`)', 'SELECT 1');
+--> statement-breakpoint
+PREPARE stmt FROM @ddl;
+--> statement-breakpoint
+EXECUTE stmt;
+--> statement-breakpoint
+DEALLOCATE PREPARE stmt;
+--> statement-breakpoint
+SET @idx_exists = (SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'api_keys' AND INDEX_NAME = 'idx_apikey_prefix');
+--> statement-breakpoint
+SET @ddl = IF(@idx_exists = 0, 'CREATE INDEX `idx_apikey_prefix` ON `api_keys` (`key_prefix`)', 'SELECT 1');
+--> statement-breakpoint
+PREPARE stmt FROM @ddl;
+--> statement-breakpoint
+EXECUTE stmt;
+--> statement-breakpoint
+DEALLOCATE PREPARE stmt;
+--> statement-breakpoint
+-- idx_audit_* and idx_reset_user below were already created (with the same
+-- names) by 0004_add_audit_log.sql / 0005_add_password_reset_tokens.sql —
+-- guarded instead of plain CREATE INDEX to avoid "Duplicate key name".
+SET @idx_exists = (SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'audit_log' AND INDEX_NAME = 'idx_audit_tenant_created');
+--> statement-breakpoint
+SET @ddl = IF(@idx_exists = 0, 'CREATE INDEX `idx_audit_tenant_created` ON `audit_log` (`tenant_id`,`created_at`)', 'SELECT 1');
+--> statement-breakpoint
+PREPARE stmt FROM @ddl;
+--> statement-breakpoint
+EXECUTE stmt;
+--> statement-breakpoint
+DEALLOCATE PREPARE stmt;
+--> statement-breakpoint
+SET @idx_exists = (SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'audit_log' AND INDEX_NAME = 'idx_audit_tenant_action');
+--> statement-breakpoint
+SET @ddl = IF(@idx_exists = 0, 'CREATE INDEX `idx_audit_tenant_action` ON `audit_log` (`tenant_id`,`action`)', 'SELECT 1');
+--> statement-breakpoint
+PREPARE stmt FROM @ddl;
+--> statement-breakpoint
+EXECUTE stmt;
+--> statement-breakpoint
+DEALLOCATE PREPARE stmt;
+--> statement-breakpoint
+SET @idx_exists = (SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'audit_log' AND INDEX_NAME = 'idx_audit_actor');
+--> statement-breakpoint
+SET @ddl = IF(@idx_exists = 0, 'CREATE INDEX `idx_audit_actor` ON `audit_log` (`actor_id`)', 'SELECT 1');
+--> statement-breakpoint
+PREPARE stmt FROM @ddl;
+--> statement-breakpoint
+EXECUTE stmt;
+--> statement-breakpoint
+DEALLOCATE PREPARE stmt;
+--> statement-breakpoint
 CREATE INDEX `idx_commissions_tenant` ON `commissions` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_commissions_user_period` ON `commissions` (`user_id`,`period_type`,`period_start`);--> statement-breakpoint
 CREATE INDEX `idx_reset_user` ON `password_reset_tokens` (`user_id`);--> statement-breakpoint
