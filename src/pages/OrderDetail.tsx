@@ -287,7 +287,10 @@ export default function OrderDetail() {
             </div>
             {discount > 0 && (
               <div className="flex justify-between text-sm">
-                <span className="text-secondary">{lang === "uz" ? "Chegirma" : "Скидка"}</span>
+                <span className="text-secondary">
+                  {lang === "uz" ? "Chegirma" : "Скидка"}
+                  {subtotal > 0 && ` (${((discount / subtotal) * 100).toFixed(1)}%)`}
+                </span>
                 <span className="font-data text-success">−{fmt(discount)}</span>
               </div>
             )}

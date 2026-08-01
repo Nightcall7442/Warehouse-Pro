@@ -21,15 +21,16 @@ export function calcSubtotal(items: OrderItemInput[]): number {
 }
 
 /**
- * Clamp discount to [0, subtotal]. Returns 0 for negative values.
+ * Discount is a percentage (0-100) entered by the user. Clamp to that range,
+ * then convert to a money amount off the given subtotal.
  */
-export function calcDiscount(discount: string | number, subtotal: number): number {
-  const d = Math.max(0, Number(discount || 0));
-  return Math.min(d, subtotal);
+export function calcDiscount(discountPercent: string | number, subtotal: number): number {
+  const pct = Math.min(100, Math.max(0, Number(discountPercent || 0)));
+  return subtotal * (pct / 100);
 }
 
 /**
- * Final total = subtotal - discount (discount is already clamped).
+ * Final total = subtotal - discount (discount is already a money amount from calcDiscount).
  */
 export function calcTotal(subtotal: number, discount: number): number {
   return subtotal - discount;

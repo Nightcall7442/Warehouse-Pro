@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { createRouter, operatorQuery } from "./middleware";
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- kept for schema reference
 import { arrivals, arrivalItems, products, warehouseStock, warehouses, stockMovements } from "@db/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { sanitizeString } from "./lib/sanitize";
@@ -96,6 +95,24 @@ export const arrivalRouter = createRouter({
       const raw = crypto.randomUUID().replace(/-/g, "");
       const arrivalNumber = `ARR-${raw.slice(0, 12).toUpperCase()}`;
       const totalExpense  = (Number(input.fuelCost) + Number(input.tollCost) + Number(input.otherCost)).toFixed(2);
+
+      // Validate every item's product exists in this tenant before inserting —
+      // otherwise a stale/deleted productId hits arrival_items' FK constraint
+      // and surfaces as a raw, unhandled 500 instead of a clear error.
+      if (input.items && input.items.length > 0) {
+        const productIds = input.items.map(i => i.productId);
+        const existing = await db.select({ id: products.id }).from(products)
+          .where(and(
+            sql`${products.id} IN (${sql.join(productIds.map(id => sql`${id}`), sql`, `)})`,
+            eq(products.tenantId, tenantId),
+          ));
+        const existingIds = new Set(existing.map(p => p.id));
+        for (const item of input.items) {
+          if (!existingIds.has(item.productId)) {
+            throw new Error(`Товар #${item.productId} не найден в вашей организации`);
+          }
+        }
+      }
 
       return db.transaction(async (tx) => {
         const [result] = await tx.insert(arrivals).values({

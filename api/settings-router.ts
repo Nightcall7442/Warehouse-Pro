@@ -5,6 +5,7 @@ import { settings } from "@db/schema";
 import { eq } from "drizzle-orm";
 import { cache, CacheKeys, CacheTTL } from "./lib/cache";
 import { sanitizeString, isSafeUrl } from "./lib/sanitize";
+import { decimalOrDefault } from "./lib/zod-decimal";
 
 export const settingsRouter = createRouter({
   get: authedQuery.query(async ({ ctx }) => {
@@ -56,8 +57,8 @@ export const settingsRouter = createRouter({
       currency:            z.string().max(10).optional(),
       currencySymbol:      z.string().max(10).optional(),
       symbolPosition:      z.enum(["before", "after"]).optional(),
-      defaultReorderPoint: z.string().optional(),
-      lowStockThreshold:   z.string().optional(),
+      defaultReorderPoint: decimalOrDefault("0.00").optional(),
+      lowStockThreshold:   decimalOrDefault("50.00").optional(),
       companyAddress:      z.string().nullable().optional(),
       companyPhone:        z.string().max(50).nullable().optional(),
       companyInn:          z.string().nullable().optional(),

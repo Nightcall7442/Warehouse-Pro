@@ -155,6 +155,76 @@
       "when": 1785159763169,
       "tag": "0021_add_block_unit",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "5",
+      "when": 1785178657000,
+      "tag": "0022_add_order_items_cost_price",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "5",
+      "when": 1785180659000,
+      "tag": "0023_extend_sales_targets_quotas",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "5",
+      "when": 1785241628000,
+      "tag": "0024_add_territory_geo",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "5",
+      "when": 1785241629000,
+      "tag": "0025_add_visit_schedules",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "5",
+      "when": 1785241630000,
+      "tag": "0026_add_territory_to_sales_targets",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "5",
+      "when": 1785241631000,
+      "tag": "0027_add_orders_tenant_deleted_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "5",
+      "when": 1785251305000,
+      "tag": "0028_add_agent_territories",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "5",
+      "when": 1785254416000,
+      "tag": "0029_fix_warehouse_stock_unique_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "5",
+      "when": 1785254417000,
+      "tag": "0030_create_onec_config",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "5",
+      "when": 1785362921000,
+      "tag": "0031_photo_url_mediumtext",
+      "breakpoints": true
     }
   ]
 }

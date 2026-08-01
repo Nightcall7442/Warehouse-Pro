@@ -33,7 +33,7 @@ export default function Warehouse() {
   const [showLowStock, setShowLowStock] = useState(false);
 
 
-  const { data, isLoading, isError, refetch } = trpc.warehouseMulti.getStock.useQuery({ warehouseId: warehouseId ?? undefined, search: search || undefined });
+  const { data, isLoading, isError, refetch } = trpc.warehouseMulti.getStock.useQuery({ warehouseId: warehouseId ?? undefined, search: search || undefined, pageSize: 10000 });
   const { data: valuation, isLoading: valLoading } = trpc.warehouse.valuation.useQuery();
   const { data: reorderSuggestions } = trpc.warehouse.reorderSuggestions.useQuery();
   const { data: deadStockItems, isLoading: deadStockLoading } = trpc.warehouse.deadStock.useQuery({ days: deadStockDays });
@@ -107,21 +107,24 @@ export default function Warehouse() {
   return (
     <>
     <div className="space-y-5 animate-fade-up">
-      {adjusting && (
-        <AdjustModal
-          productId={adjusting.id}
-          productName={adjusting.name}
-          currentStock={adjusting.stock}
-          unit={adjusting.unit}
-          unitWeight={adjusting.unitWeight}
-          warehouseId={warehouseId ?? undefined}
-          onSave={d => adjustMutation.mutate(d as Parameters<typeof adjustMutation.mutate>[0])}
-          onClose={() => setAdjusting(null)}
-          isPending={adjustMutation.isPending}
-        />
-      )}
+      <div key="adjust-modal">
+        {adjusting && (
+          <AdjustModal
+            productId={adjusting.id}
+            productName={adjusting.name}
+            currentStock={adjusting.stock}
+            unit={adjusting.unit}
+            unitWeight={adjusting.unitWeight}
+            warehouseId={warehouseId ?? undefined}
+            onSave={d => adjustMutation.mutate(d as Parameters<typeof adjustMutation.mutate>[0])}
+            onClose={() => setAdjusting(null)}
+            isPending={adjustMutation.isPending}
+          />
+        )}
+      </div>
 
       {/* Low Stock Modal */}
+      <div key="low-stock-modal">
       {showLowStock && createPortal(
         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }} onClick={() => setShowLowStock(false)}>
           <div className="relative w-full max-w-2xl max-h-[80vh] overflow-y-auto rounded-3xl p-6" style={{ background: "var(--color-surface, #ffffff)", boxShadow: "0 25px 80px -12px rgba(0,0,0,0.35)" }} onClick={e => e.stopPropagation()}>
@@ -162,6 +165,7 @@ export default function Warehouse() {
         </div>,
         document.body
       )}
+      </div>
 
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">

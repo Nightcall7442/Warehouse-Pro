@@ -40,12 +40,19 @@ export function registerStripeWebhook(app: Hono) {
       .limit(1);
     if (existing) return c.json({ received: true });
 
+    // Captured from whichever case below matches, so the billingEvents audit
+    // row (inserted once after the switch) can always be attributed to a
+    // tenant — that insert is NOT NULL on tenant_id, and without this it threw
+    // on every event, rolling back the subscription/cancellation/past-due
+    // update the case block just made in the same transaction.
+    let tenantId: number | undefined;
+
     try {
       await db.transaction(async (tx) => {
         switch (event.type) {
           case "checkout.session.completed": {
             const session  = event.data.object as Stripe.Checkout.Session;
-            const tenantId = Number(session.metadata?.tenantId);
+            tenantId = Number(session.metadata?.tenantId);
             if (!tenantId) break;
             const plan = (session.metadata?.plan as string) || 'basic';
             // P0-8 FIX: Use upsert to handle missing subscription rows
@@ -72,7 +79,7 @@ export function registerStripeWebhook(app: Hono) {
           }
           case "customer.subscription.updated": {
             const sub      = event.data.object as Stripe.Subscription;
-            const tenantId = Number(sub.metadata?.tenantId);
+            tenantId = Number(sub.metadata?.tenantId);
             if (!tenantId) break;
             const priceId = sub.items?.data?.[0]?.price?.id;
             let plan: "basic" | "pro" | "exclusive" = "basic";
@@ -98,7 +105,7 @@ export function registerStripeWebhook(app: Hono) {
           }
           case "customer.subscription.deleted": {
             const sub      = event.data.object as Stripe.Subscription;
-            const tenantId = Number(sub.metadata?.tenantId);
+            tenantId = Number(sub.metadata?.tenantId);
             if (!tenantId) break;
             await tx.update(subscriptions).set({ status: "canceled", updatedAt: new Date() })
               .where(eq(subscriptions.tenantId, tenantId));
@@ -106,7 +113,7 @@ export function registerStripeWebhook(app: Hono) {
           }
           case "invoice.payment_failed": {
             const invoice  = event.data.object as Stripe.Invoice;
-            const tenantId = Number(invoice.subscription_details?.metadata?.tenantId);
+            tenantId = Number(invoice.subscription_details?.metadata?.tenantId);
             if (!tenantId) break;
             await tx.update(subscriptions).set({ status: "past_due", updatedAt: new Date() })
               .where(eq(subscriptions.tenantId, tenantId));
@@ -125,11 +132,18 @@ export function registerStripeWebhook(app: Hono) {
           }
         }
 
-        await tx.insert(billingEvents).values({
-          id: randomUUID(), type: event.type,
-          stripeEventId: event.id,
-          payload: JSON.stringify(event.data.object),
-        });
+        // tenant_id is NOT NULL — events we can't attribute to a tenant (unhandled
+        // type, or missing metadata) are logged but not persisted, rather than
+        // throwing and rolling back the subscription update made above.
+        if (tenantId) {
+          await tx.insert(billingEvents).values({
+            id: randomUUID(), tenantId, type: event.type,
+            stripeEventId: event.id,
+            payload: JSON.stringify(event.data.object),
+          });
+        } else {
+          logger.warn("stripe webhook event has no resolvable tenantId, skipping billingEvents record", { eventId: event.id, eventType: event.type });
+        }
       });
     } catch (err) {
       logger.error("stripe webhook handler error", { error: err instanceof Error ? err.message : String(err) });

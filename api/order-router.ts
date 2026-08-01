@@ -42,7 +42,7 @@ export const orderRouter = createRouter({
       idempotencyKey: z.string().uuid().optional(),
       items:          z.array(z.object({
         productId: z.number().int().positive(),
-        quantity:  z.union([z.number(), z.string()]).transform(String),
+        quantity:  z.union([z.number(), z.string()]).transform(String).refine(v => Number(v) > 0, "Количество должно быть положительным"),
       })).min(1).max(100),
       notes:          z.string().max(500).optional(),
       discount:       z.union([z.number(), z.string()]).transform(String).default("0.00"),

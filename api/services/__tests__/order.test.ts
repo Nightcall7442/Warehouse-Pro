@@ -327,7 +327,8 @@ describe("OrderService.create", () => {
     expect(stockTable.find((s) => s.productId === 2)!.reserved).toBe("3.00");
   });
 
-  it("calculates total with discount", async () => {
+  it("calculates total with a percentage discount", async () => {
+    // discount is a percentage (0-100); 50% of a 1000 subtotal is 500 off.
     await OrderService.create(mockDb as any, 1, 10, {
       shopId: 1,
       items: [{ productId: 1, quantity: "10", unitPrice: "100" }],
@@ -336,8 +337,8 @@ describe("OrderService.create", () => {
 
     const order = ordersTable[0];
     expect(order.subtotal).toBe("1000.00");
-    expect(order.discount).toBe("50.00");
-    expect(order.total).toBe("950.00");
+    expect(order.discount).toBe("500.00");
+    expect(order.total).toBe("500.00");
   });
 });
 

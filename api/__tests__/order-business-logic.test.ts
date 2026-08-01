@@ -624,7 +624,8 @@ describe("order lifecycle — shop debt", () => {
     }) as { id: number };
     expect(shopsTable[0].debt).toBe("500.00");
 
-    await caller.update({ id: created.id, discount: 150 });
+    // discount is a percentage — 30% of the 500 subtotal is 150 off.
+    await caller.update({ id: created.id, discount: 30 });
 
     expect(shopsTable[0].debt).toBe("350.00");
   });

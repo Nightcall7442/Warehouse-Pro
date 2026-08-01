@@ -1,4 +1,10 @@
-CREATE TABLE `agent_territories` (
+-- IF NOT EXISTS on the table. Indexes are created only if missing (checked via
+-- information_schema) rather than DROP-then-CREATE: each index is the sole
+-- index covering its column's foreign key, and MySQL/MariaDB refuse to drop an
+-- index a foreign key depends on ("Cannot drop index ... needed in a foreign
+-- key constraint") — confirmed by testing this file against an already-migrated
+-- database.
+CREATE TABLE IF NOT EXISTS `agent_territories` (
   `id` serial AUTO_INCREMENT NOT NULL,
   `tenant_id` bigint unsigned NOT NULL,
   `agent_id` bigint unsigned NOT NULL,
@@ -10,6 +16,14 @@ CREATE TABLE `agent_territories` (
   CONSTRAINT `at_territory_fk` FOREIGN KEY (`territory_id`) REFERENCES `territories`(`id`) ON DELETE restrict,
   CONSTRAINT `uq_agent_territory` UNIQUE (`agent_id`, `territory_id`)
 );
-CREATE INDEX `idx_at_tenant` ON `agent_territories` (`tenant_id`);
-CREATE INDEX `idx_at_agent` ON `agent_territories` (`agent_id`);
-CREATE INDEX `idx_at_territory` ON `agent_territories` (`territory_id`);
+SET @idx_exists = (SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'agent_territories' AND INDEX_NAME = 'idx_at_tenant');
+SET @ddl = IF(@idx_exists = 0, 'CREATE INDEX `idx_at_tenant` ON `agent_territories` (`tenant_id`)', 'SELECT 1');
+PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @idx_exists = (SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'agent_territories' AND INDEX_NAME = 'idx_at_agent');
+SET @ddl = IF(@idx_exists = 0, 'CREATE INDEX `idx_at_agent` ON `agent_territories` (`agent_id`)', 'SELECT 1');
+PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @idx_exists = (SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'agent_territories' AND INDEX_NAME = 'idx_at_territory');
+SET @ddl = IF(@idx_exists = 0, 'CREATE INDEX `idx_at_territory` ON `agent_territories` (`territory_id`)', 'SELECT 1');
+PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;

@@ -1,12 +1,21 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
-vi.mock("drizzle-orm", () => ({
-  eq:  (col: unknown, val: unknown) => ({ __kind: "eq", col, val }),
-  and: (...conds: unknown[]) => ({ __kind: "and", conds }),
-  desc: (col: unknown) => ({ __kind: "desc", col }),
-  sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ __kind: "sql", strings, values }),
-}));
+vi.mock("drizzle-orm", () => {
+  const sqlFn = Object.assign(
+    (strings: TemplateStringsArray, ...values: unknown[]) => ({ __kind: "sql", strings, values }),
+    {
+      join(chunks: unknown[], _sep?: unknown) { return { __kind: "sql_join", chunks }; },
+      raw(str: string) { return { __kind: "sql_raw", str }; },
+    },
+  );
+  return {
+    eq:  (col: unknown, val: unknown) => ({ __kind: "eq", col, val }),
+    and: (...conds: unknown[]) => ({ __kind: "and", conds }),
+    desc: (col: unknown) => ({ __kind: "desc", col }),
+    sql: sqlFn,
+  };
+});
 
 vi.mock("../lib/sanitize", () => ({
   sanitizeString: (s: string) => s.replace(/<[^>]*>/g, "").trim(),
@@ -24,12 +33,14 @@ interface FakeArrivalItem { id: number; arrivalId: number; productId: number; qu
 interface FakeWarehouse { id: number; tenantId: number; name: string; isDefault: boolean; status: string; }
 interface FakeStock { id: number; productId: number; tenantId: number; warehouseId: number; currentStock: string; reserved: string; available: string; }
 interface FakeStockMovement { id: number; tenantId: number; productId: number; type: string; quantity: string; referenceType: string | null; referenceId: number | null; notes: string | null; createdAt: Date; }
+interface FakeProduct { id: number; tenantId: number; }
 
 let arrivalsTable: FakeArrival[] = [];
 let arrivalItemsTable: FakeArrivalItem[] = [];
 let warehousesTable: FakeWarehouse[] = [];
 let stockTable: FakeStock[] = [];
 let movementsTable: FakeStockMovement[] = [];
+let productsTable: FakeProduct[] = [];
 let nextArrivalId = 10;
 let nextItemId = 10;
 let nextStockId = 10;
@@ -52,6 +63,10 @@ function resetTables() {
     { id: 1, productId: 1, tenantId: 1, warehouseId: 1, currentStock: "100.00", reserved: "0.00", available: "100.00" },
   ];
   movementsTable = [];
+  productsTable = [
+    { id: 1, tenantId: 1 },
+    { id: 2, tenantId: 1 },
+  ];
   nextArrivalId = 10;
   nextItemId = 10;
   nextStockId = 10;
@@ -74,6 +89,7 @@ function rowsFor(table: string): Record<string, unknown>[] {
   if (table === "warehouses") return warehousesTable as unknown as Record<string, unknown>[];
   if (table === "warehouseStock") return stockTable as unknown as Record<string, unknown>[];
   if (table === "stockMovements") return movementsTable as unknown as Record<string, unknown>[];
+  if (table === "products") return productsTable as unknown as Record<string, unknown>[];
   return [];
 }
 
@@ -83,6 +99,7 @@ for (const [field, col] of Object.entries(arrivalItems)) columnToFieldName.set(c
 for (const [field, col] of Object.entries(warehouses)) columnToFieldName.set(col, field);
 for (const [field, col] of Object.entries(warehouseStock)) columnToFieldName.set(col, field);
 for (const [field, col] of Object.entries(stockMovements)) columnToFieldName.set(col, field);
+for (const [field, col] of Object.entries(products)) columnToFieldName.set(col, field);
 
 function evalCond(row: Record<string, unknown>, cond: Record<string, unknown>): boolean {
   if (!cond || typeof cond !== "object") return true;

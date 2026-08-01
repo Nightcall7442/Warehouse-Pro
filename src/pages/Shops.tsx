@@ -131,7 +131,7 @@ export default function Shops() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-      {dialog}
+      <div key="confirm-dialog">{dialog}</div>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
         <div>
@@ -232,9 +232,13 @@ export default function Shops() {
         </div>
       </div>
 
-      {showForm && <ShopForm isPending={createMutation.isPending} lang={lang} agents={agents} territories={realTerritories ?? []} onSave={d => createMutation.mutate(d)} onCancel={() => setShowForm(false)} />}
+      <div key="shop-form">
+        {showForm && <ShopForm isPending={createMutation.isPending} lang={lang} agents={agents} territories={realTerritories ?? []} onSave={d => createMutation.mutate(d)} onCancel={() => setShowForm(false)} />}
+      </div>
 
-      {showImport && <ExcelImport type="shops" onDone={() => { setShowImport(false); utils.shop.list.invalidate(); }} onCancel={() => setShowImport(false)} />}
+      <div key="shop-import">
+        {showImport && <ExcelImport type="shops" onDone={() => { setShowImport(false); utils.shop.list.invalidate(); }} onCancel={() => setShowImport(false)} />}
+      </div>
 
       <ShopStats stats={kpiStats} lang={lang} fmt={fmt} />
 
@@ -247,38 +251,44 @@ export default function Shops() {
       />
 
       {/* Territories grid */}
-      {viewMode === "territories" && !territoryFilter && (
-        <TerritoriesGrid
-          territories={territories ?? []}
-          totalShops={data?.total ?? 0}
-          lang={lang} fmt={fmt}
-          onSelectAll={() => setViewMode("list")}
-          onSelectTerritory={(territoryId) => { setTerritoryFilter(territoryId); setViewMode("list"); setPage(1); }}
-        />
-      )}
-
-      {(viewMode === "list" || city || district || territoryFilter) && (
-        <>
-          {(city || district) && (
-            <CityBreadcrumb city={city} district={district} total={data?.total ?? 0} lang={lang} />
-          )}
-
-          {selected.size > 0 && (
-            <SelectionBar count={selected.size} lang={lang} onReset={() => setSelected(new Set())} onBulkDelete={handleBulkDelete} isDeleting={deleteMutation.isPending} />
-          )}
-
-          <ShopList
-            data={data?.data} isLoading={isLoading} lang={lang} fmt={fmt}
-            selected={selected} allSelected={allSelected}
-            onSelectAll={toggleSelectAll} onToggleSelect={toggleSelect}
-            onBulkDelete={handleBulkDelete} onNavigate={id => navigate(`/shops/${id}?fromPage=${page}${search ? `&search=${encodeURIComponent(search)}` : ""}${city ? `&city=${encodeURIComponent(city)}` : ""}${district ? `&district=${encodeURIComponent(district)}` : ""}`)}
-            isDeleting={deleteMutation.isPending} page={page} setPage={setPage}
-            total={data?.total ?? 0} city={city} district={district} t={t}
+      <div key="territories-grid">
+        {viewMode === "territories" && !territoryFilter && (
+          <TerritoriesGrid
+            territories={territories ?? []}
+            totalShops={data?.total ?? 0}
+            lang={lang} fmt={fmt}
+            onSelectAll={() => setViewMode("list")}
+            onSelectTerritory={(territoryId) => { setTerritoryFilter(territoryId); setViewMode("list"); setPage(1); }}
           />
-        </>
-      )}
+        )}
+      </div>
 
-      {showTerritoryManager && <TerritoryManager lang={lang} onClose={() => setShowTerritoryManager(false)} />}
+      <div key="shop-list-view">
+        {(viewMode === "list" || city || district || territoryFilter) && (
+          <>
+            {(city || district) && (
+              <CityBreadcrumb city={city} district={district} total={data?.total ?? 0} lang={lang} />
+            )}
+
+            {selected.size > 0 && (
+              <SelectionBar count={selected.size} lang={lang} onReset={() => setSelected(new Set())} onBulkDelete={handleBulkDelete} isDeleting={deleteMutation.isPending} />
+            )}
+
+            <ShopList
+              data={data?.data} isLoading={isLoading} lang={lang} fmt={fmt}
+              selected={selected} allSelected={allSelected}
+              onSelectAll={toggleSelectAll} onToggleSelect={toggleSelect}
+              onBulkDelete={handleBulkDelete} onNavigate={id => navigate(`/shops/${id}?fromPage=${page}${search ? `&search=${encodeURIComponent(search)}` : ""}${city ? `&city=${encodeURIComponent(city)}` : ""}${district ? `&district=${encodeURIComponent(district)}` : ""}`)}
+              isDeleting={deleteMutation.isPending} page={page} setPage={setPage}
+              total={data?.total ?? 0} city={city} district={district} t={t}
+            />
+          </>
+        )}
+      </div>
+
+      <div key="territory-manager">
+        {showTerritoryManager && <TerritoryManager lang={lang} onClose={() => setShowTerritoryManager(false)} />}
+      </div>
     </div>
   );
 }

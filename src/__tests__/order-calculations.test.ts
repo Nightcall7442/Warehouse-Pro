@@ -87,33 +87,34 @@ describe("calcSubtotal", () => {
 });
 
 // ── calcDiscount ────────────────────────────────────────────────────────────
+// discount is a percentage (0-100); calcDiscount converts it to a money amount.
 describe("calcDiscount", () => {
-  it("returns discount when less than subtotal", () => {
-    expect(calcDiscount("500", 1000)).toBe(500);
+  it("converts a percentage to a money amount", () => {
+    expect(calcDiscount("50", 1000)).toBe(500);
   });
 
-  it("clamps discount to subtotal", () => {
-    expect(calcDiscount("2000", 1000)).toBe(1000);
+  it("clamps discount percentage to 100", () => {
+    expect(calcDiscount("200", 1000)).toBe(1000);
   });
 
   it("returns 0 for empty string", () => {
     expect(calcDiscount("", 1000)).toBe(0);
   });
 
-  it("returns 0 for undefined/null", () => {
+  it("returns 0 for zero percent", () => {
     expect(calcDiscount("0", 1000)).toBe(0);
   });
 
   it("returns 0 for negative discount", () => {
-    expect(calcDiscount("-500", 1000)).toBe(0);
+    expect(calcDiscount("-50", 1000)).toBe(0);
   });
 
   it("returns 0 when subtotal is 0", () => {
-    expect(calcDiscount("500", 0)).toBe(0);
+    expect(calcDiscount("50", 0)).toBe(0);
   });
 
-  it("handles decimal discount", () => {
-    expect(calcDiscount("123.45", 1000)).toBe(123.45);
+  it("handles decimal percentage", () => {
+    expect(calcDiscount("12.345", 1000)).toBeCloseTo(123.45, 2);
   });
 
   it("handles zero discount", () => {

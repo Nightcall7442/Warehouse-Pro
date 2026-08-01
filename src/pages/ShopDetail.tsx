@@ -171,8 +171,10 @@ export default function ShopDetail() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-4 animate-fade-up">
-      {dialog}
-      {showPayment && <PaymentModal shopId={shop.id} onClose={() => setShowPayment(false)} />}
+      <div key="confirm-dialog">{dialog}</div>
+      <div key="payment-modal">
+        {showPayment && <PaymentModal shopId={shop.id} onClose={() => setShowPayment(false)} />}
+      </div>
 
       {/* Навигация */}
       <div className="flex items-center justify-between flex-wrap gap-2">

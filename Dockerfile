@@ -32,6 +32,8 @@ RUN npm run build
 
 FROM base AS runtime
 WORKDIR /app
+# mysqldump — needed by api/cron/backup.ts to produce real, restorable backups
+RUN apk add --no-cache mysql-client
 RUN addgroup -g 1001 -S appgroup && adduser -S appuser -u 1001 -G appgroup
 COPY --from=builder --chown=appuser:appgroup /app/dist ./dist
 # Source maps were already uploaded to Sentry during the build stage — they are

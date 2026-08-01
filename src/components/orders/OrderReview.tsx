@@ -69,20 +69,26 @@ export function OrderReview({
           </div>
           {/* Discount field */}
           <div className="flex items-center justify-between gap-3">
-            <span className="text-sm text-secondary flex-shrink-0">{t("Скидка", "Chegirma")}</span>
+            <span className="text-sm text-secondary flex-shrink-0">{t("Скидка, %", "Chegirma, %")}</span>
             <div className="relative w-28">
               <input
                 className="neo-input text-right font-data py-1.5 text-sm"
                 type="number"
                 min="0"
-                max={subtotal}
+                max={100}
                 step="0.01"
-                placeholder="0.00"
+                placeholder="0"
                 value={discount}
                 onChange={e => onDiscountChange(e.target.value)}
               />
             </div>
           </div>
+          {disc > 0 && (
+            <div className="flex justify-between text-xs">
+              <span className="text-secondary">{t("Сумма скидки", "Chegirma summasi")}</span>
+              <span className="font-data text-secondary">−{fmt(disc.toFixed(2))}</span>
+            </div>
+          )}
           <div className="flex justify-between pt-1">
             <span className="font-semibold text-primary">{t("ИТОГО", "JAMI")}</span>
             <span className="font-data text-xl font-bold text-primary">{fmt(total.toFixed(2))}</span>

@@ -236,7 +236,9 @@ app.get("/api/cron/backup", async (c) => {
   }
   const { runBackup } = await import("./cron/backup");
   const result = await runBackup();
-  return c.json(result);
+  // Non-200 on failure so an external cron/uptime monitor watching this
+  // endpoint's status code (not just its body) actually notices a bad backup.
+  return c.json(result, result.success ? 200 : 500);
 });
 
 app.use(bodyLimit({ maxSize: 10 * 1024 * 1024 }));

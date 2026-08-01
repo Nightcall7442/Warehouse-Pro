@@ -143,8 +143,12 @@ export const OrderService = {
   },
 
   async create(db: Db, tenantId: number, agentId: number, input: { shopId: number; warehouseId?: number; items: Array<{ productId: number; quantity: string }>; notes?: string; discount?: string; idempotencyKey?: string; paymentMethod?: "cash" | "card" | "transfer" | "debt" }) {
-    const discount = Number(input.discount ?? "0");
-    if (discount < 0) throw new Error("Скидка не может быть отрицательной");
+    // discount is a percentage (0-100) entered by the user — converted to a
+    // money amount below and stored as such (orders.discount stays a money
+    // column so revenue/P&L reports that SUM it keep meaning "money discounted").
+    const discountPercent = Number(input.discount ?? "0");
+    if (discountPercent < 0) throw new Error("Скидка не может быть отрицательной");
+    if (discountPercent > 100) throw new Error("Скидка не может превышать 100%");
 
     // P0-1 FIX: Validate shop belongs to this tenant
     const [shop] = await db.select({ id: shops.id }).from(shops)
@@ -200,9 +204,7 @@ export const OrderService = {
         const unitPrice = Number(priceMap.get(item.productId)!);
         subtotal += unitPrice * Number(item.quantity);
       }
-      if (discount > subtotal) {
-        throw new Error(`Скидка (${discount}) не может превышать сумму заказа (${subtotal})`);
-      }
+      const discount = subtotal * (discountPercent / 100);
       const total = subtotal - discount;
 
       // Reserve from one explicit warehouse. Without this filter a product with
@@ -599,8 +601,11 @@ export const OrderService = {
   },
 
   async update(db: Db, tenantId: number, orderId: number, data: { notes?: string; discount?: string }) {
-    if (data.discount !== undefined && Number(data.discount) < 0) {
-      throw new Error("Скидка не может быть отрицательной");
+    // discount is a percentage (0-100), same contract as OrderService.create.
+    if (data.discount !== undefined) {
+      const pct = Number(data.discount);
+      if (pct < 0) throw new Error("Скидка не может быть отрицательной");
+      if (pct > 100) throw new Error("Скидка не может превышать 100%");
     }
 
     await db.transaction(async (tx) => {
@@ -619,10 +624,9 @@ export const OrderService = {
       if (data.notes !== undefined) updates.notes = data.notes;
       if (data.discount !== undefined) {
         const subtotal = Number(order.subtotal);
-        const discount = Number(data.discount);
-        if (discount > subtotal) throw new Error("Скидка не может превышать сумму заказа");
+        const discount = subtotal * (Number(data.discount) / 100);
         const newTotal = subtotal - discount;
-        updates.discount = data.discount;
+        updates.discount = discount.toFixed(2);
         updates.total = newTotal.toFixed(2);
 
         // The shop's debt was booked from the old total — move it by the difference,

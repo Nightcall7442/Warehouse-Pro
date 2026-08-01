@@ -45,19 +45,25 @@ export default function Monitoring() {
     refetchOnWindowFocus: true,
   });
 
-  const { data: errorStats } = trpc.system.errorStats.useQuery(undefined, {
+  const { data: errorStats, refetch: refetchErrorStats } = trpc.system.errorStats.useQuery(undefined, {
     refetchInterval: autoRefresh ? 10_000 : false,
   });
 
-  const { data: groupedErrors } = trpc.system.groupedErrors.useQuery(
+  const { data: groupedErrors, refetch: refetchGroupedErrors } = trpc.system.groupedErrors.useQuery(
     { minutes: 60 },
     { refetchInterval: autoRefresh ? 10_000 : false }
   );
 
-  const { data: errorTrend } = trpc.system.errorTrend.useQuery(
+  const { data: errorTrend, refetch: refetchErrorTrend } = trpc.system.errorTrend.useQuery(
     { minutes: 60 },
     { refetchInterval: autoRefresh ? 30_000 : false }
   );
+
+  const refetchErrors = () => {
+    refetchErrorStats();
+    refetchGroupedErrors();
+    refetchErrorTrend();
+  };
 
   const clearCacheMutation = trpc.system.clearCache.useMutation({
     onSuccess: () => notify.success("Кэш очищен"),
