@@ -4,6 +4,7 @@ import { eq, and, sql, desc } from "drizzle-orm";
 import { MS_PER_DAY } from "../lib/constants";
 import { cache, CacheTTL } from "../lib/cache";
 import { beforeNextDay, safeDateParse, sinceDay, untilDate } from "../lib/date-range";
+import { DomainError } from "../lib/domain-error";
 
 type DateRange = { dateFrom?: string; dateTo?: string };
 
@@ -104,7 +105,7 @@ export const AnalyticsService = {
     // outright rather than silently reporting P&L over all of history.
     const from = safeDateParse(dateRange.from);
     const to = safeDateParse(dateRange.to);
-    if (!from || !to) throw new Error("Некорректный период: ожидается формат ГГГГ-ММ-ДД");
+    if (!from || !to) throw DomainError.badRequest("Некорректный период: ожидается формат ГГГГ-ММ-ДД");
 
     const currFromMs = new Date(from).getTime();
     const currToMs = new Date(to).getTime();

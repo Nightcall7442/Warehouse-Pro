@@ -7,6 +7,7 @@ import {
 import { eq, like, and, sql, desc } from "drizzle-orm";
 import { sanitizeString, sanitizeSearch } from "../lib/sanitize";
 import { cache, CacheKeys, CacheTTL } from "../lib/cache";
+import { DomainError } from "../lib/domain-error";
 
 type DrizzleInstance = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -203,20 +204,20 @@ export const ShopService = {
   async delete(db: DrizzleInstance, tenantId: number, shopId: number) {
     const [existingShop] = await db.select().from(shops)
       .where(and(eq(shops.id, shopId), eq(shops.tenantId, tenantId))).limit(1);
-    if (!existingShop) throw new Error("Магазин не найден");
+    if (!existingShop) throw DomainError.notFound("Магазин не найден");
 
     const [orderCount] = await db.select({ count: sql<number>`count(*)` })
       .from(orders)
       .where(and(eq(orders.shopId, shopId), eq(orders.tenantId, tenantId)));
     if (Number(orderCount.count) > 0) {
-      throw new Error(`Невозможно удалить магазин: связано ${orderCount.count} заказ(ов)`);
+      throw DomainError.conflict(`Невозможно удалить магазин: связано ${orderCount.count} заказ(ов)`);
     }
 
     const [paymentCount] = await db.select({ count: sql<number>`count(*)` })
       .from(payments)
       .where(and(eq(payments.shopId, shopId), eq(payments.tenantId, tenantId)));
     if (Number(paymentCount.count) > 0) {
-      throw new Error(`Невозможно удалить магазин: связано ${paymentCount.count} платёж(ей)`);
+      throw DomainError.conflict(`Невозможно удалить магазин: связано ${paymentCount.count} платёж(ей)`);
     }
 
     await db.delete(shops)

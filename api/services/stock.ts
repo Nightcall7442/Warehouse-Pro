@@ -1,6 +1,7 @@
 import { warehouseStock, stockMovements, products, warehouses } from "@db/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { sseBus } from "../lib/sse";
+import { DomainError } from "../lib/domain-error";
 import { recordAudit } from "./audit-log";
 
 type DrizzleInstance = ReturnType<typeof import("../queries/connection").getDb>;
@@ -16,7 +17,7 @@ async function getDefaultWarehouseId(db: DrizzleInstance, tenantId: number): Pro
     .from(warehouses)
     .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true)))
     .limit(1);
-  if (!wh) throw new Error("Склад по умолчанию не найден");
+  if (!wh) throw DomainError.conflict("Склад по умолчанию не найден");
   return wh.id;
 }
 
@@ -43,7 +44,7 @@ export const StockService = {
         const stock = stockMap.get(item.productId);
         const availableQty = Number(stock?.available ?? 0);
         if (availableQty < item.quantity) {
-          throw new Error(`Недостаточно товара на складе (доступно: ${availableQty}, запрошено: ${item.quantity})`);
+          throw DomainError.conflict(`Недостаточно товара на складе (доступно: ${availableQty}, запрошено: ${item.quantity})`);
         }
       }
 
@@ -87,7 +88,7 @@ export const StockService = {
         const stock = stockMap.get(item.productId);
         const reservedQty = Number(stock?.reserved ?? 0);
         if (reservedQty < item.quantity) {
-          throw new Error(`Недостаточно зарезервированного товара (зарезервировано: ${reservedQty}, запрошено: ${item.quantity})`);
+          throw DomainError.conflict(`Недостаточно зарезервированного товара (зарезервировано: ${reservedQty}, запрошено: ${item.quantity})`);
         }
       }
 
@@ -131,7 +132,7 @@ export const StockService = {
         const stock = stockMap.get(item.productId);
         const currentQty = Number(stock?.currentStock ?? 0);
         if (currentQty < item.quantity) {
-          throw new Error(`Недостаточно товара на складе (на складе: ${currentQty}, запрошено: ${item.quantity})`);
+          throw DomainError.conflict(`Недостаточно товара на складе (на складе: ${currentQty}, запрошено: ${item.quantity})`);
         }
       }
 
@@ -180,7 +181,7 @@ export const StockService = {
     warehouseId?: number,
   ) {
     if (!Number.isFinite(quantity) || quantity <= 0) {
-      throw new Error("Количество должно быть положительным числом");
+      throw DomainError.badRequest("Количество должно быть положительным числом");
     }
 
     const whId = warehouseId ?? await getDefaultWarehouseId(db, tenantId);
@@ -223,7 +224,7 @@ export const StockService = {
         }).where(stockWhere);
       } else if (type === "out") {
         if (currentQty < quantity) {
-          throw new Error(`Недостаточно товара на складе (на складе: ${currentQty}, запрошено: ${quantity})`);
+          throw DomainError.conflict(`Недостаточно товара на складе (на складе: ${currentQty}, запрошено: ${quantity})`);
         }
         await tx.update(warehouseStock).set({
           currentStock: sql`${warehouseStock.currentStock} - ${quantity}`,

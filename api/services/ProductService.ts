@@ -8,6 +8,7 @@ import {
 import { eq, like, and, sql, desc } from "drizzle-orm";
 import { sanitizeString, sanitizeSearch } from "../lib/sanitize";
 import { cache, CacheKeys, CacheTTL } from "../lib/cache";
+import { DomainError } from "../lib/domain-error";
 
 type DrizzleInstance = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -227,20 +228,20 @@ export const ProductService = {
   async delete(db: DrizzleInstance, tenantId: number, productId: number) {
     const [existingProduct] = await db.select().from(products)
       .where(and(eq(products.id, productId), eq(products.tenantId, tenantId))).limit(1);
-    if (!existingProduct) throw new Error("Товар не найден");
+    if (!existingProduct) throw DomainError.notFound("Товар не найден");
 
     const [orderItemCount] = await db.select({ count: sql<number>`count(*)` })
       .from(orderItems)
       .innerJoin(products, eq(orderItems.productId, products.id))
       .where(and(eq(orderItems.productId, productId), eq(products.tenantId, tenantId)));
     if (Number(orderItemCount.count) > 0) {
-      throw new Error(`Невозможно удалить товар: связан с ${orderItemCount.count} позицией(ями) заказов`);
+      throw DomainError.conflict(`Невозможно удалить товар: связан с ${orderItemCount.count} позицией(ями) заказов`);
     }
 
     const [stock] = await db.select().from(warehouseStock)
       .where(and(eq(warehouseStock.productId, productId), eq(warehouseStock.tenantId, tenantId))).limit(1);
     if (stock && Number(stock.currentStock) > 0) {
-      throw new Error("Невозможно удалить товар: на складе есть остаток");
+      throw DomainError.conflict("Невозможно удалить товар: на складе есть остаток");
     }
 
     await db.transaction(async (tx) => {

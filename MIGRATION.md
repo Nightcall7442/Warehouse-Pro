@@ -483,3 +483,48 @@ and that distinction is worth keeping honest: the numbers still need a live run.
 `api/lib/replenishment.ts` holds the decisions both reports make — value on hand,
 what counts as dead, how much to order — with 16 tests. Neither report had a
 single test before; the logic was unreachable inside a `HAVING` clause.
+
+## Production incident follow-ups (from the monitoring screenshots)
+
+Three defects were reported from the live monitoring page. All three are fixed;
+the diagnosis of each is in its commit message.
+
+1. **Creating a product failed with a 500** — the web form sends `unitWeight: ""`
+   for a blank field, and a zod `.default()` only fires when the key is *absent*,
+   so an empty string reached a `decimal(10,3) NOT NULL` column. `costPrice` had
+   the mirror-image hole: `.refine(v => Number(v) >= 0)` accepts `""` because
+   `Number("") === 0`. `api/lib/zod-decimal.ts` now treats blank as absent
+   everywhere a string input feeds a decimal column — product, arrival, order
+   (`quantity`, `discount`), agent GPS (`lat`/`lng` — a blank reading passed
+   `Number.isFinite(Number(""))`) and settings.
+2. **"500 UNAUTHORIZED"** on `auth.me`, `settings.get` and `warehouseMulti.list`,
+   all in the same second — one expired session. The tRPC `onError` handler
+   hard-coded `statusCode: 500` and `method: "POST"`. Status now comes from the
+   tRPC code and 4xx is diverted to a bounded counter plus `logger.warn` instead
+   of the error feed.
+3. **"Заказ не найден или уже удалён" as INTERNAL_SERVER_ERROR** — services threw
+   plain `Error`, which tRPC turns into a 500 with a stack and a Sentry event.
+   `DomainError` (`api/lib/domain-error.ts`) carries a category that
+   `withDomainErrors` maps onto the tRPC code; 30 throws across 13 services are
+   converted, and genuine server faults deliberately stay plain `Error`.
+
+### Bugs found while fixing those
+
+- **`salesTarget.autoSuggest` was broken in production.** `api/services/quota-suggest.ts`
+  referenced `dailyPlans.date` and `dailyPlans.userId`; the columns are `planDate`
+  and `agentId`. `eq(undefined, …)` throws, so the endpoint could not have worked.
+  The typechecker had been reporting it all along — it was buried in the backlog.
+  Its `Db` alias was also `MySql2Database<Record<string, never>>`, which is why
+  every caller showed a type error.
+- **Error-log rotation had never run** — `require("fs")` inside an ESM module threw
+  into a swallowing `catch`, so the file grew past its 5 MB threshold unrotated.
+- **`ImportService.importShops` throws `ReferenceError` from inside its own catch
+  block** when a shop import hits a duplicate: `skipped` is never declared and
+  `name` is scoped to the `try`. Pre-existing, left untouched, flagged here —
+  it needs its own change.
+- **Two codepaths disagree on the same condition**: "No billing account found.
+  Please subscribe first." is now a 409 from `BillingService` and a 400 from
+  `api/stripe-router.ts`. `BillingService` has no router consumer today, so
+  nothing user-visible changed, but they should be aligned.
+
+The quality baselines drop with these fixes: typecheck 1150 → 1143, lint 45 → 43.

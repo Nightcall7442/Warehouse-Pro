@@ -3,6 +3,7 @@ import { eq, like, and, sql, desc } from "drizzle-orm";
 import { hashPassword, verifyPassword } from "../auth/password";
 import { sanitizeString, sanitizeSearch } from "../lib/sanitize";
 import { cache, CacheKeys, CacheTTL } from "../lib/cache";
+import { DomainError } from "../lib/domain-error";
 import type { Role } from "@contracts/types";
 
 type DrizzleInstance = ReturnType<typeof import("../queries/connection").getDb>;
@@ -151,10 +152,10 @@ export const UserService = {
       .where(and(eq(users.id, userId), eq(users.tenantId, tenantId)))
       .limit(1);
 
-    if (!user) throw new Error("User not found");
+    if (!user) throw DomainError.notFound("User not found");
 
     const valid = await verifyPassword(currentPassword, user.passwordHash);
-    if (!valid) throw new Error("Current password is incorrect");
+    if (!valid) throw DomainError.forbidden("Current password is incorrect");
 
     const newHash = await hashPassword(newPassword);
     await db.update(users).set({ passwordHash: newHash })

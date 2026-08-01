@@ -221,6 +221,18 @@ beforeEach(() => {
 });
 
 import { StockService } from "../stock";
+import { isDomainError, type DomainError } from "../../lib/domain-error";
+
+/** Run `fn` and return the DomainError it rejected with. */
+async function rejection(fn: () => Promise<unknown>): Promise<DomainError> {
+  try {
+    await fn();
+  } catch (err) {
+    if (isDomainError(err)) return err;
+    throw new Error(`expected a DomainError, got ${String(err)}`);
+  }
+  throw new Error("expected a rejection");
+}
 
 describe("StockService.reserve", () => {
   it("deducts available and increases reserved", async () => {
@@ -341,5 +353,61 @@ describe("StockService.adjust", () => {
         data: expect.objectContaining({ productId: 1, productName: "Product A" }),
       }),
     );
+  });
+});
+
+/**
+ * Running out of stock is the warehouse telling the caller "no", not the server
+ * falling over — before `DomainError` every one of these arrived at the client as
+ * `500 INTERNAL_SERVER_ERROR` with a stack trace and a Sentry event. StockService
+ * is also driven from the 1C sync and the public REST API, so the category has to
+ * be carried by the error itself.
+ */
+describe("StockService domain error categories", () => {
+  it("reports insufficient available stock on reserve as CONFLICT", async () => {
+    const err = await rejection(() =>
+      StockService.reserve(mockDb as any, 1, [{ productId: 1, quantity: 200 }]));
+    expect(err.code).toBe("CONFLICT");
+    expect(err.message).toBe("Недостаточно товара на складе (доступно: 100, запрошено: 200)");
+  });
+
+  it("reports over-releasing a reservation as CONFLICT", async () => {
+    const err = await rejection(() =>
+      StockService.release(mockDb as any, 1, [{ productId: 2, quantity: 999 }]));
+    expect(err.code).toBe("CONFLICT");
+    expect(err.message).toBe("Недостаточно зарезервированного товара (зарезервировано: 10, запрошено: 999)");
+  });
+
+  it("reports insufficient stock on deduct as CONFLICT", async () => {
+    const err = await rejection(() =>
+      StockService.deduct(mockDb as any, 1, [{ productId: 1, quantity: 500 }]));
+    expect(err.code).toBe("CONFLICT");
+    expect(err.message).toBe("Недостаточно товара на складе (на складе: 100, запрошено: 500)");
+  });
+
+  it("reports an out-adjustment below zero as CONFLICT", async () => {
+    const err = await rejection(() => StockService.adjust(mockDb as any, 1, 1, 500, "out"));
+    expect(err.code).toBe("CONFLICT");
+    expect(err.message).toBe("Недостаточно товара на складе (на складе: 100, запрошено: 500)");
+  });
+
+  it("reports a non-positive quantity as BAD_REQUEST", async () => {
+    expect((await rejection(() => StockService.adjust(mockDb as any, 1, 1, 0, "in"))).code)
+      .toBe("BAD_REQUEST");
+    const err = await rejection(() => StockService.adjust(mockDb as any, 1, 1, -5, "in"));
+    expect(err.code).toBe("BAD_REQUEST");
+    expect(err.message).toBe("Количество должно быть положительным числом");
+  });
+
+  /**
+   * A tenant with no default warehouse is a setup mistake the operator can fix,
+   * which is how the order domain already treats it (order/stock-manager.ts).
+   */
+  it("reports a missing default warehouse as CONFLICT, not a 500", async () => {
+    warehousesTable.length = 0;
+    const err = await rejection(() =>
+      StockService.reserve(mockDb as any, 1, [{ productId: 1, quantity: 1 }]));
+    expect(err.code).toBe("CONFLICT");
+    expect(err.message).toBe("Склад по умолчанию не найден");
   });
 });

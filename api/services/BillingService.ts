@@ -4,6 +4,7 @@ import { getStripe, PLANS } from "../lib/stripe";
 import { getOrCreateSubscription } from "../lib/subscription";
 import { env } from "../lib/env";
 import { cache, CacheKeys, CacheTTL } from "../lib/cache";
+import { DomainError } from "../lib/domain-error";
 
 type DrizzleInstance = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -15,7 +16,7 @@ export const BillingService = {
 
     const [tenant] = await db.select().from(tenants)
       .where(eq(tenants.id, tenantId)).limit(1);
-    if (!tenant) throw new Error("Tenant not found");
+    if (!tenant) throw DomainError.notFound("Tenant not found");
 
     const plan = PLANS[tenant.plan];
     const now = new Date();
@@ -74,7 +75,7 @@ export const BillingService = {
 
   async upgrade(db: DrizzleInstance, tenantId: number, plan: "basic" | "pro") {
     const planData = PLANS[plan];
-    if (!planData) throw new Error("Invalid plan");
+    if (!planData) throw DomainError.badRequest("Invalid plan");
 
     await db.update(tenants)
       .set({ updatedAt: new Date() })
@@ -95,6 +96,9 @@ export const BillingService = {
     const priceId = planData.priceId;
 
     if (!priceId) {
+      // Deliberately NOT a DomainError: `priceId` comes from STRIPE_*_PRICE_ID, so
+      // an empty one means the deployment is misconfigured, not that the caller
+      // asked for something impossible. That belongs in the 500 feed.
       throw new Error("Plan not configured");
     }
 
@@ -137,7 +141,7 @@ export const BillingService = {
     const sub = await getOrCreateSubscription(tenantId);
 
     if (!sub.stripeCustomerId) {
-      throw new Error("No billing account found. Please subscribe first.");
+      throw DomainError.conflict("No billing account found. Please subscribe first.");
     }
 
     const session = await stripe.billingPortal.sessions.create({

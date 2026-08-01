@@ -1,9 +1,10 @@
 import { eq, and, gte, lte, sql } from "drizzle-orm";
-import type { MySql2Database } from "drizzle-orm/mysql2";
-import { orders, dailyPlans, users, salesTargets } from "@db/schema";
+import type { DbHandle } from "../queries/connection";
+import { orders, dailyPlans, users } from "@db/schema";
 import { beforeNextDay, safeDateParse, sinceDay } from "../lib/date-range";
+import { DomainError } from "../lib/domain-error";
 
-type Db = MySql2Database<Record<string, never>>;
+type Db = DbHandle;
 
 export interface QuotaSuggestion {
   userId: number;
@@ -38,7 +39,7 @@ export async function suggestQuotas(
   // FIX: P0.1 — an unvalidated month reached `new Date()` and then
   // `toISOString()`, which throws an opaque RangeError on garbage input.
   const month = safeDateParse(targetMonth);
-  if (!month) throw new Error("Некорректный месяц: ожидается формат ГГГГ-ММ-ДД");
+  if (!month) throw DomainError.badRequest("Некорректный месяц: ожидается формат ГГГГ-ММ-ДД");
 
   const end = new Date(`${month}T00:00:00Z`);
   const start = new Date(end);
@@ -80,17 +81,17 @@ export async function suggestQuotas(
       .groupBy(sql`DATE_FORMAT(${orders.createdAt}, '%Y-%m-01')`);
 
     const monthlyVisits = await db.select({
-      month: sql<string>`DATE_FORMAT(${dailyPlans.date}, '%Y-%m-01')`,
+      month: sql<string>`DATE_FORMAT(${dailyPlans.planDate}, '%Y-%m-01')`,
       total: sql<string>`COUNT(*)`,
       completed: sql<string>`SUM(CASE WHEN ${dailyPlans.status} = 'visited' THEN 1 ELSE 0 END)`,
     }).from(dailyPlans)
       .where(and(
         eq(dailyPlans.tenantId, tenantId),
-        eq(dailyPlans.userId, agent.id),
-        gte(dailyPlans.date, startStr),
-        lte(dailyPlans.date, endStr),
+        eq(dailyPlans.agentId, agent.id),
+        gte(dailyPlans.planDate, new Date(`${startStr}T00:00:00Z`)),
+        lte(dailyPlans.planDate, new Date(`${endStr}T00:00:00Z`)),
       ))
-      .groupBy(sql`DATE_FORMAT(${dailyPlans.date}, '%Y-%m-01')`);
+      .groupBy(sql`DATE_FORMAT(${dailyPlans.planDate}, '%Y-%m-01')`);
 
     const monthsOfData = Math.max(monthlyRevenue.length, 1);
     const avgRevenue = monthlyRevenue.reduce((s, m) => s + Number(m.total), 0) / monthsOfData;

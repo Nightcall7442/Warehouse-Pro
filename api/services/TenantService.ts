@@ -3,6 +3,7 @@ import { eq, ne, count, sum } from "drizzle-orm";
 import { findTenantBySlug } from "../queries/tenants";
 import { hashPassword } from "../auth/password";
 import { sanitizeString } from "../lib/sanitize";
+import { DomainError } from "../lib/domain-error";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -40,7 +41,7 @@ export const TenantService = {
 
     const existing = await db.select({ id: users.id }).from(users)
       .where(eq(users.email, data.ownerEmail)).limit(1);
-    if (existing.length) throw new Error("Email already registered.");
+    if (existing.length) throw DomainError.conflict("Email already registered.");
 
     const passwordHash = await hashPassword(data.ownerPassword);
     const trialDays = data.trialDays ?? 14;
@@ -108,7 +109,7 @@ export const TenantService = {
       maxUsers: tenants.maxUsers, maxProducts: tenants.maxProducts, maxOrdersMonth: tenants.maxOrdersMonth,
       createdAt: tenants.createdAt, updatedAt: tenants.updatedAt,
     }).from(tenants).where(eq(tenants.id, tenantId)).limit(1);
-    if (!tenant) throw new Error("Tenant not found.");
+    if (!tenant) throw DomainError.notFound("Tenant not found.");
 
     const [subscription, tenantUsers, orderStat, productStat, shopStat] = await Promise.all([
       db.select({

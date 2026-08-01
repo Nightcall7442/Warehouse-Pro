@@ -1,6 +1,7 @@
 import { payments, shops } from "@db/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { sanitizeString } from "../lib/sanitize";
+import { DomainError } from "../lib/domain-error";
 
 type DrizzleInstance = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -19,7 +20,7 @@ export const PaymentService = {
     // #FIX3: Validate amount
     const amt = Number(amount);
     if (!Number.isFinite(amt) || amt <= 0) {
-      throw new Error("Сумма платежа должна быть положительным числом");
+      throw DomainError.badRequest("Сумма платежа должна быть положительным числом");
     }
 
     await db.transaction(async (tx) => {
@@ -30,7 +31,7 @@ export const PaymentService = {
         .limit(1)
         .for("update");
       if (!shop) {
-        throw new Error("Магазин не найден");
+        throw DomainError.notFound("Магазин не найден");
       }
 
       // #FIX3: Warn if overpayment

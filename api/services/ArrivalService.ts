@@ -1,6 +1,7 @@
 import { arrivals, arrivalItems, products } from "@db/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { sanitizeString } from "../lib/sanitize";
+import { DomainError } from "../lib/domain-error";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -140,7 +141,7 @@ export const ArrivalService = {
   async delete(db: Db, tenantId: number, arrivalId: number) {
     const [existing] = await db.select().from(arrivals)
       .where(and(eq(arrivals.id, arrivalId), eq(arrivals.tenantId, tenantId))).limit(1);
-    if (!existing) throw new Error("Приход не найден");
+    if (!existing) throw DomainError.notFound("Приход не найден");
 
     await db.delete(arrivalItems).where(eq(arrivalItems.arrivalId, arrivalId));
     await db.delete(arrivals).where(and(eq(arrivals.id, arrivalId), eq(arrivals.tenantId, tenantId)));

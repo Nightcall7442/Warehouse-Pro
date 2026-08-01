@@ -276,6 +276,7 @@ beforeEach(() => {
 });
 
 import { OneCSyncService } from "../onec-sync";
+import { isDomainError, type DomainError } from "../../lib/domain-error";
 
 const syncService = new OneCSyncService();
 
@@ -345,11 +346,35 @@ describe("OneCSyncService.syncOrderTo1C", () => {
     await expect(syncService.syncOrderTo1C(1, 999)).rejects.toThrow(/not found/);
   });
 
+  /**
+   * The sync entry points are reachable from the 1C webhook and the cron job as
+   * well as from tRPC, so the category has to travel with the error rather than
+   * being decided at the router. A missing order is the caller naming a row that
+   * is not there; an unmapped shop is a setup step the operator has not done yet.
+   * Neither is a server fault, and neither belongs in the 500 feed.
+   */
+  it("reports a missing order as NOT_FOUND", async () => {
+    const err = await syncService.syncOrderTo1C(1, 999).catch((e: unknown) => e);
+    expect(isDomainError(err)).toBe(true);
+    expect((err as DomainError).code).toBe("NOT_FOUND");
+    expect((err as DomainError).message).toBe("Order 999 not found");
+  });
+
   it("throws when shop not mapped", async () => {
     ordersTable.push({
       id: 1, tenantId: 1, orderNumber: "ORD-001", shopId: 1, status: "new", createdAt: new Date(),
     });
     await expect(syncService.syncOrderTo1C(1, 1)).rejects.toThrow(/not mapped/);
+  });
+
+  it("reports an unmapped shop as CONFLICT", async () => {
+    ordersTable.push({
+      id: 1, tenantId: 1, orderNumber: "ORD-001", shopId: 1, status: "new", createdAt: new Date(),
+    });
+    const err = await syncService.syncOrderTo1C(1, 1).catch((e: unknown) => e);
+    expect(isDomainError(err)).toBe(true);
+    expect((err as DomainError).code).toBe("CONFLICT");
+    expect((err as DomainError).message).toBe("Shop 1 not mapped to 1C");
   });
 
   it("creates and posts document to 1C", async () => {

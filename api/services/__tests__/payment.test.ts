@@ -150,6 +150,7 @@ beforeEach(() => {
 });
 
 import { PaymentService } from "../payment";
+import { isDomainError, type DomainError } from "../../lib/domain-error";
 
 describe("PaymentService.addPayment", () => {
   it("creates payment record and reduces shop debt for payment type", async () => {
@@ -243,5 +244,49 @@ describe("PaymentService.getPaymentHistory", () => {
 
     const history = await PaymentService.getPaymentHistory(mockDb as any, 1, 1);
     expect(history.length).toBeLessThanOrEqual(20);
+  });
+});
+
+/**
+ * Recording a payment against a shop that is not in this tenant is a 404, and a
+ * zero/negative amount is a 400. Both used to surface as `500` with a Sentry
+ * event; PaymentService is also driven from the public REST API, so the category
+ * is carried on the error rather than decided in the tRPC router.
+ */
+describe("PaymentService domain error categories", () => {
+  async function rejection(fn: () => Promise<unknown>): Promise<DomainError> {
+    try {
+      await fn();
+    } catch (err) {
+      if (isDomainError(err)) return err;
+      throw new Error(`expected a DomainError, got ${String(err)}`);
+    }
+    throw new Error("expected a rejection");
+  }
+
+  it("reports an unknown shop as NOT_FOUND", async () => {
+    const err = await rejection(() => PaymentService.addPayment(mockDb as any, 1, {
+      shopId: 999, amount: "100.00", createdBy: 10,
+    }));
+    expect(err.code).toBe("NOT_FOUND");
+    expect(err.message).toBe("Магазин не найден");
+    expect(paymentsTable).toHaveLength(0);
+  });
+
+  it("reports a shop belonging to another tenant as NOT_FOUND", async () => {
+    const err = await rejection(() => PaymentService.addPayment(mockDb as any, 2, {
+      shopId: 1, amount: "100.00", createdBy: 10,
+    }));
+    expect(err.code).toBe("NOT_FOUND");
+  });
+
+  it("reports a non-positive amount as BAD_REQUEST", async () => {
+    for (const amount of ["0", "-25.00", "abc"]) {
+      const err = await rejection(() => PaymentService.addPayment(mockDb as any, 1, {
+        shopId: 1, amount, createdBy: 10,
+      }));
+      expect(err.code).toBe("BAD_REQUEST");
+      expect(err.message).toBe("Сумма платежа должна быть положительным числом");
+    }
   });
 });

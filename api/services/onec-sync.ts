@@ -8,6 +8,7 @@ import type { Product1C } from "./onec-transform";
 import { logger } from "../lib/logger";
 import { updateSyncStatus } from "./onec-status";
 import { record1CSync } from "../lib/metrics";
+import { DomainError } from "../lib/domain-error";
 
 export class OneCSyncService {
   async syncProducts(tenantId: number): Promise<{ synced: number; errors: number }> {
@@ -139,7 +140,7 @@ export class OneCSyncService {
       await updateSyncStatus(tenantId, "order", "to1c", "processing");
 
       const order = await db.select({ id: orders.id, status: orders.status, total: orders.total, orderNumber: orders.orderNumber }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId))).limit(1);
-      if (!order[0]) throw new Error(`Order ${orderId} not found`);
+      if (!order[0]) throw DomainError.notFound(`Order ${orderId} not found`);
 
       const items = await db.select({
         productId: orderItems.productId,
@@ -156,7 +157,7 @@ export class OneCSyncService {
       const shopExternalId = await OneCMapper.getExternalId(db, tenantId, "shop", order[0].shopId);
 
       if (!shopExternalId) {
-        throw new Error(`Shop ${order[0].shopId} not mapped to 1C`);
+        throw DomainError.conflict(`Shop ${order[0].shopId} not mapped to 1C`);
       }
 
       const mappedItems = [];

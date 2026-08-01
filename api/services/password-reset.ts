@@ -4,6 +4,7 @@ import { eq, and, gt, isNull, sql } from "drizzle-orm";
 import { hashPassword } from "../auth/password";
 import { sendEmail } from "../lib/mailer";
 import { logger } from "../lib/logger";
+import { DomainError } from "../lib/domain-error";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -89,7 +90,7 @@ export const PasswordResetService = {
       )).limit(1);
 
     if (!resetToken) {
-      throw new Error("Ссылка недействительна или уже использована.");
+      throw DomainError.notFound("Ссылка недействительна или уже использована.");
     }
 
     const newHash = await hashPassword(newPassword);

@@ -2,6 +2,7 @@ import { eq, and, sql, desc } from "drizzle-orm";
 import { visitReports, dailyPlans, shops, users } from "@db/schema";
 import { cache, CacheKeys } from "../lib/cache";
 import { beforeNextDay, safeDateParse, sinceDay } from "../lib/date-range";
+import { DomainError } from "../lib/domain-error";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -29,8 +30,8 @@ export const MerchandiserService = {
         eq(dailyPlans.tenantId, tenantId),
       )).limit(1);
 
-    if (!plan) throw new Error("План визита не найден");
-    if (plan.agentId !== userId) throw new Error("Этот план назначен другому сотруднику");
+    if (!plan) throw DomainError.notFound("План визита не найден");
+    if (plan.agentId !== userId) throw DomainError.forbidden("Этот план назначен другому сотруднику");
 
     const [report] = await db.insert(visitReports).values({
       tenantId,
@@ -93,7 +94,7 @@ export const MerchandiserService = {
     // syntactically invalid query. Both bounds are now validated day boundaries.
     const from = safeDateParse(dateFrom);
     const to = safeDateParse(dateTo);
-    if (!from || !to) throw new Error("Некорректный период: ожидается формат ГГГГ-ММ-ДД");
+    if (!from || !to) throw DomainError.badRequest("Некорректный период: ожидается формат ГГГГ-ММ-ДД");
 
     const conditions = [
       eq(visitReports.tenantId, tenantId),
