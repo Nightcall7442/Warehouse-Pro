@@ -16,14 +16,33 @@ CREATE TABLE IF NOT EXISTS `agent_territories` (
   CONSTRAINT `at_territory_fk` FOREIGN KEY (`territory_id`) REFERENCES `territories`(`id`) ON DELETE restrict,
   CONSTRAINT `uq_agent_territory` UNIQUE (`agent_id`, `territory_id`)
 );
+--> statement-breakpoint
 SET @idx_exists = (SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'agent_territories' AND INDEX_NAME = 'idx_at_tenant');
+--> statement-breakpoint
 SET @ddl = IF(@idx_exists = 0, 'CREATE INDEX `idx_at_tenant` ON `agent_territories` (`tenant_id`)', 'SELECT 1');
-PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
-
+--> statement-breakpoint
+PREPARE stmt FROM @ddl;
+--> statement-breakpoint
+EXECUTE stmt;
+--> statement-breakpoint
+DEALLOCATE PREPARE stmt;
+--> statement-breakpoint
 SET @idx_exists = (SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'agent_territories' AND INDEX_NAME = 'idx_at_agent');
+--> statement-breakpoint
 SET @ddl = IF(@idx_exists = 0, 'CREATE INDEX `idx_at_agent` ON `agent_territories` (`agent_id`)', 'SELECT 1');
-PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
-
+--> statement-breakpoint
+PREPARE stmt FROM @ddl;
+--> statement-breakpoint
+EXECUTE stmt;
+--> statement-breakpoint
+DEALLOCATE PREPARE stmt;
+--> statement-breakpoint
 SET @idx_exists = (SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'agent_territories' AND INDEX_NAME = 'idx_at_territory');
+--> statement-breakpoint
 SET @ddl = IF(@idx_exists = 0, 'CREATE INDEX `idx_at_territory` ON `agent_territories` (`territory_id`)', 'SELECT 1');
-PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+--> statement-breakpoint
+PREPARE stmt FROM @ddl;
+--> statement-breakpoint
+EXECUTE stmt;
+--> statement-breakpoint
+DEALLOCATE PREPARE stmt;

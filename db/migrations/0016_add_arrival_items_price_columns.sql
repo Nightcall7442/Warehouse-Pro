@@ -4,6 +4,6 @@
 
 ALTER TABLE `arrival_items`
   ADD COLUMN IF NOT EXISTS `cost_price` decimal(10,2) DEFAULT '0.00';
-
+--> statement-breakpoint
 ALTER TABLE `arrival_items`
   ADD COLUMN IF NOT EXISTS `selling_price` decimal(10,2) DEFAULT '0.00';

@@ -8,9 +8,10 @@ CREATE TABLE IF NOT EXISTS territories (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
+--> statement-breakpoint
 CREATE INDEX idx_territories_tenant ON territories (tenant_id);
-
+--> statement-breakpoint
 -- Add territory_id to shops
 ALTER TABLE shops ADD COLUMN territory_id BIGINT UNSIGNED NULL AFTER agent_id;
+--> statement-breakpoint
 ALTER TABLE shops ADD FOREIGN KEY (territory_id) REFERENCES territories(id) ON DELETE SET NULL;

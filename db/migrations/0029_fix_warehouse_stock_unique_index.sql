@@ -10,14 +10,18 @@ SET @idx_exists = (
   SELECT COUNT(*) FROM information_schema.STATISTICS
   WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'warehouse_stock' AND INDEX_NAME = 'uq_stock_product_warehouse_tenant'
 );
+--> statement-breakpoint
 SET @ddl = IF(@idx_exists = 0,
   'CREATE UNIQUE INDEX `uq_stock_product_warehouse_tenant` ON `warehouse_stock` (`product_id`, `warehouse_id`, `tenant_id`)',
   'SELECT 1'
 );
+--> statement-breakpoint
 PREPARE stmt FROM @ddl;
+--> statement-breakpoint
 EXECUTE stmt;
+--> statement-breakpoint
 DEALLOCATE PREPARE stmt;
-
+--> statement-breakpoint
 -- Drop old unique index that prevents multi-warehouse stock — safe now that
 -- the new index above also covers product_id.
 DROP INDEX IF EXISTS `uq_stock_product_tenant` ON `warehouse_stock`;
