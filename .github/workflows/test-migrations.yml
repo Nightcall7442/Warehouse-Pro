@@ -38,6 +38,17 @@ jobs:
           cache: npm
       - run: npm install --legacy-peer-deps
 
+      # TEMPORARY diagnostic step: drizzle-kit's CLI spinner has been
+      # swallowing the actual failure reason on every run so far. This calls
+      # drizzle-orm's migrate() directly (same function the CLI calls
+      # internally) so the real error message/stack prints. Remove once the
+      # underlying migration issue is found and drizzle-kit migrate passes on
+      # its own below.
+      - name: Debug — run migrate() directly for full error output
+        env:
+          DATABASE_URL: mysql://root@127.0.0.1:3306/warehouse_pro_migrate_test
+        run: node scripts/debug-migrate.cjs
+
       # The whole point of this job: verify the full migration history
       # (0000 through the latest file) applies cleanly to a brand-new MySQL 8
       # database via the exact command the Dockerfile runs on every deploy.
