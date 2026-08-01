@@ -196,7 +196,7 @@ export const arrivalRouter = createRouter({
         await db.transaction(async (tx) => {
           // Use sql template (not Drizzle select) to avoid selecting non-existent columns
           const itemsResult = await tx.execute(
-            sql`SELECT ai.id, ai.arrival_id, ai.product_id, ai.quantity, ai.condition, ai.notes FROM arrival_items ai WHERE ai.arrival_id = ${id}`
+            sql`SELECT ai.id, ai.arrival_id AS arrivalId, ai.product_id AS productId, ai.quantity, ai.condition, ai.notes FROM arrival_items ai WHERE ai.arrival_id = ${id}`
           );
           const rows = (itemsResult as unknown[][])[0];
           const items = Array.isArray(rows) ? rows : [];
