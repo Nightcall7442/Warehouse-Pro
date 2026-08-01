@@ -1,7 +1,9 @@
 import { z } from "zod";
 import { createRouter, operatorQuery, adminQuery } from "./middleware";
 import { warehouseStock, products, stockMovements, settings, orderItems, orders, warehouses } from "@db/schema";
-import { eq, like, and, sql, desc } from "drizzle-orm";
+import { eq, like, and, sql, desc, inArray } from "drizzle-orm";
+import { sinceDay } from "./lib/date-range";
+import { assessStock, suggestReorder } from "./lib/replenishment";
 import { StockService } from "./services/stock";
 
 export const warehouseRouter = createRouter({
@@ -135,15 +137,20 @@ export const warehouseRouter = createRouter({
     }),
 
   // ── Dead Stock — products with stock but no orders in last N days ──────────
+  // FIX: P2.1 — was one query joining warehouse_stock → order_items → orders with
+  // GROUP BY over the whole fan-out and a HAVING to drop products that *did* sell.
+  // MySQL had to materialise a row per (stock row × order line) before it could
+  // discard most of them. Two bounded queries instead: the stock on hand, then one
+  // grouped pass over the order lines of exactly those products.
   deadStock: operatorQuery
     .input(z.object({ days: z.number().default(30) }).optional())
     .query(async ({ input, ctx }) => {
       const db = ctx.db;
       const tenantId = ctx.tenant.id;
       const days = input?.days ?? 30;
-      const cutoff = new Date(Date.now() - days * 86400000).toISOString();
+      const cutoff = new Date(Date.now() - days * 86400000);
 
-      return db.select({
+      const inStock = await db.select({
         productId: products.id,
         productName: products.name,
         productCode: products.code,
@@ -152,29 +159,55 @@ export const warehouseRouter = createRouter({
         unitPrice: products.unitPrice,
         costPrice: products.costPrice,
         category: products.category,
-        value: sql<string>`COALESCE(${warehouseStock.currentStock} * COALESCE(${products.costPrice}, 0), 0)`,
-        lastOrderDate: sql<Date | null>`MAX(CASE WHEN ${orders.status} = 'completed' THEN ${orders.createdAt} END)`,
-        daysSinceOrder: sql<number>`CASE WHEN MAX(CASE WHEN ${orders.status} = 'completed' THEN ${orders.createdAt} END) IS NULL THEN 99999 ELSE DATEDIFF(NOW(), MAX(CASE WHEN ${orders.status} = 'completed' THEN ${orders.createdAt} END)) END`,
       })
         .from(warehouseStock)
-        .leftJoin(products, eq(warehouseStock.productId, products.id))
-        .leftJoin(orderItems, eq(orderItems.productId, products.id))
-        .leftJoin(orders, eq(orderItems.orderId, orders.id))
+        .innerJoin(products, eq(warehouseStock.productId, products.id))
         .where(and(
           eq(warehouseStock.tenantId, tenantId),
           sql`${warehouseStock.currentStock} > 0`,
-          sql`(${orders.tenantId} IS NULL OR ${orders.tenantId} = ${tenantId})`,
+        ));
+
+      if (inStock.length === 0) return [];
+
+      const productIds = [...new Set(inStock.map(r => r.productId))];
+      const lastSales = await db.select({
+        productId: orderItems.productId,
+        lastOrderDate: sql<Date | null>`MAX(${orders.createdAt})`,
+      })
+        .from(orderItems)
+        .innerJoin(orders, eq(orderItems.orderId, orders.id))
+        .where(and(
+          eq(orders.tenantId, tenantId),
+          eq(orders.status, "completed"),
+          inArray(orderItems.productId, productIds),
         ))
-        .groupBy(products.id, products.name, products.code, products.unit, products.unitPrice, products.costPrice, products.category, warehouseStock.currentStock)
-        .having(sql`MAX(CASE WHEN ${orders.status} = 'completed' AND ${orders.createdAt} >= ${cutoff} THEN 1 END) IS NULL`)
-        .orderBy(desc(sql`COALESCE(${warehouseStock.currentStock} * COALESCE(${products.costPrice}, 0), 0)`));
+        .groupBy(orderItems.productId);
+
+      const lastSaleByProduct = new Map(
+        lastSales.map(r => [Number(r.productId), r.lastOrderDate ? new Date(r.lastOrderDate) : null]),
+      );
+
+      const now = Date.now();
+      return inStock
+        .map(row => {
+          const { isDead, ...verdict } = assessStock(
+            row,
+            lastSaleByProduct.get(Number(row.productId)) ?? null,
+            cutoff,
+            now,
+          );
+          return { ...row, ...verdict, isDead };
+        })
+        .filter(row => row.isDead)
+        .map(({ isDead: _isDead, ...row }) => row)
+        .sort((a, b) => Number(b.value) - Number(a.value));
     }),
 
   // ── Auto-Replenishment Suggestions ──────────────────────────────────────────
   reorderSuggestions: operatorQuery.query(async ({ ctx }) => {
     const db = ctx.db;
     const tenantId = ctx.tenant.id;
-    const days30 = new Date(Date.now() - 30 * 86400000).toISOString();
+    const days30 = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
 
     // Products below reorder point with sales velocity
     const results = await db.select({
@@ -186,7 +219,6 @@ export const warehouseRouter = createRouter({
       unit: products.unit,
       unitPrice: products.unitPrice,
       costPrice: products.costPrice,
-      avgDailySales: sql<string>`COALESCE((SELECT SUM(${orderItems.quantity}) FROM ${orderItems} INNER JOIN ${orders} ON ${orderItems.orderId} = ${orders.id} WHERE ${orderItems.productId} = ${products.id} AND ${orders.tenantId} = ${tenantId} AND ${orders.status} = 'completed' AND ${orders.createdAt} >= ${days30}) / 30, 0)`,
     })
       .from(warehouseStock)
       .leftJoin(products, eq(warehouseStock.productId, products.id))
@@ -197,21 +229,32 @@ export const warehouseRouter = createRouter({
       ))
       .orderBy(sql`${warehouseStock.available} / NULLIF(${products.reorderPoint}, 0)`);
 
-    return results.map(r => {
-      const avgDaily = Number(r.avgDailySales);
-      const current = Number(r.currentStock ?? 0);
-      const reorderAt = Number(r.reorderPoint ?? 0);
-      const daysUntilStockout = avgDaily > 0 ? Math.round(current / avgDaily) : 999;
-      const suggestedQty = Math.max(0, reorderAt * 2 - current); // Заказать до 2x порога
+    if (results.length === 0) return [];
 
-      return {
-        ...r,
-        avgDailySales: avgDaily.toFixed(1),
-        daysUntilStockout,
-        suggestedQty: Math.round(suggestedQty),
-        suggestedCost: Math.round(suggestedQty * Number(r.costPrice ?? 0)),
-      };
-    });
+    // FIX: P2.1 — the velocity used to be a correlated subquery in the SELECT list,
+    // so MySQL re-scanned order_items + orders once per product below its reorder
+    // point. One grouped pass over just those products replaces all of them.
+    const productIds = [...new Set(results.map(r => r.productId).filter((id): id is number => id != null))];
+    const sales = await db.select({
+      productId: orderItems.productId,
+      soldQty: sql<string>`COALESCE(SUM(${orderItems.quantity}), 0)`,
+    })
+      .from(orderItems)
+      .innerJoin(orders, eq(orderItems.orderId, orders.id))
+      .where(and(
+        eq(orders.tenantId, tenantId),
+        eq(orders.status, "completed"),
+        sinceDay(orders.createdAt, days30),
+        inArray(orderItems.productId, productIds),
+      ))
+      .groupBy(orderItems.productId);
+
+    const soldByProduct = new Map(sales.map(r => [Number(r.productId), Number(r.soldQty)]));
+
+    return results.map(r => ({
+      ...r,
+      ...suggestReorder(r, soldByProduct.get(Number(r.productId)) ?? 0),
+    }));
   }),
 
   /** Create missing warehouse_stock rows for products that don't have one */

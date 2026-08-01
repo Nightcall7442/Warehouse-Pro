@@ -241,6 +241,11 @@ export const orders = mysqlTable("orders", {
     tenantStatusIdx:   index("idx_orders_tenant_status").on(t.tenantId, t.status),
     tenantAgentIdx:    index("idx_orders_tenant_agent").on(t.tenantId, t.agentId),
     tenantDateIdx:     index("idx_orders_tenant_date").on(t.tenantId, t.createdAt),
+    // P2.1: agentEfficiency and agentPerformance filter by agent + status and then
+    // range-scan created_at. Neither idx_orders_tenant_agent nor
+    // idx_orders_tenant_status covers that, so both degraded to a filesort over
+    // the agent's whole order history.
+    agentStatusDateIdx: index("idx_orders_agent_status_date").on(t.agentId, t.status, t.createdAt),
     shopIdx:           index("idx_orders_shop").on(t.shopId),
     agentIdx:          index("idx_orders_agent").on(t.agentId),
     statusIdx:         index("idx_orders_status").on(t.status),

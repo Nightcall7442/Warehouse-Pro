@@ -440,3 +440,46 @@ A second signal during shutdown is ignored rather than re-entering the sequence.
 uptime monitor currently treats any 200 as healthy it will start alerting on a
 degraded database or a configured-but-down Redis — which is the point, but worth
 knowing before the deploy.
+
+## P2.1 — Analytics query optimisation
+
+**`warehouse.reorderSuggestions`** computed sales velocity with a correlated
+subquery in the SELECT list, so MySQL re-scanned `order_items ⋈ orders` once per
+product below its reorder point. It is now one grouped pass over exactly those
+products, merged in memory — two queries total regardless of how many products
+qualify, and the second one does not run at all when none do.
+
+**`warehouse.deadStock`** joined `warehouse_stock → order_items → orders`, grouped
+over the whole fan-out and then used `HAVING` to discard everything that *had*
+sold — materialising a row per (stock row × order line) to throw most of them
+away. Now: the stock on hand, then one `MAX(created_at)` grouped by product for
+those product ids, with the "is it dead" decision in code.
+
+Both rewrites keep the response shape and the sort order. The `99999`
+days-since-order sentinel for never-sold products is preserved — the UI sorts on
+that column.
+
+**New index** `idx_orders_agent_status_date` on `orders (agent_id, status,
+created_at)` (migration `0032`, hand-applied like the rest — see the journal note
+under P1.4). The agent efficiency and performance reports filter on agent + status
+and then range-scan the date; `idx_orders_tenant_agent` stops at `agent_id` and
+`idx_orders_tenant_status` stops at `status`, so both queries read the agent's
+whole order history and sorted it.
+
+**Dashboard KPI invalidation** already happens on every order write (added with
+the OrderService split) and on merchandiser report submission. The KPI payload
+also includes total stock and customer debt, so stock adjustments and payments
+should invalidate it too — not done here to avoid colliding with in-flight work in
+those services; the 2-minute TTL bounds the staleness meanwhile.
+
+**Not implemented: the `EXPLAIN ANALYZE` CI gate.** It needs a MySQL instance with
+100k synthetic rows, which neither this environment nor the CI job has (see the
+P1.5 note on why the test job has no service containers). The rewrites above are
+justified by query shape — removing an N+1 and a fan-out — not by a measurement,
+and that distinction is worth keeping honest: the numbers still need a live run.
+
+### New pure modules worth knowing about
+
+`api/lib/replenishment.ts` holds the decisions both reports make — value on hand,
+what counts as dead, how much to order — with 16 tests. Neither report had a
+single test before; the logic was unreachable inside a `HAVING` clause.
