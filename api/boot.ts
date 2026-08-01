@@ -20,7 +20,7 @@ import { checkDatabaseHealth, closeDb, getDb, runWithDb, waitForDatabase } from 
 import { sql } from "drizzle-orm";
 import { logger } from "./lib/logger";
 import { recordRequest } from "./system-router";
-import { logError } from "./lib/error-log";
+import { logError, logTrpcError } from "./lib/error-log";
 import { safeEqual } from "./lib/safe-compare";
 import { rememberSocketIp, warnIfClientIpUnavailable } from "./lib/rate-limit";
 
@@ -449,29 +449,44 @@ app.use("/api/trpc/*", async (c) => {
       ctx.resHeaders = resHeaders;
       return ctx;
     },
-    onError: ({ error, path }) => {
-      if (error.code === "INTERNAL_SERVER_ERROR") {
-        logger.error("tRPC internal error", { path, error: error.cause ?? error.message });
-      }
-      logError({
-        message: error.message,
-        code: error.code,
-        path: path ?? "unknown",
-        method: "POST",
-        statusCode: 500,
-        stack: error.cause instanceof Error ? error.cause.stack : undefined,
+    onError: ({ error, type, path, req }) => {
+      // Status comes from the tRPC code (UNAUTHORIZED → 401, NOT_FOUND → 404, …)
+      // and the method from the actual request — both used to be hard-coded to
+      // 500/POST, which turned one expired session into three "server errors".
+      // logTrpcError also picks the sink: the error feed for 5xx, the client-issue
+      // counters for 4xx, so an expected condition never pollutes the feed.
+      const { statusCode, method, isServerFault } = logTrpcError({
+        error,
+        path,
+        method: req?.method,
       });
+      const errorPath = path ?? "unknown";
+
+      // 4xx: an expected client condition (expired session, rejected input, rate
+      // limit). Counted above and warned here, so an auth outage or brute-force
+      // burst is still detectable without competing with real faults.
+      if (!isServerFault) {
+        logger.warn("tRPC client error", {
+          path: errorPath,
+          method,
+          type,
+          statusCode,
+          code: error.code,
+          message: error.message,
+        });
+        return;
+      }
+
+      logger.error("tRPC internal error", { path: errorPath, method, statusCode, code: error.code, error: error.cause ?? error.message });
 
       // Capture tRPC errors in Sentry with tags for alert targeting
-      if (error.code === "INTERNAL_SERVER_ERROR") {
-        Sentry.withScope((scope) => {
-          scope.setTag("error_type", "trpc");
-          scope.setTag("trpc_path", path ?? "unknown");
-          scope.setTag("trpc_code", error.code);
-          scope.setContext("trpc", { path, code: error.code, message: error.message });
-          Sentry.captureException(error.cause ?? new Error(error.message));
-        });
-      }
+      Sentry.withScope((scope) => {
+        scope.setTag("error_type", "trpc");
+        scope.setTag("trpc_path", errorPath);
+        scope.setTag("trpc_code", error.code);
+        scope.setContext("trpc", { path, code: error.code, message: error.message });
+        Sentry.captureException(error.cause ?? new Error(error.message));
+      });
     },
   });
 

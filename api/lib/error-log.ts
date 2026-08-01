@@ -4,8 +4,10 @@
  * Writes to error-log.jsonl (append-only JSON Lines) for persistence across restarts.
  */
 
-import { appendFileSync, readFileSync, existsSync, mkdirSync, statSync } from "fs";
+import { appendFileSync, readFileSync, existsSync, mkdirSync, renameSync, statSync } from "fs";
 import { join } from "path";
+import { getHTTPStatusCodeFromError } from "@trpc/server/http";
+import type { TRPCError } from "@trpc/server";
 
 export interface ErrorEntry {
   id: string;
@@ -68,9 +70,9 @@ export function logError(entry: Omit<ErrorEntry, "id" | "timestamp">): ErrorEntr
       if (existsSync(LOG_FILE)) {
         const stats = statSync(LOG_FILE);
         if (stats.size > MAX_LOG_SIZE_BYTES) {
-          const rotated = LOG_FILE + "." + Date.now();
-          const { renameSync } = require("fs");
-          renameSync(LOG_FILE, rotated);
+          // Static import: this module is ESM, so a `require()` here threw
+          // ReferenceError into the catch below and rotation never happened.
+          renameSync(LOG_FILE, LOG_FILE + "." + Date.now());
         }
       }
     } catch { /* rotation best-effort */ }
@@ -78,6 +80,149 @@ export function logError(entry: Omit<ErrorEntry, "id" | "timestamp">): ErrorEntr
   } catch { /* ignore write errors */ }
 
   return full;
+}
+
+// ── tRPC error classification ────────────────────────────────────────────────
+// One expired session used to surface as three "500 UNAUTHORIZED" entries in the
+// monitoring feed, because the tRPC onError handler hard-coded statusCode 500 and
+// method "POST" for every error. The feed exists to make genuine server faults
+// visible, so expected client conditions (401/403/404/400/429) must not compete
+// with them for attention — but they still need to be observable, otherwise an
+// auth outage or a credential-stuffing burst becomes invisible instead of noisy.
+
+/** Recorded when a request carries no usable HTTP method (batched/internal calls). */
+export const UNKNOWN_METHOD = "UNKNOWN";
+
+export interface TrpcErrorClassification {
+  /** HTTP status derived from the tRPC error code: UNAUTHORIZED → 401, etc. */
+  statusCode: number;
+  /** The request's real HTTP verb, upper-cased, or {@link UNKNOWN_METHOD}. */
+  method: string;
+  /** 5xx — a genuine server fault: error log + logger.error + Sentry. */
+  isServerFault: boolean;
+  /** 4xx — an expected client condition: counted and warned, never in the feed. */
+  isClientError: boolean;
+}
+
+/**
+ * Derive HTTP status and severity for a tRPC error, plus the request's real
+ * method. Pure — safe to call from anywhere and to unit-test on its own.
+ */
+export function classifyTrpcError(opts: {
+  /** Anything carrying a tRPC error `code` (a real `TRPCError` in production). */
+  error: Pick<TRPCError, "code">;
+  /** `req.method` from the onError payload; absent on non-HTTP transports. */
+  method?: string | null;
+}): TrpcErrorClassification {
+  const statusCode = getHTTPStatusCodeFromError(opts.error as TRPCError);
+  const method = opts.method?.trim().toUpperCase() || UNKNOWN_METHOD;
+
+  return {
+    statusCode,
+    method,
+    isServerFault: statusCode >= 500,
+    isClientError: statusCode >= 400 && statusCode < 500,
+  };
+}
+
+export interface ClientIssueCount {
+  code: string;
+  path: string;
+  statusCode: number;
+  count: number;
+  firstSeen: number;
+  lastSeen: number;
+}
+
+const MAX_CLIENT_ISSUE_KEYS = 200;
+const clientIssues = new Map<string, ClientIssueCount>();
+
+/**
+ * Count a 4xx client condition without writing it to the error feed.
+ *
+ * This is the "not silently discarded" half of the classification: a spike of
+ * UNAUTHORIZED on `auth.me` (session outage) or of TOO_MANY_REQUESTS on
+ * `auth.login` (brute force) is still countable here, while the error list stays
+ * reserved for faults an engineer has to fix.
+ */
+export function recordClientIssue(issue: {
+  code: string;
+  path: string;
+  statusCode: number;
+}): ClientIssueCount {
+  const key = `${issue.statusCode}:${issue.code}:${issue.path}`;
+  const now = Date.now();
+  const existing = clientIssues.get(key);
+
+  if (existing) {
+    existing.count += 1;
+    existing.lastSeen = now;
+    return existing;
+  }
+
+  const created: ClientIssueCount = { ...issue, count: 1, firstSeen: now, lastSeen: now };
+  // Bounded: drop the least recently seen key rather than grow without limit.
+  if (clientIssues.size >= MAX_CLIENT_ISSUE_KEYS) {
+    let oldestKey: string | undefined;
+    let oldestSeen = Infinity;
+    for (const [k, v] of clientIssues) {
+      if (v.lastSeen < oldestSeen) { oldestSeen = v.lastSeen; oldestKey = k; }
+    }
+    if (oldestKey) clientIssues.delete(oldestKey);
+  }
+  clientIssues.set(key, created);
+  return created;
+}
+
+/** Counted 4xx conditions, most frequent first. Never part of {@link getErrors}. */
+export function getClientIssues(opts?: { since?: number; limit?: number }): ClientIssueCount[] {
+  const since = opts?.since;
+  const limit = opts?.limit ?? 50;
+  return Array.from(clientIssues.values())
+    .filter((i) => since === undefined || i.lastSeen > since)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit)
+    .map((i) => ({ ...i }));
+}
+
+/** Test seam — clears the client-issue counters. */
+export function resetClientIssues(): void {
+  clientIssues.clear();
+}
+
+/**
+ * Route a tRPC error to the right sink and report what it was.
+ *
+ * 5xx → the error feed ({@link logError}), so it keeps showing up for triage.
+ * 4xx → the client-issue counters ({@link recordClientIssue}) only.
+ *
+ * The caller stays responsible for `logger`/Sentry, using the returned
+ * classification: `logger.error` + Sentry for a server fault, a lower level for
+ * a client condition.
+ */
+export function logTrpcError(opts: {
+  error: Pick<TRPCError, "code" | "message"> & { cause?: unknown };
+  path?: string | null;
+  method?: string | null;
+}): TrpcErrorClassification & { entry?: ErrorEntry } {
+  const classification = classifyTrpcError({ error: opts.error, method: opts.method });
+  const path = opts.path ?? "unknown";
+
+  if (!classification.isServerFault) {
+    recordClientIssue({ code: opts.error.code, path, statusCode: classification.statusCode });
+    return classification;
+  }
+
+  const entry = logError({
+    message: opts.error.message,
+    code: opts.error.code,
+    path,
+    method: classification.method,
+    statusCode: classification.statusCode,
+    stack: opts.error.cause instanceof Error ? opts.error.cause.stack : undefined,
+  });
+
+  return { ...classification, entry };
 }
 
 export function getErrors(opts?: {
