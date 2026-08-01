@@ -1,0 +1,44 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Mondays 04:17 UTC. Off the hour so the run isn't queued behind everyone
+    # else's midnight cron; weekly because the ruleset only changes that often.
+    - cron: "17 4 * * 1"
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      # Required to upload results to the Security tab.
+      security-events: write
+      actions: read
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialise CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          language: ${{ matrix.language }}
+          # security-extended adds the query set that catches the things that
+          # matter here — injection, path traversal, missing rate limiting,
+          # hard-coded credentials — beyond the default high-confidence set.
+          queries: security-extended
+
+      # No build step: CodeQL analyses TypeScript sources directly, and running
+      # the Vite build would only give it the bundled output.
+      - name: Analyse
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"

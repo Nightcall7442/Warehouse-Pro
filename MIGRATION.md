@@ -338,3 +338,72 @@ ALTER TABLE `onec_config` ADD COLUMN `webhook_secret`  VARCHAR(64)  NULL AFTER `
 Regenerating the journal properly needs a `drizzle-kit generate` run against a
 database that matches `schema.ts`, plus snapshot files for the gap — worth doing as
 its own change, before the next schema edit, rather than folded into this one.
+
+## P1.5 — CI that can actually fail
+
+**What the old pipeline did.** One `check` job running `npx tsc --noEmit`,
+`npm run lint`, `npm test`, `npm run build`. Two of those steps were broken and
+one was vacuous:
+
+- `npx tsc --noEmit` on the root `tsconfig.json` **checks nothing** — it is a
+  solution file with project references and no inputs of its own, so it exits 0
+  while `tsc -b` reports 1150 errors.
+- `npm run lint` exits 1 (45 errors repo-wide, all pre-existing).
+- `npm test` exited 1 on coverage thresholds of 50/50/30/50 that nothing has ever
+  met (actual: 36.4 / 39.7 / 28 / 37.6).
+
+So CI was red on every push and had been for long enough that nobody was reading
+it. Restoring a green build without deleting the signal is the whole problem.
+
+**What replaces it.** Five jobs — `lint`, `typecheck`, `test`, `security`,
+`build` — so a failure names itself, plus two gates that are honest about the
+backlog:
+
+- **Ratchet gates.** `scripts/quality-gate.mjs` counts errors and compares them
+  with `quality-baseline.json` (typecheck 1150, lint 45). More than the baseline
+  fails the build; fewer passes and prints the number to record. Lower these as
+  the backlog shrinks — raising one needs a reason in the commit message.
+- **Coverage floors** in `vitest.config.ts` moved from aspirational 50/50/30/50 to
+  37/39/27/36, just under today's numbers, so `npm test` is now a real regression
+  gate instead of a permanent failure. Raise them as coverage grows.
+- **`npm audit` blocks at `critical` only.** There are 10 open moderate/high
+  advisories (`brace-expansion`, `react-router`, `exceljs` …) that each need a
+  dependency bump; Dependabot now opens those PRs. Tighten to `high` once the
+  queue is clear. The full report still prints on every run.
+- **Build job** asserts both entry points are emitted (`dist/boot.js` and
+  `dist/cron/backup-runner.js`) and builds both Docker targets — `runtime` and the
+  new `backup` stage — with GitHub Actions layer caching.
+- **No mysql/redis service containers.** Every test mocks the database module and
+  the rate limiter falls back to memory without Redis, so the containers the plan
+  called for would add ~40s per run and change no outcome. Worth adding when a
+  real integration suite exists.
+
+**Also added:** `.github/workflows/codeql.yml` (security-extended query set, on PRs
+and weekly) and `.github/dependabot.yml` (npm + Actions + Docker, grouped by
+family so a Radix bump is one PR rather than twenty, framework majors ignored —
+those are migrations, not bumps).
+
+### Branch protection — the one part that is not in the repository
+
+Required checks cannot be configured from a file. After the first run of this
+workflow on `main`, apply:
+
+```bash
+gh api -X PUT repos/Nightcall7442/Warehouse-Pro/branches/main/protection \
+  --input - <<'JSON'
+{
+  "required_status_checks": {
+    "strict": true,
+    "contexts": ["Lint", "Type check", "Tests", "Dependency audit", "Build"]
+  },
+  "enforce_admins": false,
+  "required_pull_request_reviews": { "required_approving_review_count": 1 },
+  "restrictions": null,
+  "allow_force_pushes": false,
+  "allow_deletions": false
+}
+JSON
+```
+
+The check names must match the `name:` of each job exactly, and they only become
+selectable once the workflow has reported them at least once.

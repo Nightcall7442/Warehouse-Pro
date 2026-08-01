@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "start": "NODE_ENV=production node dist/boot.js",
     "check": "tsc -b",
+    "quality-gate": "node scripts/quality-gate.mjs",
     "format": "prettier --write .",
     "test": "vitest run --coverage",
     "test:e2e": "npx playwright test --config=e2e/playwright.config.ts",

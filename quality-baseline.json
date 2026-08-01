@@ -1,0 +1,7 @@
+{
+  "_comment": "P1.5 quality ratchet. scripts/quality-gate.mjs fails CI when a change pushes a count above these numbers. Lower them as the backlog shrinks; raising one needs a reason in the commit message.",
+  "typecheckErrors": 1150,
+  "lintErrors": 45,
+  "_recordedAt": "2026-07-31",
+  "_note": "Counts cover the whole repository (eslint . / tsc -b), not just api/. Coverage floors live in vitest.config.ts and are enforced by `npm test`."
+}

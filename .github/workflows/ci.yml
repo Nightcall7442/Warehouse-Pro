@@ -1,24 +1,125 @@
 name: CI
+
 on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+
+# A new push to a PR makes the in-flight run pointless.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "20"
+
 jobs:
-  check:
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
-      - run: npm install --legacy-peer-deps
-      - name: Type check
-        run: npx tsc --noEmit
-      - name: Lint
-        run: npm run lint
-      - name: Test
+      - run: npm ci --legacy-peer-deps
+      # Ratchet, not a clean-slate gate: the repo carries a pre-existing backlog
+      # recorded in quality-baseline.json. Adding to it fails; reducing it passes
+      # and prints the new number to record.
+      - name: ESLint (baseline ratchet)
+        run: node scripts/quality-gate.mjs lint
+
+  typecheck:
+    name: Type check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      # `tsc --noEmit` on the root config checks nothing — it is a solution file
+      # with project references and no inputs of its own, which is why the old
+      # single-job CI reported a passing type check over 1150 errors. `tsc -b` is
+      # what actually compiles api/, src/ and the node config.
+      - name: tsc -b (baseline ratchet)
+        run: node scripts/quality-gate.mjs typecheck
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      # No mysql/redis service containers: every test mocks the database module,
+      # and the rate limiter falls back to memory when Redis is absent. Adding
+      # them would cost ~40s a run and change nothing. Revisit when the
+      # testcontainers integration suite from P0.3 lands.
+      - name: Vitest with coverage floors
         run: npm test
-      - name: Build
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/
+          retention-days: 7
+
+  security:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      # Blocking at `critical` only. There are 10 known moderate/high advisories
+      # today (brace-expansion, react-router, exceljs and friends), all needing
+      # dependency bumps that are their own change — Dependabot opens those PRs.
+      # Tighten this to `high` once that queue is clear.
+      - name: npm audit (critical blocks)
+        run: npm audit --audit-level=critical
+      - name: npm audit (full report, informational)
+        if: always()
+        run: npm audit --audit-level=moderate || true
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - name: Vite + esbuild bundles
         run: npm run build
+      - name: Assert both entry points were emitted
+        run: test -f dist/boot.js && test -f dist/cron/backup-runner.js
+      - name: Docker image (web)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: runtime
+          push: false
+          tags: warehouse-pro:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Docker image (backup worker)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: backup
+          push: false
+          tags: warehouse-pro-backup:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

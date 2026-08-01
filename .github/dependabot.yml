@@ -1,0 +1,67 @@
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "05:00"
+      timezone: Asia/Tashkent
+    # Enough to work through the 10 open advisories without burying the queue.
+    open-pull-requests-limit: 8
+    versioning-strategy: increase
+    labels: [dependencies]
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+    groups:
+      # One PR per family: these move together and reviewing 20 separate bumps
+      # of @radix-ui/* is how a dependency queue gets abandoned.
+      radix:
+        patterns: ["@radix-ui/*"]
+      sentry:
+        patterns: ["@sentry/*"]
+      opentelemetry:
+        patterns: ["@opentelemetry/*"]
+      aws-sdk:
+        patterns: ["@aws-sdk/*"]
+      types:
+        patterns: ["@types/*"]
+      eslint:
+        patterns: ["eslint", "eslint-*", "@eslint/*", "typescript-eslint"]
+      vitest:
+        patterns: ["vitest", "@vitest/*"]
+    ignore:
+      # Majors for the framework core are migrations, not dependency bumps —
+      # Dependabot opening them just adds noise to the review queue.
+      - dependency-name: react
+        update-types: [version-update:semver-major]
+      - dependency-name: react-dom
+        update-types: [version-update:semver-major]
+      - dependency-name: drizzle-orm
+        update-types: [version-update:semver-major]
+      - dependency-name: hono
+        update-types: [version-update:semver-major]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "05:00"
+      timezone: Asia/Tashkent
+    labels: [dependencies, ci]
+    commit-message:
+      prefix: "chore(ci)"
+
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "05:00"
+      timezone: Asia/Tashkent
+    labels: [dependencies, docker]
+    commit-message:
+      prefix: "chore(docker)"
