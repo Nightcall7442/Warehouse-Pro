@@ -5,6 +5,7 @@ import { arrivals, arrivalItems, products, warehouseStock, warehouses, stockMove
 import { eq, and, sql, desc } from "drizzle-orm";
 import { sanitizeString } from "./lib/sanitize";
 import { sseBus } from "./lib/sse";
+import { decimalString, requiredDecimalString } from "./lib/zod-decimal";
 
 export const arrivalRouter = createRouter({
   list: operatorQuery
@@ -83,11 +84,18 @@ export const arrivalRouter = createRouter({
       driverName:  z.string().optional(),
       driverPhone: z.string().optional(),
       arrivalDate: z.string(),
-      fuelCost:    z.string().default("0.00"),
-      tollCost:    z.string().default("0.00"),
-      otherCost:   z.string().default("0.00"),
+      fuelCost:    decimalString({ min: 0, default: "0.00", message: "Расход не может быть отрицательным" }),
+      tollCost:    decimalString({ min: 0, default: "0.00", message: "Расход не может быть отрицательным" }),
+      otherCost:   decimalString({ min: 0, default: "0.00", message: "Расход не может быть отрицательным" }),
       notes:       z.string().optional(),
-      items:       z.array(z.object({ productId: z.number(), quantity: z.string().refine(v => Number(v) > 0, "Количество должно быть положительным"), costPrice: z.string().optional(), sellingPrice: z.string().optional(), condition: z.string().optional(), warehouseId: z.number().optional() })).optional(),
+      items:       z.array(z.object({
+        productId:    z.number(),
+        quantity:     requiredDecimalString({ min: 0, exclusiveMin: true, message: "Количество должно быть положительным" }),
+        costPrice:    decimalString({ min: 0, default: "0.00", message: "Цена не может быть отрицательной" }),
+        sellingPrice: decimalString({ min: 0, default: "0.00", message: "Цена не может быть отрицательной" }),
+        condition:    z.string().optional(),
+        warehouseId:  z.number().optional(),
+      })).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const db       = ctx.db;
@@ -119,8 +127,8 @@ export const arrivalRouter = createRouter({
               arrivalId,
               productId: item.productId,
               quantity: item.quantity,
-              costPrice: item.costPrice ?? "0.00",
-              sellingPrice: item.sellingPrice ?? "0.00",
+              costPrice: item.costPrice,
+              sellingPrice: item.sellingPrice,
               condition: item.condition ? sanitizeString(item.condition) : undefined,
             });
           }
@@ -138,17 +146,20 @@ export const arrivalRouter = createRouter({
       driverPhone: z.string().optional(),
       status:      z.enum(["pending", "unloading", "completed"]).optional(),
       warehouseId: z.number().optional(),
-      fuelCost:    z.string().optional(),
-      tollCost:    z.string().optional(),
-      otherCost:   z.string().optional(),
+      fuelCost:    decimalString({ min: 0, message: "Расход не может быть отрицательным" }),
+      tollCost:    decimalString({ min: 0, message: "Расход не может быть отрицательным" }),
+      otherCost:   decimalString({ min: 0, message: "Расход не может быть отрицательным" }),
       notes:       z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const db       = ctx.db;
       const tenantId = ctx.tenant.id;
-      const { id, ...data } = input;
-      const targetWarehouseId = data.warehouseId;
-      delete data.warehouseId;
+      const { id, warehouseId: targetWarehouseId, ...rest } = input;
+      // Drop keys that resolved to "not provided" — a blank decimal field yields
+      // `undefined`, and Drizzle rejects an update whose values are all undefined.
+      const data = Object.fromEntries(
+        Object.entries(rest).filter(([, v]) => v !== undefined),
+      ) as typeof rest;
 
       // Validate status transitions: completed cannot go back to pending/unloading
       if (data.status && data.status !== "completed") {

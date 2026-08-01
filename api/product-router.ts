@@ -6,6 +6,7 @@ import { eq, like, and, sql, desc } from "drizzle-orm";
 import { sanitizeString, sanitizeSearch } from "./lib/sanitize";
 import { cache, CacheKeys, CacheTTL } from "./lib/cache";
 import { photoRef } from "./lib/photo-url";
+import { decimalString, requiredDecimalString } from "./lib/zod-decimal";
 import { ProductService } from "./services/ProductService";
 
 async function getDefaultWarehouseId(db: ReturnType<typeof getDb>, tenantId: number): Promise<number | null> {
@@ -177,13 +178,13 @@ export const productRouter = createRouter({
       barcode:      z.string().optional(),
       name:         z.string().min(1),
       category:     z.string().optional(),
-      costPrice:    z.string().refine(v => Number(v) >= 0, "Цена не может быть отрицательной").default("0.00"),
-      unitPrice:    z.string().refine(v => Number(v) > 0, "Цена должна быть положительной"),
+      costPrice:    decimalString({ min: 0, default: "0.00", message: "Цена не может быть отрицательной" }),
+      unitPrice:    requiredDecimalString({ min: 0, exclusiveMin: true, message: "Цена должна быть положительной" }),
       unit:         z.enum(["kg", "l", "pcs", "box", "pack", "m", "block"]).default("pcs"),
-      unitWeight:   z.string().default("0.000"),
+      unitWeight:   decimalString({ scale: 3, min: 0, default: "0.000", message: "Вес не может быть отрицательным" }),
       description:  z.string().optional(),
       photoUrl:     z.string().max(2_800_000, "Файл слишком большой (макс. 2 МБ)").optional(),
-      reorderPoint: z.string().default("10.00"),
+      reorderPoint: decimalString({ min: 0, default: "10.00", message: "Точка заказа не может быть отрицательной" }),
     }))
     .mutation(async ({ input, ctx }) => {
       const db       = ctx.db;
@@ -241,18 +242,22 @@ export const productRouter = createRouter({
       code:         z.string().min(1).optional(),
       name:         z.string().min(1).optional(),
       category:     z.string().optional(),
-      costPrice:    z.string().refine(v => v === undefined || Number(v) >= 0, "Цена не может быть отрицательной").optional(),
-      unitPrice:    z.string().refine(v => v === undefined || Number(v) > 0, "Цена должна быть положительной").optional(),
+      costPrice:    decimalString({ min: 0, message: "Цена не может быть отрицательной" }),
+      unitPrice:    decimalString({ min: 0, exclusiveMin: true, message: "Цена должна быть положительной" }),
       unit:         z.enum(["kg", "l", "pcs", "box", "pack", "m", "block"]).optional(),
-      unitWeight:   z.string().optional(),
+      unitWeight:   decimalString({ scale: 3, min: 0, message: "Вес не может быть отрицательным" }),
       description:  z.string().optional(),
       photoUrl:     z.string().max(2_800_000, "Файл слишком большой (макс. 2 МБ)").nullable().optional(),
-      reorderPoint: z.string().optional(),
+      reorderPoint: decimalString({ min: 0, message: "Точка заказа не может быть отрицательной" }),
       status:       z.enum(["active", "inactive"]).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;
-      const sanitized: Record<string, unknown> = { ...data };
+      // Drop keys that resolved to "not provided" — a blank decimal field yields
+      // `undefined`, and Drizzle rejects an update whose values are all undefined.
+      const sanitized: Record<string, unknown> = Object.fromEntries(
+        Object.entries(data).filter(([, v]) => v !== undefined),
+      );
       if (typeof data.code === "string") sanitized.code = sanitizeString(data.code);
       if (typeof data.name === "string") sanitized.name = sanitizeString(data.name);
       if (typeof data.category === "string") sanitized.category = sanitizeString(data.category);
