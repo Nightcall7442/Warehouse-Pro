@@ -219,8 +219,8 @@ export function CompletionFlowModal({
       {/* Backdrop — clicks here close modal only, not Sheet */}
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm pointer-events-auto" onClick={onClose} />
 
-      {/* Modal content — stop propagation so backdrop doesn't fire */}
-      <div className="relative bg-background rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden border pointer-events-auto" onClick={e => e.stopPropagation()}>
+      {/* Modal content — z-10 above backdrop, stop propagation so backdrop doesn't fire */}
+      <div className="relative z-10 bg-background rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden border pointer-events-auto" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b">
           <div className="flex items-center gap-3">
