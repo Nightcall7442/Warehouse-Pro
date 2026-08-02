@@ -304,58 +304,87 @@ export default function OrderDetail() {
 
       {/* ── Main Card ── */}
       <div className="neo-card p-6 space-y-6">
-        {/* Title + Status */}
-        <div className="flex items-start justify-between">
+        {/* Title + Status + Edit */}
+        <div className="flex items-start justify-between flex-wrap gap-3">
           <div>
             <h1 className="font-display text-2xl font-bold text-primary tracking-tight">
-              {lang === "uz" ? "BUYURTMA" : "ЗАКАЗ"}
+              {lang === "uz" ? "BUYURTMA" : "ЗАКАЗ"} {order.orderNumber}
             </h1>
-            <p className="font-data text-lg text-secondary mt-1">{order.orderNumber}</p>
-            <p className="text-xs text-secondary mt-0.5">
+            <p className="text-sm text-secondary mt-1">
               {order.createdAt ? format(new Date(order.createdAt), "d MMMM yyyy, HH:mm", { locale: dateRu }) : ""}
             </p>
           </div>
-          <div className="text-right space-y-2">
-            <span className={`badge ${STATUS_STYLES[order.status]} inline-block`}>
-              {STATUS_LABELS[order.status]?.[lang] ?? order.status}
-            </span>
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Status dropdown */}
+            {isOperatorOrCeo && !order.deletedAt ? (
+              <Select value={order.status} onValueChange={handleStatusChange}>
+                <SelectTrigger className="h-8 text-xs rounded-full w-auto px-3">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(STATUS_LABELS).map(([key, labels]) => (
+                    <SelectItem key={key} value={key} className="text-xs">
+                      {lang === "uz" ? labels.uz : labels.ru}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <span className={`badge ${STATUS_STYLES[order.status]}`}>
+                {STATUS_LABELS[order.status]?.[lang] ?? order.status}
+              </span>
+            )}
+
+            {/* Payment badge */}
             {(() => {
               const pm = PAYMENT_METHODS[order.paymentMethod ?? "cash"];
               if (!pm) return null;
               return (
-                <span className="badge ml-2 inline-block" style={{
+                <span style={{
+                  display: "inline-flex", padding: "4px 12px", borderRadius: "9999px",
+                  fontSize: "11px", fontWeight: 600,
                   background: `${pm.color}15`, color: pm.color, border: `1px solid ${pm.color}30`,
-                  padding: "2px 10px", borderRadius: "6px", fontSize: "11px", fontWeight: 600,
                 }}>
                   {lang === "uz" ? pm.uz : pm.ru}
                 </span>
               );
             })()}
-            <div className="font-display text-2xl font-bold text-primary mt-1">
-              {cleanNum(total)} {symbol}
-            </div>
+
+            {/* EDIT BUTTON — prominent */}
+            {isOperatorOrCeo && !order.deletedAt && (
+              <button
+                onClick={editing ? saveEditing : startEditing}
+                disabled={editing && updateOrder.isPending}
+                style={{
+                  display: "flex", alignItems: "center", gap: "6px",
+                  padding: "8px 20px", fontSize: "13px", fontWeight: 700,
+                  fontFamily: "'DM Sans', sans-serif",
+                  borderRadius: "12px", border: "none", cursor: "pointer",
+                  background: editing ? "#34c473" : "linear-gradient(135deg, #5b6d8a, #7b94f8)",
+                  color: "#fff",
+                  boxShadow: "0 2px 8px rgba(91,109,138,0.3)",
+                }}
+              >
+                {editing ? <><Save size={14} /> {lang === "uz" ? "Saqlash" : "Сохранить"}</> : <><Edit3 size={14} /> {lang === "uz" ? "Tahrirlash" : "Изменить заказ"}</>}
+              </button>
+            )}
+            {editing && (
+              <button onClick={() => setEditing(false)} style={{
+                padding: "8px 14px", fontSize: "13px", fontWeight: 500,
+                borderRadius: "12px", border: "1px solid #e0e0e0", cursor: "pointer",
+                background: "#fff", color: "#6a7290",
+              }}>
+                {lang === "uz" ? "Bekor" : "Отмена"}
+              </button>
+            )}
           </div>
         </div>
 
-        {/* ── Status Dropdown (CEO/operator) ── */}
-        {isOperatorOrCeo && (
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
-            <RefreshCw size={15} className="text-secondary"/>
-            <span className="text-sm text-secondary">{lang === "uz" ? "Holat:" : "Статус:"}</span>
-            <Select value={order.status} onValueChange={handleStatusChange}>
-              <SelectTrigger className="w-48 h-8 text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(STATUS_LABELS).map(([key, labels]) => (
-                  <SelectItem key={key} value={key} className="text-sm">
-                    {lang === "uz" ? labels.uz : labels.ru}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
+        {/* Total */}
+        <div className="flex items-baseline gap-2">
+          <span className="font-display text-3xl font-bold text-primary">{cleanNum(total)}</span>
+          <span className="text-lg text-secondary">{symbol}</span>
+        </div>
 
         <Separator />
 
@@ -515,45 +544,35 @@ export default function OrderDetail() {
         )}
       </div>
 
-      {/* ── Edit Section (CEO/operator) ── */}
-      {isOperatorOrCeo && (
+      {/* ── Edit Form (shows when editing=true, triggered by header button) ── */}
+      {isOperatorOrCeo && editing && (
         <div className="neo-card p-4">
-          {editing ? (
-            <div className="space-y-3">
-              <p className="font-label text-secondary text-xs tracking-wider flex items-center gap-2">
-                <Edit3 size={14}/> {lang === "uz" ? "BUYURTMANI TAHRIRLASH" : "РЕДАКТИРОВАНИЕ ЗАКАЗА"}
-              </p>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs text-secondary mb-1 block">{lang === "uz" ? "Chegirma (%)" : "Скидка (%)"}</label>
-                  <Input type="number" min="0" max="100" value={editDiscount} onChange={e => setEditDiscount(e.target.value)} className="h-8 text-sm" />
-                </div>
-                <div>
-                  <label className="text-xs text-secondary mb-1 block">{lang === "uz" ? "To'lov usuli" : "Метод оплаты"}</label>
-                  <Select value={editPaymentMethod} onValueChange={setEditPaymentMethod}>
-                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(PAYMENT_METHODS).map(([key, pm]) => (
-                        <SelectItem key={key} value={key} className="text-sm">{lang === "uz" ? pm.uz : pm.ru}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+          <div className="space-y-3">
+            <p className="font-label text-secondary text-xs tracking-wider">
+              {lang === "uz" ? "BUYURTMANI TAHRIRLASH" : "РЕДАКТИРОВАНИЕ ЗАКАЗА"}
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs text-secondary mb-1 block">{lang === "uz" ? "Chegirma (%)" : "Скидка (%)"}</label>
+                <Input type="number" min="0" max="100" value={editDiscount} onChange={e => setEditDiscount(e.target.value)} className="h-8 text-sm" />
               </div>
-              <div className="flex gap-2">
-                <button onClick={saveEditing} className="neo-btn-primary flex items-center gap-2 text-sm" disabled={updateOrder.isPending}>
-                  <Save size={14}/> {lang === "uz" ? "Saqlash" : "Сохранить"}
-                </button>
-                <button onClick={() => setEditing(false)} className="neo-btn flex items-center gap-2 text-sm">
-                  <X size={14}/> {lang === "uz" ? "Bekor qilish" : "Отмена"}
-                </button>
+              <div>
+                <label className="text-xs text-secondary mb-1 block">{lang === "uz" ? "To'lov usuli" : "Метод оплаты"}</label>
+                <Select value={editPaymentMethod} onValueChange={setEditPaymentMethod}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(PAYMENT_METHODS).map(([key, pm]) => (
+                      <SelectItem key={key} value={key} className="text-sm">{lang === "uz" ? pm.uz : pm.ru}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
-          ) : (
-            <button onClick={startEditing} className="neo-btn flex items-center gap-2 text-sm">
-              <Edit3 size={14}/> {lang === "uz" ? "Buyurtmani tahrirlash" : "Редактировать заказ"}
-            </button>
-          )}
+            <div>
+              <label className="text-xs text-secondary mb-1 block">{lang === "uz" ? "Izoh" : "Примечания"}</label>
+              <Textarea value={editNotes} onChange={e => setEditNotes(e.target.value)} className="text-sm" rows={3} />
+            </div>
+          </div>
         </div>
       )}
 

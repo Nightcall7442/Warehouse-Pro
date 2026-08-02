@@ -18,6 +18,7 @@ import { exportToExcel, formatOrdersForExport } from "@/lib/excel";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { exportToPDF } from "@/lib/export";
 import { PremiumSelect } from "@/components/PremiumSelect";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OrderFilterChips, type ActiveFilters } from "@/components/orders/OrderFilterChips";
@@ -644,8 +645,32 @@ export default function Orders() {
                         ) : "—"}
                       </td>
                       <td style={{ padding: "14px 16px", fontFamily: F.display, fontSize: "13px", fontWeight: 600, color: COLORS.textPrimary }}>{fmt(o.total)}</td>
-                      <td style={{ padding: "14px 16px" }}>
-                        <StatusBadge status={o.status} lang={lang} />
+                      <td style={{ padding: "14px 16px" }} onClick={e => e.stopPropagation()}>
+                        {isOperatorOrCeo && !o.deletedAt ? (
+                          <Select value={o.status} onValueChange={(newStatus) => {
+                            if (newStatus !== o.status) {
+                              updateStatus.mutate({ id: o.id, status: newStatus as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" | "partially_returned" | "partial_return_kept" });
+                            }
+                          }}>
+                            <SelectTrigger style={{
+                              height: "28px", padding: "0 8px", fontSize: "11px", fontWeight: 600,
+                              borderRadius: "9999px", border: "none", width: "auto",
+                              background: `${STATUS[o.status]?.dot ?? "#5b6d8a"}15`,
+                              color: STATUS[o.status]?.dot ?? "#5b6d8a",
+                            }}>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Object.entries(STATUS).map(([key, val]) => (
+                                <SelectItem key={key} value={key} style={{ fontSize: "12px" }}>
+                                  {lang === "uz" ? val.uz : val.ru}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <StatusBadge status={o.status} lang={lang} />
+                        )}
                       </td>
                       <td style={{ padding: "14px 16px" }} onClick={e => e.stopPropagation()}>
                         {o.deletedAt ? (
@@ -777,7 +802,7 @@ export default function Orders() {
       open={showInvoiceModal}
       onOpenChange={setShowInvoiceModal}
       orderIds={Array.from(selected)}
-      onDone={() => { clearSelection(); utils.order.list.invalidate(); }}
+      onDone={() => { utils.order.list.invalidate(); }}
     />
 
     {/* ── Loading List Modal ── */}
@@ -785,7 +810,7 @@ export default function Orders() {
       open={showLoadingListModal}
       onOpenChange={setShowLoadingListModal}
       orderIds={Array.from(selected)}
-      onDone={() => { clearSelection(); utils.order.list.invalidate(); }}
+      onDone={() => { utils.order.list.invalidate(); }}
     />
 
     {/* ── Order Slide-Over ── */}
