@@ -177,7 +177,12 @@ export default function Orders() {
     onSuccess: (r) => { utils.order.list.invalidate(); clearSelection(); notify.success(t(`Назначено: ${r.updated}`, `Tayinlandi: ${r.updated}`)); },
     onError: (e) => notify.error(e.message),
   });
+  const bulkAssignCourier = trpc.order.bulkAssignCourier.useMutation({
+    onSuccess: (r) => { utils.order.list.invalidate(); clearSelection(); notify.success(t(`Курьер назначен: ${r.updated}`, `Kuryer tayinlandi: ${r.updated}`)); },
+    onError: (e) => notify.error(e.message),
+  });
   const { data: agentsData } = trpc.user.list.useQuery({ role: "agent", pageSize: 200 });
+  const { data: couriersData } = trpc.user.list.useQuery({ role: "courier", pageSize: 100 });
 
   // Apply chip filters to date range
   const effectiveDateFrom = useMemo(() => {
@@ -262,7 +267,17 @@ export default function Orders() {
   }, []);
 
   const toggleSelectAll = useCallback(() => {
-    setSelected(allSelected ? new Set() : new Set(allVisibleIds));
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (allSelected) {
+        // Deselect only current page items
+        for (const id of allVisibleIds) next.delete(id);
+      } else {
+        // Select all current page items (preserving other pages)
+        for (const id of allVisibleIds) next.add(id);
+      }
+      return next;
+    });
   }, [allSelected, allVisibleIds]);
 
   const selectedNewIds = useMemo(
@@ -793,8 +808,13 @@ export default function Orders() {
         const ids = Array.from(selected);
         bulkAssignAgent.mutate({ orderIds: ids, agentId });
       }}
+      onAssignCourier={(courierId) => {
+        const ids = Array.from(selected);
+        bulkAssignCourier.mutate({ orderIds: ids, courierId });
+      }}
       onExportExcel={handleExportSelected}
       agents={agentsData?.data?.map(a => ({ id: a.id, name: a.name }))}
+      couriers={couriersData?.data?.map(c => ({ id: c.id, name: c.name }))}
     />
 
     {/* ── Invoice Print Modal ── */}

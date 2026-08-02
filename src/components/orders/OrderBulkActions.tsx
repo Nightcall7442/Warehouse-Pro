@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Printer, Package, RefreshCw, UserPlus, FileDown, X, AlertTriangle, CheckSquare } from "lucide-react";
+import { Printer, Package, RefreshCw, UserPlus, Truck, FileDown, X, AlertTriangle, CheckSquare } from "lucide-react";
 import { useTranslate } from "@/i18n";
 
 interface Props {
@@ -14,8 +14,10 @@ interface Props {
   onCreateLoadingList: () => void;
   onChangeStatus: (status: string) => void;
   onAssignAgent: (agentId: number) => void;
+  onAssignCourier: (courierId: number) => void;
   onExportExcel: () => void;
   agents?: Array<{ id: number; name: string }>;
+  couriers?: Array<{ id: number; name: string }>;
   validStatusTransitions?: string[];
 }
 
@@ -33,8 +35,8 @@ const STATUS_LABELS: Record<string, { ru: string; uz: string }> = {
 
 export function OrderBulkActions({
   selectedCount, maxSelection = 50, onClearSelection,
-  onPrintInvoices, onCreateLoadingList, onChangeStatus, onAssignAgent, onExportExcel,
-  agents, validStatusTransitions = ["processing", "shipped", "delivered", "cancelled", "returned", "partially_returned"],
+  onPrintInvoices, onCreateLoadingList, onChangeStatus, onAssignAgent, onAssignCourier, onExportExcel,
+  agents, couriers, validStatusTransitions = ["processing", "shipped", "delivered", "cancelled", "returned", "partially_returned"],
 }: Props) {
   const t = useTranslate();
 
@@ -142,6 +144,30 @@ export function OrderBulkActions({
                   {agents.map(a => (
                     <SelectItem key={a.id} value={String(a.id)} style={{ fontSize: "13px" }}>
                       {a.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            {/* Assign Courier */}
+            {couriers && couriers.length > 0 && (
+              <Select onValueChange={v => onAssignCourier(Number(v))}>
+                <SelectTrigger style={{
+                  height: "40px", padding: "0 14px", fontSize: "13px", fontWeight: 600,
+                  fontFamily: "'DM Sans', sans-serif",
+                  borderRadius: "12px", border: "1px solid #e0e0e0",
+                  background: "#fff", color: "#2b3450",
+                  display: "flex", alignItems: "center", gap: "6px",
+                  minWidth: "130px",
+                }}>
+                  <Truck size={15} />
+                  <SelectValue placeholder={t("Курьер", "Kuryer")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {couriers.map(c => (
+                    <SelectItem key={c.id} value={String(c.id)} style={{ fontSize: "13px" }}>
+                      {c.name}
                     </SelectItem>
                   ))}
                 </SelectContent>

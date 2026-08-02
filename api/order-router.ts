@@ -4,7 +4,7 @@ import { OrderService } from "./services/order";
 import { cache, CacheKeys } from "./lib/cache";
 import { getDb } from "./queries/connection";
 import { savedFilters, orderComments, shops, payments, users, orders } from "@db/schema";
-import { eq, and, desc, sql, isNull } from "drizzle-orm";
+import { eq, and, desc, sql, isNull, inArray } from "drizzle-orm";
 import { sanitizeString } from "./lib/sanitize";
 
 export const orderRouter = createRouter({
@@ -225,6 +225,25 @@ export const orderRouter = createRouter({
     }))
     .mutation(async ({ input, ctx }) => {
       return OrderService.bulkAssignAgent(ctx.db, ctx.tenant.id, input.orderIds, input.agentId);
+    }),
+
+  bulkAssignCourier: operatorQuery
+    .input(z.object({
+      orderIds: z.array(z.number().int().positive()).min(1),
+      courierId: z.number().int().positive(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+      // Verify courier exists and belongs to tenant
+      const [courier] = await db.select({ id: users.id }).from(users)
+        .where(and(eq(users.id, input.courierId), eq(users.tenantId, ctx.tenant.id))).limit(1);
+      if (!courier) throw new Error("Курьер не найден");
+
+      await db.update(orders)
+        .set({ courierId: input.courierId, deliveryStatus: "assigned" })
+        .where(and(eq(orders.tenantId, ctx.tenant.id), inArray(orders.id, input.orderIds)));
+
+      return { updated: input.orderIds.length };
     }),
 
   // ── Loading Lists ──────────────────────────────────────────────────────────
