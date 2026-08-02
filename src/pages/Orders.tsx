@@ -28,6 +28,8 @@ import { LoadingListModal } from "@/components/orders/LoadingListModal";
 import { OrderSlideOver } from "@/components/orders/OrderSlideOver";
 import { OrderKanbanBoard } from "@/components/orders/OrderKanbanBoard";
 import { QuickOrderModal } from "@/components/orders/QuickOrderModal";
+import { CompletionFlowModal } from "@/components/orders/CompletionFlowModal";
+import type { CompletionData, CompletionMode } from "@/components/orders/CompletionFlowModal";
 
 /* ─── Premium Design Constants ─── */
 const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
@@ -218,6 +220,85 @@ export default function Orders() {
     onSuccess: () => { utils.order.list.invalidate(); notify.success("Заказ обновлён"); },
     onError:   (e) => notify.error(e.message),
   });
+
+  // ── Completion flow for status changes ─────────────────────────────────
+  const [showCompletion, setShowCompletion] = useState(false);
+  const [completionMode, setCompletionMode] = useState<CompletionMode>("partial_return");
+  const [pendingStatus, setPendingStatus] = useState<string | null>(null);
+  const [completionOrderId, setCompletionOrderId] = useState<number | null>(null);
+
+  const { data: completionOrderData } = trpc.order.getById.useQuery(
+    { id: completionOrderId! },
+    { enabled: !!completionOrderId && showCompletion },
+  );
+
+  const COMPLETION_STATUSES: Record<string, CompletionMode> = {
+    partially_returned: "partial_return",
+    partial_return_kept: "combined",
+    delivered: "partial_payment",
+  };
+
+  const recordPartialDelivery = trpc.order.recordPartialDelivery.useMutation({
+    onSuccess: () => { utils.order.list.invalidate(); },
+    onError: (e) => notify.error(e.message),
+  });
+
+  const recordDeliveryAndPayment = trpc.order.recordDeliveryAndPayment.useMutation({
+    onSuccess: () => { utils.order.list.invalidate(); },
+    onError: (e) => notify.error(e.message),
+  });
+
+  const completionSaving = recordPartialDelivery.isPending || recordDeliveryAndPayment.isPending || updateStatus.isPending;
+
+  function handleStatusChange(orderId: number, newStatus: string) {
+    const mode = COMPLETION_STATUSES[newStatus];
+    if (mode) {
+      setCompletionMode(mode);
+      setPendingStatus(newStatus);
+      setCompletionOrderId(orderId);
+      setShowCompletion(true);
+      return;
+    }
+    updateStatus.mutate({ id: orderId, status: newStatus as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" | "partially_returned" | "partial_return_kept" });
+  }
+
+  async function handleCompletionSave(data: CompletionData) {
+    if (!completionOrderId || !completionOrderData) return;
+    const hasReturns = data.items.some(it => it.deliveredQuantity === 0 || it.returnReason);
+    const hasPayment = data.paidAmount && Number(data.paidAmount) > 0;
+
+    try {
+      if (hasReturns && hasPayment) {
+        await recordDeliveryAndPayment.mutateAsync({
+          orderId: completionOrderId,
+          deliveredItems: data.items,
+          payment: { paidAmount: data.paidAmount!, method: data.paymentMethod || "cash", notes: data.notes },
+        });
+      } else if (hasReturns) {
+        await recordPartialDelivery.mutateAsync({ orderId: completionOrderId, items: data.items });
+      } else if (hasPayment) {
+        await recordDeliveryAndPayment.mutateAsync({
+          orderId: completionOrderId,
+          deliveredItems: data.items,
+          payment: { paidAmount: data.paidAmount!, method: data.paymentMethod || "cash", notes: data.notes },
+        });
+      }
+
+      if (pendingStatus) {
+        await updateStatus.mutateAsync({
+          id: completionOrderId,
+          status: pendingStatus as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" | "partially_returned" | "partial_return_kept",
+        });
+      }
+
+      notify.success("Заказ завершён");
+      setShowCompletion(false);
+      setPendingStatus(null);
+      setCompletionOrderId(null);
+    } catch {
+      // errors handled by individual mutations
+    }
+  }
 
   const deleteOrder = trpc.order.delete.useMutation({
     onSuccess: () => { utils.order.list.invalidate(); notify.success("Заказ удалён"); },
@@ -493,7 +574,7 @@ export default function Orders() {
             paymentMethod: o.paymentMethod ?? "cash",
           }))}
           onOrderClick={setSlideOverOrderId}
-          onStatusChange={(orderId, newStatus) => updateStatus.mutate({ id: orderId, status: newStatus as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" | "partially_returned" | "partial_return_kept" })}
+          onStatusChange={(orderId, newStatus) => handleStatusChange(orderId, newStatus)}
           currency={symbol}
         />
       )}
@@ -664,7 +745,7 @@ export default function Orders() {
                         {isOperatorOrCeo && !o.deletedAt ? (
                           <Select value={o.status} onValueChange={(newStatus) => {
                             if (newStatus !== o.status) {
-                              updateStatus.mutate({ id: o.id, status: newStatus as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" | "partially_returned" | "partial_return_kept" });
+                              handleStatusChange(o.id, newStatus);
                             }
                           }}>
                             <SelectTrigger style={{
@@ -716,7 +797,7 @@ export default function Orders() {
                               {t("В работу", "Jarayonga")}
                             </button>
                             <button
-                              onClick={() => updateStatus.mutate({ id: o.id, status: "delivered" })}
+                              onClick={() => handleStatusChange(o.id, "delivered")}
                               style={{
                                 padding: "4px 10px", fontSize: "11px", fontWeight: 600, fontFamily: F.body,
                                 borderRadius: "8px", border: "none", cursor: "pointer",
@@ -849,6 +930,31 @@ export default function Orders() {
     />
 
     {dialog}
+
+    {/* ── Completion Flow Modal ── */}
+    {completionOrderData && (
+      <CompletionFlowModal
+        open={showCompletion}
+        onClose={() => { setShowCompletion(false); setPendingStatus(null); setCompletionOrderId(null); }}
+        mode={completionMode}
+        orderNumber={completionOrderData.orderNumber}
+        orderTotal={completionOrderData.total}
+        items={(completionOrderData.items ?? []).map(i => ({
+          id: i.id,
+          productName: i.productName ?? "",
+          productCode: i.productCode ?? undefined,
+          quantity: Number(i.quantity),
+          unitPrice: i.unitPrice,
+          unit: i.unit ?? undefined,
+          subtotal: i.subtotal,
+          deliveredQuantity: i.deliveredQuantity,
+          returnReason: i.returnReason,
+        }))}
+        currency={symbol}
+        saving={completionSaving}
+        onSave={handleCompletionSave}
+      />
+    )}
     </>
   );
 }

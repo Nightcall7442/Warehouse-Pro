@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -260,7 +261,7 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
 
   return (
     <>
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={open} onOpenChange={(v) => { if (!showCompletion) onOpenChange(v); }}>
       <SheetContent className="w-[600px] sm:max-w-[600px] p-0 flex flex-col">
         <SheetHeader className="px-5 pt-5 pb-3">
           <SheetTitle className="flex items-center gap-2">
@@ -558,8 +559,8 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
       </SheetContent>
     </Sheet>
 
-    {/* Completion Flow Modal */}
-    {order && (
+    {/* Completion Flow Modal — rendered via portal to escape Sheet's z-index */}
+    {order && createPortal(
       <CompletionFlowModal
         open={showCompletion}
         onClose={() => { setShowCompletion(false); setPendingStatus(null); }}
@@ -580,7 +581,8 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
         currency={currency}
         saving={completionSaving}
         onSave={handleCompletionSave}
-      />
+      />,
+      document.body
     )}
     {dialog}
     </>
