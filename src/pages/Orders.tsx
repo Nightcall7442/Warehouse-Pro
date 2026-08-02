@@ -11,6 +11,7 @@ import {
   ShoppingCart, Clock, CheckCircle2, XCircle, DollarSign,
   ArrowUpRight, ArrowDownRight, Minus, Trash2, RotateCcw, Printer,
   CheckSquare, Square, LayoutGrid, Table as TableIcon, Eye,
+  RefreshCw, Truck,
 } from "lucide-react";
 import { format, startOfMonth } from "date-fns";
 import { exportToExcel, formatOrdersForExport } from "@/lib/excel";
