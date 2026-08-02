@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -54,6 +54,11 @@ export function InvoicePrintModal({ open, onOpenChange, orderIds, onDone }: Prop
   const currency = settings.data?.currencySymbol ?? "сум";
 
   const [result, setResult] = useState<{ orders: BatchOrderData[] } | null>(null);
+
+  // Clear result when modal opens with new orderIds
+  useEffect(() => {
+    if (open) setResult(null);
+  }, [open, orderIds.join(",")]);
 
   const handleGenerate = async () => {
     setLoading(true);

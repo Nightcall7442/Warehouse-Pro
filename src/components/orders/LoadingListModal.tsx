@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -28,6 +28,11 @@ export function LoadingListModal({ open, onOpenChange, orderIds, onDone }: Props
   const [includeTotalWeight, setIncludeTotalWeight] = useState(true);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<LoadingListData | null>(null);
+
+  // Clear result when modal opens with new orderIds
+  useEffect(() => {
+    if (open) setResult(null);
+  }, [open, orderIds.join(",")]);
 
   const createMutation = trpc.order.createLoadingList.useMutation();
 
