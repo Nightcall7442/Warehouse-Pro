@@ -676,6 +676,99 @@ export const OrderService = {
     return { success: true };
   },
 
+  async updateItems(db: Db, tenantId: number, orderId: number, data: { items: Array<{ itemId: number; quantity: number }> }) {
+    await db.transaction(async (tx) => {
+      const [order] = await tx.select({
+        id: orders.id, status: orders.status, shopId: orders.shopId,
+        subtotal: orders.subtotal, total: orders.total, discount: orders.discount,
+        paymentMethod: orders.paymentMethod, deletedAt: orders.deletedAt,
+      }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt))).limit(1);
+      if (!order) throw new Error("Заказ не найден");
+      if (order.status !== "new") throw new Error("Можно изменить только новый заказ");
+
+      const whId = await resolveOrderWarehouse(tx, tenantId);
+      const existingItems = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
+
+      // Build map of requested quantities
+      const qtyMap = new Map(data.items.map(i => [i.itemId, i.quantity]));
+
+      // Lock stock rows
+      for (const item of existingItems) {
+        await tx.select({ id: warehouseStock.id }).from(warehouseStock)
+          .where(and(eq(warehouseStock.productId, item.productId), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, whId)))
+          .for("update");
+      }
+
+      let newSubtotal = 0;
+      for (const item of existingItems) {
+        const newQty = qtyMap.get(item.id);
+        if (newQty === undefined) continue; // item not in update list — keep as-is
+        if (newQty < 0) throw new Error("Количество не может быть отрицательным");
+        if (newQty === 0) throw new Error("Для удаления товара используйте удаление позиции");
+
+        const oldQty = Number(item.quantity);
+        const diff = newQty - oldQty;
+        const unitPrice = Number(item.unitPrice);
+
+        // Update item quantity and subtotal
+        await tx.update(orderItems).set({
+          quantity: String(newQty),
+          subtotal: (unitPrice * newQty).toFixed(2),
+        }).where(eq(orderItems.id, item.id));
+
+        // Adjust stock reservation
+        if (diff !== 0) {
+          const [stock] = await tx.select({ available: warehouseStock.available, reserved: warehouseStock.reserved })
+            .from(warehouseStock)
+            .where(and(eq(warehouseStock.productId, item.productId), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, whId)))
+            .limit(1);
+
+          if (diff > 0) {
+            // Increasing quantity — need more stock
+            const available = Number(stock?.available ?? 0);
+            if (available < diff) {
+              throw new Error(`Недостаточно товара на складе (товар ID ${item.productId}: доступно ${available}, нужно +${diff})`);
+            }
+            await tx.execute(sql`
+              UPDATE warehouse_stock SET reserved = reserved + ${diff}, available = available - ${diff}
+              WHERE product_id = ${item.productId} AND tenant_id = ${tenantId} AND warehouse_id = ${whId}
+            `);
+          } else {
+            // Decreasing quantity — release stock
+            await tx.execute(sql`
+              UPDATE warehouse_stock SET reserved = GREATEST(0, reserved + ${diff}), available = available - ${diff}
+              WHERE product_id = ${item.productId} AND tenant_id = ${tenantId} AND warehouse_id = ${whId}
+            `);
+          }
+        }
+
+        newSubtotal += unitPrice * newQty;
+      }
+
+      // Recalculate totals
+      const discountPct = Number(order.subtotal) > 0 ? (Number(order.discount) / Number(order.subtotal)) * 100 : 0;
+      const newDiscount = newSubtotal * (discountPct / 100);
+      const newTotal = newSubtotal - newDiscount;
+
+      await tx.update(orders).set({
+        subtotal: newSubtotal.toFixed(2),
+        discount: newDiscount.toFixed(2),
+        total: newTotal.toFixed(2),
+      }).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)));
+
+      // Adjust shop debt if payment method is debt
+      if (order.paymentMethod === "debt") {
+        const totalDiff = newTotal - Number(order.total);
+        if (totalDiff !== 0) {
+          await adjustShopDebt(tx, tenantId, order.shopId, totalDiff);
+        }
+      }
+    });
+
+    cache.invalidate(CacheKeys.dashboardKpis(Number(tenantId)));
+    return { success: true };
+  },
+
   async restore(db: Db, tenantId: number, orderId: number) {
     const [order] = await db.select({
       id: orders.id, deletedAt: orders.deletedAt, status: orders.status,

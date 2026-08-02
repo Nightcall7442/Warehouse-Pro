@@ -160,6 +160,18 @@ export const orderRouter = createRouter({
       return OrderService.update(ctx.db, ctx.tenant.id, id, data);
     }),
 
+  updateItems: operatorQuery
+    .input(z.object({
+      id: z.number().int().positive(),
+      items: z.array(z.object({
+        itemId: z.number().int().positive(),
+        quantity: z.number().min(0),
+      })).min(1),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      return OrderService.updateItems(ctx.db, ctx.tenant.id, input.id, { items: input.items });
+    }),
+
   delete: operatorQuery
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ input, ctx }) => {
