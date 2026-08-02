@@ -233,6 +233,8 @@ export const orders = mysqlTable("orders", {
   deliveryStatus: mysqlEnum("delivery_status", ["not_assigned", "assigned", "out_for_delivery", "delivered", "failed"]).default("not_assigned").notNull(),
   deliveredAt: timestamp("delivered_at"),
   invoicePrintedAt: timestamp("invoice_printed_at"),
+  deliveryResult: varchar("delivery_result", { length: 30 }), // paid, partial_paid, returned, partial_returned
+  deliveryNotes:  text("delivery_notes"),
   priority:    mysqlEnum("priority", ["low", "normal", "high"]).default("normal").notNull(),
   deletedAt:   timestamp("deleted_at"),
   createdAt:   timestamp("created_at").defaultNow().notNull(),

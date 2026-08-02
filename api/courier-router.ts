@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createRouter, courierQuery, operatorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { orders, shops, users, payments, notifications, orderItems, products, warehouseStock, warehouses } from "@db/schema";
+import { orders, shops, users, payments, notifications, orderItems, products, warehouseStock, warehouses, debtReminders } from "@db/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { sseBus } from "./lib/sse";
 import { logger } from "./lib/logger";
@@ -260,6 +260,208 @@ export const courierRouter = createRouter({
       logger.info("order delivered", { orderId: input.orderId, courierId, cashAmount: input.cashAmount });
 
       return { success: true };
+    }),
+
+  // ── Complete Delivery with payment/return status ────────────────────────────
+  completeDelivery: courierQuery
+    .input(z.object({
+      orderId: z.number().int().positive(),
+      result: z.enum(["paid", "partial_paid", "returned", "partial_returned"]),
+      paidAmount: z.string().optional(),        // for paid/partial_paid
+      paymentMethod: z.enum(["cash", "card", "transfer"]).default("cash"),
+      debtDueDate: z.string().optional(),        // for partial_paid
+      returnReason: z.string().max(200).optional(), // for returned/partial_returned
+      returnedItems: z.array(z.object({          // for partial_returned
+        itemId: z.number(),
+        returnedQty: z.number(),
+      })).optional(),
+      notes: z.string().max(500).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+      const courierId = ctx.user.id;
+
+      const [order] = await db.select({
+        id: orders.id, orderNumber: orders.orderNumber, shopId: orders.shopId,
+        status: orders.status, deliveryStatus: orders.deliveryStatus,
+        total: orders.total, paymentMethod: orders.paymentMethod, agentId: orders.agentId,
+      }).from(orders)
+        .where(and(
+          eq(orders.id, input.orderId),
+          eq(orders.tenantId, ctx.tenant.id),
+          eq(orders.courierId, courierId),
+          sql`${orders.deliveryStatus} IN ('assigned', 'out_for_delivery')`,
+        )).limit(1);
+      if (!order) throw new Error("Заказ не найден или не назначен на вас");
+
+      const orderTotal = Number(order.total);
+      const paidAmount = Number(input.paidAmount ?? 0);
+      const debtAmount = orderTotal - paidAmount;
+
+      await db.transaction(async (tx) => {
+        // Get default warehouse
+        const [defaultWh] = await tx.select({ id: warehouses.id }).from(warehouses)
+          .where(and(eq(warehouses.tenantId, ctx.tenant.id), eq(warehouses.isDefault, true))).limit(1);
+        const whId = defaultWh?.id;
+        if (!whId) throw new Error("Склад по умолчанию не найден");
+
+        const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, input.orderId));
+
+        // ── Handle stock based on result ──
+        if (input.result === "paid" || input.result === "partial_paid") {
+          // Full or partial delivery — deduct stock for ALL items
+          for (const item of items) {
+            const qty = Number(item.quantity);
+            await tx.execute(sql`
+              UPDATE warehouse_stock
+              SET current_stock = current_stock - ${qty}, reserved = GREATEST(0, reserved - ${qty})
+              WHERE product_id = ${item.productId} AND tenant_id = ${ctx.tenant.id} AND warehouse_id = ${whId}
+            `);
+          }
+        } else if (input.result === "returned") {
+          // Full return — release reserved stock (no current_stock change since it was reserved)
+          for (const item of items) {
+            const qty = Number(item.quantity);
+            await tx.execute(sql`
+              UPDATE warehouse_stock
+              SET reserved = GREATEST(0, reserved - ${qty}), available = available + ${qty}
+              WHERE product_id = ${item.productId} AND tenant_id = ${ctx.tenant.id} AND warehouse_id = ${whId}
+            `);
+          }
+        } else if (input.result === "partial_returned" && input.returnedItems) {
+          // Partial return — deduct delivered qty, return undelivered qty
+          const returnedMap = new Map(input.returnedItems.map(ri => [ri.itemId, ri.returnedQty]));
+          for (const item of items) {
+            const qty = Number(item.quantity);
+            const returnedQty = returnedMap.get(item.id) ?? 0;
+            const deliveredQty = qty - returnedQty;
+
+            if (deliveredQty > 0) {
+              // Deduct delivered stock
+              await tx.execute(sql`
+                UPDATE warehouse_stock
+                SET current_stock = current_stock - ${deliveredQty}, reserved = GREATEST(0, reserved - ${qty})
+                WHERE product_id = ${item.productId} AND tenant_id = ${ctx.tenant.id} AND warehouse_id = ${whId}
+              `);
+            } else {
+              // All returned — just release reservation
+              await tx.execute(sql`
+                UPDATE warehouse_stock
+                SET reserved = GREATEST(0, reserved - ${qty}), available = available + ${qty}
+                WHERE product_id = ${item.productId} AND tenant_id = ${ctx.tenant.id} AND warehouse_id = ${whId}
+              `);
+            }
+
+            // Update delivered quantity on order item
+            await tx.update(orderItems)
+              .set({ deliveredQuantity: String(deliveredQty), returnReason: input.returnReason ?? null })
+              .where(eq(orderItems.id, item.id));
+          }
+        }
+
+        // ── Determine final order status ──
+        let finalStatus: string;
+        let deliveryResult = input.result;
+
+        if (input.result === "returned") {
+          finalStatus = "returned";
+        } else if (input.result === "partial_returned") {
+          finalStatus = "partially_returned";
+        } else if (input.result === "paid") {
+          finalStatus = "delivered";
+        } else {
+          // partial_paid
+          finalStatus = "partially_paid";
+        }
+
+        // ── Update order ──
+        await tx.update(orders).set({
+          status: finalStatus as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" | "partially_returned" | "partial_return_kept",
+          deliveryStatus: "delivered",
+          deliveredAt: new Date(),
+          deliveryResult,
+          deliveryNotes: input.notes ? sanitizeString(input.notes) : null,
+        }).where(and(eq(orders.id, input.orderId), eq(orders.tenantId, ctx.tenant.id)));
+
+        // ── Record payment ──
+        if (paidAmount > 0) {
+          await tx.insert(payments).values({
+            tenantId: ctx.tenant.id,
+            shopId: order.shopId,
+            orderId: order.id,
+            amount: String(paidAmount),
+            type: "payment",
+            paymentMethod: input.paymentMethod,
+            status: debtAmount > 0 ? "partially_paid" : "paid",
+            totalOrderAmount: String(orderTotal),
+            paidAmount: String(paidAmount),
+            debtAmount: String(Math.max(0, debtAmount)),
+            debtDueDate: input.debtDueDate ?? null,
+            paidAt: new Date(),
+            notes: input.notes ? sanitizeString(input.notes) : null,
+            createdBy: courierId,
+          });
+
+          // Reduce shop debt by paid amount
+          await tx.execute(sql`
+            UPDATE shops SET debt = GREATEST(0, CAST(debt AS DECIMAL(12,2)) - ${paidAmount})
+            WHERE id = ${order.shopId} AND tenant_id = ${ctx.tenant.id}
+          `);
+        }
+
+        // ── Create debt reminder if partial payment ──
+        if (debtAmount > 0 && input.debtDueDate) {
+          await tx.insert(debtReminders).values({
+            tenantId: ctx.tenant.id,
+            shopId: order.shopId,
+            orderId: order.id,
+            amount: String(debtAmount),
+            dueDate: input.debtDueDate,
+            status: "pending",
+          });
+        }
+      });
+
+      // ── Notifications ──
+      const resultLabels: Record<string, string> = {
+        paid: "100% оплачен",
+        partial_paid: `частично оплачен (${paidAmount.toLocaleString("ru")} из ${orderTotal.toLocaleString("ru")})`,
+        returned: "возврат",
+        partial_returned: "частичный возврат",
+      };
+
+      // Notify agent
+      if (order.agentId) {
+        await db.insert(notifications).values({
+          tenantId: ctx.tenant.id,
+          userId: order.agentId,
+          type: "order",
+          title: "Заказ доставлен",
+          message: `Заказ ${order.orderNumber} — ${resultLabels[input.result]}`,
+        });
+        sendPushToUser(order.agentId, {
+          title: "Заказ доставлен",
+          body: `${order.orderNumber} — ${resultLabels[input.result]}`,
+          data: { type: "order.delivered", orderId: input.orderId },
+        }).catch(() => {});
+      }
+
+      // Notify CEO
+      const [ceo] = await db.select({ id: users.id }).from(users)
+        .where(and(eq(users.tenantId, ctx.tenant.id), eq(users.role, "ceo"))).limit(1);
+      if (ceo) {
+        await db.insert(notifications).values({
+          tenantId: ctx.tenant.id,
+          userId: ceo.id,
+          type: "order",
+          title: "Заказ доставлен",
+          message: `Заказ ${order.orderNumber} — ${resultLabels[input.result]}`,
+        });
+      }
+
+      logger.info("delivery completed", { orderId: input.orderId, courierId, result: input.result, paidAmount });
+
+      return { success: true, result: input.result, finalStatus };
     }),
 
   markFailed: courierQuery
