@@ -8,7 +8,7 @@ import { ru as dateRu } from "date-fns/locale";
 import {
   ArrowLeft, Printer, FileDown, CheckCircle2, XCircle, RefreshCw,
   ChevronDown, Truck, Trash2, Edit3, Save, X, CreditCard, MapPin,
-  Phone, Package, User, Clock, AlertTriangle, ChevronRight,
+  Phone, Package, User, Clock, AlertTriangle, ChevronRight, Store,
 } from "lucide-react";
 import { useState, useCallback } from "react";
 import { PremiumSelect } from "@/components/PremiumSelect";
