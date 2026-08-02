@@ -97,7 +97,7 @@ export function InvoicePrintModal({ open, onOpenChange, orderIds, onDone }: Prop
     if (order.status === "cancelled") problems.push(t("Отменён", "Bekor qilingan"));
     if (order.status === "new") problems.push(t("Новый", "Yangi"));
     if (order.invoicePrintedAt) problems.push(t("Уже печатался", "Allaqachon chop etilgan"));
-    if (order.items.length === 0) problems.push(t("Пустой заказ", "Bo'sh buyurtma"));
+    if ((order.items ?? []).length === 0) problems.push(t("Пустой заказ", "Bo'sh buyurtma"));
     return problems;
   };
 
@@ -108,7 +108,7 @@ export function InvoicePrintModal({ open, onOpenChange, orderIds, onDone }: Prop
 
   const totalItems = useMemo(() => {
     if (!result) return 0;
-    return result.orders.reduce((s, o) => s + o.items.length, 0);
+    return result.orders.reduce((s, o) => s + (o.items ?? []).length, 0);
   }, [result]);
 
   return (

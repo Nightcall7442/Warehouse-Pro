@@ -815,7 +815,7 @@ function buildDebtBlock(order: BatchOrderData, currency: string): string {
 }
 
 function buildSingleInvoice(order: BatchOrderData, opts: BatchPrintOptions, company: CompanyInfo, currency: string): string {
-  const itemRows = order.items.map((item, i) => {
+  const itemRows = (order.items ?? []).map((item, i) => {
     const costCol = opts.includeCostPrice ? `<td class="right">${Number(item.costPrice).toLocaleString("ru-RU")}</td>` : "";
     const qtyCol = order.isPartial
       ? `<td class="right" style="text-decoration:line-through;color:#999">${cleanNum(item.quantity)}</td>
@@ -881,7 +881,7 @@ function buildSingleInvoice(order: BatchOrderData, opts: BatchPrintOptions, comp
 
       <div class="totals-box">
         <table>
-          <tr><td>Итого позиций:</td><td class="right">${order.items.length}</td></tr>
+          <tr><td>Итого позиций:</td><td class="right">${(order.items ?? []).length}</td></tr>
           <tr><td>Сумма:</td><td class="right">${Number(order.subtotal).toLocaleString("ru-RU")} ${currency}</td></tr>
           ${Number(order.discount) > 0 ? `<tr><td>Скидка:</td><td class="right" style="color:#16a34a">−${Number(order.discount).toLocaleString("ru-RU")} ${currency}</td></tr>` : ""}
           <tr class="total-row"><td>ИТОГО:</td><td class="right">${Number(order.total).toLocaleString("ru-RU")} ${currency}</td></tr>
