@@ -11,13 +11,20 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Store, User, Truck, CreditCard, MapPin, Phone, Printer, Edit3, Save, X,
-  AlertTriangle, RotateCcw, Package, Clock,
+  AlertTriangle, RotateCcw, Package, Clock, ChevronDown, FileDown,
 } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { useTranslate } from "@/i18n";
 import { useAuth } from "@/hooks/useAuth";
+import { useCurrency } from "@/hooks/useCurrency";
+import { useLang } from "@/i18n";
 import { notify } from "@/lib/toast";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { printUzWaybill, printTorg12, printInvoice } from "@/lib/documents";
+import type { OrderDocData, CompanyInfo } from "@/lib/documents";
+import { exportToExcel } from "@/lib/excel";
+import { format } from "date-fns";
+import { ru as dateRu } from "date-fns/locale";
 import { OrderComments } from "./OrderComments";
 import { CompletionFlowModal } from "./CompletionFlowModal";
 import type { CompletionData, CompletionMode } from "./CompletionFlowModal";
@@ -53,11 +60,15 @@ const STATUS_COLORS: Record<string, string> = {
   partial_return_kept: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
 };
 
-const PAYMENT_METHODS: Record<string, { ru: string; uz: string }> = {
-  cash:     { ru: "Наличные",     uz: "Naqd" },
-  transfer: { ru: "Перечисление", uz: "O'tkazma" },
-  debt:     { ru: "Долг",         uz: "Qarz" },
-  card:     { ru: "Карта",        uz: "Plastik" },
+const PAYMENT_METHODS: Record<string, { ru: string; uz: string; color: string }> = {
+  cash:     { ru: "Наличные",     uz: "Naqd",      color: "#34c473" },
+  transfer: { ru: "Перечисление", uz: "O'tkazma",  color: "#5b6d8a" },
+  debt:     { ru: "Долг",         uz: "Qarz",      color: "#d4973a" },
+  card:     { ru: "Карта",        uz: "Plastik",   color: "#9b59b6" },
+};
+
+const UNIT_LABELS_MAP: Record<string, string> = {
+  kg: "кг", l: "л", pcs: "шт", box: "блок", pack: "упак", m: "м", block: "блок",
 };
 
 function DebtBlock({ debt, orderTotal, currency }: { debt: string; orderTotal: string; currency: string }) {
@@ -108,6 +119,8 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
   const { user } = useAuth();
   const { confirm, dialog } = useConfirm();
   const utils = trpc.useUtils();
+  const { lang } = useLang();
+  const { symbol } = useCurrency();
   const isOperatorOrCeo = user?.role === "ceo" || user?.role === "operator";
 
   const { data: order, isLoading } = trpc.order.getById.useQuery(
@@ -115,11 +128,76 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
     { enabled: !!orderId && open },
   );
 
+  const { data: settings } = trpc.settings.get.useQuery();
+
   // ── Edit state ─────────────────────────────────────────────────────────
   const [editing, setEditing] = useState(false);
   const [editNotes, setEditNotes] = useState("");
   const [editDiscount, setEditDiscount] = useState("0");
   const [editPaymentMethod, setEditPaymentMethod] = useState<string>("cash");
+
+  // ── Print menu state ──────────────────────────────────────────────────
+  const [printMenu, setPrintMenu] = useState(false);
+
+  // ── Build document data for printing ──────────────────────────────────
+  function buildDocData(): OrderDocData | null {
+    if (!order) return null;
+    const seller: CompanyInfo = {
+      name:    settings?.companyName ?? "Warehouse Pro",
+      address: settings?.companyAddress ?? "",
+      inn:     settings?.companyInn ?? "",
+      director:settings?.companyDirector ?? "",
+      bank:    settings?.companyBank ?? "",
+      account: settings?.companyBankAccount ?? "",
+      mfo:     settings?.companyMfo ?? "",
+    };
+    const shopExtra = order.shop as Record<string, unknown> | undefined;
+    const buyer: CompanyInfo = {
+      name:    order.shop?.name ?? "",
+      address: (shopExtra?.address as string) ?? "",
+      inn:     (shopExtra?.inn as string) ?? "",
+    };
+    return {
+      number:   order.orderNumber,
+      date:     order.createdAt ? format(new Date(order.createdAt), "dd.MM.yyyy", { locale: dateRu }) : "",
+      seller,
+      buyer,
+      items:    (order.items ?? []).map((i) => ({
+        name:  i.productName ?? "",
+        code:  i.productCode ?? "",
+        unit:  UNIT_LABELS_MAP[i.unit ?? "pcs"] ?? "шт",
+        qty:   Number(i.deliveredQuantity ?? i.quantity),
+        price: Number(i.unitPrice),
+        total: Number(i.subtotal),
+        orderedQty: Number(i.quantity),
+        deliveredQty: i.deliveredQuantity != null ? Number(i.deliveredQuantity) : undefined,
+        returnReason: i.returnReason ?? undefined,
+      })),
+      subtotal: Number(order.subtotal),
+      discount: Number(order.discount ?? 0),
+      total:    Number(order.total),
+      notes:    order.notes ?? "",
+      currency: symbol,
+      paymentMethodLabel: PAYMENT_METHODS[order.paymentMethod ?? "cash"]?.ru,
+      shopOwner:  order.shop?.ownerName ?? undefined,
+      shopPhone:  ((order.shop as Record<string, unknown>)?.phone as string) ?? undefined,
+      territoryName: (order.shop as Record<string, unknown>)?.territoryName as string ?? undefined,
+    };
+  }
+
+  async function handleExport() {
+    if (!order) return;
+    const rows = (order.items ?? []).map((i) => ({
+      "Заказ": order.orderNumber,
+      "Магазин": order.shopName ?? "",
+      "Товар": i.productName ?? "",
+      "Код": i.productCode ?? "",
+      "Кол-во": Number(i.quantity),
+      "Цена": Number(i.unitPrice),
+      "Сумма": Number(i.subtotal),
+    }));
+    await exportToExcel(rows, `order-${order.orderNumber}`);
+  }
 
   // ── Completion flow state ──────────────────────────────────────────────
   const [showCompletion, setShowCompletion] = useState(false);
@@ -563,19 +641,52 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
             <TabsContent value="documents" className="flex-1 overflow-hidden">
               <ScrollArea className="h-full px-5 pb-5">
                 <div className="space-y-3 pt-2">
-                  <div className="flex items-center justify-between p-3 rounded-lg border">
-                    <div>
-                      <div className="text-sm font-medium">{t("Накладная", "Naklad")}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {order.invoicePrintedAt
-                          ? `${t("Печаталась", "Chop etilgan")}: ${new Date(order.invoicePrintedAt).toLocaleString("ru")}`
-                          : t("Не печаталась", "Chop etilmagan")}
+                  {/* Print documents */}
+                  <p className="font-label text-secondary text-[10px] tracking-wider">{t("ДОКУМЕНТЫ ДЛЯ ПЕЧАТИ", "CHOP ETISH UCHUN HUJJATLAR")}</p>
+                  {[
+                    { label: t("Расходная накладная (УЗ)", "Chiqim nakladnaya (O'Z)"), fn: () => { const d = buildDocData(); if (d) printUzWaybill(d); } },
+                    { label: t("Счёт на оплату", "Hisob-faktura"),                    fn: () => { const d = buildDocData(); if (d) printInvoice(d); } },
+                    { label: t("ТОРГ-12 (РФ)", "TORg-12 (RF)"),                       fn: () => { const d = buildDocData(); if (d) printTorg12(d); } },
+                  ].map(item => (
+                    <button
+                      key={item.label}
+                      onClick={item.fn}
+                      className="w-full flex items-center justify-between p-3 rounded-lg border hover:bg-muted/30 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                          <Printer size={14} className="text-primary" />
+                        </div>
+                        <span className="text-sm font-medium">{item.label}</span>
                       </div>
+                      <ChevronDown size={14} className="text-muted-foreground rotate-[-90deg]" />
+                    </button>
+                  ))}
+
+                  <Separator />
+
+                  {/* Excel export */}
+                  <button
+                    onClick={handleExport}
+                    className="w-full flex items-center justify-between p-3 rounded-lg border hover:bg-muted/30 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-success/10 flex items-center justify-center">
+                        <FileDown size={14} className="text-success" />
+                      </div>
+                      <span className="text-sm font-medium">{t("Экспорт в Excel", "Excelga eksport")}</span>
                     </div>
-                    <Button variant="outline" size="sm">
-                      <Printer className="h-3.5 w-3.5 mr-1" />
-                      {t("Печать", "Chop etish")}
-                    </Button>
+                    <ChevronDown size={14} className="text-muted-foreground rotate-[-90deg]" />
+                  </button>
+
+                  {/* Print history */}
+                  <div className="p-3 rounded-lg bg-muted/20">
+                    <p className="font-label text-secondary text-[10px] tracking-wider mb-1">{t("СТАТУС ПЕЧАТИ", "CHOP ETISH HOLATI")}</p>
+                    <p className="text-sm text-primary">
+                      {order.invoicePrintedAt
+                        ? `${t("Печаталась", "Chop etilgan")}: ${new Date(order.invoicePrintedAt).toLocaleString("ru")}`
+                        : t("Не печаталась", "Chop etilmagan")}
+                    </p>
                   </div>
                 </div>
               </ScrollArea>
