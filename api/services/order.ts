@@ -429,9 +429,9 @@ export const OrderService = {
 
       const validTransitions: Record<string, string[]> = {
         new:                  ["processing", "cancelled"],
-        processing:           ["shipped", "cancelled"],
-        shipped:              ["delivered", "pending", "returned", "partially_returned", "partial_return_kept", "cancelled"],
-        pending:              ["delivered", "cancelled"],
+        processing:           ["new", "shipped", "cancelled"],
+        shipped:              ["processing", "delivered", "pending", "returned", "partially_returned", "partial_return_kept", "cancelled"],
+        pending:              ["shipped", "delivered", "cancelled"],
         delivered:            ["returned", "partially_returned", "partial_return_kept"],
         partially_returned:   ["returned", "delivered"],
         partial_return_kept:  ["delivered"],
