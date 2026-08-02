@@ -23,6 +23,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { CompletionFlowModal } from "@/components/orders/CompletionFlowModal";
+import type { CompletionData, CompletionMode } from "@/components/orders/CompletionFlowModal";
 
 const STATUS_STYLES: Record<string, string> = {
   new:                  "bg-info/15 text-info border-info/30",
@@ -88,6 +90,11 @@ export default function OrderDetail() {
   const [editDiscount, setEditDiscount] = useState("0");
   const [editPaymentMethod, setEditPaymentMethod] = useState<string>("cash");
 
+  // ── Completion flow state ───────────────────────────────────────────────
+  const [showCompletion, setShowCompletion] = useState(false);
+  const [completionMode, setCompletionMode] = useState<CompletionMode>("partial_return");
+  const [pendingStatus, setPendingStatus] = useState<string | null>(null);
+
   const isOperatorOrCeo = user?.role === "ceo" || user?.role === "operator";
   const { confirm, dialog } = useConfirm();
 
@@ -144,6 +151,81 @@ export default function OrderDetail() {
     },
     onError: (e) => notify.error(e.message),
   });
+
+  // ── Completion flow mutations ───────────────────────────────────────────
+  const COMPLETION_STATUSES: Record<string, CompletionMode> = {
+    partially_returned: "partial_return",
+    partial_return_kept: "combined",
+    delivered: "partial_payment",
+  };
+
+  const recordPartialDelivery = trpc.order.recordPartialDelivery.useMutation({
+    onSuccess: () => {
+      utils.order.getById.invalidate({ id: Number(id) });
+      utils.order.getOrderPayments.invalidate({ orderId: Number(id) });
+      utils.order.getAdjustments.invalidate({ orderId: Number(id) });
+    },
+    onError: (e) => notify.error(e.message),
+  });
+
+  const recordDeliveryAndPayment = trpc.order.recordDeliveryAndPayment.useMutation({
+    onSuccess: () => {
+      utils.order.getById.invalidate({ id: Number(id) });
+      utils.order.getOrderPayments.invalidate({ orderId: Number(id) });
+      utils.order.getAdjustments.invalidate({ orderId: Number(id) });
+    },
+    onError: (e) => notify.error(e.message),
+  });
+
+  async function handleCompletionSave(data: CompletionData) {
+    if (!order) return;
+    const hasReturns = data.items.some(it => it.deliveredQuantity === 0 || it.returnReason);
+    const hasPayment = data.paidAmount && Number(data.paidAmount) > 0;
+
+    try {
+      if (hasReturns && hasPayment) {
+        await recordDeliveryAndPayment.mutateAsync({
+          orderId: order.id,
+          deliveredItems: data.items,
+          payment: {
+            paidAmount: data.paidAmount!,
+            method: data.paymentMethod || "cash",
+            notes: data.notes,
+          },
+        });
+      } else if (hasReturns) {
+        await recordPartialDelivery.mutateAsync({
+          orderId: order.id,
+          items: data.items,
+        });
+      } else if (hasPayment) {
+        await recordDeliveryAndPayment.mutateAsync({
+          orderId: order.id,
+          deliveredItems: data.items,
+          payment: {
+            paidAmount: data.paidAmount!,
+            method: data.paymentMethod || "cash",
+            notes: data.notes,
+          },
+        });
+      }
+
+      if (pendingStatus) {
+        await updateStatus.mutateAsync({
+          id: order.id,
+          status: pendingStatus as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" | "partially_returned" | "partial_return_kept",
+        });
+      }
+
+      notify.success(lang === "uz" ? "Buyurtma tugatildi" : "Заказ завершён");
+      setShowCompletion(false);
+      setPendingStatus(null);
+    } catch {
+      // errors handled by individual mutations
+    }
+  }
+
+  const completionSaving = recordPartialDelivery.isPending || recordDeliveryAndPayment.isPending || updateStatus.isPending;
 
   const startEditing = useCallback(() => {
     if (!order) return;
@@ -238,6 +320,13 @@ export default function OrderDetail() {
 
   const handleStatusChange = async (newStatus: string) => {
     if (!order) return;
+    const mode = COMPLETION_STATUSES[newStatus];
+    if (mode) {
+      setCompletionMode(mode);
+      setPendingStatus(newStatus);
+      setShowCompletion(true);
+      return;
+    }
     const label = STATUS_LABELS[newStatus]?.[lang] ?? newStatus;
     const ok = await confirm({
       title: lang === "uz" ? "Holatni o'zgartirish?" : "Изменить статус?",
@@ -682,6 +771,28 @@ export default function OrderDetail() {
           </button>
         </div>
       )}
+      {/* ── Completion Flow Modal ── */}
+      <CompletionFlowModal
+        open={showCompletion}
+        onClose={() => { setShowCompletion(false); setPendingStatus(null); }}
+        mode={completionMode}
+        orderNumber={order.orderNumber}
+        orderTotal={order.total}
+        items={(order.items ?? []).map(i => ({
+          id: i.id,
+          productName: i.productName ?? "",
+          productCode: i.productCode ?? undefined,
+          quantity: Number(i.quantity),
+          unitPrice: i.unitPrice,
+          unit: i.unit ?? undefined,
+          subtotal: i.subtotal,
+          deliveredQuantity: i.deliveredQuantity,
+          returnReason: i.returnReason,
+        }))}
+        currency={symbol}
+        saving={completionSaving}
+        onSave={handleCompletionSave}
+      />
     </div>
   );
 }
