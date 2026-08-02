@@ -11,15 +11,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Store, User, Truck, CreditCard, MapPin, Phone, Printer, Edit3, Save, X,
-  AlertTriangle, RotateCcw, Package, Clock, ChevronDown, FileDown,
+  AlertTriangle, Package, ChevronDown, FileDown,
 } from "lucide-react";
 import { trpc } from "@/providers/trpc";
-import { useTranslate } from "@/i18n";
+import { useTranslate, useLang } from "@/i18n";
 import { useAuth } from "@/hooks/useAuth";
 import { useCurrency } from "@/hooks/useCurrency";
-import { useLang } from "@/i18n";
 import { notify } from "@/lib/toast";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { useCompletionFlow } from "@/hooks/useCompletionFlow";
 import { printUzWaybill, printTorg12, printInvoice } from "@/lib/documents";
 import type { OrderDocData, CompanyInfo } from "@/lib/documents";
 import { exportToExcel } from "@/lib/excel";
@@ -136,8 +136,27 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
   const [editDiscount, setEditDiscount] = useState("0");
   const [editPaymentMethod, setEditPaymentMethod] = useState<string>("cash");
 
-  // ── Print menu state ──────────────────────────────────────────────────
-  const [printMenu, setPrintMenu] = useState(false);
+  // ── Completion flow (shared hook) ──────────────────────────────────────
+  const [showCompletion, setShowCompletion] = useState(false);
+  const [completionMode, setCompletionMode] = useState<CompletionMode>("partial_return");
+  const [pendingStatus, setPendingStatus] = useState<string | null>(null);
+
+  const { saving: completionSaving, handleCompletionSave: baseHandleCompletionSave, directStatusChange, getCompletionMode } = useCompletionFlow({
+    orderId: orderId ?? 0,
+    onSuccess: () => {
+      utils.order.getById.invalidate({ id: orderId! });
+      utils.order.getOrderPayments.invalidate({ orderId: orderId! });
+      utils.order.getAdjustments.invalidate({ orderId: orderId! });
+    },
+  });
+
+  async function handleCompletionSave(data: CompletionData) {
+    const ok = await baseHandleCompletionSave(data, pendingStatus);
+    if (ok) {
+      setShowCompletion(false);
+      setPendingStatus(null);
+    }
+  }
 
   // ── Build document data for printing ──────────────────────────────────
   function buildDocData(): OrderDocData | null {
@@ -205,14 +224,6 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
   const [pendingStatus, setPendingStatus] = useState<string | null>(null);
 
   // ── Mutations ──────────────────────────────────────────────────────────
-  const updateStatus = trpc.order.updateStatus.useMutation({
-    onSuccess: () => {
-      utils.order.getById.invalidate({ id: orderId! });
-      notify.success(t("Статус обновлён", "Holat yangilandi"));
-    },
-    onError: (e) => notify.error(e.message),
-  });
-
   const updateOrder = trpc.order.update.useMutation({
     onSuccess: () => {
       utils.order.getById.invalidate({ id: orderId! });
@@ -235,34 +246,10 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
     { enabled: isOperatorOrCeo && !!order && (order.status === "new" || order.status === "processing") },
   );
 
-  // ── Completion flow ────────────────────────────────────────────────────
-  const COMPLETION_STATUSES: Record<string, CompletionMode> = {
-    partially_returned: "partial_return",
-    partial_return_kept: "combined",
-    delivered: "partial_payment",
-  };
-
-  const recordPartialDelivery = trpc.order.recordPartialDelivery.useMutation({
-    onSuccess: () => {
-      utils.order.getById.invalidate({ id: orderId! });
-      utils.order.getOrderPayments.invalidate({ orderId: orderId! });
-      utils.order.getAdjustments.invalidate({ orderId: orderId! });
-    },
-    onError: (e) => notify.error(e.message),
-  });
-
-  const recordDeliveryAndPayment = trpc.order.recordDeliveryAndPayment.useMutation({
-    onSuccess: () => {
-      utils.order.getById.invalidate({ id: orderId! });
-      utils.order.getOrderPayments.invalidate({ orderId: orderId! });
-      utils.order.getAdjustments.invalidate({ orderId: orderId! });
-    },
-    onError: (e) => notify.error(e.message),
-  });
-
+  // ── Status change handler ─────────────────────────────────────────────
   async function handleStatusChange(newStatus: string) {
     if (!order) return;
-    const mode = COMPLETION_STATUSES[newStatus];
+    const mode = getCompletionMode(newStatus);
     if (mode) {
       setCompletionMode(mode);
       setPendingStatus(newStatus);
@@ -275,47 +262,8 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
       message: `${STATUS_LABELS[order.status]?.ru ?? order.status} → ${label}`,
       confirmText: t("Изменить", "O'zgartirish"),
     });
-    if (ok) updateStatus.mutate({ id: order.id, status: newStatus as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" | "partially_returned" | "partial_return_kept" });
+    if (ok) directStatusChange(newStatus);
   }
-
-  async function handleCompletionSave(data: CompletionData) {
-    if (!order) return;
-    const hasReturns = data.items.some(it => it.deliveredQuantity === 0 || it.returnReason);
-    const hasPayment = data.paidAmount && Number(data.paidAmount) > 0;
-
-    try {
-      if (hasReturns && hasPayment) {
-        await recordDeliveryAndPayment.mutateAsync({
-          orderId: order.id,
-          deliveredItems: data.items,
-          payment: { paidAmount: data.paidAmount!, method: data.paymentMethod || "cash", notes: data.notes },
-        });
-      } else if (hasReturns) {
-        await recordPartialDelivery.mutateAsync({ orderId: order.id, items: data.items });
-      } else if (hasPayment) {
-        await recordDeliveryAndPayment.mutateAsync({
-          orderId: order.id,
-          deliveredItems: data.items,
-          payment: { paidAmount: data.paidAmount!, method: data.paymentMethod || "cash", notes: data.notes },
-        });
-      }
-
-      if (pendingStatus) {
-        await updateStatus.mutateAsync({
-          id: order.id,
-          status: pendingStatus as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" | "partially_returned" | "partial_return_kept",
-        });
-      }
-
-      notify.success(t("Заказ завершён", "Buyurtma tugatildi"));
-      setShowCompletion(false);
-      setPendingStatus(null);
-    } catch {
-      // errors handled by individual mutations
-    }
-  }
-
-  const completionSaving = recordPartialDelivery.isPending || recordDeliveryAndPayment.isPending || updateStatus.isPending;
 
   // ── Edit handlers ──────────────────────────────────────────────────────
   function startEditing() {
