@@ -211,17 +211,16 @@ export function CompletionFlowModal({
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center"
-      onClick={e => e.stopPropagation()}
+      className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-auto"
       role="dialog"
       aria-modal="true"
       aria-label={TITLE_MAP[mode][lang === "uz" ? "uz" : "ru"]}
     >
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={(e) => { e.stopPropagation(); onClose(); }} />
+      {/* Backdrop — clicks here close modal only, not Sheet */}
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm pointer-events-auto" onClick={onClose} />
 
-      {/* Modal */}
-      <div className="relative bg-background rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden border" onClick={e => e.stopPropagation()}>
+      {/* Modal content — stop propagation so backdrop doesn't fire */}
+      <div className="relative bg-background rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden border pointer-events-auto" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b">
           <div className="flex items-center gap-3">
