@@ -863,7 +863,7 @@ export const OrderService = {
     if (input.orderIds.length === 0) throw new Error("Выберите хотя бы один заказ");
 
     const ordersData = await db.select({
-      id: orders.id, orderNumber: orders.orderNumber, status: orders.total,
+      id: orders.id, orderNumber: orders.orderNumber, status: orders.status,
       shopId: orders.shopId, agentId: orders.agentId, total: orders.total,
       shopName: shops.name, shopAddress: shops.address, shopCity: shops.city,
       shopPhone: shops.phone, shopGpsLat: shops.gpsLat, shopGpsLng: shops.gpsLng,
