@@ -22,7 +22,6 @@ const STATUS_COLORS: Record<string, string> = {
   completed:            "A7F3D0", // legacy alias
   active:     "A7F3D0",
   inactive:   "FECACA",
-  pending:    "FDE68A",
   unloading:  "BAE6FD",
   low:        "FECACA",
   ok:         "A7F3D0",

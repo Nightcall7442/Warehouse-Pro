@@ -812,7 +812,6 @@ function buildDebtBlock(order: BatchOrderData, currency: string): string {
       ${debt > 0 && Number(order.total) > 0 ? `<span style="margin-left:8px">К оплате: <b>${recommended.toLocaleString("ru-RU")} ${currency}</b></span>` : ""}
       <span style="margin-left:8px;color:#666">${paymentLine}</span>
     </div>`;
-    </div>`;
 }
 
 function buildSingleInvoice(order: BatchOrderData, opts: BatchPrintOptions, company: CompanyInfo, currency: string): string {
