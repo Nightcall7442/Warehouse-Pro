@@ -20,15 +20,19 @@ interface Props {
 }
 
 const STATUS_LABELS: Record<string, { ru: string; uz: string }> = {
-  processing: { ru: "В обработку", uz: "Jarayonga" },
-  completed: { ru: "Выполнен", uz: "Bajarildi" },
-  cancelled: { ru: "Отменить", uz: "Bekor qilish" },
+  processing:         { ru: "В обработку",      uz: "Jarayonga" },
+  shipped:            { ru: "Отгрузить",         uz: "Yuklash" },
+  pending:            { ru: "В ожидание",        uz: "Kutishga" },
+  delivered:          { ru: "Доставлен",         uz: "Yetkazildi" },
+  cancelled:          { ru: "Отменить",          uz: "Bekor qilish" },
+  returned:           { ru: "Возврат",           uz: "Qaytarish" },
+  partially_returned: { ru: "Возврат частично", uz: "Qisman qaytarish" },
 };
 
 export function OrderBulkActions({
   selectedCount, maxSelection = 50, onClearSelection,
   onPrintInvoices, onCreateLoadingList, onChangeStatus, onAssignAgent, onExportExcel,
-  agents, validStatusTransitions = ["processing", "completed", "cancelled"],
+  agents, validStatusTransitions = ["processing", "shipped", "delivered", "cancelled", "returned", "partially_returned"],
 }: Props) {
   const t = useTranslate();
 

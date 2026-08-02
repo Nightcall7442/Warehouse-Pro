@@ -3,17 +3,76 @@ import { createRouter, operatorQuery, fieldSalesQuery, adminQuery } from "./midd
 import { OrderService } from "./services/order";
 import { cache, CacheKeys } from "./lib/cache";
 import { getDb } from "./queries/connection";
-import { savedFilters, orderComments, shops, payments, users } from "@db/schema";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { savedFilters, orderComments, shops, payments, users, orders } from "@db/schema";
+import { eq, and, desc, sql, isNull } from "drizzle-orm";
 import { sanitizeString } from "./lib/sanitize";
 
 export const orderRouter = createRouter({
+  // ── Server-side KPI stats (all orders, not just current page) ──────────────
+  stats: fieldSalesQuery
+    .input(z.object({
+      dateFrom: z.string().optional(),
+      dateTo: z.string().optional(),
+      status: z.string().optional(),
+      agentId: z.number().optional(),
+      paymentMethod: z.string().optional(),
+      search: z.string().optional(),
+    }).optional())
+    .query(async ({ input, ctx }) => {
+      const db = getDb();
+      const tenantId = ctx.tenant.id;
+      const conditions = [eq(orders.tenantId, tenantId), isNull(orders.deletedAt)];
+
+      if (input?.status) conditions.push(eq(orders.status, input.status as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" | "partially_returned" | "partial_return_kept"));
+      if (input?.agentId) conditions.push(eq(orders.agentId, input.agentId));
+      if (input?.paymentMethod) conditions.push(eq(orders.paymentMethod, input.paymentMethod as "cash" | "card" | "transfer" | "debt"));
+      if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
+      if (input?.dateTo) conditions.push(sql`${orders.createdAt} <= ${input.dateTo + ' 23:59:59'}`);
+      if (input?.search) {
+        conditions.push(sql`(${orders.orderNumber} LIKE ${'%' + input.search + '%'} OR ${shops.name} LIKE ${'%' + input.search + '%'})`);
+      }
+
+      const [result] = await db.select({
+        total: sql<number>`count(*)`,
+        totalRevenue: sql<number>`COALESCE(SUM(CAST(${orders.total} AS DECIMAL)), 0)`,
+      }).from(orders)
+        .leftJoin(shops, eq(orders.shopId, shops.id))
+        .where(and(...conditions));
+
+      // Get counts per status
+      const statusCounts = await db.select({
+        status: orders.status,
+        count: sql<number>`count(*)`,
+      }).from(orders)
+        .where(and(eq(orders.tenantId, tenantId), isNull(orders.deletedAt)))
+        .groupBy(orders.status);
+
+      const statusMap: Record<string, number> = {};
+      for (const row of statusCounts) {
+        statusMap[row.status] = Number(row.count);
+      }
+
+      return {
+        total: Number(result?.total ?? 0),
+        totalRevenue: Number(result?.totalRevenue ?? 0),
+        newCount: statusMap["new"] ?? 0,
+        processingCount: statusMap["processing"] ?? 0,
+        shippedCount: statusMap["shipped"] ?? 0,
+        pendingCount: statusMap["pending"] ?? 0,
+        deliveredCount: statusMap["delivered"] ?? 0,
+        cancelledCount: statusMap["cancelled"] ?? 0,
+        returnedCount: statusMap["returned"] ?? 0,
+        partiallyReturnedCount: statusMap["partially_returned"] ?? 0,
+        partialReturnKeptCount: statusMap["partial_return_kept"] ?? 0,
+      };
+    }),
+
   list: fieldSalesQuery
     .input(z.object({
       page:        z.number().int().min(1).default(1),
       pageSize:    z.number().int().min(1).max(5000).default(25),
       search:      z.string().max(200).optional(),
-      status:      z.enum(["new", "processing", "completed", "cancelled", "partially_delivered", "partially_paid"]).optional(),
+      status:      z.enum(["new", "processing", "shipped", "pending", "delivered", "cancelled", "returned", "partially_returned", "partial_return_kept"]).optional(),
       agentId:     z.number().int().positive().optional(),
       dateFrom:    z.string().optional(),
       dateTo:      z.string().optional(),
@@ -84,7 +143,7 @@ export const orderRouter = createRouter({
     }),
 
   updateStatus: operatorQuery
-    .input(z.object({ id: z.number().int().positive(), status: z.enum(["new", "processing", "completed", "cancelled"]) }))
+    .input(z.object({ id: z.number().int().positive(), status: z.enum(["new", "processing", "shipped", "pending", "delivered", "cancelled", "returned", "partially_returned", "partial_return_kept"]) }))
     .mutation(async ({ input, ctx }) => {
       return OrderService.updateStatus(ctx.db, ctx.tenant.id, input.id, input.status);
     }),
@@ -147,7 +206,7 @@ export const orderRouter = createRouter({
   bulkUpdateStatus: operatorQuery
     .input(z.object({
       orderIds: z.array(z.number().int().positive()).min(1).max(100),
-      status: z.enum(["new", "processing", "completed", "cancelled"]),
+      status: z.enum(["new", "processing", "shipped", "pending", "delivered", "cancelled", "returned", "partially_returned", "partial_return_kept"]),
       comment: z.string().max(500).optional(),
     }))
     .mutation(async ({ input, ctx }) => {

@@ -20,8 +20,13 @@ interface Props {
 const STATUS_COLORS: Record<string, string> = {
   new: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
   processing: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-  completed: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
+  shipped: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
+  pending: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
+  delivered: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
   cancelled: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+  returned: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+  partially_returned: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
+  partial_return_kept: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
 };
 
 function DebtBlock({ debt, orderTotal, currency }: { debt: string; orderTotal: string; currency: string }) {
@@ -228,7 +233,7 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
                       </div>
                     </div>
                   )}
-                  {order.status === "completed" && (
+                  {order.status === "delivered" && (
                     <div className="flex items-start gap-3">
                       <div className="w-2 h-2 rounded-full bg-green-500 mt-2" />
                       <div>

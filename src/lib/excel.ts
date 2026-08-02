@@ -10,10 +10,16 @@ type Row = Record<string, string | number | null | undefined>;
 
 // Цвета статусов для ячеек
 const STATUS_COLORS: Record<string, string> = {
-  new:        "C7D2FE", // indigo-200
-  processing: "FDE68A", // amber-200
-  completed:  "A7F3D0", // green-200
-  cancelled:  "FECACA", // red-200
+  new:                  "C7D2FE", // indigo-200
+  processing:           "FDE68A", // amber-200
+  shipped:              "DDD6FE", // purple-200
+  pending:              "FED7AA", // orange-200
+  delivered:            "A7F3D0", // green-200
+  cancelled:            "FECACA", // red-200
+  returned:             "FECACA", // red-200
+  partially_returned:   "FED7AA", // orange-200
+  partial_return_kept:  "FDE68A", // amber-200
+  completed:            "A7F3D0", // legacy alias
   active:     "A7F3D0",
   inactive:   "FECACA",
   pending:    "FDE68A",

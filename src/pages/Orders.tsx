@@ -48,12 +48,15 @@ const PAYMENT: Record<string, { ru: string; uz: string; color: string }> = {
 
 /* ─── Status Config ─── */
 const STATUS: Record<string, { ru: string; uz: string; dot: string; bg: string; text: string; border: string }> = {
-  new:                  { ru: "Новый",            uz: "Yangi",              dot: "#5b6d8a", bg: "bg-info/10",    text: "text-info",    border: "border-info/25" },
-  processing:           { ru: "В обработке",      uz: "Jarayonda",          dot: "#d4973a", bg: "bg-warning/10", text: "text-warning", border: "border-warning/25" },
-  completed:            { ru: "Выполнен",         uz: "Bajarildi",          dot: "#34c473", bg: "bg-success/10", text: "text-success", border: "border-success/25" },
-  cancelled:            { ru: "Отменён",          uz: "Bekor qilindi",      dot: "#d45050", bg: "bg-danger/10",  text: "text-danger",  border: "border-danger/25" },
-  partially_delivered:  { ru: "Част. доставка",   uz: "Qisman yetkazildi",  dot: "#d4973a", bg: "bg-warning/10", text: "text-warning", border: "border-warning/25" },
-  partially_paid:       { ru: "Част. оплата",     uz: "Qisman to'landi",    dot: "#5b6d8a", bg: "bg-info/10",    text: "text-info",    border: "border-info/25" },
+  new:                  { ru: "Новый",            uz: "Yangi",                   dot: "#5b6d8a", bg: "bg-info/10",    text: "text-info",    border: "border-info/25" },
+  processing:           { ru: "В обработке",      uz: "Jarayonda",               dot: "#d4973a", bg: "bg-warning/10", text: "text-warning", border: "border-warning/25" },
+  shipped:              { ru: "Отгружён",         uz: "Yuklandi",                dot: "#9b59b6", bg: "bg-purple-100", text: "text-purple-600", border: "border-purple-200" },
+  pending:              { ru: "В ожидании",       uz: "Kutishda",                dot: "#f09050", bg: "bg-orange-100", text: "text-orange-600", border: "border-orange-200" },
+  delivered:            { ru: "Доставлен",        uz: "Yetkazildi",              dot: "#34c473", bg: "bg-success/10", text: "text-success", border: "border-success/25" },
+  cancelled:            { ru: "Отменён",          uz: "Bekor qilindi",           dot: "#d45050", bg: "bg-danger/10",  text: "text-danger",  border: "border-danger/25" },
+  returned:             { ru: "Возврат",          uz: "Qaytarildi",              dot: "#e85050", bg: "bg-red-100",    text: "text-red-600", border: "border-red-200" },
+  partially_returned:   { ru: "Возврат частично",uz: "Qisman qaytarildi",       dot: "#f09050", bg: "bg-orange-100", text: "text-orange-600", border: "border-orange-200" },
+  partial_return_kept:  { ru: "Возврат (магазин)",uz: "Qaytarish (do'kon qoldi)",dot: "#d4973a", bg: "bg-amber-100",  text: "text-amber-600", border: "border-amber-200" },
 };
 
 /* ─── Premium KpiCard Component ─── */
@@ -126,7 +129,24 @@ export default function Orders() {
   const isCeo               = user?.role === "ceo";
   const isOperator          = user?.role === "operator";
   const isOperatorOrCeo     = isCeo || isOperator;
-  const [selected, setSelected] = useState<Set<number>>(new Set());
+  // Persist selection in sessionStorage so it survives navigation
+  const [selected, setSelectedRaw] = useState<Set<number>>(() => {
+    try {
+      const saved = sessionStorage.getItem("order_selection");
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch { return new Set(); }
+  });
+  const setSelected = useCallback((fn: Set<number> | ((prev: Set<number>) => Set<number>)) => {
+    setSelectedRaw(prev => {
+      const next = typeof fn === "function" ? fn(prev) : fn;
+      try { sessionStorage.setItem("order_selection", JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  }, []);
+  const clearSelection = useCallback(() => {
+    clearSelection();
+    try { sessionStorage.removeItem("order_selection"); } catch {}
+  }, [setSelected]);
   const { confirm, dialog } = useConfirm();
   const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);
 
@@ -148,11 +168,11 @@ export default function Orders() {
     onSuccess: () => utils.order.listFilters.invalidate(),
   });
   const bulkUpdateStatus = trpc.order.bulkUpdateStatus.useMutation({
-    onSuccess: (r) => { utils.order.list.invalidate(); setSelected(new Set()); notify.success(t(`Обновлено: ${r.updated}`, `Yangilandi: ${r.updated}`)); },
+    onSuccess: (r) => { utils.order.list.invalidate(); clearSelection(); notify.success(t(`Обновлено: ${r.updated}`, `Yangilandi: ${r.updated}`)); },
     onError: (e) => notify.error(e.message),
   });
   const bulkAssignAgent = trpc.order.bulkAssignAgent.useMutation({
-    onSuccess: (r) => { utils.order.list.invalidate(); setSelected(new Set()); notify.success(t(`Назначено: ${r.updated}`, `Tayinlandi: ${r.updated}`)); },
+    onSuccess: (r) => { utils.order.list.invalidate(); clearSelection(); notify.success(t(`Назначено: ${r.updated}`, `Tayinlandi: ${r.updated}`)); },
     onError: (e) => notify.error(e.message),
   });
   const { data: agentsData } = trpc.user.list.useQuery({ role: "agent", pageSize: 200 });
@@ -175,7 +195,7 @@ export default function Orders() {
   const { data, isLoading, isError, refetch } = trpc.order.list.useQuery({
     page, pageSize: 25,
     search: search || undefined,
-    status: (effectiveStatus || undefined) as "new" | "processing" | "completed" | "cancelled" | undefined,
+    status: (effectiveStatus || undefined) as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" | "partially_returned" | "partial_return_kept" | undefined,
     showDeleted: isOperatorOrCeo && showDeleted ? true : undefined,
     dateFrom: effectiveDateFrom || undefined,
     dateTo: effectiveDateTo || undefined,
@@ -257,7 +277,7 @@ export default function Orders() {
     for (const id of ids) {
       await updateStatus.mutateAsync({ id, status });
     }
-    setSelected(new Set());
+    clearSelection();
   }, [updateStatus]);
 
   const handleExportSelected = useCallback(async () => {
@@ -268,17 +288,14 @@ export default function Orders() {
     await exportToExcel(formatOrdersForExport(rows), `orders-selected`, "Заказы", `Выбранные заказы`);
   }, [refetchAllOrders, selected]);
 
-  /* ─── Compute KPI stats from current page data ─── */
-  const stats = useMemo(() => {
-    const orders = data?.data ?? [];
-    const total = orders.length;
-    const newCount = orders.filter(o => o.status === "new").length;
-    const processingCount = orders.filter(o => o.status === "processing").length;
-    const completedCount = orders.filter(o => o.status === "completed").length;
-    const cancelledCount = orders.filter(o => o.status === "cancelled").length;
-    const totalRevenue = orders.reduce((sum, o) => sum + Number(o.total ?? 0), 0);
-    return { total, newCount, processingCount, completedCount, cancelledCount, totalRevenue };
-  }, [data?.data]);
+  /* ─── Server-side KPI stats (all orders matching filters) ─── */
+  const { data: stats } = trpc.order.stats.useQuery({
+    dateFrom: effectiveDateFrom || undefined,
+    dateTo: effectiveDateTo || undefined,
+    status: effectiveStatus || undefined,
+    paymentMethod: effectivePaymentMethod || undefined,
+    search: search || undefined,
+  });
 
   if (isError) return <QueryErrorFallback onRetry={refetch} />;
 
@@ -327,11 +344,11 @@ export default function Orders() {
         </div>
       </div>
 
-      {/* ─── KPI Cards ─── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
+      {/* ─── KPI Cards (server-side aggregation) ─── */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px" }}>
         <KpiCard
-          label={t("ВСЕГО ЗАКАЗОВ", "JAMI BUYURTMA")}
-          value={stats.total.toLocaleString()}
+          label={t("ВСЕГО", "JAMI")}
+          value={(stats?.total ?? 0).toLocaleString()}
           delta={null}
           icon={<ShoppingCart size={20} color="#fff" />}
           gradient="linear-gradient(135deg, #5b6d8a, #5b6d8a)"
@@ -339,43 +356,51 @@ export default function Orders() {
         />
         <KpiCard
           label={t("НОВЫЕ", "YANGI")}
-          value={stats.newCount.toLocaleString()}
+          value={(stats?.newCount ?? 0).toLocaleString()}
           delta={null}
           icon={<Clock size={20} color="#fff" />}
           gradient="linear-gradient(135deg, #60a5fa, #3b82f6)"
           delay={0.05}
         />
         <KpiCard
-          label={t("В РАБОТЕ", "JARAYONDA")}
-          value={stats.processingCount.toLocaleString()}
+          label={t("В ОБРАБОТКЕ", "JARAYONDA")}
+          value={(stats?.processingCount ?? 0).toLocaleString()}
           delta={null}
-          icon={<Clock size={20} color="#fff" />}
+          icon={<RefreshCw size={20} color="#fff" />}
           gradient="linear-gradient(135deg, #d4973a, #f59e0b)"
           delay={0.1}
         />
         <KpiCard
-          label={t("ВЫПОЛНЕНЫ", "BAJARILDI")}
-          value={stats.completedCount.toLocaleString()}
+          label={t("ОТГРУЖЕНЫ", "YUKLANDI")}
+          value={(stats?.shippedCount ?? 0).toLocaleString()}
           delta={null}
-          icon={<CheckCircle2 size={20} color="#fff" />}
-          gradient="linear-gradient(135deg, #10B981, #059669)"
+          icon={<Truck size={20} color="#fff" />}
+          gradient="linear-gradient(135deg, #9b59b6, #8e44ad)"
           delay={0.15}
         />
         <KpiCard
-          label={t("ОТМЕНЕНЫ", "BEKOR QILINDI")}
-          value={stats.cancelledCount.toLocaleString()}
+          label={t("ДОСТАВЛЕНЫ", "YETKAZILDI")}
+          value={(stats?.deliveredCount ?? 0).toLocaleString()}
           delta={null}
-          icon={<XCircle size={20} color="#fff" />}
-          gradient="linear-gradient(135deg, #d45050, #d45050)"
+          icon={<CheckCircle2 size={20} color="#fff" />}
+          gradient="linear-gradient(135deg, #10B981, #059669)"
           delay={0.2}
         />
         <KpiCard
+          label={t("ОТМЕНЕНЫ", "BEKOR")}
+          value={(stats?.cancelledCount ?? 0).toLocaleString()}
+          delta={null}
+          icon={<XCircle size={20} color="#fff" />}
+          gradient="linear-gradient(135deg, #d45050, #d45050)"
+          delay={0.25}
+        />
+        <KpiCard
           label={t("ВЫРУЧКА", "TUSHUM")}
-          value={fmt(stats.totalRevenue)}
+          value={fmt(stats?.totalRevenue ?? 0)}
           delta={null}
           icon={<DollarSign size={20} color="#fff" />}
           gradient="linear-gradient(135deg, #16a34a, #22c47a)"
-          delay={0.25}
+          delay={0.3}
         />
       </div>
 
@@ -451,7 +476,7 @@ export default function Orders() {
             paymentMethod: o.paymentMethod ?? "cash",
           }))}
           onOrderClick={setSlideOverOrderId}
-          onStatusChange={(orderId, newStatus) => updateStatus.mutate({ id: orderId, status: newStatus as "new" | "processing" | "completed" | "cancelled" })}
+          onStatusChange={(orderId, newStatus) => updateStatus.mutate({ id: orderId, status: newStatus as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" | "partially_returned" | "partial_return_kept" })}
           currency={symbol}
         />
       )}
@@ -648,7 +673,7 @@ export default function Orders() {
                               {t("В работу", "Jarayonga")}
                             </button>
                             <button
-                              onClick={() => updateStatus.mutate({ id: o.id, status: "completed" })}
+                              onClick={() => updateStatus.mutate({ id: o.id, status: "delivered" })}
                               style={{
                                 padding: "4px 10px", fontSize: "11px", fontWeight: 600, fontFamily: F.body,
                                 borderRadius: "8px", border: "none", cursor: "pointer",
@@ -729,12 +754,12 @@ export default function Orders() {
     {/* ── Bulk Actions Bar ── */}
     <OrderBulkActions
       selectedCount={selected.size}
-      onClearSelection={() => setSelected(new Set())}
+      onClearSelection={() => clearSelection()}
       onPrintInvoices={() => setShowInvoiceModal(true)}
       onCreateLoadingList={() => setShowLoadingListModal(true)}
       onChangeStatus={(newStatus) => {
         const ids = Array.from(selected);
-        bulkUpdateStatus.mutate({ orderIds: ids, status: newStatus as "new" | "processing" | "completed" | "cancelled" });
+        bulkUpdateStatus.mutate({ orderIds: ids, status: newStatus as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" | "partially_returned" | "partial_return_kept" });
       }}
       onAssignAgent={(agentId) => {
         const ids = Array.from(selected);
@@ -749,7 +774,7 @@ export default function Orders() {
       open={showInvoiceModal}
       onOpenChange={setShowInvoiceModal}
       orderIds={Array.from(selected)}
-      onDone={() => { setSelected(new Set()); utils.order.list.invalidate(); }}
+      onDone={() => { clearSelection(); utils.order.list.invalidate(); }}
     />
 
     {/* ── Loading List Modal ── */}
@@ -757,7 +782,7 @@ export default function Orders() {
       open={showLoadingListModal}
       onOpenChange={setShowLoadingListModal}
       orderIds={Array.from(selected)}
-      onDone={() => { setSelected(new Set()); utils.order.list.invalidate(); }}
+      onDone={() => { clearSelection(); utils.order.list.invalidate(); }}
     />
 
     {/* ── Order Slide-Over ── */}

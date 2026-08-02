@@ -30,8 +30,10 @@ interface Column {
 const COLUMNS: Column[] = [
   { id: "new", label: "Новые", labelUz: "Yangi", statuses: ["new"], color: "border-blue-500", dotColor: "bg-blue-500" },
   { id: "processing", label: "В обработке", labelUz: "Jarayonda", statuses: ["processing"], color: "border-amber-500", dotColor: "bg-amber-500" },
-  { id: "completed", label: "Выполнены", labelUz: "Bajarildi", statuses: ["completed"], color: "border-green-500", dotColor: "bg-green-500" },
-  { id: "cancelled", label: "Отменены", labelUz: "Bekor", statuses: ["cancelled"], color: "border-red-500", dotColor: "bg-red-500" },
+  { id: "shipped", label: "Отгружены", labelUz: "Yuklangan", statuses: ["shipped"], color: "border-purple-500", dotColor: "bg-purple-500" },
+  { id: "pending", label: "В ожидании", labelUz: "Kutishda", statuses: ["pending"], color: "border-orange-500", dotColor: "bg-orange-500" },
+  { id: "delivered", label: "Доставлены", labelUz: "Yetkazildi", statuses: ["delivered", "partially_returned", "partial_return_kept"], color: "border-green-500", dotColor: "bg-green-500" },
+  { id: "cancelled", label: "Отменены", labelUz: "Bekor", statuses: ["cancelled", "returned"], color: "border-red-500", dotColor: "bg-red-500" },
 ];
 
 const PAYMENT_COLORS: Record<string, string> = {
@@ -84,8 +86,13 @@ export function OrderKanbanBoard({ orders, onOrderClick, onStatusChange, currenc
 
     // Validate transition
     const validTransitions: Record<string, string[]> = {
-      new: ["processing", "completed", "cancelled"],
-      processing: ["completed", "cancelled"],
+      new:                  ["processing", "cancelled"],
+      processing:           ["shipped", "cancelled"],
+      shipped:              ["delivered", "pending", "returned", "partially_returned", "partial_return_kept", "cancelled"],
+      pending:              ["delivered", "cancelled"],
+      delivered:            ["returned", "partially_returned", "partial_return_kept"],
+      partially_returned:   ["returned", "delivered"],
+      partial_return_kept:  ["delivered"],
     };
     const targetStatus = col.statuses[0];
     if (!validTransitions[order.status]?.includes(targetStatus)) {

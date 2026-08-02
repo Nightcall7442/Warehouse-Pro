@@ -222,7 +222,7 @@ export const orders = mysqlTable("orders", {
   orderNumber: varchar("order_number", { length: 50 }).notNull(),
   shopId:      bigint("shop_id", { mode: "number", unsigned: true }).notNull().references(() => shops.id, { onDelete: "restrict" }),
   agentId:     bigint("agent_id", { mode: "number", unsigned: true }).notNull().references(() => users.id, { onDelete: "restrict" }),
-  status:      mysqlEnum("status", ["new", "processing", "completed", "cancelled", "partially_delivered", "partially_paid"]).default("new").notNull(),
+  status:      mysqlEnum("status", ["new", "processing", "shipped", "pending", "delivered", "cancelled", "returned", "partially_returned", "partial_return_kept"]).default("new").notNull(),
   subtotal:    decimal("subtotal", { precision: 12, scale: 2 }).default("0.00").notNull(),
   discount:    decimal("discount", { precision: 12, scale: 2 }).default("0.00").notNull(),
   total:       decimal("total", { precision: 12, scale: 2 }).default("0.00").notNull(),

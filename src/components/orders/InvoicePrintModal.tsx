@@ -143,7 +143,7 @@ export function InvoicePrintModal({ open, onOpenChange, orderIds, onDone }: Prop
                         <td className="p-2 text-muted-foreground">{o.agentName ?? "—"}</td>
                         <td className="p-2 text-right font-data">{Number(o.total).toLocaleString("ru")} {currency}</td>
                         <td className="p-2 text-center">
-                          <Badge variant={o.status === "completed" ? "success" : o.status === "cancelled" ? "destructive" : o.status === "processing" ? "warning" : "default"}>
+                          <Badge variant={o.status === "delivered" ? "success" : o.status === "cancelled" || o.status === "returned" ? "destructive" : o.status === "processing" || o.status === "shipped" ? "warning" : "default"}>
                             {o.status}
                           </Badge>
                         </td>

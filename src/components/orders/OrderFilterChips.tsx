@@ -32,7 +32,8 @@ const DATE_PRESETS = [
 const STATUS_CHIPS = [
   { value: "new", labelRu: "Новые", labelUz: "Yangi", color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
   { value: "processing", labelRu: "В обработке", labelUz: "Jarayonda", color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
-  { value: "completed", labelRu: "Готовы", labelUz: "Tayyor", color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
+  { value: "shipped", labelRu: "Отгружены", labelUz: "Yuklangan", color: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400" },
+  { value: "delivered", labelRu: "Доставлены", labelUz: "Yetkazildi", color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
   { value: "cancelled", labelRu: "Отменённые", labelUz: "Bekor qilingan", color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
 ];
 

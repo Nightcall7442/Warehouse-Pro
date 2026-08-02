@@ -34,21 +34,32 @@ async function adjustShopDebt(tx: Tx, tenantId: number, shopId: number, delta: n
   `);
 }
 
-/** Stock is only committed to an order while it is new or processing. */
+/** Stock is held while order is active (not delivered, cancelled, or returned). */
 function holdsStock(status: string): boolean {
-  return status === "new" || status === "processing";
+  return ["new", "processing", "shipped", "pending"].includes(status);
+}
+
+/** Status that triggers stock deduction (goods left the warehouse). */
+function deductsStock(status: string): boolean {
+  return status === "delivered" || status === "partial_return_kept";
+}
+
+/** Status that releases stock (goods returned to warehouse). */
+function releasesStock(status: string): boolean {
+  return status === "cancelled" || status === "returned" || status === "partially_returned";
 }
 
 export const OrderService = {
   async list(db: Db, tenantId: number, filters: Record<string, unknown>, opts?: { userId: number; userRole: string }) {
-    const f = filters as { status?: "new" | "processing" | "completed" | "cancelled"; agentId?: number; page?: number; pageSize?: number; search?: string; showDeleted?: boolean; dateFrom?: string; dateTo?: string };
+    const f = filters as { status?: string; agentId?: number; page?: number; pageSize?: number; search?: string; showDeleted?: boolean; dateFrom?: string; dateTo?: string; paymentMethod?: string };
     const page = f.page ?? 1;
     const limit = f.pageSize ?? 25;
     const offset = (page - 1) * limit;
 
     const conditions = [eq(orders.tenantId, tenantId)];
-    if (f.status) conditions.push(eq(orders.status, f.status));
+    if (f.status) conditions.push(eq(orders.status, f.status as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" | "partially_returned" | "partial_return_kept"));
     if (f.agentId) conditions.push(eq(orders.agentId, f.agentId));
+    if (f.paymentMethod) conditions.push(eq(orders.paymentMethod, f.paymentMethod as "cash" | "card" | "transfer" | "debt"));
     // P0-14 FIX: Implement search filter
     if (f.search) conditions.push(sql`(${orders.orderNumber} LIKE ${'%' + f.search + '%'} OR ${shops.name} LIKE ${'%' + f.search + '%'})`);
     // P0-14 FIX: Implement date filters
@@ -393,7 +404,7 @@ export const OrderService = {
     return { success: true };
   },
 
-  async updateStatus(db: Db, tenantId: number, orderId: number, newStatus: "new" | "processing" | "completed" | "cancelled") {
+  async updateStatus(db: Db, tenantId: number, orderId: number, newStatus: "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" | "partially_returned" | "partial_return_kept") {
     await db.transaction(async (tx) => {
       const [order] = await tx.select({
         id: orders.id, status: orders.status, shopId: orders.shopId,
@@ -407,30 +418,34 @@ export const OrderService = {
       if (!order) throw new Error("Заказ не найден");
 
       if (order.status === newStatus) {
-        if (order.status === "completed" || order.status === "cancelled") {
+        if (["delivered", "cancelled", "returned"].includes(order.status)) {
           return { success: true };
         }
       }
 
       const validTransitions: Record<string, string[]> = {
-        new: ["processing", "completed", "cancelled", "partially_delivered", "partially_paid"],
-        processing: ["completed", "cancelled", "partially_delivered", "partially_paid"],
-        partially_delivered: ["completed", "cancelled", "partially_paid"],
-        partially_paid: ["completed", "cancelled", "partially_delivered"],
+        new:                  ["processing", "cancelled"],
+        processing:           ["shipped", "cancelled"],
+        shipped:              ["delivered", "pending", "returned", "partially_returned", "partial_return_kept", "cancelled"],
+        pending:              ["delivered", "cancelled"],
+        delivered:            ["returned", "partially_returned", "partial_return_kept"],
+        partially_returned:   ["returned", "delivered"],
+        partial_return_kept:  ["delivered"],
+        returned:             [],
+        cancelled:            [],
       };
       if (!validTransitions[order.status]?.includes(newStatus)) {
         throw new Error(`Невозможно перевести из "${order.status}" в "${newStatus}"`);
       }
 
-      // Cancelling a credit order releases the receivable it created. Completed
-      // orders are left alone — the goods changed hands and the debt stands.
-      if (newStatus === "cancelled" && order.paymentMethod === "debt" && holdsStock(order.status)) {
+      // Cancelling/returning a credit order releases the receivable it created.
+      if (releasesStock(newStatus) && order.paymentMethod === "debt" && holdsStock(order.status)) {
         await adjustShopDebt(tx, tenantId, order.shopId, -Number(order.total));
       }
 
       const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
       if (items.length > 0) {
-        if (newStatus === "completed") {
+        if (deductsStock(newStatus)) {
           // Skip stock deduction if courier already delivered (markDelivered handles it)
           if (order.deliveryStatus !== "delivered") {
             const stockWhId = await resolveOrderWarehouse(tx, tenantId);
@@ -498,7 +513,7 @@ export const OrderService = {
             }
           }
         }
-        if (newStatus === "cancelled") {
+        if (releasesStock(newStatus)) {
           const cancelWhId = await resolveOrderWarehouse(tx, tenantId);
 
           // Lock stock rows to prevent race conditions
@@ -787,16 +802,11 @@ export const OrderService = {
 
   async bulkUpdateStatus(
     db: Db, tenantId: number, orderIds: number[],
-    newStatus: "new" | "processing" | "completed" | "cancelled",
+    newStatus: "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" | "partially_returned" | "partial_return_kept",
     actorId?: number, comment?: string,
   ) {
     if (orderIds.length === 0) return { updated: 0 };
     if (orderIds.length > 100) throw new Error("Максимум 100 заказов за раз");
-
-    const validTransitions: Record<string, string[]> = {
-      new: ["processing", "completed", "cancelled"],
-      processing: ["completed", "cancelled"],
-    };
 
     let updated = 0;
     for (const orderId of orderIds) {
