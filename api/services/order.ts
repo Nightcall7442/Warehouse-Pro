@@ -34,26 +34,19 @@ async function adjustShopDebt(tx: Tx, tenantId: number, shopId: number, delta: n
   `);
 }
 
-/** Stock reservation model: orders do NOT reserve stock on creation.
- *  Stock is only deducted on delivery, and returned on return after delivery. */
-function holdsStock(_status: string): boolean {
-  return false; // No reservation — stock is only affected at delivery
+/** Stock is held while order is active (not delivered, cancelled, or returned). */
+function holdsStock(status: string): boolean {
+  return ["new", "processing", "shipped", "pending"].includes(status);
 }
 
-/** Status that triggers stock deduction (goods leave the warehouse). */
+/** Status that triggers stock deduction (goods left the warehouse). */
 function deductsStock(status: string): boolean {
   return status === "delivered" || status === "partial_return_kept";
 }
 
-/** Status that returns stock to warehouse (after delivery). */
+/** Status that releases stock (goods returned to warehouse). */
 function releasesStock(status: string): boolean {
-  return status === "returned" || status === "partially_returned";
-}
-
-/** Whether the order is still open (goods haven't been handed over yet).
- *  Used for debt reversal — cancelling an open credit order should reverse the debt. */
-function isOpenOrder(status: string): boolean {
-  return ["new", "processing", "shipped", "pending"].includes(status);
+  return status === "cancelled" || status === "returned" || status === "partially_returned";
 }
 
 export const OrderService = {
@@ -231,22 +224,31 @@ export const OrderService = {
       const discount = subtotal * (discountPercent / 100);
       const total = subtotal - discount;
 
-      // Check stock availability (soft warning, not blocking — stock is deducted on delivery)
-      const warehouseId = await resolveOrderWarehouse(tx, tenantId, input.warehouseId);
+      // Reserve from one explicit warehouse. Without this filter a product with
+      // stock rows in several warehouses yielded an arbitrary row for the
+      // availability check and a different one for the reservation.
+      const reserveWarehouseId = await resolveOrderWarehouse(tx, tenantId, input.warehouseId);
+
+      // SELECT stock rows with row-level locking to prevent race conditions
       const stockRows = await tx.select().from(warehouseStock)
         .where(and(
           sql`${warehouseStock.productId} IN (${sql.join(input.items.map(i => sql`${i.productId}`), sql`, `)})`,
           eq(warehouseStock.tenantId, tenantId),
-          eq(warehouseStock.warehouseId, warehouseId),
-        ));
+          eq(warehouseStock.warehouseId, reserveWarehouseId),
+        ))
+        .for("update");
+
       const stockMap = new Map<number, typeof stockRows[number]>();
       for (const row of stockRows) stockMap.set(row.productId, row);
 
       for (const item of input.items) {
         const stock = stockMap.get(item.productId);
         const available = Number(stock?.available ?? 0);
+        if (available < 0) {
+          throw new Error(`Некорректный остаток товара на складе (доступно: ${available}). Обратитесь к администратору.`);
+        }
         if (available < Number(item.quantity)) {
-          logger.warn("Low stock warning on order creation", { productId: item.productId, available, requested: item.quantity });
+          throw new Error(`Недостаточно товара на складе (доступно: ${available}, запрошено: ${item.quantity})`);
         }
       }
 
@@ -269,7 +271,21 @@ export const OrderService = {
         };
       }));
 
-      // No stock reservation on order creation — stock is deducted only on delivery
+      if (input.items.length > 0) {
+        // P0-2 FIX: Include warehouse_id in UPDATE to prevent cross-warehouse corruption
+        await tx.execute(sql`
+          UPDATE warehouse_stock
+          SET
+            reserved = reserved + CASE ${sql.join(input.items.map(i =>
+              sql`WHEN product_id = ${i.productId} THEN ${Number(i.quantity)}`
+            ), sql`\n`)} ELSE 0 END,
+            available = available - CASE ${sql.join(input.items.map(i =>
+              sql`WHEN product_id = ${i.productId} THEN ${Number(i.quantity)}`
+            ), sql`\n`)} ELSE 0 END
+          WHERE product_id IN (${sql.join(input.items.map(i => sql`${i.productId}`), sql`, `)})
+            AND tenant_id = ${tenantId}
+            AND warehouse_id = ${reserveWarehouseId}
+        `);
       }
 
       // Update shop debt if payment method is "debt"
@@ -360,7 +376,30 @@ export const OrderService = {
         await adjustShopDebt(tx, tenantId, order.shopId, -Number(order.total));
       }
 
-      // No stock release needed — stock was never reserved on order creation
+      const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
+      if (items.length > 0) {
+        const cancelWhId = await resolveOrderWarehouse(tx, tenantId);
+
+        // Lock stock rows to prevent race conditions
+        for (const item of items) {
+          await tx.select({ id: warehouseStock.id }).from(warehouseStock)
+            .where(and(eq(warehouseStock.productId, item.productId), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, cancelWhId)))
+            .for("update");
+        }
+        await tx.execute(sql`
+          UPDATE warehouse_stock
+          SET
+            reserved = CASE ${sql.join(items.map(i =>
+              sql`WHEN product_id = ${i.productId} THEN reserved - ${Number(i.quantity)}`
+            ), sql`\n`)} ELSE reserved END,
+            available = CASE ${sql.join(items.map(i =>
+              sql`WHEN product_id = ${i.productId} THEN available + ${Number(i.quantity)}`
+            ), sql`\n`)} ELSE available END
+          WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
+            AND tenant_id = ${tenantId}
+            AND warehouse_id = ${cancelWhId}
+        `);
+      }
       await tx.update(orders).set({ status: "cancelled" }).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), eq(orders.status, "new")));
     });
 
@@ -404,7 +443,7 @@ export const OrderService = {
       }
 
       // Cancelling/returning a credit order releases the receivable it created.
-      if (releasesStock(newStatus) && order.paymentMethod === "debt" && isOpenOrder(order.status)) {
+      if (releasesStock(newStatus) && order.paymentMethod === "debt" && holdsStock(order.status)) {
         await adjustShopDebt(tx, tenantId, order.shopId, -Number(order.total));
       }
 
@@ -543,7 +582,7 @@ export const OrderService = {
 
       // Deleting a still-open credit order withdraws the receivable it created.
       // Completed orders keep theirs — the goods were handed over.
-      if (order.paymentMethod === "debt" && isOpenOrder(order.status)) {
+      if (order.paymentMethod === "debt" && holdsStock(order.status)) {
         await adjustShopDebt(tx, tenantId, order.shopId, -Number(order.total));
       }
 
@@ -618,7 +657,7 @@ export const OrderService = {
 
         // The shop's debt was booked from the old total — move it by the difference,
         // otherwise a re-discounted credit order leaves the receivable overstated.
-        if (order.paymentMethod === "debt" && isOpenOrder(order.status)) {
+        if (order.paymentMethod === "debt" && holdsStock(order.status)) {
           await adjustShopDebt(tx, tenantId, order.shopId, newTotal - Number(order.total));
         }
       }
@@ -645,7 +684,7 @@ export const OrderService = {
       await tx.update(orders).set({ deletedAt: null }).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)));
 
       // Mirror of delete(): the receivable comes back with the order.
-      if (order.paymentMethod === "debt" && isOpenOrder(order.status)) {
+      if (order.paymentMethod === "debt" && holdsStock(order.status)) {
         await adjustShopDebt(tx, tenantId, order.shopId, Number(order.total));
       }
 
