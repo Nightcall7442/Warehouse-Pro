@@ -87,9 +87,11 @@ export const OrderService = {
       agentName: users.name,
       paymentMethod: orders.paymentMethod,
       deletedAt: orders.deletedAt,
+      territoryName: territories.name,
     }).from(orders)
       .leftJoin(shops, eq(orders.shopId, shops.id))
       .leftJoin(users, eq(orders.agentId, users.id))
+      .leftJoin(territories, eq(shops.territoryId, territories.id))
       .where(and(...conditions));
 
     const [data, countResult] = await Promise.all([

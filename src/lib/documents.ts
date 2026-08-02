@@ -106,8 +106,8 @@ const GRID_STYLES = `
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    margin-bottom: 14px;
-    padding-bottom: 10px;
+    margin-bottom: 6px;
+    padding-bottom: 4px;
     border-bottom: 2px solid #333;
   }
   .meta-grid {
@@ -131,9 +131,9 @@ const GRID_STYLES = `
     font-weight: 600;
   }
   .totals-box {
-    width: 260px;
+    width: 220px;
     margin-left: auto;
-    margin-top: 8px;
+    margin-top: 4px;
   }
   .totals-box td { border: none; padding: 3px 6px; font-size: 9.5pt; }
   .totals-box .total-row td {
@@ -155,8 +155,9 @@ const GRID_STYLES = `
   .page-break { page-break-before: always; }
   .invoice-container {
     page-break-inside: avoid;
-    margin-bottom: 10mm;
-    padding: 12mm 15mm;
+    margin-bottom: 4mm;
+    padding: 6mm 10mm;
+    border-bottom: 1px dashed #ccc;
   }
 `;
 
@@ -792,39 +793,25 @@ function debtStatusLabel(amount: number): string {
 
 function buildDebtBlock(order: BatchOrderData, currency: string): string {
   const debt = order.shopDebtAmount;
+  if (debt <= 0) return ""; // No debt — skip block entirely
+
   const color = debtStatusColor(debt);
   const label = debtStatusLabel(debt);
+  const recommended = debt + Number(order.total);
 
-  const paymentsHtml = order.paymentHistory.length > 0
-    ? order.paymentHistory.slice(0, 5).map(p => `
-        <tr>
-          <td style="padding:2px 6px;font-size:8pt">${new Date(p.createdAt).toLocaleDateString("ru-RU")}</td>
-          <td style="padding:2px 6px;font-size:8pt;text-align:right">${Number(p.amount).toLocaleString("ru-RU")} ${currency}</td>
-          <td style="padding:2px 6px;font-size:8pt">${p.type === "payment" ? "Оплата" : "Долг"}</td>
-        </tr>`).join("")
-    : '<tr><td colspan="3" style="padding:4px 6px;font-size:8pt;color:#94a3b8;text-align:center">Нет платежей за 30 дней</td></tr>';
+  // Compact: one-line debt info + small payment summary
+  const lastPayment = order.paymentHistory[0];
+  const paymentLine = lastPayment
+    ? `Последний платёж: ${new Date(lastPayment.createdAt).toLocaleDateString("ru-RU")} ${Number(lastPayment.amount).toLocaleString("ru-RU")} ${currency}`
+    : "Нет платежей за 30 дней";
 
   return `
-    <div style="margin:10px 0;padding:10px 12px;border:1px solid #e2e8f0;border-radius:6px;background:#f8fafc">
-      <div style="font-size:9pt;font-weight:700;margin-bottom:6px">Информация о задолженности магазина</div>
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-        <span style="font-size:14pt;font-weight:800;color:${color}">${debt.toLocaleString("ru-RU")} ${currency}</span>
-        <span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:7.5pt;font-weight:600;background:${color}18;color:${color};border:1px solid ${color}30">${label}</span>
-      </div>
-      ${debt > 0 && Number(order.total) > 0 ? `
-        <div style="font-size:8.5pt;color:#64748b;margin-bottom:6px">
-          В том числе по текущему заказу: <b>${Number(order.total).toLocaleString("ru-RU")} ${currency}</b><br>
-          Рекомендуемая сумма к оплате: <b style="color:${color}">${(debt + Number(order.total)).toLocaleString("ru-RU")} ${currency}</b>
-        </div>` : ""}
-      <table style="width:100%;border-collapse:collapse;margin-top:4px">
-        <tr style="background:#f1f5f9">
-          <th style="padding:3px 6px;font-size:7.5pt;text-align:left;color:#64748b;font-weight:600">Дата</th>
-          <th style="padding:3px 6px;font-size:7.5pt;text-align:right;color:#64748b;font-weight:600">Сумма</th>
-          <th style="padding:3px 6px;font-size:7.5pt;text-align:left;color:#64748b;font-weight:600">Тип</th>
-        </tr>
-        ${paymentsHtml}
-      </table>
-      <div style="font-size:7pt;color:#94a3b8;margin-top:6px">Данные актуальны на ${new Date().toLocaleString("ru-RU")}. Для уточнения обращайтесь в офис.</div>
+    <div style="margin:4px 0;padding:4px 8px;border:1px solid ${color}40;background:${color}08;font-size:8pt">
+      <b style="color:${color}">Долг: ${debt.toLocaleString("ru-RU")} ${currency}</b>
+      <span style="color:${color};margin-left:6px;font-size:7pt">${label}</span>
+      ${debt > 0 && Number(order.total) > 0 ? `<span style="margin-left:8px">К оплате: <b>${recommended.toLocaleString("ru-RU")} ${currency}</b></span>` : ""}
+      <span style="margin-left:8px;color:#666">${paymentLine}</span>
+    </div>`;
     </div>`;
 }
 
@@ -862,18 +849,18 @@ function buildSingleInvoice(order: BatchOrderData, opts: BatchPrintOptions, comp
 
   return `
       ${partialBanner}
-      <div class="header-block">
-        <div>
-          <div style="font-size:12pt;font-weight:700">${escapeHtml(company.name)}</div>
-          ${company.inn ? `<div style="font-size:8pt;color:#666">ИНН/СТИР: ${escapeHtml(company.inn)}</div>` : ""}
-          ${company.address ? `<div style="font-size:8pt;color:#666">${escapeHtml(company.address)}</div>` : ""}
-          ${order.territoryName ? `<div style="font-size:8pt;color:#666">Территория: ${escapeHtml(order.territoryName)}</div>` : ""}
-        </div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;padding-bottom:4px;border-bottom:2px solid #333">
+        <div style="font-size:10pt;font-weight:700">${escapeHtml(company.name)}${company.inn ? ` (ИНН: ${escapeHtml(company.inn)})` : ""}</div>
         <div style="text-align:right">
-          <div style="font-size:7pt;text-transform:uppercase;letter-spacing:2px;color:#666">Накладная</div>
-          <div style="font-size:14pt;font-weight:800">№ ${escapeHtml(order.orderNumber)}</div>
-          <div style="font-size:8pt;color:#666">от ${new Date(order.createdAt).toLocaleDateString("ru-RU")}</div>
+          <span style="font-size:10pt;font-weight:700">Накладная № ${escapeHtml(order.orderNumber)}</span>
+          <span style="font-size:8pt;color:#666;margin-left:8px">от ${new Date(order.createdAt).toLocaleDateString("ru-RU")}</span>
         </div>
+      </div>
+      <div style="display:flex;gap:16px;font-size:8pt;color:#666;margin-bottom:4px">
+        ${order.shopName ? `<span>Магазин: <b>${escapeHtml(order.shopName)}</b></span>` : ""}
+        ${order.agentName ? `<span>Агент: ${escapeHtml(order.agentName)}</span>` : ""}
+        ${order.territoryName ? `<span>Территория: ${escapeHtml(order.territoryName)}</span>` : ""}
+        ${order.shopAddress ? `<span>Адрес: ${escapeHtml(order.shopAddress)}</span>` : ""}
       </div>
 
       ${buildDebtBlock(order, currency)}
@@ -905,10 +892,10 @@ function buildSingleInvoice(order: BatchOrderData, opts: BatchPrintOptions, comp
       ${opts.includeNotes && order.notes ? `<div style="margin-top:10px;padding:8px 10px;background:#fffbeb;border:1px solid #fde68a;font-size:8pt"><b>Примечание:</b> ${escapeHtml(order.notes)}</div>` : ""}
 
       ${opts.includeSignature ? `
-      <div class="signature-block">
-        <div class="sig-col"><div class="sig-label">Отпустил</div><div class="sig-line"></div></div>
-        <div class="sig-col"><div class="sig-label">Получил</div><div class="sig-line"></div></div>
-        <div class="sig-col"><div class="sig-label">Дата</div><div class="sig-line"></div></div>
+      <div style="display:flex;gap:20px;margin-top:8px;font-size:8pt">
+        <div style="flex:1">Отпустил: _______________</div>
+        <div style="flex:1">Получил: _______________</div>
+        <div style="flex:1">Дата: _______________</div>
       </div>` : ""}`;
 }
 

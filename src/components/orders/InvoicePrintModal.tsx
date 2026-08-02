@@ -32,7 +32,7 @@ export function InvoicePrintModal({ open, onOpenChange, orderIds, onDone }: Prop
   const [includeCostPrice, setIncludeCostPrice] = useState(false);
   const [includeSignature, setIncludeSignature] = useState(true);
   const [includeNotes, setIncludeNotes] = useState(true);
-  const [pageBreakPerOrder, setPageBreakPerOrder] = useState(true);
+  const [pageBreakPerOrder, setPageBreakPerOrder] = useState(false);
   const [sortBy, setSortBy] = useState<"orderNumber" | "shop" | "agentRoute">("orderNumber");
   const [previewIdx, setPreviewIdx] = useState(0);
   const [zoom, setZoom] = useState(75);

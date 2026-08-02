@@ -572,6 +572,7 @@ export default function Orders() {
                   t("ДАТА",   "SANA"),
                   t("МАГАЗИН","DO'KON"),
                   t("АГЕНТ",  "AGENT"),
+                  t("ТЕРРИТОРИЯ", "HUDUD"),
                   t("ОПЛАТА", "TO'LOV"),
                   t("ИТОГО",  "JAMI"),
                   t("СТАТУС", "HOLAT"),
@@ -592,13 +593,13 @@ export default function Orders() {
               {isLoading
                 ? Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i} style={{ borderBottom: `1px solid ${COLORS.border}` }}>
-                      <td colSpan={9} style={{ padding: "16px" }}>
+                      <td colSpan={10} style={{ padding: "16px" }}>
                         <div style={{ height: "16px", borderRadius: "6px", background: COLORS.surfaceLight, animation: `slideUp ${0.4 + i * 0.05}s ease forwards` }} />
                       </td>
                     </tr>
                   ))
                 : data?.data.length === 0
-                ? <tr><td colSpan={9} style={{ padding: "56px 16px", textAlign: "center", color: COLORS.textSecondary, fontSize: "13px", fontFamily: F.body }}>{t("Нет заказов", "Buyurtma yo'q")}</td></tr>
+                ? <tr><td colSpan={10} style={{ padding: "56px 16px", textAlign: "center", color: COLORS.textSecondary, fontSize: "13px", fontFamily: F.body }}>{t("Нет заказов", "Buyurtma yo'q")}</td></tr>
                 : data?.data.map(o => (
                     <tr
                       key={o.id}
@@ -629,6 +630,7 @@ export default function Orders() {
                       </td>
                       <td style={{ padding: "14px 16px", fontSize: "13px", color: COLORS.textPrimary }}>{o.shopName ?? "—"}</td>
                       <td style={{ padding: "14px 16px", fontSize: "13px", color: COLORS.textSecondary }}>{o.agentName ?? "—"}</td>
+                      <td style={{ padding: "14px 16px", fontSize: "12px", color: COLORS.textTertiary }}>{(o as Record<string, unknown>).territoryName as string ?? "—"}</td>
                       <td style={{ padding: "14px 16px" }}>
                         {o.paymentMethod && PAYMENT[o.paymentMethod] ? (
                           <span style={{
