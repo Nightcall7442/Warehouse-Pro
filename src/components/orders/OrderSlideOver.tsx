@@ -1,14 +1,25 @@
+import { useState } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Store, User, Truck, CreditCard, MapPin, Phone, Printer, Edit, X, AlertTriangle } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Store, User, Truck, CreditCard, MapPin, Phone, Printer, Edit3, Save, X,
+  AlertTriangle, RotateCcw, Package, Clock,
+} from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { useTranslate } from "@/i18n";
+import { useAuth } from "@/hooks/useAuth";
+import { notify } from "@/lib/toast";
+import { useConfirm } from "@/components/ConfirmDialog";
 import { OrderComments } from "./OrderComments";
+import { CompletionFlowModal } from "./CompletionFlowModal";
+import type { CompletionData, CompletionMode } from "./CompletionFlowModal";
 
 interface Props {
   open: boolean;
@@ -16,6 +27,18 @@ interface Props {
   orderId: number | null;
   currency?: string;
 }
+
+const STATUS_LABELS: Record<string, { ru: string; uz: string }> = {
+  new:                  { ru: "Новый",              uz: "Yangi" },
+  processing:           { ru: "В обработке",        uz: "Jarayonda" },
+  shipped:              { ru: "Отгружён",           uz: "Yuklandi" },
+  pending:              { ru: "В ожидании",         uz: "Kutishda" },
+  delivered:            { ru: "Доставлен",          uz: "Yetkazildi" },
+  cancelled:            { ru: "Отменён",            uz: "Bekor qilindi" },
+  returned:             { ru: "Возврат",            uz: "Qaytarildi" },
+  partially_returned:   { ru: "Возврат частично",  uz: "Qisman qaytarildi" },
+  partial_return_kept:  { ru: "Возврат (магазин)",  uz: "Qaytarish (do'kon qoldi)" },
+};
 
 const STATUS_COLORS: Record<string, string> = {
   new: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
@@ -27,6 +50,13 @@ const STATUS_COLORS: Record<string, string> = {
   returned: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
   partially_returned: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
   partial_return_kept: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+};
+
+const PAYMENT_METHODS: Record<string, { ru: string; uz: string }> = {
+  cash:     { ru: "Наличные",     uz: "Naqd" },
+  transfer: { ru: "Перечисление", uz: "O'tkazma" },
+  debt:     { ru: "Долг",         uz: "Qarz" },
+  card:     { ru: "Карта",        uz: "Plastik" },
 };
 
 function DebtBlock({ debt, orderTotal, currency }: { debt: string; orderTotal: string; currency: string }) {
@@ -74,14 +104,162 @@ function DebtBlock({ debt, orderTotal, currency }: { debt: string; orderTotal: s
 
 export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум" }: Props) {
   const t = useTranslate();
+  const { user } = useAuth();
+  const { confirm, dialog } = useConfirm();
+  const utils = trpc.useUtils();
+  const isOperatorOrCeo = user?.role === "ceo" || user?.role === "operator";
+
   const { data: order, isLoading } = trpc.order.getById.useQuery(
     { id: orderId! },
     { enabled: !!orderId && open },
   );
 
+  // ── Edit state ─────────────────────────────────────────────────────────
+  const [editing, setEditing] = useState(false);
+  const [editNotes, setEditNotes] = useState("");
+  const [editDiscount, setEditDiscount] = useState("0");
+  const [editPaymentMethod, setEditPaymentMethod] = useState<string>("cash");
+
+  // ── Completion flow state ──────────────────────────────────────────────
+  const [showCompletion, setShowCompletion] = useState(false);
+  const [completionMode, setCompletionMode] = useState<CompletionMode>("partial_return");
+  const [pendingStatus, setPendingStatus] = useState<string | null>(null);
+
+  // ── Mutations ──────────────────────────────────────────────────────────
+  const updateStatus = trpc.order.updateStatus.useMutation({
+    onSuccess: () => {
+      utils.order.getById.invalidate({ id: orderId! });
+      notify.success(t("Статус обновлён", "Holat yangilandi"));
+    },
+    onError: (e) => notify.error(e.message),
+  });
+
+  const updateOrder = trpc.order.update.useMutation({
+    onSuccess: () => {
+      utils.order.getById.invalidate({ id: orderId! });
+      setEditing(false);
+      notify.success(t("Заказ обновлён", "Buyurtma yangilandi"));
+    },
+    onError: (e) => notify.error(e.message),
+  });
+
+  const assignCourier = trpc.courier.assignCourier.useMutation({
+    onSuccess: () => {
+      utils.order.getById.invalidate({ id: orderId! });
+      notify.success(t("Курьер назначен", "Kuryer tayinlandi"));
+    },
+    onError: (e) => notify.error(e.message),
+  });
+
+  const { data: couriers } = trpc.user.list.useQuery(
+    { role: "courier" },
+    { enabled: isOperatorOrCeo && !!order && (order.status === "new" || order.status === "processing") },
+  );
+
+  // ── Completion flow ────────────────────────────────────────────────────
+  const COMPLETION_STATUSES: Record<string, CompletionMode> = {
+    partially_returned: "partial_return",
+    partial_return_kept: "combined",
+    delivered: "partial_payment",
+  };
+
+  const recordPartialDelivery = trpc.order.recordPartialDelivery.useMutation({
+    onSuccess: () => {
+      utils.order.getById.invalidate({ id: orderId! });
+      utils.order.getOrderPayments.invalidate({ orderId: orderId! });
+      utils.order.getAdjustments.invalidate({ orderId: orderId! });
+    },
+    onError: (e) => notify.error(e.message),
+  });
+
+  const recordDeliveryAndPayment = trpc.order.recordDeliveryAndPayment.useMutation({
+    onSuccess: () => {
+      utils.order.getById.invalidate({ id: orderId! });
+      utils.order.getOrderPayments.invalidate({ orderId: orderId! });
+      utils.order.getAdjustments.invalidate({ orderId: orderId! });
+    },
+    onError: (e) => notify.error(e.message),
+  });
+
+  async function handleStatusChange(newStatus: string) {
+    if (!order) return;
+    const mode = COMPLETION_STATUSES[newStatus];
+    if (mode) {
+      setCompletionMode(mode);
+      setPendingStatus(newStatus);
+      setShowCompletion(true);
+      return;
+    }
+    const label = STATUS_LABELS[newStatus]?.ru ?? newStatus;
+    const ok = await confirm({
+      title: t("Изменить статус?", "Holatni o'zgartirish?"),
+      message: `${STATUS_LABELS[order.status]?.ru ?? order.status} → ${label}`,
+      confirmText: t("Изменить", "O'zgartirish"),
+    });
+    if (ok) updateStatus.mutate({ id: order.id, status: newStatus as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" | "partially_returned" | "partial_return_kept" });
+  }
+
+  async function handleCompletionSave(data: CompletionData) {
+    if (!order) return;
+    const hasReturns = data.items.some(it => it.deliveredQuantity === 0 || it.returnReason);
+    const hasPayment = data.paidAmount && Number(data.paidAmount) > 0;
+
+    try {
+      if (hasReturns && hasPayment) {
+        await recordDeliveryAndPayment.mutateAsync({
+          orderId: order.id,
+          deliveredItems: data.items,
+          payment: { paidAmount: data.paidAmount!, method: data.paymentMethod || "cash", notes: data.notes },
+        });
+      } else if (hasReturns) {
+        await recordPartialDelivery.mutateAsync({ orderId: order.id, items: data.items });
+      } else if (hasPayment) {
+        await recordDeliveryAndPayment.mutateAsync({
+          orderId: order.id,
+          deliveredItems: data.items,
+          payment: { paidAmount: data.paidAmount!, method: data.paymentMethod || "cash", notes: data.notes },
+        });
+      }
+
+      if (pendingStatus) {
+        await updateStatus.mutateAsync({
+          id: order.id,
+          status: pendingStatus as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" | "partially_returned" | "partial_return_kept",
+        });
+      }
+
+      notify.success(t("Заказ завершён", "Buyurtma tugatildi"));
+      setShowCompletion(false);
+      setPendingStatus(null);
+    } catch {
+      // errors handled by individual mutations
+    }
+  }
+
+  const completionSaving = recordPartialDelivery.isPending || recordDeliveryAndPayment.isPending || updateStatus.isPending;
+
+  // ── Edit handlers ──────────────────────────────────────────────────────
+  function startEditing() {
+    if (!order) return;
+    setEditNotes(order.notes ?? "");
+    setEditDiscount(String(Number(order.discount ?? 0)));
+    setEditPaymentMethod(order.paymentMethod ?? "cash");
+    setEditing(true);
+  }
+
+  function saveEditing() {
+    if (!order) return;
+    updateOrder.mutate({
+      id: order.id,
+      notes: editNotes || undefined,
+      discount: editDiscount !== "0" ? editDiscount : undefined,
+    });
+  }
+
   if (!orderId) return null;
 
   return (
+    <>
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-[600px] sm:max-w-[600px] p-0 flex flex-col">
         <SheetHeader className="px-5 pt-5 pb-3">
@@ -89,9 +267,25 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
             {isLoading ? t("Загрузка...", "Yuklanmoqda...") : (
               <>
                 <span className="font-display">{order?.orderNumber}</span>
-                <Badge className={STATUS_COLORS[order?.status ?? "new"]}>
-                  {order?.status}
-                </Badge>
+                {/* Status dropdown for CEO/operator, badge for others */}
+                {isOperatorOrCeo && order && !order.deletedAt ? (
+                  <Select value={order.status} onValueChange={handleStatusChange}>
+                    <SelectTrigger className="h-7 text-xs rounded-full w-auto px-2">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(STATUS_LABELS).map(([key, labels]) => (
+                        <SelectItem key={key} value={key} className="text-xs">
+                          {labels.ru}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Badge className={STATUS_COLORS[order?.status ?? "new"]}>
+                    {order?.status}
+                  </Badge>
+                )}
                 <span className="ml-auto font-data text-lg">{Number(order?.total ?? 0).toLocaleString("ru")} {currency}</span>
               </>
             )}
@@ -138,6 +332,31 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
                         <div className="font-medium">{order.agent.name}</div>
                         <div className="text-xs text-muted-foreground">{t("Агент", "Agent")}</div>
                       </div>
+                    </div>
+                  )}
+
+                  {/* Courier assignment for CEO/operator */}
+                  {isOperatorOrCeo && (order.status === "new" || order.status === "processing") && (
+                    <div className="p-3 rounded-lg bg-muted/30 space-y-2">
+                      <div className="flex items-center gap-2 text-xs font-label text-secondary">
+                        <Truck size={14}/> {t("НАЗНАЧИТЬ КУРЬЕРА", "KURYERNI TAYINLASH")}
+                      </div>
+                      <Select
+                        value={order.courierId ? String(order.courierId) : ""}
+                        onValueChange={(val) => {
+                          const courierId = Number(val);
+                          if (courierId) assignCourier.mutate({ orderId: order.id, courierId });
+                        }}
+                      >
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue placeholder={t("Выберите курьера", "Kuryer tanlang")} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(couriers?.data ?? []).map((c) => (
+                            <SelectItem key={c.id} value={String(c.id)} className="text-xs">{c.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   )}
 
@@ -206,10 +425,60 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
                   <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
                     <CreditCard className="h-5 w-5 text-muted-foreground" />
                     <div>
-                      <div className="font-medium capitalize">{order.paymentMethod}</div>
+                      <div className="font-medium capitalize">{PAYMENT_METHODS[order.paymentMethod ?? "cash"]?.ru ?? order.paymentMethod}</div>
                       <div className="text-xs text-muted-foreground">{t("Метод оплаты", "To'lov usuli")}</div>
                     </div>
                   </div>
+
+                  {/* Notes (editable for CEO/operator) */}
+                  {(order.notes || editing) && (
+                    <div className="p-3 rounded-lg bg-muted/30">
+                      <p className="text-[10px] font-label text-secondary tracking-wider mb-1">{t("ПРИМЕЧАНИЕ", "ESLATMA")}</p>
+                      {editing ? (
+                        <Textarea value={editNotes} onChange={e => setEditNotes(e.target.value)} className="text-sm" rows={2} placeholder={t("Комментарий...", "Izoh...")} />
+                      ) : (
+                        <p className="text-sm text-secondary">{order.notes || t("Нет примечания", "Izoh yo'q")}</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Edit form for CEO/operator */}
+                  {isOperatorOrCeo && editing && (
+                    <div className="p-3 rounded-lg bg-muted/30 space-y-3">
+                      <p className="font-label text-secondary text-xs tracking-wider">{t("РЕДАКТИРОВАНИЕ ЗАКАЗА", "BUYURTMANI TAHRIRLASH")}</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs text-secondary mb-1 block">{t("Скидка (%)", "Chegirma (%)")}</label>
+                          <Input type="number" min="0" max="100" value={editDiscount} onChange={e => setEditDiscount(e.target.value)} className="h-8 text-sm" />
+                        </div>
+                        <div>
+                          <label className="text-xs text-secondary mb-1 block">{t("Метод оплаты", "To'lov usuli")}</label>
+                          <Select value={editPaymentMethod} onValueChange={setEditPaymentMethod}>
+                            <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {Object.entries(PAYMENT_METHODS).map(([key, pm]) => (
+                                <SelectItem key={key} value={key} className="text-sm">{pm.ru}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Action buttons for CEO/operator */}
+                  {isOperatorOrCeo && !order.deletedAt && (
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={editing ? saveEditing : startEditing}>
+                        {editing ? <><Save className="h-3.5 w-3.5 mr-1" />{t("Сохранить", "Saqlash")}</> : <><Edit3 className="h-3.5 w-3.5 mr-1" />{t("Изменить заказ", "Buyurtmani tahrirlash")}</>}
+                      </Button>
+                      {editing && (
+                        <Button variant="ghost" size="sm" onClick={() => setEditing(false)}>
+                          <X className="h-3.5 w-3.5 mr-1" />{t("Отмена", "Bekor")}
+                        </Button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </ScrollArea>
             </TabsContent>
@@ -236,17 +505,13 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
                   {order.status === "delivered" && (
                     <div className="flex items-start gap-3">
                       <div className="w-2 h-2 rounded-full bg-green-500 mt-2" />
-                      <div>
-                        <div className="text-sm font-medium">{t("Выполнен", "Bajarildi")}</div>
-                      </div>
+                      <div><div className="text-sm font-medium">{t("Выполнен", "Bajarildi")}</div></div>
                     </div>
                   )}
                   {order.status === "cancelled" && (
                     <div className="flex items-start gap-3">
                       <div className="w-2 h-2 rounded-full bg-red-500 mt-2" />
-                      <div>
-                        <div className="text-sm font-medium">{t("Отменён", "Bekor qilingan")}</div>
-                      </div>
+                      <div><div className="text-sm font-medium">{t("Отменён", "Bekor qilingan")}</div></div>
                     </div>
                   )}
                 </div>
@@ -292,6 +557,33 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
         )}
       </SheetContent>
     </Sheet>
+
+    {/* Completion Flow Modal */}
+    {order && (
+      <CompletionFlowModal
+        open={showCompletion}
+        onClose={() => { setShowCompletion(false); setPendingStatus(null); }}
+        mode={completionMode}
+        orderNumber={order.orderNumber}
+        orderTotal={order.total}
+        items={order.items.map(i => ({
+          id: i.id,
+          productName: i.productName ?? "",
+          productCode: i.productCode ?? undefined,
+          quantity: Number(i.quantity),
+          unitPrice: i.unitPrice,
+          unit: i.unit ?? undefined,
+          subtotal: i.subtotal,
+          deliveredQuantity: i.deliveredQuantity,
+          returnReason: i.returnReason,
+        }))}
+        currency={currency}
+        saving={completionSaving}
+        onSave={handleCompletionSave}
+      />
+    )}
+    {dialog}
+    </>
   );
 }
 
