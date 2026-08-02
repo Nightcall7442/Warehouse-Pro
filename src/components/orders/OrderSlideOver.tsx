@@ -218,11 +218,6 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
     await exportToExcel(rows, `order-${order.orderNumber}`);
   }
 
-  // ── Completion flow state ──────────────────────────────────────────────
-  const [showCompletion, setShowCompletion] = useState(false);
-  const [completionMode, setCompletionMode] = useState<CompletionMode>("partial_return");
-  const [pendingStatus, setPendingStatus] = useState<string | null>(null);
-
   // ── Mutations ──────────────────────────────────────────────────────────
   const updateOrder = trpc.order.update.useMutation({
     onSuccess: () => {
