@@ -213,6 +213,7 @@ export default function OrderDetail() {
       paymentMethodColor: pm?.color,
       shopOwner:  order.shop?.ownerName ?? undefined,
       shopPhone:  ((order.shop as Record<string, unknown>)?.phone as string) ?? undefined,
+      territoryName: (order.shop as Record<string, unknown>)?.territoryName as string ?? undefined,
     };
   };
 

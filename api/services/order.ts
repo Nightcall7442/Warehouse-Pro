@@ -1,5 +1,5 @@
 import { eq, and, desc, sql, isNull, inArray } from "drizzle-orm";
-import { orders, orderItems, warehouseStock, shops, users, products, notifications, warehouses, payments, loadingLists, loadingListOrders, auditLog, debtReminders, orderAdjustments, stockMovements } from "@db/schema";
+import { orders, orderItems, warehouseStock, shops, users, products, notifications, warehouses, payments, loadingLists, loadingListOrders, auditLog, debtReminders, orderAdjustments, stockMovements, territories } from "@db/schema";
 import { cache, CacheKeys } from "../lib/cache";
 import { logger } from "../lib/logger";
 
@@ -124,8 +124,10 @@ export const OrderService = {
       }).from(orderItems)
         .innerJoin(products, eq(orderItems.productId, products.id))
         .where(eq(orderItems.orderId, orderId)),
-      db.select({ id: shops.id, name: shops.name, address: shops.address, city: shops.city, phone: shops.phone, debt: shops.debt, ownerName: shops.ownerName })
-        .from(shops).where(and(eq(shops.id, order.shopId), eq(shops.tenantId, tenantId))).limit(1),
+      db.select({ id: shops.id, name: shops.name, address: shops.address, city: shops.city, phone: shops.phone, debt: shops.debt, ownerName: shops.ownerName, territoryName: territories.name })
+        .from(shops)
+        .leftJoin(territories, eq(shops.territoryId, territories.id))
+        .where(and(eq(shops.id, order.shopId), eq(shops.tenantId, tenantId))).limit(1),
       order.agentId
         ? db.select({ id: users.id, name: users.name }).from(users).where(eq(users.id, order.agentId)).limit(1)
         : Promise.resolve([]),
@@ -735,9 +737,11 @@ export const OrderService = {
       shopName: shops.name, shopAddress: shops.address, shopCity: shops.city,
       shopPhone: shops.phone, shopDebt: shops.debt,
       agentName: users.name,
+      territoryName: territories.name,
     }).from(orders)
       .leftJoin(shops, eq(orders.shopId, shops.id))
       .leftJoin(users, eq(orders.agentId, users.id))
+      .leftJoin(territories, eq(shops.territoryId, territories.id))
       .where(and(eq(orders.tenantId, tenantId), inArray(orders.id, orderIds)));
 
     // Fetch items for all orders in one query
@@ -864,9 +868,11 @@ export const OrderService = {
       shopName: shops.name, shopAddress: shops.address, shopCity: shops.city,
       shopPhone: shops.phone, shopGpsLat: shops.gpsLat, shopGpsLng: shops.gpsLng,
       shopDebt: shops.debt, agentName: users.name,
+      territoryName: territories.name,
     }).from(orders)
       .leftJoin(shops, eq(orders.shopId, shops.id))
       .leftJoin(users, eq(orders.agentId, users.id))
+      .leftJoin(territories, eq(shops.territoryId, territories.id))
       .where(and(eq(orders.tenantId, tenantId), inArray(orders.id, input.orderIds)));
 
     if (ordersData.length === 0) throw new Error("Заказы не найдены");

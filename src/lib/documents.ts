@@ -49,6 +49,101 @@ const BASE_STYLES = `
   @page { margin: 10mm; size: A4; }
 `;
 
+/** Professional grid styles for modern documents (invoices, loading lists) */
+const GRID_STYLES = `
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    font-size: 10pt;
+    color: #1e293b;
+    background: #fff;
+    padding: 12mm 15mm 10mm;
+    line-height: 1.4;
+  }
+  @page { margin: 8mm; size: A4; }
+  @media print {
+    body { padding: 0; }
+    .no-print { display: none !important; }
+    .page-container { page-break-inside: avoid; }
+  }
+  table { width: 100%; border-collapse: collapse; }
+  th, td {
+    border: 1px solid #333;
+    padding: 5px 7px;
+    font-size: 9.5pt;
+    vertical-align: top;
+  }
+  th {
+    background: #f0f0f0;
+    font-weight: 600;
+    text-align: center;
+    font-size: 8.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #333;
+  }
+  .no-border td, .no-border th { border: none; }
+  .center { text-align: center; }
+  .right { text-align: right; }
+  .bold { font-weight: bold; }
+  .header-block {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #333;
+  }
+  .meta-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .meta-box {
+    padding: 8px 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #fafafa;
+  }
+  .meta-box-title {
+    font-size: 7.5pt;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #666;
+    margin-bottom: 4px;
+    font-weight: 600;
+  }
+  .totals-box {
+    width: 260px;
+    margin-left: auto;
+    margin-top: 8px;
+  }
+  .totals-box td { border: none; padding: 3px 6px; font-size: 9.5pt; }
+  .totals-box .total-row td {
+    font-weight: bold;
+    font-size: 11pt;
+    border-top: 2px solid #333;
+    padding-top: 6px;
+  }
+  .signature-block {
+    display: flex;
+    gap: 30px;
+    margin-top: 20px;
+    padding-top: 12px;
+    border-top: 1px solid #ddd;
+  }
+  .sig-col { flex: 1; }
+  .sig-label { font-size: 7.5pt; color: #666; margin-bottom: 4px; }
+  .sig-line { border-bottom: 1px solid #999; min-height: 18px; margin-bottom: 2px; }
+  .page-break { page-break-before: always; }
+  .invoice-container {
+    page-break-inside: avoid;
+    margin-bottom: 10mm;
+    padding: 12mm 15mm;
+  }
+`;
+
 function openPrintWindow(html: string, title: string, customStyles?: string) {
   const w = window.open("", "_blank", "width=900,height=700");
   if (!w) { window.print(); return; }
@@ -97,6 +192,7 @@ export type OrderDocData = {
   paymentMethodColor?: string;
   shopOwner?: string;
   shopPhone?: string;
+  territoryName?: string;
 };
 
 export type ArrivalDocData = {
@@ -633,6 +729,7 @@ export type BatchOrderData = {
   shopDebt: string;
   shopDebtAmount: number;
   agentName: string | null;
+  territoryName: string | null;
   paymentMethod: string;
   invoicePrintedAt: Date | null;
   isPartial?: boolean;
@@ -717,29 +814,29 @@ function buildDebtBlock(order: BatchOrderData, currency: string): string {
 
 function buildSingleInvoice(order: BatchOrderData, opts: BatchPrintOptions, company: CompanyInfo, currency: string): string {
   const itemRows = order.items.map((item, i) => {
-    const costCol = opts.includeCostPrice ? `<td style="text-align:right;padding:4px 6px;font-size:8pt;color:#94a3b8">${Number(item.costPrice).toLocaleString("ru-RU")}</td>` : "";
+    const costCol = opts.includeCostPrice ? `<td class="right">${Number(item.costPrice).toLocaleString("ru-RU")}</td>` : "";
     const qtyCol = order.isPartial
-      ? `<td style="text-align:right;padding:4px 6px;font-size:8.5pt;text-decoration:line-through;color:#94a3b8">${Number(item.quantity).toFixed(2)}</td>
-         <td style="text-align:right;padding:4px 6px;font-size:8.5pt;font-weight:600">${Number(item.quantity).toFixed(2)}</td>`
-      : `<td style="text-align:right;padding:4px 6px;font-size:8.5pt">${Number(item.quantity).toFixed(2)}</td>`;
+      ? `<td class="right" style="text-decoration:line-through;color:#999">${Number(item.quantity).toFixed(2)}</td>
+         <td class="right bold">${Number(item.quantity).toFixed(2)}</td>`
+      : `<td class="right">${Number(item.quantity).toFixed(2)}</td>`;
     return `
       <tr>
-        <td style="text-align:center;padding:4px 6px;font-size:8.5pt">${i + 1}</td>
-        <td style="padding:4px 6px;font-size:8.5pt">${escapeHtml(item.productName)}${item.productCode ? ` <span style="color:#94a3b8;font-size:7pt">(${escapeHtml(item.productCode)})</span>` : ""}</td>
-        <td style="text-align:center;padding:4px 6px;font-size:8.5pt">${escapeHtml(item.unit)}</td>
+        <td class="center">${i + 1}</td>
+        <td>${escapeHtml(item.productName)}${item.productCode ? ` <span style="color:#666;font-size:8pt">(${escapeHtml(item.productCode)})</span>` : ""}</td>
+        <td class="center">${escapeHtml(item.unit)}</td>
         ${qtyCol}
-        <td style="text-align:right;padding:4px 6px;font-size:8.5pt">${Number(item.unitPrice).toLocaleString("ru-RU")}</td>
+        <td class="right">${Number(item.unitPrice).toLocaleString("ru-RU")}</td>
         ${costCol}
-        <td style="text-align:right;padding:4px 6px;font-size:8.5pt;font-weight:600">${Number(item.subtotal).toLocaleString("ru-RU")}</td>
+        <td class="right bold">${Number(item.subtotal).toLocaleString("ru-RU")}</td>
       </tr>`;
   }).join("");
 
-  const costHeader = opts.includeCostPrice ? '<th style="width:10%;text-align:right;padding:4px 6px;font-size:7.5pt;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Себест.</th>' : "";
+  const costHeader = opts.includeCostPrice ? '<th style="width:10%">Себест.</th>' : "";
 
   // Show ordered vs delivered columns if partial delivery
   const qtyHeader = order.isPartial
-    ? '<th style="width:9%;text-align:right;padding:4px 6px;font-size:7.5pt;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Заказ</th><th style="width:9%;text-align:right;padding:4px 6px;font-size:7.5pt;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Отдали</th>'
-    : '<th style="width:9%;text-align:right;padding:4px 6px;font-size:7.5pt;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Кол-во</th>';
+    ? '<th style="width:9%">Заказ</th><th style="width:9%">Отдали</th>'
+    : '<th style="width:9%">Кол-во</th>';
 
   const partialBanner = order.isPartial
     ? `<div style="margin-bottom:10px;padding:8px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;font-size:9pt;color:#92400e;font-weight:600">
@@ -748,58 +845,55 @@ function buildSingleInvoice(order: BatchOrderData, opts: BatchPrintOptions, comp
     : "";
 
   return `
-    <div style="padding:15mm 15mm 10mm;font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif">
       ${partialBanner}
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid #e2e8f0">
+      <div class="header-block">
         <div>
-          <div style="font-size:12pt;font-weight:700;color:#0f172a">${escapeHtml(company.name)}</div>
-          ${company.inn ? `<div style="font-size:8pt;color:#94a3b8">ИНН/СТИР: ${escapeHtml(company.inn)}</div>` : ""}
-          ${company.address ? `<div style="font-size:8pt;color:#94a3b8">${escapeHtml(company.address)}</div>` : ""}
+          <div style="font-size:12pt;font-weight:700">${escapeHtml(company.name)}</div>
+          ${company.inn ? `<div style="font-size:8pt;color:#666">ИНН/СТИР: ${escapeHtml(company.inn)}</div>` : ""}
+          ${company.address ? `<div style="font-size:8pt;color:#666">${escapeHtml(company.address)}</div>` : ""}
+          ${order.territoryName ? `<div style="font-size:8pt;color:#666">Территория: ${escapeHtml(order.territoryName)}</div>` : ""}
         </div>
         <div style="text-align:right">
-          <div style="font-size:7pt;text-transform:uppercase;letter-spacing:2px;color:#94a3b8">Накладная</div>
-          <div style="font-size:14pt;font-weight:800;color:#0f172a">№ ${escapeHtml(order.orderNumber)}</div>
-          <div style="font-size:8pt;color:#64748b">от ${new Date(order.createdAt).toLocaleDateString("ru-RU")}</div>
+          <div style="font-size:7pt;text-transform:uppercase;letter-spacing:2px;color:#666">Накладная</div>
+          <div style="font-size:14pt;font-weight:800">№ ${escapeHtml(order.orderNumber)}</div>
+          <div style="font-size:8pt;color:#666">от ${new Date(order.createdAt).toLocaleDateString("ru-RU")}</div>
         </div>
       </div>
 
       ${buildDebtBlock(order, currency)}
 
-      <table style="width:100%;border-collapse:collapse;margin:10px 0">
+      <table>
         <thead>
-          <tr style="background:#f1f5f9">
-            <th style="width:4%;text-align:center;padding:4px 6px;font-size:7.5pt;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">№</th>
-            <th style="text-align:left;padding:4px 6px;font-size:7.5pt;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Наименование</th>
-            <th style="width:7%;text-align:center;padding:4px 6px;font-size:7.5pt;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Ед.</th>
+          <tr>
+            <th style="width:4%">№</th>
+            <th style="text-align:left">Наименование</th>
+            <th style="width:7%">Ед.</th>
             ${qtyHeader}
-            <th style="width:12%;text-align:right;padding:4px 6px;font-size:7.5pt;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Цена</th>
+            <th style="width:12%">Цена</th>
             ${costHeader}
-            <th style="width:14%;text-align:right;padding:4px 6px;font-size:7.5pt;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Сумма</th>
+            <th style="width:14%">Сумма</th>
           </tr>
         </thead>
         <tbody>${itemRows}</tbody>
       </table>
 
-      <div style="display:flex;justify-content:flex-end;margin-top:8px">
-        <div style="width:220px">
-          <table style="font-size:9pt;width:100%">
-            <tr><td style="padding:3px 0;color:#64748b">Итого позиций:</td><td style="padding:3px 0;text-align:right">${order.items.length}</td></tr>
-            <tr><td style="padding:3px 0;color:#64748b">Сумма:</td><td style="padding:3px 0;text-align:right">${Number(order.subtotal).toLocaleString("ru-RU")} ${currency}</td></tr>
-            ${Number(order.discount) > 0 ? `<tr><td style="padding:3px 0;color:#64748b">Скидка:</td><td style="padding:3px 0;text-align:right;color:#16a34a">−${Number(order.discount).toLocaleString("ru-RU")} ${currency}</td></tr>` : ""}
-            <tr style="border-top:2px solid #0f172a"><td style="padding:6px 0;font-weight:700">ИТОГО:</td><td style="padding:6px 0;text-align:right;font-size:11pt;font-weight:800">${Number(order.total).toLocaleString("ru-RU")} ${currency}</td></tr>
-          </table>
-        </div>
+      <div class="totals-box">
+        <table>
+          <tr><td>Итого позиций:</td><td class="right">${order.items.length}</td></tr>
+          <tr><td>Сумма:</td><td class="right">${Number(order.subtotal).toLocaleString("ru-RU")} ${currency}</td></tr>
+          ${Number(order.discount) > 0 ? `<tr><td>Скидка:</td><td class="right" style="color:#16a34a">−${Number(order.discount).toLocaleString("ru-RU")} ${currency}</td></tr>` : ""}
+          <tr class="total-row"><td>ИТОГО:</td><td class="right">${Number(order.total).toLocaleString("ru-RU")} ${currency}</td></tr>
+        </table>
       </div>
 
-      ${opts.includeNotes && order.notes ? `<div style="margin-top:10px;padding:8px 10px;background:#fffbeb;border:1px solid #fde68a;border-radius:4px;font-size:8pt;color:#92400e"><b>Примечание:</b> ${escapeHtml(order.notes)}</div>` : ""}
+      ${opts.includeNotes && order.notes ? `<div style="margin-top:10px;padding:8px 10px;background:#fffbeb;border:1px solid #fde68a;font-size:8pt"><b>Примечание:</b> ${escapeHtml(order.notes)}</div>` : ""}
 
       ${opts.includeSignature ? `
-      <div style="display:flex;gap:30px;margin-top:20px;padding-top:12px;border-top:1px solid #e2e8f0">
-        <div style="flex:1"><div style="font-size:7pt;color:#94a3b8">Отпустил</div><div style="border-bottom:1px solid #cbd5e1;min-height:18px;margin-top:4px"></div></div>
-        <div style="flex:1"><div style="font-size:7pt;color:#94a3b8">Получил</div><div style="border-bottom:1px solid #cbd5e1;min-height:18px;margin-top:4px"></div></div>
-        <div style="flex:1"><div style="font-size:7pt;color:#94a3b8">Дата</div><div style="border-bottom:1px solid #cbd5e1;min-height:18px;margin-top:4px"></div></div>
-      </div>` : ""}
-    </div>`;
+      <div class="signature-block">
+        <div class="sig-col"><div class="sig-label">Отпустил</div><div class="sig-line"></div></div>
+        <div class="sig-col"><div class="sig-label">Получил</div><div class="sig-line"></div></div>
+        <div class="sig-col"><div class="sig-label">Дата</div><div class="sig-line"></div></div>
+      </div>` : ""}`;
 }
 
 export function printBatchInvoices(orders: BatchOrderData[], opts: BatchPrintOptions, company: CompanyInfo, currency: string = "сум") {
@@ -807,20 +901,14 @@ export function printBatchInvoices(orders: BatchOrderData[], opts: BatchPrintOpt
   const sorted = [...orders];
   if (opts.sortBy === "shop") sorted.sort((a, b) => (a.shopName ?? "").localeCompare(b.shopName ?? ""));
   else if (opts.sortBy === "agentRoute") sorted.sort((a, b) => (a.agentName ?? "").localeCompare(b.agentName ?? ""));
+  else if (opts.sortBy === "territory") sorted.sort((a, b) => (a.territoryName ?? "").localeCompare(b.territoryName ?? ""));
   else sorted.sort((a, b) => a.orderNumber.localeCompare(b.orderNumber));
 
-  const pages = sorted.map(o => buildSingleInvoice(o, opts, company, currency));
-  const separator = opts.pageBreakPerOrder ? '<div style="page-break-before:always"></div>' : '<hr style="margin:20px 0;border:none;border-top:1px dashed #ccc">';
+  const pages = sorted.map(o => `<div class="invoice-container">${buildSingleInvoice(o, opts, company, currency)}</div>`);
+  const separator = opts.pageBreakPerOrder ? '<div style="page-break-before:always"></div>' : '<div style="margin-bottom:10mm"></div>';
   const html = pages.join(separator);
 
-  const BATCH_STYLES = `
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; background: #fff; color: #1e293b; }
-    @page { margin: 5mm; size: A4; }
-    @media print { .no-print { display: none !important; } }
-  `;
-
-  openPrintWindow(html, `Накладные — ${orders.length} заказ(ов)`, BATCH_STYLES);
+  openPrintWindow(html, `Накладные — ${orders.length} заказ(ов)`, GRID_STYLES);
 }
 
 // ── 6. LOADING LIST — for warehouse workers ────────────────────────────────
@@ -842,6 +930,7 @@ export type LoadingListData = {
     shopGpsLng: string | null;
     shopDebt: string;
     agentName: string | null;
+    territoryName: string | null;
     total: string;
   }>;
   items: Array<{
@@ -858,42 +947,70 @@ export type LoadingListData = {
 function buildLoadingListAggregated(data: LoadingListData, currency: string): string {
   const itemRows = data.items.map((item, i) => `
     <tr>
-      <td style="text-align:center;padding:5px 6px;font-size:9pt">${i + 1}</td>
-      <td style="padding:5px 6px;font-size:9pt">${escapeHtml(item.productCode ?? "")}</td>
-      <td style="padding:5px 6px;font-size:9pt">${escapeHtml(item.productName)}</td>
-      <td style="text-align:center;padding:5px 6px;font-size:9pt">${escapeHtml(item.unit)}</td>
-      <td style="text-align:right;padding:5px 6px;font-size:9pt;font-weight:600">${Number(item.totalQty).toFixed(2)}</td>
-      <td style="text-align:right;padding:5px 6px;font-size:9pt">${(Number(item.totalQty) * Number(item.unitWeight)).toFixed(2)}</td>
+      <td class="center">${i + 1}</td>
+      <td>${escapeHtml(item.productCode ?? "")}</td>
+      <td>${escapeHtml(item.productName)}</td>
+      <td class="center">${escapeHtml(item.unit)}</td>
+      <td class="right bold">${Number(item.totalQty).toFixed(2)}</td>
+      <td class="right">${(Number(item.totalQty) * Number(item.unitWeight)).toFixed(1)}</td>
     </tr>`).join("");
+
+  // Aggregate by agent
+  const agentMap = new Map<string, { count: number; total: number }>();
+  for (const o of data.orders) {
+    const name = o.agentName ?? "Не назначен";
+    const entry = agentMap.get(name) ?? { count: 0, total: 0 };
+    entry.count++;
+    entry.total += Number(o.total);
+    agentMap.set(name, entry);
+  }
+  const agentLines = [...agentMap.entries()]
+    .sort((a, b) => b[1].total - a[1].total)
+    .map(([name, { count, total }]) => `<div>• ${escapeHtml(name)} — ${count} заказ(ов) — ${total.toLocaleString("ru-RU")} ${currency}</div>`)
+    .join("");
+
+  // Territory
+  const territories = [...new Set(data.orders.map(o => o.territoryName).filter(Boolean))];
+  const territoryLine = territories.length > 0 ? `<div>Территория: <b>${territories.join(", ")}</b></div>` : "";
+
+  const totalSum = data.orders.reduce((s, o) => s + Number(o.total), 0);
 
   return `
     <div style="text-align:center;margin-bottom:10px">
-      <div style="font-size:16pt;font-weight:800;color:#0f172a">ЗАГРУЗОЧНЫЙ ЛИСТ</div>
-      <div style="font-size:11pt;color:#64748b">№ ${escapeHtml(data.listNumber)}</div>
+      <div style="font-size:16pt;font-weight:800">ЗАГРУЗОЧНЫЙ ЛИСТ</div>
+      <div style="font-size:11pt;color:#666">№ ${escapeHtml(data.listNumber)}</div>
     </div>
-    <div style="display:flex;gap:20px;margin-bottom:12px;font-size:9pt;color:#64748b">
-      <div>Дата: <b>${new Date().toLocaleDateString("ru-RU")}</b></div>
-      <div>Заказов: <b>${data.totalOrders}</b></div>
-      <div>Позиций: <b>${data.totalItems}</b></div>
-      <div>Общий вес: <b>${data.totalWeight.toFixed(1)} кг</b></div>
-    </div>
-    <table style="width:100%;border-collapse:collapse">
+    <table class="no-border" style="margin-bottom:12px;font-size:9pt">
+      <tr>
+        <td>Дата: <b>${new Date().toLocaleDateString("ru-RU")}</b></td>
+        <td>Заказов: <b>${data.totalOrders}</b></td>
+        <td>Позиций: <b>${data.totalItems}</b></td>
+        <td>Общий вес: <b>${data.totalWeight.toFixed(1)} кг</b></td>
+        <td>Сумма: <b>${totalSum.toLocaleString("ru-RU")} ${currency}</b></td>
+      </tr>
+      ${territoryLine ? `<tr><td colspan="5">${territoryLine}</td></tr>` : ""}
+    </table>
+    <table>
       <thead>
-        <tr style="background:#f1f5f9">
-          <th style="width:4%;padding:5px 6px;font-size:8pt;color:#64748b;font-weight:600;border-bottom:2px solid #e2e8f0">№</th>
-          <th style="width:10%;padding:5px 6px;font-size:8pt;color:#64748b;font-weight:600;border-bottom:2px solid #e2e8f0;text-align:left">Код</th>
-          <th style="padding:5px 6px;font-size:8pt;color:#64748b;font-weight:600;border-bottom:2px solid #e2e8f0;text-align:left">Наименование</th>
-          <th style="width:8%;padding:5px 6px;font-size:8pt;color:#64748b;font-weight:600;border-bottom:2px solid #e2e8f0">Ед.</th>
-          <th style="width:12%;padding:5px 6px;font-size:8pt;color:#64748b;font-weight:600;border-bottom:2px solid #e2e8f0;text-align:right">Кол-во</th>
-          <th style="width:12%;padding:5px 6px;font-size:8pt;color:#64748b;font-weight:600;border-bottom:2px solid #e2e8f0;text-align:right">Вес (кг)</th>
+        <tr>
+          <th style="width:4%">№</th>
+          <th style="width:10%;text-align:left">Код</th>
+          <th style="text-align:left">Наименование</th>
+          <th style="width:8%">Ед.</th>
+          <th style="width:12%">Кол-во</th>
+          <th style="width:12%">Вес (кг)</th>
         </tr>
       </thead>
       <tbody>${itemRows}</tbody>
     </table>
-    <div style="display:flex;gap:30px;margin-top:20px;padding-top:12px;border-top:1px solid #e2e8f0">
-      <div style="flex:1"><div style="font-size:8pt;color:#94a3b8">Проверил кладовщик</div><div style="border-bottom:1px solid #cbd5e1;min-height:20px;margin-top:4px"></div></div>
-      <div style="flex:1"><div style="font-size:8pt;color:#94a3b8">Отпустил</div><div style="border-bottom:1px solid #cbd5e1;min-height:20px;margin-top:4px"></div></div>
-      <div style="flex:1"><div style="font-size:8pt;color:#94a3b8">Дата</div><div style="border-bottom:1px solid #cbd5e1;min-height:20px;margin-top:4px"></div></div>
+    <div style="margin-top:12px;font-size:9pt">
+      <b>Торговые агенты:</b>
+      ${agentLines}
+    </div>
+    <div class="signature-block">
+      <div class="sig-col"><div class="sig-label">Проверил кладовщик</div><div class="sig-line"></div></div>
+      <div class="sig-col"><div class="sig-label">Отпустил</div><div class="sig-line"></div></div>
+      <div class="sig-col"><div class="sig-label">Дата</div><div class="sig-line"></div></div>
     </div>`;
 }
 
@@ -964,13 +1081,5 @@ export function printLoadingList(data: LoadingListData, format: "aggregated" | "
     ? buildLoadingListAggregated(data, currency)
     : buildLoadingListByOrder(data, currency);
 
-  const STYLES = `
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; background: #fff; color: #1e293b; padding: 12mm 15mm; }
-    @page { margin: 8mm; size: A4; }
-    table { width: 100%; border-collapse: collapse; }
-    @media print { .no-print { display: none !important; } }
-  `;
-
-  openPrintWindow(html, `Загрузочный лист № ${data.listNumber}`, STYLES);
+  openPrintWindow(html, `Загрузочный лист № ${data.listNumber}`, GRID_STYLES);
 }
