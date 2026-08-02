@@ -133,7 +133,7 @@ export async function calculateAgentKpi(
     .where(and(
       eq(orders.tenantId, tenantId),
       eq(orders.agentId, agentId),
-      eq(orders.status, "completed"),
+      inArray(orders.status, ["delivered", "completed"]),
       isNull(orders.deletedAt),
       gte(orders.createdAt, periodStart),
       lte(orders.createdAt, periodEnd),
@@ -372,7 +372,7 @@ export async function calculateSalary(
     .where(and(
       eq(orders.tenantId, tenantId),
       eq(orders.agentId, agentId),
-      eq(orders.status, "completed"),
+      inArray(orders.status, ["delivered", "completed"]),
       isNull(orders.deletedAt),
       gte(orders.createdAt, periodStart),
       lte(orders.createdAt, periodEnd),
@@ -527,7 +527,7 @@ export async function getAgentList(
     }).from(orders)
       .where(and(
         eq(orders.tenantId, tenantId),
-        eq(orders.status, "completed"),
+        inArray(orders.status, ["delivered", "completed"]),
         gte(orders.createdAt, periodStart),
         lte(orders.createdAt, periodEnd),
         inArray(orders.agentId, agentIds),

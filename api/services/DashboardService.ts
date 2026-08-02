@@ -1,5 +1,5 @@
 import { orders, warehouseStock, users, shops, orderItems, products } from "@db/schema";
-import { eq, and, sql, desc } from "drizzle-orm";
+import { eq, and, sql, desc , inArray } from "drizzle-orm";
 import { subDays } from "date-fns";
 import { cache, CacheKeys, CacheTTL } from "../lib/cache";
 
@@ -18,7 +18,7 @@ export const DashboardService = {
       db2.select({ count: sql<number>`count(*)` }).from(orders)
         .where(and(eq(orders.tenantId, tenantId), sql`DATE(${orders.createdAt}) = ${today}`)),
       db2.select({ total: sql<string>`COALESCE(SUM(${orders.total}), 0)` }).from(orders)
-        .where(and(eq(orders.tenantId, tenantId), sql`DATE(${orders.createdAt}) = ${today}`, eq(orders.status, "completed"))),
+        .where(and(eq(orders.tenantId, tenantId), sql`DATE(${orders.createdAt}) = ${today}`, inArray(orders.status, ["delivered", "completed"]))),
       db2.select({ count: sql<number>`count(*)` }).from(users)
         .where(and(eq(users.tenantId, tenantId), eq(users.role, "agent"), eq(users.status, "active"))),
       db2.select({ total: sql<string>`COALESCE(SUM(${warehouseStock.currentStock}), 0)` }).from(warehouseStock)

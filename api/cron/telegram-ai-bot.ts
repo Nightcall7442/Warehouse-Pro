@@ -11,7 +11,7 @@
 import { Hono } from "hono";
 import { getDb } from "../queries/connection";
 import { products, warehouseStock, orders, orderItems, users, shops } from "@db/schema";
-import { eq, and, sql, desc, gte, like } from "drizzle-orm";
+import { eq, and, sql, desc, gte, like , inArray } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { sendTelegram } from "../telegram-router";
 import { env } from "../lib/env";
@@ -168,7 +168,7 @@ async function handleIntent(
       .innerJoin(products, eq(orderItems.productId, products.id))
       .where(and(
         eq(orders.tenantId, tenantId),
-        eq(orders.status, "completed"),
+        inArray(orders.status, ["delivered", "completed"]),
       ))
       .groupBy(products.id)
       .orderBy(desc(sql<number>`coalesce(sum(${orderItems.quantity}), 0)`))
@@ -201,7 +201,7 @@ async function handleIntent(
       .where(and(
         eq(orders.tenantId, tenantId),
         gte(orders.createdAt, today),
-        eq(orders.status, "completed"),
+        inArray(orders.status, ["delivered", "completed"]),
       ));
 
     const [productCount] = await db.select({

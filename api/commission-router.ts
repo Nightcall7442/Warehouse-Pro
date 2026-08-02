@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createRouter, operatorQuery, authedQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { commissions, users } from "@db/schema";
-import { eq, and, gte, lte, desc, isNull } from "drizzle-orm";
+import { eq, and, gte, lte, desc, isNull , inArray } from "drizzle-orm";
 import { cache, CacheKeys } from "./lib/cache";
 
 export const commissionRouter = createRouter({
@@ -112,7 +112,7 @@ export const commissionRouter = createRouter({
           }).from(orders).where(and(
             eq(orders.tenantId, ctx.tenant.id),
             eq(orders.agentId, agent.userId),
-            eq(orders.status, "completed"),
+            inArray(orders.status, ["delivered", "completed"]),
             isNull(orders.deletedAt),
             gte(orders.createdAt, agent.periodStart),
             lte(orders.createdAt, periodEndDate),

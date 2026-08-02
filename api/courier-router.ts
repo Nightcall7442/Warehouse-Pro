@@ -170,7 +170,7 @@ export const courierRouter = createRouter({
         )).limit(1);
       if (!order) throw new Error("Заказ не найден или не назначен на вас");
 
-      if (order.status === "completed" || order.status === "cancelled") {
+      if (order.status === "delivered" || order.status === "cancelled") {
         throw new Error("Заказ уже завершён или отменён — повторное списание невозможно");
       }
 
@@ -180,7 +180,7 @@ export const courierRouter = createRouter({
 
       await db.transaction(async (tx) => {
         await tx.update(orders)
-          .set({ deliveryStatus: "delivered", deliveredAt: new Date(), status: "completed" })
+          .set({ deliveryStatus: "delivered", deliveredAt: new Date(), status: "delivered" })
           .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, ctx.tenant.id)));
 
         const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, input.orderId));
@@ -370,8 +370,8 @@ export const courierRouter = createRouter({
         } else if (input.result === "paid") {
           finalStatus = "delivered";
         } else {
-          // partial_paid
-          finalStatus = "partially_paid";
+          // partial_paid — delivered with remaining debt
+          finalStatus = "partial_return_kept";
         }
 
         // ── Update order ──
@@ -482,7 +482,7 @@ export const courierRouter = createRouter({
         )).limit(1);
       if (!order) throw new Error("Заказ не найден или не назначен на вас");
 
-      if (order.status === "completed" || order.status === "cancelled") {
+      if (order.status === "delivered" || order.status === "cancelled") {
         throw new Error("Заказ уже завершён или отменён — повторное действие невозможно");
       }
 

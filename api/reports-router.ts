@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createRouter, reportsQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { orders, users, dailyPlans, agentLocations, subscriptions } from "@db/schema";
-import { eq, and, sql, gte, desc } from "drizzle-orm";
+import { eq, and, sql, gte, desc , inArray } from "drizzle-orm";
 import { subDays, format } from "date-fns";
 import { onDate } from "./lib/date-range";
 
@@ -26,10 +26,10 @@ export const reportsRouter = createRouter({
         .where(and(eq(dailyPlans.tenantId, tenantId), onDate(dailyPlans.planDate, today), eq(dailyPlans.status, "visited"))),
 
       db.select({ count: sql<number>`count(*)` }).from(orders)
-        .where(and(eq(orders.tenantId, tenantId), eq(orders.status, "completed"), gte(orders.createdAt, new Date(d30ago)))),
+        .where(and(eq(orders.tenantId, tenantId), inArray(orders.status, ["delivered", "completed"]), gte(orders.createdAt, new Date(d30ago)))),
 
       db.select({ total: sql<string>`COALESCE(SUM(${orders.total}), 0)` }).from(orders)
-        .where(and(eq(orders.tenantId, tenantId), eq(orders.status, "completed"), gte(orders.createdAt, new Date(d30ago)))),
+        .where(and(eq(orders.tenantId, tenantId), inArray(orders.status, ["delivered", "completed"]), gte(orders.createdAt, new Date(d30ago)))),
 
       db.select().from(subscriptions).where(eq(subscriptions.tenantId, tenantId)).limit(1),
     ]);

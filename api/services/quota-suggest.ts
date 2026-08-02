@@ -1,4 +1,4 @@
-import { eq, and, gte, lte, sql } from "drizzle-orm";
+import { eq, and, gte, lte, sql , inArray } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import { orders, dailyPlans, users, salesTargets } from "@db/schema";
 
@@ -54,7 +54,7 @@ export async function suggestQuotas(
       .where(and(
         eq(orders.tenantId, tenantId),
         eq(orders.agentId, agent.id),
-        eq(orders.status, "completed"),
+        inArray(orders.status, ["delivered", "completed"]),
         gte(orders.createdAt, startStr),
         lte(orders.createdAt, endStr + " 23:59:59"),
       ))
@@ -67,7 +67,7 @@ export async function suggestQuotas(
       .where(and(
         eq(orders.tenantId, tenantId),
         eq(orders.agentId, agent.id),
-        eq(orders.status, "completed"),
+        inArray(orders.status, ["delivered", "completed"]),
         gte(orders.createdAt, startStr),
         lte(orders.createdAt, endStr + " 23:59:59"),
       ))

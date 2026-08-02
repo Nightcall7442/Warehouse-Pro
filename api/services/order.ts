@@ -41,13 +41,16 @@ function holdsStock(status: string): boolean {
 
 /** Status that triggers stock deduction (goods left the warehouse). */
 function deductsStock(status: string): boolean {
-  return status === "delivered" || status === "partial_return_kept";
+  return status === "delivered" || status === "completed" || status === "partial_return_kept";
 }
 
 /** Status that releases stock (goods returned to warehouse). */
 function releasesStock(status: string): boolean {
   return status === "cancelled" || status === "returned" || status === "partially_returned";
 }
+
+/** Delivered statuses — includes legacy "completed" for backwards compatibility. */
+const DELIVERED_STATUSES = ["delivered", "completed"];
 
 export const OrderService = {
   async list(db: Db, tenantId: number, filters: Record<string, unknown>, opts?: { userId: number; userRole: string }) {
@@ -422,7 +425,7 @@ export const OrderService = {
       if (!order) throw new Error("Заказ не найден");
 
       if (order.status === newStatus) {
-        if (["delivered", "cancelled", "returned"].includes(order.status)) {
+        if (["delivered", "completed", "cancelled", "returned"].includes(order.status)) {
           return { success: true };
         }
       }
@@ -433,6 +436,7 @@ export const OrderService = {
         shipped:              ["processing", "delivered", "pending", "returned", "partially_returned", "partial_return_kept", "cancelled"],
         pending:              ["shipped", "delivered", "cancelled"],
         delivered:            ["returned", "partially_returned", "partial_return_kept"],
+        completed:            ["returned", "partially_returned", "partial_return_kept"], // legacy alias for delivered
         partially_returned:   ["returned", "delivered"],
         partial_return_kept:  ["delivered"],
         returned:             [],
@@ -1065,7 +1069,7 @@ export const OrderService = {
 
       // Update order status
       await tx.update(orders).set({
-        status: debt > 0 ? "partially_paid" : "completed",
+        status: debt > 0 ? "partial_return_kept" : "delivered",
       }).where(and(eq(orders.id, order.id), eq(orders.tenantId, tenantId)));
 
       // Log adjustment
@@ -1075,7 +1079,7 @@ export const OrderService = {
         adjustedBy: userId,
         type: "partial_payment",
         oldValue: { status: order.status, total: order.total },
-        newValue: { status: debt > 0 ? "partially_paid" : "completed", paid: paid.toFixed(2), debt: Math.max(0, debt).toFixed(2) },
+        newValue: { status: debt > 0 ? "partial_return_kept" : "delivered", paid: paid.toFixed(2), debt: Math.max(0, debt).toFixed(2) },
         reason: input.notes ?? null,
       });
     });
@@ -1174,7 +1178,7 @@ export const OrderService = {
       await tx.update(orders).set({
         subtotal: newSubtotal.toFixed(2),
         total: newTotal.toFixed(2),
-        status: "partially_delivered",
+        status: "partially_returned",
       }).where(and(eq(orders.id, order.id), eq(orders.tenantId, tenantId)));
 
       // Adjust shop debt if order total decreased

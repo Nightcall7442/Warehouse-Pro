@@ -2,14 +2,14 @@ import { z } from "zod";
 import { createRouter, reportsQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { orders, orderItems, products, shops, users, dailyPlans, arrivals } from "@db/schema";
-import { eq, and, sql, desc } from "drizzle-orm";
+import { eq, and, sql, desc , inArray } from "drizzle-orm";
 import { MS_PER_DAY } from "./lib/constants";
 
 export const analyticsRouter = createRouter({
   salesByShop: reportsQuery
     .input(z.object({ dateFrom: z.string().optional(), dateTo: z.string().optional() }).optional())
     .query(async ({ input, ctx }) => {
-      const conditions = [eq(orders.tenantId, ctx.tenant.id), eq(orders.status, "completed")];
+      const conditions = [eq(orders.tenantId, ctx.tenant.id), inArray(orders.status, ["delivered", "completed"])];
       if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
       // P1-15 FIX: Include full last day by adding 23:59:59
       if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`);
@@ -26,7 +26,7 @@ export const analyticsRouter = createRouter({
   topProducts: reportsQuery
     .input(z.object({ dateFrom: z.string().optional(), dateTo: z.string().optional() }).optional())
     .query(async ({ input, ctx }) => {
-      const conditions = [eq(orders.tenantId, ctx.tenant.id), eq(orders.status, "completed")];
+      const conditions = [eq(orders.tenantId, ctx.tenant.id), inArray(orders.status, ["delivered", "completed"])];
       if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
       if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`);
 
@@ -67,7 +67,7 @@ export const analyticsRouter = createRouter({
   cogsByProduct: reportsQuery
     .input(z.object({ dateFrom: z.string().optional(), dateTo: z.string().optional() }).optional())
     .query(async ({ input, ctx }) => {
-      const conditions = [eq(orders.tenantId, ctx.tenant.id), eq(orders.status, "completed")];
+      const conditions = [eq(orders.tenantId, ctx.tenant.id), inArray(orders.status, ["delivered", "completed"])];
       if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
       if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`);
 
@@ -87,7 +87,7 @@ export const analyticsRouter = createRouter({
   cogsSummary: reportsQuery
     .input(z.object({ dateFrom: z.string().optional(), dateTo: z.string().optional() }).optional())
     .query(async ({ input, ctx }) => {
-      const conditions = [eq(orders.tenantId, ctx.tenant.id), eq(orders.status, "completed")];
+      const conditions = [eq(orders.tenantId, ctx.tenant.id), inArray(orders.status, ["delivered", "completed"])];
       if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
       if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`);
 
@@ -125,7 +125,7 @@ export const analyticsRouter = createRouter({
         orderCount: sql<number>`count(*)`,
       })
         .from(orders)
-        .where(and(eq(orders.tenantId, ctx.tenant.id), eq(orders.shopId, input.shopId), eq(orders.status, "completed"), sql`${orders.createdAt} >= ${cutoff}`))
+        .where(and(eq(orders.tenantId, ctx.tenant.id), eq(orders.shopId, input.shopId), inArray(orders.status, ["delivered", "completed"]), sql`${orders.createdAt} >= ${cutoff}`))
         .groupBy(sql`DATE(${orders.createdAt})`).orderBy(sql`DATE(${orders.createdAt})`);
     }),
 
@@ -159,7 +159,7 @@ export const analyticsRouter = createRouter({
       })
         .from(users)
         .leftJoin(dailyPlans, and(eq(dailyPlans.agentId, users.id), sql`${dailyPlans.planDate} >= ${cutoff}`))
-        .leftJoin(orders, and(eq(orders.agentId, users.id), eq(orders.status, "completed"), sql`${orders.createdAt} >= ${cutoff}`))
+        .leftJoin(orders, and(eq(orders.agentId, users.id), inArray(orders.status, ["delivered", "completed"]), sql`${orders.createdAt} >= ${cutoff}`))
         .where(and(eq(users.tenantId, ctx.tenant.id), eq(users.role, "agent")))
         .groupBy(users.id).orderBy(desc(sql`COALESCE(SUM(${orders.total}), 0)`));
 
@@ -192,7 +192,7 @@ export const analyticsRouter = createRouter({
       async function calcPeriod(dateFrom: string, dateTo: string) {
         const orderConds = [
           eq(orders.tenantId, tid),
-          eq(orders.status, "completed"),
+          inArray(orders.status, ["delivered", "completed"]),
           sql`${orders.createdAt} >= ${dateFrom}`,
           sql`${orders.createdAt} <= ${dateTo + " 23:59:59"}`,
         ];
@@ -212,7 +212,7 @@ export const analyticsRouter = createRouter({
           .leftJoin(orders, eq(orderItems.orderId, orders.id))
           .where(and(
             eq(orders.tenantId, tid),
-            eq(orders.status, "completed"),
+            inArray(orders.status, ["delivered", "completed"]),
             sql`${orders.createdAt} >= ${dateFrom}`,
             sql`${orders.createdAt} <= ${dateTo + " 23:59:59"}`,
           ));
@@ -268,7 +268,7 @@ export const analyticsRouter = createRouter({
         .leftJoin(products, eq(orderItems.productId, products.id))
         .where(and(
           eq(orders.tenantId, tid),
-          eq(orders.status, "completed"),
+          inArray(orders.status, ["delivered", "completed"]),
           sql`${orders.createdAt} >= ${from}`,
           sql`${orders.createdAt} <= ${to + " 23:59:59"}`,
         ))
@@ -349,7 +349,7 @@ export const analyticsRouter = createRouter({
         .leftJoin(products, eq(orderItems.productId, products.id))
         .where(and(
           eq(orders.tenantId, tid),
-          eq(orders.status, "completed"),
+          inArray(orders.status, ["delivered", "completed"]),
           sql`${orders.createdAt} >= ${input.from}`,
           sql`${orders.createdAt} <= ${input.to + " 23:59:59"}`,
         ))
@@ -386,7 +386,7 @@ export const analyticsRouter = createRouter({
         .from(orders)
         .where(and(
           eq(orders.tenantId, tid),
-          eq(orders.status, "completed"),
+          inArray(orders.status, ["delivered", "completed"]),
           sql`${orders.createdAt} >= ${input.from}`,
           sql`${orders.createdAt} <= ${input.to + " 23:59:59"}`,
         ))

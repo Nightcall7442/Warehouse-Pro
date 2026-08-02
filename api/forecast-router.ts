@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createRouter, supervisorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { orderItems, orders, products } from "@db/schema";
-import { eq, and, sql, gte, desc } from "drizzle-orm";
+import { eq, and, sql, gte, desc , inArray } from "drizzle-orm";
 import { cache, CacheTTL } from "./lib/cache";
 import {
   simpleMovingAverage,
@@ -106,7 +106,7 @@ export const forecastRouter = createRouter({
         .innerJoin(products, eq(orderItems.productId, products.id))
         .where(and(
           eq(orders.tenantId, tenantId),
-          eq(orders.status, "completed"),
+          inArray(orders.status, ["delivered", "completed"]),
           eq(products.category, input.category),
           gte(orders.createdAt, startDate),
         ))
@@ -150,7 +150,7 @@ export const forecastRouter = createRouter({
         .innerJoin(products, eq(orderItems.productId, products.id))
         .where(and(
           eq(orders.tenantId, tenantId),
-          eq(orders.status, "completed"),
+          inArray(orders.status, ["delivered", "completed"]),
           gte(orders.createdAt, startDate),
         ))
         .groupBy(orderItems.productId, products.name, products.code)

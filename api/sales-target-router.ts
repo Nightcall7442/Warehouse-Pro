@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createRouter, operatorQuery, authedQuery, supervisorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { salesTargets, users, orders, dailyPlans } from "@db/schema";
-import { eq, and, gte, lte, sql, desc } from "drizzle-orm";
+import { eq, and, gte, lte, sql, desc , inArray } from "drizzle-orm";
 import { cache, CacheKeys } from "./lib/cache";
 import { suggestQuotas } from "./services/quota-suggest";
 
@@ -176,7 +176,7 @@ export const salesTargetRouter = createRouter({
         const conditions = [
           eq(orders.tenantId, ctx.tenant.id),
           eq(orders.agentId, target.userId),
-          eq(orders.status, "completed"),
+          inArray(orders.status, ["delivered", "completed"]),
           gte(orders.createdAt, target.periodStart),
           lte(orders.createdAt, target.periodEnd + " 23:59:59"),
         ];
