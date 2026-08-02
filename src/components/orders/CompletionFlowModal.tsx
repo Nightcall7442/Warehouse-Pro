@@ -219,10 +219,10 @@ export function CompletionFlowModal({
       {/* Backdrop — clicks here close modal only, not Sheet */}
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm pointer-events-auto" onClick={onClose} />
 
-      {/* Modal content — z-10 above backdrop, stop propagation so backdrop doesn't fire */}
-      <div className="relative z-10 bg-background rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden border pointer-events-auto" onClick={e => e.stopPropagation()}>
-        {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b">
+      {/* Modal content */}
+      <div className="relative z-10 bg-background rounded-2xl shadow-2xl w-full max-w-2xl border pointer-events-auto flex flex-col" style={{ maxHeight: "85vh" }} onClick={e => e.stopPropagation()}>
+        {/* Header — fixed */}
+        <div className="flex items-center justify-between p-5 border-b flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
               {mode === "partial_return" ? <RotateCcw size={20} className="text-primary" /> :
@@ -239,8 +239,8 @@ export function CompletionFlowModal({
           </button>
         </div>
 
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-5">
+        {/* Body — scrollable */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-5" style={{ minHeight: 0 }}>
 
           {/* Error banner */}
           {error && (
@@ -417,8 +417,8 @@ export function CompletionFlowModal({
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="p-5 border-t flex gap-3">
+        {/* Footer — fixed */}
+        <div className="p-5 border-t flex gap-3 flex-shrink-0">
           <Button variant="outline" onClick={onClose} className="flex-1" disabled={saving}>
             {t("Отмена", "Bekor qilish")}
           </Button>
