@@ -145,9 +145,9 @@ export default function Orders() {
     });
   }, []);
   const clearSelection = useCallback(() => {
-    clearSelection();
+    setSelectedRaw(new Set());
     try { sessionStorage.removeItem("order_selection"); } catch {}
-  }, [setSelected]);
+  }, []);
   const { confirm, dialog } = useConfirm();
   const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);
 
