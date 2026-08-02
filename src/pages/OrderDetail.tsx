@@ -350,28 +350,10 @@ export default function OrderDetail() {
               );
             })()}
 
-            {/* EDIT BUTTON — prominent */}
-            {isOperatorOrCeo && !order.deletedAt && (
-              <button
-                onClick={editing ? saveEditing : startEditing}
-                disabled={editing && updateOrder.isPending}
-                style={{
-                  display: "flex", alignItems: "center", gap: "6px",
-                  padding: "8px 20px", fontSize: "13px", fontWeight: 700,
-                  fontFamily: "'DM Sans', sans-serif",
-                  borderRadius: "12px", border: "none", cursor: "pointer",
-                  background: editing ? "#34c473" : "linear-gradient(135deg, #5b6d8a, #7b94f8)",
-                  color: "#fff",
-                  boxShadow: "0 2px 8px rgba(91,109,138,0.3)",
-                }}
-              >
-                {editing ? <><Save size={14} /> {lang === "uz" ? "Saqlash" : "Сохранить"}</> : <><Edit3 size={14} /> {lang === "uz" ? "Tahrirlash" : "Изменить заказ"}</>}
-              </button>
-            )}
             {editing && (
               <button onClick={() => setEditing(false)} style={{
-                padding: "8px 14px", fontSize: "13px", fontWeight: 500,
-                borderRadius: "12px", border: "1px solid #e0e0e0", cursor: "pointer",
+                padding: "6px 12px", fontSize: "12px", fontWeight: 500,
+                borderRadius: "10px", border: "1px solid #e0e0e0", cursor: "pointer",
                 background: "#fff", color: "#6a7290",
               }}>
                 {lang === "uz" ? "Bekor" : "Отмена"}
@@ -380,10 +362,31 @@ export default function OrderDetail() {
           </div>
         </div>
 
-        {/* Total */}
-        <div className="flex items-baseline gap-2">
-          <span className="font-display text-3xl font-bold text-primary">{cleanNum(total)}</span>
-          <span className="text-lg text-secondary">{symbol}</span>
+        {/* Total + Edit button */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-baseline gap-2">
+            <span className="font-display text-3xl font-bold text-primary">{cleanNum(total)}</span>
+            <span className="text-lg text-secondary">{symbol}</span>
+          </div>
+          {isOperatorOrCeo && !order.deletedAt && (
+            <button
+              onClick={editing ? saveEditing : () => setEditing(true)}
+              disabled={editing && updateOrder.isPending}
+              style={{
+                display: "flex", alignItems: "center", gap: "8px",
+                padding: "10px 24px", fontSize: "14px", fontWeight: 700,
+                fontFamily: "'DM Sans', sans-serif",
+                borderRadius: "14px", border: "none", cursor: "pointer",
+                background: editing ? "#34c473" : "linear-gradient(135deg, #5b6d8a, #7b94f8)",
+                color: "#fff",
+                boxShadow: "0 4px 12px rgba(91,109,138,0.25)",
+                opacity: editing && updateOrder.isPending ? 0.7 : 1,
+              }}
+            >
+              <Edit3 size={16} />
+              {editing ? (lang === "uz" ? "Saqlash" : "Сохранить изменения") : (lang === "uz" ? "Tahrirlash" : "Изменить заказ")}
+            </button>
+          )}
         </div>
 
         <Separator />

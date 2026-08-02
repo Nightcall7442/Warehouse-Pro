@@ -39,12 +39,13 @@ export const orderRouter = createRouter({
         .leftJoin(shops, eq(orders.shopId, shops.id))
         .where(and(...conditions));
 
-      // Get counts per status
+      // Get counts per status (WITH same filters as total)
       const statusCounts = await db.select({
         status: orders.status,
         count: sql<number>`count(*)`,
       }).from(orders)
-        .where(and(eq(orders.tenantId, tenantId), isNull(orders.deletedAt)))
+        .leftJoin(shops, eq(orders.shopId, shops.id))
+        .where(and(...conditions))
         .groupBy(orders.status);
 
       const statusMap: Record<string, number> = {};
