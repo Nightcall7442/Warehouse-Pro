@@ -305,43 +305,68 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
 
             <TabsContent value="details" className="flex-1 overflow-hidden">
               <ScrollArea className="h-full px-5 pb-5">
-                <div className="space-y-4">
-                  {/* Shop */}
-                  {order.shop && (
-                    <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/30">
-                      <Store className="h-5 w-5 text-muted-foreground mt-0.5" />
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium">{order.shopName}</div>
-                        <div className="text-xs text-muted-foreground flex items-center gap-1">
-                          {order.shop.address && <><MapPin className="h-3 w-3" />{order.shop.address}</>}
-                          {order.shop.city && `, ${order.shop.city}`}
-                        </div>
-                        {order.shop.phone && (
-                          <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                            <Phone className="h-3 w-3" />{order.shop.phone}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
+                <div className="space-y-5 pt-1">
 
-                  {/* Agent */}
-                  {order.agent && (
-                    <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
-                      <User className="h-5 w-5 text-muted-foreground" />
-                      <div>
-                        <div className="font-medium">{order.agent.name}</div>
-                        <div className="text-xs text-muted-foreground">{t("Агент", "Agent")}</div>
-                      </div>
+                  {/* ── Total + Payment badge ── */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-baseline gap-2">
+                      <span className="font-display text-3xl font-bold text-primary">{Number(order.total).toLocaleString("ru")}</span>
+                      <span className="text-lg text-secondary">{currency}</span>
                     </div>
-                  )}
+                    <div className="flex items-center gap-2">
+                      {(() => {
+                        const pm = PAYMENT_METHODS[order.paymentMethod ?? "cash"];
+                        if (!pm) return null;
+                        return (
+                          <span style={{
+                            display: "inline-flex", padding: "4px 12px", borderRadius: "9999px",
+                            fontSize: "11px", fontWeight: 600,
+                            background: `${pm.color}15`, color: pm.color, border: `1px solid ${pm.color}30`,
+                          }}>
+                            {t(pm.ru, pm.uz)}
+                          </span>
+                        );
+                      })()}
+                    </div>
+                  </div>
 
-                  {/* Courier assignment for CEO/operator */}
+                  <Separator />
+
+                  {/* ── Meta Grid ── */}
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Shop */}
+                    <div className="p-3 rounded-lg bg-muted/20">
+                      <p className="font-label text-secondary text-[10px] tracking-wider mb-1 flex items-center gap-1">
+                        <Store size={12}/> {t("ПОКУПАТЕЛЬ", "XARIDOR")}
+                      </p>
+                      <p className="text-sm font-medium text-primary">{order.shopName ?? "—"}</p>
+                      {order.shop?.phone && (
+                        <p className="text-xs text-secondary flex items-center gap-1 mt-0.5">
+                          <Phone size={10}/> {order.shop.phone}
+                        </p>
+                      )}
+                      {order.shop?.address && (
+                        <p className="text-xs text-secondary flex items-center gap-1 mt-0.5">
+                          <MapPin size={10}/> {order.shop.address}{order.shop.city ? `, ${order.shop.city}` : ""}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Agent */}
+                    <div className="p-3 rounded-lg bg-muted/20">
+                      <p className="font-label text-secondary text-[10px] tracking-wider mb-1 flex items-center gap-1">
+                        <User size={12}/> {t("АГЕНТ", "AGENT")}
+                      </p>
+                      <p className="text-sm text-primary">{order.agent?.name ?? "—"}</p>
+                    </div>
+                  </div>
+
+                  {/* ── Courier assignment for CEO/operator ── */}
                   {isOperatorOrCeo && (order.status === "new" || order.status === "processing") && (
-                    <div className="p-3 rounded-lg bg-muted/30 space-y-2">
-                      <div className="flex items-center gap-2 text-xs font-label text-secondary">
-                        <Truck size={14}/> {t("НАЗНАЧИТЬ КУРЬЕРА", "KURYERNI TAYINLASH")}
-                      </div>
+                    <div className="p-3 rounded-lg bg-muted/20">
+                      <p className="font-label text-secondary text-[10px] tracking-wider mb-2 flex items-center gap-1">
+                        <Truck size={12}/> {t("КУРЬЕР", "KURYER")}
+                      </p>
                       <Select
                         value={order.courierId ? String(order.courierId) : ""}
                         onValueChange={(val) => {
@@ -361,44 +386,53 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
                     </div>
                   )}
 
-                  {/* Items */}
+                  {/* ── Items Table ── */}
                   <div>
-                    <h4 className="font-label text-xs mb-2">{t("Товары", "Tovarlar")} ({order.items.length})</h4>
+                    <h4 className="font-label text-secondary text-xs tracking-wider mb-2 flex items-center gap-1">
+                      <Package size={12}/> {t("ТОВАРЫ", "MAHSULOTLAR")} ({order.items.length})
+                    </h4>
                     <div className="border rounded-lg overflow-hidden">
-                      <table className="w-full text-xs">
-                        <thead className="bg-muted/50">
-                          <tr>
-                            <th className="p-2 text-left font-label">{t("Товар", "Tovar")}</th>
-                            <th className="p-2 text-right font-label">{t("Кол-во", "Miqdor")}</th>
-                            <th className="p-2 text-right font-label">{t("Цена", "Narx")}</th>
-                            <th className="p-2 text-right font-label">{t("Сумма", "Summa")}</th>
+                      <table className="w-full">
+                        <thead>
+                          <tr className="bg-surface-light">
+                            <th className="text-left px-3 py-2 text-secondary text-[11px] font-medium">№</th>
+                            <th className="text-left px-3 py-2 text-secondary text-[11px] font-medium">{t("Товар", "Tovar")}</th>
+                            <th className="text-right px-3 py-2 text-secondary text-[11px] font-medium">{t("Кол-во", "Miqdor")}</th>
+                            <th className="text-right px-3 py-2 text-secondary text-[11px] font-medium">{t("Цена", "Narx")}</th>
+                            <th className="text-right px-3 py-2 text-secondary text-[11px] font-medium">{t("Сумма", "Summa")}</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {order.items.map((item) => {
+                          {order.items.map((item, i) => {
                             const unitMap: Record<string, string> = { kg: "кг", l: "л", pcs: "шт", box: "блок", pack: "упак", m: "м", block: "блок" };
                             const unit = unitMap[item.unit ?? "pcs"] ?? "шт";
                             const hasPartial = item.deliveredQuantity != null && Number(item.deliveredQuantity) < Number(item.quantity);
                             return (
-                              <tr key={item.id} className="border-t">
-                                <td className="p-2">
-                                  <div className="font-medium">{item.productName}</div>
-                                  {item.productCode && <div className="text-muted-foreground">{item.productCode}</div>}
-                                  {hasPartial && <div className="text-xs text-amber-600">{t("Частичная доставка", "Qisman yetkazib berish")}{item.returnReason ? ` — ${item.returnReason}` : ""}</div>}
-                                </td>
-                                <td className="p-2 text-right font-data">
-                                  {hasPartial ? (
-                                    <>
-                                      <span className="line-through text-muted-foreground">{Number(item.quantity).toFixed(2)}</span>
-                                      <span className="ml-1 text-amber-600 font-medium">{Number(item.deliveredQuantity).toFixed(2)}</span>
-                                      <span className="text-xs text-muted-foreground ml-0.5">{unit}</span>
-                                    </>
-                                  ) : (
-                                    <>{Number(item.quantity).toFixed(2)} <span className="text-xs text-muted-foreground">{unit}</span></>
+                              <tr key={item.id} className="border-t border-border-subtle">
+                                <td className="px-3 py-2 text-xs text-secondary">{i + 1}</td>
+                                <td className="px-3 py-2">
+                                  <div className="text-sm font-medium text-primary">{item.productName ?? "—"}</div>
+                                  {item.productCode && <div className="text-[11px] text-secondary font-data">{item.productCode}</div>}
+                                  {hasPartial && (
+                                    <div className="text-xs text-amber-600 mt-0.5 flex items-center gap-1">
+                                      <AlertTriangle size={10}/>
+                                      {t("Частичная доставка", "Qisman yetkazib berish")}{item.returnReason ? ` — ${item.returnReason}` : ""}
+                                    </div>
                                   )}
                                 </td>
-                                <td className="p-2 text-right font-data">{Number(item.unitPrice).toLocaleString("ru")}</td>
-                                <td className="p-2 text-right font-data font-medium">{Number(item.subtotal).toLocaleString("ru")}</td>
+                                <td className="px-3 py-2 text-right font-data text-sm">
+                                  {hasPartial ? (
+                                    <span>
+                                      <span className="line-through text-muted-foreground">{Number(item.quantity).toFixed(0)}</span>
+                                      <span className="ml-1 text-amber-600 font-medium">{Number(item.deliveredQuantity).toFixed(0)}</span>
+                                      <span className="text-xs text-muted-foreground ml-0.5">{unit}</span>
+                                    </span>
+                                  ) : (
+                                    <span>{Number(item.quantity).toFixed(0)} <span className="text-xs text-muted-foreground">{unit}</span></span>
+                                  )}
+                                </td>
+                                <td className="px-3 py-2 text-right font-data text-sm text-secondary">{Number(item.unitPrice).toLocaleString("ru")}</td>
+                                <td className="px-3 py-2 text-right font-data text-sm font-medium">{Number(item.subtotal).toLocaleString("ru")}</td>
                               </tr>
                             );
                           })}
@@ -407,34 +441,36 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
                     </div>
                   </div>
 
-                  {/* Totals */}
+                  {/* ── Totals ── */}
                   <div className="flex justify-end">
-                    <div className="w-48 space-y-1 text-xs">
-                      <div className="flex justify-between"><span className="text-muted-foreground">{t("Подитог", "Oraliq jami")}:</span><span className="font-data">{Number(order.subtotal).toLocaleString("ru")} {currency}</span></div>
-                      {Number(order.discount) > 0 && <div className="flex justify-between"><span className="text-muted-foreground">{t("Скидка", "Chegirma")}:</span><span className="font-data text-green-600">−{Number(order.discount).toLocaleString("ru")} {currency}</span></div>}
+                    <div className="w-56 space-y-1.5 p-3 rounded-lg bg-muted/20">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-secondary">{t("Подитог", "Oraliq jami")}</span>
+                        <span className="font-data">{Number(order.subtotal).toLocaleString("ru")} {currency}</span>
+                      </div>
+                      {Number(order.discount) > 0 && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-secondary">{t("Скидка", "Chegirma")}</span>
+                          <span className="font-data text-success">−{Number(order.discount).toLocaleString("ru")} {currency}</span>
+                        </div>
+                      )}
                       <Separator />
-                      <div className="flex justify-between font-bold"><span>{t("Итого", "Jami")}:</span><span className="font-data text-sm">{Number(order.total).toLocaleString("ru")} {currency}</span></div>
+                      <div className="flex justify-between font-bold text-base">
+                        <span>{t("Итого", "Jami")}</span>
+                        <span className="font-data text-primary">{Number(order.total).toLocaleString("ru")} {currency}</span>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Debt block */}
-                  {order.shop && (
+                  {/* ── Debt block ── */}
+                  {order.shop && Number((order.shop as unknown as { debt?: string }).debt ?? 0) > 0 && (
                     <DebtBlock debt={(order.shop as unknown as { debt?: string }).debt ?? "0"} orderTotal={order.total} currency={currency} />
                   )}
 
-                  {/* Payment */}
-                  <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
-                    <CreditCard className="h-5 w-5 text-muted-foreground" />
-                    <div>
-                      <div className="font-medium capitalize">{PAYMENT_METHODS[order.paymentMethod ?? "cash"]?.ru ?? order.paymentMethod}</div>
-                      <div className="text-xs text-muted-foreground">{t("Метод оплаты", "To'lov usuli")}</div>
-                    </div>
-                  </div>
-
-                  {/* Notes (editable for CEO/operator) */}
+                  {/* ── Notes (editable for CEO/operator) ── */}
                   {(order.notes || editing) && (
-                    <div className="p-3 rounded-lg bg-muted/30">
-                      <p className="text-[10px] font-label text-secondary tracking-wider mb-1">{t("ПРИМЕЧАНИЕ", "ESLATMA")}</p>
+                    <div className="p-3 rounded-lg bg-muted/20">
+                      <p className="font-label text-secondary text-[10px] tracking-wider mb-1">{t("ПРИМЕЧАНИЕ", "ESLATMA")}</p>
                       {editing ? (
                         <Textarea value={editNotes} onChange={e => setEditNotes(e.target.value)} className="text-sm" rows={2} placeholder={t("Комментарий...", "Izoh...")} />
                       ) : (
@@ -443,9 +479,9 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
                     </div>
                   )}
 
-                  {/* Edit form for CEO/operator */}
+                  {/* ── Edit form for CEO/operator ── */}
                   {isOperatorOrCeo && editing && (
-                    <div className="p-3 rounded-lg bg-muted/30 space-y-3">
+                    <div className="neo-card p-4 space-y-3">
                       <p className="font-label text-secondary text-xs tracking-wider">{t("РЕДАКТИРОВАНИЕ ЗАКАЗА", "BUYURTMANI TAHRIRLASH")}</p>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
@@ -458,7 +494,7 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
                             <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                             <SelectContent>
                               {Object.entries(PAYMENT_METHODS).map(([key, pm]) => (
-                                <SelectItem key={key} value={key} className="text-sm">{pm.ru}</SelectItem>
+                                <SelectItem key={key} value={key} className="text-sm">{t(pm.ru, pm.uz)}</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
@@ -467,15 +503,20 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
                     </div>
                   )}
 
-                  {/* Action buttons for CEO/operator */}
+                  {/* ── Action buttons for CEO/operator ── */}
                   {isOperatorOrCeo && !order.deletedAt && (
                     <div className="flex gap-2">
-                      <Button variant="outline" size="sm" onClick={editing ? saveEditing : startEditing}>
-                        {editing ? <><Save className="h-3.5 w-3.5 mr-1" />{t("Сохранить", "Saqlash")}</> : <><Edit3 className="h-3.5 w-3.5 mr-1" />{t("Изменить заказ", "Buyurtmani tahrirlash")}</>}
+                      <Button
+                        variant={editing ? "default" : "outline"}
+                        size="sm"
+                        onClick={editing ? saveEditing : startEditing}
+                        style={editing ? { background: "linear-gradient(135deg, #34c473, #28a862)" } : undefined}
+                      >
+                        {editing ? <><Save className="h-3.5 w-3.5 mr-1.5" />{t("Сохранить", "Saqlash")}</> : <><Edit3 className="h-3.5 w-3.5 mr-1.5" />{t("Изменить заказ", "Buyurtmani tahrirlash")}</>}
                       </Button>
                       {editing && (
                         <Button variant="ghost" size="sm" onClick={() => setEditing(false)}>
-                          <X className="h-3.5 w-3.5 mr-1" />{t("Отмена", "Bekor")}
+                          {t("Отмена", "Bekor")}
                         </Button>
                       )}
                     </div>
