@@ -410,7 +410,7 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
                   {/* ── Items Table ── */}
                   <div>
                     <h4 className="font-label text-secondary text-xs tracking-wider mb-2 flex items-center gap-1">
-                      <Package size={12}/> {t("ТОВАРЫ", "MAHSULOTLAR")} ({order.items.length})
+                      <Package size={12}/> {t("ТОВАРЫ", "MAHSULOTLAR")} ({(order.items ?? []).length})
                     </h4>
                     <div className="border rounded-lg overflow-hidden">
                       <table className="w-full">
@@ -424,7 +424,7 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
                           </tr>
                         </thead>
                         <tbody>
-                          {order.items.map((item, i) => {
+                          {(order.items ?? []).map((item, i) => {
                             const unitMap: Record<string, string> = { kg: "кг", l: "л", pcs: "шт", box: "блок", pack: "упак", m: "м", block: "блок" };
                             const unit = unitMap[item.unit ?? "pcs"] ?? "шт";
                             const hasPartial = item.deliveredQuantity != null && Number(item.deliveredQuantity) < Number(item.quantity);
@@ -662,7 +662,7 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
         mode={completionMode}
         orderNumber={order.orderNumber}
         orderTotal={order.total}
-        items={order.items.map(i => ({
+        items={(order.items ?? []).map(i => ({
           id: i.id,
           productName: i.productName ?? "",
           productCode: i.productCode ?? undefined,

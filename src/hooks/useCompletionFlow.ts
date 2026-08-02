@@ -31,7 +31,6 @@ export function useCompletionFlow({ orderId, onSuccess }: UseCompletionFlowOptio
       utils.order.getById.invalidate({ id: orderId });
       onSuccess?.();
     },
-    onError: (e) => notify.error(e.message),
   });
 
   const recordPartialDelivery = trpc.order.recordPartialDelivery.useMutation({
@@ -41,7 +40,6 @@ export function useCompletionFlow({ orderId, onSuccess }: UseCompletionFlowOptio
       utils.order.getAdjustments.invalidate({ orderId });
       onSuccess?.();
     },
-    onError: (e) => notify.error(e.message),
   });
 
   const recordDeliveryAndPayment = trpc.order.recordDeliveryAndPayment.useMutation({
@@ -51,7 +49,6 @@ export function useCompletionFlow({ orderId, onSuccess }: UseCompletionFlowOptio
       utils.order.getAdjustments.invalidate({ orderId });
       onSuccess?.();
     },
-    onError: (e) => notify.error(e.message),
   });
 
   const saving = recordPartialDelivery.isPending || recordDeliveryAndPayment.isPending || updateStatus.isPending;

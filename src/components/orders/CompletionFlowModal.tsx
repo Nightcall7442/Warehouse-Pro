@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
-import { useLang } from "@/i18n";
+import { useTranslate, useLang } from "@/i18n";
 
 export type CompletionMode = "partial_return" | "partial_payment" | "combined";
 
@@ -85,7 +85,8 @@ interface Props {
 export function CompletionFlowModal({
   open, onClose, mode, orderNumber, orderTotal, items, currency, saving, onSave,
 }: Props) {
-  const { t, lang } = useLang();
+  const t = useTranslate();
+  const { lang } = useLang();
   const [itemStates, setItemStates] = useState<ItemReturnState[]>([]);
   const [paidAmount, setPaidAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "card" | "transfer">("cash");

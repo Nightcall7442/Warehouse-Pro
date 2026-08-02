@@ -403,7 +403,7 @@ export default function OrderDetail() {
           </div>
           {isOperatorOrCeo && !order.deletedAt && (
             <button
-              onClick={editing ? saveEditing : () => setEditing(true)}
+              onClick={editing ? saveEditing : startEditing}
               disabled={editing && updateOrder.isPending}
               style={{
                 display: "flex", alignItems: "center", gap: "8px",
