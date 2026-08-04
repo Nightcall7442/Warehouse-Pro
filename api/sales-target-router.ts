@@ -194,9 +194,9 @@ export const salesTargetRouter = createRouter({
           completed: sql<string>`SUM(CASE WHEN ${dailyPlans.status} = 'visited' THEN 1 ELSE 0 END)`,
         }).from(dailyPlans).where(and(
           eq(dailyPlans.tenantId, ctx.tenant.id),
-          eq(dailyPlans.userId, target.userId),
-          gte(dailyPlans.date, target.periodStart),
-          lte(dailyPlans.date, target.periodEnd),
+          eq(dailyPlans.agentId, target.userId),
+          gte(dailyPlans.planDate, target.periodStart),
+          lte(dailyPlans.planDate, target.periodEnd),
         ));
 
         const visitPct = Number(visitStats.total) > 0

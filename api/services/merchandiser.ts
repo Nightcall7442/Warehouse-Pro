@@ -90,7 +90,7 @@ export const MerchandiserService = {
     const conditions = [
       eq(visitReports.tenantId, tenantId),
       sql`${visitReports.createdAt} >= ${dateFrom}`,
-      sql`${visitReports.createdAt} <= ${dateTo} 23:59:59`,
+      sql`${visitReports.createdAt} <= ${dateTo + " 23:59:59"}`,
     ];
 
     const [data, countResult] = await Promise.all([

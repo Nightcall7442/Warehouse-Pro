@@ -73,9 +73,9 @@ export const stripeRouter = createRouter({
           trial_end: sub.status === "trialing" && sub.trialEndsAt
             ? Math.floor(sub.trialEndsAt.getTime() / 1000)
             : undefined,
-          metadata: { tenantId: String(ctx.tenant.id) },
+          metadata: { tenantId: String(ctx.tenant.id), plan: input.plan },
         },
-        metadata: { tenantId: String(ctx.tenant.id) },
+        metadata: { tenantId: String(ctx.tenant.id), plan: input.plan },
       });
 
       return { url: session.url! };

@@ -416,7 +416,7 @@ describe("stripe.createCheckoutSession", () => {
         line_items: [{ price: "price_pro_456", quantity: 1 }],
         success_url: "http://localhost:3000/settings/billing?success=1",
         cancel_url: "http://localhost:3000/settings/billing?canceled=1",
-        metadata: { tenantId: "1" },
+        metadata: { tenantId: "1", plan: "pro" },
       })
     );
   });

@@ -282,27 +282,42 @@ export const productRouter = createRouter({
         .where(and(eq(products.id, input.id), eq(products.tenantId, tenantId))).limit(1);
       if (!existingProduct) throw new Error("Товар не найден");
 
-      // Delete warehouse_stock
       const deleteStockWhere = warehouseId
         ? and(eq(warehouseStock.productId, input.id), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, warehouseId))
         : and(eq(warehouseStock.productId, input.id), eq(warehouseStock.tenantId, tenantId));
-      await db.delete(warehouseStock).where(deleteStockWhere);
 
-      // Try hard delete — if FK constraints block it, fall back to soft delete
-      try {
-        await db.delete(products).where(and(eq(products.id, input.id), eq(products.tenantId, tenantId)));
-      } catch (err: unknown) {
-        const code = (err as { cause?: { code?: string }; code?: string })?.cause?.code ?? (err as { code?: string })?.code ?? "";
-        const msg = (err as { cause?: { message?: string }; message?: string })?.cause?.message ?? (err as { message?: string })?.message ?? "";
-        // Only soft-delete if it's an FK constraint error, re-throw otherwise
-        if (code === "ER_NO_REFERENCED_ROW_2" || code === "ER_ROW_IS_REFERENCED" || msg.includes("foreign key") || msg.includes("a child row")) {
-          await db.update(products)
-            .set({ status: "inactive", updatedAt: new Date() })
-            .where(and(eq(products.id, input.id), eq(products.tenantId, tenantId)));
-        } else {
-          throw err;
+      // Stock rows carry a "restrict" FK on productId too, so they must be
+      // cleared before a hard delete can even be attempted — but if the
+      // product turns out to be referenced elsewhere (order/arrival/return
+      // history) and we fall back to soft-delete, that stock data must not
+      // be lost. Everything happens in one transaction so a soft-delete
+      // fallback restores the stock rows instead of leaving the product
+      // stockless.
+      await db.transaction(async (tx) => {
+        const removedStock = await tx.select().from(warehouseStock).where(deleteStockWhere);
+        await tx.delete(warehouseStock).where(deleteStockWhere);
+
+        try {
+          await tx.delete(products).where(and(eq(products.id, input.id), eq(products.tenantId, tenantId)));
+        } catch (err: unknown) {
+          const code = (err as { cause?: { code?: string }; code?: string })?.cause?.code ?? (err as { code?: string })?.code ?? "";
+          const msg = (err as { cause?: { message?: string }; message?: string })?.cause?.message ?? (err as { message?: string })?.message ?? "";
+          // Only soft-delete if it's an FK constraint error, re-throw otherwise
+          if (code === "ER_NO_REFERENCED_ROW_2" || code === "ER_ROW_IS_REFERENCED" || msg.includes("foreign key") || msg.includes("a child row")) {
+            if (removedStock.length > 0) {
+              await tx.insert(warehouseStock).values(removedStock.map(s => ({
+                tenantId: s.tenantId, warehouseId: s.warehouseId, productId: s.productId,
+                currentStock: s.currentStock, reserved: s.reserved, available: s.available, reorderPoint: s.reorderPoint,
+              })));
+            }
+            await tx.update(products)
+              .set({ status: "inactive", updatedAt: new Date() })
+              .where(and(eq(products.id, input.id), eq(products.tenantId, tenantId)));
+          } else {
+            throw err;
+          }
         }
-      }
+      });
 
       cache.invalidatePrefix(`products:${tenantId}`);
       cache.invalidatePrefix(`product_cats:${tenantId}`);

@@ -3,7 +3,7 @@ import { createRouter, fieldSalesQuery, supervisorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { calculateAgentKpi, calculateAllAgentsKpi, calculateSalary, getAgentList } from "./services/kpi";
 import { cache, CacheTTL } from "./lib/cache";
-import { shops } from "@db/schema";
+import { shops, users } from "@db/schema";
 import { eq, and, sql } from "drizzle-orm";
 
 export const kpiRouter = createRouter({
@@ -142,11 +142,9 @@ export const kpiRouter = createRouter({
       const period = input?.period ?? "month";
       const { periodStart, periodEnd } = getPeriod(period);
 
-      const { users } = await import("@db/schema");
-      const { eq: eqFn } = await import("drizzle-orm");
       const agentsList = await db.select({ id: users.id, name: users.name })
         .from(users)
-        .where(eqFn(users.tenantId, ctx.tenant.id) && eqFn(users.role, "agent") && eqFn(users.status, "active"));
+        .where(and(eq(users.tenantId, ctx.tenant.id), eq(users.role, "agent"), eq(users.status, "active")));
 
       const kpis = await calculateAllAgentsKpi(db, ctx.tenant.id, periodStart, periodEnd);
 

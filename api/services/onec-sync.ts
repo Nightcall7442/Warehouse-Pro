@@ -138,7 +138,7 @@ export class OneCSyncService {
     try {
       await updateSyncStatus(tenantId, "order", "to1c", "processing");
 
-      const order = await db.select({ id: orders.id, status: orders.status, total: orders.total, orderNumber: orders.orderNumber }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId))).limit(1);
+      const order = await db.select({ id: orders.id, status: orders.status, total: orders.total, orderNumber: orders.orderNumber, shopId: orders.shopId, createdAt: orders.createdAt }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId))).limit(1);
       if (!order[0]) throw new Error(`Order ${orderId} not found`);
 
       const items = await db.select({
