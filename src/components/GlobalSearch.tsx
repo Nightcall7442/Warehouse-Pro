@@ -95,13 +95,13 @@ export function GlobalSearch() {
                     <button key={s.id} onClick={() => go(`/shops/${s.id}`)}
                       className="search-result-item"
                       style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", borderBottom: "1px solid var(--color-border, #f0f3f8)", textAlign: "left", border: "none", cursor: "pointer", borderBottomLeftRadius: "8px", borderBottomRightRadius: "8px" }}>
-                      <Store size={16} style={{ color: "#5b6d8a", flexShrink: 0 }}/>
+                      <Store size={16} style={{ color: "var(--color-primary-text)", flexShrink: 0 }}/>
                       <div>
                         <p style={{ fontSize: "13px", color: "var(--color-text-primary, #2b3450)", margin: 0 }}>{s.name}</p>
                         <p style={{ fontSize: "11px", color: "var(--color-text-secondary, #6a7290)", margin: "2px 0 0" }}>{s.city ?? ""} · {s.ownerName ?? ""}</p>
                       </div>
                       {Number(s.debt ?? 0) > 0 && (
-                        <span style={{ marginLeft: "auto", fontSize: "11px", color: "#d45050", fontWeight: 500 }}>{Number(s.debt).toLocaleString()} {tr("сум","so'm")}</span>
+                        <span style={{ marginLeft: "auto", fontSize: "11px", color: "var(--color-danger-text)", fontWeight: 500 }}>{Number(s.debt).toLocaleString()} {tr("сум","so'm")}</span>
                       )}
                     </button>
                   ))}
@@ -115,7 +115,7 @@ export function GlobalSearch() {
                     <button key={p.id} onClick={() => go(`/products/${p.id}`)}
                       className="search-result-item"
                       style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", borderBottom: "1px solid var(--color-border, #f0f3f8)", textAlign: "left", border: "none", cursor: "pointer" }}>
-                      <Package size={16} style={{ color: "#5b6d8a", flexShrink: 0 }}/>
+                      <Package size={16} style={{ color: "var(--color-primary-text)", flexShrink: 0 }}/>
                       <div>
                         <p style={{ fontSize: "13px", color: "var(--color-text-primary, #2b3450)", margin: 0 }}>{p.name}</p>
                         <p style={{ fontSize: "11px", color: "var(--color-text-secondary, #6a7290)", margin: "2px 0 0" }}>{p.code} · {p.category ?? ""}</p>
@@ -133,7 +133,7 @@ export function GlobalSearch() {
                     <button key={o.id} onClick={() => go(`/orders/${o.id}`)}
                       className="search-result-item"
                       style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", borderBottom: "1px solid var(--color-border, #f0f3f8)", textAlign: "left", border: "none", cursor: "pointer" }}>
-                      <ClipboardList size={16} style={{ color: "#5b6d8a", flexShrink: 0 }}/>
+                      <ClipboardList size={16} style={{ color: "var(--color-primary-text)", flexShrink: 0 }}/>
                       <div>
                         <p style={{ fontSize: "13px", color: "var(--color-text-primary, #2b3450)", margin: 0, fontWeight: 500 }}>{o.orderNumber}</p>
                         <p style={{ fontSize: "11px", color: "var(--color-text-secondary, #6a7290)", margin: "2px 0 0" }}>{o.shopName ?? ""} · {o.status}</p>

@@ -96,25 +96,25 @@ export function PnLRevenueChart({
             <Bar
               dataKey="revenue"
               name={t("Выручка", "Tushum")}
-              fill="#5b6d8a"
+              fill="var(--color-primary)"
               radius={[4, 4, 0, 0]}
               opacity={0.85}
             />
             <Bar
               dataKey="cogs"
               name="COGS"
-              fill="#d4973a"
+              fill="var(--color-warning)"
               radius={[4, 4, 0, 0]}
               opacity={0.85}
             />
             <Line
               dataKey="grossProfit"
               name={t("Вал. прибыль", "Yalpi foyda")}
-              stroke="#34c473"
+              stroke="var(--color-success)"
               strokeWidth={2.5}
               dot={{
                 r: 4,
-                fill: "#34c473",
+                fill: "var(--color-success)",
                 stroke: COLORS.surface,
                 strokeWidth: 2,
               }}

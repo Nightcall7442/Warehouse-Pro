@@ -23,7 +23,7 @@ export function TerritoryManager({ lang, onClose }: TerritoryManagerProps) {
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState("");
-  const [newColor, setNewColor] = useState("#5b6d8a");
+  const [newColor, setNewColor] = useState("var(--color-primary)");
   const [newLat, setNewLat] = useState("");
   const [newLng, setNewLng] = useState("");
   const [newRadius, setNewRadius] = useState("10");
@@ -71,7 +71,7 @@ export function TerritoryManager({ lang, onClose }: TerritoryManagerProps) {
     onError: (e) => notify.error(e.message),
   });
 
-  const PRESET_COLORS = ["#5b6d8a", "#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4"];
+  const PRESET_COLORS = ["var(--color-primary)", "#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4"];
 
   const startEditing = (ter: { id: number; name: string; color?: string | null; centerLat?: string | null; centerLng?: string | null; radiusKm?: string | null }) => {
     setEditingId(ter.id);
@@ -135,7 +135,7 @@ export function TerritoryManager({ lang, onClose }: TerritoryManagerProps) {
 
         <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "4px" }}>
           {isLoading ? (
-            <div style={{ padding: "24px", textAlign: "center" }}><Loader2 size={20} className="animate-spin" style={{ color: COLORS.primary }} /></div>
+            <div style={{ padding: "24px", textAlign: "center" }}><Loader2 size={20} className="animate-spin" style={{ color: COLORS.primaryText }} /></div>
           ) : territories.length === 0 && !showCreate ? (
             <div style={{ padding: "24px", textAlign: "center", color: COLORS.textSecondary, fontSize: "13px" }}>
               {t("Нет территорий", "Territoriyalar yo'q")}

@@ -1,12 +1,16 @@
 export const COLORS = {
-  primary: "var(--color-primary, #5b6d8a)",
+  primary: "var(--color-primary)",
+  // Accent-coloured *text* (a price, a code, a link). The fill colour above
+  // is a hair under 4.5:1 as text on a light card, so semantic text uses
+  // this darker sibling instead. See --color-primary-text in index.css.
+  primaryText: "var(--color-primary-text)",
   primaryLight: "var(--color-primary-muted, #94a3b8)",
   primaryDark: "var(--color-primary-hover, #4a5c78)",
-  gradientStart: "var(--color-primary, #5b6d8a)",
+  gradientStart: "var(--color-primary)",
   gradientEnd: "var(--color-primary-muted, #94a3b8)",
-  success: "var(--color-success, #34c473)",
-  warning: "var(--color-warning, #d4973a)",
-  danger: "var(--color-danger, #d45050)",
+  success: "var(--color-success)",
+  warning: "var(--color-warning)",
+  danger: "var(--color-danger)",
   surface: "var(--color-surface, #f6f4f0)",
   surfaceDark: "var(--color-surface-light, #fbfaf8)",
   textPrimary: "var(--color-text-primary, #2b2a28)",
@@ -29,10 +33,10 @@ export const SHADOWS = {
 };
 
 export const GRADIENTS = {
-  hero: `linear-gradient(135deg, color-mix(in srgb, var(--color-primary, #5b6d8a) 6%, var(--color-surface, #f6f4f0)) 0%, var(--color-surface, #f6f4f0) 100%)`,
-  heroExpired: `linear-gradient(135deg, color-mix(in srgb, var(--color-danger, #d45050) 6%, var(--color-surface, #f6f4f0)) 0%, var(--color-surface, #f6f4f0) 100%)`,
-  button: `linear-gradient(135deg, var(--color-primary, #5b6d8a), var(--color-primary-hover, #4a5c78))`,
-  buttonHover: `linear-gradient(135deg, var(--color-primary-hover, #4a5c78), var(--color-primary, #5b6d8a))`,
+  hero: `linear-gradient(135deg, color-mix(in srgb, var(--color-primary) 6%, var(--color-surface, #f6f4f0)) 0%, var(--color-surface, #f6f4f0) 100%)`,
+  heroExpired: `linear-gradient(135deg, color-mix(in srgb, var(--color-danger) 6%, var(--color-surface, #f6f4f0)) 0%, var(--color-surface, #f6f4f0) 100%)`,
+  button: `linear-gradient(135deg, var(--color-primary), var(--color-primary-hover, #4a5c78))`,
+  buttonHover: `linear-gradient(135deg, var(--color-primary-hover, #4a5c78), var(--color-primary))`,
   card: "var(--color-surface, #f6f4f0)",
 };
 

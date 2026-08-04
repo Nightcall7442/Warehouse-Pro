@@ -62,9 +62,9 @@ const UNIT_LABELS: Record<string, { ru: string; uz: string }> = {
 };
 
 const PAYMENT_METHODS: Record<string, { ru: string; uz: string; color: string }> = {
-  cash:     { ru: "Наличные",     uz: "Naqd",       color: "#34c473" },
-  transfer: { ru: "Перечисление", uz: "O'tkazma",   color: "#5b6d8a" },
-  debt:     { ru: "Долг",         uz: "Qarz",       color: "#d4973a" },
+  cash:     { ru: "Наличные",     uz: "Naqd",       color: "var(--color-success-text)" },
+  transfer: { ru: "Перечисление", uz: "O'tkazma",   color: "var(--color-primary-text)" },
+  debt:     { ru: "Долг",         uz: "Qarz",       color: "var(--color-warning-text)" },
   card:     { ru: "Карта",        uz: "Plastik",    color: "#9b59b6" },
 };
 
@@ -410,7 +410,7 @@ export default function OrderDetail() {
                     padding: "10px 24px", fontSize: "14px", fontWeight: 700,
                     fontFamily: "'DM Sans', sans-serif",
                     borderRadius: "14px", border: "none", cursor: "pointer",
-                    background: "linear-gradient(135deg, #34c473, #28a862)",
+                    background: "linear-gradient(135deg, var(--color-success), #28a862)",
                     color: "#fff",
                     boxShadow: "0 4px 12px rgba(52,196,115,0.25)",
                   }}
@@ -427,7 +427,7 @@ export default function OrderDetail() {
                   padding: "10px 24px", fontSize: "14px", fontWeight: 700,
                   fontFamily: "'DM Sans', sans-serif",
                   borderRadius: "14px", border: "none", cursor: "pointer",
-                  background: editing ? "#34c473" : "linear-gradient(135deg, #5b6d8a, #7b94f8)",
+                  background: editing ? "var(--color-success)" : "linear-gradient(135deg, var(--color-primary), var(--color-primary-hover))",
                   color: "#fff",
                   boxShadow: "0 4px 12px rgba(91,109,138,0.25)",
                   opacity: editing && updateOrder.isPending ? 0.7 : 1,

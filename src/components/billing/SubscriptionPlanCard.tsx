@@ -91,7 +91,7 @@ export function SubscriptionPlanCard({
           alignItems: "center",
           gap: "6px",
         }}>
-          {isPro && <Zap size={16} style={{ color: COLORS.primary }} />}
+          {isPro && <Zap size={16} style={{ color: COLORS.primaryText }} />}
           <p style={{
             fontFamily: FONTS.display,
             fontWeight: "700",
@@ -106,8 +106,8 @@ export function SubscriptionPlanCard({
               borderRadius: "6px",
               fontSize: "10px",
               fontWeight: "600",
-              color: COLORS.primary,
-              background: "rgba(75,108,246,.15)",
+              color: COLORS.primaryText,
+              background: "color-mix(in srgb, var(--color-primary) 15%, transparent)",
             }}>
               {t("ТЕКУЩИЙ", "JORIY")}
             </span>
@@ -168,7 +168,7 @@ export function SubscriptionPlanCard({
               justifyContent: "center",
               flexShrink: 0,
             }}>
-              <Check size={12} style={{ color: "#34c473" }} />
+              <Check size={12} style={{ color: "var(--color-success-text)" }} />
             </div>
             <span style={{ color: COLORS.textSecondary }}>
               <span style={{

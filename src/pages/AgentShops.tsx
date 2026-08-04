@@ -291,7 +291,7 @@ export default function AgentShops() {
             <div className="flex items-start gap-3">
               <div
                 className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
-                style={{ background: "rgba(75,108,246,.10)" }}
+                style={{ background: "color-mix(in srgb, var(--color-primary) 10%, transparent)" }}
               >
                 <Store size={19} className="text-primary" />
               </div>

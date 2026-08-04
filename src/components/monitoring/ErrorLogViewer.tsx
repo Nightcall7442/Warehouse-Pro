@@ -241,8 +241,8 @@ export function ErrorLogViewer({ groupedErrors, errorStats, errorTrend, onSelect
                         style={{
                           display: "flex", alignItems: "center", gap: "4px", padding: "5px 10px",
                           borderRadius: "6px", fontSize: "11px", fontWeight: 600, cursor: "pointer",
-                          background: "rgba(75,108,246,.10)", color: COLORS.primary,
-                          border: `1px solid rgba(75,108,246,.20)`,
+                          background: "color-mix(in srgb, var(--color-primary) 10%, transparent)", color: COLORS.primaryText,
+                          border: `1px solid color-mix(in srgb, var(--color-primary) 20%, transparent)`,
                         }}
                       >
                         <ChevronRight size={12} /> Полный стектрейс

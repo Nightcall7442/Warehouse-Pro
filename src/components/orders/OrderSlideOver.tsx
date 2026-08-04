@@ -933,7 +933,7 @@ function AdjustmentsTab({ orderId, currency }: { orderId: number; currency: stri
 
   const typeLabels: Record<string, { ru: string; uz: string; color: string }> = {
     partial_delivery: { ru: "Частичная доставка", uz: "Qisman yetkazib berish", color: COLORS.warning },
-    partial_payment: { ru: "Частичная оплата", uz: "Qisman to'lov", color: COLORS.primary },
+    partial_payment: { ru: "Частичная оплата", uz: "Qisman to'lov", color: COLORS.primaryText },
     price_change: { ru: "Изменение цены", uz: "Narx o'zgarishi", color: "#9b59b6" },
     quantity_change: { ru: "Изменение количества", uz: "Miqdor o'zgarishi", color: COLORS.success },
   };
@@ -959,7 +959,7 @@ function AdjustmentsTab({ orderId, currency }: { orderId: number; currency: stri
               )}
               {adj.reason && <div style={{ fontFamily: F.body, fontSize: "11px", color: COLORS.textTertiary, fontStyle: "italic" }}>"{adj.reason}"</div>}
               {adj.photos && adj.photos.length > 0 && (
-                <div style={{ fontFamily: F.body, fontSize: "11px", color: COLORS.primary }}>{t("Фото", "Rasm")}: {adj.photos.length}</div>
+                <div style={{ fontFamily: F.body, fontSize: "11px", color: COLORS.primaryText }}>{t("Фото", "Rasm")}: {adj.photos.length}</div>
               )}
             </div>
           );

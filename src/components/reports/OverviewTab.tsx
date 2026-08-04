@@ -55,8 +55,8 @@ export const OverviewTab = memo(function OverviewTab({
               <YAxis tick={{ fill: COLORS.textTertiary, fontSize: 11, fontFamily: F.body }} axisLine={false} tickLine={false} />
               <Tooltip contentStyle={{ background: COLORS.surface, border: "none", borderRadius: 12, boxShadow: "0 4px 24px rgba(0,0,0,0.08)" }} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Line type="monotone" dataKey="visits" stroke="#5b6d8a" strokeWidth={2.5} dot={false} name={t("Визиты", "Tashriflar")} />
-              <Line type="monotone" dataKey="orders" stroke="#34c473" strokeWidth={2.5} dot={false} name={t("Заказы", "Buyurtmalar")} />
+              <Line type="monotone" dataKey="visits" stroke="var(--color-primary)" strokeWidth={2.5} dot={false} name={t("Визиты", "Tashriflar")} />
+              <Line type="monotone" dataKey="orders" stroke="var(--color-success)" strokeWidth={2.5} dot={false} name={t("Заказы", "Buyurtmalar")} />
             </LineChart>
           </ResponsiveContainer>
         </ChartPanel>
@@ -64,7 +64,7 @@ export const OverviewTab = memo(function OverviewTab({
         {/* Plan completion */}
         <GlassPanel>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
-            <Activity size={16} style={{ color: COLORS.primary }} />
+            <Activity size={16} style={{ color: COLORS.primaryText }} />
             <h2 style={{ fontFamily: F.display, fontSize: "15px", fontWeight: 600, color: COLORS.textPrimary, margin: 0 }}>
               {t("План сегодня", "Bugungi reja")}
             </h2>
@@ -73,7 +73,7 @@ export const OverviewTab = memo(function OverviewTab({
             const totalVisited = plans.reduce((s, p) => s + Number(p.visited ?? 0), 0);
             const totalPlanned = plans.reduce((s, p) => s + Number(p.total ?? 0), 0);
             const pct = totalPlanned > 0 ? Math.round((totalVisited / totalPlanned) * 100) : 0;
-            const ringColor = pct >= 80 ? "#34c473" : pct >= 50 ? "#d4973a" : "#d45050";
+            const ringColor = pct >= 80 ? "var(--color-success)" : pct >= 50 ? "var(--color-warning)" : "var(--color-danger)";
             return (
               <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "20px", paddingBottom: "20px", borderBottom: `1px solid ${COLORS.border}` }}>
                 <ProgressRing value={pct} color={ringColor} label={`${pct}%`} />

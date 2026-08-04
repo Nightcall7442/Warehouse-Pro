@@ -52,8 +52,8 @@ export const ConfirmDialog = memo(function ConfirmDialog({ title, message, confi
       >
         <div style={{ display: "flex", alignItems: "flex-start", gap: "12px", marginBottom: "16px" }}>
           {danger && (
-            <div style={{ width: "40px", height: "40px", borderRadius: "50%", background: "color-mix(in srgb, var(--color-danger, #d45050) 10%, transparent)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <AlertTriangle size={20} style={{ color: "var(--color-danger, #d45050)" }}/>
+            <div style={{ width: "40px", height: "40px", borderRadius: "50%", background: "color-mix(in srgb, var(--color-danger) 10%, transparent)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <AlertTriangle size={20} style={{ color: "var(--color-danger-text)" }}/>
             </div>
           )}
           <div style={{ flex: 1 }}>
@@ -70,7 +70,7 @@ export const ConfirmDialog = memo(function ConfirmDialog({ title, message, confi
             style={{
               padding: "8px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 600,
               fontFamily: "'DM Sans', sans-serif", border: "none", cursor: "pointer",
-              background: danger ? "var(--color-danger, #d45050)" : "var(--color-primary, #5b6d8a)",
+              background: danger ? "var(--color-danger)" : "var(--color-primary)",
               color: "#fff",
             }}>
             {confirmText}

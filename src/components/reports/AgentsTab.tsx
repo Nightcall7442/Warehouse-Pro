@@ -4,7 +4,7 @@ import { F, COLORS } from "./report-constants";
 import { GlassPanel } from "./ReportCharts";
 
 const MEDALS = ["🥇", "🥈", "🥉"];
-const MEDAL_COLORS = ["#d4973a", "var(--color-text-tertiary, #98a0b8)", "#d4973a"];
+const MEDAL_COLORS = ["var(--color-warning)", "var(--color-text-tertiary, #98a0b8)", "var(--color-warning)"];
 
 const AgentCard = memo(function AgentCard({ agent: a, rank, fmt, days }: { agent: unknown; rank: number; fmt: (v: string | number) => string; days: number }) {
   const agent = a as Record<string, unknown>;
@@ -12,9 +12,9 @@ const AgentCard = memo(function AgentCard({ agent: a, rank, fmt, days }: { agent
   return (
     <div style={{
       display: "flex", alignItems: "center", gap: "16px", padding: "18px 20px",
-      borderRadius: "16px", background: isTop3 ? "var(--color-primary-subtle, rgba(75,108,246,.10))" : COLORS.surface,
+      borderRadius: "16px", background: isTop3 ? "var(--color-primary-subtle)" : COLORS.surface,
       boxShadow: isTop3 ? "0 2px 8px rgba(0,0,0,0.06)" : "0 1px 3px rgba(0,0,0,0.03)",
-      border: isTop3 ? "1px solid rgba(75,108,246,.15)" : "none",
+      border: isTop3 ? "1px solid color-mix(in srgb, var(--color-primary) 15%, transparent)" : "none",
     }}>
       <div style={{
         width: "40px", height: "40px", borderRadius: "12px", display: "flex", alignItems: "center", justifyContent: "center",
@@ -40,7 +40,7 @@ const AgentCard = memo(function AgentCard({ agent: a, rank, fmt, days }: { agent
       </div>
 
       <div style={{ textAlign: "right" }}>
-        <p style={{ fontFamily: F.body, fontSize: "16px", fontWeight: 700, color: "#5b6d8a", margin: 0 }}>
+        <p style={{ fontFamily: F.body, fontSize: "16px", fontWeight: 700, color: "var(--color-primary-text)", margin: 0 }}>
           {fmt(agent.revenue as string | number)}
         </p>
         <p style={{ fontSize: "11px", color: COLORS.textTertiary, margin: "2px 0 0" }}>выручка</p>
@@ -50,7 +50,7 @@ const AgentCard = memo(function AgentCard({ agent: a, rank, fmt, days }: { agent
 });
 
 const PODIUM_GRADIENTS = [
-  "linear-gradient(135deg, #d4973a 0%, #e8b86d 100%)",
+  "linear-gradient(135deg, var(--color-warning) 0%, #e8b86d 100%)",
   "linear-gradient(135deg, #7a8ba8 0%, #a0aec0 100%)",
   "linear-gradient(135deg, #c47a3a 0%, #d9955a 100%)",
 ];

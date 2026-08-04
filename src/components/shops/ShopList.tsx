@@ -24,7 +24,7 @@ export function ShopList({ data, isLoading, lang, fmt, selected, allSelected, on
               <button onClick={onSelectAll}
                 style={{ background: "none", border: "none", cursor: "pointer", padding: "4px", display: "flex", alignItems: "center", gap: "6px" }}>
                 {allSelected
-                  ? <CheckSquare size={16} style={{ color: COLORS.primary }} />
+                  ? <CheckSquare size={16} style={{ color: COLORS.primaryText }} />
                   : <Square size={16} style={{ color: COLORS.textTertiary }} />
                 }
                 <span style={{ fontSize: "12px", color: COLORS.textSecondary }}>{t("Выбрать все", "Barchasini tanlash")}</span>
@@ -67,10 +67,10 @@ export function SelectionBar({ count, lang, onReset, onBulkDelete, isDeleting }:
     <div style={{
       display: "flex", alignItems: "center", justifyContent: "space-between",
       padding: "12px 20px", borderRadius: "14px",
-      background: "var(--color-primary-subtle, rgba(75,108,246,.10))",
-      border: "1px solid rgba(75,108,246,.20)",
+      background: "var(--color-primary-subtle)",
+      border: "1px solid color-mix(in srgb, var(--color-primary) 20%, transparent)",
     }}>
-      <span style={{ fontSize: "13px", fontWeight: 600, color: "#5b6d8a" }}>
+      <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-primary-text)" }}>
         {count} {t("выбрано", "tanlangan")}
       </span>
       <div style={{ display: "flex", gap: "8px" }}>
@@ -82,7 +82,7 @@ export function SelectionBar({ count, lang, onReset, onBulkDelete, isDeleting }:
             display: "flex", alignItems: "center", gap: "5px", padding: "6px 14px",
             fontSize: "12px", fontWeight: 600, borderRadius: "8px",
             border: "none", cursor: "pointer", color: "#fff",
-            background: "#d45050", opacity: isDeleting ? 0.5 : 1,
+            background: "var(--color-danger)", opacity: isDeleting ? 0.5 : 1,
           }}>
           <Trash2 size={13} />{t("Удалить", "O'chirish")}
         </button>
@@ -95,7 +95,7 @@ export function CityBreadcrumb({ city, district, total, lang }: { city?: string;
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   return (
     <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: COLORS.textSecondary }}>
-      <MapPin size={14} style={{ color: COLORS.primary }} />
+      <MapPin size={14} style={{ color: COLORS.primaryText }} />
       <span>{city && <strong style={{ color: COLORS.textPrimary }}>{city}</strong>}</span>
       {district && <><span>›</span><strong style={{ color: COLORS.textPrimary }}>{district}</strong></>}
       <span style={{ color: COLORS.textSecondary }}>({total} {t("магазинов", "do'kon")})</span>

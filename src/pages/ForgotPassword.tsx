@@ -32,7 +32,7 @@ export default function ForgotPassword() {
             /* Success state */
             <div style={{ textAlign: "center" }}>
               <div style={{ width: 48, height: 48, borderRadius: 12, background: "rgba(74,222,128,.10)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-                <CheckCircle2 size={24} style={{ color: "#34c473" }} />
+                <CheckCircle2 size={24} style={{ color: "var(--color-success-text)" }} />
               </div>
               <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--color-text-primary, #2b3450)", marginBottom: 8 }}>
                 {t("auth.forgotPassword.emailSent")}
@@ -40,7 +40,7 @@ export default function ForgotPassword() {
               <p style={{ fontSize: 14, color: "var(--color-text-secondary, #6a7290)", lineHeight: 1.6, marginBottom: 24 }}>
                 {t("auth.forgotPassword.subtitle")}
               </p>
-              <Link to="/login" style={{ display: "inline-block", padding: "10px 24px", background: "#5b6d8a", color: "#fff", borderRadius: 8, fontSize: 14, fontWeight: 600, textDecoration: "none" }}>
+              <Link to="/login" style={{ display: "inline-block", padding: "10px 24px", background: "var(--color-primary)", color: "var(--color-on-primary)", borderRadius: 8, fontSize: 14, fontWeight: 600, textDecoration: "none" }}>
                 {t("auth.forgotPassword.returnToLogin")}
               </Link>
             </div>
@@ -48,8 +48,8 @@ export default function ForgotPassword() {
             /* Form */
             <>
               <div style={{ textAlign: "center", marginBottom: 24 }}>
-                <div style={{ width: 48, height: 48, borderRadius: 12, background: "var(--color-primary-subtle, rgba(75,108,246,.10))", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-                  <Mail size={24} style={{ color: "#5b6d8a" }} />
+                <div style={{ width: 48, height: 48, borderRadius: 12, background: "var(--color-primary-subtle)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+                  <Mail size={24} style={{ color: "var(--color-primary-text)" }} />
                 </div>
                 <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--color-text-primary, #2b3450)", marginBottom: 8 }}>
                   {t("auth.forgotPassword.title")}
@@ -81,7 +81,7 @@ export default function ForgotPassword() {
                 </div>
 
                 {requestReset.isError && (
-                  <p role="alert" style={{ fontSize: 13, color: "#d45050", marginBottom: 12 }}>
+                  <p role="alert" style={{ fontSize: 13, color: "var(--color-danger-text)", marginBottom: 12 }}>
                     {requestReset.error.message}
                   </p>
                 )}
@@ -91,7 +91,7 @@ export default function ForgotPassword() {
                   disabled={requestReset.isPending || !email}
                   style={{
                     width: "100%", padding: "10px 0", borderRadius: 8,
-                    background: "#5b6d8a", color: "#fff", border: "none",
+                    background: "var(--color-primary)", color: "var(--color-on-primary)", border: "none",
                     fontSize: 14, fontWeight: 600, cursor: requestReset.isPending ? "wait" : "pointer",
                     opacity: requestReset.isPending || !email ? 0.6 : 1,
                     display: "flex", alignItems: "center", justifyContent: "center", gap: 8,

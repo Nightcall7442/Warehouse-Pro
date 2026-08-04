@@ -98,7 +98,7 @@ export function TransferCredentialsModal({
                 width: "36px",
                 height: "36px",
                 borderRadius: "10px",
-                background: "linear-gradient(135deg, #d4973a, #e8b86a)",
+                background: "linear-gradient(135deg, var(--color-warning), #e8b86a)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",

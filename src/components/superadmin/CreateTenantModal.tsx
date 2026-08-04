@@ -23,7 +23,7 @@ export function CreateTenantModal({ onClose, onCreated }: CreateTenantModalProps
       <div style={{ padding: "24px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "24px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <div style={{ width: "40px", height: "40px", borderRadius: "12px", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(75,108,246,0.1)", color: COLORS.primary }}><Plus size={20} /></div>
+            <div style={{ width: "40px", height: "40px", borderRadius: "12px", display: "flex", alignItems: "center", justifyContent: "center", background: "color-mix(in srgb, var(--color-primary) 10%, transparent)", color: COLORS.primaryText }}><Plus size={20} /></div>
             <div>
               <h2 style={{ fontFamily: F.display, fontSize: "16px", fontWeight: 700, color: COLORS.textPrimary }}>Новая организация</h2>
               <p style={{ fontSize: "12px", color: COLORS.textTertiary }}>Создайте тенант и владельца</p>

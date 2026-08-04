@@ -30,7 +30,7 @@ export function TerritoriesGrid({ territories, totalShops, lang, fmt, onSelectAl
         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = COLORS.surfaceHover; }}
         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
       >
-        <div style={{ width: "28px", height: "28px", borderRadius: "8px", background: "#5b6d8a", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <div style={{ width: "28px", height: "28px", borderRadius: "8px", background: "var(--color-primary)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           <Store size={14} color="#fff" />
         </div>
         <span style={{ flex: 1, fontSize: "13px", fontWeight: 600, color: COLORS.textPrimary, fontFamily: F.body }}>
@@ -62,7 +62,7 @@ export function TerritoriesGrid({ territories, totalShops, lang, fmt, onSelectAl
               <span style={{
                 display: "inline-flex", alignItems: "center", gap: "3px", fontSize: "11px", fontWeight: 600,
                 padding: "2px 7px", borderRadius: "9999px", background: "rgba(232,80,80,.12)",
-                color: "#d45050", fontFamily: F.body,
+                color: "var(--color-danger-text)", fontFamily: F.body,
               }}>
                 <AlertCircle size={9} />{fmt(debt, { decimals: 0 })}
               </span>

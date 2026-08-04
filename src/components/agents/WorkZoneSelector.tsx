@@ -63,7 +63,7 @@ export function WorkZoneSelector({ agentId, agentName, lang, onClose, onSaved }:
 
         {isLoading ? (
           <div style={{ padding: "24px", textAlign: "center" }}>
-            <Loader2 size={20} className="animate-spin" style={{ color: COLORS.primary }} />
+            <Loader2 size={20} className="animate-spin" style={{ color: COLORS.primaryText }} />
           </div>
         ) : (
           <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "4px" }}>
@@ -73,7 +73,7 @@ export function WorkZoneSelector({ agentId, agentName, lang, onClose, onSaved }:
                 <div key={ter.id} onClick={() => toggle(ter.id)} style={{
                   display: "flex", alignItems: "center", gap: "10px",
                   padding: "10px 12px", borderRadius: "10px", cursor: "pointer",
-                  background: isSelected ? "rgba(75,108,246,0.08)" : "transparent",
+                  background: isSelected ? "color-mix(in srgb, var(--color-primary) 8%, transparent)" : "transparent",
                   border: `1px solid ${isSelected ? COLORS.primary : "transparent"}`,
                   transition: "all 0.15s",
                 }}>

@@ -44,9 +44,9 @@ export function TenantDetail({ tenantId, onBack }: TenantDetailProps) {
 
   const metricCards = [
     { label: "Пользователей", value: tenantUsers.length, icon: Users, gradient: "linear-gradient(135deg, #60a5fa, #3b82f6)" },
-    { label: "Заказов", value: fmt(stats.orders), icon: ShoppingCart, gradient: "linear-gradient(135deg, #34c473, #16a34a)" },
-    { label: "Товаров", value: fmt(stats.products), icon: Package, gradient: "linear-gradient(135deg, #5b6d8a, #5b6d8a)" },
-    { label: "Магазинов", value: fmt(stats.shops), icon: Store, gradient: "linear-gradient(135deg, #d4973a, #d97706)" },
+    { label: "Заказов", value: fmt(stats.orders), icon: ShoppingCart, gradient: "linear-gradient(135deg, var(--color-success), #16a34a)" },
+    { label: "Товаров", value: fmt(stats.products), icon: Package, gradient: "var(--color-primary)" },
+    { label: "Магазинов", value: fmt(stats.shops), icon: Store, gradient: "linear-gradient(135deg, var(--color-warning), #d97706)" },
   ];
 
   return (
@@ -72,8 +72,8 @@ export function TenantDetail({ tenantId, onBack }: TenantDetailProps) {
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
         <button onClick={onBack} style={{ padding: "8px", borderRadius: "10px", background: COLORS.surface, border: `1px solid ${COLORS.border}`, cursor: "pointer", color: COLORS.textSecondary }}><ArrowLeft size={16} /></button>
-        <div style={{ width: "44px", height: "44px", borderRadius: "14px", background: "rgba(75,108,246,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <span style={{ fontSize: "18px", fontWeight: 700, color: COLORS.primary }}>{tenant.name[0].toUpperCase()}</span>
+        <div style={{ width: "44px", height: "44px", borderRadius: "14px", background: "color-mix(in srgb, var(--color-primary) 10%, transparent)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <span style={{ fontSize: "18px", fontWeight: 700, color: COLORS.primaryText }}>{tenant.name[0].toUpperCase()}</span>
         </div>
         <div style={{ flex: 1 }}>
           <h2 style={{ fontFamily: F.display, fontSize: "18px", fontWeight: 700, color: COLORS.textPrimary }}>{tenant.name}</h2>
@@ -163,7 +163,7 @@ export function TenantDetail({ tenantId, onBack }: TenantDetailProps) {
               <div key={m.month} style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                 <span style={{ width: "72px", fontSize: "12px", color: COLORS.textSecondary, fontFamily: F.body }}>{m.month}</span>
                 <div style={{ flex: 1, height: "6px", borderRadius: "3px", background: COLORS.surfaceLight, overflow: "hidden" }}>
-                  <div style={{ height: "100%", borderRadius: "3px", background: "linear-gradient(90deg, #5b6d8a, #5b6d8a)", width: `${Math.min(100, ((m.orders ?? 0) / Math.max(1, ...monthlyOrders.map(x => x.orders ?? 0))) * 100)}%` }} />
+                  <div style={{ height: "100%", borderRadius: "3px", background: "linear-gradient(90deg, var(--color-primary), var(--color-primary))", width: `${Math.min(100, ((m.orders ?? 0) / Math.max(1, ...monthlyOrders.map(x => x.orders ?? 0))) * 100)}%` }} />
                 </div>
                 <span style={{ width: "40px", textAlign: "right", fontSize: "12px", fontWeight: 600, color: COLORS.textPrimary }}>{m.orders ?? 0}</span>
                 <span style={{ width: "100px", textAlign: "right", fontSize: "11px", color: COLORS.textTertiary }}>{money(Number(m.revenue ?? 0))} сум</span>

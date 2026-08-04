@@ -21,13 +21,13 @@ export function PaymentMethodsCard({ t }: PaymentMethodsCardProps) {
           width: "40px",
           height: "40px",
           borderRadius: "12px",
-          background: "rgba(75,108,246,.12)",
+          background: "color-mix(in srgb, var(--color-primary) 12%, transparent)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           flexShrink: 0,
         }}>
-          <Zap size={18} style={{ color: COLORS.primary }} />
+          <Zap size={18} style={{ color: COLORS.primaryText }} />
         </div>
         <div style={{ fontSize: "14px" }}>
           <p style={{

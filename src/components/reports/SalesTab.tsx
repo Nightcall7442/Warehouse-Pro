@@ -92,16 +92,16 @@ export const SalesTab = memo(function SalesTab({
                 {topProds.map((p, i) => {
                   const share = totalRevenue > 0 ? (Number(p.totalRevenue) / totalRevenue) * 100 : 0;
                   return (
-                    <tr key={i} style={{ transition: "background 0.15s" }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(75,108,246,0.02)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                    <tr key={i} style={{ transition: "background 0.15s" }} onMouseEnter={e => (e.currentTarget.style.background = "color-mix(in srgb, var(--color-primary) 2%, transparent)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
                       <td style={tdStyle}>
                         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                          <Package size={14} style={{ color: COLORS.primary, flexShrink: 0 }} />
+                          <Package size={14} style={{ color: COLORS.primaryText, flexShrink: 0 }} />
                           <span style={{ fontSize: "13px", fontWeight: 500 }}>{p.productName}</span>
                         </div>
                       </td>
                       <td style={{ ...tdStyle, color: COLORS.textTertiary, fontSize: "12px" }}>{p.productCode ?? "—"}</td>
                       <td style={{ ...tdStyle, textAlign: "right" }}>{Number(p.totalQty).toFixed(0)} кг</td>
-                      <td style={{ ...tdStyle, textAlign: "right", fontWeight: 600, color: COLORS.primary }}>{fmt(p.totalRevenue)}</td>
+                      <td style={{ ...tdStyle, textAlign: "right", fontWeight: 600, color: COLORS.primaryText }}>{fmt(p.totalRevenue)}</td>
                       <td style={{ ...tdStyle, textAlign: "right" }}>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "8px" }}>
                           <div style={{ width: "60px", height: "6px", background: COLORS.surfaceLight, borderRadius: "3px", overflow: "hidden" }}>

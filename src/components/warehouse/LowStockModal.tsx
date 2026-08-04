@@ -27,7 +27,7 @@ export function LowStockModal({ lowCount, reorderSuggestions, onClose }: LowStoc
       <div className="relative w-full max-w-2xl max-h-[80vh] overflow-y-auto rounded-3xl p-6" style={{ background: "var(--color-surface, #ffffff)", boxShadow: "0 25px 80px -12px rgba(0,0,0,0.35)" }} onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, #d45050, #d45050)" }}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, var(--color-danger), var(--color-danger))" }}>
               <AlertTriangle size={18} color="#fff" />
             </div>
             <div>
@@ -46,13 +46,13 @@ export function LowStockModal({ lowCount, reorderSuggestions, onClose }: LowStoc
         <div className="space-y-2">
           {filteredItems.map((item, i) => (
             <div key={i} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: "var(--color-surface-light, #f0f3f8)" }}>
-              <div className="w-2 h-8 rounded-full flex-shrink-0" style={{ background: "linear-gradient(180deg, #d45050, #d45050)" }} />
+              <div className="w-2 h-8 rounded-full flex-shrink-0" style={{ background: "linear-gradient(180deg, var(--color-danger), var(--color-danger))" }} />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate" style={{ color: "var(--color-text-primary, #2b3450)" }}>{item.productName}</p>
                 <p className="text-xs" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>{item.productCode}</p>
               </div>
               <div className="text-right">
-                <p className="text-sm font-bold" style={{ color: "#d45050" }}>{formatQty(item.currentStock)}</p>
+                <p className="text-sm font-bold" style={{ color: "var(--color-danger-text)" }}>{formatQty(item.currentStock)}</p>
                 <p className="text-xs" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>{t("порог", "chegara")}: {formatQty(item.reorderPoint, 0)}</p>
               </div>
             </div>

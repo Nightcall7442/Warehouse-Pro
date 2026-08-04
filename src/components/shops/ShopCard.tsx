@@ -28,7 +28,7 @@ export function ShopPhoto({ shopId, photoUrl, size = "md" }: { shopId: number; p
   return (
     <div className="relative group" onClick={e => e.stopPropagation()}>
       <div className={`${dim} rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0 cursor-pointer border border-border-subtle`}
-        style={{ background: "rgba(75,108,246,.08)" }} onClick={() => fileRef.current?.click()}>
+        style={{ background: "color-mix(in srgb, var(--color-primary) 8%, transparent)" }} onClick={() => fileRef.current?.click()}>
         {upload.isPending ? <Loader2 size={iconSize} className="text-primary animate-spin" />
           : photoUrl ? <img src={photoUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
           : <Store size={iconSize} className="text-primary" />}
@@ -65,7 +65,7 @@ export const ShopCard = memo(function ShopCard({ s, onClick, selected, onToggleS
           style={{ background: "none", border: "none", cursor: "pointer", padding: 0, flexShrink: 0, display: "flex" }}
         >
           {selected
-            ? <CheckSquare size={20} style={{ color: COLORS.primary }} />
+            ? <CheckSquare size={20} style={{ color: COLORS.primaryText }} />
             : <Square size={20} style={{ color: COLORS.textTertiary }} />
           }
         </button>
@@ -85,12 +85,12 @@ export const ShopCard = memo(function ShopCard({ s, onClick, selected, onToggleS
             {hasDebt && <span style={{
               display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "12px", fontWeight: 600,
               padding: "2px 8px", borderRadius: "9999px", background: "rgba(232,80,80,.15)",
-              color: "#d45050", fontFamily: F.body,
+              color: "var(--color-danger-text)", fontFamily: F.body,
             }}><AlertCircle size={11} />{fmt(s.debt, { decimals: 0 })}</span>}
             <span style={{
               fontSize: "10px", padding: "2px 8px", borderRadius: "9999px", fontWeight: 500,
               background: s.status === "active" ? "rgba(74,222,128,.15)" : COLORS.surfaceLight,
-              color: s.status === "active" ? "#34c473" : COLORS.textSecondary,
+              color: s.status === "active" ? "var(--color-success-text)" : COLORS.textSecondary,
             }}>
               {s.status === "active" ? t("Актив", "Aktiv") : t("Неактив", "Noaktiv")}
             </span>

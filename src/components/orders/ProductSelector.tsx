@@ -150,7 +150,7 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
                   alignItems: "center", justifyContent: "center", flexShrink: 0,
                   background: inCart ? "var(--color-primary-subtle)" : "var(--color-surface-light)",
                 }}>
-                  <Package size={16} style={{ color: inCart ? "var(--color-primary)" : "var(--color-text-tertiary)" }} />
+                  <Package size={16} style={{ color: inCart ? "var(--color-primary-text)" : "var(--color-text-tertiary)" }} />
                 </div>
 
                 {/* Product info */}
@@ -160,7 +160,7 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
                   </p>
                   <p style={{ fontSize: "11px", color: "var(--color-text-secondary)", margin: "2px 0 0" }}>
                     {fmt(product.unitPrice)}/{unitLabel(product.unit, lang)}
-                    {lowStock && <span style={{ color: "var(--color-warning)", marginLeft: "6px" }}>⚠ {t("мало", "kam")}</span>}
+                    {lowStock && <span style={{ color: "var(--color-warning-text)", marginLeft: "6px" }}>⚠ {t("мало", "kam")}</span>}
                   </p>
                 </div>
 
@@ -216,7 +216,7 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
           </h3>
           {validItems.length > 0 && (
             <button onClick={() => onChange([])} style={{
-              fontSize: "11px", color: "var(--color-danger)", background: "none",
+              fontSize: "11px", color: "var(--color-danger-text)", background: "none",
               border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", fontWeight: 500,
             }}>
               {t("Очистить", "Tozalash")}
@@ -309,7 +309,7 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
               )}
               <div style={{ display: "flex", justifyContent: "space-between", paddingTop: "8px", borderTop: "1px solid var(--color-border)" }}>
                 <span style={{ fontSize: "15px", fontWeight: 700, color: "var(--color-text-primary)" }}>{t("ИТОГО", "JAMI")}</span>
-                <span style={{ fontSize: "15px", fontWeight: 700, color: "var(--color-primary)" }}>{fmt(subtotal.toFixed(2))}</span>
+                <span style={{ fontSize: "15px", fontWeight: 700, color: "var(--color-primary-text)" }}>{fmt(subtotal.toFixed(2))}</span>
               </div>
             </div>
           </>

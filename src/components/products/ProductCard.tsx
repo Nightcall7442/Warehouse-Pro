@@ -40,7 +40,7 @@ export const ProductCard = memo(function ProductCard({ p, onClick, onDelete, sel
           style={{ background: "none", border: "none", cursor: "pointer", padding: 0, flexShrink: 0, display: "flex" }}
         >
           {selected
-            ? <CheckSquare size={20} style={{ color: COLORS.primary }} />
+            ? <CheckSquare size={20} style={{ color: COLORS.primaryText }} />
             : <Square size={20} style={{ color: COLORS.textTertiary }} />
           }
         </button>
@@ -57,7 +57,7 @@ export const ProductCard = memo(function ProductCard({ p, onClick, onDelete, sel
             </p>
           </div>
           <div style={{ textAlign: "right", flexShrink: 0 }}>
-            <p style={{ fontFamily: F.display, fontSize: "18px", fontWeight: 700, color: COLORS.primary, margin: 0 }}>
+            <p style={{ fontFamily: F.display, fontSize: "18px", fontWeight: 700, color: COLORS.primaryText, margin: 0 }}>
               {fmt(String(p.unitPrice), { decimals: 2 })}
             </p>
             {Number(p.costPrice) > 0 && (
@@ -92,7 +92,7 @@ export const ProductCard = memo(function ProductCard({ p, onClick, onDelete, sel
             marginLeft: "auto", fontSize: "12px", fontFamily: F.body, fontWeight: 600,
             padding: "2px 8px", borderRadius: "6px",
             background: low ? "rgba(232,80,80,0.15)" : "rgba(74,222,128,0.15)",
-            color: low ? "#d45050" : "#34c473",
+            color: low ? "var(--color-danger-text)" : "var(--color-success-text)",
           }}>
             {formatQty(p.available as number)} {u}
           </span>
@@ -108,7 +108,7 @@ export const ProductCard = memo(function ProductCard({ p, onClick, onDelete, sel
             onMouseLeave={e => { e.currentTarget.style.background = "rgba(232,80,80,0.1)"; }}
             title={t("Удалить", "O'chirish")}
           >
-            <Trash2 size={13} style={{ color: "#d45050" }} />
+            <Trash2 size={13} style={{ color: "var(--color-danger-text)" }} />
           </button>
         </div>
       </div>

@@ -19,7 +19,7 @@ export interface ProgressRingProps {
 export const ProgressRing = memo(function ProgressRing({
   value,
   trackColor,
-  color = "var(--color-primary, #5b6d8a)",
+  color = "var(--color-primary-text)",
   size = 88,
   strokeWidth = 7,
   label,

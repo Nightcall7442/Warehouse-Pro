@@ -58,7 +58,7 @@ export const PlanCompletion = memo(function PlanCompletion({ data, t }: { data: 
       {data.map((a) => {
         const agent = a as Record<string, unknown>;
         const pct = Math.min(100, Math.round(Number(agent.pct ?? 0)));
-        const color = pct >= 80 ? "#34c473" : pct >= 50 ? "#d4973a" : "#d45050";
+        const color = pct >= 80 ? "var(--color-success-text)" : pct >= 50 ? "var(--color-warning-text)" : "var(--color-danger-text)";
         return (
           <div key={String(agent.agentId)}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>

@@ -16,7 +16,7 @@ import { PremiumSelect } from "@/components/PremiumSelect";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 
 const STATUS_COLORS: Record<string, string> = {
-  new: "#5b6d8a", processing: "#d4973a", completed: "#34c473", cancelled: "#d45050",
+  new: "var(--color-primary)", processing: "var(--color-warning)", completed: "var(--color-success)", cancelled: "var(--color-danger)",
 };
 const STATUS_LABELS: Record<string, { ru: string; uz: string }> = {
   new:        { ru: "Новый",       uz: "Yangi"         },
@@ -245,7 +245,7 @@ export default function ShopDetail() {
             <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload}/>
             <div className="relative group flex-shrink-0 cursor-pointer" onClick={() => fileRef.current?.click()}>
               <div className="w-20 h-20 rounded-xl overflow-hidden flex items-center justify-center border border-border-subtle"
-                style={{ background: "rgba(75,108,246,.10)" }}>
+                style={{ background: "color-mix(in srgb, var(--color-primary) 10%, transparent)" }}>
                 {uploadPhoto.isPending ? <Loader2 size={28} className="text-primary animate-spin"/>
                   : shop.photoUrl ? <img src={shop.photoUrl} alt={shop.name} className="w-full h-full object-cover"/>
                   : <Store size={28} className="text-primary"/>}
@@ -280,7 +280,7 @@ export default function ShopDetail() {
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <p className="font-label text-[10px] tracking-wider mb-1"
-              style={{ color: hasDebt ? "#d45050" : "var(--color-text-tertiary, #98a0b8)" }}>
+              style={{ color: hasDebt ? "var(--color-danger-text)" : "var(--color-text-tertiary, #98a0b8)" }}>
               {t("ТЕКУЩИЙ ДОЛГ", "JORIY QARZ")}
             </p>
             <div className="flex items-center gap-2">

@@ -87,7 +87,7 @@ export function PnLTransportExpenses({
                   style={{ transition: "background 0.15s" }}
                   onMouseEnter={(e) =>
                     (e.currentTarget.style.background =
-                      "rgba(75,108,246,0.02)")
+                      "color-mix(in srgb, var(--color-primary) 2%, transparent)")
                   }
                   onMouseLeave={(e) =>
                     (e.currentTarget.style.background = "transparent")
@@ -115,7 +115,7 @@ export function PnLTransportExpenses({
                       ...tdStyle,
                       textAlign: "right",
                       fontWeight: 700,
-                      color: "#d45050",
+                      color: "var(--color-danger-text)",
                     }}
                   >
                     {fmt(Number(a.totalExpense) || 0)}

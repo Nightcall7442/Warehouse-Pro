@@ -12,8 +12,12 @@ import {
 // ── Premium design tokens ─────────────────────────────────────────────────────
 const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
 const COLORS = {
-  primary: "#5b6d8a", success: "#34c473",
-  warning: "#d4973a", danger: "#d45050",
+  primary: "var(--color-primary)",
+  // Accent-coloured *text* (a price, a code, a link). The fill colour above
+  // is a hair under 4.5:1 as text on a light card, so semantic text uses
+  // this darker sibling instead. See --color-primary-text in index.css.
+  primaryText: "var(--color-primary-text)", success: "var(--color-success)",
+  warning: "var(--color-warning)", danger: "var(--color-danger)",
   surface: "var(--color-surface, #ffffff)", surfaceLight: "var(--color-surface-light, #f0f3f8)",
   textPrimary: "var(--color-text-primary, #2b3450)", textSecondary: "var(--color-text-secondary, #6a7290)",
   textTertiary: "var(--color-text-tertiary, #98a0b8)", border: "var(--color-border, #f0f3f8)",
@@ -63,7 +67,7 @@ function KpiCard({ label, value, delta, icon, gradient, delay }: {
         <div style={{
           display: "flex", alignItems: "center", gap: "4px", marginTop: "10px",
           fontSize: "12px", fontWeight: 600, fontFamily: F.body,
-          color: isPositive ? "#34c473" : isNegative ? "#d45050" : COLORS.textTertiary,
+          color: isPositive ? "var(--color-success-text)" : isNegative ? "var(--color-danger-text)" : COLORS.textTertiary,
         }}>
           {isPositive ? <ArrowUpRight size={14} /> : isNegative ? <ArrowDownRight size={14} /> : <Minus size={14} />}
           {Math.abs(delta).toFixed(1)}%
@@ -79,12 +83,12 @@ const ACTION_CONFIG: Record<string, {
   gradient: string;
   label: { ru: string; uz: string };
 }> = {
-  "user.updated":                    { icon: User,         gradient: "linear-gradient(135deg, #5b6d8a, #5b6d8a)", label: { ru: "Обновлён пользователь", uz: "Foydalanuvchi yangilandi" } },
-  "user.deactivated":                { icon: User,         gradient: "linear-gradient(135deg, #d45050, #d45050)", label: { ru: "Пользователь деактивирован", uz: "Foydalanuvchi o'chirildi" } },
+  "user.updated":                    { icon: User,         gradient: "var(--color-primary)", label: { ru: "Обновлён пользователь", uz: "Foydalanuvchi yangilandi" } },
+  "user.deactivated":                { icon: User,         gradient: "linear-gradient(135deg, var(--color-danger), var(--color-danger))", label: { ru: "Пользователь деактивирован", uz: "Foydalanuvchi o'chirildi" } },
   "user.password_reset_by_admin":    { icon: Key,          gradient: "linear-gradient(135deg, #fb923c, #f97316)", label: { ru: "Сброс пароля", uz: "Parol tiklandi" } },
   "stock.adjusted":                  { icon: Package,      gradient: "linear-gradient(135deg, #e07b39, #e07b39)", label: { ru: "Корректировка склада", uz: "Ombor tahrirlandi" } },
   "integration.onec_secret_rotated": { icon: Settings,     gradient: "linear-gradient(135deg, #10B981, #059669)", label: { ru: "Ротация ключа 1C", uz: "1C kalit almashtirildi" } },
-  "tenant.updated":                  { icon: AlertTriangle, gradient: "linear-gradient(135deg, #d45050, #d45050)", label: { ru: "Обновлён тенант", uz: "Tench yangilandi" } },
+  "tenant.updated":                  { icon: AlertTriangle, gradient: "linear-gradient(135deg, var(--color-danger), var(--color-danger))", label: { ru: "Обновлён тенант", uz: "Tench yangilandi" } },
 };
 
 const ACTION_FILTERS = [
@@ -156,7 +160,7 @@ export default function AuditLog() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
         <div>
           <h1 style={{ fontFamily: F.display, fontSize: "24px", fontWeight: 700, color: COLORS.textPrimary, letterSpacing: "-0.025em", margin: 0, display: "flex", alignItems: "center", gap: "10px" }}>
-            <Shield size={24} style={{ color: COLORS.primary }} />
+            <Shield size={24} style={{ color: COLORS.primaryText }} />
             {t("Аудит-лог", "Audit jurnali")}
           </h1>
           <p style={{ fontSize: "13px", color: COLORS.textSecondary, margin: "4px 0 0" }}>
@@ -193,7 +197,7 @@ export default function AuditLog() {
                 border: "none", cursor: "pointer", transition: "all 0.2s", whiteSpace: "nowrap" as const,
                 background: active ? COLORS.primary : COLORS.surfaceLight,
                 color: active ? "#fff" : COLORS.textSecondary,
-                boxShadow: active ? "0 2px 8px rgba(75,108,246,0.25)" : "none",
+                boxShadow: active ? "0 2px 8px color-mix(in srgb, var(--color-primary) 25%, transparent)" : "none",
               }}
             >
               {f.key === "all" && <Filter size={12} />}
@@ -210,7 +214,7 @@ export default function AuditLog() {
             label={t("ВСЕГО ЗАПИСЕЙ", "JAMI YOZUVLAR")}
             value={String(data.total)}
             icon={<Shield size={20} color="#fff" />}
-            gradient="linear-gradient(135deg, #5b6d8a, #5b6d8a)"
+            gradient="var(--color-primary)"
             delay={0}
           />
           <KpiCard
@@ -277,7 +281,7 @@ export default function AuditLog() {
                     cursor: "pointer", transition: "background 0.15s",
                   }}
                   onClick={() => setExpandedId(isExpanded ? null : entry.id)}
-                  onMouseEnter={e => (e.currentTarget.style.background = "rgba(75,108,246,0.02)")}
+                  onMouseEnter={e => (e.currentTarget.style.background = "color-mix(in srgb, var(--color-primary) 2%, transparent)")}
                   onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
                 >
                   {/* Gradient icon */}

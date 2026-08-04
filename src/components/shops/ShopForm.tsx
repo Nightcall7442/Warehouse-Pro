@@ -97,9 +97,9 @@ export function ShopForm({ onSave, onCancel, isPending, lang, agents, territorie
             width: "80px", height: "80px", borderRadius: "16px", overflow: "hidden",
             display: "flex", alignItems: "center", justifyContent: "center",
             cursor: "pointer", position: "relative", border: `1px solid ${COLORS.border}`,
-            background: "rgba(75,108,246,.08)",
+            background: "color-mix(in srgb, var(--color-primary) 8%, transparent)",
           }} onClick={() => fileRef.current?.click()}>
-            {photo ? <img src={photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <Store size={28} style={{ color: COLORS.primary }} />}
+            {photo ? <img src={photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <Store size={28} style={{ color: COLORS.primaryText }} />}
             <div style={{
               position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)",
               opacity: 0, display: "flex", flexDirection: "column", alignItems: "center",

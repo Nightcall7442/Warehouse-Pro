@@ -165,7 +165,7 @@ export default function SupervisorPlans() {
   const visited = plans?.filter(p => p.status === "visited").length ?? 0;
   const total   = plans?.length ?? 0;
   const pct     = total > 0 ? Math.round((visited / total) * 100) : 0;
-  const progressColor = pct === 100 ? "#34c473" : pct >= 60 ? "#d4973a" : "#5b6d8a";
+  const progressColor = pct === 100 ? "var(--color-success)" : pct >= 60 ? "var(--color-warning)" : "var(--color-primary)";
 
   return (
     <div className="space-y-4 animate-fade-up">
@@ -183,7 +183,7 @@ export default function SupervisorPlans() {
             {t("Планы визитов", "Tashrif rejalari")}
           </h1>
           {isToday && (
-            <p className="text-xs mt-0.5" style={{ color: "#5b6d8a" }}>
+            <p className="text-xs mt-0.5" style={{ color: "var(--color-primary-text)" }}>
               {t("Сегодня", "Bugun")}
             </p>
           )}
@@ -280,7 +280,7 @@ export default function SupervisorPlans() {
                         width: "36px", height: "36px", borderRadius: "10px",
                         display: "flex", alignItems: "center", justifyContent: "center",
                         background: allVisited ? "var(--color-success-subtle)" : "var(--color-primary-subtle)",
-                        color: allVisited ? "var(--color-success)" : "var(--color-primary)",
+                        color: allVisited ? "var(--color-success-text)" : "var(--color-primary-text)",
                         fontWeight: 700, fontSize: "14px",
                       }}>
                         {(group.agentName ?? "A")[0].toUpperCase()}
@@ -320,7 +320,7 @@ export default function SupervisorPlans() {
                             {plan.shopCity ?? ""}
                           </span>
                           {hasDebt && (
-                            <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--color-danger)" }}>
+                            <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--color-danger-text)" }}>
                               {fmt(plan.shopDebt ?? 0)}
                             </span>
                           )}

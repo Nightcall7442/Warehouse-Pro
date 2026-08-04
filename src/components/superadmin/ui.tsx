@@ -48,7 +48,7 @@ export function Section({ title, icon: Icon, children }: {
   return (
     <div style={{ background: COLORS.surface, borderRadius: "20px", boxShadow: "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04))" }}>
       <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", gap: "10px", borderBottom: `1px solid ${COLORS.border}` }}>
-        <div style={{ width: "28px", height: "28px", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(75,108,246,0.1)", color: COLORS.primary }}>
+        <div style={{ width: "28px", height: "28px", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", background: "color-mix(in srgb, var(--color-primary) 10%, transparent)", color: COLORS.primaryText }}>
           <Icon size={14} />
         </div>
         <h3 style={{ fontFamily: F.display, fontSize: "13px", fontWeight: 600, color: COLORS.textPrimary }}>{title}</h3>
@@ -86,7 +86,7 @@ export function BtnPrimary({ children, disabled, onClick, style: s }: {
   children: React.ReactNode; disabled?: boolean; onClick?: () => void; style?: React.CSSProperties;
 }) {
   return (
-    <button onClick={onClick} disabled={disabled} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px", padding: "10px 20px", borderRadius: "10px", fontSize: "13px", fontWeight: 600, fontFamily: F.body, color: "#fff", background: "linear-gradient(135deg, #5b6d8a, #5b6d8a)", border: "none", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1, transition: "all 0.2s", ...s }}>
+    <button onClick={onClick} disabled={disabled} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px", padding: "10px 20px", borderRadius: "10px", fontSize: "13px", fontWeight: 600, fontFamily: F.body, color: "var(--color-on-primary)", background: "var(--color-primary)", border: "none", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1, transition: "all 0.2s", ...s }}>
       {children}
     </button>
   );

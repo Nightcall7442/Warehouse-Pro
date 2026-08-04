@@ -1,9 +1,9 @@
 import { TrendingUp, TrendingDown, ArrowUpDown } from "lucide-react";
 
 export const MOVE_TYPE: Record<string, { icon: React.ComponentType<{ size?: number; color?: string }>; labelRu: string; labelUz: string; color: string; sign: string }> = {
-  in:         { icon: TrendingUp,   labelRu: "Приход",       labelUz: "Kirim",       color: "#34c473", sign: "+" },
-  out:        { icon: TrendingDown,  labelRu: "Расход",       labelUz: "Chiqim",      color: "#d45050", sign: "−" },
-  adjustment: { icon: ArrowUpDown,  labelRu: "Корректировка", labelUz: "Tuzatish",   color: "#d4973a", sign: "±" },
+  in:         { icon: TrendingUp,   labelRu: "Приход",       labelUz: "Kirim",       color: "var(--color-success-text)", sign: "+" },
+  out:        { icon: TrendingDown,  labelRu: "Расход",       labelUz: "Chiqim",      color: "var(--color-danger-text)", sign: "−" },
+  adjustment: { icon: ArrowUpDown,  labelRu: "Корректировка", labelUz: "Tuzatish",   color: "var(--color-warning-text)", sign: "±" },
 };
 
 export const UNIT_LABELS: Record<string, [string, string]> = {

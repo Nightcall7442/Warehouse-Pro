@@ -17,8 +17,12 @@ import { formatQty } from "@/lib/format";
 
 const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
 const COLORS = {
-  primary: "#5b6d8a", success: "#34c473",
-  warning: "#d4973a", danger: "#d45050",
+  primary: "var(--color-primary)",
+  // Accent-coloured *text* (a price, a code, a link). The fill colour above
+  // is a hair under 4.5:1 as text on a light card, so semantic text uses
+  // this darker sibling instead. See --color-primary-text in index.css.
+  primaryText: "var(--color-primary-text)", success: "var(--color-success)",
+  warning: "var(--color-warning)", danger: "var(--color-danger)",
   surface: "var(--color-surface, #ffffff)", surfaceLight: "var(--color-surface-light, #f0f3f8)",
   textPrimary: "var(--color-text-primary, #2b3450)", textSecondary: "var(--color-text-secondary, #6a7290)",
   textTertiary: "var(--color-text-tertiary, #98a0b8)", border: "var(--color-border, #f0f3f8)",
@@ -52,7 +56,7 @@ function KpiCard({ label, value, delta, icon, gradient, delay }: {
         <div style={{
           display: "flex", alignItems: "center", gap: "4px", marginTop: "10px",
           fontSize: "12px", fontWeight: 600, fontFamily: F.body,
-          color: isPositive ? "#34c473" : isNegative ? "#d45050" : COLORS.textTertiary,
+          color: isPositive ? "var(--color-success-text)" : isNegative ? "var(--color-danger-text)" : COLORS.textTertiary,
         }}>
           {isPositive ? <ArrowUpRight size={14} /> : isNegative ? <ArrowDownRight size={14} /> : <Minus size={14} />}
           {Math.abs(delta).toFixed(1)}%
@@ -66,9 +70,9 @@ const UNIT_LABELS: Record<string, string> = { kg: "кг", l: "л", pcs: "шт", 
 function unitLabel(unit: string | undefined): string { return UNIT_LABELS[unit ?? "pcs"] ?? "шт"; }
 
 const STATUS: Record<string, { ru: string; uz: string; color: string }> = {
-  pending:   { ru: "Ожидает", uz: "Kutilmoqda", color: "#d4973a" },
+  pending:   { ru: "Ожидает", uz: "Kutilmoqda", color: "var(--color-warning-text)" },
   unloading: { ru: "Разгрузка", uz: "Tushirilmoqda", color: "#60a5fa" },
-  completed: { ru: "Завершён", uz: "Yakunlandi", color: "#34c473" },
+  completed: { ru: "Завершён", uz: "Yakunlandi", color: "var(--color-success-text)" },
 };
 
 const StatusBadge = memo(function StatusBadge({ status, lang }: { status: string; lang: "ru" | "uz" }) {
@@ -136,7 +140,7 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
       <div className="relative w-full max-w-[720px] max-h-[90vh] overflow-y-auto neo-card animate-scale-in" style={{ borderRadius: "24px", boxShadow: "0 25px 80px -12px rgba(0,0,0,0.35)" }}>
 
         {/* Gradient header */}
-        <div className="relative overflow-hidden" style={{ background: "linear-gradient(135deg, var(--color-primary, #5b6d8a), var(--color-primary-hover, #4a5c78))", borderRadius: "24px 24px 0 0", padding: "28px 32px 24px" }}>
+        <div className="relative overflow-hidden" style={{ background: "linear-gradient(135deg, var(--color-primary), var(--color-primary-hover, #4a5c78))", borderRadius: "24px 24px 0 0", padding: "28px 32px 24px" }}>
           <div className="absolute -top-16 -right-16 w-40 h-40 rounded-full" style={{ background: "rgba(255,255,255,0.08)" }} />
           <div className="absolute -bottom-8 -left-8 w-24 h-24 rounded-full" style={{ background: "rgba(255,255,255,0.05)" }} />
           <div className="relative flex items-center justify-between">
@@ -180,7 +184,7 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
                 </div>
               ))}
             </div>
-            <div className="flex items-center justify-between px-4 py-3 rounded-xl" style={{ background: "var(--color-primary-subtle, rgba(75,108,246,.10))" }}>
+            <div className="flex items-center justify-between px-4 py-3 rounded-xl" style={{ background: "var(--color-primary-subtle)" }}>
               <span className="text-sm text-secondary font-medium">{t("Итого расходов:", "Jami xarajatlar:")}</span>
               <span className="text-lg font-bold text-primary font-data">{fmt(totalExpense.toFixed(0))}</span>
             </div>
@@ -224,7 +228,7 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
                     </div>
                     <div className="flex justify-end">
                       {items.length > 1 && (
-                        <button onClick={() => removeItem(i)} className="w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:bg-red-50" style={{ border: "none", background: "transparent", color: "#d45050", cursor: "pointer" }}>
+                        <button onClick={() => removeItem(i)} className="w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:bg-red-50" style={{ border: "none", background: "transparent", color: "var(--color-danger-text)", cursor: "pointer" }}>
                           <X size={14} />
                         </button>
                       )}
@@ -330,7 +334,7 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
     <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
       <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }} onClick={onClose} />
       <div className="relative w-full max-w-[640px] neo-card" style={{ borderRadius: "24px", padding: "48px", textAlign: "center" }}>
-        <Loader2 size={32} className="animate-spin" style={{ color: "var(--color-primary)", margin: "0 auto 16px" }} />
+        <Loader2 size={32} className="animate-spin" style={{ color: "var(--color-primary-text)", margin: "0 auto 16px" }} />
         <p style={{ fontSize: "14px", color: "var(--color-text-secondary)" }}>{t("Загрузка…", "Yuklanmoqda…")}</p>
       </div>
     </div>,
@@ -377,7 +381,7 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
           {/* Status */}
           <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "24px", padding: "12px 16px", borderRadius: "12px", background: `color-mix(in srgb, ${statusColors[detail.status] ?? "var(--color-primary)"} 10%, transparent)`, border: `1px solid color-mix(in srgb, ${statusColors[detail.status] ?? "var(--color-primary)"} 30%, transparent)` }}>
             <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: statusColors[detail.status] ?? "var(--color-primary)" }} />
-            <span style={{ fontSize: "14px", fontWeight: 600, color: statusColors[detail.status] ?? "var(--color-primary)" }}>
+            <span style={{ fontSize: "14px", fontWeight: 600, color: statusColors[detail.status] ?? "var(--color-primary-text)" }}>
               {statusLabels[detail.status]?.[lang as "ru" | "uz"] ?? detail.status}
             </span>
           </div>
@@ -416,7 +420,7 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
             </div>
             <div style={{ marginTop: "12px", padding: "12px 16px", borderRadius: "12px", background: "var(--color-primary-subtle)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-text-secondary)" }}>{t("Итого расходы", "Jami xarajatlar")}</span>
-              <span style={{ fontSize: "16px", fontWeight: 700, color: "var(--color-primary)" }}>{fmt(detail.totalExpense ?? 0)}</span>
+              <span style={{ fontSize: "16px", fontWeight: 700, color: "var(--color-primary-text)" }}>{fmt(detail.totalExpense ?? 0)}</span>
             </div>
           </div>
 
@@ -435,7 +439,7 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
                   </thead>
                   <tbody>
                     {detail.items.map((item, i) => (
-                      <tr key={i} style={{ transition: "background 0.15s" }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(75,108,246,0.02)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                      <tr key={i} style={{ transition: "background 0.15s" }} onMouseEnter={e => (e.currentTarget.style.background = "color-mix(in srgb, var(--color-primary) 2%, transparent)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
                         <td style={{ padding: "12px 14px", fontSize: "13px", color: "var(--color-text-primary)", borderBottom: "1px solid var(--color-border)" }}>{item.productName ?? "—"}</td>
                         <td style={{ padding: "12px 14px", fontSize: "12px", color: "var(--color-text-tertiary)", fontFamily: "monospace", borderBottom: "1px solid var(--color-border)" }}>{item.productCode ?? "—"}</td>
                         <td style={{ padding: "12px 14px", fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary)", borderBottom: "1px solid var(--color-border)" }}>{formatQty(item.quantity)}</td>
@@ -569,7 +573,7 @@ export default function Arrivals() {
           value={String(kpis.total)}
           delta={null}
           icon={<Package size={20} color="#fff" />}
-          gradient="linear-gradient(135deg, #5b6d8a, #5b6d8a)"
+          gradient="var(--color-primary)"
           delay={0}
         />
         <KpiCard
@@ -629,7 +633,7 @@ export default function Arrivals() {
             )) : arrivals.length === 0 ? (
               <tr><td colSpan={6} style={{ textAlign: "center", padding: "48px 16px", color: COLORS.textTertiary, fontSize: "14px" }}>{t("Нет приходов", "Kelishlar yo'q")}</td></tr>
             ) : arrivals.map((a) => (
-              <tr key={a.id} style={{ transition: "background 0.15s", cursor: "pointer" }} onClick={() => setDetailId(a.id)} onMouseEnter={e => (e.currentTarget.style.background = "rgba(75,108,246,0.02)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+              <tr key={a.id} style={{ transition: "background 0.15s", cursor: "pointer" }} onClick={() => setDetailId(a.id)} onMouseEnter={e => (e.currentTarget.style.background = "color-mix(in srgb, var(--color-primary) 2%, transparent)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
                 <td style={{ ...tdStyle, fontWeight: 500 }}>{a.arrivalNumber}</td>
                 <td style={{ ...tdStyle, color: COLORS.textSecondary }}>{a.arrivalDate ? format(new Date(a.arrivalDate), "dd.MM.yyyy") : "—"}</td>
                 <td style={{ ...tdStyle, color: COLORS.textSecondary }}>{a.truckId ?? "—"}</td>
@@ -638,7 +642,7 @@ export default function Arrivals() {
                 <td style={{ borderBottom: `1px solid ${COLORS.border}` }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <StatusBadge status={a.status ?? "pending"} lang={lang as "ru" | "uz"} />
-                    {a.status === "pending" && <button onClick={(e) => { e.stopPropagation(); updateStatus.mutate({ id: a.id, status: "unloading" }); }} style={{ padding: "6px 12px", borderRadius: "8px", fontSize: "11px", fontWeight: 600, fontFamily: F.body, color: COLORS.primary, background: "rgba(75,108,246,0.08)", border: "none", cursor: "pointer" }}>{t("Разгрузка", "Tushirish")}</button>}
+                    {a.status === "pending" && <button onClick={(e) => { e.stopPropagation(); updateStatus.mutate({ id: a.id, status: "unloading" }); }} style={{ padding: "6px 12px", borderRadius: "8px", fontSize: "11px", fontWeight: 600, fontFamily: F.body, color: COLORS.primaryText, background: "color-mix(in srgb, var(--color-primary) 8%, transparent)", border: "none", cursor: "pointer" }}>{t("Разгрузка", "Tushirish")}</button>}
                     {a.status === "unloading" && <button onClick={(e) => { e.stopPropagation(); updateStatus.mutate({ id: a.id, status: "completed" }); }} className="neo-btn-primary neo-btn-sm">{t("Завершить", "Yakunlash")}</button>}
                     {a.status !== "completed" && <button onClick={async (e) => { e.stopPropagation(); const ok = await confirm({ title: t("Удалить приход?", "Kelish o'chirilsinmi?"), message: t("Данные будут удалены безвозвратно.", "Ma'lumotlar qaytarib bo'lmaydigan tarzda o'chiriladi."), confirmText: t("Удалить", "O'chirish"), danger: true }); if (ok) deleteMutation.mutate({ id: a.id }); }} style={{ padding: "6px 10px", borderRadius: "8px", fontSize: "11px", fontWeight: 600, fontFamily: F.body, color: COLORS.danger, background: "rgba(212,80,80,0.08)", border: "none", cursor: "pointer" }}>{t("Удалить", "O'chirish")}</button>}
                   </div>

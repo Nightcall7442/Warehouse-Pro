@@ -43,10 +43,10 @@ export function ProductForm({ onSave, onCancel, isPending, lang, categories = []
             width: "80px", height: "80px", borderRadius: "16px", overflow: "hidden",
             display: "flex", alignItems: "center", justifyContent: "center",
             cursor: "pointer", position: "relative",
-            background: "rgba(75,108,246,.08)",
+            background: "color-mix(in srgb, var(--color-primary) 8%, transparent)",
             border: "1px solid var(--color-border, #f0f3f8)",
           }} onClick={() => fileRef.current?.click()}>
-            {photo ? <img src={photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <Package size={28} style={{ color: COLORS.primary }} />}
+            {photo ? <img src={photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <Package size={28} style={{ color: COLORS.primaryText }} />}
             <div style={{
               position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)",
               opacity: 0, display: "flex", flexDirection: "column",

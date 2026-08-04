@@ -26,7 +26,7 @@ function MarginRing({
   delta?: number | null;
 }) {
   const ringColor =
-    pct >= 20 ? "#34c473" : pct >= 10 ? "#d4973a" : "#d45050";
+    pct >= 20 ? "var(--color-success)" : pct >= 10 ? "var(--color-warning)" : "var(--color-danger)";
   const ringPct = Math.max(0, Math.min(100, pct));
 
   return (
@@ -65,7 +65,7 @@ function MarginRing({
           <p
             style={{
               fontSize: "11px",
-              color: delta >= 0 ? "#34c473" : "#d45050",
+              color: delta >= 0 ? "var(--color-success-text)" : "var(--color-danger-text)",
               margin: "4px 0 0",
               fontWeight: 600,
             }}
@@ -88,7 +88,7 @@ export function PnLMarginRings({ current, deltas, lang }: PnLMarginRingsProps) {
       : 0;
 
   const cogsRingColor =
-    cogsPct <= 60 ? "#34c473" : cogsPct <= 80 ? "#d4973a" : "#d45050";
+    cogsPct <= 60 ? "var(--color-success)" : cogsPct <= 80 ? "var(--color-warning)" : "var(--color-danger)";
 
   return (
     <div

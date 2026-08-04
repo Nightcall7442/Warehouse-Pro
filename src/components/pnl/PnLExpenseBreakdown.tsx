@@ -85,7 +85,7 @@ export function PnLExpenseBreakdown({
                     style={{ transition: "background 0.15s" }}
                     onMouseEnter={(e) =>
                       (e.currentTarget.style.background =
-                        "rgba(75,108,246,0.02)")
+                        "color-mix(in srgb, var(--color-primary) 2%, transparent)")
                     }
                     onMouseLeave={(e) =>
                       (e.currentTarget.style.background = "transparent")
@@ -101,7 +101,7 @@ export function PnLExpenseBreakdown({
                       >
                         <Package
                           size={14}
-                          style={{ color: COLORS.primary, flexShrink: 0 }}
+                          style={{ color: COLORS.primaryText, flexShrink: 0 }}
                         />
                         <span style={{ fontSize: "13px", fontWeight: 500 }}>
                           {p.productName}
@@ -114,7 +114,7 @@ export function PnLExpenseBreakdown({
                     <td style={{ ...tdStyle, textAlign: "right", fontWeight: 600 }}>
                       {fmt(revenue.toFixed(0))}
                     </td>
-                    <td style={{ ...tdStyle, textAlign: "right", color: "#d45050" }}>
+                    <td style={{ ...tdStyle, textAlign: "right", color: "var(--color-danger-text)" }}>
                       {fmt(cost.toFixed(0))}
                     </td>
                     <td
@@ -122,7 +122,7 @@ export function PnLExpenseBreakdown({
                         ...tdStyle,
                         textAlign: "right",
                         fontWeight: 700,
-                        color: profit >= 0 ? "#34c473" : "#d45050",
+                        color: profit >= 0 ? "var(--color-success-text)" : "var(--color-danger-text)",
                       }}
                     >
                       {fmt(profit.toFixed(0))}
@@ -143,10 +143,10 @@ export function PnLExpenseBreakdown({
                                 : "rgba(232,80,80,0.1)",
                           color:
                             margin >= 20
-                              ? "#34c473"
+                              ? "var(--color-success)"
                               : margin >= 10
-                                ? "#d4973a"
-                                : "#d45050",
+                                ? "var(--color-warning)"
+                                : "var(--color-danger)",
                         }}
                       >
                         {margin.toFixed(0)}%

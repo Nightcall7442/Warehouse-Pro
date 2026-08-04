@@ -38,21 +38,21 @@ export const UsageDashboard = memo(function UsageDashboard() {
       icon: Users,
       used: usage.users,
       max: limits.maxUsers,
-      color: "#5b6d8a",
+      color: "var(--color-primary-text)",
     },
     {
       label: t("Товары", "Mahsulotlar"),
       icon: Package,
       used: usage.products,
       max: limits.maxProducts,
-      color: "#34c473",
+      color: "var(--color-success-text)",
     },
     {
       label: t("Заказы/мес", "Buyurtmalar/oy"),
       icon: ShoppingCart,
       used: usage.orders,
       max: limits.maxOrdersMonth,
-      color: "#d4973a",
+      color: "var(--color-warning-text)",
     },
   ];
 
@@ -70,7 +70,7 @@ export const UsageDashboard = memo(function UsageDashboard() {
             background: isExpired ? "var(--color-danger-subtle)" : "var(--color-primary-subtle)",
             display: "flex", alignItems: "center", justifyContent: "center",
           }}>
-            <Zap size={18} style={{ color: isExpired ? "var(--color-danger)" : "var(--color-primary)" }} />
+            <Zap size={18} style={{ color: isExpired ? "var(--color-danger-text)" : "var(--color-primary-text)" }} />
           </div>
           <div>
             <h3 style={{ fontSize: "14px", fontWeight: 700, color: "var(--color-text-primary)", margin: 0 }}>
@@ -95,8 +95,8 @@ export const UsageDashboard = memo(function UsageDashboard() {
           background: isExpired ? "var(--color-danger-subtle)" : "var(--color-warning-subtle)",
           border: `1px solid ${isExpired ? "var(--color-danger)" : "var(--color-warning)"}`,
         }}>
-          <AlertTriangle size={14} style={{ color: isExpired ? "var(--color-danger)" : "var(--color-warning)", flexShrink: 0 }} />
-          <span style={{ fontSize: "12px", color: isExpired ? "var(--color-danger)" : "var(--color-warning)", fontWeight: 500 }}>
+          <AlertTriangle size={14} style={{ color: isExpired ? "var(--color-danger-text)" : "var(--color-warning-text)", flexShrink: 0 }} />
+          <span style={{ fontSize: "12px", color: isExpired ? "var(--color-danger-text)" : "var(--color-warning-text)", fontWeight: 500 }}>
             {isExpired
               ? t("Тариф истёк — обновите для продолжения", "Tarif muddati tugadi — davom ettirish uchun yangilang")
               : t("Достигнут лимит — обновите тариф", "Chegaraga yetildi — tarifni yangilang")
@@ -125,7 +125,7 @@ export const UsageDashboard = memo(function UsageDashboard() {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
                   <span style={{ fontSize: "12px", color: "var(--color-text-secondary)" }}>{m.label}</span>
-                  <span style={{ fontSize: "12px", fontWeight: 600, color: isFull ? "var(--color-danger)" : "var(--color-text-primary)" }}>
+                  <span style={{ fontSize: "12px", fontWeight: 600, color: isFull ? "var(--color-danger-text)" : "var(--color-text-primary)" }}>
                     {m.used} / {m.max ?? "∞"}
                   </span>
                 </div>

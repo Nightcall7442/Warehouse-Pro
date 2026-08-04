@@ -19,7 +19,7 @@ export function UserRow({ user, lang, onResetPassword, onDeactivate, onReactivat
   return (
     <tr
       style={{ transition: "background 0.15s" }}
-      onMouseEnter={e => (e.currentTarget.style.background = "rgba(75,108,246,0.02)")}
+      onMouseEnter={e => (e.currentTarget.style.background = "color-mix(in srgb, var(--color-primary) 2%, transparent)")}
       onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
     >
       {/* Name */}
@@ -29,8 +29,8 @@ export function UserRow({ user, lang, onResetPassword, onDeactivate, onReactivat
             width: "32px", height: "32px", borderRadius: "10px", flexShrink: 0,
             display: "flex", alignItems: "center", justifyContent: "center",
             fontSize: "12px", fontWeight: 700,
-            background: "rgba(75,108,246,.12)",
-            color: "#5b6d8a",
+            background: "color-mix(in srgb, var(--color-primary) 12%, transparent)",
+            color: "var(--color-primary-text)",
           }}>
             {user.name?.[0]?.toUpperCase()}
           </div>
@@ -105,7 +105,7 @@ export function UserRow({ user, lang, onResetPassword, onDeactivate, onReactivat
               title={t("Рабочая зона", "Ish zonasi")}
               onClick={() => onWorkZone(user.id, user.name)}
               className="neo-btn p-1.5"
-              style={{ borderColor: "rgba(75,108,246,.30)" }}
+              style={{ borderColor: "color-mix(in srgb, var(--color-primary) 30%, transparent)" }}
             >
               <MapPin size={14} />
             </button>

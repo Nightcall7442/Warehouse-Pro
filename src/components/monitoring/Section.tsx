@@ -22,7 +22,7 @@ export function Section({ title, icon: Icon, children, actions, delay = 0 }: Sec
           <div style={{
             width: "28px", height: "28px", borderRadius: "8px",
             display: "flex", alignItems: "center", justifyContent: "center",
-            background: "rgba(75,108,246,.10)", color: COLORS.primary,
+            background: "color-mix(in srgb, var(--color-primary) 10%, transparent)", color: COLORS.primaryText,
           }}>
             <Icon size={14} />
           </div>

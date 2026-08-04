@@ -157,7 +157,7 @@ export default function Products() {
               display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
               fontSize: "13px", fontWeight: 500, fontFamily: F.body, borderRadius: "10px",
               border: `1px solid ${COLORS.border}`, cursor: "pointer",
-              background: COLORS.surface, color: "#d45050",
+              background: COLORS.surface, color: "var(--color-danger-text)",
             }}
           >
             <Trash2 size={14} /><span className="hidden sm:inline">{t("Очистить", "Tozalash")}</span>
@@ -207,7 +207,7 @@ export default function Products() {
           value={String(totalCount)}
           delta={null}
           icon={<Box size={20} color="#fff" />}
-          gradient="linear-gradient(135deg, #5b6d8a, #5b6d8a)"
+          gradient="var(--color-primary)"
           delay={0}
         />
         <KpiCard
@@ -231,7 +231,7 @@ export default function Products() {
           value={`p.${page}`}
           delta={null}
           icon={<BarChart3 size={20} color="#fff" />}
-          gradient="linear-gradient(135deg, #a78bfa, #5b6d8a)"
+          gradient="linear-gradient(135deg, #a78bfa, var(--color-primary))"
           delay={0.15}
         />
       </div>
@@ -253,10 +253,10 @@ export default function Products() {
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
           padding: "12px 20px", borderRadius: "14px",
-          background: "var(--color-primary-subtle, rgba(75,108,246,.10))",
-          border: "1px solid rgba(75,108,246,.20)",
+          background: "var(--color-primary-subtle)",
+          border: "1px solid color-mix(in srgb, var(--color-primary) 20%, transparent)",
         }}>
-          <span style={{ fontSize: "13px", fontWeight: 600, color: "#5b6d8a" }}>
+          <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-primary-text)" }}>
             {selected.size} {t("выбрано", "tanlangan")}
           </span>
           <div style={{ display: "flex", gap: "8px" }}>
@@ -268,7 +268,7 @@ export default function Products() {
                 display: "flex", alignItems: "center", gap: "5px", padding: "6px 14px",
                 fontSize: "12px", fontWeight: 600, borderRadius: "8px",
                 border: "none", cursor: "pointer", color: "#fff",
-                background: "#d45050", opacity: bulkDeleteMutation.isPending ? 0.5 : 1,
+                background: "var(--color-danger)", opacity: bulkDeleteMutation.isPending ? 0.5 : 1,
               }}>
               <Trash2 size={13} />{t("Удалить", "O'chirish")}
             </button>
@@ -284,7 +284,7 @@ export default function Products() {
           <button onClick={toggleSelectAll}
             style={{ background: "none", border: "none", cursor: "pointer", padding: "4px", display: "flex", alignItems: "center", gap: "6px" }}>
             {allSelected
-              ? <CheckSquare size={16} style={{ color: COLORS.primary }} />
+              ? <CheckSquare size={16} style={{ color: COLORS.primaryText }} />
               : <Square size={16} style={{ color: COLORS.textTertiary }} />
             }
             <span style={{ fontSize: "12px", color: COLORS.textSecondary }}>{t("Выбрать все", "Barchasini tanlash")}</span>

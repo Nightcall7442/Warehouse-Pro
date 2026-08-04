@@ -46,11 +46,11 @@ const PERIODS = [
 ];
 
 const GRADES: Record<string, { color: string; ru: string; uz: string }> = {
-  A: { color: "#34c473", ru: "Отлично", uz: "Ajoyib" },
-  B: { color: "#5b6d8a", ru: "Хорошо", uz: "Yaxshi" },
-  C: { color: "#d4973a", ru: "Удовл.", uz: "Qoniqarli" },
-  D: { color: "#d45050", ru: "Плохо", uz: "Yomon" },
-  F: { color: "#d45050", ru: "Критично", uz: "Juda yomon" },
+  A: { color: "var(--color-success-text)", ru: "Отлично", uz: "Ajoyib" },
+  B: { color: "var(--color-primary-text)", ru: "Хорошо", uz: "Yaxshi" },
+  C: { color: "var(--color-warning-text)", ru: "Удовл.", uz: "Qoniqarli" },
+  D: { color: "var(--color-danger-text)", ru: "Плохо", uz: "Yomon" },
+  F: { color: "var(--color-danger-text)", ru: "Критично", uz: "Juda yomon" },
 };
 
 export default function AgentKpi() {
@@ -104,7 +104,7 @@ export default function AgentKpi() {
         <div className="flex gap-1.5 items-center">
           {PERIODS.map(p => (
             <button key={p.value} onClick={() => setPeriod(p.value)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${period === p.value ? "bg-[#5b6d8a] text-white" : "bg-[var(--color-surface-light)] text-[var(--color-text-secondary)]"}`}>
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${period === p.value ? "bg-[var(--color-primary)] text-white" : "bg-[var(--color-surface-light)] text-[var(--color-text-secondary)]"}`}>
               {lang === "uz" ? p.uz : p.ru}
             </button>
           ))}
@@ -118,7 +118,7 @@ export default function AgentKpi() {
 
       {isLoading ? (
         <div className="flex items-center justify-center py-20">
-          <div className="w-8 h-8 rounded-full border-3 border-[var(--color-border)] border-t-[#5b6d8a] animate-spin" />
+          <div className="w-8 h-8 rounded-full border-3 border-[var(--color-border)] border-t-[var(--color-primary)] animate-spin" />
         </div>
       ) : isSupervisor ? (
         <SupervisorView kpi={allKpi} selectedKpi={selectedKpi ?? null} selectedSalary={selectedSalary} detailLoading={detailLoading} onSelect={setSelectedAgentId} selectedAgentId={selectedAgentId} fmt={fmt} t={t} lang={lang} />
@@ -138,10 +138,10 @@ function AgentView({ kpi, salary, fmt, t, lang }: { kpi: KpiData; salary?: Salar
       {/* Hero KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 stagger-children">
         <KpiHero label={t("Общий балл", "Umumiy ball")} value={`${kpi.kpiScore}`} sub={grade[lang]} color={grade.color} progress={kpi.kpiScore / 100} icon={<Star size={20} color={grade.color} />} />
-        <KpiHero label={t("План", "Reja")} value={`${kpi.visitCompletionRate}%`} sub={`${kpi.visitedPlans}/${kpi.totalPlans}`} color="#5b6d8a" progress={kpi.visitCompletionRate / 100} icon={<Target size={20} color="#5b6d8a" />} />
-        <KpiHero label={t("Заказы", "Buyurtma")} value={String(kpi.orderCount)} sub={fmt(kpi.revenue)} color="#34c473" progress={Math.min(1, kpi.orderCount / 50)} icon={<ShoppingCart size={20} color="#34c473" />} />
-        <KpiHero label={t("Средний чек", "O'rtacha")} value={fmt(kpi.avgOrderValue)} color="#d4973a" progress={Math.min(1, kpi.avgOrderValue / 100000)} icon={<DollarSign size={20} color="#d4973a" />} />
-        <KpiHero label={t("Возвраты", "Qaytarish")} value={`${kpi.returnRate}%`} sub={`${kpi.returnCount} шт`} color={kpi.returnRate > 10 ? "#d45050" : "#34c473"} progress={1 - kpi.returnRate / 100} icon={<AlertTriangle size={20} color={kpi.returnRate > 10 ? "#d45050" : "#34c473"} />} />
+        <KpiHero label={t("План", "Reja")} value={`${kpi.visitCompletionRate}%`} sub={`${kpi.visitedPlans}/${kpi.totalPlans}`} color="var(--color-primary-text)" progress={kpi.visitCompletionRate / 100} icon={<Target size={20} color="var(--color-primary-text)" />} />
+        <KpiHero label={t("Заказы", "Buyurtma")} value={String(kpi.orderCount)} sub={fmt(kpi.revenue)} color="var(--color-success-text)" progress={Math.min(1, kpi.orderCount / 50)} icon={<ShoppingCart size={20} color="var(--color-success-text)" />} />
+        <KpiHero label={t("Средний чек", "O'rtacha")} value={fmt(kpi.avgOrderValue)} color="var(--color-warning-text)" progress={Math.min(1, kpi.avgOrderValue / 100000)} icon={<DollarSign size={20} color="var(--color-warning-text)" />} />
+        <KpiHero label={t("Возвраты", "Qaytarish")} value={`${kpi.returnRate}%`} sub={`${kpi.returnCount} шт`} color={kpi.returnRate > 10 ? "var(--color-danger-text)" : "var(--color-success-text)"} progress={1 - kpi.returnRate / 100} icon={<AlertTriangle size={20} color={kpi.returnRate > 10 ? "var(--color-danger-text)" : "var(--color-success-text)"} />} />
         <KpiHero label={t("Магазины", "Do'kon")} value={String(kpi.assignedShops)} sub={fmt(kpi.totalDebt) + " долг"} color="#7a6db5" progress={Math.min(1, kpi.assignedShops / 20)} icon={<Package size={20} color="#7a6db5" />} />
       </div>
 
@@ -152,9 +152,9 @@ function AgentView({ kpi, salary, fmt, t, lang }: { kpi: KpiData; salary?: Salar
             {t("Детализация балла", "Ball tafsilotlari")}
           </h3>
           <div className="space-y-3">
-            <ScoreBar label={t("План", "Reja")} value={kpi.visitCompletionRate} weight={30} color="#5b6d8a" />
-            <ScoreBar label={t("Выручка", "Tushum")} value={Math.min(100, Math.round((kpi.revenue / 10_000_000) * 100))} weight={25} color="#34c473" />
-            <ScoreBar label={t("Конверсия", "Konversiya")} value={kpi.orderCount > 0 && kpi.totalPlans > 0 ? Math.round((kpi.orderCount / kpi.totalPlans) * 100) : 0} weight={20} color="#d4973a" />
+            <ScoreBar label={t("План", "Reja")} value={kpi.visitCompletionRate} weight={30} color="var(--color-primary-text)" />
+            <ScoreBar label={t("Выручка", "Tushum")} value={Math.min(100, Math.round((kpi.revenue / 10_000_000) * 100))} weight={25} color="var(--color-success-text)" />
+            <ScoreBar label={t("Конверсия", "Konversiya")} value={kpi.orderCount > 0 && kpi.totalPlans > 0 ? Math.round((kpi.orderCount / kpi.totalPlans) * 100) : 0} weight={20} color="var(--color-warning-text)" />
             <ScoreBar label={t("Без возвратов", "Qaytarishsiz")} value={100 - kpi.returnRate} weight={15} color="#7a6db5" />
             <ScoreBar label={t("Долги", "Qarz")} value={kpi.debtCollectionRate} weight={10} color="#3a9a8a" />
           </div>
@@ -176,7 +176,7 @@ function AgentView({ kpi, salary, fmt, t, lang }: { kpi: KpiData; salary?: Salar
             ]}>
               <PolarGrid stroke="var(--color-border)" />
               <PolarAngleAxis dataKey="metric" tick={{ fontSize: 11, fill: "var(--color-text-secondary)" }} />
-              <Radar name="KPI" dataKey="value" stroke="#5b6d8a" fill="#5b6d8a" fillOpacity={0.15} strokeWidth={2} />
+              <Radar name="KPI" dataKey="value" stroke="var(--color-primary)" fill="var(--color-primary)" fillOpacity={0.15} strokeWidth={2} />
             </RadarChart>
           </ResponsiveContainer>
         </div>
@@ -189,18 +189,18 @@ function AgentView({ kpi, salary, fmt, t, lang }: { kpi: KpiData; salary?: Salar
             {t("Таргет по выручке", "Tushum maqsadi")}
           </h3>
           <div className="flex items-center gap-4">
-            <ProgressRing value={kpi.targetProgress} size={80} strokeWidth={6} color={kpi.targetProgress >= 100 ? "#34c473" : kpi.targetProgress >= 70 ? "#d4973a" : "#d45050"} />
+            <ProgressRing value={kpi.targetProgress} size={80} strokeWidth={6} color={kpi.targetProgress >= 100 ? "var(--color-success-text)" : kpi.targetProgress >= 70 ? "var(--color-warning-text)" : "var(--color-danger-text)"} />
             <div className="flex-1">
               <div className="flex justify-between mb-1">
                 <span className="text-xs" style={{ color: COLORS.textSecondary }}>{fmt(kpi.revenue)} / {fmt(kpi.targetRevenue)}</span>
-                <span className="text-xs font-bold" style={{ color: kpi.targetProgress >= 100 ? "#34c473" : kpi.targetProgress >= 70 ? "#d4973a" : "#d45050" }}>
+                <span className="text-xs font-bold" style={{ color: kpi.targetProgress >= 100 ? "var(--color-success-text)" : kpi.targetProgress >= 70 ? "var(--color-warning-text)" : "var(--color-danger-text)" }}>
                   {kpi.targetProgress}%
                 </span>
               </div>
               <div className="h-2.5 rounded-full" style={{ background: "var(--color-surface-light)" }}>
                 <div className="h-full rounded-full transition-all" style={{
                   width: `${Math.min(100, kpi.targetProgress)}%`,
-                  background: kpi.targetProgress >= 100 ? "#34c473" : kpi.targetProgress >= 70 ? "#d4973a" : "#d45050",
+                  background: kpi.targetProgress >= 100 ? "var(--color-success)" : kpi.targetProgress >= 70 ? "var(--color-warning)" : "var(--color-danger)",
                 }} />
               </div>
             </div>
@@ -211,7 +211,7 @@ function AgentView({ kpi, salary, fmt, t, lang }: { kpi: KpiData; salary?: Salar
       {/* Fraud Alerts */}
       {kpi.suspiciousVisits > 0 && (
         <div className="neo-card p-5" style={{ borderLeft: "4px solid #d45050" }}>
-          <h3 style={{ fontFamily: F.display, fontSize: "14px", fontWeight: 600, color: "#d45050", marginBottom: "14px" }}>
+          <h3 style={{ fontFamily: F.display, fontSize: "14px", fontWeight: 600, color: "var(--color-danger-text)", marginBottom: "14px" }}>
             {t("⚠ Подозрительная активность", "⚠ Shubhali faoliyat")}
           </h3>
           <div className="grid grid-cols-3 gap-3">
@@ -277,11 +277,11 @@ function SalarySection({ salary, fmt, t }: { salary: SalaryData; fmt: (v: number
           <div className="flex justify-between"><span>{t("KPI балл", "KPI bali")}</span><span className="font-semibold" style={{ color: COLORS.textPrimary }}>{salary.kpiScore}/100</span></div>
           <div className="flex justify-between"><span>{t("Расчёт бонуса", "Bonus hisoblash")}</span><span className="font-semibold" style={{ color: COLORS.textPrimary }}>2% × {fmt(salary.salesAmount)} × {salary.kpiScore}/100 = {fmt(salary.bonusAmount)}</span></div>
           {salary.breakdown.fraudDeduction < 0 && (
-            <div className="flex justify-between"><span>{t("Штраф за фрод", "Frod uchun jazo")}</span><span className="font-semibold" style={{ color: "#d45050" }}>{fmt(salary.baseSalary)} × {Math.round((Math.abs(salary.breakdown.fraudDeduction) / salary.baseSalary) * 100)}% = {fmt(salary.breakdown.fraudDeduction)}</span></div>
+            <div className="flex justify-between"><span>{t("Штраф за фрод", "Frod uchun jazo")}</span><span className="font-semibold" style={{ color: "var(--color-danger-text)" }}>{fmt(salary.baseSalary)} × {Math.round((Math.abs(salary.breakdown.fraudDeduction) / salary.baseSalary) * 100)}% = {fmt(salary.breakdown.fraudDeduction)}</span></div>
           )}
           <div className="flex justify-between pt-1.5 mt-1.5" style={{ borderTop: "1px solid var(--color-border)" }}>
             <span className="font-semibold" style={{ color: COLORS.textPrimary }}>{t("ИТОГО К ВЫПЛАТЕ", "JAMI TO'LOV")}</span>
-            <span className="font-bold" style={{ color: "#34c473", fontSize: "14px" }}>{fmt(salary.totalSalary)}</span>
+            <span className="font-bold" style={{ color: "var(--color-success-text)", fontSize: "14px" }}>{fmt(salary.totalSalary)}</span>
           </div>
         </div>
       </div>
@@ -341,17 +341,17 @@ function SupervisorView({ kpi, selectedKpi, selectedSalary, detailLoading, onSel
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 stagger-children">
-        <KpiHero label={t("Агентов", "Agentlar")} value={String(filteredKpi.length)} color="#5b6d8a" progress={1} icon={<Users size={20} color="#5b6d8a" />} />
-        <KpiHero label={t("Средний балл", "O'rtacha")} value={String(avgScore)} color="#5b6d8a" progress={avgScore / 100} icon={<Star size={20} color="#5b6d8a" />} />
-        <KpiHero label={t("Выручка", "Tushum")} value={fmt(totalRevenue)} color="#34c473" progress={Math.min(1, totalRevenue / 10_000_000)} icon={<DollarSign size={20} color="#34c473" />} />
-        <KpiHero label={t("Заказы", "Buyurtma")} value={String(totalOrders)} color="#5b6d8a" progress={Math.min(1, totalOrders / 500)} icon={<ShoppingCart size={20} color="#5b6d8a" />} />
-        <KpiHero label={t("Визиты", "Tashrif")} value={String(totalVisits)} color="#d4973a" progress={Math.min(1, totalVisits / 200)} icon={<MapPin size={20} color="#d4973a" />} />
-        <KpiHero label={t("Фрод", "Frod")} value={String(suspiciousTotal)} color="#d45050" progress={Math.min(1, suspiciousTotal / 20)} icon={<AlertTriangle size={20} color="#d45050" />} />
+        <KpiHero label={t("Агентов", "Agentlar")} value={String(filteredKpi.length)} color="var(--color-primary-text)" progress={1} icon={<Users size={20} color="var(--color-primary-text)" />} />
+        <KpiHero label={t("Средний балл", "O'rtacha")} value={String(avgScore)} color="var(--color-primary-text)" progress={avgScore / 100} icon={<Star size={20} color="var(--color-primary-text)" />} />
+        <KpiHero label={t("Выручка", "Tushum")} value={fmt(totalRevenue)} color="var(--color-success-text)" progress={Math.min(1, totalRevenue / 10_000_000)} icon={<DollarSign size={20} color="var(--color-success-text)" />} />
+        <KpiHero label={t("Заказы", "Buyurtma")} value={String(totalOrders)} color="var(--color-primary-text)" progress={Math.min(1, totalOrders / 500)} icon={<ShoppingCart size={20} color="var(--color-primary-text)" />} />
+        <KpiHero label={t("Визиты", "Tashrif")} value={String(totalVisits)} color="var(--color-warning-text)" progress={Math.min(1, totalVisits / 200)} icon={<MapPin size={20} color="var(--color-warning-text)" />} />
+        <KpiHero label={t("Фрод", "Frod")} value={String(suspiciousTotal)} color="var(--color-danger-text)" progress={Math.min(1, suspiciousTotal / 20)} icon={<AlertTriangle size={20} color="var(--color-danger-text)" />} />
       </div>
 
       {suspiciousTotal > 0 && (
         <div className="neo-card p-4" style={{ borderLeft: "4px solid #d45050" }}>
-          <span className="text-sm font-semibold" style={{ color: "#d45050" }}>
+          <span className="text-sm font-semibold" style={{ color: "var(--color-danger-text)" }}>
             ⚠ {t("Подозрительная активность", "Shubhali faoliyat")}: {suspiciousTotal} {t("визитов", "tashrif")}
           </span>
         </div>
@@ -365,7 +365,7 @@ function SupervisorView({ kpi, selectedKpi, selectedSalary, detailLoading, onSel
           </h3>
           <button onClick={() => setShowSalaryConfig(!showSalaryConfig)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
-            style={{ background: showSalaryConfig ? "rgba(75,108,246,.10)" : "var(--color-surface-light)", color: showSalaryConfig ? "#5b6d8a" : COLORS.textSecondary }}>
+            style={{ background: showSalaryConfig ? "color-mix(in srgb, var(--color-primary) 10%, transparent)" : "var(--color-surface-light)", color: showSalaryConfig ? "var(--color-primary)" : COLORS.textSecondary }}>
             <Settings size={14} /> {t("Настройка ЗП", "Oylik sozlash")}
           </button>
         </div>
@@ -390,7 +390,7 @@ function SupervisorView({ kpi, selectedKpi, selectedSalary, detailLoading, onSel
                     style={{ borderBottom: "1px solid var(--color-border)", background: selectedAgentId === a.agentId ? "var(--color-surface-light)" : "transparent" }}>
                     <td className="px-3 py-2.5">
                       <div className="w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-bold"
-                        style={{ background: i < 3 ? ["#d4973a", "#9ca3af", "#cd7f32"][i] : "var(--color-surface-light)", color: i < 3 ? "#fff" : COLORS.textSecondary }}>
+                        style={{ background: i < 3 ? ["var(--color-warning)", "#9ca3af", "#cd7f32"][i] : "var(--color-surface-light)", color: i < 3 ? "#fff" : COLORS.textSecondary }}>
                         {i + 1}
                       </div>
                     </td>
@@ -401,7 +401,7 @@ function SupervisorView({ kpi, selectedKpi, selectedSalary, detailLoading, onSel
                     <td className="px-3 py-2.5" style={{ color: COLORS.textPrimary }}>{a.visitedPlans}/{a.totalPlans}</td>
                     <td className="px-3 py-2.5">
                       {a.suspiciousVisits > 0 ? (
-                        <span className="px-2 py-0.5 rounded text-xs font-bold" style={{ background: "rgba(212,80,80,.10)", color: "#d45050" }}>{a.suspiciousVisits} ({a.fraudRate}%)</span>
+                        <span className="px-2 py-0.5 rounded text-xs font-bold" style={{ background: "rgba(212,80,80,.10)", color: "var(--color-danger-text)" }}>{a.suspiciousVisits} ({a.fraudRate}%)</span>
                       ) : <span className="text-xs" style={{ color: COLORS.textTertiary }}>✓</span>}
                     </td>
                   </tr>
@@ -414,7 +414,7 @@ function SupervisorView({ kpi, selectedKpi, selectedSalary, detailLoading, onSel
 
       {detailLoading && (
         <div className="flex items-center justify-center py-8">
-          <div className="w-6 h-6 rounded-full border-2 border-[var(--color-border)] border-t-[#5b6d8a] animate-spin" />
+          <div className="w-6 h-6 rounded-full border-2 border-[var(--color-border)] border-t-[var(--color-primary)] animate-spin" />
         </div>
       )}
       {selectedKpi && <AgentView kpi={selectedKpi} salary={selectedSalary} fmt={fmt} t={t} lang={lang} />}
@@ -465,8 +465,8 @@ function SalaryConfig({ t }: { t: (r: string, u: string) => string }) {
           const rate = getRate(agent.id);
           return (
             <div key={agent.id} className="flex items-center gap-3 p-2 rounded-lg" style={{ background: "var(--color-surface, #fff)", border: "1px solid var(--color-border)" }}>
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "rgba(75,108,246,.10)" }}>
-                <span className="text-xs font-bold" style={{ color: "#5b6d8a" }}>{agent.name.charAt(0).toUpperCase()}</span>
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "color-mix(in srgb, var(--color-primary) 10%, transparent)" }}>
+                <span className="text-xs font-bold" style={{ color: "var(--color-primary-text)" }}>{agent.name.charAt(0).toUpperCase()}</span>
               </div>
               <span className="text-sm flex-1 truncate" style={{ color: COLORS.textPrimary }}>{agent.name}</span>
               <div className="flex items-center gap-2">
@@ -486,7 +486,7 @@ function SalaryConfig({ t }: { t: (r: string, u: string) => string }) {
       </p>
       <button onClick={handleCalc} disabled={calcMutation.isPending}
         className="mt-2 w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
-        style={{ background: "linear-gradient(135deg, #5b6d8a, #4a5c78)", color: "#fff", boxShadow: "0 4px 12px rgba(91,109,138,0.3)" }}>
+        style={{ background: "linear-gradient(135deg, var(--color-primary), #4a5c78)", color: "var(--color-on-primary)", boxShadow: "0 4px 12px rgba(91,109,138,0.3)" }}>
         {calcMutation.isPending && <Loader2 size={14} className="animate-spin" />}
         {t("Пересчитать комиссии", "Komissiyalarni qayta hisoblash")}
       </button>
@@ -555,9 +555,9 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
 
 function SalaryItem({ label, value, bold, danger }: { label: string; value: string; bold?: boolean; danger?: boolean }) {
   return (
-    <div className="p-3 rounded-xl" style={{ background: danger ? "rgba(212,80,80,.08)" : "var(--color-surface-light)", borderLeft: `3px solid ${danger ? "#d45050" : COLORS.border}` }}>
-      <p className="text-[11px]" style={{ color: danger ? "#d45050" : COLORS.textSecondary }}>{label}</p>
-      <p style={{ fontFamily: F.display, fontSize: bold ? "16px" : "14px", fontWeight: bold ? 700 : 600, color: danger ? "#d45050" : COLORS.textPrimary }}>{value}</p>
+    <div className="p-3 rounded-xl" style={{ background: danger ? "rgba(212,80,80,.08)" : "var(--color-surface-light)", borderLeft: `3px solid ${danger ? "var(--color-danger)" : COLORS.border}` }}>
+      <p className="text-[11px]" style={{ color: danger ? "var(--color-danger-text)" : COLORS.textSecondary }}>{label}</p>
+      <p style={{ fontFamily: F.display, fontSize: bold ? "16px" : "14px", fontWeight: bold ? 700 : 600, color: danger ? "var(--color-danger-text)" : COLORS.textPrimary }}>{value}</p>
     </div>
   );
 }

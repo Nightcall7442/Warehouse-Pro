@@ -31,7 +31,7 @@ export function ProductPhoto({ productId, photoUrl, size = "md" }: ProductPhotoP
   return (
     <div className="relative group" onClick={e => e.stopPropagation()}>
       <div className={`${dim} rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0 cursor-pointer border border-border-subtle`}
-        style={{ background: "rgba(75,108,246,.08)" }}
+        style={{ background: "color-mix(in srgb, var(--color-primary) 8%, transparent)" }}
         onClick={() => fileRef.current?.click()}>
         {upload.isPending ? <Loader2 size={iconSize} className="text-primary animate-spin" />
           : photoUrl ? <img src={photoUrl} alt="" className="w-full h-full object-cover" loading="lazy" />

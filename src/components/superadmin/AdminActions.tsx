@@ -23,7 +23,7 @@ export function AdminActions() {
   return (
     <Section title="Мой профиль" icon={User}>
       <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "24px" }}>
-        <div style={{ width: "48px", height: "48px", borderRadius: "14px", background: "rgba(75,108,246,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}><User size={22} style={{ color: COLORS.primary }} /></div>
+        <div style={{ width: "48px", height: "48px", borderRadius: "14px", background: "color-mix(in srgb, var(--color-primary) 10%, transparent)", display: "flex", alignItems: "center", justifyContent: "center" }}><User size={22} style={{ color: COLORS.primaryText }} /></div>
         <div>
           <p style={{ fontFamily: F.display, fontSize: "15px", fontWeight: 600, color: COLORS.textPrimary }}>{user?.name}</p>
           <p style={{ fontSize: "12px", color: COLORS.textTertiary }}>{user?.role} · {user?.email}</p>

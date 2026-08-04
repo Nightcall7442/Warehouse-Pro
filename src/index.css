@@ -61,7 +61,10 @@
 
     --color-text-primary:    #2b2a28;
     --color-text-secondary:  #5e5b54;
-    --color-text-tertiary:   #757168;  /* WCAG AA: 4.5:1 on #e8e6e1 */
+    /* Measured on the raised surface (#efedea), where most tertiary text
+       actually sits — the previous value only cleared 4.5:1 against pure
+       white and dropped to 4.16 on a card. */
+    --color-text-tertiary:   #6b6760;  /* WCAG AA: 4.81:1 on #efedea */
     --color-text-inverse:    #ffffff;
 
     --color-primary:         #5b6d8a;
@@ -80,6 +83,20 @@
     --color-danger-subtle:   rgba(212,80,80,.10);
     --color-info:            #5a8fad;
     --color-info-subtle:     rgba(90,143,173,.10);
+
+    /* The colours above are tuned to be legible as a *fill* — a badge ground, a
+       status dot, a chart series. On a light page they are far too pale to read
+       as text: #34c473 on white is 2.26:1, well under the 4.5:1 minimum. These
+       darker siblings are for semantic text and icons only, so a status word
+       stays as readable as the number next to it.
+       (The dark theme's own values already clear 4.5:1 on a card, so there
+       these simply alias the base colour.) */
+    --color-success-text:    #157a45;  /* 5.38:1 on #ffffff */
+    --color-warning-text:    #7a5810;  /* 6.50:1 on #ffffff */
+    --color-danger-text:     #a32d2d;  /* 7.07:1 on #ffffff */
+    /* Same idea for the accent: the fill colour reads at only 4.49:1 as text
+       on a raised card, a hair under the minimum. */
+    --color-primary-text:    #53637d;  /* 5.21:1 on #efedea */
 
     --accent-pink:    #c06080;
     --accent-orange:  #c49530;
@@ -173,7 +190,10 @@
 
     --color-text-primary:    #ede9e3;
     --color-text-secondary:  #a39d92;
-    --color-text-tertiary:   #8a8478;  /* WCAG AA: 4.5:1 on #1c1a17 */
+    /* Measured against the *raised* card surface (#262320), not just the page
+       canvas — the old value cleared 4.5:1 on the canvas but dropped to 4.21
+       on a card, which is where most tertiary text actually sits. */
+    --color-text-tertiary:   #948e81;  /* WCAG AA: 4.80:1 on #262320 */
     --color-text-inverse:    #1c1a17;
 
     --color-primary:         #c9a227;
@@ -190,6 +210,15 @@
     --color-danger-subtle:   rgba(255,77,106,.12);
     --color-info:            #00b4ff;
     --color-info-subtle:     rgba(0,180,255,.12);
+
+    /* On this dark ground the fill colours are already legible as text
+       (9.44 / 8.55 / 4.85 : 1 on a raised card), so the text variants are
+       plain aliases — they exist so a component can say "semantic text"
+       without having to know which theme it is in. */
+    --color-success-text:    var(--color-success);
+    --color-warning-text:    var(--color-warning);
+    --color-danger-text:     var(--color-danger);
+    --color-primary-text:    var(--color-primary);  /* 6.78:1 on a card */
 
     /* KPI colors — dark mode */
     --kpi-indigo:  #7b94f8;
@@ -213,7 +242,7 @@
     --shadow-popover: 0 16px 40px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.06);
     --shadow-xl:      20px 20px 44px rgba(0,0,0,0.6), -10px -10px 22px rgba(255,255,255,0.025);
     --shadow-ring:    drop-shadow(0 4px 10px rgba(0,0,0,0.5));
-    --ring-primary:   0 0 0 3px rgba(0,212,255,.25);
+    --ring-primary:   0 0 0 3px color-mix(in srgb, var(--color-primary) 25%, transparent);
 
     /* Chart colors */
     --chart-blue:     #00d4ff;
@@ -268,7 +297,7 @@
     z-index: 0;
   }
   .dark body::before {
-    background: radial-gradient(circle, rgba(0,212,255,.05) 0%, transparent 70%);
+    background: radial-gradient(circle, color-mix(in srgb, var(--color-primary) 5%, transparent) 0%, transparent 70%);
   }
   .dark body::after {
     background: radial-gradient(circle, rgba(0,230,138,.03) 0%, transparent 70%);
@@ -702,17 +731,17 @@
     box-shadow: var(--shadow-xs);
   }
   .sidebar-nav-item.active {
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     background: var(--color-surface, #e0e5ec);
     font-weight: 600;
     box-shadow: var(--shadow-raised);
   }
   .dark .sidebar-nav-item:hover {
     color: var(--color-text-primary, #e2e8f0);
-    background: rgba(0,212,255,.06);
+    background: var(--color-primary-subtle);
   }
   .dark .sidebar-nav-item.active {
-    color: var(--color-primary, #00d4ff);
+    color: var(--color-primary-text);
     background: var(--color-surface);
     box-shadow: var(--shadow-raised);
   }
@@ -749,7 +778,7 @@
     font-weight: 700;
   }
   .dark .range-pill.active {
-    color: var(--color-primary, #00d4ff);
+    color: var(--color-primary-text);
   }
 
   /* ══════════════════════════════════════════════════════════════════════

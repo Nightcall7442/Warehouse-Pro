@@ -74,7 +74,7 @@ export function InstallPrompt() {
       <div className="panel p-4 shadow-2xl" style={{ border: "1px solid var(--color-border)", background: "var(--color-surface)", borderRadius: "16px" }}>
         <div className="flex items-start gap-3">
           <div style={{ width: "40px", height: "40px", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, background: "var(--color-primary-subtle)" }}>
-            {isIos ? <Share size={18} style={{ color: "var(--color-primary)" }} /> : <Download size={18} style={{ color: "var(--color-primary)" }} />}
+            {isIos ? <Share size={18} style={{ color: "var(--color-primary-text)" }} /> : <Download size={18} style={{ color: "var(--color-primary-text)" }} />}
           </div>
           <div className="flex-1">
             <p style={{ fontWeight: 600, fontSize: "14px", color: "var(--color-text-primary)", margin: 0 }}>

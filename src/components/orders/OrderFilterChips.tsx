@@ -29,11 +29,11 @@ const DATE_PRESETS = [
 ];
 
 const STATUS_CHIPS = [
-  { value: "new", labelRu: "Новые", labelUz: "Yangi", color: "#5b6d8a" },
-  { value: "processing", labelRu: "В обработке", labelUz: "Jarayonda", color: "#d4973a" },
+  { value: "new", labelRu: "Новые", labelUz: "Yangi", color: "var(--color-primary-text)" },
+  { value: "processing", labelRu: "В обработке", labelUz: "Jarayonda", color: "var(--color-warning-text)" },
   { value: "shipped", labelRu: "Отгружены", labelUz: "Yuklangan", color: "#9b59b6" },
-  { value: "delivered", labelRu: "Доставлены", labelUz: "Yetkazildi", color: "#34c473" },
-  { value: "cancelled", labelRu: "Отменённые", labelUz: "Bekor qilingan", color: "#d45050" },
+  { value: "delivered", labelRu: "Доставлены", labelUz: "Yetkazildi", color: "var(--color-success-text)" },
+  { value: "cancelled", labelRu: "Отменённые", labelUz: "Bekor qilingan", color: "var(--color-danger-text)" },
 ];
 
 const PAYMENT_CHIPS = [
@@ -178,7 +178,7 @@ export function OrderFilterChips({ filters, onChange, savedFilters, onSave, onLo
                   }}
                   style={{
                     width: "100%", padding: "8px", borderRadius: "10px", border: "none",
-                    background: `linear-gradient(135deg, ${COLORS.primary}, #7b94f8)`, color: "var(--color-on-primary, #fff)",
+                    background: `linear-gradient(135deg, ${COLORS.primary}, var(--color-primary-hover))`, color: "var(--color-on-primary, #fff)",
                     fontFamily: F.body, fontSize: "13px", fontWeight: 600, cursor: "pointer",
                   }}
                 >

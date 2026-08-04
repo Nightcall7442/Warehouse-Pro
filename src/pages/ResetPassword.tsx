@@ -13,7 +13,7 @@ function PasswordStrength({ password }: { password: string }) {
   ];
   const score = checks.filter(c => c.pass).length;
   const bar   = score === 0 ? 0 : score === 1 ? 33 : score === 2 ? 66 : 100;
-  const color = score < 2 ? "#d45050" : score < 3 ? "#d4973a" : "#34c473";
+  const color = score < 2 ? "var(--color-danger-text)" : score < 3 ? "var(--color-warning-text)" : "var(--color-success-text)";
   const label = score < 2 ? t("auth.register.passwordWeak") : score < 3 ? t("auth.register.passwordMedium") : t("auth.register.passwordStrong");
 
   if (!password) return null;
@@ -30,7 +30,7 @@ function PasswordStrength({ password }: { password: string }) {
         {checks.map(c => (
           <div key={c.label} className="flex items-center gap-1">
             <div className={`w-1.5 h-1.5 rounded-full ${c.pass ? "bg-success" : "bg-border-subtle"}`} />
-            <span className="text-[10px]" style={{ color: c.pass ? "#34c473" : "var(--color-text-tertiary, #98a0b8)" }}>{c.label}</span>
+            <span className="text-[10px]" style={{ color: c.pass ? "var(--color-success-text)" : "var(--color-text-tertiary, #98a0b8)" }}>{c.label}</span>
           </div>
         ))}
       </div>
@@ -66,7 +66,7 @@ export default function ResetPassword() {
           <p style={{ fontSize: 14, color: "var(--color-text-secondary, #6a7290)", marginBottom: 16 }}>
             {t("auth.resetPassword.invalidHint")}
           </p>
-          <Link to="/forgot-password" style={{ color: "#5b6d8a", fontSize: 14, fontWeight: 600 }}>
+          <Link to="/forgot-password" style={{ color: "var(--color-primary-text)", fontSize: 14, fontWeight: 600 }}>
             {t("auth.resetPassword.requestNew")}
           </Link>
         </div>
@@ -101,7 +101,7 @@ export default function ResetPassword() {
           {done ? (
             <div style={{ textAlign: "center" }}>
               <div style={{ width: 48, height: 48, borderRadius: 12, background: "rgba(74,222,128,.10)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-                <CheckCircle2 size={24} style={{ color: "#34c473" }} />
+                <CheckCircle2 size={24} style={{ color: "var(--color-success-text)" }} />
               </div>
               <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--color-text-primary, #2b3450)", marginBottom: 8 }}>
                 {t("auth.resetPassword.success")}
@@ -111,7 +111,7 @@ export default function ResetPassword() {
               </p>
               <button
                 onClick={() => navigate("/login")}
-                style={{ padding: "10px 24px", background: "#5b6d8a", color: "#fff", borderRadius: 8, fontSize: 14, fontWeight: 600, border: "none", cursor: "pointer" }}
+                style={{ padding: "10px 24px", background: "var(--color-primary)", color: "var(--color-on-primary)", borderRadius: 8, fontSize: 14, fontWeight: 600, border: "none", cursor: "pointer" }}
               >
                 {t("auth.resetPassword.submit")}
               </button>
@@ -119,8 +119,8 @@ export default function ResetPassword() {
           ) : (
             <>
               <div style={{ textAlign: "center", marginBottom: 24 }}>
-                <div style={{ width: 48, height: 48, borderRadius: 12, background: "var(--color-primary-subtle, rgba(75,108,246,.10))", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-                  <Lock size={24} style={{ color: "#5b6d8a" }} />
+                <div style={{ width: 48, height: 48, borderRadius: 12, background: "var(--color-primary-subtle)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+                  <Lock size={24} style={{ color: "var(--color-primary-text)" }} />
                 </div>
                 <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--color-text-primary, #2b3450)", marginBottom: 8 }}>
                   {t("auth.resetPassword.title")}
@@ -184,7 +184,7 @@ export default function ResetPassword() {
                 </div>
 
                 {error && (
-                  <p role="alert" style={{ fontSize: 13, color: "#d45050", marginBottom: 12 }}>{error}</p>
+                  <p role="alert" style={{ fontSize: 13, color: "var(--color-danger-text)", marginBottom: 12 }}>{error}</p>
                 )}
 
                 <button
@@ -192,7 +192,7 @@ export default function ResetPassword() {
                   disabled={resetPassword.isPending || !password || !confirm}
                   style={{
                     width: "100%", padding: "10px 0", borderRadius: 8,
-                    background: "#5b6d8a", color: "#fff", border: "none",
+                    background: "var(--color-primary)", color: "var(--color-on-primary)", border: "none",
                     fontSize: 14, fontWeight: 600, cursor: resetPassword.isPending ? "wait" : "pointer",
                     opacity: resetPassword.isPending || !password || !confirm ? 0.6 : 1,
                     display: "flex", alignItems: "center", justifyContent: "center", gap: 8,

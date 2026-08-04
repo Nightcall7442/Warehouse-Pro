@@ -43,8 +43,8 @@ function Badge({
   // Apply pastel background + text color based on variant
   const variantStyles: Record<string, React.CSSProperties> = {
     default: {
-      background: "var(--color-primary, #5b6d8a)",
-      color: "#fff",
+      background: "var(--color-primary)",
+      color: "var(--color-on-primary)",
     },
     secondary: {
       background: "var(--color-surface-light, #f0f3f8)",
@@ -52,7 +52,7 @@ function Badge({
     },
     destructive: {
       background: "var(--kpi-red-track, #fce0e0)",
-      color: "var(--color-danger, #d45050)",
+      color: "var(--color-danger-text)",
     },
     outline: {
       background: "transparent",
@@ -61,11 +61,11 @@ function Badge({
     },
     success: {
       background: "var(--kpi-green-track, #d9f2e1)",
-      color: "var(--color-success, #34c473)",
+      color: "var(--color-success-text)",
     },
     warning: {
       background: "var(--kpi-amber-track, #fdf0d5)",
-      color: "var(--color-warning, #d4973a)",
+      color: "var(--color-warning-text)",
     },
     info: {
       background: "var(--kpi-blue-track, #dce8fc)",

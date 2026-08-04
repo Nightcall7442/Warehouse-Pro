@@ -72,11 +72,11 @@ export function WarehouseSettings() {
           {warehouses.map((wh) => (
             <div key={wh.id} className="flex items-center gap-3 px-4 py-3 rounded-lg"
               style={{
-                background: wh.isDefault ? "rgba(75,108,246,.08)" : "var(--color-surface-light, #f0f3f8)",
-                border: `1px solid ${wh.isDefault ? "rgba(75,108,246,.20)" : "var(--color-border, #f0f3f8)"}`,
+                background: wh.isDefault ? "color-mix(in srgb, var(--color-primary) 8%, transparent)" : "var(--color-surface-light, #f0f3f8)",
+                border: `1px solid ${wh.isDefault ? "color-mix(in srgb, var(--color-primary) 20%, transparent)" : "var(--color-border, #f0f3f8)"}`,
               }}>
               <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
-                style={{ background: wh.isDefault ? "rgba(75,108,246,.15)" : "var(--color-surface, #ffffff)" }}>
+                style={{ background: wh.isDefault ? "color-mix(in srgb, var(--color-primary) 15%, transparent)" : "var(--color-surface, #ffffff)" }}>
                 <Warehouse size={16} className={wh.isDefault ? "text-primary" : "text-secondary"} />
               </div>
               <div className="flex-1 min-w-0">
@@ -84,7 +84,7 @@ export function WarehouseSettings() {
                   <p className="text-sm font-medium text-primary truncate">{wh.name}</p>
                   {wh.isDefault && (
                     <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
-                      style={{ background: "rgba(75,108,246,.12)", color: "var(--color-primary, #4c6ef5)" }}>
+                      style={{ background: "color-mix(in srgb, var(--color-primary) 12%, transparent)", color: "var(--color-primary, #4c6ef5)" }}>
                       {t("Основной", "Asosiy")}
                     </span>
                   )}

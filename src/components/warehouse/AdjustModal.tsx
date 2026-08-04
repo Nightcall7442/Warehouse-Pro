@@ -17,9 +17,9 @@ export const AdjustModal = memo(function AdjustModal({ productId, productName, c
   const [notes, setNotes] = useState("");
 
   const types = [
-    { value: "in" as const, icon: TrendingUp, labelRu: "Приход", labelUz: "Kirim", color: "#34c473", descRu: "Добавить на склад", descUz: "Omborga qo'shish" },
-    { value: "out" as const, icon: TrendingDown, labelRu: "Расход", labelUz: "Chiqim", color: "#d45050", descRu: "Списать со склада", descUz: "Ombordan chiqarish" },
-    { value: "adjustment" as const, icon: ArrowUpDown, labelRu: "Корректировка", labelUz: "Tuzatish", color: "#d4973a", descRu: "Установить точное кол-во", descUz: "Aniq miqdorni o'rnatish" },
+    { value: "in" as const, icon: TrendingUp, labelRu: "Приход", labelUz: "Kirim", color: "var(--color-success-text)", descRu: "Добавить на склад", descUz: "Omborga qo'shish" },
+    { value: "out" as const, icon: TrendingDown, labelRu: "Расход", labelUz: "Chiqim", color: "var(--color-danger-text)", descRu: "Списать со склада", descUz: "Ombordan chiqarish" },
+    { value: "adjustment" as const, icon: ArrowUpDown, labelRu: "Корректировка", labelUz: "Tuzatish", color: "var(--color-warning-text)", descRu: "Установить точное кол-во", descUz: "Aniq miqdorni o'rnatish" },
   ];
 
   const currentType = types.find(t => t.value === type)!;
@@ -105,7 +105,7 @@ export const AdjustModal = memo(function AdjustModal({ productId, productName, c
               <span className="text-xs" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
                 {t("Новый остаток", "Yangi qoldiq")}
               </span>
-              <span className="text-sm font-bold" style={{ color: newStock >= 0 ? "#34c473" : "#d45050", fontFamily: "'DM Sans', sans-serif" }}>
+              <span className="text-sm font-bold" style={{ color: newStock >= 0 ? "var(--color-success-text)" : "var(--color-danger-text)", fontFamily: "'DM Sans', sans-serif" }}>
                 {formatQty(newStock)}
                 {unitWeight > 0 && <span className="text-xs font-normal" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}> ({formatQty(toKg(newStock, unitWeight))} кг)</span>}
               </span>
@@ -130,7 +130,7 @@ export const AdjustModal = memo(function AdjustModal({ productId, productName, c
           </label>
           <input className="w-full px-4 py-3 rounded-xl outline-none transition-all"
             style={{ background: "var(--color-surface-light, #f0f3f8)", color: "var(--color-text-primary, #2b3450)", border: "2px solid transparent" }}
-            onFocus={e => e.currentTarget.style.borderColor = "#5b6d8a"}
+            onFocus={e => e.currentTarget.style.borderColor = "var(--color-primary)"}
             onBlur={e => e.currentTarget.style.borderColor = "transparent"}
             placeholder={t("Например: возврат от клиента", "Masalan: mijozdan qaytarish")}
             value={notes} onChange={e => setNotes(e.target.value)} />

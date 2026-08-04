@@ -250,7 +250,7 @@ function MapView({ deliveries }: { deliveries: unknown[] | undefined }) {
       mapRef.current = map;
 
       mapMarkers.forEach((m) => {
-        const color = m.status === "out_for_delivery" ? "#d4973a" : m.status === "delivered" ? "#34c473" : "#5b6d8a";
+        const color = m.status === "out_for_delivery" ? "var(--color-warning-text)" : m.status === "delivered" ? "var(--color-success-text)" : "var(--color-primary-text)";
         const placemark = new window.ymaps.Placemark(
           [m.lat, m.lng],
           {
@@ -284,7 +284,7 @@ function MapView({ deliveries }: { deliveries: unknown[] | undefined }) {
       markersRef.current.forEach((m: unknown) => (mapRef.current as { geoObjects: { remove: (m: unknown) => void } }).geoObjects.remove(m));
       markersRef.current = [];
       mapMarkers.forEach((m) => {
-        const color = m.status === "out_for_delivery" ? "#d4973a" : m.status === "delivered" ? "#34c473" : "#5b6d8a";
+        const color = m.status === "out_for_delivery" ? "var(--color-warning-text)" : m.status === "delivered" ? "var(--color-success-text)" : "var(--color-primary-text)";
         const placemark = new window.ymaps.Placemark(
           [m.lat, m.lng],
           {
@@ -345,7 +345,7 @@ function DeliveryCard({
   isPending: boolean;
 }) {
   return (
-    <div className="neo-card" style={{ padding: "16px", borderLeft: "4px solid var(--color-warning, #d4973a)" }}>
+    <div className="neo-card" style={{ padding: "16px", borderLeft: "4px solid var(--color-warning)" }}>
       <div className="flex items-start justify-between">
         <div>
           <p className="font-semibold">{order.orderNumber}</p>

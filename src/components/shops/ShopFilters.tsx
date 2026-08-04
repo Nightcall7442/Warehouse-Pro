@@ -27,7 +27,7 @@ export function ShopFilters({ lang, search, setSearch, viewMode, setViewMode, ag
         <button onClick={() => { setViewMode("territories"); resetFilters(); }}
           style={{
             padding: "8px 16px", fontSize: "13px", fontWeight: 600, border: "none", cursor: "pointer",
-            background: viewMode === "territories" ? "#5b6d8a" : COLORS.surface,
+            background: viewMode === "territories" ? "var(--color-primary)" : COLORS.surface,
             color: viewMode === "territories" ? "#fff" : COLORS.textSecondary,
             transition: "all 0.2s",
           }}>
@@ -36,7 +36,7 @@ export function ShopFilters({ lang, search, setSearch, viewMode, setViewMode, ag
         <button onClick={() => setViewMode("list")}
           style={{
             padding: "8px 16px", fontSize: "13px", fontWeight: 600, border: "none", cursor: "pointer",
-            background: viewMode === "list" ? "#5b6d8a" : COLORS.surface,
+            background: viewMode === "list" ? "var(--color-primary)" : COLORS.surface,
             color: viewMode === "list" ? "#fff" : COLORS.textSecondary,
             transition: "all 0.2s",
           }}>
@@ -61,7 +61,7 @@ export function ShopFilters({ lang, search, setSearch, viewMode, setViewMode, ag
           fontSize: "13px", fontWeight: 600, borderRadius: "10px", cursor: "pointer",
           border: `1px solid ${onlyDebtors ? "rgba(232,80,80,.35)" : COLORS.border}`,
           background: onlyDebtors ? "rgba(232,80,80,.12)" : COLORS.surface,
-          color: onlyDebtors ? "#d45050" : COLORS.textSecondary,
+          color: onlyDebtors ? "var(--color-danger-text)" : COLORS.textSecondary,
           transition: "all 0.15s",
         }}>
         <AlertCircle size={14} />{t("Только с долгом", "Faqat qarzdorlar")}

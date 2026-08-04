@@ -424,7 +424,7 @@ export default function Orders() {
           value={(stats?.total ?? 0).toLocaleString()}
           delta={null}
           icon={<ShoppingCart size={20} color="#fff" />}
-          gradient="linear-gradient(135deg, #5b6d8a, #5b6d8a)"
+          gradient="var(--color-primary)"
           delay={0}
         />
         <KpiCard
@@ -464,7 +464,7 @@ export default function Orders() {
           value={(stats?.cancelledCount ?? 0).toLocaleString()}
           delta={null}
           icon={<XCircle size={20} color="#fff" />}
-          gradient="linear-gradient(135deg, #d45050, #d45050)"
+          gradient="linear-gradient(135deg, var(--color-danger), var(--color-danger))"
           delay={0.25}
         />
         <KpiCard
@@ -620,7 +620,7 @@ export default function Orders() {
                 <th style={{ width: "40px", padding: "12px 8px 12px 16px", textAlign: "center" }}>
                   <button onClick={toggleSelectAll} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
                     {allSelected
-                      ? <CheckSquare size={16} style={{ color: COLORS.primary }} />
+                      ? <CheckSquare size={16} style={{ color: COLORS.primaryText }} />
                       : <Square size={16} style={{ color: COLORS.textTertiary }} />
                     }
                   </button>
@@ -675,12 +675,12 @@ export default function Orders() {
                         <button onClick={() => toggleSelect(o.id as number)}
                           style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
                           {selected.has(o.id as number)
-                            ? <CheckSquare size={16} style={{ color: COLORS.primary }} />
+                            ? <CheckSquare size={16} style={{ color: COLORS.primaryText }} />
                             : <Square size={16} style={{ color: COLORS.textTertiary }} />
                           }
                         </button>
                       </td>
-                      <td style={{ padding: "14px 16px", fontFamily: F.display, fontSize: "13px", fontWeight: 600, color: COLORS.primary }}>
+                      <td style={{ padding: "14px 16px", fontFamily: F.display, fontSize: "13px", fontWeight: 600, color: COLORS.primaryText }}>
                         <span className="flex items-center gap-1">{o.orderNumber} <Eye className="h-3 w-3 opacity-0 group-hover:opacity-50" /></span>
                       </td>
                       <td style={{ padding: "14px 16px", fontSize: "13px", color: COLORS.textSecondary }}>
@@ -764,8 +764,8 @@ export default function Orders() {
                               style={{
                                 padding: "4px 10px", fontSize: "11px", fontWeight: 600, fontFamily: F.body,
                                 borderRadius: "8px", border: "none", cursor: "pointer",
-                                background: "linear-gradient(135deg, #5b6d8a, #5b6d8a)",
-                                color: "#fff",
+                                background: "var(--color-primary)",
+                                color: "var(--color-on-primary)",
                               }}
                             >
                               {t("Выполнен", "Bajarildi")}

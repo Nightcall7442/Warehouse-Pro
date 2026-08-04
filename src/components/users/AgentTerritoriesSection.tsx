@@ -71,7 +71,7 @@ export function AgentTerritoriesSection({ lang }: Props) {
               width: "40px",
               height: "40px",
               borderRadius: "12px",
-              background: "linear-gradient(135deg, #5b6d8a, #7b8db0)",
+              background: "linear-gradient(135deg, var(--color-primary), #7b8db0)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -145,7 +145,7 @@ export function AgentTerritoriesSection({ lang }: Props) {
                       borderRadius: "16px",
                       padding: "16px",
                       transition: "all 0.15s",
-                      background: isEditing ? "rgba(75,108,246,0.04)" : "transparent",
+                      background: isEditing ? "color-mix(in srgb, var(--color-primary) 4%, transparent)" : "transparent",
                     }}
                   >
                     {/* Agent header */}
@@ -163,13 +163,13 @@ export function AgentTerritoriesSection({ lang }: Props) {
                             width: "32px",
                             height: "32px",
                             borderRadius: "10px",
-                            background: "rgba(75,108,246,.12)",
+                            background: "color-mix(in srgb, var(--color-primary) 12%, transparent)",
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
                             fontSize: "12px",
                             fontWeight: 700,
-                            color: "#5b6d8a",
+                            color: "var(--color-primary-text)",
                             fontFamily: F.display,
                           }}
                         >
@@ -245,7 +245,7 @@ export function AgentTerritoriesSection({ lang }: Props) {
                                     padding: "6px 12px",
                                     borderRadius: "20px",
                                     border: `1.5px solid ${isSelected ? COLORS.primary : COLORS.border}`,
-                                    background: isSelected ? "rgba(75,108,246,0.1)" : "transparent",
+                                    background: isSelected ? "color-mix(in srgb, var(--color-primary) 10%, transparent)" : "transparent",
                                     cursor: "pointer",
                                     fontSize: "12px",
                                     fontFamily: F.body,
@@ -317,7 +317,7 @@ export function AgentTerritoriesSection({ lang }: Props) {
                               gap: "5px",
                               padding: "4px 10px",
                               borderRadius: "20px",
-                              background: "rgba(75,108,246,0.06)",
+                              background: "color-mix(in srgb, var(--color-primary) 6%, transparent)",
                               border: `1px solid ${COLORS.border}`,
                               fontSize: "12px",
                               fontFamily: F.body,

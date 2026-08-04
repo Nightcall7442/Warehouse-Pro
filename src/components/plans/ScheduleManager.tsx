@@ -72,7 +72,7 @@ export function ScheduleManager({ lang }: { lang: string }) {
   return (
     <div style={{ background: COLORS.surface, borderRadius: "16px", padding: "20px", boxShadow: SHADOW }}>
       <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
-        <Calendar size={18} style={{ color: COLORS.primary }} />
+        <Calendar size={18} style={{ color: COLORS.primaryText }} />
         <h3 style={{ fontFamily: F.display, fontSize: "15px", fontWeight: 600, color: COLORS.textPrimary, margin: 0 }}>
           {t("Расписание визитов", "Tashrif jadvali")}
         </h3>
@@ -95,7 +95,7 @@ export function ScheduleManager({ lang }: { lang: string }) {
           {/* Schedule grid */}
           {isLoading ? (
             <div style={{ padding: "24px", textAlign: "center" }}>
-              <Loader2 size={20} className="animate-spin" style={{ color: COLORS.primary }} />
+              <Loader2 size={20} className="animate-spin" style={{ color: COLORS.primaryText }} />
             </div>
           ) : (
             <div style={{ overflowX: "auto", marginBottom: "16px" }}>

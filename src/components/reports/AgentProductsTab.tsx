@@ -130,7 +130,7 @@ export const AgentProductsTab = memo(function AgentProductsTab({
                   <span style={{ fontSize: "12px", color: COLORS.textTertiary }}>
                     {t("Кол-во", "Miqdor")}: <b style={{ color: COLORS.textPrimary }}>{formatQty(agent.totalQty)}</b>
                   </span>
-                  <span style={{ fontFamily: F.display, fontSize: "16px", fontWeight: 700, color: COLORS.primary }}>
+                  <span style={{ fontFamily: F.display, fontSize: "16px", fontWeight: 700, color: COLORS.primaryText }}>
                     {fmt(agent.totalRevenue)}
                   </span>
                   <span style={{ fontSize: "11px", color: COLORS.textTertiary }}>({share.toFixed(1)}%)</span>
@@ -156,7 +156,7 @@ export const AgentProductsTab = memo(function AgentProductsTab({
                           <td style={{ ...tdStyle, color: COLORS.textTertiary, fontSize: "12px" }}>{r.productCode ?? "—"}</td>
                           <td style={{ ...tdStyle, textAlign: "right" }}>{formatQty(r.totalQty)} {r.unit ?? ""}</td>
                           <td style={{ ...tdStyle, textAlign: "right" }}>{r.orderCount}</td>
-                          <td style={{ ...tdStyle, textAlign: "right", fontWeight: 600, color: COLORS.primary }}>{fmt(r.totalRevenue)}</td>
+                          <td style={{ ...tdStyle, textAlign: "right", fontWeight: 600, color: COLORS.primaryText }}>{fmt(r.totalRevenue)}</td>
                         </tr>
                       ))}
                   </tbody>

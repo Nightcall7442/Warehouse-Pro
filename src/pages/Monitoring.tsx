@@ -288,7 +288,7 @@ export default function Monitoring() {
             {[
               ["Кэш hit rate", <span style={{ fontFamily: F.display, fontSize: "14px", fontWeight: 600, color: COLORS.textPrimary }}>{data?.cache.hitRate}</span>],
               ["Кэш размер", <span style={{ fontFamily: F.body, fontSize: "13px", color: COLORS.textSecondary }}>{data?.cache.size} записей</span>],
-              ["SSE каналы", <span style={{ fontFamily: F.display, fontSize: "14px", fontWeight: 600, color: COLORS.primary }}>{data?.sse.channels}</span>],
+              ["SSE каналы", <span style={{ fontFamily: F.display, fontSize: "14px", fontWeight: 600, color: COLORS.primaryText }}>{data?.sse.channels}</span>],
               ["SSE клиенты", <span style={{ fontFamily: F.display, fontSize: "14px", fontWeight: 600, color: COLORS.success }}>{data?.sse.totalListeners}</span>],
             ].map(([label, val], i) => (
               <div key={i} style={{
@@ -307,11 +307,11 @@ export default function Monitoring() {
         <Section title="Бизнес-метрики (24ч)" icon={Zap} delay={0.1}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px" }}>
             {[
-              { label: "Заказы", value: data.business.orders24h, icon: "📦", color: COLORS.primary },
+              { label: "Заказы", value: data.business.orders24h, icon: "📦", color: COLORS.primaryText },
               { label: "Выручка", value: `${Number(data.business.revenue24h).toLocaleString("ru")} сум`, icon: "💰", color: COLORS.success },
               { label: "Новых товаров", value: data.business.newProducts, icon: "📋", color: COLORS.info },
               { label: "Активных юзеров", value: data.business.activeUsers, icon: "👥", color: COLORS.warning },
-              { label: "Магазинов", value: data.business.totalShops, icon: "🏪", color: COLORS.primary },
+              { label: "Магазинов", value: data.business.totalShops, icon: "🏪", color: COLORS.primaryText },
             ].map((item, i) => (
               <div key={i} style={{
                 padding: "12px", borderRadius: "10px", background: COLORS.surfaceLight,

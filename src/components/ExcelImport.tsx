@@ -168,8 +168,8 @@ export function ExcelImport({ type, onDone, onCancel }: Props) {
           onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
         {preview.length > 0 ? (
           <>
-            <CheckCircle2 size={32} style={{ margin: "0 auto 8px", color: "#34c473" }} />
-            <p style={{ fontSize: "14px", fontWeight: 600, color: "#34c473" }}>{fileName}</p>
+            <CheckCircle2 size={32} style={{ margin: "0 auto 8px", color: "var(--color-success-text)" }} />
+            <p style={{ fontSize: "14px", fontWeight: 600, color: "var(--color-success-text)" }}>{fileName}</p>
             <p style={{ fontSize: "12px", color: "var(--color-text-secondary, #6a7290)", marginTop: "4px" }}>{totalRows} строк для импорта</p>
             <p style={{ fontSize: "11px", color: "var(--color-text-tertiary, #98a0b8)", marginTop: "4px" }}>Нажмите чтобы заменить файл</p>
           </>
@@ -212,11 +212,11 @@ export function ExcelImport({ type, onDone, onCancel }: Props) {
       {/* Errors */}
       {errors.length > 0 && (
         <div style={{ marginTop: "16px", padding: "12px", borderRadius: "12px", background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.2)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px", color: "#d45050", fontSize: "13px", fontWeight: 600 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px", color: "var(--color-danger-text)", fontSize: "13px", fontWeight: 600 }}>
             <AlertTriangle size={15} /> Ошибки
           </div>
-          {errors.slice(0, 5).map((e, i) => <p key={i} style={{ fontSize: "11px", color: "#d45050", margin: "2px 0" }}>{e}</p>)}
-          {errors.length > 5 && <p style={{ fontSize: "11px", color: "#d45050" }}>... и ещё {errors.length - 5}</p>}
+          {errors.slice(0, 5).map((e, i) => <p key={i} style={{ fontSize: "11px", color: "var(--color-danger-text)", margin: "2px 0" }}>{e}</p>)}
+          {errors.length > 5 && <p style={{ fontSize: "11px", color: "var(--color-danger-text)" }}>... и ещё {errors.length - 5}</p>}
         </div>
       )}
 
@@ -224,12 +224,12 @@ export function ExcelImport({ type, onDone, onCancel }: Props) {
       <div style={{ display: "flex", gap: "12px", marginTop: "20px", paddingTop: "16px", borderTop: "1px solid var(--color-border, #f0f3f8)" }}>
         {executeMutation.isSuccess ? (
           <button onClick={onDone}
-            style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "10px 20px", borderRadius: "12px", fontSize: "13px", fontWeight: 600, color: "#fff", background: "linear-gradient(135deg, #34c473, #22c47a)", border: "none", cursor: "pointer", transition: "all 0.2s" }}>
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "10px 20px", borderRadius: "12px", fontSize: "13px", fontWeight: 600, color: "#fff", background: "linear-gradient(135deg, var(--color-success), #22c47a)", border: "none", cursor: "pointer", transition: "all 0.2s" }}>
             <CheckCircle2 size={14} /> Готово
           </button>
         ) : (
           <button onClick={handleImport} disabled={!base64 || importing}
-            style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "10px 20px", borderRadius: "12px", fontSize: "13px", fontWeight: 600, color: "#fff", background: "linear-gradient(135deg, #5b6d8a, #5b6d8a)", border: "none", cursor: !base64 || importing ? "not-allowed" : "pointer", opacity: !base64 || importing ? 0.5 : 1, transition: "all 0.2s" }}>
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "10px 20px", borderRadius: "12px", fontSize: "13px", fontWeight: 600, color: "var(--color-on-primary)", background: "var(--color-primary)", border: "none", cursor: !base64 || importing ? "not-allowed" : "pointer", opacity: !base64 || importing ? 0.5 : 1, transition: "all 0.2s" }}>
             {importing ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <Upload size={14} />}
             {importing ? "Импортирую..." : `Импортировать${totalRows > 0 ? ` ${totalRows} строк` : ""}`}
           </button>

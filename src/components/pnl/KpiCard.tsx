@@ -77,9 +77,9 @@ export function KpiCard({ label, value, delta, icon, gradient }: KpiCardProps) {
             fontWeight: 600,
             fontFamily: F.body,
             color: isPositive
-              ? "#34c473"
+              ? "var(--color-success)"
               : isNegative
-                ? "#d45050"
+                ? "var(--color-danger)"
                 : COLORS.textTertiary,
           }}
         >

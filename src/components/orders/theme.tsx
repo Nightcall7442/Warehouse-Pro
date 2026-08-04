@@ -12,10 +12,14 @@ export const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM S
 
 export const COLORS = {
   // Reads the themed accent so the dark palette isn't stuck with the light one.
-  primary: "var(--color-primary, #5b6d8a)",
+  primary: "var(--color-primary)",
+  // Accent-coloured *text* (a price, a code, a link). The fill colour above
+  // is a hair under 4.5:1 as text on a light card, so semantic text uses
+  // this darker sibling instead. See --color-primary-text in index.css.
+  primaryText: "var(--color-primary-text)",
   onPrimary: "var(--color-text-inverse, #ffffff)",
-  success: "#34c473",
-  warning: "#d4973a", danger: "#d45050",
+  success: "var(--color-success)",
+  warning: "var(--color-warning)", danger: "var(--color-danger)",
   surface: "var(--color-surface, #ffffff)", surfaceLight: "var(--color-surface-light, #f0f3f8)",
   textPrimary: "var(--color-text-primary, #2b3450)", textSecondary: "var(--color-text-secondary, #6a7290)",
   textTertiary: "var(--color-text-tertiary, #98a0b8)", border: "var(--color-border, #f0f3f8)",
@@ -27,19 +31,19 @@ export const SHADOW = "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgb
 export const OPEN_STATUSES = ["new", "processing", "shipped", "pending"];
 
 export const PAYMENT: Record<string, { ru: string; uz: string; color: string }> = {
-  cash:     { ru: "Наличные",     uz: "Naqd",      color: "#34c473" },
-  transfer: { ru: "Перечисление", uz: "O'tkazma",  color: "#5b6d8a" },
-  debt:     { ru: "Долг",         uz: "Qarz",      color: "#d4973a" },
+  cash:     { ru: "Наличные",     uz: "Naqd",      color: "var(--color-success-text)" },
+  transfer: { ru: "Перечисление", uz: "O'tkazma",  color: "var(--color-primary-text)" },
+  debt:     { ru: "Долг",         uz: "Qarz",      color: "var(--color-warning-text)" },
   card:     { ru: "Карта",        uz: "Plastik",   color: "#9b59b6" },
 };
 
 export const STATUS: Record<string, { ru: string; uz: string; dot: string; bg: string; text: string; border: string }> = {
-  new:                  { ru: "Новый",            uz: "Yangi",                   dot: "#5b6d8a", bg: "bg-info/10",    text: "text-info",    border: "border-info/25" },
-  processing:           { ru: "В обработке",      uz: "Jarayonda",               dot: "#d4973a", bg: "bg-warning/10", text: "text-warning", border: "border-warning/25" },
+  new:                  { ru: "Новый",            uz: "Yangi",                   dot: "var(--color-primary)", bg: "bg-info/10",    text: "text-info",    border: "border-info/25" },
+  processing:           { ru: "В обработке",      uz: "Jarayonda",               dot: "var(--color-warning)", bg: "bg-warning/10", text: "text-warning", border: "border-warning/25" },
   shipped:              { ru: "Отгружён",         uz: "Yuklandi",                dot: "#9b59b6", bg: "bg-purple-100", text: "text-purple-600", border: "border-purple-200" },
   pending:              { ru: "В ожидании",       uz: "Kutishda",                dot: "#f09050", bg: "bg-orange-100", text: "text-orange-600", border: "border-orange-200" },
-  delivered:            { ru: "Доставлен",        uz: "Yetkazildi",              dot: "#34c473", bg: "bg-success/10", text: "text-success", border: "border-success/25" },
-  cancelled:            { ru: "Отменён",          uz: "Bekor qilindi",           dot: "#d45050", bg: "bg-danger/10",  text: "text-danger",  border: "border-danger/25" },
+  delivered:            { ru: "Доставлен",        uz: "Yetkazildi",              dot: "var(--color-success)", bg: "bg-success/10", text: "text-success", border: "border-success/25" },
+  cancelled:            { ru: "Отменён",          uz: "Bekor qilindi",           dot: "var(--color-danger)", bg: "bg-danger/10",  text: "text-danger",  border: "border-danger/25" },
   returned:             { ru: "Возврат",          uz: "Qaytarildi",              dot: "#e85050", bg: "bg-red-100",    text: "text-red-600", border: "border-red-200" },
 };
 
@@ -71,7 +75,7 @@ export function KpiCard({ label, value, delta, icon, gradient, delay }: {
         <div style={{
           display: "flex", alignItems: "center", gap: "4px", marginTop: "10px",
           fontSize: "12px", fontWeight: 600, fontFamily: F.body,
-          color: isPositive ? "#34c473" : isNegative ? "#d45050" : COLORS.textTertiary,
+          color: isPositive ? "var(--color-success-text)" : isNegative ? "var(--color-danger-text)" : COLORS.textTertiary,
         }}>
           {isPositive ? <ArrowUpRight size={14} /> : isNegative ? <ArrowDownRight size={14} /> : <Minus size={14} />}
           {Math.abs(delta).toFixed(1)}%
@@ -122,7 +126,7 @@ export function PillButton({ onClick, disabled, tone = "neutral", type, children
 }) {
   const styles: Record<string, React.CSSProperties> = {
     primary: { background: COLORS.primary, color: COLORS.onPrimary, border: "none" },
-    success: { background: "linear-gradient(135deg, #34c473, #28a862)", color: "#fff", border: "none" },
+    success: { background: "linear-gradient(135deg, var(--color-success), #28a862)", color: "#fff", border: "none" },
     danger:  { background: `${COLORS.danger}12`, color: COLORS.danger, border: `1px solid ${COLORS.danger}30` },
     neutral: { background: COLORS.surface, color: COLORS.textSecondary, border: `1px solid ${COLORS.border}` },
     ghost:   { background: "transparent", color: COLORS.textSecondary, border: "none" },

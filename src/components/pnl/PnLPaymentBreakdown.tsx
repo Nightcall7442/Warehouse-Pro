@@ -84,7 +84,7 @@ export function PnLPaymentBreakdown({
                 key={row.paymentMethod}
                 style={{ transition: "background 0.15s" }}
                 onMouseEnter={(e) =>
-                  (e.currentTarget.style.background = "rgba(75,108,246,0.02)")
+                  (e.currentTarget.style.background = "color-mix(in srgb, var(--color-primary) 2%, transparent)")
                 }
                 onMouseLeave={(e) =>
                   (e.currentTarget.style.background = "transparent")
@@ -110,7 +110,7 @@ export function PnLPaymentBreakdown({
                 <td style={{ ...tdStyle, textAlign: "right", fontWeight: 600 }}>
                   {fmt((row.revenue ?? 0).toFixed(0))}
                 </td>
-                <td style={{ ...tdStyle, textAlign: "right", color: "#d45050" }}>
+                <td style={{ ...tdStyle, textAlign: "right", color: "var(--color-danger-text)" }}>
                   {fmt((row.cogs ?? 0).toFixed(0))}
                 </td>
                 <td
@@ -118,7 +118,7 @@ export function PnLPaymentBreakdown({
                     ...tdStyle,
                     textAlign: "right",
                     fontWeight: 700,
-                    color: (row.grossProfit ?? 0) >= 0 ? "#34c473" : "#d45050",
+                    color: (row.grossProfit ?? 0) >= 0 ? "var(--color-success-text)" : "var(--color-danger-text)",
                   }}
                 >
                   {fmt((row.grossProfit ?? 0).toFixed(0))}
@@ -139,10 +139,10 @@ export function PnLPaymentBreakdown({
                             : "rgba(232,80,80,0.1)",
                       color:
                         (row.grossMarginPct ?? 0) >= 20
-                          ? "#34c473"
+                          ? "var(--color-success)"
                           : (row.grossMarginPct ?? 0) >= 10
-                            ? "#d4973a"
-                            : "#d45050",
+                            ? "var(--color-warning)"
+                            : "var(--color-danger)",
                     }}
                   >
                     {(row.grossMarginPct ?? 0).toFixed(0)}%
@@ -170,7 +170,7 @@ export function PnLPaymentBreakdown({
                   ...tdStyle,
                   textAlign: "right",
                   fontWeight: 700,
-                  color: "#d45050",
+                  color: "var(--color-danger-text)",
                 }}
               >
                 {fmt(totalCogs.toFixed(0))}
@@ -180,7 +180,7 @@ export function PnLPaymentBreakdown({
                   ...tdStyle,
                   textAlign: "right",
                   fontWeight: 700,
-                  color: "#34c473",
+                  color: "var(--color-success-text)",
                 }}
               >
                 {fmt(totalProfit.toFixed(0))}
@@ -244,21 +244,21 @@ export function PnLPaymentBreakdown({
                 dataKey="cash"
                 name={t("Наличные", "Naqd")}
                 stackId="payment"
-                fill="#34c473"
+                fill="var(--color-success)"
                 radius={[0, 0, 0, 0]}
               />
               <Bar
                 dataKey="transfer"
                 name={t("Перечисление", "O'tkazma")}
                 stackId="payment"
-                fill="#5b6d8a"
+                fill="var(--color-primary)"
                 radius={[0, 0, 0, 0]}
               />
               <Bar
                 dataKey="debt"
                 name={t("Долг", "Qarz")}
                 stackId="payment"
-                fill="#d4973a"
+                fill="var(--color-warning)"
                 radius={[0, 0, 0, 0]}
               />
               <Bar

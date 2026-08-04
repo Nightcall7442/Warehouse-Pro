@@ -14,13 +14,13 @@ import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 
 type Range = "7d" | "30d" | "month";
 
-const STATUS_COLOR: Record<string, string> = { new: "#5b6d8a", processing: "#d4973a", completed: "#34c473", cancelled: "#d45050" };
+const STATUS_COLOR: Record<string, string> = { new: "var(--color-primary)", processing: "var(--color-warning)", completed: "var(--color-success)", cancelled: "var(--color-danger)" };
 const STATUS_LABEL: Record<string, { ru: string; uz: string }> = {
   new: { ru: "Новые", uz: "Yangi" }, processing: { ru: "В обработке", uz: "Jarayonda" },
   completed: { ru: "Выполнены", uz: "Bajarildi" }, cancelled: { ru: "Отменены", uz: "Bekor qilindi" },
 };
 
-const CHART_COLORS = ["#5b6d8a", "#34c473", "#d4973a", "#d45050", "#7a6db5", "#3a9a8a", "#c06080", "#c49530"];
+const CHART_COLORS = ["var(--color-primary)", "var(--color-success)", "var(--color-warning)", "var(--color-danger)", "#7a6db5", "#3a9a8a", "#c06080", "#c49530"];
 
 /* ── Decorative dots ─────────────────────────────────────────────────────── */
 const CardDots = memo(function CardDots() {
@@ -63,7 +63,7 @@ const PieTooltip = memo(function PieTooltip({ active, payload }: { active?: bool
       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
         <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: p.payload.color, boxShadow: "var(--shadow-xs)" }} />
         <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--color-text-primary)" }}>{p.name}</span>
-        <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--color-primary)" }}>{p.value}</span>
+        <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--color-primary-text)" }}>{p.value}</span>
       </div>
     </div>
   );
@@ -198,13 +198,13 @@ export default function Dashboard() {
           <p className="kpi-hero-value" style={{ fontSize: "28px", marginTop: "8px" }}>{fmt(kpis.todayRevenue, true)}</p>
           {revenueDelta !== 0 && (
             <div style={{ display: "flex", alignItems: "center", gap: "4px", marginTop: "8px" }}>
-              {revenueDelta > 0 ? <TrendingUp size={14} color="var(--color-success, #34c473)" /> : <TrendingDown size="14" color="var(--color-danger, #d45050)" />}
-              <span style={{ fontSize: "12px", fontWeight: 600, color: revenueDelta > 0 ? "var(--color-success, #34c473)" : "var(--color-danger, #d45050)" }}>{Math.abs(revenueDelta).toFixed(1)}%</span>
+              {revenueDelta > 0 ? <TrendingUp size={14} color="var(--color-success-text)" /> : <TrendingDown size="14" color="var(--color-danger-text)" />}
+              <span style={{ fontSize: "12px", fontWeight: 600, color: revenueDelta > 0 ? "var(--color-success-text)" : "var(--color-danger-text)" }}>{Math.abs(revenueDelta).toFixed(1)}%</span>
             </div>
           )}
           {miniBarRevenue.length > 0 && (
             <div style={{ marginTop: "12px" }}>
-              <MiniBarChart data={miniBarRevenue} color="var(--color-success, #34c473)" />
+              <MiniBarChart data={miniBarRevenue} color="var(--color-success-text)" />
             </div>
           )}
         </div>
@@ -216,13 +216,13 @@ export default function Dashboard() {
           <p className="kpi-hero-value" style={{ fontSize: "28px", marginTop: "8px" }}>{kpis.todayOrders}</p>
           {ordersDelta !== 0 && (
             <div style={{ display: "flex", alignItems: "center", gap: "4px", marginTop: "8px" }}>
-              {ordersDelta > 0 ? <TrendingUp size={14} color="var(--color-success, #34c473)" /> : <TrendingDown size={14} color="var(--color-danger, #d45050)" />}
-              <span style={{ fontSize: "12px", fontWeight: 600, color: ordersDelta > 0 ? "var(--color-success, #34c473)" : "var(--color-danger, #d45050)" }}>{Math.abs(ordersDelta).toFixed(1)}%</span>
+              {ordersDelta > 0 ? <TrendingUp size={14} color="var(--color-success-text)" /> : <TrendingDown size={14} color="var(--color-danger-text)" />}
+              <span style={{ fontSize: "12px", fontWeight: 600, color: ordersDelta > 0 ? "var(--color-success-text)" : "var(--color-danger-text)" }}>{Math.abs(ordersDelta).toFixed(1)}%</span>
             </div>
           )}
           {miniBarOrders.length > 0 && (
             <div style={{ marginTop: "12px" }}>
-              <MiniBarChart data={miniBarOrders} color="var(--color-primary, #5b6d8a)" />
+              <MiniBarChart data={miniBarOrders} color="var(--color-primary-text)" />
             </div>
           )}
         </div>
@@ -231,8 +231,8 @@ export default function Dashboard() {
         <CircularKpiCard
           label={t("ДОЛГ КЛИЕНТОВ", "MIJZOZLAR QARZI")}
           value={fmt(kpis.customerDebt ?? 0, true)}
-          color="var(--color-warning, #d4973a)"
-          icon={<Activity size={18} color="var(--color-warning)" />}
+          color="var(--color-warning-text)"
+          icon={<Activity size={18} color="var(--color-warning-text)" />}
           delay={0.1}
           onClick={() => navigate("/reports")}
         />
@@ -245,7 +245,7 @@ export default function Dashboard() {
             <p className="kpi-hero-value" style={{ fontSize: "28px", marginTop: "8px" }}>{(kpis.grossMargin ?? 0).toFixed(1)}%</p>
           </div>
           <div className="neo-progress-ring" style={{ width: "80px", height: "80px" }}>
-            <ProgressRing value={Math.max(0, Math.min(100, kpis.grossMargin ?? 0))} color="var(--color-primary, #5b6d8a)" size={72} strokeWidth={6} label={`${(kpis.grossMargin ?? 0).toFixed(0)}%`} />
+            <ProgressRing value={Math.max(0, Math.min(100, kpis.grossMargin ?? 0))} color="var(--color-primary-text)" size={72} strokeWidth={6} label={`${(kpis.grossMargin ?? 0).toFixed(0)}%`} />
           </div>
         </div>
       </div>
@@ -256,8 +256,8 @@ export default function Dashboard() {
           {alerts.slice(0, 4).map((alert, i) => {
             const colors: Record<string, { bg: string; icon: string }> = {
               info: { bg: "var(--color-info-subtle)", icon: "var(--color-info, #4a9de8)" },
-              warning: { bg: "var(--color-warning-subtle)", icon: "var(--color-warning, #d4973a)" },
-              danger: { bg: "var(--color-danger-subtle)", icon: "var(--color-danger, #d45050)" },
+              warning: { bg: "var(--color-warning-subtle)", icon: "var(--color-warning)" },
+              danger: { bg: "var(--color-danger-subtle)", icon: "var(--color-danger)" },
             };
             const c = colors[alert.severity] || colors.info;
             return (
@@ -298,20 +298,20 @@ export default function Dashboard() {
             <AreaChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="gRevenue" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="var(--color-primary, #5b6d8a)" stopOpacity={0.2} />
-                  <stop offset="100%" stopColor="var(--color-primary, #5b6d8a)" stopOpacity={0} />
+                  <stop offset="0%" stopColor="var(--color-primary)" stopOpacity={0.2} />
+                  <stop offset="100%" stopColor="var(--color-primary)" stopOpacity={0} />
                 </linearGradient>
                 <linearGradient id="gOrders" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="var(--color-success, #34c473)" stopOpacity={0.2} />
-                  <stop offset="100%" stopColor="var(--color-success, #34c473)" stopOpacity={0} />
+                  <stop offset="0%" stopColor="var(--color-success)" stopOpacity={0.2} />
+                  <stop offset="100%" stopColor="var(--color-success)" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <XAxis dataKey="date" tick={{ fill: "var(--color-text-tertiary, #8b9bb4)", fontSize: 11, fontFamily: "'DM Sans', sans-serif" }} axisLine={false} tickLine={false} dy={8} />
               <YAxis yAxisId="left" tick={{ fill: "var(--color-text-tertiary, #8b9bb4)", fontSize: 11, fontFamily: "'DM Sans', sans-serif" }} axisLine={false} tickLine={false} tickFormatter={v => fmt(v, true)} dx={-4} />
               <YAxis yAxisId="right" orientation="right" tick={{ fill: "var(--color-text-tertiary, #8b9bb4)", fontSize: 11, fontFamily: "'DM Sans', sans-serif" }} axisLine={false} tickLine={false} dx={4} />
               <Tooltip content={<ChartTooltip fmt={fmt} />} cursor={{ stroke: "var(--color-border, #c8d0dc)", strokeWidth: 1, strokeDasharray: "4 4" }} />
-              <Area yAxisId="left" type="monotone" dataKey="revenue" stroke="var(--color-primary, #5b6d8a)" strokeWidth={2.5} fill="url(#gRevenue)" name={t("Выручка", "Tushum")} dot={false} activeDot={{ r: 5, fill: "var(--color-primary, #5b6d8a)", stroke: "#fff", strokeWidth: 2 }} />
-              <Area yAxisId="right" type="monotone" dataKey="orders" stroke="var(--color-success, #34c473)" strokeWidth={2.5} fill="url(#gOrders)" name={t("Заказы", "Buyurtmalar")} dot={false} activeDot={{ r: 5, fill: "var(--color-success, #34c473)", stroke: "#fff", strokeWidth: 2 }} />
+              <Area yAxisId="left" type="monotone" dataKey="revenue" stroke="var(--color-primary)" strokeWidth={2.5} fill="url(#gRevenue)" name={t("Выручка", "Tushum")} dot={false} activeDot={{ r: 5, fill: "var(--color-primary)", stroke: "#fff", strokeWidth: 2 }} />
+              <Area yAxisId="right" type="monotone" dataKey="orders" stroke="var(--color-success)" strokeWidth={2.5} fill="url(#gOrders)" name={t("Заказы", "Buyurtmalar")} dot={false} activeDot={{ r: 5, fill: "var(--color-success)", stroke: "#fff", strokeWidth: 2 }} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -320,7 +320,7 @@ export default function Dashboard() {
         <div className="neo-card" style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
           <div style={{ marginBottom: "16px" }}>
             <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 700, color: "var(--color-text-primary, #2d3748)", margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
-              <PieChart size={16} color="var(--color-primary)" />
+              <PieChart size={16} color="var(--color-primary-text)" />
               {t("Статусы заказов", "Buyurtmalar holati")}
             </h2>
           </div>
@@ -373,7 +373,7 @@ export default function Dashboard() {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
           <div>
             <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 700, color: "var(--color-text-primary, #2d3748)", margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
-              <ClipboardList size={16} color="var(--color-primary)" />
+              <ClipboardList size={16} color="var(--color-primary-text)" />
               {t("Последние заказы", "So'nggi buyurtmalar")}
             </h2>
             <p style={{ fontSize: "12px", color: "var(--color-text-tertiary, #8b9bb4)", margin: "3px 0 0" }}>
@@ -397,7 +397,7 @@ export default function Dashboard() {
           ) : (
             activity.slice(0, 8).map((e) => (
               <div key={e.id} onClick={() => navigate(`/orders/${e.id}`)} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px 8px", cursor: "pointer", borderRadius: "12px", transition: "all 0.15s", marginBottom: "2px" }}
-                onMouseEnter={ev => { ev.currentTarget.style.background = "rgba(75,108,246,.04)"; }}
+                onMouseEnter={ev => { ev.currentTarget.style.background = "color-mix(in srgb, var(--color-primary) 4%, transparent)"; }}
                 onMouseLeave={ev => { ev.currentTarget.style.background = "transparent"; }}
               >
                 <span style={{ width: "10px", height: "10px", borderRadius: "50%", flexShrink: 0, background: STATUS_COLOR[e.status ?? "new"] ?? "var(--color-border, #c8d0dc)", boxShadow: "var(--shadow-xs)" }} />

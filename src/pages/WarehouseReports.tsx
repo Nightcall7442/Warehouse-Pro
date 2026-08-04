@@ -15,12 +15,16 @@ import {
 import { exportToExcel, exportToPDF, buildExcelSheets, buildPDFHtml, type ReportData } from "@/lib/export";
 import { PremiumSelect } from "@/components/PremiumSelect";
 
-const COLORS = ["#5b6d8a", "#c7c9f8", "#c7c9f8", "#c7c9f8", "var(--color-primary-subtle, rgba(75,108,246,.10))", "var(--color-primary-subtle, rgba(75,108,246,.10))", "#34c473", "#d4973a"];
+const COLORS = ["var(--color-primary)", "#c7c9f8", "#c7c9f8", "#c7c9f8", "var(--color-primary-subtle)", "var(--color-primary-subtle)", "var(--color-success)", "var(--color-warning)"];
 
 const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
 const THEME = {
-  primary: "#5b6d8a", success: "#34c473",
-  warning: "#d4973a", danger: "#d45050",
+  primary: "var(--color-primary)",
+  // Accent-coloured *text* (a price, a code, a link). The fill colour above
+  // is a hair under 4.5:1 as text on a light card, so semantic text uses
+  // this darker sibling instead. See --color-primary-text in index.css.
+  primaryText: "var(--color-primary-text)", success: "var(--color-success)",
+  warning: "var(--color-warning)", danger: "var(--color-danger)",
   surface: "var(--color-surface, #ffffff)", surfaceLight: "var(--color-surface-light, #f0f3f8)",
   textPrimary: "var(--color-text-primary, #2b3450)", textSecondary: "var(--color-text-secondary, #6a7290)",
   textTertiary: "var(--color-text-tertiary, #98a0b8)", border: "var(--color-border, #f0f3f8)",
@@ -71,7 +75,7 @@ function KpiCard({ label, value, delta, icon, gradient }: {
         <div style={{
           display: "flex", alignItems: "center", gap: "4px", marginTop: "10px",
           fontSize: "12px", fontWeight: 600, fontFamily: F.body,
-          color: isPositive ? "#34c473" : isNegative ? "#d45050" : THEME.textTertiary,
+          color: isPositive ? "var(--color-success-text)" : isNegative ? "var(--color-danger-text)" : THEME.textTertiary,
         }}>
           {isPositive ? <ArrowUpRight size={14} /> : isNegative ? <ArrowDownRight size={14} /> : <Minus size={14} />}
           {Math.abs(delta).toFixed(1)}%
@@ -239,7 +243,7 @@ export default function WarehouseReports() {
                 <XAxis type="number" tick={{ fontSize: 10, fill: "var(--color-text-tertiary, #98a0b8)" }} />
                 <YAxis dataKey="category" type="category" tick={{ fontSize: 11, fill: "var(--color-text-secondary, #6a7290)" }} width={75} />
                 <Tooltip content={<ChartTooltip />} />
-                <Bar dataKey="totalValue" name={t("Стоимость", "Qiymat")} fill="#5b6d8a" radius={[0, 4, 4, 0]} />
+                <Bar dataKey="totalValue" name={t("Стоимость", "Qiymat")} fill="var(--color-primary)" radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -285,8 +289,8 @@ export default function WarehouseReports() {
               <YAxis tick={{ fontSize: 10, fill: "var(--color-text-tertiary, #98a0b8)" }} />
               <Tooltip content={<ChartTooltip />} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Line type="monotone" dataKey="inQty" name={t("Приход", "Kirish")} stroke="#34c473" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="outQty" name={t("Расход", "Chiqish")} stroke="#d45050" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="inQty" name={t("Приход", "Kirish")} stroke="var(--color-success)" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="outQty" name={t("Расход", "Chiqish")} stroke="var(--color-danger)" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -314,8 +318,8 @@ export default function WarehouseReports() {
               </div>
               <div className="space-y-2">
                 {[
-                  { label: t("Топливо", "Yoqilg'i"), value: Number(arrivalData.summary.totalFuelCost ?? 0), color: "#d4973a" },
-                  { label: t("Платные дороги", "Pullik yo'llar"), value: Number(arrivalData.summary.totalTollCost ?? 0), color: "#5b6d8a" },
+                  { label: t("Топливо", "Yoqilg'i"), value: Number(arrivalData.summary.totalFuelCost ?? 0), color: "var(--color-warning-text)" },
+                  { label: t("Платные дороги", "Pullik yo'llar"), value: Number(arrivalData.summary.totalTollCost ?? 0), color: "var(--color-primary-text)" },
                   { label: t("Прочее", "Boshqa"), value: Number(arrivalData.summary.totalOtherCost ?? 0), color: "var(--color-text-tertiary, #98a0b8)" },
                 ].map(c => (
                   <div key={c.label} className="flex items-center justify-between text-xs">
@@ -364,7 +368,7 @@ export default function WarehouseReports() {
                     </td>
                     <td className="py-2 text-right font-data">{Number(p.currentStock ?? 0).toLocaleString("ru")} {p.unit}</td>
                     <td className="py-2 text-right font-data font-semibold">{fmt(Number(p.costValue ?? 0))}</td>
-                    <td className="py-2 text-right font-data" style={{ color: Number(p.margin ?? 0) >= 0 ? "#34c473" : "#d45050" }}>
+                    <td className="py-2 text-right font-data" style={{ color: Number(p.margin ?? 0) >= 0 ? "var(--color-success-text)" : "var(--color-danger-text)" }}>
                       {fmt(Number(p.margin ?? 0))}
                     </td>
                   </tr>
@@ -391,7 +395,7 @@ export default function WarehouseReports() {
             <tbody>
               {turnoverData?.map((p) => {
                 const rate = Number(p.turnoverRate);
-                const color = rate >= 2 ? "#34c473" : rate >= 1 ? "#d4973a" : "var(--color-text-secondary, #6a7290)";
+                const color = rate >= 2 ? "var(--color-success-text)" : rate >= 1 ? "var(--color-warning-text)" : "var(--color-text-secondary, #6a7290)";
                 return (
                   <tr key={p.productId} style={{ borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
                     <td className="py-2">
@@ -401,7 +405,7 @@ export default function WarehouseReports() {
                     <td className="py-2 text-right font-data">{Number(p.currentStock ?? 0).toLocaleString("ru")}</td>
                     <td className="py-2 text-right font-data font-semibold">{Number(p.soldQty).toLocaleString("ru")}</td>
                     <td className="py-2 text-right font-data font-bold" style={{ color }}>{p.turnoverRate}x</td>
-                    <td className="py-2 text-right font-data" style={{ color: p.daysToSell < 7 ? "#d45050" : p.daysToSell < 14 ? "#d4973a" : "var(--color-text-secondary, #6a7290)" }}>
+                    <td className="py-2 text-right font-data" style={{ color: p.daysToSell < 7 ? "var(--color-danger-text)" : p.daysToSell < 14 ? "var(--color-warning-text)" : "var(--color-text-secondary, #6a7290)" }}>
                       {p.daysToSell < 999 ? p.daysToSell : "—"}
                     </td>
                   </tr>

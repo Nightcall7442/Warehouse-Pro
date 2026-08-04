@@ -114,7 +114,7 @@ export default function ProductDetail() {
             <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handlePhotoUpload} />
             <div
               className="w-20 h-20 rounded-xl overflow-hidden flex items-center justify-center cursor-pointer relative group border border-border-subtle"
-              style={{ background: "rgba(75,108,246,.08)" }}
+              style={{ background: "color-mix(in srgb, var(--color-primary) 8%, transparent)" }}
               onClick={() => fileRef.current?.click()}
               title={tr("Нажмите чтобы загрузить фото","Rasm yuklash uchun bosing")}
             >

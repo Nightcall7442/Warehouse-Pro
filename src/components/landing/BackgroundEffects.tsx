@@ -77,7 +77,7 @@ export function MeshGradient() {
       <div
         className="absolute w-[800px] h-[800px] rounded-full blur-[180px] opacity-20"
         style={{
-          background: "radial-gradient(circle, rgba(167,139,250,0.4), rgba(75,108,246,0.2), transparent)",
+          background: "radial-gradient(circle, rgba(167,139,250,0.4), color-mix(in srgb, var(--color-primary) 20%, transparent), transparent)",
           left: `${30 + Math.sin(time) * 10}%`,
           top: `${10 + Math.cos(time * 0.7) * 8}%`,
           transform: "translate(-50%, -50%)",

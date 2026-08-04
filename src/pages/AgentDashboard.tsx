@@ -22,8 +22,8 @@ const PLAN_STATUS: Record<string, {
   labelRu: string; labelUz: string;
   dotColor: string; textClass: string;
 }> = {
-  visited: { icon: CheckCircle2, labelRu: "Посещён",  labelUz: "Borildi",    dotColor: "#34c473", textClass: "text-success" },
-  skipped: { icon: Clock,        labelRu: "Пропущен", labelUz: "O'tkazildi", dotColor: "#d4973a", textClass: "text-warning" },
+  visited: { icon: CheckCircle2, labelRu: "Посещён",  labelUz: "Borildi",    dotColor: "var(--color-success)", textClass: "text-success" },
+  skipped: { icon: Clock,        labelRu: "Пропущен", labelUz: "O'tkazildi", dotColor: "var(--color-warning)", textClass: "text-warning" },
   planned: { icon: Calendar,     labelRu: "Запланирован", labelUz: "Rejalashtirilgan", dotColor: "#60a5fa", textClass: "text-info" },
 };
 
@@ -83,7 +83,7 @@ function PlanCard({ plan, onDone, onSkip, isPending }: {
           {hasDebt && (
             <span
               className="flex items-center gap-1 text-[10px] font-data font-semibold px-1.5 py-0.5 rounded flex-shrink-0"
-              style={{ background: "var(--color-danger-subtle, rgba(232,80,80,.10))", color: "#d45050" }}
+              style={{ background: "var(--color-danger-subtle, rgba(232,80,80,.10))", color: "var(--color-danger-text)" }}
             >
               <AlertCircle size={9} />
               {fmt(plan.shopDebt)}
@@ -152,7 +152,7 @@ export default function AgentDashboard() {
   const todaySkipped = plans?.filter(p => p.status === "skipped").length ?? 0;
   const todayPlanned = plans?.length ?? 0;
   const pct          = todayPlanned > 0 ? Math.round((todayVisited / todayPlanned) * 100) : 0;
-  const progressColor = pct >= 80 ? "#34c473" : pct >= 40 ? "#d4973a" : "#5b6d8a";
+  const progressColor = pct >= 80 ? "var(--color-success)" : pct >= 40 ? "var(--color-warning)" : "var(--color-primary)";
 
   const greeting = getGreeting(t);
 
@@ -171,7 +171,7 @@ export default function AgentDashboard() {
             <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-orange, #c49530)", boxShadow: "var(--shadow-xs)" }} />
             <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-teal, #3a9a8a)", boxShadow: "var(--shadow-xs)" }} />
           </div>
-          <p className="text-xs font-medium mb-0.5" style={{ color: "#5b6d8a" }}>
+          <p className="text-xs font-medium mb-0.5" style={{ color: "var(--color-primary-text)" }}>
             {greeting}{firstName ? `, ${firstName}` : ""}
           </p>
           <h1 className="font-display text-2xl font-bold text-primary tracking-tight">
@@ -220,7 +220,7 @@ export default function AgentDashboard() {
             {t("ПЛАН ВИЗИТОВ", "TASHRIF REJASI")}
           </span>
           {todaySkipped > 0 && (
-            <span className="text-xs font-data" style={{ color: "#d4973a" }}>
+            <span className="text-xs font-data" style={{ color: "var(--color-warning-text)" }}>
               {todaySkipped} {t("пропущено", "o'tkazildi")}
             </span>
           )}
@@ -273,7 +273,7 @@ export default function AgentDashboard() {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
           <div>
             <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 700, color: "var(--color-text-primary, #2d3748)", margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
-              <ClipboardList size={16} color="var(--color-primary)" />
+              <ClipboardList size={16} color="var(--color-primary-text)" />
               {t("Сегодняшние визиты", "Bugungi tashriflar")}
             </h2>
             <p style={{ fontSize: "12px", color: "var(--color-text-tertiary, #8b9bb4)", margin: "3px 0 0" }}>
@@ -284,7 +284,7 @@ export default function AgentDashboard() {
             <button
               onClick={() => navigate("/agent/plans")}
               className="flex items-center gap-1 text-xs"
-              style={{ color: "var(--color-primary, #5b6d8a)", fontWeight: 600 }}
+              style={{ color: "var(--color-primary-text)", fontWeight: 600 }}
             >
               {t("Все планы", "Barcha rejalar")}
               <ChevronRight size={12} />

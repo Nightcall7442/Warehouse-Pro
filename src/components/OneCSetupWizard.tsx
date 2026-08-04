@@ -82,7 +82,7 @@ export function OneCSetupWizard({ onClose }: { onClose: () => void }) {
             <div style={{ textAlign: "center" }}>
               <div style={{
                 width: "64px", height: "64px", borderRadius: "16px", margin: "0 auto 16px",
-                background: "linear-gradient(135deg, #5b6d8a, #60a5fa)", display: "flex",
+                background: "linear-gradient(135deg, var(--color-primary), #60a5fa)", display: "flex",
                 alignItems: "center", justifyContent: "center",
               }}>
                 <Database size={28} color="#fff" />
@@ -100,7 +100,7 @@ export function OneCSetupWizard({ onClose }: { onClose: () => void }) {
                   </p>
                   {sampleConfig.bridgeRequirements.map((req, i) => (
                     <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: "8px", marginBottom: "4px" }}>
-                      <CheckCircle2 size={12} style={{ color: "var(--color-success)", marginTop: "2px", flexShrink: 0 }} />
+                      <CheckCircle2 size={12} style={{ color: "var(--color-success-text)", marginTop: "2px", flexShrink: 0 }} />
                       <span style={{ fontSize: "12px", color: "var(--color-text-secondary)" }}>{req}</span>
                     </div>
                   ))}
@@ -162,22 +162,22 @@ export function OneCSetupWizard({ onClose }: { onClose: () => void }) {
             <div style={{ textAlign: "center" }}>
               {testConnection.isPending ? (
                 <div>
-                  <Loader2 size={48} className="animate-spin" style={{ color: "var(--color-primary)", margin: "0 auto 16px" }} />
+                  <Loader2 size={48} className="animate-spin" style={{ color: "var(--color-primary-text)", margin: "0 auto 16px" }} />
                   <p style={{ fontSize: "14px", color: "var(--color-text-primary)" }}>
                     {t("Проверка подключения…", "Ulanishni tekshirish…")}
                   </p>
                 </div>
               ) : testResult?.success ? (
                 <div>
-                  <CheckCircle2 size={48} style={{ color: "var(--color-success)", margin: "0 auto 16px" }} />
-                  <p style={{ fontSize: "14px", fontWeight: 600, color: "var(--color-success)" }}>
+                  <CheckCircle2 size={48} style={{ color: "var(--color-success-text)", margin: "0 auto 16px" }} />
+                  <p style={{ fontSize: "14px", fontWeight: 600, color: "var(--color-success-text)" }}>
                     {t("Подключение успешно!", "Ulanish muvaffaqiyatli!")}
                   </p>
                 </div>
               ) : (
                 <div>
-                  <XCircle size={48} style={{ color: "var(--color-danger)", margin: "0 auto 16px" }} />
-                  <p style={{ fontSize: "14px", fontWeight: 600, color: "var(--color-danger)", margin: "0 0 8px" }}>
+                  <XCircle size={48} style={{ color: "var(--color-danger-text)", margin: "0 auto 16px" }} />
+                  <p style={{ fontSize: "14px", fontWeight: 600, color: "var(--color-danger-text)", margin: "0 0 8px" }}>
                     {t("Ошибка подключения", "Ulanish xatosi")}
                   </p>
                   <p style={{ fontSize: "12px", color: "var(--color-text-secondary)" }}>
@@ -215,7 +215,7 @@ export function OneCSetupWizard({ onClose }: { onClose: () => void }) {
           {/* Step 5: Done */}
           {step === "done" && (
             <div style={{ textAlign: "center" }}>
-              <CheckCircle2 size={64} style={{ color: "var(--color-success)", margin: "0 auto 16px" }} />
+              <CheckCircle2 size={64} style={{ color: "var(--color-success-text)", margin: "0 auto 16px" }} />
               <h3 style={{ fontSize: "18px", fontWeight: 700, color: "var(--color-text-primary)", margin: "0 0 8px" }}>
                 {t("Настройка завершена!", "Sozlash tugadi!")}
               </h3>

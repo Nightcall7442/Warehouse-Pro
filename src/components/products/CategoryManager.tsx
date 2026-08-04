@@ -56,7 +56,7 @@ export function CategoryManager({ lang, onClose }: CategoryManagerProps) {
 
         <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "4px" }}>
           {isLoading ? (
-            <div style={{ padding: "24px", textAlign: "center" }}><Loader2 size={20} className="animate-spin" style={{ color: COLORS.primary }} /></div>
+            <div style={{ padding: "24px", textAlign: "center" }}><Loader2 size={20} className="animate-spin" style={{ color: COLORS.primaryText }} /></div>
           ) : categories.length === 0 ? (
             <div style={{ padding: "24px", textAlign: "center", color: COLORS.textSecondary, fontSize: "13px" }}>
               {t("Нет категорий", "Kategoriyalar yo'q")}
@@ -69,7 +69,7 @@ export function CategoryManager({ lang, onClose }: CategoryManagerProps) {
                 background: deleteConfirm === cat ? "rgba(212,80,80,0.06)" : "transparent",
                 transition: "background 0.15s",
               }}>
-                <Tag size={14} style={{ color: COLORS.primary, flexShrink: 0 }} />
+                <Tag size={14} style={{ color: COLORS.primaryText, flexShrink: 0 }} />
 
                 {editingId === cat ? (
                   <input

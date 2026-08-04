@@ -159,7 +159,7 @@ export default function AgentGps() {
           <div className="space-y-3">
             <div
               className="w-20 h-20 rounded-full flex items-center justify-center mx-auto animate-pulse"
-              style={{ background: "rgba(75,108,246,.10)" }}
+              style={{ background: "color-mix(in srgb, var(--color-primary) 10%, transparent)" }}
             >
               <Loader2 size={32} className="text-primary animate-spin" />
             </div>
@@ -194,7 +194,7 @@ export default function AgentGps() {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 text-sm font-medium"
-                style={{ color: "#5b6d8a" }}
+                style={{ color: "var(--color-primary-text)" }}
               >
                 <Navigation size={14} />
                 {t("Открыть на карте", "Xaritada ochish")}
@@ -241,7 +241,7 @@ export default function AgentGps() {
           onClick={() => setAutoTrack(v => !v)}
           aria-label={t("Авто-трекинг", "Avtomatik kuzatuv")}
           className="w-12 h-6 rounded-full relative transition-colors flex-shrink-0"
-          style={{ background: autoTrack ? "#5b6d8a" : "var(--color-surface-light, #f0f3f8)", border: autoTrack ? "none" : "1px solid var(--color-border, #dde2ec)" }}
+          style={{ background: autoTrack ? "var(--color-primary)" : "var(--color-surface-light, #f0f3f8)", border: autoTrack ? "none" : "1px solid var(--color-border, #dde2ec)" }}
         >
           <span
             className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform"

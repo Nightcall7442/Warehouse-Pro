@@ -34,7 +34,7 @@ export function RealTimeMetrics({ metrics }: RealTimeMetricsProps) {
           <tbody>
             {Object.entries(metrics).map(([name, m]) => (
               <tr key={name} style={{ borderBottom: `1px solid ${COLORS.border}` }}>
-                <td style={{ padding: "10px 16px", fontFamily: "monospace", fontSize: "12px", color: COLORS.primary }}>{name}</td>
+                <td style={{ padding: "10px 16px", fontFamily: "monospace", fontSize: "12px", color: COLORS.primaryText }}>{name}</td>
                 <td style={{ padding: "10px 16px", textAlign: "right", color: COLORS.textSecondary }}>{m.count}</td>
                 <td style={{ padding: "10px 16px", textAlign: "right", fontWeight: 600, color: COLORS.textPrimary }}>{m.lastValue}</td>
                 <td style={{ padding: "10px 16px", textAlign: "right", fontSize: "12px", color: COLORS.textTertiary }}>{new Date(m.lastTimestamp).toLocaleTimeString("ru")}</td>

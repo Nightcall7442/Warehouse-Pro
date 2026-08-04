@@ -3,8 +3,12 @@ import { differenceInDays } from "date-fns";
 // ── Design tokens ───────────────────────────────────────────────────────────
 export const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
 export const COLORS = {
-  primary: "#5b6d8a", success: "#34c473",
-  warning: "#d4973a", danger: "#d45050",
+  primary: "var(--color-primary)",
+  // Accent-coloured *text* (a price, a code, a link). The fill colour above
+  // is a hair under 4.5:1 as text on a light card, so semantic text uses
+  // this darker sibling instead. See --color-primary-text in index.css.
+  primaryText: "var(--color-primary-text)", success: "var(--color-success)",
+  warning: "var(--color-warning)", danger: "var(--color-danger)",
   surface: "var(--color-surface, #ffffff)", surfaceLight: "var(--color-surface-light, #f0f3f8)",
   textPrimary: "var(--color-text-primary, #2b3450)", textSecondary: "var(--color-text-secondary, #6a7290)",
   textTertiary: "var(--color-text-tertiary, #98a0b8)", border: "var(--color-border, #f0f3f8)",
@@ -48,11 +52,11 @@ export function planStatus(t: TenantRow): { label: string; color: string } {
 export const PLAN_COLORS: Record<string, { fg: string; bg: string }> = {
   trial:     { fg: "#94a3b8",    bg: "rgba(148,163,184,0.12)" },
   basic:     { fg: "#60a5fa",    bg: "rgba(96,165,250,0.12)" },
-  pro:       { fg: "#34c473",    bg: "rgba(74,222,128,0.12)" },
+  pro:       { fg: "var(--color-success)",    bg: "rgba(74,222,128,0.12)" },
   exclusive: { fg: "#a78bfa",    bg: "rgba(167,139,250,0.12)" },
 };
 
 export const STATUS_COLORS: Record<string, { fg: string; bg: string }> = {
-  active:    { fg: "#34c473",    bg: "rgba(74,222,128,0.12)" },
-  suspended: { fg: "#d45050",    bg: "rgba(232,80,80,0.12)" },
+  active:    { fg: "var(--color-success)",    bg: "rgba(74,222,128,0.12)" },
+  suspended: { fg: "var(--color-danger)",    bg: "rgba(232,80,80,0.12)" },
 };

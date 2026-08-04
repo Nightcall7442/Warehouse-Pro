@@ -25,12 +25,12 @@ interface Column {
 }
 
 const COLUMNS: Column[] = [
-  { id: "new",        label: "Новые",        labelUz: "Yangi",       statuses: ["new"],                  dot: "#5b6d8a" },
-  { id: "processing", label: "В обработке",  labelUz: "Jarayonda",   statuses: ["processing"],           dot: "#d4973a" },
+  { id: "new",        label: "Новые",        labelUz: "Yangi",       statuses: ["new"],                  dot: "var(--color-primary)" },
+  { id: "processing", label: "В обработке",  labelUz: "Jarayonda",   statuses: ["processing"],           dot: "var(--color-warning)" },
   { id: "shipped",    label: "Отгружены",    labelUz: "Yuklangan",   statuses: ["shipped"],               dot: "#9b59b6" },
   { id: "pending",    label: "В ожидании",   labelUz: "Kutishda",    statuses: ["pending"],               dot: "#f09050" },
-  { id: "delivered",  label: "Доставлены",   labelUz: "Yetkazildi",  statuses: ["delivered"],             dot: "#34c473" },
-  { id: "cancelled",  label: "Отменены",     labelUz: "Bekor",       statuses: ["cancelled", "returned"], dot: "#d45050" },
+  { id: "delivered",  label: "Доставлены",   labelUz: "Yetkazildi",  statuses: ["delivered"],             dot: "var(--color-success)" },
+  { id: "cancelled",  label: "Отменены",     labelUz: "Bekor",       statuses: ["cancelled", "returned"], dot: "var(--color-danger)" },
 ];
 
 interface Props {

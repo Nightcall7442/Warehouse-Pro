@@ -37,7 +37,7 @@ export function HeroStatusCard({
         width: "160px",
         height: "160px",
         borderRadius: "50%",
-        background: isExpired ? "var(--color-danger, #d45050)" : "var(--color-primary, #5b6d8a)",
+        background: isExpired ? "var(--color-danger)" : "var(--color-primary)",
         opacity: 0.06,
         filter: "blur(40px)",
       }} />

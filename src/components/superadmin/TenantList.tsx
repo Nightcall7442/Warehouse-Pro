@@ -68,7 +68,7 @@ export function TenantList({ onSelect }: TenantListProps) {
                   <tr key={t.id} style={{ borderBottom: `1px solid ${COLORS.border}`, cursor: "pointer", transition: "background 0.15s" }} onClick={() => onSelect(t.id)} onMouseEnter={e => (e.currentTarget.style.background = COLORS.surfaceLight)} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
                     <td style={{ padding: "12px 16px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                        <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: "rgba(75,108,246,0.1)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><span style={{ fontSize: "14px", fontWeight: 700, color: COLORS.primary }}>{t.name[0].toUpperCase()}</span></div>
+                        <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: "color-mix(in srgb, var(--color-primary) 10%, transparent)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><span style={{ fontSize: "14px", fontWeight: 700, color: COLORS.primaryText }}>{t.name[0].toUpperCase()}</span></div>
                         <div><p style={{ fontSize: "13px", fontWeight: 500, color: COLORS.textPrimary }}>{t.name}</p><p style={{ fontSize: "10px", color: COLORS.textTertiary }}>{t.slug}</p></div>
                       </div>
                     </td>

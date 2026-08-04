@@ -60,7 +60,7 @@ export function OrderBulkActions({
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <div style={{
             width: "36px", height: "36px", borderRadius: "10px",
-            background: `linear-gradient(135deg, ${COLORS.primary}, #7b94f8)`,
+            background: `linear-gradient(135deg, ${COLORS.primary}, var(--color-primary-hover))`,
             display: "flex", alignItems: "center", justifyContent: "center",
           }}>
             <CheckSquare size={18} color="#fff" />
