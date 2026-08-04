@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { useCurrency } from "@/hooks/useCurrency";
 import { trpc } from "@/providers/trpc";
+import { useInvalidateOrderCaches } from "@/hooks/useOrderCacheSync";
 import { useLang } from "@/i18n";
 import { notify } from "@/lib/toast";
 import { useNavigate, useSearchParams } from "react-router";
@@ -43,6 +44,7 @@ export default function Orders() {
   const navigate            = useNavigate();
   const [searchParams]      = useSearchParams();
   const utils               = trpc.useUtils();
+  const invalidateOrderCaches = useInvalidateOrderCaches();
   const { user }            = useAuth();
   const isCeo               = user?.role === "ceo";
   const isOperator          = user?.role === "operator";
@@ -95,7 +97,7 @@ export default function Orders() {
   });
   const bulkUpdateStatus = trpc.order.bulkUpdateStatus.useMutation({
     onSuccess: (r) => {
-      utils.order.list.invalidate(); utils.order.stats.invalidate();
+      invalidateOrderCaches();
       clearSelection();
       if (r.failed.length === 0) {
         notify.success(t(`Обновлено: ${r.updated}`, `Yangilandi: ${r.updated}`));
@@ -110,8 +112,7 @@ export default function Orders() {
   });
   const bulkCompleteWithPayment = trpc.order.bulkCompleteWithPayment.useMutation({
     onSuccess: (r) => {
-      utils.order.list.invalidate(); utils.order.stats.invalidate();
-      utils.shop.list.invalidate();
+      invalidateOrderCaches();
       clearSelection();
       if (r.failed.length === 0) {
         notify.success(t(`Выполнено и оплачено: ${r.updated}`, `Bajarildi va to'landi: ${r.updated}`));
@@ -125,11 +126,11 @@ export default function Orders() {
     onError: (e) => notify.error(e.message),
   });
   const bulkAssignAgent = trpc.order.bulkAssignAgent.useMutation({
-    onSuccess: (r) => { utils.order.list.invalidate(); utils.order.stats.invalidate(); clearSelection(); notify.success(t(`Назначено: ${r.updated}`, `Tayinlandi: ${r.updated}`)); },
+    onSuccess: (r) => { invalidateOrderCaches(); clearSelection(); notify.success(t(`Назначено: ${r.updated}`, `Tayinlandi: ${r.updated}`)); },
     onError: (e) => notify.error(e.message),
   });
   const bulkAssignCourier = trpc.order.bulkAssignCourier.useMutation({
-    onSuccess: (r) => { utils.order.list.invalidate(); utils.order.stats.invalidate(); clearSelection(); notify.success(t(`Курьер назначен: ${r.updated}`, `Kuryer tayinlandi: ${r.updated}`)); },
+    onSuccess: (r) => { invalidateOrderCaches(); clearSelection(); notify.success(t(`Курьер назначен: ${r.updated}`, `Kuryer tayinlandi: ${r.updated}`)); },
     onError: (e) => notify.error(e.message),
   });
   const { data: agentsData } = trpc.user.list.useQuery({ role: "agent", pageSize: 200 });
@@ -168,7 +169,7 @@ export default function Orders() {
   );
 
   const updateStatus = trpc.order.updateStatus.useMutation({
-    onSuccess: () => { utils.order.list.invalidate(); utils.order.stats.invalidate(); notify.success("Заказ обновлён"); },
+    onSuccess: () => { invalidateOrderCaches(); notify.success("Заказ обновлён"); },
     onError:   (e) => notify.error(e.message),
   });
 
@@ -188,12 +189,12 @@ export default function Orders() {
   };
 
   const recordPartialDelivery = trpc.order.recordPartialDelivery.useMutation({
-    onSuccess: () => { utils.order.list.invalidate(); utils.order.stats.invalidate(); },
+    onSuccess: () => { invalidateOrderCaches(); },
     onError: (e) => notify.error(e.message),
   });
 
   const recordDeliveryAndPayment = trpc.order.recordDeliveryAndPayment.useMutation({
-    onSuccess: () => { utils.order.list.invalidate(); utils.order.stats.invalidate(); },
+    onSuccess: () => { invalidateOrderCaches(); },
     onError: (e) => notify.error(e.message),
   });
 
@@ -250,12 +251,12 @@ export default function Orders() {
   }
 
   const deleteOrder = trpc.order.delete.useMutation({
-    onSuccess: () => { utils.order.list.invalidate(); utils.order.stats.invalidate(); notify.success("Заказ удалён"); },
+    onSuccess: () => { invalidateOrderCaches(); notify.success("Заказ удалён"); },
     onError:   (e) => notify.error(e.message),
   });
 
   const restoreOrder = trpc.order.restore.useMutation({
-    onSuccess: () => { utils.order.list.invalidate(); utils.order.stats.invalidate(); notify.success("Заказ восстановлен"); },
+    onSuccess: () => { invalidateOrderCaches(); notify.success("Заказ восстановлен"); },
     onError:   (e) => notify.error(e.message),
   });
 
@@ -913,7 +914,7 @@ export default function Orders() {
       open={showInvoiceModal}
       onOpenChange={setShowInvoiceModal}
       orderIds={Array.from(selected)}
-      onDone={() => { utils.order.list.invalidate(); utils.order.stats.invalidate(); }}
+      onDone={() => { invalidateOrderCaches(); }}
     />
 
     {/* ── Loading List Modal ── */}
@@ -921,7 +922,7 @@ export default function Orders() {
       open={showLoadingListModal}
       onOpenChange={setShowLoadingListModal}
       orderIds={Array.from(selected)}
-      onDone={() => { utils.order.list.invalidate(); utils.order.stats.invalidate(); }}
+      onDone={() => { invalidateOrderCaches(); }}
     />
 
     {/* ── Order Slide-Over ── */}
@@ -936,7 +937,7 @@ export default function Orders() {
     <QuickOrderModal
       open={showQuickOrder}
       onOpenChange={setShowQuickOrder}
-      onCreated={() => { utils.order.list.invalidate(); utils.order.stats.invalidate(); }}
+      onCreated={() => { invalidateOrderCaches(); }}
     />
 
     {dialog}

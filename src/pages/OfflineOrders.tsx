@@ -10,6 +10,7 @@ import { useLang } from "@/i18n";
 import { notify } from "@/lib/toast";
 import { WifiOff, Wifi, Clock, CheckCircle2, Loader2, Trash2, RefreshCw } from "lucide-react";
 import { getPendingOrders, deletePendingOrder } from "./OfflineOrders.helpers";
+import { useInvalidateOrderCaches } from "@/hooks/useOrderCacheSync";
 
 // ── Component ────────────────────────────────────────────────────────────────
 export default function OfflineOrders() {
@@ -19,9 +20,11 @@ export default function OfflineOrders() {
   const [online, setOnline]   = useState(navigator.onLine);
   const [pending, setPending] = useState<Record<string, unknown>[]>([]);
   const [syncing, setSyncing] = useState(false);
-  const utils = trpc.useUtils();
+  const invalidateOrderCaches = useInvalidateOrderCaches();
 
-  const createOrder = trpc.order.create.useMutation();
+  const createOrder = trpc.order.create.useMutation({
+    onSuccess: () => invalidateOrderCaches(),
+  });
 
   // Listen for online/offline
   useEffect(() => {
@@ -71,11 +74,10 @@ export default function OfflineOrders() {
 
     setSyncing(false);
     await loadPending();
-    utils.order.list.invalidate();
 
     if (synced > 0) notify.success(`${synced} заказов синхронизировано`);
     if (failed > 0) notify.error(`${failed} заказов не удалось синхронизировать`);
-  }, [online, pending, syncing, createOrder, user, loadPending, utils]);
+  }, [online, pending, syncing, createOrder, user, loadPending]);
 
   // Load pending orders on mount
   useEffect(() => {
@@ -195,7 +197,6 @@ export default function OfflineOrders() {
                             });
         await deletePendingOrder(order.localId as number);
                             await loadPending();
-                            utils.order.list.invalidate();
                             notify.success(lang === "uz" ? "Buyurtma yuborildi" : "Заказ отправлен");
                           } catch (e: unknown) {
                             notify.error(e instanceof Error ? e.message : "Unknown error");

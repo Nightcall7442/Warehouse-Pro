@@ -1,4 +1,5 @@
 import { trpc } from "@/providers/trpc";
+import { useInvalidateOrderCaches } from "@/hooks/useOrderCacheSync";
 import { useLang } from "@/i18n";
 import { useAuth } from "@/hooks/useAuth";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -26,14 +27,14 @@ export default function CourierDeliveries() {
   const { user } = useAuth();
   const { fmt } = useCurrency();
   const { t } = useLang();
-  const utils = trpc.useUtils();
   const [cashInput, setCashInput] = useState<Record<number, string>>({});
+  const invalidateOrderCaches = useInvalidateOrderCaches();
 
   const { data: deliveries, isLoading, isError, refetch } = trpc.courier.listMyDeliveries.useQuery(undefined);
 
   const markOutForDelivery = trpc.courier.markOutForDelivery.useMutation({
     onSuccess: () => {
-      utils.courier.listMyDeliveries.invalidate();
+      invalidateOrderCaches();
       notify.success(t("common.success"));
     },
     onError: (e) => notify.error(e.message),
@@ -41,7 +42,7 @@ export default function CourierDeliveries() {
 
   const markDelivered = trpc.courier.markDelivered.useMutation({
     onSuccess: () => {
-      utils.courier.listMyDeliveries.invalidate();
+      invalidateOrderCaches();
       notify.success(t("common.success"));
       setCashInput(prev => {
         const next = { ...prev };
@@ -54,7 +55,7 @@ export default function CourierDeliveries() {
 
   const markFailed = trpc.courier.markFailed.useMutation({
     onSuccess: () => {
-      utils.courier.listMyDeliveries.invalidate();
+      invalidateOrderCaches();
       notify.success(t("Доставка отменена", "Yetkazish bekor qilindi"));
     },
     onError: (e) => notify.error(e.message),

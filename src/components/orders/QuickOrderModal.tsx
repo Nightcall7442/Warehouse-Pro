@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ShoppingCart, Plus, Minus, Trash2, Search } from "lucide-react";
 import { trpc } from "@/providers/trpc";
+import { useInvalidateOrderCaches } from "@/hooks/useOrderCacheSync";
 import { notify } from "@/lib/toast";
 import { useTranslate } from "@/i18n";
 import { F, COLORS, PillButton } from "./theme";
@@ -44,7 +45,6 @@ function IconButton({ onClick, danger, children, size = 22 }: { onClick: () => v
 
 export function QuickOrderModal({ open, onOpenChange, preselectedShopId, onCreated }: Props) {
   const t = useTranslate();
-  const utils = trpc.useUtils();
 
   const [step, setStep] = useState(1);
   const [shopId, setShopId] = useState<number | undefined>(preselectedShopId);
@@ -53,13 +53,14 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, onCreat
   const [discount, setDiscount] = useState("0");
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "card" | "transfer" | "debt">("cash");
   const [productSearch, setProductSearch] = useState("");
+  const invalidateOrderCaches = useInvalidateOrderCaches();
 
   const { data: shopsData } = trpc.shop.list.useQuery({ pageSize: 500 });
   const { data: productsData } = trpc.product.listAll.useQuery({ search: productSearch || undefined });
   const createOrder = trpc.order.create.useMutation({
     onSuccess: () => {
       notify.success(t("Заказ создан", "Buyurtma yaratildi"));
-      utils.order.list.invalidate();
+      invalidateOrderCaches();
       onCreated?.();
       onOpenChange(false);
       resetForm();

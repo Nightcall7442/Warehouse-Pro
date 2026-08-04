@@ -25,6 +25,7 @@ import { format } from "date-fns";
 import { ru as dateRu } from "date-fns/locale";
 import { OrderComments } from "./OrderComments";
 import { CompletionFlowModal } from "./CompletionFlowModal";
+import { useInvalidateOrderCaches } from "@/hooks/useOrderCacheSync";
 import type { CompletionData, CompletionMode } from "./CompletionFlowModal";
 import { F, COLORS, STATUS, PAYMENT, StatusBadge, InfoCard, PillButton } from "./theme";
 
@@ -124,7 +125,7 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
   const t = useTranslate();
   const { user } = useAuth();
   const { confirm, dialog } = useConfirm();
-  const utils = trpc.useUtils();
+  const invalidateOrderCaches = useInvalidateOrderCaches();
   const { lang } = useLang();
   const { symbol } = useCurrency();
   const isOperatorOrCeo = user?.role === "ceo" || user?.role === "operator";
@@ -156,11 +157,7 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
 
   const { saving: completionSaving, handleCompletionSave: baseHandleCompletionSave, directStatusChange, getCompletionMode } = useCompletionFlow({
     orderId: orderId ?? 0,
-    onSuccess: () => {
-      utils.order.getById.invalidate({ id: orderId! });
-      utils.order.getOrderPayments.invalidate({ orderId: orderId! });
-      utils.order.getAdjustments.invalidate({ orderId: orderId! });
-    },
+    // useCompletionFlow refreshes the caches itself; nothing extra to do here.
   });
 
   async function handleCompletionSave(data: CompletionData) {
@@ -234,7 +231,7 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
   // ── Mutations ──────────────────────────────────────────────────────────
   const updateOrder = trpc.order.update.useMutation({
     onSuccess: () => {
-      utils.order.getById.invalidate({ id: orderId! });
+      invalidateOrderCaches();
       setEditing(false);
       notify.success(t("Заказ обновлён", "Buyurtma yangilandi"));
     },
@@ -242,12 +239,13 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
   });
 
   const updateItems = trpc.order.updateItems.useMutation({
+    onSuccess: () => invalidateOrderCaches(),
     onError: (e) => notify.error(e.message),
   });
 
   const addDebt = trpc.shop.addPayment.useMutation({
     onSuccess: () => {
-      utils.order.getById.invalidate({ id: orderId! });
+      invalidateOrderCaches();
       setShowDebtModal(false);
       setDebtAmount("");
       setDebtNotes("");
@@ -258,7 +256,7 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
 
   const assignCourier = trpc.courier.assignCourier.useMutation({
     onSuccess: () => {
-      utils.order.getById.invalidate({ id: orderId! });
+      invalidateOrderCaches();
       notify.success(t("Курьер назначен", "Kuryer tayinlandi"));
     },
     onError: (e) => notify.error(e.message),

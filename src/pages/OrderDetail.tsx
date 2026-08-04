@@ -26,6 +26,7 @@ import { Badge } from "@/components/ui/badge";
 import { CompletionFlowModal } from "@/components/orders/CompletionFlowModal";
 import type { CompletionData, CompletionMode } from "@/components/orders/CompletionFlowModal";
 import { useCompletionFlow } from "@/hooks/useCompletionFlow";
+import { useInvalidateOrderCaches } from "@/hooks/useOrderCacheSync";
 
 /** Statuses where the goods have not been handed over yet — these can still be completed. */
 const OPEN_STATUSES = ["new", "processing", "shipped", "pending"];
@@ -83,7 +84,7 @@ export default function OrderDetail() {
   const { fmt, currency, symbol } = useCurrency();
   const { t, lang } = useLang();
   const { user }    = useAuth();
-  const utils       = trpc.useUtils();
+  const invalidateOrderCaches = useInvalidateOrderCaches();
   const [printMenu, setPrintMenu] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editNotes, setEditNotes] = useState("");
@@ -121,7 +122,7 @@ export default function OrderDetail() {
 
   const updateStatus = trpc.order.updateStatus.useMutation({
     onSuccess: () => {
-      utils.order.getById.invalidate({ id: Number(id) });
+      invalidateOrderCaches();
       notify.success(lang === "uz" ? "Holat yangilandi" : "Статус обновлён");
     },
     onError: (e) => notify.error(e.message),
@@ -129,7 +130,7 @@ export default function OrderDetail() {
 
   const updateOrder = trpc.order.update.useMutation({
     onSuccess: () => {
-      utils.order.getById.invalidate({ id: Number(id) });
+      invalidateOrderCaches();
       setEditing(false);
       notify.success(lang === "uz" ? "Buyurtma yangilandi" : "Заказ обновлён");
     },
@@ -138,7 +139,7 @@ export default function OrderDetail() {
 
   const assignCourier = trpc.courier.assignCourier.useMutation({
     onSuccess: () => {
-      utils.order.getById.invalidate({ id: Number(id) });
+      invalidateOrderCaches();
       notify.success(lang === "uz" ? "Kuryer tayinlandi" : "Курьер назначен");
     },
     onError: (e) => notify.error(e.message),
@@ -146,6 +147,7 @@ export default function OrderDetail() {
 
   const deleteOrder = trpc.order.delete.useMutation({
     onSuccess: () => {
+      invalidateOrderCaches();
       notify.success(lang === "uz" ? "Buyurtma o'chirildi" : "Заказ удалён");
       navigate("/orders");
     },
@@ -155,11 +157,7 @@ export default function OrderDetail() {
   // ── Completion flow (shared hook) ───────────────────────────────────────
   const { saving: completionSaving, handleCompletionSave: baseHandleCompletionSave, isCompletionStatus, getCompletionMode } = useCompletionFlow({
     orderId: Number(id),
-    onSuccess: () => {
-      utils.order.getById.invalidate({ id: Number(id) });
-      utils.order.getOrderPayments.invalidate({ orderId: Number(id) });
-      utils.order.getAdjustments.invalidate({ orderId: Number(id) });
-    },
+    // useCompletionFlow refreshes the caches itself; nothing extra to do here.
   });
 
   async function handleCompletionSave(data: CompletionData) {

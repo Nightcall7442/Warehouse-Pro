@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { useLang } from "@/i18n";
+import { useInvalidateOrderCaches } from "./useOrderCacheSync";
 import type { CompletionData, CompletionMode } from "@/components/orders/CompletionFlowModal";
 
 // Statuses that require the completion flow modal
@@ -22,29 +23,25 @@ interface UseCompletionFlowOptions {
  */
 export function useCompletionFlow({ orderId, onSuccess }: UseCompletionFlowOptions) {
   const { lang } = useLang();
-  const utils = trpc.useUtils();
+  const invalidateOrderCaches = useInvalidateOrderCaches();
 
   const updateStatus = trpc.order.updateStatus.useMutation({
     onSuccess: () => {
-      utils.order.getById.invalidate({ id: orderId });
+      invalidateOrderCaches();
       onSuccess?.();
     },
   });
 
   const recordPartialDelivery = trpc.order.recordPartialDelivery.useMutation({
     onSuccess: () => {
-      utils.order.getById.invalidate({ id: orderId });
-      utils.order.getOrderPayments.invalidate({ orderId });
-      utils.order.getAdjustments.invalidate({ orderId });
+      invalidateOrderCaches();
       onSuccess?.();
     },
   });
 
   const recordDeliveryAndPayment = trpc.order.recordDeliveryAndPayment.useMutation({
     onSuccess: () => {
-      utils.order.getById.invalidate({ id: orderId });
-      utils.order.getOrderPayments.invalidate({ orderId });
-      utils.order.getAdjustments.invalidate({ orderId });
+      invalidateOrderCaches();
       onSuccess?.();
     },
   });

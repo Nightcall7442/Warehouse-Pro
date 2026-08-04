@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { trpc } from "@/providers/trpc";
+import { useInvalidateOrderCaches } from "@/hooks/useOrderCacheSync";
 import { notify } from "@/lib/toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate, useSearchParams } from "react-router";
@@ -32,10 +33,10 @@ export default function NewOrder() {
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const LABELS = lang === "uz" ? LABELS_UZ : LABELS_RU;
 
-  const utils = trpc.useUtils();
+  const invalidateOrderCaches = useInvalidateOrderCaches();
   const createOrder = trpc.order.create.useMutation({
     onSuccess: () => {
-      utils.order.list.invalidate();
+      invalidateOrderCaches();
       notify.success(t("Заказ создан!", "Buyurtma yaratildi!"));
       const role = user?.role;
       if (role === "ceo" || role === "operator" || role === "superadmin") {
