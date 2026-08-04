@@ -1,4 +1,5 @@
 import { memo, useState } from "react";
+import { createPortal } from "react-dom";
 import { X, TrendingUp, TrendingDown, ArrowUpDown, Scale, Loader2 } from "lucide-react";
 import { useLang } from "@/i18n";
 import { toKg } from "./warehouse-utils";
@@ -26,7 +27,7 @@ export const AdjustModal = memo(function AdjustModal({ productId, productName, c
   const newStock = type === "in" ? currentStock + numQty : type === "out" ? currentStock - numQty : numQty;
   const previewWeightKg = unitWeight > 0 ? formatQty(numQty * unitWeight) : null;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
       style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(12px)" }}>
       <div className="w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl p-6 space-y-5 animate-fade-up"
@@ -151,6 +152,7 @@ export const AdjustModal = memo(function AdjustModal({ productId, productName, c
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 });

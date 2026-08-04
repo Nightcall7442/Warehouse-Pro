@@ -6,6 +6,7 @@
  * Safari iOS 17.4+ also supports BarcodeDetector.
  */
 import { useEffect, useRef, useState, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { X, Keyboard, CheckCircle2 } from "lucide-react";
 
 interface Props {
@@ -87,7 +88,7 @@ export function BarcodeScanner({ onScan, onClose, label = "Scan barcode" }: Prop
     return () => stopCamera();
   }, [stopCamera]);
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
       <div className="relative w-full max-w-sm bg-surface rounded-xl overflow-hidden shadow-2xl">
         {/* Header */}
@@ -179,6 +180,7 @@ export function BarcodeScanner({ onScan, onClose, label = "Scan barcode" }: Prop
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

@@ -1,6 +1,7 @@
 import { useParams, useNavigate, useSearchParams } from "react-router";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useRef, useState, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { compressImage } from "@/lib/compress-image";
@@ -47,7 +48,7 @@ function PaymentModal({ shopId, onClose }: { shopId: number; onClose: () => void
     { val: "debt",    labelRu: "📋 Новый долг (увеличивает)",    labelUz: "📋 Yangi qarz (oshiradi)"        },
   ];
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
       style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }}>
       <div className="w-full sm:max-w-md bg-[#ffffff] rounded-t-2xl sm:rounded-2xl shadow-2xl p-5 space-y-4">
@@ -97,7 +98,8 @@ function PaymentModal({ shopId, onClose }: { shopId: number; onClose: () => void
           <button onClick={onClose} className="neo-btn px-5">{t("Отмена", "Bekor")}</button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

@@ -1,4 +1,5 @@
 import React from "react";
+import { createPortal } from "react-dom";
 import { F, COLORS, PLAN_COLORS, STATUS_COLORS } from "./types";
 
 // ── Badge components ────────────────────────────────────────────────────────
@@ -59,13 +60,14 @@ export function Section({ title, icon: Icon, children }: {
 
 // ── Modal ───────────────────────────────────────────────────────────────────
 export function Modal({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
-  return (
+  return createPortal(
     <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }} onClick={onClose}>
       <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }} />
       <div style={{ position: "relative", width: "100%", maxWidth: "480px", background: COLORS.surface, borderRadius: "16px", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.15)", overflow: "hidden" }} onClick={e => e.stopPropagation()}>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

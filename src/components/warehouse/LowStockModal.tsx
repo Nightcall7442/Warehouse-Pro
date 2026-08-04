@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { AlertTriangle, X } from "lucide-react";
 import { useLang } from "@/i18n";
 import { formatQty } from "@/lib/format";
@@ -21,7 +22,7 @@ export function LowStockModal({ lowCount, reorderSuggestions, onClose }: LowStoc
     (r) => Number(r.currentStock ?? 0) < Number(r.reorderPoint ?? 0) && Number(r.reorderPoint ?? 0) > 0
   );
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }} onClick={onClose}>
       <div className="relative w-full max-w-2xl max-h-[80vh] overflow-y-auto rounded-3xl p-6" style={{ background: "var(--color-surface, #ffffff)", boxShadow: "0 25px 80px -12px rgba(0,0,0,0.35)" }} onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-5">
@@ -58,6 +59,7 @@ export function LowStockModal({ lowCount, reorderSuggestions, onClose }: LowStoc
           ))}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

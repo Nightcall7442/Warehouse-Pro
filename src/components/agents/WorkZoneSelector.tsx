@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { X, Loader2, MapPin, Check } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
@@ -43,7 +44,7 @@ export function WorkZoneSelector({ agentId, agentName, lang, onClose, onSaved }:
     });
   };
 
-  return (
+  return createPortal(
     <div style={{ position: "fixed", inset: 0, zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)" }} onClick={onClose} />
       <div style={{
@@ -110,6 +111,7 @@ export function WorkZoneSelector({ agentId, agentName, lang, onClose, onSaved }:
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

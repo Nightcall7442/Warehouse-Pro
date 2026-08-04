@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { X, Pencil, Trash2, Tag, Loader2 } from "lucide-react";
 import { trpc } from "@/providers/trpc.client";
 import { notify } from "@/lib/toast";
@@ -37,7 +38,7 @@ export function CategoryManager({ lang, onClose }: CategoryManagerProps) {
     onError: (e) => notify.error(e.message),
   });
 
-  return (
+  return createPortal(
     <div style={{ position: "fixed", inset: 0, zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)" }} onClick={onClose} />
       <div style={{
@@ -135,6 +136,7 @@ export function CategoryManager({ lang, onClose }: CategoryManagerProps) {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

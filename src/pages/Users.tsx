@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { notify } from "@/lib/toast";
@@ -193,7 +194,7 @@ function ResetPasswordModal({ userId, userName, onClose, lang }: {
     onError: (e) => notify.error(e.message),
   });
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }}>
       <div style={{
@@ -234,7 +235,8 @@ function ResetPasswordModal({ userId, userName, onClose, lang }: {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

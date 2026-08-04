@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { AlertCircle, XCircle } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { COLORS, F, statusColor, timeAgo } from "./theme";
@@ -18,7 +19,7 @@ export function ErrorDetailModal({ errorId, onClose }: ErrorDetailModalProps) {
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
 
-  return (
+  return createPortal(
     <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }} onClick={onClose}>
       <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }} />
       <div
@@ -127,6 +128,7 @@ export function ErrorDetailModal({ errorId, onClose }: ErrorDetailModalProps) {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
