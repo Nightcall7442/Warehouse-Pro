@@ -1,6 +1,7 @@
 import { eq, and, desc, sql, isNull, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
 import { orders, orderItems, warehouseStock, shops, users, products, notifications, warehouses, payments, loadingLists, loadingListOrders, auditLog, debtReminders, orderAdjustments, stockMovements, territories } from "@db/schema";
+import { recalcShopDebt } from "./shop-debt";
 
 /** Second reference to `users` for courier joins alongside the agent join. */
 const couriers = alias(users, "couriers");
@@ -28,14 +29,15 @@ async function resolveOrderWarehouse(tx: Tx, tenantId: number, requested?: numbe
   return whId;
 }
 
-/** Orders paid on credit add to the shop's debt; reversing them must take it back. */
-async function adjustShopDebt(tx: Tx, tenantId: number, shopId: number, delta: number): Promise<void> {
-  if (delta === 0) return;
-  await tx.execute(sql`
-    UPDATE shops
-    SET debt = GREATEST(0, CAST(debt AS DECIMAL(12,2)) + ${delta})
-    WHERE id = ${shopId} AND tenant_id = ${tenantId}
-  `);
+/**
+ * Anything below that changes what a shop owes — a status move, a payment, an
+ * edit to an order's lines — finishes by calling this. It re-derives the
+ * balance from the orders and payments themselves rather than nudging it by a
+ * delta, so callers never have to reason about what the balance was before
+ * their change, and can't leave it half-adjusted. See services/shop-debt.ts.
+ */
+async function settleShopDebt(tx: Tx, tenantId: number, shopId: number): Promise<void> {
+  await recalcShopDebt(tx, tenantId, shopId);
 }
 
 /** Stock is held while order is active (not delivered, cancelled, or returned). */
@@ -56,15 +58,6 @@ function deductsStock(status: string): boolean {
 /** Status that releases stock (goods returned to warehouse). */
 function releasesStock(status: string): boolean {
   return status === "cancelled" || status === "returned";
-}
-
-/**
- * A credit order's receivable stands until the goods come back. Cancelled and
- * returned orders gave everything back, so they owe nothing; every other status
- * (including delivered) still owes, because delivery does not equal payment.
- */
-function owesDebt(status: string): boolean {
-  return status !== "cancelled" && status !== "returned";
 }
 
 /**
@@ -206,27 +199,6 @@ async function applyPartialPayment(
     createdBy: userId,
   });
 
-  // Update shop debt. Orders created with paymentMethod "debt" have their full
-  // total booked into shops.debt at creation, so each payment against them
-  // simply reduces it. Orders created with any other method were never
-  // booked at creation — but the moment such an order reaches "delivered"
-  // (here or via a plain status change with no payment at all, see
-  // updateStatus) its unpaid balance starts counting as debt, so
-  // order.status === "delivered" going into this call means it's already
-  // booked. Comparing what should be booked before vs. after this payment
-  // (rather than blindly subtracting `paid`) keeps this correct across any
-  // number of partial payments, however the order got to "delivered".
-  const wasBookedBefore = order.paymentMethod === "debt" || order.status === "delivered";
-  const bookedBefore = wasBookedBefore ? Math.max(0, total - priorPaid) : 0;
-  const bookedAfter = Math.max(0, debt);
-  const debtDelta = bookedAfter - bookedBefore;
-  if (debtDelta !== 0) {
-    await tx.execute(sql`
-      UPDATE shops SET debt = GREATEST(0, CAST(debt AS DECIMAL(12,2)) + ${debtDelta})
-      WHERE id = ${order.shopId} AND tenant_id = ${tenantId}
-    `);
-  }
-
   // Create debt reminder if there's remaining debt and a due date
   if (debt > 0 && input.debtDueDate) {
     await tx.insert(debtReminders).values({
@@ -255,6 +227,10 @@ async function applyPartialPayment(
     newValue: { status: "delivered", paid: paid.toFixed(2), debt: Math.max(0, debt).toFixed(2) },
     reason: input.notes ?? null,
   });
+
+  // The payment row and the "delivered" status are both written now, so the
+  // balance can be re-derived from them.
+  await recalcShopDebt(tx, tenantId, order.shopId);
 }
 
 /**
@@ -365,15 +341,6 @@ async function applyPartialDelivery(
     status: "delivered",
   }).where(and(eq(orders.id, order.id), eq(orders.tenantId, tenantId)));
 
-  // Adjust shop debt if order total decreased
-  const totalDiff = Number(order.total) - newTotal;
-  if (totalDiff > 0) {
-    await tx.execute(sql`
-      UPDATE shops SET debt = GREATEST(0, CAST(debt AS DECIMAL(12,2)) - ${totalDiff})
-      WHERE id = ${order.shopId} AND tenant_id = ${tenantId}
-    `);
-  }
-
   // Log adjustment
   await tx.insert(orderAdjustments).values({
     tenantId,
@@ -385,6 +352,11 @@ async function applyPartialDelivery(
     reason: input.items.map(i => i.returnReason).filter(Boolean).join(", "),
     photos: input.photos ?? null,
   });
+
+  // The order's new total and "delivered" status are written; re-derive.
+  // (When composed with applyPartialPayment this runs twice — harmless,
+  // since re-deriving is idempotent.)
+  await recalcShopDebt(tx, tenantId, order.shopId);
 }
 
 export const OrderService = {
@@ -635,12 +607,9 @@ export const OrderService = {
         `);
       }
 
-      // Update shop debt if payment method is "debt"
-      if (input.paymentMethod === "debt" && total > 0) {
-        await tx.execute(sql`
-          UPDATE shops SET debt = debt + ${total} WHERE id = ${input.shopId} AND tenant_id = ${tenantId}
-        `);
-      }
+      // A credit order owes from the moment it exists; re-derive so the shop's
+      // balance picks it up.
+      await recalcShopDebt(tx, tenantId, input.shopId);
 
       return { id, total };
     });
@@ -718,11 +687,6 @@ export const OrderService = {
       if (!order) throw new Error("Заказ не найден");
       if (order.status !== "new") throw new Error("Можно отменить только новые заказы");
 
-      // Credit orders added to the shop's debt at creation — take it back.
-      if (order.paymentMethod === "debt") {
-        await adjustShopDebt(tx, tenantId, order.shopId, -Number(order.total));
-      }
-
       const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
       if (items.length > 0) {
         const cancelWhId = await resolveOrderWarehouse(tx, tenantId);
@@ -748,6 +712,7 @@ export const OrderService = {
         `);
       }
       await tx.update(orders).set({ status: "cancelled" }).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), eq(orders.status, "new")));
+      await settleShopDebt(tx, tenantId, order.shopId);
     });
 
     cache.invalidate(CacheKeys.dashboardKpis(Number(tenantId)));
@@ -783,35 +748,6 @@ export const OrderService = {
         reserved: after.reserved - before.reserved,
         available: after.available - before.available,
       };
-
-      // A credit order owes while it is neither cancelled nor returned; moving
-      // across that line books or releases the receivable.
-      if (order.paymentMethod === "debt") {
-        const owedBefore = owesDebt(order.status) ? Number(order.total) : 0;
-        const owedAfter = owesDebt(newStatus) ? Number(order.total) : 0;
-        if (owedAfter !== owedBefore) {
-          await adjustShopDebt(tx, tenantId, order.shopId, owedAfter - owedBefore);
-        }
-      } else {
-        // Cash/card/transfer orders book nothing up front — but the moment
-        // the goods actually leave (status becomes "delivered"), whatever
-        // wasn't paid is real debt the shop owes, whether or not any payment
-        // was ever recorded (e.g. a plain "Выполнить" with no payment logged
-        // at all). Moving away from "delivered" reverses it, same as an
-        // operator undoing a mistaken completion for a debt order above.
-        const wasDelivered = order.status === "delivered";
-        const isDelivered = newStatus === "delivered";
-        if (wasDelivered !== isDelivered) {
-          const [{ paidSoFar }] = await tx.select({
-            paidSoFar: sql<string>`COALESCE(SUM(CAST(${payments.amount} AS DECIMAL(15,2))), 0)`,
-          }).from(payments)
-            .where(and(eq(payments.orderId, orderId), eq(payments.tenantId, tenantId), eq(payments.type, "payment")));
-          const outstanding = Math.max(0, Number(order.total) - Number(paidSoFar));
-          if (outstanding > 0) {
-            await adjustShopDebt(tx, tenantId, order.shopId, isDelivered ? outstanding : -outstanding);
-          }
-        }
-      }
 
       const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
       // The courier flow already moved the stock for this delivery; replaying
@@ -867,6 +803,7 @@ export const OrderService = {
         `);
       }
       await tx.update(orders).set({ status: newStatus }).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)));
+      await settleShopDebt(tx, tenantId, order.shopId);
     });
 
     cache.invalidate(CacheKeys.dashboardKpis(Number(tenantId)));
@@ -905,12 +842,6 @@ export const OrderService = {
       }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt))).limit(1);
       if (!order) throw new Error("Заказ не найден или уже удалён");
 
-      // Deleting a still-open credit order withdraws the receivable it created.
-      // Completed orders keep theirs — the goods were handed over.
-      if (order.paymentMethod === "debt" && holdsStock(order.status)) {
-        await adjustShopDebt(tx, tenantId, order.shopId, -Number(order.total));
-      }
-
       // Release reserved stock if order is new or processing
       if (holdsStock(order.status)) {
         const items = await tx.select({
@@ -942,8 +873,10 @@ export const OrderService = {
         }
       }
 
-      // Soft delete
+      // Soft delete — a deleted order is excluded from the balance, so this
+      // withdraws whatever it was contributing.
       await tx.update(orders).set({ deletedAt: new Date() }).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)));
+      await settleShopDebt(tx, tenantId, order.shopId);
     });
 
     cache.invalidate(CacheKeys.dashboardKpis(Number(tenantId)));
@@ -987,20 +920,12 @@ export const OrderService = {
       }
       if (data.paymentMethod !== undefined) updates.paymentMethod = data.paymentMethod;
 
-      // Reconcile the shop's receivable in one move: switching to/from "debt" and
-      // re-discounting both change what this order owes. Comparing old vs new
-      // owed amount also covers the cash→debt and debt→cash flips, which a plain
-      // "adjust by the total difference" would silently get wrong.
-      const newPaymentMethod = data.paymentMethod ?? order.paymentMethod;
-      const oldOwed = order.paymentMethod === "debt" && owesDebt(order.status) ? Number(order.total) : 0;
-      const newOwed = newPaymentMethod === "debt" && owesDebt(order.status) ? newTotal : 0;
-      if (newOwed !== oldOwed) {
-        await adjustShopDebt(tx, tenantId, order.shopId, newOwed - oldOwed);
-      }
-
       if (Object.keys(updates).length > 0) {
         await tx.update(orders).set(updates).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)));
       }
+      // Re-discounting and switching to/from "в долг" both change what this
+      // order owes; re-deriving covers either without case analysis.
+      await settleShopDebt(tx, tenantId, order.shopId);
     });
 
     cache.invalidate(CacheKeys.dashboardKpis(Number(tenantId)));
@@ -1135,10 +1060,7 @@ export const OrderService = {
         total: newTotal.toFixed(2),
       }).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)));
 
-      if (order.paymentMethod === "debt" && owesDebt(order.status)) {
-        const totalDiff = newTotal - Number(order.total);
-        if (totalDiff !== 0) await adjustShopDebt(tx, tenantId, order.shopId, totalDiff);
-      }
+      await settleShopDebt(tx, tenantId, order.shopId);
     });
 
     cache.invalidate(CacheKeys.dashboardKpis(Number(tenantId)));
@@ -1154,12 +1076,9 @@ export const OrderService = {
     if (!order.deletedAt) throw new Error("Заказ не удалён");
 
     await db.transaction(async (tx) => {
+      // Mirror of delete(): the order counts again, and so does what it owes.
       await tx.update(orders).set({ deletedAt: null }).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)));
-
-      // Mirror of delete(): the receivable comes back with the order.
-      if (order.paymentMethod === "debt" && holdsStock(order.status)) {
-        await adjustShopDebt(tx, tenantId, order.shopId, Number(order.total));
-      }
+      await settleShopDebt(tx, tenantId, order.shopId);
 
       // Re-reserve stock if order was new/processing when deleted
       if (holdsStock(order.status)) {

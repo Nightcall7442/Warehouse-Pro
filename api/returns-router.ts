@@ -5,6 +5,7 @@ import { returns, returnItems, orderItems, shops, users, products, orders, wareh
 import { eq, and, desc, sql } from "drizzle-orm";
 import { cache, CacheKeys } from "./lib/cache";
 import { sanitizeString } from "./lib/sanitize";
+import { recalcShopDebt } from "./services/shop-debt";
 
 export const returnsRouter = createRouter({
   // List returns
@@ -208,7 +209,7 @@ export const returnsRouter = createRouter({
       const tenantId = ctx.tenant.id;
 
       // Validate status transitions
-      const [ret] = await db.select({ status: returns.status, totalAmount: returns.totalAmount })
+      const [ret] = await db.select({ status: returns.status, totalAmount: returns.totalAmount, shopId: returns.shopId })
         .from(returns).where(and(eq(returns.id, input.id), eq(returns.tenantId, tenantId)))
         .limit(1);
       if (!ret) throw new Error("Возврат не найден");
@@ -258,18 +259,12 @@ export const returnsRouter = createRouter({
             `);
           }
 
-          // Adjust shop debt: reduce it by the return amount
-          if (ret.totalAmount && Number(ret.totalAmount) > 0) {
-            await tx.execute(sql`
-              UPDATE shops
-              SET debt = GREATEST(0, CAST(debt AS DECIMAL(12,2)) - ${Number(ret.totalAmount)})
-              WHERE id = (SELECT shop_id FROM returns WHERE id = ${input.id} AND tenant_id = ${tenantId})
-                AND tenant_id = ${tenantId}
-            `);
-          }
-
           await tx.update(returns).set({ status: input.status })
             .where(and(eq(returns.id, input.id), eq(returns.tenantId, tenantId)));
+
+          // A completed return is no longer owed for; re-derive the balance
+          // now that the return's status is written.
+          await recalcShopDebt(tx, tenantId, ret.shopId);
         });
       } else {
         await db.update(returns)

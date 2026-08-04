@@ -1,6 +1,7 @@
 import { payments, shops } from "@db/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { sanitizeString } from "../lib/sanitize";
+import { recalcShopDebt } from "./shop-debt";
 
 type DrizzleInstance = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -47,14 +48,10 @@ export const PaymentService = {
         createdBy,
       });
 
-      if (type === "payment") {
-        const newDebt = Math.max(0, Number(shop.debt) - amt);
-        await tx.update(shops).set({ debt: String(newDebt) })
-          .where(and(eq(shops.id, shopId), eq(shops.tenantId, tenantId)));
-      } else {
-        await tx.update(shops).set({ debt: sql`${shops.debt} + ${amt}` })
-          .where(and(eq(shops.id, shopId), eq(shops.tenantId, tenantId)));
-      }
+      // These rows carry no orderId — they are shop-level adjustments, and
+      // recalcShopDebt folds them in (debt adds, payment subtracts) alongside
+      // what the shop's orders owe.
+      await recalcShopDebt(tx, tenantId, shopId);
     });
 
     return { success: true };

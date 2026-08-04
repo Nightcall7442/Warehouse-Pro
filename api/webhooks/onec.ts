@@ -6,6 +6,7 @@ import { OneCMapper } from "../services/onec-mapper";
 import { logger } from "../lib/logger";
 import { env } from "../lib/env";
 import { safeEqual } from "../lib/safe-compare";
+import { recalcShopDebt } from "../services/shop-debt";
 
 const app = new Hono<{ Variables: { validatedBody: Record<string, unknown> } }>();
 
@@ -101,10 +102,7 @@ app.post("/payment", async (c) => {
         notes: `1C: ${reference ?? "Payment"}`,
       });
 
-      const newDebt = Math.max(0, currentDebt - parsedAmount);
-      await tx.update(shops)
-        .set({ debt: String(newDebt) })
-        .where(and(eq(shops.id, shopId), eq(shops.tenantId, tenantId)));
+      await recalcShopDebt(tx, tenantId, shopId);
     });
 
     logger.info("Payment received from 1C", { tenantId, shopId, amount: parsedAmount });

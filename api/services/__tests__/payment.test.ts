@@ -23,12 +23,21 @@ let paymentsTable: FakePayment[] = [];
 let shopsTable: FakeShop[] = [];
 let nextPaymentId = 1;
 
+/**
+ * What each shop owed before any payment in the test — the balance carried
+ * over from before the ledger existed. Production records this as a shop-level
+ * "debt" row (migration 0036); it is held separately here only so the tests can
+ * keep asserting on the payments they themselves create.
+ */
+let openingBalance: Record<number, number> = {};
+
 function resetTables() {
   paymentsTable = [];
   shopsTable = [
     { id: 1, tenantId: 1, name: "Test Shop", debt: "500.00" },
     { id: 2, tenantId: 1, name: "Another Shop", debt: "0.00" },
   ];
+  openingBalance = { 1: 500, 2: 0 };
   nextPaymentId = 1;
 }
 
@@ -136,6 +145,24 @@ function makeMockDb() {
     delete: () => ({
       where: () => Promise.resolve(),
     }),
+    // The only raw statement PaymentService issues is recalcShopDebt's, which
+    // re-derives the balance rather than nudging it. Mirror that here: the
+    // shop owes its opening balance plus every debt entry, less every payment.
+    // (The real statement also folds in orders and returns; this service has
+    // neither, so those terms are zero.)
+    execute: (query: unknown) => {
+      const [shopId, tenantId] = ((query as { values?: unknown[] }).values ?? []) as number[];
+      const sumOf = (type: string) => paymentsTable
+        .filter(p => p.shopId === shopId && p.tenantId === tenantId && p.type === type)
+        .reduce((total, p) => total + Number(p.amount), 0);
+
+      const shop = shopsTable.find(s => s.id === shopId && s.tenantId === tenantId);
+      if (shop) {
+        const owed = (openingBalance[shopId] ?? 0) + sumOf("debt") - sumOf("payment");
+        shop.debt = Math.max(0, owed).toFixed(2);
+      }
+      return Promise.resolve([]);
+    },
     transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(db),
   };
   return db;
@@ -163,7 +190,7 @@ describe("PaymentService.addPayment", () => {
     expect(paymentsTable[0].type).toBe("payment");
 
     const shop = shopsTable.find((s) => s.id === 1)!;
-    expect(shop.debt).toBe("300");
+    expect(shop.debt).toBe("300.00");
   });
 
   it("creates payment record and increases shop debt for debt type", async () => {
@@ -185,7 +212,7 @@ describe("PaymentService.addPayment", () => {
 
     expect(paymentsTable[0].type).toBe("payment");
     const shop = shopsTable.find((s) => s.id === 1)!;
-    expect(shop.debt).toBe("450");
+    expect(shop.debt).toBe("450.00");
   });
 
   it("sanitizes notes input", async () => {

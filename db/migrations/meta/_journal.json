@@ -253,6 +253,13 @@
       "when": 1785797486688,
       "tag": "0035_add_delivery_result_notes",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "5",
+      "when": 1785900000000,
+      "tag": "0036_preserve_unexplained_shop_debt",
+      "breakpoints": true
     }
   ]
 }

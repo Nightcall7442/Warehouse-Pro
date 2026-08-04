@@ -7,6 +7,7 @@ import { sseBus } from "./lib/sse";
 import { logger } from "./lib/logger";
 import { sendPushToUser } from "./services/push-service";
 import { sanitizeString } from "./lib/sanitize";
+import { recalcShopDebt } from "./services/shop-debt";
 
 export const courierRouter = createRouter({
   listMyDeliveries: courierQuery.query(async ({ ctx }) => {
@@ -211,22 +212,24 @@ export const courierRouter = createRouter({
         }
 
         if (input.cashAmount && Number(input.cashAmount) > 0) {
-          const cashAmount = Number(input.cashAmount);
           await tx.insert(payments).values({
             tenantId: ctx.tenant.id,
             shopId: order.shopId,
+            // Tie the payment to the order it settles, so the shop's balance
+            // can attribute it — an untied row reads as a loose shop-level
+            // payment and would double-count against the order's own total.
+            orderId: order.id,
             amount: input.cashAmount,
             type: "payment",
             notes: `Доставка ${order.orderNumber} — наличные от курьера`,
             createdBy: courierId,
           });
-          // Update shop debt: amount paid reduces the debt
-          await tx.execute(sql`
-            UPDATE shops
-            SET debt = GREATEST(0, CAST(debt AS DECIMAL(12,2)) - ${cashAmount})
-            WHERE id = ${order.shopId} AND tenant_id = ${ctx.tenant.id}
-          `);
         }
+
+        // The order is now delivered and the cash (if any) is recorded, so
+        // whatever is still unpaid is owed. Re-derive rather than subtracting
+        // the cash — subtracting alone never booked the shortfall.
+        await recalcShopDebt(tx, ctx.tenant.id, order.shopId);
       });
 
       const [ceo] = await db.select({ id: users.id }).from(users)
@@ -401,21 +404,8 @@ export const courierRouter = createRouter({
           });
         }
 
-        // ── Settle the shop's balance for this order ──
-        // What the shop owed for this order before the courier closed it: the
-        // full total for a credit order (booked at creation), nothing for any
-        // other method. What it owes after: whatever wasn't handed over in
-        // cash, unless the goods came back entirely. Applying the difference
-        // covers every case — including a delivery with no payment at all,
-        // where the whole total becomes debt.
-        const owedBefore = order.paymentMethod === "debt" ? orderTotal : 0;
-        const owedAfter = finalStatus === "returned" ? 0 : Math.max(0, orderTotal - paidAmount);
-        if (owedAfter !== owedBefore) {
-          await tx.execute(sql`
-            UPDATE shops SET debt = GREATEST(0, CAST(debt AS DECIMAL(12,2)) + ${owedAfter - owedBefore})
-            WHERE id = ${order.shopId} AND tenant_id = ${ctx.tenant.id}
-          `);
-        }
+        // Status and payment are both written; re-derive what the shop owes.
+        await recalcShopDebt(tx, ctx.tenant.id, order.shopId);
 
         // ── Create debt reminder if partial payment ──
         if (debtAmount > 0 && input.debtDueDate) {
