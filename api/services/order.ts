@@ -167,16 +167,26 @@ async function applyPartialPayment(
 
   const [order] = await tx.select({
     id: orders.id, status: orders.status, total: orders.total,
-    shopId: orders.shopId, orderNumber: orders.orderNumber,
+    shopId: orders.shopId, orderNumber: orders.orderNumber, paymentMethod: orders.paymentMethod,
   }).from(orders)
     .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt)))
     .limit(1);
   if (!order) throw new Error("Заказ не найден");
 
   const total = Number(order.total);
-  if (paid > total) throw new Error("Сумма оплаты не может превышать сумму заказа");
 
-  const debt = total - paid;
+  // Sum of payments already recorded for this order, before this one — needed
+  // to compute the true remaining balance across multiple partial payments,
+  // and to know how much of it is already reflected in shops.debt (see below).
+  const [{ priorPaid: priorPaidRaw }] = await tx.select({
+    priorPaid: sql<string>`COALESCE(SUM(CAST(${payments.amount} AS DECIMAL(15,2))), 0)`,
+  }).from(payments)
+    .where(and(eq(payments.orderId, order.id), eq(payments.tenantId, tenantId), eq(payments.type, "payment")));
+  const priorPaid = Number(priorPaidRaw);
+
+  if (priorPaid + paid > total) throw new Error("Сумма оплаты не может превышать сумму заказа");
+
+  const debt = total - priorPaid - paid;
 
   // Record payment
   await tx.insert(payments).values({
@@ -196,13 +206,24 @@ async function applyPartialPayment(
     createdBy: userId,
   });
 
-  // Update shop debt: at order creation the full total was added to debt
-  // (for "debt" payment method). Now the customer pays part of it —
-  // reduce the debt by the paid amount.
-  await tx.execute(sql`
-    UPDATE shops SET debt = GREATEST(0, CAST(debt AS DECIMAL(12,2)) - ${paid})
-    WHERE id = ${order.shopId} AND tenant_id = ${tenantId}
-  `);
+  // Update shop debt. Orders created with paymentMethod "debt" have their full
+  // total booked into shops.debt at creation, so each payment against them
+  // simply reduces it. Orders created with any other method were never
+  // booked — nothing was added at creation — so they only start contributing
+  // to shops.debt once a shortfall shows up here, and only the newly-created
+  // portion of it. Comparing what should be booked before vs. after this
+  // payment (rather than blindly subtracting `paid`) keeps both cases correct
+  // across any number of partial payments.
+  const wasBookedBefore = order.paymentMethod === "debt" || priorPaid > 0;
+  const bookedBefore = wasBookedBefore ? Math.max(0, total - priorPaid) : 0;
+  const bookedAfter = Math.max(0, debt);
+  const debtDelta = bookedAfter - bookedBefore;
+  if (debtDelta !== 0) {
+    await tx.execute(sql`
+      UPDATE shops SET debt = GREATEST(0, CAST(debt AS DECIMAL(12,2)) + ${debtDelta})
+      WHERE id = ${order.shopId} AND tenant_id = ${tenantId}
+    `);
+  }
 
   // Create debt reminder if there's remaining debt and a due date
   if (debt > 0 && input.debtDueDate) {
