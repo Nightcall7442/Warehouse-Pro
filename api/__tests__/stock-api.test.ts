@@ -11,22 +11,9 @@
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
-vi.mock("drizzle-orm", () => {
-  const sqlFn = Object.assign(
-    (strings: TemplateStringsArray, ...values: unknown[]) => ({ __kind: "sql", strings, values }),
-    {
-      join(chunks: unknown[], _sep?: unknown) { return { __kind: "sql_join", chunks }; },
-      raw(str: string) { return { __kind: "sql_raw", str }; },
-    },
-  );
-  return {
-    eq: (col: unknown, val: unknown) => ({ __kind: "eq", col, val }),
-    and: (...conds: unknown[]) => ({ __kind: "and", conds }),
-    desc: (col: unknown) => ({ __kind: "desc", col }),
-    isNull: (col: unknown) => ({ __kind: "isNull", col }),
-    like: (col: unknown, val: unknown) => ({ __kind: "like", col, val }),
-    sql: sqlFn,
-  };
+vi.mock("drizzle-orm", async () => {
+  const { drizzleMock } = await import("./helpers/drizzle-mock");
+  return drizzleMock();
 });
 
 vi.mock("../telegram-router", () => ({
@@ -315,7 +302,8 @@ describe("warehouse.adjustStock — stock adjustment via API", () => {
 
     expect(movementsTable).toHaveLength(1);
     expect(movementsTable[0].type).toBe("in");
-    expect(movementsTable[0].quantity).toBe("25");
+    // The ledger normalises to the column's DECIMAL(_,2) scale, as MySQL returns it.
+    expect(movementsTable[0].quantity).toBe("25.00");
     expect(movementsTable[0].notes).toBe("Restocked");
   });
 

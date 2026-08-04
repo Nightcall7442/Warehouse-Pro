@@ -1,4 +1,5 @@
 import { sql, eq, and, gte, lte, inArray, isNull } from "drizzle-orm";
+import { REVENUE_ORDER_STATUSES } from "../lib/order-status";
 import type { DrizzleInstance } from "../queries/connection";
 import { orders, dailyPlans, returns, shops, salesTargets, commissions, agentLocations, visitReports, users, payments } from "@db/schema";
 import { calculateFraudMetrics } from "./anti-fraud";
@@ -133,7 +134,7 @@ export async function calculateAgentKpi(
     .where(and(
       eq(orders.tenantId, tenantId),
       eq(orders.agentId, agentId),
-      inArray(orders.status, ["delivered", "completed"]),
+      inArray(orders.status, REVENUE_ORDER_STATUSES),
       isNull(orders.deletedAt),
       gte(orders.createdAt, periodStart),
       lte(orders.createdAt, periodEnd),
@@ -372,7 +373,7 @@ export async function calculateSalary(
     .where(and(
       eq(orders.tenantId, tenantId),
       eq(orders.agentId, agentId),
-      inArray(orders.status, ["delivered", "completed"]),
+      inArray(orders.status, REVENUE_ORDER_STATUSES),
       isNull(orders.deletedAt),
       gte(orders.createdAt, periodStart),
       lte(orders.createdAt, periodEnd),
@@ -527,7 +528,7 @@ export async function getAgentList(
     }).from(orders)
       .where(and(
         eq(orders.tenantId, tenantId),
-        inArray(orders.status, ["delivered", "completed"]),
+        inArray(orders.status, REVENUE_ORDER_STATUSES),
         gte(orders.createdAt, periodStart),
         lte(orders.createdAt, periodEnd),
         inArray(orders.agentId, agentIds),

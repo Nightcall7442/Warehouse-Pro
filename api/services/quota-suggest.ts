@@ -1,4 +1,5 @@
 import { eq, and, gte, lte, sql , inArray } from "drizzle-orm";
+import { REVENUE_ORDER_STATUSES } from "../lib/order-status";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import { orders, dailyPlans, users, salesTargets } from "@db/schema";
 
@@ -54,7 +55,7 @@ export async function suggestQuotas(
       .where(and(
         eq(orders.tenantId, tenantId),
         eq(orders.agentId, agent.id),
-        inArray(orders.status, ["delivered", "completed"]),
+        inArray(orders.status, REVENUE_ORDER_STATUSES),
         gte(orders.createdAt, startStr),
         lte(orders.createdAt, endStr + " 23:59:59"),
       ))
@@ -67,7 +68,7 @@ export async function suggestQuotas(
       .where(and(
         eq(orders.tenantId, tenantId),
         eq(orders.agentId, agent.id),
-        inArray(orders.status, ["delivered", "completed"]),
+        inArray(orders.status, REVENUE_ORDER_STATUSES),
         gte(orders.createdAt, startStr),
         lte(orders.createdAt, endStr + " 23:59:59"),
       ))

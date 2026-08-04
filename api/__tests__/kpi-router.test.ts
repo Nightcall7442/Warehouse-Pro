@@ -1,15 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
-vi.mock("drizzle-orm", () => ({
-  eq:  (col: unknown, val: unknown) => ({ __kind: "eq", col, val }),
-  and: (...conds: unknown[]) => ({ __kind: "and", conds }),
-  desc: (col: unknown) => ({ __kind: "desc", col }),
-  gte: (col: unknown, val: unknown) => ({ __kind: "gte", col, val }),
-  lte: (col: unknown, val: unknown) => ({ __kind: "lte", col, val }),
-  sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ __kind: "sql", strings, values }),
-  isNull: (col: unknown) => ({ __kind: "isNull", col }),
-}));
+vi.mock("drizzle-orm", async () => {
+  const { drizzleMock } = await import("./helpers/drizzle-mock");
+  return drizzleMock();
+});
 
 vi.mock("../lib/feature-gating", () => ({
   checkSubscriptionAccess: vi.fn(async () => true),
@@ -57,8 +52,8 @@ let usersTable: FakeUser[] = [];
 
 function resetTables() {
   ordersTable = [
-    { id: 1, tenantId: 1, agentId: 10, courierId: null, shopId: 1, status: "completed", deliveryStatus: "none", total: "500.00", createdAt: new Date() },
-    { id: 2, tenantId: 1, agentId: 10, courierId: null, shopId: 1, status: "completed", deliveryStatus: "none", total: "300.00", createdAt: new Date() },
+    { id: 1, tenantId: 1, agentId: 10, courierId: null, shopId: 1, status: "delivered", deliveryStatus: "none", total: "500.00", createdAt: new Date() },
+    { id: 2, tenantId: 1, agentId: 10, courierId: null, shopId: 1, status: "delivered", deliveryStatus: "none", total: "300.00", createdAt: new Date() },
   ];
   plansTable = [
     { id: 1, tenantId: 1, agentId: 10, shopId: 1, status: "visited", planDate: new Date() },

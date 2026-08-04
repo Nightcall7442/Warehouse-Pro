@@ -1,13 +1,14 @@
 import { getDb } from "../queries/connection";
 import { orders, orderItems, products, shops, users, dailyPlans, arrivals } from "@db/schema";
 import { eq, and, sql, desc , inArray } from "drizzle-orm";
+import { REVENUE_ORDER_STATUSES } from "../lib/order-status";
 import { MS_PER_DAY } from "../lib/constants";
 import { cache, CacheTTL } from "../lib/cache";
 
 type DateRange = { dateFrom?: string; dateTo?: string };
 
 function dateConditions(tenantId: number, range?: DateRange) {
-  const conditions = [eq(orders.tenantId, tenantId), inArray(orders.status, ["delivered", "completed"])];
+  const conditions = [eq(orders.tenantId, tenantId), inArray(orders.status, REVENUE_ORDER_STATUSES)];
   if (range?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${range.dateFrom}`);
   if (range?.dateTo) conditions.push(sql`${orders.createdAt} <= ${range.dateTo}`);
   return conditions;
@@ -72,7 +73,7 @@ export const AnalyticsService = {
     })
       .from(users)
       .leftJoin(dailyPlans, and(eq(dailyPlans.agentId, users.id), sql`${dailyPlans.planDate} >= ${cutoff}`))
-      .leftJoin(orders, and(eq(orders.agentId, users.id), inArray(orders.status, ["delivered", "completed"]), sql`${orders.createdAt} >= ${cutoff}`))
+      .leftJoin(orders, and(eq(orders.agentId, users.id), inArray(orders.status, REVENUE_ORDER_STATUSES), sql`${orders.createdAt} >= ${cutoff}`))
       .where(and(eq(users.tenantId, tenantId), eq(users.role, "agent")))
       .groupBy(users.id).orderBy(desc(sql`COALESCE(SUM(${orders.total}), 0)`));
 
@@ -99,7 +100,7 @@ export const AnalyticsService = {
     async function calcPeriod(dateFrom: string, dateTo: string) {
       const orderConds = [
         eq(orders.tenantId, tid),
-        inArray(orders.status, ["delivered", "completed"]),
+        inArray(orders.status, REVENUE_ORDER_STATUSES),
         sql`${orders.createdAt} >= ${dateFrom}`,
         sql`${orders.createdAt} <= ${dateTo + " 23:59:59"}`,
       ];
@@ -119,7 +120,7 @@ export const AnalyticsService = {
         .leftJoin(orders, eq(orderItems.orderId, orders.id))
         .where(and(
           eq(orders.tenantId, tid),
-          inArray(orders.status, ["delivered", "completed"]),
+          inArray(orders.status, REVENUE_ORDER_STATUSES),
           sql`${orders.createdAt} >= ${dateFrom}`,
           sql`${orders.createdAt} <= ${dateTo + " 23:59:59"}`,
         ));
@@ -172,7 +173,7 @@ export const AnalyticsService = {
       .leftJoin(products, eq(orderItems.productId, products.id))
       .where(and(
         eq(orders.tenantId, tid),
-        inArray(orders.status, ["delivered", "completed"]),
+        inArray(orders.status, REVENUE_ORDER_STATUSES),
         sql`${orders.createdAt} >= ${from}`,
         sql`${orders.createdAt} <= ${to + " 23:59:59"}`,
       ))
@@ -274,7 +275,7 @@ export const AnalyticsService = {
       .where(and(
         eq(orders.tenantId, tenantId),
         eq(orders.shopId, shopId),
-        inArray(orders.status, ["delivered", "completed"]),
+        inArray(orders.status, REVENUE_ORDER_STATUSES),
         sql`${orders.createdAt} >= ${cutoff}`,
       ))
       .groupBy(sql`DATE(${orders.createdAt})`).orderBy(sql`DATE(${orders.createdAt})`);

@@ -54,8 +54,8 @@ function resetTables() {
   returnsTable = [];
   returnItemsTable = [];
   ordersTable = [
-    { id: 1, tenantId: 1, agentId: 10, shopId: 1, status: "completed", total: "500.00" },
-    { id: 2, tenantId: 2, agentId: 11, shopId: 2, status: "completed", total: "300.00" },
+    { id: 1, tenantId: 1, agentId: 10, shopId: 1, status: "delivered", total: "500.00" },
+    { id: 2, tenantId: 2, agentId: 11, shopId: 2, status: "delivered", total: "300.00" },
   ];
   orderItemsTable = [
     { id: 1, orderId: 1, productId: 1, quantity: "10.00", unitPrice: "50.00" },
@@ -127,6 +127,16 @@ function useTable(col: unknown) {
 }
 
 function evalCond(row: Record<string, unknown>, cond: Record<string, unknown>): boolean {
+  // Set membership. Without this branch an inArray filter falls through to the
+  // permissive default below and the query appears to match every row — which
+  // is how "only counts delivered orders" passed while counting all of them.
+  if (cond && (cond as Record<string, unknown>).__kind === "inArray") {
+    const field = mapCol((cond as Record<string, unknown>).col);
+    if (!(field in row)) return true;
+    const values = ((cond as Record<string, unknown>).values ?? []) as unknown[];
+    return values.map(String).includes(String(row[field]));
+  }
+
   if (!cond || typeof cond !== "object") return true;
   if (cond.__kind === "and") return (cond.conds as unknown[]).every((c: unknown) => evalCond(row, c as Record<string, unknown>));
   if (cond.__kind === "eq" || cond.__kind === "gte" || cond.__kind === "lte") {

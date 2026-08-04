@@ -384,7 +384,7 @@ async function seed() {
   // ── Orders (80) ─────────────────────────────────────────────────────────────
   console.log("Creating orders...");
   const allAgents = agentIds;
-  const statuses: Array<"new" | "processing" | "completed" | "cancelled"> = ["new", "processing", "completed", "cancelled"];
+  const statuses: Array<"new" | "processing" | "delivered" | "cancelled"> = ["new", "processing", "delivered", "cancelled"];
   const deliveryStatuses: Array<"not_assigned" | "assigned" | "out_for_delivery" | "delivered" | "failed"> = [
     "not_assigned", "assigned", "out_for_delivery", "delivered", "failed",
   ];
@@ -426,7 +426,7 @@ async function seed() {
 
     const discount = i % 7 === 0 ? (subtotal * 0.05).toFixed(2) : "0.00";
     const total = (subtotal - Number(discount)).toFixed(2);
-    const dStatus = status === "completed" ? "delivered"
+    const dStatus = status === "delivered" ? "delivered"
       : status === "cancelled" ? "failed"
       : status === "processing" ? "out_for_delivery"
       : deliveryStatuses[i % deliveryStatuses.length];
@@ -445,7 +445,7 @@ async function seed() {
       total,
       courierId,
       deliveryStatus: dStatus,
-      deliveredAt: status === "completed" ? new Date(createdAt.getTime() + 3600000 * 2) : null,
+      deliveredAt: status === "delivered" ? new Date(createdAt.getTime() + 3600000 * 2) : null,
       createdAt,
       updatedAt: createdAt,
       notes: i % 5 === 0 ? "Срочный заказ" : null,

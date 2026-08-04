@@ -62,6 +62,16 @@ reg(warehouseStock, "productId"); reg(warehouseStock, "currentStock");
 function mapCol(col: unknown): string { return colToField.get(col) ?? (col as any)?.name ?? String(col); }
 
 function evalCond(row: Record<string, unknown>, cond: unknown): boolean {
+  // Set membership. Without this branch an inArray filter falls through to the
+  // permissive default below and the query appears to match every row — which
+  // is how "only counts delivered orders" passed while counting all of them.
+  if (cond && (cond as Record<string, unknown>).__kind === "inArray") {
+    const field = mapCol((cond as Record<string, unknown>).col);
+    if (!(field in row)) return true;
+    const values = ((cond as Record<string, unknown>).values ?? []) as unknown[];
+    return values.map(String).includes(String(row[field]));
+  }
+
   if (!cond || typeof cond !== "object") return true;
   const c = cond as Record<string, unknown>;
   if (c.__kind === "and") return (c.conds as unknown[]).every((x: unknown) => evalCond(row, x));

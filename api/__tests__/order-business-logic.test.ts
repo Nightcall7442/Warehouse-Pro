@@ -21,23 +21,12 @@
  *  - an agent cannot cancel another agent's order
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { deriveShopDebt, isShopDebtRecalc } from "./helpers/shop-debt-recalc";
 
 // ── Mock drizzle-orm's query helpers with introspectable markers ───────────────
-vi.mock("drizzle-orm", () => {
-  const sqlFn = Object.assign(
-    (strings: TemplateStringsArray, ...values: unknown[]) => ({ __kind: "sql", strings, values }),
-    {
-      join(chunks: unknown[], _sep?: unknown) { return { __kind: "sql_join", chunks }; },
-      raw(str: string) { return { __kind: "sql_raw", str }; },
-    },
-  );
-  return {
-    eq:  (col: unknown, val: unknown) => ({ __kind: "eq", col, val }),
-    and: (...conds: unknown[]) => ({ __kind: "and", conds }),
-    desc: (col: unknown) => ({ __kind: "desc", col }),
-    isNull: (col: unknown) => ({ __kind: "isNull", col }),
-    sql: sqlFn,
-  };
+vi.mock("drizzle-orm", async () => {
+  const { drizzleMock } = await import("./helpers/drizzle-mock");
+  return drizzleMock();
 });
 
 vi.mock("../telegram-router", () => ({
@@ -229,14 +218,13 @@ function makeMockDb() {
       const s = sqlObj as { strings: string[]; values: unknown[] };
       const fullSql = s.strings.join("");
 
-      // Shop debt: both the create-time `debt + total` and the reversal
-      // `GREATEST(0, debt + delta)` bind [delta, shopId, tenantId] in that order.
-      if (fullSql.includes("UPDATE shops") && fullSql.includes("debt")) {
-        const nums = s.values.filter((v): v is number => typeof v === "number");
-        const [delta, shopId, tenantId] = nums;
+      // Shop debt is derived, not nudged: the statement binds [shopId, tenantId]
+      // and recomputes the balance from the shop's own records.
+      if (isShopDebtRecalc(fullSql)) {
+        const [shopId, tenantId] = s.values.filter((v): v is number => typeof v === "number");
         for (const shop of shopsTable) {
           if (shop.id === shopId && shop.tenantId === tenantId) {
-            shop.debt = Math.max(0, Number(shop.debt) + delta).toFixed(2);
+            shop.debt = deriveShopDebt(tenantId, shopId, { orders: ordersTable });
           }
         }
         return Promise.resolve();

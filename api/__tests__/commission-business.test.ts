@@ -1,18 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
-vi.mock("drizzle-orm", () => {
-  const sqlFn = (strings: TemplateStringsArray, ...values: unknown[]) => ({ __kind: "sql", strings, values });
-  return {
-    eq: (col: unknown, val: unknown) => ({ __kind: "eq", col, val }),
-    and: (...conds: unknown[]) => ({ __kind: "and", conds }),
-    gte: (col: unknown, val: unknown) => ({ __kind: "gte", col, val }),
-    lte: (col: unknown, val: unknown) => ({ __kind: "lte", col, val }),
-    desc: (col: unknown) => ({ __kind: "desc", col }),
-    sql: sqlFn,
-    isNull: (col: unknown) => ({ __kind: "isNull", col }),
-    relations: () => ({}),
-  };
+vi.mock("drizzle-orm", async () => {
+  const { drizzleMock } = await import("./helpers/drizzle-mock");
+  return drizzleMock();
 });
 
 vi.mock("../telegram-router", () => ({
@@ -83,8 +74,8 @@ function resetTables() {
     { id: 20, tenantId: 2, name: "Agent Three", role: "agent" },
   ];
   ordersTable = [
-    { id: 1, tenantId: 1, agentId: 10, shopId: 1, status: "completed", total: "2000.00", createdAt: monthStart },
-    { id: 2, tenantId: 1, agentId: 10, shopId: 1, status: "completed", total: "1500.00", createdAt: monthStart },
+    { id: 1, tenantId: 1, agentId: 10, shopId: 1, status: "delivered", total: "2000.00", createdAt: monthStart },
+    { id: 2, tenantId: 1, agentId: 10, shopId: 1, status: "delivered", total: "1500.00", createdAt: monthStart },
     { id: 3, tenantId: 1, agentId: 11, shopId: 1, status: "processing", total: "500.00", createdAt: monthStart },
   ];
   nextId = 10;
@@ -107,6 +98,16 @@ function mapCol(col: unknown): string {
 }
 
 function evalCond(row: Record<string, unknown>, cond: Record<string, unknown>): boolean {
+  // Set membership. Without this branch an inArray filter falls through to the
+  // permissive default below and the query appears to match every row — which
+  // is how "only counts delivered orders" passed while counting all of them.
+  if (cond && (cond as Record<string, unknown>).__kind === "inArray") {
+    const field = mapCol((cond as Record<string, unknown>).col);
+    if (!(field in row)) return true;
+    const values = ((cond as Record<string, unknown>).values ?? []) as unknown[];
+    return values.map(String).includes(String(row[field]));
+  }
+
   if (!cond || typeof cond !== "object") return true;
   if (cond.__kind === "and") return (cond.conds as unknown[]).every((c: unknown) => evalCond(row, c as Record<string, unknown>));
   if (cond.__kind === "eq") {

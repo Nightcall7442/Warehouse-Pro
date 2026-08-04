@@ -1,16 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
-vi.mock("drizzle-orm", () => {
-  const sqlFn = (strings: TemplateStringsArray, ...values: unknown[]) => ({ __kind: "sql", strings, values });
-  return {
-    eq: (col: unknown, val: unknown) => ({ __kind: "eq", col, val }),
-    and: (...conds: unknown[]) => ({ __kind: "and", conds }),
-    desc: (col: unknown) => ({ __kind: "desc", col }),
-    isNull: (col: unknown) => ({ __kind: "isNull", col }),
-    sql: sqlFn,
-    relations: () => ({}),
-  };
+vi.mock("drizzle-orm", async () => {
+  const { drizzleMock } = await import("./helpers/drizzle-mock");
+  return drizzleMock();
 });
 
 vi.mock("date-fns", () => ({
@@ -51,9 +44,9 @@ let productsTable: any[] = [];
 
 function resetTables() {
   ordersTable = [
-    { id: 1, tenantId: 1, status: "completed", total: "50000", shopId: 1, agentId: 20, orderNumber: "ORD-001", deletedAt: null, createdAt: new Date() },
+    { id: 1, tenantId: 1, status: "delivered", total: "50000", shopId: 1, agentId: 20, orderNumber: "ORD-001", deletedAt: null, createdAt: new Date() },
     { id: 2, tenantId: 1, status: "pending", total: "30000", shopId: 2, agentId: 20, orderNumber: "ORD-002", deletedAt: null, createdAt: new Date() },
-    { id: 3, tenantId: 2, status: "completed", total: "10000", shopId: 3, agentId: 30, orderNumber: "ORD-003", deletedAt: null, createdAt: new Date() },
+    { id: 3, tenantId: 2, status: "delivered", total: "10000", shopId: 3, agentId: 30, orderNumber: "ORD-003", deletedAt: null, createdAt: new Date() },
   ];
   warehouseStockTable = [
     { id: 10, tenantId: 1, productId: 1, currentStock: "200", reserved: "10", available: "190" },
@@ -97,6 +90,16 @@ reg(products, "id"); reg(products, "tenantId"); reg(products, "name"); reg(produ
 function mapCol(col: unknown): string { return colToField.get(col) ?? (col as any)?.name ?? String(col); }
 
 function evalCond(row: Record<string, unknown>, cond: unknown): boolean {
+  // Set membership. Without this branch an inArray filter falls through to the
+  // permissive default below and the query appears to match every row — which
+  // is how "only counts delivered orders" passed while counting all of them.
+  if (cond && (cond as Record<string, unknown>).__kind === "inArray") {
+    const field = mapCol((cond as Record<string, unknown>).col);
+    if (!(field in row)) return true;
+    const values = ((cond as Record<string, unknown>).values ?? []) as unknown[];
+    return values.map(String).includes(String(row[field]));
+  }
+
   if (!cond || typeof cond !== "object") return true;
   const c = cond as Record<string, unknown>;
   if (c.__kind === "and") return (c.conds as unknown[]).every((x: unknown) => evalCond(row, x));

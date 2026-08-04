@@ -1,5 +1,6 @@
 import { orders, users, dailyPlans, agentLocations, subscriptions } from "@db/schema";
 import { eq, and, sql, gte, desc , inArray } from "drizzle-orm";
+import { REVENUE_ORDER_STATUSES } from "../lib/order-status";
 import { subDays, format } from "date-fns";
 import { cache, CacheTTL } from "../lib/cache";
 
@@ -23,7 +24,7 @@ export const ReportsService = {
       db.select({ count: sql<number>`count(*)` }).from(orders)
         .where(and(eq(orders.tenantId, tenantId), gte(orders.createdAt, new Date(d30ago)))),
       db.select({ total: sql<string>`COALESCE(SUM(${orders.total}), 0)` }).from(orders)
-        .where(and(eq(orders.tenantId, tenantId), inArray(orders.status, ["delivered", "completed"]), gte(orders.createdAt, new Date(d30ago)))),
+        .where(and(eq(orders.tenantId, tenantId), inArray(orders.status, REVENUE_ORDER_STATUSES), gte(orders.createdAt, new Date(d30ago)))),
       db.select().from(subscriptions).where(eq(subscriptions.tenantId, tenantId)).limit(1),
     ]);
 

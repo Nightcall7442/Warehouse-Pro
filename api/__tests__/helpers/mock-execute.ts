@@ -1,5 +1,7 @@
 // Shared execute mock for handling batch CASE/WHEN SQL queries in tests
 
+import { deriveShopDebt, isShopDebtRecalc, type DebtTables } from "./shop-debt-recalc";
+
 interface StockRow {
   productId: number;
   tenantId: number;
@@ -8,13 +10,41 @@ interface StockRow {
   available: string;
 }
 
+interface ShopRow {
+  id: number;
+  tenantId: number;
+  debt: string;
+}
+
+/**
+ * Pass `debt` when the code under test can move what a shop owes. Without it
+ * the recalculation statement is silently swallowed and the balance never
+ * changes — which reads as a product bug rather than a gap in the harness.
+ */
+interface ExecuteMockOptions {
+  debt?: { shops: ShopRow[]; tables: () => DebtTables };
+}
+
 // Generic so each test file's own Fake* row type (which typically has no
 // index signature) is accepted without needing to add one just for this mock.
-export function createExecuteMock<T extends StockRow>(stockTable: T[]) {
+export function createExecuteMock<T extends StockRow>(stockTable: T[], options: ExecuteMockOptions = {}) {
   return (sqlObj: unknown) => {
     if (!sqlObj || typeof sqlObj !== "object" || (sqlObj as Record<string, unknown>).__kind !== "sql") return Promise.resolve();
     const s = sqlObj as { strings: string[]; values: unknown[] };
     const fullSql = s.strings.join("");
+
+    // Shop debt is derived rather than nudged: the statement binds only
+    // [shopId, tenantId] and recomputes the balance from the shop's records.
+    if (options.debt && isShopDebtRecalc(fullSql)) {
+      const [shopId, tenantId] = s.values.filter((v): v is number => typeof v === "number");
+      for (const shop of options.debt.shops) {
+        if (shop.id === shopId && shop.tenantId === tenantId) {
+          shop.debt = deriveShopDebt(tenantId, shopId, options.debt.tables());
+        }
+      }
+      return Promise.resolve();
+    }
+
     if (!fullSql.includes("UPDATE warehouse_stock")) return Promise.resolve();
 
     const updates: Array<{ productId: number; field: string; op: string; amount: number }> = [];

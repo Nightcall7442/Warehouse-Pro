@@ -1,15 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
-vi.mock("drizzle-orm", () => {
-  const sqlFn = (strings: TemplateStringsArray, ...values: unknown[]) => ({ __kind: "sql", strings, values });
-  return {
-    eq: (col: unknown, val: unknown) => ({ __kind: "eq", col, val }),
-    and: (...conds: unknown[]) => ({ __kind: "and", conds }),
-    desc: (col: unknown) => ({ __kind: "desc", col }),
-    sql: sqlFn,
-    relations: () => ({}),
-  };
+vi.mock("drizzle-orm", async () => {
+  const { drizzleMock } = await import("./helpers/drizzle-mock");
+  return drizzleMock();
 });
 
 vi.mock("../telegram-router", () => ({
@@ -52,8 +46,8 @@ let dailyPlansTable: any[] = [];
 
 function resetTables() {
   ordersTable = [
-    { id: 1, tenantId: 1, agentId: 10, shopId: 1, status: "completed", total: "500.00", discount: "10.00", paymentMethod: "cash", createdAt: "2025-06-15T10:00:00Z" },
-    { id: 2, tenantId: 1, agentId: 10, shopId: 2, status: "completed", total: "300.00", discount: "0.00", paymentMethod: "debt", createdAt: "2025-06-16T11:00:00Z" },
+    { id: 1, tenantId: 1, agentId: 10, shopId: 1, status: "delivered", total: "500.00", discount: "10.00", paymentMethod: "cash", createdAt: "2025-06-15T10:00:00Z" },
+    { id: 2, tenantId: 1, agentId: 10, shopId: 2, status: "delivered", total: "300.00", discount: "0.00", paymentMethod: "debt", createdAt: "2025-06-16T11:00:00Z" },
     { id: 3, tenantId: 1, agentId: 11, shopId: 1, status: "processing", total: "200.00", discount: "5.00", paymentMethod: "card", createdAt: "2025-06-17T12:00:00Z" },
   ];
   orderItemsTable = [
@@ -109,6 +103,16 @@ function tableOf(ref: unknown): string {
 }
 
 function evalCond(row: Record<string, unknown>, cond: Record<string, unknown>): boolean {
+  // Set membership. Without this branch an inArray filter falls through to the
+  // permissive default below and the query appears to match every row — which
+  // is how "only counts delivered orders" passed while counting all of them.
+  if (cond && (cond as Record<string, unknown>).__kind === "inArray") {
+    const field = mapCol((cond as Record<string, unknown>).col);
+    if (!(field in row)) return true;
+    const values = ((cond as Record<string, unknown>).values ?? []) as unknown[];
+    return values.map(String).includes(String(row[field]));
+  }
+
   if (!cond || typeof cond !== "object") return true;
   if (cond.__kind === "and") return (cond.conds as unknown[]).every((c: unknown) => evalCond(row, c as Record<string, unknown>));
   if (cond.__kind === "eq") {
@@ -334,7 +338,7 @@ describe("analytics.salesByShop", () => {
     })).toBe(true);
   });
 
-  it("only counts completed orders", async () => {
+  it("counts only orders that reached delivered", async () => {
     const { analyticsRouter } = await import("../analytics-router");
     const caller = analyticsRouter.createCaller(buildCtx());
     const result = await caller.salesByShop({});

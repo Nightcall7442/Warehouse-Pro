@@ -5,6 +5,7 @@
 import { getDb } from "../queries/connection";
 import { warehouseStock, orderItems, orders, products, arrivals, arrivalItems } from "@db/schema";
 import { eq, and, sql, gte, desc , inArray } from "drizzle-orm";
+import { REVENUE_ORDER_STATUSES } from "../lib/order-status";
 import { DemandPoint } from "./forecast-engine";
 
 /** Stockout prediction for a single product */
@@ -55,7 +56,7 @@ export async function getProductDemand(
     .where(and(
       eq(orders.tenantId, tenantId),
       eq(orderItems.productId, productId),
-      inArray(orders.status, ["delivered", "completed"]),
+      inArray(orders.status, REVENUE_ORDER_STATUSES),
       gte(orders.createdAt, startDate),
     ))
     .groupBy(sql`DATE(${orders.createdAt})`)

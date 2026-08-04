@@ -1,23 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
-vi.mock("drizzle-orm", () => {
-  const sqlFn = Object.assign(
-    (strings: TemplateStringsArray, ...values: unknown[]) => ({ __kind: "sql", strings, values }),
-    {
-      join(chunks: unknown[], _sep?: unknown) { return { __kind: "sql_join", chunks }; },
-      raw(str: string) { return { __kind: "sql_raw", str }; },
-    },
-  );
-  return {
-    eq: (col: unknown, val: unknown) => ({ __kind: "eq", col, val }),
-    and: (...conds: unknown[]) => ({ __kind: "and", conds }),
-    desc: (col: unknown) => ({ __kind: "desc", col }),
-    like: (col: unknown, val: unknown) => ({ __kind: "like", col, val }),
-    isNull: (col: unknown) => ({ __kind: "isNull", col }),
-    sql: sqlFn,
-    ne: (col: unknown, val: unknown) => ({ __kind: "ne", col, val }),
-  };
+vi.mock("drizzle-orm", async () => {
+  const { drizzleMock } = await import("./helpers/drizzle-mock");
+  return drizzleMock();
 });
 
 vi.mock("../telegram-router", () => ({
@@ -51,7 +37,7 @@ interface FakeProduct { id: number; tenantId: number; name: string; code: string
 interface FakeMovement { id: number; tenantId: number; productId: number; type: string; quantity: string; notes: string | null; referenceType?: string | null; referenceId?: number | null; createdAt: Date; }
 interface FakeShop { id: number; tenantId: number; name: string; city: string | null; district: string | null; agentId: number | null; debt: string; status: string; ownerName: string | null; phone: string | null; address: string | null; photoUrl: string | null; gpsLat: string | null; gpsLng: string | null; notes: string | null; createdAt: Date; updatedAt: Date; }
 interface FakeUser { id: number; tenantId: number; name: string; email: string; role: string; }
-interface FakePayment { id: number; tenantId: number; shopId: number; amount: string; type: string; notes: string | null; createdBy: number; createdAt: Date; }
+interface FakePayment { id: number; tenantId: number; shopId: number; orderId: number | null; amount: string; type: string; notes: string | null; createdBy: number; createdAt: Date; }
 
 let ordersTable: FakeOrder[] = [];
 let orderItemsTable: FakeOrderItem[] = [];
@@ -87,14 +73,19 @@ function resetTables() {
     { id: 1, tenantId: 1, name: "Operator", email: "op@test.com", role: "operator" },
     { id: 20, tenantId: 2, name: "Agent T2", email: "a1@t2.com", role: "agent" },
   ];
-  paymentsTable = [];
+  // An opening balance is a shop-level "debt" entry — see
+  // db/migrations/0036_preserve_unexplained_shop_debt.sql. Seeding it as a bare
+  // number on the shop would be erased by the first recalculation.
+  paymentsTable = [
+    { id: 900, tenantId: 1, shopId: 1, orderId: null, amount: "500.00", type: "debt", notes: "Начальный остаток", createdBy: 1, createdAt: new Date() },
+  ];
+  nextPaymentId = 901;
   warehousesTable = [
     { id: 1, tenantId: 1, name: "Main", isDefault: true, status: "active" },
   ];
   nextOrderId = 1;
   nextItemId = 1;
   nextMovementId = 1;
-  nextPaymentId = 1;
 }
 
 function tableOf(ref: unknown): string {
@@ -277,6 +268,7 @@ function makeMockDb() {
           const id = nextPaymentId++;
           paymentsTable.push({
             id, tenantId: v.tenantId as number, shopId: v.shopId as number,
+            orderId: (v.orderId as number) ?? null,
             amount: String(v.amount), type: (v.type as string) ?? "payment",
             notes: (v.notes as string) ?? null, createdBy: (v.createdBy as number) ?? 0, createdAt: new Date(),
           });
@@ -296,7 +288,12 @@ function makeMockDb() {
         return Promise.resolve();
       },
     }),
-    execute: createExecuteMock(stockTable),
+    execute: createExecuteMock(stockTable, {
+      debt: {
+        shops: shopsTable,
+        tables: () => ({ orders: ordersTable, payments: paymentsTable }),
+      },
+    }),
     transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(db),
   };
   return db;
@@ -390,18 +387,20 @@ describe("integration: payment flow", () => {
     const { shopRouter } = await import("../shop-router");
     const caller = shopRouter.createCaller({ ...makeCtx(1, 1, "operator"), db: mockDb });
 
+    // Opening balance only, no orders yet.
     expect(shopsTable.find(s => s.id === 1)!.debt).toBe("500.00");
+    const opening = paymentsTable.length;
 
     await caller.addPayment({ shopId: 1, amount: "200.00", type: "payment" });
-    expect(shopsTable.find(s => s.id === 1)!.debt).toBe("300");
-    expect(paymentsTable).toHaveLength(1);
-    expect(paymentsTable[0].amount).toBe("200.00");
-    expect(paymentsTable[0].type).toBe("payment");
+    expect(shopsTable.find(s => s.id === 1)!.debt).toBe("300.00");
+    expect(paymentsTable).toHaveLength(opening + 1);
+    expect(paymentsTable.at(-1)!.amount).toBe("200.00");
+    expect(paymentsTable.at(-1)!.type).toBe("payment");
 
     await caller.addPayment({ shopId: 1, amount: "100.00", type: "debt" });
     expect(shopsTable.find(s => s.id === 1)!.debt).toBe("400.00");
-    expect(paymentsTable).toHaveLength(2);
-    expect(paymentsTable[1].type).toBe("debt");
+    expect(paymentsTable).toHaveLength(opening + 2);
+    expect(paymentsTable.at(-1)!.type).toBe("debt");
   });
 });
 
@@ -418,7 +417,8 @@ describe("integration: stock adjustment flow", () => {
     expect(stockTable.find(s => s.productId === 1)!.available).toBe("150.00");
     expect(movementsTable).toHaveLength(1);
     expect(movementsTable[0].type).toBe("in");
-    expect(movementsTable[0].quantity).toBe("50");
+    // The ledger normalises to the column's DECIMAL(_,2) scale, as MySQL returns it.
+    expect(movementsTable[0].quantity).toBe("50.00");
     expect(movementsTable[0].notes).toBe("Restock");
 
     await caller.adjustStock({ productId: 1, quantity: "30", type: "out" });

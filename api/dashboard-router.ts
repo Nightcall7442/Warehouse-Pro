@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createRouter, operatorQuery, fieldSalesQuery, supervisorQuery } from "./middleware";
 import { orders, warehouseStock, users, shops, agentLocations, dailyPlans, orderItems, products } from "@db/schema";
 import { eq, and, sql, desc, isNull , inArray } from "drizzle-orm";
+import { REVENUE_ORDER_STATUSES } from "./lib/order-status";
 import { subDays } from "date-fns";
 import { cache, CacheKeys, CacheTTL } from "./lib/cache";
 import { onDay, onDate, sinceDay } from "./lib/date-range";
@@ -20,7 +21,7 @@ export const dashboardRouter = createRouter({
       db.select({ count: sql<number>`count(*)` }).from(orders)
         .where(and(eq(orders.tenantId, tenantId), onDay(orders.createdAt, today), isNull(orders.deletedAt))),
       db.select({ total: sql<string>`COALESCE(SUM(${orders.total}), 0)` }).from(orders)
-        .where(and(eq(orders.tenantId, tenantId), onDay(orders.createdAt, today), inArray(orders.status, ["delivered", "completed"]), isNull(orders.deletedAt))),
+        .where(and(eq(orders.tenantId, tenantId), onDay(orders.createdAt, today), inArray(orders.status, REVENUE_ORDER_STATUSES), isNull(orders.deletedAt))),
       db.select({ count: sql<number>`count(*)` }).from(users)
         .where(and(eq(users.tenantId, tenantId), eq(users.role, "agent"), eq(users.status, "active"))),
       db.select({ total: sql<string>`COALESCE(SUM(${warehouseStock.currentStock}), 0)` }).from(warehouseStock)
@@ -121,7 +122,7 @@ export const dashboardRouter = createRouter({
       db.select({ count: sql<number>`count(*)` }).from(orders)
         .where(and(eq(orders.tenantId, tenantId), onDay(orders.createdAt, today), isNull(orders.deletedAt))),
       db.select({ total: sql<string>`COALESCE(SUM(${orders.total}), 0)` }).from(orders)
-        .where(and(eq(orders.tenantId, tenantId), onDay(orders.createdAt, today), inArray(orders.status, ["delivered", "completed"]), isNull(orders.deletedAt))),
+        .where(and(eq(orders.tenantId, tenantId), onDay(orders.createdAt, today), inArray(orders.status, REVENUE_ORDER_STATUSES), isNull(orders.deletedAt))),
       db.select({ count: sql<number>`count(*)` }).from(users)
         .where(and(eq(users.tenantId, tenantId), eq(users.role, "agent"), eq(users.status, "active"))),
       db.select({ count: sql<number>`count(distinct ${agentLocations.agentId})` }).from(agentLocations)

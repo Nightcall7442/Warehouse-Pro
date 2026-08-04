@@ -2,6 +2,7 @@ import { eq, and, or, desc, sql, isNull, isNotNull, inArray } from "drizzle-orm"
 import { alias } from "drizzle-orm/mysql-core";
 import { orders, orderItems, warehouseStock, shops, users, products, notifications, warehouses, payments, loadingLists, loadingListOrders, auditLog, debtReminders, orderAdjustments, territories } from "@db/schema";
 import { recalcShopDebt } from "./shop-debt";
+import { OPEN_ORDER_STATUSES, CLOSED_ORDER_STATUSES, holdsStock, deductsStock } from "../lib/order-status";
 import { recordStockMovement } from "./stock-ledger";
 
 /** Second reference to `users` for courier joins alongside the agent join. */
@@ -39,21 +40,6 @@ async function resolveOrderWarehouse(tx: Tx, tenantId: number, requested?: numbe
  */
 async function settleShopDebt(tx: Tx, tenantId: number, shopId: number): Promise<void> {
   await recalcShopDebt(tx, tenantId, shopId);
-}
-
-/** Stock is held while order is active (not delivered, cancelled, or returned). */
-/** Still moving through the pipeline — nothing final has happened to the goods yet. */
-const OPEN_ORDER_STATUSES = ["new", "processing", "shipped", "pending"] as const;
-/** Goods are no longer in play — delivered, cancelled, or returned. */
-const CLOSED_ORDER_STATUSES = ["delivered", "cancelled", "returned"] as const;
-
-function holdsStock(status: string): boolean {
-  return (OPEN_ORDER_STATUSES as readonly string[]).includes(status);
-}
-
-/** Status that triggers stock deduction (goods left the warehouse). */
-function deductsStock(status: string): boolean {
-  return status === "delivered" || status === "completed";
 }
 
 /** Status that releases stock (goods returned to warehouse). */
@@ -148,9 +134,6 @@ async function applyStockDelta(
     notes: "Корректировка состава выполненного заказа",
   });
 }
-
-/** Delivered statuses — includes legacy "completed" for backwards compatibility. */
-const DELIVERED_STATUSES = ["delivered", "completed"];
 
 /**
  * Records a partial (or full) payment against an already-delivered order.

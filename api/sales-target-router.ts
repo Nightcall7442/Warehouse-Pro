@@ -3,6 +3,7 @@ import { createRouter, operatorQuery, authedQuery, supervisorQuery } from "./mid
 import { getDb } from "./queries/connection";
 import { salesTargets, users, orders, dailyPlans } from "@db/schema";
 import { eq, and, gte, lte, sql, desc , inArray } from "drizzle-orm";
+import { REVENUE_ORDER_STATUSES } from "./lib/order-status";
 import { cache, CacheKeys } from "./lib/cache";
 import { suggestQuotas } from "./services/quota-suggest";
 
@@ -176,7 +177,7 @@ export const salesTargetRouter = createRouter({
         const conditions = [
           eq(orders.tenantId, ctx.tenant.id),
           eq(orders.agentId, target.userId),
-          inArray(orders.status, ["delivered", "completed"]),
+          inArray(orders.status, REVENUE_ORDER_STATUSES),
           gte(orders.createdAt, target.periodStart),
           lte(orders.createdAt, target.periodEnd + " 23:59:59"),
         ];

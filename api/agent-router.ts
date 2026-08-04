@@ -3,6 +3,7 @@ import { createRouter, fieldSalesQuery, merchVisitQuery, supervisorQuery, authed
 import { getDb } from "./queries/connection";
 import { agentLocations, dailyPlans, shops, users, agentTerritories, territories } from "@db/schema";
 import { eq, and, sql, desc, gte, lte , inArray } from "drizzle-orm";
+import { REVENUE_ORDER_STATUSES } from "./lib/order-status";
 import { sseBus } from "./lib/sse";
 import { sanitizeString } from "./lib/sanitize";
 import { verifyVisit } from "./services/anti-fraud";
@@ -556,7 +557,7 @@ export const agentRouter = createRouter({
       visitCount: sql<number>`count(DISTINCT ${dailyPlans.id})`,
     })
       .from(users)
-      .leftJoin(orders, and(eq(orders.agentId, users.id), sql`${orders.createdAt} >= ${weekAgo}`, inArray(orders.status, ["delivered", "completed"])))
+      .leftJoin(orders, and(eq(orders.agentId, users.id), sql`${orders.createdAt} >= ${weekAgo}`, inArray(orders.status, REVENUE_ORDER_STATUSES)))
       .leftJoin(dailyPlans, and(eq(dailyPlans.agentId, users.id), sql`${dailyPlans.planDate} >= ${weekAgo}`, eq(dailyPlans.status, "visited")))
       .where(and(eq(users.tenantId, tenantId), eq(users.role, "agent"), eq(users.status, "active")))
       .groupBy(users.id)
@@ -570,7 +571,7 @@ export const agentRouter = createRouter({
       monthlyOrders: sql<number>`(SELECT count(*) FROM ${orders} WHERE agent_id = ${ctx.user.id} AND created_at >= ${monthAgo} AND status = 'delivered')`,
     })
       .from(orders)
-      .where(and(eq(orders.agentId, ctx.user.id), sql`${orders.createdAt} >= ${weekAgo}`, inArray(orders.status, ["delivered", "completed"])));
+      .where(and(eq(orders.agentId, ctx.user.id), sql`${orders.createdAt} >= ${weekAgo}`, inArray(orders.status, REVENUE_ORDER_STATUSES)));
 
     // Calculate streak: consecutive days with at least 1 completed order
     const streakData = await db.select({
@@ -580,7 +581,7 @@ export const agentRouter = createRouter({
       .from(orders)
       .where(and(
         eq(orders.agentId, ctx.user.id),
-        inArray(orders.status, ["delivered", "completed"]),
+        inArray(orders.status, REVENUE_ORDER_STATUSES),
         sql`${orders.createdAt} >= ${new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()}`,
       ))
       .groupBy(sql`DATE(${orders.createdAt})`)
@@ -605,7 +606,7 @@ export const agentRouter = createRouter({
     const achievements = [];
     const totalAllTime = await db.select({ count: sql<number>`count(*)` })
       .from(orders)
-      .where(and(eq(orders.agentId, ctx.user.id), inArray(orders.status, ["delivered", "completed"])));
+      .where(and(eq(orders.agentId, ctx.user.id), inArray(orders.status, REVENUE_ORDER_STATUSES)));
 
     const total = Number(totalAllTime[0]?.count ?? 0);
     if (total >= 1) achievements.push({ id: "first_order", title: "Первый заказ", titleUz: "Birinchi buyurtma", icon: "🎯", unlocked: true });
@@ -622,7 +623,7 @@ export const agentRouter = createRouter({
       revenue: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
     })
       .from(users)
-      .leftJoin(orders, and(eq(orders.agentId, users.id), sql`${orders.createdAt} >= ${monthAgo}`, inArray(orders.status, ["delivered", "completed"])))
+      .leftJoin(orders, and(eq(orders.agentId, users.id), sql`${orders.createdAt} >= ${monthAgo}`, inArray(orders.status, REVENUE_ORDER_STATUSES)))
       .where(and(eq(users.tenantId, tenantId), eq(users.role, "agent")))
       .groupBy(users.id)
       .orderBy(desc(sql`SUM(${orders.total})`))
