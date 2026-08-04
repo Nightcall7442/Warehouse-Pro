@@ -1,6 +1,7 @@
 import { memo } from "react";
 import { kpiTint, kpiAccent } from "@/lib/kpi-tint";
 import { ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
+import { colorMix } from "@/lib/color-mix";
 
 /**
  * Shared design tokens for the Orders surface (page, slide-over, modals,
@@ -98,8 +99,8 @@ export const StatusBadge = memo(function StatusBadge({ status, lang }: { status:
     <span style={{
       display: "inline-flex", alignItems: "center", gap: "6px",
       padding: "4px 10px", borderRadius: "9999px", fontSize: "11px", fontWeight: 500,
-      fontFamily: F.body, border: `1px solid ${s.dot}25`,
-      background: `${s.dot}15`, color: s.dot,
+      fontFamily: F.body, border: `1px solid ${colorMix(s.dot, 15)}`,
+      background: colorMix(s.dot, 8), color: s.dot,
     }}>
       <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: s.dot, flexShrink: 0 }} />
       {lang === "uz" ? s.uz : s.ru}
@@ -133,7 +134,7 @@ export function PillButton({ onClick, disabled, tone = "neutral", type, children
   const styles: Record<string, React.CSSProperties> = {
     primary: { background: COLORS.primary, color: COLORS.onPrimary, border: "none" },
     success: { background: "linear-gradient(135deg, var(--color-success), #28a862)", color: "#fff", border: "none" },
-    danger:  { background: `${COLORS.danger}12`, color: COLORS.danger, border: `1px solid ${COLORS.danger}30` },
+    danger:  { background: colorMix(COLORS.danger, 7), color: COLORS.danger, border: `1px solid ${colorMix(COLORS.danger, 19)}` },
     neutral: { background: COLORS.surface, color: COLORS.textSecondary, border: `1px solid ${COLORS.border}` },
     ghost:   { background: "transparent", color: COLORS.textSecondary, border: "none" },
   };

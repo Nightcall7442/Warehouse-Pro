@@ -17,6 +17,7 @@ import { AdjustModal, unitLabel, toKg } from "@/components/warehouse";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { formatQty } from "@/lib/format";
+import { colorMix } from "@/lib/color-mix";
 
 // ── Main warehouse page ───────────────────────────────────────────────────────
 export default function Warehouse() {
@@ -487,7 +488,7 @@ export default function Warehouse() {
                         <Clock size={14} color={badgeColor} />
                         <span className="text-sm font-semibold" style={{ color: "var(--color-text-primary, #2b3450)" }}>{item.productName}</span>
                       </div>
-                      <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ background: `${badgeColor}15`, color: badgeColor }}>
+                      <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ background: colorMix(badgeColor, 8), color: badgeColor }}>
                         {days === 99999 ? t("Никогда", "Hech qachon") : `${days} ${t("дн", "kun")}`}
                       </span>
                     </div>
@@ -548,7 +549,7 @@ export default function Warehouse() {
                         </td>
                         <td className="px-5 py-3.5" style={{ borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
                           <span className="text-xs px-2.5 py-1 rounded-full font-semibold"
-                            style={{ background: `${badgeColor}15`, color: badgeColor }}>
+                            style={{ background: colorMix(badgeColor, 8), color: badgeColor }}>
                             {days === 99999 ? t("∞", "∞") : `${days} ${t("дн", "kun")}`}
                           </span>
                         </td>
@@ -598,7 +599,7 @@ export default function Warehouse() {
                       <div className="flex-1 p-4">
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-sm font-semibold" style={{ color: "var(--color-text-primary, #2b3450)" }}>{item.productName}</span>
-                          <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ background: `${badgeColor}15`, color: badgeColor }}>
+                          <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ background: colorMix(badgeColor, 8), color: badgeColor }}>
                             {daysLeft} {t("дн до конца", "kun qoldi")}
                           </span>
                         </div>
@@ -651,7 +652,7 @@ export default function Warehouse() {
                         </td>
                         <td className="px-5 py-3.5" style={{ borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
                           <span className="text-xs px-2.5 py-1 rounded-full font-semibold"
-                            style={{ background: `${badgeColor}15`, color: badgeColor }}>
+                            style={{ background: colorMix(badgeColor, 8), color: badgeColor }}>
                             {daysLeft} {t("дн", "kun")}
                           </span>
                         </td>

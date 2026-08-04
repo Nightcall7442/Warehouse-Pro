@@ -3,6 +3,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { GripVertical, Store, User, MapPin } from "lucide-react";
 import { useTranslate } from "@/i18n";
 import { F, COLORS, PAYMENT } from "./theme";
+import { colorMix } from "@/lib/color-mix";
 
 interface OrderCard {
   id: number;
@@ -138,7 +139,7 @@ export function OrderKanbanBoard({ orders, onOrderClick, onStatusChange, currenc
                         {pm && (
                           <span style={{
                             fontFamily: F.body, fontSize: "10px", fontWeight: 600, padding: "2px 6px", borderRadius: "6px",
-                            color: pm.color, background: `${pm.color}15`,
+                            color: pm.color, background: colorMix(pm.color, 8),
                           }}>
                             {t(pm.ru, pm.uz)}
                           </span>

@@ -4,6 +4,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { X, Calendar, Bookmark, Save } from "lucide-react";
 import { useTranslate } from "@/i18n";
 import { F, COLORS } from "./theme";
+import { colorMix } from "@/lib/color-mix";
 
 export interface ActiveFilters {
   datePreset?: string;
@@ -49,9 +50,9 @@ function chipStyle(active: boolean, activeColor?: string): React.CSSProperties {
     height: "28px", padding: "0 12px", borderRadius: "9999px",
     fontFamily: F.body, fontSize: "12px", fontWeight: 600,
     cursor: "pointer", whiteSpace: "nowrap",
-    background: active ? `${activeColor ?? COLORS.primary}15` : COLORS.surface,
+    background: active ? colorMix(activeColor ?? COLORS.primary, 8) : COLORS.surface,
     color: active ? (activeColor ?? COLORS.primary) : COLORS.textSecondary,
-    border: `1px solid ${active ? `${activeColor ?? COLORS.primary}30` : COLORS.border}`,
+    border: `1px solid ${active ? colorMix(activeColor ?? COLORS.primary, 19) : COLORS.border}`,
   };
 }
 

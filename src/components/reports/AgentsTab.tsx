@@ -2,6 +2,7 @@ import { memo } from "react";
 import { Award, FileDown, Printer, BarChart3 } from "lucide-react";
 import { F, COLORS } from "./report-constants";
 import { GlassPanel } from "./ReportCharts";
+import { colorMix } from "@/lib/color-mix";
 
 const MEDALS = ["🥇", "🥈", "🥉"];
 const MEDAL_COLORS = ["var(--color-warning)", "var(--color-text-tertiary, #98a0b8)", "var(--color-warning)"];
@@ -18,7 +19,7 @@ const AgentCard = memo(function AgentCard({ agent: a, rank, fmt, days }: { agent
     }}>
       <div style={{
         width: "40px", height: "40px", borderRadius: "12px", display: "flex", alignItems: "center", justifyContent: "center",
-        background: isTop3 ? `${MEDAL_COLORS[rank]}15` : COLORS.surfaceLight,
+        background: isTop3 ? colorMix(MEDAL_COLORS[rank], 8) : COLORS.surfaceLight,
         fontFamily: F.body, fontSize: "16px", fontWeight: 700,
         color: isTop3 ? MEDAL_COLORS[rank] : COLORS.textTertiary,
       }}>

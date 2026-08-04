@@ -33,6 +33,7 @@ import { QuickOrderModal } from "@/components/orders/QuickOrderModal";
 import { CompletionFlowModal } from "@/components/orders/CompletionFlowModal";
 import type { CompletionData, CompletionMode } from "@/components/orders/CompletionFlowModal";
 import { F, COLORS, SHADOW, OPEN_STATUSES, PAYMENT, STATUS, KpiCard, StatusBadge } from "@/components/orders/theme";
+import { colorMix } from "@/lib/color-mix";
 
 export default function Orders() {
   const [page, setPage]     = useState(1);
@@ -72,6 +73,7 @@ export default function Orders() {
   const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);
 
   const [status, setStatus] = useState(searchParams.get("status") ?? "");
+  const [agentFilter, setAgentFilter] = useState("");
   const [section, setSection] = useState<"active" | "archive">("active");
 
   // ── New feature state ──
@@ -164,6 +166,7 @@ export default function Orders() {
     dateFrom: effectiveDateFrom || undefined,
     dateTo: effectiveDateTo || undefined,
     paymentMethod: effectivePaymentMethod as "cash" | "card" | "transfer" | "debt" | undefined,
+    agentId: agentFilter ? Number(agentFilter) : undefined,
   });
 
   const { data: allOrders, refetch: refetchAllOrders } = trpc.order.list.useQuery(
@@ -181,7 +184,16 @@ export default function Orders() {
       archived: section === "archive",
       search: search || undefined,
     },
-    { enabled: viewMode === "agents" && isOperatorOrCeo },
+    // Also feeds the "Агент" filter in the toolbar, so it stays loaded in
+    // every view — not just the by-agent one.
+    { enabled: isOperatorOrCeo },
+  );
+
+  const agentFilterOptions = useMemo(
+    () => (agentSummary ?? [])
+      .filter(a => a.orderCount > 0)
+      .map(a => ({ value: String(a.agentId), label: `${a.agentName.trim()} (${a.orderCount})` })),
+    [agentSummary],
   );
 
   const { data: expandedAgentOrders, isLoading: expandedOrdersLoading } = trpc.order.list.useQuery(
@@ -551,6 +563,22 @@ export default function Orders() {
         <PremiumSelect value={status} onChange={v => { setStatus(v); setPage(1); }}
           options={[{value:"",label:t("Все статусы","Barcha holatlar")},...Object.entries(STATUS).map(([k,v])=>({value:k,label:lang==="uz"?v.uz:v.ru}))]}
           width="180px" />
+        {isOperatorOrCeo && (
+          <PremiumSelect
+            value={agentFilter}
+            onChange={v => { setAgentFilter(v); setPage(1); }}
+            aria-label={t("Агент", "Agent")}
+            options={[
+              { value: "", label: t("Все агенты", "Barcha agentlar") },
+              // Sourced from the same rollup the by-agent view uses, so the
+              // list covers everyone who actually placed an order — including
+              // an operator or CEO who entered one directly, or a since-
+              // deactivated agent. A plain role='agent' list would quietly
+              // offer no way to filter to those orders.
+              ...agentFilterOptions,
+            ]}
+            width="200px" />
+        )}
       </div>
 
       {/* By-agent view */}
@@ -669,7 +697,7 @@ export default function Orders() {
                               <span style={{
                                 display: "inline-flex", alignItems: "center", gap: "4px", marginTop: "4px",
                                 fontSize: "10px", fontWeight: 600, color: PAYMENT[o.paymentMethod].color,
-                                background: `${PAYMENT[o.paymentMethod].color}12`,
+                                background: colorMix(PAYMENT[o.paymentMethod].color, 7),
                                 padding: "2px 6px", borderRadius: "4px",
                               }}>
                                 {PAYMENT[o.paymentMethod][lang]}
@@ -746,10 +774,10 @@ export default function Orders() {
                         borderBottom: `1px solid ${COLORS.border}`,
                         cursor: "pointer", transition: "background 0.15s",
                         opacity: o.deletedAt ? 0.5 : 1,
-                        background: o.deletedAt ? `${COLORS.danger}08` : "transparent",
+                        background: o.deletedAt ? colorMix(COLORS.danger, 3) : "transparent",
                       }}
-                      onMouseEnter={e => (e.currentTarget.style.background = `${COLORS.surfaceLight}80`)}
-                      onMouseLeave={e => (e.currentTarget.style.background = o.deletedAt ? `${COLORS.danger}08` : "transparent")}
+                      onMouseEnter={e => (e.currentTarget.style.background = colorMix(COLORS.surfaceLight, 50))}
+                      onMouseLeave={e => (e.currentTarget.style.background = o.deletedAt ? colorMix(COLORS.danger, 3) : "transparent")}
                       onClick={() => setSlideOverOrderId(o.id as number)}
                     >
                       <td style={{ padding: "14px 8px 14px 16px", textAlign: "center" }} onClick={e => e.stopPropagation()}>
@@ -775,7 +803,7 @@ export default function Orders() {
                           <span style={{
                             display: "inline-flex", alignItems: "center", gap: "4px",
                             fontSize: "11px", fontWeight: 600, color: PAYMENT[o.paymentMethod].color,
-                            background: `${PAYMENT[o.paymentMethod].color}12`,
+                            background: colorMix(PAYMENT[o.paymentMethod].color, 7),
                             padding: "3px 8px", borderRadius: "6px",
                           }}>
                             {PAYMENT[o.paymentMethod][lang]}
@@ -793,7 +821,7 @@ export default function Orders() {
                             <SelectTrigger style={{
                               height: "28px", padding: "0 8px", fontSize: "11px", fontWeight: 600,
                               borderRadius: "9999px", border: "none", width: "auto",
-                              background: `${STATUS[o.status]?.dot ?? "#5b6d8a"}15`,
+                              background: colorMix(STATUS[o.status]?.dot ?? "#5b6d8a", 8),
                               color: STATUS[o.status]?.dot ?? "#5b6d8a",
                             }}>
                               <SelectValue />
@@ -818,8 +846,8 @@ export default function Orders() {
                               style={{
                                 display: "flex", alignItems: "center", gap: "4px",
                                 padding: "4px 10px", fontSize: "11px", fontWeight: 500, fontFamily: F.body,
-                                borderRadius: "8px", border: `1px solid ${COLORS.success}40`, cursor: "pointer",
-                                background: `${COLORS.success}15`, color: COLORS.success,
+                                borderRadius: "8px", border: `1px solid ${colorMix(COLORS.success, 25)}`, cursor: "pointer",
+                                background: colorMix(COLORS.success, 8), color: COLORS.success,
                               }}
                             >
                               <RotateCcw size={11} />
@@ -860,8 +888,8 @@ export default function Orders() {
                                 style={{
                                   display: "flex", alignItems: "center", gap: "4px",
                                   padding: "4px 10px", fontSize: "11px", fontWeight: 500, fontFamily: F.body,
-                                  borderRadius: "8px", border: `1px solid ${COLORS.danger}40`, cursor: "pointer",
-                                  background: `${COLORS.danger}10`, color: COLORS.danger,
+                                  borderRadius: "8px", border: `1px solid ${colorMix(COLORS.danger, 25)}`, cursor: "pointer",
+                                  background: colorMix(COLORS.danger, 6), color: COLORS.danger,
                                 }}
                               >
                                 <Trash2 size={11} />
@@ -878,8 +906,8 @@ export default function Orders() {
                               style={{
                                 display: "flex", alignItems: "center", gap: "4px",
                                 padding: "4px 10px", fontSize: "11px", fontWeight: 500, fontFamily: F.body,
-                                borderRadius: "8px", border: `1px solid ${COLORS.danger}40`, cursor: "pointer",
-                                background: `${COLORS.danger}10`, color: COLORS.danger,
+                                borderRadius: "8px", border: `1px solid ${colorMix(COLORS.danger, 25)}`, cursor: "pointer",
+                                background: colorMix(COLORS.danger, 6), color: COLORS.danger,
                               }}
                             >
                               <Trash2 size={11} />

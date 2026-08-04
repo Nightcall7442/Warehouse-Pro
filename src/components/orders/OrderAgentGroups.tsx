@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ChevronRight, User, AlertCircle, CheckSquare, Square, Package } from "lucide-react";
 import { F, COLORS, SHADOW, STATUS, PAYMENT } from "./theme";
+import { colorMix } from "@/lib/color-mix";
 
 export interface AgentSummaryRow {
   agentId: number;
@@ -292,7 +293,7 @@ function AgentRow({
                       <span style={{
                         fontFamily: F.body, fontSize: "10px", fontWeight: 600,
                         padding: "2px 7px", borderRadius: "6px", flexShrink: 0,
-                        background: `${pay.color}18`, color: pay.color,
+                        background: colorMix(pay.color, 9), color: pay.color,
                       }}>
                         {lang === "uz" ? pay.uz : pay.ru}
                       </span>
@@ -302,7 +303,7 @@ function AgentRow({
                       <span style={{
                         fontFamily: F.body, fontSize: "10px", fontWeight: 600,
                         padding: "2px 8px", borderRadius: "6px", flexShrink: 0,
-                        background: `${st.dot}18`, color: st.dot,
+                        background: colorMix(st.dot, 9), color: st.dot,
                       }}>
                         {lang === "uz" ? st.uz : st.ru}
                       </span>

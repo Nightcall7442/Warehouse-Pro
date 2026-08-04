@@ -6,6 +6,7 @@ import { trpc } from "@/providers/trpc";
 import { exportToExcel, formatMovementsForExport } from "@/lib/excel";
 import { MOVE_TYPE } from "./warehouse-utils";
 import { formatQty } from "@/lib/format";
+import { colorMix } from "@/lib/color-mix";
 
 export function MovementHistory({ productId, productName }: { productId: number; productName: string }) {
   const [open, setOpen] = useState(false);
@@ -44,7 +45,7 @@ export function MovementHistory({ productId, productName }: { productId: number;
                   <div key={m.id} className="flex items-start gap-3 py-3 px-4 rounded-xl"
                     style={{ background: "var(--color-surface-light, #f0f3f8)", boxShadow: "0 1px 2px rgba(0,0,0,.04)" }}>
                     <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                      style={{ background: `${mt.color}15` }}>
+                      style={{ background: colorMix(mt.color, 8) }}>
                       <Icon size={14} style={{ color: mt.color }} />
                     </div>
                     <div className="flex-1 min-w-0">

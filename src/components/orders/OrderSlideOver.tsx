@@ -28,6 +28,7 @@ import { CompletionFlowModal } from "./CompletionFlowModal";
 import { useInvalidateOrderCaches } from "@/hooks/useOrderCacheSync";
 import type { CompletionData, CompletionMode } from "./CompletionFlowModal";
 import { F, COLORS, STATUS, PAYMENT, StatusBadge, InfoCard, PillButton } from "./theme";
+import { colorMix } from "@/lib/color-mix";
 
 interface Props {
   open: boolean;
@@ -76,7 +77,7 @@ function DebtBlock({ debt, orderTotal, currency }: { debt: string; orderTotal: s
   }
 
   return (
-    <div style={{ padding: "12px", borderRadius: "12px", background: `${color}0d`, border: `1px solid ${color}30` }}>
+    <div style={{ padding: "12px", borderRadius: "12px", background: colorMix(color, 5), border: `1px solid ${colorMix(color, 19)}` }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
         <span style={{ fontFamily: F.body, fontSize: "11px", color: COLORS.textTertiary }}>{t("Задолженность магазина", "Do'kon qarzi")}</span>
         {debtAmount > 500_000 && <AlertTriangle size={14} color={color} />}
@@ -430,7 +431,7 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
                     <SelectTrigger style={{
                       height: "26px", padding: "0 10px", fontFamily: F.body, fontSize: "11px", fontWeight: 600,
                       borderRadius: "9999px", border: "none", width: "auto",
-                      background: `${STATUS[order.status]?.dot ?? COLORS.primary}15`,
+                      background: colorMix(STATUS[order.status]?.dot ?? COLORS.primary, 8),
                       color: STATUS[order.status]?.dot ?? COLORS.primary,
                     }}>
                       <SelectValue />
@@ -481,7 +482,7 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
                         <span style={{
                           display: "inline-flex", padding: "4px 12px", borderRadius: "9999px",
                           fontFamily: F.body, fontSize: "11px", fontWeight: 600,
-                          background: `${pm.color}15`, color: pm.color, border: `1px solid ${pm.color}30`,
+                          background: colorMix(pm.color, 8), color: pm.color, border: `1px solid ${colorMix(pm.color, 19)}`,
                         }}>
                           {t(pm.ru, pm.uz)}
                         </span>
@@ -780,13 +781,13 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
                     { label: t("ТОРГ-12 (РФ)", "TORg-12 (RF)"),                       fn: () => { const d = buildDocData(); if (d) printTorg12(d); } },
                   ].map(item => (
                     <DocRow key={item.label} label={item.label} onClick={item.fn}
-                      icon={<Printer size={14} color={COLORS.primary} />} iconBg={`${COLORS.primary}15`} />
+                      icon={<Printer size={14} color={COLORS.primary} />} iconBg={colorMix(COLORS.primary, 8)} />
                   ))}
 
                   <Separator />
 
                   <DocRow label={t("Экспорт в Excel", "Excelga eksport")} onClick={handleExport}
-                    icon={<FileDown size={14} color={COLORS.success} />} iconBg={`${COLORS.success}15`} />
+                    icon={<FileDown size={14} color={COLORS.success} />} iconBg={colorMix(COLORS.success, 8)} />
 
                   {/* Print history */}
                   <InfoCard label={t("СТАТУС ПЕЧАТИ", "CHOP ETISH HOLATI")} icon={null}>

@@ -56,7 +56,7 @@ export function SubscriptionPlanCard({
         (e.currentTarget as HTMLElement).style.boxShadow = isPro
           ? `${SHADOWS.xl}, ${SHADOWS.glow("primary", 0.12)}`
           : isCurrent
-            ? `${SHADOWS.lg}, 0 0 0 2px ${COLORS.primary}30`
+            ? `${SHADOWS.lg}, 0 0 0 2px ${colorMix(COLORS.primary, 19)}`
             : SHADOWS.md;
       }}
     >
@@ -76,7 +76,7 @@ export function SubscriptionPlanCard({
           fontWeight: "700",
           color: "#fff",
           background: GRADIENTS.button,
-          boxShadow: `0 2px 8px ${COLORS.primary}40`,
+          boxShadow: `0 2px 8px ${colorMix(COLORS.primary, 25)}`,
           whiteSpace: "nowrap",
         }}>
           <Zap size={11} />
@@ -136,7 +136,7 @@ export function SubscriptionPlanCard({
       {/* Divider */}
       <div style={{
         height: "1px",
-        background: `linear-gradient(90deg, transparent, ${COLORS.textTertiary}30, transparent)`,
+        background: `linear-gradient(90deg, transparent, ${colorMix(COLORS.textTertiary, 19)}, transparent)`,
         margin: "4px 0",
       }} />
 
@@ -202,20 +202,20 @@ export function SubscriptionPlanCard({
             cursor: isPending ? "not-allowed" : "pointer",
             color: "#fff",
             background: isPro ? GRADIENTS.button : `${COLORS.primary}`,
-            boxShadow: isPro ? `0 4px 14px ${COLORS.primary}40` : SHADOWS.sm,
+            boxShadow: isPro ? `0 4px 14px ${colorMix(COLORS.primary, 25)}` : SHADOWS.sm,
             transition: "all 0.2s ease",
             opacity: isPending ? 0.7 : 1,
           }}
           onMouseEnter={(e) => {
             if (!isPending) {
               (e.target as HTMLElement).style.background = isPro ? GRADIENTS.buttonHover : COLORS.primaryDark;
-              (e.target as HTMLElement).style.boxShadow = isPro ? `0 6px 20px ${COLORS.primary}50` : SHADOWS.md;
+              (e.target as HTMLElement).style.boxShadow = isPro ? `0 6px 20px ${colorMix(COLORS.primary, 31)}` : SHADOWS.md;
               (e.target as HTMLElement).style.transform = "translateY(-1px)";
             }
           }}
           onMouseLeave={(e) => {
             (e.target as HTMLElement).style.background = isPro ? GRADIENTS.button : COLORS.primary;
-            (e.target as HTMLElement).style.boxShadow = isPro ? `0 4px 14px ${COLORS.primary}40` : SHADOWS.sm;
+            (e.target as HTMLElement).style.boxShadow = isPro ? `0 4px 14px ${colorMix(COLORS.primary, 25)}` : SHADOWS.sm;
             (e.target as HTMLElement).style.transform = "translateY(0)";
           }}
         >
@@ -243,3 +243,4 @@ export function SubscriptionPlanCard({
 
 // Re-export Check for usage in plan features
 import { Check, Loader2 } from "lucide-react";
+import { colorMix } from "@/lib/color-mix";

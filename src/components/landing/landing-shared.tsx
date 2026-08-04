@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, type ReactNode } from "react";
 import { ChevronDown, MapPin } from "lucide-react";
+import { colorMix } from "@/lib/color-mix";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DESIGN TOKENS — Soft UI / Neumorphic
@@ -374,7 +375,7 @@ function MapTab() {
         <div
           key={i}
           className="absolute w-2.5 h-2.5 rounded-full"
-          style={{ left: `${p.x}%`, top: `${p.y}%`, background: p.tone, boxShadow: `0 0 0 4px ${p.tone}22` }}
+          style={{ left: `${p.x}%`, top: `${p.y}%`, background: p.tone, boxShadow: `0 0 0 4px ${colorMix(p.tone, 13)}` }}
         />
       ))}
       <div className={cn("absolute bottom-3 left-3 right-3 rounded-xl px-3 py-2.5 flex items-center gap-2", raisedSm)} style={{ background: NEU.bg }}>

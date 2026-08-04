@@ -3,6 +3,7 @@ import { useNavigate } from "react-router";
 import { useLang } from "@/i18n";
 import { useCurrency } from "@/hooks/useCurrency";
 import { Trophy, Flame, Target, Award, TrendingUp } from "lucide-react";
+import { colorMix } from "@/lib/color-mix";
 
 interface LeaderboardEntry {
   rank: number;
@@ -135,13 +136,13 @@ export const GamificationCard = memo(function GamificationCard({ data }: { data:
             {data.leaderboard.slice(0, 5).map((entry, i) => (
               <div key={entry.agentId} style={{
                 display: "flex", alignItems: "center", gap: "10px", padding: "8px 12px",
-                borderRadius: "10px", background: i < 3 ? `${RANK_COLORS[i]}08` : "transparent",
-                border: i < 3 ? `1px solid ${RANK_COLORS[i]}20` : "1px solid transparent",
+                borderRadius: "10px", background: i < 3 ? colorMix(RANK_COLORS[i], 3) : "transparent",
+                border: i < 3 ? `1px solid ${colorMix(RANK_COLORS[i], 13)}` : "1px solid transparent",
               }}>
                 <div style={{
                   width: "24px", height: "24px", borderRadius: "6px", display: "flex",
                   alignItems: "center", justifyContent: "center", fontSize: "12px", fontWeight: 700,
-                  background: i < 3 ? `${RANK_COLORS[i]}15` : "var(--color-surface-light)",
+                  background: i < 3 ? colorMix(RANK_COLORS[i], 8) : "var(--color-surface-light)",
                   color: i < 3 ? RANK_COLORS[i] : "var(--color-text-tertiary)",
                 }}>
                   {i < 3 ? RANK_ICONS[i] : entry.rank}

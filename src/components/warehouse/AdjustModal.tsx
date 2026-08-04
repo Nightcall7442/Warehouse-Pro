@@ -4,6 +4,7 @@ import { X, TrendingUp, TrendingDown, ArrowUpDown, Scale, Loader2 } from "lucide
 import { useLang } from "@/i18n";
 import { toKg } from "./warehouse-utils";
 import { formatQty } from "@/lib/format";
+import { colorMix } from "@/lib/color-mix";
 
 export const AdjustModal = memo(function AdjustModal({ productId, productName, currentStock, unitWeight, warehouseId, onSave, onClose, isPending }: {
   productId: number; productName: string; currentStock: number;
@@ -72,9 +73,9 @@ export const AdjustModal = memo(function AdjustModal({ productId, productName, c
                 <button key={opt.value} onClick={() => setType(opt.value)}
                   className="p-3 rounded-xl text-center transition-all"
                   style={{
-                    background: active ? `${opt.color}15` : "var(--color-surface-light, #f0f3f8)",
+                    background: active ? colorMix(opt.color, 8) : "var(--color-surface-light, #f0f3f8)",
                     border: `2px solid ${active ? opt.color : "transparent"}`,
-                    boxShadow: active ? `0 0 0 1px ${opt.color}20` : "none",
+                    boxShadow: active ? `0 0 0 1px ${colorMix(opt.color, 13)}` : "none",
                   }}>
                   <Icon size={20} style={{ color: opt.color, margin: "0 auto 6px" }} />
                   <p className="text-xs font-semibold" style={{ color: active ? opt.color : "var(--color-text-primary, #2b3450)" }}>
@@ -146,7 +147,7 @@ export const AdjustModal = memo(function AdjustModal({ productId, productName, c
           <button onClick={() => qty && numQty > 0 && onSave({ productId, warehouseId, quantity: qty, type, notes })}
             disabled={!qty || numQty <= 0 || isPending}
             className="flex-1 py-3 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 transition-all disabled:opacity-40"
-            style={{ background: `linear-gradient(135deg, ${currentType.color}, ${currentType.color}cc)`, boxShadow: `0 4px 16px ${currentType.color}30` }}>
+            style={{ background: `linear-gradient(135deg, ${currentType.color}, ${colorMix(currentType.color, 80)})`, boxShadow: `0 4px 16px ${colorMix(currentType.color, 19)}` }}>
             {isPending && <Loader2 size={16} className="animate-spin" />}
             {t("Применить", "Qo'llash")}
           </button>

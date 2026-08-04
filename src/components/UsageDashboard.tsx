@@ -3,6 +3,7 @@ import { useNavigate } from "react-router";
 import { useLang } from "@/i18n";
 import { trpc } from "@/providers/trpc";
 import { Users, Package, ShoppingCart, AlertTriangle, ArrowRight, Zap } from "lucide-react";
+import { colorMix } from "@/lib/color-mix";
 
 
 interface UsageData {
@@ -117,7 +118,7 @@ export const UsageDashboard = memo(function UsageDashboard() {
             <div key={m.label} style={{ display: "flex", alignItems: "center", gap: "12px" }}>
               <div style={{
                 width: "32px", height: "32px", borderRadius: "8px",
-                background: `${m.color}15`, display: "flex",
+                background: colorMix(m.color, 8), display: "flex",
                 alignItems: "center", justifyContent: "center", flexShrink: 0,
               }}>
                 <Icon size={14} style={{ color: m.color }} />

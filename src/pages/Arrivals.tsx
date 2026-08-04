@@ -14,6 +14,7 @@ import { PremiumSelect } from "@/components/PremiumSelect";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { formatQty } from "@/lib/format";
+import { colorMix } from "@/lib/color-mix";
 
 const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
 const COLORS = {
@@ -81,7 +82,7 @@ const StatusBadge = memo(function StatusBadge({ status, lang }: { status: string
     <span style={{
       display: "inline-flex", alignItems: "center", gap: "6px", padding: "4px 12px",
       borderRadius: "24px", fontSize: "11px", fontWeight: 600,
-      background: `${s.color}12`, color: s.color, fontFamily: F.body,
+      background: colorMix(s.color, 7), color: s.color, fontFamily: F.body,
     }}>
       <span style={{ width: 6, height: 6, borderRadius: "50%", background: s.color }} />
       {lang === "uz" ? s.uz : s.ru}

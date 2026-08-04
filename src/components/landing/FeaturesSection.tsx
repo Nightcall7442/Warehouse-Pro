@@ -20,6 +20,7 @@ import {
   Settings as SettingsIcon,
 } from "lucide-react";
 import { cn, NEU, insetSm, ROLE_TONES, FadeIn, Stagger, NeuCard, Eyebrow } from "./landing-shared";
+import { colorMix } from "@/lib/color-mix";
 
 export default function FeaturesSection() {
   const tr = useTranslate();
@@ -207,7 +208,7 @@ export default function FeaturesSection() {
                   <div
                     key={i}
                     className="absolute w-2.5 h-2.5 rounded-full"
-                    style={{ left: `${p.x}%`, top: `${p.y}%`, background: p.tone, boxShadow: `0 0 0 4px ${p.tone}22` }}
+                    style={{ left: `${p.x}%`, top: `${p.y}%`, background: p.tone, boxShadow: `0 0 0 4px ${colorMix(p.tone, 13)}` }}
                   />
                 ))}
                 <div className={cn("absolute bottom-3 left-3 right-3 rounded-xl px-3 py-2.5 flex items-center gap-2", "shadow-[3px_3px_7px_rgba(163,158,143,0.35),-3px_-3px_7px_rgba(255,255,255,0.9)]")} style={{ background: NEU.bg }}>

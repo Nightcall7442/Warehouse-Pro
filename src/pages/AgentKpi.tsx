@@ -9,6 +9,7 @@ import { Settings, Loader2, FileDown, Target, ShoppingCart, DollarSign, Users, P
 import { ProgressRing } from "@/components/ProgressRing";
 import { RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer } from "recharts";
 import { PremiumSelect } from "@/components/PremiumSelect";
+import { colorMix } from "@/lib/color-mix";
 
 interface KpiData {
   agentId: number; agentName: string; period: string;
@@ -395,7 +396,7 @@ function SupervisorView({ kpi, selectedKpi, selectedSalary, detailLoading, onSel
                       </div>
                     </td>
                     <td className="px-3 py-2.5 font-semibold" style={{ color: COLORS.textPrimary }}>{a.agentName}</td>
-                    <td className="px-3 py-2.5"><span className="px-2 py-0.5 rounded text-xs font-bold" style={{ background: `${grade.color}15`, color: grade.color }}>{a.kpiScore} • {a.kpiGrade}</span></td>
+                    <td className="px-3 py-2.5"><span className="px-2 py-0.5 rounded text-xs font-bold" style={{ background: colorMix(grade.color, 8), color: grade.color }}>{a.kpiScore} • {a.kpiGrade}</span></td>
                     <td className="px-3 py-2.5" style={{ color: COLORS.textPrimary }}>{a.orderCount}</td>
                     <td className="px-3 py-2.5 font-semibold" style={{ color: COLORS.textPrimary }}>{fmt(a.revenue)}</td>
                     <td className="px-3 py-2.5" style={{ color: COLORS.textPrimary }}>{a.visitedPlans}/{a.totalPlans}</td>

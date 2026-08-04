@@ -3,6 +3,7 @@
  * Each function returns an HTML string suitable for window.print().
  * Styles are embedded inline for maximum print compatibility.
  */
+import { colorMix } from "@/lib/color-mix";
 
 function escapeHtml(str: string | null | undefined): string {
   if (str == null) return "";
@@ -576,7 +577,7 @@ export function printInvoice(data: OrderDocData) {
     .split(/\s+/).map(w => w[0]).join("").toUpperCase().slice(0, 2);
 
   const pmBadge = data.paymentMethodLabel
-    ? `<span style="display:inline-block;padding:3px 12px;border-radius:20px;font-size:9pt;font-weight:600;background:${data.paymentMethodColor ?? "#5b6d8a"}18;color:${data.paymentMethodColor ?? "#5b6d8a"};border:1px solid ${data.paymentMethodColor ?? "#5b6d8a"}30">${escapeHtml(data.paymentMethodLabel)}</span>`
+    ? `<span style="display:inline-block;padding:3px 12px;border-radius:20px;font-size:9pt;font-weight:600;background:${colorMix(data.paymentMethodColor ?? "#5b6d8a", 9)};color:${data.paymentMethodColor ?? "#5b6d8a"};border:1px solid ${colorMix(data.paymentMethodColor ?? "#5b6d8a", 19)}">${escapeHtml(data.paymentMethodLabel)}</span>`
     : "";
 
   const INVOICE_STYLES = `
@@ -807,7 +808,7 @@ function buildDebtBlock(order: BatchOrderData, currency: string): string {
     : "Нет платежей за 30 дней";
 
   return `
-    <div style="margin:4px 0;padding:4px 8px;border:1px solid ${color}40;background:${color}08;font-size:8pt">
+    <div style="margin:4px 0;padding:4px 8px;border:1px solid ${colorMix(color, 25)};background:${colorMix(color, 3)};font-size:8pt">
       <b style="color:${color}">Долг: ${debt.toLocaleString("ru-RU")} ${currency}</b>
       <span style="color:${color};margin-left:6px;font-size:7pt">${label}</span>
       ${debt > 0 && Number(order.total) > 0 ? `<span style="margin-left:8px">К оплате: <b>${recommended.toLocaleString("ru-RU")} ${currency}</b></span>` : ""}

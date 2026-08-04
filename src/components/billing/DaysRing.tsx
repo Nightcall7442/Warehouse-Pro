@@ -1,4 +1,5 @@
 import { COLORS, FONTS } from "./designTokens";
+import { colorMix } from "@/lib/color-mix";
 
 interface DaysRingProps {
   daysLeft: number;
@@ -19,13 +20,13 @@ export function DaysRing({ daysLeft, total = 30, danger }: DaysRingProps) {
       height: "80px",
       flexShrink: 0,
       position: "relative",
-      filter: `drop-shadow(0 0 8px ${stroke}30)`,
+      filter: `drop-shadow(0 0 8px ${colorMix(stroke, 19)})`,
     }}>
       <svg width="80" height="80" style={{ transform: "rotate(-90deg)" }}>
         <circle
           cx="40" cy="40" r={r}
           fill="none"
-          stroke={`${stroke}20`}
+          stroke={colorMix(stroke, 13)}
           strokeWidth="6"
         />
         <circle
@@ -38,7 +39,7 @@ export function DaysRing({ daysLeft, total = 30, danger }: DaysRingProps) {
           strokeDashoffset={circ * (1 - pct)}
           style={{
             transition: "stroke-dashoffset 1s cubic-bezier(0.4, 0, 0.2, 1)",
-            filter: `drop-shadow(0 0 6px ${stroke}60)`,
+            filter: `drop-shadow(0 0 6px ${colorMix(stroke, 38)})`,
           }}
         />
       </svg>

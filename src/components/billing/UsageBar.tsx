@@ -1,4 +1,5 @@
 import { COLORS, FONTS } from "./designTokens";
+import { colorMix } from "@/lib/color-mix";
 
 interface UsageBarProps {
   used: number;
@@ -33,7 +34,7 @@ export function UsageBar({ used, max, label, icon: Icon }: UsageBarProps) {
             width: "32px",
             height: "32px",
             borderRadius: "10px",
-            background: `${barColor}15`,
+            background: colorMix(barColor, 8),
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -65,7 +66,7 @@ export function UsageBar({ used, max, label, icon: Icon }: UsageBarProps) {
       <div style={{
         height: "8px",
         borderRadius: "4px",
-        background: `${barColor}12`,
+        background: colorMix(barColor, 7),
         overflow: "hidden",
         position: "relative",
       }}>
@@ -74,11 +75,11 @@ export function UsageBar({ used, max, label, icon: Icon }: UsageBarProps) {
           borderRadius: "4px",
           width: `${pct}%`,
           background: max
-            ? `linear-gradient(90deg, ${barColor}, ${barColor}cc)`
+            ? `linear-gradient(90deg, ${barColor}, ${colorMix(barColor, 80)})`
             : `linear-gradient(90deg, ${COLORS.success}, #16A38A)`,
           transition: "width 0.8s cubic-bezier(0.4, 0, 0.2, 1)",
           animation: "progressFill 1s ease forwards",
-          boxShadow: `0 0 10px ${barColor}40`,
+          boxShadow: `0 0 10px ${colorMix(barColor, 25)}`,
         }} />
       </div>
     </div>

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useTranslate, useLang } from "@/i18n";
 import { F, COLORS, InfoCard, PillButton } from "./theme";
+import { colorMix } from "@/lib/color-mix";
 
 export type CompletionMode = "partial_return" | "partial_payment" | "combined";
 
@@ -245,7 +246,7 @@ export function CompletionFlowModal({
         {/* Header — fixed */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px", borderBottom: `1px solid ${COLORS.border}`, flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <div style={{ width: "40px", height: "40px", borderRadius: "12px", background: `${COLORS.primary}15`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ width: "40px", height: "40px", borderRadius: "12px", background: colorMix(COLORS.primary, 8), display: "flex", alignItems: "center", justifyContent: "center" }}>
               <ModeIcon size={20} color={COLORS.primary} />
             </div>
             <div>
@@ -266,7 +267,7 @@ export function CompletionFlowModal({
 
           {/* Error banner */}
           {error && (
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "12px", borderRadius: "10px", background: `${COLORS.danger}12`, border: `1px solid ${COLORS.danger}30`, fontFamily: F.body, fontSize: "13px", color: COLORS.danger }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "12px", borderRadius: "10px", background: colorMix(COLORS.danger, 7), border: `1px solid ${colorMix(COLORS.danger, 19)}`, fontFamily: F.body, fontSize: "13px", color: COLORS.danger }}>
               <AlertTriangle size={16} style={{ flexShrink: 0 }} />
               {error}
             </div>
@@ -286,7 +287,7 @@ export function CompletionFlowModal({
                     <div key={it.itemId} style={{
                       padding: "12px", borderRadius: "12px",
                       border: `1px solid ${it.isReturned ? COLORS.danger + "40" : COLORS.border}`,
-                      background: it.isReturned ? `${COLORS.danger}08` : COLORS.surfaceLight,
+                      background: it.isReturned ? colorMix(COLORS.danger, 3) : COLORS.surfaceLight,
                       transition: "background 0.15s",
                     }}>
                       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px", marginBottom: "8px" }}>
@@ -301,9 +302,9 @@ export function CompletionFlowModal({
                           onClick={() => toggleReturned(idx)}
                           style={{
                             padding: "6px 12px", borderRadius: "9999px", fontFamily: F.body, fontSize: "11px", fontWeight: 600, cursor: "pointer",
-                            background: it.isReturned ? `${COLORS.danger}15` : `${COLORS.success}15`,
+                            background: it.isReturned ? colorMix(COLORS.danger, 8) : colorMix(COLORS.success, 8),
                             color: it.isReturned ? COLORS.danger : COLORS.success,
-                            border: `1px solid ${it.isReturned ? COLORS.danger : COLORS.success}30`,
+                            border: `1px solid ${colorMix(it.isReturned ? COLORS.danger : COLORS.success, 19)}`,
                           }}
                         >
                           {it.isReturned ? t("Возврат", "Qaytarish") : t("Оставил", "Oldi")}
@@ -351,11 +352,11 @@ export function CompletionFlowModal({
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-                <div style={{ padding: "10px", borderRadius: "10px", background: `${COLORS.success}0d`, textAlign: "center" }}>
+                <div style={{ padding: "10px", borderRadius: "10px", background: colorMix(COLORS.success, 5), textAlign: "center" }}>
                   <p style={{ fontFamily: F.body, fontSize: "10px", color: COLORS.textSecondary }}>{t("Оставлено", "Olingan")}</p>
                   <p style={{ fontFamily: F.display, fontSize: "18px", fontWeight: 700, color: COLORS.success }}>{totalKept}</p>
                 </div>
-                <div style={{ padding: "10px", borderRadius: "10px", background: `${COLORS.danger}0d`, textAlign: "center" }}>
+                <div style={{ padding: "10px", borderRadius: "10px", background: colorMix(COLORS.danger, 5), textAlign: "center" }}>
                   <p style={{ fontFamily: F.body, fontSize: "10px", color: COLORS.textSecondary }}>{t("Возврат", "Qaytarilgan")}</p>
                   <p style={{ fontFamily: F.display, fontSize: "18px", fontWeight: 700, color: COLORS.danger }}>{totalReturned}</p>
                 </div>
@@ -389,7 +390,7 @@ export function CompletionFlowModal({
               </div>
 
               {paidAmount && Number(paidAmount) > 0 && Number(paidAmount) < total && (
-                <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "12px", borderRadius: "10px", background: `${COLORS.warning}12`, border: `1px solid ${COLORS.warning}30` }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "12px", borderRadius: "10px", background: colorMix(COLORS.warning, 7), border: `1px solid ${colorMix(COLORS.warning, 19)}` }}>
                   <AlertTriangle size={16} color={COLORS.warning} style={{ flexShrink: 0 }} />
                   <div>
                     <p style={{ fontFamily: F.body, fontSize: "11px", color: COLORS.textSecondary }}>{t("В долг", "Qarzga")}</p>
@@ -413,7 +414,7 @@ export function CompletionFlowModal({
                           display: "flex", flexDirection: "column", alignItems: "center", gap: "6px",
                           padding: "12px", borderRadius: "10px", cursor: "pointer",
                           border: `1.5px solid ${active ? COLORS.primary : COLORS.border}`,
-                          background: active ? `${COLORS.primary}0d` : "transparent",
+                          background: active ? colorMix(COLORS.primary, 5) : "transparent",
                           transition: "all 0.15s",
                         }}
                       >

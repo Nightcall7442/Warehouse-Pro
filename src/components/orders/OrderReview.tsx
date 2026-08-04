@@ -5,6 +5,7 @@ import { calcDiscount, calcSubtotal } from "@/lib/order-calculations";
 import { formatQty } from "@/lib/format";
 import { PAYMENT_METHODS, unitLabel } from "./types";
 import type { OrderItem, PaymentMethod } from "./types";
+import { colorMix } from "@/lib/color-mix";
 
 interface OrderReviewProps {
   shopName: string;
@@ -135,9 +136,9 @@ export function OrderReview({
                   display: "flex", alignItems: "center", gap: "10px",
                   padding: "12px 14px", borderRadius: "12px",
                   border: isActive ? `2px solid ${method.color}` : "2px solid var(--color-border, #f0f3f8)",
-                  background: isActive ? `${method.color}10` : "var(--color-surface, #ffffff)",
+                  background: isActive ? colorMix(method.color, 6) : "var(--color-surface, #ffffff)",
                   cursor: "pointer", transition: "all 0.15s ease",
-                  boxShadow: isActive ? `0 2px 8px ${method.color}20` : "none",
+                  boxShadow: isActive ? `0 2px 8px ${colorMix(method.color, 13)}` : "none",
                 }}
               >
                 <div style={{

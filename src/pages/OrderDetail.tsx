@@ -27,6 +27,7 @@ import { CompletionFlowModal } from "@/components/orders/CompletionFlowModal";
 import type { CompletionData, CompletionMode } from "@/components/orders/CompletionFlowModal";
 import { useCompletionFlow } from "@/hooks/useCompletionFlow";
 import { useInvalidateOrderCaches } from "@/hooks/useOrderCacheSync";
+import { colorMix } from "@/lib/color-mix";
 
 /** Statuses where the goods have not been handed over yet — these can still be completed. */
 const OPEN_STATUSES = ["new", "processing", "shipped", "pending"];
@@ -373,7 +374,7 @@ export default function OrderDetail() {
                 <span style={{
                   display: "inline-flex", padding: "4px 12px", borderRadius: "9999px",
                   fontSize: "11px", fontWeight: 600,
-                  background: `${pm.color}15`, color: pm.color, border: `1px solid ${pm.color}30`,
+                  background: colorMix(pm.color, 8), color: pm.color, border: `1px solid ${colorMix(pm.color, 19)}`,
                 }}>
                   {lang === "uz" ? pm.uz : pm.ru}
                 </span>
