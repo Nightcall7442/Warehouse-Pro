@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
   X, Package, CreditCard, RotateCcw, CheckCircle, AlertTriangle,
   Banknote, Repeat,
@@ -212,7 +213,14 @@ export function CompletionFlowModal({
   const modeIcon = mode === "partial_return" ? RotateCcw : mode === "combined" ? Package : CreditCard;
   const ModeIcon = modeIcon;
 
-  return (
+  // Rendered via portal to document.body — this modal is used both from deep
+  // inside the OrderSlideOver sheet and directly from the Orders table row.
+  // Mounting in place would put it under whichever ancestor happens to have
+  // a CSS transform (e.g. a page-load fade-in animation), which creates a
+  // new containing block and breaks `position: fixed` positioning — the
+  // modal ends up offset by the page's scroll position instead of centered
+  // in the viewport.
+  return createPortal(
     <div
       className="pointer-events-auto"
       style={{ position: "fixed", inset: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}
@@ -449,6 +457,7 @@ export function CompletionFlowModal({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

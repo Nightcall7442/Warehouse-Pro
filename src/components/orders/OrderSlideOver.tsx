@@ -821,8 +821,8 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
       </SheetContent>
     </Sheet>
 
-    {/* Completion Flow Modal — rendered via portal to escape Sheet's z-index */}
-    {order && createPortal(
+    {/* Completion Flow Modal — portals itself to document.body */}
+    {order && (
       <CompletionFlowModal
         open={showCompletion}
         onClose={() => { setShowCompletion(false); setPendingStatus(null); }}
@@ -843,8 +843,7 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
         currency={currency}
         saving={completionSaving}
         onSave={handleCompletionSave}
-      />,
-      document.body
+      />
     )}
 
     {/* New-debt modal — portal for the same z-index reason as the completion flow */}
