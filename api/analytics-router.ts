@@ -371,6 +371,39 @@ export const analyticsRouter = createRouter({
       });
     }),
 
+  // ── Sales by Agent × Product ────────────────────────────────────────────────
+  agentProductSales: reportsQuery
+    .input(z.object({
+      dateFrom: z.string().optional(),
+      dateTo: z.string().optional(),
+      agentId: z.number().int().positive().optional(),
+    }).optional())
+    .query(async ({ input, ctx }) => {
+      const conditions = [eq(orders.tenantId, ctx.tenant.id), eq(orders.status, "delivered")];
+      if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
+      if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`);
+      if (input?.agentId)  conditions.push(eq(orders.agentId, input.agentId));
+
+      return getDb().select({
+        agentId:      users.id,
+        agentName:    users.name,
+        productId:    products.id,
+        productName:  products.name,
+        productCode:  products.code,
+        unit:         products.unit,
+        totalQty:     sql<string>`COALESCE(SUM(${orderItems.quantity}), 0)`,
+        totalRevenue: sql<string>`COALESCE(SUM(${orderItems.subtotal}), 0)`,
+        orderCount:   sql<number>`count(DISTINCT ${orders.id})`,
+      })
+        .from(orderItems)
+        .innerJoin(orders, eq(orderItems.orderId, orders.id))
+        .leftJoin(users, eq(orders.agentId, users.id))
+        .leftJoin(products, eq(orderItems.productId, products.id))
+        .where(and(...conditions))
+        .groupBy(orders.agentId, orderItems.productId)
+        .orderBy(users.name, desc(sql`SUM(${orderItems.subtotal})`));
+    }),
+
   // ── Payment Method Trend ──────────────────────────────────────────────────
   paymentMethodTrend: reportsQuery
     .input(z.object({ from: z.string(), to: z.string() }))

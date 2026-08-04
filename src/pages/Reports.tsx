@@ -3,7 +3,7 @@ import { trpc } from "@/providers/trpc";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useLang } from "@/i18n";
 import { format, subDays } from "date-fns";
-import { FileDown, Printer, LayoutDashboard, ShoppingCart, Award } from "lucide-react";
+import { FileDown, Printer, LayoutDashboard, ShoppingCart, Award, Users } from "lucide-react";
 import { exportToExcel } from "@/lib/excel";
 import { exportToPDF } from "@/lib/export";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
@@ -12,6 +12,7 @@ import { PeriodPicker } from "@/components/reports/ReportCharts";
 import { OverviewTab } from "@/components/reports/OverviewTab";
 import { SalesTab } from "@/components/reports/SalesTab";
 import { AgentsTab } from "@/components/reports/AgentsTab";
+import { AgentProductsTab } from "@/components/reports/AgentProductsTab";
 
 export default function Reports() {
   const [tab, setTab] = useState<TabKey>("overview");
@@ -23,6 +24,9 @@ export default function Reports() {
   const from = format(subDays(new Date(), days), "yyyy-MM-dd");
   const to = format(new Date(), "yyyy-MM-dd");
 
+  const [apDateFrom, setApDateFrom] = useState(from);
+  const [apDateTo, setApDateTo] = useState(to);
+
   const { data: summary, isLoading: summaryLoading, isError, refetch } = trpc.reports.getDashboardSummary.useQuery();
   const { data: chart } = trpc.reports.getVisitChart.useQuery({ days });
   const { data: plans } = trpc.reports.getPlanCompletion.useQuery();
@@ -30,6 +34,10 @@ export default function Reports() {
   const { data: topProds } = trpc.analytics.topProducts.useQuery({ dateFrom: from, dateTo: to });
   const { data: agents } = trpc.reports.getAgentPerformance.useQuery({ days });
   const { data: byPayment } = trpc.analytics.pnlByPaymentMethod.useQuery({ from, to });
+  const { data: agentProducts, isLoading: agentProductsLoading } = trpc.analytics.agentProductSales.useQuery(
+    { dateFrom: apDateFrom, dateTo: apDateTo },
+    { enabled: tab === "agentProducts" },
+  );
 
   const shopChartData = (byShop ?? []).map(s => ({
     name: (s.shopName ?? "—").slice(0, 14), revenue: Number(s.revenue), fullName: s.shopName ?? "—",
@@ -41,7 +49,30 @@ export default function Reports() {
     { key: "overview" as const, ru: "Обзор", uz: "Umumiy", icon: <LayoutDashboard size={16} /> },
     { key: "sales" as const, ru: "Продажи", uz: "Sotuvlar", icon: <ShoppingCart size={16} /> },
     { key: "agents" as const, ru: "Агенты", uz: "Agentlar", icon: <Award size={16} /> },
+    { key: "agentProducts" as const, ru: "Агент × Товар", uz: "Agent × Mahsulot", icon: <Users size={16} /> },
   ];
+
+  const handleExportAgentProducts = async () => {
+    if (!agentProducts || agentProducts.length === 0) return;
+    const rows = agentProducts
+      .slice()
+      .sort((a, b) => (a.agentName ?? "").localeCompare(b.agentName ?? "") || Number(b.totalRevenue) - Number(a.totalRevenue))
+      .map(r => ({
+        Агент: r.agentName ?? t("Не назначен", "Tayinlanmagan"),
+        Товар: r.productName ?? "—",
+        Код: r.productCode ?? "",
+        "Кол-во": Number(r.totalQty ?? 0),
+        Ед: r.unit ?? "",
+        Заказов: Number(r.orderCount ?? 0),
+        Сумма: Number(r.totalRevenue ?? 0).toFixed(2),
+      }));
+    await exportToExcel(
+      rows,
+      `agent-products-${apDateFrom}_${apDateTo}`,
+      t("Агент-Товар", "Agent-Mahsulot"),
+      `${t("Продажи по агентам и товарам", "Agent va mahsulot bo'yicha sotuvlar")} — ${apDateFrom} — ${apDateTo}`,
+    );
+  };
 
   const handleExport = async () => {
     const rows: Record<string, unknown>[] = [];
@@ -232,6 +263,20 @@ export default function Reports() {
           t={t}
           onExport={handleExport}
           onExportPDF={handleExportPDF}
+        />
+      )}
+
+      {tab === "agentProducts" && (
+        <AgentProductsTab
+          rows={agentProducts}
+          isLoading={agentProductsLoading}
+          dateFrom={apDateFrom}
+          dateTo={apDateTo}
+          onDateFromChange={setApDateFrom}
+          onDateToChange={setApDateTo}
+          fmt={fmt}
+          t={t}
+          onExport={handleExportAgentProducts}
         />
       )}
     </div>

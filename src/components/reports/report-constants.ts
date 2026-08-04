@@ -19,7 +19,7 @@ export const PAYMENT_MAP: Record<string, { label: string; color: string }> = {
   card:     { label: "Карта",        color: "#9b59b6" },
 };
 
-export type TabKey = "overview" | "sales" | "agents";
+export type TabKey = "overview" | "sales" | "agents" | "agentProducts";
 
 export const thStyle: React.CSSProperties = {
   fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase",
