@@ -209,12 +209,14 @@ async function applyPartialPayment(
   // Update shop debt. Orders created with paymentMethod "debt" have their full
   // total booked into shops.debt at creation, so each payment against them
   // simply reduces it. Orders created with any other method were never
-  // booked — nothing was added at creation — so they only start contributing
-  // to shops.debt once a shortfall shows up here, and only the newly-created
-  // portion of it. Comparing what should be booked before vs. after this
-  // payment (rather than blindly subtracting `paid`) keeps both cases correct
-  // across any number of partial payments.
-  const wasBookedBefore = order.paymentMethod === "debt" || priorPaid > 0;
+  // booked at creation — but the moment such an order reaches "delivered"
+  // (here or via a plain status change with no payment at all, see
+  // updateStatus) its unpaid balance starts counting as debt, so
+  // order.status === "delivered" going into this call means it's already
+  // booked. Comparing what should be booked before vs. after this payment
+  // (rather than blindly subtracting `paid`) keeps this correct across any
+  // number of partial payments, however the order got to "delivered".
+  const wasBookedBefore = order.paymentMethod === "debt" || order.status === "delivered";
   const bookedBefore = wasBookedBefore ? Math.max(0, total - priorPaid) : 0;
   const bookedAfter = Math.max(0, debt);
   const debtDelta = bookedAfter - bookedBefore;
@@ -789,6 +791,25 @@ export const OrderService = {
         const owedAfter = owesDebt(newStatus) ? Number(order.total) : 0;
         if (owedAfter !== owedBefore) {
           await adjustShopDebt(tx, tenantId, order.shopId, owedAfter - owedBefore);
+        }
+      } else {
+        // Cash/card/transfer orders book nothing up front — but the moment
+        // the goods actually leave (status becomes "delivered"), whatever
+        // wasn't paid is real debt the shop owes, whether or not any payment
+        // was ever recorded (e.g. a plain "Выполнить" with no payment logged
+        // at all). Moving away from "delivered" reverses it, same as an
+        // operator undoing a mistaken completion for a debt order above.
+        const wasDelivered = order.status === "delivered";
+        const isDelivered = newStatus === "delivered";
+        if (wasDelivered !== isDelivered) {
+          const [{ paidSoFar }] = await tx.select({
+            paidSoFar: sql<string>`COALESCE(SUM(CAST(${payments.amount} AS DECIMAL(15,2))), 0)`,
+          }).from(payments)
+            .where(and(eq(payments.orderId, orderId), eq(payments.tenantId, tenantId), eq(payments.type, "payment")));
+          const outstanding = Math.max(0, Number(order.total) - Number(paidSoFar));
+          if (outstanding > 0) {
+            await adjustShopDebt(tx, tenantId, order.shopId, isDelivered ? outstanding : -outstanding);
+          }
         }
       }
 

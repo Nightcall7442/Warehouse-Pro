@@ -399,10 +399,20 @@ export const courierRouter = createRouter({
             notes: input.notes ? sanitizeString(input.notes) : null,
             createdBy: courierId,
           });
+        }
 
-          // Reduce shop debt by paid amount
+        // ── Settle the shop's balance for this order ──
+        // What the shop owed for this order before the courier closed it: the
+        // full total for a credit order (booked at creation), nothing for any
+        // other method. What it owes after: whatever wasn't handed over in
+        // cash, unless the goods came back entirely. Applying the difference
+        // covers every case — including a delivery with no payment at all,
+        // where the whole total becomes debt.
+        const owedBefore = order.paymentMethod === "debt" ? orderTotal : 0;
+        const owedAfter = finalStatus === "returned" ? 0 : Math.max(0, orderTotal - paidAmount);
+        if (owedAfter !== owedBefore) {
           await tx.execute(sql`
-            UPDATE shops SET debt = GREATEST(0, CAST(debt AS DECIMAL(12,2)) - ${paidAmount})
+            UPDATE shops SET debt = GREATEST(0, CAST(debt AS DECIMAL(12,2)) + ${owedAfter - owedBefore})
             WHERE id = ${order.shopId} AND tenant_id = ${ctx.tenant.id}
           `);
         }
