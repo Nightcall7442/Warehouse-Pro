@@ -1,17 +1,13 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
-import { Package, Download, Printer, X, AlertTriangle } from "lucide-react";
+import { Package, Download, Printer, X, Loader2 } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { printLoadingList, type LoadingListData } from "@/lib/documents";
 import { useTranslate } from "@/i18n";
+import { F, COLORS, PillButton } from "./theme";
+import { formatQty } from "@/lib/format";
 
 interface Props {
   open: boolean;
@@ -20,19 +16,21 @@ interface Props {
   onDone: () => void;
 }
 
+const sectionLabelStyle: React.CSSProperties = {
+  fontFamily: F.body, fontSize: "10px", fontWeight: 600, letterSpacing: "0.06em",
+  textTransform: "uppercase", color: COLORS.textTertiary, marginBottom: "8px", display: "block",
+};
+
+// Fixed, non-configurable defaults — no settings panel: grouped by product,
+// with barcodes and weight included, the combination operators reach for
+// almost every time.
+const LIST_OPTIONS = { includeBarcodes: true, includeWeight: true, includeTotalWeight: true, includeRouteMap: false };
+
 export function LoadingListModal({ open, onOpenChange, orderIds, onDone }: Props) {
   const t = useTranslate();
-  const [format, setFormat] = useState<"aggregated" | "byOrder" | "byRoute">("aggregated");
-  const [includeBarcodes, setIncludeBarcodes] = useState(true);
-  const [includeWeight, setIncludeWeight] = useState(true);
-  const [includeTotalWeight, setIncludeTotalWeight] = useState(true);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<LoadingListData | null>(null);
-
-  // Clear result when modal opens with new orderIds
-  useEffect(() => {
-    if (open) setResult(null);
-  }, [open, orderIds.join(",")]);
+  const [listFormat, setListFormat] = useState<"aggregated" | "byRoute">("aggregated");
 
   const createMutation = trpc.order.createLoadingList.useMutation();
 
@@ -41,11 +39,10 @@ export function LoadingListModal({ open, onOpenChange, orderIds, onDone }: Props
     try {
       const res = await createMutation.mutateAsync({
         orderIds,
-        format,
-        options: { includeBarcodes, includeWeight, includeTotalWeight, includeRouteMap: false },
+        format: listFormat,
+        options: LIST_OPTIONS,
       });
       setResult(res as LoadingListData);
-      notify.success(t("Загрузочный лист создан", "Yuklash varaqi yaratildi"));
     } catch (e) {
       notify.error(e instanceof Error ? e.message : "Ошибка");
     } finally {
@@ -53,85 +50,82 @@ export function LoadingListModal({ open, onOpenChange, orderIds, onDone }: Props
     }
   };
 
+  // Generate immediately with the fixed defaults when the modal opens.
+  useEffect(() => {
+    if (open && orderIds.length > 0) {
+      setResult(null);
+      handleGenerate();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, orderIds.join(",")]);
+
   const handlePrint = () => {
     if (!result) return;
-    printLoadingList(result, format);
+    printLoadingList(result, listFormat);
     onDone();
     onOpenChange(false);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
+      <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col" style={{ fontFamily: F.body }}>
         <DialogHeader>
-          <DialogTitle className="font-display text-lg flex items-center gap-2">
-            <Package className="h-5 w-5" />
-            {t("Создание загрузочного листа", "Yuklash varaqi yaratish")}
-          </DialogTitle>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+            <DialogTitle style={{ fontFamily: F.display, fontSize: "18px", fontWeight: 700, color: COLORS.textPrimary, display: "flex", alignItems: "center", gap: "8px" }}>
+              <Package size={18} />
+              {t("Загрузочный лист", "Yuklash varaqi")}
+            </DialogTitle>
+            <div style={{ display: "flex", borderRadius: "9999px", overflow: "hidden", border: `1px solid ${COLORS.border}` }}>
+              {(["aggregated", "byRoute"] as const).map(fmt => (
+                <button key={fmt} type="button" onClick={() => setListFormat(fmt)}
+                  style={{
+                    padding: "6px 14px", fontSize: "12px", fontWeight: 600, fontFamily: F.body, border: "none", cursor: "pointer",
+                    background: listFormat === fmt ? COLORS.primary : COLORS.surface,
+                    color: listFormat === fmt ? "#fff" : COLORS.textSecondary,
+                    transition: "all 0.2s",
+                  }}>
+                  {fmt === "aggregated" ? t("Сводный", "Yig'ma") : t("По маршруту", "Marshrut bo'yicha")}
+                </button>
+              ))}
+            </div>
+          </div>
         </DialogHeader>
 
         <div className="flex-1 overflow-hidden flex flex-col gap-4">
           {/* Order count */}
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span>{t("Выбрано заказов", "Tanlangan buyurtmalar")}: <b className="text-foreground">{orderIds.length}</b></span>
+          <div style={{ fontSize: "13px", color: COLORS.textTertiary }}>
+            <span>{t("Выбрано заказов", "Tanlangan buyurtmalar")}: <b style={{ color: COLORS.textPrimary }}>{orderIds.length}</b></span>
           </div>
 
-          <Separator />
-
-          {/* Format selection */}
-          <div className="grid grid-cols-2 gap-6">
-            <div>
-              <Label className="font-label text-xs mb-2 block">{t("Группировка", "Guruhlash")}</Label>
-              <RadioGroup value={format} onValueChange={v => setFormat(v as typeof format)}>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="aggregated" id="agg" />
-                  <Label htmlFor="agg" className="text-sm">{t("По товарам (агрегировано)", "Tovarlar bo'yicha (birlashtirilgan)")}</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="byOrder" id="byOrd" />
-                  <Label htmlFor="byOrd" className="text-sm">{t("По заказам (детально)", "Buyurtmalar bo'yicha (batafsil)")}</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="byRoute" id="byRt" />
-                  <Label htmlFor="byRt" className="text-sm">{t("По маршруту агента", "Agent marshruti bo'yicha")}</Label>
-                </div>
-              </RadioGroup>
-            </div>
-            <div>
-              <Label className="font-label text-xs mb-2 block">{t("Настройки", "Sozlamalar")}</Label>
-              <div className="space-y-2">
-                <div className="flex items-center space-x-2"><Checkbox checked={includeBarcodes} onCheckedChange={v => setIncludeBarcodes(!!v)} id="bc" /><Label htmlFor="bc" className="text-sm">{t("Штрихкоды", "Shtrixkodlar")}</Label></div>
-                <div className="flex items-center space-x-2"><Checkbox checked={includeWeight} onCheckedChange={v => setIncludeWeight(!!v)} id="wt" /><Label htmlFor="wt" className="text-sm">{t("Вес позиций", "Pozitsiya og'irligi")}</Label></div>
-                <div className="flex items-center space-x-2"><Checkbox checked={includeTotalWeight} onCheckedChange={v => setIncludeTotalWeight(!!v)} id="twt" /><Label htmlFor="twt" className="text-sm">{t("Общий вес", "Umumiy og'irlik")}</Label></div>
-              </div>
-            </div>
-          </div>
-
-          <Separator />
+          <div style={{ height: "1px", background: COLORS.border }} />
 
           {/* Preview */}
-          {result && (
-            <div className="border rounded-lg p-3 bg-muted/30">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-label">{t("Предпросмотр", "Oldindan ko'rish")}</span>
-                <Badge variant="outline">{result.listNumber}</Badge>
+          {loading && !result ? (
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "24px 0", justifyContent: "center", color: COLORS.textTertiary, fontSize: "13px" }}>
+              <Loader2 size={14} className="animate-spin" />
+              {t("Формируется...", "Tayyorlanmoqda...")}
+            </div>
+          ) : result && (
+            <div style={{ borderRadius: "12px", border: `1px solid ${COLORS.border}`, padding: "12px", background: COLORS.surfaceLight }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+                <span style={sectionLabelStyle}>{t("Предпросмотр", "Oldindan ko'rish")}</span>
+                <span style={{
+                  fontFamily: F.body, fontSize: "11px", fontWeight: 600, padding: "2px 8px", borderRadius: "9999px",
+                  border: `1px solid ${COLORS.border}`, color: COLORS.textSecondary,
+                }}>
+                  {result.listNumber}
+                </span>
               </div>
               <ScrollArea className="h-48">
-                <div className="text-xs space-y-1">
+                <div style={{ fontSize: "12px", color: COLORS.textPrimary, display: "flex", flexDirection: "column", gap: "4px" }}>
                   <div><b>{t("Заказов", "Buyurtma")}:</b> {result.totalOrders}</div>
                   <div><b>{t("Позиций", "Pozitsiya")}:</b> {result.totalItems}</div>
-                  <div><b>{t("Вес", "Og'irlik")}:</b> {result.totalWeight.toFixed(1)} кг</div>
-                  <Separator className="my-2" />
-                  {format === "aggregated" && result.items.map((item, i) => (
-                    <div key={i} className="flex justify-between">
+                  <div><b>{t("Вес", "Og'irlik")}:</b> {formatQty(result.totalWeight)} кг</div>
+                  <div style={{ height: "1px", background: COLORS.border, margin: "8px 0" }} />
+                  {result.items.map((item, i) => (
+                    <div key={i} style={{ display: "flex", justifyContent: "space-between" }}>
                       <span>{item.productName}</span>
-                      <span className="font-data">{Number(item.totalQty).toFixed(2)} {item.unit}</span>
-                    </div>
-                  ))}
-                  {format === "byOrder" && result.orders.map((order) => (
-                    <div key={order.id} className="flex justify-between">
-                      <span>{order.orderNumber} → {order.shopName}</span>
-                      <span className="font-data">{Number(order.total).toLocaleString("ru")} сум</span>
+                      <span style={{ fontWeight: 600 }}>{formatQty(item.totalQty)} {item.unit}</span>
                     </div>
                   ))}
                 </div>
@@ -141,23 +135,15 @@ export function LoadingListModal({ open, onOpenChange, orderIds, onDone }: Props
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            <X className="h-4 w-4 mr-1" />{t("Отмена", "Bekor qilish")}
-          </Button>
-          {!result ? (
-            <Button onClick={handleGenerate} disabled={loading || orderIds.length === 0}>
-              {loading ? t("Создание...", "Yaratilmoqda...") : t("Создать лист", "Varaq yaratish")}
-            </Button>
-          ) : (
-            <>
-              <Button variant="outline" onClick={handlePrint}>
-                <Download className="h-4 w-4 mr-1" />{t("Скачать PDF", "PDF yuklab olish")}
-              </Button>
-              <Button onClick={handlePrint}>
-                <Printer className="h-4 w-4 mr-1" />{t("Печать", "Chop etish")}
-              </Button>
-            </>
-          )}
+          <PillButton tone="neutral" onClick={() => onOpenChange(false)}>
+            <X size={16} />{t("Отмена", "Bekor qilish")}
+          </PillButton>
+          <PillButton tone="neutral" onClick={handlePrint} disabled={!result}>
+            <Download size={16} />{t("Скачать PDF", "PDF yuklab olish")}
+          </PillButton>
+          <PillButton tone="primary" onClick={handlePrint} disabled={!result}>
+            <Printer size={16} />{t("Печать", "Chop etish")}
+          </PillButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>

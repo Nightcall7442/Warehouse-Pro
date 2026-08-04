@@ -747,6 +747,7 @@ export type BatchOrderData = {
   shopDebtAmount: number;
   agentName: string | null;
   territoryName: string | null;
+  courierName: string | null;
   paymentMethod: string;
   invoicePrintedAt: Date | null;
   isPartial?: boolean;
@@ -898,7 +899,85 @@ function buildSingleInvoice(order: BatchOrderData, opts: BatchPrintOptions, comp
       </div>` : ""}`;
 }
 
-export function printBatchInvoices(orders: BatchOrderData[], opts: BatchPrintOptions, company: CompanyInfo, currency: string = "сум") {
+// ТТН (Товарно-транспортная накладная) — formal shipment document with 0%-VAT columns
+function buildTTNInvoice(order: BatchOrderData, company: CompanyInfo, currency: string): string {
+  const itemRows = (order.items ?? []).map((item, i) => {
+    const price = Number(item.unitPrice);
+    const sum = Number(item.subtotal);
+    return `
+      <tr>
+        <td class="center">${i + 1}</td>
+        <td>${escapeHtml(item.productName)}${item.productCode ? ` <span style="color:#666;font-size:8pt">(${escapeHtml(item.productCode)})</span>` : ""}</td>
+        <td class="center">${unitLabel(item.unit)}</td>
+        <td class="right">${cleanNum(item.quantity)}</td>
+        <td class="right">${price.toLocaleString("ru-RU")}</td>
+        <td class="right">${price.toLocaleString("ru-RU")}</td>
+        <td class="center">0%</td>
+        <td class="right bold">${sum.toLocaleString("ru-RU")}</td>
+      </tr>`;
+  }).join("");
+
+  const total = Number(order.total);
+
+  return `
+      <div style="text-align:center;margin-bottom:8px">
+        <div style="font-size:14pt;font-weight:800">ТОВАРНО-ТРАНСПОРТНАЯ НАКЛАДНАЯ</div>
+        <div style="font-size:10pt;color:#666">№ ${escapeHtml(order.orderNumber)} от ${new Date(order.createdAt).toLocaleDateString("ru-RU")}</div>
+      </div>
+
+      <table class="no-border" style="margin-bottom:6px;font-size:9pt">
+        <tr>
+          <td style="width:50%">
+            <div class="meta-row"><span class="meta-label">Поставщик:</span><span class="meta-value bold">${escapeHtml(company.name)}</span></div>
+            ${company.inn ? `<div class="meta-row"><span class="meta-label">ИНН:</span><span class="meta-value">${escapeHtml(company.inn)}</span></div>` : ""}
+            ${company.address ? `<div class="meta-row"><span class="meta-label">Адрес:</span><span class="meta-value">${escapeHtml(company.address)}</span></div>` : ""}
+          </td>
+          <td style="width:50%">
+            <div class="meta-row"><span class="meta-label">Контрагент:</span><span class="meta-value bold">${escapeHtml(order.shopName ?? "")}</span></div>
+            ${order.shopAddress ? `<div class="meta-row"><span class="meta-label">Адрес:</span><span class="meta-value">${escapeHtml(order.shopAddress)}</span></div>` : ""}
+            ${order.shopPhone ? `<div class="meta-row"><span class="meta-label">Телефон:</span><span class="meta-value">${escapeHtml(order.shopPhone)}</span></div>` : ""}
+          </td>
+        </tr>
+        <tr>
+          <td><span class="meta-label">Доставщик:</span> ${escapeHtml(order.courierName ?? "—")}</td>
+          <td><span class="meta-label">Торговый представитель:</span> ${escapeHtml(order.agentName ?? "—")}</td>
+        </tr>
+      </table>
+
+      ${buildDebtBlock(order, currency)}
+
+      <table style="font-size:9pt">
+        <thead>
+          <tr>
+            <th style="width:4%">№</th>
+            <th style="text-align:left">Наименование</th>
+            <th style="width:7%">Ед.</th>
+            <th style="width:8%">Кол-во</th>
+            <th style="width:11%">Цена без НДС</th>
+            <th style="width:11%">Цена с НДС</th>
+            <th style="width:8%">Ставка НДС</th>
+            <th style="width:13%">Сумма с НДС</th>
+          </tr>
+        </thead>
+        <tbody>${itemRows}</tbody>
+      </table>
+
+      <div class="totals-box">
+        <table>
+          <tr><td>Сумма без переоценки:</td><td class="right">${total.toLocaleString("ru-RU")} ${currency}</td></tr>
+          <tr><td>Сумма переоценки:</td><td class="right">0 ${currency}</td></tr>
+          <tr class="total-row"><td>Сумма с учётом НДС:</td><td class="right">${total.toLocaleString("ru-RU")} ${currency}</td></tr>
+        </table>
+      </div>
+
+      <div style="display:flex;gap:20px;margin-top:14px;font-size:8pt">
+        <div style="flex:1">Продавец: _______________</div>
+        <div style="flex:1">Получатель: _______________</div>
+        <div style="flex:1">Торговый представитель: _______________</div>
+      </div>`;
+}
+
+export function printBatchInvoices(orders: BatchOrderData[], opts: BatchPrintOptions, company: CompanyInfo, currency: string = "сум", docType: "simple" | "ttn" = "simple") {
   // Sort orders
   const sorted = [...orders];
   if (opts.sortBy === "shop") sorted.sort((a, b) => (a.shopName ?? "").localeCompare(b.shopName ?? ""));
@@ -906,7 +985,7 @@ export function printBatchInvoices(orders: BatchOrderData[], opts: BatchPrintOpt
   else if (opts.sortBy === "territory") sorted.sort((a, b) => (a.territoryName ?? "").localeCompare(b.territoryName ?? ""));
   else sorted.sort((a, b) => a.orderNumber.localeCompare(b.orderNumber));
 
-  const pages = sorted.map(o => `<div class="invoice-container">${buildSingleInvoice(o, opts, company, currency)}</div>`);
+  const pages = sorted.map(o => `<div class="invoice-container">${docType === "ttn" ? buildTTNInvoice(o, company, currency) : buildSingleInvoice(o, opts, company, currency)}</div>`);
   const separator = opts.pageBreakPerOrder ? '<div style="page-break-before:always"></div>' : '<div style="margin-bottom:10mm"></div>';
   const html = pages.join(separator);
 
@@ -931,8 +1010,11 @@ export type LoadingListData = {
     shopGpsLat: string | null;
     shopGpsLng: string | null;
     shopDebt: string;
+    agentId: number | null;
     agentName: string | null;
     territoryName: string | null;
+    courierName: string | null;
+    paymentMethod: string;
     total: string;
   }>;
   items: Array<{
@@ -943,6 +1025,15 @@ export type LoadingListData = {
     unitWeight: string;
     totalQty: string;
     totalPrice: string;
+  }>;
+  itemsByAgent: Array<{
+    productId: number;
+    productName: string;
+    productCode: string | null;
+    unit: string;
+    agentId: number | null;
+    agentName: string | null;
+    totalQty: string;
   }>;
 };
 
@@ -1080,10 +1171,132 @@ function buildLoadingListByOrder(data: LoadingListData, currency: string): strin
     ${orderSections}`;
 }
 
+// Route/agent matrix — products × agents, with cash/debt/total money rows per agent
+function buildLoadingListByRoute(data: LoadingListData, currency: string): string {
+  const agents = [...new Map(
+    data.orders.map(o => [o.agentId ?? o.agentName ?? "—", { id: o.agentId, name: o.agentName ?? "Не назначен" }] as const)
+  ).values()];
+
+  const territoriesByAgent = new Map<string, Set<string>>();
+  for (const o of data.orders) {
+    const key = o.agentName ?? "Не назначен";
+    const set = territoriesByAgent.get(key) ?? new Set<string>();
+    if (o.territoryName) set.add(o.territoryName);
+    territoriesByAgent.set(key, set);
+  }
+
+  const couriers = [...new Set(data.orders.map(o => o.courierName).filter(Boolean))] as string[];
+  const territories = [...new Set(data.orders.map(o => o.territoryName).filter(Boolean))] as string[];
+
+  // productId -> agentKey -> qty
+  const qtyMap = new Map<number, Map<string, number>>();
+  const productMeta = new Map<number, { name: string; code: string | null; unit: string }>();
+  for (const row of data.itemsByAgent) {
+    productMeta.set(row.productId, { name: row.productName, code: row.productCode, unit: row.unit });
+    const agentsForProduct = qtyMap.get(row.productId) ?? new Map<string, number>();
+    agentsForProduct.set(row.agentName ?? "Не назначен", Number(row.totalQty));
+    qtyMap.set(row.productId, agentsForProduct);
+  }
+
+  const agentHeaderCell = (name: string) => {
+    const zones = [...(territoriesByAgent.get(name) ?? [])];
+    return `${escapeHtml(name)}${zones.length ? `<div style="font-size:7pt;font-weight:400;color:#666">${escapeHtml(zones.join(", "))}</div>` : ""}`;
+  };
+
+  const itemRows = [...productMeta.entries()].map(([productId, meta], i) => {
+    const agentCells = agents.map(a => {
+      const qty = qtyMap.get(productId)?.get(a.name) ?? 0;
+      return `<td class="right">${qty > 0 ? cleanNum(qty) : "—"}</td>`;
+    }).join("");
+    const rowTotal = [...(qtyMap.get(productId)?.values() ?? [])].reduce((s, v) => s + v, 0);
+    return `
+      <tr>
+        <td class="center">${i + 1}</td>
+        <td>${escapeHtml(meta.name)}${meta.code ? ` <span style="color:#666;font-size:8pt">(${escapeHtml(meta.code)})</span>` : ""}</td>
+        <td class="center">${unitLabel(meta.unit)}</td>
+        ${agentCells}
+        <td class="right bold">${cleanNum(rowTotal)}</td>
+      </tr>`;
+  }).join("");
+
+  // Money rows per agent
+  const cashByAgent = new Map<string, number>();
+  const debtByAgent = new Map<string, number>();
+  for (const o of data.orders) {
+    const key = o.agentName ?? "Не назначен";
+    const target = o.paymentMethod === "debt" ? debtByAgent : cashByAgent;
+    target.set(key, (target.get(key) ?? 0) + Number(o.total));
+  }
+  const qtyTotalCells = agents.map(a => {
+    const total = [...productMeta.keys()].reduce((s, pid) => s + (qtyMap.get(pid)?.get(a.name) ?? 0), 0);
+    return `<td class="right bold">${cleanNum(total)}</td>`;
+  }).join("");
+  const cashCells = agents.map(a => `<td class="right">${(cashByAgent.get(a.name) ?? 0).toLocaleString("ru-RU")}</td>`).join("");
+  const debtCells = agents.map(a => `<td class="right">${(debtByAgent.get(a.name) ?? 0).toLocaleString("ru-RU")}</td>`).join("");
+  const totalCells = agents.map(a => `<td class="right bold">${((cashByAgent.get(a.name) ?? 0) + (debtByAgent.get(a.name) ?? 0)).toLocaleString("ru-RU")}</td>`).join("");
+
+  const grandQty = [...productMeta.keys()].reduce((s, pid) => s + [...(qtyMap.get(pid)?.values() ?? [])].reduce((a, b) => a + b, 0), 0);
+  const grandCash = [...cashByAgent.values()].reduce((a, b) => a + b, 0);
+  const grandDebt = [...debtByAgent.values()].reduce((a, b) => a + b, 0);
+
+  return `
+    <div style="text-align:center;margin-bottom:10px">
+      <div style="font-size:16pt;font-weight:800">ЗАГРУЗОЧНЫЙ ЛИСТ</div>
+      <div style="font-size:11pt;color:#666">№ ${escapeHtml(data.listNumber)} — По маршрутам</div>
+    </div>
+    <table class="no-border" style="margin-bottom:10px;font-size:9pt">
+      <tr><td>Дата формирования:</td><td class="bold">${new Date().toLocaleDateString("ru-RU")}</td></tr>
+      <tr><td>Торговые представители:</td><td class="bold">${agents.map(a => escapeHtml(a.name)).join(", ")}</td></tr>
+      <tr><td>Рабочие зоны:</td><td class="bold">${territories.length ? escapeHtml(territories.join(", ")) : "—"}</td></tr>
+      <tr><td>Экспедиторы:</td><td class="bold">${couriers.length ? escapeHtml(couriers.join(", ")) : "—"}</td></tr>
+    </table>
+    <table style="font-size:9pt">
+      <thead>
+        <tr>
+          <th style="width:4%">№</th>
+          <th style="text-align:left">Наименование</th>
+          <th style="width:6%">Ед.</th>
+          ${agents.map(a => `<th>${agentHeaderCell(a.name)}</th>`).join("")}
+          <th style="width:8%">Итого</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemRows}
+        <tr>
+          <td colspan="3" class="right bold">Общее кол-во:</td>
+          ${qtyTotalCells}
+          <td class="right bold">${cleanNum(grandQty)}</td>
+        </tr>
+        <tr>
+          <td colspan="3" class="right">Наличные деньги:</td>
+          ${cashCells}
+          <td class="right">${grandCash.toLocaleString("ru-RU")}</td>
+        </tr>
+        <tr>
+          <td colspan="3" class="right">Другие:</td>
+          ${debtCells}
+          <td class="right">${grandDebt.toLocaleString("ru-RU")}</td>
+        </tr>
+        <tr>
+          <td colspan="3" class="right bold">Итого:</td>
+          ${totalCells}
+          <td class="right bold">${(grandCash + grandDebt).toLocaleString("ru-RU")} ${currency}</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="signature-block">
+      <div class="sig-col"><div class="sig-label">Проверил кладовщик</div><div class="sig-line"></div></div>
+      <div class="sig-col"><div class="sig-label">Отпустил</div><div class="sig-line"></div></div>
+      <div class="sig-col"><div class="sig-label">Дата</div><div class="sig-line"></div></div>
+    </div>`;
+}
+
 export function printLoadingList(data: LoadingListData, format: "aggregated" | "byOrder" | "byRoute", currency: string = "сум") {
-  const html = format === "aggregated"
-    ? buildLoadingListAggregated(data, currency)
-    : buildLoadingListByOrder(data, currency);
+  const html = format === "byRoute"
+    ? buildLoadingListByRoute(data, currency)
+    : format === "aggregated"
+      ? buildLoadingListAggregated(data, currency)
+      : buildLoadingListByOrder(data, currency);
 
   openPrintWindow(html, `Загрузочный лист № ${data.listNumber}`, GRID_STYLES);
 }
