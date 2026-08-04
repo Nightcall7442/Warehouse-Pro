@@ -18,8 +18,14 @@ export const COLORS = {
   // this darker sibling instead. See --color-primary-text in index.css.
   primaryText: "var(--color-primary-text)",
   onPrimary: "var(--color-text-inverse, #ffffff)",
+  primarySubtle: "var(--color-primary-subtle)",
   success: "var(--color-success)",
   warning: "var(--color-warning)", danger: "var(--color-danger)",
+  // Same fill-vs-text split as primary above: the fill colours are too pale
+  // to read as text on a light card.
+  successText: "var(--color-success-text)",
+  warningText: "var(--color-warning-text)",
+  dangerText: "var(--color-danger-text)",
   surface: "var(--color-surface, #ffffff)", surfaceLight: "var(--color-surface-light, #f0f3f8)",
   textPrimary: "var(--color-text-primary, #2b3450)", textSecondary: "var(--color-text-secondary, #6a7290)",
   textTertiary: "var(--color-text-tertiary, #98a0b8)", border: "var(--color-border, #f0f3f8)",

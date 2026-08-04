@@ -11,7 +11,7 @@ import {
   Search, Plus, FileDown, ChevronRight, Store, User,
   ShoppingCart, Clock, CheckCircle2, XCircle, DollarSign,
   Trash2, RotateCcw, Printer,
-  CheckSquare, Square, LayoutGrid, Table as TableIcon, Eye,
+  CheckSquare, Square, LayoutGrid, Table as TableIcon, Eye, Users,
   RefreshCw, Truck,
 } from "lucide-react";
 import { format, startOfMonth } from "date-fns";
@@ -28,6 +28,7 @@ import { InvoicePrintModal } from "@/components/orders/InvoicePrintModal";
 import { LoadingListModal } from "@/components/orders/LoadingListModal";
 import { OrderSlideOver } from "@/components/orders/OrderSlideOver";
 import { OrderKanbanBoard } from "@/components/orders/OrderKanbanBoard";
+import { OrderAgentGroups } from "@/components/orders/OrderAgentGroups";
 import { QuickOrderModal } from "@/components/orders/QuickOrderModal";
 import { CompletionFlowModal } from "@/components/orders/CompletionFlowModal";
 import type { CompletionData, CompletionMode } from "@/components/orders/CompletionFlowModal";
@@ -74,7 +75,9 @@ export default function Orders() {
   const [section, setSection] = useState<"active" | "archive">("active");
 
   // ── New feature state ──
-  const [viewMode, setViewMode] = useState<"table" | "kanban">("table");
+  const [viewMode, setViewMode] = useState<"table" | "kanban" | "agents">("table");
+  // Only one agent's orders are loaded at a time — see OrderAgentGroups.
+  const [expandedAgentId, setExpandedAgentId] = useState<number | null>(null);
   const [chipFilters, setChipFilters] = useState<ActiveFilters>({});
   const [slideOverOrderId, setSlideOverOrderId] = useState<number | null>(null);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
@@ -166,6 +169,32 @@ export default function Orders() {
   const { data: allOrders, refetch: refetchAllOrders } = trpc.order.list.useQuery(
     { page: 1, pageSize: 5000, showDeleted: false, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined },
     { enabled: false }
+  );
+
+  // ── "By agent" view ────────────────────────────────────────────────────────
+  // Both queries share the page's own date/section filters so the grouping
+  // always describes the same slice of work the other views show.
+  const { data: agentSummary, isLoading: agentsLoading } = trpc.order.agentSummary.useQuery(
+    {
+      dateFrom: effectiveDateFrom || undefined,
+      dateTo: effectiveDateTo || undefined,
+      archived: section === "archive",
+      search: search || undefined,
+    },
+    { enabled: viewMode === "agents" && isOperatorOrCeo },
+  );
+
+  const { data: expandedAgentOrders, isLoading: expandedOrdersLoading } = trpc.order.list.useQuery(
+    {
+      page: 1,
+      pageSize: 200,
+      agentId: expandedAgentId ?? undefined,
+      archived: section === "archive",
+      dateFrom: effectiveDateFrom || undefined,
+      dateTo: effectiveDateTo || undefined,
+      search: search || undefined,
+    },
+    { enabled: viewMode === "agents" && expandedAgentId !== null },
   );
 
   const updateStatus = trpc.order.updateStatus.useMutation({
@@ -490,8 +519,11 @@ export default function Orders() {
           />
           <Tabs value={viewMode} onValueChange={v => setViewMode(v as typeof viewMode)}>
             <TabsList className="h-8">
-              <TabsTrigger value="table" className="px-2.5 h-6 text-xs"><TableIcon className="h-3.5 w-3.5" /></TabsTrigger>
-              <TabsTrigger value="kanban" className="px-2.5 h-6 text-xs"><LayoutGrid className="h-3.5 w-3.5" /></TabsTrigger>
+              <TabsTrigger value="table" className="px-2.5 h-6 text-xs" title={t("Таблица", "Jadval")}><TableIcon className="h-3.5 w-3.5" /></TabsTrigger>
+              <TabsTrigger value="kanban" className="px-2.5 h-6 text-xs" title={t("Доска", "Doska")}><LayoutGrid className="h-3.5 w-3.5" /></TabsTrigger>
+              {isOperatorOrCeo && (
+                <TabsTrigger value="agents" className="px-2.5 h-6 text-xs" title={t("По агентам", "Agentlar bo'yicha")}><Users className="h-3.5 w-3.5" /></TabsTrigger>
+              )}
             </TabsList>
           </Tabs>
         </div>
@@ -520,6 +552,55 @@ export default function Orders() {
           options={[{value:"",label:t("Все статусы","Barcha holatlar")},...Object.entries(STATUS).map(([k,v])=>({value:k,label:lang==="uz"?v.uz:v.ru}))]}
           width="180px" />
       </div>
+
+      {/* By-agent view */}
+      {viewMode === "agents" && isOperatorOrCeo && (
+        agentsLoading ? (
+          <div style={{
+            background: COLORS.surface, borderRadius: "16px", padding: "48px",
+            textAlign: "center", boxShadow: SHADOW,
+            fontFamily: F.body, fontSize: "13px", color: COLORS.textTertiary,
+          }}>
+            {t("Загрузка…", "Yuklanmoqda…")}
+          </div>
+        ) : (
+          <OrderAgentGroups
+            agents={agentSummary ?? []}
+            expandedAgentId={expandedAgentId}
+            expandedOrders={(expandedAgentOrders?.data ?? []).map(o => ({
+              id: o.id as number,
+              orderNumber: o.orderNumber,
+              status: o.status,
+              total: o.total ?? "0",
+              shopName: o.shopName ?? null,
+              paymentMethod: o.paymentMethod ?? "cash",
+              createdAt: o.createdAt as string | Date,
+            }))}
+            expandedLoading={expandedOrdersLoading}
+            // Collapsing clears the selection: those orders are no longer on
+            // screen, and acting on an invisible selection is how an operator
+            // ends up changing something they didn't mean to.
+            onToggleAgent={(agentId) => {
+              setExpandedAgentId(prev => (prev === agentId ? null : agentId));
+              clearSelection();
+            }}
+            selected={selected}
+            onToggleOrder={toggleSelect}
+            onToggleAllForAgent={(ids) => {
+              const allOn = ids.length > 0 && ids.every(id => selected.has(id));
+              setSelected(prev => {
+                const next = new Set(prev);
+                for (const id of ids) allOn ? next.delete(id) : next.add(id);
+                return next;
+              });
+            }}
+            onOrderClick={setSlideOverOrderId}
+            fmt={fmt}
+            t={t}
+            lang={lang}
+          />
+        )
+      )}
 
       {/* Kanban view */}
       {viewMode === "kanban" && !isMobile && (
@@ -608,7 +689,7 @@ export default function Orders() {
                 );
               })}
         </div>
-      ) : viewMode === "kanban" ? null : (
+      ) : viewMode === "kanban" || viewMode === "agents" ? null : (
         /* ─── Desktop Table ─── */
         <div style={{
           background: COLORS.surface, borderRadius: "24px", overflow: "hidden",
@@ -814,7 +895,9 @@ export default function Orders() {
       )}
 
       {/* ─── Pagination ─── */}
-      {data && data.total > 25 && (
+      {/* Paging belongs to the flat list; the agent view pages within each
+          expanded agent instead, and the board shows the current page as-is. */}
+      {viewMode === "table" && data && data.total > 25 && (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <span style={{ fontSize: "13px", color: COLORS.textSecondary, fontFamily: F.body }}>{data.total} {t("всего", "jami")}</span>
           <div style={{ display: "flex", gap: "8px" }}>

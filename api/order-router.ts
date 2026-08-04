@@ -4,8 +4,9 @@ import { OrderService } from "./services/order";
 import { cache, CacheKeys } from "./lib/cache";
 import { getDb } from "./queries/connection";
 import { savedFilters, orderComments, shops, payments, users, orders } from "@db/schema";
-import { eq, and, desc, sql, isNull, inArray } from "drizzle-orm";
+import { eq, and, or, desc, sql, isNull, inArray } from "drizzle-orm";
 import { sanitizeString } from "./lib/sanitize";
+import { OPEN_ORDER_STATUSES, CLOSED_ORDER_STATUSES } from "./lib/order-status";
 
 export const orderRouter = createRouter({
   // ── Server-side KPI stats (all orders, not just current page) ──────────────
@@ -64,6 +65,102 @@ export const orderRouter = createRouter({
         cancelledCount: statusMap["cancelled"] ?? 0,
         returnedCount: statusMap["returned"] ?? 0,
       };
+    }),
+
+  /**
+   * One row per agent for the Orders page's "by agent" view.
+   *
+   * An operator's actual job here is triage: they want to see, at a glance,
+   * which agent has work waiting on them and how much money is tied up in it,
+   * then open that agent and act on the whole batch. So this returns the same
+   * numbers the summary row shows — not a generic group-by that the client
+   * would then have to add up itself.
+   *
+   * `openCount` is the one that matters operationally: orders still in play
+   * (new/processing/shipped/pending) are what an operator can still act on.
+   * `debt` is what those orders have not been paid for, computed the same way
+   * shop debt is — total minus payments booked against that order — so the
+   * figure agrees with what the shop's balance says.
+   *
+   * Agents with no orders in the window are included with zeroes rather than
+   * omitted: "this agent brought in nothing today" is exactly the thing a
+   * supervisor is looking for, and dropping the row hides it.
+   *
+   * The row set is "every active agent, plus anyone else who actually placed
+   * an order in this window". Restricting it to role='agent' alone would
+   * silently drop orders an operator or CEO entered directly — they'd be
+   * counted in the page's totals but findable in no group, which is worse
+   * than an extra row.
+   */
+  agentSummary: operatorQuery
+    .input(z.object({
+      dateFrom: z.string().optional(),
+      dateTo: z.string().optional(),
+      archived: z.boolean().optional(),
+      search: z.string().optional(),
+    }).optional())
+    .query(async ({ input, ctx }) => {
+      const db = getDb();
+      const tenantId = ctx.tenant.id;
+
+      const conditions = [eq(orders.tenantId, tenantId), isNull(orders.deletedAt)];
+      if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
+      if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`);
+      if (input?.archived !== undefined) {
+        conditions.push(input.archived
+          ? inArray(orders.status, CLOSED_ORDER_STATUSES)
+          : inArray(orders.status, OPEN_ORDER_STATUSES));
+      }
+      if (input?.search) {
+        conditions.push(sql`(${orders.orderNumber} LIKE ${"%" + input.search + "%"} OR ${shops.name} LIKE ${"%" + input.search + "%"})`);
+      }
+
+      const rows = await db.select({
+        agentId:   users.id,
+        agentName: users.name,
+        orderCount: sql<number>`COUNT(${orders.id})`,
+        totalValue: sql<string>`COALESCE(SUM(CAST(${orders.total} AS DECIMAL(15,2))), 0)`,
+        openCount: sql<number>`COALESCE(SUM(CASE WHEN ${orders.status} IN ('new','processing','shipped','pending') THEN 1 ELSE 0 END), 0)`,
+        deliveredCount: sql<number>`COALESCE(SUM(CASE WHEN ${orders.status} = 'delivered' THEN 1 ELSE 0 END), 0)`,
+        // Unpaid balance on this agent's orders, mirroring recalcShopDebt's
+        // per-order rule: a credit order owes from creation, anything else once
+        // it reached delivered, in both cases net of payments against it.
+        debt: sql<string>`COALESCE(SUM(
+          CASE
+            WHEN ${orders.status} IN ('cancelled','returned') THEN 0
+            WHEN ${orders.paymentMethod} = 'debt' OR ${orders.status} = 'delivered'
+              THEN GREATEST(0, CAST(${orders.total} AS DECIMAL(15,2)) - COALESCE((
+                SELECT SUM(CAST(p.amount AS DECIMAL(15,2))) FROM ${payments} p
+                WHERE p.order_id = ${orders.id} AND p.type = 'payment'
+              ), 0))
+            ELSE 0
+          END
+        ), 0)`,
+        lastOrderAt: sql<string | null>`MAX(${orders.createdAt})`,
+      })
+        .from(users)
+        // LEFT so an agent with nothing in this window still gets a row.
+        .leftJoin(orders, and(eq(orders.agentId, users.id), ...conditions))
+        .leftJoin(shops, eq(orders.shopId, shops.id))
+        .where(and(
+          eq(users.tenantId, tenantId),
+          or(
+            and(eq(users.role, "agent"), eq(users.status, "active")),
+            // Anyone who actually has an order in this window, whatever their
+            // role or current status — a deactivated agent's orders still need
+            // a home.
+            sql`EXISTS (SELECT 1 FROM ${orders} o2 WHERE o2.agent_id = ${users.id} AND o2.tenant_id = ${tenantId} AND o2.deleted_at IS NULL)`,
+          )!,
+        ))
+        .groupBy(users.id, users.name)
+        .orderBy(desc(sql`COUNT(${orders.id})`));
+
+      return rows.map(r => ({
+        ...r,
+        orderCount: Number(r.orderCount),
+        openCount: Number(r.openCount),
+        deliveredCount: Number(r.deliveredCount),
+      }));
     }),
 
   list: fieldSalesQuery
