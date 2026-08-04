@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback, useId } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Check } from "lucide-react";
 
 interface PremiumSelectProps {
   value: string;
@@ -8,97 +8,185 @@ interface PremiumSelectProps {
   onChange: (value: string) => void;
   placeholder?: string;
   width?: string;
+  disabled?: boolean;
+  "aria-label"?: string;
 }
 
-export function PremiumSelect({ value, options, onChange, placeholder = "Выберите...", width }: PremiumSelectProps) {
+/** Rows are a fixed height, so the panel can be sized before it is measured. */
+const ROW = 38;
+const PANEL_PADDING = 8;
+const GAP = 6;
+const MAX_PANEL = 280;
+
+export function PremiumSelect({
+  value, options, onChange, placeholder = "Выберите...", width, disabled,
+  "aria-label": ariaLabel,
+}: PremiumSelectProps) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 0, maxHeight: MAX_PANEL, above: false });
+
+  const rootRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 });
+  const typeahead = useRef({ term: "", at: 0 });
+  const listId = useId();
+
+  const selectedIndex = options.findIndex(o => o.value === value);
+  const selected = selectedIndex >= 0 ? options[selectedIndex] : undefined;
+
+  /**
+   * The panel is fixed-positioned, so it has to be re-placed whenever anything
+   * moves it relative to the trigger. Measuring only on open left it stranded
+   * mid-page the moment the user scrolled.
+   */
+  const place = useCallback(() => {
+    const t = triggerRef.current;
+    if (!t) return;
+    const r = t.getBoundingClientRect();
+    const wanted = Math.min(MAX_PANEL, options.length * ROW + PANEL_PADDING);
+    const below = window.innerHeight - r.bottom - GAP - 8;
+    const above = r.top - GAP - 8;
+    // Open upwards when the space below cannot hold the list but the space
+    // above can — otherwise the last options sit off the bottom of the screen.
+    const flip = below < wanted && above > below;
+    setPos({
+      top: flip ? Math.max(8, r.top - GAP - Math.min(wanted, above)) : r.bottom + GAP,
+      left: r.left,
+      width: r.width,
+      maxHeight: Math.max(ROW + PANEL_PADDING, Math.min(wanted, flip ? above : below)),
+      above: flip,
+    });
+  }, [options.length]);
 
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
+    if (!open) return;
+    place();
+    // `capture` so scrolling inside any ancestor counts, not just the window.
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    return () => {
+      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("resize", place);
+    };
+  }, [open, place]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (e: MouseEvent) => {
       const target = e.target as Node;
-      if (ref.current?.contains(target) || dropdownRef.current?.contains(target)) return;
+      if (rootRef.current?.contains(target) || panelRef.current?.contains(target)) return;
       setOpen(false);
     };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  useEffect(() => {
-    if (open && triggerRef.current) {
-      const rect = triggerRef.current.getBoundingClientRect();
-      setDropdownPos({ top: rect.bottom + 6, left: rect.left, width: rect.width });
-    }
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
   }, [open]);
 
-  const selected = options.find(o => o.value === value);
+  // Keep the highlighted row in view when arrowing past the fold.
+  useEffect(() => {
+    if (!open || activeIndex < 0) return;
+    panelRef.current?.querySelectorAll("[role=option]")[activeIndex]
+      ?.scrollIntoView({ block: "nearest" });
+  }, [open, activeIndex]);
+
+  function commit(index: number) {
+    const opt = options[index];
+    if (!opt) return;
+    onChange(opt.value);
+    setOpen(false);
+    triggerRef.current?.focus();
+  }
+
+  function openWith(index: number) {
+    setActiveIndex(index);
+    setOpen(true);
+  }
+
+  function onKeyDown(e: React.KeyboardEvent) {
+    if (disabled) return;
+    const last = options.length - 1;
+
+    if (!open) {
+      if (["ArrowDown", "ArrowUp", "Enter", " "].includes(e.key)) {
+        e.preventDefault();
+        openWith(selectedIndex >= 0 ? selectedIndex : 0);
+      }
+      return;
+    }
+
+    switch (e.key) {
+      case "Escape":    e.preventDefault(); setOpen(false); triggerRef.current?.focus(); return;
+      case "Tab":       setOpen(false); return;
+      case "Enter":
+      case " ":         e.preventDefault(); commit(activeIndex); return;
+      case "ArrowDown": e.preventDefault(); setActiveIndex(i => (i >= last ? 0 : i + 1)); return;
+      case "ArrowUp":   e.preventDefault(); setActiveIndex(i => (i <= 0 ? last : i - 1)); return;
+      case "Home":      e.preventDefault(); setActiveIndex(0); return;
+      case "End":       e.preventDefault(); setActiveIndex(last); return;
+    }
+
+    // Typeahead: consecutive letters build a search term, as a native select does.
+    if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      const now = Date.now();
+      const t = typeahead.current;
+      t.term = now - t.at > 700 ? e.key : t.term + e.key;
+      t.at = now;
+      const hit = options.findIndex(o => o.label.toLowerCase().startsWith(t.term.toLowerCase()));
+      if (hit >= 0) setActiveIndex(hit);
+    }
+  }
 
   return (
-    <div ref={ref} style={{ position: "relative", width: width || "auto" }}>
-      {/* Trigger */}
+    <div ref={rootRef} style={{ position: "relative", width: width || "auto" }}>
       <button
         ref={triggerRef}
-        onClick={() => setOpen(v => !v)}
-        style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          width: "100%", padding: "10px 14px", borderRadius: "10px",
-          background: "var(--color-surface-light, #f0f3f8)", color: selected ? "var(--color-text-primary, #2b3450)" : "var(--color-text-tertiary, #98a0b8)",
-          border: open ? "1.5px solid var(--color-primary, #5b6d8a)" : "1.5px solid transparent",
-          boxShadow: open ? "0 0 0 3px color-mix(in srgb, var(--color-primary, #5b6d8a) 12%, transparent)" : "none",
-          fontSize: "13px", fontFamily: "'DM Sans', sans-serif", fontWeight: 500,
-          cursor: "pointer", transition: "all 0.15s ease", outline: "none",
-        }}
+        type="button"
+        role="combobox"
+        aria-expanded={open}
+        aria-controls={open ? listId : undefined}
+        aria-haspopup="listbox"
+        aria-label={ariaLabel}
+        disabled={disabled}
+        onClick={() => (open ? setOpen(false) : openWith(selectedIndex >= 0 ? selectedIndex : 0))}
+        onKeyDown={onKeyDown}
+        className={`premium-select-trigger${open ? " open" : ""}`}
       >
-        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <span className="premium-select-label" data-placeholder={selected ? undefined : ""}>
           {selected?.label ?? placeholder}
         </span>
-        <ChevronDown size={16} style={{ color: "var(--color-text-tertiary, #98a0b8)", transform: open ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.15s ease", flexShrink: 0 }} />
+        <ChevronDown size={16} className="premium-select-chevron" aria-hidden />
       </button>
 
-      {/* Dropdown — portal to avoid clipping */}
       {open && createPortal(
-        <div ref={dropdownRef} style={{
-          position: "fixed", top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width, zIndex: 99999,
-          background: "var(--color-surface, #ffffff)", borderRadius: "12px",
-          boxShadow: "0 4px 12px rgba(0,0,0,.08), 0 1px 3px rgba(0,0,0,.04)",
-          border: "1px solid var(--color-border, #f0f3f8)",
-          maxHeight: "240px", overflowY: "auto", padding: "4px",
-        }}>
-          {options.map(opt => (
-            <button
+        <div
+          ref={panelRef}
+          id={listId}
+          role="listbox"
+          aria-activedescendant={activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined}
+          className={`premium-select-panel${pos.above ? " above" : ""}`}
+          style={{ top: pos.top, left: pos.left, width: pos.width, maxHeight: pos.maxHeight }}
+        >
+          {options.map((opt, i) => (
+            <div
               key={opt.value}
-              onClick={() => { onChange(opt.value); setOpen(false); }}
-              style={{
-                display: "flex", alignItems: "center", gap: "10px",
-                width: "100%", padding: "10px 12px", borderRadius: "8px",
-                border: "none", cursor: "pointer", transition: "all 0.15s ease",
-                background: value === opt.value ? "var(--color-primary-subtle, rgba(75,108,246,.10))" : "transparent",
-                color: value === opt.value ? "var(--color-primary, #5b6d8a)" : "var(--color-text-primary, #2b3450)",
-                fontSize: "13px", fontFamily: "'DM Sans', sans-serif", fontWeight: value === opt.value ? 600 : 400,
-                textAlign: "left",
-              }}
-              onMouseEnter={e => { if (value !== opt.value) e.currentTarget.style.background = "var(--color-surface-light, #f0f3f8)"; }}
-              onMouseLeave={e => { if (value !== opt.value) e.currentTarget.style.background = "transparent"; }}
+              id={`${listId}-${i}`}
+              role="option"
+              aria-selected={opt.value === value}
+              data-active={i === activeIndex ? "" : undefined}
+              className="premium-select-option"
+              onMouseEnter={() => setActiveIndex(i)}
+              onClick={() => commit(i)}
             >
-              {selected?.value === opt.value && (
-                <div style={{
-                  width: "18px", height: "18px", borderRadius: "6px",
-                  background: "#5b6d8a", display: "flex",
-                  alignItems: "center", justifyContent: "center", flexShrink: 0,
-                }}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                </div>
-              )}
-              {opt.label}
-            </button>
+              {/* The tick lives in a reserved gutter: rendering it only for the
+                  selected row used to shove that one label sideways. */}
+              <span className="premium-select-tick" aria-hidden>
+                {opt.value === value && <Check size={14} strokeWidth={3} />}
+              </span>
+              <span className="premium-select-option-label">{opt.label}</span>
+            </div>
           ))}
         </div>,
-        document.body
+        document.body,
       )}
     </div>
   );

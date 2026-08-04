@@ -110,6 +110,7 @@
     --shadow-lg:      14px 14px 32px rgba(160,152,140,0.35), -14px -14px 32px rgba(255,255,255,0.45);
     --shadow-xl:      18px 18px 40px rgba(160,152,140,0.4), -18px -18px 40px rgba(255,255,255,0.4);
     --shadow-ring:    drop-shadow(0 4px 10px rgba(180,172,158,0.3));
+    --shadow-popover: 0 12px 32px rgba(120,112,100,.22), 0 2px 8px rgba(120,112,100,.12);
     --ring-primary:   0 0 0 3px color-mix(in srgb, var(--color-primary) 18%, transparent);
 
     /* Chart colors */
@@ -209,6 +210,7 @@
     --shadow-xs:      2px 2px 6px rgba(0,0,0,0.3), -1px -1px 4px rgba(255,255,255,0.025);
     --shadow-md:      10px 10px 28px rgba(0,0,0,0.5), -5px -5px 14px rgba(255,255,255,0.035);
     --shadow-lg:      14px 14px 36px rgba(0,0,0,0.55), -7px -7px 18px rgba(255,255,255,0.03);
+    --shadow-popover: 0 16px 40px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.06);
     --shadow-xl:      20px 20px 44px rgba(0,0,0,0.6), -10px -10px 22px rgba(255,255,255,0.025);
     --shadow-ring:    drop-shadow(0 4px 10px rgba(0,0,0,0.5));
     --ring-primary:   0 0 0 3px rgba(0,212,255,.25);
@@ -795,6 +797,81 @@
   /* ══════════════════════════════════════════════════════════════════════
      LANGUAGE TOGGLE
      ══════════════════════════════════════════════════════════════════════ */
+
+  /* ── Select ────────────────────────────────────────────────────────────
+     Styling lives here rather than in inline styles so hover and the active
+     row can be expressed as states instead of mouse handlers fighting each
+     other, and so both themes are driven by the same tokens. */
+  .premium-select-trigger {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    width: 100%; padding: 10px 14px;
+    border-radius: 10px;
+    background: var(--color-surface-light);
+    color: var(--color-text-primary);
+    border: 1.5px solid transparent;
+    font-size: 13px; font-family: 'DM Sans', sans-serif; font-weight: 500;
+    cursor: pointer; outline: none;
+    transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+  }
+  .premium-select-trigger:hover:not(:disabled) { background: var(--color-surface-hover); }
+  .premium-select-trigger:disabled { opacity: .55; cursor: not-allowed; }
+  .premium-select-trigger.open,
+  .premium-select-trigger:focus-visible {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 18%, transparent);
+  }
+  .premium-select-label {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left;
+  }
+  .premium-select-label[data-placeholder] { color: var(--color-text-tertiary); }
+  .premium-select-chevron {
+    color: var(--color-text-tertiary); flex-shrink: 0;
+    transition: transform .15s ease;
+  }
+  .premium-select-trigger.open .premium-select-chevron { transform: rotate(180deg); }
+
+  .premium-select-panel {
+    position: fixed; z-index: 99999;
+    background: var(--color-surface-raised, var(--color-surface));
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    box-shadow: var(--shadow-popover);
+    padding: 4px; overflow-y: auto; overscroll-behavior: contain;
+    animation: selectIn .13s ease-out;
+  }
+  .premium-select-panel.above { transform-origin: bottom center; }
+  @keyframes selectIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .premium-select-panel { animation: none; }
+  }
+
+  .premium-select-option {
+    display: flex; align-items: center; gap: 8px;
+    padding: 9px 10px; border-radius: 8px;
+    font-size: 13px; font-family: 'DM Sans', sans-serif; font-weight: 400;
+    color: var(--color-text-primary);
+    cursor: pointer; user-select: none;
+  }
+  .premium-select-option[data-active] { background: var(--color-surface-hover); }
+  .premium-select-option[aria-selected="true"] {
+    color: var(--color-primary); font-weight: 600;
+  }
+  .premium-select-option[aria-selected="true"][data-active] {
+    background: var(--color-primary-subtle);
+  }
+  /* A fixed gutter keeps every label on the same left edge, ticked or not. */
+  .premium-select-tick {
+    width: 14px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--color-primary);
+  }
+  .premium-select-option-label {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
   .lang-btn {
     flex: 1; padding: 6px;
     font-size: 11px; font-family: 'DM Sans', sans-serif; font-weight: 600;

@@ -8,6 +8,7 @@ import { exportToExcel } from "@/lib/excel";
 import { Settings, Loader2, FileDown, Target, ShoppingCart, DollarSign, Users, Package, Star, MapPin, AlertTriangle } from "lucide-react";
 import { ProgressRing } from "@/components/ProgressRing";
 import { RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer } from "recharts";
+import { PremiumSelect } from "@/components/PremiumSelect";
 
 interface KpiData {
   agentId: number; agentName: string; period: string;
@@ -324,13 +325,16 @@ function SupervisorView({ kpi, selectedKpi, selectedSalary, detailLoading, onSel
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-2">
             <label className="text-xs font-medium" style={{ color: COLORS.textSecondary }}>{t("Территория", "Territoriya")}</label>
-            <select value={territoryFilter} onChange={e => setTerritoryFilter(e.target.value)}
-              className="neo-input text-xs py-1.5 px-3" style={{ width: "160px" }}>
-              <option value="all">{t("Все территории", "Barcha territoriyalar")}</option>
-              {(territories ?? []).map((ter: { id: number; name: string }) => (
-                <option key={ter.id} value={String(ter.id)}>{ter.name}</option>
-              ))}
-            </select>
+            <PremiumSelect
+              value={territoryFilter}
+              onChange={setTerritoryFilter}
+              width="160px"
+              aria-label={t("Территория", "Territoriya")}
+              options={[
+                { value: "all", label: t("Все территории", "Barcha territoriyalar") },
+                ...(territories ?? []).map((ter: { id: number; name: string }) => ({ value: String(ter.id), label: ter.name })),
+              ]}
+            />
           </div>
         </div>
       </div>

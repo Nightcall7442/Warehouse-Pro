@@ -3,6 +3,7 @@ import { Users, FileDown, Package } from "lucide-react";
 import { F, COLORS, thStyle, tdStyle } from "./report-constants";
 import { GlassPanel } from "./ReportCharts";
 import { formatQty } from "@/lib/format";
+import { PremiumSelect } from "@/components/PremiumSelect";
 
 export interface AgentProductRow {
   agentId: number | null;
@@ -84,12 +85,16 @@ export const AgentProductsTab = memo(function AgentProductsTab({
           <input type="date" value={dateFrom} onChange={e => onDateFromChange(e.target.value)} style={inputStyle} />
           <span style={{ color: COLORS.textTertiary, fontSize: "13px" }}>—</span>
           <input type="date" value={dateTo} onChange={e => onDateToChange(e.target.value)} style={inputStyle} />
-          <select value={agentFilter} onChange={e => setAgentFilter(e.target.value)} style={inputStyle}>
-            <option value="all">{t("Все агенты", "Barcha agentlar")}</option>
-            {agentOptions.map(([id, name]) => (
-              <option key={id} value={id}>{name}</option>
-            ))}
-          </select>
+          <PremiumSelect
+            value={agentFilter}
+            onChange={setAgentFilter}
+            width="170px"
+            aria-label={t("Агент", "Agent")}
+            options={[
+              { value: "all", label: t("Все агенты", "Barcha agentlar") },
+              ...agentOptions.map(([id, name]) => ({ value: id, label: name })),
+            ]}
+          />
           <button onClick={onExport} style={{
             display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
             fontSize: "12px", fontWeight: 600, fontFamily: F.body, borderRadius: "8px",

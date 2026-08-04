@@ -13,6 +13,7 @@ import {
   CartesianGrid, Legend, LineChart, Line, PieChart, Pie, Cell,
 } from "recharts";
 import { exportToExcel, exportToPDF, buildExcelSheets, buildPDFHtml, type ReportData } from "@/lib/export";
+import { PremiumSelect } from "@/components/PremiumSelect";
 
 const COLORS = ["#5b6d8a", "#c7c9f8", "#c7c9f8", "#c7c9f8", "var(--color-primary-subtle, rgba(75,108,246,.10))", "var(--color-primary-subtle, rgba(75,108,246,.10))", "#34c473", "#d4973a"];
 
@@ -185,17 +186,18 @@ export default function WarehouseReports() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <select
-            value={days}
-            onChange={(e) => setDays(Number(e.target.value))}
-            className="neo-input text-xs py-1.5"
-            style={{ minWidth: 100 }}
-          >
-            <option value={7}>{t("7 дней", "7 kun")}</option>
-            <option value={14}>{t("14 дней", "14 kun")}</option>
-            <option value={30}>{t("30 дней", "30 kun")}</option>
-            <option value={90}>{t("90 дней", "90 kun")}</option>
-          </select>
+          <PremiumSelect
+            value={String(days)}
+            onChange={v => setDays(Number(v))}
+            width="120px"
+            aria-label={t("Период", "Davr")}
+            options={[
+              { value: "7",  label: t("7 дней", "7 kun") },
+              { value: "14", label: t("14 дней", "14 kun") },
+              { value: "30", label: t("30 дней", "30 kun") },
+              { value: "90", label: t("90 дней", "90 kun") },
+            ]}
+          />
           <button
             onClick={handleExcelExport}
             disabled={isLoading}

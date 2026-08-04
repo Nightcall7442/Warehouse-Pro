@@ -16,6 +16,7 @@ import {
   Calendar, LogOut, X, Moon, Sun, WifiOff, Scan, Activity,
   TrendingUp, CreditCard, ChevronLeft, Bell, Zap,
 } from "lucide-react";
+import { PremiumSelect } from "@/components/PremiumSelect";
 
 const iconMap: Record<string, React.ComponentType<{ size?: number }>> = {
   LayoutDashboard, Store, Package, ClipboardList, Truck,
@@ -119,37 +120,18 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
           <label className="block" style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-text-tertiary, #8b9bb4)", marginBottom: "6px" }}>
             {t("nav.warehouse", "Склад")}
           </label>
-          <div className="relative">
-            <select
-              value={selectedId ?? ""}
-              onChange={(e) => setSelectedId(Number(e.target.value))}
-              disabled={whLoading}
-              className="w-full appearance-none cursor-pointer"
-              style={{
-                fontSize: "13px",
-                fontWeight: 500,
-                color: "var(--color-text-primary, #2d3748)",
-                background: "var(--color-surface, #e0e5ec)",
-                border: "1px solid var(--color-border-subtle, #d1d9e6)",
-                borderRadius: "12px",
-                padding: "10px 32px 10px 14px",
-                outline: "none",
-                boxShadow: "var(--shadow-pressed)",
-              }}
-            >
-              <option value="">{t("warehouse.allWarehouses", "Все склады")}</option>
-              {warehouses.map((w) => (
-                <option key={w.id} value={w.id}>
-                  {w.name}{w.isDefault ? " ★" : ""}
-                </option>
-              ))}
-            </select>
-            <Warehouse
-              size={14}
-              className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2"
-              style={{ color: "var(--color-text-tertiary, #8b9bb4)" }}
-            />
-          </div>
+          <PremiumSelect
+            value={selectedId != null ? String(selectedId) : ""}
+            onChange={v => setSelectedId(Number(v))}
+            disabled={whLoading}
+            aria-label={t("nav.warehouse")}
+            width="100%"
+            placeholder={t("warehouse.allWarehouses")}
+            options={[
+              { value: "", label: t("warehouse.allWarehouses") },
+              ...warehouses.map(w => ({ value: String(w.id), label: `${w.name}${w.isDefault ? " ★" : ""}` })),
+            ]}
+          />
         </div>
       )}
 

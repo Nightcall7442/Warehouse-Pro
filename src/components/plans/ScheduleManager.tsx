@@ -3,6 +3,7 @@ import { Calendar, Plus, Trash2, Loader2, Play } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { COLORS, SHADOW, F } from "./constants";
+import { PremiumSelect } from "@/components/PremiumSelect";
 
 const DAY_NAMES_RU = ["ВС", "ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ"];
 const DAY_NAMES_UZ = ["Yak", "Dush", "Sesh", "Chor", "Pay", "Jum", "Shan"];
@@ -79,17 +80,14 @@ export function ScheduleManager({ lang }: { lang: string }) {
 
       {/* Agent selector */}
       <div style={{ display: "flex", gap: "8px", marginBottom: "16px", flexWrap: "wrap" }}>
-        <select
-          value={selectedAgent ?? ""}
-          onChange={e => setSelectedAgent(e.target.value ? Number(e.target.value) : undefined)}
-          className="neo-input"
-          style={{ flex: 1, minWidth: "150px", fontSize: "13px" }}
-        >
-          <option value="">{t("Выберите агента", "Agent tanlang")}</option>
-          {agents.map((a: { id: number; name: string }) => (
-            <option key={a.id} value={a.id}>{a.name}</option>
-          ))}
-        </select>
+        <PremiumSelect
+          value={selectedAgent != null ? String(selectedAgent) : ""}
+          onChange={v => setSelectedAgent(v ? Number(v) : undefined)}
+          width="100%"
+          placeholder={t("Выберите агента", "Agent tanlang")}
+          aria-label={t("Агент", "Agent")}
+          options={agents.map((a: { id: number; name: string }) => ({ value: String(a.id), label: a.name }))}
+        />
       </div>
 
       {selectedAgent && (
