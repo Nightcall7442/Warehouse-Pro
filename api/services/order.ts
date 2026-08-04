@@ -131,8 +131,13 @@ async function applyStockDelta(
       throw new Error(`Недостаточно товара на складе (товар ID ${productId}: остаток ${Number(stock?.currentStock ?? 0)}, нужно +${delta})`);
     }
   }
+  // The units are leaving (or coming back to) the warehouse outright: this
+  // order's status already released its reservation, so they move between
+  // "on hand" and "gone" — never through `reserved`. Both counters have to
+  // move together, or current_stock stops equalling available + reserved.
   await tx.execute(sql`
-    UPDATE warehouse_stock SET current_stock = current_stock - ${delta}
+    UPDATE warehouse_stock
+    SET current_stock = current_stock - ${delta}, available = available - ${delta}
     WHERE product_id = ${productId} AND tenant_id = ${tenantId} AND warehouse_id = ${warehouseId}
   `);
 }
