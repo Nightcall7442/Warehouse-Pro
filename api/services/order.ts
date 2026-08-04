@@ -1,4 +1,4 @@
-import { eq, and, desc, sql, isNull, inArray } from "drizzle-orm";
+import { eq, and, or, desc, sql, isNull, isNotNull, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
 import { orders, orderItems, warehouseStock, shops, users, products, notifications, warehouses, payments, loadingLists, loadingListOrders, auditLog, debtReminders, orderAdjustments, territories } from "@db/schema";
 import { recalcShopDebt } from "./shop-debt";
@@ -384,13 +384,21 @@ export const OrderService = {
     const conditions = [eq(orders.tenantId, tenantId)];
     if (f.status) {
       conditions.push(eq(orders.status, f.status as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned"));
-    } else if (f.archived !== undefined) {
-      // Archive = goods are no longer in play (delivered/cancelled/returned).
-      // Active = still moving through the pipeline. A specific status filter
-      // (above) always wins — the tab just picks a default grouping.
+    }
+    if (f.archived !== undefined) {
+      // Archive holds everything that is out of play, so nothing can fall out
+      // of both tabs: orders that reached an end state, and deleted ones
+      // whatever status they were in when deleted. A deleted order is not
+      // active — it used to keep its "new" status and so either sat among live
+      // work or vanished from the page entirely.
+      //
+      // This composes with the status filter rather than being overridden by
+      // it: picking a status while on a tab narrows *within* that tab, which
+      // is the only reading under which a deleted "new" order is reachable at
+      // all now that it belongs to the archive.
       conditions.push(f.archived
-        ? inArray(orders.status, CLOSED_ORDER_STATUSES)
-        : inArray(orders.status, OPEN_ORDER_STATUSES));
+        ? or(inArray(orders.status, CLOSED_ORDER_STATUSES), isNotNull(orders.deletedAt))!
+        : and(inArray(orders.status, OPEN_ORDER_STATUSES), isNull(orders.deletedAt))!);
     }
     if (f.agentId) conditions.push(eq(orders.agentId, f.agentId));
     if (f.paymentMethod) conditions.push(eq(orders.paymentMethod, f.paymentMethod as "cash" | "card" | "transfer" | "debt"));
@@ -399,8 +407,10 @@ export const OrderService = {
     // P0-14 FIX: Implement date filters
     if (f.dateFrom) conditions.push(sql`${orders.createdAt} >= ${f.dateFrom}`);
     if (f.dateTo) conditions.push(sql`${orders.createdAt} <= ${f.dateTo + ' 23:59:59'}`);
-    // Hide deleted orders unless explicitly requested
-    if (!f.showDeleted) conditions.push(isNull(orders.deletedAt));
+    // Hide deleted orders unless explicitly requested — except in the archive,
+    // which is where they belong and already selects them above. Applying it
+    // there would cancel that out and leave deleted orders in neither tab.
+    if (!f.showDeleted && f.archived !== true) conditions.push(isNull(orders.deletedAt));
     // P0-14 FIX: Non-privileged users see only their own orders
     if (opts && !["ceo", "operator", "supervisor", "superadmin"].includes(opts.userRole)) {
       conditions.push(eq(orders.agentId, opts.userId));

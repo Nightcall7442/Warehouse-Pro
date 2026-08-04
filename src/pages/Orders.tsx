@@ -37,7 +37,6 @@ export default function Orders() {
   const { fmt, symbol }     = useCurrency();
   const { lang }            = useLang();
   const [search, setSearch] = useState("");
-  const [showDeleted, setShowDeleted] = useState(false);
   const [dateFrom, setDateFrom] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
   const [dateTo, setDateTo] = useState(format(new Date(), "yyyy-MM-dd"));
   const isMobile            = useIsMobile();
@@ -155,8 +154,9 @@ export default function Orders() {
     page, pageSize: 25,
     search: search || undefined,
     status: (effectiveStatus || undefined) as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" | undefined,
-    archived: effectiveStatus ? undefined : section === "archive",
-    showDeleted: isOperatorOrCeo && showDeleted ? true : undefined,
+    // Always scoped to the open tab; a status filter now narrows within it
+    // rather than replacing it, so the archive keeps showing archive content.
+    archived: section === "archive",
     dateFrom: effectiveDateFrom || undefined,
     dateTo: effectiveDateTo || undefined,
     paymentMethod: effectivePaymentMethod as "cash" | "card" | "transfer" | "debt" | undefined,
@@ -518,21 +518,6 @@ export default function Orders() {
         <PremiumSelect value={status} onChange={v => { setStatus(v); setPage(1); }}
           options={[{value:"",label:t("Все статусы","Barcha holatlar")},...Object.entries(STATUS).map(([k,v])=>({value:k,label:lang==="uz"?v.uz:v.ru}))]}
           width="180px" />
-        {isOperatorOrCeo && (
-          <button
-            onClick={() => setShowDeleted(v => !v)}
-            style={{
-              display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
-              fontSize: "12px", fontWeight: 500, fontFamily: F.body, borderRadius: "10px",
-              border: `1px solid ${showDeleted ? COLORS.danger : COLORS.border}`, cursor: "pointer",
-              background: showDeleted ? `${COLORS.danger}15` : COLORS.surfaceLight,
-              color: showDeleted ? COLORS.danger : COLORS.textSecondary,
-            }}
-          >
-            <Trash2 size={13} />
-            {showDeleted ? t("Скрыть удалённые", "O'chirilganlarni yashirish") : t("Показать удалённые", "O'chirilganlarni ko'rsatish")}
-          </button>
-        )}
       </div>
 
       {/* Kanban view */}
