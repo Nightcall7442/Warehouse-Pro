@@ -5,6 +5,7 @@ import { useLang } from "@/i18n";
 import { Package, Search, ShoppingCart, Plus, Minus, Trash2, ChevronUp, ChevronDown } from "lucide-react";
 import { unitLabel } from "./types";
 import type { OrderItem } from "./types";
+import { formatQty } from "@/lib/format";
 
 interface ProductSelectorProps {
   items: OrderItem[];
@@ -303,7 +304,7 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
               {totalWeightKg > 0 && (
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
                   <span style={{ fontSize: "13px", color: "var(--color-text-secondary)" }}>{t("Вес", "Og'irlik")}</span>
-                  <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--color-text-primary)" }}>{totalWeightKg.toFixed(1)} кг</span>
+                  <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--color-text-primary)" }}>{formatQty(totalWeightKg)} кг</span>
                 </div>
               )}
               <div style={{ display: "flex", justifyContent: "space-between", paddingTop: "8px", borderTop: "1px solid var(--color-border)" }}>

@@ -1,13 +1,11 @@
 import { useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { MessageSquare, Send, Reply } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { useTranslate } from "@/i18n";
-import { useAuth } from "@/hooks/useAuth";
+import { F, COLORS } from "./theme";
 
 interface CommentNode {
   id: number;
@@ -28,29 +26,37 @@ function CommentItem({ comment, onReply }: { comment: CommentNode; onReply: (par
 
   return (
     <div className="group">
-      <div className="flex items-start gap-2 py-2">
-        <Avatar className="h-6 w-6 shrink-0">
-          <AvatarFallback className="text-[9px] bg-muted">{initials}</AvatarFallback>
-        </Avatar>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-medium">{comment.userName ?? "—"}</span>
-            <span className="text-[10px] text-muted-foreground">{new Date(comment.createdAt).toLocaleString("ru")}</span>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: "8px", padding: "8px 0" }}>
+        <div style={{
+          width: "24px", height: "24px", borderRadius: "50%", flexShrink: 0,
+          background: COLORS.surfaceLight, display: "flex", alignItems: "center", justifyContent: "center",
+          fontFamily: F.body, fontSize: "9px", fontWeight: 600, color: COLORS.textSecondary,
+        }}>
+          {initials}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <span style={{ fontFamily: F.body, fontSize: "12px", fontWeight: 600, color: COLORS.textPrimary }}>{comment.userName ?? "—"}</span>
+            <span style={{ fontFamily: F.body, fontSize: "10px", color: COLORS.textTertiary }}>{new Date(comment.createdAt).toLocaleString("ru")}</span>
           </div>
-          <p className="text-xs mt-0.5 whitespace-pre-wrap">{comment.content}</p>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-5 text-[10px] px-1 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+          <p style={{ fontFamily: F.body, fontSize: "12px", color: COLORS.textPrimary, marginTop: "2px", whiteSpace: "pre-wrap" }}>{comment.content}</p>
+          <button
+            type="button"
+            className="opacity-0 group-hover:opacity-100"
             onClick={() => onReply(comment.id)}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: "3px", marginTop: "2px",
+              background: "transparent", border: "none", cursor: "pointer", padding: "1px 4px",
+              fontFamily: F.body, fontSize: "10px", color: COLORS.textTertiary, transition: "opacity 0.15s",
+            }}
           >
-            <Reply className="h-2.5 w-2.5 mr-0.5" />
+            <Reply size={10} />
             Ответить
-          </Button>
+          </button>
         </div>
       </div>
       {comment.replies && comment.replies.length > 0 && (
-        <div className="ml-8 border-l pl-2">
+        <div style={{ marginLeft: "32px", borderLeft: `1px solid ${COLORS.border}`, paddingLeft: "8px" }}>
           {comment.replies.map(r => <CommentItem key={r.id} comment={r} onReply={onReply} />)}
         </div>
       )}
@@ -60,7 +66,6 @@ function CommentItem({ comment, onReply }: { comment: CommentNode; onReply: (par
 
 export function OrderComments({ orderId }: Props) {
   const t = useTranslate();
-  const { user } = useAuth();
   const [content, setContent] = useState("");
   const [replyTo, setReplyTo] = useState<number | null>(null);
   const utils = trpc.useUtils();
@@ -82,8 +87,8 @@ export function OrderComments({ orderId }: Props) {
 
   return (
     <div className="max-h-60 flex flex-col">
-      <div className="px-4 py-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-        <MessageSquare className="h-3.5 w-3.5" />
+      <div style={{ padding: "8px 16px", display: "flex", alignItems: "center", gap: "6px", fontFamily: F.body, fontSize: "12px", fontWeight: 600, color: COLORS.textTertiary }}>
+        <MessageSquare size={14} />
         {t("Комментарии", "Izohlar")} {comments ? `(${comments.length})` : ""}
       </div>
 
@@ -91,31 +96,43 @@ export function OrderComments({ orderId }: Props) {
         {comments && comments.length > 0 ? (
           comments.map(c => <CommentItem key={c.id} comment={c as CommentNode} onReply={setReplyTo} />)
         ) : (
-          <div className="text-xs text-muted-foreground text-center py-4">{t("Нет комментариев", "Izohlar yo'q")}</div>
+          <div style={{ fontFamily: F.body, fontSize: "12px", color: COLORS.textTertiary, textAlign: "center", padding: "16px 0" }}>{t("Нет комментариев", "Izohlar yo'q")}</div>
         )}
       </ScrollArea>
 
-      <div className="px-4 py-2 border-t">
+      <div style={{ padding: "8px 16px", borderTop: `1px solid ${COLORS.border}` }}>
         {replyTo && (
-          <div className="flex items-center gap-1 text-[10px] text-muted-foreground mb-1">
-            <Reply className="h-2.5 w-2.5" />
+          <div style={{ display: "flex", alignItems: "center", gap: "4px", fontFamily: F.body, fontSize: "10px", color: COLORS.textTertiary, marginBottom: "4px" }}>
+            <Reply size={10} />
             {t("Ответ на комментарий", "Izohga javob")} #{replyTo}
-            <Button variant="ghost" size="sm" className="h-4 px-1 text-[10px]" onClick={() => setReplyTo(null)}>
-              <span className="text-muted-foreground">×</span>
-            </Button>
+            <button type="button" onClick={() => setReplyTo(null)} style={{ background: "transparent", border: "none", cursor: "pointer", padding: "0 4px", fontSize: "10px", color: COLORS.textTertiary }}>
+              ×
+            </button>
           </div>
         )}
-        <div className="flex gap-2">
+        <div style={{ display: "flex", gap: "8px" }}>
           <Textarea
             value={content}
             onChange={e => setContent(e.target.value)}
             placeholder={t("Написать комментарий...", "Izoh yozish...")}
-            className="min-h-[32px] h-8 text-xs resize-none"
+            className="min-h-[32px] h-8 resize-none"
+            style={{ fontFamily: F.body, fontSize: "12px" }}
             onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSubmit(); } }}
           />
-          <Button size="icon-sm" onClick={handleSubmit} disabled={!content.trim() || addComment.isPending}>
-            <Send className="h-3.5 w-3.5" />
-          </Button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={!content.trim() || addComment.isPending}
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "center",
+              width: "32px", height: "32px", borderRadius: "10px", flexShrink: 0,
+              background: `linear-gradient(135deg, ${COLORS.primary}, #7b94f8)`, color: "#fff", border: "none",
+              cursor: (!content.trim() || addComment.isPending) ? "default" : "pointer",
+              opacity: (!content.trim() || addComment.isPending) ? 0.5 : 1,
+            }}
+          >
+            <Send size={14} />
+          </button>
         </div>
       </div>
     </div>

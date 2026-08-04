@@ -6,12 +6,10 @@ import type { CompletionData, CompletionMode } from "@/components/orders/Complet
 
 // Statuses that require the completion flow modal
 export const COMPLETION_STATUSES: Record<string, CompletionMode> = {
-  partially_returned: "partial_return",
-  partial_return_kept: "combined",
   delivered: "partial_payment",
 };
 
-type StatusType = "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" | "partially_returned" | "partial_return_kept";
+type StatusType = "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned";
 
 interface UseCompletionFlowOptions {
   orderId: number;

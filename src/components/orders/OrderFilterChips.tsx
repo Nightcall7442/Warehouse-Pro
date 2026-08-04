@@ -1,10 +1,9 @@
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { X, Calendar, Filter, Bookmark, Save } from "lucide-react";
+import { X, Calendar, Bookmark, Save } from "lucide-react";
 import { useTranslate } from "@/i18n";
+import { F, COLORS } from "./theme";
 
 export interface ActiveFilters {
   datePreset?: string;
@@ -30,11 +29,11 @@ const DATE_PRESETS = [
 ];
 
 const STATUS_CHIPS = [
-  { value: "new", labelRu: "Новые", labelUz: "Yangi", color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
-  { value: "processing", labelRu: "В обработке", labelUz: "Jarayonda", color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
-  { value: "shipped", labelRu: "Отгружены", labelUz: "Yuklangan", color: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400" },
-  { value: "delivered", labelRu: "Доставлены", labelUz: "Yetkazildi", color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
-  { value: "cancelled", labelRu: "Отменённые", labelUz: "Bekor qilingan", color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
+  { value: "new", labelRu: "Новые", labelUz: "Yangi", color: "#5b6d8a" },
+  { value: "processing", labelRu: "В обработке", labelUz: "Jarayonda", color: "#d4973a" },
+  { value: "shipped", labelRu: "Отгружены", labelUz: "Yuklangan", color: "#9b59b6" },
+  { value: "delivered", labelRu: "Доставлены", labelUz: "Yetkazildi", color: "#34c473" },
+  { value: "cancelled", labelRu: "Отменённые", labelUz: "Bekor qilingan", color: "#d45050" },
 ];
 
 const PAYMENT_CHIPS = [
@@ -44,7 +43,19 @@ const PAYMENT_CHIPS = [
   { value: "debt", labelRu: "В долг", labelUz: "Qarzga" },
 ];
 
-export function OrderFilterChips({ filters, onChange, savedFilters, onSave, onDelete, onLoad }: Props) {
+function chipStyle(active: boolean, activeColor?: string): React.CSSProperties {
+  return {
+    display: "inline-flex", alignItems: "center", gap: "4px",
+    height: "28px", padding: "0 12px", borderRadius: "9999px",
+    fontFamily: F.body, fontSize: "12px", fontWeight: 600,
+    cursor: "pointer", whiteSpace: "nowrap",
+    background: active ? `${activeColor ?? COLORS.primary}15` : COLORS.surface,
+    color: active ? (activeColor ?? COLORS.primary) : COLORS.textSecondary,
+    border: `1px solid ${active ? `${activeColor ?? COLORS.primary}30` : COLORS.border}`,
+  };
+}
+
+export function OrderFilterChips({ filters, onChange, savedFilters, onSave, onLoad }: Props) {
   const t = useTranslate();
   const [saveOpen, setSaveOpen] = useState(false);
   const [saveName, setSaveName] = useState("");
@@ -64,93 +75,75 @@ export function OrderFilterChips({ filters, onChange, savedFilters, onSave, onDe
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-2 mb-3">
+    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
       {/* Date presets */}
       {DATE_PRESETS.map(p => (
-        <Button
-          key={p.value}
-          variant={filters.datePreset === p.value ? "default" : "outline"}
-          size="sm"
-          className="h-7 text-xs rounded-full"
-          onClick={() => toggle("datePreset", p.value)}
-        >
-          <Calendar className="h-3 w-3 mr-1" />
+        <button key={p.value} type="button" style={chipStyle(filters.datePreset === p.value)} onClick={() => toggle("datePreset", p.value)}>
+          <Calendar size={12} />
           {t(p.labelRu, p.labelUz)}
-        </Button>
+        </button>
       ))}
 
-      <div className="w-px h-5 bg-border mx-1" />
+      <div style={{ width: "1px", height: "20px", background: COLORS.border, margin: "0 4px" }} />
 
       {/* Status chips */}
       {STATUS_CHIPS.map(s => (
-        <Button
-          key={s.value}
-          variant="outline"
-          size="sm"
-          className={`h-7 text-xs rounded-full ${filters.status === s.value ? s.color : ""}`}
-          onClick={() => toggle("status", s.value)}
-        >
+        <button key={s.value} type="button" style={chipStyle(filters.status === s.value, s.color)} onClick={() => toggle("status", s.value)}>
           {t(s.labelRu, s.labelUz)}
-        </Button>
+        </button>
       ))}
 
-      <div className="w-px h-5 bg-border mx-1" />
+      <div style={{ width: "1px", height: "20px", background: COLORS.border, margin: "0 4px" }} />
 
       {/* Payment chips */}
       {PAYMENT_CHIPS.map(p => (
-        <Button
-          key={p.value}
-          variant={filters.paymentMethod === p.value ? "default" : "outline"}
-          size="sm"
-          className="h-7 text-xs rounded-full"
-          onClick={() => toggle("paymentMethod", p.value)}
-        >
+        <button key={p.value} type="button" style={chipStyle(filters.paymentMethod === p.value)} onClick={() => toggle("paymentMethod", p.value)}>
           {t(p.labelRu, p.labelUz)}
-        </Button>
+        </button>
       ))}
 
       {/* Active filter tags */}
       {activeCount > 0 && (
         <>
-          <div className="w-px h-5 bg-border mx-1" />
+          <div style={{ width: "1px", height: "20px", background: COLORS.border, margin: "0 4px" }} />
           {filters.datePreset && (
-            <Badge variant="secondary" className="gap-1 cursor-pointer" onClick={() => remove("datePreset")}>
+            <span style={{ ...chipStyle(true), background: COLORS.surfaceLight, color: COLORS.textSecondary, border: `1px solid ${COLORS.border}` }} onClick={() => remove("datePreset")}>
               {DATE_PRESETS.find(p => p.value === filters.datePreset)?.labelRu}
-              <X className="h-3 w-3" />
-            </Badge>
+              <X size={12} />
+            </span>
           )}
           {filters.status && (
-            <Badge variant="secondary" className="gap-1 cursor-pointer" onClick={() => remove("status")}>
+            <span style={{ ...chipStyle(true), background: COLORS.surfaceLight, color: COLORS.textSecondary, border: `1px solid ${COLORS.border}` }} onClick={() => remove("status")}>
               {STATUS_CHIPS.find(s => s.value === filters.status)?.labelRu}
-              <X className="h-3 w-3" />
-            </Badge>
+              <X size={12} />
+            </span>
           )}
           {filters.paymentMethod && (
-            <Badge variant="secondary" className="gap-1 cursor-pointer" onClick={() => remove("paymentMethod")}>
+            <span style={{ ...chipStyle(true), background: COLORS.surfaceLight, color: COLORS.textSecondary, border: `1px solid ${COLORS.border}` }} onClick={() => remove("paymentMethod")}>
               {PAYMENT_CHIPS.find(p => p.value === filters.paymentMethod)?.labelRu}
-              <X className="h-3 w-3" />
-            </Badge>
+              <X size={12} />
+            </span>
           )}
-          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={clear}>
+          <button type="button" onClick={clear} style={{ background: "transparent", border: "none", cursor: "pointer", fontFamily: F.body, fontSize: "12px", fontWeight: 600, color: COLORS.textTertiary, padding: "0 4px" }}>
             {t("Сбросить", "Tozalash")}
-          </Button>
+          </button>
         </>
       )}
 
       {/* Save filter */}
-      <div className="ml-auto flex items-center gap-1">
+      <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "4px" }}>
         {savedFilters && savedFilters.length > 0 && (
           <Select onValueChange={v => {
             const f = savedFilters.find(sf => sf.id === Number(v));
             if (f && onLoad) onLoad(f.filterConfig as ActiveFilters);
           }}>
-            <SelectTrigger className="h-7 w-auto text-xs">
-              <Bookmark className="h-3 w-3 mr-1" />
+            <SelectTrigger style={{ height: "28px", width: "auto", fontFamily: F.body, fontSize: "12px", borderRadius: "9999px", border: `1px solid ${COLORS.border}`, color: COLORS.textSecondary }}>
+              <Bookmark size={12} />
               <SelectValue placeholder={t("Сохранённые", "Saqlangan")} />
             </SelectTrigger>
             <SelectContent>
               {savedFilters.map(f => (
-                <SelectItem key={f.id} value={String(f.id)} className="text-xs">
+                <SelectItem key={f.id} value={String(f.id)} style={{ fontSize: "12px" }}>
                   {f.name}
                 </SelectItem>
               ))}
@@ -161,28 +154,36 @@ export function OrderFilterChips({ filters, onChange, savedFilters, onSave, onDe
         {activeCount > 0 && onSave && (
           <Popover open={saveOpen} onOpenChange={setSaveOpen}>
             <PopoverTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-7 text-xs">
-                <Save className="h-3 w-3 mr-1" />
+              <button type="button" style={{ display: "inline-flex", alignItems: "center", gap: "4px", height: "28px", padding: "0 10px", borderRadius: "9999px", background: "transparent", border: "none", cursor: "pointer", fontFamily: F.body, fontSize: "12px", fontWeight: 600, color: COLORS.textTertiary }}>
+                <Save size={12} />
                 {t("Сохранить", "Saqlash")}
-              </Button>
+              </button>
             </PopoverTrigger>
-            <PopoverContent className="w-60" align="end">
-              <div className="space-y-2">
+            <PopoverContent className="w-60" align="end" style={{ fontFamily: F.body }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                 <input
-                  className="w-full px-2 py-1 text-sm border rounded"
+                  style={{ width: "100%", padding: "6px 8px", fontSize: "13px", border: `1px solid ${COLORS.border}`, borderRadius: "8px", fontFamily: F.body, color: COLORS.textPrimary }}
                   placeholder={t("Название фильтра", "Filter nomi")}
                   value={saveName}
                   onChange={e => setSaveName(e.target.value)}
                 />
-                <Button size="sm" className="w-full" onClick={() => {
-                  if (saveName.trim()) {
-                    onSave(saveName.trim(), filters);
-                    setSaveName("");
-                    setSaveOpen(false);
-                  }
-                }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (saveName.trim()) {
+                      onSave(saveName.trim(), filters);
+                      setSaveName("");
+                      setSaveOpen(false);
+                    }
+                  }}
+                  style={{
+                    width: "100%", padding: "8px", borderRadius: "10px", border: "none",
+                    background: `linear-gradient(135deg, ${COLORS.primary}, #7b94f8)`, color: "#fff",
+                    fontFamily: F.body, fontSize: "13px", fontWeight: 600, cursor: "pointer",
+                  }}
+                >
                   {t("Сохранить", "Saqlash")}
-                </Button>
+                </button>
               </div>
             </PopoverContent>
           </Popover>

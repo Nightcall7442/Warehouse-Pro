@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useCurrency } from "@/hooks/useCurrency";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
@@ -9,7 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import {
   Search, Plus, FileDown, ChevronRight, Store, User,
   ShoppingCart, Clock, CheckCircle2, XCircle, DollarSign,
-  ArrowUpRight, ArrowDownRight, Minus, Trash2, RotateCcw, Printer,
+  Trash2, RotateCcw, Printer,
   CheckSquare, Square, LayoutGrid, Table as TableIcon, Eye,
   RefreshCw, Truck,
 } from "lucide-react";
@@ -30,92 +30,7 @@ import { OrderKanbanBoard } from "@/components/orders/OrderKanbanBoard";
 import { QuickOrderModal } from "@/components/orders/QuickOrderModal";
 import { CompletionFlowModal } from "@/components/orders/CompletionFlowModal";
 import type { CompletionData, CompletionMode } from "@/components/orders/CompletionFlowModal";
-
-/* ─── Premium Design Constants ─── */
-const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
-const COLORS = {
-  primary: "#5b6d8a", success: "#34c473",
-  warning: "#d4973a", danger: "#d45050",
-  surface: "var(--color-surface, #ffffff)", surfaceLight: "var(--color-surface-light, #f0f3f8)",
-  textPrimary: "var(--color-text-primary, #2b3450)", textSecondary: "var(--color-text-secondary, #6a7290)",
-  textTertiary: "var(--color-text-tertiary, #98a0b8)", border: "var(--color-border, #f0f3f8)",
-};
-const SHADOW = "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04))";
-
-/* ─── Payment Method Config ─── */
-const PAYMENT: Record<string, { ru: string; uz: string; color: string }> = {
-  cash:     { ru: "Наличные",     uz: "Naqd",      color: "#34c473" },
-  transfer: { ru: "Перечисление", uz: "O'tkazma",  color: "#5b6d8a" },
-  debt:     { ru: "Долг",         uz: "Qarz",      color: "#d4973a" },
-  card:     { ru: "Карта",        uz: "Plastik",   color: "#9b59b6" },
-};
-
-/* ─── Status Config ─── */
-const STATUS: Record<string, { ru: string; uz: string; dot: string; bg: string; text: string; border: string }> = {
-  new:                  { ru: "Новый",            uz: "Yangi",                   dot: "#5b6d8a", bg: "bg-info/10",    text: "text-info",    border: "border-info/25" },
-  processing:           { ru: "В обработке",      uz: "Jarayonda",               dot: "#d4973a", bg: "bg-warning/10", text: "text-warning", border: "border-warning/25" },
-  shipped:              { ru: "Отгружён",         uz: "Yuklandi",                dot: "#9b59b6", bg: "bg-purple-100", text: "text-purple-600", border: "border-purple-200" },
-  pending:              { ru: "В ожидании",       uz: "Kutishda",                dot: "#f09050", bg: "bg-orange-100", text: "text-orange-600", border: "border-orange-200" },
-  delivered:            { ru: "Доставлен",        uz: "Yetkazildi",              dot: "#34c473", bg: "bg-success/10", text: "text-success", border: "border-success/25" },
-  cancelled:            { ru: "Отменён",          uz: "Bekor qilindi",           dot: "#d45050", bg: "bg-danger/10",  text: "text-danger",  border: "border-danger/25" },
-  returned:             { ru: "Возврат",          uz: "Qaytarildi",              dot: "#e85050", bg: "bg-red-100",    text: "text-red-600", border: "border-red-200" },
-  partially_returned:   { ru: "Возврат частично",uz: "Qisman qaytarildi",       dot: "#f09050", bg: "bg-orange-100", text: "text-orange-600", border: "border-orange-200" },
-  partial_return_kept:  { ru: "Возврат (магазин)",uz: "Qaytarish (do'kon qoldi)",dot: "#d4973a", bg: "bg-amber-100",  text: "text-amber-600", border: "border-amber-200" },
-};
-
-/* ─── Premium KpiCard Component ─── */
-function KpiCard({ label, value, delta, icon, gradient, delay }: {
-  label: string; value: string; delta: number | null;
-  icon: React.ReactNode; gradient: string; delay: number;
-}) {
-  const isPositive = delta !== null && delta > 0;
-  const isNegative = delta !== null && delta < 0;
-  return (
-    <div className="kpi-hero" style={{
-      borderRadius: "24px", padding: "24px",
-      position: "relative", overflow: "hidden",
-      animation: `slideUp ${0.5 + delay}s ease forwards`,
-    }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
-        <span style={{ fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: COLORS.textTertiary }}>
-          {label}
-        </span>
-        <div style={{ width: "44px", height: "44px", borderRadius: "12px", background: gradient, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          {icon}
-        </div>
-      </div>
-      <div style={{ fontFamily: F.display, fontSize: "32px", fontWeight: 700, color: COLORS.textPrimary, lineHeight: 1, letterSpacing: "-0.03em" }}>
-        {value}
-      </div>
-      {delta !== null && (
-        <div style={{
-          display: "flex", alignItems: "center", gap: "4px", marginTop: "10px",
-          fontSize: "12px", fontWeight: 600, fontFamily: F.body,
-          color: isPositive ? "#34c473" : isNegative ? "#d45050" : COLORS.textTertiary,
-        }}>
-          {isPositive ? <ArrowUpRight size={14} /> : isNegative ? <ArrowDownRight size={14} /> : <Minus size={14} />}
-          {Math.abs(delta).toFixed(1)}%
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ─── Status Badge ─── */
-const StatusBadge = memo(function StatusBadge({ status, lang }: { status: string; lang: "ru" | "uz" }) {
-  const s = STATUS[status] ?? STATUS.new;
-  return (
-    <span style={{
-      display: "inline-flex", alignItems: "center", gap: "6px",
-      padding: "4px 10px", borderRadius: "9999px", fontSize: "11px", fontWeight: 500,
-      fontFamily: F.body, border: `1px solid ${s.dot}25`,
-      background: `${s.dot}15`, color: s.dot,
-    }}>
-      <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: s.dot, flexShrink: 0 }} />
-      {lang === "uz" ? s.uz : s.ru}
-    </span>
-  );
-});
+import { F, COLORS, SHADOW, OPEN_STATUSES, PAYMENT, STATUS, KpiCard, StatusBadge } from "@/components/orders/theme";
 
 export default function Orders() {
   const [page, setPage]     = useState(1);
@@ -155,6 +70,7 @@ export default function Orders() {
   const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);
 
   const [status, setStatus] = useState(searchParams.get("status") ?? "");
+  const [section, setSection] = useState<"active" | "archive">("active");
 
   // ── New feature state ──
   const [viewMode, setViewMode] = useState<"table" | "kanban">("table");
@@ -164,6 +80,13 @@ export default function Orders() {
   const [showLoadingListModal, setShowLoadingListModal] = useState(false);
   const [showQuickOrder, setShowQuickOrder] = useState(false);
 
+  const switchSection = useCallback((next: "active" | "archive") => {
+    setSection(next);
+    setStatus("");
+    setChipFilters(prev => ({ ...prev, status: undefined }));
+    setPage(1);
+  }, []);
+
   const { data: savedFilters } = trpc.order.listFilters.useQuery();
   const saveFilterMut = trpc.order.saveFilter.useMutation({
     onSuccess: () => { utils.order.listFilters.invalidate(); notify.success(t("Фильтр сохранён", "Filter saqlandi")); },
@@ -172,15 +95,42 @@ export default function Orders() {
     onSuccess: () => utils.order.listFilters.invalidate(),
   });
   const bulkUpdateStatus = trpc.order.bulkUpdateStatus.useMutation({
-    onSuccess: (r) => { utils.order.list.invalidate(); clearSelection(); notify.success(t(`Обновлено: ${r.updated}`, `Yangilandi: ${r.updated}`)); },
+    onSuccess: (r) => {
+      utils.order.list.invalidate(); utils.order.stats.invalidate();
+      clearSelection();
+      if (r.failed.length === 0) {
+        notify.success(t(`Обновлено: ${r.updated}`, `Yangilandi: ${r.updated}`));
+      } else {
+        notify.error(t(
+          `Обновлено: ${r.updated}, не удалось: ${r.failed.length} (${r.failed.map(f => `#${f.orderId}: ${f.error}`).join("; ")})`,
+          `Yangilandi: ${r.updated}, muvaffaqiyatsiz: ${r.failed.length} (${r.failed.map(f => `#${f.orderId}: ${f.error}`).join("; ")})`,
+        ));
+      }
+    },
+    onError: (e) => notify.error(e.message),
+  });
+  const bulkCompleteWithPayment = trpc.order.bulkCompleteWithPayment.useMutation({
+    onSuccess: (r) => {
+      utils.order.list.invalidate(); utils.order.stats.invalidate();
+      utils.shop.list.invalidate();
+      clearSelection();
+      if (r.failed.length === 0) {
+        notify.success(t(`Выполнено и оплачено: ${r.updated}`, `Bajarildi va to'landi: ${r.updated}`));
+      } else {
+        notify.error(t(
+          `Готово: ${r.updated}, не удалось: ${r.failed.length} (${r.failed.map(f => `#${f.orderId}: ${f.error}`).join("; ")})`,
+          `Tayyor: ${r.updated}, muvaffaqiyatsiz: ${r.failed.length} (${r.failed.map(f => `#${f.orderId}: ${f.error}`).join("; ")})`,
+        ));
+      }
+    },
     onError: (e) => notify.error(e.message),
   });
   const bulkAssignAgent = trpc.order.bulkAssignAgent.useMutation({
-    onSuccess: (r) => { utils.order.list.invalidate(); clearSelection(); notify.success(t(`Назначено: ${r.updated}`, `Tayinlandi: ${r.updated}`)); },
+    onSuccess: (r) => { utils.order.list.invalidate(); utils.order.stats.invalidate(); clearSelection(); notify.success(t(`Назначено: ${r.updated}`, `Tayinlandi: ${r.updated}`)); },
     onError: (e) => notify.error(e.message),
   });
   const bulkAssignCourier = trpc.order.bulkAssignCourier.useMutation({
-    onSuccess: (r) => { utils.order.list.invalidate(); clearSelection(); notify.success(t(`Курьер назначен: ${r.updated}`, `Kuryer tayinlandi: ${r.updated}`)); },
+    onSuccess: (r) => { utils.order.list.invalidate(); utils.order.stats.invalidate(); clearSelection(); notify.success(t(`Курьер назначен: ${r.updated}`, `Kuryer tayinlandi: ${r.updated}`)); },
     onError: (e) => notify.error(e.message),
   });
   const { data: agentsData } = trpc.user.list.useQuery({ role: "agent", pageSize: 200 });
@@ -204,7 +154,8 @@ export default function Orders() {
   const { data, isLoading, isError, refetch } = trpc.order.list.useQuery({
     page, pageSize: 25,
     search: search || undefined,
-    status: (effectiveStatus || undefined) as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" | "partially_returned" | "partial_return_kept" | undefined,
+    status: (effectiveStatus || undefined) as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" | undefined,
+    archived: effectiveStatus ? undefined : section === "archive",
     showDeleted: isOperatorOrCeo && showDeleted ? true : undefined,
     dateFrom: effectiveDateFrom || undefined,
     dateTo: effectiveDateTo || undefined,
@@ -217,7 +168,7 @@ export default function Orders() {
   );
 
   const updateStatus = trpc.order.updateStatus.useMutation({
-    onSuccess: () => { utils.order.list.invalidate(); notify.success("Заказ обновлён"); },
+    onSuccess: () => { utils.order.list.invalidate(); utils.order.stats.invalidate(); notify.success("Заказ обновлён"); },
     onError:   (e) => notify.error(e.message),
   });
 
@@ -233,18 +184,16 @@ export default function Orders() {
   );
 
   const COMPLETION_STATUSES: Record<string, CompletionMode> = {
-    partially_returned: "partial_return",
-    partial_return_kept: "combined",
     delivered: "partial_payment",
   };
 
   const recordPartialDelivery = trpc.order.recordPartialDelivery.useMutation({
-    onSuccess: () => { utils.order.list.invalidate(); },
+    onSuccess: () => { utils.order.list.invalidate(); utils.order.stats.invalidate(); },
     onError: (e) => notify.error(e.message),
   });
 
   const recordDeliveryAndPayment = trpc.order.recordDeliveryAndPayment.useMutation({
-    onSuccess: () => { utils.order.list.invalidate(); },
+    onSuccess: () => { utils.order.list.invalidate(); utils.order.stats.invalidate(); },
     onError: (e) => notify.error(e.message),
   });
 
@@ -259,7 +208,7 @@ export default function Orders() {
       setShowCompletion(true);
       return;
     }
-    updateStatus.mutate({ id: orderId, status: newStatus as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" | "partially_returned" | "partial_return_kept" });
+    updateStatus.mutate({ id: orderId, status: newStatus as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" });
   }
 
   async function handleCompletionSave(data: CompletionData) {
@@ -287,7 +236,7 @@ export default function Orders() {
       if (pendingStatus) {
         await updateStatus.mutateAsync({
           id: completionOrderId,
-          status: pendingStatus as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" | "partially_returned" | "partial_return_kept",
+          status: pendingStatus as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned",
         });
       }
 
@@ -301,12 +250,12 @@ export default function Orders() {
   }
 
   const deleteOrder = trpc.order.delete.useMutation({
-    onSuccess: () => { utils.order.list.invalidate(); notify.success("Заказ удалён"); },
+    onSuccess: () => { utils.order.list.invalidate(); utils.order.stats.invalidate(); notify.success("Заказ удалён"); },
     onError:   (e) => notify.error(e.message),
   });
 
   const restoreOrder = trpc.order.restore.useMutation({
-    onSuccess: () => { utils.order.list.invalidate(); notify.success("Заказ восстановлен"); },
+    onSuccess: () => { utils.order.list.invalidate(); utils.order.stats.invalidate(); notify.success("Заказ восстановлен"); },
     onError:   (e) => notify.error(e.message),
   });
 
@@ -399,7 +348,10 @@ export default function Orders() {
 
   return (
     <>
-    <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+    {/* Extra bottom space while the floating bulk-actions bar is up, so it
+        doesn't sit on top of the very rows it's acting on — the bar is
+        position:fixed and otherwise overlaps whatever the page scrolls under it. */}
+    <div style={{ display: "flex", flexDirection: "column", gap: "24px", paddingBottom: selected.size > 0 ? "88px" : undefined }}>
       {/* ─── Header ─── */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
         <div>
@@ -440,6 +392,28 @@ export default function Orders() {
             <span>{t("Новый заказ", "Yangi buyurtma")}</span>
           </button>
         </div>
+      </div>
+
+      {/* ─── Active / Archive ─── */}
+      <div style={{ display: "inline-flex", borderRadius: "10px", overflow: "hidden", border: `1px solid ${COLORS.border}`, width: "fit-content" }}>
+        <button onClick={() => switchSection("active")}
+          style={{
+            padding: "8px 16px", fontSize: "13px", fontWeight: 600, fontFamily: F.body, border: "none", cursor: "pointer",
+            background: section === "active" ? COLORS.primary : COLORS.surface,
+            color: section === "active" ? "#fff" : COLORS.textSecondary,
+            transition: "all 0.2s",
+          }}>
+          {t("Активные", "Faol")}
+        </button>
+        <button onClick={() => switchSection("archive")}
+          style={{
+            padding: "8px 16px", fontSize: "13px", fontWeight: 600, fontFamily: F.body, border: "none", cursor: "pointer",
+            background: section === "archive" ? COLORS.primary : COLORS.surface,
+            color: section === "archive" ? "#fff" : COLORS.textSecondary,
+            transition: "all 0.2s",
+          }}>
+          {t("Архив", "Arxiv")}
+        </button>
       </div>
 
       {/* ─── KPI Cards (server-side aggregation) ─── */}
@@ -571,6 +545,7 @@ export default function Orders() {
             total: o.total ?? "0",
             shopName: o.shopName,
             agentName: o.agentName,
+            territoryName: (o as Record<string, unknown>).territoryName as string | null,
             paymentMethod: o.paymentMethod ?? "cash",
           }))}
           onOrderClick={setSlideOverOrderId}
@@ -784,8 +759,9 @@ export default function Orders() {
                               {t("Восстановить", "Tiklash")}
                             </button>
                           )
-                        ) : o.status === "new" ? (
+                        ) : OPEN_STATUSES.includes(o.status) ? (
                           <div style={{ display: "flex", gap: "6px" }}>
+                            {o.status === "new" && (
                             <button
                               onClick={() => updateStatus.mutate({ id: o.id, status: "processing" })}
                               style={{
@@ -796,6 +772,7 @@ export default function Orders() {
                             >
                               {t("В работу", "Jarayonga")}
                             </button>
+                            )}
                             <button
                               onClick={() => handleStatusChange(o.id, "delivered")}
                               style={{
@@ -883,7 +860,55 @@ export default function Orders() {
       onCreateLoadingList={() => setShowLoadingListModal(true)}
       onChangeStatus={(newStatus) => {
         const ids = Array.from(selected);
-        bulkUpdateStatus.mutate({ orderIds: ids, status: newStatus as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" | "partially_returned" | "partial_return_kept" });
+        bulkUpdateStatus.mutate({ orderIds: ids, status: newStatus as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" });
+      }}
+      onComplete={async () => {
+        const ids = Array.from(selected);
+        // Bulk completion only marks the goods as handed over — it deliberately
+        // records no payment, since the amount differs per order. Money is
+        // settled per order via the completion modal or "Новый долг".
+        // Orders placed on credit ("Долг") had their full total booked to the
+        // shop's debt the moment they were created — completing them here
+        // doesn't add to that debt, but it doesn't clear it either, so the
+        // operator needs to know which of their selection will still be owed.
+        const allResult = await refetchAllOrders();
+        const selectedRows = (allResult.data?.data ?? []).filter((o: { id: number }) => selected.has(o.id));
+        const debtRows = selectedRows.filter((o: { paymentMethod?: string }) => o.paymentMethod === "debt");
+        const debtTotal = debtRows.reduce((s: number, o: { total: string }) => s + Number(o.total), 0);
+
+        const baseMessage = t(
+          "Заказы получат статус «Доставлен», товар спишется со склада. Оплата не записывается.",
+          "Buyurtmalar «Yetkazildi» holatini oladi, tovar omboridan yechiladi. To'lov yozilmaydi.",
+        );
+        const debtWarning = debtRows.length > 0
+          ? t(
+              ` Из них ${debtRows.length} в долг (${fmt(debtTotal)}) — после выполнения долг магазинов за них останется, оплату нужно записать отдельно.`,
+              ` Ulardan ${debtRows.length} tasi qarzga (${fmt(debtTotal)}) — bajarilgandan keyin ham do'konlar qarzi saqlanadi, to'lovni alohida yozib qo'ying.`,
+            )
+          : "";
+
+        const ok = await confirm({
+          title: t(`Выполнить ${ids.length} заказ(ов)?`, `${ids.length} ta buyurtma bajarilsinmi?`),
+          message: baseMessage + debtWarning,
+          confirmText: t("Выполнить", "Bajarish"),
+        });
+        if (ok) bulkUpdateStatus.mutate({ orderIds: ids, status: "delivered" });
+      }}
+      onCompleteWithPayment={async () => {
+        const ids = Array.from(selected);
+        const allResult = await refetchAllOrders();
+        const selectedRows = (allResult.data?.data ?? []).filter((o: { id: number }) => selected.has(o.id));
+        const total = selectedRows.reduce((s: number, o: { total: string }) => s + Number(o.total), 0);
+
+        const ok = await confirm({
+          title: t(`Выполнить с оплатой ${ids.length} заказ(ов)?`, `${ids.length} ta buyurtma to'lov bilan bajarilsinmi?`),
+          message: t(
+            `Заказы получат статус «Доставлен», товар спишется со склада, и для каждого будет записана оплата на полную сумму — всего ${fmt(total)}. Используйте только если деньги уже получены.`,
+            `Buyurtmalar «Yetkazildi» holatini oladi, tovar omboridan yechiladi, va har biri uchun to'liq summa bo'yicha to'lov yoziladi — jami ${fmt(total)}. Faqat pul allaqachon olingan bo'lsa ishlating.`,
+          ),
+          confirmText: t("Выполнить с оплатой", "To'lov bilan bajarish"),
+        });
+        if (ok) bulkCompleteWithPayment.mutate({ orderIds: ids });
       }}
       onAssignAgent={(agentId) => {
         const ids = Array.from(selected);
@@ -903,7 +928,7 @@ export default function Orders() {
       open={showInvoiceModal}
       onOpenChange={setShowInvoiceModal}
       orderIds={Array.from(selected)}
-      onDone={() => { utils.order.list.invalidate(); }}
+      onDone={() => { utils.order.list.invalidate(); utils.order.stats.invalidate(); }}
     />
 
     {/* ── Loading List Modal ── */}
@@ -911,7 +936,7 @@ export default function Orders() {
       open={showLoadingListModal}
       onOpenChange={setShowLoadingListModal}
       orderIds={Array.from(selected)}
-      onDone={() => { utils.order.list.invalidate(); }}
+      onDone={() => { utils.order.list.invalidate(); utils.order.stats.invalidate(); }}
     />
 
     {/* ── Order Slide-Over ── */}
@@ -926,7 +951,7 @@ export default function Orders() {
     <QuickOrderModal
       open={showQuickOrder}
       onOpenChange={setShowQuickOrder}
-      onCreated={() => utils.order.list.invalidate()}
+      onCreated={() => { utils.order.list.invalidate(); utils.order.stats.invalidate(); }}
     />
 
     {dialog}

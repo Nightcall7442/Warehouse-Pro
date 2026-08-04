@@ -1,11 +1,8 @@
 import { useState, useCallback } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { GripVertical, Store, User, DollarSign } from "lucide-react";
-import { notify } from "@/lib/toast";
+import { GripVertical, Store, User, MapPin } from "lucide-react";
 import { useTranslate } from "@/i18n";
+import { F, COLORS, PAYMENT } from "./theme";
 
 interface OrderCard {
   id: number;
@@ -14,6 +11,7 @@ interface OrderCard {
   total: string;
   shopName: string | null;
   agentName: string | null;
+  territoryName?: string | null;
   paymentMethod: string;
   priority?: string;
 }
@@ -23,25 +21,17 @@ interface Column {
   label: string;
   labelUz: string;
   statuses: string[];
-  color: string;
-  dotColor: string;
+  dot: string;
 }
 
 const COLUMNS: Column[] = [
-  { id: "new", label: "Новые", labelUz: "Yangi", statuses: ["new"], color: "border-blue-500", dotColor: "bg-blue-500" },
-  { id: "processing", label: "В обработке", labelUz: "Jarayonda", statuses: ["processing"], color: "border-amber-500", dotColor: "bg-amber-500" },
-  { id: "shipped", label: "Отгружены", labelUz: "Yuklangan", statuses: ["shipped"], color: "border-purple-500", dotColor: "bg-purple-500" },
-  { id: "pending", label: "В ожидании", labelUz: "Kutishda", statuses: ["pending"], color: "border-orange-500", dotColor: "bg-orange-500" },
-  { id: "delivered", label: "Доставлены", labelUz: "Yetkazildi", statuses: ["delivered", "partially_returned", "partial_return_kept"], color: "border-green-500", dotColor: "bg-green-500" },
-  { id: "cancelled", label: "Отменены", labelUz: "Bekor", statuses: ["cancelled", "returned"], color: "border-red-500", dotColor: "bg-red-500" },
+  { id: "new",        label: "Новые",        labelUz: "Yangi",       statuses: ["new"],                  dot: "#5b6d8a" },
+  { id: "processing", label: "В обработке",  labelUz: "Jarayonda",   statuses: ["processing"],           dot: "#d4973a" },
+  { id: "shipped",    label: "Отгружены",    labelUz: "Yuklangan",   statuses: ["shipped"],               dot: "#9b59b6" },
+  { id: "pending",    label: "В ожидании",   labelUz: "Kutishda",    statuses: ["pending"],               dot: "#f09050" },
+  { id: "delivered",  label: "Доставлены",   labelUz: "Yetkazildi",  statuses: ["delivered"],             dot: "#34c473" },
+  { id: "cancelled",  label: "Отменены",     labelUz: "Bekor",       statuses: ["cancelled", "returned"], dot: "#d45050" },
 ];
-
-const PAYMENT_COLORS: Record<string, string> = {
-  cash: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
-  card: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
-  transfer: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-  debt: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-};
 
 interface Props {
   orders: OrderCard[];
@@ -73,6 +63,11 @@ export function OrderKanbanBoard({ orders, onOrderClick, onStatusChange, currenc
     setDragOverCol(null);
   }, []);
 
+  // Status rules live on the backend (OrderService.updateStatus) — any status
+  // may follow any other there, so this just forwards the drop and lets the
+  // mutation's own error toast handle the rare rejection (e.g. insufficient
+  // stock). A local copy of the transition table would drift out of sync with
+  // the backend the next time the rules change, silently blocking valid moves.
   const handleDrop = useCallback((e: React.DragEvent, col: Column) => {
     e.preventDefault();
     setDragOverCol(null);
@@ -81,30 +76,13 @@ export function OrderKanbanBoard({ orders, onOrderClick, onStatusChange, currenc
     if (!orderId) return;
 
     const order = orders.find(o => o.id === orderId);
-    if (!order) return;
-    if (col.statuses.includes(order.status)) return; // Same column
+    if (!order || col.statuses.includes(order.status)) return;
 
-    // Validate transition
-    const validTransitions: Record<string, string[]> = {
-      new:                  ["processing", "cancelled"],
-      processing:           ["shipped", "cancelled"],
-      shipped:              ["delivered", "pending", "returned", "partially_returned", "partial_return_kept", "cancelled"],
-      pending:              ["delivered", "cancelled"],
-      delivered:            ["returned", "partially_returned", "partial_return_kept"],
-      partially_returned:   ["returned", "delivered"],
-      partial_return_kept:  ["delivered"],
-    };
-    const targetStatus = col.statuses[0];
-    if (!validTransitions[order.status]?.includes(targetStatus)) {
-      notify.error(t("Невозможно изменить статус", "Holatni o'zgartirib bo'lmaydi"));
-      return;
-    }
-
-    onStatusChange(orderId, targetStatus);
-  }, [orders, onStatusChange, t]);
+    onStatusChange(orderId, col.statuses[0]);
+  }, [orders, onStatusChange]);
 
   return (
-    <div className="flex gap-3 overflow-x-auto pb-4" style={{ minHeight: 500 }}>
+    <div style={{ display: "flex", gap: "12px", overflowX: "auto", paddingBottom: "16px", minHeight: "500px" }}>
       {COLUMNS.map(col => {
         const colOrders = getColumnOrders(col);
         const isDragOver = dragOverCol === col.id;
@@ -112,56 +90,87 @@ export function OrderKanbanBoard({ orders, onOrderClick, onStatusChange, currenc
         return (
           <div
             key={col.id}
-            className={`flex-shrink-0 w-72 flex flex-col rounded-xl border-2 transition-colors ${isDragOver ? col.color + " bg-muted/50" : "border-transparent"}`}
+            style={{
+              flexShrink: 0, width: "288px", display: "flex", flexDirection: "column",
+              borderRadius: "14px", border: `2px solid ${isDragOver ? col.dot : "transparent"}`,
+              background: isDragOver ? COLORS.surfaceLight : "transparent",
+              transition: "background 0.15s, border-color 0.15s",
+            }}
             onDragOver={(e) => handleDragOver(e, col.id)}
             onDragLeave={handleDragLeave}
             onDrop={(e) => handleDrop(e, col)}
           >
             {/* Column header */}
-            <div className="flex items-center gap-2 px-3 py-2.5">
-              <div className={`w-2 h-2 rounded-full ${col.dotColor}`} />
-              <span className="text-sm font-medium">{t(col.label, col.labelUz)}</span>
-              <Badge variant="secondary" className="ml-auto text-xs font-data">{colOrders.length}</Badge>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 12px" }}>
+              <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: col.dot }} />
+              <span style={{ fontFamily: F.body, fontSize: "13px", fontWeight: 600, color: COLORS.textPrimary }}>{t(col.label, col.labelUz)}</span>
+              <span style={{
+                marginLeft: "auto", fontFamily: F.display, fontSize: "11px", fontWeight: 600, color: COLORS.textTertiary,
+                background: COLORS.surfaceLight, borderRadius: "9999px", padding: "2px 8px",
+              }}>
+                {colOrders.length}
+              </span>
             </div>
 
             {/* Cards */}
             <ScrollArea className="flex-1 px-2">
-              <div className="space-y-2 pb-2">
-                {colOrders.map(order => (
-                  <Card
-                    key={order.id}
-                    className={`p-3 cursor-pointer hover:shadow-md transition-all ${draggingId === order.id ? "opacity-50 scale-95" : ""}`}
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, order.id)}
-                    onDragEnd={() => setDraggingId(null)}
-                    onClick={() => onOrderClick(order.id)}
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <span className="text-xs font-data font-medium">{order.orderNumber}</span>
-                      <Badge variant="outline" className={`text-[10px] ${PAYMENT_COLORS[order.paymentMethod]}`}>
-                        {order.paymentMethod}
-                      </Badge>
-                    </div>
-                    {order.shopName && (
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
-                        <Store className="h-3 w-3" />
-                        <span className="truncate">{order.shopName}</span>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px", paddingBottom: "8px" }}>
+                {colOrders.map(order => {
+                  const pm = PAYMENT[order.paymentMethod];
+                  return (
+                    <div
+                      key={order.id}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, order.id)}
+                      onDragEnd={() => setDraggingId(null)}
+                      onClick={() => onOrderClick(order.id)}
+                      style={{
+                        padding: "12px", borderRadius: "12px", cursor: "pointer",
+                        background: COLORS.surface, border: `1px solid ${COLORS.border}`,
+                        boxShadow: "0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04)",
+                        opacity: draggingId === order.id ? 0.5 : 1,
+                        transform: draggingId === order.id ? "scale(0.97)" : "scale(1)",
+                        transition: "opacity 0.15s, transform 0.15s",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "8px" }}>
+                        <span style={{ fontFamily: F.display, fontSize: "11px", fontWeight: 600, color: COLORS.textPrimary }}>{order.orderNumber}</span>
+                        {pm && (
+                          <span style={{
+                            fontFamily: F.body, fontSize: "10px", fontWeight: 600, padding: "2px 6px", borderRadius: "6px",
+                            color: pm.color, background: `${pm.color}15`,
+                          }}>
+                            {t(pm.ru, pm.uz)}
+                          </span>
+                        )}
                       </div>
-                    )}
-                    {order.agentName && (
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
-                        <User className="h-3 w-3" />
-                        <span className="truncate">{order.agentName}</span>
+                      {order.shopName && (
+                        <div style={{ display: "flex", alignItems: "center", gap: "4px", fontFamily: F.body, fontSize: "11px", color: COLORS.textTertiary, marginBottom: "4px" }}>
+                          <Store size={11} />
+                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{order.shopName}</span>
+                        </div>
+                      )}
+                      {order.agentName && (
+                        <div style={{ display: "flex", alignItems: "center", gap: "4px", fontFamily: F.body, fontSize: "11px", color: COLORS.textTertiary, marginBottom: "4px" }}>
+                          <User size={11} />
+                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{order.agentName}</span>
+                        </div>
+                      )}
+                      {order.territoryName && (
+                        <div style={{ display: "flex", alignItems: "center", gap: "4px", fontFamily: F.body, fontSize: "11px", color: COLORS.textTertiary, marginBottom: "8px" }}>
+                          <MapPin size={11} />
+                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{order.territoryName}</span>
+                        </div>
+                      )}
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <span style={{ fontFamily: F.display, fontSize: "13px", fontWeight: 700, color: COLORS.textPrimary }}>{Number(order.total).toLocaleString("ru")} {currency}</span>
+                        <GripVertical size={14} color={COLORS.textTertiary} />
                       </div>
-                    )}
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-data font-bold">{Number(order.total).toLocaleString("ru")} {currency}</span>
-                      <GripVertical className="h-3.5 w-3.5 text-muted-foreground/50" />
                     </div>
-                  </Card>
-                ))}
+                  );
+                })}
                 {colOrders.length === 0 && (
-                  <div className="text-center text-xs text-muted-foreground py-8">
+                  <div style={{ textAlign: "center", fontFamily: F.body, fontSize: "12px", color: COLORS.textTertiary, padding: "32px 0" }}>
                     {t("Нет заказов", "Buyurtmalar yo'q")}
                   </div>
                 )}

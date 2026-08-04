@@ -3,11 +3,10 @@ import {
   X, Package, CreditCard, RotateCcw, CheckCircle, AlertTriangle,
   Banknote, Repeat,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Separator } from "@/components/ui/separator";
 import { useTranslate, useLang } from "@/i18n";
+import { F, COLORS, InfoCard, PillButton } from "./theme";
 
 export type CompletionMode = "partial_return" | "partial_payment" | "combined";
 
@@ -210,89 +209,108 @@ export function CompletionFlowModal({
     combined: { ru: "Доставка и оплата", uz: "Yetkazib berish va to'lov" },
   };
 
+  const modeIcon = mode === "partial_return" ? RotateCcw : mode === "combined" ? Package : CreditCard;
+  const ModeIcon = modeIcon;
+
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-auto"
+      className="pointer-events-auto"
+      style={{ position: "fixed", inset: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}
       role="dialog"
       aria-modal="true"
       aria-label={TITLE_MAP[mode][lang === "uz" ? "uz" : "ru"]}
     >
       {/* Backdrop — clicks here close modal only, not Sheet */}
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm pointer-events-auto" onClick={onClose} />
+      <div className="pointer-events-auto" style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(2px)" }} onClick={onClose} />
 
       {/* Modal content */}
-      <div className="relative z-10 bg-background rounded-2xl shadow-2xl w-full max-w-2xl border pointer-events-auto flex flex-col" style={{ maxHeight: "85vh" }} onClick={e => e.stopPropagation()}>
+      <div
+        className="pointer-events-auto"
+        style={{
+          position: "relative", zIndex: 10, width: "100%", maxWidth: "640px", maxHeight: "85vh",
+          display: "flex", flexDirection: "column",
+          borderRadius: "20px", background: COLORS.surface, border: `1px solid ${COLORS.border}`,
+          boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+        }}
+        onClick={e => e.stopPropagation()}
+      >
         {/* Header — fixed */}
-        <div className="flex items-center justify-between p-5 border-b flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-              {mode === "partial_return" ? <RotateCcw size={20} className="text-primary" /> :
-               mode === "combined" ? <Package size={20} className="text-primary" /> :
-               <CreditCard size={20} className="text-primary" />}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px", borderBottom: `1px solid ${COLORS.border}`, flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <div style={{ width: "40px", height: "40px", borderRadius: "12px", background: `${COLORS.primary}15`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <ModeIcon size={20} color={COLORS.primary} />
             </div>
             <div>
-              <h2 className="font-display text-lg font-bold">{TITLE_MAP[mode][lang === "uz" ? "uz" : "ru"]}</h2>
-              <p className="text-xs text-secondary">{t("Заказ", "Buyurtma")} {orderNumber}</p>
+              <h2 style={{ fontFamily: F.display, fontSize: "17px", fontWeight: 700, color: COLORS.textPrimary }}>{TITLE_MAP[mode][lang === "uz" ? "uz" : "ru"]}</h2>
+              <p style={{ fontFamily: F.body, fontSize: "11px", color: COLORS.textSecondary }}>{t("Заказ", "Buyurtma")} {orderNumber}</p>
             </div>
           </div>
-          <button onClick={onClose} className="neo-btn p-2" aria-label={t("Закрыть", "Yopish")}>
+          <button
+            onClick={onClose} aria-label={t("Закрыть", "Yopish")}
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "32px", height: "32px", borderRadius: "10px", border: "none", background: COLORS.surfaceLight, color: COLORS.textSecondary, cursor: "pointer" }}
+          >
             <X size={18} />
           </button>
         </div>
 
         {/* Body — scrollable */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-5" style={{ minHeight: 0 }}>
+        <div style={{ flex: 1, overflowY: "auto", padding: "20px", display: "flex", flexDirection: "column", gap: "18px", minHeight: 0 }}>
 
           {/* Error banner */}
           {error && (
-            <div className="flex items-center gap-2 p-3 rounded-lg bg-danger/10 border border-danger/20 text-sm text-danger">
-              <AlertTriangle size={16} className="flex-shrink-0" />
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "12px", borderRadius: "10px", background: `${COLORS.danger}12`, border: `1px solid ${COLORS.danger}30`, fontFamily: F.body, fontSize: "13px", color: COLORS.danger }}>
+              <AlertTriangle size={16} style={{ flexShrink: 0 }} />
               {error}
             </div>
           )}
 
           {/* ── Return items section ── */}
           {showReturnItems && (
-            <div className="neo-card p-4 space-y-3">
-              <p className="font-label text-secondary text-xs tracking-wider flex items-center gap-2">
+            <div style={{ padding: "16px", borderRadius: "14px", border: `1px solid ${COLORS.border}`, display: "flex", flexDirection: "column", gap: "12px" }}>
+              <p style={{ display: "flex", alignItems: "center", gap: "6px", fontFamily: F.body, fontSize: "11px", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: COLORS.textTertiary }}>
                 <Package size={14}/> {t("ТОВАРЫ", "MAHSULOTLAR")} ({itemStates.length})
               </p>
-              <Separator />
-              <div className="space-y-3">
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                 {itemStates.map((it, idx) => {
                   const unitLabel = UNIT_LABELS[it.unit ?? "pcs"]?.[lang] ?? "шт";
                   const kept = it.orderedQty - it.returnedQty;
                   return (
-                    <div key={it.itemId} className={`p-3 rounded-lg border transition-colors ${it.isReturned ? "border-danger/30 bg-danger/5" : "border-border-subtle bg-muted/20"}`}>
-                      <div className="flex items-start justify-between gap-3 mb-2">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-primary truncate">{it.productName}</p>
-                          {it.productCode && <p className="text-xs text-secondary font-data">{it.productCode}</p>}
-                          <p className="text-xs text-secondary mt-1">
+                    <div key={it.itemId} style={{
+                      padding: "12px", borderRadius: "12px",
+                      border: `1px solid ${it.isReturned ? COLORS.danger + "40" : COLORS.border}`,
+                      background: it.isReturned ? `${COLORS.danger}08` : COLORS.surfaceLight,
+                      transition: "background 0.15s",
+                    }}>
+                      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px", marginBottom: "8px" }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ fontFamily: F.body, fontSize: "13px", fontWeight: 500, color: COLORS.textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.productName}</p>
+                          {it.productCode && <p style={{ fontFamily: F.display, fontSize: "10px", color: COLORS.textTertiary }}>{it.productCode}</p>}
+                          <p style={{ fontFamily: F.body, fontSize: "11px", color: COLORS.textSecondary, marginTop: "4px" }}>
                             {t("Заказано", "Buyurtma")}: {it.orderedQty} {unitLabel} × {cleanNum(it.unitPrice)} {currency}
                           </p>
                         </div>
                         <button
                           onClick={() => toggleReturned(idx)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                            it.isReturned
-                              ? "bg-danger/15 text-danger border border-danger/30"
-                              : "bg-success/15 text-success border border-success/30"
-                          }`}
+                          style={{
+                            padding: "6px 12px", borderRadius: "9999px", fontFamily: F.body, fontSize: "11px", fontWeight: 600, cursor: "pointer",
+                            background: it.isReturned ? `${COLORS.danger}15` : `${COLORS.success}15`,
+                            color: it.isReturned ? COLORS.danger : COLORS.success,
+                            border: `1px solid ${it.isReturned ? COLORS.danger : COLORS.success}30`,
+                          }}
                         >
                           {it.isReturned ? t("Возврат", "Qaytarish") : t("Оставил", "Oldi")}
                         </button>
                       </div>
 
                       {it.isReturned ? (
-                        <div className="space-y-2 mt-2">
-                          <div className="flex items-center gap-2 text-xs text-danger">
+                        <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "8px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px", fontFamily: F.body, fontSize: "11px", fontWeight: 500, color: COLORS.danger }}>
                             <RotateCcw size={12} />
-                            <span className="font-medium">{t("Магазин вернул этот товар", "Do'kon bu tovarni qaytardi")}</span>
+                            <span>{t("Магазин вернул этот товар", "Do'kon bu tovarni qaytardi")}</span>
                           </div>
-                          <div className="grid grid-cols-3 gap-2">
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "8px" }}>
                             <div>
-                              <label htmlFor={`ret-qty-${it.itemId}`} className="text-[10px] text-secondary mb-1 block">{t("Кол-во", "Miqdor")}</label>
+                              <label htmlFor={`ret-qty-${it.itemId}`} style={{ display: "block", fontFamily: F.body, fontSize: "10px", color: COLORS.textSecondary, marginBottom: "4px" }}>{t("Кол-во", "Miqdor")}</label>
                               <Input
                                 id={`ret-qty-${it.itemId}`}
                                 type="number" min={0} max={it.orderedQty}
@@ -301,8 +319,8 @@ export function CompletionFlowModal({
                                 className="h-8 text-sm"
                               />
                             </div>
-                            <div className="col-span-2">
-                              <label htmlFor={`ret-reason-${it.itemId}`} className="text-[10px] text-secondary mb-1 block">{t("Причина", "Sabab")}</label>
+                            <div>
+                              <label htmlFor={`ret-reason-${it.itemId}`} style={{ display: "block", fontFamily: F.body, fontSize: "10px", color: COLORS.textSecondary, marginBottom: "4px" }}>{t("Причина", "Sabab")}</label>
                               <Input
                                 id={`ret-reason-${it.itemId}`}
                                 value={it.reason}
@@ -314,7 +332,7 @@ export function CompletionFlowModal({
                           </div>
                         </div>
                       ) : (
-                        <div className="flex items-center gap-2 mt-2 text-xs text-success">
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "8px", fontFamily: F.body, fontSize: "11px", color: COLORS.success }}>
                           <CheckCircle size={12} />
                           <span>{t("Магазин оставил", "Do'kon oldi")}: <b>{kept}</b> {unitLabel}</span>
                         </div>
@@ -324,15 +342,14 @@ export function CompletionFlowModal({
                 })}
               </div>
 
-              <Separator />
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 rounded-lg bg-success/10 text-center">
-                  <p className="text-[10px] text-secondary">{t("Оставлено", "Olingan")}</p>
-                  <p className="text-xl font-bold text-success">{totalKept}</p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                <div style={{ padding: "10px", borderRadius: "10px", background: `${COLORS.success}0d`, textAlign: "center" }}>
+                  <p style={{ fontFamily: F.body, fontSize: "10px", color: COLORS.textSecondary }}>{t("Оставлено", "Olingan")}</p>
+                  <p style={{ fontFamily: F.display, fontSize: "18px", fontWeight: 700, color: COLORS.success }}>{totalKept}</p>
                 </div>
-                <div className="p-3 rounded-lg bg-danger/10 text-center">
-                  <p className="text-[10px] text-secondary">{t("Возврат", "Qaytarilgan")}</p>
-                  <p className="text-xl font-bold text-danger">{totalReturned}</p>
+                <div style={{ padding: "10px", borderRadius: "10px", background: `${COLORS.danger}0d`, textAlign: "center" }}>
+                  <p style={{ fontFamily: F.body, fontSize: "10px", color: COLORS.textSecondary }}>{t("Возврат", "Qaytarilgan")}</p>
+                  <p style={{ fontFamily: F.display, fontSize: "18px", fontWeight: 700, color: COLORS.danger }}>{totalReturned}</p>
                 </div>
               </div>
             </div>
@@ -340,42 +357,42 @@ export function CompletionFlowModal({
 
           {/* ── Payment section ── */}
           {showPayment && (
-            <div className="neo-card p-4 space-y-3">
-              <p className="font-label text-secondary text-xs tracking-wider flex items-center gap-2">
+            <div style={{ padding: "16px", borderRadius: "14px", border: `1px solid ${COLORS.border}`, display: "flex", flexDirection: "column", gap: "12px" }}>
+              <p style={{ display: "flex", alignItems: "center", gap: "6px", fontFamily: F.body, fontSize: "11px", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: COLORS.textTertiary }}>
                 <CreditCard size={14}/> {t("ОПЛАТА", "TO'LOV")}
               </p>
-              <Separator />
 
-              <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
-                <span className="text-sm text-secondary">{t("Сумма заказа", "Buyurtma summasi")}</span>
-                <span className="font-data text-lg font-bold">{cleanNum(total)} {currency}</span>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px", borderRadius: "10px", background: COLORS.surfaceLight }}>
+                <span style={{ fontFamily: F.body, fontSize: "13px", color: COLORS.textSecondary }}>{t("Сумма заказа", "Buyurtma summasi")}</span>
+                <span style={{ fontFamily: F.display, fontSize: "17px", fontWeight: 700, color: COLORS.textPrimary }}>{cleanNum(total)} {currency}</span>
               </div>
 
               <div>
-                <label htmlFor="paid-amount" className="text-xs text-secondary mb-1 block">{t("Сумма оплаты", "To'lov summasi")}</label>
+                <label htmlFor="paid-amount" style={{ display: "block", fontFamily: F.body, fontSize: "11px", color: COLORS.textSecondary, marginBottom: "4px" }}>{t("Сумма оплаты", "To'lov summasi")}</label>
                 <Input
                   id="paid-amount"
                   type="number" min={0} max={total}
                   value={paidAmount}
                   onChange={e => { setPaidAmount(e.target.value); setError(null); }}
                   placeholder="0"
-                  className="h-10 text-base font-data font-bold"
+                  className="h-10 text-base font-bold"
+                  style={{ fontFamily: F.display }}
                 />
               </div>
 
               {paidAmount && Number(paidAmount) > 0 && Number(paidAmount) < total && (
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-warning/10 border border-warning/20">
-                  <AlertTriangle size={16} className="text-warning flex-shrink-0" />
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "12px", borderRadius: "10px", background: `${COLORS.warning}12`, border: `1px solid ${COLORS.warning}30` }}>
+                  <AlertTriangle size={16} color={COLORS.warning} style={{ flexShrink: 0 }} />
                   <div>
-                    <p className="text-xs text-secondary">{t("В долг", "Qarzga")}</p>
-                    <p className="text-base font-bold text-warning">{cleanNum(debt)} {currency}</p>
+                    <p style={{ fontFamily: F.body, fontSize: "11px", color: COLORS.textSecondary }}>{t("В долг", "Qarzga")}</p>
+                    <p style={{ fontFamily: F.display, fontSize: "15px", fontWeight: 700, color: COLORS.warning }}>{cleanNum(debt)} {currency}</p>
                   </div>
                 </div>
               )}
 
               <div>
-                <p className="text-xs text-secondary mb-2">{t("Способ оплаты", "To'lov usuli")}</p>
-                <div className="grid grid-cols-3 gap-2">
+                <p style={{ fontFamily: F.body, fontSize: "11px", color: COLORS.textSecondary, marginBottom: "8px" }}>{t("Способ оплаты", "To'lov usuli")}</p>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px" }}>
                   {PM_OPTIONS.map(pm => {
                     const Icon = pm.icon;
                     const active = paymentMethod === pm.value;
@@ -384,14 +401,16 @@ export function CompletionFlowModal({
                         key={pm.value}
                         type="button"
                         onClick={() => setPaymentMethod(pm.value)}
-                        className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 transition-all ${
-                          active
-                            ? "border-primary bg-primary/10 shadow-sm"
-                            : "border-border-subtle hover:border-primary/30"
-                        }`}
+                        style={{
+                          display: "flex", flexDirection: "column", alignItems: "center", gap: "6px",
+                          padding: "12px", borderRadius: "10px", cursor: "pointer",
+                          border: `1.5px solid ${active ? COLORS.primary : COLORS.border}`,
+                          background: active ? `${COLORS.primary}0d` : "transparent",
+                          transition: "all 0.15s",
+                        }}
                       >
-                        <Icon size={18} className={active ? "text-primary" : "text-secondary"} />
-                        <span className={`text-xs ${active ? "font-semibold text-primary" : "text-secondary"}`}>
+                        <Icon size={18} color={active ? COLORS.primary : COLORS.textSecondary} />
+                        <span style={{ fontFamily: F.body, fontSize: "11px", fontWeight: active ? 600 : 400, color: active ? COLORS.primary : COLORS.textSecondary }}>
                           {lang === "uz" ? pm.label.uz : pm.label.ru}
                         </span>
                       </button>
@@ -403,10 +422,7 @@ export function CompletionFlowModal({
           )}
 
           {/* ── Notes ── */}
-          <div className="neo-card p-4 space-y-3">
-            <label htmlFor="completion-notes" className="font-label text-secondary text-xs tracking-wider block">
-              {t("ПРИМЕЧАНИЯ", "ESLATMALAR")}
-            </label>
+          <InfoCard label={t("ПРИМЕЧАНИЯ", "ESLATMALAR")} icon={null}>
             <Textarea
               id="completion-notes"
               value={notes}
@@ -414,18 +430,23 @@ export function CompletionFlowModal({
               placeholder={t("Комментарий к завершению...", "Tugatish bo'yicha izoh...")}
               rows={2}
               className="text-sm"
+              style={{ marginTop: "4px" }}
             />
-          </div>
+          </InfoCard>
         </div>
 
         {/* Footer — fixed */}
-        <div className="p-5 border-t flex gap-3 flex-shrink-0">
-          <Button variant="outline" onClick={onClose} className="flex-1" disabled={saving}>
-            {t("Отмена", "Bekor qilish")}
-          </Button>
-          <Button onClick={handleSave} disabled={saving} className="flex-1">
-            {saving ? t("Сохранение...", "Saqlanmoqda...") : t("Завершить заказ", "Buyurtmani tugatish")}
-          </Button>
+        <div style={{ display: "flex", gap: "10px", padding: "20px", borderTop: `1px solid ${COLORS.border}`, flexShrink: 0 }}>
+          <div style={{ flex: 1 }}>
+            <PillButton tone="neutral" onClick={onClose} disabled={saving}>
+              {t("Отмена", "Bekor qilish")}
+            </PillButton>
+          </div>
+          <div style={{ flex: 1 }}>
+            <PillButton tone="success" onClick={handleSave} disabled={saving}>
+              {saving ? t("Сохранение...", "Saqlanmoqda...") : t("Завершить заказ", "Buyurtmani tugatish")}
+            </PillButton>
+          </div>
         </div>
       </div>
     </div>

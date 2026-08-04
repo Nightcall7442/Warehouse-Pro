@@ -27,6 +27,9 @@ import { CompletionFlowModal } from "@/components/orders/CompletionFlowModal";
 import type { CompletionData, CompletionMode } from "@/components/orders/CompletionFlowModal";
 import { useCompletionFlow } from "@/hooks/useCompletionFlow";
 
+/** Statuses where the goods have not been handed over yet — these can still be completed. */
+const OPEN_STATUSES = ["new", "processing", "shipped", "pending"];
+
 const STATUS_STYLES: Record<string, string> = {
   new:                  "bg-info/15 text-info border-info/30",
   processing:           "bg-warning/15 text-warning border-warning/30",
@@ -35,8 +38,6 @@ const STATUS_STYLES: Record<string, string> = {
   delivered:            "bg-success/15 text-success border-success/30",
   cancelled:            "bg-danger/15 text-danger border-danger/30",
   returned:             "bg-red-100 text-red-700 border-red-300",
-  partially_returned:   "bg-orange-100 text-orange-700 border-orange-300",
-  partial_return_kept:  "bg-amber-100 text-amber-700 border-amber-300",
 };
 
 const STATUS_LABELS: Record<string, { ru: string; uz: string }> = {
@@ -47,8 +48,6 @@ const STATUS_LABELS: Record<string, { ru: string; uz: string }> = {
   delivered:            { ru: "Доставлен",          uz: "Yetkazildi" },
   cancelled:            { ru: "Отменён",            uz: "Bekor qilindi" },
   returned:             { ru: "Возврат",            uz: "Qaytarildi" },
-  partially_returned:   { ru: "Возврат частично",  uz: "Qisman qaytarildi" },
-  partial_return_kept:  { ru: "Возврат (магазин оставил часть)", uz: "Qaytarish (do'kon qismi oldi)" },
 };
 
 const UNIT_LABELS: Record<string, { ru: string; uz: string }> = {
@@ -277,7 +276,7 @@ export default function OrderDetail() {
       message: `${STATUS_LABELS[order.status]?.[lang] ?? order.status} → ${label}`,
       confirmText: lang === "uz" ? "O'zgartirish" : "Изменить",
     });
-    if (ok) updateStatus.mutate({ id: order.id, status: newStatus as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" | "partially_returned" | "partial_return_kept" });
+    if (ok) updateStatus.mutate({ id: order.id, status: newStatus as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" });
   };
 
   if (isError) return <QueryErrorFallback onRetry={refetch} />;
@@ -402,23 +401,44 @@ export default function OrderDetail() {
             <span className="text-lg text-secondary">{symbol}</span>
           </div>
           {isOperatorOrCeo && !order.deletedAt && (
-            <button
-              onClick={editing ? saveEditing : startEditing}
-              disabled={editing && updateOrder.isPending}
-              style={{
-                display: "flex", alignItems: "center", gap: "8px",
-                padding: "10px 24px", fontSize: "14px", fontWeight: 700,
-                fontFamily: "'DM Sans', sans-serif",
-                borderRadius: "14px", border: "none", cursor: "pointer",
-                background: editing ? "#34c473" : "linear-gradient(135deg, #5b6d8a, #7b94f8)",
-                color: "#fff",
-                boxShadow: "0 4px 12px rgba(91,109,138,0.25)",
-                opacity: editing && updateOrder.isPending ? 0.7 : 1,
-              }}
-            >
-              <Edit3 size={16} />
-              {editing ? (lang === "uz" ? "Saqlash" : "Сохранить изменения") : (lang === "uz" ? "Tahrirlash" : "Изменить заказ")}
-            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Complete stays available for every status the goods have not
+                  left on yet, so the order can be finished from here too. */}
+              {OPEN_STATUSES.includes(order.status) && (
+                <button
+                  onClick={() => handleStatusChange("delivered")}
+                  style={{
+                    display: "flex", alignItems: "center", gap: "8px",
+                    padding: "10px 24px", fontSize: "14px", fontWeight: 700,
+                    fontFamily: "'DM Sans', sans-serif",
+                    borderRadius: "14px", border: "none", cursor: "pointer",
+                    background: "linear-gradient(135deg, #34c473, #28a862)",
+                    color: "#fff",
+                    boxShadow: "0 4px 12px rgba(52,196,115,0.25)",
+                  }}
+                >
+                  <CheckCircle2 size={16} />
+                  {lang === "uz" ? "Buyurtmani yakunlash" : "Завершить заказ"}
+                </button>
+              )}
+              <button
+                onClick={editing ? saveEditing : startEditing}
+                disabled={editing && updateOrder.isPending}
+                style={{
+                  display: "flex", alignItems: "center", gap: "8px",
+                  padding: "10px 24px", fontSize: "14px", fontWeight: 700,
+                  fontFamily: "'DM Sans', sans-serif",
+                  borderRadius: "14px", border: "none", cursor: "pointer",
+                  background: editing ? "#34c473" : "linear-gradient(135deg, #5b6d8a, #7b94f8)",
+                  color: "#fff",
+                  boxShadow: "0 4px 12px rgba(91,109,138,0.25)",
+                  opacity: editing && updateOrder.isPending ? 0.7 : 1,
+                }}
+              >
+                <Edit3 size={16} />
+                {editing ? (lang === "uz" ? "Saqlash" : "Сохранить изменения") : (lang === "uz" ? "Tahrirlash" : "Изменить заказ")}
+              </button>
+            </div>
           )}
         </div>
 

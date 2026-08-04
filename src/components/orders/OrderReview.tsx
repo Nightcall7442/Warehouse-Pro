@@ -2,6 +2,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { useLang } from "@/i18n";
 import { Store, AlertTriangle } from "lucide-react";
 import { calcDiscount, calcSubtotal } from "@/lib/order-calculations";
+import { formatQty } from "@/lib/format";
 import { PAYMENT_METHODS, unitLabel } from "./types";
 import type { OrderItem, PaymentMethod } from "./types";
 
@@ -96,7 +97,7 @@ export function OrderReview({
           {totalWeightKg > 0 && (
             <div className="flex justify-between pt-1">
               <span className="text-sm text-secondary">{t("Общий вес", "Umumiy og'irlik")}</span>
-              <span className="font-data text-sm font-semibold text-primary">{totalWeightKg.toFixed(2)} кг</span>
+              <span className="font-data text-sm font-semibold text-primary">{formatQty(totalWeightKg)} кг</span>
             </div>
           )}
         </div>
