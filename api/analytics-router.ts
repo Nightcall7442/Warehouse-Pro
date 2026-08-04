@@ -380,7 +380,7 @@ export const analyticsRouter = createRouter({
       agentId: z.number().int().positive().optional(),
     }).optional())
     .query(async ({ input, ctx }) => {
-      const conditions = [eq(orders.tenantId, ctx.tenant.id), eq(orders.status, "delivered")];
+      const conditions = [eq(orders.tenantId, ctx.tenant.id), inArray(orders.status, REVENUE_ORDER_STATUSES)];
       if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
       if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`);
       if (input?.agentId)  conditions.push(eq(orders.agentId, input.agentId));

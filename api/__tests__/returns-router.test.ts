@@ -6,6 +6,7 @@ vi.mock("drizzle-orm", () => {
   sqlFn.join = (chunks: unknown[], separator: unknown) => ({ __kind: "sql.join", chunks, separator });
   return {
   eq:  (col: unknown, val: unknown) => ({ __kind: "eq", col, val }),
+  ne:  (col: unknown, val: unknown) => ({ __kind: "ne", col, val }),
   and: (...conds: unknown[]) => ({ __kind: "and", conds }),
   gte: (col: unknown, val: unknown) => ({ __kind: "gte", col, val }),
   lte: (col: unknown, val: unknown) => ({ __kind: "lte", col, val }),
@@ -139,11 +140,12 @@ function evalCond(row: Record<string, unknown>, cond: Record<string, unknown>): 
 
   if (!cond || typeof cond !== "object") return true;
   if (cond.__kind === "and") return (cond.conds as unknown[]).every((c: unknown) => evalCond(row, c as Record<string, unknown>));
-  if (cond.__kind === "eq" || cond.__kind === "gte" || cond.__kind === "lte") {
+  if (cond.__kind === "eq" || cond.__kind === "ne" || cond.__kind === "gte" || cond.__kind === "lte") {
     const field = mapCol(cond.col);
     if (!(field in row)) return cond.__kind !== "eq";
     if (cond.__kind === "gte") return Number(row[field]) >= Number(cond.val);
     if (cond.__kind === "lte") return Number(row[field]) <= Number(cond.val);
+    if (cond.__kind === "ne") return row[field] !== cond.val && String(row[field]) !== String(cond.val);
     return row[field] === cond.val || String(row[field]) === String(cond.val);
   }
   return true;

@@ -185,8 +185,10 @@ function makeMockDb() {
       set(patch: Record<string, unknown>) {
         return {
           where(cond: unknown) {
+            let matched = 0;
             for (const row of rowsFor(table)) {
               if (!evalCond(row, cond)) continue;
+              matched++;
               const r = row as Record<string, unknown>;
               for (const [key, val] of Object.entries(patch)) {
                 r[key] = val && typeof val === "object" && (val as Record<string, unknown>).__kind === "sql"
@@ -194,7 +196,7 @@ function makeMockDb() {
                   : val;
               }
             }
-            return Promise.resolve();
+            return Promise.resolve([{ affectedRows: matched }]);
           },
         };
       },

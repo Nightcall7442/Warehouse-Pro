@@ -181,9 +181,22 @@ export const courierRouter = createRouter({
       }
 
       await db.transaction(async (tx) => {
-        await tx.update(orders)
+        // Lock and re-check inside the transaction — the select above ran
+        // outside it, so two concurrent taps (or the mobile app's offline
+        // queue submitting the same action twice, per its syncDeliveryActions
+        // dispatching queued actions in parallel with no dedup) both pass
+        // that check before either commits. This makes the second one queue
+        // behind the first and then see the order already delivered, so it
+        // fails here instead of deducting stock a second time.
+        const [statusUpdateResult] = await tx.update(orders)
           .set({ deliveryStatus: "delivered", deliveredAt: new Date(), status: "delivered" })
-          .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, ctx.tenant.id)));
+          .where(and(
+            eq(orders.id, input.orderId), eq(orders.tenantId, ctx.tenant.id),
+            sql`${orders.deliveryStatus} IN ('assigned', 'out_for_delivery')`,
+          ));
+        if ((statusUpdateResult as { affectedRows?: number }).affectedRows !== 1) {
+          throw new Error("Заказ уже завершён — повторное выполнение невозможно");
+        }
 
         const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, input.orderId));
         // Get default warehouse for stock operations
@@ -293,7 +306,8 @@ export const courierRouter = createRouter({
       const [order] = await db.select({
         id: orders.id, orderNumber: orders.orderNumber, shopId: orders.shopId,
         status: orders.status, deliveryStatus: orders.deliveryStatus,
-        total: orders.total, paymentMethod: orders.paymentMethod, agentId: orders.agentId,
+        total: orders.total, subtotal: orders.subtotal, discount: orders.discount,
+        paymentMethod: orders.paymentMethod, agentId: orders.agentId,
       }).from(orders)
         .where(and(
           eq(orders.id, input.orderId),
@@ -303,11 +317,56 @@ export const courierRouter = createRouter({
         )).limit(1);
       if (!order) throw new Error("Заказ не найден или не назначен на вас");
 
-      const orderTotal = Number(order.total);
-      const paidAmount = Number(input.paidAmount ?? 0);
-      const debtAmount = orderTotal - paidAmount;
+      // Declared here, not inside the transaction below, so the notification
+      // text and the return value after the transaction commits can still
+      // read them — they were previously declared inside the transaction
+      // callback and referenced after it closed, which compiles under esbuild
+      // (no type-checking at build time) but throws ReferenceError at runtime
+      // on every call, after stock and payment were already committed. That
+      // silent failure is exactly what could make a courier's app show an
+      // error and retry an action that had, in fact, already gone through.
+      // Initialized rather than left definite-assignment-only: it is always
+      // overwritten inside the transaction below before being read, but TS
+      // cannot see that across the async closure boundary.
+      let finalStatus: "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" = "delivered";
+      let paidAmount = 0;
+      let debtAmount = 0;
+      // A partial return shrinks what the shop actually owes — recomputed
+      // below (mirroring OrderService.applyPartialDelivery's discount
+      // rescale) before debtAmount/orderTotal are derived from it. Left at
+      // the order's existing total for every other result, where nothing
+      // came back.
+      let orderTotal = Number(order.total);
 
       await db.transaction(async (tx) => {
+        // Re-read and lock the order inside the transaction, re-checking the
+        // same deliveryStatus condition as the pre-check above. The earlier
+        // select ran outside any transaction, so two concurrent completions
+        // for the same order (a slow network retry firing twice, or the
+        // mobile app's offline queue submitting a duplicate — see
+        // Warehouse-Pro-Mobile's syncDeliveryActions) both pass it before
+        // either commits. This lock makes the second one queue behind the
+        // first and then see deliveryStatus already "delivered", so it fails
+        // loudly here instead of deducting stock and recording a payment a
+        // second time for goods and cash that only moved once.
+        const [locked] = await tx.select({
+          total: orders.total, subtotal: orders.subtotal, discount: orders.discount,
+          deliveryStatus: orders.deliveryStatus,
+        }).from(orders)
+          .where(and(
+            eq(orders.id, input.orderId),
+            eq(orders.tenantId, ctx.tenant.id),
+            eq(orders.courierId, courierId),
+          ))
+          .for("update")
+          .limit(1);
+        if (!locked || (locked.deliveryStatus !== "assigned" && locked.deliveryStatus !== "out_for_delivery")) {
+          throw new Error("Заказ уже завершён — повторное выполнение невозможно");
+        }
+        orderTotal = Number(locked.total);
+        order.subtotal = locked.subtotal;
+        order.discount = locked.discount;
+
         // Get default warehouse
         const [defaultWh] = await tx.select({ id: warehouses.id }).from(warehouses)
           .where(and(eq(warehouses.tenantId, ctx.tenant.id), eq(warehouses.isDefault, true))).limit(1);
@@ -345,10 +404,17 @@ export const courierRouter = createRouter({
         } else if (input.result === "partial_returned" && input.returnedItems) {
           // Partial return — deduct delivered qty, return undelivered qty
           const returnedMap = new Map(input.returnedItems.map(ri => [ri.itemId, ri.returnedQty]));
+          // What's actually owed shrinks with what came back — accumulated
+          // below and applied to orders.total after the loop, the same way
+          // OrderService.applyPartialDelivery does for the operator/agent
+          // flow. Without this the shop was being charged for goods that
+          // never left the warehouse.
+          let newSubtotal = 0;
           for (const item of items) {
             const qty = Number(item.quantity);
             const returnedQty = returnedMap.get(item.id) ?? 0;
             const deliveredQty = qty - returnedQty;
+            newSubtotal += Number(item.unitPrice) * deliveredQty;
 
             if (deliveredQty > 0) {
               // Deduct delivered stock; the returned portion of the reservation
@@ -380,10 +446,26 @@ export const courierRouter = createRouter({
               .set({ deliveredQuantity: String(deliveredQty), returnReason: input.returnReason ?? null })
               .where(eq(orderItems.id, item.id));
           }
+
+          // Rescale the discount by the percentage it originally represented,
+          // same as OrderService.applyPartialDelivery — subtracting the
+          // original absolute discount from a shrunk subtotal unchanged could
+          // drive the total negative.
+          const originalSubtotal = Number(order.subtotal);
+          const discountPct = originalSubtotal > 0 ? (Number(order.discount) / originalSubtotal) * 100 : 0;
+          const newDiscount = newSubtotal * (discountPct / 100);
+          orderTotal = Math.max(0, newSubtotal - newDiscount);
+          await tx.update(orders).set({
+            subtotal: newSubtotal.toFixed(2),
+            discount: newDiscount.toFixed(2),
+            total: orderTotal.toFixed(2),
+          }).where(and(eq(orders.id, input.orderId), eq(orders.tenantId, ctx.tenant.id)));
         }
 
+        paidAmount = Number(input.paidAmount ?? 0);
+        debtAmount = orderTotal - paidAmount;
+
         // ── Determine final order status ──
-        let finalStatus: string;
         let deliveryResult = input.result;
 
         // Only a full return leaves the order undelivered. A partial return or a

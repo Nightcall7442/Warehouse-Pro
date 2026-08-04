@@ -237,9 +237,16 @@ export const ProductService = {
       throw new Error(`Невозможно удалить товар: связан с ${orderItemCount.count} позицией(ями) заказов`);
     }
 
-    const [stock] = await db.select().from(warehouseStock)
-      .where(and(eq(warehouseStock.productId, productId), eq(warehouseStock.tenantId, tenantId))).limit(1);
-    if (stock && Number(stock.currentStock) > 0) {
+    // Summed across every warehouse the tenant has — a single unaggregated
+    // row here would let a product with, say, 0 units in Warehouse A and 50
+    // in Warehouse B pass this check on whichever row MySQL happened to
+    // return, and the delete below removes every warehouse_stock row for the
+    // product (all warehouses) with no ledger entry to explain where the 50
+    // units went.
+    const [stockTotal] = await db.select({ total: sql<string>`COALESCE(SUM(${warehouseStock.currentStock}), 0)` })
+      .from(warehouseStock)
+      .where(and(eq(warehouseStock.productId, productId), eq(warehouseStock.tenantId, tenantId)));
+    if (Number(stockTotal?.total ?? 0) > 0) {
       throw new Error("Невозможно удалить товар: на складе есть остаток");
     }
 

@@ -153,19 +153,32 @@ async function applyPartialPayment(
   const paid = Number(input.paidAmount);
   if (paid <= 0) throw new Error("Сумма оплаты должна быть положительной");
 
+  // Locked for the rest of this function: a second, concurrent call for the
+  // same order (a network retry, a double-tap, two devices) queues on this
+  // lock rather than reading the same pre-payment total this one did, which
+  // is what let two simultaneous payments each think the order was unpaid
+  // and jointly overpay it.
   const [order] = await tx.select({
     id: orders.id, status: orders.status, total: orders.total,
     shopId: orders.shopId, orderNumber: orders.orderNumber, paymentMethod: orders.paymentMethod,
   }).from(orders)
     .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt)))
+    .for("update")
     .limit(1);
   if (!order) throw new Error("Заказ не найден");
+  // A cancelled/returned order has already given its stock and any charge
+  // back; a stray or retried payment call must not resurrect it as delivered.
+  if (order.status === "cancelled" || order.status === "returned") {
+    throw new Error(`Нельзя принять оплату по заказу в статусе «${order.status}»`);
+  }
 
   const total = Number(order.total);
 
   // Sum of payments already recorded for this order, before this one — needed
   // to compute the true remaining balance across multiple partial payments,
   // and to know how much of it is already reflected in shops.debt (see below).
+  // Read only after the lock above, so it reflects any payment a just-committed
+  // concurrent call already inserted.
   const [{ priorPaid: priorPaidRaw }] = await tx.select({
     priorPaid: sql<string>`COALESCE(SUM(CAST(${payments.amount} AS DECIMAL(15,2))), 0)`,
   }).from(payments)
@@ -240,14 +253,24 @@ async function applyPartialDelivery(
 ): Promise<void> {
   if (input.items.length === 0) throw new Error("Выберите хотя бы один товар");
 
+  // Locked for the rest of this function — see the identical comment in
+  // applyPartialPayment for why a concurrent call must queue here rather than
+  // read the same pre-delivery state this one did.
   const [order] = await tx.select({
     id: orders.id, status: orders.status, total: orders.total,
     subtotal: orders.subtotal, discount: orders.discount,
     shopId: orders.shopId, orderNumber: orders.orderNumber,
   }).from(orders)
     .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt)))
+    .for("update")
     .limit(1);
   if (!order) throw new Error("Заказ не найден");
+  // A cancelled/returned order already released its stock; recording a
+  // delivery against it here would consume stock a second time for goods
+  // that were already given back.
+  if (order.status === "cancelled" || order.status === "returned") {
+    throw new Error(`Нельзя оформить доставку по заказу в статусе «${order.status}»`);
+  }
 
   let newSubtotal = 0;
   const oldItems: Array<{ id: number; quantity: string; subtotal: string }> = [];
@@ -325,9 +348,15 @@ async function applyPartialDelivery(
     }
   }
 
-  // Recalculate order totals
-  const discount = Number(order.discount);
-  const newTotal = newSubtotal - discount;
+  // Recalculate order totals. The discount was granted as a percentage of the
+  // original sale, not a fixed sum, so it's rescaled to the smaller subtotal
+  // the same way OrderService.updateItems does — subtracting the original
+  // absolute discount unchanged could outweigh a subtotal that partial
+  // delivery just shrank and drive the total negative.
+  const originalSubtotal = Number(order.subtotal);
+  const discountPct = originalSubtotal > 0 ? (Number(order.discount) / originalSubtotal) * 100 : 0;
+  const newDiscount = newSubtotal * (discountPct / 100);
+  const newTotal = Math.max(0, newSubtotal - newDiscount);
 
   // The order is delivered — what came back was already subtracted from its
   // lines and total, and the returned units went back to stock above. The
@@ -335,6 +364,7 @@ async function applyPartialDelivery(
   // log, not in a separate status.
   await tx.update(orders).set({
     subtotal: newSubtotal.toFixed(2),
+    discount: newDiscount.toFixed(2),
     total: newTotal.toFixed(2),
     status: "delivered",
   }).where(and(eq(orders.id, order.id), eq(orders.tenantId, tenantId)));
@@ -688,10 +718,13 @@ export const OrderService = {
       // A soft-deleted order has already had its stock released — cancelling it
       // again would credit the warehouse twice.
       conditions.push(isNull(orders.deletedAt));
+      // Locked so a second concurrent cancel for the same order queues here
+      // instead of also passing the status check below and releasing the same
+      // reserved stock a second time once the first call's release commits.
       const [order] = await tx.select({
         id: orders.id, status: orders.status, shopId: orders.shopId,
         total: orders.total, paymentMethod: orders.paymentMethod,
-      }).from(orders).where(and(...conditions)).limit(1);
+      }).from(orders).where(and(...conditions)).for("update").limit(1);
       if (!order) throw new Error("Заказ не найден");
       if (order.status !== "new") throw new Error("Можно отменить только новые заказы");
 
@@ -736,8 +769,13 @@ export const OrderService = {
         deliveryStatus: orders.deliveryStatus, paymentMethod: orders.paymentMethod,
       }).from(orders)
         // Soft-deleted orders already gave their stock back; moving them through
-        // the lifecycle again would double-count it.
+        // the lifecycle again would double-count it. Locked so two concurrent
+        // status changes for the same order serialize instead of both reading
+        // the same starting status and each applying their own stock delta on
+        // top of it — the second call now sees the first's already-committed
+        // status and computes its delta from there.
         .where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt)))
+        .for("update")
         .limit(1);
       if (!order) throw new Error("Заказ не найден");
 
@@ -758,6 +796,15 @@ export const OrderService = {
       };
 
       const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
+      // A line that already went through partial delivery moved only
+      // `deliveredQuantity` physically, not the full ordered `quantity` — the
+      // undelivered remainder was released back to `available`, not held as
+      // stock waiting to move again. Every stock delta below must be sized off
+      // what's actually still in play for this line, or a later status change
+      // (e.g. correcting "delivered" back to "cancelled") fabricates stock for
+      // units that were never there.
+      const effectiveQty = (i: (typeof items)[number]) =>
+        i.deliveredQuantity != null ? Number(i.deliveredQuantity) : Number(i.quantity);
       // The courier flow already moved the stock for this delivery; replaying
       // the same move here would deduct it a second time.
       const courierAlreadySettled = order.deliveryStatus === "delivered" && deductsStock(newStatus);
@@ -784,7 +831,7 @@ export const OrderService = {
         const short = items.filter(i => {
           const row = stockRows.find(r => Number(r.productId) === i.productId);
           if (!row) return d.current < 0 || d.available < 0;
-          const qty = Number(i.quantity);
+          const qty = effectiveQty(i);
           return (d.current < 0 && Number(row.currentStock) + d.current * qty < 0)
             || (d.available < 0 && Number(row.available) + d.available * qty < 0);
         });
@@ -797,13 +844,13 @@ export const OrderService = {
         await tx.execute(sql`
           UPDATE warehouse_stock
           SET current_stock = CASE ${sql.join(items.map(i =>
-                sql`WHEN product_id = ${i.productId} THEN current_stock + ${d.current * Number(i.quantity)}`
+                sql`WHEN product_id = ${i.productId} THEN current_stock + ${d.current * effectiveQty(i)}`
               ), sql`\n`)} ELSE current_stock END,
               reserved = CASE ${sql.join(items.map(i =>
-                sql`WHEN product_id = ${i.productId} THEN reserved + ${d.reserved * Number(i.quantity)}`
+                sql`WHEN product_id = ${i.productId} THEN reserved + ${d.reserved * effectiveQty(i)}`
               ), sql`\n`)} ELSE reserved END,
               available = CASE ${sql.join(items.map(i =>
-                sql`WHEN product_id = ${i.productId} THEN available + ${d.available * Number(i.quantity)}`
+                sql`WHEN product_id = ${i.productId} THEN available + ${d.available * effectiveQty(i)}`
               ), sql`\n`)} ELSE available END
           WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
             AND tenant_id = ${tenantId}
@@ -818,7 +865,7 @@ export const OrderService = {
             await recordStockMovement(tx, {
               tenantId, warehouseId: whId, productId: item.productId,
               type: d.current < 0 ? "out" : "in",
-              quantity: Number(item.quantity),
+              quantity: effectiveQty(item),
               reason: d.current < 0 ? "order_delivery" : "order_return",
               referenceId: orderId,
               notes: `Заказ: ${order.status} → ${newStatus}`,
@@ -826,7 +873,11 @@ export const OrderService = {
           }
         }
       }
-      await tx.update(orders).set({ status: newStatus }).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)));
+      const [statusUpdateResult] = await tx.update(orders).set({ status: newStatus })
+        .where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), eq(orders.status, order.status)));
+      if ((statusUpdateResult as { affectedRows?: number }).affectedRows !== 1) {
+        throw new Error("Статус заказа уже был изменён другим действием");
+      }
       await settleShopDebt(tx, tenantId, order.shopId);
     });
 
@@ -856,6 +907,9 @@ export const OrderService = {
 
   async delete(db: Db, tenantId: number, orderId: number) {
     await db.transaction(async (tx) => {
+      // Locked for the same reason as cancel() above: without it, two
+      // concurrent deletes both pass the `deletedAt IS NULL` check and each
+      // release the same reserved stock back to `available`.
       const [order] = await tx.select({
         id: orders.id,
         status: orders.status,
@@ -863,7 +917,7 @@ export const OrderService = {
         shopId: orders.shopId,
         total: orders.total,
         paymentMethod: orders.paymentMethod,
-      }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt))).limit(1);
+      }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt))).for("update").limit(1);
       if (!order) throw new Error("Заказ не найден или уже удалён");
 
       // Release reserved stock if order is new or processing

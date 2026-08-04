@@ -186,6 +186,7 @@ export const StockService = {
     let updatedAvailable: string | undefined;
     let productName: string | undefined;
     let reorderPoint: string | undefined;
+    let adjustmentDiff = 0;
 
     await db.transaction(async (tx) => {
       const stockWhere = and(
@@ -242,12 +243,28 @@ export const StockService = {
           currentStock: String(quantity),
           available: sql`${warehouseStock.available} + ${diff}`,
         }).where(stockWhere);
+        adjustmentDiff = diff;
       }
 
-      await recordStockMovement(tx, {
-        tenantId, warehouseId: whId, productId,
-        type, quantity, reason: "manual_adjustment", notes,
-      });
+      // For "in"/"out" the caller's `quantity` already is the magnitude that
+      // just moved. For "adjustment" it's the new absolute count, not a
+      // movement size — logging it verbatim overstated every recount (and
+      // fabricated a movement for a recount that confirmed the count was
+      // already correct). Recording the true delta as a signed "in"/"out"
+      // also matches this ledger's own documented meaning of those types.
+      if (type !== "adjustment") {
+        await recordStockMovement(tx, {
+          tenantId, warehouseId: whId, productId,
+          type, quantity, reason: "manual_adjustment", notes,
+        });
+      } else if (adjustmentDiff !== 0) {
+        await recordStockMovement(tx, {
+          tenantId, warehouseId: whId, productId,
+          type: adjustmentDiff > 0 ? "in" : "out",
+          quantity: Math.abs(adjustmentDiff),
+          reason: "manual_adjustment", notes,
+        });
+      }
     });
 
     if (type === "out" && updatedAvailable !== undefined && productName !== undefined && reorderPoint !== undefined) {

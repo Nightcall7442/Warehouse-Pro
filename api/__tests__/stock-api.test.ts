@@ -169,8 +169,10 @@ function makeMockDb() {
       set(patch: Record<string, unknown>) {
         return {
           where(cond: Record<string, unknown>) {
+            let matched = 0;
             for (const row of rowsFor(table)) {
               if (!evalCond(row, cond)) continue;
+              matched++;
               for (const [key, val] of Object.entries(patch)) {
                 if (val && typeof val === "object" && (val as Record<string, unknown>).__kind === "sql") {
                   row[key] = evalSqlDelta(row, key, val as Record<string, unknown>);
@@ -179,7 +181,7 @@ function makeMockDb() {
                 }
               }
             }
-            return Promise.resolve();
+            return Promise.resolve([{ affectedRows: matched }]);
           },
         };
       },

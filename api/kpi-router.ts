@@ -130,7 +130,10 @@ export const kpiRouter = createRouter({
       const period = input?.period ?? "month";
       const { periodStart, periodEnd } = getPeriod(period);
 
-      return calculateSalary(db, ctx.user.id, ctx.tenant.id, periodStart, periodEnd);
+      // Only the "month" view is allowed to write back to the agent's one
+      // canonical monthly commission record — a "week"/"quarter" view still
+      // computes and shows live numbers, just doesn't persist them over it.
+      return calculateSalary(db, ctx.user.id, ctx.tenant.id, periodStart, periodEnd, undefined, period === "month");
     }),
 
   salaryReport: supervisorQuery
@@ -152,7 +155,7 @@ export const kpiRouter = createRouter({
 
       const salaries = await Promise.all(
         agentsList.map(agent =>
-          calculateSalary(db, agent.id, ctx.tenant.id, periodStart, periodEnd, kpiMap.get(agent.id))
+          calculateSalary(db, agent.id, ctx.tenant.id, periodStart, periodEnd, kpiMap.get(agent.id), period === "month")
             .then(salary => { salary.agentName = agent.name; return salary; })
         )
       );

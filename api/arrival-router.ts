@@ -195,12 +195,33 @@ export const arrivalRouter = createRouter({
         const arrivalNumber = arrivalRow?.arrivalNumber ?? `#${id}`;
 
         await db.transaction(async (tx) => {
+          // Lock and re-check the arrival's status inside the transaction —
+          // the "prevent duplicate completion" check above ran on an
+          // unlocked read outside any transaction, so two concurrent
+          // `update({status:"completed"})` calls for the same arrival (a
+          // double-click, or a retried request) both pass it before either
+          // commits, and each then credits warehouse_stock for the same
+          // physical shipment. This lock makes the second one queue behind
+          // the first and see it already completed.
+          const [lockedArrival] = await tx.select({ status: arrivals.status })
+            .from(arrivals)
+            .where(and(eq(arrivals.id, id), eq(arrivals.tenantId, tenantId)))
+            .for("update")
+            .limit(1);
+          if (!lockedArrival) throw new Error("Приход не найден");
+          if (lockedArrival.status === "completed") throw new Error("Приход уже завершён");
+
           // Use sql template (not Drizzle select) to avoid selecting non-existent columns
           const itemsResult = await tx.execute(
             sql`SELECT ai.id, ai.arrival_id AS arrivalId, ai.product_id AS productId, ai.quantity, ai.condition, ai.notes FROM arrival_items ai WHERE ai.arrival_id = ${id}`
           );
           const rows = (itemsResult as unknown[][])[0];
-          const items = Array.isArray(rows) ? rows : [];
+          const rawItems = Array.isArray(rows) ? rows : [];
+          // The columns are AS-aliased to camelCase above, so this cast is safe —
+          // unlike the `unknown` the raw sql.execute() result carries by default.
+          const items = rawItems as Array<{ id: number; arrivalId: number; productId: number; quantity: string; condition: string; notes: string | null }>;
+          const badItem = items.find(it => it.productId == null);
+          if (badItem) throw new Error(`Позиция прихода #${badItem.id} не привязана к товару`);
 
           // Use provided warehouseId, or fall back to default warehouse
           let warehouseId: number;
@@ -254,15 +275,21 @@ export const arrivalRouter = createRouter({
             });
           }
 
-          // Update arrival status
+          // Update arrival status. Guarded on status != 'completed' as a second,
+          // cheap line of defense alongside the lock above.
+          const notCompleted = and(eq(arrivals.id, id), eq(arrivals.tenantId, tenantId), sql`${arrivals.status} != 'completed'`);
+          let statusUpdateResult: unknown;
           if (data.fuelCost || data.tollCost || data.otherCost) {
             const fuel  = Number(data.fuelCost  ?? "0");
             const toll  = Number(data.tollCost  ?? "0");
             const other = Number(data.otherCost ?? "0");
-            await tx.update(arrivals).set({ ...data, totalExpense: (fuel + toll + other).toFixed(2) })
-              .where(and(eq(arrivals.id, id), eq(arrivals.tenantId, tenantId)));
+            [statusUpdateResult] = await tx.update(arrivals).set({ ...data, totalExpense: (fuel + toll + other).toFixed(2) })
+              .where(notCompleted);
           } else {
-            await tx.update(arrivals).set(data).where(and(eq(arrivals.id, id), eq(arrivals.tenantId, tenantId)));
+            [statusUpdateResult] = await tx.update(arrivals).set(data).where(notCompleted);
+          }
+          if ((statusUpdateResult as { affectedRows?: number }).affectedRows !== 1) {
+            throw new Error("Приход уже завершён");
           }
         });
 

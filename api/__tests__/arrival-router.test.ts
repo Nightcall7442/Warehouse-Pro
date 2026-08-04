@@ -122,10 +122,16 @@ function chainable(rows: Record<string, unknown>[]) {
     limit?: (n: number) => ReturnType<typeof chainable>;
     offset?: (n: number) => ReturnType<typeof chainable>;
     orderBy?: (..._a: unknown[]) => ReturnType<typeof chainable>;
+    for?: (..._a: unknown[]) => ReturnType<typeof chainable>;
   };
   p.limit = (n: number) => chainable(rows.slice(0, n));
   p.offset = (n: number) => chainable(rows.slice(n));
   p.orderBy = () => chainable(rows);
+  // `.for("update")` is a real row lock against MySQL; this mock has no
+  // concurrent transactions to serialize, so it's a pass-through that keeps
+  // the same rows chainable into whatever comes next (.limit(), awaiting it
+  // directly, etc.) — same as real drizzle's builder shape.
+  p.for = () => chainable(rows);
   return p;
 }
 
@@ -192,13 +198,15 @@ function makeMockDb() {
       set(patch: Record<string, unknown>) {
         return {
           where(cond: unknown) {
+            let matched = 0;
             for (const row of rowsFor(tableOf(ref))) {
               if (!evalCond(row as Record<string, unknown>, cond as Record<string, unknown>)) continue;
+              matched++;
               for (const [key, val] of Object.entries(patch)) {
                 if (val !== undefined) row[key] = val;
               }
             }
-            return Promise.resolve();
+            return Promise.resolve([{ affectedRows: matched }]);
           },
         };
       },

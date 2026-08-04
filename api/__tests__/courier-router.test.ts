@@ -203,13 +203,15 @@ function makeMockDb() {
       set(patch: Record<string, unknown>) {
         return {
           where(cond: unknown) {
+            let matched = 0;
             for (const row of rowsFor(tableOf(ref))) {
               if (!evalCond(row as Record<string, unknown>, cond as Record<string, unknown>)) continue;
+              matched++;
               for (const [key, val] of Object.entries(patch)) {
                 if (val !== undefined) row[key] = val;
               }
             }
-            return Promise.resolve();
+            return Promise.resolve([{ affectedRows: matched }]);
           },
         };
       },

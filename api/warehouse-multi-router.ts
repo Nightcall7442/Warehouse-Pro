@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createRouter, adminQuery, authedQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { warehouses, warehouseStock, stockTransfers, products } from "@db/schema";
-import { eq, and, sql, desc } from "drizzle-orm";
+import { eq, and, sql, desc, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { recordStockMovement } from "./services/stock-ledger";
 
@@ -157,6 +157,20 @@ export const warehouseMultiRouter = createRouter({
 
       if (input.fromWarehouseId === input.toWarehouseId) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Нельзя перемещать товар на тот же склад" });
+      }
+
+      // Neither endpoint was previously checked against this tenant's own
+      // warehouses. The source side failed safe by accident — a foreign
+      // warehouse has no matching (tenantId, warehouseId) stock row here, so
+      // it always read as "no stock" — but the destination was never checked
+      // at all, and completeTransfer's destination upsert would happily
+      // create a warehouse_stock row stamped with this tenant's id but a
+      // warehouseId belonging to someone else's warehouse.
+      const ownedWarehouses = await db.select({ id: warehouses.id }).from(warehouses)
+        .where(and(eq(warehouses.tenantId, ctx.tenant.id), inArray(warehouses.id, [input.fromWarehouseId, input.toWarehouseId])));
+      const ownedIds = new Set(ownedWarehouses.map(w => w.id));
+      if (!ownedIds.has(input.fromWarehouseId) || !ownedIds.has(input.toWarehouseId)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Склад не найден" });
       }
 
       return db.transaction(async (tx) => {

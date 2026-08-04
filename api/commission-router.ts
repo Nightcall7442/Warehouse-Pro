@@ -104,10 +104,16 @@ export const commissionRouter = createRouter({
 
       const { orders, returns } = await import("@db/schema");
       const { sql: sqlFn } = await import("drizzle-orm");
-      const periodEndDate = new Date(input.periodEnd + "T23:59:59");
 
       const results = await Promise.all(
         agentCommissions.map(async (agent) => {
+          // Each row's own period, not the outer request range: `calculate`
+          // can select several rows spanning different sub-periods (e.g. every
+          // monthly row within a requested year), and bounding every one of
+          // them by the same, later `input.periodEnd` pulled each later
+          // period's sales into every earlier one — January's commission was
+          // computed over Jan 1 through Dec 31.
+          const agentPeriodEndDate = new Date(agent.periodEnd + "T23:59:59");
           const [orderResult] = await db.select({
             total: sqlFn<string>`COALESCE(SUM(${orders.total}), 0)`,
           }).from(orders).where(and(
@@ -116,7 +122,7 @@ export const commissionRouter = createRouter({
             inArray(orders.status, REVENUE_ORDER_STATUSES),
             isNull(orders.deletedAt),
             gte(orders.createdAt, agent.periodStart),
-            lte(orders.createdAt, periodEndDate),
+            lte(orders.createdAt, agentPeriodEndDate),
           ));
 
           const [returnResult] = await db.select({
@@ -129,7 +135,7 @@ export const commissionRouter = createRouter({
               eq(returns.status, "completed"),
               isNull(orders.deletedAt),
               gte(orders.createdAt, agent.periodStart),
-              lte(orders.createdAt, periodEndDate),
+              lte(orders.createdAt, agentPeriodEndDate),
             ));
 
           const salesAmount = Math.max(0, Number(orderResult.total) - Number(returnResult.total));

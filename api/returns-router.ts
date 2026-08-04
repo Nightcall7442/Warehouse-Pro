@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createRouter, fieldSalesQuery, operatorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { returns, returnItems, orderItems, shops, users, products, orders, warehouseStock, warehouses } from "@db/schema";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, ne } from "drizzle-orm";
 import { cache, CacheKeys } from "./lib/cache";
 import { sanitizeString } from "./lib/sanitize";
 import { recalcShopDebt } from "./services/shop-debt";
@@ -138,7 +138,11 @@ export const returnsRouter = createRouter({
           totalReturned: sql<string>`COALESCE(SUM(${returnItems.quantity}), 0)`,
         }).from(returnItems)
           .innerJoin(returns, eq(returnItems.returnId, returns.id))
-          .where(and(eq(returns.orderId, input.orderId), eq(returns.tenantId, ctx.tenant.id)))
+          // A rejected return never happened — the goods were never accepted
+          // back, so it must not block a later, legitimate return of the same
+          // item. Pending/approved/completed all still count: those returns
+          // are expected to (or already did) bring the goods back.
+          .where(and(eq(returns.orderId, input.orderId), eq(returns.tenantId, ctx.tenant.id), ne(returns.status, "rejected")))
           .groupBy(returnItems.productId);
         const returnedMap = new Map<number, number>();
         for (const er of existingReturns) returnedMap.set(er.productId, Number(er.totalReturned));

@@ -1,4 +1,4 @@
-import { sql, eq, and, gte, lte, inArray, isNull } from "drizzle-orm";
+import { sql, eq, and, gte, lte, inArray, isNull, desc } from "drizzle-orm";
 import { REVENUE_ORDER_STATUSES } from "../lib/order-status";
 import type { DrizzleInstance } from "../queries/connection";
 import { orders, dailyPlans, returns, shops, salesTargets, commissions, agentLocations, visitReports, users, payments } from "@db/schema";
@@ -354,15 +354,27 @@ export async function calculateSalary(
   periodStart: Date,
   periodEnd: Date,
   preloadedKpi?: AgentKpiData,
+  // False for a "week"/"quarter" salary view: those still compute and return
+  // live numbers, but must not touch the one monthly commission record this
+  // agent has. Without this, viewing the week tab overwrote periodStart/
+  // periodEnd/salesAmount on the canonical monthly row with that week's
+  // narrower figures.
+  persist = true,
 ): Promise<SalaryData> {
+  // Ordered and typed so a tenant with more than one row for this agent (an
+  // old month plus the current one) gets the current one deterministically,
+  // not whichever MySQL happens to return first.
   const [commissionRecord] = await db.select({
     commissionRate: sql<string>`commission_rate`,
     id: commissions.id,
+    status: commissions.status,
   }).from(commissions)
     .where(and(
       eq(commissions.tenantId, tenantId),
       eq(commissions.userId, agentId),
+      eq(commissions.periodType, "monthly"),
     ))
+    .orderBy(desc(commissions.periodStart))
     .limit(1);
 
   const commissionRate = Number(commissionRecord?.commissionRate ?? 0);
@@ -404,7 +416,9 @@ export async function calculateSalary(
     .where(and(
       eq(salesTargets.tenantId, tenantId),
       eq(salesTargets.userId, agentId),
+      eq(salesTargets.periodType, "monthly"),
     ))
+    .orderBy(desc(salesTargets.periodStart))
     .limit(1);
 
   const baseSalary = Number(targetRecord?.targetAmount ?? 0);
@@ -420,34 +434,39 @@ export async function calculateSalary(
     .where(eq(users.id, agentId))
     .limit(1);
 
-  // Auto-persist commission record to DB
+  // Auto-persist commission record to DB — only for the canonical monthly
+  // view, and only while the record is still a draft. A record already
+  // "approved" or "paid" has been signed off on; simply opening the salary
+  // screen again must not silently rewrite figures finance already acted on.
   const monthStart = periodStart.toISOString().slice(0, 10);
   const monthEnd = periodEnd.toISOString().slice(0, 10);
-  try {
-    if (commissionRecord?.id) {
-      await db.update(commissions)
-        .set({
-          salesAmount: salesAmount.toFixed(2),
-          commissionAmount: commissionAmount.toFixed(2),
+  if (persist && (!commissionRecord || commissionRecord.status === "pending")) {
+    try {
+      if (commissionRecord?.id) {
+        await db.update(commissions)
+          .set({
+            salesAmount: salesAmount.toFixed(2),
+            commissionAmount: commissionAmount.toFixed(2),
+            periodStart: monthStart,
+            periodEnd: monthEnd,
+          })
+          .where(and(eq(commissions.id, commissionRecord.id), eq(commissions.status, "pending")));
+      } else if (commissionRate > 0) {
+        await db.insert(commissions).values({
+          tenantId,
+          userId: agentId,
+          commissionRate: commissionRate.toFixed(2),
+          periodType: "monthly",
           periodStart: monthStart,
           periodEnd: monthEnd,
-        })
-        .where(eq(commissions.id, commissionRecord.id));
-    } else if (commissionRate > 0) {
-      await db.insert(commissions).values({
-        tenantId,
-        userId: agentId,
-        commissionRate: commissionRate.toFixed(2),
-        periodType: "monthly",
-        periodStart: monthStart,
-        periodEnd: monthEnd,
-        salesAmount: salesAmount.toFixed(2),
-        commissionAmount: commissionAmount.toFixed(2),
-      });
+          salesAmount: salesAmount.toFixed(2),
+          commissionAmount: commissionAmount.toFixed(2),
+        });
+      }
+    } catch (e) {
+      // Commission persistence is non-critical but should be logged
+      logger.warn("Failed to persist commission", { agentId, error: String(e) });
     }
-  } catch (e) {
-    // Commission persistence is non-critical but should be logged
-    logger.warn("Failed to persist commission", { agentId, error: String(e) });
   }
 
   return {
