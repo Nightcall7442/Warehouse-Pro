@@ -36,6 +36,8 @@ export const shopRouter = createRouter({
       district:   z.string().optional(),
       agentId:    z.number().optional(),
       territoryId: z.number().optional(),
+      onlyDebtors: z.boolean().optional(),
+      sortBy: z.enum(["newest", "debtDesc", "debtAsc"]).optional(),
     }).optional())
     .query(async ({ input, ctx }) => {
       const db       = getDb();
@@ -43,8 +45,9 @@ export const shopRouter = createRouter({
       const page     = input?.page ?? 1;
       const pageSize = input?.pageSize ?? 25;
       const offset   = (page - 1) * pageSize;
+      const sortBy   = input?.sortBy ?? "newest";
 
-      const cacheKey = CacheKeys.shopList(tenantId, page, input?.search, input?.city, input?.district, input?.agentId, input?.territoryId);
+      const cacheKey = CacheKeys.shopList(tenantId, page, input?.search, input?.city, input?.district, input?.agentId, input?.territoryId, input?.onlyDebtors, sortBy);
       const cached = cache.get(cacheKey);
       if (cached) return cached;
 
@@ -54,7 +57,12 @@ export const shopRouter = createRouter({
       if (input?.district) conditions.push(eq(shops.district, input.district));
       if (input?.agentId)    conditions.push(eq(shops.agentId, input.agentId));
       if (input?.territoryId) conditions.push(eq(shops.territoryId, input.territoryId));
+      if (input?.onlyDebtors) conditions.push(sql`CAST(${shops.debt} AS DECIMAL) > 0`);
       const where = and(...conditions);
+
+      const orderBy = sortBy === "debtDesc" ? desc(sql`CAST(${shops.debt} AS DECIMAL)`)
+        : sortBy === "debtAsc" ? sql`CAST(${shops.debt} AS DECIMAL) ASC`
+        : desc(shops.createdAt);
 
       const [data, countResult] = await Promise.all([
         db.select({
@@ -78,7 +86,7 @@ export const shopRouter = createRouter({
           .where(where)
           .limit(pageSize)
           .offset(offset)
-          .orderBy(desc(shops.createdAt)),
+          .orderBy(orderBy),
         db.select({ count: sql<number>`count(*)` }).from(shops).where(where),
       ]);
 

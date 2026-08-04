@@ -28,13 +28,15 @@ export default function Shops() {
   const [district, setDistrict] = useState<string | undefined>(undefined);
   const [agentFilter, setAgentFilter] = useState<string | undefined>(undefined);
   const [territoryFilter, setTerritoryFilter] = useState<number | undefined>(undefined);
+  const [onlyDebtors, setOnlyDebtors] = useState(false);
+  const [sortBy, setSortBy] = useState<"newest" | "debtDesc" | "debtAsc">("newest");
   const [showForm, setShowForm] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showTerritoryManager, setShowTerritoryManager] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [viewMode, setViewMode] = useState<"territories" | "list">("territories");
 
-  const { data, isLoading, isError, refetch } = trpc.shop.list.useQuery({ page, pageSize: 25, search: search || undefined, city, district, agentId: agentFilter ? Number(agentFilter) : undefined, territoryId: territoryFilter });
+  const { data, isLoading, isError, refetch } = trpc.shop.list.useQuery({ page, pageSize: 25, search: search || undefined, city, district, agentId: agentFilter ? Number(agentFilter) : undefined, territoryId: territoryFilter, onlyDebtors: onlyDebtors || undefined, sortBy });
   const { data: territories } = trpc.shop.territories.useQuery();
   const { data: realTerritories } = trpc.territory.list.useQuery();
   const { data: usersData } = trpc.user.list.useQuery({ page: 1, pageSize: 100 });
@@ -104,6 +106,8 @@ export default function Shops() {
     setDistrict(undefined);
     setTerritoryFilter(undefined);
     setSearch("");
+    setOnlyDebtors(false);
+    setSortBy("newest");
     setPage(1);
   }, []);
 
@@ -247,12 +251,14 @@ export default function Shops() {
         viewMode={viewMode} setViewMode={setViewMode}
         agentFilter={agentFilter} setAgentFilter={setAgentFilter}
         city={city} district={district} agents={agents}
+        onlyDebtors={onlyDebtors} setOnlyDebtors={setOnlyDebtors}
+        sortBy={sortBy} setSortBy={setSortBy}
         setPage={setPage} resetFilters={resetFilters}
       />
 
       {/* Territories grid */}
       <div key="territories-grid">
-        {viewMode === "territories" && !territoryFilter && (
+        {viewMode === "territories" && !territoryFilter && !onlyDebtors && (
           <TerritoriesGrid
             territories={territories ?? []}
             totalShops={data?.total ?? 0}
@@ -264,7 +270,7 @@ export default function Shops() {
       </div>
 
       <div key="shop-list-view">
-        {(viewMode === "list" || city || district || territoryFilter) && (
+        {(viewMode === "list" || city || district || territoryFilter || onlyDebtors) && (
           <>
             {(city || district) && (
               <CityBreadcrumb city={city} district={district} total={data?.total ?? 0} lang={lang} />
