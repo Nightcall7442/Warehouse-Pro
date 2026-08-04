@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Printer, Package, RefreshCw, UserPlus, Truck, FileDown, X, AlertTriangle, CheckSquare, MoreHorizontal, Banknote } from "lucide-react";
+import { PremiumSelect } from "@/components/PremiumSelect";
+import { Printer, Package, FileDown, X, AlertTriangle, CheckSquare, MoreHorizontal, Banknote } from "lucide-react";
 import { useTranslate } from "@/i18n";
-import { F, COLORS, STATUS, PillButton } from "./theme";
+import { STATUS } from "./theme";
 
 interface Props {
   selectedCount: number;
@@ -22,18 +22,6 @@ interface Props {
   validStatusTransitions?: string[];
 }
 
-const selectTriggerStyle: React.CSSProperties = {
-  height: "40px", padding: "0 14px", fontFamily: F.body, fontSize: "13px", fontWeight: 600,
-  borderRadius: "12px", border: `1px solid ${COLORS.border}`,
-  background: COLORS.surface, color: COLORS.textPrimary,
-  display: "flex", alignItems: "center", gap: "6px",
-  minWidth: "130px",
-};
-
-const moreSelectTriggerStyle: React.CSSProperties = {
-  ...selectTriggerStyle, minWidth: 0, width: "100%",
-};
-
 export function OrderBulkActions({
   selectedCount, maxSelection = 50, onClearSelection,
   onPrintInvoices, onCreateLoadingList, onChangeStatus, onComplete, onCompleteWithPayment, onAssignAgent, onAssignCourier, onExportExcel,
@@ -47,154 +35,149 @@ export function OrderBulkActions({
   const overLimit = selectedCount > maxSelection;
 
   return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-4">
-      <div style={{
-        display: "flex", alignItems: "center", gap: "12px",
-        padding: "14px 24px",
-        background: COLORS.surface,
-        border: `1px solid ${COLORS.border}`,
-        borderRadius: "20px",
-        boxShadow: "0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08)",
-      }}>
+    // `left-1/2` leaves a fixed element only half the viewport to size itself
+    // against, so without `w-max` the shrink-to-fit width collapses and the row
+    // wraps into three lines on a desktop that has room for one.
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-4 w-max max-w-[calc(100vw-2rem)]">
+      <div
+        className="neo-card flex items-center gap-3 flex-wrap justify-center"
+        style={{ padding: "12px 20px", borderRadius: "20px", boxShadow: "0 25px 80px -12px rgba(0,0,0,0.35)" }}
+      >
         {/* Selection count */}
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <div style={{
-            width: "36px", height: "36px", borderRadius: "10px",
-            background: `linear-gradient(135deg, ${COLORS.primary}, var(--color-primary-hover))`,
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}>
-            <CheckSquare size={18} color="#fff" />
+        <div className="flex items-center gap-2.5">
+          <div
+            className="flex items-center justify-center shrink-0"
+            style={{
+              width: "40px", height: "40px", borderRadius: "12px",
+              background: "linear-gradient(135deg, var(--color-primary), var(--color-primary-hover, #4a5c78))",
+              color: "#fff",
+            }}
+          >
+            <CheckSquare size={18} />
           </div>
           <div>
-            <div style={{ fontFamily: F.display, fontSize: "18px", fontWeight: 700, lineHeight: 1, color: COLORS.textPrimary }}>{selectedCount}</div>
-            <div style={{ fontFamily: F.body, fontSize: "11px", color: COLORS.textTertiary }}>{t("выбрано", "tanlangan")}</div>
+            <div className="text-lg font-bold leading-none font-data" style={{ color: "var(--color-text-primary)" }}>{selectedCount}</div>
+            <div className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>{t("выбрано", "tanlangan")}</div>
           </div>
         </div>
 
-        <div style={{ width: "1px", height: "40px", background: COLORS.border }} />
+        <div style={{ width: "1px", height: "36px", background: "var(--color-border, #f0f3f8)" }} />
 
         {overLimit ? (
-          <div style={{ display: "flex", alignItems: "center", gap: "6px", color: COLORS.danger, fontFamily: F.body, fontSize: "13px" }}>
+          <div className="flex items-center gap-1.5 text-sm" style={{ color: "var(--color-danger-text)" }}>
             <AlertTriangle size={16} />
             <span>{t("Макс. 50 заказов", "Maks. 50 ta buyurtma")}</span>
           </div>
         ) : (
           <>
-            {/* The actions operators reach for most stay in the bar.
-                Everything less frequent (assignment, export) lives behind
-                "Ещё". Complete-without-payment and complete-with-payment sit
-                side by side, color-coded so the two are never confused at a
-                glance: red for "no money recorded", green for "fully paid". */}
-            <PillButton tone="danger" onClick={onComplete}>
-              <CheckSquare size={16} />
-              {t("Выполнить", "Bajarish")}
-            </PillButton>
-
-            <PillButton tone="success" onClick={onCompleteWithPayment}>
+            {/* "Выполнить с оплатой" is the one that closes the money loop, so it
+                carries the primary weight. Plain "Выполнить" leaves the order
+                unpaid — it used to be painted red, which read as "destructive"
+                next to a green sibling and made two similar actions look like
+                a yes/no pair. It's an ordinary secondary action. */}
+            <button type="button" onClick={onCompleteWithPayment} className="neo-btn-primary h-10">
               <Banknote size={16} />
               {t("Выполнить с оплатой", "To'lov bilan bajarish")}
-            </PillButton>
+            </button>
 
-            <PillButton tone="neutral" onClick={onPrintInvoices}>
+            <button type="button" onClick={onComplete} className="neo-btn h-10">
+              <CheckSquare size={16} />
+              {t("Выполнить", "Bajarish")}
+            </button>
+
+            <button type="button" onClick={onPrintInvoices} className="neo-btn h-10">
               <Printer size={16} />
               {t("Накладные", "Nakladlar")}
-            </PillButton>
+            </button>
 
-            <PillButton tone="neutral" onClick={onCreateLoadingList}>
+            <button type="button" onClick={onCreateLoadingList} className="neo-btn h-10">
               <Package size={16} />
               {t("Загруз. лист", "Yuklash varaqi")}
-            </PillButton>
+            </button>
 
-            {/* Status Change */}
-            <Select onValueChange={onChangeStatus}>
-              <SelectTrigger style={{ ...selectTriggerStyle, minWidth: "140px" }}>
-                <RefreshCw size={15} />
-                <SelectValue placeholder={t("Изменить статус", "Holatni o'zgartirish")} />
-              </SelectTrigger>
-              <SelectContent>
-                {validStatusTransitions.map(s => (
-                  <SelectItem key={s} value={s} style={{ fontSize: "13px" }}>
-                    {t(STATUS[s]?.ru ?? s, STATUS[s]?.uz ?? s)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <PremiumSelect
+              value=""
+              onChange={v => { if (v) onChangeStatus(v); }}
+              aria-label={t("Изменить статус", "Holatni o'zgartirish")}
+              options={[
+                { value: "", label: t("Изменить статус", "Holatni o'zgartirish") },
+                ...validStatusTransitions.map(s => ({ value: s, label: t(STATUS[s]?.ru ?? s, STATUS[s]?.uz ?? s) })),
+              ]}
+              width="180px"
+            />
 
             {/* Overflow — assignment and export, used less often than the four above */}
             <Popover open={moreOpen} onOpenChange={setMoreOpen}>
               <PopoverTrigger asChild>
                 <button
                   type="button"
-                  style={{
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    width: "40px", height: "40px", borderRadius: "12px",
-                    border: `1px solid ${COLORS.border}`, cursor: "pointer",
-                    background: moreOpen ? COLORS.surfaceLight : COLORS.surface, color: COLORS.textSecondary,
-                  }}
+                  aria-label={t("Ещё действия", "Yana amallar")}
+                  className="neo-btn-icon"
+                  style={{ width: "40px", height: "40px", borderRadius: "12px" }}
                 >
                   <MoreHorizontal size={18} />
                 </button>
               </PopoverTrigger>
-              <PopoverContent align="end" sideOffset={10} style={{
-                width: "220px", padding: "10px", borderRadius: "14px",
-                background: COLORS.surface, border: `1px solid ${COLORS.border}`,
-                boxShadow: "0 8px 32px rgba(0,0,0,0.12)", fontFamily: F.body,
-                display: "flex", flexDirection: "column", gap: "8px",
-              }}>
-                <span style={{
-                  fontSize: "10px", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase",
-                  color: COLORS.textTertiary, padding: "0 2px",
-                }}>
+              <PopoverContent
+                align="end"
+                sideOffset={10}
+                className="neo-card"
+                style={{ width: "240px", padding: "16px", borderRadius: "18px", display: "flex", flexDirection: "column", gap: "12px" }}
+              >
+                <span className="font-label text-[10px] tracking-wider uppercase" style={{ color: "var(--color-text-tertiary)" }}>
                   {t("Ещё", "Yana")}
                 </span>
 
                 {agents && agents.length > 0 && (
-                  <Select onValueChange={v => { onAssignAgent(Number(v)); setMoreOpen(false); }}>
-                    <SelectTrigger style={moreSelectTriggerStyle}>
-                      <UserPlus size={15} />
-                      <SelectValue placeholder={t("Агент", "Agent")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {agents.map(a => (
-                        <SelectItem key={a.id} value={String(a.id)} style={{ fontSize: "13px" }}>
-                          {a.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <PremiumSelect
+                    value=""
+                    onChange={v => { if (!v) return; onAssignAgent(Number(v)); setMoreOpen(false); }}
+                    aria-label={t("Назначить агента", "Agent tayinlash")}
+                    options={[
+                      { value: "", label: t("Агент", "Agent") },
+                      ...agents.map(a => ({ value: String(a.id), label: a.name })),
+                    ]}
+                    width="100%"
+                  />
                 )}
 
                 {couriers && couriers.length > 0 && (
-                  <Select onValueChange={v => { onAssignCourier(Number(v)); setMoreOpen(false); }}>
-                    <SelectTrigger style={moreSelectTriggerStyle}>
-                      <Truck size={15} />
-                      <SelectValue placeholder={t("Курьер", "Kuryer")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {couriers.map(c => (
-                        <SelectItem key={c.id} value={String(c.id)} style={{ fontSize: "13px" }}>
-                          {c.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <PremiumSelect
+                    value=""
+                    onChange={v => { if (!v) return; onAssignCourier(Number(v)); setMoreOpen(false); }}
+                    aria-label={t("Назначить курьера", "Kuryer tayinlash")}
+                    options={[
+                      { value: "", label: t("Курьер", "Kuryer") },
+                      ...couriers.map(c => ({ value: String(c.id), label: c.name })),
+                    ]}
+                    width="100%"
+                  />
                 )}
 
-                <PillButton tone="neutral" onClick={() => { onExportExcel(); setMoreOpen(false); }}>
+                <button
+                  type="button"
+                  onClick={() => { onExportExcel(); setMoreOpen(false); }}
+                  className="neo-btn w-full h-10"
+                >
                   <FileDown size={15} />
                   Excel
-                </PillButton>
+                </button>
               </PopoverContent>
             </Popover>
           </>
         )}
 
-        <div style={{ width: "1px", height: "40px", background: COLORS.border }} />
+        <div style={{ width: "1px", height: "36px", background: "var(--color-border, #f0f3f8)" }} />
 
-        <PillButton tone="ghost" onClick={onClearSelection}>
-          <X size={16} />
-          {t("Снять", "Bekor")}
-        </PillButton>
+        <button
+          type="button"
+          onClick={onClearSelection}
+          aria-label={t("Снять выделение", "Tanlovni bekor qilish")}
+          className="neo-btn-icon"
+          style={{ width: "40px", height: "40px", borderRadius: "12px" }}
+        >
+          <X size={18} />
+        </button>
       </div>
     </div>
   );

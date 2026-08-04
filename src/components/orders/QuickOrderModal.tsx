@@ -1,16 +1,12 @@
 import { useState, useMemo } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { ShoppingCart, Plus, Minus, Trash2, Search } from "lucide-react";
+import { AppModal, modalSectionLabel, modalFieldLabel } from "@/components/ui/AppModal";
+import { PremiumSelect } from "@/components/PremiumSelect";
+import { Plus, Minus, Trash2, Search, Loader2 } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { useInvalidateOrderCaches } from "@/hooks/useOrderCacheSync";
 import { notify } from "@/lib/toast";
 import { useTranslate } from "@/i18n";
-import { F, COLORS, PillButton } from "./theme";
+import { colorMix } from "@/lib/color-mix";
 
 interface CartItem {
   productId: number;
@@ -28,14 +24,20 @@ interface Props {
 }
 
 /** Small icon-only round button used for cart quantity steppers. */
-function IconButton({ onClick, danger, children, size = 22 }: { onClick: () => void; danger?: boolean; children: React.ReactNode; size?: number }) {
+function IconButton({ onClick, danger, label, children, size = 26 }: {
+  onClick: () => void; danger?: boolean; label: string; children: React.ReactNode; size?: number;
+}) {
   return (
     <button
+      type="button"
       onClick={onClick}
+      aria-label={label}
       style={{
         display: "flex", alignItems: "center", justifyContent: "center",
-        width: `${size}px`, height: `${size}px`, borderRadius: "7px", border: "none",
-        background: "transparent", color: danger ? COLORS.danger : COLORS.textSecondary, cursor: "pointer",
+        width: `${size}px`, height: `${size}px`, borderRadius: "8px", border: "none",
+        background: "transparent",
+        color: danger ? "var(--color-danger-text)" : "var(--color-text-secondary)",
+        cursor: "pointer",
       }}
     >
       {children}
@@ -78,6 +80,8 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, onCreat
     setProductSearch("");
   };
 
+  const close = () => { resetForm(); onOpenChange(false); };
+
   const subtotal = useMemo(() => cart.reduce((s, i) => s + i.unitPrice * i.quantity, 0), [cart]);
   const discountAmount = subtotal * (Number(discount) / 100);
   const total = subtotal - discountAmount;
@@ -107,169 +111,245 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, onCreat
     });
   };
 
-  const labelStyle: React.CSSProperties = { fontFamily: F.body, fontSize: "11px", fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", color: COLORS.textTertiary };
+  const shopName = shopsData?.data?.find(s => s.id === shopId)?.name;
+
+  const footer = step === 1 ? (
+    <>
+      <button
+        type="button"
+        onClick={() => setStep(2)}
+        disabled={!shopId || cart.length === 0}
+        className="neo-btn-primary flex-1 h-12 text-sm"
+      >
+        {t("Далее", "Keyingi")}
+      </button>
+      <button type="button" onClick={close} className="neo-btn flex-1 h-12 text-sm">
+        {t("Отмена", "Bekor qilish")}
+      </button>
+    </>
+  ) : (
+    <>
+      <button
+        type="button"
+        onClick={handleSubmit}
+        disabled={createOrder.isPending}
+        className="neo-btn-primary flex-1 h-12 text-sm"
+      >
+        {createOrder.isPending && <Loader2 size={15} className="animate-spin" />}
+        {t("Создать заказ", "Buyurtma yaratish")}
+      </button>
+      <button type="button" onClick={() => setStep(1)} className="neo-btn flex-1 h-12 text-sm">
+        {t("Назад", "Orqaga")}
+      </button>
+    </>
+  );
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) resetForm(); onOpenChange(v); }}>
-      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle style={{ display: "flex", alignItems: "center", gap: "8px", fontFamily: F.display, color: COLORS.textPrimary }}>
-            <ShoppingCart size={18} />
-            {t("Новый заказ", "Yangi buyurtma")}
-          </DialogTitle>
-        </DialogHeader>
+    <AppModal
+      open={open}
+      onClose={close}
+      title={t("Новый заказ", "Yangi buyurtma")}
+      subtitle={step === 1
+        ? t("Шаг 1 из 2 · магазин и товары", "1-qadam 2 dan · do'kon va tovarlar")
+        : t("Шаг 2 из 2 · проверка и оплата", "2-qadam 2 dan · tekshirish va to'lov")}
+      maxWidth={820}
+      footer={footer}
+    >
+      {step === 1 && (
+        <>
+          <div>
+            <p className={modalSectionLabel}>{t("Магазин", "Do'kon")}</p>
+            <PremiumSelect
+              value={shopId ? String(shopId) : ""}
+              onChange={v => setShopId(v ? Number(v) : undefined)}
+              options={[
+                { value: "", label: t("Выберите магазин…", "Do'kon tanlang…") },
+                ...(shopsData?.data ?? []).map(s => ({ value: String(s.id), label: s.name })),
+              ]}
+              width="100%"
+            />
+          </div>
 
-        <div className="flex-1 overflow-hidden">
-          {/* Step 1: Shop + Products */}
-          {step === 1 && (
-            <div style={{ display: "flex", gap: "16px", height: "100%" }}>
-              <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-                <Label style={{ ...labelStyle, marginBottom: "4px" }}>{t("Магазин", "Do'kon")}</Label>
-                <Select value={shopId ? String(shopId) : undefined} onValueChange={v => setShopId(Number(v))}>
-                  <SelectTrigger className="mb-3"><SelectValue placeholder={t("Выберите магазин", "Do'kon tanlang")} /></SelectTrigger>
-                  <SelectContent>
-                    {shopsData?.data?.map(s => (
-                      <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <div style={{ position: "relative", marginBottom: "8px" }}>
-                  <Search size={14} color={COLORS.textTertiary} style={{ position: "absolute", left: "8px", top: "50%", transform: "translateY(-50%)" }} />
-                  <Input
-                    placeholder={t("Поиск товаров...", "Tovar qidirish...")}
-                    value={productSearch}
-                    onChange={e => setProductSearch(e.target.value)}
-                    className="h-8 text-xs"
-                    style={{ paddingLeft: "28px" }}
-                  />
-                </div>
-
-                <ScrollArea style={{ flex: 1, maxHeight: 280, borderRadius: "10px", border: `1px solid ${COLORS.border}` }}>
-                  <div style={{ padding: "8px", display: "flex", flexDirection: "column", gap: "2px" }}>
-                    {productsData?.map((p) => (
-                      <div
-                        key={p.id}
-                        onClick={() => addToCart(p)}
-                        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px", borderRadius: "8px", cursor: "pointer" }}
-                        onMouseEnter={e => { e.currentTarget.style.background = COLORS.surfaceLight; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
-                      >
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontFamily: F.body, fontSize: "13px", fontWeight: 500, color: COLORS.textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</div>
-                          <div style={{ fontFamily: F.body, fontSize: "11px", color: COLORS.textTertiary }}>{p.code} · {Number(p.unitPrice).toLocaleString("ru")} сум</div>
-                        </div>
-                        <IconButton onClick={() => addToCart(p)}><Plus size={14} /></IconButton>
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
+          <div className="grid grid-cols-[1fr_280px] gap-5 max-md:grid-cols-1">
+            {/* Product picker */}
+            <div>
+              <p className={modalSectionLabel}>{t("Товары", "Tovarlar")}</p>
+              <div style={{ position: "relative", marginBottom: "12px" }}>
+                <Search size={15} style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", color: "var(--color-text-tertiary)" }} />
+                <input
+                  className="neo-input"
+                  style={{ paddingLeft: "38px" }}
+                  placeholder={t("Поиск товаров…", "Tovar qidirish…")}
+                  value={productSearch}
+                  onChange={e => setProductSearch(e.target.value)}
+                />
               </div>
+              <div
+                className="overflow-y-auto"
+                style={{
+                  maxHeight: 300, borderRadius: "16px",
+                  border: "1px solid var(--color-border, #f0f3f8)", padding: "8px",
+                }}
+              >
+                {(productsData ?? []).map((p) => (
+                  <button
+                    type="button"
+                    key={p.id}
+                    onClick={() => addToCart(p)}
+                    className="w-full flex items-center justify-between gap-3 text-left"
+                    style={{ padding: "10px 12px", borderRadius: "12px", background: "transparent", border: "none", cursor: "pointer" }}
+                    onMouseEnter={e => { e.currentTarget.style.background = "var(--color-surface-light)"; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
+                  >
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium truncate" style={{ color: "var(--color-text-primary)" }}>{p.name}</span>
+                      <span className="block text-xs" style={{ color: "var(--color-text-tertiary)" }}>
+                        {p.code} · {Number(p.unitPrice).toLocaleString("ru")} сум
+                      </span>
+                    </span>
+                    <Plus size={16} style={{ color: "var(--color-primary)", flexShrink: 0 }} />
+                  </button>
+                ))}
+                {(productsData ?? []).length === 0 && (
+                  <p className="text-center text-xs py-8" style={{ color: "var(--color-text-tertiary)" }}>
+                    {t("Ничего не найдено", "Hech narsa topilmadi")}
+                  </p>
+                )}
+              </div>
+            </div>
 
-              {/* Cart */}
-              <div style={{ width: "256px", display: "flex", flexDirection: "column", borderRadius: "10px", border: `1px solid ${COLORS.border}` }}>
-                <div style={{ padding: "10px 12px", borderBottom: `1px solid ${COLORS.border}`, ...labelStyle }}>{t("Корзина", "Savat")} ({cart.length})</div>
-                <ScrollArea style={{ flex: 1, maxHeight: 240 }}>
-                  <div style={{ padding: "8px", display: "flex", flexDirection: "column", gap: "4px" }}>
-                    {cart.map(item => (
-                      <div key={item.productId} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "6px 0" }}>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontFamily: F.body, fontSize: "12px", fontWeight: 500, color: COLORS.textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</div>
-                          <div style={{ fontFamily: F.body, fontSize: "10px", color: COLORS.textTertiary }}>{item.unitPrice.toLocaleString("ru")} × {item.quantity}</div>
+            {/* Cart */}
+            <div>
+              <p className={modalSectionLabel}>{t("Корзина", "Savat")} ({cart.length})</p>
+              <div
+                className="flex flex-col"
+                style={{ borderRadius: "16px", border: "1px solid var(--color-border, #f0f3f8)", minHeight: 200 }}
+              >
+                <div className="overflow-y-auto grow" style={{ maxHeight: 240, padding: "8px" }}>
+                  {cart.map(item => (
+                    <div key={item.productId} className="flex items-center gap-2" style={{ padding: "8px 6px" }}>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-medium truncate" style={{ color: "var(--color-text-primary)" }}>{item.name}</div>
+                        <div className="text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>
+                          {item.unitPrice.toLocaleString("ru")} × {item.quantity}
                         </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: "2px" }}>
-                          <IconButton size={20} onClick={() => updateQty(item.productId, item.quantity - 1)}><Minus size={11} /></IconButton>
-                          <span style={{ fontFamily: F.display, fontSize: "12px", width: "18px", textAlign: "center", color: COLORS.textPrimary }}>{item.quantity}</span>
-                          <IconButton size={20} onClick={() => updateQty(item.productId, item.quantity + 1)}><Plus size={11} /></IconButton>
-                        </div>
-                        <IconButton size={20} danger onClick={() => updateQty(item.productId, 0)}><Trash2 size={11} /></IconButton>
                       </div>
-                    ))}
-                    {cart.length === 0 && <div style={{ fontFamily: F.body, fontSize: "12px", color: COLORS.textTertiary, textAlign: "center", padding: "24px 0" }}>{t("Пусто", "Bo'sh")}</div>}
-                  </div>
-                </ScrollArea>
-                <div style={{ borderTop: `1px solid ${COLORS.border}`, padding: "10px 12px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontFamily: F.body, fontSize: "12px" }}>
-                    <span style={{ color: COLORS.textSecondary }}>{t("Итого", "Jami")}:</span>
-                    <span style={{ fontFamily: F.display, fontWeight: 700, color: COLORS.textPrimary }}>{total.toLocaleString("ru")} сум</span>
-                  </div>
+                      <div className="flex items-center">
+                        <IconButton size={24} label={t("Меньше", "Kamaytirish")} onClick={() => updateQty(item.productId, item.quantity - 1)}><Minus size={12} /></IconButton>
+                        <span className="text-xs font-semibold w-5 text-center" style={{ color: "var(--color-text-primary)" }}>{item.quantity}</span>
+                        <IconButton size={24} label={t("Больше", "Ko'paytirish")} onClick={() => updateQty(item.productId, item.quantity + 1)}><Plus size={12} /></IconButton>
+                      </div>
+                      <IconButton size={24} danger label={t("Убрать", "Olib tashlash")} onClick={() => updateQty(item.productId, 0)}><Trash2 size={12} /></IconButton>
+                    </div>
+                  ))}
+                  {cart.length === 0 && (
+                    <p className="text-center text-xs py-10" style={{ color: "var(--color-text-tertiary)" }}>
+                      {t("Пусто", "Bo'sh")}
+                    </p>
+                  )}
+                </div>
+                <div
+                  className="flex items-center justify-between px-4 py-3"
+                  style={{ borderTop: "1px solid var(--color-border, #f0f3f8)" }}
+                >
+                  <span className="text-xs text-secondary font-medium">{t("Итого", "Jami")}</span>
+                  <span className="text-base font-bold text-primary font-data">{total.toLocaleString("ru")} сум</span>
                 </div>
               </div>
             </div>
-          )}
+          </div>
+        </>
+      )}
 
-          {/* Step 2: Review */}
-          {step === 2 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              <div style={{ fontFamily: F.body, fontSize: "13px", color: COLORS.textPrimary }}>
-                <b>{t("Магазин", "Do'kon")}:</b> {shopsData?.data?.find(s => s.id === shopId)?.name}
-              </div>
-              <div style={{ borderRadius: "10px", overflow: "hidden", border: `1px solid ${COLORS.border}` }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: F.body, fontSize: "12px" }}>
-                  <thead>
-                    <tr style={{ background: COLORS.surfaceLight }}>
-                      <th style={{ padding: "8px", textAlign: "left", color: COLORS.textTertiary, fontWeight: 600 }}>{t("Товар", "Tovar")}</th>
-                      <th style={{ padding: "8px", textAlign: "right", color: COLORS.textTertiary, fontWeight: 600 }}>{t("Кол-во", "Miqdor")}</th>
-                      <th style={{ padding: "8px", textAlign: "right", color: COLORS.textTertiary, fontWeight: 600 }}>{t("Сумма", "Summa")}</th>
+      {step === 2 && (
+        <>
+          <div>
+            <p className={modalSectionLabel}>{t("Магазин", "Do'kon")}</p>
+            <div
+              className="flex items-center justify-between px-4 py-3 rounded-xl"
+              style={{ background: "var(--color-primary-subtle)" }}
+            >
+              <span className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>{shopName}</span>
+              <span className="text-xs text-secondary">{cart.length} {t("позиций", "pozitsiya")}</span>
+            </div>
+          </div>
+
+          <div>
+            <p className={modalSectionLabel}>{t("Товары", "Tovarlar")}</p>
+            <div style={{ borderRadius: "16px", overflow: "hidden", border: "1px solid var(--color-border, #f0f3f8)" }}>
+              <table className="w-full text-xs" style={{ borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ background: "var(--color-surface-light)" }}>
+                    <th className="text-left font-semibold px-3 py-2.5" style={{ color: "var(--color-text-tertiary)" }}>{t("Товар", "Tovar")}</th>
+                    <th className="text-right font-semibold px-3 py-2.5" style={{ color: "var(--color-text-tertiary)" }}>{t("Кол-во", "Miqdor")}</th>
+                    <th className="text-right font-semibold px-3 py-2.5" style={{ color: "var(--color-text-tertiary)" }}>{t("Сумма", "Summa")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cart.map(i => (
+                    <tr key={i.productId} style={{ borderTop: "1px solid var(--color-border, #f0f3f8)" }}>
+                      <td className="px-3 py-2.5" style={{ color: "var(--color-text-primary)" }}>{i.name}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums" style={{ color: "var(--color-text-secondary)" }}>{i.quantity}</td>
+                      <td className="px-3 py-2.5 text-right font-semibold tabular-nums font-data" style={{ color: "var(--color-text-primary)" }}>
+                        {(i.unitPrice * i.quantity).toLocaleString("ru")}
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {cart.map(i => (
-                      <tr key={i.productId} style={{ borderTop: `1px solid ${COLORS.border}` }}>
-                        <td style={{ padding: "8px", color: COLORS.textPrimary }}>{i.name}</td>
-                        <td style={{ padding: "8px", textAlign: "right", color: COLORS.textSecondary }}>{i.quantity}</td>
-                        <td style={{ padding: "8px", textAlign: "right", fontFamily: F.display, fontWeight: 600, color: COLORS.textPrimary }}>{(i.unitPrice * i.quantity).toLocaleString("ru")}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-                <div>
-                  <Label style={labelStyle}>{t("Скидка (%)", "Chegirma (%)")}</Label>
-                  <Input type="number" min="0" max="100" value={discount} onChange={e => setDiscount(e.target.value)} className="h-8 text-xs" style={{ marginTop: "4px" }} />
-                </div>
-                <div>
-                  <Label style={labelStyle}>{t("Оплата", "To'lov")}</Label>
-                  <Select value={paymentMethod} onValueChange={v => setPaymentMethod(v as typeof paymentMethod)}>
-                    <SelectTrigger className="h-8 text-xs" style={{ marginTop: "4px" }}><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="cash">{t("Наличные", "Naqd")}</SelectItem>
-                      <SelectItem value="card">{t("Карта", "Karta")}</SelectItem>
-                      <SelectItem value="transfer">{t("Перевод", "O'tkazma")}</SelectItem>
-                      <SelectItem value="debt">{t("В долг", "Qarzga")}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div>
+            <p className={modalSectionLabel}>{t("Оплата", "To'lov")}</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={modalFieldLabel}>{t("Скидка (%)", "Chegirma (%)")}</label>
+                <input
+                  type="number" min="0" max="100"
+                  className="neo-input" style={{ textAlign: "right" }}
+                  value={discount}
+                  onChange={e => setDiscount(e.target.value)}
+                />
               </div>
               <div>
-                <Label style={labelStyle}>{t("Примечание", "Izoh")}</Label>
-                <Textarea value={notes} onChange={e => setNotes(e.target.value)} className="h-16 text-xs" style={{ marginTop: "4px" }} />
-              </div>
-              <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "baseline", gap: "10px", paddingTop: "8px", borderTop: `1px solid ${COLORS.border}` }}>
-                <span style={{ fontFamily: F.body, fontSize: "13px", color: COLORS.textSecondary }}>{t("Итого", "Jami")}:</span>
-                <span style={{ fontFamily: F.display, fontSize: "20px", fontWeight: 700, color: COLORS.textPrimary }}>{total.toLocaleString("ru")} сум</span>
+                <label className={modalFieldLabel}>{t("Способ оплаты", "To'lov usuli")}</label>
+                <PremiumSelect
+                  value={paymentMethod}
+                  onChange={v => setPaymentMethod(v as typeof paymentMethod)}
+                  options={[
+                    { value: "cash", label: t("Наличные", "Naqd") },
+                    { value: "card", label: t("Карта", "Karta") },
+                    { value: "transfer", label: t("Перевод", "O'tkazma") },
+                    { value: "debt", label: t("В долг", "Qarzga") },
+                  ]}
+                  width="100%"
+                />
               </div>
             </div>
-          )}
-        </div>
-
-        <DialogFooter>
-          <div style={{ display: "flex", gap: "8px", width: "100%", justifyContent: "flex-end" }}>
-            {step === 2 && <PillButton tone="neutral" onClick={() => setStep(1)}>{t("Назад", "Orqaga")}</PillButton>}
-            <PillButton tone="ghost" onClick={() => onOpenChange(false)}>{t("Отмена", "Bekor")}</PillButton>
-            {step === 1 ? (
-              <PillButton tone="primary" onClick={() => setStep(2)} disabled={!shopId || cart.length === 0}>
-                {t("Далее", "Keyingi")}
-              </PillButton>
-            ) : (
-              <PillButton tone="success" onClick={handleSubmit} disabled={createOrder.isPending}>
-                {createOrder.isPending ? t("Создание...", "Yaratilmoqda...") : t("Создать заказ", "Buyurtma yaratish")}
-              </PillButton>
-            )}
           </div>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+
+          <div>
+            <label className={modalSectionLabel}>{t("Примечание", "Izoh")}</label>
+            <textarea
+              className="neo-input"
+              style={{ resize: "none", minHeight: 60 }}
+              rows={2}
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder={t("Дополнительная информация…", "Qo'shimcha ma'lumot…")}
+            />
+          </div>
+
+          <div
+            className="flex items-center justify-between px-4 py-3.5 rounded-xl"
+            style={{ background: colorMix("var(--color-primary)", 10) }}
+          >
+            <span className="text-sm text-secondary font-medium">{t("Итого к оплате", "Jami to'lovga")}</span>
+            <span className="text-xl font-bold text-primary font-data">{total.toLocaleString("ru")} сум</span>
+          </div>
+        </>
+      )}
+    </AppModal>
   );
 }
