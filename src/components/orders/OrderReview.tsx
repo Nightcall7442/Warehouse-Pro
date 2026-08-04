@@ -41,7 +41,7 @@ export function OrderReview({
 
       <div className="neo-card p-4 space-y-3">
         {/* Shop */}
-        <div className="flex items-center gap-2.5 pb-3" style={{ borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
+        <div className="flex items-center gap-2.5 pb-3" style={{ borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
           <Store size={14} className="text-secondary flex-shrink-0"/>
           <span className="text-sm text-primary font-medium">{shopName}</span>
         </div>
@@ -64,7 +64,7 @@ export function OrderReview({
         </div>
 
         {/* Totals */}
-        <div className="space-y-2 pt-3" style={{ borderTop: "1px solid var(--color-border, #f0f3f8)" }}>
+        <div className="space-y-2 pt-3" style={{ borderTop: "1px solid var(--color-border, #d8d5cd)" }}>
           <div className="flex justify-between text-sm">
             <span className="text-secondary">{t("Подитого", "Jami")}</span>
             <span className="font-data text-primary">{fmt(subtotal.toFixed(2))}</span>
@@ -135,8 +135,8 @@ export function OrderReview({
                 style={{
                   display: "flex", alignItems: "center", gap: "10px",
                   padding: "12px 14px", borderRadius: "12px",
-                  border: isActive ? `2px solid ${method.color}` : "2px solid var(--color-border, #f0f3f8)",
-                  background: isActive ? colorMix(method.color, 6) : "var(--color-surface, #ffffff)",
+                  border: isActive ? `2px solid ${method.color}` : "2px solid var(--color-border, #d8d5cd)",
+                  background: isActive ? colorMix(method.color, 6) : "var(--color-surface, #efedea)",
                   cursor: "pointer", transition: "all 0.15s ease",
                   boxShadow: isActive ? `0 2px 8px ${colorMix(method.color, 13)}` : "none",
                 }}
@@ -144,14 +144,14 @@ export function OrderReview({
                 <div style={{
                   width: "32px", height: "32px", borderRadius: "8px",
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  background: isActive ? method.color : "var(--color-surface-light, #f0f3f8)",
+                  background: isActive ? method.color : "var(--color-surface-light, #f6f4f0)",
                   flexShrink: 0,
                 }}>
-                  <Icon size={16} style={{ color: isActive ? "#fff" : "var(--color-text-secondary, #6a7290)" }} />
+                  <Icon size={16} style={{ color: isActive ? "#fff" : "var(--color-text-secondary, #5e5b54)" }} />
                 </div>
                 <span style={{
                   fontSize: "13px", fontWeight: isActive ? 600 : 500,
-                  color: isActive ? method.color : "var(--color-text-primary, #2b3450)",
+                  color: isActive ? method.color : "var(--color-text-primary, #2b2a28)",
                   fontFamily: "'DM Sans', sans-serif",
                 }}>
                   {lang === "uz" ? method.uz : method.ru}

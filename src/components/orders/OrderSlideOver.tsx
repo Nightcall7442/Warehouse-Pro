@@ -436,18 +436,18 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
           <div className="absolute -bottom-8 -left-8 w-24 h-24 rounded-full" style={{ background: "rgba(255,255,255,0.05)" }} />
           <SheetTitle className="relative">
             {isLoading ? (
-              <span style={{ color: "var(--color-on-primary, #fff)" }}>{t("Загрузка…", "Yuklanmoqda…")}</span>
+              <span style={{ color: "var(--color-on-primary, #ffffff)" }}>{t("Загрузка…", "Yuklanmoqda…")}</span>
             ) : (
               <div className="flex flex-col gap-2.5">
                 <div className="flex items-center gap-2.5 flex-wrap">
-                  <span className="text-sm font-bold font-data" style={{ color: "var(--color-on-primary, #fff)" }}>{order?.orderNumber}</span>
+                  <span className="text-sm font-bold font-data" style={{ color: "var(--color-on-primary, #ffffff)" }}>{order?.orderNumber}</span>
                   {/* Status dropdown for CEO/operator, badge for others — same pattern as the Orders table row */}
                   {isOperatorOrCeo && order && !order.deletedAt ? (
                     <Select value={order.status} onValueChange={handleStatusChange}>
                       <SelectTrigger style={{
                         height: "28px", padding: "0 12px", fontFamily: F.body, fontSize: "11px", fontWeight: 600,
                         borderRadius: "9999px", border: "none", width: "auto",
-                        background: "color-mix(in srgb, var(--color-on-primary, #fff) 18%, transparent)", color: "var(--color-on-primary, #fff)",
+                        background: "color-mix(in srgb, var(--color-on-primary, #ffffff) 18%, transparent)", color: "var(--color-on-primary, #ffffff)",
                       }}>
                         <SelectValue />
                       </SelectTrigger>
@@ -468,7 +468,7 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
                     return (
                       <span
                         className="inline-flex px-3 py-1 rounded-full text-[11px] font-semibold"
-                        style={{ background: "color-mix(in srgb, var(--color-on-primary, #fff) 18%, transparent)", color: "var(--color-on-primary, #fff)" }}
+                        style={{ background: "color-mix(in srgb, var(--color-on-primary, #ffffff) 18%, transparent)", color: "var(--color-on-primary, #ffffff)" }}
                       >
                         {t(pm.ru, pm.uz)}
                       </span>
@@ -476,8 +476,8 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
                   })()}
                 </div>
                 <div className="flex items-baseline gap-2">
-                  <span className="text-3xl font-bold font-data" style={{ color: "var(--color-on-primary, #fff)" }}>{Number(order?.total ?? 0).toLocaleString("ru")}</span>
-                  <span className="text-base" style={{ color: "color-mix(in srgb, var(--color-on-primary, #fff) 72%, transparent)" }}>{currency}</span>
+                  <span className="text-3xl font-bold font-data" style={{ color: "var(--color-on-primary, #ffffff)" }}>{Number(order?.total ?? 0).toLocaleString("ru")}</span>
+                  <span className="text-base" style={{ color: "color-mix(in srgb, var(--color-on-primary, #ffffff) 72%, transparent)" }}>{currency}</span>
                 </div>
               </div>
             )}

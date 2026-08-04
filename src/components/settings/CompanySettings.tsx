@@ -59,7 +59,7 @@ export function CompanySettings() {
         <div className="flex items-center gap-4">
           <div
             className="w-16 h-16 rounded-xl flex items-center justify-center overflow-hidden cursor-pointer border-2 border-dashed transition-colors hover:border-primary"
-            style={{ borderColor: "var(--color-border, #dde2ec)", background: "var(--color-surface-light, #f0f3f8)" }}
+            style={{ borderColor: "var(--color-border, #d8d5cd)", background: "var(--color-surface-light, #f6f4f0)" }}
             onClick={() => logoRef.current?.click()}
           >
             {form.logoUrl
@@ -70,7 +70,7 @@ export function CompanySettings() {
             <button onClick={() => logoRef.current?.click()} className="neo-btn text-sm flex items-center gap-2">
               <Upload size={14} />{t("Загрузить", "Yuklash")}
             </button>
-            <p className="text-xs mt-1" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+            <p className="text-xs mt-1" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
               {t("PNG, JPG — макс. 1 МБ", "PNG, JPG — maks. 1 MB")}
             </p>
           </div>

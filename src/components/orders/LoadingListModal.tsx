@@ -128,7 +128,7 @@ export function LoadingListModal({ open, onOpenChange, orderIds, onDone }: Props
                 <div
                   key={i}
                   className="flex items-center justify-between text-xs py-2"
-                  style={{ borderTop: i === 0 ? undefined : "1px solid var(--color-border, #f0f3f8)" }}
+                  style={{ borderTop: i === 0 ? undefined : "1px solid var(--color-border, #d8d5cd)" }}
                 >
                   <span style={{ color: "var(--color-text-primary)" }}>{item.productName}</span>
                   <span className="font-semibold tabular-nums font-data" style={{ color: "var(--color-text-primary)" }}>

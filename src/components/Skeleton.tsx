@@ -9,7 +9,7 @@ export function Skeleton({ className }: SkeletonProps) {
   return (
     <div
       className={cn("animate-pulse rounded-lg", className)}
-      style={{ background: "var(--color-border, #f0f3f8)" }}
+      style={{ background: "var(--color-border, #d8d5cd)" }}
     />
   );
 }
@@ -49,7 +49,7 @@ export function SkeletonRow({ cols = 5 }: { cols?: number }) {
 export function SkeletonTable({ rows = 5, cols = 5 }: { rows?: number; cols?: number }) {
   return (
     <div className="panel" style={{ overflow: "hidden" }}>
-      <div style={{ height: "40px", background: "var(--color-surface-light, #f0f3f8)", borderBottom: "1px solid var(--color-border, #f0f3f8)" }} />
+      <div style={{ height: "40px", background: "var(--color-surface-light, #f6f4f0)", borderBottom: "1px solid var(--color-border, #d8d5cd)" }} />
       <table style={{ width: "100%" }}>
         <tbody>
           {Array.from({ length: rows }).map((_, i) => (

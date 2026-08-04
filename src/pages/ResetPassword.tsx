@@ -21,7 +21,7 @@ function PasswordStrength({ password }: { password: string }) {
   return (
     <div className="mt-2 space-y-1.5">
       <div className="flex items-center justify-between">
-        <div className="h-1.5 flex-1 rounded-full overflow-hidden mr-3" style={{ background: "var(--color-surface-light, #f0f3f8)" }}>
+        <div className="h-1.5 flex-1 rounded-full overflow-hidden mr-3" style={{ background: "var(--color-surface-light, #f6f4f0)" }}>
           <div className="h-full rounded-full transition-all duration-400" style={{ width: `${bar}%`, background: color }} />
         </div>
         <span className="text-xs font-medium flex-shrink-0" style={{ color }}>{label}</span>
@@ -30,7 +30,7 @@ function PasswordStrength({ password }: { password: string }) {
         {checks.map(c => (
           <div key={c.label} className="flex items-center gap-1">
             <div className={`w-1.5 h-1.5 rounded-full ${c.pass ? "bg-success" : "bg-border-subtle"}`} />
-            <span className="text-[10px]" style={{ color: c.pass ? "var(--color-success-text)" : "var(--color-text-tertiary, #98a0b8)" }}>{c.label}</span>
+            <span className="text-[10px]" style={{ color: c.pass ? "var(--color-success-text)" : "var(--color-text-tertiary, #6b6760)" }}>{c.label}</span>
           </div>
         ))}
       </div>
@@ -58,12 +58,12 @@ export default function ResetPassword() {
 
   if (!token) {
     return (
-      <div style={{ display: "flex", minHeight: "100vh", background: "var(--color-canvas, #f0f2f5)", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ display: "flex", minHeight: "100vh", background: "var(--color-canvas, #e8e6e1)", alignItems: "center", justifyContent: "center" }}>
         <div style={{ textAlign: "center", padding: 24 }}>
-          <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--color-text-primary, #2b3450)", marginBottom: 8 }}>
+          <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--color-text-primary, #2b2a28)", marginBottom: 8 }}>
             {t("auth.resetPassword.invalidLink")}
           </h1>
-          <p style={{ fontSize: 14, color: "var(--color-text-secondary, #6a7290)", marginBottom: 16 }}>
+          <p style={{ fontSize: 14, color: "var(--color-text-secondary, #5e5b54)", marginBottom: 16 }}>
             {t("auth.resetPassword.invalidHint")}
           </p>
           <Link to="/forgot-password" style={{ color: "var(--color-primary-text)", fontSize: 14, fontWeight: 600 }}>
@@ -91,22 +91,22 @@ export default function ResetPassword() {
   };
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "var(--color-canvas, #f0f2f5)", alignItems: "center", justifyContent: "center" }}>
+    <div style={{ display: "flex", minHeight: "100vh", background: "var(--color-canvas, #e8e6e1)", alignItems: "center", justifyContent: "center" }}>
       <div style={{ width: "100%", maxWidth: 400, padding: "0 24px" }}>
-        <Link to="/login" style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--color-text-secondary, #6a7290)", fontSize: 13, textDecoration: "none", marginBottom: 24 }}>
+        <Link to="/login" style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--color-text-secondary, #5e5b54)", fontSize: 13, textDecoration: "none", marginBottom: 24 }}>
           <ArrowLeft size={14} /> {t("auth.resetPassword.backToLogin")}
         </Link>
 
-        <div className="animate-fade-up" style={{ background: "var(--color-surface, #ffffff)", borderRadius: 16, border: "1px solid #dde2ec", padding: "32px 28px" }}>
+        <div className="animate-fade-up" style={{ background: "var(--color-surface, #efedea)", borderRadius: 16, border: "1px solid #dde2ec", padding: "32px 28px" }}>
           {done ? (
             <div style={{ textAlign: "center" }}>
               <div style={{ width: 48, height: 48, borderRadius: 12, background: "rgba(74,222,128,.10)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
                 <CheckCircle2 size={24} style={{ color: "var(--color-success-text)" }} />
               </div>
-              <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--color-text-primary, #2b3450)", marginBottom: 8 }}>
+              <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--color-text-primary, #2b2a28)", marginBottom: 8 }}>
                 {t("auth.resetPassword.success")}
               </h1>
-              <p style={{ fontSize: 14, color: "var(--color-text-secondary, #6a7290)", marginBottom: 24 }}>
+              <p style={{ fontSize: 14, color: "var(--color-text-secondary, #5e5b54)", marginBottom: 24 }}>
                 {t("auth.resetPassword.successHint")}
               </p>
               <button
@@ -122,17 +122,17 @@ export default function ResetPassword() {
                 <div style={{ width: 48, height: 48, borderRadius: 12, background: "var(--color-primary-subtle)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
                   <Lock size={24} style={{ color: "var(--color-primary-text)" }} />
                 </div>
-                <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--color-text-primary, #2b3450)", marginBottom: 8 }}>
+                <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--color-text-primary, #2b2a28)", marginBottom: 8 }}>
                   {t("auth.resetPassword.title")}
                 </h1>
-                <p style={{ fontSize: 14, color: "var(--color-text-secondary, #6a7290)" }}>
+                <p style={{ fontSize: 14, color: "var(--color-text-secondary, #5e5b54)" }}>
                   {t("auth.resetPassword.successHint")}
                 </p>
               </div>
 
               <form onSubmit={handleSubmit}>
                 <div style={{ marginBottom: 14 }}>
-                  <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--color-text-secondary, #6a7290)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--color-text-secondary, #5e5b54)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>
                     {t("auth.resetPassword.title")}
                   </label>
                   <div style={{ position: "relative" }}>
@@ -146,12 +146,12 @@ export default function ResetPassword() {
                       minLength={8}
                       style={{
                         width: "100%", padding: "10px 36px 10px 12px", borderRadius: 8,
-                        border: "1px solid #dde2ec", background: "var(--color-surface-light, #f0f3f8)",
-                        color: "var(--color-text-primary, #2b3450)", fontSize: 14, outline: "none",
+                        border: "1px solid #dde2ec", background: "var(--color-surface-light, #f6f4f0)",
+                        color: "var(--color-text-primary, #2b2a28)", fontSize: 14, outline: "none",
                         boxSizing: "border-box",
                       }}
                     />
-                    <button type="button" onClick={() => setShowPw(!showPw)} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--color-text-tertiary, #98a0b8)" }}>
+                    <button type="button" onClick={() => setShowPw(!showPw)} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--color-text-tertiary, #6b6760)" }}>
                       {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
                   </div>
@@ -159,7 +159,7 @@ export default function ResetPassword() {
                 </div>
 
                 <div style={{ marginBottom: 16 }}>
-                  <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--color-text-secondary, #6a7290)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--color-text-secondary, #5e5b54)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>
                     {t("auth.resetPassword.confirmPassword")}
                   </label>
                   <div style={{ position: "relative" }}>
@@ -172,12 +172,12 @@ export default function ResetPassword() {
                       minLength={8}
                       style={{
                         width: "100%", padding: "10px 36px 10px 12px", borderRadius: 8,
-                        border: "1px solid #dde2ec", background: "var(--color-surface-light, #f0f3f8)",
-                        color: "var(--color-text-primary, #2b3450)", fontSize: 14, outline: "none",
+                        border: "1px solid #dde2ec", background: "var(--color-surface-light, #f6f4f0)",
+                        color: "var(--color-text-primary, #2b2a28)", fontSize: 14, outline: "none",
                         boxSizing: "border-box",
                       }}
                     />
-                    <button type="button" onClick={() => setShowConfirm(!showConfirm)} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--color-text-tertiary, #98a0b8)" }}>
+                    <button type="button" onClick={() => setShowConfirm(!showConfirm)} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--color-text-tertiary, #6b6760)" }}>
                       {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
                   </div>

@@ -280,7 +280,7 @@ export default function ShopDetail() {
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <p className="font-label text-[10px] tracking-wider mb-1"
-              style={{ color: hasDebt ? "var(--color-danger-text)" : "var(--color-text-tertiary, #98a0b8)" }}>
+              style={{ color: hasDebt ? "var(--color-danger-text)" : "var(--color-text-tertiary, #6b6760)" }}>
               {t("ТЕКУЩИЙ ДОЛГ", "JORIY QARZ")}
             </p>
             <div className="flex items-center gap-2">
@@ -302,13 +302,13 @@ export default function ShopDetail() {
 
         {/* История платежей */}
         {shop.paymentHistory && shop.paymentHistory.length > 0 && (
-          <div className="mt-4 space-y-0" style={{ borderTop: "1px solid var(--color-border, #f0f3f8)", paddingTop: 12 }}>
+          <div className="mt-4 space-y-0" style={{ borderTop: "1px solid var(--color-border, #d8d5cd)", paddingTop: 12 }}>
             <p className="font-label text-[10px] text-secondary tracking-wider mb-2">
               {t("ИСТОРИЯ ПЛАТЕЖЕЙ", "TO'LOVLAR TARIXI")}
             </p>
             {shop.paymentHistory.slice(0, 5).map((p: { id: number; type: string; notes: string | null; amount: string; createdAt: string | Date }) => (
               <div key={p.id} className="flex items-center justify-between py-2"
-                style={{ borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
+                style={{ borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                 <div>
                   <p className="text-sm text-primary">
                     {p.type === "payment"
@@ -332,12 +332,12 @@ export default function ShopDetail() {
       {/* История заказов */}
       {shop.recentOrders && shop.recentOrders.length > 0 && (
         <div className="neo-card overflow-hidden">
-          <div className="px-5 py-4" style={{ borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
+          <div className="px-5 py-4" style={{ borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
             <p className="font-label text-[10px] text-primary tracking-wider">
               {t("ЗАКАЗЫ МАГАЗИНА", "DO'KON BUYURTMALARI")}
             </p>
           </div>
-          <div className="divide-y" style={{ borderColor: "var(--color-border, #f0f3f8)" }}>
+          <div className="divide-y" style={{ borderColor: "var(--color-border, #d8d5cd)" }}>
             {shop.recentOrders.slice(0, 10).map((o: { id: number; orderNumber: string; status: string; total: string; createdAt: string | Date }) => (
               <div key={o.id}
                 className="flex items-center gap-3 px-5 py-3.5 cursor-pointer hover:bg-surface-light/40 transition-colors"

@@ -40,7 +40,7 @@ export function ProductFilters({ search, onSearchChange, category, onCategoryCha
             style={{
               display: "flex", alignItems: "center", justifyContent: "center",
               width: "36px", height: "36px", borderRadius: "10px",
-              background: "var(--color-surface-light, #f0f3f8)", border: "none",
+              background: "var(--color-surface-light, #f6f4f0)", border: "none",
               cursor: "pointer", flexShrink: 0,
             }}
           >

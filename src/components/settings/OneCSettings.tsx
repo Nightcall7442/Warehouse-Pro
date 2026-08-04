@@ -66,7 +66,7 @@ export function OneCSettings() {
           {t("НАСТРОЙКИ ПОДКЛЮЧЕНИЯ", "ULANISH SOZLAMALARI")}
         </p>
         <div className="space-y-3">
-          <div className="p-4 rounded-lg" style={{ background: "var(--color-surface-light, #f0f3f8)" }}>
+          <div className="p-4 rounded-lg" style={{ background: "var(--color-surface-light, #f6f4f0)" }}>
             <p className="text-xs text-secondary mb-2">
               {t("Для подключения 1С:Предприятие необходим Bridge-сервер.", "1C:Predpriyatiye bilan ulanish uchun Bridge server kerak.")}
             </p>
@@ -74,7 +74,7 @@ export function OneCSettings() {
               {t("Установите переменные окружения на сервере:", "Serverda muhit o'zgaruvchilarini o'rnating:")}
             </p>
             <pre className="mt-2 p-3 rounded-lg text-xs font-mono overflow-x-auto"
-              style={{ background: "var(--color-surface, #ffffff)", border: "1px solid var(--color-border, #f0f3f8)" }}>
+              style={{ background: "var(--color-surface, #efedea)", border: "1px solid var(--color-border, #d8d5cd)" }}>
 {`ONEC_BRIDGE_URL=http://bridge-server:8080
 ONEC_USERNAME=your_user
 ONEC_PASSWORD=your_password
@@ -82,12 +82,12 @@ ONEC_WEBHOOK_SECRET=your_secret`}
             </pre>
           </div>
 
-          <div className="p-4 rounded-lg" style={{ background: "var(--color-surface-light, #f0f3f8)" }}>
+          <div className="p-4 rounded-lg" style={{ background: "var(--color-surface-light, #f6f4f0)" }}>
             <p className="text-xs text-secondary mb-2">
               {t("Webhook URL для 1С (настройте в 1С:Предприятие):", "1C uchun webhook URL (1C:Predpriyatoyedagi sozlamalarda):")}
             </p>
             <pre className="mt-2 p-3 rounded-lg text-xs font-mono overflow-x-auto"
-              style={{ background: "var(--color-surface, #ffffff)", border: "1px solid var(--color-border, #f0f3f8)" }}>
+              style={{ background: "var(--color-surface, #efedea)", border: "1px solid var(--color-border, #d8d5cd)" }}>
 {`Оплата: https://www.warehouse-pro.uz/api/webhooks/1c/payment
 Остатки: https://www.warehouse-pro.uz/api/webhooks/1c/stock`}
             </pre>
@@ -101,7 +101,7 @@ ONEC_WEBHOOK_SECRET=your_secret`}
           {t("СИНХРОНИЗАЦИЯ", "SINXRONIZATSIYA")}
         </p>
         <div className="space-y-3">
-          <div className="flex items-center justify-between p-4 rounded-lg" style={{ background: "var(--color-surface-light, #f0f3f8)" }}>
+          <div className="flex items-center justify-between p-4 rounded-lg" style={{ background: "var(--color-surface-light, #f6f4f0)" }}>
             <div>
               <p className="text-sm font-medium text-primary">{t("Товары из 1С", "1C dan mahsulotlar")}</p>
               <p className="text-xs text-secondary mt-0.5">
@@ -120,7 +120,7 @@ ONEC_WEBHOOK_SECRET=your_secret`}
 
           {status && (
             <div className="grid grid-cols-2 gap-3">
-              <div className="p-3 rounded-lg" style={{ background: "var(--color-surface-light, #f0f3f8)" }}>
+              <div className="p-3 rounded-lg" style={{ background: "var(--color-surface-light, #f6f4f0)" }}>
                 <p className="text-[10px] text-secondary tracking-wider mb-1">
                   {t("ПОСЛЕДНЯЯ СИНХРОНИЗАЦИЯ", "OXIRGI SINXRONIZATSIYA")}
                 </p>
@@ -130,7 +130,7 @@ ONEC_WEBHOOK_SECRET=your_secret`}
                     : t("Не выполнялась", "Bajarilmagan")}
                 </p>
               </div>
-              <div className="p-3 rounded-lg" style={{ background: "var(--color-surface-light, #f0f3f8)" }}>
+              <div className="p-3 rounded-lg" style={{ background: "var(--color-surface-light, #f6f4f0)" }}>
                 <p className="text-[10px] text-secondary tracking-wider mb-1">
                   {t("ОШИБКИ", "XATOLIKLAR")}
                 </p>
@@ -151,7 +151,7 @@ ONEC_WEBHOOK_SECRET=your_secret`}
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div className="p-3 rounded-lg flex items-center gap-3"
-              style={{ background: "var(--color-surface-light, #f0f3f8)" }}>
+              style={{ background: "var(--color-surface-light, #f6f4f0)" }}>
               {healthLoading ? (
                 <Loader2 size={16} className="text-secondary animate-spin" />
               ) : health?.healthy ? (
@@ -168,7 +168,7 @@ ONEC_WEBHOOK_SECRET=your_secret`}
                 </p>
               </div>
             </div>
-            <div className="p-3 rounded-lg" style={{ background: "var(--color-surface-light, #f0f3f8)" }}>
+            <div className="p-3 rounded-lg" style={{ background: "var(--color-surface-light, #f6f4f0)" }}>
               <p className="text-[10px] text-secondary tracking-wider mb-1">
                 {t("ПОСЛЕДНЯЯ СИНХРОНИЗАЦИЯ", "OXIRGI SINXRONIZATSIYA")}
               </p>
@@ -222,7 +222,7 @@ ONEC_WEBHOOK_SECRET=your_secret`}
       </div>
 
       {/* Документация */}
-      <div className="p-4 rounded-lg" style={{ background: "var(--color-surface-light, #f0f3f8)" }}>
+      <div className="p-4 rounded-lg" style={{ background: "var(--color-surface-light, #f6f4f0)" }}>
         <div className="flex items-start gap-3">
           <AlertTriangle size={16} className="text-amber-500 mt-0.5 flex-shrink-0" />
           <div>

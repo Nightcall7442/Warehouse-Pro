@@ -54,7 +54,7 @@ export function TelegramSettings() {
             </a>
           )}
 
-          <div className="px-4 py-3 rounded-lg space-y-2 text-sm" style={{ background: "var(--color-surface-light, #f0f3f8)" }}>
+          <div className="px-4 py-3 rounded-lg space-y-2 text-sm" style={{ background: "var(--color-surface-light, #f6f4f0)" }}>
             <p className="font-medium text-primary">{t("Или вручную:", "Yoki qo'lda:")}</p>
             <ol className="list-decimal list-inside space-y-1.5 text-secondary">
               <li>{t("Откройте Telegram → найдите", "Telegramni oching →")} <code className="px-1 rounded text-primary" style={{ background: "var(--color-primary-subtle)" }}>@userinfobot</code></li>
@@ -81,7 +81,7 @@ export function TelegramSettings() {
         </div>
       )}
 
-      <div style={{ borderTop: "1px solid var(--color-border, #f0f3f8)", paddingTop: 16 }}>
+      <div style={{ borderTop: "1px solid var(--color-border, #d8d5cd)", paddingTop: 16 }}>
         <p className="font-label text-[10px] text-secondary tracking-wider mb-2">
           {t("ВЫ БУДЕТЕ ПОЛУЧАТЬ", "QUYIDAGILARNI OLASIZ")}
         </p>

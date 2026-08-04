@@ -204,7 +204,7 @@ export default function SupervisorPlans() {
           <p className="font-semibold text-primary capitalize">
             {format(date, "EEEE", { locale: lang === "ru" ? dateRu : undefined })}
           </p>
-          <p className="font-label text-[11px] tracking-wider mt-0.5" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+          <p className="font-label text-[11px] tracking-wider mt-0.5" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
             {format(date, "d MMMM yyyy", { locale: lang === "ru" ? dateRu : undefined })}
           </p>
         </div>
@@ -223,10 +223,10 @@ export default function SupervisorPlans() {
 
         {total > 0 && (
           <div className="flex items-center gap-2 ml-auto">
-            <span className="text-sm font-data" style={{ color: "var(--color-text-secondary, #6a7290)" }}>
+            <span className="text-sm font-data" style={{ color: "var(--color-text-secondary, #5e5b54)" }}>
               {visited}/{total}
             </span>
-            <div className="w-28 h-2 rounded-full overflow-hidden" style={{ background: "var(--color-surface-light, #f0f3f8)" }}>
+            <div className="w-28 h-2 rounded-full overflow-hidden" style={{ background: "var(--color-surface-light, #f6f4f0)" }}>
               <div className="h-full rounded-full transition-all duration-500"
                 style={{ width: `${pct}%`, background: progressColor }} />
             </div>

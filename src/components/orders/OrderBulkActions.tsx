@@ -61,7 +61,7 @@ export function OrderBulkActions({
           </div>
         </div>
 
-        <div style={{ width: "1px", height: "36px", background: "var(--color-border, #f0f3f8)" }} />
+        <div style={{ width: "1px", height: "36px", background: "var(--color-border, #d8d5cd)" }} />
 
         {overLimit ? (
           <div className="flex items-center gap-1.5 text-sm" style={{ color: "var(--color-danger-text)" }}>
@@ -167,7 +167,7 @@ export function OrderBulkActions({
           </>
         )}
 
-        <div style={{ width: "1px", height: "36px", background: "var(--color-border, #f0f3f8)" }} />
+        <div style={{ width: "1px", height: "36px", background: "var(--color-border, #d8d5cd)" }} />
 
         <button
           type="button"

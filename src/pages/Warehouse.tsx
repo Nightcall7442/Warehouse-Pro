@@ -129,36 +129,36 @@ export default function Warehouse() {
       <div key="low-stock-modal">
       {showLowStock && createPortal(
         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }} onClick={() => setShowLowStock(false)}>
-          <div className="relative w-full max-w-2xl max-h-[80vh] overflow-y-auto rounded-3xl p-6" style={{ background: "var(--color-surface, #ffffff)", boxShadow: "0 25px 80px -12px rgba(0,0,0,0.35)" }} onClick={e => e.stopPropagation()}>
+          <div className="relative w-full max-w-2xl max-h-[80vh] overflow-y-auto rounded-3xl p-6" style={{ background: "var(--color-surface, #efedea)", boxShadow: "0 25px 80px -12px rgba(0,0,0,0.35)" }} onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, var(--color-danger), var(--color-danger))" }}>
                   <AlertTriangle size={18} color="#fff" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold" style={{ color: "var(--color-text-primary, #2b3450)", fontFamily: "'DM Sans', sans-serif" }}>
+                  <h2 className="text-lg font-bold" style={{ color: "var(--color-text-primary, #2b2a28)", fontFamily: "'DM Sans', sans-serif" }}>
                     {t("Товары ниже порога", "Chegaradan past mahsulotlar")}
                   </h2>
-                  <p className="text-xs" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+                  <p className="text-xs" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
                     {lowCount} {t("товаров требуют пополнения", "ta mahsulot to'ldirish talab qiladi")}
                   </p>
                 </div>
               </div>
-              <button onClick={() => setShowLowStock(false)} className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "var(--color-surface-light, #f0f3f8)", border: "none", cursor: "pointer", color: "var(--color-text-secondary, #6a7290)" }}>
+              <button onClick={() => setShowLowStock(false)} className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "var(--color-surface-light, #f6f4f0)", border: "none", cursor: "pointer", color: "var(--color-text-secondary, #5e5b54)" }}>
                 ×
               </button>
             </div>
             <div className="space-y-2">
                 {reorderSuggestions?.map((item, i) => (
-                <div key={i} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: "var(--color-surface-light, #f0f3f8)" }}>
+                <div key={i} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: "var(--color-surface-light, #f6f4f0)" }}>
                   <div className="w-2 h-8 rounded-full flex-shrink-0" style={{ background: "linear-gradient(180deg, var(--color-danger), var(--color-danger))" }} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate" style={{ color: "var(--color-text-primary, #2b3450)" }}>{item.productName}</p>
-                    <p className="text-xs" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>{item.productCode}</p>
+                    <p className="text-sm font-medium truncate" style={{ color: "var(--color-text-primary, #2b2a28)" }}>{item.productName}</p>
+                    <p className="text-xs" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>{item.productCode}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-bold" style={{ color: "var(--color-danger-text)" }}>{formatQty(item.currentStock)}</p>
-                    <p className="text-xs" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>{t("порог", "chegara")}: {formatQty(item.reorderPoint, 0)}</p>
+                    <p className="text-xs" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>{t("порог", "chegara")}: {formatQty(item.reorderPoint, 0)}</p>
                   </div>
                 </div>
               ))}
@@ -172,10 +172,10 @@ export default function Warehouse() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight" style={{ color: "var(--color-text-primary, #2b3450)", fontFamily: "'DM Sans', sans-serif" }}>
+          <h1 className="text-3xl font-bold tracking-tight" style={{ color: "var(--color-text-primary, #2b2a28)", fontFamily: "'DM Sans', sans-serif" }}>
             {t("Склад", "Ombor")}
           </h1>
-          <p className="text-sm mt-1" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+          <p className="text-sm mt-1" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
             {t("Управление остатками товаров", "Mahsulot zaxiralarini boshqarish")}
           </p>
         </div>
@@ -233,7 +233,7 @@ export default function Warehouse() {
               style={{ animationDelay: `${i * 0.05}s`, cursor: k.onClick ? "pointer" : "default", border: 'none', textAlign: 'left', width: '100%' }}
               onClick={k.onClick}>
               <div className="flex justify-between items-start mb-4">
-                <span className="text-[10px] font-semibold tracking-wider uppercase" style={{ color: "var(--color-text-tertiary, #98a0b8)", fontFamily: "'DM Sans', sans-serif" }}>
+                <span className="text-[10px] font-semibold tracking-wider uppercase" style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'DM Sans', sans-serif" }}>
                   {k.label}
                 </span>
                 <div className="kpi-hero-icon" style={{ background: k.gradient }}>
@@ -248,19 +248,19 @@ export default function Warehouse() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 p-1 rounded-xl" style={{ background: "var(--color-surface-light, #f0f3f8)" }}>
+      <div className="flex gap-1 p-1 rounded-xl" style={{ background: "var(--color-surface-light, #f6f4f0)" }}>
         {tabs.map(tab => (
           <button key={tab.key} onClick={() => setActiveTab(tab.key)}
             className="flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all"
             style={{
-              background: activeTab === tab.key ? "var(--color-surface, #ffffff)" : "transparent",
-              color: activeTab === tab.key ? "var(--color-text-primary, #2b3450)" : "var(--color-text-tertiary, #98a0b8)",
+              background: activeTab === tab.key ? "var(--color-surface, #efedea)" : "transparent",
+              color: activeTab === tab.key ? "var(--color-text-primary, #2b2a28)" : "var(--color-text-tertiary, #6b6760)",
               boxShadow: activeTab === tab.key ? "0 1px 3px rgba(0,0,0,.06)" : "none",
             }}>
             {tab.label}
             {tab.count > 0 && (
               <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
-                style={{ background: activeTab === tab.key ? "var(--color-primary)" : "var(--color-border, #f0f3f8)", color: activeTab === tab.key ? "#fff" : "var(--color-text-tertiary, #98a0b8)" }}>
+                style={{ background: activeTab === tab.key ? "var(--color-primary)" : "var(--color-border, #d8d5cd)", color: activeTab === tab.key ? "#fff" : "var(--color-text-tertiary, #6b6760)" }}>
                 {tab.count}
               </span>
             )}
@@ -290,11 +290,11 @@ export default function Warehouse() {
 
           {/* Search */}
           <div style={{ position: "relative" }}>
-            <Search size={16} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--color-text-tertiary, #98a0b8)", pointerEvents: "none" }} />
+            <Search size={16} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--color-text-tertiary, #6b6760)", pointerEvents: "none" }} />
             <input className="w-full py-3 pl-10 pr-4 rounded-xl text-sm outline-none transition-all"
-              style={{ background: "var(--color-surface-light, #f0f3f8)", color: "var(--color-text-primary, #2b3450)", border: "2px solid transparent", fontFamily: "'DM Sans', sans-serif" }}
-              onFocus={e => { e.currentTarget.style.borderColor = "var(--color-primary)"; e.currentTarget.style.boxShadow = "0 0 0 4px color-mix(in srgb, var(--color-primary) 10%, transparent)"; e.currentTarget.style.background = "var(--color-surface, #ffffff)"; }}
-              onBlur={e => { e.currentTarget.style.borderColor = "transparent"; e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.background = "var(--color-surface-light, #f0f3f8)"; }}
+              style={{ background: "var(--color-surface-light, #f6f4f0)", color: "var(--color-text-primary, #2b2a28)", border: "2px solid transparent", fontFamily: "'DM Sans', sans-serif" }}
+              onFocus={e => { e.currentTarget.style.borderColor = "var(--color-primary)"; e.currentTarget.style.boxShadow = "0 0 0 4px color-mix(in srgb, var(--color-primary) 10%, transparent)"; e.currentTarget.style.background = "var(--color-surface, #efedea)"; }}
+              onBlur={e => { e.currentTarget.style.borderColor = "transparent"; e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.background = "var(--color-surface-light, #f6f4f0)"; }}
               placeholder={t("Поиск товаров…", "Mahsulot qidirish…")}
               value={search} onChange={e => setSearch(e.target.value)} />
           </div>
@@ -304,20 +304,20 @@ export default function Warehouse() {
             <div className="space-y-3">
               {isLoading
                 ? Array.from({ length: 4 }).map((_, i) => (
-                    <div key={i} className="h-28 rounded-2xl animate-pulse" style={{ background: "var(--color-surface-light, #f0f3f8)" }} />
+                    <div key={i} className="h-28 rounded-2xl animate-pulse" style={{ background: "var(--color-surface-light, #f6f4f0)" }} />
                   ))
                 : data?.data.map((item) => {
                     const low = Number(item.available ?? 0) < Number(item.reorderPoint ?? 0);
                     return (
                       <div key={item.id} className="rounded-2xl overflow-hidden"
-                        style={{ background: "var(--color-surface, #ffffff)", boxShadow: "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06))" }}>
+                        style={{ background: "var(--color-surface, #efedea)", boxShadow: "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06))" }}>
                         <div className="flex">
                           {low && <div className="w-1.5 flex-shrink-0" style={{ background: "var(--color-danger)" }} />}
                           <div className="flex-1 p-5">
                             <div className="flex items-center justify-between mb-3">
                               <div className="flex items-center gap-2">
                                 {low && <AlertTriangle size={14} color="var(--color-danger-text)" />}
-                                <p className="text-sm font-semibold" style={{ color: "var(--color-text-primary, #2b3450)" }}>{item.productName}</p>
+                                <p className="text-sm font-semibold" style={{ color: "var(--color-text-primary, #2b2a28)" }}>{item.productName}</p>
                               </div>
                               <div className="flex items-center gap-2">
                                 <button onClick={() => handleAdjust({ id: item.productId, name: item.productName ?? "", stock: Number(item.currentStock ?? 0), unit: item.unit ?? "pcs", unitWeight: Number(item.unitWeight ?? 0) })}
@@ -339,10 +339,10 @@ export default function Warehouse() {
                                 { label: t("Всего", "Jami"), val: item.currentStock, unit: item.unit, danger: false },
                               ].map(col => (
                                 <div key={col.label}>
-                                  <p className="text-lg font-bold" style={{ color: col.danger ? "var(--color-danger-text)" : "var(--color-text-primary, #2b3450)", fontFamily: "'DM Sans', sans-serif" }}>
+                                  <p className="text-lg font-bold" style={{ color: col.danger ? "var(--color-danger-text)" : "var(--color-text-primary, #2b2a28)", fontFamily: "'DM Sans', sans-serif" }}>
                                     {formatQty(col.val)}
                                   </p>
-                                  <p className="text-[10px] mt-0.5" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>{col.label}</p>
+                                  <p className="text-[10px] mt-0.5" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>{col.label}</p>
                                 </div>
                               ))}
                             </div>
@@ -354,7 +354,7 @@ export default function Warehouse() {
             </div>
           ) : (
             <div className="rounded-2xl overflow-hidden"
-              style={{ background: "var(--color-surface, #ffffff)", boxShadow: "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06))" }}>
+              style={{ background: "var(--color-surface, #efedea)", boxShadow: "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06))" }}>
               <table className="w-full" style={{ borderCollapse: "separate", borderSpacing: 0 }}>
                 <thead>
                   <tr>
@@ -362,7 +362,7 @@ export default function Warehouse() {
                       t("ДОСТУПНО","MAVJUD"), t("ВЕС","OG'IRLIK"), t("РЕЗЕРВ","ZAHIRA"), t("ВСЕГО","JAMI"),
                       t("ПОРОГ","CHEGARA"), ""].map(h => (
                       <th key={h} className="text-left px-5 py-3 text-[10px] font-semibold tracking-wider uppercase"
-                        style={{ color: "var(--color-text-tertiary, #98a0b8)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
+                        style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                         {h}
                       </th>
                     ))}
@@ -372,45 +372,45 @@ export default function Warehouse() {
                   {isLoading
                     ? Array.from({ length: 5 }).map((_, i) => (
                         <tr key={i}><td colSpan={9} className="px-5 py-4">
-                          <div className="h-5 rounded-lg animate-pulse" style={{ background: "var(--color-surface-light, #f0f3f8)" }} />
+                          <div className="h-5 rounded-lg animate-pulse" style={{ background: "var(--color-surface-light, #f6f4f0)" }} />
                         </td></tr>
                       ))
                     : data?.data.length === 0
-                    ? <tr><td colSpan={9} className="text-center py-16 text-sm" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+                    ? <tr><td colSpan={9} className="text-center py-16 text-sm" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
                         {t("Нет товаров на складе","Omborda mahsulot yo'q")}
                       </td></tr>
                     : data?.data.map((item) => {
                         const low = Number(item.available ?? 0) < Number(item.reorderPoint ?? 0);
                         return (
                           <tr key={item.id} style={low ? { background: "rgba(232,80,80,0.03)" } : undefined}>
-                            <td className="px-5 py-3.5" style={{ borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
+                            <td className="px-5 py-3.5" style={{ borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                               <div className="flex items-center gap-2.5">
                                 {low && <AlertTriangle size={13} color="var(--color-danger-text)" />}
-                                <span className="text-sm font-medium" style={{ color: "var(--color-text-primary, #2b3450)" }}>{item.productName}</span>
+                                <span className="text-sm font-medium" style={{ color: "var(--color-text-primary, #2b2a28)" }}>{item.productName}</span>
                               </div>
                             </td>
-                            <td className="px-5 py-3.5 text-xs" style={{ color: "var(--color-text-tertiary, #98a0b8)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
+                            <td className="px-5 py-3.5 text-xs" style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                               {item.productCode}
                             </td>
-                            <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-secondary, #6a7290)", borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
+                            <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-secondary, #5e5b54)", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                               {item.category ?? "—"}
                             </td>
-                            <td className="px-5 py-3.5 text-sm font-bold" style={{ color: low ? "var(--color-danger-text)" : "var(--color-text-primary, #2b3450)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
+                            <td className="px-5 py-3.5 text-sm font-bold" style={{ color: low ? "var(--color-danger-text)" : "var(--color-text-primary, #2b2a28)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                               {formatQty(item.available)}
                             </td>
-                            <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-secondary, #6a7290)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
+                            <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-secondary, #5e5b54)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                               {formatQty(toKg(item.available, item.unitWeight))} кг
                             </td>
-                            <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-secondary, #6a7290)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
+                            <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-secondary, #5e5b54)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                               {formatQty(item.reserved)}
                             </td>
-                            <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-primary, #2b3450)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
+                            <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-primary, #2b2a28)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                               {formatQty(item.currentStock)}
                             </td>
-                            <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-tertiary, #98a0b8)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
+                            <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                               {formatQty(item.reorderPoint, 0)}
                             </td>
-                            <td className="px-5 py-3.5" style={{ borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
+                            <td className="px-5 py-3.5" style={{ borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                               <div className="flex items-center gap-2">
                                 <button onClick={() => handleAdjust({ id: item.productId, name: item.productName ?? "", stock: Number(item.currentStock ?? 0), unit: item.unit ?? "pcs", unitWeight: Number(item.unitWeight ?? 0) })}
                                   className="text-xs py-1.5 px-3 rounded-lg transition-all"
@@ -439,15 +439,15 @@ export default function Warehouse() {
       {activeTab === "deadstock" && (
         <>
           <div className="flex items-center gap-3 flex-wrap">
-            <span className="text-xs font-medium" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+            <span className="text-xs font-medium" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
               {t("Без продаж более", "Sotilmasdan ko'proq")}:
             </span>
             {[7, 14, 30, 60, 90].map(d => (
               <button key={d} onClick={() => setDeadStockDays(d)}
                 className="text-xs py-1.5 px-3 rounded-lg font-medium transition-all"
                 style={{
-                  background: deadStockDays === d ? "var(--color-primary)" : "var(--color-surface-light, #f0f3f8)",
-                  color: deadStockDays === d ? "#fff" : "var(--color-text-tertiary, #98a0b8)",
+                  background: deadStockDays === d ? "var(--color-primary)" : "var(--color-surface-light, #f6f4f0)",
+                  color: deadStockDays === d ? "#fff" : "var(--color-text-tertiary, #6b6760)",
                 }}>
                 {d} {t("дн", "kun")}
               </button>
@@ -457,7 +457,7 @@ export default function Warehouse() {
           {deadStockLoading ? (
             <div className="space-y-3">
               {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="h-16 rounded-xl animate-pulse" style={{ background: "var(--color-surface-light, #f0f3f8)" }} />
+                <div key={i} className="h-16 rounded-xl animate-pulse" style={{ background: "var(--color-surface-light, #f6f4f0)" }} />
               ))}
             </div>
           ) : !deadStockItems?.length ? (
@@ -465,10 +465,10 @@ export default function Warehouse() {
               <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: "rgba(74,222,128,0.1)" }}>
                 <Package size={28} color="var(--color-success-text)" />
               </div>
-              <p className="text-sm font-medium" style={{ color: "var(--color-text-primary, #2b3450)" }}>
+              <p className="text-sm font-medium" style={{ color: "var(--color-text-primary, #2b2a28)" }}>
                 {t("Нет мёртвого стока", "O'lik stok yo'q")}
               </p>
-              <p className="text-xs mt-1" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+              <p className="text-xs mt-1" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
                 {t("Все товары продаются в течение", "Barcha mahsulotlar sotilmoqda")} {deadStockDays} {t("дней", "kun")}.
               </p>
             </div>
@@ -478,22 +478,22 @@ export default function Warehouse() {
                 const days = Number(item.daysSinceOrder ?? 99999);
                 const isUrgent = days > 90;
                 const isWarning = days > 30;
-                const bgColor = isUrgent ? "rgba(232,80,80,0.06)" : isWarning ? "rgba(251,191,36,0.06)" : "var(--color-surface, #ffffff)";
-                const borderColor = isUrgent ? "rgba(232,80,80,0.15)" : isWarning ? "rgba(251,191,36,0.15)" : "var(--color-border, #f0f3f8)";
+                const bgColor = isUrgent ? "rgba(232,80,80,0.06)" : isWarning ? "rgba(251,191,36,0.06)" : "var(--color-surface, #efedea)";
+                const borderColor = isUrgent ? "rgba(232,80,80,0.15)" : isWarning ? "rgba(251,191,36,0.15)" : "var(--color-border, #d8d5cd)";
                 const badgeColor = isUrgent ? "var(--color-danger)" : isWarning ? "var(--color-warning)" : "var(--color-primary)";
                 return (
                   <div key={item.productId} className="rounded-2xl p-4" style={{ background: bgColor, boxShadow: `inset 0 0 0 1px ${borderColor}`, animation: `slideUp ${0.3 + i * 0.05}s ease forwards` }}>
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
                         <Clock size={14} color={badgeColor} />
-                        <span className="text-sm font-semibold" style={{ color: "var(--color-text-primary, #2b3450)" }}>{item.productName}</span>
+                        <span className="text-sm font-semibold" style={{ color: "var(--color-text-primary, #2b2a28)" }}>{item.productName}</span>
                       </div>
                       <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ background: colorMix(badgeColor, 8), color: badgeColor }}>
                         {days === 99999 ? t("Никогда", "Hech qachon") : `${days} ${t("дн", "kun")}`}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-xs" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+                      <span className="text-xs" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
                         {t("Остаток:", "Qoldiq:")} {formatQty(item.currentStock)}
                       </span>
                       <span className="text-sm font-bold" style={{ color: badgeColor, fontFamily: "'DM Sans', sans-serif" }}>
@@ -505,13 +505,13 @@ export default function Warehouse() {
               })}
             </div>
           ) : (
-            <div className="rounded-2xl overflow-hidden" style={{ background: "var(--color-surface, #ffffff)", boxShadow: "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06))" }}>
+            <div className="rounded-2xl overflow-hidden" style={{ background: "var(--color-surface, #efedea)", boxShadow: "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06))" }}>
               <table className="w-full" style={{ borderCollapse: "separate", borderSpacing: 0 }}>
                 <thead>
                   <tr>
                     {[t("ТОВАР","MAHSULOT"), t("КОД","KOD"), t("КАТЕГОРИЯ","KATEGORIYA"), t("ОСТАТОК","QOLDIQ"), t("СТОИМОСТЬ","QIYMAT"), t("ПОСЛ. ЗАКАЗ","OXIRGI BUYURTMA"), t("ДНЕЙ БЕЗ ПРОДАЖ","SOTISHSIZ KUN")].map(h => (
                       <th key={h} className="text-left px-5 py-3 text-[10px] font-semibold tracking-wider uppercase cursor-pointer select-none"
-                        style={{ color: "var(--color-text-tertiary, #98a0b8)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
+                        style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                         <span className="flex items-center gap-1">{h}</span>
                       </th>
                     ))}
@@ -526,28 +526,28 @@ export default function Warehouse() {
                     const badgeColor = isUrgent ? "var(--color-danger)" : isWarning ? "var(--color-warning)" : "var(--color-primary)";
                     return (
                       <tr key={item.productId} style={{ background: rowBg }}>
-                        <td className="px-5 py-3.5 text-sm font-medium" style={{ color: "var(--color-text-primary, #2b3450)", borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
+                        <td className="px-5 py-3.5 text-sm font-medium" style={{ color: "var(--color-text-primary, #2b2a28)", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                           <div className="flex items-center gap-2">
                             <Clock size={13} color={badgeColor} />
                             {item.productName}
                           </div>
                         </td>
-                        <td className="px-5 py-3.5 text-xs" style={{ color: "var(--color-text-tertiary, #98a0b8)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
+                        <td className="px-5 py-3.5 text-xs" style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                           {item.productCode}
                         </td>
-                        <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-secondary, #6a7290)", borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
+                        <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-secondary, #5e5b54)", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                           {item.category ?? "—"}
                         </td>
-                        <td className="px-5 py-3.5 text-sm font-bold" style={{ color: "var(--color-text-primary, #2b3450)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
+                        <td className="px-5 py-3.5 text-sm font-bold" style={{ color: "var(--color-text-primary, #2b2a28)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                           {formatQty(item.currentStock)}
                         </td>
-                        <td className="px-5 py-3.5 text-sm font-bold" style={{ color: badgeColor, fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
+                        <td className="px-5 py-3.5 text-sm font-bold" style={{ color: badgeColor, fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                           {fmt(Number(item.value ?? 0).toFixed(0))}
                         </td>
-                        <td className="px-5 py-3.5 text-xs" style={{ color: "var(--color-text-tertiary, #98a0b8)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
+                        <td className="px-5 py-3.5 text-xs" style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                           {item.lastOrderDate ? format(new Date(item.lastOrderDate), "dd.MM.yyyy") : t("Никогда", "Hech qachon")}
                         </td>
-                        <td className="px-5 py-3.5" style={{ borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
+                        <td className="px-5 py-3.5" style={{ borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                           <span className="text-xs px-2.5 py-1 rounded-full font-semibold"
                             style={{ background: colorMix(badgeColor, 8), color: badgeColor }}>
                             {days === 99999 ? t("∞", "∞") : `${days} ${t("дн", "kun")}`}
@@ -562,7 +562,7 @@ export default function Warehouse() {
           )}
 
           {deadStockItems && deadStockItems.length > 0 && (
-            <div className="flex items-center justify-between text-xs px-2" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+            <div className="flex items-center justify-between text-xs px-2" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
               <span>{deadStockItems.length} {t("товаров", "mahsulot")}</span>
               <span>{t("Общая стоимость:", "Umumiy qiymat:")} {fmt(deadStockItems.reduce((acc, r) => acc + Number(r.value ?? 0), 0).toFixed(0))}</span>
             </div>
@@ -578,10 +578,10 @@ export default function Warehouse() {
               <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: "rgba(74,222,128,0.1)" }}>
                 <ShoppingCart size={28} color="var(--color-success-text)" />
               </div>
-              <p className="text-sm font-medium" style={{ color: "var(--color-text-primary, #2b3450)" }}>
+              <p className="text-sm font-medium" style={{ color: "var(--color-text-primary, #2b2a28)" }}>
                 {t("Все товары в наличии", "Barcha mahsulotlar mavjud")}
               </p>
-              <p className="text-xs mt-1" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+              <p className="text-xs mt-1" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
                 {t("Нет товаров, требующих дозаказа", "Qayta buyurtma kerak bo'lgan mahsulot yo'q")}
               </p>
             </div>
@@ -598,12 +598,12 @@ export default function Warehouse() {
                       <div className="w-1.5 flex-shrink-0" style={{ background: badgeColor }} />
                       <div className="flex-1 p-4">
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm font-semibold" style={{ color: "var(--color-text-primary, #2b3450)" }}>{item.productName}</span>
+                          <span className="text-sm font-semibold" style={{ color: "var(--color-text-primary, #2b2a28)" }}>{item.productName}</span>
                           <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ background: colorMix(badgeColor, 8), color: badgeColor }}>
                             {daysLeft} {t("дн до конца", "kun qoldi")}
                           </span>
                         </div>
-                        <div className="flex items-center justify-between text-xs" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+                        <div className="flex items-center justify-between text-xs" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
                           <span>{t("Остаток:", "Qoldiq:")} {formatQty(item.currentStock)} / {formatQty(item.reorderPoint, 0)} {unitLabel(item.unit, lang)}</span>
                           <span className="font-semibold" style={{ color: badgeColor }}>+{item.suggestedQty} {unitLabel(item.unit, lang)}</span>
                         </div>
@@ -614,13 +614,13 @@ export default function Warehouse() {
               })}
             </div>
           ) : (
-            <div className="rounded-2xl overflow-hidden" style={{ background: "var(--color-surface, #ffffff)", boxShadow: "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06))" }}>
+            <div className="rounded-2xl overflow-hidden" style={{ background: "var(--color-surface, #efedea)", boxShadow: "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06))" }}>
               <table className="w-full" style={{ borderCollapse: "separate", borderSpacing: 0 }}>
                 <thead>
                   <tr>
                     {[t("ТОВАР","MAHSULOT"), t("ОСТАТОК","QOLDIQ"), t("ПОРОГ","CHEGARA"), t("ПРОДАЖИ/ДЕНЬ","SOTISH/KUN"), t("ДНЕЙ ДО КОНЦА","KUN QOLDI"), t("ЗАКАЗАТЬ","BUYURTMA BERISH"), t("СТОИМОСТЬ","NARX")].map(h => (
                       <th key={h} className="text-left px-5 py-3 text-[10px] font-semibold tracking-wider uppercase"
-                        style={{ color: "var(--color-text-tertiary, #98a0b8)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
+                        style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                         {h}
                       </th>
                     ))}
@@ -635,31 +635,31 @@ export default function Warehouse() {
                     const rowBg = isUrgent ? "rgba(232,80,80,0.04)" : isWarning ? "rgba(251,191,36,0.04)" : undefined;
                     return (
                       <tr key={item.productId} style={{ background: rowBg }}>
-                        <td className="px-5 py-3.5 text-sm font-medium" style={{ color: "var(--color-text-primary, #2b3450)", borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
+                        <td className="px-5 py-3.5 text-sm font-medium" style={{ color: "var(--color-text-primary, #2b2a28)", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                           <div className="flex items-center gap-2">
                             {isUrgent && <AlertTriangle size={13} color="var(--color-danger-text)" />}
                             {item.productName}
                           </div>
                         </td>
-                        <td className="px-5 py-3.5 text-sm font-bold" style={{ color: badgeColor, fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
+                        <td className="px-5 py-3.5 text-sm font-bold" style={{ color: badgeColor, fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                           {formatQty(item.currentStock)} {unitLabel(item.unit, lang)}
                         </td>
-                        <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-tertiary, #98a0b8)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
+                        <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                           {formatQty(item.reorderPoint, 0)} {unitLabel(item.unit, lang)}
                         </td>
-                        <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-secondary, #6a7290)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
+                        <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-secondary, #5e5b54)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                           {item.avgDailySales}
                         </td>
-                        <td className="px-5 py-3.5" style={{ borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
+                        <td className="px-5 py-3.5" style={{ borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                           <span className="text-xs px-2.5 py-1 rounded-full font-semibold"
                             style={{ background: colorMix(badgeColor, 8), color: badgeColor }}>
                             {daysLeft} {t("дн", "kun")}
                           </span>
                         </td>
-                        <td className="px-5 py-3.5 text-sm font-bold" style={{ color: badgeColor, fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
+                        <td className="px-5 py-3.5 text-sm font-bold" style={{ color: badgeColor, fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                           +{item.suggestedQty} {unitLabel(item.unit, lang)}
                         </td>
-                        <td className="px-5 py-3.5 text-sm font-bold" style={{ color: "var(--color-text-primary, #2b3450)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
+                        <td className="px-5 py-3.5 text-sm font-bold" style={{ color: "var(--color-text-primary, #2b2a28)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                           {fmt(Number(item.suggestedCost ?? 0).toFixed(0))}
                         </td>
                       </tr>
@@ -671,7 +671,7 @@ export default function Warehouse() {
           )}
 
           {reorderSuggestions && reorderSuggestions.length > 0 && (
-            <div className="flex items-center justify-between text-xs px-2" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+            <div className="flex items-center justify-between text-xs px-2" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
               <span>{reorderSuggestions.length} {t("товаров", "mahsulot")}</span>
               <span>{t("Общая стоимость дозаказа:", "Umumiy buyurtma qiymati:")} {fmt(reorderSuggestions.reduce((acc, r) => acc + Number(r.suggestedCost ?? 0), 0).toFixed(0))}</span>
             </div>

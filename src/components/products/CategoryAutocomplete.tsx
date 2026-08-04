@@ -73,7 +73,7 @@ export function CategoryAutocomplete({ value, onChange, categories, placeholder 
           }}
         >
           <ChevronDown size={16} style={{
-            color: "var(--color-text-tertiary, #98a0b8)",
+            color: "var(--color-text-tertiary, #6b6760)",
             transform: open ? "rotate(180deg)" : "rotate(0)",
             transition: "transform 0.15s ease",
           }} />
@@ -83,9 +83,9 @@ export function CategoryAutocomplete({ value, onChange, categories, placeholder 
       {open && createPortal(
         <div ref={dropdownRef} style={{
           position: "fixed", top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width, zIndex: 99999,
-          background: "var(--color-surface, #ffffff)", borderRadius: "12px",
+          background: "var(--color-surface, #efedea)", borderRadius: "12px",
           boxShadow: "0 4px 12px rgba(0,0,0,.08), 0 1px 3px rgba(0,0,0,.04)",
-          border: "1px solid var(--color-border, #f0f3f8)",
+          border: "1px solid var(--color-border, #d8d5cd)",
           maxHeight: "240px", overflowY: "auto", padding: "4px",
         }}>
           {filtered.map(cat => (
@@ -97,11 +97,11 @@ export function CategoryAutocomplete({ value, onChange, categories, placeholder 
                 width: "100%", padding: "8px 12px", borderRadius: "8px",
                 border: "none", cursor: "pointer", transition: "all 0.15s ease",
                 background: value === cat ? "var(--color-primary-subtle)" : "transparent",
-                color: value === cat ? "var(--color-primary-text)" : "var(--color-text-primary, #2b3450)",
+                color: value === cat ? "var(--color-primary-text)" : "var(--color-text-primary, #2b2a28)",
                 fontSize: "13px", fontFamily: "'DM Sans', sans-serif", fontWeight: value === cat ? 600 : 400,
                 textAlign: "left",
               }}
-              onMouseEnter={e => { if (value !== cat) e.currentTarget.style.background = "var(--color-surface-light, #f0f3f8)"; }}
+              onMouseEnter={e => { if (value !== cat) e.currentTarget.style.background = "var(--color-surface-light, #f6f4f0)"; }}
               onMouseLeave={e => { if (value !== cat) e.currentTarget.style.background = "transparent"; }}
             >
               {cat}
@@ -117,7 +117,7 @@ export function CategoryAutocomplete({ value, onChange, categories, placeholder 
                 border: "none", cursor: "pointer", transition: "all 0.15s ease",
                 background: "transparent", color: "var(--color-primary)",
                 fontSize: "13px", fontFamily: "'DM Sans', sans-serif", fontWeight: 500,
-                textAlign: "left", borderTop: "1px solid var(--color-border, #f0f3f8)", marginTop: "4px",
+                textAlign: "left", borderTop: "1px solid var(--color-border, #d8d5cd)", marginTop: "4px",
               }}
             >
               <Plus size={14} />
@@ -126,7 +126,7 @@ export function CategoryAutocomplete({ value, onChange, categories, placeholder 
           )}
 
           {filtered.length === 0 && !query && (
-            <div style={{ padding: "12px", textAlign: "center", color: "var(--color-text-tertiary, #98a0b8)", fontSize: "12px" }}>
+            <div style={{ padding: "12px", textAlign: "center", color: "var(--color-text-tertiary, #6b6760)", fontSize: "12px" }}>
               Нет категорий
             </div>
           )}

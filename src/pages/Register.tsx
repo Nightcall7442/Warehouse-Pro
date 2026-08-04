@@ -22,7 +22,7 @@ function PasswordStrength({ password }: { password: string }) {
   return (
     <div className="mt-2 space-y-1.5">
       <div className="flex items-center justify-between">
-        <div className="h-1.5 flex-1 rounded-full overflow-hidden mr-3" style={{ background: "var(--color-surface-light, #f0f3f8)" }}>
+        <div className="h-1.5 flex-1 rounded-full overflow-hidden mr-3" style={{ background: "var(--color-surface-light, #f6f4f0)" }}>
           <div className="h-full rounded-full transition-all duration-400" style={{ width: `${bar}%`, background: color }} />
         </div>
         <span className="text-xs font-medium flex-shrink-0" style={{ color }}>{label}</span>
@@ -31,7 +31,7 @@ function PasswordStrength({ password }: { password: string }) {
         {checks.map(c => (
           <div key={c.label} className="flex items-center gap-1">
             <div className={`w-1.5 h-1.5 rounded-full ${c.pass ? "bg-success" : "bg-border-subtle"}`} />
-            <span className="text-[10px]" style={{ color: c.pass ? "var(--color-success-text)" : "var(--color-text-tertiary, #98a0b8)" }}>{c.label}</span>
+            <span className="text-[10px]" style={{ color: c.pass ? "var(--color-success-text)" : "var(--color-text-tertiary, #6b6760)" }}>{c.label}</span>
           </div>
         ))}
       </div>
@@ -74,11 +74,11 @@ export default function Register() {
   ];
 
   return (
-    <div className="min-h-screen flex" style={{ background: "var(--color-canvas, #f0f2f5)" }}>
+    <div className="min-h-screen flex" style={{ background: "var(--color-canvas, #e8e6e1)" }}>
 
       {/* ── Left panel ── */}
       <div className="hidden lg:flex flex-col justify-between w-[52%] p-12 relative overflow-hidden"
-        style={{ background: "var(--color-surface, #ffffff)" }}>
+        style={{ background: "var(--color-surface, #efedea)" }}>
         <div className="absolute inset-0 pointer-events-none opacity-[0.03]"
           style={{
             backgroundImage: "linear-gradient(#2b3450 1px, transparent 1px), linear-gradient(90deg, #2b3450 1px, transparent 1px)",
@@ -115,7 +115,7 @@ export default function Register() {
                 </div>
                 <div>
                   <p className="font-medium text-primary">{s.title}</p>
-                  <p className="text-sm mt-0.5" style={{ color: "var(--color-text-secondary, #6a7290)" }}>{s.desc}</p>
+                  <p className="text-sm mt-0.5" style={{ color: "var(--color-text-secondary, #5e5b54)" }}>{s.desc}</p>
                 </div>
               </div>
             ))}
@@ -128,7 +128,7 @@ export default function Register() {
           </div>
         </div>
 
-        <p className="relative text-xs" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>© 2025 Warehouse Pro</p>
+        <p className="relative text-xs" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>© 2025 Warehouse Pro</p>
       </div>
 
       {/* ── Form ── */}
@@ -145,7 +145,7 @@ export default function Register() {
         <div className="w-full max-w-[380px]">
           <div className="mb-8">
             <h2 className="font-display text-2xl text-primary mb-1.5">{t("Создайте аккаунт", "Hisob yarating")}</h2>
-            <p className="text-sm" style={{ color: "var(--color-text-secondary, #6a7290)" }}>
+            <p className="text-sm" style={{ color: "var(--color-text-secondary, #5e5b54)" }}>
               {t("Уже есть аккаунт?", "Hisobingiz bormi?")}{" "}
               <Link to="/login" className="font-medium hover:underline" style={{ color: "var(--color-primary-text)" }}>{t("Войти", "Kirish")}</Link>
             </p>
@@ -158,7 +158,7 @@ export default function Register() {
               { key: "email",       type: "email",    placeholder: "you@company.com",                     label: "Email" },
             ].map(f => (
               <div key={f.key} className="space-y-1.5">
-                <label className="block text-xs font-medium" style={{ color: "var(--color-text-secondary, #6a7290)" }}>{f.label}</label>
+                <label className="block text-xs font-medium" style={{ color: "var(--color-text-secondary, #5e5b54)" }}>{f.label}</label>
                 <input type={f.type} className="neo-input" placeholder={f.placeholder}
                   value={(form as unknown as Record<string, string>)[f.key]}
                   onChange={e => setForm({ ...form, [f.key]: e.target.value })}
@@ -167,7 +167,7 @@ export default function Register() {
             ))}
 
             <div className="space-y-1.5">
-              <label className="block text-xs font-medium" style={{ color: "var(--color-text-secondary, #6a7290)" }}>{t("auth.login.password")}</label>
+              <label className="block text-xs font-medium" style={{ color: "var(--color-text-secondary, #5e5b54)" }}>{t("auth.login.password")}</label>
               <div className="relative">
                 <input type={showPw ? "text" : "password"} className="neo-input pr-10"
                   placeholder={t("Пароль (мин. 8 символов)", "Parol (kamida 8 ta belgi)")}
@@ -176,7 +176,7 @@ export default function Register() {
                   disabled={registerMutation.isPending} />
                 <button type="button" onClick={() => setShowPw(!showPw)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors" tabIndex={-1}
-                  style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+                  style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
                   {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
                 </button>
               </div>
@@ -200,7 +200,7 @@ export default function Register() {
                 : t("auth.register.submit")}
             </button>
 
-            <p className="text-xs text-center" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+            <p className="text-xs text-center" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
               {t("Нажимая «Зарегистрироваться», вы соглашаетесь с условиями", "«Ro'yxatdan o'tish» tugmasini bosish orqali siz shartlarga rozilik bildirasiz")}
             </p>
           </form>

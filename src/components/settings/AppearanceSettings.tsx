@@ -25,7 +25,7 @@ export function AppearanceSettings() {
         </div>
       </div>
 
-      <div style={{ borderTop: "1px solid var(--color-border, #f0f3f8)", paddingTop: 20 }}>
+      <div style={{ borderTop: "1px solid var(--color-border, #d8d5cd)", paddingTop: 20 }}>
         <p className="font-label text-[10px] text-secondary tracking-wider mb-3">{t("ЯЗЫК ИНТЕРФЕЙСА","INTERFEYS TILI")}</p>
         <div className="grid grid-cols-2 gap-3 max-w-xs">
           {[

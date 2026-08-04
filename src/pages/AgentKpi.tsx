@@ -465,7 +465,7 @@ function SalaryConfig({ t }: { t: (r: string, u: string) => string }) {
         {agents.map((agent: { id: number; name: string }) => {
           const rate = getRate(agent.id);
           return (
-            <div key={agent.id} className="flex items-center gap-3 p-2 rounded-lg" style={{ background: "var(--color-surface, #fff)", border: "1px solid var(--color-border)" }}>
+            <div key={agent.id} className="flex items-center gap-3 p-2 rounded-lg" style={{ background: "var(--color-surface, #efedea)", border: "1px solid var(--color-border)" }}>
               <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "color-mix(in srgb, var(--color-primary) 10%, transparent)" }}>
                 <span className="text-xs font-bold" style={{ color: "var(--color-primary-text)" }}>{agent.name.charAt(0).toUpperCase()}</span>
               </div>
@@ -475,7 +475,7 @@ function SalaryConfig({ t }: { t: (r: string, u: string) => string }) {
                   onChange={(e) => setRates(prev => ({ ...prev, [agent.id]: parseFloat(e.target.value) || 0 }))}
                   onBlur={(e) => { const val = parseFloat(e.target.value) || 0; if (val >= 0 && val <= 50) setRateMutation.mutate({ userId: agent.id, commissionRate: val }); }}
                   className="w-20 text-center text-sm py-1.5 px-2 rounded-lg outline-none"
-                  style={{ background: "var(--color-surface, #fff)", border: "1.5px solid var(--color-border)", color: COLORS.textPrimary, fontFamily: F.display, fontWeight: 600 }} />
+                  style={{ background: "var(--color-surface, #efedea)", border: "1.5px solid var(--color-border)", color: COLORS.textPrimary, fontFamily: F.display, fontWeight: 600 }} />
                 <span className="text-xs font-medium" style={{ color: COLORS.textSecondary }}>%</span>
               </div>
             </div>

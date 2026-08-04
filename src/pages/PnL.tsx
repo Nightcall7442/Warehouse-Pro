@@ -20,9 +20,9 @@ import type { Range } from "@/components/pnl";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 
 const COLORS = {
-  surface: "var(--color-surface, #ffffff)",
-  surfaceLight: "var(--color-surface-light, #f0f3f8)",
-  textTertiary: "var(--color-text-tertiary, #98a0b8)",
+  surface: "var(--color-surface, #efedea)",
+  surfaceLight: "var(--color-surface-light, #f6f4f0)",
+  textTertiary: "var(--color-text-tertiary, #6b6760)",
 };
 const SHADOW = "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04))";
 

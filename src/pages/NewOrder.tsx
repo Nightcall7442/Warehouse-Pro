@@ -96,7 +96,7 @@ export default function NewOrder() {
         <button
           onClick={() => step > 1 ? setStep(s => s - 1) : navigate(-1)}
           className="w-9 h-9 flex items-center justify-center rounded-lg border btn-ghost flex-shrink-0"
-          style={{ borderColor: "var(--color-border, #dde2ec)" }}
+          style={{ borderColor: "var(--color-border, #d8d5cd)" }}
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
             <path d="M10 3L5 8l5 5"/>

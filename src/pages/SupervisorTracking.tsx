@@ -86,7 +86,7 @@ export default function SupervisorTracking() {
         if (!lat || !lng) return;
 
         const online = isOnline(loc.createdAt);
-        const color = online ? "var(--color-success-text)" : "var(--color-text-tertiary, #98a0b8)";
+        const color = online ? "var(--color-success-text)" : "var(--color-text-tertiary, #6b6760)";
         const initial = (loc.agentName ?? "A")[0].toUpperCase();
 
         const placemark = new window.ymaps.Placemark(
@@ -163,7 +163,7 @@ export default function SupervisorTracking() {
           </div>
           <h1 className="font-display text-2xl font-bold text-primary tracking-tight">{t("Слежение за агентами", "Agentlarni kuzatish")}</h1>
           {lastUpdate && (
-            <p className="text-xs mt-0.5" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+            <p className="text-xs mt-0.5" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
               {t("Обновлено:", "Yangilangan:")} {format(lastUpdate, "HH:mm:ss")}
             </p>
           )}
@@ -171,7 +171,7 @@ export default function SupervisorTracking() {
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5">
             <Radio size={13} className="text-success animate-pulse" />
-            <span className="font-label text-xs" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+            <span className="font-label text-xs" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
               {t("ПРЯМОЙ ЭФИР · 30 сек", "JONLI · 30 sek")}
             </span>
           </div>
@@ -195,7 +195,7 @@ export default function SupervisorTracking() {
                 <Icon size={16} />
               </div>
               <p className="font-data text-2xl font-bold text-primary">{k.value}</p>
-              <p className="font-label text-[10px] tracking-wider mt-1" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+              <p className="font-label text-[10px] tracking-wider mt-1" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
                 {lang === "uz" ? k.labelUz : k.labelRu}
               </p>
             </div>
@@ -217,7 +217,7 @@ export default function SupervisorTracking() {
                 <div className="text-center py-10">
                   <MapPin size={28} className="mx-auto mb-2 opacity-20 text-secondary" />
                   <p className="text-sm text-secondary">{t("Нет данных о локации", "Joylashuv ma'lumoti yo'q")}</p>
-                  <p className="text-xs mt-1" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+                  <p className="text-xs mt-1" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
                     {t("Агенты делятся геолокацией со страницы GPS", "Agentlar GPS sahifasidan joylashuv ulashadi")}
                   </p>
                 </div>
@@ -236,7 +236,7 @@ export default function SupervisorTracking() {
                     >
                       <div className="flex items-center gap-2.5">
                         <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold"
-                          style={{ background: online ? "var(--color-success)" : "var(--color-text-tertiary, #98a0b8)" }}>
+                          style={{ background: online ? "var(--color-success)" : "var(--color-text-tertiary, #6b6760)" }}>
                           {(loc.agentName ?? "A")[0].toUpperCase()}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -245,7 +245,7 @@ export default function SupervisorTracking() {
                           </p>
                           <div className="flex items-center gap-1 mt-0.5">
                             <div className={`w-1.5 h-1.5 rounded-full ${online ? "bg-success" : "bg-warning"}`} />
-                            <span className="text-[11px]" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+                            <span className="text-[11px]" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
                               {online
                                 ? t("Онлайн", "Onlayn")
                                 : loc.createdAt
@@ -253,12 +253,12 @@ export default function SupervisorTracking() {
                                   : t("Нет данных", "Ma'lumot yo'q")}
                             </span>
                             {loc.batteryLevel != null && (
-                              <span className="ml-auto text-[10px] font-data flex items-center gap-0.5" style={{ color: loc.batteryLevel < 20 ? "var(--color-danger-text)" : "var(--color-text-tertiary, #98a0b8)" }}>
+                              <span className="ml-auto text-[10px] font-data flex items-center gap-0.5" style={{ color: loc.batteryLevel < 20 ? "var(--color-danger-text)" : "var(--color-text-tertiary, #6b6760)" }}>
                                 🔋 {loc.batteryLevel}%
                               </span>
                             )}
                             {loc.accuracy && (
-                              <span className="text-[10px] font-data" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+                              <span className="text-[10px] font-data" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
                                 ±{Math.round(Number(loc.accuracy))}м
                               </span>
                             )}
@@ -266,7 +266,7 @@ export default function SupervisorTracking() {
                         </div>
                       </div>
                       {(Number(loc.lat) && Number(loc.lng)) && (
-                        <p className="font-data text-[10px] mt-1.5 pl-[46px]" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+                        <p className="font-data text-[10px] mt-1.5 pl-[46px]" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
                           {Number(loc.lat).toFixed(5)}, {Number(loc.lng).toFixed(5)}
                         </p>
                       )}

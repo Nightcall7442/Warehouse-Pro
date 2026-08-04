@@ -116,6 +116,40 @@
     --kpi-purple:  #7a6db5;
     --kpi-coral:   #f06895;
 
+    /* KPI tracks — the tinted ground a KPI icon or badge sits on.
+       KpiIcon.tsx and badge.tsx have referenced these all along but nothing
+       declared them, so every icon rendered on a transparent ground and every
+       badge fell through to a stale light-theme hex — which showed up as a
+       pale pink chip in dark mode.
+
+       Derived from the KPI colour rather than written out by hand: a track is
+       by definition a faint version of its own colour, so deriving it removes
+       the chance of the twenty values drifting apart. They must be declared in
+       each theme block, not once in :root — a custom property is substituted
+       where it is *declared*, so a single :root definition would bake in the
+       light palette and keep using it in dark mode. */
+    --kpi-indigo-track: color-mix(in srgb, var(--kpi-indigo) 12%, transparent);
+    --kpi-blue-track:   color-mix(in srgb, var(--kpi-blue)   12%, transparent);
+    --kpi-teal-track:   color-mix(in srgb, var(--kpi-teal)   12%, transparent);
+    --kpi-green-track:  color-mix(in srgb, var(--kpi-green)  12%, transparent);
+    --kpi-amber-track:  color-mix(in srgb, var(--kpi-amber)  12%, transparent);
+    --kpi-orange-track: color-mix(in srgb, var(--kpi-orange) 12%, transparent);
+    --kpi-red-track:    color-mix(in srgb, var(--kpi-red)    12%, transparent);
+    --kpi-pink-track:   color-mix(in srgb, var(--kpi-pink)   12%, transparent);
+    --kpi-purple-track: color-mix(in srgb, var(--kpi-purple) 12%, transparent);
+    --kpi-coral-track:  color-mix(in srgb, var(--kpi-coral)  12%, transparent);
+
+    /* Named radius scale — mirrors mobile/theme.ts Radii so the two platforms
+       step through the same values instead of each screen picking a number. */
+    --radius-xs:   6px;
+    --radius-sm:  10px;
+    --radius-md:  12px;
+    --radius-lg:  16px;
+    --radius-xl:  20px;
+    --radius-xxl: 24px;
+    --radius-2xl: 28px;
+    --radius-full: 999px;
+
     /* Neumorphic shadow system — мягкая асимметричная диффузия, а не
        "тиснёный" эффект в 50/50: тёплый приглушённый тон тени (не холодный
        серо-синий), ниже непрозрачность тёмной стороны, больше blur. */
@@ -232,6 +266,19 @@
     --kpi-purple:  #a088f0;
     --kpi-coral:   #e878a8;
 
+    /* Re-derived against the dark KPI palette — see the note in the light
+       block for why these cannot simply be inherited from :root. */
+    --kpi-indigo-track: color-mix(in srgb, var(--kpi-indigo) 12%, transparent);
+    --kpi-blue-track:   color-mix(in srgb, var(--kpi-blue)   12%, transparent);
+    --kpi-teal-track:   color-mix(in srgb, var(--kpi-teal)   12%, transparent);
+    --kpi-green-track:  color-mix(in srgb, var(--kpi-green)  12%, transparent);
+    --kpi-amber-track:  color-mix(in srgb, var(--kpi-amber)  12%, transparent);
+    --kpi-orange-track: color-mix(in srgb, var(--kpi-orange) 12%, transparent);
+    --kpi-red-track:    color-mix(in srgb, var(--kpi-red)    12%, transparent);
+    --kpi-pink-track:   color-mix(in srgb, var(--kpi-pink)   12%, transparent);
+    --kpi-purple-track: color-mix(in srgb, var(--kpi-purple) 12%, transparent);
+    --kpi-coral-track:  color-mix(in srgb, var(--kpi-coral)  12%, transparent);
+
     /* Dark neumorphic shadows — более выраженные для глубины */
     --shadow-raised:  8px 8px 20px rgba(0,0,0,0.5), -4px -4px 12px rgba(255,255,255,0.04);
     --shadow-pressed: inset 6px 6px 12px rgba(0,0,0,0.5), inset -3px -3px 8px rgba(255,255,255,0.03);
@@ -262,8 +309,8 @@
   html { font-size: 14px; }
 
   body {
-    background: var(--color-canvas, #e0e5ec);
-    color: var(--color-text-primary, #2d3748);
+    background: var(--color-canvas, #e8e6e1);
+    color: var(--color-text-primary, #2b2a28);
     font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;
@@ -318,7 +365,7 @@
      NEUMORPHIC CARDS — The core of Soft UI
      ══════════════════════════════════════════════════════════════════════ */
   .neo-card {
-    background: var(--color-surface, #e0e5ec);
+    background: var(--color-surface, #efedea);
     border-radius: 24px;
     padding: 24px;
     box-shadow: var(--shadow-raised);
@@ -330,8 +377,8 @@
 
   /* Panel — generic container for dropdowns, sidebars, etc. */
   .panel {
-    background: var(--color-surface, #ffffff);
-    border: 1px solid var(--color-border, #e2e8f0);
+    background: var(--color-surface, #efedea);
+    border: 1px solid var(--color-border, #d8d5cd);
     border-radius: 12px;
   }
   .neo-card::before {
@@ -394,8 +441,8 @@
      ══════════════════════════════════════════════════════════════════════ */
   .neo-btn {
     display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-    background: var(--color-surface, #e0e5ec);
-    color: var(--color-text-primary, #2d3748);
+    background: var(--color-surface, #efedea);
+    color: var(--color-text-primary, #2b2a28);
     border: none;
     border-radius: 12px;
     padding: 10px 20px;
@@ -420,7 +467,7 @@
   /* Primary neumorphic button */
   .neo-btn-primary {
     display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-hover, #3a5be5));
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-hover, #4a5c78));
     color: #fff;
     border: none;
     border-radius: 12px;
@@ -454,8 +501,8 @@
   .neo-btn-icon {
     display: inline-flex; align-items: center; justify-content: center;
     width: 44px; height: 44px;
-    background: var(--color-surface, #e0e5ec);
-    color: var(--color-text-secondary, #5a6a7f);
+    background: var(--color-surface, #efedea);
+    color: var(--color-text-secondary, #5e5b54);
     border: none;
     border-radius: 14px;
     cursor: pointer;
@@ -476,20 +523,20 @@
      NEUMORPHIC INPUTS
      ══════════════════════════════════════════════════════════════════════ */
   .neo-input {
-    background: var(--color-surface, #e0e5ec);
+    background: var(--color-surface, #efedea);
     border: none;
     border-radius: 16px;
     padding: 13px 18px;
     font-size: 13px;
     font-family: 'DM Sans', sans-serif;
-    color: var(--color-text-primary, #2d3748);
+    color: var(--color-text-primary, #2b2a28);
     outline: none;
     transition: all 0.2s ease;
     width: 100%;
     line-height: 1.5;
     box-shadow: var(--shadow-pressed);
   }
-  .neo-input::placeholder { color: var(--color-text-tertiary, #8b9bb4); }
+  .neo-input::placeholder { color: var(--color-text-tertiary, #6b6760); }
   .neo-input:focus {
     box-shadow: var(--shadow-raised), 0 0 0 2px color-mix(in srgb, var(--color-primary) 20%, transparent);
   }
@@ -500,7 +547,7 @@
   .neo-toggle {
     position: relative;
     width: 52px; height: 28px;
-    background: var(--color-surface, #e0e5ec);
+    background: var(--color-surface, #efedea);
     border-radius: 14px;
     box-shadow: var(--shadow-pressed);
     cursor: pointer;
@@ -554,7 +601,7 @@
      KPI CARD — Neumorphic Hero
      ══════════════════════════════════════════════════════════════════════ */
   .kpi-hero {
-    background: var(--color-surface, #e0e5ec);
+    background: var(--color-surface, #efedea);
     border-radius: 24px;
     padding: 24px;
     position: relative;
@@ -610,7 +657,7 @@
     font-size: 10px; font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.1em;
-    color: var(--color-text-tertiary, #8b9bb4);
+    color: var(--color-text-tertiary, #6b6760);
   }
 
   .kpi-hero-value {
@@ -718,7 +765,7 @@
     padding: 12px 18px; margin: 4px 10px;
     border-radius: 16px;
     font-size: 13px; font-weight: 500;
-    color: var(--color-text-secondary, #5a6a7f);
+    color: var(--color-text-secondary, #5e5b54);
     background: transparent;
     border: none;
     cursor: pointer;
@@ -726,18 +773,18 @@
     transition: all 0.2s ease;
   }
   .sidebar-nav-item:hover {
-    color: var(--color-text-primary, #2d3748);
+    color: var(--color-text-primary, #2b2a28);
     background: color-mix(in srgb, var(--color-primary) 6%, transparent);
     box-shadow: var(--shadow-xs);
   }
   .sidebar-nav-item.active {
     color: var(--color-primary-text);
-    background: var(--color-surface, #e0e5ec);
+    background: var(--color-surface, #efedea);
     font-weight: 600;
     box-shadow: var(--shadow-raised);
   }
   .dark .sidebar-nav-item:hover {
-    color: var(--color-text-primary, #e2e8f0);
+    color: var(--color-text-primary, #2b2a28);
     background: var(--color-primary-subtle);
   }
   .dark .sidebar-nav-item.active {
@@ -751,7 +798,7 @@
      ══════════════════════════════════════════════════════════════════════ */
   .range-pills {
     display: inline-flex;
-    background: var(--color-surface, #e0e5ec);
+    background: var(--color-surface, #efedea);
     border-radius: 14px;
     padding: 4px;
     gap: 2px;
@@ -765,14 +812,14 @@
     border: none;
     cursor: pointer;
     transition: all 0.2s ease;
-    color: var(--color-text-secondary, #5a6a7f);
+    color: var(--color-text-secondary, #5e5b54);
     background: transparent;
   }
   .range-pill:hover {
-    color: var(--color-text-primary, #2d3748);
+    color: var(--color-text-primary, #2b2a28);
   }
   .range-pill.active {
-    background: var(--color-surface, #e0e5ec);
+    background: var(--color-surface, #efedea);
     color: var(--color-primary);
     box-shadow: var(--shadow-sm);
     font-weight: 700;
@@ -786,17 +833,17 @@
      ══════════════════════════════════════════════════════════════════════ */
   .data-table { width: 100%; border-collapse: collapse; }
   .data-table th {
-    background: var(--color-surface, #e0e5ec);
-    color: var(--color-text-tertiary, #8b9bb4);
+    background: var(--color-surface, #efedea);
+    color: var(--color-text-tertiary, #6b6760);
     font-size: 10px; font-weight: 600;
     text-transform: uppercase; letter-spacing: .08em;
     padding: 12px 16px; text-align: left;
-    box-shadow: 0 1px 0 var(--color-border, #c8d0dc);
+    box-shadow: 0 1px 0 var(--color-border, #d8d5cd);
   }
   .data-table td {
     padding: 12px 16px; font-size: 13px;
-    color: var(--color-text-primary, #2d3748);
-    border-bottom: 1px solid var(--color-border-subtle, #d1d9e6);
+    color: var(--color-text-primary, #2b2a28);
+    border-bottom: 1px solid var(--color-border-subtle, #e0ddd7);
   }
   .data-table tbody tr {
     transition: background 0.15s ease;
@@ -906,7 +953,7 @@
     font-size: 11px; font-family: 'DM Sans', sans-serif; font-weight: 600;
     border-radius: 10px; border: none;
     cursor: pointer; transition: all .2s;
-    color: var(--color-text-secondary, #5a6a7f);
+    color: var(--color-text-secondary, #5e5b54);
     background: transparent;
     text-transform: uppercase; letter-spacing: .06em;
   }
@@ -916,7 +963,7 @@
   }
   .lang-btn.active {
     background: var(--color-primary);
-    color: var(--color-on-primary, #fff);
+    color: var(--color-on-primary, #ffffff);
     box-shadow: 2px 2px 4px color-mix(in srgb, var(--color-primary) 30%, transparent);
   }
 
@@ -929,7 +976,7 @@
     -webkit-tap-highlight-color: transparent;
   }
   .search-result-item:hover {
-    background: var(--color-surface-light, #f0f3f8);
+    background: var(--color-surface-light, #f6f4f0);
   }
   .search-result-item:active {
     background: var(--color-surface-hover, #e5e3de);
@@ -1029,11 +1076,11 @@
   .premium-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
   .premium-scrollbar::-webkit-scrollbar-track { background: transparent; }
   .premium-scrollbar::-webkit-scrollbar-thumb {
-    background: var(--color-border-strong, #a8b4c4);
+    background: var(--color-border-strong, #c4c0b8);
     border-radius: 100px;
   }
   .premium-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: var(--color-text-tertiary, #8b9bb4);
+    background: var(--color-text-tertiary, #6b6760);
   }
   .premium-scrollbar::-webkit-scrollbar-corner { background: transparent; }
 
@@ -1052,7 +1099,7 @@
      MOBILE — Bottom nav & Header
      ══════════════════════════════════════════════════════════════════════ */
   .bottom-nav-premium {
-    background: var(--color-surface, #e0e5ec);
+    background: var(--color-surface, #efedea);
     box-shadow: 0 -4px 20px rgba(163,177,198,0.3), 0 -1px 0 rgba(255,255,255,0.3);
     border-top: 1px solid rgba(255,255,255,0.2);
   }
@@ -1062,7 +1109,7 @@
   }
 
   .mobile-header-premium {
-    background: var(--color-surface, #e0e5ec);
+    background: var(--color-surface, #efedea);
     box-shadow: 0 2px 12px rgba(163,177,198,0.2), 0 1px 0 rgba(255,255,255,0.3);
     border-bottom: 1px solid rgba(255,255,255,0.2);
   }
@@ -1105,19 +1152,19 @@
    ════════════════════════════════════════════════════════════════════════ */
 .recharts-cartesian-grid-horizontal line,
 .recharts-cartesian-grid-vertical line {
-  stroke: var(--color-border, #c8d0dc) !important;
+  stroke: var(--color-border, #d8d5cd) !important;
   stroke-dasharray: 4 4;
   opacity: 0.5;
 }
 .recharts-tooltip-wrapper .recharts-default-tooltip {
-  background: var(--color-surface, #e0e5ec) !important;
+  background: var(--color-surface, #efedea) !important;
   border: 1px solid rgba(255,255,255,0.3) !important;
   border-radius: 16px !important;
   box-shadow: var(--shadow-raised) !important;
   padding: 14px 18px !important;
 }
 .recharts-tooltip-label {
-  color: var(--color-text-tertiary, #8b9bb4) !important;
+  color: var(--color-text-tertiary, #6b6760) !important;
   font-size: 10px !important;
   margin-bottom: 8px !important;
   font-weight: 600 !important;
@@ -1125,7 +1172,7 @@
   letter-spacing: 0.08em !important;
 }
 .recharts-tooltip-item {
-  color: var(--color-text-primary, #2d3748) !important;
+  color: var(--color-text-primary, #2b2a28) !important;
   font-size: 12px !important;
   font-weight: 500 !important;
 }
@@ -1133,7 +1180,7 @@
   font-family: 'DM Sans', sans-serif !important;
 }
 .recharts-legend-item-text {
-  color: var(--color-text-secondary, #5a6a7f) !important;
+  color: var(--color-text-secondary, #5e5b54) !important;
   font-size: 12px !important;
 }
 .recharts-bar-rectangle {
@@ -1147,11 +1194,11 @@
 /* ════════════════════════════════════════════════════════════════════════
    SCROLLBAR
    ════════════════════════════════════════════════════════════════════════ */
-* { scrollbar-width: thin; scrollbar-color: var(--color-border-strong, #a8b4c4) transparent; }
+* { scrollbar-width: thin; scrollbar-color: var(--color-border-strong, #c4c0b8) transparent; }
 ::-webkit-scrollbar         { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track   { background: transparent; }
-::-webkit-scrollbar-thumb   { background: var(--color-border-strong, #a8b4c4); border-radius: 8px; }
-::-webkit-scrollbar-thumb:hover { background: var(--color-text-tertiary, #8b9bb4); }
+::-webkit-scrollbar-thumb   { background: var(--color-border-strong, #c4c0b8); border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-text-tertiary, #6b6760); }
 
 /* ════════════════════════════════════════════════════════════════════════
    ACCESSIBILITY — Focus indicators + reduced motion
@@ -1203,13 +1250,13 @@ textarea:focus-visible {
   opacity: 0.6;
 }
 .dark .recharts-tooltip-label {
-  color: var(--color-text-tertiary, #5a6680) !important;
+  color: var(--color-text-tertiary, #6b6760) !important;
 }
 .dark .recharts-tooltip-item {
-  color: var(--color-text-primary, #e2e8f0) !important;
+  color: var(--color-text-primary, #2b2a28) !important;
 }
 .dark .recharts-legend-item-text {
-  color: var(--color-text-secondary, #8896b3) !important;
+  color: var(--color-text-secondary, #5e5b54) !important;
 }
 .dark .recharts-pie-sector {
   filter: drop-shadow(2px 2px 6px rgba(0,0,0,0.3));

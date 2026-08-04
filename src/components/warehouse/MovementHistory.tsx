@@ -18,7 +18,7 @@ export function MovementHistory({ productId, productName }: { productId: number;
     <div>
       <button onClick={() => setOpen(v => !v)}
         className="w-full flex items-center justify-between px-5 py-3 text-xs transition-colors rounded-lg"
-        style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+        style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
         <span>{open ? t("Скрыть историю", "Tarixni yashirish") : t("История движений", "Harakat tarixi")}</span>
         {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
       </button>
@@ -28,12 +28,12 @@ export function MovementHistory({ productId, productName }: { productId: number;
           <div className="flex justify-end mb-3">
             <button onClick={async () => movements && await exportToExcel(formatMovementsForExport(movements), `movements-${productName}`)}
               className="text-xs flex items-center gap-1.5 py-1.5 px-3 rounded-lg transition-colors"
-              style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+              style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
               <FileDown size={12} /> Excel
             </button>
           </div>
           {!movements?.length ? (
-            <p className="text-xs py-3" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+            <p className="text-xs py-3" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
               {t("Движений нет", "Harakatlar yo'q")}
             </p>
           ) : (
@@ -43,17 +43,17 @@ export function MovementHistory({ productId, productName }: { productId: number;
                 const Icon = mt.icon;
                 return (
                   <div key={m.id} className="flex items-start gap-3 py-3 px-4 rounded-xl"
-                    style={{ background: "var(--color-surface-light, #f0f3f8)", boxShadow: "0 1px 2px rgba(0,0,0,.04)" }}>
+                    style={{ background: "var(--color-surface-light, #f6f4f0)", boxShadow: "0 1px 2px rgba(0,0,0,.04)" }}>
                     <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
                       style={{ background: colorMix(mt.color, 8) }}>
                       <Icon size={14} style={{ color: mt.color }} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-sm font-medium" style={{ color: "var(--color-text-primary, #2b3450)" }}>
+                        <span className="text-sm font-medium" style={{ color: "var(--color-text-primary, #2b2a28)" }}>
                           {lang === "uz" ? mt.labelUz : mt.labelRu}
                         </span>
-                        <span className="text-xs" style={{ color: "var(--color-text-tertiary, #98a0b8)", fontFamily: "'DM Sans', sans-serif" }}>
+                        <span className="text-xs" style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'DM Sans', sans-serif" }}>
                           {m.createdAt ? format(new Date(m.createdAt), "dd.MM.yy HH:mm") : "—"}
                         </span>
                       </div>
@@ -61,11 +61,11 @@ export function MovementHistory({ productId, productName }: { productId: number;
                         <span className="text-base font-bold" style={{ color: mt.color, fontFamily: "'DM Sans', sans-serif" }}>
                           {mt.sign}{formatQty(m.quantity)} кг
                         </span>
-                        {m.notes && <span className="text-xs truncate" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>{m.notes}</span>}
+                        {m.notes && <span className="text-xs truncate" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>{m.notes}</span>}
                       </div>
                       {m.referenceType && (
                         <span className="text-[10px] mt-0.5 inline-block px-2 py-0.5 rounded"
-                          style={{ background: "var(--color-surface, #ffffff)", color: "var(--color-text-tertiary, #98a0b8)" }}>
+                          style={{ background: "var(--color-surface, #efedea)", color: "var(--color-text-tertiary, #6b6760)" }}>
                           {m.referenceType} #{m.referenceId}
                         </span>
                       )}

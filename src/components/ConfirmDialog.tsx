@@ -42,7 +42,7 @@ export const ConfirmDialog = memo(function ConfirmDialog({ title, message, confi
           position: "relative",
           width: "100%",
           maxWidth: "400px",
-          background: "var(--color-surface, #ffffff)",
+          background: "var(--color-surface, #efedea)",
           borderRadius: "16px",
           padding: "24px",
           boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)",
@@ -57,15 +57,15 @@ export const ConfirmDialog = memo(function ConfirmDialog({ title, message, confi
             </div>
           )}
           <div style={{ flex: 1 }}>
-            <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 600, color: "var(--color-text-primary, #2b3450)", margin: 0 }}>{title}</h2>
-            <p style={{ fontSize: "13px", color: "var(--color-text-secondary, #6a7290)", margin: "4px 0 0", lineHeight: "1.5" }}>{message}</p>
+            <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 600, color: "var(--color-text-primary, #2b2a28)", margin: 0 }}>{title}</h2>
+            <p style={{ fontSize: "13px", color: "var(--color-text-secondary, #5e5b54)", margin: "4px 0 0", lineHeight: "1.5" }}>{message}</p>
           </div>
-          <button onClick={onCancel} style={{ padding: "4px", background: "none", border: "none", cursor: "pointer", color: "var(--color-text-tertiary, #98a0b8)" }}>
+          <button onClick={onCancel} style={{ padding: "4px", background: "none", border: "none", cursor: "pointer", color: "var(--color-text-tertiary, #6b6760)" }}>
             <X size={18}/>
           </button>
         </div>
         <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
-          <button onClick={onCancel} style={{ padding: "8px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 500, fontFamily: "'DM Sans', sans-serif", color: "var(--color-text-secondary, #6a7290)", background: "var(--color-surface-light, #f0f3f8)", border: "none", cursor: "pointer" }}>Отмена</button>
+          <button onClick={onCancel} style={{ padding: "8px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 500, fontFamily: "'DM Sans', sans-serif", color: "var(--color-text-secondary, #5e5b54)", background: "var(--color-surface-light, #f6f4f0)", border: "none", cursor: "pointer" }}>Отмена</button>
           <button onClick={onConfirm}
             style={{
               padding: "8px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 600,

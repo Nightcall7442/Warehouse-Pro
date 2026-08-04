@@ -43,7 +43,7 @@ export function ProfileSettings() {
         </button>
       </div>
 
-      <div className="space-y-3" style={{ borderTop: "1px solid var(--color-border, #f0f3f8)", paddingTop: 20 }}>
+      <div className="space-y-3" style={{ borderTop: "1px solid var(--color-border, #d8d5cd)", paddingTop: 20 }}>
         <p className="font-label text-[10px] text-secondary tracking-wider">{t("СМЕНА ПАРОЛЯ","PAROLNI O'ZGARTIRISH")}</p>
         {[
           { key: "current", ru: "ТЕКУЩИЙ ПАРОЛЬ",  uz: "JORIY PAROL"    },

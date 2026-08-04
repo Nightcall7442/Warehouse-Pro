@@ -19,7 +19,7 @@ export function QueryErrorFallback({ onRetry, message }: QueryErrorFallbackProps
         <AlertTriangle size={24} color="var(--color-danger-text)" />
       </div>
       <p style={{
-        fontSize: "14px", color: "var(--color-text-secondary, #6a7290)",
+        fontSize: "14px", color: "var(--color-text-secondary, #5e5b54)",
         margin: 0, maxWidth: "360px",
       }}>
         {message ?? "Не удалось загрузить данные. Проверьте подключение к интернету."}
@@ -31,7 +31,7 @@ export function QueryErrorFallback({ onRetry, message }: QueryErrorFallbackProps
           padding: "10px 20px", fontSize: "13px", fontWeight: 600,
           fontFamily: "'DM Sans', sans-serif", borderRadius: "12px",
           border: "none", cursor: "pointer",
-          background: "var(--color-primary)", color: "var(--color-on-primary, #fff)",
+          background: "var(--color-primary)", color: "var(--color-on-primary, #ffffff)",
           boxShadow: "0 2px 8px color-mix(in srgb, var(--color-primary) 25%, transparent)",
         }}
       >

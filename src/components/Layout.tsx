@@ -74,13 +74,13 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
   const showWarehouseSelector = role === "ceo" || role === "operator";
 
   return (
-    <div className="flex flex-col h-full sidebar-collapse-transition" style={{ background: "var(--color-surface, #e0e5ec)" }}>
+    <div className="flex flex-col h-full sidebar-collapse-transition" style={{ background: "var(--color-surface, #efedea)" }}>
       {/* Logo */}
       <div className="flex items-center px-5 gap-3" style={{ height: "64px" }}>
         <div className="w-10 h-10 rounded-[14px] flex items-center justify-center flex-shrink-0" style={{ background: "linear-gradient(135deg, var(--color-primary), var(--color-primary-hover, #4a5c78))", boxShadow: "var(--shadow-sm)" }}>
           <Warehouse size={18} color="#fff" />
         </div>
-        <span style={{ fontSize: "16px", fontWeight: 700, color: "var(--color-text-primary, #2d3748)", letterSpacing: "-0.02em" }}>Warehouse Pro</span>
+        <span style={{ fontSize: "16px", fontWeight: 700, color: "var(--color-text-primary, #2b2a28)", letterSpacing: "-0.02em" }}>Warehouse Pro</span>
         {onClose && (
           <button onClick={onClose} className="ml-auto md:hidden neo-btn-icon" style={{ width: "36px", height: "36px" }}>
             <X size={18} />
@@ -104,12 +104,12 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
               {(user?.name ?? "U")[0].toUpperCase()}
             </div>
             <div className="min-w-0">
-              <p style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary, #2d3748)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user?.name ?? "User"}</p>
+              <p style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary, #2b2a28)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user?.name ?? "User"}</p>
               <span style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-primary-text)" }}>{role}</span>
             </div>
           </div>
           {user?.email && (
-            <p style={{ fontSize: "11px", color: "var(--color-text-tertiary, #8b9bb4)", margin: "8px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.email}</p>
+            <p style={{ fontSize: "11px", color: "var(--color-text-tertiary, #6b6760)", margin: "8px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.email}</p>
           )}
         </div>
       </div>
@@ -117,7 +117,7 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
       {/* Warehouse selector */}
       {showWarehouseSelector && warehouses.length > 0 && (
         <div className="px-4 pb-2">
-          <label className="block" style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-text-tertiary, #8b9bb4)", marginBottom: "6px" }}>
+          <label className="block" style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-text-tertiary, #6b6760)", marginBottom: "6px" }}>
             {t("nav.warehouse", "Склад")}
           </label>
           <PremiumSelect
@@ -155,7 +155,7 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
       </nav>
 
       {/* Bottom actions */}
-      <div className="p-4 space-y-2 mt-auto" style={{ borderTop: "1px solid var(--color-border-subtle, #d1d9e6)" }}>
+      <div className="p-4 space-y-2 mt-auto" style={{ borderTop: "1px solid var(--color-border-subtle, #e0ddd7)" }}>
         <button
           onClick={() => { navigate("/notifications"); onClose?.(); }}
           className="sidebar-nav-item w-full"
@@ -206,19 +206,19 @@ const MobileHeader = memo(function MobileHeader({ onMenuClick, unreadCount }: { 
       ) : (
         <button onClick={onMenuClick} className="btn-ghost p-2" aria-label="Меню">
           <div className="flex flex-col gap-[5px]">
-            <span className="block w-[18px] h-[1.5px] rounded" style={{ background: "var(--color-text-primary, #2b3450)" }} />
-            <span className="block w-[18px] h-[1.5px] rounded" style={{ background: "var(--color-text-primary, #2b3450)" }} />
-            <span className="block w-[14px] h-[1.5px] rounded" style={{ background: "var(--color-text-primary, #2b3450)" }} />
+            <span className="block w-[18px] h-[1.5px] rounded" style={{ background: "var(--color-text-primary, #2b2a28)" }} />
+            <span className="block w-[18px] h-[1.5px] rounded" style={{ background: "var(--color-text-primary, #2b2a28)" }} />
+            <span className="block w-[14px] h-[1.5px] rounded" style={{ background: "var(--color-text-primary, #2b2a28)" }} />
           </div>
         </button>
       )}
 
       <div className="flex-1 flex flex-col items-center">
-        <span style={{ fontSize: "15px", fontWeight: 600, color: "var(--color-text-primary, #2b3450)", letterSpacing: "-0.01em" }}>
+        <span style={{ fontSize: "15px", fontWeight: 600, color: "var(--color-text-primary, #2b2a28)", letterSpacing: "-0.01em" }}>
           {meta.title}
         </span>
         {hasParent && (
-          <span style={{ fontSize: "11px", color: "var(--color-text-tertiary, #98a0b8)" }}>{meta.parent}</span>
+          <span style={{ fontSize: "11px", color: "var(--color-text-tertiary, #6b6760)" }}>{meta.parent}</span>
         )}
       </div>
 
@@ -300,7 +300,7 @@ const BottomNav = memo(function BottomNav() {
               key={item.path}
               onClick={() => navigate(item.path)}
               className="flex-1 flex flex-col items-center justify-center gap-[3px] relative"
-              style={{ color: isActive ? "var(--color-primary-text)" : "var(--color-text-tertiary, #98a0b8)" }}
+              style={{ color: isActive ? "var(--color-primary-text)" : "var(--color-text-tertiary, #6b6760)" }}
             >
               {isActive && (
                 <span className="absolute top-1.5 left-1/2 -translate-x-1/2 w-5 h-[3px] rounded-full" style={{ background: "var(--color-primary)" }} />
@@ -329,7 +329,7 @@ const MobileDrawer = memo(function MobileDrawer({ open, onClose, unreadCount }: 
   return open ? (
     <div className="fixed inset-0 z-50 flex md:hidden">
       <div className="absolute inset-0 glass-overlay" onClick={onClose} />
-      <div className="relative w-[280px] h-full animate-slide-in sidebar-collapse-transition" style={{ background: "var(--color-surface, #e0e5ec)" }}>
+      <div className="relative w-[280px] h-full animate-slide-in sidebar-collapse-transition" style={{ background: "var(--color-surface, #efedea)" }}>
         <Sidebar onClose={onClose} unreadCount={unreadCount} />
       </div>
     </div>

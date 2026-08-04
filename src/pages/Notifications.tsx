@@ -141,9 +141,9 @@ export default function Notifications() {
             onClick={() => setFilter(f.key)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap"
             style={{
-              background: filter === f.key ? "var(--color-primary-subtle)" : "var(--color-surface-light, #f0f3f8)",
-              color: filter === f.key ? "var(--color-primary-text)" : "var(--color-text-secondary, #6a7290)",
-              border: `1px solid ${filter === f.key ? "#c7c9f8" : "var(--color-border, #f0f3f8)"}`,
+              background: filter === f.key ? "var(--color-primary-subtle)" : "var(--color-surface-light, #f6f4f0)",
+              color: filter === f.key ? "var(--color-primary-text)" : "var(--color-text-secondary, #5e5b54)",
+              border: `1px solid ${filter === f.key ? "#c7c9f8" : "var(--color-border, #d8d5cd)"}`,
             }}
           >
             {f.key === "all" && <Filter size={12} />}
@@ -155,19 +155,19 @@ export default function Notifications() {
       {/* Notification list */}
       {!notifications || notifications.length === 0 ? (
         <div className="text-center py-20 panel">
-          <div className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: "var(--color-surface-light, #f0f3f8)" }}>
-            <Bell size={28} style={{ color: "var(--color-text-tertiary, #98a0b8)" }} />
+          <div className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: "var(--color-surface-light, #f6f4f0)" }}>
+            <Bell size={28} style={{ color: "var(--color-text-tertiary, #6b6760)" }} />
           </div>
           <p className="text-secondary text-sm font-medium mb-1">
             {t("Нет уведомлений", "Bildirishnomalar yo'q")}
           </p>
-          <p className="text-xs" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+          <p className="text-xs" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
             {t("Новые уведомления появятся здесь", "Yangi bildirishnomalar bu yerda paydo bo'ladi")}
           </p>
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-16 panel">
-          <Filter size={28} className="mx-auto mb-3 opacity-20" style={{ color: "var(--color-text-tertiary, #98a0b8)" }} />
+          <Filter size={28} className="mx-auto mb-3 opacity-20" style={{ color: "var(--color-text-tertiary, #6b6760)" }} />
           <p className="text-secondary text-sm">
             {t("Нет уведомлений в этой категории", "Bu turkumda bildirishnomalar yo'q")}
           </p>
@@ -180,11 +180,11 @@ export default function Notifications() {
               <div key={dateKey}>
                 {/* Date group header */}
                 <div className="flex items-center gap-3 mb-2 px-1">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+                  <span className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
                     {formatDateGroup(date, lang)}
                   </span>
-                  <div className="flex-1 h-px" style={{ background: "var(--color-border, #f0f3f8)" }} />
-                  <span className="text-[10px] font-medium" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+                  <div className="flex-1 h-px" style={{ background: "var(--color-border, #d8d5cd)" }} />
+                  <span className="text-[10px] font-medium" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
                     {items.length}
                   </span>
                 </div>
@@ -216,12 +216,12 @@ export default function Notifications() {
                         {/* Content */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start justify-between gap-2">
-                            <p className={`text-sm leading-snug ${!n.isRead ? "font-semibold" : ""}`} style={{ color: "var(--color-text-primary, #2b3450)" }}>
+                            <p className={`text-sm leading-snug ${!n.isRead ? "font-semibold" : ""}`} style={{ color: "var(--color-text-primary, #2b2a28)" }}>
                               {n.title}
                             </p>
                             <div className="flex items-center gap-2 flex-shrink-0">
                               {n.link && (
-                                <ExternalLink size={12} style={{ color: "var(--color-text-tertiary, #98a0b8)" }} />
+                                <ExternalLink size={12} style={{ color: "var(--color-text-tertiary, #6b6760)" }} />
                               )}
                               {!n.isRead && (
                                 <span className="w-2 h-2 rounded-full" style={{ background: "var(--color-primary)" }} />
@@ -229,15 +229,15 @@ export default function Notifications() {
                             </div>
                           </div>
                           {n.message && (
-                            <p className="text-xs mt-1 leading-relaxed" style={{ color: "var(--color-text-secondary, #6a7290)" }}>
+                            <p className="text-xs mt-1 leading-relaxed" style={{ color: "var(--color-text-secondary, #5e5b54)" }}>
                               {n.message}
                             </p>
                           )}
                           <div className="flex items-center gap-2 mt-1.5">
-                            <span className="text-[10px] font-medium" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+                            <span className="text-[10px] font-medium" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
                               {formatTime(new Date(n.createdAt), lang)}
                             </span>
-                            <span className="text-[10px] px-1.5 py-0.5 rounded font-medium" style={{ background: "var(--color-surface-light, #f0f3f8)", color: "var(--color-text-tertiary, #98a0b8)" }}>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded font-medium" style={{ background: "var(--color-surface-light, #f6f4f0)", color: "var(--color-text-tertiary, #6b6760)" }}>
                               {style.label[lang as "ru" | "uz"]}
                             </span>
                           </div>
@@ -254,7 +254,7 @@ export default function Notifications() {
 
       {/* Stats footer */}
       {notifications && notifications.length > 0 && (
-        <div className="text-center text-[11px] py-2" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+        <div className="text-center text-[11px] py-2" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
           {t(`Показано ${notifications.length} уведомлений`, `${notifications.length} ta bildirishnoma ko'rsatilgan`)}
         </div>
       )}

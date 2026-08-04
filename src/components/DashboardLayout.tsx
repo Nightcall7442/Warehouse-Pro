@@ -24,8 +24,8 @@ export const Card = memo(function Card({ children, onClick, style }: { children:
 export const SectionTitle = memo(function SectionTitle({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
     <div>
-      <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 700, color: "var(--color-text-primary, #2b3450)", margin: 0, letterSpacing: "-0.01em" }}>{title}</h2>
-      {subtitle && <p style={{ fontSize: "12px", color: "var(--color-text-tertiary, #98a0b8)", margin: "3px 0 0" }}>{subtitle}</p>}
+      <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 700, color: "var(--color-text-primary, #2b2a28)", margin: 0, letterSpacing: "-0.01em" }}>{title}</h2>
+      {subtitle && <p style={{ fontSize: "12px", color: "var(--color-text-tertiary, #6b6760)", margin: "3px 0 0" }}>{subtitle}</p>}
     </div>
   );
 });
@@ -57,8 +57,8 @@ export const PageHeader = memo(function PageHeader({ title, subtitle, actions }:
     <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
       <div>
         <CardDots />
-        <h1 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "24px", fontWeight: 700, color: "var(--color-text-primary, #2b3450)", letterSpacing: "-0.025em", margin: 0 }}>{title}</h1>
-        {subtitle && <p style={{ fontSize: "13px", color: "var(--color-text-secondary, #6a7290)", margin: "4px 0 0" }}>{subtitle}</p>}
+        <h1 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "24px", fontWeight: 700, color: "var(--color-text-primary, #2b2a28)", letterSpacing: "-0.025em", margin: 0 }}>{title}</h1>
+        {subtitle && <p style={{ fontSize: "13px", color: "var(--color-text-secondary, #5e5b54)", margin: "4px 0 0" }}>{subtitle}</p>}
       </div>
       {actions && <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>{actions}</div>}
     </div>

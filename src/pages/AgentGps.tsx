@@ -142,7 +142,7 @@ export default function AgentGps() {
           <div className="space-y-3">
             <div
               className="w-20 h-20 rounded-full flex items-center justify-center mx-auto"
-              style={{ background: "var(--color-surface-light, #f0f3f8)" }}
+              style={{ background: "var(--color-surface-light, #f6f4f0)" }}
             >
               <MapPin size={32} className="text-secondary" />
             </div>
@@ -178,13 +178,13 @@ export default function AgentGps() {
               <CheckCircle2 size={32} className="text-success" />
             </div>
             <div>
-              <p className="font-label text-[10px] tracking-wider mb-2" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+              <p className="font-label text-[10px] tracking-wider mb-2" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
                 {t("КООРДИНАТЫ", "KOORDINATALAR")}
               </p>
               <p className="font-data text-primary text-sm">
                 {coords.lat.toFixed(6)}, {coords.lng.toFixed(6)}
               </p>
-              <p className="text-xs mt-1" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+              <p className="text-xs mt-1" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
                 {t("Точность:", "Aniqlik:")} ±{Math.round(coords.accuracy)} м
               </p>
             </div>
@@ -233,7 +233,7 @@ export default function AgentGps() {
           <p className="font-medium text-primary text-sm">
             {t("Авто-трекинг", "Avto-kuzatish")}
           </p>
-          <p className="text-xs mt-0.5" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+          <p className="text-xs mt-0.5" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
             {t("Отправлять местоположение каждые 2 минуты", "Har 2 daqiqada joylashuv yuborish")}
           </p>
         </div>
@@ -241,7 +241,7 @@ export default function AgentGps() {
           onClick={() => setAutoTrack(v => !v)}
           aria-label={t("Авто-трекинг", "Avtomatik kuzatuv")}
           className="w-12 h-6 rounded-full relative transition-colors flex-shrink-0"
-          style={{ background: autoTrack ? "var(--color-primary)" : "var(--color-surface-light, #f0f3f8)", border: autoTrack ? "none" : "1px solid var(--color-border, #dde2ec)" }}
+          style={{ background: autoTrack ? "var(--color-primary)" : "var(--color-surface-light, #f6f4f0)", border: autoTrack ? "none" : "1px solid var(--color-border, #d8d5cd)" }}
         >
           <span
             className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform"
@@ -270,7 +270,7 @@ export default function AgentGps() {
 
       {/* Подтверждение отправки */}
       {lastSent && !autoTrack && (
-        <p className="text-xs text-center" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+        <p className="text-xs text-center" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
           ✓ {t("Местоположение отправлено в", "Joylashuv yuborildi")} {format(lastSent, "HH:mm:ss")}
         </p>
       )}

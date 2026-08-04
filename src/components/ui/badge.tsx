@@ -47,8 +47,8 @@ function Badge({
       color: "var(--color-on-primary)",
     },
     secondary: {
-      background: "var(--color-surface-light, #f0f3f8)",
-      color: "var(--color-text-secondary, #6a7290)",
+      background: "var(--color-surface-light, #f6f4f0)",
+      color: "var(--color-text-secondary, #5e5b54)",
     },
     destructive: {
       background: "var(--kpi-red-track, #fce0e0)",
@@ -56,8 +56,8 @@ function Badge({
     },
     outline: {
       background: "transparent",
-      color: "var(--color-text-primary, #2b3450)",
-      border: "1px solid var(--color-border, #dde2ec)",
+      color: "var(--color-text-primary, #2b2a28)",
+      border: "1px solid var(--color-border, #d8d5cd)",
     },
     success: {
       background: "var(--kpi-green-track, #d9f2e1)",
@@ -69,7 +69,7 @@ function Badge({
     },
     info: {
       background: "var(--kpi-blue-track, #dce8fc)",
-      color: "var(--color-info, #60a5fa)",
+      color: "var(--color-info, #5a8fad)",
     },
   }
 

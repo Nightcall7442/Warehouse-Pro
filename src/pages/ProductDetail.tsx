@@ -19,13 +19,13 @@ const UNIT_LABELS: Record<string,[string,string]> = {
 };
 
 const _COLORS = {
-  primary: "var(--color-primary, #3a9ab5)",
-  secondary: "var(--color-text-secondary, #a39d92)",
-  danger: "var(--color-danger, #ff4d6a)",
-  surface: "var(--color-surface, #221f1c)",
-  surfaceLight: "var(--color-surface-light, #2a2622)",
-  border: "var(--color-border, #322e28)",
-  borderSubtle: "var(--color-border-subtle, #2a2622)",
+  primary: "var(--color-primary, #5b6d8a)",
+  secondary: "var(--color-text-secondary, #5e5b54)",
+  danger: "var(--color-danger, #d45050)",
+  surface: "var(--color-surface, #efedea)",
+  surfaceLight: "var(--color-surface-light, #f6f4f0)",
+  border: "var(--color-border, #d8d5cd)",
+  borderSubtle: "var(--color-border-subtle, #e0ddd7)",
 };
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {

@@ -38,14 +38,14 @@ const ChartTooltip = memo(function ChartTooltip({ active, payload, label, fmt }:
   if (!active || !payload?.length) return null;
   return (
     <div className="neo-card-sm" style={{ padding: "12px 16px", minWidth: "160px" }}>
-      <p style={{ fontSize: "10px", fontWeight: 700, color: "var(--color-text-tertiary, #8b9bb4)", marginBottom: "8px", letterSpacing: "0.06em", textTransform: "uppercase" }}>{label}</p>
+      <p style={{ fontSize: "10px", fontWeight: 700, color: "var(--color-text-tertiary, #6b6760)", marginBottom: "8px", letterSpacing: "0.06em", textTransform: "uppercase" }}>{label}</p>
       {payload.map((p) => (
         <div key={p.dataKey} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "16px", marginTop: "6px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
             <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: p.stroke, boxShadow: "var(--shadow-xs)" }} />
-            <span style={{ fontSize: "12px", color: "var(--color-text-secondary, #5a6a7f)" }}>{p.name}</span>
+            <span style={{ fontSize: "12px", color: "var(--color-text-secondary, #5e5b54)" }}>{p.name}</span>
           </div>
-          <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary, #2d3748)" }}>
+          <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary, #2b2a28)" }}>
             {p.dataKey === "revenue" ? fmt(p.value, true) : p.value}
           </span>
         </div>
@@ -81,12 +81,12 @@ function CircularKpiCard({ label, value, subValue, color, icon, delay, onClick }
           <p className="kpi-hero-label">{label}</p>
           <p className="kpi-hero-value" style={{ fontSize: "28px", marginTop: "10px" }}>{value}</p>
           {subValue && (
-            <p style={{ fontSize: "12px", color: "var(--color-text-secondary, #5a6a7f)", marginTop: "4px" }}>{subValue}</p>
+            <p style={{ fontSize: "12px", color: "var(--color-text-secondary, #5e5b54)", marginTop: "4px" }}>{subValue}</p>
           )}
         </div>
         <div className="neo-progress-ring" style={{ width: "72px", height: "72px", flexShrink: 0 }}>
           <svg width="64" height="64" viewBox="0 0 64 64" style={{ transform: "rotate(-90deg)" }}>
-            <circle cx="32" cy="32" r="26" fill="none" stroke="var(--color-border, #c8d0dc)" strokeWidth="5" />
+            <circle cx="32" cy="32" r="26" fill="none" stroke="var(--color-border, #d8d5cd)" strokeWidth="5" />
             <circle cx="32" cy="32" r="26" fill="none" stroke={color} strokeWidth="5" strokeLinecap="round"
               strokeDasharray={2 * Math.PI * 26}
               strokeDashoffset={2 * Math.PI * 26 * 0.3}
@@ -176,10 +176,10 @@ export default function Dashboard() {
       <div className="stagger-children" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
         <div>
           <CardDots />
-          <h1 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "26px", fontWeight: 700, color: "var(--color-text-primary, #2d3748)", letterSpacing: "-0.025em", margin: 0 }}>
+          <h1 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "26px", fontWeight: 700, color: "var(--color-text-primary, #2b2a28)", letterSpacing: "-0.025em", margin: 0 }}>
             {t("Главная", "Bosh sahifa")}
           </h1>
-          <p style={{ fontSize: "13px", color: "var(--color-text-secondary, #5a6a7f)", margin: "4px 0 0" }}>
+          <p style={{ fontSize: "13px", color: "var(--color-text-secondary, #5e5b54)", margin: "4px 0 0" }}>
             {greeting}, {user?.name?.split(" ")[0] ?? ""} — {format(new Date(), "EEEE, d MMMM yyyy", { locale: ru })}
           </p>
         </div>
@@ -255,7 +255,7 @@ export default function Dashboard() {
         <div style={{ display: "flex", gap: "12px", overflowX: "auto", paddingBottom: "4px" }}>
           {alerts.slice(0, 4).map((alert, i) => {
             const colors: Record<string, { bg: string; icon: string }> = {
-              info: { bg: "var(--color-info-subtle)", icon: "var(--color-info, #4a9de8)" },
+              info: { bg: "var(--color-info-subtle)", icon: "var(--color-info, #5a8fad)" },
               warning: { bg: "var(--color-warning-subtle)", icon: "var(--color-warning)" },
               danger: { bg: "var(--color-danger-subtle)", icon: "var(--color-danger)" },
             };
@@ -266,8 +266,8 @@ export default function Dashboard() {
                   {alert.severity === "danger" ? <AlertCircle size={16} /> : alert.severity === "warning" ? <TrendingDown size={16} /> : <TrendingUp size={16} />}
                 </div>
                 <div>
-                  <p style={{ fontSize: "12px", fontWeight: 600, color: "var(--color-text-primary, #2d3748)", margin: 0 }}>{alert.title}</p>
-                  <p style={{ fontSize: "11px", color: "var(--color-text-secondary, #5a6a7f)", margin: "2px 0 0" }}>{alert.message}</p>
+                  <p style={{ fontSize: "12px", fontWeight: 600, color: "var(--color-text-primary, #2b2a28)", margin: 0 }}>{alert.title}</p>
+                  <p style={{ fontSize: "11px", color: "var(--color-text-secondary, #5e5b54)", margin: "2px 0 0" }}>{alert.message}</p>
                 </div>
               </div>
             );
@@ -281,10 +281,10 @@ export default function Dashboard() {
         <div className="neo-card">
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
             <div>
-              <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 700, color: "var(--color-text-primary, #2d3748)", margin: 0 }}>
+              <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 700, color: "var(--color-text-primary, #2b2a28)", margin: 0 }}>
                 {t("Динамика продаж", "Sotuvlar dinamikasi")}
               </h2>
-              <p style={{ fontSize: "12px", color: "var(--color-text-tertiary, #8b9bb4)", margin: "3px 0 0" }}>
+              <p style={{ fontSize: "12px", color: "var(--color-text-tertiary, #6b6760)", margin: "3px 0 0" }}>
                 {t("Выручка и количество заказов", "Tushum va buyurtmalar soni")}
               </p>
             </div>
@@ -306,10 +306,10 @@ export default function Dashboard() {
                   <stop offset="100%" stopColor="var(--color-success)" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <XAxis dataKey="date" tick={{ fill: "var(--color-text-tertiary, #8b9bb4)", fontSize: 11, fontFamily: "'DM Sans', sans-serif" }} axisLine={false} tickLine={false} dy={8} />
-              <YAxis yAxisId="left" tick={{ fill: "var(--color-text-tertiary, #8b9bb4)", fontSize: 11, fontFamily: "'DM Sans', sans-serif" }} axisLine={false} tickLine={false} tickFormatter={v => fmt(v, true)} dx={-4} />
-              <YAxis yAxisId="right" orientation="right" tick={{ fill: "var(--color-text-tertiary, #8b9bb4)", fontSize: 11, fontFamily: "'DM Sans', sans-serif" }} axisLine={false} tickLine={false} dx={4} />
-              <Tooltip content={<ChartTooltip fmt={fmt} />} cursor={{ stroke: "var(--color-border, #c8d0dc)", strokeWidth: 1, strokeDasharray: "4 4" }} />
+              <XAxis dataKey="date" tick={{ fill: "var(--color-text-tertiary, #6b6760)", fontSize: 11, fontFamily: "'DM Sans', sans-serif" }} axisLine={false} tickLine={false} dy={8} />
+              <YAxis yAxisId="left" tick={{ fill: "var(--color-text-tertiary, #6b6760)", fontSize: 11, fontFamily: "'DM Sans', sans-serif" }} axisLine={false} tickLine={false} tickFormatter={v => fmt(v, true)} dx={-4} />
+              <YAxis yAxisId="right" orientation="right" tick={{ fill: "var(--color-text-tertiary, #6b6760)", fontSize: 11, fontFamily: "'DM Sans', sans-serif" }} axisLine={false} tickLine={false} dx={4} />
+              <Tooltip content={<ChartTooltip fmt={fmt} />} cursor={{ stroke: "var(--color-border, #d8d5cd)", strokeWidth: 1, strokeDasharray: "4 4" }} />
               <Area yAxisId="left" type="monotone" dataKey="revenue" stroke="var(--color-primary)" strokeWidth={2.5} fill="url(#gRevenue)" name={t("Выручка", "Tushum")} dot={false} activeDot={{ r: 5, fill: "var(--color-primary)", stroke: "#fff", strokeWidth: 2 }} />
               <Area yAxisId="right" type="monotone" dataKey="orders" stroke="var(--color-success)" strokeWidth={2.5} fill="url(#gOrders)" name={t("Заказы", "Buyurtmalar")} dot={false} activeDot={{ r: 5, fill: "var(--color-success)", stroke: "#fff", strokeWidth: 2 }} />
             </AreaChart>
@@ -319,7 +319,7 @@ export default function Dashboard() {
         {/* Pie Chart — Status Breakdown */}
         <div className="neo-card" style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
           <div style={{ marginBottom: "16px" }}>
-            <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 700, color: "var(--color-text-primary, #2d3748)", margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
+            <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 700, color: "var(--color-text-primary, #2b2a28)", margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
               <PieChart size={16} color="var(--color-primary-text)" />
               {t("Статусы заказов", "Buyurtmalar holati")}
             </h2>
@@ -350,8 +350,8 @@ export default function Dashboard() {
               </ResponsiveContainer>
               {/* Center label */}
               <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", textAlign: "center", pointerEvents: "none" }}>
-                <span style={{ fontSize: "28px", fontWeight: 700, color: "var(--color-text-primary, #2d3748)", lineHeight: 1 }}>{statusTotal}</span>
-                <span style={{ fontSize: "11px", color: "var(--color-text-tertiary, #8b9bb4)", display: "block", marginTop: "2px" }}>{t("заказов", "buyurtma")}</span>
+                <span style={{ fontSize: "28px", fontWeight: 700, color: "var(--color-text-primary, #2b2a28)", lineHeight: 1 }}>{statusTotal}</span>
+                <span style={{ fontSize: "11px", color: "var(--color-text-tertiary, #6b6760)", display: "block", marginTop: "2px" }}>{t("заказов", "buyurtma")}</span>
               </div>
             </div>
             {/* Legend */}
@@ -372,11 +372,11 @@ export default function Dashboard() {
       <div className="neo-card">
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
           <div>
-            <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 700, color: "var(--color-text-primary, #2d3748)", margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
+            <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 700, color: "var(--color-text-primary, #2b2a28)", margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
               <ClipboardList size={16} color="var(--color-primary-text)" />
               {t("Последние заказы", "So'nggi buyurtmalar")}
             </h2>
-            <p style={{ fontSize: "12px", color: "var(--color-text-tertiary, #8b9bb4)", margin: "3px 0 0" }}>
+            <p style={{ fontSize: "12px", color: "var(--color-text-tertiary, #6b6760)", margin: "3px 0 0" }}>
               {activity?.length ?? 0} {t("заказов", "buyurtmalar")}
             </p>
           </div>
@@ -388,9 +388,9 @@ export default function Dashboard() {
           {!activity?.length ? (
             <div style={{ textAlign: "center", padding: "32px 0" }}>
               <div className="neo-btn-icon" style={{ width: "48px", height: "48px", margin: "0 auto 12px" }}>
-                <ClipboardList size={20} style={{ color: "var(--color-text-tertiary, #8b9bb4)" }} />
+                <ClipboardList size={20} style={{ color: "var(--color-text-tertiary, #6b6760)" }} />
               </div>
-              <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--color-text-secondary, #5a6a7f)" }}>
+              <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--color-text-secondary, #5e5b54)" }}>
                 {t("Заказов пока нет", "Hali buyurtma yo'q")}
               </p>
             </div>
@@ -400,12 +400,12 @@ export default function Dashboard() {
                 onMouseEnter={ev => { ev.currentTarget.style.background = "color-mix(in srgb, var(--color-primary) 4%, transparent)"; }}
                 onMouseLeave={ev => { ev.currentTarget.style.background = "transparent"; }}
               >
-                <span style={{ width: "10px", height: "10px", borderRadius: "50%", flexShrink: 0, background: STATUS_COLOR[e.status ?? "new"] ?? "var(--color-border, #c8d0dc)", boxShadow: "var(--shadow-xs)" }} />
+                <span style={{ width: "10px", height: "10px", borderRadius: "50%", flexShrink: 0, background: STATUS_COLOR[e.status ?? "new"] ?? "var(--color-border, #d8d5cd)", boxShadow: "var(--shadow-xs)" }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--color-text-primary, #2d3748)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.agentName}</p>
-                  <p style={{ fontSize: "11px", color: "var(--color-text-tertiary, #8b9bb4)", margin: "2px 0 0" }}>#{e.orderNumber} · {e.createdAt ? format(new Date(e.createdAt), "HH:mm") : ""}</p>
+                  <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--color-text-primary, #2b2a28)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.agentName}</p>
+                  <p style={{ fontSize: "11px", color: "var(--color-text-tertiary, #6b6760)", margin: "2px 0 0" }}>#{e.orderNumber} · {e.createdAt ? format(new Date(e.createdAt), "HH:mm") : ""}</p>
                 </div>
-                <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary, #2d3748)", flexShrink: 0 }}>{fmt(e.total, true)}</span>
+                <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary, #2b2a28)", flexShrink: 0 }}>{fmt(e.total, true)}</span>
               </div>
             ))
           )}

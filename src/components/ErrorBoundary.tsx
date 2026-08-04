@@ -38,12 +38,12 @@ export default class ErrorBoundary extends Component<Props, State> {
           </div>
           <h2 style={{
             fontFamily: "'DM Sans', sans-serif", fontSize: "18px", fontWeight: 700,
-            color: "var(--color-text-primary, #2b3450)", margin: "0 0 8px",
+            color: "var(--color-text-primary, #2b2a28)", margin: "0 0 8px",
           }}>
             Что-то пошло не так
           </h2>
           <p style={{
-            fontSize: "13px", color: "var(--color-text-secondary, #6a7290)",
+            fontSize: "13px", color: "var(--color-text-secondary, #5e5b54)",
             margin: "0 0 24px", maxWidth: "400px",
           }}>
             {this.props.pageName
@@ -53,8 +53,8 @@ export default class ErrorBoundary extends Component<Props, State> {
           {process.env.NODE_ENV !== "production" && this.state.error && (
             <details style={{
               marginBottom: "20px", padding: "12px 16px", borderRadius: "10px",
-              background: "var(--color-surface-light, #f0f3f8)", fontSize: "11px",
-              color: "var(--color-text-tertiary, #98a0b8)", maxWidth: "500px",
+              background: "var(--color-surface-light, #f6f4f0)", fontSize: "11px",
+              color: "var(--color-text-tertiary, #6b6760)", maxWidth: "500px",
               width: "100%", textAlign: "left", fontFamily: "monospace",
             }}>
               <summary style={{ cursor: "pointer", fontWeight: 600 }}>
@@ -75,7 +75,7 @@ export default class ErrorBoundary extends Component<Props, State> {
                 padding: "10px 20px", fontSize: "13px", fontWeight: 600,
                 fontFamily: "'DM Sans', sans-serif", borderRadius: "12px",
                 border: "none", cursor: "pointer",
-                background: "var(--color-primary)", color: "var(--color-on-primary, #fff)",
+                background: "var(--color-primary)", color: "var(--color-on-primary, #ffffff)",
                 boxShadow: "0 2px 8px color-mix(in srgb, var(--color-primary) 25%, transparent)",
               }}
             >
@@ -86,9 +86,9 @@ export default class ErrorBoundary extends Component<Props, State> {
                 display: "inline-flex", alignItems: "center", gap: "6px",
                 padding: "10px 20px", fontSize: "13px", fontWeight: 600,
                 fontFamily: "'DM Sans', sans-serif", borderRadius: "12px",
-                border: "1px solid var(--color-border, #f0f3f8)", cursor: "pointer",
-                background: "var(--color-surface, #ffffff)",
-                color: "var(--color-text-secondary, #6a7290)", textDecoration: "none",
+                border: "1px solid var(--color-border, #d8d5cd)", cursor: "pointer",
+                background: "var(--color-surface, #efedea)",
+                color: "var(--color-text-secondary, #5e5b54)", textDecoration: "none",
               }}
             >
               <Home size={14} /> На главную

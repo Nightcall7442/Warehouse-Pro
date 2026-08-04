@@ -40,7 +40,7 @@ function AgentKpi({ label, value, icon: Icon, color = "indigo" }: {
         <p className="font-data text-2xl font-bold leading-none text-primary">
           {value}
         </p>
-        <p className="font-label text-[10px] tracking-wider mt-1.5" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+        <p className="font-label text-[10px] tracking-wider mt-1.5" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
           {label}
         </p>
       </div>
@@ -92,8 +92,8 @@ function PlanCard({ plan, onDone, onSkip, isPending }: {
         </div>
         {(plan.shopAddress || plan.shopCity) && (
           <div className="flex items-center gap-1 mt-0.5">
-            <MapPin size={10} style={{ color: "var(--color-text-tertiary, #98a0b8)" }} className="flex-shrink-0" />
-            <p className="text-xs truncate" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+            <MapPin size={10} style={{ color: "var(--color-text-tertiary, #6b6760)" }} className="flex-shrink-0" />
+            <p className="text-xs truncate" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
               {[plan.shopAddress, plan.shopCity].filter(Boolean).join(", ")}
             </p>
           </div>
@@ -107,7 +107,7 @@ function PlanCard({ plan, onDone, onSkip, isPending }: {
             onClick={onSkip}
             disabled={isPending}
             className="btn-ghost py-1 px-2 text-xs min-w-[44px] min-h-[44px] flex items-center justify-center"
-            style={{ color: "var(--color-text-secondary, #6a7290)" }}
+            style={{ color: "var(--color-text-secondary, #5e5b54)" }}
             title={t("Пропустить", "O'tkazib yuborish")}
           >
             <Clock size={13} />
@@ -177,7 +177,7 @@ export default function AgentDashboard() {
           <h1 className="font-display text-2xl font-bold text-primary tracking-tight">
             {t("Мой день", "Mening kunim")}
           </h1>
-          <p className="text-xs mt-0.5 capitalize" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+          <p className="text-xs mt-0.5 capitalize" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
             {format(new Date(), "EEEE, d MMMM", { locale: lang === "ru" ? dateRu : undefined })}
           </p>
         </div>
@@ -216,7 +216,7 @@ export default function AgentDashboard() {
       {/* ── Прогресс плана ── */}
       <div className="neo-card p-4">
         <div className="flex items-center justify-between mb-3.5">
-          <span className="font-label text-[10px] tracking-wider" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+          <span className="font-label text-[10px] tracking-wider" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
             {t("ПЛАН ВИЗИТОВ", "TASHRIF REJASI")}
           </span>
           {todaySkipped > 0 && (
@@ -232,7 +232,7 @@ export default function AgentDashboard() {
             <p className="font-data text-lg font-bold text-primary leading-none">
               {todayVisited} / {todayPlanned}
             </p>
-            <p className="text-xs mt-1.5" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+            <p className="text-xs mt-1.5" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
               {todayPlanned === 0
                 ? t("На сегодня визитов нет", "Bugun tashrif yo'q")
                 : pct === 100
@@ -272,11 +272,11 @@ export default function AgentDashboard() {
         {/* Заголовок */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
           <div>
-            <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 700, color: "var(--color-text-primary, #2d3748)", margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
+            <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 700, color: "var(--color-text-primary, #2b2a28)", margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
               <ClipboardList size={16} color="var(--color-primary-text)" />
               {t("Сегодняшние визиты", "Bugungi tashriflar")}
             </h2>
-            <p style={{ fontSize: "12px", color: "var(--color-text-tertiary, #8b9bb4)", margin: "3px 0 0" }}>
+            <p style={{ fontSize: "12px", color: "var(--color-text-tertiary, #6b6760)", margin: "3px 0 0" }}>
               {todayPlanned} {t("запланировано", "rejalashtirilgan")}{todaySkipped > 0 ? `, ${todaySkipped} ${t("пропущено", "o'tkazildi")}` : ""}
             </p>
           </div>
@@ -311,7 +311,7 @@ export default function AgentDashboard() {
             <p className="text-sm text-secondary">
               {t("На сегодня визитов нет", "Bugun tashrif yo'q")}
             </p>
-            <p className="text-xs mt-1" style={{ color: "var(--color-text-tertiary, #8b9bb4)" }}>
+            <p className="text-xs mt-1" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
               {t("Супервайзер ещё не назначил маршрут", "Supervisor yo'l haritasini hali tayinlamadi")}
             </p>
           </div>

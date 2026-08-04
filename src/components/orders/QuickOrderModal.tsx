@@ -188,7 +188,7 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, onCreat
                 className="overflow-y-auto"
                 style={{
                   maxHeight: 300, borderRadius: "16px",
-                  border: "1px solid var(--color-border, #f0f3f8)", padding: "8px",
+                  border: "1px solid var(--color-border, #d8d5cd)", padding: "8px",
                 }}
               >
                 {(productsData ?? []).map((p) => (
@@ -223,7 +223,7 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, onCreat
               <p className={modalSectionLabel}>{t("Корзина", "Savat")} ({cart.length})</p>
               <div
                 className="flex flex-col"
-                style={{ borderRadius: "16px", border: "1px solid var(--color-border, #f0f3f8)", minHeight: 200 }}
+                style={{ borderRadius: "16px", border: "1px solid var(--color-border, #d8d5cd)", minHeight: 200 }}
               >
                 <div className="overflow-y-auto grow" style={{ maxHeight: 240, padding: "8px" }}>
                   {cart.map(item => (
@@ -250,7 +250,7 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, onCreat
                 </div>
                 <div
                   className="flex items-center justify-between px-4 py-3"
-                  style={{ borderTop: "1px solid var(--color-border, #f0f3f8)" }}
+                  style={{ borderTop: "1px solid var(--color-border, #d8d5cd)" }}
                 >
                   <span className="text-xs text-secondary font-medium">{t("Итого", "Jami")}</span>
                   <span className="text-base font-bold text-primary font-data">{total.toLocaleString("ru")} сум</span>
@@ -276,7 +276,7 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, onCreat
 
           <div>
             <p className={modalSectionLabel}>{t("Товары", "Tovarlar")}</p>
-            <div style={{ borderRadius: "16px", overflow: "hidden", border: "1px solid var(--color-border, #f0f3f8)" }}>
+            <div style={{ borderRadius: "16px", overflow: "hidden", border: "1px solid var(--color-border, #d8d5cd)" }}>
               <table className="w-full text-xs" style={{ borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ background: "var(--color-surface-light)" }}>
@@ -287,7 +287,7 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, onCreat
                 </thead>
                 <tbody>
                   {cart.map(i => (
-                    <tr key={i.productId} style={{ borderTop: "1px solid var(--color-border, #f0f3f8)" }}>
+                    <tr key={i.productId} style={{ borderTop: "1px solid var(--color-border, #d8d5cd)" }}>
                       <td className="px-3 py-2.5" style={{ color: "var(--color-text-primary)" }}>{i.name}</td>
                       <td className="px-3 py-2.5 text-right tabular-nums" style={{ color: "var(--color-text-secondary)" }}>{i.quantity}</td>
                       <td className="px-3 py-2.5 text-right font-semibold tabular-nums font-data" style={{ color: "var(--color-text-primary)" }}>

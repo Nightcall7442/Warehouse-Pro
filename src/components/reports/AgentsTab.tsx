@@ -5,7 +5,7 @@ import { GlassPanel } from "./ReportCharts";
 import { colorMix } from "@/lib/color-mix";
 
 const MEDALS = ["🥇", "🥈", "🥉"];
-const MEDAL_COLORS = ["var(--color-warning)", "var(--color-text-tertiary, #98a0b8)", "var(--color-warning)"];
+const MEDAL_COLORS = ["var(--color-warning)", "var(--color-text-tertiary, #6b6760)", "var(--color-warning)"];
 
 const AgentCard = memo(function AgentCard({ agent: a, rank, fmt, days }: { agent: unknown; rank: number; fmt: (v: string | number) => string; days: number }) {
   const agent = a as Record<string, unknown>;

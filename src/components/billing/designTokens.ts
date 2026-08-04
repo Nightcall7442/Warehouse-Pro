@@ -11,11 +11,11 @@ export const COLORS = {
   success: "var(--color-success)",
   warning: "var(--color-warning)",
   danger: "var(--color-danger)",
-  surface: "var(--color-surface, #f6f4f0)",
-  surfaceDark: "var(--color-surface-light, #fbfaf8)",
+  surface: "var(--color-surface, #efedea)",
+  surfaceDark: "var(--color-surface-light, #f6f4f0)",
   textPrimary: "var(--color-text-primary, #2b2a28)",
   textSecondary: "var(--color-text-secondary, #5e5b54)",
-  textTertiary: "var(--color-text-tertiary, #757168)",
+  textTertiary: "var(--color-text-tertiary, #6b6760)",
 };
 
 export const FONTS = {
@@ -33,11 +33,11 @@ export const SHADOWS = {
 };
 
 export const GRADIENTS = {
-  hero: `linear-gradient(135deg, color-mix(in srgb, var(--color-primary) 6%, var(--color-surface, #f6f4f0)) 0%, var(--color-surface, #f6f4f0) 100%)`,
-  heroExpired: `linear-gradient(135deg, color-mix(in srgb, var(--color-danger) 6%, var(--color-surface, #f6f4f0)) 0%, var(--color-surface, #f6f4f0) 100%)`,
+  hero: `linear-gradient(135deg, color-mix(in srgb, var(--color-primary) 6%, var(--color-surface, #efedea)) 0%, var(--color-surface, #efedea) 100%)`,
+  heroExpired: `linear-gradient(135deg, color-mix(in srgb, var(--color-danger) 6%, var(--color-surface, #efedea)) 0%, var(--color-surface, #efedea) 100%)`,
   button: `linear-gradient(135deg, var(--color-primary), var(--color-primary-hover, #4a5c78))`,
   buttonHover: `linear-gradient(135deg, var(--color-primary-hover, #4a5c78), var(--color-primary))`,
-  card: "var(--color-surface, #f6f4f0)",
+  card: "var(--color-surface, #efedea)",
 };
 
 export const ANIMATIONS = {

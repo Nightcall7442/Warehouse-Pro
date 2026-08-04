@@ -47,10 +47,10 @@ export function ShopSelector({ shopId, onSelect }: ShopSelectorProps) {
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
       {/* Header */}
       <div>
-        <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "20px", fontWeight: 700, color: "var(--color-text-primary, #2b3450)", margin: "0 0 4px", letterSpacing: "-0.02em" }}>
+        <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "20px", fontWeight: 700, color: "var(--color-text-primary, #2b2a28)", margin: "0 0 4px", letterSpacing: "-0.02em" }}>
           {t("Выберите магазин", "Do'kon tanlang")}
         </h2>
-        <p style={{ fontSize: "13px", color: "var(--color-text-tertiary, #98a0b8)", margin: 0 }}>
+        <p style={{ fontSize: "13px", color: "var(--color-text-tertiary, #6b6760)", margin: 0 }}>
           {t("Для которого оформляем заказ", "Buyurtma uchun do'kon")}
         </p>
       </div>
@@ -61,8 +61,8 @@ export function ShopSelector({ shopId, onSelect }: ShopSelectorProps) {
           <button onClick={() => setSelectedCity(null)} style={{
             flexShrink: 0, padding: "8px 18px", borderRadius: "24px", fontSize: "13px", fontWeight: 600,
             fontFamily: "'DM Sans', sans-serif", cursor: "pointer", transition: "all 0.25s ease",
-            background: !selectedCity ? "var(--color-primary)" : "var(--color-surface-light, #f0f3f8)",
-            color: !selectedCity ? "#fff" : "var(--color-text-secondary, #6a7290)",
+            background: !selectedCity ? "var(--color-primary)" : "var(--color-surface-light, #f6f4f0)",
+            color: !selectedCity ? "#fff" : "var(--color-text-secondary, #5e5b54)",
             border: "none", boxShadow: !selectedCity ? "0 4px 12px color-mix(in srgb, var(--color-primary) 30%, transparent)" : "none",
           }}>
             {t("Все", "Barchasi")}
@@ -71,8 +71,8 @@ export function ShopSelector({ shopId, onSelect }: ShopSelectorProps) {
             <button key={city} onClick={() => setSelectedCity(selectedCity === city ? null : city)} style={{
               flexShrink: 0, padding: "8px 18px", borderRadius: "24px", fontSize: "13px", fontWeight: 600,
               fontFamily: "'DM Sans', sans-serif", cursor: "pointer", transition: "all 0.25s ease",
-              background: selectedCity === city ? "var(--color-primary)" : "var(--color-surface-light, #f0f3f8)",
-              color: selectedCity === city ? "#fff" : "var(--color-text-secondary, #6a7290)",
+              background: selectedCity === city ? "var(--color-primary)" : "var(--color-surface-light, #f6f4f0)",
+              color: selectedCity === city ? "#fff" : "var(--color-text-secondary, #5e5b54)",
               border: "none", boxShadow: selectedCity === city ? "0 4px 12px color-mix(in srgb, var(--color-primary) 30%, transparent)" : "none",
             }}>
               {city}
@@ -83,25 +83,25 @@ export function ShopSelector({ shopId, onSelect }: ShopSelectorProps) {
 
       {/* Search */}
       <div style={{ position: "relative" }}>
-        <Search size={16} style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", color: "var(--color-text-tertiary, #98a0b8)", pointerEvents: "none" }} />
+        <Search size={16} style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", color: "var(--color-text-tertiary, #6b6760)", pointerEvents: "none" }} />
         <input
           style={{
             width: "100%", padding: "12px 14px 12px 42px", borderRadius: "14px",
-            background: "var(--color-surface-light, #f0f3f8)", border: "2px solid transparent",
-            fontSize: "14px", fontFamily: "'DM Sans', sans-serif", color: "var(--color-text-primary, #2b3450)",
+            background: "var(--color-surface-light, #f6f4f0)", border: "2px solid transparent",
+            fontSize: "14px", fontFamily: "'DM Sans', sans-serif", color: "var(--color-text-primary, #2b2a28)",
             outline: "none", transition: "all 0.2s ease",
           }}
           placeholder={t("Поиск магазинов…", "Do'kon qidirish…")}
           value={search}
           onChange={e => setSearch(e.target.value)}
-          onFocus={e => { e.currentTarget.style.borderColor = "var(--color-primary)"; e.currentTarget.style.boxShadow = "0 0 0 4px color-mix(in srgb, var(--color-primary) 10%, transparent)"; e.currentTarget.style.background = "var(--color-surface, #ffffff)"; }}
-          onBlur={e => { e.currentTarget.style.borderColor = "transparent"; e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.background = "var(--color-surface-light, #f0f3f8)"; }}
+          onFocus={e => { e.currentTarget.style.borderColor = "var(--color-primary)"; e.currentTarget.style.boxShadow = "0 0 0 4px color-mix(in srgb, var(--color-primary) 10%, transparent)"; e.currentTarget.style.background = "var(--color-surface, #efedea)"; }}
+          onBlur={e => { e.currentTarget.style.borderColor = "transparent"; e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.background = "var(--color-surface-light, #f6f4f0)"; }}
         />
       </div>
 
       {/* Counter */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <p style={{ fontSize: "12px", color: "var(--color-text-tertiary, #98a0b8)", fontFamily: "'DM Sans', sans-serif", margin: 0 }}>
+        <p style={{ fontSize: "12px", color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'DM Sans', sans-serif", margin: 0 }}>
           {filtered?.length ?? 0} {t("магазинов", "do'kon")}
         </p>
         {selectedCity && (
@@ -118,7 +118,7 @@ export function ShopSelector({ shopId, onSelect }: ShopSelectorProps) {
       {isLoading ? (
         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} style={{ height: "72px", background: "var(--color-surface-light, #f0f3f8)", borderRadius: "16px" }} className="animate-pulse" />
+            <div key={i} style={{ height: "72px", background: "var(--color-surface-light, #f6f4f0)", borderRadius: "16px" }} className="animate-pulse" />
           ))}
         </div>
       ) : filtered?.length === 0 ? (
@@ -126,14 +126,14 @@ export function ShopSelector({ shopId, onSelect }: ShopSelectorProps) {
           <div style={{
             width: "64px", height: "64px", borderRadius: "24px", display: "flex",
             alignItems: "center", justifyContent: "center", margin: "0 auto 12px",
-            background: "var(--color-surface-light, #f0f3f8)",
+            background: "var(--color-surface-light, #f6f4f0)",
           }}>
-            <Store size={28} style={{ color: "var(--color-text-tertiary, #98a0b8)", opacity: 0.4 }} />
+            <Store size={28} style={{ color: "var(--color-text-tertiary, #6b6760)", opacity: 0.4 }} />
           </div>
-          <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--color-text-secondary, #6a7290)", margin: "0 0 4px" }}>
+          <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--color-text-secondary, #5e5b54)", margin: "0 0 4px" }}>
             {selectedCity ? t("Нет магазинов в этом городе", "Bu shaharda do'kon yo'q") : t("Магазины не найдены", "Do'kon topilmadi")}
           </p>
-          <p style={{ fontSize: "12px", color: "var(--color-text-tertiary, #98a0b8)" }}>
+          <p style={{ fontSize: "12px", color: "var(--color-text-tertiary, #6b6760)" }}>
             {t("Попробуйте другой фильтр", "Boshqa filtringizni sinab ko'ring")}
           </p>
         </div>
@@ -147,7 +147,7 @@ export function ShopSelector({ shopId, onSelect }: ShopSelectorProps) {
                 width: "100%", padding: "16px", textAlign: "left", display: "flex", alignItems: "center", gap: "14px",
                 borderRadius: "16px", cursor: "pointer", transition: "all 0.25s cubic-bezier(0.25,0.46,0.45,0.94)",
                 border: shopId === shop.id ? "2px solid var(--color-primary)" : "2px solid transparent",
-                background: shopId === shop.id ? "var(--color-primary-subtle)" : "var(--color-surface, #ffffff)",
+                background: shopId === shop.id ? "var(--color-primary-subtle)" : "var(--color-surface, #efedea)",
                 boxShadow: shopId === shop.id
                   ? "0 4px 16px color-mix(in srgb, var(--color-primary) 12%, transparent)"
                   : "0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04)",
@@ -156,16 +156,16 @@ export function ShopSelector({ shopId, onSelect }: ShopSelectorProps) {
               <div style={{
                 width: "44px", height: "44px", borderRadius: "12px", display: "flex",
                 alignItems: "center", justifyContent: "center", flexShrink: 0,
-                background: shopId === shop.id ? "var(--color-primary)" : "var(--color-surface-light, #f0f3f8)",
+                background: shopId === shop.id ? "var(--color-primary)" : "var(--color-surface-light, #f6f4f0)",
                 boxShadow: shopId === shop.id ? "0 4px 12px color-mix(in srgb, var(--color-primary) 25%, transparent)" : "none",
               }}>
-                <Store size={20} style={{ color: shopId === shop.id ? "#fff" : "var(--color-text-secondary, #6a7290)" }} />
+                <Store size={20} style={{ color: shopId === shop.id ? "#fff" : "var(--color-text-secondary, #5e5b54)" }} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: "14px", color: "var(--color-text-primary, #2b3450)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <p style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: "14px", color: "var(--color-text-primary, #2b2a28)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {shop.name}
                 </p>
-                <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px", color: "var(--color-text-secondary, #6a7290)", margin: "3px 0 0" }}>
+                <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px", color: "var(--color-text-secondary, #5e5b54)", margin: "3px 0 0" }}>
                   {shop.ownerName ?? "—"}
                   {shop.district ? ` · ${shop.district}` : ""}
                   {shop.city ? `, ${shop.city}` : ""}

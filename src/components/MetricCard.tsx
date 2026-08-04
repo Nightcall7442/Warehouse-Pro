@@ -34,7 +34,7 @@ export const MetricCard = memo(function MetricCard({
         <div style={{ flex: 1, minWidth: 0 }}>
           <p
             className="font-label"
-            style={{ color: "var(--color-text-tertiary, #98a0b8)", marginBottom: 6 }}
+            style={{ color: "var(--color-text-tertiary, #6b6760)", marginBottom: 6 }}
           >
             {label}
           </p>
@@ -45,7 +45,7 @@ export const MetricCard = memo(function MetricCard({
               fontWeight: 700,
               letterSpacing: "-0.03em",
               lineHeight: 1,
-              color: "var(--color-text-primary, #2b3450)",
+              color: "var(--color-text-primary, #2b2a28)",
               fontVariantNumeric: "tabular-nums",
             }}
           >
@@ -55,7 +55,7 @@ export const MetricCard = memo(function MetricCard({
             <p
               style={{
                 fontSize: 12,
-                color: "var(--color-text-tertiary, #98a0b8)",
+                color: "var(--color-text-tertiary, #6b6760)",
                 marginTop: 6,
               }}
             >

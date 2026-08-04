@@ -24,9 +24,9 @@ const COLORS = {
   // this darker sibling instead. See --color-primary-text in index.css.
   primaryText: "var(--color-primary-text)", success: "var(--color-success)",
   warning: "var(--color-warning)", danger: "var(--color-danger)",
-  surface: "var(--color-surface, #ffffff)", surfaceLight: "var(--color-surface-light, #f0f3f8)",
-  textPrimary: "var(--color-text-primary, #2b3450)", textSecondary: "var(--color-text-secondary, #6a7290)",
-  textTertiary: "var(--color-text-tertiary, #98a0b8)", border: "var(--color-border, #f0f3f8)",
+  surface: "var(--color-surface, #efedea)", surfaceLight: "var(--color-surface-light, #f6f4f0)",
+  textPrimary: "var(--color-text-primary, #2b2a28)", textSecondary: "var(--color-text-secondary, #5e5b54)",
+  textTertiary: "var(--color-text-tertiary, #6b6760)", border: "var(--color-border, #d8d5cd)",
 };
 const SHADOW = "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04))";
 
@@ -146,10 +146,10 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
           <div className="absolute -bottom-8 -left-8 w-24 h-24 rounded-full" style={{ background: "rgba(255,255,255,0.05)" }} />
           <div className="relative flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-bold mb-0.5" style={{ color: "var(--color-on-primary, #fff)" }}>{t("Новый приход", "Yangi kelish")}</h2>
-              <p className="text-xs" style={{ color: "color-mix(in srgb, var(--color-on-primary, #fff) 72%, transparent)" }}>{t("Поступление товаров на склад", "Omborga mahsulot kiritish")}</p>
+              <h2 className="text-xl font-bold mb-0.5" style={{ color: "var(--color-on-primary, #ffffff)" }}>{t("Новый приход", "Yangi kelish")}</h2>
+              <p className="text-xs" style={{ color: "color-mix(in srgb, var(--color-on-primary, #ffffff) 72%, transparent)" }}>{t("Поступление товаров на склад", "Omborga mahsulot kiritish")}</p>
             </div>
-            <button onClick={onClose} className="neo-btn-icon" style={{ width: "40px", height: "40px", background: "color-mix(in srgb, var(--color-on-primary, #fff) 18%, transparent)", color: "var(--color-on-primary, #fff)", borderRadius: "12px" }}>
+            <button onClick={onClose} className="neo-btn-icon" style={{ width: "40px", height: "40px", background: "color-mix(in srgb, var(--color-on-primary, #ffffff) 18%, transparent)", color: "var(--color-on-primary, #ffffff)", borderRadius: "12px" }}>
               <X size={20} />
             </button>
           </div>
@@ -202,7 +202,7 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
             </div>
             <div className="space-y-3">
               {items.map((item, i) => (
-                <div key={i} className="neo-card-sm p-4 space-y-3" style={{ border: "1px solid var(--color-border, #f0f3f8)", borderRadius: "16px" }}>
+                <div key={i} className="neo-card-sm p-4 space-y-3" style={{ border: "1px solid var(--color-border, #d8d5cd)", borderRadius: "16px" }}>
                   <PremiumSelect value={String(item.productId)} onChange={v => updateItem(i, "productId", Number(v))}
                     options={[{ value: "0", label: productsLoading ? t("Загрузка товаров...", "Mahsulotlar yuklanmoqda...") : t("Выберите товар…", "Mahsulot tanlang…") },
                       ...(products?.data ?? []).map((p) => ({ value: String(p.id), label: `${p.name} · ${fmt(p.unitPrice)}/${unitLabel(p.unit)}` }))]}
@@ -238,7 +238,7 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
                 </div>
               ))}
             </div>
-            <button onClick={addItem} className="neo-btn w-full py-3 flex items-center justify-center gap-2 text-sm font-medium" style={{ borderStyle: "dashed", borderColor: "var(--color-border-strong, #a8b4c4)", color: "var(--color-text-secondary, #6a7290)", background: "transparent" }}>
+            <button onClick={addItem} className="neo-btn w-full py-3 flex items-center justify-center gap-2 text-sm font-medium" style={{ borderStyle: "dashed", borderColor: "var(--color-border-strong, #c4c0b8)", color: "var(--color-text-secondary, #5e5b54)", background: "transparent" }}>
               <Plus size={16} /> {t("Добавить товар", "Mahsulot qo'shish")}
             </button>
           </div>

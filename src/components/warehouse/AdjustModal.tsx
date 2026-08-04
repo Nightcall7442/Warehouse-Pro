@@ -32,37 +32,37 @@ export const AdjustModal = memo(function AdjustModal({ productId, productName, c
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
       style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(12px)" }}>
       <div className="w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl p-6 space-y-5 animate-fade-up"
-        style={{ background: "var(--color-surface, #ffffff)", boxShadow: "0 -25px 60px -15px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.05) inset" }}>
+        style={{ background: "var(--color-surface, #efedea)", boxShadow: "0 -25px 60px -15px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.05) inset" }}>
 
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold" style={{ color: "var(--color-text-primary, #2b3450)", fontFamily: "'DM Sans', sans-serif" }}>
+            <h2 className="text-lg font-semibold" style={{ color: "var(--color-text-primary, #2b2a28)", fontFamily: "'DM Sans', sans-serif" }}>
               {t("Движение товара", "Mahsulot harakati")}
             </h2>
-            <p className="text-sm mt-0.5" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>{productName}</p>
+            <p className="text-sm mt-0.5" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>{productName}</p>
           </div>
           <button onClick={onClose} className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors"
-            style={{ background: "var(--color-surface-light, #f0f3f8)" }}>
-            <X size={18} style={{ color: "var(--color-text-secondary, #6a7290)" }} />
+            style={{ background: "var(--color-surface-light, #f6f4f0)" }}>
+            <X size={18} style={{ color: "var(--color-text-secondary, #5e5b54)" }} />
           </button>
         </div>
 
         {/* Current stock badge */}
-        <div className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: "var(--color-surface-light, #f0f3f8)" }}>
-          <Scale size={16} style={{ color: "var(--color-text-tertiary, #98a0b8)" }} />
-          <span className="text-xs font-medium" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: "var(--color-surface-light, #f6f4f0)" }}>
+          <Scale size={16} style={{ color: "var(--color-text-tertiary, #6b6760)" }} />
+          <span className="text-xs font-medium" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
             {t("Текущий остаток", "Joriy qoldiq")}
           </span>
-          <span className="ml-auto text-sm font-bold" style={{ color: "var(--color-text-primary, #2b3450)", fontFamily: "'DM Sans', sans-serif" }}>
+          <span className="ml-auto text-sm font-bold" style={{ color: "var(--color-text-primary, #2b2a28)", fontFamily: "'DM Sans', sans-serif" }}>
             {formatQty(currentStock)}
-            {unitWeight > 0 && <span className="text-xs font-normal" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}> ({formatQty(toKg(currentStock, unitWeight))} кг)</span>}
+            {unitWeight > 0 && <span className="text-xs font-normal" style={{ color: "var(--color-text-tertiary, #6b6760)" }}> ({formatQty(toKg(currentStock, unitWeight))} кг)</span>}
           </span>
         </div>
 
         {/* Type selector */}
         <div>
-          <label className="text-[10px] font-semibold tracking-wider uppercase mb-3 block" style={{ color: "var(--color-text-tertiary, #98a0b8)", fontFamily: "'DM Sans', sans-serif" }}>
+          <label className="text-[10px] font-semibold tracking-wider uppercase mb-3 block" style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'DM Sans', sans-serif" }}>
             {t("ТИП ОПЕРАЦИИ", "OPERATSIYA TURI")}
           </label>
           <div className="grid grid-cols-3 gap-2">
@@ -73,15 +73,15 @@ export const AdjustModal = memo(function AdjustModal({ productId, productName, c
                 <button key={opt.value} onClick={() => setType(opt.value)}
                   className="p-3 rounded-xl text-center transition-all"
                   style={{
-                    background: active ? colorMix(opt.color, 8) : "var(--color-surface-light, #f0f3f8)",
+                    background: active ? colorMix(opt.color, 8) : "var(--color-surface-light, #f6f4f0)",
                     border: `2px solid ${active ? opt.color : "transparent"}`,
                     boxShadow: active ? `0 0 0 1px ${colorMix(opt.color, 13)}` : "none",
                   }}>
                   <Icon size={20} style={{ color: opt.color, margin: "0 auto 6px" }} />
-                  <p className="text-xs font-semibold" style={{ color: active ? opt.color : "var(--color-text-primary, #2b3450)" }}>
+                  <p className="text-xs font-semibold" style={{ color: active ? opt.color : "var(--color-text-primary, #2b2a28)" }}>
                     {lang === "uz" ? opt.labelUz : opt.labelRu}
                   </p>
-                  <p className="text-[10px] mt-0.5" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+                  <p className="text-[10px] mt-0.5" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
                     {lang === "uz" ? opt.descUz : opt.descRu}
                   </p>
                 </button>
@@ -92,32 +92,32 @@ export const AdjustModal = memo(function AdjustModal({ productId, productName, c
 
         {/* Quantity input */}
         <div>
-          <label className="text-[10px] font-semibold tracking-wider uppercase mb-2 block" style={{ color: "var(--color-text-tertiary, #98a0b8)", fontFamily: "'DM Sans', sans-serif" }}>
+          <label className="text-[10px] font-semibold tracking-wider uppercase mb-2 block" style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'DM Sans', sans-serif" }}>
             {t("КОЛИЧЕСТВО", "MIQDOR")}
           </label>
           <input type="number" step="0.01" min="0" autoFocus
             className="w-full px-4 py-3 rounded-xl text-xl font-bold outline-none transition-all"
-            style={{ background: "var(--color-surface-light, #f0f3f8)", color: "var(--color-text-primary, #2b3450)", fontFamily: "'DM Sans', sans-serif", border: "2px solid transparent" }}
+            style={{ background: "var(--color-surface-light, #f6f4f0)", color: "var(--color-text-primary, #2b2a28)", fontFamily: "'DM Sans', sans-serif", border: "2px solid transparent" }}
             onFocus={e => e.currentTarget.style.borderColor = currentType.color}
             onBlur={e => e.currentTarget.style.borderColor = "transparent"}
             placeholder="0.00" value={qty} onChange={e => setQty(e.target.value)} />
           {numQty > 0 && (
             <div className="flex items-center justify-between mt-2 px-1">
-              <span className="text-xs" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+              <span className="text-xs" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
                 {t("Новый остаток", "Yangi qoldiq")}
               </span>
               <span className="text-sm font-bold" style={{ color: newStock >= 0 ? "var(--color-success-text)" : "var(--color-danger-text)", fontFamily: "'DM Sans', sans-serif" }}>
                 {formatQty(newStock)}
-                {unitWeight > 0 && <span className="text-xs font-normal" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}> ({formatQty(toKg(newStock, unitWeight))} кг)</span>}
+                {unitWeight > 0 && <span className="text-xs font-normal" style={{ color: "var(--color-text-tertiary, #6b6760)" }}> ({formatQty(toKg(newStock, unitWeight))} кг)</span>}
               </span>
             </div>
           )}
           {numQty > 0 && previewWeightKg && (
             <div className="flex items-center justify-between mt-1 px-1">
-              <span className="text-xs" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
+              <span className="text-xs" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
                 {t("Вес", "Og'irlik")}
               </span>
-              <span className="text-xs font-medium" style={{ color: "var(--color-text-secondary, #6a7290)" }}>
+              <span className="text-xs font-medium" style={{ color: "var(--color-text-secondary, #5e5b54)" }}>
                 {previewWeightKg} кг
               </span>
             </div>
@@ -126,11 +126,11 @@ export const AdjustModal = memo(function AdjustModal({ productId, productName, c
 
         {/* Notes */}
         <div>
-          <label className="text-[10px] font-semibold tracking-wider uppercase mb-2 block" style={{ color: "var(--color-text-tertiary, #98a0b8)", fontFamily: "'DM Sans', sans-serif" }}>
+          <label className="text-[10px] font-semibold tracking-wider uppercase mb-2 block" style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'DM Sans', sans-serif" }}>
             {t("ПРИМЕЧАНИЕ", "IZOH")}
           </label>
           <input className="w-full px-4 py-3 rounded-xl outline-none transition-all"
-            style={{ background: "var(--color-surface-light, #f0f3f8)", color: "var(--color-text-primary, #2b3450)", border: "2px solid transparent" }}
+            style={{ background: "var(--color-surface-light, #f6f4f0)", color: "var(--color-text-primary, #2b2a28)", border: "2px solid transparent" }}
             onFocus={e => e.currentTarget.style.borderColor = "var(--color-primary)"}
             onBlur={e => e.currentTarget.style.borderColor = "transparent"}
             placeholder={t("Например: возврат от клиента", "Masalan: mijozdan qaytarish")}
@@ -141,7 +141,7 @@ export const AdjustModal = memo(function AdjustModal({ productId, productName, c
         <div className="flex gap-3 pt-1">
           <button onClick={onClose}
             className="flex-1 py-3 rounded-xl text-sm font-medium transition-all"
-            style={{ background: "var(--color-surface-light, #f0f3f8)", color: "var(--color-text-secondary, #6a7290)" }}>
+            style={{ background: "var(--color-surface-light, #f6f4f0)", color: "var(--color-text-secondary, #5e5b54)" }}>
             {t("Отмена", "Bekor")}
           </button>
           <button onClick={() => qty && numQty > 0 && onSave({ productId, warehouseId, quantity: qty, type, notes })}

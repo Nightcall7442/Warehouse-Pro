@@ -45,7 +45,7 @@ export function TrialBanner() {
       width: "100%", padding: "10px 16px", display: "flex", alignItems: "center", gap: "12px",
       fontSize: "13px", fontFamily: "'DM Sans', sans-serif",
       background: urgent ? "var(--color-danger)" : "var(--color-warning-subtle, #fffbeb)",
-      color: urgent ? "#fff" : "var(--color-warning, #d97706)",
+      color: urgent ? "#fff" : "var(--color-warning, #d4973a)",
       borderBottom: urgent ? "none" : "1px solid rgba(217,119,6,0.2)",
     }}>
       <AlertTriangle size={16} style={{ flexShrink: 0 }}/>

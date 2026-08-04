@@ -179,7 +179,7 @@ export function OrderFilterChips({ filters, onChange, savedFilters, onSave, onLo
                   }}
                   style={{
                     width: "100%", padding: "8px", borderRadius: "10px", border: "none",
-                    background: `linear-gradient(135deg, ${COLORS.primary}, var(--color-primary-hover))`, color: "var(--color-on-primary, #fff)",
+                    background: `linear-gradient(135deg, ${COLORS.primary}, var(--color-primary-hover))`, color: "var(--color-on-primary, #ffffff)",
                     fontFamily: F.body, fontSize: "13px", fontWeight: 600, cursor: "pointer",
                   }}
                 >

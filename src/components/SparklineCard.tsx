@@ -30,7 +30,7 @@ export const SparklineCard = memo(function SparklineCard({
   return (
     <div
       style={{
-        background: "var(--color-surface, #ffffff)",
+        background: "var(--color-surface, #efedea)",
         borderRadius: "20px",
         padding: "22px",
         boxShadow: "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06))",
@@ -50,14 +50,14 @@ export const SparklineCard = memo(function SparklineCard({
 
       <p style={{
         fontSize: "11px", fontWeight: 600, textTransform: "uppercase",
-        letterSpacing: "0.08em", color: "var(--color-text-tertiary, #98a0b8)", margin: 0,
+        letterSpacing: "0.08em", color: "var(--color-text-tertiary, #6b6760)", margin: 0,
         fontFamily: "'DM Sans', sans-serif",
       }}>
         {label}
       </p>
 
       <p style={{
-        fontSize: "28px", fontWeight: 700, color: "var(--color-text-primary, #2b3450)",
+        fontSize: "28px", fontWeight: 700, color: "var(--color-text-primary, #2b2a28)",
         margin: "8px 0 0", letterSpacing: "-0.03em",
         fontFamily: "'DM Sans', sans-serif",
       }}>
@@ -69,7 +69,7 @@ export const SparklineCard = memo(function SparklineCard({
           display: "inline-flex", alignItems: "center", gap: "4px",
           marginTop: "8px", padding: "3px 8px", borderRadius: "6px",
           fontSize: "12px", fontWeight: 600,
-          color: isPositive ? "var(--color-success-text)" : isNegative ? "var(--color-danger-text)" : "var(--color-text-tertiary, #98a0b8)",
+          color: isPositive ? "var(--color-success-text)" : isNegative ? "var(--color-danger-text)" : "var(--color-text-tertiary, #6b6760)",
           background: isPositive ? "rgba(74,222,128,.10)" : isNegative ? "rgba(232,80,80,.10)" : "transparent",
         }}>
           {isPositive ? <TrendingUp size={12} /> : isNegative ? <TrendingDown size={12} /> : null}
