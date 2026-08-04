@@ -26,8 +26,8 @@ export const DashboardService = {
       db2.select({ total: sql<string>`COALESCE(SUM(${shops.debt}), 0)` }).from(shops)
         .where(eq(shops.tenantId, tenantId)),
       db2.select({
-        totalRevenue: sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'completed' THEN ${orders.total} ELSE 0 END), 0)`,
-        totalCost: sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'completed' THEN ${orderItems.quantity} * ${products.costPrice} ELSE 0 END), 0)`,
+        totalRevenue: sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'delivered' THEN ${orders.total} ELSE 0 END), 0)`,
+        totalCost: sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'delivered' THEN ${orderItems.quantity} * ${products.costPrice} ELSE 0 END), 0)`,
       }).from(orders)
         .leftJoin(orderItems, eq(orders.id, orderItems.orderId))
         .leftJoin(products, eq(orderItems.productId, products.id))
@@ -60,7 +60,7 @@ export const DashboardService = {
 
     const result = await db.select({
       date: sql<string>`DATE(${orders.createdAt})`,
-      revenue: sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'completed' THEN ${orders.total} ELSE 0 END), 0)`,
+      revenue: sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'delivered' THEN ${orders.total} ELSE 0 END), 0)`,
     })
       .from(orders)
       .where(and(eq(orders.tenantId, tenantId), sql`DATE(${orders.createdAt}) >= ${startDate}`))
@@ -81,7 +81,7 @@ export const DashboardService = {
     const result = await db.select({
       date: sql<string>`DATE(${orders.createdAt})`,
       orderCount: sql<number>`count(*)`,
-      revenue: sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'completed' THEN ${orders.total} ELSE 0 END), 0)`,
+      revenue: sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'delivered' THEN ${orders.total} ELSE 0 END), 0)`,
     })
       .from(orders)
       .where(and(eq(orders.tenantId, tenantId), sql`DATE(${orders.createdAt}) >= ${startDate}`))

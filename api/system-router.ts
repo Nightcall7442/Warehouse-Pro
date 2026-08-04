@@ -68,7 +68,7 @@ export const systemRouter = createRouter({
       businessMetrics.orders24h = Number(orderCount?.count ?? 0);
 
       const [revenue] = await db.select({ total: sql<string>`COALESCE(SUM(CAST(total AS DECIMAL(10,2))), 0)` })
-        .from(orders).where(sql`${orders.createdAt} >= ${dayAgo} AND status = 'completed'`);
+        .from(orders).where(sql`${orders.createdAt} >= ${dayAgo} AND status = 'delivered'`);
       businessMetrics.revenue24h = String(revenue?.total ?? "0");
 
       const [prodCount] = await db.select({ count: sql<number>`count(*)` })

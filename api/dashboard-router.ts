@@ -28,11 +28,11 @@ export const dashboardRouter = createRouter({
       db.select({ total: sql<string>`COALESCE(SUM(${shops.debt}), 0)` }).from(shops)
         .where(eq(shops.tenantId, tenantId)),
       db.select({
-        totalRevenue: sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'completed' THEN ${orders.total} ELSE 0 END), 0)`,
+        totalRevenue: sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'delivered' THEN ${orders.total} ELSE 0 END), 0)`,
       }).from(orders)
         .where(and(eq(orders.tenantId, tenantId), isNull(orders.deletedAt))),
       db.select({
-        totalCost: sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'completed' THEN ${orderItems.quantity} * ${products.costPrice} ELSE 0 END), 0)`,
+        totalCost: sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'delivered' THEN ${orderItems.quantity} * ${products.costPrice} ELSE 0 END), 0)`,
       }).from(orderItems)
         .innerJoin(orders, eq(orders.id, orderItems.orderId))
         .innerJoin(products, eq(orderItems.productId, products.id))
@@ -67,7 +67,7 @@ export const dashboardRouter = createRouter({
       return db.select({
         date:       sql<string>`DATE(${orders.createdAt})`,
         orderCount: sql<number>`count(*)`,
-        revenue:    sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'completed' THEN ${orders.total} ELSE 0 END), 0)`,
+        revenue:    sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'delivered' THEN ${orders.total} ELSE 0 END), 0)`,
       })
         .from(orders)
         .where(and(eq(orders.tenantId, tenantId), sinceDay(orders.createdAt, startDate), isNull(orders.deletedAt)))
@@ -151,7 +151,7 @@ export const dashboardRouter = createRouter({
 
       const rows = await db.select({
         date: sql<string>`DATE(${orders.createdAt})`,
-        revenue: sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'completed' THEN ${orders.total} ELSE 0 END), 0)`,
+        revenue: sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'delivered' THEN ${orders.total} ELSE 0 END), 0)`,
       })
         .from(orders)
         .where(and(eq(orders.tenantId, tenantId), sinceDay(orders.createdAt, startDate), isNull(orders.deletedAt)))

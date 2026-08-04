@@ -153,8 +153,8 @@ export const warehouseRouter = createRouter({
         costPrice: products.costPrice,
         category: products.category,
         value: sql<string>`COALESCE(${warehouseStock.currentStock} * COALESCE(${products.costPrice}, 0), 0)`,
-        lastOrderDate: sql<Date | null>`MAX(CASE WHEN ${orders.status} = 'completed' THEN ${orders.createdAt} END)`,
-        daysSinceOrder: sql<number>`CASE WHEN MAX(CASE WHEN ${orders.status} = 'completed' THEN ${orders.createdAt} END) IS NULL THEN 99999 ELSE DATEDIFF(NOW(), MAX(CASE WHEN ${orders.status} = 'completed' THEN ${orders.createdAt} END)) END`,
+        lastOrderDate: sql<Date | null>`MAX(CASE WHEN ${orders.status} = 'delivered' THEN ${orders.createdAt} END)`,
+        daysSinceOrder: sql<number>`CASE WHEN MAX(CASE WHEN ${orders.status} = 'delivered' THEN ${orders.createdAt} END) IS NULL THEN 99999 ELSE DATEDIFF(NOW(), MAX(CASE WHEN ${orders.status} = 'delivered' THEN ${orders.createdAt} END)) END`,
       })
         .from(warehouseStock)
         .leftJoin(products, eq(warehouseStock.productId, products.id))
@@ -166,7 +166,7 @@ export const warehouseRouter = createRouter({
           sql`(${orders.tenantId} IS NULL OR ${orders.tenantId} = ${tenantId})`,
         ))
         .groupBy(products.id, products.name, products.code, products.unit, products.unitPrice, products.costPrice, products.category, warehouseStock.currentStock)
-        .having(sql`MAX(CASE WHEN ${orders.status} = 'completed' AND ${orders.createdAt} >= ${cutoff} THEN 1 END) IS NULL`)
+        .having(sql`MAX(CASE WHEN ${orders.status} = 'delivered' AND ${orders.createdAt} >= ${cutoff} THEN 1 END) IS NULL`)
         .orderBy(desc(sql`COALESCE(${warehouseStock.currentStock} * COALESCE(${products.costPrice}, 0), 0)`));
     }),
 
@@ -186,7 +186,7 @@ export const warehouseRouter = createRouter({
       unit: products.unit,
       unitPrice: products.unitPrice,
       costPrice: products.costPrice,
-      avgDailySales: sql<string>`COALESCE((SELECT SUM(${orderItems.quantity}) FROM ${orderItems} INNER JOIN ${orders} ON ${orderItems.orderId} = ${orders.id} WHERE ${orderItems.productId} = ${products.id} AND ${orders.tenantId} = ${tenantId} AND ${orders.status} = 'completed' AND ${orders.createdAt} >= ${days30}) / 30, 0)`,
+      avgDailySales: sql<string>`COALESCE((SELECT SUM(${orderItems.quantity}) FROM ${orderItems} INNER JOIN ${orders} ON ${orderItems.orderId} = ${orders.id} WHERE ${orderItems.productId} = ${products.id} AND ${orders.tenantId} = ${tenantId} AND ${orders.status} = 'delivered' AND ${orders.createdAt} >= ${days30}) / 30, 0)`,
     })
       .from(warehouseStock)
       .leftJoin(products, eq(warehouseStock.productId, products.id))

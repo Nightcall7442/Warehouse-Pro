@@ -567,7 +567,7 @@ export const agentRouter = createRouter({
     const [myStats] = await db.select({
       weeklyOrders: sql<number>`count(DISTINCT ${orders.id})`,
       weeklyRevenue: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
-      monthlyOrders: sql<number>`(SELECT count(*) FROM ${orders} WHERE agent_id = ${ctx.user.id} AND created_at >= ${monthAgo} AND status = 'completed')`,
+      monthlyOrders: sql<number>`(SELECT count(*) FROM ${orders} WHERE agent_id = ${ctx.user.id} AND created_at >= ${monthAgo} AND status = 'delivered')`,
     })
       .from(orders)
       .where(and(eq(orders.agentId, ctx.user.id), sql`${orders.createdAt} >= ${weekAgo}`, inArray(orders.status, ["delivered", "completed"])));

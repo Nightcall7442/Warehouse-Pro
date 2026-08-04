@@ -150,8 +150,8 @@ export const telegramRouter = createRouter({
       // Today's orders
       db.select({
         totalOrders: sql<number>`count(*)`,
-        completedOrders: sql<number>`count(CASE WHEN ${orders.status} = 'completed' THEN 1 END)`,
-        totalRevenue: sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'completed' THEN ${orders.total} ELSE 0 END), 0)`,
+        completedOrders: sql<number>`count(CASE WHEN ${orders.status} = 'delivered' THEN 1 END)`,
+        totalRevenue: sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'delivered' THEN ${orders.total} ELSE 0 END), 0)`,
       }).from(orders).where(and(
         eq(orders.tenantId, tenantId),
         onDay(orders.createdAt, today),

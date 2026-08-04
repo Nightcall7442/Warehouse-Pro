@@ -142,12 +142,12 @@ export const warehouseReportsRouter = createRouter({
         productCode: products.code,
         unit: products.unit,
         currentStock: warehouseStock.currentStock,
-        soldQty: sql<number>`COALESCE((SELECT SUM(${orderItems.quantity}) FROM ${orderItems} INNER JOIN ${orders} o ON ${orderItems.orderId} = o.id WHERE ${orderItems.productId} = ${products.id} AND o.tenant_id = ${tenantId} AND o.status = 'completed' AND o.created_at >= ${cutoff}), 0)`,
+        soldQty: sql<number>`COALESCE((SELECT SUM(${orderItems.quantity}) FROM ${orderItems} INNER JOIN ${orders} o ON ${orderItems.orderId} = o.id WHERE ${orderItems.productId} = ${products.id} AND o.tenant_id = ${tenantId} AND o.status = 'delivered' AND o.created_at >= ${cutoff}), 0)`,
       })
         .from(warehouseStock)
         .leftJoin(products, eq(warehouseStock.productId, products.id))
         .where(and(eq(warehouseStock.tenantId, tenantId), sql`${warehouseStock.currentStock} > 0`))
-        .orderBy(desc(sql`COALESCE((SELECT SUM(${orderItems.quantity}) FROM ${orderItems} INNER JOIN ${orders} o ON ${orderItems.orderId} = o.id WHERE ${orderItems.productId} = ${products.id} AND o.tenant_id = ${tenantId} AND o.status = 'completed' AND o.created_at >= ${cutoff}), 0)`))
+        .orderBy(desc(sql`COALESCE((SELECT SUM(${orderItems.quantity}) FROM ${orderItems} INNER JOIN ${orders} o ON ${orderItems.orderId} = o.id WHERE ${orderItems.productId} = ${products.id} AND o.tenant_id = ${tenantId} AND o.status = 'delivered' AND o.created_at >= ${cutoff}), 0)`))
         .limit(20);
 
       return result.map(r => {
@@ -177,12 +177,12 @@ export const warehouseReportsRouter = createRouter({
         category: products.category,
         currentStock: warehouseStock.currentStock,
         reorderPoint: warehouseStock.reorderPoint,
-        soldQty: sql<string>`COALESCE((SELECT SUM(${orderItems.quantity}) FROM ${orderItems} INNER JOIN ${orders} o ON ${orderItems.orderId} = o.id WHERE ${orderItems.productId} = ${products.id} AND o.tenant_id = ${tenantId} AND o.status = 'completed' AND o.created_at >= ${cutoff}), 0)`,
+        soldQty: sql<string>`COALESCE((SELECT SUM(${orderItems.quantity}) FROM ${orderItems} INNER JOIN ${orders} o ON ${orderItems.orderId} = o.id WHERE ${orderItems.productId} = ${products.id} AND o.tenant_id = ${tenantId} AND o.status = 'delivered' AND o.created_at >= ${cutoff}), 0)`,
       })
         .from(warehouseStock)
         .innerJoin(products, eq(warehouseStock.productId, products.id))
         .where(eq(warehouseStock.tenantId, tenantId))
-        .orderBy(sql`COALESCE((SELECT SUM(${orderItems.quantity}) FROM ${orderItems} INNER JOIN ${orders} o ON ${orderItems.orderId} = o.id WHERE ${orderItems.productId} = ${products.id} AND o.tenant_id = ${tenantId} AND o.status = 'completed' AND o.created_at >= ${cutoff}), 0) DESC`)
+        .orderBy(sql`COALESCE((SELECT SUM(${orderItems.quantity}) FROM ${orderItems} INNER JOIN ${orders} o ON ${orderItems.orderId} = o.id WHERE ${orderItems.productId} = ${products.id} AND o.tenant_id = ${tenantId} AND o.status = 'delivered' AND o.created_at >= ${cutoff}), 0) DESC`)
         .limit(50);
 
       return result.map(r => {
