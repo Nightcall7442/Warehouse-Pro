@@ -593,7 +593,7 @@ export default function Arrivals() {
           value={String(kpis.pending)}
           delta={null}
           icon={<Clock size={20} color="#fff" />}
-          gradient="linear-gradient(135deg, #d4973a, #f59e0b)"
+          gradient="linear-gradient(135deg, #e07b39, #e07b39)"
           delay={0.15}
         />
       </div>

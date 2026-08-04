@@ -82,7 +82,7 @@ const ACTION_CONFIG: Record<string, {
   "user.updated":                    { icon: User,         gradient: "linear-gradient(135deg, #5b6d8a, #5b6d8a)", label: { ru: "Обновлён пользователь", uz: "Foydalanuvchi yangilandi" } },
   "user.deactivated":                { icon: User,         gradient: "linear-gradient(135deg, #d45050, #d45050)", label: { ru: "Пользователь деактивирован", uz: "Foydalanuvchi o'chirildi" } },
   "user.password_reset_by_admin":    { icon: Key,          gradient: "linear-gradient(135deg, #fb923c, #f97316)", label: { ru: "Сброс пароля", uz: "Parol tiklandi" } },
-  "stock.adjusted":                  { icon: Package,      gradient: "linear-gradient(135deg, #d4973a, #f59e0b)", label: { ru: "Корректировка склада", uz: "Ombor tahrirlandi" } },
+  "stock.adjusted":                  { icon: Package,      gradient: "linear-gradient(135deg, #e07b39, #e07b39)", label: { ru: "Корректировка склада", uz: "Ombor tahrirlandi" } },
   "integration.onec_secret_rotated": { icon: Settings,     gradient: "linear-gradient(135deg, #10B981, #059669)", label: { ru: "Ротация ключа 1C", uz: "1C kalit almashtirildi" } },
   "tenant.updated":                  { icon: AlertTriangle, gradient: "linear-gradient(135deg, #d45050, #d45050)", label: { ru: "Обновлён тенант", uz: "Tench yangilandi" } },
 };

@@ -178,7 +178,7 @@ export function OrderFilterChips({ filters, onChange, savedFilters, onSave, onLo
                   }}
                   style={{
                     width: "100%", padding: "8px", borderRadius: "10px", border: "none",
-                    background: `linear-gradient(135deg, ${COLORS.primary}, #7b94f8)`, color: "#fff",
+                    background: `linear-gradient(135deg, ${COLORS.primary}, #7b94f8)`, color: "var(--color-on-primary, #fff)",
                     fontFamily: F.body, fontSize: "13px", fontWeight: 600, cursor: "pointer",
                   }}
                 >

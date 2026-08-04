@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { kpiTint, kpiAccent } from "@/lib/kpi-tint";
 import { ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
 
 /**
@@ -10,7 +11,10 @@ import { ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
 export const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
 
 export const COLORS = {
-  primary: "#5b6d8a", success: "#34c473",
+  // Reads the themed accent so the dark palette isn't stuck with the light one.
+  primary: "var(--color-primary, #5b6d8a)",
+  onPrimary: "var(--color-text-inverse, #ffffff)",
+  success: "#34c473",
   warning: "#d4973a", danger: "#d45050",
   surface: "var(--color-surface, #ffffff)", surfaceLight: "var(--color-surface-light, #f0f3f8)",
   textPrimary: "var(--color-text-primary, #2b3450)", textSecondary: "var(--color-text-secondary, #6a7290)",
@@ -56,7 +60,7 @@ export function KpiCard({ label, value, delta, icon, gradient, delay }: {
         <span style={{ fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: COLORS.textTertiary }}>
           {label}
         </span>
-        <div style={{ width: "44px", height: "44px", borderRadius: "12px", background: gradient, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div className="kpi-tile" style={{ background: kpiTint(gradient), color: kpiAccent(gradient) }}>
           {icon}
         </div>
       </div>
@@ -117,7 +121,7 @@ export function PillButton({ onClick, disabled, tone = "neutral", type, children
   type?: "button" | "submit"; children: React.ReactNode;
 }) {
   const styles: Record<string, React.CSSProperties> = {
-    primary: { background: `linear-gradient(135deg, ${COLORS.primary}, #7b94f8)`, color: "#fff", border: "none" },
+    primary: { background: COLORS.primary, color: COLORS.onPrimary, border: "none" },
     success: { background: "linear-gradient(135deg, #34c473, #28a862)", color: "#fff", border: "none" },
     danger:  { background: `${COLORS.danger}12`, color: COLORS.danger, border: `1px solid ${COLORS.danger}30` },
     neutral: { background: COLORS.surface, color: COLORS.textSecondary, border: `1px solid ${COLORS.border}` },

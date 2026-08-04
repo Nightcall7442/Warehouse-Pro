@@ -1,5 +1,6 @@
 import { ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
 import { COLORS, F } from "./theme";
+import { kpiTint, kpiAccent } from "@/lib/kpi-tint";
 
 interface KpiCardProps {
   label: string;
@@ -24,7 +25,7 @@ export function KpiCard({ label, value, delta, sub, icon: Icon, gradient, delay 
         <span style={{ fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: COLORS.textTertiary }}>
           {label}
         </span>
-        <div style={{ width: "44px", height: "44px", borderRadius: "12px", background: gradient, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div className="kpi-tile" style={{ background: kpiTint(gradient), color: kpiAccent(gradient) }}>
           <Icon size={20} color="#fff" />
         </div>
       </div>

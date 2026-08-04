@@ -126,7 +126,7 @@ export function OrderComments({ orderId }: Props) {
             style={{
               display: "flex", alignItems: "center", justifyContent: "center",
               width: "32px", height: "32px", borderRadius: "10px", flexShrink: 0,
-              background: `linear-gradient(135deg, ${COLORS.primary}, #7b94f8)`, color: "#fff", border: "none",
+              background: `linear-gradient(135deg, ${COLORS.primary}, #7b94f8)`, color: "var(--color-on-primary, #fff)", border: "none",
               cursor: (!content.trim() || addComment.isPending) ? "default" : "pointer",
               opacity: (!content.trim() || addComment.isPending) ? 0.5 : 1,
             }}

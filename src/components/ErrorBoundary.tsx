@@ -75,7 +75,7 @@ export default class ErrorBoundary extends Component<Props, State> {
                 padding: "10px 20px", fontSize: "13px", fontWeight: 600,
                 fontFamily: "'DM Sans', sans-serif", borderRadius: "12px",
                 border: "none", cursor: "pointer",
-                background: "var(--color-primary, #5b6d8a)", color: "#fff",
+                background: "var(--color-primary, #5b6d8a)", color: "var(--color-on-primary, #fff)",
                 boxShadow: "0 2px 8px rgba(75,108,246,.25)",
               }}
             >

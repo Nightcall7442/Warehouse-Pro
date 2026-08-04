@@ -401,7 +401,7 @@ export default function Orders() {
           style={{
             padding: "8px 16px", fontSize: "13px", fontWeight: 600, fontFamily: F.body, border: "none", cursor: "pointer",
             background: section === "active" ? COLORS.primary : COLORS.surface,
-            color: section === "active" ? "#fff" : COLORS.textSecondary,
+            color: section === "active" ? COLORS.onPrimary : COLORS.textSecondary,
             transition: "all 0.2s",
           }}>
           {t("Активные", "Faol")}
@@ -410,7 +410,7 @@ export default function Orders() {
           style={{
             padding: "8px 16px", fontSize: "13px", fontWeight: 600, fontFamily: F.body, border: "none", cursor: "pointer",
             background: section === "archive" ? COLORS.primary : COLORS.surface,
-            color: section === "archive" ? "#fff" : COLORS.textSecondary,
+            color: section === "archive" ? COLORS.onPrimary : COLORS.textSecondary,
             transition: "all 0.2s",
           }}>
           {t("Архив", "Arxiv")}
@@ -440,7 +440,7 @@ export default function Orders() {
           value={(stats?.processingCount ?? 0).toLocaleString()}
           delta={null}
           icon={<RefreshCw size={20} color="#fff" />}
-          gradient="linear-gradient(135deg, #d4973a, #f59e0b)"
+          gradient="linear-gradient(135deg, #e07b39, #e07b39)"
           delay={0.1}
         />
         <KpiCard

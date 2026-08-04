@@ -68,6 +68,9 @@
     --color-primary-hover:   #4a5c78;
     --color-primary-subtle:  rgba(91,109,138,.10);
     --color-primary-muted:   #94a3b8;
+    /* Ink for text and glyphs sitting ON the accent. The two themes need
+       opposite answers: the light accent is dark, the dark accent is light. */
+    --color-on-primary:      #ffffff;
 
     --color-success:         #34c473;
     --color-success-subtle:  rgba(52,196,115,.10);
@@ -133,7 +136,7 @@
     --card-foreground:       210 8% 88%;
     --popover:               220 15% 14%;
     --popover-foreground:    210 8% 88%;
-    --primary:               185 100% 50%;
+    --primary:               45 68% 47%;
     --primary-foreground:    220 18% 10%;
     --secondary:             220 12% 16%;
     --secondary-foreground:  210 6% 72%;
@@ -145,15 +148,15 @@
     --destructive-foreground: 220 8% 100%;
     --border:                220 10% 18%;
     --input:                 220 12% 16%;
-    --ring:                  185 100% 50%;
+    --ring:                  45 68% 47%;
     --sidebar-background:    220 15% 12%;
     --sidebar-foreground:    210 6% 82%;
-    --sidebar-primary:       185 100% 50%;
+    --sidebar-primary:       45 68% 47%;
     --sidebar-primary-foreground: 220 18% 10%;
     --sidebar-accent:        220 10% 15%;
     --sidebar-accent-foreground:  210 6% 82%;
     --sidebar-border:        220 8% 16%;
-    --sidebar-ring:          185 100% 50%;
+    --sidebar-ring:          45 68% 47%;
 
     --color-canvas:          #1c1a17;
     --color-canvas-alt:      #211f1b;
@@ -172,10 +175,11 @@
     --color-text-tertiary:   #8a8478;  /* WCAG AA: 4.5:1 on #1c1a17 */
     --color-text-inverse:    #1c1a17;
 
-    --color-primary:         #0099cc;
-    --color-primary-hover:   #00b4e6;
-    --color-primary-subtle:  rgba(0,153,204,.12);
-    --color-primary-muted:   #0a3a48;
+    --color-primary:         #c9a227;
+    --color-primary-hover:   #dbb43f;
+    --color-primary-subtle:  rgba(201,162,39,.12);
+    --color-primary-muted:   #4a3f1c;
+    --color-on-primary:      #1c1a17;
 
     --color-success:         #00e68a;
     --color-success-subtle:  rgba(0,230,138,.12);
@@ -245,7 +249,7 @@
     top: -200px; right: -200px;
     width: 600px; height: 600px;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(75,108,246,.08) 0%, transparent 70%);
+    background: radial-gradient(circle, color-mix(in srgb, var(--color-primary) 8%, transparent) 0%, transparent 70%);
     filter: blur(60px);
     pointer-events: none;
     z-index: 0;
@@ -385,7 +389,7 @@
   /* Primary neumorphic button */
   .neo-btn-primary {
     display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-    background: linear-gradient(135deg, var(--color-primary, #4b6cf6), var(--color-primary-hover, #3a5be5));
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-hover, #3a5be5));
     color: #fff;
     border: none;
     border-radius: 12px;
@@ -394,10 +398,10 @@
     cursor: pointer;
     transition: box-shadow 0.3s cubic-bezier(0.25, 0.1, 0.25, 1), transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
     white-space: nowrap;
-    box-shadow: 0 2px 8px rgba(75,108,246,0.25);
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--color-primary) 25%, transparent);
   }
   .neo-btn-primary:hover {
-    box-shadow: 0 4px 16px rgba(75,108,246,0.35);
+    box-shadow: 0 4px 16px color-mix(in srgb, var(--color-primary) 35%, transparent);
     transform: translateY(-2px);
   }
   .neo-btn-primary:active {
@@ -429,7 +433,7 @@
   }
   .neo-btn-icon:hover {
     box-shadow: var(--shadow-raised);
-    color: var(--color-primary, #4b6cf6);
+    color: var(--color-primary);
     transform: translateY(-1px);
   }
   .neo-btn-icon:active {
@@ -456,7 +460,7 @@
   }
   .neo-input::placeholder { color: var(--color-text-tertiary, #8b9bb4); }
   .neo-input:focus {
-    box-shadow: var(--shadow-raised), 0 0 0 2px color-mix(in srgb, var(--color-primary, #4b6cf6) 20%, transparent);
+    box-shadow: var(--shadow-raised), 0 0 0 2px color-mix(in srgb, var(--color-primary) 20%, transparent);
   }
 
   /* ══════════════════════════════════════════════════════════════════════
@@ -486,7 +490,7 @@
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
   .neo-toggle:checked {
-    background: var(--color-primary, #4b6cf6);
+    background: var(--color-primary);
     box-shadow: inset 3px 3px 6px rgba(0,0,0,0.2), inset -3px -3px 6px rgba(255,255,255,0.1);
   }
   .neo-toggle:checked::after {
@@ -594,6 +598,21 @@
     box-shadow: var(--shadow-sm);
   }
 
+  /* The hue identifies the metric, so it lives in the glyph rather than in a
+     solid fill — six saturated tiles in a row outshouted the numbers they
+     labelled. Call sites still hand lucide a `color="#fff"` prop, which lands
+     as a stroke attribute; the rule below outranks it. */
+  .kpi-tile {
+    width: 44px; height: 44px;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  }
+  .kpi-tile svg {
+    stroke: currentColor;
+    color: currentColor;
+  }
+
   /* ══════════════════════════════════════════════════════════════════════
      ORDER GRID — ProductSelector responsive layout
      ══════════════════════════════════════════════════════════════════════ */
@@ -677,11 +696,11 @@
   }
   .sidebar-nav-item:hover {
     color: var(--color-text-primary, #2d3748);
-    background: rgba(75,108,246,.06);
+    background: color-mix(in srgb, var(--color-primary) 6%, transparent);
     box-shadow: var(--shadow-xs);
   }
   .sidebar-nav-item.active {
-    color: var(--color-primary, #4b6cf6);
+    color: var(--color-primary);
     background: var(--color-surface, #e0e5ec);
     font-weight: 600;
     box-shadow: var(--shadow-raised);
@@ -723,7 +742,7 @@
   }
   .range-pill.active {
     background: var(--color-surface, #e0e5ec);
-    color: var(--color-primary, #4b6cf6);
+    color: var(--color-primary);
     box-shadow: var(--shadow-sm);
     font-weight: 700;
   }
@@ -752,7 +771,7 @@
     transition: background 0.15s ease;
   }
   .data-table tbody tr:hover {
-    background: rgba(75,108,246,.04);
+    background: color-mix(in srgb, var(--color-primary) 4%, transparent);
   }
   .data-table tbody tr:last-child td { border-bottom: none; }
 
@@ -786,13 +805,13 @@
     text-transform: uppercase; letter-spacing: .06em;
   }
   .lang-btn:hover {
-    color: var(--color-primary, #4b6cf6);
-    background: rgba(75,108,246,.06);
+    color: var(--color-primary);
+    background: var(--color-primary-subtle);
   }
   .lang-btn.active {
-    background: var(--color-primary, #4b6cf6);
-    color: #fff;
-    box-shadow: 2px 2px 4px rgba(75,108,246,0.3);
+    background: var(--color-primary);
+    color: var(--color-on-primary, #fff);
+    box-shadow: 2px 2px 4px color-mix(in srgb, var(--color-primary) 30%, transparent);
   }
 
   /* ══════════════════════════════════════════════════════════════════════
@@ -838,8 +857,8 @@
     to { transform: rotate(360deg); }
   }
   @keyframes pulse-glow {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(75,108,246,0.2); }
-    50% { box-shadow: 0 0 20px 4px rgba(75,108,246,0.1); }
+    0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-primary) 20%, transparent); }
+    50% { box-shadow: 0 0 20px 4px color-mix(in srgb, var(--color-primary) 10%, transparent); }
   }
   @keyframes float {
     0%, 100% { transform: translateY(0); }
@@ -1032,7 +1051,7 @@
    ACCESSIBILITY — Focus indicators + reduced motion
    ════════════════════════════════════════════════════════════════════════ */
 *:focus-visible {
-  outline: 2px solid var(--color-primary, #4b6cf6);
+  outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
 button:focus-visible,
@@ -1040,7 +1059,7 @@ a:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: 2px solid var(--color-primary, #4b6cf6);
+  outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
 /* Remove default outline for mouse users */

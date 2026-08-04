@@ -197,7 +197,7 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
                       style={{ width: "44px", height: "44px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface)", textAlign: "center", fontSize: "12px", color: "var(--color-text-primary)", fontFamily: "'DM Sans', sans-serif", outline: "none" }}
                     />
                     <button onClick={() => handleQuickAdd(product)}
-                      style={{ width: "44px", height: "44px", borderRadius: "6px", border: "none", background: "var(--color-primary)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#fff" }}>
+                      style={{ width: "44px", height: "44px", borderRadius: "6px", border: "none", background: "var(--color-primary)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--color-on-primary, #fff)" }}>
                       <Plus size={16} />
                     </button>
                   </div>
