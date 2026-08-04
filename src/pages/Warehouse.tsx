@@ -16,6 +16,7 @@ import { notify } from "@/lib/toast";
 import { AdjustModal, unitLabel, toKg } from "@/components/warehouse";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
+import { formatQty } from "@/lib/format";
 
 // ── Main warehouse page ───────────────────────────────────────────────────────
 export default function Warehouse() {
@@ -155,8 +156,8 @@ export default function Warehouse() {
                     <p className="text-xs" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>{item.productCode}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-bold" style={{ color: "#d45050" }}>{Number(item.currentStock ?? 0).toFixed(1)}</p>
-                    <p className="text-xs" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>{t("порог", "chegara")}: {Number(item.reorderPoint ?? 0).toFixed(0)}</p>
+                    <p className="text-sm font-bold" style={{ color: "#d45050" }}>{formatQty(item.currentStock)}</p>
+                    <p className="text-xs" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>{t("порог", "chegara")}: {formatQty(item.reorderPoint, 0)}</p>
                   </div>
                 </div>
               ))}
@@ -338,7 +339,7 @@ export default function Warehouse() {
                               ].map(col => (
                                 <div key={col.label}>
                                   <p className="text-lg font-bold" style={{ color: col.danger ? "#d45050" : "var(--color-text-primary, #2b3450)", fontFamily: "'DM Sans', sans-serif" }}>
-                                    {Number(col.val ?? 0).toFixed(0)}
+                                    {formatQty(col.val)}
                                   </p>
                                   <p className="text-[10px] mt-0.5" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>{col.label}</p>
                                 </div>
@@ -394,19 +395,19 @@ export default function Warehouse() {
                               {item.category ?? "—"}
                             </td>
                             <td className="px-5 py-3.5 text-sm font-bold" style={{ color: low ? "#d45050" : "var(--color-text-primary, #2b3450)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
-                              {Number(item.available ?? 0).toFixed(2)}
+                              {formatQty(item.available)}
                             </td>
                             <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-secondary, #6a7290)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
-                              {toKg(item.available, item.unitWeight).toFixed(1)} кг
+                              {formatQty(toKg(item.available, item.unitWeight))} кг
                             </td>
                             <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-secondary, #6a7290)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
-                              {Number(item.reserved ?? 0).toFixed(2)}
+                              {formatQty(item.reserved)}
                             </td>
                             <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-primary, #2b3450)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
-                              {Number(item.currentStock ?? 0).toFixed(2)}
+                              {formatQty(item.currentStock)}
                             </td>
                             <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-tertiary, #98a0b8)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
-                              {Number(item.reorderPoint ?? 0).toFixed(0)}
+                              {formatQty(item.reorderPoint, 0)}
                             </td>
                             <td className="px-5 py-3.5" style={{ borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
                               <div className="flex items-center gap-2">
@@ -492,7 +493,7 @@ export default function Warehouse() {
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-xs" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
-                        {t("Остаток:", "Qoldiq:")} {Number(item.currentStock ?? 0).toFixed(2)}
+                        {t("Остаток:", "Qoldiq:")} {formatQty(item.currentStock)}
                       </span>
                       <span className="text-sm font-bold" style={{ color: badgeColor, fontFamily: "'DM Sans', sans-serif" }}>
                         {fmt(Number(item.value ?? 0).toFixed(0))}
@@ -537,7 +538,7 @@ export default function Warehouse() {
                           {item.category ?? "—"}
                         </td>
                         <td className="px-5 py-3.5 text-sm font-bold" style={{ color: "var(--color-text-primary, #2b3450)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
-                          {Number(item.currentStock ?? 0).toFixed(2)}
+                          {formatQty(item.currentStock)}
                         </td>
                         <td className="px-5 py-3.5 text-sm font-bold" style={{ color: badgeColor, fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
                           {fmt(Number(item.value ?? 0).toFixed(0))}
@@ -602,7 +603,7 @@ export default function Warehouse() {
                           </span>
                         </div>
                         <div className="flex items-center justify-between text-xs" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>
-                          <span>{t("Остаток:", "Qoldiq:")} {Number(item.currentStock ?? 0).toFixed(1)} / {Number(item.reorderPoint ?? 0).toFixed(0)} {unitLabel(item.unit, lang)}</span>
+                          <span>{t("Остаток:", "Qoldiq:")} {formatQty(item.currentStock)} / {formatQty(item.reorderPoint, 0)} {unitLabel(item.unit, lang)}</span>
                           <span className="font-semibold" style={{ color: badgeColor }}>+{item.suggestedQty} {unitLabel(item.unit, lang)}</span>
                         </div>
                       </div>
@@ -640,10 +641,10 @@ export default function Warehouse() {
                           </div>
                         </td>
                         <td className="px-5 py-3.5 text-sm font-bold" style={{ color: badgeColor, fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
-                          {Number(item.currentStock ?? 0).toFixed(1)} {unitLabel(item.unit, lang)}
+                          {formatQty(item.currentStock)} {unitLabel(item.unit, lang)}
                         </td>
                         <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-tertiary, #98a0b8)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
-                          {Number(item.reorderPoint ?? 0).toFixed(0)} {unitLabel(item.unit, lang)}
+                          {formatQty(item.reorderPoint, 0)} {unitLabel(item.unit, lang)}
                         </td>
                         <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-secondary, #6a7290)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #f0f3f8)" }}>
                           {item.avgDailySales}

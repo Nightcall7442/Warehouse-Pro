@@ -13,6 +13,7 @@ import { notify } from "@/lib/toast";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { formatQty } from "@/lib/format";
 
 const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
 const COLORS = {
@@ -190,7 +191,7 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
             <div className="flex items-center justify-between mb-3">
               <p className={sectionLabel} style={{ marginBottom: 0 }}>{t("Товары", "Tovarlar")}</p>
               <div className="flex gap-4">
-                {totalWeight > 0 && <span className="text-xs font-semibold text-secondary">{totalWeight.toFixed(2)} кг</span>}
+                {totalWeight > 0 && <span className="text-xs font-semibold text-secondary">{formatQty(totalWeight)} кг</span>}
                 {totalCost > 0 && <span className="text-xs font-semibold text-primary font-data">{fmt(totalCost.toFixed(0))}</span>}
               </div>
             </div>
@@ -437,7 +438,7 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
                       <tr key={i} style={{ transition: "background 0.15s" }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(75,108,246,0.02)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
                         <td style={{ padding: "12px 14px", fontSize: "13px", color: "var(--color-text-primary)", borderBottom: "1px solid var(--color-border)" }}>{item.productName ?? "—"}</td>
                         <td style={{ padding: "12px 14px", fontSize: "12px", color: "var(--color-text-tertiary)", fontFamily: "monospace", borderBottom: "1px solid var(--color-border)" }}>{item.productCode ?? "—"}</td>
-                        <td style={{ padding: "12px 14px", fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary)", borderBottom: "1px solid var(--color-border)" }}>{Number(item.quantity).toFixed(2)}</td>
+                        <td style={{ padding: "12px 14px", fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary)", borderBottom: "1px solid var(--color-border)" }}>{formatQty(item.quantity)}</td>
                         <td style={{ padding: "12px 14px", fontSize: "13px", color: "var(--color-text-secondary)", borderBottom: "1px solid var(--color-border)", textAlign: "right" }}>{fmt(item.costPrice ?? 0)}</td>
                         <td style={{ padding: "12px 14px", fontSize: "13px", color: "var(--color-text-primary)", fontWeight: 600, borderBottom: "1px solid var(--color-border)", textAlign: "right" }}>{fmt(item.sellingPrice ?? 0)}</td>
                         <td style={{ padding: "12px 14px", fontSize: "13px", color: "var(--color-text-secondary)", borderBottom: "1px solid var(--color-border)" }}>{item.condition ?? "—"}</td>

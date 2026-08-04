@@ -2,6 +2,7 @@ import { memo } from "react";
 import { Tag, Scale, Trash2, CheckSquare, Square } from "lucide-react";
 import { ProductPhoto } from "./ProductPhoto";
 import { F, COLORS, SHADOW, unitLabel } from "./constants";
+import { formatQty } from "@/lib/format";
 
 export interface ProductCardProps {
   p: Record<string, unknown>;
@@ -84,7 +85,7 @@ export const ProductCard = memo(function ProductCard({ p, onClick, onDelete, sel
               background: COLORS.surfaceLight, color: COLORS.textSecondary,
               fontFamily: F.body,
             }}>
-              <Scale size={10} />1 {u} = {Number(p.unitWeight).toFixed(2)} {t("кг", "kg")}
+              <Scale size={10} />1 {u} = {formatQty(p.unitWeight as number)} {t("кг", "kg")}
             </span>
           )}
           <span style={{
@@ -93,7 +94,7 @@ export const ProductCard = memo(function ProductCard({ p, onClick, onDelete, sel
             background: low ? "rgba(232,80,80,0.15)" : "rgba(74,222,128,0.15)",
             color: low ? "#d45050" : "#34c473",
           }}>
-            {Number(p.available ?? 0).toFixed(0)} {u}
+            {formatQty(p.available as number)} {u}
           </span>
           <button
             onClick={e => { e.stopPropagation(); onDelete(Number(p.id)); }}

@@ -1,5 +1,6 @@
 import { AlertTriangle, X } from "lucide-react";
 import { useLang } from "@/i18n";
+import { formatQty } from "@/lib/format";
 
 interface LowStockModalProps {
   lowCount: number;
@@ -50,8 +51,8 @@ export function LowStockModal({ lowCount, reorderSuggestions, onClose }: LowStoc
                 <p className="text-xs" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>{item.productCode}</p>
               </div>
               <div className="text-right">
-                <p className="text-sm font-bold" style={{ color: "#d45050" }}>{Number(item.currentStock ?? 0).toFixed(1)}</p>
-                <p className="text-xs" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>{t("порог", "chegara")}: {Number(item.reorderPoint ?? 0).toFixed(0)}</p>
+                <p className="text-sm font-bold" style={{ color: "#d45050" }}>{formatQty(item.currentStock)}</p>
+                <p className="text-xs" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>{t("порог", "chegara")}: {formatQty(item.reorderPoint, 0)}</p>
               </div>
             </div>
           ))}

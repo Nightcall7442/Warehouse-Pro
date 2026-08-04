@@ -6,6 +6,7 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { Truck, MapPin, CheckCircle2, Package, ArrowRight } from "lucide-react";
 import { notify } from "@/lib/toast";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
+import { formatQty } from "@/lib/format";
 
 const DELIVERY_STATUS_STYLES: Record<string, string> = {
   assigned:        "bg-info/15 text-info border-info/30",
@@ -362,7 +363,7 @@ function DeliveryCard({
       {Number(order.totalWeightKg ?? 0) > 0 && (
         <p className="text-xs text-secondary flex items-center gap-1">
           <Package size={12} />
-          {Number(order.totalWeightKg).toFixed(1)} кг
+          {formatQty(order.totalWeightKg)} кг
         </p>
       )}
 

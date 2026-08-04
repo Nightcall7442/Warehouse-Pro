@@ -11,6 +11,7 @@ import { ArrowLeft, Package, Edit2, TrendingUp, TrendingDown, ArrowUpDown, Loade
 import { exportToExcel, formatMovementsForExport } from "@/lib/excel";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
+import { formatQty } from "@/lib/format";
 
 const UNIT_LABELS: Record<string,[string,string]> = {
   kg:   ["кг","kg"], l: ["л","l"], pcs: ["шт","dona"],
@@ -183,7 +184,7 @@ export default function ProductDetail() {
                   {product.category && <span className="text-sm text-secondary">{product.category}</span>}
                   {Number(product.unitWeight) > 0 && (
                     <span className="text-xs px-2 py-0.5 rounded-full bg-surface-light text-secondary">
-                      1 {unitLabel(product.unit)} = {Number(product.unitWeight).toFixed(2)} {tr("кг","kg")}
+                      1 {unitLabel(product.unit)} = {formatQty(product.unitWeight)} {tr("кг","kg")}
                     </span>
                   )}
                 </div>
@@ -197,9 +198,9 @@ export default function ProductDetail() {
         {stock && (
           <div className={`mt-4 pt-4 border-t border-border-subtle grid grid-cols-3 gap-4 ${low?"border-danger/30":""}`}>
             {[
-              {label:tr("Доступно","Mavjud"), value:Number(stock.available).toFixed(2), danger:low},
-              {label:tr("Резерв","Zaxira"),  value:Number(stock.reserved).toFixed(2),  danger:false},
-              {label:tr("Всего","Jami"),     value:Number(stock.currentStock).toFixed(2), danger:false},
+              {label:tr("Доступно","Mavjud"), value:formatQty(stock.available), danger:low},
+              {label:tr("Резерв","Zaxira"),  value:formatQty(stock.reserved),  danger:false},
+              {label:tr("Всего","Jami"),     value:formatQty(stock.currentStock), danger:false},
             ].map(s=>(
               <div key={s.label} className="text-center">
                 <p className={`font-data text-2xl font-bold ${s.danger?"text-danger":"text-primary"}`}>{s.value}</p>
@@ -209,14 +210,14 @@ export default function ProductDetail() {
             {Number(product.unitWeight) > 0 && (
               <div className="col-span-3 mt-2 pt-2 border-t border-border-subtle/50 flex items-center justify-between">
                 <span className="text-xs text-secondary">{tr("Общий вес на складе (для сверки)","Ombordagi umumiy vazn (tekshirish uchun)")}</span>
-                <span className="font-data text-sm font-bold text-primary">{totalWeightKg.toFixed(2)} {tr("кг","kg")}</span>
+                <span className="font-data text-sm font-bold text-primary">{formatQty(totalWeightKg)} {tr("кг","kg")}</span>
               </div>
             )}
           </div>
         )}
 
         {low && (
-          <p className="text-xs text-danger mt-3 font-medium">⚠ {tr("Ниже точки дозаказа","Qayta buyurtma nuqtasidan past")} ({Number(product.reorderPoint).toFixed(0)} {unitLabel(product.unit)})</p>
+          <p className="text-xs text-danger mt-3 font-medium">⚠ {tr("Ниже точки дозаказа","Qayta buyurtma nuqtasidan past")} ({formatQty(product.reorderPoint, 0)} {unitLabel(product.unit)})</p>
         )}
       </div>
 
@@ -244,7 +245,7 @@ export default function ProductDetail() {
                   <td className="px-4 py-2 text-xs text-secondary">{m.createdAt?format(new Date(m.createdAt),"dd/MM/yy HH:mm"):""}</td>
                   <td className="px-4 py-2"><div className="flex items-center gap-1">{TYPE_ICONS[m.type]}<span className={`text-xs ${m.type==="in"?"text-success":m.type==="out"?"text-danger":"text-warning"}`}>{m.type.toUpperCase()}</span></div></td>
                   <td className={`px-4 py-2 font-data text-sm ${m.type==="in"?"text-success":m.type==="out"?"text-danger":"text-warning"}`}>
-                    {m.type==="in"?"+":m.type==="out"?"−":"±"}{Number(m.quantity).toFixed(2)} {unitLabel(product.unit)}
+                    {m.type==="in"?"+":m.type==="out"?"−":"±"}{formatQty(m.quantity)} {unitLabel(product.unit)}
                   </td>
                   <td className="px-4 py-2 text-xs text-secondary">{m.referenceType?`${m.referenceType} #${m.referenceId}`:"—"}</td>
                   <td className="px-4 py-2 text-xs text-secondary">{m.notes??"—"}</td>

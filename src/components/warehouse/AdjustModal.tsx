@@ -2,6 +2,7 @@ import { memo, useState } from "react";
 import { X, TrendingUp, TrendingDown, ArrowUpDown, Scale, Loader2 } from "lucide-react";
 import { useLang } from "@/i18n";
 import { toKg } from "./warehouse-utils";
+import { formatQty } from "@/lib/format";
 
 export const AdjustModal = memo(function AdjustModal({ productId, productName, currentStock, unitWeight, warehouseId, onSave, onClose, isPending }: {
   productId: number; productName: string; currentStock: number;
@@ -23,7 +24,7 @@ export const AdjustModal = memo(function AdjustModal({ productId, productName, c
   const currentType = types.find(t => t.value === type)!;
   const numQty = Number(qty) || 0;
   const newStock = type === "in" ? currentStock + numQty : type === "out" ? currentStock - numQty : numQty;
-  const previewWeightKg = unitWeight > 0 ? (numQty * unitWeight).toFixed(1) : null;
+  const previewWeightKg = unitWeight > 0 ? formatQty(numQty * unitWeight) : null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
@@ -52,8 +53,8 @@ export const AdjustModal = memo(function AdjustModal({ productId, productName, c
             {t("Текущий остаток", "Joriy qoldiq")}
           </span>
           <span className="ml-auto text-sm font-bold" style={{ color: "var(--color-text-primary, #2b3450)", fontFamily: "'DM Sans', sans-serif" }}>
-            {currentStock.toFixed(2)}
-            {unitWeight > 0 && <span className="text-xs font-normal" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}> ({toKg(currentStock, unitWeight).toFixed(1)} кг)</span>}
+            {formatQty(currentStock)}
+            {unitWeight > 0 && <span className="text-xs font-normal" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}> ({formatQty(toKg(currentStock, unitWeight))} кг)</span>}
           </span>
         </div>
 
@@ -104,8 +105,8 @@ export const AdjustModal = memo(function AdjustModal({ productId, productName, c
                 {t("Новый остаток", "Yangi qoldiq")}
               </span>
               <span className="text-sm font-bold" style={{ color: newStock >= 0 ? "#34c473" : "#d45050", fontFamily: "'DM Sans', sans-serif" }}>
-                {newStock.toFixed(2)}
-                {unitWeight > 0 && <span className="text-xs font-normal" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}> ({toKg(newStock, unitWeight).toFixed(1)} кг)</span>}
+                {formatQty(newStock)}
+                {unitWeight > 0 && <span className="text-xs font-normal" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}> ({formatQty(toKg(newStock, unitWeight))} кг)</span>}
               </span>
             </div>
           )}

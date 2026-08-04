@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { trpc } from "@/providers/trpc";
 import { exportToExcel, formatMovementsForExport } from "@/lib/excel";
 import { MOVE_TYPE } from "./warehouse-utils";
+import { formatQty } from "@/lib/format";
 
 export function MovementHistory({ productId, productName }: { productId: number; productName: string }) {
   const [open, setOpen] = useState(false);
@@ -57,7 +58,7 @@ export function MovementHistory({ productId, productName }: { productId: number;
                       </div>
                       <div className="flex items-center justify-between gap-2 mt-1">
                         <span className="text-base font-bold" style={{ color: mt.color, fontFamily: "'DM Sans', sans-serif" }}>
-                          {mt.sign}{Number(m.quantity).toFixed(2)} кг
+                          {mt.sign}{formatQty(m.quantity)} кг
                         </span>
                         {m.notes && <span className="text-xs truncate" style={{ color: "var(--color-text-tertiary, #98a0b8)" }}>{m.notes}</span>}
                       </div>
