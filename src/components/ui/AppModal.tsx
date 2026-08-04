@@ -97,9 +97,9 @@ export function AppModal({
             <div className="absolute -bottom-8 -left-8 w-24 h-24 rounded-full" style={{ background: "rgba(255,255,255,0.05)" }} />
             <div className="relative flex items-center justify-between gap-4">
               <div className="min-w-0">
-                <h2 id={titleId} className="text-xl font-bold text-white mb-0.5 truncate">{title}</h2>
+                <h2 id={titleId} className="text-xl font-bold mb-0.5 truncate" style={{ color: "var(--color-on-primary, #fff)" }}>{title}</h2>
                 {subtitle && (
-                  <p className="text-xs truncate" style={{ color: "rgba(255,255,255,0.7)" }}>{subtitle}</p>
+                  <p className="text-xs truncate" style={{ color: "color-mix(in srgb, var(--color-on-primary, #fff) 72%, transparent)" }}>{subtitle}</p>
                 )}
               </div>
               <div className="flex items-center gap-2 shrink-0">
@@ -109,7 +109,7 @@ export function AppModal({
                   onClick={onClose}
                   aria-label="Закрыть"
                   className="neo-btn-icon"
-                  style={{ width: "40px", height: "40px", background: "rgba(255,255,255,0.2)", color: "#fff", borderRadius: "12px" }}
+                  style={{ width: "40px", height: "40px", background: "color-mix(in srgb, var(--color-on-primary, #fff) 18%, transparent)", color: "var(--color-on-primary, #fff)", borderRadius: "12px" }}
                 >
                   <X size={20} />
                 </button>

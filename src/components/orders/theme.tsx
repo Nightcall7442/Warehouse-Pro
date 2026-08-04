@@ -108,10 +108,18 @@ export const StatusBadge = memo(function StatusBadge({ status, lang }: { status:
   );
 });
 
-/** Small labeled card — the standard container for a block of related fields. */
+/**
+ * Small labeled card — the standard container for a block of related fields.
+ *
+ * Uses `neo-card-sm` so an Orders panel reads as the same product as the
+ * Arrivals and Products screens, which have used the neumorphic system all
+ * along. This component and PillButton below are shared by every Orders
+ * surface, so styling them here is what carries the change across the feature
+ * rather than each screen restyling itself.
+ */
 export function InfoCard({ label, icon, children }: { label: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div style={{ padding: "12px", borderRadius: "12px", background: COLORS.surfaceLight }}>
+    <div className="neo-card-sm" style={{ padding: "14px", borderRadius: "16px" }}>
       {label && (
         <p style={{
           display: "flex", alignItems: "center", gap: "4px", marginBottom: "4px",
@@ -126,31 +134,34 @@ export function InfoCard({ label, icon, children }: { label: string; icon: React
   );
 }
 
-/** Pill button — the standard action button across order screens. */
+/**
+ * The standard action button across order screens.
+ *
+ * Built on `neo-btn` / `neo-btn-primary` so it carries the same shape, shadow
+ * and press response as buttons on every other page. Only the tones that need
+ * a colour the base classes don't provide (success, danger) add anything on
+ * top; "primary" is the base class untouched, which is what keeps the brass
+ * accent consistent when the theme changes it.
+ */
 export function PillButton({ onClick, disabled, tone = "neutral", type, children }: {
   onClick?: () => void; disabled?: boolean; tone?: "primary" | "success" | "neutral" | "ghost" | "danger";
   type?: "button" | "submit"; children: React.ReactNode;
 }) {
-  const styles: Record<string, React.CSSProperties> = {
-    primary: { background: COLORS.primary, color: COLORS.onPrimary, border: "none" },
-    success: { background: "linear-gradient(135deg, var(--color-success), #28a862)", color: "#fff", border: "none" },
-    danger:  { background: colorMix(COLORS.danger, 7), color: COLORS.danger, border: `1px solid ${colorMix(COLORS.danger, 19)}` },
-    neutral: { background: COLORS.surface, color: COLORS.textSecondary, border: `1px solid ${COLORS.border}` },
-    ghost:   { background: "transparent", color: COLORS.textSecondary, border: "none" },
+  const className = tone === "primary" || tone === "success" ? "neo-btn-primary" : "neo-btn";
+  const tint: Record<string, React.CSSProperties> = {
+    primary: {},
+    success: { background: "linear-gradient(135deg, var(--color-success), #28a862)", color: "#fff" },
+    danger:  { color: COLORS.dangerText },
+    neutral: {},
+    ghost:   { background: "transparent", boxShadow: "none", color: COLORS.textSecondary },
   };
   return (
     <button
       type={type ?? "button"}
       onClick={onClick}
       disabled={disabled}
-      style={{
-        display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px",
-        padding: "8px 16px", borderRadius: "10px",
-        fontFamily: F.body, fontSize: "13px", fontWeight: 600,
-        cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.6 : 1,
-        transition: "opacity 0.15s",
-        ...styles[tone],
-      }}
+      className={className}
+      style={{ height: "40px", ...tint[tone] }}
     >
       {children}
     </button>

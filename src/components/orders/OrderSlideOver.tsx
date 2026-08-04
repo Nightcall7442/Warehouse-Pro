@@ -420,37 +420,66 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
     <>
     <Sheet open={open} onOpenChange={(v) => { if (!showCompletion) onOpenChange(v); }}>
       <SheetContent className="w-[600px] sm:max-w-[600px] p-0 flex flex-col">
-        <SheetHeader className="px-5 pt-5 pb-3">
-          <SheetTitle className="flex items-center gap-2">
-            {isLoading ? t("Загрузка...", "Yuklanmoqda...") : (
-              <>
-                <span style={{ fontFamily: F.display, fontWeight: 700 }}>{order?.orderNumber}</span>
-                {/* Status dropdown for CEO/operator, badge for others — same pattern as the Orders table row */}
-                {isOperatorOrCeo && order && !order.deletedAt ? (
-                  <Select value={order.status} onValueChange={handleStatusChange}>
-                    <SelectTrigger style={{
-                      height: "26px", padding: "0 10px", fontFamily: F.body, fontSize: "11px", fontWeight: 600,
-                      borderRadius: "9999px", border: "none", width: "auto",
-                      background: colorMix(STATUS[order.status]?.dot ?? COLORS.primary, 8),
-                      color: STATUS[order.status]?.dot ?? COLORS.primary,
-                    }}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(STATUS).map(([key, labels]) => (
-                        <SelectItem key={key} value={key} style={{ fontSize: "12px" }}>
-                          {lang === "uz" ? labels.uz : labels.ru}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : order ? (
-                  <StatusBadge status={order.status} lang={lang} />
-                ) : null}
-                <span style={{ marginLeft: "auto", fontFamily: F.display, fontSize: "18px", fontWeight: 700, color: COLORS.textPrimary }}>
-                  {Number(order?.total ?? 0).toLocaleString("ru")} {currency}
-                </span>
-              </>
+        {/* Brass gradient header — the same band every other screen's dialog
+            uses, so the panel reads as part of the app rather than a bolt-on.
+            The total lives here alone; it used to be repeated immediately
+            below in a larger size, which made the eye check twice whether the
+            two numbers agreed. */}
+        <SheetHeader
+          className="relative overflow-hidden shrink-0 p-0"
+          style={{
+            background: "linear-gradient(135deg, var(--color-primary), var(--color-primary-hover, #4a5c78))",
+            padding: "24px 24px 20px",
+          }}
+        >
+          <div className="absolute -top-16 -right-16 w-40 h-40 rounded-full" style={{ background: "rgba(255,255,255,0.08)" }} />
+          <div className="absolute -bottom-8 -left-8 w-24 h-24 rounded-full" style={{ background: "rgba(255,255,255,0.05)" }} />
+          <SheetTitle className="relative">
+            {isLoading ? (
+              <span style={{ color: "var(--color-on-primary, #fff)" }}>{t("Загрузка…", "Yuklanmoqda…")}</span>
+            ) : (
+              <div className="flex flex-col gap-2.5">
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <span className="text-sm font-bold font-data" style={{ color: "var(--color-on-primary, #fff)" }}>{order?.orderNumber}</span>
+                  {/* Status dropdown for CEO/operator, badge for others — same pattern as the Orders table row */}
+                  {isOperatorOrCeo && order && !order.deletedAt ? (
+                    <Select value={order.status} onValueChange={handleStatusChange}>
+                      <SelectTrigger style={{
+                        height: "28px", padding: "0 12px", fontFamily: F.body, fontSize: "11px", fontWeight: 600,
+                        borderRadius: "9999px", border: "none", width: "auto",
+                        background: "color-mix(in srgb, var(--color-on-primary, #fff) 18%, transparent)", color: "var(--color-on-primary, #fff)",
+                      }}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(STATUS).map(([key, labels]) => (
+                          <SelectItem key={key} value={key} style={{ fontSize: "12px" }}>
+                            {lang === "uz" ? labels.uz : labels.ru}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : order ? (
+                    <StatusBadge status={order.status} lang={lang} />
+                  ) : null}
+                  {(() => {
+                    const pm = PAYMENT[order?.paymentMethod ?? "cash"];
+                    if (!pm) return null;
+                    return (
+                      <span
+                        className="inline-flex px-3 py-1 rounded-full text-[11px] font-semibold"
+                        style={{ background: "color-mix(in srgb, var(--color-on-primary, #fff) 18%, transparent)", color: "var(--color-on-primary, #fff)" }}
+                      >
+                        {t(pm.ru, pm.uz)}
+                      </span>
+                    );
+                  })()}
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-3xl font-bold font-data" style={{ color: "var(--color-on-primary, #fff)" }}>{Number(order?.total ?? 0).toLocaleString("ru")}</span>
+                  <span className="text-base" style={{ color: "color-mix(in srgb, var(--color-on-primary, #fff) 72%, transparent)" }}>{currency}</span>
+                </div>
+              </div>
             )}
           </SheetTitle>
         </SheetHeader>
@@ -469,28 +498,7 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
               <ScrollArea className="h-full px-5 pb-5">
                 <div style={{ display: "flex", flexDirection: "column", gap: "18px", paddingTop: "4px" }}>
 
-                  {/* ── Total + Payment badge ── */}
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <div style={{ display: "flex", alignItems: "baseline", gap: "8px" }}>
-                      <span style={{ fontFamily: F.display, fontSize: "30px", fontWeight: 700, color: COLORS.textPrimary }}>{Number(order.total).toLocaleString("ru")}</span>
-                      <span style={{ fontFamily: F.body, fontSize: "16px", color: COLORS.textSecondary }}>{currency}</span>
-                    </div>
-                    {(() => {
-                      const pm = PAYMENT[order.paymentMethod ?? "cash"];
-                      if (!pm) return null;
-                      return (
-                        <span style={{
-                          display: "inline-flex", padding: "4px 12px", borderRadius: "9999px",
-                          fontFamily: F.body, fontSize: "11px", fontWeight: 600,
-                          background: colorMix(pm.color, 8), color: pm.color, border: `1px solid ${colorMix(pm.color, 19)}`,
-                        }}>
-                          {t(pm.ru, pm.uz)}
-                        </span>
-                      );
-                    })()}
-                  </div>
-
-                  <Separator />
+                  {/* Total and payment method now live in the header band above. */}
 
                   {/* ── Meta Grid ── */}
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>

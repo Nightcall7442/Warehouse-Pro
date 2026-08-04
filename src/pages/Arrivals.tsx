@@ -146,10 +146,10 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string
           <div className="absolute -bottom-8 -left-8 w-24 h-24 rounded-full" style={{ background: "rgba(255,255,255,0.05)" }} />
           <div className="relative flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-bold text-white mb-0.5">{t("Новый приход", "Yangi kelish")}</h2>
-              <p className="text-xs" style={{ color: "rgba(255,255,255,0.7)" }}>{t("Поступление товаров на склад", "Omborga mahsulot kiritish")}</p>
+              <h2 className="text-xl font-bold mb-0.5" style={{ color: "var(--color-on-primary, #fff)" }}>{t("Новый приход", "Yangi kelish")}</h2>
+              <p className="text-xs" style={{ color: "color-mix(in srgb, var(--color-on-primary, #fff) 72%, transparent)" }}>{t("Поступление товаров на склад", "Omborga mahsulot kiritish")}</p>
             </div>
-            <button onClick={onClose} className="neo-btn-icon" style={{ width: "40px", height: "40px", background: "rgba(255,255,255,0.2)", color: "#fff", borderRadius: "12px" }}>
+            <button onClick={onClose} className="neo-btn-icon" style={{ width: "40px", height: "40px", background: "color-mix(in srgb, var(--color-on-primary, #fff) 18%, transparent)", color: "var(--color-on-primary, #fff)", borderRadius: "12px" }}>
               <X size={20} />
             </button>
           </div>
