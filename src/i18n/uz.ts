@@ -84,8 +84,6 @@ export const uz = {
       delivered:            "Yetkazildi",
       cancelled:            "Bekor qilindi",
       returned:             "Qaytarildi",
-      partially_returned:   "Qisman qaytarildi",
-      partial_return_kept:  "Qaytarish (do'kon qismi oldi)",
     },
     delivery: {
       not_assigned:    "Tayinlanmagan",

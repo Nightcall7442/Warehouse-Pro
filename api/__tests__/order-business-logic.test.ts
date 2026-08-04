@@ -46,6 +46,7 @@ vi.mock("../telegram-router", () => ({
 }));
 
 import { orders, orderItems, warehouseStock, products, warehouses, shops } from "@db/schema";
+import { createExecuteMock } from "./helpers/mock-execute";
 
 // ── Fake in-memory tables ─────────────────────────────────────────────────────
 interface FakeOrder { id: number; tenantId: number; agentId: number; shopId: number; status: string; deletedAt: Date | null; subtotal: string; discount: string; total: string; paymentMethod: string; }
@@ -262,73 +263,10 @@ function makeMockDb() {
         return Promise.resolve();
       }
 
-      // Parse the batch CASE/WHEN query
-      const updates: Array<{ productId: number; field: string; op: string; amount: number }> = [];
-
-      const isCreatePattern = fullSql.includes("reserved = reserved +") || fullSql.includes("available = available -");
-      const isCompletePattern = fullSql.includes("current_stock = CASE") && !fullSql.includes("reserved = reserved +");
-
-      // Process each sql_join in the values
-      let caseIndex = 0;
-      for (const val of s.values) {
-        if (!val || typeof val !== "object") continue;
-        const obj = val as Record<string, unknown>;
-
-        if (obj.__kind === "sql_join" && Array.isArray(obj.chunks)) {
-          if (caseIndex < 2) {
-            // Determine field from SQL context
-            let field: string;
-            if (isCompletePattern) {
-              // Complete pattern: current_stock (case 0), reserved (case 1)
-              field = caseIndex === 0 ? "currentStock" : "reserved";
-            } else if (caseIndex === 0) {
-              field = "reserved";
-            } else {
-              field = "available";
-            }
-
-            // Determine operation based on pattern
-            let op: string;
-            if (isCreatePattern) {
-              // Create: reserved +, available -
-              op = caseIndex === 0 ? "+" : "-";
-            } else if (isCompletePattern) {
-              // Complete: current_stock -, reserved -
-              op = "-";
-            } else {
-              // Cancel: reserved -, available +
-              op = caseIndex === 0 ? "-" : "+";
-            }
-
-            for (const chunk of obj.chunks) {
-              if (!chunk || typeof chunk !== "object") continue;
-              const c = chunk as { __kind: string; strings: string[]; values: unknown[] };
-              if (c.__kind !== "sql") continue;
-
-              // Each chunk is: WHEN product_id = ${productId} THEN ... ${amount}
-              const productId = Number(c.values[0]);
-              const amount = Number(c.values[1]);
-              updates.push({ productId, field, op, amount });
-            }
-          }
-          caseIndex++;
-        }
-      }
-
-      // Get tenantId from the last non-object value
-      const tenantId = s.values.filter(v => typeof v !== "object" || v === null).pop();
-
-      // Apply updates
-      for (const u of updates) {
-        for (const row of stockTable) {
-          if (String(row.productId) === String(u.productId) && String(row.tenantId) === String(tenantId) && u.field) {
-            const cur = Number((row as unknown as Record<string, string>)[u.field]);
-            (row as unknown as Record<string, string>)[u.field] = (u.op === "+" ? cur + u.amount : cur - u.amount).toFixed(2);
-          }
-        }
-      }
-
-      return Promise.resolve();
+      // Batch CASE/WHEN queries (create/cancel/updateStatus's delta form) —
+      // shared with the other test files so a change to the SQL shape only
+      // needs updating in one place.
+      return createExecuteMock(stockTable)(sqlObj);
     },
     transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(db),
   };
@@ -436,21 +374,21 @@ describe("order.updateStatus — no double-apply on stock", () => {
     const opCaller = orderRouter.createCaller(makeCtx(1, 1, "operator"));
 
     await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 10, unitPrice: 100 }] });
-    await opCaller.updateStatus({ id: 1, status: "completed" });
+    await opCaller.updateStatus({ id: 1, status: "delivered" });
 
     const stock = stockTable.find(s => s.productId === 1)!;
     expect(stock.currentStock).toBe("90.00");
     expect(stock.reserved).toBe("0.00");
   });
 
-  it("calling updateStatus(completed) twice does not deduct stock twice", async () => {
+  it("calling updateStatus(delivered) twice does not deduct stock twice", async () => {
     const { orderRouter } = await import("../order-router");
     const caller   = orderRouter.createCaller(makeCtx(1, 10, "agent"));
     const opCaller = orderRouter.createCaller(makeCtx(1, 1, "operator"));
 
     await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 10, unitPrice: 100 }] });
-    await opCaller.updateStatus({ id: 1, status: "completed" });
-    try { await opCaller.updateStatus({ id: 1, status: "completed" }); } catch { /* expected */ }
+    await opCaller.updateStatus({ id: 1, status: "delivered" });
+    try { await opCaller.updateStatus({ id: 1, status: "delivered" }); } catch { /* expected */ }
 
     const stock = stockTable.find(s => s.productId === 1)!;
     expect(stock.currentStock).toBe("90.00");
@@ -660,6 +598,6 @@ describe("order lifecycle — soft-deleted orders are out of play", () => {
 
     await caller.delete({ id: created.id });
 
-    await expect(caller.updateStatus({ id: created.id, status: "completed" })).rejects.toThrow(/не найден/);
+    await expect(caller.updateStatus({ id: created.id, status: "delivered" })).rejects.toThrow(/не найден/);
   });
 });

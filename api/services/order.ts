@@ -1,5 +1,9 @@
 import { eq, and, desc, sql, isNull, inArray } from "drizzle-orm";
+import { alias } from "drizzle-orm/mysql-core";
 import { orders, orderItems, warehouseStock, shops, users, products, notifications, warehouses, payments, loadingLists, loadingListOrders, auditLog, debtReminders, orderAdjustments, stockMovements, territories } from "@db/schema";
+
+/** Second reference to `users` for courier joins alongside the agent join. */
+const couriers = alias(users, "couriers");
 import { cache, CacheKeys } from "../lib/cache";
 import { logger } from "../lib/logger";
 
@@ -35,32 +39,349 @@ async function adjustShopDebt(tx: Tx, tenantId: number, shopId: number, delta: n
 }
 
 /** Stock is held while order is active (not delivered, cancelled, or returned). */
+/** Still moving through the pipeline — nothing final has happened to the goods yet. */
+const OPEN_ORDER_STATUSES = ["new", "processing", "shipped", "pending"] as const;
+/** Goods are no longer in play — delivered, cancelled, or returned. */
+const CLOSED_ORDER_STATUSES = ["delivered", "cancelled", "returned"] as const;
+
 function holdsStock(status: string): boolean {
-  return ["new", "processing", "shipped", "pending"].includes(status);
+  return (OPEN_ORDER_STATUSES as readonly string[]).includes(status);
 }
 
 /** Status that triggers stock deduction (goods left the warehouse). */
 function deductsStock(status: string): boolean {
-  return status === "delivered" || status === "completed" || status === "partial_return_kept";
+  return status === "delivered" || status === "completed";
 }
 
 /** Status that releases stock (goods returned to warehouse). */
 function releasesStock(status: string): boolean {
-  return status === "cancelled" || status === "returned" || status === "partially_returned";
+  return status === "cancelled" || status === "returned";
+}
+
+/**
+ * A credit order's receivable stands until the goods come back. Cancelled and
+ * returned orders gave everything back, so they owe nothing; every other status
+ * (including delivered) still owes, because delivery does not equal payment.
+ */
+function owesDebt(status: string): boolean {
+  return status !== "cancelled" && status !== "returned";
+}
+
+/**
+ * What one unit of an order line has done to warehouse stock by the time the
+ * order sits in `status`, counted from "the order does not exist":
+ *
+ *   open (new/processing/shipped/pending) — held for the order: available−1, reserved+1
+ *   delivered                             — gone from the building: available−1, current−1
+ *   cancelled / returned                  — everything given back: no effect
+ *
+ * Moving between statuses applies the *difference* of the two effects, so every
+ * direction works out on its own — including going backwards. Rolling a
+ * delivered order back to "new" yields current+1, reserved+1: the goods return
+ * to the shelf and are held for the order again.
+ */
+function stockEffect(status: string): { current: number; reserved: number; available: number } {
+  if (deductsStock(status)) return { current: -1, reserved: 0, available: -1 };
+  if (releasesStock(status)) return { current: 0, reserved: 0, available: 0 };
+  return { current: 0, reserved: 1, available: -1 };
+}
+
+/**
+ * How an order's items currently affect warehouse stock, which decides what an
+ * edit has to move:
+ *  - "reserve"  — units are held for the order (available↓, reserved↑)
+ *  - "consumed" — units already left the building (current_stock↓)
+ *  - "none"     — order gave everything back, its items own no stock
+ */
+function stockModeFor(status: string): "reserve" | "consumed" | "none" {
+  if (deductsStock(status)) return "consumed";
+  if (holdsStock(status)) return "reserve";
+  return "none";
+}
+
+/**
+ * Moves warehouse stock to match a change of `delta` units on an order line,
+ * according to what that order's status already did to stock. Positive delta
+ * means the order now wants more units than before.
+ */
+async function applyStockDelta(
+  tx: Tx, tenantId: number, warehouseId: number, productId: number,
+  delta: number, mode: "reserve" | "consumed" | "none",
+): Promise<void> {
+  if (delta === 0 || mode === "none") return;
+
+  if (mode === "reserve") {
+    if (delta > 0) {
+      const [stock] = await tx.select({ available: warehouseStock.available })
+        .from(warehouseStock)
+        .where(and(eq(warehouseStock.productId, productId), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, warehouseId)))
+        .limit(1);
+      if (Number(stock?.available ?? 0) < delta) {
+        throw new Error(`Недостаточно товара на складе (товар ID ${productId}: доступно ${Number(stock?.available ?? 0)}, нужно +${delta})`);
+      }
+    }
+    await tx.execute(sql`
+      UPDATE warehouse_stock
+      SET reserved = GREATEST(0, reserved + ${delta}), available = available - ${delta}
+      WHERE product_id = ${productId} AND tenant_id = ${tenantId} AND warehouse_id = ${warehouseId}
+    `);
+    return;
+  }
+
+  // "consumed" — the goods are already gone; more units means less on hand.
+  if (delta > 0) {
+    const [stock] = await tx.select({ currentStock: warehouseStock.currentStock })
+      .from(warehouseStock)
+      .where(and(eq(warehouseStock.productId, productId), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, warehouseId)))
+      .limit(1);
+    if (Number(stock?.currentStock ?? 0) < delta) {
+      throw new Error(`Недостаточно товара на складе (товар ID ${productId}: остаток ${Number(stock?.currentStock ?? 0)}, нужно +${delta})`);
+    }
+  }
+  await tx.execute(sql`
+    UPDATE warehouse_stock SET current_stock = current_stock - ${delta}
+    WHERE product_id = ${productId} AND tenant_id = ${tenantId} AND warehouse_id = ${warehouseId}
+  `);
 }
 
 /** Delivered statuses — includes legacy "completed" for backwards compatibility. */
 const DELIVERED_STATUSES = ["delivered", "completed"];
 
+/**
+ * Records a partial (or full) payment against an already-delivered order.
+ * Runs on the caller's transaction so it can be composed with
+ * applyPartialDelivery into one atomic operation (see recordDeliveryAndPayment).
+ *
+ * The order's own status always becomes "delivered" here — the goods left the
+ * warehouse, full stop. Payment completeness (partial vs. paid) and any
+ * remaining debt are tracked on the payments row and shops.debt, not on the
+ * order status, so a partly-paid delivery still counts toward delivered/revenue
+ * KPIs (which filter status IN ('delivered','completed')).
+ */
+async function applyPartialPayment(
+  tx: Tx, tenantId: number, userId: number,
+  input: { orderId: number; paidAmount: string; method: "cash" | "card" | "transfer"; debtDueDate?: string; notes?: string },
+): Promise<void> {
+  const paid = Number(input.paidAmount);
+  if (paid <= 0) throw new Error("Сумма оплаты должна быть положительной");
+
+  const [order] = await tx.select({
+    id: orders.id, status: orders.status, total: orders.total,
+    shopId: orders.shopId, orderNumber: orders.orderNumber,
+  }).from(orders)
+    .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt)))
+    .limit(1);
+  if (!order) throw new Error("Заказ не найден");
+
+  const total = Number(order.total);
+  if (paid > total) throw new Error("Сумма оплаты не может превышать сумму заказа");
+
+  const debt = total - paid;
+
+  // Record payment
+  await tx.insert(payments).values({
+    tenantId,
+    shopId: order.shopId,
+    orderId: order.id,
+    amount: paid.toFixed(2),
+    type: "payment",
+    paymentMethod: input.method,
+    status: debt > 0 ? "partially_paid" : "paid",
+    totalOrderAmount: total.toFixed(2),
+    paidAmount: paid.toFixed(2),
+    debtAmount: Math.max(0, debt).toFixed(2),
+    debtDueDate: input.debtDueDate ?? null,
+    paidAt: new Date(),
+    notes: input.notes ?? null,
+    createdBy: userId,
+  });
+
+  // Update shop debt: at order creation the full total was added to debt
+  // (for "debt" payment method). Now the customer pays part of it —
+  // reduce the debt by the paid amount.
+  await tx.execute(sql`
+    UPDATE shops SET debt = GREATEST(0, CAST(debt AS DECIMAL(12,2)) - ${paid})
+    WHERE id = ${order.shopId} AND tenant_id = ${tenantId}
+  `);
+
+  // Create debt reminder if there's remaining debt and a due date
+  if (debt > 0 && input.debtDueDate) {
+    await tx.insert(debtReminders).values({
+      tenantId,
+      shopId: order.shopId,
+      orderId: order.id,
+      amount: debt.toFixed(2),
+      dueDate: input.debtDueDate,
+      status: "pending",
+    });
+  }
+
+  // Update order status — goods were delivered; remaining debt lives on
+  // payments.status / shops.debt, not on this status field.
+  await tx.update(orders).set({
+    status: "delivered",
+  }).where(and(eq(orders.id, order.id), eq(orders.tenantId, tenantId)));
+
+  // Log adjustment
+  await tx.insert(orderAdjustments).values({
+    tenantId,
+    orderId: order.id,
+    adjustedBy: userId,
+    type: "partial_payment",
+    oldValue: { status: order.status, total: order.total },
+    newValue: { status: "delivered", paid: paid.toFixed(2), debt: Math.max(0, debt).toFixed(2) },
+    reason: input.notes ?? null,
+  });
+}
+
+/**
+ * Adjusts an order's items/total down to what was actually delivered and
+ * returns the undelivered quantity to warehouse stock. Runs on the caller's
+ * transaction so it can be composed with applyPartialPayment (see
+ * recordDeliveryAndPayment).
+ */
+async function applyPartialDelivery(
+  tx: Tx, tenantId: number, userId: number,
+  input: { orderId: number; items: Array<{ itemId: number; deliveredQuantity: number; returnReason?: string }>; photos?: string[] },
+): Promise<void> {
+  if (input.items.length === 0) throw new Error("Выберите хотя бы один товар");
+
+  const [order] = await tx.select({
+    id: orders.id, status: orders.status, total: orders.total,
+    subtotal: orders.subtotal, discount: orders.discount,
+    shopId: orders.shopId, orderNumber: orders.orderNumber,
+  }).from(orders)
+    .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt)))
+    .limit(1);
+  if (!order) throw new Error("Заказ не найден");
+
+  let newSubtotal = 0;
+  const oldItems: Array<{ id: number; quantity: string; subtotal: string }> = [];
+  const newItems: Array<{ id: number; quantity: string; subtotal: string }> = [];
+
+  const [defaultWh] = await tx.select({ id: warehouses.id }).from(warehouses)
+    .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true))).limit(1);
+
+  for (const item of input.items) {
+    const [orderItem] = await tx.select({
+      id: orderItems.id, quantity: orderItems.quantity,
+      unitPrice: orderItems.unitPrice, subtotal: orderItems.subtotal,
+      productId: orderItems.productId, deliveredQuantity: orderItems.deliveredQuantity,
+    }).from(orderItems)
+      .where(and(eq(orderItems.id, item.itemId), eq(orderItems.orderId, order.id)))
+      .limit(1);
+    if (!orderItem) throw new Error(`Позиция заказа #${item.itemId} не найдена`);
+    // Idempotency guard: this item has already gone through a partial-delivery
+    // pass (deliveredQuantity was set). Re-running would return the same stock
+    // to the warehouse and shave the same amount off shop debt a second time.
+    if (orderItem.deliveredQuantity !== null) {
+      throw new Error(`Позиция заказа #${item.itemId} уже обработана как частичная доставка`);
+    }
+
+    const orderedQty = Number(orderItem.quantity);
+    const deliveredQty = item.deliveredQuantity;
+    if (deliveredQty > orderedQty) throw new Error(`Нельзя передать больше заказанного (${orderedQty})`);
+
+    const returnedQty = orderedQty - deliveredQty;
+    const unitPrice = Number(orderItem.unitPrice);
+    const newLineSubtotal = unitPrice * deliveredQty;
+    newSubtotal += newLineSubtotal;
+
+    oldItems.push({ id: orderItem.id, quantity: orderItem.quantity, subtotal: orderItem.subtotal });
+
+    // Update order item
+    await tx.update(orderItems).set({
+      deliveredQuantity: deliveredQty.toFixed(2),
+      returnReason: item.returnReason ?? null,
+      subtotal: newLineSubtotal.toFixed(2),
+    }).where(eq(orderItems.id, orderItem.id));
+
+    newItems.push({ id: orderItem.id, quantity: deliveredQty.toFixed(2), subtotal: newLineSubtotal.toFixed(2) });
+
+    // Release the full reservation held since order creation: the delivered
+    // portion is now consumed (current_stock drops, matching the "open →
+    // delivered" stockEffect delta — this used to only run when something
+    // was returned, so a fully-delivered order never released its reservation
+    // or decremented current_stock at all); the undelivered portion goes back
+    // to available (matching "open → returned"). Either way `reserved` drops
+    // by the full original order quantity.
+    if (defaultWh) {
+      await tx.execute(sql`
+        UPDATE warehouse_stock
+        SET current_stock = current_stock - ${deliveredQty},
+            reserved = GREATEST(0, reserved - ${orderedQty}),
+            available = available + ${returnedQty}
+        WHERE product_id = ${orderItem.productId} AND tenant_id = ${tenantId} AND warehouse_id = ${defaultWh.id}
+      `);
+
+      if (returnedQty > 0) {
+        await tx.insert(stockMovements).values({
+          tenantId,
+          productId: orderItem.productId,
+          type: "adjustment",
+          quantity: String(returnedQty),
+          referenceType: "order_return",
+          referenceId: order.id,
+          notes: `Возврат при доставке: ${item.returnReason ?? "не указано"}`,
+        });
+      }
+    }
+  }
+
+  // Recalculate order totals
+  const discount = Number(order.discount);
+  const newTotal = newSubtotal - discount;
+
+  // The order is delivered — what came back was already subtracted from its
+  // lines and total, and the returned units went back to stock above. The
+  // partial nature lives in order_items.deliveredQuantity and the adjustment
+  // log, not in a separate status.
+  await tx.update(orders).set({
+    subtotal: newSubtotal.toFixed(2),
+    total: newTotal.toFixed(2),
+    status: "delivered",
+  }).where(and(eq(orders.id, order.id), eq(orders.tenantId, tenantId)));
+
+  // Adjust shop debt if order total decreased
+  const totalDiff = Number(order.total) - newTotal;
+  if (totalDiff > 0) {
+    await tx.execute(sql`
+      UPDATE shops SET debt = GREATEST(0, CAST(debt AS DECIMAL(12,2)) - ${totalDiff})
+      WHERE id = ${order.shopId} AND tenant_id = ${tenantId}
+    `);
+  }
+
+  // Log adjustment
+  await tx.insert(orderAdjustments).values({
+    tenantId,
+    orderId: order.id,
+    adjustedBy: userId,
+    type: "partial_delivery",
+    oldValue: { total: order.total, items: oldItems },
+    newValue: { total: newTotal.toFixed(2), items: newItems },
+    reason: input.items.map(i => i.returnReason).filter(Boolean).join(", "),
+    photos: input.photos ?? null,
+  });
+}
+
 export const OrderService = {
   async list(db: Db, tenantId: number, filters: Record<string, unknown>, opts?: { userId: number; userRole: string }) {
-    const f = filters as { status?: string; agentId?: number; page?: number; pageSize?: number; search?: string; showDeleted?: boolean; dateFrom?: string; dateTo?: string; paymentMethod?: string };
+    const f = filters as { status?: string; archived?: boolean; agentId?: number; page?: number; pageSize?: number; search?: string; showDeleted?: boolean; dateFrom?: string; dateTo?: string; paymentMethod?: string };
     const page = f.page ?? 1;
     const limit = f.pageSize ?? 25;
     const offset = (page - 1) * limit;
 
     const conditions = [eq(orders.tenantId, tenantId)];
-    if (f.status) conditions.push(eq(orders.status, f.status as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" | "partially_returned" | "partial_return_kept"));
+    if (f.status) {
+      conditions.push(eq(orders.status, f.status as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned"));
+    } else if (f.archived !== undefined) {
+      // Archive = goods are no longer in play (delivered/cancelled/returned).
+      // Active = still moving through the pipeline. A specific status filter
+      // (above) always wins — the tab just picks a default grouping.
+      conditions.push(f.archived
+        ? inArray(orders.status, CLOSED_ORDER_STATUSES)
+        : inArray(orders.status, OPEN_ORDER_STATUSES));
+    }
     if (f.agentId) conditions.push(eq(orders.agentId, f.agentId));
     if (f.paymentMethod) conditions.push(eq(orders.paymentMethod, f.paymentMethod as "cash" | "card" | "transfer" | "debt"));
     // P0-14 FIX: Implement search filter
@@ -411,7 +732,7 @@ export const OrderService = {
     return { success: true };
   },
 
-  async updateStatus(db: Db, tenantId: number, orderId: number, newStatus: "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" | "partially_returned" | "partial_return_kept") {
+  async updateStatus(db: Db, tenantId: number, orderId: number, newStatus: "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned") {
     await db.transaction(async (tx) => {
       const [order] = await tx.select({
         id: orders.id, status: orders.status, shopId: orders.shopId,
@@ -424,126 +745,84 @@ export const OrderService = {
         .limit(1);
       if (!order) throw new Error("Заказ не найден");
 
-      if (order.status === newStatus) {
-        if (["delivered", "completed", "cancelled", "returned"].includes(order.status)) {
-          return { success: true };
-        }
-      }
+      // Nothing to do when the status is unchanged — and re-applying the stock
+      // move would double-count it.
+      if (order.status === newStatus) return { success: true };
 
-      const validTransitions: Record<string, string[]> = {
-        new:                  ["processing", "cancelled"],
-        processing:           ["new", "shipped", "cancelled"],
-        shipped:              ["processing", "delivered", "pending", "returned", "partially_returned", "partial_return_kept", "cancelled"],
-        pending:              ["shipped", "delivered", "cancelled"],
-        delivered:            ["returned", "partially_returned", "partial_return_kept"],
-        completed:            ["returned", "partially_returned", "partial_return_kept"], // legacy alias for delivered
-        partially_returned:   ["returned", "delivered"],
-        partial_return_kept:  ["delivered"],
-        returned:             [],
-        cancelled:            [],
+      // Any status may follow any other. Operators legitimately correct
+      // mistakes both ways ("delivered by accident" → back to new), and the
+      // stock/debt deltas below are computed from the difference between the
+      // two statuses, so every direction settles correctly on its own.
+      const before = stockEffect(order.status);
+      const after = stockEffect(newStatus);
+      const d = {
+        current: after.current - before.current,
+        reserved: after.reserved - before.reserved,
+        available: after.available - before.available,
       };
-      if (!validTransitions[order.status]?.includes(newStatus)) {
-        throw new Error(`Невозможно перевести из "${order.status}" в "${newStatus}"`);
-      }
 
-      // Cancelling/returning a credit order releases the receivable it created.
-      if (releasesStock(newStatus) && order.paymentMethod === "debt" && holdsStock(order.status)) {
-        await adjustShopDebt(tx, tenantId, order.shopId, -Number(order.total));
+      // A credit order owes while it is neither cancelled nor returned; moving
+      // across that line books or releases the receivable.
+      if (order.paymentMethod === "debt") {
+        const owedBefore = owesDebt(order.status) ? Number(order.total) : 0;
+        const owedAfter = owesDebt(newStatus) ? Number(order.total) : 0;
+        if (owedAfter !== owedBefore) {
+          await adjustShopDebt(tx, tenantId, order.shopId, owedAfter - owedBefore);
+        }
       }
 
       const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
-      if (items.length > 0) {
-        if (deductsStock(newStatus)) {
-          // Skip stock deduction if courier already delivered (markDelivered handles it)
-          if (order.deliveryStatus !== "delivered") {
-            const stockWhId = await resolveOrderWarehouse(tx, tenantId);
+      // The courier flow already moved the stock for this delivery; replaying
+      // the same move here would deduct it a second time.
+      const courierAlreadySettled = order.deliveryStatus === "delivered" && deductsStock(newStatus);
 
-            // Lock all stock rows in one batch query (prevents deadlock)
-            const stockRows = await tx.select({ productId: warehouseStock.productId, currentStock: warehouseStock.currentStock })
-              .from(warehouseStock)
-              .where(and(
-                eq(warehouseStock.tenantId, tenantId),
-                eq(warehouseStock.warehouseId, stockWhId),
-                sql`${warehouseStock.productId} IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})`
-              ))
-              .for("update");
+      if (items.length > 0 && !courierAlreadySettled && (d.current || d.reserved || d.available)) {
+        const whId = await resolveOrderWarehouse(tx, tenantId);
 
-            // Check for sufficient stock before deducting
-            const insufficient = items.filter(i => {
-              const row = stockRows.find(r => Number(r.productId) === i.productId);
-              return !row || Number(row.currentStock) < Number(i.quantity);
-            });
-            if (insufficient.length > 0) {
-              throw new Error(`Недостаточно товара на складе: ${insufficient.map(i => `${i.productId}`).join(", ")}`);
-            }
+        // Lock every affected row in one query before reading or writing.
+        const stockRows = await tx.select({
+          productId: warehouseStock.productId,
+          currentStock: warehouseStock.currentStock,
+          available: warehouseStock.available,
+        })
+          .from(warehouseStock)
+          .where(and(
+            eq(warehouseStock.tenantId, tenantId),
+            eq(warehouseStock.warehouseId, whId),
+            sql`${warehouseStock.productId} IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})`
+          ))
+          .for("update");
 
-            await tx.execute(sql`
-              UPDATE warehouse_stock
-              SET
-                current_stock = CASE ${sql.join(items.map(i =>
-                  sql`WHEN product_id = ${i.productId} THEN current_stock - ${Number(i.quantity)}`
-                ), sql`\n`)} ELSE current_stock END,
-                reserved = CASE ${sql.join(items.map(i =>
-                  sql`WHEN product_id = ${i.productId} THEN reserved - ${Number(i.quantity)}`
-                ), sql`\n`)} ELSE reserved END
-              WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
-                AND tenant_id = ${tenantId}
-                AND warehouse_id = ${stockWhId}
-            `);
-
-            // Verify no negative stock (rollback if needed — should not happen due to check above)
-            const updated = await tx.select({ productId: warehouseStock.productId, currentStock: warehouseStock.currentStock })
-              .from(warehouseStock)
-              .where(and(
-                eq(warehouseStock.tenantId, tenantId),
-                eq(warehouseStock.warehouseId, stockWhId),
-                sql`${warehouseStock.productId} IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})`
-              ));
-            const short = items.filter(i => {
-              const row = updated.find(r => Number(r.productId) === i.productId);
-              return row && Number(row.currentStock) < 0;
-            });
-            if (short.length > 0) {
-              await tx.execute(sql`
-                UPDATE warehouse_stock
-                SET
-                  current_stock = CASE ${sql.join(short.map(i =>
-                    sql`WHEN product_id = ${i.productId} THEN current_stock + ${Number(i.quantity)}`
-                  ), sql`\n`)} ELSE current_stock END,
-                  reserved = CASE ${sql.join(short.map(i =>
-                    sql`WHEN product_id = ${i.productId} THEN reserved + ${Number(i.quantity)}`
-                  ), sql`\n`)} ELSE reserved END
-                WHERE product_id IN (${sql.join(short.map(i => sql`${i.productId}`), sql`, `)})
-                  AND tenant_id = ${tenantId}
-                  AND warehouse_id = ${stockWhId}
-              `);
-              throw new Error(`Недостаточно товара на складе: ${short.map(i => `${i.productId}`).join(", ")}`);
-            }
-          }
+        // Refuse the move if it would drive any counter below zero, rather than
+        // writing it and unwinding afterwards.
+        const short = items.filter(i => {
+          const row = stockRows.find(r => Number(r.productId) === i.productId);
+          if (!row) return d.current < 0 || d.available < 0;
+          const qty = Number(i.quantity);
+          return (d.current < 0 && Number(row.currentStock) + d.current * qty < 0)
+            || (d.available < 0 && Number(row.available) + d.available * qty < 0);
+        });
+        if (short.length > 0) {
+          throw new Error(`Недостаточно товара на складе: ${short.map(i => `${i.productId}`).join(", ")}`);
         }
-        if (releasesStock(newStatus)) {
-          const cancelWhId = await resolveOrderWarehouse(tx, tenantId);
 
-          // Lock stock rows to prevent race conditions
-          for (const item of items) {
-            await tx.select({ id: warehouseStock.id }).from(warehouseStock)
-              .where(and(eq(warehouseStock.productId, item.productId), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, cancelWhId)))
-              .for("update");
-          }
-          await tx.execute(sql`
-            UPDATE warehouse_stock
-            SET
+        // Each delta is −1, 0 or +1 per unit, so the sign travels inside the
+        // number and every column is a plain "col = col + delta".
+        await tx.execute(sql`
+          UPDATE warehouse_stock
+          SET current_stock = CASE ${sql.join(items.map(i =>
+                sql`WHEN product_id = ${i.productId} THEN current_stock + ${d.current * Number(i.quantity)}`
+              ), sql`\n`)} ELSE current_stock END,
               reserved = CASE ${sql.join(items.map(i =>
-                sql`WHEN product_id = ${i.productId} THEN reserved - ${Number(i.quantity)}`
+                sql`WHEN product_id = ${i.productId} THEN reserved + ${d.reserved * Number(i.quantity)}`
               ), sql`\n`)} ELSE reserved END,
               available = CASE ${sql.join(items.map(i =>
-                sql`WHEN product_id = ${i.productId} THEN available + ${Number(i.quantity)}`
+                sql`WHEN product_id = ${i.productId} THEN available + ${d.available * Number(i.quantity)}`
               ), sql`\n`)} ELSE available END
-            WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
-              AND tenant_id = ${tenantId}
-              AND warehouse_id = ${cancelWhId}
-          `);
-        }
+          WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
+            AND tenant_id = ${tenantId}
+            AND warehouse_id = ${whId}
+        `);
       }
       await tx.update(orders).set({ status: newStatus }).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)));
     });
@@ -630,7 +909,10 @@ export const OrderService = {
     return { success: true };
   },
 
-  async update(db: Db, tenantId: number, orderId: number, data: { notes?: string; discount?: string }) {
+  async update(
+    db: Db, tenantId: number, orderId: number,
+    data: { notes?: string; discount?: string; paymentMethod?: "cash" | "card" | "transfer" | "debt" },
+  ) {
     // discount is a percentage (0-100), same contract as OrderService.create.
     if (data.discount !== undefined) {
       const pct = Number(data.discount);
@@ -652,18 +934,26 @@ export const OrderService = {
 
       const updates: Record<string, unknown> = {};
       if (data.notes !== undefined) updates.notes = data.notes;
+
+      let newTotal = Number(order.total);
       if (data.discount !== undefined) {
         const subtotal = Number(order.subtotal);
         const discount = subtotal * (Number(data.discount) / 100);
-        const newTotal = subtotal - discount;
+        newTotal = subtotal - discount;
         updates.discount = discount.toFixed(2);
         updates.total = newTotal.toFixed(2);
+      }
+      if (data.paymentMethod !== undefined) updates.paymentMethod = data.paymentMethod;
 
-        // The shop's debt was booked from the old total — move it by the difference,
-        // otherwise a re-discounted credit order leaves the receivable overstated.
-        if (order.paymentMethod === "debt" && holdsStock(order.status)) {
-          await adjustShopDebt(tx, tenantId, order.shopId, newTotal - Number(order.total));
-        }
+      // Reconcile the shop's receivable in one move: switching to/from "debt" and
+      // re-discounting both change what this order owes. Comparing old vs new
+      // owed amount also covers the cash→debt and debt→cash flips, which a plain
+      // "adjust by the total difference" would silently get wrong.
+      const newPaymentMethod = data.paymentMethod ?? order.paymentMethod;
+      const oldOwed = order.paymentMethod === "debt" && owesDebt(order.status) ? Number(order.total) : 0;
+      const newOwed = newPaymentMethod === "debt" && owesDebt(order.status) ? newTotal : 0;
+      if (newOwed !== oldOwed) {
+        await adjustShopDebt(tx, tenantId, order.shopId, newOwed - oldOwed);
       }
 
       if (Object.keys(updates).length > 0) {
@@ -676,7 +966,20 @@ export const OrderService = {
     return { success: true };
   },
 
-  async updateItems(db: Db, tenantId: number, orderId: number, data: { items: Array<{ itemId: number; quantity: number }> }) {
+  /**
+   * Rewrites an order's lines: quantities, unit prices, added and removed
+   * products. Lines are matched by `itemId`; an entry without one adds a new
+   * product, and `quantity: 0` drops the line.
+   *
+   * Editing is allowed in any status, so stock is moved according to what the
+   * current status already did to it (see stockModeFor): a "new" order shifts
+   * its reservation, while a delivered one adjusts stock actually on hand.
+   * Omitting `items` entirely leaves the lines untouched.
+   */
+  async updateItems(
+    db: Db, tenantId: number, orderId: number,
+    data: { items: Array<{ itemId?: number; productId?: number; quantity: number; unitPrice?: string }> },
+  ) {
     await db.transaction(async (tx) => {
       const [order] = await tx.select({
         id: orders.id, status: orders.status, shopId: orders.shopId,
@@ -684,68 +987,102 @@ export const OrderService = {
         paymentMethod: orders.paymentMethod, deletedAt: orders.deletedAt,
       }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt))).limit(1);
       if (!order) throw new Error("Заказ не найден");
-      if (order.status !== "new") throw new Error("Можно изменить только новый заказ");
 
+      const mode = stockModeFor(order.status);
       const whId = await resolveOrderWarehouse(tx, tenantId);
       const existingItems = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
+      const existingById = new Map(existingItems.map(i => [i.id, i]));
 
-      // Build map of requested quantities
-      const qtyMap = new Map(data.items.map(i => [i.itemId, i.quantity]));
+      // Validate that every new product belongs to this tenant before touching
+      // anything — an unknown id must not leave the order half-rewritten.
+      const newProductIds = data.items.filter(i => i.itemId === undefined).map(i => i.productId);
+      if (newProductIds.some(id => id === undefined)) {
+        throw new Error("Для новой позиции нужно указать товар");
+      }
+      const productPrices = new Map<number, { costPrice: string }>();
+      if (newProductIds.length > 0) {
+        const found = await tx.select({ id: products.id, costPrice: products.costPrice })
+          .from(products)
+          .where(and(eq(products.tenantId, tenantId), inArray(products.id, newProductIds as number[])));
+        for (const p of found) productPrices.set(Number(p.id), { costPrice: p.costPrice });
+        for (const id of newProductIds as number[]) {
+          if (!productPrices.has(id)) throw new Error(`Товар #${id} не найден в вашей организации`);
+        }
+      }
 
-      // Lock stock rows
-      for (const item of existingItems) {
+      // Lock every stock row this edit can touch, in one pass, before any write.
+      const touchedProductIds = [...new Set([
+        ...existingItems.map(i => i.productId),
+        ...(newProductIds as number[]),
+      ])];
+      for (const productId of touchedProductIds) {
         await tx.select({ id: warehouseStock.id }).from(warehouseStock)
-          .where(and(eq(warehouseStock.productId, item.productId), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, whId)))
+          .where(and(eq(warehouseStock.productId, productId), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, whId)))
           .for("update");
       }
 
+      const keptItemIds = new Set<number>();
       let newSubtotal = 0;
-      for (const item of existingItems) {
-        const newQty = qtyMap.get(item.id);
-        if (newQty === undefined) continue; // item not in update list — keep as-is
-        if (newQty < 0) throw new Error("Количество не может быть отрицательным");
-        if (newQty === 0) throw new Error("Для удаления товара используйте удаление позиции");
 
-        const oldQty = Number(item.quantity);
-        const diff = newQty - oldQty;
-        const unitPrice = Number(item.unitPrice);
+      for (const line of data.items) {
+        if (line.quantity < 0) throw new Error("Количество не может быть отрицательным");
 
-        // Update item quantity and subtotal
-        await tx.update(orderItems).set({
-          quantity: String(newQty),
-          subtotal: (unitPrice * newQty).toFixed(2),
-        }).where(eq(orderItems.id, item.id));
+        // ── Existing line ──
+        if (line.itemId !== undefined) {
+          const item = existingById.get(line.itemId);
+          if (!item) throw new Error(`Позиция заказа #${line.itemId} не найдена`);
 
-        // Adjust stock reservation
-        if (diff !== 0) {
-          const [stock] = await tx.select({ available: warehouseStock.available, reserved: warehouseStock.reserved })
-            .from(warehouseStock)
-            .where(and(eq(warehouseStock.productId, item.productId), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, whId)))
-            .limit(1);
+          const oldQty = Number(item.quantity);
+          const unitPrice = line.unitPrice !== undefined ? Number(line.unitPrice) : Number(item.unitPrice);
+          if (!Number.isFinite(unitPrice) || unitPrice < 0) throw new Error("Цена не может быть отрицательной");
 
-          if (diff > 0) {
-            // Increasing quantity — need more stock
-            const available = Number(stock?.available ?? 0);
-            if (available < diff) {
-              throw new Error(`Недостаточно товара на складе (товар ID ${item.productId}: доступно ${available}, нужно +${diff})`);
-            }
-            await tx.execute(sql`
-              UPDATE warehouse_stock SET reserved = reserved + ${diff}, available = available - ${diff}
-              WHERE product_id = ${item.productId} AND tenant_id = ${tenantId} AND warehouse_id = ${whId}
-            `);
-          } else {
-            // Decreasing quantity — release stock
-            await tx.execute(sql`
-              UPDATE warehouse_stock SET reserved = GREATEST(0, reserved + ${diff}), available = available - ${diff}
-              WHERE product_id = ${item.productId} AND tenant_id = ${tenantId} AND warehouse_id = ${whId}
-            `);
+          if (line.quantity === 0) {
+            await applyStockDelta(tx, tenantId, whId, item.productId, -oldQty, mode);
+            await tx.delete(orderItems).where(eq(orderItems.id, item.id));
+            continue;
           }
+
+          keptItemIds.add(item.id);
+          await applyStockDelta(tx, tenantId, whId, item.productId, line.quantity - oldQty, mode);
+          await tx.update(orderItems).set({
+            quantity: String(line.quantity),
+            unitPrice: unitPrice.toFixed(2),
+            subtotal: (unitPrice * line.quantity).toFixed(2),
+          }).where(eq(orderItems.id, item.id));
+
+          newSubtotal += unitPrice * line.quantity;
+          continue;
         }
 
-        newSubtotal += unitPrice * newQty;
+        // ── New line ──
+        if (line.quantity === 0) continue;
+        const productId = line.productId as number;
+        const unitPrice = Number(line.unitPrice ?? 0);
+        if (!Number.isFinite(unitPrice) || unitPrice < 0) throw new Error("Цена не может быть отрицательной");
+
+        await applyStockDelta(tx, tenantId, whId, productId, line.quantity, mode);
+        await tx.insert(orderItems).values({
+          orderId,
+          productId,
+          quantity: String(line.quantity),
+          unitPrice: unitPrice.toFixed(2),
+          costPrice: productPrices.get(productId)?.costPrice ?? "0.00",
+          subtotal: (unitPrice * line.quantity).toFixed(2),
+        });
+
+        newSubtotal += unitPrice * line.quantity;
       }
 
-      // Recalculate totals
+      // Lines the caller did not mention stay as they are and still count.
+      for (const item of existingItems) {
+        if (keptItemIds.has(item.id)) continue;
+        if (data.items.some(l => l.itemId === item.id)) continue; // removed above
+        newSubtotal += Number(item.unitPrice) * Number(item.quantity);
+      }
+
+      if (newSubtotal <= 0) throw new Error("В заказе должна остаться хотя бы одна позиция");
+
+      // Keep the discount proportional to the order's new size.
       const discountPct = Number(order.subtotal) > 0 ? (Number(order.discount) / Number(order.subtotal)) * 100 : 0;
       const newDiscount = newSubtotal * (discountPct / 100);
       const newTotal = newSubtotal - newDiscount;
@@ -756,12 +1093,9 @@ export const OrderService = {
         total: newTotal.toFixed(2),
       }).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)));
 
-      // Adjust shop debt if payment method is debt
-      if (order.paymentMethod === "debt") {
+      if (order.paymentMethod === "debt" && owesDebt(order.status)) {
         const totalDiff = newTotal - Number(order.total);
-        if (totalDiff !== 0) {
-          await adjustShopDebt(tx, tenantId, order.shopId, totalDiff);
-        }
+        if (totalDiff !== 0) await adjustShopDebt(tx, tenantId, order.shopId, totalDiff);
       }
     });
 
@@ -837,10 +1171,12 @@ export const OrderService = {
       shopPhone: shops.phone, shopDebt: shops.debt,
       agentName: users.name,
       territoryName: territories.name,
+      courierName: couriers.name,
     }).from(orders)
       .leftJoin(shops, eq(orders.shopId, shops.id))
       .leftJoin(users, eq(orders.agentId, users.id))
       .leftJoin(territories, eq(shops.territoryId, territories.id))
+      .leftJoin(couriers, eq(orders.courierId, couriers.id))
       .where(and(eq(orders.tenantId, tenantId), inArray(orders.id, orderIds)));
 
     // Fetch items for all orders in one query
@@ -905,19 +1241,22 @@ export const OrderService = {
 
   async bulkUpdateStatus(
     db: Db, tenantId: number, orderIds: number[],
-    newStatus: "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" | "partially_returned" | "partial_return_kept",
+    newStatus: "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned",
     actorId?: number, comment?: string,
   ) {
-    if (orderIds.length === 0) return { updated: 0 };
+    if (orderIds.length === 0) return { updated: 0, failed: [] as Array<{ orderId: number; error: string }> };
     if (orderIds.length > 100) throw new Error("Максимум 100 заказов за раз");
 
     let updated = 0;
+    const failed: Array<{ orderId: number; error: string }> = [];
     for (const orderId of orderIds) {
       try {
         await this.updateStatus(db, tenantId, orderId, newStatus);
         updated++;
       } catch (e) {
-        logger.warn("Bulk status update failed for order", { orderId, error: String(e) });
+        const message = e instanceof Error ? e.message : String(e);
+        logger.warn("Bulk status update failed for order", { orderId, error: message });
+        failed.push({ orderId, error: message });
       }
     }
 
@@ -926,11 +1265,11 @@ export const OrderService = {
       const { recordAudit } = await import("./audit-log");
       await recordAudit(db, {
         tenantId, actorId, action: "order.bulk_status_change",
-        targetType: "order", meta: { orderIds, newStatus, updated, comment },
+        targetType: "order", meta: { orderIds, newStatus, updated, failed, comment },
       });
     } catch { /* audit is non-blocking */ }
 
-    return { updated };
+    return { updated, failed };
   },
 
   async bulkAssignAgent(db: Db, tenantId: number, orderIds: number[], agentId: number) {
@@ -964,14 +1303,17 @@ export const OrderService = {
     const ordersData = await db.select({
       id: orders.id, orderNumber: orders.orderNumber, status: orders.status,
       shopId: orders.shopId, agentId: orders.agentId, total: orders.total,
+      paymentMethod: orders.paymentMethod,
       shopName: shops.name, shopAddress: shops.address, shopCity: shops.city,
       shopPhone: shops.phone, shopGpsLat: shops.gpsLat, shopGpsLng: shops.gpsLng,
       shopDebt: shops.debt, agentName: users.name,
       territoryName: territories.name,
+      courierName: couriers.name,
     }).from(orders)
       .leftJoin(shops, eq(orders.shopId, shops.id))
       .leftJoin(users, eq(orders.agentId, users.id))
       .leftJoin(territories, eq(shops.territoryId, territories.id))
+      .leftJoin(couriers, eq(orders.courierId, couriers.id))
       .where(and(eq(orders.tenantId, tenantId), inArray(orders.id, input.orderIds)));
 
     if (ordersData.length === 0) throw new Error("Заказы не найдены");
@@ -990,6 +1332,22 @@ export const OrderService = {
       .innerJoin(orders, eq(orderItems.orderId, orders.id))
       .where(and(eq(orders.tenantId, tenantId), inArray(orderItems.orderId, input.orderIds)))
       .groupBy(orderItems.productId, products.name, products.code, products.unit, products.unitWeight);
+
+    // Fetch items grouped by (product, agent) for the route/agent-matrix format
+    const itemsByAgent = await db.select({
+      productId: orderItems.productId,
+      productName: products.name,
+      productCode: products.code,
+      unit: products.unit,
+      agentId: orders.agentId,
+      agentName: users.name,
+      totalQty: sql<string>`SUM(${orderItems.quantity})`,
+    }).from(orderItems)
+      .innerJoin(products, eq(orderItems.productId, products.id))
+      .innerJoin(orders, eq(orderItems.orderId, orders.id))
+      .leftJoin(users, eq(orders.agentId, users.id))
+      .where(and(eq(orders.tenantId, tenantId), inArray(orderItems.orderId, input.orderIds)))
+      .groupBy(orderItems.productId, products.name, products.code, products.unit, orders.agentId, users.name);
 
     const totalItems = items.reduce((s, i) => s + Number(i.totalQty), 0);
     const totalWeight = items.reduce((s, i) => s + Number(i.totalQty) * Number(i.unitWeight ?? 0), 0);
@@ -1028,7 +1386,7 @@ export const OrderService = {
     } catch { /* non-blocking */ }
 
     return {
-      listId, listNumber, orders: ordersData, items,
+      listId, listNumber, orders: ordersData, items, itemsByAgent,
       totalOrders: ordersData.length, totalItems, totalWeight,
     };
   },
@@ -1103,80 +1461,7 @@ export const OrderService = {
       notes?: string;
     },
   ) {
-    const paid = Number(input.paidAmount);
-    if (paid <= 0) throw new Error("Сумма оплаты должна быть положительной");
-
-    await db.transaction(async (tx) => {
-      const [order] = await tx.select({
-        id: orders.id, status: orders.status, total: orders.total,
-        shopId: orders.shopId, orderNumber: orders.orderNumber,
-      }).from(orders)
-        .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt)))
-        .limit(1);
-      if (!order) throw new Error("Заказ не найден");
-
-      const total = Number(order.total);
-      if (paid > total) throw new Error("Сумма оплаты не может превышать сумму заказа");
-
-      const debt = total - paid;
-
-      // Record payment
-      await tx.insert(payments).values({
-        tenantId,
-        shopId: order.shopId,
-        orderId: order.id,
-        amount: paid.toFixed(2),
-        type: "payment",
-        paymentMethod: input.method,
-        status: debt > 0 ? "partially_paid" : "paid",
-        totalOrderAmount: total.toFixed(2),
-        paidAmount: paid.toFixed(2),
-        debtAmount: Math.max(0, debt).toFixed(2),
-        debtDueDate: input.debtDueDate ?? null,
-        paidAt: new Date(),
-        notes: input.notes ?? null,
-        createdBy: userId,
-      });
-
-      // Update shop debt: at order creation the full total was added to debt
-      // (for "debt" payment method). Now the customer pays part of it —
-      // reduce the debt by the paid amount.
-      if (paid > 0) {
-        await tx.execute(sql`
-          UPDATE shops SET debt = GREATEST(0, CAST(debt AS DECIMAL(12,2)) - ${paid})
-          WHERE id = ${order.shopId} AND tenant_id = ${tenantId}
-        `);
-      }
-
-      // Create debt reminder if there's remaining debt and a due date
-      if (debt > 0 && input.debtDueDate) {
-        await tx.insert(debtReminders).values({
-          tenantId,
-          shopId: order.shopId,
-          orderId: order.id,
-          amount: debt.toFixed(2),
-          dueDate: input.debtDueDate,
-          status: "pending",
-        });
-      }
-
-      // Update order status
-      await tx.update(orders).set({
-        status: debt > 0 ? "partial_return_kept" : "delivered",
-      }).where(and(eq(orders.id, order.id), eq(orders.tenantId, tenantId)));
-
-      // Log adjustment
-      await tx.insert(orderAdjustments).values({
-        tenantId,
-        orderId: order.id,
-        adjustedBy: userId,
-        type: "partial_payment",
-        oldValue: { status: order.status, total: order.total },
-        newValue: { status: debt > 0 ? "partial_return_kept" : "delivered", paid: paid.toFixed(2), debt: Math.max(0, debt).toFixed(2) },
-        reason: input.notes ?? null,
-      });
-    });
-
+    await db.transaction((tx) => applyPartialPayment(tx, tenantId, userId, input));
     cache.invalidate(CacheKeys.dashboardKpis(tenantId));
     return { success: true };
   },
@@ -1191,116 +1476,77 @@ export const OrderService = {
       photos?: string[];
     },
   ) {
-    if (input.items.length === 0) throw new Error("Выберите хотя бы один товар");
-
-    await db.transaction(async (tx) => {
-      const [order] = await tx.select({
-        id: orders.id, status: orders.status, total: orders.total,
-        subtotal: orders.subtotal, discount: orders.discount,
-        shopId: orders.shopId, orderNumber: orders.orderNumber,
-      }).from(orders)
-        .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt)))
-        .limit(1);
-      if (!order) throw new Error("Заказ не найден");
-
-      let newSubtotal = 0;
-      const oldItems: Array<{ id: number; quantity: string; subtotal: string }> = [];
-      const newItems: Array<{ id: number; quantity: string; subtotal: string }> = [];
-
-      for (const item of input.items) {
-        const [orderItem] = await tx.select({
-          id: orderItems.id, quantity: orderItems.quantity,
-          unitPrice: orderItems.unitPrice, subtotal: orderItems.subtotal,
-          productId: orderItems.productId,
-        }).from(orderItems)
-          .where(and(eq(orderItems.id, item.itemId), eq(orderItems.orderId, order.id)))
-          .limit(1);
-        if (!orderItem) throw new Error(`Позиция заказа #${item.itemId} не найдена`);
-
-        const orderedQty = Number(orderItem.quantity);
-        const deliveredQty = item.deliveredQuantity;
-        if (deliveredQty > orderedQty) throw new Error(`Нельзя передать больше заказанного (${orderedQty})`);
-
-        const returnedQty = orderedQty - deliveredQty;
-        const unitPrice = Number(orderItem.unitPrice);
-        const newLineSubtotal = unitPrice * deliveredQty;
-        newSubtotal += newLineSubtotal;
-
-        oldItems.push({ id: orderItem.id, quantity: orderItem.quantity, subtotal: orderItem.subtotal });
-
-        // Update order item
-        await tx.update(orderItems).set({
-          deliveredQuantity: deliveredQty.toFixed(2),
-          returnReason: item.returnReason ?? null,
-          subtotal: newLineSubtotal.toFixed(2),
-        }).where(eq(orderItems.id, orderItem.id));
-
-        newItems.push({ id: orderItem.id, quantity: deliveredQty.toFixed(2), subtotal: newLineSubtotal.toFixed(2) });
-
-        // Return undelivered stock to warehouse
-        if (returnedQty > 0) {
-          const [defaultWh] = await tx.select({ id: warehouses.id }).from(warehouses)
-            .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true))).limit(1);
-          if (defaultWh) {
-            await tx.execute(sql`
-              UPDATE warehouse_stock
-              SET current_stock = current_stock + ${returnedQty},
-                  available = available + ${returnedQty},
-                  reserved = GREATEST(0, reserved - ${returnedQty})
-              WHERE product_id = ${orderItem.productId} AND tenant_id = ${tenantId} AND warehouse_id = ${defaultWh.id}
-            `);
-
-            // Log stock movement
-            await tx.insert(stockMovements).values({
-              tenantId,
-              productId: orderItem.productId,
-              type: "adjustment",
-              quantity: String(returnedQty),
-              referenceType: "order_return",
-              referenceId: order.id,
-              notes: `Возврат при доставке: ${item.returnReason ?? "не указано"}`,
-            });
-          }
-        }
-      }
-
-      // Recalculate order totals
-      const discount = Number(order.discount);
-      const newTotal = newSubtotal - discount;
-
-      await tx.update(orders).set({
-        subtotal: newSubtotal.toFixed(2),
-        total: newTotal.toFixed(2),
-        status: "partially_returned",
-      }).where(and(eq(orders.id, order.id), eq(orders.tenantId, tenantId)));
-
-      // Adjust shop debt if order total decreased
-      const totalDiff = Number(order.total) - newTotal;
-      if (totalDiff > 0) {
-        await tx.execute(sql`
-          UPDATE shops SET debt = GREATEST(0, CAST(debt AS DECIMAL(12,2)) - ${totalDiff})
-          WHERE id = ${order.shopId} AND tenant_id = ${tenantId}
-        `);
-      }
-
-      // Log adjustment
-      await tx.insert(orderAdjustments).values({
-        tenantId,
-        orderId: order.id,
-        adjustedBy: userId,
-        type: "partial_delivery",
-        oldValue: { total: order.total, items: oldItems },
-        newValue: { total: newTotal.toFixed(2), items: newItems },
-        reason: input.items.map(i => i.returnReason).filter(Boolean).join(", "),
-        photos: input.photos ?? null,
-      });
-    });
-
+    await db.transaction((tx) => applyPartialDelivery(tx, tenantId, userId, input));
     cache.invalidate(CacheKeys.dashboardKpis(tenantId));
     return { success: true };
   },
 
   // ── Combined Delivery + Payment ────────────────────────────────────────────
+  // Both steps run inside a single transaction so a failed payment (e.g. bad
+  // amount) rolls back the delivery adjustment too, instead of leaving the
+  // order half-updated (stock already returned, debt already reduced, but no
+  // payment recorded).
+
+  // ── Bulk Complete + Full Payment ────────────────────────────────────────────
+  /**
+   * For a batch of orders the operator already knows are fully paid — closes
+   * each one (goods delivered, stock consumed) and records a full-amount
+   * payment in the same pass, so there's no debt left and no need to open
+   * every order individually. Each order is processed independently so one
+   * bad row (already cancelled, zero total, etc.) doesn't block the rest.
+   */
+  async bulkCompleteWithPayment(db: Db, tenantId: number, userId: number, orderIds: number[]) {
+    if (orderIds.length === 0) return { updated: 0, failed: [] as Array<{ orderId: number; error: string }> };
+    if (orderIds.length > 100) throw new Error("Максимум 100 заказов за раз");
+
+    let updated = 0;
+    const failed: Array<{ orderId: number; error: string }> = [];
+
+    for (const orderId of orderIds) {
+      try {
+        const [order] = await db.select({
+          id: orders.id, status: orders.status, total: orders.total, paymentMethod: orders.paymentMethod,
+        }).from(orders)
+          .where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt)))
+          .limit(1);
+        if (!order) throw new Error("Заказ не найден");
+        if (order.status === "cancelled" || order.status === "returned") {
+          throw new Error("Заказ отменён или возвращён — оплатить нельзя");
+        }
+        const total = Number(order.total);
+        if (total <= 0) throw new Error("Сумма заказа равна нулю");
+
+        const [{ paid: alreadyPaid }] = await db.select({
+          paid: sql<string>`COALESCE(SUM(CAST(${payments.amount} AS DECIMAL(15,2))), 0)`,
+        }).from(payments).where(and(eq(payments.orderId, orderId), eq(payments.tenantId, tenantId), eq(payments.type, "payment")));
+        if (Number(alreadyPaid) >= total) {
+          // Already fully paid from an earlier action — just make sure it's
+          // marked delivered, nothing more to record.
+          if (order.status !== "delivered") await this.updateStatus(db, tenantId, orderId, "delivered");
+          updated++;
+          continue;
+        }
+
+        if (order.status !== "delivered") {
+          await this.updateStatus(db, tenantId, orderId, "delivered");
+        }
+        const remaining = total - Number(alreadyPaid);
+        await db.transaction(tx => applyPartialPayment(tx, tenantId, userId, {
+          orderId,
+          paidAmount: remaining.toFixed(2),
+          method: (order.paymentMethod === "debt" ? "cash" : order.paymentMethod) as "cash" | "card" | "transfer",
+        }));
+        updated++;
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        logger.warn("Bulk complete-with-payment failed for order", { orderId, error: message });
+        failed.push({ orderId, error: message });
+      }
+    }
+
+    cache.invalidate(CacheKeys.dashboardKpis(tenantId));
+    return { updated, failed };
+  },
 
   async recordDeliveryAndPayment(
     db: Db, tenantId: number, userId: number,
@@ -1311,22 +1557,22 @@ export const OrderService = {
       photos?: string[];
     },
   ) {
-    // Step 1: Record partial delivery (adjusts order total)
-    await this.recordPartialDelivery(db, tenantId, userId, {
-      orderId: input.orderId,
-      items: input.deliveredItems,
-      photos: input.photos,
+    await db.transaction(async (tx) => {
+      await applyPartialDelivery(tx, tenantId, userId, {
+        orderId: input.orderId,
+        items: input.deliveredItems,
+        photos: input.photos,
+      });
+      await applyPartialPayment(tx, tenantId, userId, {
+        orderId: input.orderId,
+        paidAmount: input.payment.paidAmount,
+        method: input.payment.method,
+        debtDueDate: input.payment.debtDueDate,
+        notes: input.payment.notes,
+      });
     });
 
-    // Step 2: Record partial payment against the adjusted total
-    await this.recordPartialPayment(db, tenantId, userId, {
-      orderId: input.orderId,
-      paidAmount: input.payment.paidAmount,
-      method: input.payment.method,
-      debtDueDate: input.payment.debtDueDate,
-      notes: input.payment.notes,
-    });
-
+    cache.invalidate(CacheKeys.dashboardKpis(tenantId));
     return { success: true };
   },
 

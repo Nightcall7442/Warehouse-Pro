@@ -2,11 +2,11 @@
  * Order state transition tests.
  *
  * Verifies all valid and invalid status transitions in OrderService.updateStatus:
- *  - Valid:   new → processing, new → completed, new → cancelled,
- *             processing → completed, processing → cancelled
- *  - Invalid: completed → anything, cancelled → anything,
+ *  - Valid:   new → processing, new → delivered, new → cancelled,
+ *             processing → delivered, processing → cancelled
+ *  - Invalid: delivered → anything, cancelled → anything,
  *             processing → new, new → new, processing → processing
- *  - Idempotent: completed → completed (no double-deduct), cancelled → cancelled (no double-release)
+ *  - Idempotent: delivered → delivered (no double-deduct), cancelled → cancelled (no double-release)
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
@@ -33,6 +33,7 @@ vi.mock("../telegram-router", () => ({
 }));
 
 import { orders, orderItems, warehouseStock, products, warehouses, shops } from "@db/schema";
+import { createExecuteMock } from "./helpers/mock-execute";
 
 interface FakeOrder { id: number; tenantId: number; agentId: number; shopId: number; status: string; }
 interface FakeOrderItem { id: number; orderId: number; productId: number; quantity: string; }
@@ -187,62 +188,7 @@ function makeMockDb() {
         return Promise.resolve();
       },
     }),
-    execute: (sqlObj: unknown) => {
-      if (!sqlObj || typeof sqlObj !== "object" || (sqlObj as Record<string, unknown>).__kind !== "sql") return Promise.resolve();
-      const s = sqlObj as { strings: string[]; values: unknown[] };
-      const fullSql = s.strings.join("");
-      if (!fullSql.includes("UPDATE warehouse_stock")) return Promise.resolve();
-
-      const updates: Array<{ productId: number; field: string; op: string; amount: number }> = [];
-      const isCreatePattern = fullSql.includes("reserved = reserved +") || fullSql.includes("available = available -");
-      const isCompletePattern = fullSql.includes("current_stock = CASE") && !fullSql.includes("reserved = reserved +");
-
-      let caseIndex = 0;
-      for (const val of s.values) {
-        if (!val || typeof val !== "object") continue;
-        const obj = val as Record<string, unknown>;
-        if (obj.__kind === "sql_join" && Array.isArray(obj.chunks)) {
-          if (caseIndex < 2) {
-            let field: string;
-            if (isCompletePattern) {
-              field = caseIndex === 0 ? "currentStock" : "reserved";
-            } else if (caseIndex === 0) {
-              field = "reserved";
-            } else {
-              field = "available";
-            }
-            let op: string;
-            if (isCreatePattern) {
-              op = caseIndex === 0 ? "+" : "-";
-            } else if (isCompletePattern) {
-              op = "-";
-            } else {
-              op = caseIndex === 0 ? "-" : "+";
-            }
-            for (const chunk of obj.chunks) {
-              if (!chunk || typeof chunk !== "object") continue;
-              const c = chunk as { __kind: string; strings: string[]; values: unknown[] };
-              if (c.__kind !== "sql") continue;
-              const productId = Number(c.values[0]);
-              const amount = Number(c.values[1]);
-              updates.push({ productId, field, op, amount });
-            }
-          }
-          caseIndex++;
-        }
-      }
-
-      const tenantId = s.values.filter(v => typeof v !== "object" || v === null).pop();
-      for (const u of updates) {
-        for (const row of stockTable) {
-          if (String(row.productId) === String(u.productId) && String(row.tenantId) === String(tenantId) && u.field) {
-            const cur = Number((row as unknown as Record<string, string>)[u.field]);
-            (row as unknown as Record<string, string>)[u.field] = (u.op === "+" ? cur + u.amount : cur - u.amount).toFixed(2);
-          }
-        }
-      }
-      return Promise.resolve();
-    },
+    execute: createExecuteMock(stockTable),
     transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(db),
   };
   return db;
@@ -282,13 +228,13 @@ describe("valid state transitions", () => {
     expect(ordersTable[0].status).toBe("processing");
   });
 
-  it("new → completed", async () => {
+  it("new → delivered", async () => {
     const { orderRouter } = await import("../order-router");
     const agent = orderRouter.createCaller(makeCtx(1, 10, "agent"));
     const op = orderRouter.createCaller(makeCtx(1, 1, "operator"));
     await createOrder(agent);
-    await op.updateStatus({ id: 1, status: "completed" });
-    expect(ordersTable[0].status).toBe("completed");
+    await op.updateStatus({ id: 1, status: "delivered" });
+    expect(ordersTable[0].status).toBe("delivered");
   });
 
   it("new → cancelled", async () => {
@@ -299,14 +245,14 @@ describe("valid state transitions", () => {
     expect(ordersTable[0].status).toBe("cancelled");
   });
 
-  it("processing → completed", async () => {
+  it("processing → delivered", async () => {
     const { orderRouter } = await import("../order-router");
     const agent = orderRouter.createCaller(makeCtx(1, 10, "agent"));
     const op = orderRouter.createCaller(makeCtx(1, 1, "operator"));
     await createOrder(agent);
     await op.updateStatus({ id: 1, status: "processing" });
-    await op.updateStatus({ id: 1, status: "completed" });
-    expect(ordersTable[0].status).toBe("completed");
+    await op.updateStatus({ id: 1, status: "delivered" });
+    expect(ordersTable[0].status).toBe("delivered");
   });
 
   it("processing → cancelled", async () => {
@@ -320,52 +266,68 @@ describe("valid state transitions", () => {
   });
 });
 
-// ── Invalid transitions ───────────────────────────────────────────────────────
-describe("invalid state transitions", () => {
-  it("completed → processing rejects", async () => {
+// ── Corrections in any direction ──────────────────────────────────────────────
+// Operators fix mistakes both ways, so no transition is forbidden. What must
+// hold is that stock settles to the same place regardless of the path taken.
+describe("status corrections in any direction", () => {
+  it("rolls a delivered order back to new and returns the goods to the shelf", async () => {
     const { orderRouter } = await import("../order-router");
     const agent = orderRouter.createCaller(makeCtx(1, 10, "agent"));
     const op = orderRouter.createCaller(makeCtx(1, 1, "operator"));
     await createOrder(agent);
-    await op.updateStatus({ id: 1, status: "completed" });
-    await expect(op.updateStatus({ id: 1, status: "processing" })).rejects.toThrow();
-    expect(ordersTable[0].status).toBe("completed");
+    const afterCreate = { ...stockTable[0] };
+
+    await op.updateStatus({ id: 1, status: "delivered" });
+    await op.updateStatus({ id: 1, status: "new" });
+
+    expect(ordersTable[0].status).toBe("new");
+    expect(stockTable[0].currentStock).toBe(afterCreate.currentStock);
+    expect(stockTable[0].reserved).toBe(afterCreate.reserved);
+    expect(stockTable[0].available).toBe(afterCreate.available);
   });
 
-  it("completed → cancelled rejects", async () => {
+  it("reopens a cancelled order and takes the reservation back", async () => {
     const { orderRouter } = await import("../order-router");
     const agent = orderRouter.createCaller(makeCtx(1, 10, "agent"));
     const op = orderRouter.createCaller(makeCtx(1, 1, "operator"));
     await createOrder(agent);
-    await op.updateStatus({ id: 1, status: "completed" });
-    await expect(op.updateStatus({ id: 1, status: "cancelled" })).rejects.toThrow();
-  });
+    const afterCreate = { ...stockTable[0] };
 
-  it("cancelled → processing rejects", async () => {
-    const { orderRouter } = await import("../order-router");
-    const agent = orderRouter.createCaller(makeCtx(1, 10, "agent"));
-    const op = orderRouter.createCaller(makeCtx(1, 1, "operator"));
-    await createOrder(agent);
     await agent.cancel({ id: 1 });
-    await expect(op.updateStatus({ id: 1, status: "processing" })).rejects.toThrow();
-    expect(ordersTable[0].status).toBe("cancelled");
-  });
-
-  it("cancelled → completed rejects", async () => {
-    const { orderRouter } = await import("../order-router");
-    const agent = orderRouter.createCaller(makeCtx(1, 10, "agent"));
-    const op = orderRouter.createCaller(makeCtx(1, 1, "operator"));
-    await createOrder(agent);
-    await agent.cancel({ id: 1 });
-    await expect(op.updateStatus({ id: 1, status: "completed" })).rejects.toThrow();
-  });
-
-  it("processing → new rejects", async () => {
-    const { orderRouter } = await import("../order-router");
-    const agent = orderRouter.createCaller(makeCtx(1, 10, "agent"));
-    const op = orderRouter.createCaller(makeCtx(1, 1, "operator"));
-    await createOrder(agent);
     await op.updateStatus({ id: 1, status: "processing" });
-    await expect(op.updateStatus({ id: 1, status: "new" })).rejects.toThrow();
+
+    expect(ordersTable[0].status).toBe("processing");
+    expect(stockTable[0].reserved).toBe(afterCreate.reserved);
+    expect(stockTable[0].available).toBe(afterCreate.available);
+  });
+
+  it("moves processing back to new without touching stock", async () => {
+    const { orderRouter } = await import("../order-router");
+    const agent = orderRouter.createCaller(makeCtx(1, 10, "agent"));
+    const op = orderRouter.createCaller(makeCtx(1, 1, "operator"));
+    await createOrder(agent);
+    const afterCreate = { ...stockTable[0] };
+
+    await op.updateStatus({ id: 1, status: "processing" });
+    await op.updateStatus({ id: 1, status: "new" });
+
+    expect(ordersTable[0].status).toBe("new");
+    expect(stockTable[0].reserved).toBe(afterCreate.reserved);
+    expect(stockTable[0].available).toBe(afterCreate.available);
+  });
+
+  it("gives the goods back when a delivered order is cancelled", async () => {
+    const { orderRouter } = await import("../order-router");
+    const agent = orderRouter.createCaller(makeCtx(1, 10, "agent"));
+    const op = orderRouter.createCaller(makeCtx(1, 1, "operator"));
+    await createOrder(agent);
+    const beforeOrder = Number(stockTable[0].currentStock);
+
+    await op.updateStatus({ id: 1, status: "delivered" });
+    await op.updateStatus({ id: 1, status: "cancelled" });
+
+    expect(ordersTable[0].status).toBe("cancelled");
+    expect(Number(stockTable[0].currentStock)).toBe(beforeOrder);
+    expect(Number(stockTable[0].reserved)).toBe(0);
   });
 });

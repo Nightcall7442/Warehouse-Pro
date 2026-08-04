@@ -43,6 +43,7 @@ vi.mock("../lib/feature-gating", () => ({
 }));
 
 import { orders, orderItems, warehouseStock, shops, users, products, warehouses } from "@db/schema";
+import { createExecuteMock } from "./helpers/mock-execute";
 
 // ── Fake tables ──────────────────────────────────────────────────────────────
 interface FakeOrder { id: number; tenantId: number; agentId: number; shopId: number; status: string; orderNumber: string; subtotal: string; discount: string; total: string; notes: string | null; createdAt: Date; updatedAt: Date; }
@@ -243,46 +244,7 @@ function makeMockDb() {
         return Promise.resolve();
       },
     }),
-    execute: (sqlObj: unknown) => {
-      if (!sqlObj || typeof sqlObj !== "object" || (sqlObj as Record<string, unknown>).__kind !== "sql") return Promise.resolve();
-      const s = sqlObj as { strings: string[]; values: unknown[] };
-      const fullSql = s.strings.join("");
-      if (!fullSql.includes("UPDATE warehouse_stock")) return Promise.resolve();
-
-      const updates: Array<{ productId: number; field: string; op: string; amount: number }> = [];
-      const isCreatePattern = fullSql.includes("reserved = reserved +") || fullSql.includes("available = available -");
-      const isCompletePattern = fullSql.includes("current_stock = CASE") && !fullSql.includes("reserved = reserved +");
-
-      let caseIndex = 0;
-      for (const val of s.values) {
-        if (!val || typeof val !== "object") continue;
-        const obj = val as Record<string, unknown>;
-        if (obj.__kind === "sql_join" && Array.isArray(obj.chunks)) {
-          if (caseIndex < 2) {
-            const field = isCompletePattern ? (caseIndex === 0 ? "currentStock" : "reserved") : (caseIndex === 0 ? "reserved" : "available");
-            const op = isCreatePattern ? (caseIndex === 0 ? "+" : "-") : (isCompletePattern ? "-" : (caseIndex === 0 ? "-" : "+"));
-            for (const chunk of obj.chunks) {
-              if (!chunk || typeof chunk !== "object") continue;
-              const c = chunk as { __kind: string; strings: string[]; values: unknown[] };
-              if (c.__kind !== "sql") continue;
-              updates.push({ productId: Number(c.values[0]), field, op, amount: Number(c.values[1]) });
-            }
-          }
-          caseIndex++;
-        }
-      }
-
-      const tenantId = s.values.filter(v => typeof v !== "object" || v === null).pop();
-      for (const u of updates) {
-        for (const row of stockTable) {
-          if (String(row.productId) === String(u.productId) && String(row.tenantId) === String(tenantId) && u.field) {
-            const cur = Number((row as unknown as Record<string, string>)[u.field]);
-            (row as unknown as Record<string, string>)[u.field] = (u.op === "+" ? cur + u.amount : cur - u.amount).toFixed(2);
-          }
-        }
-      }
-      return Promise.resolve();
-    },
+    execute: createExecuteMock(stockTable),
     transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(db),
   };
   return db;
@@ -511,7 +473,7 @@ describe("order.updateStatus — PATCH /api/orders/:id/status", () => {
     const opCaller = orderRouter.createCaller({ ...makeCtx(1, 1, "operator"), db: mockDb });
 
     await agentCaller.create({ shopId: 1, items: [{ productId: 1, quantity: 10, unitPrice: 100 }] });
-    await opCaller.updateStatus({ id: 1, status: "completed" });
+    await opCaller.updateStatus({ id: 1, status: "delivered" });
 
     const stock = stockTable.find(s => s.productId === 1)!;
     expect(stock.currentStock).toBe("90.00");
@@ -531,17 +493,16 @@ describe("order.updateStatus — PATCH /api/orders/:id/status", () => {
     expect(stock.reserved).toBe("0.00");
   });
 
-  it("rejects invalid status transition", async () => {
+  it("allows correcting a delivered order back to processing", async () => {
     const { orderRouter } = await import("../order-router");
     const agentCaller = orderRouter.createCaller({ ...makeCtx(1, 10), db: mockDb });
     const opCaller = orderRouter.createCaller({ ...makeCtx(1, 1, "operator"), db: mockDb });
 
     await agentCaller.create({ shopId: 1, items: [{ productId: 1, quantity: 5, unitPrice: 100 }] });
-    await opCaller.updateStatus({ id: 1, status: "completed" });
+    await opCaller.updateStatus({ id: 1, status: "delivered" });
+    await opCaller.updateStatus({ id: 1, status: "processing" });
 
-    await expect(
-      opCaller.updateStatus({ id: 1, status: "processing" })
-    ).rejects.toThrow(/Невозможно перевести/);
+    expect(ordersTable[0].status).toBe("processing");
   });
 
   it("agents cannot update status (operator+ only)", async () => {
@@ -550,7 +511,7 @@ describe("order.updateStatus — PATCH /api/orders/:id/status", () => {
     await agentCaller.create({ shopId: 1, items: [{ productId: 1, quantity: 5, unitPrice: 100 }] });
 
     await expect(
-      agentCaller.updateStatus({ id: 1, status: "completed" })
+      agentCaller.updateStatus({ id: 1, status: "delivered" })
     ).rejects.toThrow();
   });
 
@@ -560,8 +521,8 @@ describe("order.updateStatus — PATCH /api/orders/:id/status", () => {
     const opCaller = orderRouter.createCaller({ ...makeCtx(1, 1, "operator"), db: mockDb });
 
     await agentCaller.create({ shopId: 1, items: [{ productId: 1, quantity: 10, unitPrice: 100 }] });
-    await opCaller.updateStatus({ id: 1, status: "completed" });
-    try { await opCaller.updateStatus({ id: 1, status: "completed" }); } catch { /* expected */ }
+    await opCaller.updateStatus({ id: 1, status: "delivered" });
+    try { await opCaller.updateStatus({ id: 1, status: "delivered" }); } catch { /* expected */ }
 
     const stock = stockTable.find(s => s.productId === 1)!;
     expect(stock.currentStock).toBe("90.00");

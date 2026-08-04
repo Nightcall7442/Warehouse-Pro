@@ -275,7 +275,7 @@ describe("courier.assignCourier", () => {
   });
 
   it("throws if order status is not new/processing", async () => {
-    ordersTable[0].status = "completed";
+    ordersTable[0].status = "delivered";
     const { courierRouter } = await import("../courier-router");
     const caller = courierRouter.createCaller(makeCtx(1, 1));
     await expect(caller.assignCourier({ orderId: 1, courierId: 100 })).rejects.toThrow("Можно назначить курьера");
@@ -312,7 +312,7 @@ describe("courier.markDelivered", () => {
     expect(result.success).toBe(true);
     const order = ordersTable.find((o) => o.id === 1)!;
     expect(order.deliveryStatus).toBe("delivered");
-    expect(order.status).toBe("completed");
+    expect(order.status).toBe("delivered");
     expect(order.deliveredAt).not.toBeNull();
   });
 
@@ -343,7 +343,7 @@ describe("courier.markDelivered", () => {
     const caller = courierRouter.createCaller(makeCtx(1, 100));
     await caller.markDelivered({ orderId: 1 });
     // Stock deduction is mocked via execute; verify order status changed
-    expect(ordersTable.find((o) => o.id === 1)!.status).toBe("completed");
+    expect(ordersTable.find((o) => o.id === 1)!.status).toBe("delivered");
   });
 });
 

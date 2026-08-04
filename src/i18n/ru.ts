@@ -87,8 +87,6 @@ export const ru = {
       delivered:            "Доставлен",
       cancelled:            "Отменён",
       returned:             "Возврат",
-      partially_returned:   "Возврат частично",
-      partial_return_kept:  "Возврат (магазин оставил часть)",
     },
     delivery: {
       not_assigned:    "Не назначен",

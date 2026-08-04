@@ -42,6 +42,7 @@ import {
   orders, orderItems, warehouseStock, products, stockMovements,
   shops, users, payments, settings, warehouses,
 } from "@db/schema";
+import { createExecuteMock } from "./helpers/mock-execute";
 
 interface FakeOrder { id: number; tenantId: number; agentId: number; shopId: number; status: string; orderNumber: string; subtotal: string; discount: string; total: string; notes: string | null; createdAt: Date; updatedAt: Date; }
 interface FakeOrderItem { id: number; orderId: number; productId: number; quantity: string; unitPrice: string; subtotal: string; createdAt: Date; }
@@ -295,46 +296,7 @@ function makeMockDb() {
         return Promise.resolve();
       },
     }),
-    execute: (sqlObj: unknown) => {
-      if (!sqlObj || typeof sqlObj !== "object" || (sqlObj as Record<string, unknown>).__kind !== "sql") return Promise.resolve();
-      const s = sqlObj as { strings: string[]; values: unknown[] };
-      const fullSql = s.strings.join("");
-      if (!fullSql.includes("UPDATE warehouse_stock")) return Promise.resolve();
-
-      const updates: Array<{ productId: number; field: string; op: string; amount: number }> = [];
-      const isCreatePattern = fullSql.includes("reserved = reserved +") || fullSql.includes("available = available -");
-      const isCompletePattern = fullSql.includes("current_stock = CASE") && !fullSql.includes("reserved = reserved +");
-
-      let caseIndex = 0;
-      for (const val of s.values) {
-        if (!val || typeof val !== "object") continue;
-        const obj = val as Record<string, unknown>;
-        if (obj.__kind === "sql_join" && Array.isArray(obj.chunks)) {
-          if (caseIndex < 2) {
-            const field = isCompletePattern ? (caseIndex === 0 ? "currentStock" : "reserved") : (caseIndex === 0 ? "reserved" : "available");
-            const op = isCreatePattern ? (caseIndex === 0 ? "+" : "-") : (isCompletePattern ? "-" : (caseIndex === 0 ? "-" : "+"));
-            for (const chunk of obj.chunks) {
-              if (!chunk || typeof chunk !== "object") continue;
-              const c = chunk as { __kind: string; strings: string[]; values: unknown[] };
-              if (c.__kind !== "sql") continue;
-              updates.push({ productId: Number(c.values[0]), field, op, amount: Number(c.values[1]) });
-            }
-          }
-          caseIndex++;
-        }
-      }
-
-      const tenantId = s.values.filter(v => typeof v !== "object" || v === null).pop();
-      for (const u of updates) {
-        for (const row of stockTable) {
-          if (String(row.productId) === String(u.productId) && String(row.tenantId) === String(tenantId) && u.field) {
-            const cur = Number((row as unknown as Record<string, string>)[u.field]);
-            (row as unknown as Record<string, string>)[u.field] = (u.op === "+" ? cur + u.amount : cur - u.amount).toFixed(2);
-          }
-        }
-      }
-      return Promise.resolve();
-    },
+    execute: createExecuteMock(stockTable),
     transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(db),
   };
   return db;
@@ -382,8 +344,8 @@ describe("integration: complete order lifecycle", () => {
     expect(ordersTable[0].status).toBe("processing");
     expect(stockTable.find(s => s.productId === 1)!.reserved).toBe("10.00");
 
-    await opCaller.updateStatus({ id: 1, status: "completed" });
-    expect(ordersTable[0].status).toBe("completed");
+    await opCaller.updateStatus({ id: 1, status: "delivered" });
+    expect(ordersTable[0].status).toBe("delivered");
     expect(stockTable.find(s => s.productId === 1)!.currentStock).toBe("90.00");
     expect(stockTable.find(s => s.productId === 1)!.reserved).toBe("0.00");
     expect(stockTable.find(s => s.productId === 1)!.available).toBe("90.00");
@@ -392,7 +354,7 @@ describe("integration: complete order lifecycle", () => {
 
     const order = await agentCaller.getById({ id: 1 });
     expect(order).not.toBeNull();
-    expect(order!.status).toBe("completed");
+    expect(order!.status).toBe("delivered");
     expect(order!.items).toHaveLength(2);
   });
 });

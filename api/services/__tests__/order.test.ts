@@ -18,6 +18,7 @@ vi.mock("drizzle-orm", () => {
 });
 
 import { orders, orderItems, warehouseStock, shops, users, products, warehouses } from "@db/schema";
+import { createExecuteMock } from "../../__tests__/helpers/mock-execute";
 
 type FakeOrder = {
   id: number; tenantId: number; orderNumber: string; shopId: number;
@@ -188,46 +189,7 @@ function makeMockDb() {
 
   const db = {
     select: (proj?: unknown) => selectBuilder(proj),
-    execute: (sqlObj: unknown) => {
-      if (!sqlObj || typeof sqlObj !== "object" || (sqlObj as Record<string, unknown>).__kind !== "sql") return Promise.resolve();
-      const s = sqlObj as { strings: string[]; values: unknown[] };
-      const fullSql = s.strings.join("");
-      if (!fullSql.includes("UPDATE warehouse_stock")) return Promise.resolve();
-
-      const updates: Array<{ productId: number; field: string; op: string; amount: number }> = [];
-      const isCreatePattern = fullSql.includes("reserved = reserved +") || fullSql.includes("available = available -");
-      const isCompletePattern = fullSql.includes("current_stock = CASE") && !fullSql.includes("reserved = reserved +");
-
-      let caseIndex = 0;
-      for (const val of s.values) {
-        if (!val || typeof val !== "object") continue;
-        const obj = val as Record<string, unknown>;
-        if (obj.__kind === "sql_join" && Array.isArray(obj.chunks)) {
-          if (caseIndex < 2) {
-            const field = isCompletePattern ? (caseIndex === 0 ? "currentStock" : "reserved") : (caseIndex === 0 ? "reserved" : "available");
-            const op = isCreatePattern ? (caseIndex === 0 ? "+" : "-") : (isCompletePattern ? "-" : (caseIndex === 0 ? "-" : "+"));
-            for (const chunk of obj.chunks) {
-              if (!chunk || typeof chunk !== "object") continue;
-              const c = chunk as { __kind: string; strings: string[]; values: unknown[] };
-              if (c.__kind !== "sql") continue;
-              updates.push({ productId: Number(c.values[0]), field, op, amount: Number(c.values[1]) });
-            }
-          }
-          caseIndex++;
-        }
-      }
-
-      const tenantId = s.values.filter(v => typeof v !== "object" || v === null).pop();
-      for (const u of updates) {
-        for (const row of stockTable) {
-          if (String(row.productId) === String(u.productId) && String(row.tenantId) === String(tenantId) && u.field) {
-            const cur = Number((row as unknown as Record<string, string>)[u.field]);
-            (row as unknown as Record<string, string>)[u.field] = (u.op === "+" ? cur + u.amount : cur - u.amount).toFixed(2);
-          }
-        }
-      }
-      return Promise.resolve();
-    },
+    execute: createExecuteMock(stockTable),
     insert: (ref: unknown) => ({
       values: (vals: unknown) => {
         const table = tableOf(ref);
@@ -395,17 +357,17 @@ describe("OrderService.updateStatus", () => {
     expect(ordersTable[0].status).toBe("processing");
   });
 
-  it("transitions new -> completed and deducts stock", async () => {
+  it("transitions new -> delivered and deducts stock", async () => {
     await OrderService.create(mockDb as any, 1, 10, {
       shopId: 1, items: [{ productId: 1, quantity: "10", unitPrice: "100" }],
     });
 
-    await OrderService.updateStatus(mockDb as any, 1, 1, "completed");
+    await OrderService.updateStatus(mockDb as any, 1, 1, "delivered");
 
     const stock = stockTable.find((s) => s.productId === 1)!;
     expect(stock.currentStock).toBe("90.00");
     expect(stock.reserved).toBe("0.00");
-    expect(ordersTable[0].status).toBe("completed");
+    expect(ordersTable[0].status).toBe("delivered");
   });
 
   it("transitions new -> cancelled and restores available stock", async () => {
@@ -420,25 +382,34 @@ describe("OrderService.updateStatus", () => {
     expect(stock.reserved).toBe("0.00");
   });
 
-  it("throws on invalid transition", async () => {
+  it("re-setting the same status is a no-op", async () => {
     await OrderService.create(mockDb as any, 1, 10, {
       shopId: 1, items: [{ productId: 1, quantity: "10", unitPrice: "100" }],
     });
+    const before = { ...stockTable[0] };
 
-    await expect(OrderService.updateStatus(mockDb as any, 1, 1, "new")).rejects.toThrow(/Невозможно перевести/);
+    await OrderService.updateStatus(mockDb as any, 1, 1, "new");
+
+    expect(ordersTable[0].status).toBe("new");
+    expect(stockTable[0]).toEqual(before);
   });
 
   it("throws when order not found", async () => {
-    await expect(OrderService.updateStatus(mockDb as any, 1, 999, "completed")).rejects.toThrow(/Заказ не найден/);
+    await expect(OrderService.updateStatus(mockDb as any, 1, 999, "delivered")).rejects.toThrow(/Заказ не найден/);
   });
 
-  it("rejects transition from completed", async () => {
+  it("allows correcting a delivered order back to cancelled, returning the goods", async () => {
     await OrderService.create(mockDb as any, 1, 10, {
       shopId: 1, items: [{ productId: 1, quantity: "10", unitPrice: "100" }],
     });
-    await OrderService.updateStatus(mockDb as any, 1, 1, "completed");
+    const beforeCreate = Number(stockTable[0].currentStock);
+    await OrderService.updateStatus(mockDb as any, 1, 1, "delivered");
 
-    await expect(OrderService.updateStatus(mockDb as any, 1, 1, "cancelled")).rejects.toThrow(/Невозможно перевести/);
+    await OrderService.updateStatus(mockDb as any, 1, 1, "cancelled");
+
+    expect(ordersTable[0].status).toBe("cancelled");
+    expect(Number(stockTable[0].currentStock)).toBe(beforeCreate);
+    expect(Number(stockTable[0].reserved)).toBe(0);
   });
 });
 
@@ -471,11 +442,11 @@ describe("OrderService.delete", () => {
     expect(stock.available).toBe("100.00");
   });
 
-  it("does not restore stock for completed orders", async () => {
+  it("does not restore stock for delivered orders", async () => {
     await OrderService.create(mockDb as any, 1, 10, {
       shopId: 1, items: [{ productId: 1, quantity: "10", unitPrice: "100" }],
     });
-    await OrderService.updateStatus(mockDb as any, 1, 1, "completed");
+    await OrderService.updateStatus(mockDb as any, 1, 1, "delivered");
 
     const before = { ...stockTable.find((s) => s.productId === 1)! };
     await OrderService.delete(mockDb as any, 1, 1);
@@ -515,7 +486,7 @@ describe("OrderService.list", () => {
     expect(result.data).toHaveLength(1);
     expect(result.data[0].status).toBe("processing");
 
-    const empty = await OrderService.list(mockDb as any, 1, { status: "completed" }, { userId: 10, userRole: "agent" });
+    const empty = await OrderService.list(mockDb as any, 1, { status: "delivered" }, { userId: 10, userRole: "agent" });
     expect(empty.data).toHaveLength(0);
   });
 

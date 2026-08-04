@@ -23,7 +23,7 @@ export const orderRouter = createRouter({
       const tenantId = ctx.tenant.id;
       const conditions = [eq(orders.tenantId, tenantId), isNull(orders.deletedAt)];
 
-      if (input?.status) conditions.push(eq(orders.status, input.status as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" | "partially_returned" | "partial_return_kept"));
+      if (input?.status) conditions.push(eq(orders.status, input.status as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned"));
       if (input?.agentId) conditions.push(eq(orders.agentId, input.agentId));
       if (input?.paymentMethod) conditions.push(eq(orders.paymentMethod, input.paymentMethod as "cash" | "card" | "transfer" | "debt"));
       if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
@@ -63,8 +63,6 @@ export const orderRouter = createRouter({
         deliveredCount: statusMap["delivered"] ?? 0,
         cancelledCount: statusMap["cancelled"] ?? 0,
         returnedCount: statusMap["returned"] ?? 0,
-        partiallyReturnedCount: statusMap["partially_returned"] ?? 0,
-        partialReturnKeptCount: statusMap["partial_return_kept"] ?? 0,
       };
     }),
 
@@ -73,7 +71,8 @@ export const orderRouter = createRouter({
       page:        z.number().int().min(1).default(1),
       pageSize:    z.number().int().min(1).max(5000).default(25),
       search:      z.string().max(200).optional(),
-      status:      z.enum(["new", "processing", "shipped", "pending", "delivered", "cancelled", "returned", "partially_returned", "partial_return_kept"]).optional(),
+      status:      z.enum(["new", "processing", "shipped", "pending", "delivered", "cancelled", "returned"]).optional(),
+      archived:    z.boolean().optional(),
       agentId:     z.number().int().positive().optional(),
       dateFrom:    z.string().optional(),
       dateTo:      z.string().optional(),
@@ -144,7 +143,7 @@ export const orderRouter = createRouter({
     }),
 
   updateStatus: operatorQuery
-    .input(z.object({ id: z.number().int().positive(), status: z.enum(["new", "processing", "shipped", "pending", "delivered", "cancelled", "returned", "partially_returned", "partial_return_kept"]) }))
+    .input(z.object({ id: z.number().int().positive(), status: z.enum(["new", "processing", "shipped", "pending", "delivered", "cancelled", "returned"]) }))
     .mutation(async ({ input, ctx }) => {
       return OrderService.updateStatus(ctx.db, ctx.tenant.id, input.id, input.status);
     }),
@@ -154,6 +153,7 @@ export const orderRouter = createRouter({
       id: z.number().int().positive(),
       notes: z.string().max(500).optional(),
       discount: z.union([z.number(), z.string()]).transform(String).optional(),
+      paymentMethod: z.enum(["cash", "card", "transfer", "debt"]).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;
@@ -164,9 +164,13 @@ export const orderRouter = createRouter({
     .input(z.object({
       id: z.number().int().positive(),
       items: z.array(z.object({
-        itemId: z.number().int().positive(),
+        // Existing line: pass itemId. New line: pass productId instead.
+        itemId: z.number().int().positive().optional(),
+        productId: z.number().int().positive().optional(),
         quantity: z.number().min(0),
-      })).min(1),
+        unitPrice: z.union([z.number(), z.string()]).transform(String).optional(),
+      }).refine(i => i.itemId !== undefined || i.productId !== undefined, "Нужен itemId или productId"))
+        .min(1),
     }))
     .mutation(async ({ input, ctx }) => {
       return OrderService.updateItems(ctx.db, ctx.tenant.id, input.id, { items: input.items });
@@ -219,7 +223,7 @@ export const orderRouter = createRouter({
   bulkUpdateStatus: operatorQuery
     .input(z.object({
       orderIds: z.array(z.number().int().positive()).min(1).max(100),
-      status: z.enum(["new", "processing", "shipped", "pending", "delivered", "cancelled", "returned", "partially_returned", "partial_return_kept"]),
+      status: z.enum(["new", "processing", "shipped", "pending", "delivered", "cancelled", "returned"]),
       comment: z.string().max(500).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
@@ -227,6 +231,15 @@ export const orderRouter = createRouter({
         ctx.db, ctx.tenant.id, input.orderIds, input.status,
         ctx.user.id, input.comment,
       );
+    }),
+
+  // ── Bulk Complete + Full Payment ────────────────────────────────────────────
+  bulkCompleteWithPayment: operatorQuery
+    .input(z.object({
+      orderIds: z.array(z.number().int().positive()).min(1).max(100),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      return OrderService.bulkCompleteWithPayment(ctx.db, ctx.tenant.id, ctx.user.id, input.orderIds);
     }),
 
   // ── Bulk Assign Agent ───────────────────────────────────────────────────────

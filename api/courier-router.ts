@@ -337,10 +337,13 @@ export const courierRouter = createRouter({
             const deliveredQty = qty - returnedQty;
 
             if (deliveredQty > 0) {
-              // Deduct delivered stock
+              // Deduct delivered stock; the returned portion of the reservation
+              // goes back to available (goods physically returned to the warehouse).
               await tx.execute(sql`
                 UPDATE warehouse_stock
-                SET current_stock = current_stock - ${deliveredQty}, reserved = GREATEST(0, reserved - ${qty})
+                SET current_stock = current_stock - ${deliveredQty},
+                    reserved = GREATEST(0, reserved - ${qty}),
+                    available = available + ${returnedQty}
                 WHERE product_id = ${item.productId} AND tenant_id = ${ctx.tenant.id} AND warehouse_id = ${whId}
               `);
             } else {
@@ -363,20 +366,15 @@ export const courierRouter = createRouter({
         let finalStatus: string;
         let deliveryResult = input.result;
 
-        if (input.result === "returned") {
-          finalStatus = "returned";
-        } else if (input.result === "partial_returned") {
-          finalStatus = "partially_returned";
-        } else if (input.result === "paid") {
-          finalStatus = "delivered";
-        } else {
-          // partial_paid — delivered with remaining debt
-          finalStatus = "partial_return_kept";
-        }
+        // Only a full return leaves the order undelivered. A partial return or a
+        // partial payment still means goods were handed over, so the order is
+        // "delivered" — what came back is recorded per line, and any unpaid
+        // remainder lives on the payment row and the shop's debt.
+        finalStatus = input.result === "returned" ? "returned" : "delivered";
 
         // ── Update order ──
         await tx.update(orders).set({
-          status: finalStatus as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" | "partially_returned" | "partial_return_kept",
+          status: finalStatus as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned",
           deliveryStatus: "delivered",
           deliveredAt: new Date(),
           deliveryResult,

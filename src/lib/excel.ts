@@ -17,8 +17,6 @@ const STATUS_COLORS: Record<string, string> = {
   delivered:            "A7F3D0", // green-200
   cancelled:            "FECACA", // red-200
   returned:             "FECACA", // red-200
-  partially_returned:   "FED7AA", // orange-200
-  partial_return_kept:  "FDE68A", // amber-200
   completed:            "A7F3D0", // legacy alias
   active:     "A7F3D0",
   inactive:   "FECACA",
@@ -189,6 +187,7 @@ export function formatOrdersForExport(orders: Record<string, unknown>[]) {
     "Заказ №":   o.orderNumber,
     "Дата":      o.createdAt ? new Date(o.createdAt).toLocaleDateString("ru-RU") : "",
     "Магазин":   o.shopName ?? "",
+    "Территория":o.territoryName ?? "",
     "Агент":     o.agentName ?? "",
     "Status":    o.status ?? "",
     "Сумма":     Number(o.subtotal ?? 0).toFixed(2),
