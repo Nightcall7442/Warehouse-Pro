@@ -8,6 +8,7 @@ import { logger } from "./lib/logger";
 import { sendPushToUser } from "./services/push-service";
 import { sanitizeString } from "./lib/sanitize";
 import { recalcShopDebt } from "./services/shop-debt";
+import { recordStockMovement } from "./services/stock-ledger";
 
 export const courierRouter = createRouter({
   listMyDeliveries: courierQuery.query(async ({ ctx }) => {
@@ -209,6 +210,11 @@ export const courierRouter = createRouter({
           if (result && typeof result === "object" && "affectedRows" in result && (result as Record<string, unknown>).affectedRows === 0) {
             console.warn(`[Stock] No stock row for product ${item.productId} in tenant ${ctx.tenant.id}`);
           }
+          await recordStockMovement(tx, {
+            tenantId: ctx.tenant.id, warehouseId: whId, productId: item.productId,
+            type: "out", quantity: qty, reason: "order_delivery", referenceId: order.id,
+            notes: `Доставка ${order.orderNumber}`,
+          });
         }
 
         if (input.cashAmount && Number(input.cashAmount) > 0) {
@@ -320,6 +326,11 @@ export const courierRouter = createRouter({
               SET current_stock = current_stock - ${qty}, reserved = GREATEST(0, reserved - ${qty})
               WHERE product_id = ${item.productId} AND tenant_id = ${ctx.tenant.id} AND warehouse_id = ${whId}
             `);
+            await recordStockMovement(tx, {
+              tenantId: ctx.tenant.id, warehouseId: whId, productId: item.productId,
+              type: "out", quantity: qty, reason: "order_delivery", referenceId: order.id,
+              notes: `Доставка ${order.orderNumber}`,
+            });
           }
         } else if (input.result === "returned") {
           // Full return — release reserved stock (no current_stock change since it was reserved)
@@ -349,6 +360,12 @@ export const courierRouter = createRouter({
                     available = available + ${returnedQty}
                 WHERE product_id = ${item.productId} AND tenant_id = ${ctx.tenant.id} AND warehouse_id = ${whId}
               `);
+              // Only the delivered part left the warehouse; the rest never did.
+              await recordStockMovement(tx, {
+                tenantId: ctx.tenant.id, warehouseId: whId, productId: item.productId,
+                type: "out", quantity: deliveredQty, reason: "order_delivery", referenceId: order.id,
+                notes: `Доставка ${order.orderNumber} (частичный возврат ${returnedQty})`,
+              });
             } else {
               // All returned — just release reservation
               await tx.execute(sql`

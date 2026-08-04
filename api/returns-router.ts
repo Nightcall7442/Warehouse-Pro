@@ -6,6 +6,7 @@ import { eq, and, desc, sql } from "drizzle-orm";
 import { cache, CacheKeys } from "./lib/cache";
 import { sanitizeString } from "./lib/sanitize";
 import { recalcShopDebt } from "./services/shop-debt";
+import { recordStockMovement } from "./services/stock-ledger";
 
 export const returnsRouter = createRouter({
   // List returns
@@ -257,6 +258,14 @@ export const returnsRouter = createRouter({
                 AND tenant_id = ${tenantId}
                 AND warehouse_id = ${whId}
             `);
+            for (const item of items) {
+              await recordStockMovement(tx, {
+                tenantId, warehouseId: whId, productId: item.productId,
+                type: "in", quantity: Number(item.quantity),
+                reason: "return_completed", referenceId: input.id,
+                notes: "Возврат принят на склад",
+              });
+            }
           }
 
           await tx.update(returns).set({ status: input.status })

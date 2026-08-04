@@ -260,6 +260,13 @@
       "when": 1785900000000,
       "tag": "0036_preserve_unexplained_shop_debt",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "5",
+      "when": 1785910000000,
+      "tag": "0037_stock_movements_warehouse",
+      "breakpoints": true
     }
   ]
 }

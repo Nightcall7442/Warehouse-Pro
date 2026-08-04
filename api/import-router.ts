@@ -6,6 +6,7 @@ import { products, shops, warehouses, territories } from "@db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { cache } from "./lib/cache";
 import { env } from "./lib/env";
+import { recordStockMovement } from "./services/stock-ledger";
 
 type ParsedRow = Record<string, string | number | null>;
 
@@ -418,6 +419,15 @@ export const importRouter = createRouter({
                 } else {
                   console.error(`[IMPORT] warehouse_stock failed for ${row.code}:`, stockMsg);
                 }
+              }
+              // An import states the opening count, so it enters the ledger the
+              // same way a manual correction does.
+              if (Number(row.initialStock) > 0) {
+                await recordStockMovement(db, {
+                  tenantId, warehouseId: defaultWarehouse.id, productId,
+                  type: "adjustment", quantity: row.initialStock,
+                  reason: "import", notes: `Импорт: начальный остаток ${row.initialStock}`,
+                });
               }
               success++;
             } catch (err: unknown) {

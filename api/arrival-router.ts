@@ -1,10 +1,11 @@
 import { z } from "zod";
 import { createRouter, operatorQuery } from "./middleware";
-import { arrivals, arrivalItems, products, warehouseStock, warehouses, stockMovements } from "@db/schema";
+import { arrivals, arrivalItems, products, warehouses } from "@db/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { sanitizeString } from "./lib/sanitize";
 import { decimalOrDefault } from "./lib/zod-decimal";
 import { sseBus } from "./lib/sse";
+import { recordStockMovement } from "./services/stock-ledger";
 
 export const arrivalRouter = createRouter({
   list: operatorQuery
@@ -245,15 +246,12 @@ export const arrivalRouter = createRouter({
               `);
             }
 
-            // Create stock movement record
-            try {
-              await tx.insert(stockMovements).values({
-                tenantId, productId: item.productId,
-                type: "in", quantity: String(qty),
-                referenceType: "arrival", referenceId: id,
-                notes: `Приход ${arrivalNumber}`,
-              });
-            } catch { /* stock_movements table may not exist */ }
+            await recordStockMovement(tx, {
+              tenantId, warehouseId, productId: item.productId,
+              type: "in", quantity: qty,
+              reason: "arrival", referenceId: id,
+              notes: `Приход ${arrivalNumber}`,
+            });
           }
 
           // Update arrival status

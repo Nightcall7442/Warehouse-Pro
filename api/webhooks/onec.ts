@@ -7,6 +7,7 @@ import { logger } from "../lib/logger";
 import { env } from "../lib/env";
 import { safeEqual } from "../lib/safe-compare";
 import { recalcShopDebt } from "../services/shop-debt";
+import { recordStockMovement } from "../services/stock-ledger";
 
 const app = new Hono<{ Variables: { validatedBody: Record<string, unknown> } }>();
 
@@ -168,6 +169,15 @@ app.post("/stock", async (c) => {
           currentStock: parsedQty.toFixed(2),
           available: String(available),
         },
+      });
+
+      // 1C states the count outright rather than a delta, so the ledger records
+      // an adjustment to that figure — the size of the correction is whatever
+      // the count moved by.
+      await recordStockMovement(tx, {
+        tenantId, warehouseId: defaultWarehouse.id, productId,
+        type: "adjustment", quantity: parsedQty,
+        reason: "onec_sync", notes: `1C: остаток установлен в ${parsedQty}`,
       });
     });
 

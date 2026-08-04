@@ -1,7 +1,8 @@
 import { eq, and, desc, sql, isNull, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
-import { orders, orderItems, warehouseStock, shops, users, products, notifications, warehouses, payments, loadingLists, loadingListOrders, auditLog, debtReminders, orderAdjustments, stockMovements, territories } from "@db/schema";
+import { orders, orderItems, warehouseStock, shops, users, products, notifications, warehouses, payments, loadingLists, loadingListOrders, auditLog, debtReminders, orderAdjustments, territories } from "@db/schema";
 import { recalcShopDebt } from "./shop-debt";
+import { recordStockMovement } from "./stock-ledger";
 
 /** Second reference to `users` for courier joins alongside the agent join. */
 const couriers = alias(users, "couriers");
@@ -140,6 +141,12 @@ async function applyStockDelta(
     SET current_stock = current_stock - ${delta}, available = available - ${delta}
     WHERE product_id = ${productId} AND tenant_id = ${tenantId} AND warehouse_id = ${warehouseId}
   `);
+  await recordStockMovement(tx, {
+    tenantId, warehouseId, productId,
+    type: delta > 0 ? "out" : "in", quantity: delta,
+    reason: "order_edit",
+    notes: "Корректировка состава выполненного заказа",
+  });
 }
 
 /** Delivered statuses — includes legacy "completed" for backwards compatibility. */
@@ -318,17 +325,20 @@ async function applyPartialDelivery(
         WHERE product_id = ${orderItem.productId} AND tenant_id = ${tenantId} AND warehouse_id = ${defaultWh.id}
       `);
 
-      if (returnedQty > 0) {
-        await tx.insert(stockMovements).values({
-          tenantId,
-          productId: orderItem.productId,
-          type: "adjustment",
-          quantity: String(returnedQty),
-          referenceType: "order_return",
-          referenceId: order.id,
-          notes: `Возврат при доставке: ${item.returnReason ?? "не указано"}`,
-        });
-      }
+      // Only the delivered portion left the warehouse. The undelivered part
+      // was reserved but never shipped, so it moves from `reserved` back to
+      // `available` without touching current_stock — no goods travelled, and
+      // recording it would put the ledger out of step with the shelf. Why it
+      // came back is already on the order line (deliveredQuantity /
+      // returnReason) and in the adjustment log.
+      await recordStockMovement(tx, {
+        tenantId, warehouseId: defaultWh.id, productId: orderItem.productId,
+        type: "out", quantity: deliveredQty,
+        reason: "order_delivery", referenceId: order.id,
+        notes: returnedQty > 0
+          ? `Доставлено по заказу ${order.orderNumber} (не доставлено ${returnedQty}: ${item.returnReason ?? "причина не указана"})`
+          : `Доставлено по заказу ${order.orderNumber}`,
+      });
     }
   }
 
@@ -806,6 +816,22 @@ export const OrderService = {
             AND tenant_id = ${tenantId}
             AND warehouse_id = ${whId}
         `);
+
+        // Only a change in current_stock is goods actually moving; a status
+        // that merely reserves or frees them shuffles the other two columns
+        // and belongs in no ledger.
+        if (d.current !== 0) {
+          for (const item of items) {
+            await recordStockMovement(tx, {
+              tenantId, warehouseId: whId, productId: item.productId,
+              type: d.current < 0 ? "out" : "in",
+              quantity: Number(item.quantity),
+              reason: d.current < 0 ? "order_delivery" : "order_return",
+              referenceId: orderId,
+              notes: `Заказ: ${order.status} → ${newStatus}`,
+            });
+          }
+        }
       }
       await tx.update(orders).set({ status: newStatus }).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)));
       await settleShopDebt(tx, tenantId, order.shopId);

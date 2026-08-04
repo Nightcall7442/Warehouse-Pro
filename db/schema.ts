@@ -401,6 +401,10 @@ export const stockMovements = mysqlTable("stock_movements", {
   id:            serial("id").primaryKey(),
   tenantId:      bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
   productId:     bigint("product_id", { mode: "number", unsigned: true }).notNull().references(() => products.id, { onDelete: "restrict" }),
+  // Which warehouse the goods moved through. Nullable only because rows
+  // written before migration 0037 predate the column; new movements always
+  // set it (see api/services/stock-ledger.ts).
+  warehouseId:   bigint("warehouse_id", { mode: "number", unsigned: true }).references(() => warehouses.id, { onDelete: "set null" }),
   type:          mysqlEnum("type", ["in", "out", "adjustment"]).notNull(),
   quantity:      decimal("quantity", { precision: 12, scale: 2 }).notNull(),
   referenceType: varchar("reference_type", { length: 50 }),
@@ -410,6 +414,7 @@ export const stockMovements = mysqlTable("stock_movements", {
 }, (t) => ({
   tenantIdx: index("idx_movements_tenant").on(t.tenantId),
   productIdx: index("idx_movements_product").on(t.productId),
+  warehouseIdx: index("idx_movements_warehouse").on(t.warehouseId),
   tenantProductIdx: index("idx_movements_tenant_product").on(t.tenantId, t.productId),
   tenantCreatedIdx: index("idx_movements_tenant_created").on(t.tenantId, t.createdAt),
 }));

@@ -1,7 +1,8 @@
-import { warehouseStock, stockMovements, products, warehouses } from "@db/schema";
+import { warehouseStock, products, warehouses } from "@db/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { sseBus } from "../lib/sse";
 import { recordAudit } from "./audit-log";
+import { recordStockMovement } from "./stock-ledger";
 
 type DrizzleInstance = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -154,14 +155,11 @@ export const StockService = {
           AND warehouse_id = ${whId}
       `);
 
-      // Log stock movements for audit trail
       for (const item of items) {
-        await tx.insert(stockMovements).values({
-          tenantId,
-          productId: item.productId,
-          type: "out",
-          quantity: String(item.quantity),
-          notes: "Списание по заказу",
+        await recordStockMovement(tx, {
+          tenantId, warehouseId: whId, productId: item.productId,
+          type: "out", quantity: item.quantity,
+          reason: "order_delivery", notes: "Списание по заказу",
         });
       }
     });
@@ -246,12 +244,9 @@ export const StockService = {
         }).where(stockWhere);
       }
 
-      await tx.insert(stockMovements).values({
-        tenantId,
-        productId,
-        type,
-        quantity: String(quantity),
-        notes,
+      await recordStockMovement(tx, {
+        tenantId, warehouseId: whId, productId,
+        type, quantity, reason: "manual_adjustment", notes,
       });
     });
 

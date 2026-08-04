@@ -320,7 +320,8 @@ describe("StockService.adjust", () => {
 
     expect(movementsTable).toHaveLength(1);
     expect(movementsTable[0].type).toBe("in");
-    expect(movementsTable[0].quantity).toBe("25");
+    // Written with the scale the decimal(12,2) column stores it at.
+    expect(movementsTable[0].quantity).toBe("25.00");
     expect(movementsTable[0].notes).toBe("New shipment");
   });
 

@@ -4,6 +4,7 @@ import { getDb } from "./queries/connection";
 import { warehouses, warehouseStock, stockTransfers, products } from "@db/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
+import { recordStockMovement } from "./services/stock-ledger";
 
 export const warehouseMultiRouter = createRouter({
   /** List all warehouses for current tenant */
@@ -265,6 +266,21 @@ export const warehouseMultiRouter = createRouter({
             available: transfer.quantity,
           });
         }
+
+        // One physical move, two ledger entries — the goods leave one warehouse
+        // and arrive at the other, and each side's history has to show it.
+        await recordStockMovement(tx, {
+          tenantId: ctx.tenant.id, warehouseId: transfer.fromWarehouseId,
+          productId: transfer.productId, type: "out", quantity: transfer.quantity,
+          reason: "transfer_out", referenceId: input.transferId,
+          notes: "Перемещение на другой склад",
+        });
+        await recordStockMovement(tx, {
+          tenantId: ctx.tenant.id, warehouseId: transfer.toWarehouseId,
+          productId: transfer.productId, type: "in", quantity: transfer.quantity,
+          reason: "transfer_in", referenceId: input.transferId,
+          notes: "Перемещение с другого склада",
+        });
 
         // Mark transfer as completed — with status check for double-execution safety
         const [updateResult] = await tx.update(stockTransfers)
