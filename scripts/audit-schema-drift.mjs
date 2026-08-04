@@ -13,10 +13,10 @@
  */
 
 import mysql from "mysql2/promise";
+import fs from "node:fs";
 
 // Parse schema.ts to extract table → column mappings
 function parseSchema(filePath) {
-  const fs = await_import_fs();
   const content = fs.readFileSync(filePath, "utf-8");
   
   const tables = {};

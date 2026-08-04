@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "db:dump": "node scripts/dump-database.mjs",
     "build": "vite build && esbuild api/boot.ts --platform=node --bundle --format=esm --conditions=node --external:@sentry/* --external:drizzle-orm --outdir=dist --banner:js=\"import { createRequire } from 'module';const require = createRequire(import.meta.url);\"",
     "lint": "eslint .",
     "preview": "vite preview",

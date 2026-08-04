@@ -571,6 +571,33 @@ if (env.isProduction) {
   const { connectRedis }     = await import("./lib/redis");
   serveStaticFiles(app);
 
+  // Bring the schema up to date before serving a single request.
+  //
+  // This used to be a `drizzle-kit migrate` step in the Dockerfile's CMD, but
+  // railway.json sets its own startCommand, which silently replaced it — so
+  // migrations never ran in production at all, and the schema was kept in
+  // step by hand. Columns the code depended on went missing, which surfaced
+  // as "Failed query" errors long after the deploy that introduced them.
+  //
+  // Running it in-process removes the possibility of that override: there is
+  // no separate command to forget. drizzle-orm ships the migrator, so nothing
+  // needs installing at boot either.
+  //
+  // A failure here stops the process. Serving against a schema the code does
+  // not match is what caused the outages this replaces; a deploy that fails
+  // loudly is recoverable, one that half-works is not.
+  try {
+    const { migrate } = await import("drizzle-orm/mysql2/migrator");
+    const { getDb } = await import("./queries/connection");
+    await migrate(getDb(), { migrationsFolder: "./db/migrations" });
+    logger.info("database migrations up to date");
+  } catch (e) {
+    logger.error("database migration failed — refusing to start", {
+      error: e instanceof Error ? e.message : String(e),
+    });
+    process.exit(1);
+  }
+
   // P1-6 FIX: Connect Redis on startup for multi-instance support
   await connectRedis();
   const port = parseInt(process.env.PORT ?? "3000", 10);

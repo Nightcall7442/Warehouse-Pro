@@ -49,5 +49,8 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD wget -qO- http://localhost:3000/health || exit 1
 ENTRYPOINT ["dumb-init", "--"]
-# Install drizzle-kit, run migrations, then start server
-CMD ["sh", "-c", "npm install drizzle-kit --no-save --legacy-peer-deps && npx drizzle-kit migrate && node dist/boot.js"]
+# Migrations run inside boot.js (see api/boot.ts). Keeping them out of the
+# start command means a platform-level startCommand override — railway.json
+# sets one — can no longer drop them silently, which is how production ended
+# up several migrations behind its code.
+CMD ["node", "dist/boot.js"]
