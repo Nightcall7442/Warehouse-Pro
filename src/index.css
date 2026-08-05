@@ -81,6 +81,11 @@
     --color-warning-subtle:  rgba(212,151,58,.10);
     --color-danger:          #d45050;
     --color-danger-subtle:   rgba(212,80,80,.10);
+    /* Solid ground for a small counter chip (the bell badge, "3 unread").
+       --color-danger itself is a mid-tone: white on it measures 4.15 in light
+       and 3.22 in dark, both under the 4.5 floor for text this size. These are
+       the same red pushed darker until white clears it — 5.89 and 5.44. */
+    --color-danger-strong:   #b8323f;
     --color-info:            #5a8fad;
     --color-info-subtle:     rgba(90,143,173,.10);
 
@@ -242,6 +247,9 @@
     --color-warning-subtle:  rgba(255,176,32,.12);
     --color-danger:          #ff4d6a;
     --color-danger-subtle:   rgba(255,77,106,.12);
+    /* See the light block — same role, kept closer to the dark palette's
+       pinker red. White on it measures 5.44. */
+    --color-danger-strong:   #c9264a;
     --color-info:            #00b4ff;
     --color-info-subtle:     rgba(0,180,255,.12);
 
@@ -1300,8 +1308,20 @@ textarea:focus-visible {
 .dark .neo-btn-primary { color: #fff !important; }
 .dark .neo-btn-primary:hover { color: #fff !important; }
 .dark .dark-mode-header { background: linear-gradient(135deg, #1e293b, #0f172a) !important; }
-.dark p, .dark span, .dark h1, .dark h2, .dark h3, .dark h4, .dark h5, .dark h6,
-.dark label, .dark td, .dark th, .dark li, .dark a {
+/* Neutralise user-agent colours (mainly the browser's blue <a>) so dark mode
+   inherits the surrounding text colour instead.
+
+   Wrapped in :where() deliberately. Written plainly as `.dark span, .dark a …`
+   this is specificity (0,1,1) — higher than any single-class colour utility
+   (0,1,0) — so in dark mode it silently beat `text-white`, `text-danger` and
+   every other colour class on a p/span/heading/label/td/th/li/a. The badge on
+   the notification bell was the visible symptom: `text-white` on a <span>
+   rendered grey at 1.2:1. There is no light-mode twin of this rule, which is
+   why the two themes failed contrast in different places.
+
+   :where() contributes zero specificity, so the reset still applies where
+   nothing else speaks, and any utility or component class now wins. */
+:where(.dark) :where(p, span, h1, h2, h3, h4, h5, h6, label, td, th, li, a) {
   color: inherit;
 }
 .dark .text-primary { color: var(--color-text-primary) !important; }

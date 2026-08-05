@@ -163,7 +163,7 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
           <div className="relative">
             <Bell size={18} />
             {unreadCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-[16px] rounded-full text-white text-[9px] font-bold flex items-center justify-center px-1" style={{ background: "var(--color-danger)", boxShadow: "var(--shadow-xs)" }}>
+              <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-[16px] rounded-full text-white text-[9px] font-bold flex items-center justify-center px-1" style={{ background: "var(--color-danger-strong)", boxShadow: "var(--shadow-xs)" }}>
                 {unreadCount > 99 ? "99+" : unreadCount}
               </span>
             )}
@@ -227,7 +227,7 @@ const MobileHeader = memo(function MobileHeader({ onMenuClick, unreadCount }: { 
       <button onClick={() => navigate("/notifications")} className="btn-ghost p-2 relative">
         <Bell size={18} />
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full text-white text-[10px] font-bold flex items-center justify-center px-1 shadow-sm" style={{ background: "var(--color-danger)" }}>
+          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full text-white text-[10px] font-bold flex items-center justify-center px-1 shadow-sm" style={{ background: "var(--color-danger-strong)" }}>
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>
         )}
