@@ -1,5 +1,6 @@
 import { Component, type ReactNode } from "react";
 import { AlertTriangle, RefreshCw, Home } from "lucide-react";
+import { isStaleChunkError, recoverFromStaleApp } from "@/lib/stale-app-recovery";
 
 interface Props {
   children: ReactNode;
@@ -20,6 +21,15 @@ export default class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     console.error(`[ErrorBoundary] ${this.props.pageName ?? "Page"} crashed:`, error, info.componentStack);
+
+    // A page is a lazy import(), so after a deploy an out-of-date cached
+    // app shell asks for chunk filenames the server no longer has. That isn't
+    // a bug in this page — it's a stale cache, and it self-heals once the
+    // cache is evicted. Do that automatically rather than showing a dead end
+    // the user can't reload their way out of.
+    if (isStaleChunkError(error)) {
+      void recoverFromStaleApp();
+    }
   }
 
   render() {
@@ -68,8 +78,12 @@ export default class ErrorBoundary extends Component<Props, State> {
             </details>
           )}
           <div style={{ display: "flex", gap: "12px" }}>
+            {/* Plain location.reload() is what the user already tried and what
+                didn't work: the service worker answers the navigation from its
+                own cache, handing back the same stale HTML. Clearing caches
+                first is what actually gets them a fresh app. */}
             <button
-              onClick={() => { this.setState({ hasError: false, error: null }); window.location.reload(); }}
+              onClick={() => { void recoverFromStaleApp().then(started => { if (!started) window.location.reload(); }); }}
               style={{
                 display: "inline-flex", alignItems: "center", gap: "6px",
                 padding: "10px 20px", fontSize: "13px", fontWeight: 600,
