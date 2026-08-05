@@ -51,6 +51,15 @@ const RELOAD_GUARD_MS = 30_000;
  * @returns whether a reload was actually started.
  */
 export async function recoverFromStaleApp(): Promise<boolean> {
+  // A dynamic import fails with the *same* message when the device is simply
+  // offline — the file exists on the server, it just can't be reached. Wiping
+  // the caches here would take a field agent from "this one page won't open"
+  // to "the whole app is gone", since those caches are the only reason the app
+  // runs without a connection at all (see OfflineOrders / offline.html).
+  // Offline is exactly when the cache is worth most, so leave it alone and let
+  // the error surface.
+  if (navigator.onLine === false) return false;
+
   try {
     const last = Number(sessionStorage.getItem(RELOAD_GUARD_KEY) ?? 0);
     if (Date.now() - last < RELOAD_GUARD_MS) return false;

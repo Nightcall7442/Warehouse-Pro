@@ -63,4 +63,18 @@ describe("recoverFromStaleApp", () => {
     sessionStorage.setItem("stale_app_reloaded_at", String(Date.now() - 60_000));
     await expect(recoverFromStaleApp()).resolves.toBe(true);
   });
+
+  // A dynamic import fails with the same message when merely offline. Clearing
+  // the caches then would destroy the offline app this product depends on
+  // (OfflineOrders, offline.html) — turning one unopenable page into no app at
+  // all, precisely when the user has no connection to re-download it.
+  it("does not touch the cache while offline", async () => {
+    const cachesMock = { keys: vi.fn().mockResolvedValue(["precache-v1"]), delete: vi.fn() };
+    vi.stubGlobal("caches", cachesMock);
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+
+    await expect(recoverFromStaleApp()).resolves.toBe(false);
+    expect(cachesMock.delete).not.toHaveBeenCalled();
+    expect(window.location.reload).not.toHaveBeenCalled();
+  });
 });
