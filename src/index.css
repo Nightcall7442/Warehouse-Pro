@@ -12,35 +12,47 @@
 @tailwind utilities;
 
 @layer base {
+  /* shadcn/ui's token set, in the HSL triplet form its utilities expect.
+     Every primitive built on it — Dialog, Sheet, Drawer, Popover, AlertDialog
+     — paints from these via `bg-background`, `bg-popover` and friends, so they
+     have to carry the *same* palette as the --color-* tokens below or those
+     components silently render in a different design from the rest of the app.
+
+     They used to hold the retired cold blue-grey scheme (hue 220, e.g.
+     `--background: 220 18% 10%` → rgb(21,24,30)) while the app moved to the
+     warm beige/charcoal palette (hue ~36, `--color-surface: #221f1c` →
+     rgb(34,31,28)). Nothing pointed the two at each other, so the order-detail
+     panel and every other shadcn surface came out navy against a warm app.
+     Values below are converted from the --color-* hexes, not eyeballed. */
   :root {
-    --background:           220 14% 96%;
-    --foreground:           222 30% 14%;
-    --card:                 0 0% 100%;
-    --card-foreground:      222 30% 14%;
-    --popover:              0 0% 100%;
-    --popover-foreground:   222 30% 14%;
-    --primary:              228 80% 60%;
-    --primary-foreground:   0 0% 100%;
-    --secondary:            220 14% 96%;
-    --secondary-foreground: 220 9% 46%;
-    --muted:                220 14% 96%;
-    --muted-foreground:     220 9% 46%;
-    --accent:               220 14% 96%;
-    --accent-foreground:    220 9% 46%;
-    --destructive:          0 84% 60%;
+    --background:           43 13% 90%;   /* --color-canvas        #e8e6e1 */
+    --foreground:           40 4% 16%;    /* --color-text-primary  #2b2a28 */
+    --card:                 36 14% 93%;   /* --color-surface       #efedea */
+    --card-foreground:      40 4% 16%;
+    --popover:              36 14% 93%;
+    --popover-foreground:   40 4% 16%;
+    --primary:              217 21% 45%;  /* --color-primary       #5b6d8a */
+    --primary-foreground:   0 0% 100%;    /* --color-on-primary    #ffffff */
+    --secondary:            40 25% 95%;   /* --color-surface-light #f6f4f0 */
+    --secondary-foreground: 42 6% 35%;    /* --color-text-secondary #5e5b54 */
+    --muted:                40 25% 95%;
+    --muted-foreground:     42 6% 35%;
+    --accent:               40 25% 95%;
+    --accent-foreground:    42 6% 35%;
+    --destructive:          0 61% 57%;    /* --color-danger        #d45050 */
     --destructive-foreground: 0 0% 100%;
-    --border:               220 13% 91%;
-    --input:                220 13% 91%;
-    --ring:                 228 80% 60%;
+    --border:               44 12% 83%;   /* --color-border        #d8d5cd */
+    --input:                44 12% 83%;
+    --ring:                 217 21% 45%;
     --radius:               1.5rem;
-    --sidebar-background:   0 0% 100%;
-    --sidebar-foreground:   222 30% 14%;
-    --sidebar-primary:      228 80% 60%;
+    --sidebar-background:   36 14% 93%;
+    --sidebar-foreground:   40 4% 16%;
+    --sidebar-primary:      217 21% 45%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent:       220 14% 96%;
-    --sidebar-accent-foreground:  222 30% 14%;
-    --sidebar-border:       220 13% 93%;
-    --sidebar-ring:         228 80% 60%;
+    --sidebar-accent:       40 25% 95%;
+    --sidebar-accent-foreground:  40 4% 16%;
+    --sidebar-border:       44 12% 83%;
+    --sidebar-ring:         217 21% 45%;
   }
 
   /* ══════════════════════════════════════════════════════════════════════
@@ -187,32 +199,36 @@
      DARK THEME — Neumorphic Dark with cyan accent
      ══════════════════════════════════════════════════════════════════════ */
   .dark {
-    --background:            220 18% 10%;
-    --foreground:            210 8% 88%;
-    --card:                  220 15% 14%;
-    --card-foreground:       210 8% 88%;
-    --popover:               220 15% 14%;
-    --popover-foreground:    210 8% 88%;
-    --primary:               45 68% 47%;
-    --primary-foreground:    220 18% 10%;
-    --secondary:             220 12% 16%;
-    --secondary-foreground:  210 6% 72%;
-    --muted:                 220 12% 16%;
-    --muted-foreground:      210 4% 48%;
-    --accent:                220 12% 16%;
-    --accent-foreground:     210 6% 72%;
-    --destructive:           0 65% 55%;
-    --destructive-foreground: 220 8% 100%;
-    --border:                220 10% 18%;
-    --input:                 220 12% 16%;
-    --ring:                  45 68% 47%;
-    --sidebar-background:    220 15% 12%;
-    --sidebar-foreground:    210 6% 82%;
-    --sidebar-primary:       45 68% 47%;
-    --sidebar-primary-foreground: 220 18% 10%;
-    --sidebar-accent:        220 10% 15%;
-    --sidebar-accent-foreground:  210 6% 82%;
-    --sidebar-border:        220 8% 16%;
+    /* Converted from the dark --color-* hexes — see the note in :root. The
+       accent was already brass here (45°), but every neutral was still hue 220
+       navy, which is what made shadcn surfaces read as cold against the warm
+       charcoal the rest of the dark theme uses. */
+    --background:            36 10% 10%;   /* --color-canvas        #1c1a17 */
+    --foreground:            36 22% 91%;   /* --color-text-primary  #ede9e3 */
+    --card:                  30 10% 12%;   /* --color-surface       #221f1c */
+    --card-foreground:       36 22% 91%;
+    --popover:               30 10% 12%;
+    --popover-foreground:    36 22% 91%;
+    --primary:               46 68% 47%;   /* --color-primary       #c9a227 */
+    --primary-foreground:    36 10% 10%;   /* --color-on-primary    #1c1a17 */
+    --secondary:             30 11% 15%;   /* --color-surface-light #2a2622 */
+    --secondary-foreground:  39 8% 61%;    /* --color-text-secondary #a39d92 */
+    --muted:                 30 11% 15%;
+    --muted-foreground:      39 8% 61%;
+    --accent:                30 11% 15%;
+    --accent-foreground:     39 8% 61%;
+    --destructive:           350 100% 65%; /* --color-danger        #ff4d6a */
+    --destructive-foreground: 0 0% 100%;
+    --border:                36 11% 18%;   /* --color-border        #322e28 */
+    --input:                 30 11% 15%;
+    --ring:                  46 68% 47%;
+    --sidebar-background:    30 10% 12%;
+    --sidebar-foreground:    36 22% 91%;
+    --sidebar-primary:       46 68% 47%;
+    --sidebar-primary-foreground: 36 10% 10%;
+    --sidebar-accent:        30 11% 15%;
+    --sidebar-accent-foreground:  36 22% 91%;
+    --sidebar-border:        36 11% 18%;
     --sidebar-ring:          45 68% 47%;
 
     --color-canvas:          #1c1a17;
