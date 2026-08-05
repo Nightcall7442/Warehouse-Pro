@@ -814,7 +814,7 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
             </TabsContent>
 
             <TabsContent value="payments" className="flex-1 overflow-hidden">
-              <PaymentsTab orderId={orderId} currency={currency} orderTotal={order.total} />
+              <PaymentsTab orderId={orderId} currency={currency} orderTotal={order.total} orderStatus={order.status} />
             </TabsContent>
           </Tabs>
         )}
@@ -978,12 +978,20 @@ function AdjustmentsTab({ orderId, currency }: { orderId: number; currency: stri
   );
 }
 
-function PaymentsTab({ orderId, currency, orderTotal }: { orderId: number; currency: string; orderTotal: string }) {
+function PaymentsTab({ orderId, currency, orderTotal, orderStatus }: { orderId: number; currency: string; orderTotal: string; orderStatus: string }) {
   const t = useTranslate();
   const { data: payments, isLoading } = trpc.order.getOrderPayments.useQuery({ orderId });
 
   const totalPaid = (payments ?? []).reduce((s, p) => s + Number(p.paidAmount ?? p.amount), 0);
-  const debt = Number(orderTotal) - totalPaid;
+  // Mirrors the server-side rule in recalcShopDebt: nothing is owed for goods
+  // that never stayed with the shop. Without this check, a cancelled or
+  // returned order with no payments read as "остаток долга: <full total>" —
+  // the shop's real aggregate debt (shops.debt) already excludes these
+  // orders correctly, but this tab computed its own number straight from
+  // orderTotal and never looked at status, so it disagreed with the number
+  // everywhere else in the app.
+  const owesNothing = orderStatus === "cancelled" || orderStatus === "returned";
+  const debt = owesNothing ? 0 : Number(orderTotal) - totalPaid;
 
   if (isLoading) return <div style={{ padding: "16px", fontFamily: F.body, fontSize: "13px", color: COLORS.textTertiary }}>{t("Загрузка...", "Yuklanmoqda...")}</div>;
 
