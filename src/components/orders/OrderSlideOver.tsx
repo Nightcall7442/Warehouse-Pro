@@ -1013,7 +1013,12 @@ function PaymentsTab({ orderId, currency, orderTotal, orderStatus }: { orderId: 
                 {t("Получено", "Olingan")}: <b>{Number(p.paidAmount ?? p.amount).toLocaleString("ru")} {currency}</b>
                 {p.paymentMethod && <span style={{ fontSize: "11px", color: COLORS.textTertiary, marginLeft: "6px" }}>({p.paymentMethod})</span>}
               </div>
-              {Number(p.debtAmount ?? 0) > 0 && (
+              {/* debtAmount is what was still outstanding at the moment this
+                  payment was taken — a historical figure, not a live one. Once
+                  the order is cancelled or returned that balance was settled by
+                  the goods going back, not by money, so rendering it in red
+                  here says the shop owes something it doesn't. */}
+              {!owesNothing && Number(p.debtAmount ?? 0) > 0 && (
                 <div style={{ fontFamily: F.body, fontSize: "11px", color: COLORS.danger }}>
                   {t("Долг", "Qarz")}: {Number(p.debtAmount).toLocaleString("ru")} {currency}
                   {p.debtDueDate && <span style={{ color: COLORS.textTertiary, marginLeft: "4px" }}>до {new Date(p.debtDueDate).toLocaleDateString("ru")}</span>}
