@@ -12,7 +12,12 @@
     <title>Warehouse Pro</title>
     <link rel="icon" href="/icon-192.png" type="image/png"/>
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="manifest" href="/manifest.json" />
+    <!-- VitePWA injects its own <link rel="manifest"> (manifest.webmanifest,
+         generated from vite.config.ts) at build time. A hand-authored one
+         used to sit here too, pointing at a hand-maintained public/manifest.json
+         that had drifted from vite.config.ts. Two manifest links is undefined
+         behaviour per spec — the browser picks one, and this one (being first
+         in the head) is what iOS Safari was reading for "Add to Home Screen." -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
