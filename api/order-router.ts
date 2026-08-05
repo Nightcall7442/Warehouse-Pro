@@ -16,6 +16,7 @@ export const orderRouter = createRouter({
       dateTo: z.string().optional(),
       status: z.string().optional(),
       agentId: z.number().optional(),
+      agentIds: z.array(z.number().int().positive()).max(200).optional(),
       paymentMethod: z.string().optional(),
       search: z.string().optional(),
     }).optional())
@@ -25,7 +26,8 @@ export const orderRouter = createRouter({
       const conditions = [eq(orders.tenantId, tenantId), isNull(orders.deletedAt)];
 
       if (input?.status) conditions.push(eq(orders.status, input.status as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned"));
-      if (input?.agentId) conditions.push(eq(orders.agentId, input.agentId));
+      if (input?.agentIds?.length) conditions.push(inArray(orders.agentId, input.agentIds));
+      else if (input?.agentId) conditions.push(eq(orders.agentId, input.agentId));
       if (input?.paymentMethod) conditions.push(eq(orders.paymentMethod, input.paymentMethod as "cash" | "card" | "transfer" | "debt"));
       if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
       if (input?.dateTo) conditions.push(sql`${orders.createdAt} <= ${input.dateTo + ' 23:59:59'}`);
@@ -180,6 +182,10 @@ export const orderRouter = createRouter({
       status:      z.enum(["new", "processing", "shipped", "pending", "delivered", "cancelled", "returned"]).optional(),
       archived:    z.boolean().optional(),
       agentId:     z.number().int().positive().optional(),
+      // Plural form for the toolbar filter, which compares several agents at
+      // once. Capped so a crafted request can't turn the IN list into a way to
+      // make the database chew through an unbounded set.
+      agentIds:    z.array(z.number().int().positive()).max(200).optional(),
       dateFrom:    z.string().optional(),
       dateTo:      z.string().optional(),
       showDeleted: z.boolean().optional(),

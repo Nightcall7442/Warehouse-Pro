@@ -73,7 +73,9 @@ export default function Orders() {
   const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);
 
   const [status, setStatus] = useState(searchParams.get("status") ?? "");
-  const [agentFilter, setAgentFilter] = useState("");
+  // Several agents at once: the operators compare a territory's worth of work
+  // side by side, and one-at-a-time meant re-picking the filter for each name.
+  const [agentFilter, setAgentFilter] = useState<string[]>([]);
   const [section, setSection] = useState<"active" | "archive">("active");
 
   // ── New feature state ──
@@ -166,7 +168,7 @@ export default function Orders() {
     dateFrom: effectiveDateFrom || undefined,
     dateTo: effectiveDateTo || undefined,
     paymentMethod: effectivePaymentMethod as "cash" | "card" | "transfer" | "debt" | undefined,
-    agentId: agentFilter ? Number(agentFilter) : undefined,
+    agentIds: agentFilter.length > 0 ? agentFilter.map(Number) : undefined,
   });
 
   const { data: allOrders, refetch: refetchAllOrders } = trpc.order.list.useQuery(
@@ -384,6 +386,10 @@ export default function Orders() {
     status: effectiveStatus || undefined,
     paymentMethod: effectivePaymentMethod || undefined,
     search: search || undefined,
+    // The tiles have to describe the same slice the table below them shows.
+    // They previously ignored the agent filter entirely, so narrowing to one
+    // agent left the totals reading for the whole company.
+    agentIds: agentFilter.length > 0 ? agentFilter.map(Number) : undefined,
   });
 
   if (isError) return <QueryErrorFallback onRetry={refetch} />;
@@ -565,9 +571,12 @@ export default function Orders() {
           width="180px" />
         {isOperatorOrCeo && (
           <PremiumSelect
+            multiple
             value={agentFilter}
             onChange={v => { setAgentFilter(v); setPage(1); }}
             aria-label={t("Агент", "Agent")}
+            placeholder={t("Все агенты", "Barcha agentlar")}
+            summarize={n => t(`Агентов: ${n}`, `Agentlar: ${n}`)}
             options={[
               { value: "", label: t("Все агенты", "Barcha agentlar") },
               // Sourced from the same rollup the by-agent view uses, so the

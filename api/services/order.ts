@@ -389,7 +389,7 @@ async function applyPartialDelivery(
 
 export const OrderService = {
   async list(db: Db, tenantId: number, filters: Record<string, unknown>, opts?: { userId: number; userRole: string }) {
-    const f = filters as { status?: string; archived?: boolean; agentId?: number; page?: number; pageSize?: number; search?: string; showDeleted?: boolean; dateFrom?: string; dateTo?: string; paymentMethod?: string };
+    const f = filters as { status?: string; archived?: boolean; agentId?: number; agentIds?: number[]; page?: number; pageSize?: number; search?: string; showDeleted?: boolean; dateFrom?: string; dateTo?: string; paymentMethod?: string };
     const page = f.page ?? 1;
     const limit = f.pageSize ?? 25;
     const offset = (page - 1) * limit;
@@ -413,7 +413,12 @@ export const OrderService = {
         ? or(inArray(orders.status, CLOSED_ORDER_STATUSES), isNotNull(orders.deletedAt))!
         : and(inArray(orders.status, OPEN_ORDER_STATUSES), isNull(orders.deletedAt))!);
     }
-    if (f.agentId) conditions.push(eq(orders.agentId, f.agentId));
+    // Both forms are supported: the by-agent view drills into one agent at a
+    // time, while the toolbar filter compares several at once. An empty array
+    // means the same as omitting the filter, matching how every other optional
+    // filter here treats an absent value.
+    if (f.agentIds?.length) conditions.push(inArray(orders.agentId, f.agentIds));
+    else if (f.agentId) conditions.push(eq(orders.agentId, f.agentId));
     if (f.paymentMethod) conditions.push(eq(orders.paymentMethod, f.paymentMethod as "cash" | "card" | "transfer" | "debt"));
     // P0-14 FIX: Implement search filter
     if (f.search) conditions.push(sql`(${orders.orderNumber} LIKE ${'%' + f.search + '%'} OR ${shops.name} LIKE ${'%' + f.search + '%'})`);

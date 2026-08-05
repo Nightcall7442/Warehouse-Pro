@@ -29,6 +29,9 @@ vi.mock("drizzle-orm", () => {
     desc: (col: unknown) => ({ __kind: "desc", col }),
     like: (col: unknown, val: unknown) => ({ __kind: "like", col, val }),
     isNull: (col: unknown) => ({ __kind: "isNull", col }),
+    isNotNull: (col: unknown) => ({ __kind: "isNotNull", col }),
+    or: (...conds: unknown[]) => ({ __kind: "or", conds }),
+    inArray: (col: unknown, vals: unknown[]) => ({ __kind: "inArray", col, vals }),
     sql: sqlFn,
   };
 });
@@ -127,6 +130,16 @@ function evalCond(row: unknown, cond: unknown): boolean {
   const c = cond as Record<string, unknown>;
   const r = row as Record<string, unknown>;
   if (c.__kind === "and") return (c.conds as unknown[]).every((inner: unknown) => evalCond(row, inner));
+  if (c.__kind === "or") return (c.conds as unknown[]).some((inner: unknown) => evalCond(row, inner));
+  if (c.__kind === "inArray") {
+    const fieldName = columnToFieldName.get(c.col) ?? (c.col as Record<string, unknown>)?.name ?? c.col;
+    const actual = r[fieldName as string];
+    return (c.vals as unknown[]).some(v => v === actual || String(v) === String(actual));
+  }
+  if (c.__kind === "isNotNull") {
+    const fieldName = columnToFieldName.get(c.col) ?? (c.col as Record<string, unknown>)?.name ?? c.col;
+    return r[fieldName as string] !== null && r[fieldName as string] !== undefined;
+  }
   if (c.__kind === "eq") {
     const fieldName = columnToFieldName.get(c.col) ?? (c.col as Record<string, unknown>)?.name ?? c.col;
     return r[fieldName as string] === c.val || String(r[fieldName as string]) === String(c.val);
@@ -364,6 +377,69 @@ describe("order.list — GET /api/orders", () => {
     const result = await caller.list({ status: "cancelled" });
     expect(result.data).toHaveLength(0);
     expect(result.total).toBe(0);
+  });
+
+  // ── Filtering by several agents at once ───────────────────────────────────
+  //
+  // Operators compare a territory's worth of work side by side, so the toolbar
+  // filter takes a set. A role='agent' caller is deliberately not used here:
+  // list() force-scopes those to their own orders, which would mask whether the
+  // filter itself works.
+  describe("agentIds", () => {
+    async function seed() {
+      const { orderRouter } = await import("../order-router");
+      const mk = (userId: number) => orderRouter.createCaller({ ...makeCtx(1, userId), db: mockDb });
+      for (const userId of [10, 20, 30]) {
+        await mk(userId).create({ shopId: 1, items: [{ productId: 1, quantity: 1 }] });
+      }
+      return orderRouter.createCaller({ ...makeCtx(1, 99, "operator"), db: mockDb });
+    }
+
+    it("returns the orders of every agent named, and only those", async () => {
+      const operator = await seed();
+
+      const result = await operator.list({ agentIds: [10, 30] });
+
+      expect(result.total).toBe(2);
+      expect(result.data.map((o: { agentId: number }) => o.agentId).sort()).toEqual([10, 30]);
+    });
+
+    it("still supports a single agent", async () => {
+      const operator = await seed();
+
+      const result = await operator.list({ agentIds: [20] });
+
+      expect(result.total).toBe(1);
+      expect(result.data[0].agentId).toBe(20);
+    });
+
+    // Clearing the last name means "everyone" in the toolbar, so an empty set
+    // has to read as no filter — not as a filter that matches nobody.
+    it("treats an empty selection as no filter", async () => {
+      const operator = await seed();
+
+      expect((await operator.list({ agentIds: [] })).total).toBe(3);
+      expect((await operator.list()).total).toBe(3);
+    });
+
+    it("keeps the singular agentId working for the by-agent drill-down", async () => {
+      const operator = await seed();
+
+      const result = await operator.list({ agentId: 20 });
+
+      expect(result.total).toBe(1);
+      expect(result.data[0].agentId).toBe(20);
+    });
+
+    // An unbounded IN list is a cheap way to make the database do a lot of work
+    // on request, so the schema caps it.
+    it("rejects a selection large enough to be abusive", async () => {
+      const operator = await seed();
+
+      await expect(
+        operator.list({ agentIds: Array.from({ length: 201 }, (_, i) => i + 1) })
+      ).rejects.toThrow();
+    });
   });
 
   it("isolates tenants — tenant 2 cannot see tenant 1 orders", async () => {
