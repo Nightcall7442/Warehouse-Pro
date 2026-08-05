@@ -22,9 +22,9 @@ export function ChartTooltip({ active, payload, label, fmt }: ChartTooltipProps)
       style={{
         background: COLORS.surface,
         border: `1px solid ${COLORS.border}`,
-        borderRadius: "12px",
+        borderRadius: "var(--radius-md, 12px)",
         padding: "14px 16px",
-        boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+        boxShadow: "var(--shadow-popover, 0 8px 24px rgba(0,0,0,0.12))",
         minWidth: "160px",
       }}
     >
@@ -58,7 +58,7 @@ export function ChartTooltip({ active, payload, label, fmt }: ChartTooltipProps)
                 width: "8px",
                 height: "8px",
                 borderRadius: "50%",
-                background: p.fill ?? p.stroke ?? "#5b6d8a",
+                background: p.fill ?? p.stroke ?? "var(--kpi-indigo)",
               }}
             />
             <span style={{ fontSize: "12px", color: COLORS.textSecondary }}>
