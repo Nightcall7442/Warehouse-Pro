@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createRouter, adminQuery, authedQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { users } from "@db/schema";
-import { eq, like, and, sql, desc } from "drizzle-orm";
+import { eq, ne, like, and, sql, desc } from "drizzle-orm";
 import { hashPassword, verifyPassword } from "./auth/password";
 import { TRPCError } from "@trpc/server";
 import { checkRateLimit, getClientIp } from "./lib/rate-limit";
@@ -281,6 +281,16 @@ export const userRouter = createRouter({
     .input(z.object({ pushToken: z.string().min(1) }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
+      // A push token identifies a device, not a person, so it can only ever
+      // belong to one user at a time. Phones get handed between agents, and
+      // logout can't always clear the old row (the session is already dead by
+      // then, or the app was uninstalled outright) — leaving the previous owner
+      // pointed at this device, receiving someone else's order notifications.
+      // Claiming the token here makes that impossible regardless of how the
+      // previous session ended.
+      await db.update(users)
+        .set({ pushToken: null })
+        .where(and(eq(users.pushToken, input.pushToken), ne(users.id, ctx.user.id)));
       await db.update(users)
         .set({ pushToken: input.pushToken })
         .where(eq(users.id, ctx.user.id));

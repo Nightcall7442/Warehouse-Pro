@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 // Mock dependencies before importing
 vi.mock("../queries/connection", () => ({
@@ -83,6 +85,27 @@ describe("userRouter", () => {
   describe("registerPushToken", () => {
     it("is defined", () => {
       expect(userRouter.registerPushToken).toBeDefined();
+    });
+
+    // A push token belongs to a device, and a device has one user at a time.
+    // Phones get handed from one agent to the next, and logout frequently can't
+    // clear the old row — the session is already invalid by the time the app
+    // tries, or the app was simply uninstalled. Unless this endpoint takes the
+    // token away from its previous holder, that person keeps receiving order
+    // notifications for a phone they no longer carry. Asserted against the
+    // source because the mock db here can't express a two-statement update.
+    it("takes the token away from any other user holding it", () => {
+      const src = readFileSync(
+        resolve(__dirname, "../user-router.ts"),
+        "utf8"
+      );
+      const body = src.slice(
+        src.indexOf("registerPushToken:"),
+        src.indexOf("removePushToken:")
+      );
+      expect(body).toMatch(/set\(\{\s*pushToken:\s*null\s*\}\)/);
+      expect(body).toMatch(/ne\(users\.id,\s*ctx\.user\.id\)/);
+      expect(body).toMatch(/eq\(users\.pushToken,\s*input\.pushToken\)/);
     });
   });
 
