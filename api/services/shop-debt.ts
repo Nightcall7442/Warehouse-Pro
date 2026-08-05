@@ -72,9 +72,27 @@ export async function recalcShopDebt(tx: Tx, tenantId: number, shopId: number): 
         WHERE shop_id = s.id AND tenant_id = s.tenant_id AND type = 'payment' AND order_id IS NULL
       ), 0)
       -- Returned goods are no longer owed for.
+      --
+      -- Skipped when the return's own order is already cancelled or returned,
+      -- because that order contributed 0 above — its whole value is written
+      -- off already. Subtracting the return document on top would take the
+      -- same money off twice. The floor at the end hides that for a shop whose
+      -- only order this is, but on a shop with other open orders the surplus
+      -- eats into a balance it has nothing to do with.
+      --
+      -- Returns against a still-delivered order (the partial case: shop kept
+      -- some, handed the rest back) do subtract, which is the whole point of
+      -- the document.
       - COALESCE((
-        SELECT SUM(CAST(total_amount AS DECIMAL(15,2))) FROM returns
-        WHERE shop_id = s.id AND tenant_id = s.tenant_id AND status = 'completed'
+        SELECT SUM(CAST(r.total_amount AS DECIMAL(15,2))) FROM returns r
+        WHERE r.shop_id = s.id AND r.tenant_id = s.tenant_id AND r.status = 'completed'
+          AND (
+            r.order_id IS NULL
+            OR NOT EXISTS (
+              SELECT 1 FROM orders o3
+              WHERE o3.id = r.order_id AND o3.status IN ('cancelled', 'returned')
+            )
+          )
       ), 0)
     )
     WHERE s.id = ${shopId} AND s.tenant_id = ${tenantId}

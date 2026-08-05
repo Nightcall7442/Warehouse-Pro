@@ -1,6 +1,6 @@
 import { eq, and, or, desc, sql, isNull, isNotNull, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
-import { orders, orderItems, warehouseStock, shops, users, products, notifications, warehouses, payments, loadingLists, loadingListOrders, auditLog, debtReminders, orderAdjustments, territories } from "@db/schema";
+import { orders, orderItems, warehouseStock, shops, users, products, notifications, warehouses, payments, loadingLists, loadingListOrders, auditLog, debtReminders, orderAdjustments, territories, returns, returnItems } from "@db/schema";
 import { recalcShopDebt } from "./shop-debt";
 import { OPEN_ORDER_STATUSES, CLOSED_ORDER_STATUSES, holdsStock, deductsStock } from "../lib/order-status";
 import { recordStockMovement } from "./stock-ledger";
@@ -796,6 +796,37 @@ export const OrderService = {
       };
 
       const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
+
+      // Units this order already handed back through a completed return
+      // document ("Возвраты"). That flow has its own stock credit, so those
+      // units are physically on the shelf again. Counting them here as well
+      // would credit the same goods a second time — the two return paths are
+      // both allowed, so they have to compose rather than each assume it is
+      // the only one.
+      // Two plain selects and a sum in JS rather than a join + GROUP BY: the
+      // volume here is a handful of rows, and it keeps this query inside the
+      // subset of the builder the service-level test doubles implement.
+      const returnedByProduct = new Map<number, number>();
+      const completedReturns = await tx.select({ id: returns.id })
+        .from(returns)
+        .where(and(
+          eq(returns.orderId, orderId),
+          eq(returns.tenantId, tenantId),
+          eq(returns.status, "completed"),
+        ));
+      if (completedReturns.length > 0) {
+        const returnedRows = await tx.select({
+          productId: returnItems.productId,
+          quantity: returnItems.quantity,
+        })
+          .from(returnItems)
+          .where(inArray(returnItems.returnId, completedReturns.map(r => Number(r.id))));
+        for (const r of returnedRows) {
+          const pid = Number(r.productId);
+          returnedByProduct.set(pid, (returnedByProduct.get(pid) ?? 0) + Number(r.quantity));
+        }
+      }
+
       // A line that already went through partial delivery moved only
       // `deliveredQuantity` physically, not the full ordered `quantity` — the
       // undelivered remainder was released back to `available`, not held as
@@ -803,8 +834,11 @@ export const OrderService = {
       // what's actually still in play for this line, or a later status change
       // (e.g. correcting "delivered" back to "cancelled") fabricates stock for
       // units that were never there.
-      const effectiveQty = (i: (typeof items)[number]) =>
-        i.deliveredQuantity != null ? Number(i.deliveredQuantity) : Number(i.quantity);
+      const effectiveQty = (i: (typeof items)[number]) => {
+        const base = i.deliveredQuantity != null ? Number(i.deliveredQuantity) : Number(i.quantity);
+        const alreadyReturned = returnedByProduct.get(i.productId) ?? 0;
+        return Math.max(0, base - alreadyReturned);
+      };
       // The courier flow already moved the stock for this delivery; replaying
       // the same move here would deduct it a second time.
       const courierAlreadySettled = order.deliveryStatus === "delivered" && deductsStock(newStatus);

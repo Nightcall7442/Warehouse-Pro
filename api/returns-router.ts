@@ -214,10 +214,28 @@ export const returnsRouter = createRouter({
       const tenantId = ctx.tenant.id;
 
       // Validate status transitions
-      const [ret] = await db.select({ status: returns.status, totalAmount: returns.totalAmount, shopId: returns.shopId })
+      const [ret] = await db.select({ status: returns.status, totalAmount: returns.totalAmount, shopId: returns.shopId, orderId: returns.orderId })
         .from(returns).where(and(eq(returns.id, input.id), eq(returns.tenantId, tenantId)))
         .limit(1);
       if (!ret) throw new Error("Возврат не найден");
+
+      // The order this return belongs to may itself already have been marked
+      // cancelled/returned, which credits every one of its units back to stock
+      // on its own. Completing the document too would put the same goods on
+      // the shelf twice. Both return routes stay available — they just can't
+      // both be applied to the same order.
+      if (input.status === "completed" && ret.orderId) {
+        const [linkedOrder] = await db.select({ status: orders.status, orderNumber: orders.orderNumber })
+          .from(orders)
+          .where(and(eq(orders.id, ret.orderId), eq(orders.tenantId, tenantId)))
+          .limit(1);
+        if (linkedOrder && (linkedOrder.status === "cancelled" || linkedOrder.status === "returned")) {
+          const label = linkedOrder.status === "cancelled" ? "отменён" : "возвращён";
+          throw new Error(
+            `Заказ ${linkedOrder.orderNumber} уже ${label} — товар по нему возвращён на склад целиком. ` +
+            `Проведение этого возврата зачислило бы тот же товар второй раз.`);
+        }
+      }
 
       const validTransitions: Record<string, string[]> = {
         pending: ["approved", "rejected"],

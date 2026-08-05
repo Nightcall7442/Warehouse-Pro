@@ -96,3 +96,50 @@ describe("every path that can change what a shop owes re-derives the balance", (
     expect(source).toMatch(/recalcShopDebt\s*\(/);
   });
 });
+
+describe("the two return routes cannot credit the same goods twice", () => {
+  /**
+   * An order's goods can come back either by marking the order itself
+   * cancelled/returned, or by completing a return document ("Возвраты")
+   * against it. Both are supported. Applying both to the same order used to
+   * double-count, in stock and in money:
+   *
+   *   order 10 units delivered → return document for 6 completed → order then
+   *   marked returned
+   *     stock:  240 → 246 → 256   (six units invented; 250 is correct)
+   *     debt:   273 000 → 156 000 → 0   (the 78 000 owed on an *unrelated*
+   *                                      order in the same shop wiped out)
+   *
+   * Those numbers are measured, not hypothetical — removing either guard
+   * reproduces them exactly. The final GREATEST(0, …) hides the money half on
+   * a shop whose only order this is, which is what let it go unnoticed.
+   */
+
+  it("recalcShopDebt ignores return documents whose order is already written off", () => {
+    const helper = readFileSync(join(API_DIR, DEBT_HELPER.split("/").join(sep)), "utf8");
+    // The returns subtraction must be conditional on the linked order still
+    // counting — otherwise its value is deducted on top of an order that
+    // already contributed zero.
+    const returnsClause = helper.slice(helper.indexOf("FROM returns"));
+    expect(returnsClause).toMatch(/NOT\s+EXISTS/i);
+    expect(returnsClause).toMatch(/status\s+IN\s*\(\s*'cancelled'\s*,\s*'returned'\s*\)/i);
+  });
+
+  it("updateStatus sizes its stock delta net of units already returned by document", () => {
+    const source = readFileSync(join(API_DIR, join("services", "order.ts")), "utf8");
+    // effectiveQty decides how many units a status change moves. It has to
+    // subtract what a completed return document already put back on the shelf.
+    expect(source).toMatch(/returnedByProduct/);
+    expect(source).toMatch(/eq\(\s*returns\.status\s*,\s*"completed"\s*\)/);
+    const effective = source.slice(source.indexOf("const effectiveQty"));
+    expect(effective.slice(0, 400)).toMatch(/base\s*-\s*alreadyReturned/);
+  });
+
+  it("completing a return is refused when its order is already cancelled/returned", () => {
+    const source = readFileSync(join(API_DIR, "returns-router.ts"), "utf8");
+    // The reverse direction: the order already credited every unit back, so
+    // the document must not run at all.
+    expect(source).toMatch(/linkedOrder/);
+    expect(source).toMatch(/уже.*(отменён|возвращён)|зачислило бы тот же товар/);
+  });
+});
