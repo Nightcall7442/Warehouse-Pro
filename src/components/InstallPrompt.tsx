@@ -25,10 +25,17 @@ export function InstallPrompt() {
     const until = localStorage.getItem(DISMISS_KEY);
     if (until && new Date(until) > new Date()) return;
 
-    // iOS: show manual instructions
+    // iOS: show manual instructions. "Add to Home Screen" is a system feature
+    // Safari always offers — nothing here can add or remove it from the share
+    // sheet. This banner is the only place a user learns that path exists, so
+    // dismissing it isn't "I don't want this app," it's "not right now" —
+    // same as the Android dismiss below. It used to be permanent (a bare
+    // "true" with no expiry), so anyone who tapped "Понятно" once, including
+    // during testing, would never see it again on that device and would
+    // reasonably conclude the app has no way to install.
     if (isIOS()) {
-      const iosDismissed = localStorage.getItem(iOSDismissKey);
-      if (iosDismissed === "true") return;
+      const iosDismissedUntil = localStorage.getItem(iOSDismissKey);
+      if (iosDismissedUntil && new Date(iosDismissedUntil) > new Date()) return;
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsIos(true);
        
@@ -61,12 +68,8 @@ export function InstallPrompt() {
 
   const dismiss = () => {
     setVisible(false);
-    if (isIos) {
-      localStorage.setItem(iOSDismissKey, "true");
-    } else {
-      const week = new Date(Date.now() + 7 * 86_400_000).toISOString();
-      localStorage.setItem(DISMISS_KEY, week);
-    }
+    const week = new Date(Date.now() + 7 * 86_400_000).toISOString();
+    localStorage.setItem(isIos ? iOSDismissKey : DISMISS_KEY, week);
   };
 
   return (
