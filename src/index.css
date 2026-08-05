@@ -368,6 +368,12 @@
 }
 
 @layer components {
+  /* ProductCard's delete control: the button is a 44px touch target with a
+     transparent hit area around a 28px visible pill, so the hover feedback
+     has to live on the parent (JS mouseenter/leave has nothing to grab onto
+     when the styled element isn't the one being hovered). */
+  button:hover > .product-delete-pill { background: rgba(232,80,80,0.2); }
+
 
   /* ══════════════════════════════════════════════════════════════════════
      NEUMORPHIC CARDS — The core of Soft UI

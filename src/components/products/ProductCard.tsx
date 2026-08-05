@@ -35,9 +35,16 @@ export const ProductCard = memo(function ProductCard({ p, onClick, onDelete, sel
       }}
     >
       {onToggleSelect && (
+        // 44x44 hit area (the touch-target floor) around a 20px glyph: the
+        // button itself is the full size and centers a same-looking icon,
+        // rather than growing the icon or the row to get there.
         <button
           onClick={e => { e.stopPropagation(); onToggleSelect(); }}
-          style={{ background: "none", border: "none", cursor: "pointer", padding: 0, flexShrink: 0, display: "flex" }}
+          aria-label={selected ? t("Убрать выделение", "Belgilashni olib tashlash") : t("Выбрать", "Tanlash")}
+          style={{
+            width: "44px", height: "44px", background: "none", border: "none", cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, margin: "-12px",
+          }}
         >
           {selected
             ? <CheckSquare size={20} style={{ color: COLORS.primaryText }} />
@@ -96,19 +103,30 @@ export const ProductCard = memo(function ProductCard({ p, onClick, onDelete, sel
           }}>
             {formatQty(p.available as number)} {u}
           </span>
+          {/* The visible pill stays 28px so it doesn't dwarf the other badges
+              on the row; the button itself is the 44px touch-target floor,
+              transparent outside the pill, so tap area grows without the
+              circle visually growing with it. */}
           <button
             onClick={e => { e.stopPropagation(); onDelete(Number(p.id)); }}
+            aria-label={t("Удалить", "O'chirish")}
             style={{
-              width: "28px", height: "28px", borderRadius: "8px", border: "none",
-              background: "rgba(232,80,80,0.1)", cursor: "pointer",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              transition: "all 0.15s", flexShrink: 0,
+              width: "44px", height: "44px", background: "none", border: "none", cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, margin: "-8px",
             }}
-            onMouseEnter={e => { e.currentTarget.style.background = "rgba(232,80,80,0.2)"; }}
-            onMouseLeave={e => { e.currentTarget.style.background = "rgba(232,80,80,0.1)"; }}
             title={t("Удалить", "O'chirish")}
           >
-            <Trash2 size={13} style={{ color: "var(--color-danger-text)" }} />
+            <span
+              className="product-delete-pill"
+              style={{
+                width: "28px", height: "28px", borderRadius: "8px",
+                background: "rgba(232,80,80,0.1)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                transition: "background 0.15s",
+              }}
+            >
+              <Trash2 size={13} style={{ color: "var(--color-danger-text)" }} />
+            </span>
           </button>
         </div>
       </div>
