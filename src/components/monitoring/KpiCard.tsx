@@ -17,7 +17,7 @@ export function KpiCard({ label, value, delta, sub, icon: Icon, gradient, delay 
   const isNegative = delta !== null && delta !== undefined && delta < 0;
   return (
     <div className="kpi-hero" style={{
-      borderRadius: "24px", padding: "24px",
+      borderRadius: "var(--radius-xxl, 24px)", padding: "24px",
       position: "relative", overflow: "hidden",
       animation: `slideUp ${0.5 + delay}s ease forwards`,
     }}>

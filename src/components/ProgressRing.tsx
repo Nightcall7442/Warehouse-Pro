@@ -38,7 +38,7 @@ export const ProgressRing = memo(function ProgressRing({
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
-        filter: "var(--shadow-ring, drop-shadow(0 2px 4px rgba(0,0,0,.06)))",
+        filter: "var(--shadow-ring, drop-shadow(0 4px 10px rgba(180,172,158,0.3)))",
         width: size,
         height: size,
       }}

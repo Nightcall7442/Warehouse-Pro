@@ -9,15 +9,23 @@
  * out of it rather than changing every page.
  */
 
-const HEX = /#[0-9a-f]{3,8}/gi;
+import { colorMix } from "./color-mix";
+
+// Matches a literal hex colour OR a `var(--token)` reference — call sites now
+// pass both (e.g. "linear-gradient(135deg, #60a5fa, #3b82f6)" and
+// "linear-gradient(135deg, var(--kpi-indigo), var(--kpi-indigo))"). The old
+// hex-only regex silently failed to match any `var(...)` stop, so every
+// token-based gradient fell through to the "var(--color-primary)" fallback
+// below regardless of which colour was actually requested.
+const COLOR_TOKEN = /#[0-9a-f]{3,8}|var\(--[\w-]+\)/gi;
 
 /** The colour a tile should carry: the gradient's last stop, or the accent. */
 export function kpiAccent(gradient?: string): string {
-  const found = gradient?.match(HEX);
+  const found = gradient?.match(COLOR_TOKEN);
   return found?.[found.length - 1] ?? "var(--color-primary)";
 }
 
 /** A ground faint enough that the glyph, not the tile, is what registers. */
 export function kpiTint(gradient?: string): string {
-  return `color-mix(in srgb, ${kpiAccent(gradient)} 14%, transparent)`;
+  return colorMix(kpiAccent(gradient), 14);
 }

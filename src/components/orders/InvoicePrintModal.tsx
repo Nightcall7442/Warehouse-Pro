@@ -1,12 +1,12 @@
 import { useState, useMemo, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Printer, Download, X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, AlertTriangle, Loader2, Wallet } from "lucide-react";
+import { AppModal, modalSectionLabel } from "@/components/ui/AppModal";
+import { Printer, Download, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, AlertTriangle, Loader2, Wallet } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { printBatchInvoices, type BatchOrderData, type BatchPrintOptions, type CompanyInfo } from "@/lib/documents";
 import { useTranslate } from "@/i18n";
-import { F, COLORS, StatusBadge, PillButton } from "./theme";
+import { StatusBadge } from "./theme";
+import { colorMix } from "@/lib/color-mix";
 
 interface Props {
   open: boolean;
@@ -14,11 +14,6 @@ interface Props {
   orderIds: number[];
   onDone: () => void;
 }
-
-const sectionLabelStyle: React.CSSProperties = {
-  fontFamily: F.body, fontSize: "10px", fontWeight: 600, letterSpacing: "0.06em",
-  textTransform: "uppercase", color: COLORS.textTertiary, marginBottom: "8px", display: "block",
-};
 
 // Fixed, non-configurable print options — no settings panel, always this
 // compact default: A4, QR code, signature line, continuous sheet, sorted by
@@ -114,154 +109,220 @@ export function InvoicePrintModal({ open, onOpenChange, orderIds, onDone }: Prop
     return result.orders.reduce((s, o) => s + (o.items ?? []).length, 0);
   }, [result]);
 
+  const currentPreview = result?.orders[previewIdx];
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col" style={{ fontFamily: F.body }}>
-        <DialogHeader>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
-            <DialogTitle style={{ fontFamily: F.display, fontSize: "18px", fontWeight: 700, color: COLORS.textPrimary }}>
-              {t("Печать накладных", "Nakladlarni chop etish")}
-            </DialogTitle>
-            <div style={{ display: "flex", borderRadius: "9999px", overflow: "hidden", border: `1px solid ${COLORS.border}` }}>
-              {(["simple", "ttn"] as const).map(dt => (
-                <button key={dt} type="button" onClick={() => setDocType(dt)}
-                  style={{
-                    padding: "6px 14px", fontSize: "12px", fontWeight: 600, fontFamily: F.body, border: "none", cursor: "pointer",
-                    background: docType === dt ? COLORS.primary : COLORS.surface,
-                    color: docType === dt ? "#fff" : COLORS.textSecondary,
-                    transition: "all 0.2s",
-                  }}>
-                  {dt === "simple" ? t("Простая", "Oddiy") : t("ТТН", "TTN")}
-                </button>
-              ))}
-            </div>
-          </div>
-        </DialogHeader>
+    <AppModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title={t("Печать накладных", "Nakladlarni chop etish")}
+      subtitle={`${t("Выбрано заказов", "Tanlangan buyurtmalar")}: ${orderIds.length}`}
+      maxWidth={860}
+      footer={
+        <>
+          <button type="button" onClick={handlePrint} disabled={!result} className="neo-btn-primary flex-1 h-12 text-sm">
+            <Printer size={16} />{t("Печать", "Chop etish")}
+          </button>
+          <button type="button" onClick={handleSavePDF} disabled={!result} className="neo-btn flex-1 h-12 text-sm">
+            <Download size={16} />{t("Сохранить PDF", "PDF saqlash")}
+          </button>
+          <button type="button" onClick={() => onOpenChange(false)} className="neo-btn flex-1 h-12 text-sm">
+            {t("Отмена", "Bekor qilish")}
+          </button>
+        </>
+      }
+    >
+      <div>
+        <p className={modalSectionLabel}>{t("Тип документа", "Hujjat turi")}</p>
+        <div className="grid grid-cols-2 gap-3">
+          {(["simple", "ttn"] as const).map(dt => (
+            <button
+              key={dt}
+              type="button"
+              onClick={() => setDocType(dt)}
+              className={docType === dt ? "neo-btn-primary h-11 text-sm" : "neo-btn h-11 text-sm"}
+            >
+              {dt === "simple" ? t("Простая", "Oddiy") : t("ТТН", "TTN")}
+            </button>
+          ))}
+        </div>
+      </div>
 
-        <div className="flex-1 overflow-hidden flex flex-col gap-4">
-          {/* Summary Table */}
-          <div>
-            <span style={sectionLabelStyle}>{t("Выбранные заказы", "Tanlangan buyurtmalar")}</span>
-            <ScrollArea className="h-48" style={{ borderRadius: "12px", border: `1px solid ${COLORS.border}` }}>
-              <table style={{ width: "100%", fontSize: "12px", fontFamily: F.body }}>
-                <thead style={{ position: "sticky", top: 0, background: COLORS.surfaceLight }}>
-                  <tr>
-                    {[
-                      ["#", "left"], [t("Заказ", "Buyurtma"), "left"], [t("Магазин", "Do'kon"), "left"],
-                      [t("Агент", "Agent"), "left"], [t("Сумма", "Summa"), "right"], [t("Статус", "Holat"), "center"],
-                      [t("Проблема", "Muammo"), "left"],
-                    ].map(([label, align], i) => (
-                      <th key={i} style={{
-                        padding: "8px", textAlign: align as "left" | "right" | "center",
-                        fontSize: "10px", fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase",
-                        color: COLORS.textTertiary,
-                      }}>
-                        {label}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {result ? result.orders.map((o, i) => {
-                    const problems = getProblems(o);
-                    return (
-                      <tr key={o.id} style={{ borderTop: `1px solid ${COLORS.border}` }}>
-                        <td style={{ padding: "8px", color: COLORS.textTertiary }}>{i + 1}</td>
-                        <td style={{ padding: "8px", fontWeight: 600, color: COLORS.textPrimary }}>{o.orderNumber}</td>
-                        <td style={{ padding: "8px", color: COLORS.textPrimary }}>{o.shopName ?? "—"}</td>
-                        <td style={{ padding: "8px", color: COLORS.textTertiary }}>{o.agentName ?? "—"}</td>
-                        <td style={{ padding: "8px", textAlign: "right", fontWeight: 600, color: COLORS.textPrimary }}>{Number(o.total).toLocaleString("ru")} {currency}</td>
-                        <td style={{ padding: "8px", textAlign: "center" }}>
-                          <StatusBadge status={o.status} lang="ru" />
-                        </td>
-                        <td style={{ padding: "8px" }}>
-                          <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                            {problems.length > 0 && (
-                              <span style={{ display: "flex", alignItems: "center", gap: "4px", color: COLORS.warning, fontSize: "11px" }}>
-                                <AlertTriangle size={12} />
-                                {problems.join(", ")}
-                              </span>
-                            )}
-                            {o.shopDebtAmount > 0 && (
-                              <span style={{ display: "flex", alignItems: "center", gap: "4px", color: COLORS.danger, fontSize: "11px", fontWeight: 600 }}>
-                                <Wallet size={12} />
-                                {t("Долг", "Qarz")}: {o.shopDebtAmount.toLocaleString("ru")} {currency}
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  }) : orderIds.map((id, i) => (
-                    <tr key={id} style={{ borderTop: `1px solid ${COLORS.border}` }}>
-                      <td style={{ padding: "8px", color: COLORS.textTertiary }}>{i + 1}</td>
-                      <td style={{ padding: "8px", color: COLORS.textTertiary, display: "flex", alignItems: "center", gap: "6px" }} colSpan={6}>
-                        <Loader2 size={12} className="animate-spin" />
-                        {t("Формируется...", "Tayyorlanmoqda...")}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </ScrollArea>
-            {result && (
-              <div style={{ display: "flex", gap: "16px", marginTop: "8px", fontSize: "12px", color: COLORS.textTertiary }}>
-                <span>{t("Всего", "Jami")}: <b style={{ color: COLORS.textPrimary }}>{result.orders.length}</b> {t("заказов", "buyurtma")}</span>
-                <span>{t("Сумма", "Summa")}: <b style={{ color: COLORS.textPrimary }}>{totalSum.toLocaleString("ru")} {currency}</b></span>
-                <span>{t("Позиций", "Pozitsiya")}: <b style={{ color: COLORS.textPrimary }}>{totalItems}</b></span>
-              </div>
-            )}
-          </div>
-
-          <div style={{ height: "1px", background: COLORS.border }} />
-
-          {/* Preview */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <p className={modalSectionLabel} style={{ marginBottom: 0 }}>{t("Выбранные заказы", "Tanlangan buyurtmalar")}</p>
           {result && (
-            <div style={{ borderRadius: "12px", border: `1px solid ${COLORS.border}`, padding: "12px", background: COLORS.surfaceLight }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
-                <span style={{ fontSize: "11px", color: COLORS.textTertiary }}>{t("Предпросмотр", "Oldindan ko'rish")} ({previewIdx + 1}/{result.orders.length})</span>
-                <div style={{ display: "flex", alignItems: "center", gap: "2px" }}>
-                  <button type="button" onClick={() => setPreviewIdx(Math.max(0, previewIdx - 1))} disabled={previewIdx === 0} style={{ background: "transparent", border: "none", cursor: previewIdx === 0 ? "default" : "pointer", opacity: previewIdx === 0 ? 0.4 : 1, padding: "4px", color: COLORS.textSecondary }}><ChevronLeft size={16} /></button>
-                  <button type="button" onClick={() => setPreviewIdx(Math.min(result.orders.length - 1, previewIdx + 1))} disabled={previewIdx >= result.orders.length - 1} style={{ background: "transparent", border: "none", cursor: previewIdx >= result.orders.length - 1 ? "default" : "pointer", opacity: previewIdx >= result.orders.length - 1 ? 0.4 : 1, padding: "4px", color: COLORS.textSecondary }}><ChevronRight size={16} /></button>
-                  <button type="button" onClick={() => setZoom(Math.max(25, zoom - 25))} style={{ background: "transparent", border: "none", cursor: "pointer", padding: "4px", color: COLORS.textSecondary }}><ZoomOut size={16} /></button>
-                  <span style={{ fontSize: "11px", width: "40px", textAlign: "center", color: COLORS.textTertiary }}>{zoom}%</span>
-                  <button type="button" onClick={() => setZoom(Math.min(150, zoom + 25))} style={{ background: "transparent", border: "none", cursor: "pointer", padding: "4px", color: COLORS.textSecondary }}><ZoomIn size={16} /></button>
-                </div>
-              </div>
-              <div style={{ background: "#fff", borderRadius: "8px", border: `1px solid ${COLORS.border}`, overflow: "auto", height: 300, transform: `scale(${zoom / 100})`, transformOrigin: "top left" }}>
-                <div style={{ padding: "16px", fontSize: "12px" }}>
-                  <div style={{ fontWeight: 700, fontSize: "13px", marginBottom: "4px", color: "#1a1a1a" }}>{result.orders[previewIdx]?.orderNumber}</div>
-                  <div style={{ color: "#666" }}>{result.orders[previewIdx]?.shopName}</div>
-                  {(result.orders[previewIdx]?.shopDebtAmount ?? 0) > 0 && (
-                    <div style={{
-                      display: "flex", alignItems: "center", gap: "4px", marginTop: "6px", padding: "4px 8px",
-                      background: "#dc262610", border: "1px solid #dc262640", borderRadius: "6px",
-                      color: "#dc2626", fontWeight: 700, width: "fit-content",
-                    }}>
-                      <Wallet size={12} />
-                      {t("Долг", "Qarz")}: {result.orders[previewIdx]!.shopDebtAmount.toLocaleString("ru")} {currency}
-                    </div>
-                  )}
-                  <div style={{ marginTop: "8px", color: "#1a1a1a" }}>{t("Товаров", "Tovar")}: {result.orders[previewIdx]?.items.length}</div>
-                  <div style={{ color: "#1a1a1a" }}>{t("Итого", "Jami")}: {Number(result.orders[previewIdx]?.total).toLocaleString("ru")} {currency}</div>
-                </div>
-              </div>
+            <span className="text-xs" style={{ color: "var(--color-text-tertiary)" }}>
+              {t("Всего", "Jami")}: <b style={{ color: "var(--color-text-primary)" }}>{result.orders.length}</b>{" "}
+              · {t("Сумма", "Summa")}: <b className="font-data" style={{ color: "var(--color-text-primary)" }}>{totalSum.toLocaleString("ru")} {currency}</b>{" "}
+              · {t("Позиций", "Pozitsiya")}: <b style={{ color: "var(--color-text-primary)" }}>{totalItems}</b>
+            </span>
+          )}
+        </div>
+
+        <div
+          className="overflow-y-auto"
+          style={{ maxHeight: 220, borderRadius: "16px", border: "1px solid var(--color-border, #d8d5cd)" }}
+        >
+          <table className="w-full text-xs" style={{ borderCollapse: "collapse" }}>
+            <thead style={{ position: "sticky", top: 0, background: "var(--color-surface-light)" }}>
+              <tr>
+                {[
+                  ["#", "left"], [t("Заказ", "Buyurtma"), "left"], [t("Магазин", "Do'kon"), "left"],
+                  [t("Агент", "Agent"), "left"], [t("Сумма", "Summa"), "right"], [t("Статус", "Holat"), "center"],
+                  [t("Проблема", "Muammo"), "left"],
+                ].map(([label, align], i) => (
+                  <th
+                    key={i}
+                    className="font-semibold px-3 py-2.5"
+                    style={{
+                      textAlign: align as "left" | "right" | "center",
+                      fontSize: "10px", letterSpacing: "0.05em", textTransform: "uppercase",
+                      color: "var(--color-text-tertiary)",
+                    }}
+                  >
+                    {label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {result ? result.orders.map((o, i) => {
+                const problems = getProblems(o);
+                return (
+                  <tr key={o.id} style={{ borderTop: "1px solid var(--color-border, #d8d5cd)" }}>
+                    <td className="px-3 py-2.5" style={{ color: "var(--color-text-tertiary)" }}>{i + 1}</td>
+                    <td className="px-3 py-2.5 font-semibold" style={{ color: "var(--color-text-primary)" }}>{o.orderNumber}</td>
+                    <td className="px-3 py-2.5" style={{ color: "var(--color-text-primary)" }}>{o.shopName ?? "—"}</td>
+                    <td className="px-3 py-2.5" style={{ color: "var(--color-text-tertiary)" }}>{o.agentName ?? "—"}</td>
+                    <td className="px-3 py-2.5 text-right font-semibold tabular-nums font-data" style={{ color: "var(--color-text-primary)" }}>
+                      {Number(o.total).toLocaleString("ru")} {currency}
+                    </td>
+                    <td className="px-3 py-2.5 text-center">
+                      <StatusBadge status={o.status} lang="ru" />
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <div className="flex flex-col gap-0.5">
+                        {problems.length > 0 && (
+                          <span className="flex items-center gap-1" style={{ color: "var(--color-warning-text)", fontSize: "11px" }}>
+                            <AlertTriangle size={12} />
+                            {problems.join(", ")}
+                          </span>
+                        )}
+                        {o.shopDebtAmount > 0 && (
+                          <span className="flex items-center gap-1 font-semibold" style={{ color: "var(--color-danger-text)", fontSize: "11px" }}>
+                            <Wallet size={12} />
+                            {t("Долг", "Qarz")}: {o.shopDebtAmount.toLocaleString("ru")} {currency}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              }) : orderIds.map((id, i) => (
+                <tr key={id} style={{ borderTop: "1px solid var(--color-border, #d8d5cd)" }}>
+                  <td className="px-3 py-2.5" style={{ color: "var(--color-text-tertiary)" }}>{i + 1}</td>
+                  <td className="px-3 py-2.5 flex items-center gap-1.5" colSpan={6} style={{ color: "var(--color-text-tertiary)" }}>
+                    <Loader2 size={12} className="animate-spin" />
+                    {t("Формируется...", "Tayyorlanmoqda...")}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <p className={modalSectionLabel} style={{ marginBottom: 0 }}>
+            {t("Предпросмотр", "Oldindan ko'rish")}{result ? ` (${previewIdx + 1}/${result.orders.length})` : ""}
+          </p>
+          {result && (
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setPreviewIdx(Math.max(0, previewIdx - 1))}
+                disabled={previewIdx === 0}
+                aria-label={t("Предыдущий", "Oldingi")}
+                className="neo-btn-icon"
+                style={{ width: "28px", height: "28px", borderRadius: "8px" }}
+              >
+                <ChevronLeft size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setPreviewIdx(Math.min(result.orders.length - 1, previewIdx + 1))}
+                disabled={previewIdx >= result.orders.length - 1}
+                aria-label={t("Следующий", "Keyingi")}
+                className="neo-btn-icon"
+                style={{ width: "28px", height: "28px", borderRadius: "8px" }}
+              >
+                <ChevronRight size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setZoom(Math.max(25, zoom - 25))}
+                aria-label={t("Уменьшить", "Kichraytirish")}
+                className="neo-btn-icon"
+                style={{ width: "28px", height: "28px", borderRadius: "8px" }}
+              >
+                <ZoomOut size={14} />
+              </button>
+              <span className="text-[11px] w-10 text-center font-data" style={{ color: "var(--color-text-tertiary)" }}>{zoom}%</span>
+              <button
+                type="button"
+                onClick={() => setZoom(Math.min(150, zoom + 25))}
+                aria-label={t("Увеличить", "Kattalashtirish")}
+                className="neo-btn-icon"
+                style={{ width: "28px", height: "28px", borderRadius: "8px" }}
+              >
+                <ZoomIn size={14} />
+              </button>
             </div>
           )}
         </div>
 
-        <DialogFooter>
-          <PillButton tone="neutral" onClick={() => onOpenChange(false)}>
-            <X size={16} />{t("Отмена", "Bekor qilish")}
-          </PillButton>
-          <PillButton tone="neutral" onClick={handleSavePDF} disabled={!result}>
-            <Download size={16} />{t("Сохранить PDF", "PDF saqlash")}
-          </PillButton>
-          <PillButton tone="primary" onClick={handlePrint} disabled={!result}>
-            <Printer size={16} />{t("Печать", "Chop etish")}
-          </PillButton>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        {!result ? (
+          <div className="flex items-center justify-center gap-2 py-10 text-sm" style={{ color: "var(--color-text-tertiary)" }}>
+            <Loader2 size={15} className="animate-spin" />
+            {t("Формируется…", "Tayyorlanmoqda…")}
+          </div>
+        ) : (
+          <div className="neo-card-sm" style={{ padding: "12px" }}>
+            {/* The preview simulates a printed page, so it intentionally keeps a
+                fixed white "paper" ground regardless of app theme. */}
+            <div
+              className="overflow-auto"
+              style={{
+                background: "#fff", borderRadius: "8px", border: "1px solid var(--color-border, #d8d5cd)",
+                height: 300, transform: `scale(${zoom / 100})`, transformOrigin: "top left",
+              }}
+            >
+              <div style={{ padding: "16px", fontSize: "12px" }}>
+                <div style={{ fontWeight: 700, fontSize: "13px", marginBottom: "4px", color: "#1a1a1a" }}>{currentPreview?.orderNumber}</div>
+                <div style={{ color: "#666" }}>{currentPreview?.shopName}</div>
+                {(currentPreview?.shopDebtAmount ?? 0) > 0 && (
+                  <div
+                    className="flex items-center gap-1 font-bold w-fit"
+                    style={{
+                      marginTop: "6px", padding: "4px 8px", borderRadius: "6px",
+                      background: colorMix("var(--color-danger)", 10),
+                      border: `1px solid ${colorMix("var(--color-danger)", 40)}`,
+                      color: "var(--color-danger-text)",
+                    }}
+                  >
+                    <Wallet size={12} />
+                    {t("Долг", "Qarz")}: {currentPreview!.shopDebtAmount.toLocaleString("ru")} {currency}
+                  </div>
+                )}
+                <div style={{ marginTop: "8px", color: "#1a1a1a" }}>{t("Товаров", "Tovar")}: {currentPreview?.items.length}</div>
+                <div style={{ color: "#1a1a1a" }}>{t("Итого", "Jami")}: {Number(currentPreview?.total).toLocaleString("ru")} {currency}</div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </AppModal>
   );
 }
