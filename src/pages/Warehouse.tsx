@@ -179,7 +179,11 @@ export default function Warehouse() {
             {t("Управление остатками товаров", "Mahsulot zaxiralarini boshqarish")}
           </p>
         </div>
-        <div style={{ display: "flex", gap: "8px" }}>
+        {/* flexWrap here, not just on the parent row: with four buttons this
+            group is wider than a phone screen on its own, and a nested flex
+            container doesn't inherit wrapping from its parent — each level
+            that can overflow needs to say so itself. */}
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
           {activeTab === "stock" && (
             <>
               <button onClick={() => backfillMutation.mutate()} disabled={backfillMutation.isPending}
@@ -240,7 +244,12 @@ export default function Warehouse() {
                   <Icon size={22} color="#fff" />
                 </div>
               </div>
-              <div className="kpi-hero-value animate-count-up">{k.value}</div>
+              {/* .kpi-hero-value defaults to 32px, sized for the 5-column desktop
+                  row. At the 2-column mobile width a 9-digit sum ("60 411 400")
+                  doesn't fit — measured: 32px needs 158px, the card gives 115px.
+                  22px needs 106px, so it clears with room to spare; sm: restores
+                  the default once the grid gives each card more room. */}
+              <div className="kpi-hero-value animate-count-up text-[22px] sm:text-[32px]">{k.value}</div>
               <div className="kpi-hero-label mt-1">{k.sub}</div>
             </Wrapper>
           );
