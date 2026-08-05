@@ -112,7 +112,17 @@ export const orderRouter = createRouter({
           : inArray(orders.status, OPEN_ORDER_STATUSES));
       }
       if (input?.search) {
-        conditions.push(sql`(${orders.orderNumber} LIKE ${"%" + input.search + "%"} OR ${shops.name} LIKE ${"%" + input.search + "%"})`);
+        // The shop name lives on a table joined *after* orders below, and a
+        // JOIN condition cannot reference a table that hasn't been joined yet
+        // — written as `${shops.name} LIKE ...` here it produced "Unknown
+        // column 'shops.name' in 'on clause'" and the whole endpoint failed
+        // (silently, since the agent filter just rendered empty) the moment
+        // anyone typed in the Orders search box. A correlated subquery gets
+        // at the shop without depending on join order.
+        const term = `%${input.search}%`;
+        conditions.push(sql`(${orders.orderNumber} LIKE ${term} OR EXISTS (
+          SELECT 1 FROM ${shops} s2 WHERE s2.id = ${orders.shopId} AND s2.name LIKE ${term}
+        ))`);
       }
 
       const rows = await db.select({
@@ -141,7 +151,6 @@ export const orderRouter = createRouter({
         .from(users)
         // LEFT so an agent with nothing in this window still gets a row.
         .leftJoin(orders, and(eq(orders.agentId, users.id), ...conditions))
-        .leftJoin(shops, eq(orders.shopId, shops.id))
         .where(and(
           eq(users.tenantId, tenantId),
           or(
