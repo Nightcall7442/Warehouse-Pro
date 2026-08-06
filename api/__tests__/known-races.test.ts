@@ -1,12 +1,20 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /**
- * AUDIT EVIDENCE — not a product test. Delete after the audit.
+ * Известные гонки, ещё не исправленные.
  *
- * These cases model MySQL row locking in the STRONGEST possible way:
- * `db.transaction()` takes a global mutex, so no two transactions ever
- * overlap. Any interleaving that still corrupts stock/money here is therefore
- * broken *despite* perfect row locking — because the decision was made on a
- * read that happened outside the transaction, where no lock exists.
+ * Стенд моделирует блокировки MySQL в самом сильном виде: db.transaction()
+ * берёт глобальный мьютекс, поэтому две транзакции никогда не пересекаются.
+ * Любое переплетение, которое всё равно портит остаток, сломано ВОПРЕКИ
+ * идеальной построчной блокировке — потому что решение принималось по данным,
+ * прочитанным до её взятия.
+ *
+ * Проверки здесь описывают ПРАВИЛЬНОЕ поведение и помечены it.fails. Раньше в
+ * них стояли наблюдаемые, то есть неверные, числа — такой тест закрепляет
+ * ошибку: тот, кто починит гонку, уронит «проходящий тест» и может решить, что
+ * сломал он. С it.fails всё наоборот: как только гонка исправлена, vitest
+ * скажет «тест ожидался падающим, но прошёл» — это и есть сигнал снять пометку.
+ *
+ * Разбор обеих гонок: docs/audit-category-1-findings.md.
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { deriveShopDebt, isShopDebtRecalc } from "./helpers/shop-debt-recalc";
@@ -236,8 +244,9 @@ beforeEach(() => {
   mockDb = makeDb();
 });
 
-describe("EVIDENCE 1 — OrderService.restore: the deletedAt check lives OUTSIDE the transaction", () => {
-  it("two overlapping restores of the same deleted order reserve the stock twice, even with transactions fully serialized", async () => {
+describe("гонки, известные и пока не исправленные", () => {
+  // OrderService.restore проверяет deletedAt ВНЕ транзакции.
+  it.fails("два одновременных восстановления удалённого заказа резервируют товар один раз", async () => {
     const { OrderService } = await import("../services/order");
 
     // A deleted order for 10 units. delete() already released the reservation,
@@ -245,30 +254,21 @@ describe("EVIDENCE 1 — OrderService.restore: the deletedAt check lives OUTSIDE
     ordersTable.push({ id: 1, tenantId: 1, agentId: 5, shopId: 1, status: "new", deletedAt: new Date(), subtotal: "1000.00", discount: "0.00", total: "1000.00", paymentMethod: "cash" });
     orderItemsTable.push({ id: 1, orderId: 1, productId: 1, quantity: "10", unitPrice: "100.00", subtotal: "1000.00", deliveredQuantity: null });
 
-    const results = await Promise.allSettled([
+    await Promise.allSettled([
       OrderService.restore(mockDb, 1, 1),
       OrderService.restore(mockDb, 1, 1),
     ]);
 
     const stock = stockTable.find(s => s.productId === 1)!;
-    // eslint-disable-next-line no-console
-    console.log("[restore] outcomes:", results.map(r => r.status));
-    // eslint-disable-next-line no-console
-    console.log("[restore] tx interleaving:", txLog.join(" -> "));
-    // eslint-disable-next-line no-console
-    console.log("[restore] stock after:", JSON.stringify(stock));
-    // eslint-disable-next-line no-console
-    console.log("[restore] invariant current_stock === available + reserved ?",
-      Number(stock.currentStock) === Number(stock.available) + Number(stock.reserved));
 
-    expect(results.every(r => r.status === "fulfilled")).toBe(true);
-    // ONE restore should hold 10. Two overlapping restores hold 20.
-    expect(stock.reserved).toBe("20.00");
-    expect(stock.available).toBe("80.00");
-
+    // Правильный исход: заказ восстановлен один раз, значит и резерв один.
+    expect(stock.reserved).toBe("10.00");
+    expect(stock.available).toBe("90.00");
   });
 
-  it("EVIDENCE 2 — returns.updateStatus: approved→completed is checked outside the transaction and the UPDATE has no status guard", async () => {
+  // returns.updateStatus: переход approved→completed проверяется вне
+  // транзакции, а у UPDATE нет условия по статусу.
+  it.fails("два одновременных проведения возврата приходуют товар один раз", async () => {
     const { returnsRouter } = await import("../returns-router");
     const { asTestContext } = await import("./helpers/test-context");
 
@@ -282,35 +282,27 @@ describe("EVIDENCE 1 — OrderService.restore: the deletedAt check lives OUTSIDE
     });
     const caller = returnsRouter.createCaller(ctx);
 
-    const results = await Promise.allSettled([
+    await Promise.allSettled([
       caller.updateStatus({ id: 7, status: "completed" }),
       caller.updateStatus({ id: 7, status: "completed" }),
     ]);
     const stock = stockTable.find(s => s.productId === 1)!;
-    // eslint-disable-next-line no-console
-    console.log("[returns] outcomes:", results.map(r => r.status === "rejected" ? `rejected(${(r.reason as Error).message})` : "fulfilled"));
-    // eslint-disable-next-line no-console
-    console.log("[returns] tx interleaving:", txLog.join(" -> "));
-    // eslint-disable-next-line no-console
-    console.log("[returns] stock after (a 10-unit return against a 100-unit shelf):", JSON.stringify(stock));
 
-    expect(results.every(r => r.status === "fulfilled")).toBe(true);
-    expect(stock.currentStock).toBe("120.00");
-    expect(stock.available).toBe("120.00");
+    // Возврат на 10 единиц против полки в 100: правильный итог — 110, а не 120.
+    expect(stock.currentStock).toBe("110.00");
+    expect(stock.available).toBe("110.00");
   });
 
-  it("baseline: the same two calls run strictly one after the other are correct", async () => {
+  // Опора: те же два вызова строго один за другим отрабатывают верно —
+  // значит дело именно в переплетении, а не в самой логике восстановления.
+  it("последовательные вызовы того же восстановления корректны", async () => {
     const { OrderService } = await import("../services/order");
     ordersTable.push({ id: 1, tenantId: 1, agentId: 5, shopId: 1, status: "new", deletedAt: new Date(), subtotal: "1000.00", discount: "0.00", total: "1000.00", paymentMethod: "cash" });
     orderItemsTable.push({ id: 1, orderId: 1, productId: 1, quantity: "10", unitPrice: "100.00", subtotal: "1000.00", deliveredQuantity: null });
 
     await OrderService.restore(mockDb, 1, 1);
-    const second = await OrderService.restore(mockDb, 1, 1).catch(e => e as Error);
+    await OrderService.restore(mockDb, 1, 1).catch(() => { /* второй вызов вправе отказать */ });
     const stock = stockTable.find(s => s.productId === 1)!;
-    // eslint-disable-next-line no-console
-    console.log("[restore-sequential] second call:", second instanceof Error ? second.message : "SUCCEEDED");
-    // eslint-disable-next-line no-console
-    console.log("[restore-sequential] stock after:", JSON.stringify(stock));
     expect(stock.reserved).toBe("10.00");
   });
 });
