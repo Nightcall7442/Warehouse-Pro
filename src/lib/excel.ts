@@ -166,25 +166,16 @@ export async function exportToExcel(
   URL.revokeObjectURL(url);
 }
 
-// Fallback CSV (на случай совсем старого окружения)
-export function exportToCSV(rows: Row[], filename: string) {
-  if (!rows.length) return;
-  const headers = Object.keys(rows[0]);
-  const csv = [
-    headers.join(","),
-    ...rows.map(row =>
-      headers.map(h => {
-        const v = row[h] ?? "";
-        return String(v).includes(",") ? `"${v}"` : v;
-      }).join(",")
-    ),
-  ].join("\n");
-  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement("a");
-  a.href = url; a.download = `${filename}.csv`; a.click();
-  URL.revokeObjectURL(url);
-}
+// Здесь была exportToCSV — «запасной вариант на случай совсем старого окружения».
+// Её не вызывали ниоткуда, и она была сломана сильнее одноимённой из export.ts:
+// кавычки ставились только вокруг значений с запятой, внутренние кавычки не
+// удваивались даже тогда, а перевод строки не обрабатывался вовсе. Название
+// магазина в две строки разъезжалось на две строки файла, и отчёт ниже съезжал
+// по колонкам — такой отчёт не падает, он просто врёт.
+//
+// Удалена, а не починена: весь настоящий экспорт идёт через exportToExcel выше,
+// где ExcelJS отвечает за экранирование сам и заодно не даёт значению, начатому
+// со знака равенства, стать формулой при открытии файла.
 
 // ── Форматтеры ────────────────────────────────────────────────────────────────
 

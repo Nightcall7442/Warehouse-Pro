@@ -106,8 +106,29 @@ export function exportAuditCsv(rows: ReturnType<typeof getAuditLog> extends Prom
     r.targetId ?? "",
     r.ip ?? "",
     JSON.stringify(r.meta ?? {}),
-  ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","));
+  ].map(csvCell).join(","));
   return [header, ...lines].join("\n");
+}
+
+/**
+ * One CSV cell: quoted, inner quotes doubled, and defused if it looks like a
+ * formula.
+ *
+ * Quoting alone is not enough. Excel evaluates a field that begins with =, +,
+ * -, @ or a control character even inside quotes, so a user who names themself
+ * =HYPERLINK("http://…","Отчёт готов") is writing code that runs on the
+ * director's machine when the director exports the audit log. actorName comes
+ * straight from the users table, so the value is chosen by the person the log
+ * is recording — exactly the person with a reason to tamper with it.
+ *
+ * The leading apostrophe is the standard defusing: Excel shows the text and
+ * refuses to treat it as a formula. Numbers and dates are unaffected because
+ * they do not start with those characters.
+ */
+function csvCell(value: unknown): string {
+  const s = String(value ?? "");
+  const defused = /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
+  return `"${defused.replace(/"/g, '""')}"`;
 }
 
 /**
