@@ -19,6 +19,9 @@ import { exportToExcel, formatOrdersForExport } from "@/lib/excel";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { exportToPDF } from "@/lib/export";
 import { PremiumSelect } from "@/components/PremiumSelect";
+import { ColumnSettings } from "@/components/orders/ColumnSettings";
+import { useOrderColumns } from "@/hooks/useOrderColumns";
+import type { ColumnId } from "@/components/orders/order-columns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -51,6 +54,7 @@ export default function Orders() {
   const isCeo               = user?.role === "ceo";
   const isOperator          = user?.role === "operator";
   const isOperatorOrCeo     = isCeo || isOperator;
+  const cols                = useOrderColumns(user?.tenantId, user?.id);
   // Persist selection in sessionStorage so it survives navigation
   const [selected, setSelectedRaw] = useState<Set<number>>(() => {
     try {
@@ -392,6 +396,200 @@ export default function Orders() {
     agentIds: agentFilter.length > 0 ? agentFilter.map(Number) : undefined,
   });
 
+  /**
+   * Cells whose own controls must not also open the slide-over.
+   *
+   * The row is clickable; a select or a delete button inside it is not a place
+   * where "open the order" is the intended outcome.
+   */
+  const CELL_STOPS_ROW_CLICK = new Set<ColumnId>(["status", "actions"]);
+
+  /** A row exactly as orders.list returns it — no parallel type to drift. */
+  type OrderRow = NonNullable<typeof data>["data"][number];
+
+  const dateOnly = (v: unknown) => (v ? format(new Date(v as string), "dd.MM.yyyy") : "—");
+  const dateTime = (v: unknown) => (v ? format(new Date(v as string), "dd.MM.yyyy HH:mm") : "—");
+
+  const PRIORITY: Record<string, { ru: string; uz: string; color: string }> = {
+    low:    { ru: "Низкий",  uz: "Past",   color: COLORS.textTertiary },
+    normal: { ru: "Обычный", uz: "Oddiy",  color: COLORS.textSecondary },
+    high:   { ru: "Высокий", uz: "Yuqori", color: COLORS.danger },
+  };
+
+  const DELIVERY: Record<string, { ru: string; uz: string }> = {
+    not_assigned:     { ru: "Не назначена", uz: "Tayinlanmagan" },
+    assigned:         { ru: "Назначена",    uz: "Tayinlangan" },
+    out_for_delivery: { ru: "В пути",       uz: "Yo'lda" },
+    delivered:        { ru: "Доставлена",   uz: "Yetkazildi" },
+    failed:           { ru: "Не удалась",   uz: "Muvaffaqiyatsiz" },
+  };
+
+  /**
+   * One cell, chosen by column id.
+   *
+   * Lives beside the header rather than in the column config so it can reach
+   * the page's own handlers and mutations; both are driven by the same
+   * `cols.columns` array, which is what stops a header and its cell from ever
+   * drifting apart.
+   */
+  const renderCell = (id: ColumnId, o: OrderRow) => {
+    const row = o as unknown as Record<string, unknown>;
+    switch (id) {
+      case "orderNumber":
+        return (
+          <span className="flex items-center gap-1" style={{ fontFamily: F.display, fontWeight: 600, color: COLORS.primaryText }}>
+            {o.orderNumber} <Eye className="h-3 w-3 opacity-0 group-hover:opacity-50" />
+          </span>
+        );
+      case "createdAt":
+        return dateOnly(o.createdAt);
+      case "shopName":
+        return <span style={{ color: COLORS.textPrimary }}>{o.shopName ?? "—"}</span>;
+      case "agentName":
+        return o.agentName ?? "—";
+      case "territoryName":
+        return <span style={{ fontSize: "12px", color: COLORS.textTertiary }}>{(row.territoryName as string) ?? "—"}</span>;
+      case "paymentMethod":
+        return o.paymentMethod && PAYMENT[o.paymentMethod] ? (
+          <span style={{
+            display: "inline-flex", alignItems: "center", gap: "4px",
+            fontSize: "11px", fontWeight: 600, color: PAYMENT[o.paymentMethod].color,
+            background: colorMix(PAYMENT[o.paymentMethod].color, 7),
+            padding: "3px 8px", borderRadius: "6px",
+          }}>
+            {PAYMENT[o.paymentMethod][lang]}
+          </span>
+        ) : "—";
+      case "total":
+        return <span style={{ fontFamily: F.display, fontWeight: 600, color: COLORS.textPrimary }}>{fmt(o.total)}</span>;
+      case "subtotal":
+        return <span style={{ fontFamily: F.display }}>{fmt(row.subtotal as string)}</span>;
+      case "discount":
+        return Number(row.discount ?? 0) > 0
+          ? <span style={{ fontFamily: F.display, color: COLORS.warning }}>{fmt(row.discount as string)}</span>
+          : "—";
+      case "itemCount":
+        return <span style={{ fontFamily: F.display }}>{Number(row.itemCount ?? 0)}</span>;
+      case "priority": {
+        const p = PRIORITY[String(row.priority ?? "normal")];
+        return p ? <span style={{ fontSize: "12px", color: p.color }}>{lang === "uz" ? p.uz : p.ru}</span> : "—";
+      }
+      case "deliveryStatus": {
+        const d = DELIVERY[String(row.deliveryStatus ?? "")];
+        return d ? <span style={{ fontSize: "12px" }}>{lang === "uz" ? d.uz : d.ru}</span> : "—";
+      }
+      case "courierName":
+        return (row.courierName as string) ?? "—";
+      case "deliveredAt":
+        return dateTime(row.deliveredAt);
+      case "updatedAt":
+        return dateTime(row.updatedAt);
+      case "notes":
+        return row.notes
+          ? <span title={String(row.notes)} style={{ display: "inline-block", maxWidth: "220px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{String(row.notes)}</span>
+          : "—";
+      case "status":
+        return isOperatorOrCeo && !o.deletedAt ? (
+          <Select value={o.status} onValueChange={(newStatus) => {
+            if (newStatus !== o.status) handleStatusChange(o.id, newStatus);
+          }}>
+            <SelectTrigger style={{
+              height: "28px", padding: "0 8px", fontSize: "11px", fontWeight: 600,
+              borderRadius: "9999px", border: "none", width: "auto",
+              background: colorMix(STATUS[o.status]?.dot ?? "#5b6d8a", 8),
+              color: STATUS[o.status]?.dot ?? "#5b6d8a",
+            }}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(STATUS).map(([key, val]) => (
+                <SelectItem key={key} value={key} style={{ fontSize: "12px" }}>
+                  {lang === "uz" ? val.uz : val.ru}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <StatusBadge status={o.status} lang={lang} />
+        );
+      case "actions":
+        return renderActions(o);
+      default:
+        return "—";
+    }
+  };
+
+  const askDelete = async (id: number) => {
+    const ok = await confirm({ title: t("Удалить заказ?", "Buyurtmani o'chirish?"), danger: true, confirmText: t("Удалить", "O'chirish") });
+    if (ok) deleteOrder.mutate({ id });
+  };
+
+  const deleteButton = (id: number) => (
+    <button
+      onClick={() => askDelete(id)}
+      style={{
+        display: "flex", alignItems: "center", gap: "4px",
+        padding: "4px 10px", fontSize: "11px", fontWeight: 500, fontFamily: F.body,
+        borderRadius: "8px", border: `1px solid ${colorMix(COLORS.danger, 25)}`, cursor: "pointer",
+        background: colorMix(COLORS.danger, 6), color: COLORS.danger,
+      }}
+    >
+      <Trash2 size={11} />
+    </button>
+  );
+
+  const renderActions = (o: OrderRow) => {
+    if (o.deletedAt) {
+      return isOperatorOrCeo ? (
+        <button
+          onClick={() => restoreOrder.mutate({ id: o.id })}
+          style={{
+            display: "flex", alignItems: "center", gap: "4px",
+            padding: "4px 10px", fontSize: "11px", fontWeight: 500, fontFamily: F.body,
+            borderRadius: "8px", border: `1px solid ${colorMix(COLORS.success, 25)}`, cursor: "pointer",
+            background: colorMix(COLORS.success, 8), color: COLORS.success,
+          }}
+        >
+          <RotateCcw size={11} />
+          {t("Восстановить", "Tiklash")}
+        </button>
+      ) : null;
+    }
+
+    if (OPEN_STATUSES.includes(o.status)) {
+      return (
+        <div style={{ display: "flex", gap: "6px" }}>
+          {o.status === "new" && (
+            <button
+              onClick={() => updateStatus.mutate({ id: o.id, status: "processing" })}
+              style={{
+                padding: "4px 10px", fontSize: "11px", fontWeight: 500, fontFamily: F.body,
+                borderRadius: "8px", border: `1px solid ${COLORS.border}`, cursor: "pointer",
+                background: COLORS.surface, color: COLORS.textSecondary,
+              }}
+            >
+              {t("В работу", "Jarayonga")}
+            </button>
+          )}
+          <button
+            onClick={() => handleStatusChange(o.id, "delivered")}
+            style={{
+              padding: "4px 10px", fontSize: "11px", fontWeight: 600, fontFamily: F.body,
+              borderRadius: "8px", border: "none", cursor: "pointer",
+              background: "var(--color-primary)", color: "var(--color-on-primary)",
+            }}
+          >
+            {t("Выполнен", "Bajarildi")}
+          </button>
+          {isOperatorOrCeo && deleteButton(o.id)}
+        </div>
+      );
+    }
+
+    const deletable = o.status === "new" || o.status === "processing" || o.status === "cancelled";
+    return deletable && isOperatorOrCeo ? deleteButton(o.id) : null;
+  };
+
   if (isError) return <QueryErrorFallback onRetry={refetch} />;
 
   return (
@@ -588,6 +786,21 @@ export default function Orders() {
             ]}
             width="200px" />
         )}
+
+        {/* Only the desktop table has columns to configure; the card and kanban
+            views have no such thing, so the control follows the table. */}
+        {viewMode === "table" && (
+          <ColumnSettings
+            all={cols.all}
+            hidden={cols.layout.hidden}
+            onToggle={cols.toggle}
+            onMove={cols.move}
+            onReset={cols.reset}
+            isCustomised={cols.isCustomised}
+            t={t}
+            lang={lang}
+          />
+        )}
       </div>
 
       {/* By-agent view */}
@@ -743,24 +956,14 @@ export default function Orders() {
                     }
                   </button>
                 </th>
-                {[
-                  t("ЗАКАЗ",  "BUYURTMA"),
-                  t("ДАТА",   "SANA"),
-                  t("МАГАЗИН","DO'KON"),
-                  t("АГЕНТ",  "AGENT"),
-                  t("ТЕРРИТОРИЯ", "HUDUD"),
-                  t("ОПЛАТА", "TO'LOV"),
-                  t("ИТОГО",  "JAMI"),
-                  t("СТАТУС", "HOLAT"),
-                  t("ДЕЙСТВИЯ","AMALLAR"),
-                ].map(h => (
-                  <th key={h} style={{
-                    textAlign: "left", padding: "12px 16px",
+                {cols.columns.map(c => (
+                  <th key={c.id} style={{
+                    textAlign: c.align === "right" ? "right" : "left", padding: "12px 16px",
                     fontFamily: F.display, fontSize: "10px", fontWeight: 600,
                     textTransform: "uppercase", letterSpacing: "0.08em",
                     color: COLORS.textTertiary, borderBottom: `1px solid ${COLORS.border}`,
                   }}>
-                    {h}
+                    {lang === "uz" ? c.label.uz : c.label.ru}
                   </th>
                 ))}
               </tr>
@@ -769,13 +972,13 @@ export default function Orders() {
               {isLoading
                 ? Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i} style={{ borderBottom: `1px solid ${COLORS.border}` }}>
-                      <td colSpan={10} style={{ padding: "16px" }}>
+                      <td colSpan={cols.columns.length + 1} style={{ padding: "16px" }}>
                         <div style={{ height: "16px", borderRadius: "6px", background: COLORS.surfaceLight, animation: `slideUp ${0.4 + i * 0.05}s ease forwards` }} />
                       </td>
                     </tr>
                   ))
                 : data?.data.length === 0
-                ? <tr><td colSpan={10} style={{ padding: "56px 16px", textAlign: "center", color: COLORS.textSecondary, fontSize: "13px", fontFamily: F.body }}>{t("Нет заказов", "Buyurtma yo'q")}</td></tr>
+                ? <tr><td colSpan={cols.columns.length + 1} style={{ padding: "56px 16px", textAlign: "center", color: COLORS.textSecondary, fontSize: "13px", fontFamily: F.body }}>{t("Нет заказов", "Buyurtma yo'q")}</td></tr>
                 : data?.data.map(o => (
                     <tr
                       key={o.id}
@@ -798,132 +1001,20 @@ export default function Orders() {
                           }
                         </button>
                       </td>
-                      <td style={{ padding: "14px 16px", fontFamily: F.display, fontSize: "13px", fontWeight: 600, color: COLORS.primaryText }}>
-                        <span className="flex items-center gap-1">{o.orderNumber} <Eye className="h-3 w-3 opacity-0 group-hover:opacity-50" /></span>
-                      </td>
-                      <td style={{ padding: "14px 16px", fontSize: "13px", color: COLORS.textSecondary }}>
-                        {o.createdAt ? format(new Date(o.createdAt), "dd.MM.yyyy") : ""}
-                      </td>
-                      <td style={{ padding: "14px 16px", fontSize: "13px", color: COLORS.textPrimary }}>{o.shopName ?? "—"}</td>
-                      <td style={{ padding: "14px 16px", fontSize: "13px", color: COLORS.textSecondary }}>{o.agentName ?? "—"}</td>
-                      <td style={{ padding: "14px 16px", fontSize: "12px", color: COLORS.textTertiary }}>{(o as Record<string, unknown>).territoryName as string ?? "—"}</td>
-                      <td style={{ padding: "14px 16px" }}>
-                        {o.paymentMethod && PAYMENT[o.paymentMethod] ? (
-                          <span style={{
-                            display: "inline-flex", alignItems: "center", gap: "4px",
-                            fontSize: "11px", fontWeight: 600, color: PAYMENT[o.paymentMethod].color,
-                            background: colorMix(PAYMENT[o.paymentMethod].color, 7),
-                            padding: "3px 8px", borderRadius: "6px",
-                          }}>
-                            {PAYMENT[o.paymentMethod][lang]}
-                          </span>
-                        ) : "—"}
-                      </td>
-                      <td style={{ padding: "14px 16px", fontFamily: F.display, fontSize: "13px", fontWeight: 600, color: COLORS.textPrimary }}>{fmt(o.total)}</td>
-                      <td style={{ padding: "14px 16px" }} onClick={e => e.stopPropagation()}>
-                        {isOperatorOrCeo && !o.deletedAt ? (
-                          <Select value={o.status} onValueChange={(newStatus) => {
-                            if (newStatus !== o.status) {
-                              handleStatusChange(o.id, newStatus);
-                            }
-                          }}>
-                            <SelectTrigger style={{
-                              height: "28px", padding: "0 8px", fontSize: "11px", fontWeight: 600,
-                              borderRadius: "9999px", border: "none", width: "auto",
-                              background: colorMix(STATUS[o.status]?.dot ?? "#5b6d8a", 8),
-                              color: STATUS[o.status]?.dot ?? "#5b6d8a",
-                            }}>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {Object.entries(STATUS).map(([key, val]) => (
-                                <SelectItem key={key} value={key} style={{ fontSize: "12px" }}>
-                                  {lang === "uz" ? val.uz : val.ru}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        ) : (
-                          <StatusBadge status={o.status} lang={lang} />
-                        )}
-                      </td>
-                      <td style={{ padding: "14px 16px" }} onClick={e => e.stopPropagation()}>
-                        {o.deletedAt ? (
-                          isOperatorOrCeo && (
-                            <button
-                              onClick={() => restoreOrder.mutate({ id: o.id })}
-                              style={{
-                                display: "flex", alignItems: "center", gap: "4px",
-                                padding: "4px 10px", fontSize: "11px", fontWeight: 500, fontFamily: F.body,
-                                borderRadius: "8px", border: `1px solid ${colorMix(COLORS.success, 25)}`, cursor: "pointer",
-                                background: colorMix(COLORS.success, 8), color: COLORS.success,
-                              }}
-                            >
-                              <RotateCcw size={11} />
-                              {t("Восстановить", "Tiklash")}
-                            </button>
-                          )
-                        ) : OPEN_STATUSES.includes(o.status) ? (
-                          <div style={{ display: "flex", gap: "6px" }}>
-                            {o.status === "new" && (
-                            <button
-                              onClick={() => updateStatus.mutate({ id: o.id, status: "processing" })}
-                              style={{
-                                padding: "4px 10px", fontSize: "11px", fontWeight: 500, fontFamily: F.body,
-                                borderRadius: "8px", border: `1px solid ${COLORS.border}`, cursor: "pointer",
-                                background: COLORS.surface, color: COLORS.textSecondary,
-                              }}
-                            >
-                              {t("В работу", "Jarayonga")}
-                            </button>
-                            )}
-                            <button
-                              onClick={() => handleStatusChange(o.id, "delivered")}
-                              style={{
-                                padding: "4px 10px", fontSize: "11px", fontWeight: 600, fontFamily: F.body,
-                                borderRadius: "8px", border: "none", cursor: "pointer",
-                                background: "var(--color-primary)",
-                                color: "var(--color-on-primary)",
-                              }}
-                            >
-                              {t("Выполнен", "Bajarildi")}
-                            </button>
-                            {isOperatorOrCeo && (
-                              <button
-                                onClick={async () => {
-                                  const ok = await confirm({ title: t("Удалить заказ?", "Buyurtmani o'chirish?"), danger: true, confirmText: t("Удалить", "O'chirish") });
-                                  if (ok) deleteOrder.mutate({ id: o.id });
-                                }}
-                                style={{
-                                  display: "flex", alignItems: "center", gap: "4px",
-                                  padding: "4px 10px", fontSize: "11px", fontWeight: 500, fontFamily: F.body,
-                                  borderRadius: "8px", border: `1px solid ${colorMix(COLORS.danger, 25)}`, cursor: "pointer",
-                                  background: colorMix(COLORS.danger, 6), color: COLORS.danger,
-                                }}
-                              >
-                                <Trash2 size={11} />
-                              </button>
-                            )}
-                          </div>
-                        ) : (
-                          (o.status === "new" || o.status === "processing" || o.status === "cancelled") && isOperatorOrCeo && (
-                            <button
-                              onClick={async () => {
-                                const ok = await confirm({ title: t("Удалить заказ?", "Buyurtmani o'chirish?"), danger: true, confirmText: t("Удалить", "O'chirish") });
-                                if (ok) deleteOrder.mutate({ id: o.id });
-                              }}
-                              style={{
-                                display: "flex", alignItems: "center", gap: "4px",
-                                padding: "4px 10px", fontSize: "11px", fontWeight: 500, fontFamily: F.body,
-                                borderRadius: "8px", border: `1px solid ${colorMix(COLORS.danger, 25)}`, cursor: "pointer",
-                                background: colorMix(COLORS.danger, 6), color: COLORS.danger,
-                              }}
-                            >
-                              <Trash2 size={11} />
-                            </button>
-                          )
-                        )}
-                      </td>
+                      {cols.columns.map(c => (
+                        <td
+                          key={c.id}
+                          style={{
+                            padding: "14px 16px",
+                            textAlign: c.align === "right" ? "right" : "left",
+                            fontSize: "13px",
+                            color: COLORS.textSecondary,
+                          }}
+                          onClick={CELL_STOPS_ROW_CLICK.has(c.id) ? (e => e.stopPropagation()) : undefined}
+                        >
+                          {renderCell(c.id, o)}
+                        </td>
+                      ))}
                     </tr>
                   ))}
             </tbody>

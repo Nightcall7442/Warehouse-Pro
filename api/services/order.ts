@@ -434,6 +434,10 @@ export const OrderService = {
       conditions.push(eq(orders.agentId, opts.userId));
     }
 
+    // users is already joined for the agent; the courier is the same table
+    // again and needs its own alias or the two collapse into one another.
+    const courier = alias(users, "courier");
+
     const baseQuery = db.select({
       id: orders.id,
       orderNumber: orders.orderNumber,
@@ -450,9 +454,22 @@ export const OrderService = {
       paymentMethod: orders.paymentMethod,
       deletedAt: orders.deletedAt,
       territoryName: territories.name,
+      // Fields the table can show as optional columns. All of them already sat
+      // on the row — the list simply never selected them, so the Orders page
+      // had no way to offer a column for something the record plainly knows.
+      updatedAt: orders.updatedAt,
+      priority: orders.priority,
+      deliveryStatus: orders.deliveryStatus,
+      deliveredAt: orders.deliveredAt,
+      courierName: courier.name,
+      // Correlated count rather than a join: joining order_items would multiply
+      // the order's row once per line and inflate nothing here but confuse the
+      // pagination count next to it.
+      itemCount: sql<number>`(SELECT COUNT(*) FROM order_items WHERE order_items.order_id = ${orders.id})`,
     }).from(orders)
       .leftJoin(shops, eq(orders.shopId, shops.id))
       .leftJoin(users, eq(orders.agentId, users.id))
+      .leftJoin(courier, eq(orders.courierId, courier.id))
       .leftJoin(territories, eq(shops.territoryId, territories.id))
       .where(and(...conditions));
 
