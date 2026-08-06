@@ -11,6 +11,13 @@ import { notify } from "@/lib/toast";
 import { WifiOff, Wifi, Clock, CheckCircle2, Loader2, Trash2, RefreshCw } from "lucide-react";
 import { getPendingOrders, deletePendingOrder } from "./OfflineOrders.helpers";
 import { useInvalidateOrderCaches } from "@/hooks/useOrderCacheSync";
+import type { PaymentMethod } from "@/components/orders";
+
+// Pending orders come back from IndexedDB as untyped records — narrow the
+// stored method back to the union order.create accepts before syncing.
+function toPaymentMethod(value: unknown): PaymentMethod {
+  return value === "card" || value === "transfer" || value === "debt" ? value : "cash";
+}
 
 // ── Component ────────────────────────────────────────────────────────────────
 export default function OfflineOrders() {
@@ -62,7 +69,7 @@ export default function OfflineOrders() {
           items:    order.items as Array<{ productId: number; quantity: string | number }>,
           notes:    order.notes as string | undefined,
           discount: order.discount as string | number | undefined,
-          paymentMethod: (order.paymentMethod as string) || 'cash',
+          paymentMethod: toPaymentMethod(order.paymentMethod),
           idempotencyKey: (order.idempotencyKey as string) || crypto.randomUUID(),
         });
                             await deletePendingOrder(order.localId as number);
@@ -192,7 +199,7 @@ export default function OfflineOrders() {
                               items:    order.items as Array<{ productId: number; quantity: string | number }>,
                               notes:    order.notes as string | undefined,
                               discount: order.discount as string | number | undefined,
-                              paymentMethod: (order.paymentMethod as string) || 'cash',
+                              paymentMethod: toPaymentMethod(order.paymentMethod),
                               idempotencyKey: (order.idempotencyKey as string) || crypto.randomUUID(),
                             });
         await deletePendingOrder(order.localId as number);

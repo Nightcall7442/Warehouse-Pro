@@ -164,7 +164,7 @@ export default function PnL() {
       return row;
     };
 
-    addRow("Выручка", num(current?.revenue), null, true);
+    addRow("Выручка", num(current?.revenue), undefined, true);
     addRow("Скидки", num(current?.discount));
     addRow("Себестоимость (COGS)", num(current?.cogs));
     addRow("Валовая прибыль", num(current?.grossProfit), num(current?.grossMarginPct), true, "FF16A34A");
@@ -553,7 +553,7 @@ export default function PnL() {
 
       {/* Transport Expenses */}
       <PnLTransportExpenses
-        arrivals={arrivals.data}
+        arrivals={arrivals.data?.data}
         fmt={fmt}
         lang={lang}
       />

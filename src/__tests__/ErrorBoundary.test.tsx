@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
-import React from "react";
 import ErrorBoundary from "../components/ErrorBoundary";
 
 // ── Helper components ───────────────────────────────────────────────────────
@@ -9,11 +8,11 @@ function GoodChild() {
   return <div data-testid="good">Hello World</div>;
 }
 
-function BadChild() {
+function BadChild(): never {
   throw new Error("Test error message");
 }
 
-function BadChildSilent() {
+function BadChildSilent(): never {
   // Throws during render but without a message
   throw new Error();
 }

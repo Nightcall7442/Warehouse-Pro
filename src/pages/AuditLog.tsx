@@ -8,6 +8,7 @@ import {
   User, Package, Settings, AlertTriangle, Key,
   RefreshCw, ArrowUpRight, ArrowDownRight, Minus,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 // ── Premium design tokens ─────────────────────────────────────────────────────
 const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
@@ -79,7 +80,7 @@ function KpiCard({ label, value, delta, icon, gradient, delay }: {
 
 // ── Action config ─────────────────────────────────────────────────────────────
 const ACTION_CONFIG: Record<string, {
-  icon: React.ComponentType<{ size?: number; className?: string }>;
+  icon: LucideIcon;
   gradient: string;
   label: { ru: string; uz: string };
 }> = {

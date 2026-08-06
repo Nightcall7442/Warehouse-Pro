@@ -49,8 +49,7 @@ function rawUpdateClauses(source: string): string[] {
 function builderUpdateClauses(source: string): string[] {
   const clauses: string[] = [];
   const re = /\.update\(\s*warehouseStock\s*\)[\s\S]{0,60}?\.set\(\s*\{/gi;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(source)) !== null) {
+  while (re.exec(source) !== null) {
     // Walk from the opening brace to its match so nested sql`` templates and
     // objects don't truncate the clause early.
     let depth = 1;

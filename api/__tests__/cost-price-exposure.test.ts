@@ -195,3 +195,38 @@ describe("management data is not reachable by every signed-in user", () => {
     expect(line).toMatch(/\["ceo", "operator", "supervisor"\]/);
   });
 });
+
+/**
+ * A cache key must name every input that changes the answer.
+ *
+ * shopList and productList left pageSize out while the routers used it for the
+ * LIMIT, so five callers asking for 5, 25, 200, 500 and 10000 rows all hashed
+ * to one entry. Whoever loaded first decided what the rest got for three
+ * minutes: a shop picker that asked for 500 would quietly render 25, and a
+ * shop that exists could not be selected until the cache expired. The reports
+ * hub has the same exposure — its cards ask for 10000 and would export a
+ * truncated file with nothing on the sheet to say so.
+ */
+describe("list caches key on everything that changes the result", () => {
+  const cache = api("lib/cache.ts");
+
+  it.each(["productList", "shopList"])("%s takes pageSize and puts it in the key", (name) => {
+    const line = cache.split("\n").find(l => l.trimStart().startsWith(`${name}:`));
+    expect(line, `${name} not found`).toBeDefined();
+    expect(line).toMatch(/pageSize:\s*number/);
+
+    // The template on the following line has to interpolate it, not merely accept it.
+    const at = cache.indexOf(`${name}:`);
+    const template = cache.slice(at, cache.indexOf("`,", at));
+    expect(template).toMatch(/\$\{pageSize\}/);
+  });
+
+  it.each([
+    ["shop-router.ts", "shopList"],
+    ["product-router.ts", "productList"],
+  ])("%s passes its own pageSize into %s", (file, name) => {
+    const src = api(file);
+    const call = src.slice(src.indexOf(`CacheKeys.${name}(`));
+    expect(call.slice(0, 120)).toMatch(/page,\s*pageSize/);
+  });
+});

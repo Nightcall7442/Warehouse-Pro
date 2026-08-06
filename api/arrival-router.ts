@@ -7,6 +7,18 @@ import { decimalOrDefault } from "./lib/zod-decimal";
 import { sseBus } from "./lib/sse";
 import { recordStockMovement } from "./services/stock-ledger";
 
+type ArrivalItemRow = {
+  id:           number;
+  productId:    number;
+  quantity:     string;
+  condition:    string | null;
+  notes:        string | null;
+  costPrice:    string | null;
+  sellingPrice: string | null;
+  productName:  string | null;
+  productCode:  string | null;
+};
+
 export const arrivalRouter = createRouter({
   list: operatorQuery
     .input(z.object({
@@ -59,8 +71,8 @@ export const arrivalRouter = createRouter({
       let items: Array<{ id: number; productId: number; quantity: number; condition: string; notes: string; productName: string; productCode: string; costPrice: string; sellingPrice: string }>;
       try {
         const result = await db.execute(sql`SELECT ai.id, ai.product_id AS productId, ai.quantity, ai.condition, ai.notes, ai.cost_price AS costPrice, ai.selling_price AS sellingPrice, p.name AS productName, p.code AS productCode FROM arrival_items ai LEFT JOIN products p ON ai.product_id = p.id WHERE ai.arrival_id = ${arrival.id}`);
-        const rows = (result as unknown[][])[0];
-        items = Array.isArray(rows) ? rows.map((r: Record<string, unknown>) => ({
+        const [rows] = result as unknown as [ArrivalItemRow[], unknown];
+        items = Array.isArray(rows) ? rows.map(r => ({
           id: Number(r.id),
           productId: Number(r.productId),
           quantity: Number(r.quantity),
@@ -251,8 +263,8 @@ export const arrivalRouter = createRouter({
               SELECT id FROM warehouse_stock
               WHERE tenant_id = ${tenantId} AND warehouse_id = ${warehouseId} AND product_id = ${item.productId}
               FOR UPDATE
-            `);
-            const existing = (rows as unknown[])?.[0];
+            `) as unknown as [Array<{ id: number }>, unknown];
+            const existing = rows?.[0];
 
             if (existing) {
               await tx.execute(sql`

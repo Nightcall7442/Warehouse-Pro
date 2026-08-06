@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { trpc } from "@/providers/trpc";
-import { useLang } from "@/i18n";
+import { useLang, type Lang } from "@/i18n";
 import { useCurrency } from "@/hooks/useCurrency";
 import { notify } from "@/lib/toast";
 import { COLORS, F } from "@/components/products/constants";
@@ -132,7 +132,7 @@ export default function AgentKpi() {
 
 // ── Agent View ────────────────────────────────────────────────────────────────
 
-function AgentView({ kpi, salary, fmt, t, lang }: { kpi: KpiData; salary?: SalaryData; fmt: (v: number) => string; t: (r: string, u: string) => string; lang: string }) {
+function AgentView({ kpi, salary, fmt, t, lang }: { kpi: KpiData; salary?: SalaryData; fmt: (v: number) => string; t: (r: string, u: string) => string; lang: Lang }) {
   const grade = GRADES[kpi.kpiGrade] ?? GRADES.F;
   return (
     <>
@@ -301,7 +301,7 @@ function SupervisorView({ kpi, selectedKpi, selectedSalary, detailLoading, onSel
   selectedAgentId: number | null;
   fmt: (v: number) => string;
   t: (r: string, u: string) => string;
-  lang: string;
+  lang: Lang;
 }) {
   const [showSalaryConfig, setShowSalaryConfig] = useState(false);
   const [territoryFilter, setTerritoryFilter] = useState<string>("all");

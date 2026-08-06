@@ -8,7 +8,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { TrpcContext } from "../context";
 import { asTestContext } from "./helpers/test-context";
-import { TRPCError } from "@trpc/server";
 
 const mockCheckSubscriptionAccess = vi.fn();
 vi.mock("../lib/feature-gating", () => ({
@@ -53,7 +52,7 @@ describe("subscription gating (billedQuery)", () => {
   it("blocks access when no tenant in context", async () => {
     const { createRouter, billedQuery } = await import("../middleware");
     const router = createRouter({ secret: billedQuery.query(() => "ok") });
-    const caller = router.createCaller({ req: new Request("http://x/"), resHeaders: new Headers() });
+    const caller = router.createCaller(asTestContext({ req: new Request("http://x/"), resHeaders: new Headers() }));
     await expect(caller.secret()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 

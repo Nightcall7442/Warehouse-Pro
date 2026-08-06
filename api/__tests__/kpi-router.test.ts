@@ -174,7 +174,6 @@ function makeMockDb() {
                   row[key] = latestFiltered.length;
                 } else if (/COALESCE\(SUM/.test(rawSql)) {
                   // For SUM queries, try to sum a numeric field from the rows
-                  const values = sqlObj.values ?? [];
                   // Try to find the column being summed
                   const sumMatch = rawSql.match(/SUM\(.*?(\w+)\)/i);
                   if (sumMatch) {
@@ -207,8 +206,8 @@ function makeMockDb() {
       };
       return api;
     },
-    insert: (ref: unknown) => ({
-      values: (vals: Record<string, unknown>) => Promise.resolve([{ insertId: 1 }]),
+    insert: () => ({
+      values: () => Promise.resolve([{ insertId: 1 }]),
     }),
     update: (ref: unknown) => ({
       set(patch: Record<string, unknown>) {
@@ -226,7 +225,7 @@ function makeMockDb() {
       },
     }),
     transaction: async (fn: (tx: Record<string, unknown>) => Promise<unknown>) => fn(db),
-    execute: (query: { values?: unknown[]; strings?: string[] }) => Promise.resolve(),
+    execute: () => Promise.resolve(),
   };
   return db;
 }

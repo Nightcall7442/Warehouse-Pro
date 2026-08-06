@@ -214,11 +214,16 @@ export const CacheKeys = {
   userList: (tenantId: number, page: number, search?: string, role?: string) =>
     `users:${tenantId}:${page}:${search ?? ""}:${role ?? ""}`,
   userDetail: (tenantId: number, userId: number) => `user:${tenantId}:${userId}`,
-  productList: (tenantId: number, page: number, search?: string, category?: string) =>
-    `products:${tenantId}:${page}:${search ?? ""}:${category ?? ""}`,
+  // pageSize belongs in the key. Callers ask for wildly different sizes — a
+  // dropdown wants 500, a report wants 10000, the page itself wants 25 — and
+  // without it they all collide: whoever loads first decides what everyone
+  // else gets for the next three minutes, so a picker that asked for 500
+  // silently shows 25 and an item that exists simply cannot be selected.
+  productList: (tenantId: number, page: number, pageSize: number, search?: string, category?: string) =>
+    `products:${tenantId}:${page}:${pageSize}:${search ?? ""}:${category ?? ""}`,
   productCategories: (tenantId: number) => `product_cats:${tenantId}`,
-  shopList: (tenantId: number, page: number, search?: string, city?: string, district?: string, agentId?: number, territoryId?: number, onlyDebtors?: boolean, sortBy?: string) =>
-    `shops:${tenantId}:${page}:${search ?? ""}:${city ?? ""}:${district ?? ""}:${agentId ?? ""}:${territoryId ?? ""}:${onlyDebtors ?? ""}:${sortBy ?? ""}`,
+  shopList: (tenantId: number, page: number, pageSize: number, search?: string, city?: string, district?: string, agentId?: number, territoryId?: number, onlyDebtors?: boolean, sortBy?: string) =>
+    `shops:${tenantId}:${page}:${pageSize}:${search ?? ""}:${city ?? ""}:${district ?? ""}:${agentId ?? ""}:${territoryId ?? ""}:${onlyDebtors ?? ""}:${sortBy ?? ""}`,
   shopCities: (tenantId: number) => `shop_cities:${tenantId}`,
   shopDistricts: (tenantId: number, city?: string) => `shop_districts:${tenantId}:${city ?? ""}`,
   smartAlerts: (tenantId: number, userId: number) => `alerts:${tenantId}:${userId}`,

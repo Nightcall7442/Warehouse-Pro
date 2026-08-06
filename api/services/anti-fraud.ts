@@ -1,6 +1,7 @@
 import { sql, eq, and, gte, lte } from "drizzle-orm";
-import type { DrizzleInstance } from "../queries/connection";
 import { agentLocations, dailyPlans, shops } from "@db/schema";
+
+type DrizzleInstance = ReturnType<typeof import("../queries/connection").getDb>;
 
 export interface FraudCheckResult {
   isSuspicious: boolean;

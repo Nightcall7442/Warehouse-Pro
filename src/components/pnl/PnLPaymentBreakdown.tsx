@@ -10,6 +10,7 @@ import {
 } from "recharts";
 import { F, COLORS, thStyle, tdStyle, PAYMENT_COLORS, PAYMENT_LABELS } from "./styles";
 import { ChartTooltip } from "./ChartTooltip";
+import type { Lang } from "@/i18n";
 
 interface PaymentBreakdownRow {
   paymentMethod: string;
@@ -31,9 +32,9 @@ interface PaymentTrendRow {
 interface PnLPaymentBreakdownProps {
   paymentBreakdown: PaymentBreakdownRow[] | undefined;
   paymentTrend: PaymentTrendRow[] | undefined;
-  fmt: (value: number) => string;
+  fmt: (value: string | number) => string;
   t: (ru: string, uz: string) => string;
-  lang: string;
+  lang: Lang;
 }
 
 export function PnLPaymentBreakdown({

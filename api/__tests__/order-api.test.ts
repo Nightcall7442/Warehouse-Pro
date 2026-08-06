@@ -49,7 +49,7 @@ import { orders, orderItems, warehouseStock, shops, users, products, warehouses 
 import { createExecuteMock } from "./helpers/mock-execute";
 
 // ── Fake tables ──────────────────────────────────────────────────────────────
-interface FakeOrder { id: number; tenantId: number; agentId: number; shopId: number; status: string; orderNumber: string; subtotal: string; discount: string; total: string; notes: string | null; createdAt: Date; updatedAt: Date; }
+interface FakeOrder { id: number; tenantId: number; agentId: number; shopId: number; status: string; orderNumber: string; subtotal: string; discount: string; total: string; notes: string | null; createdAt: Date; updatedAt: Date; deletedAt?: Date | null; }
 interface FakeOrderItem { id: number; orderId: number; productId: number; quantity: string; unitPrice: string; subtotal: string; createdAt: Date; }
 interface FakeStock { id: number; productId: number; tenantId: number; warehouseId: number; currentStock: string; reserved: string; available: string; updatedAt: Date; }
 interface FakeShop { id: number; tenantId: number; name: string; }

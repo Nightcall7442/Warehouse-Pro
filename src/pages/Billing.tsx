@@ -87,7 +87,7 @@ export default function BillingPage() {
       <HeroStatusCard
         daysLeft={daysLeft}
         isExpired={!!isExpired}
-        trialActive={trialActive}
+        trialActive={!!trialActive}
         planName={lang === "uz" ? billing.planNameUz : billing.planName}
         t={t}
       />

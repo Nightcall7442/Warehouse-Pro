@@ -338,6 +338,10 @@ export const courierRouter = createRouter({
       // came back.
       let orderTotal = Number(order.total);
 
+      // The courier types a bare "YYYY-MM-DD"; parsed at local midnight so the
+      // DATE column stores the day he picked whatever the server's timezone is.
+      const debtDueDate = input.debtDueDate ? new Date(`${input.debtDueDate}T00:00:00`) : null;
+
       await db.transaction(async (tx) => {
         // Re-read and lock the order inside the transaction, re-checking the
         // same deliveryStatus condition as the pre-check above. The earlier
@@ -496,7 +500,7 @@ export const courierRouter = createRouter({
             totalOrderAmount: String(orderTotal),
             paidAmount: String(paidAmount),
             debtAmount: String(Math.max(0, debtAmount)),
-            debtDueDate: input.debtDueDate ?? null,
+            debtDueDate,
             paidAt: new Date(),
             notes: input.notes ? sanitizeString(input.notes) : null,
             createdBy: courierId,
@@ -507,13 +511,13 @@ export const courierRouter = createRouter({
         await recalcShopDebt(tx, ctx.tenant.id, order.shopId);
 
         // ── Create debt reminder if partial payment ──
-        if (debtAmount > 0 && input.debtDueDate) {
+        if (debtAmount > 0 && debtDueDate) {
           await tx.insert(debtReminders).values({
             tenantId: ctx.tenant.id,
             shopId: order.shopId,
             orderId: order.id,
             amount: String(debtAmount),
-            dueDate: input.debtDueDate,
+            dueDate: debtDueDate,
             status: "pending",
           });
         }

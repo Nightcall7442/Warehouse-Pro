@@ -1,5 +1,8 @@
-import { Store, MapPin, AlertCircle, ChevronRight } from "lucide-react";
+import { Store, AlertCircle, ChevronRight } from "lucide-react";
 import { F, COLORS } from "./constants";
+
+// COLORS carries no hover fill; --color-surface-hover is the themed one (index.css).
+const SURFACE_HOVER = "var(--color-surface-hover, #e5e3de)";
 
 interface Territory { id: number; name: string; color: string | null; shopCount: number; totalDebt: string | null; }
 
@@ -17,7 +20,7 @@ export function TerritoriesGrid({ territories, totalShops, lang, fmt, onSelectAl
     padding: "10px 14px",
     borderRadius: "10px",
     cursor: "pointer" as const,
-    background: isHover ? COLORS.surfaceHover : "transparent",
+    background: isHover ? SURFACE_HOVER : "transparent",
     transition: "background 0.15s",
   });
 
@@ -27,7 +30,7 @@ export function TerritoriesGrid({ territories, totalShops, lang, fmt, onSelectAl
       <div
         style={rowStyle(false)}
         onClick={onSelectAll}
-        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = COLORS.surfaceHover; }}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = SURFACE_HOVER; }}
         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
       >
         <div style={{ width: "28px", height: "28px", borderRadius: "8px", background: "var(--color-primary)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
@@ -51,7 +54,7 @@ export function TerritoriesGrid({ territories, totalShops, lang, fmt, onSelectAl
             key={t_.id}
             style={rowStyle(false)}
             onClick={() => onSelectTerritory(t_.id)}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = COLORS.surfaceHover; }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = SURFACE_HOVER; }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
           >
             <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: dotColor, flexShrink: 0, marginLeft: "9px" }} />

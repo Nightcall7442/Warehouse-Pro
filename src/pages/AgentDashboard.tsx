@@ -15,6 +15,7 @@ import { ProgressRing } from "@/components/ProgressRing";
 import { KpiIcon } from "@/components/KpiIcon";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import type { KpiColor } from "@/components/KpiIcon";
+import type { LucideIcon } from "lucide-react";
 
 // ── Статусы визитов ───────────────────────────────────────────────────────────
 const PLAN_STATUS: Record<string, {
@@ -30,7 +31,7 @@ const PLAN_STATUS: Record<string, {
 // ── KPI карточка ──────────────────────────────────────────────────────────────
 function AgentKpi({ label, value, icon: Icon, color = "indigo" }: {
   label: string; value: string | number;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
+  icon: LucideIcon;
   color?: KpiColor;
 }) {
   return (

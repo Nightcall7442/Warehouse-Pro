@@ -9,10 +9,13 @@ import {
 
 type Step = "welcome" | "config" | "test" | "schedule" | "done";
 
+/** What this screen reads out of a test — the mutation also returns `details`, which nothing here shows. */
+type TestResult = { success: boolean; error?: string };
+
 export function OneCSetupWizard({ onClose }: { onClose: () => void }) {
   const [step, setStep] = useState<Step>("welcome");
   const [config, setConfig] = useState({ url: "", username: "", password: "" });
-  const [testResult, setTestResult] = useState<unknown>(null);
+  const [testResult, setTestResult] = useState<TestResult | null>(null);
   const { lang } = useLang();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
 

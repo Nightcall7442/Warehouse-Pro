@@ -236,7 +236,7 @@ beforeEach(() => {
   resetTables();
   nextInsertId = 100;
   mockDb = makeMockDb();
-  mockCheckRateLimit.mockReturnValue(true);
+  mockCheckRateLimit.mockResolvedValue(true);
 });
 
 // ═══════════════════════════════════════════════════════════════════════════

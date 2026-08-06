@@ -32,15 +32,18 @@ vi.mock("../queries/connection", () => ({ getDb: () => mockDb }));
 
 import { returns, returnItems, orderItems, shops, users, products, orders, warehouseStock, warehouses } from "@db/schema";
 
-interface FakeReturn { id: number; tenantId: number; orderId: number | null; shopId: number; agentId: number; returnNumber: string; reason: string; notes: string | null; status: string; totalAmount: string; createdBy: number; }
-interface FakeReturnItem { id: number; returnId: number; productId: number; quantity: string; unitPrice: string; subtotal: string; reason: string | null; condition: string | null; }
-interface FakeOrder { id: number; tenantId: number; agentId: number; shopId: number; status: string; total: string; }
-interface FakeOrderItem { id: number; orderId: number; productId: number; quantity: string; unitPrice: string; }
-interface FakeStock { productId: number; tenantId: number; currentStock: string; reserved: string; available: string; }
-interface FakeProduct { id: number; tenantId: number; name: string; unitPrice: string; status: string; }
-interface FakeShop { id: number; tenantId: number; name: string; debt: string; }
-interface FakeUser { id: number; tenantId: number; name: string; role: string; }
-interface FakeWarehouse { id: number; tenantId: number; name: string; isDefault: boolean; }
+// Type aliases, not interfaces: the fake db passes these rows around as
+// `Record<string, unknown>` to read columns by name, and only an alias of an
+// object literal gets the implicit index signature that allows.
+type FakeReturn = { id: number; tenantId: number; orderId: number | null; shopId: number; agentId: number; returnNumber: string; reason: string; notes: string | null; status: string; totalAmount: string; createdBy: number; };
+type FakeReturnItem = { id: number; returnId: number; productId: number; quantity: string; unitPrice: string; subtotal: string; reason: string | null; condition: string | null; };
+type FakeOrder = { id: number; tenantId: number; agentId: number; shopId: number; status: string; total: string; };
+type FakeOrderItem = { id: number; orderId: number; productId: number; quantity: string; unitPrice: string; };
+type FakeStock = { productId: number; tenantId: number; currentStock: string; reserved: string; available: string; };
+type FakeProduct = { id: number; tenantId: number; name: string; unitPrice: string; status: string; };
+type FakeShop = { id: number; tenantId: number; name: string; debt: string; };
+type FakeUser = { id: number; tenantId: number; name: string; role: string; };
+type FakeWarehouse = { id: number; tenantId: number; name: string; isDefault: boolean; };
 
 let warehousesTable: FakeWarehouse[] = [];
 let returnsTable: FakeReturn[] = [];
@@ -118,7 +121,7 @@ function mapCol(col: unknown): string {
   return columnToField.get(col) ?? (col as any)?.name ?? String(col);
 }
 
-let currentTable: unknown[] = [];
+let currentTable: Record<string, unknown>[] = [];
 let currentTableName = "";
 function useTable(col: unknown) {
   if (col === returns) { currentTable = returnsTable; currentTableName = "returns"; }
@@ -293,7 +296,7 @@ function makeMockDb() {
     return { values: vi.fn((vals: any) => {
       const data = Array.isArray(vals) ? vals : [vals];
       for (const v of data) {
-        currentTable.push({ id: nextReturnId++, ...v } as any);
+        currentTable.push({ id: nextReturnId++, ...v });
       }
       return [{ insertId: nextReturnId - 1 }];
     }) };
@@ -507,12 +510,14 @@ describe("returnsRouter", () => {
       );
       const caller = returnsRouter.createCaller(buildCtx({ user: { id: 1, role: "operator" } }));
       const result = await caller.summary();
-      const defect = result.find((r: any) => r.reason === "defect");
-      const expired = result.find((r: any) => r.reason === "expired");
-      expect(defect.count).toBe(2);
-      expect(Number(defect.totalAmount)).toBe(150);
-      expect(expired.count).toBe(1);
-      expect(Number(expired.totalAmount)).toBe(30);
+      const defect = result.find((r) => r.reason === "defect");
+      const expired = result.find((r) => r.reason === "expired");
+      expect(defect).toBeDefined();
+      expect(expired).toBeDefined();
+      expect(defect!.count).toBe(2);
+      expect(Number(defect!.totalAmount)).toBe(150);
+      expect(expired!.count).toBe(1);
+      expect(Number(expired!.totalAmount)).toBe(30);
     });
   });
 

@@ -75,7 +75,7 @@ export const ProductCard = memo(function ProductCard({ p, onClick, onDelete, sel
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "12px", flexWrap: "wrap" }}>
-          {p.category && (
+          {p.category ? (
             <span style={{
               display: "inline-flex", alignItems: "center", gap: "4px",
               fontSize: "11px", padding: "2px 8px", borderRadius: "6px",
@@ -84,7 +84,7 @@ export const ProductCard = memo(function ProductCard({ p, onClick, onDelete, sel
             }}>
               <Tag size={10} />{String(p.category)}
             </span>
-          )}
+          ) : null}
           {Number(p.unitWeight) > 0 && (
             <span style={{
               display: "inline-flex", alignItems: "center", gap: "4px",

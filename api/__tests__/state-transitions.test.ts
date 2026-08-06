@@ -70,7 +70,7 @@ function resetTables() {
   nextItemId = 1;
 }
 
-function tableOf(ref: unknown): "orders" | "orderItems" | "warehouseStock" | "products" | "warehouses" | "other" {
+function tableOf(ref: unknown): "orders" | "orderItems" | "warehouseStock" | "products" | "warehouses" | "shops" | "other" {
   if (ref === orders) return "orders";
   if (ref === orderItems) return "orderItems";
   if (ref === warehouseStock) return "warehouseStock";

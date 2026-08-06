@@ -1,22 +1,13 @@
 import * as Sentry from "@sentry/react";
-import { useEffect } from "react";
-import {
-  useLocation,
-  useRoutes,
-  createRoutesFromChildren,
-  matchRoutes,
-} from "react-router";
 
 Sentry.init({
   dsn: import.meta.env.VITE_SENTRY_DSN || "",
   integrations: [
-    Sentry.browserTracingIntegration({
-      useEffect,
-      useLocation,
-      useRoutes,
-      createRoutesFromChildren,
-      matchRoutes,
-    }),
+    // Transactions are named by URL, not by route pattern. Parameterized names
+    // need reactRouterBrowserTracingIntegration *and* a Sentry-wrapped <Routes>
+    // in App.tsx — that integration turns off its own navigation tracking and
+    // relies on the wrapper, so switching here alone would lose navigations.
+    Sentry.browserTracingIntegration(),
     Sentry.replayIntegration(),
   ],
 

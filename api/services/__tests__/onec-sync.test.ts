@@ -296,7 +296,7 @@ describe("OneCSyncService.syncProducts", () => {
       { Ref_Key: "uuid-b", Code: "002", Description: "Product B", Price: 250, Unit: "кг" },
     ]);
 
-    const result = await syncService.syncProducts(1);
+    await syncService.syncProducts(1);
     // Products should be inserted into the mock DB regardless of counter logic
     expect(productsTable).toHaveLength(2);
     expect(productsTable[0].name).toBe("Product A");
@@ -309,7 +309,7 @@ describe("OneCSyncService.syncProducts", () => {
 
   it("updates existing products when mapping exists", async () => {
     vi.mocked(OneCMapper.getAll).mockResolvedValue([
-      { tenantId: 1, entityType: "product" as const, externalId: "uuid-a", internalId: 1, lastSyncedAt: null },
+      { id: 1, tenantId: 1, entityType: "product" as const, externalId: "uuid-a", internalId: 1, lastSyncedAt: null, createdAt: null },
     ]);
     productsTable.push({
       id: 1, tenantId: 1, name: "Old Name", code: "001",

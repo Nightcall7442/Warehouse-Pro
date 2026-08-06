@@ -24,13 +24,14 @@ type FakeOrder = {
   id: number; tenantId: number; orderNumber: string; shopId: number;
   agentId: number; status: string; subtotal: string; discount: string;
   total: string; notes?: string; idempotencyKey?: string; createdAt: Date;
+  deletedAt?: Date | null;
 };
 type FakeOrderItem = {
   id: number; orderId: number; productId: number; quantity: string;
   unitPrice: string; costPrice: string; subtotal: string; createdAt: Date;
 };
 type FakeStock = {
-  productId: number; tenantId: number; currentStock: string;
+  productId: number; tenantId: number; warehouseId: number; currentStock: string;
   reserved: string; available: string;
 };
 type FakeShop = { id: number; tenantId: number; name: string };

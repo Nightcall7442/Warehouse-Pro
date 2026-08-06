@@ -12,6 +12,7 @@
  *  - Multi-product multi-order from single pool
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { asTestContext } from "./helpers/test-context";
 
 vi.mock("drizzle-orm", () => {
   const sqlFn = Object.assign(
@@ -205,13 +206,13 @@ let mockDb: ReturnType<typeof makeMockDb>;
 vi.mock("../queries/connection", () => ({ getDb: () => mockDb }));
 
 function makeCtx(tenantId: number, userId: number, role = "agent") {
-  return {
+  return asTestContext({
     req: new Request("http://localhost/"),
     resHeaders: new Headers(),
     user: { id: userId, tenantId, role, status: "active" as const, name: "Test", email: "t@t.com", passwordHash: "x", avatar: null, phone: null, createdAt: new Date(), updatedAt: new Date(), lastSignInAt: new Date() },
     tenant: { id: tenantId, slug: "test", name: "Test Co", plan: "trial" as const, status: "active" as const, createdAt: new Date(), updatedAt: new Date() },
     db: mockDb,
-  };
+  });
 }
 
 beforeEach(() => {

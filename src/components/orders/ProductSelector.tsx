@@ -6,6 +6,10 @@ import { Package, Search, ShoppingCart, Plus, Minus, Trash2, ChevronUp, ChevronD
 import { unitLabel } from "./types";
 import type { OrderItem } from "./types";
 import { formatQty } from "@/lib/format";
+import type { inferRouterOutputs } from "@trpc/server";
+import type { AppRouter } from "../../../api/router";
+
+type CatalogProduct = inferRouterOutputs<AppRouter>["product"]["listAll"][number];
 
 interface ProductSelectorProps {
   items: OrderItem[];
@@ -25,7 +29,7 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
     !search || p.name?.toLowerCase().includes(search.toLowerCase()) || (p.code ?? "").toLowerCase().includes(search.toLowerCase())
   );
 
-  const addToCart = useCallback((product, qty?: number) => {
+  const addToCart = useCallback((product: CatalogProduct, qty?: number) => {
     const addQty = qty ?? 1;
     const existing = items.findIndex(i => i.productId === (product.id as number));
     if (existing >= 0) {
@@ -91,7 +95,7 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
     onChange(next);
   }, [items, onChange]);
 
-  const handleQuickAdd = useCallback((product) => {
+  const handleQuickAdd = useCallback((product: CatalogProduct) => {
     const qty = parseFloat(quickQty[product.id] || "1");
     if (isNaN(qty) || qty <= 0) return;
     addToCart(product, qty);

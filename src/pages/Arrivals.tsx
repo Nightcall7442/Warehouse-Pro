@@ -1,5 +1,7 @@
 import { memo, useCallback, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import type { inferRouterInputs } from "@trpc/server";
+import type { AppRouter } from "../../api/router";
 import { trpc } from "@/providers/trpc";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useLang } from "@/i18n";
@@ -15,6 +17,8 @@ import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { formatQty } from "@/lib/format";
 import { colorMix } from "@/lib/color-mix";
+
+type ArrivalCreateInput = inferRouterInputs<AppRouter>["arrival"]["create"];
 
 const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
 const COLORS = {
@@ -91,7 +95,7 @@ const StatusBadge = memo(function StatusBadge({ status, lang }: { status: string
 });
 
 // ── Arrival Form ─────────────────────────────────────────────────────────────
-function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: Record<string, unknown> & { items: Array<Record<string, string | number>> }) => void; onClose: () => void; isPending: boolean }) {
+function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: ArrivalCreateInput) => void; onClose: () => void; isPending: boolean }) {
   const { lang } = useLang();
   const { fmt } = useCurrency();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;

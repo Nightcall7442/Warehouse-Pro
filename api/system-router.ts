@@ -43,8 +43,8 @@ export const systemRouter = createRouter({
 
       // Connection pool stats (MySQL SHOW STATUS)
       try {
-        const [connResult] = await db.execute(sql`SHOW STATUS WHERE Variable_name IN ('Threads_connected', 'Threads_running')`);
-        const rows = (connResult as unknown[][])[0] as Record<string, string>[] | undefined;
+        // db.execute hands back mysql2's [rows, fields]; rows is what SHOW STATUS listed.
+        const [rows] = await db.execute(sql`SHOW STATUS WHERE Variable_name IN ('Threads_connected', 'Threads_running')`) as unknown as [Array<{ Variable_name: string; Value: string }>, unknown];
         if (rows) {
           for (const row of rows) {
             if (row.Variable_name === "Threads_connected") dbConnections.total = Number(row.Value);
@@ -185,9 +185,10 @@ export const systemRouter = createRouter({
     const reqStats = getReqStats();
     const alerts: string[] = [];
 
-    // Error rate alert (> 5%)
-    if (Number(reqStats.errorRate) > 5) {
-      alerts.push(`🔴 Error rate: ${reqStats.errorRate}% (${reqStats.windowErrors} errors in window)`);
+    // Error rate alert (> 5%). errorRate is already formatted ("3.2%"), so it
+    // needs parseFloat — Number() reads the trailing sign as NaN.
+    if (parseFloat(reqStats.errorRate) > 5) {
+      alerts.push(`🔴 Error rate: ${reqStats.errorRate} (${reqStats.errors} errors in window)`);
     }
 
     // P95 latency alert (> 500ms)

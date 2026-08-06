@@ -143,8 +143,8 @@ export default function WarehouseReports() {
     if (!byCategory || !topByValue || !turnoverData) return;
     const reportData: ReportData = {
       byCategory: byCategory.map(c => ({ ...c, totalProducts: Number(c.totalProducts), totalUnits: Number(c.totalUnits), totalValue: Number(c.totalValue), totalRetail: Number(c.totalRetail), lowStockCount: Number(c.lowStockCount) })),
-      topByValue: topByValue.map(p => ({ ...p, currentStock: Number(p.currentStock), costValue: Number(p.costValue), retailValue: Number(p.retailValue), margin: Number(p.margin) })),
-      turnover: turnoverData.map(p => ({ ...p, currentStock: Number(p.currentStock), soldQty: Number(p.soldQty), daysToSell: Number(p.daysToSell) })),
+      topByValue: topByValue.map(p => ({ ...p, productName: p.productName ?? "", productCode: p.productCode ?? "", unit: p.unit ?? "", currentStock: Number(p.currentStock), costValue: Number(p.costValue), retailValue: Number(p.retailValue), margin: Number(p.margin) })),
+      turnover: turnoverData.map(p => ({ ...p, productName: p.productName ?? "", productCode: p.productCode ?? "", currentStock: Number(p.currentStock), soldQty: Number(p.soldQty), daysToSell: Number(p.daysToSell) })),
       arrivalSummary: arrivalData?.summary ? {
         totalArrivals: Number(arrivalData.summary.totalArrivals),
         totalFuelCost: Number(arrivalData.summary.totalFuelCost ?? 0),
@@ -162,8 +162,10 @@ export default function WarehouseReports() {
     if (!byCategory || !topByValue || !turnoverData) return;
     const reportData: ReportData = {
       byCategory: byCategory.map(c => ({ ...c, totalProducts: Number(c.totalProducts), totalUnits: Number(c.totalUnits), totalValue: Number(c.totalValue), totalRetail: Number(c.totalRetail), lowStockCount: Number(c.lowStockCount) })),
-      topByValue: topByValue.map(p => ({ ...p, currentStock: Number(p.currentStock), costValue: Number(p.costValue), retailValue: Number(p.retailValue), margin: Number(p.margin) })),
-      turnover: turnoverData.map(p => ({ ...p, currentStock: Number(p.currentStock), soldQty: Number(p.soldQty), daysToSell: Number(p.daysToSell) })),
+      // product_id is a NOT NULL restricted FK, so the leftJoin never actually
+      // misses — the ?? "" only fits the shape the report builders declare.
+      topByValue: topByValue.map(p => ({ ...p, productName: p.productName ?? "", productCode: p.productCode ?? "", unit: p.unit ?? "", currentStock: Number(p.currentStock), costValue: Number(p.costValue), retailValue: Number(p.retailValue), margin: Number(p.margin) })),
+      turnover: turnoverData.map(p => ({ ...p, productName: p.productName ?? "", productCode: p.productCode ?? "", currentStock: Number(p.currentStock), soldQty: Number(p.soldQty), daysToSell: Number(p.daysToSell) })),
       arrivalSummary: arrivalData?.summary ? {
         totalArrivals: Number(arrivalData.summary.totalArrivals),
         totalFuelCost: Number(arrivalData.summary.totalFuelCost ?? 0),

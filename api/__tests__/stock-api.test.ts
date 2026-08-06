@@ -33,7 +33,7 @@ import { orders, orderItems, warehouseStock, products, stockMovements, settings,
 import { createExecuteMock } from "./helpers/mock-execute";
 
 // ── Fake tables ──────────────────────────────────────────────────────────────
-interface FakeStock { id: number; productId: number; tenantId: number; currentStock: string; reserved: string; available: string; updatedAt: Date; }
+interface FakeStock { id: number; productId: number; tenantId: number; warehouseId: number; currentStock: string; reserved: string; available: string; updatedAt: Date; }
 interface FakeStockMovement { id: number; tenantId: number; productId: number; type: string; quantity: string; notes: string | null; createdAt: Date; }
 interface FakeOrder { id: number; tenantId: number; agentId: number; shopId: number; status: string; orderNumber: string; subtotal: string; discount: string; total: string; notes: string | null; createdAt: Date; updatedAt: Date; }
 interface FakeOrderItem { id: number; orderId: number; productId: number; quantity: string; unitPrice: string; subtotal: string; createdAt: Date; }

@@ -154,7 +154,7 @@ export const warehouseReportsRouter = createRouter({
         const stock = Number(r.currentStock ?? 0);
         const sold = Number(r.soldQty);
         const avgInventory = stock + sold / 2; // rough average
-        const turnoverRate = avgInventory > 0 ? (sold / avgInventory).toFixed("2") : "0";
+        const turnoverRate = avgInventory > 0 ? (sold / avgInventory).toFixed(2) : "0";
         const daysToSell = sold > 0 ? Math.round(stock / (sold / days)) : 999;
         return { ...r, turnoverRate, daysToSell };
       });
@@ -201,7 +201,7 @@ export const warehouseReportsRouter = createRouter({
 
         return {
           ...r,
-          dailyVelocity: dailyVelocity.toFixed("2"),
+          dailyVelocity: dailyVelocity.toFixed(2),
           daysUntilStockout,
           dynamicReorderPoint,
           alertLevel,

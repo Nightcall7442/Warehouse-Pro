@@ -15,7 +15,7 @@ vi.mock("drizzle-orm", () => ({
 }));
 
 // ── In-memory tables ────────────────────────────────────────────────────────
-interface FakeShop {
+type FakeShop = {
   id: number;
   tenantId: number;
   name: string;
@@ -30,13 +30,13 @@ interface FakeShop {
   territoryId?: number | null;
   notes?: string;
   status: string;
-}
+};
 
-interface FakeTerritory {
+type FakeTerritory = {
   id: number;
   tenantId: number;
   name: string;
-}
+};
 
 let shopsTable: FakeShop[] = [];
 let territoriesTable: FakeTerritory[] = [];
@@ -181,7 +181,7 @@ describe("Import — territory column", () => {
 
     // Simulate the import logic: try territory first, then district
     let territoryId: number | undefined;
-    const terrName = ""; // empty territory column
+    const terrName: string = ""; // empty territory column
     const districtName = "Юнусабад";
 
     if (terrName) {

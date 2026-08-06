@@ -7,7 +7,7 @@ import { colorMix } from "@/lib/color-mix";
 const MEDALS = ["🥇", "🥈", "🥉"];
 const MEDAL_COLORS = ["var(--color-warning)", "var(--color-text-tertiary, #6b6760)", "var(--color-warning)"];
 
-const AgentCard = memo(function AgentCard({ agent: a, rank, fmt, days }: { agent: unknown; rank: number; fmt: (v: string | number) => string; days: number }) {
+const AgentCard = memo(function AgentCard({ agent: a, rank, fmt }: { agent: unknown; rank: number; fmt: (v: string | number) => string }) {
   const agent = a as Record<string, unknown>;
   const isTop3 = rank < 3;
   return (
@@ -187,7 +187,7 @@ export const AgentsTab = memo(function AgentsTab({
         </div>
       ) : (
         agents.map((agent, i) => (
-          <AgentCard key={agent.agentId} agent={agent} rank={i} fmt={fmt} days={days} />
+          <AgentCard key={agent.agentId} agent={agent} rank={i} fmt={fmt} />
         ))
       )}
     </div>

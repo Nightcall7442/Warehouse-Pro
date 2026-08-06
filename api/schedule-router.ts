@@ -91,7 +91,6 @@ export const scheduleRouter = createRouter({
 
       for (const day of days) {
         const dow = day.getDay(); // 0=Sunday
-        const dateStr = day.toISOString().split("T")[0];
 
         const matchingSchedules = schedules.filter(s => s.dayOfWeek === dow);
 
@@ -103,7 +102,7 @@ export const scheduleRouter = createRouter({
               eq(dailyPlans.tenantId, tenantId),
               eq(dailyPlans.agentId, sched.agentId),
               eq(dailyPlans.shopId, sched.shopId),
-              eq(dailyPlans.planDate, dateStr),
+              eq(dailyPlans.planDate, day),
             ))
             .limit(1);
 
@@ -113,7 +112,7 @@ export const scheduleRouter = createRouter({
             tenantId,
             agentId: sched.agentId,
             shopId: sched.shopId,
-            planDate: dateStr,
+            planDate: day,
             status: "planned",
             createdBy: ctx.user.id,
           });

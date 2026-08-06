@@ -201,7 +201,11 @@ async function applyPartialPayment(
     totalOrderAmount: total.toFixed(2),
     paidAmount: paid.toFixed(2),
     debtAmount: Math.max(0, debt).toFixed(2),
-    debtDueDate: input.debtDueDate ?? null,
+    // `debt_due_date` is a `date` column, so drizzle types it as Date, but the
+    // due date arrives (and is compared in SQL) as a "YYYY-MM-DD" string —
+    // handing the driver a Date instead would shift the stored day by the
+    // server's UTC offset. Same reasoning as services/kpi.ts.
+    debtDueDate: input.debtDueDate != null ? sql`${input.debtDueDate}` : null,
     paidAt: new Date(),
     notes: input.notes ?? null,
     createdBy: userId,
@@ -214,7 +218,7 @@ async function applyPartialPayment(
       shopId: order.shopId,
       orderId: order.id,
       amount: debt.toFixed(2),
-      dueDate: input.debtDueDate,
+      dueDate: sql`${input.debtDueDate}`,
       status: "pending",
     });
   }

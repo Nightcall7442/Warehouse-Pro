@@ -8,6 +8,12 @@ import ExcelJS from "exceljs";
 
 type Row = Record<string, string | number | null | undefined>;
 
+// The formatters below take Record<string, unknown> and read fields off it, so
+// `row.someField ?? ""` types as {} rather than as a string, and {} is not a
+// cell. String() is what the value has to become anyway — a spreadsheet holds
+// text or a number — and it keeps Row strict, which is what caught the export
+// that shipped a blank column because it read a field name that did not exist.
+
 // Цвета статусов для ячеек
 const STATUS_COLORS: Record<string, string> = {
   new:                  "C7D2FE", // indigo-200
@@ -198,10 +204,10 @@ export function formatOrdersForExport(orders: Record<string, unknown>[]) {
   return orders.map(o => ({
     "Заказ №":   o.orderNumber,
     "Дата":      toDate(o.createdAt)?.toLocaleDateString("ru-RU") ?? "",
-    "Магазин":   o.shopName ?? "",
+    "Магазин":   String(o.shopName ?? ""),
     "Территория":o.territoryName ?? "",
-    "Агент":     o.agentName ?? "",
-    "Status":    o.status ?? "",
+    "Агент":     String(o.agentName ?? ""),
+    "Status":    String(o.status ?? ""),
     "Сумма":     Number(o.subtotal ?? 0).toFixed(2),
     "Скидка":    Number(o.discount ?? 0).toFixed(2),
     "Total":     Number(o.total ?? 0).toFixed(2),
@@ -213,24 +219,24 @@ export function formatArrivalsForExport(arrivals: Record<string, unknown>[]) {
   return arrivals.map(a => ({
     "Приход №":      a.arrivalNumber,
     "Дата":          toDate(a.arrivalDate)?.toLocaleDateString("ru-RU") ?? "",
-    "Грузовик":      a.truckId ?? "",
-    "Водитель":      a.driverName ?? "",
-    "Телефон":       a.driverPhone ?? "",
-    "Status":        a.status ?? "",
+    "Грузовик":      String(a.truckId ?? ""),
+    "Водитель":      String(a.driverName ?? ""),
+    "Телефон":       String(a.driverPhone ?? ""),
+    "Status":        String(a.status ?? ""),
     "Fuel Cost":     Number(a.fuelCost ?? 0).toFixed(2),
     "Toll Cost":     Number(a.tollCost ?? 0).toFixed(2),
     "Other Cost":    Number(a.otherCost ?? 0).toFixed(2),
     "Total Expense": Number(a.totalExpense ?? 0).toFixed(2),
-    "Примечания":    a.notes ?? "",
+    "Примечания":    String(a.notes ?? ""),
   }));
 }
 
 export function formatWarehouseForExport(stock: Record<string, unknown>[]) {
   return stock.map(s => ({
-    "Товар":         s.productName ?? "",
-    "Код":           s.productCode ?? "",
-    "Категория":     s.category ?? "",
-    "Единица":       s.unit ?? "",
+    "Товар":         String(s.productName ?? ""),
+    "Код":           String(s.productCode ?? ""),
+    "Категория":     String(s.category ?? ""),
+    "Единица":       String(s.unit ?? ""),
     "Цена продажи":  Number(s.unitPrice ?? 0).toFixed(2),
     "Себестоимость": Number(s.costPrice ?? 0).toFixed(2),
     "Всего":         Number(s.currentStock ?? 0).toFixed(2),
@@ -245,8 +251,8 @@ export function formatWarehouseForExport(stock: Record<string, unknown>[]) {
 export function formatMovementsForExport(movements: Record<string, unknown>[]) {
   return movements.map(m => ({
     "Дата":      toDate(m.createdAt)?.toLocaleDateString("ru-RU") ?? "",
-    "Товар":     m.productName ?? "",
-    "Status":    m.type ?? "",
+    "Товар":     String(m.productName ?? ""),
+    "Status":    String(m.type ?? ""),
     "Количество":Number(m.quantity ?? 0).toFixed(2),
     "Ссылка":    m.referenceType ? `${m.referenceType} #${m.referenceId}` : "",
     "Примечания":m.notes ?? "",
@@ -266,50 +272,50 @@ export function formatAgentsForExport(agents: Record<string, unknown>[], days: n
 
 export function formatShopsForExport(shops: Record<string, unknown>[]) {
   return shops.map(s => ({
-    "Название":    s.name ?? "",
-    "Владелец":    s.ownerName ?? "",
-    "Телефон":     s.phone ?? "",
-    "Город":       s.city ?? "",
-    "Район":       s.district ?? "",
-    "Адрес":       s.address ?? "",
-    "Агент":       s.agentName ?? "",
+    "Название":    String(s.name ?? ""),
+    "Владелец":    String(s.ownerName ?? ""),
+    "Телефон":     String(s.phone ?? ""),
+    "Город":       String(s.city ?? ""),
+    "Район":       String(s.district ?? ""),
+    "Адрес":       String(s.address ?? ""),
+    "Агент":       String(s.agentName ?? ""),
     "Долг":        Number(s.debt ?? 0).toFixed(0),
-    "Status":      s.status ?? "",
+    "Status":      String(s.status ?? ""),
   }));
 }
 
 export function formatProductsForExport(products: Record<string, unknown>[]) {
   return products.map(p => ({
-    "Код":         p.code ?? "",
-    "Штрихкод":    p.barcode ?? "",
-    "Название":    p.name ?? "",
-    "Категория":   p.category ?? "",
-    "Ед.":         p.unit ?? "",
+    "Код":         String(p.code ?? ""),
+    "Штрихкод":    String(p.barcode ?? ""),
+    "Название":    String(p.name ?? ""),
+    "Категория":   String(p.category ?? ""),
+    "Ед.":         String(p.unit ?? ""),
     "Вес (кг)":    Number(p.unitWeight ?? 0).toFixed(3),
     "Себестоимость": Number(p.costPrice ?? 0).toFixed(2),
     "Цена":        Number(p.unitPrice ?? 0).toFixed(2),
     "Остаток":     Number(p.currentStock ?? 0).toFixed(2),
     "Мин. остаток": Number(p.reorderPoint ?? 0).toFixed(0),
-    "Статус":      p.status ?? "",
+    "Статус":      String(p.status ?? ""),
   }));
 }
 
 export function formatUsersForExport(users: Record<string, unknown>[]) {
   return users.map(u => ({
-    "Имя":         u.name ?? "",
-    "Email":       u.email ?? "",
-    "Телефон":     u.phone ?? "",
-    "Роль":        u.role ?? "",
-    "Status":      u.status ?? "",
+    "Имя":         String(u.name ?? ""),
+    "Email":       String(u.email ?? ""),
+    "Телефон":     String(u.phone ?? ""),
+    "Роль":        String(u.role ?? ""),
+    "Status":      String(u.status ?? ""),
     "Последний вход": toDate(u.lastSignInAt)?.toLocaleString("ru-RU") ?? "",
   }));
 }
 
 export function formatStockValuationForExport(stock: Record<string, unknown>[]) {
   return stock.map(s => ({
-    "Товар":         s.productName ?? "",
-    "Код":           s.productCode ?? "",
-    "Единица":       s.unit ?? "",
+    "Товар":         String(s.productName ?? ""),
+    "Код":           String(s.productCode ?? ""),
+    "Единица":       String(s.unit ?? ""),
     "Остаток":       Number(s.currentStock ?? 0).toFixed(2),
     "Себестоимость": Number(s.costPrice ?? 0).toFixed(2),
     "Цена продажи":  Number(s.unitPrice ?? 0).toFixed(2),
@@ -320,10 +326,10 @@ export function formatStockValuationForExport(stock: Record<string, unknown>[]) 
 
 export function formatDeadStockForExport(items: Record<string, unknown>[]) {
   return items.map(s => ({
-    "Товар":         s.productName ?? "",
-    "Код":           s.productCode ?? "",
-    "Категория":     s.category ?? "",
-    "Единица":       s.unit ?? "",
+    "Товар":         String(s.productName ?? ""),
+    "Код":           String(s.productCode ?? ""),
+    "Категория":     String(s.category ?? ""),
+    "Единица":       String(s.unit ?? ""),
     "Остаток":       Number(s.currentStock ?? 0).toFixed(2),
     "Себестоимость": Number(s.costPrice ?? 0).toFixed(2),
     "Цена продажи":  Number(s.unitPrice ?? 0).toFixed(2),
@@ -335,9 +341,9 @@ export function formatDeadStockForExport(items: Record<string, unknown>[]) {
 
 export function formatReorderForExport(items: Record<string, unknown>[]) {
   return items.map(s => ({
-    "Товар":         s.productName ?? "",
-    "Код":           s.productCode ?? "",
-    "Единица":       s.unit ?? "",
+    "Товар":         String(s.productName ?? ""),
+    "Код":           String(s.productCode ?? ""),
+    "Единица":       String(s.unit ?? ""),
     "Остаток":       Number(s.currentStock ?? 0).toFixed(2),
     "Порог":         Number(s.reorderPoint ?? 0).toFixed(2),
     "Продажи/день":  Number(s.avgDailySales ?? 0).toFixed(1),

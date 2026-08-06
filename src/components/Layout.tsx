@@ -16,9 +16,10 @@ import {
   Calendar, LogOut, X, Moon, Sun, WifiOff, Scan, Activity,
   TrendingUp, CreditCard, ChevronLeft, Bell, Zap,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { PremiumSelect } from "@/components/PremiumSelect";
 
-const iconMap: Record<string, React.ComponentType<{ size?: number }>> = {
+const iconMap: Record<string, LucideIcon> = {
   LayoutDashboard, Store, Package, ClipboardList, Truck,
   Warehouse, BarChart3, Users, Settings, PlusCircle, MapPin,
   Calendar, WifiOff, Scan, Activity, TrendingUp, CreditCard, Zap,
@@ -118,7 +119,7 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
       {showWarehouseSelector && warehouses.length > 0 && (
         <div className="px-4 pb-2">
           <label className="block" style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-text-tertiary, #6b6760)", marginBottom: "6px" }}>
-            {t("nav.warehouse", "Склад")}
+            {t("nav.warehouse")}
           </label>
           <PremiumSelect
             value={selectedId != null ? String(selectedId) : ""}

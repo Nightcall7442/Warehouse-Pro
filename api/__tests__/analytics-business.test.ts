@@ -95,17 +95,6 @@ function mapCol(col: unknown): string {
   return columnToField.get(col) ?? (col as any)?.name ?? String(col);
 }
 
-function tableOf(ref: unknown): string {
-  if (ref === orders) return "orders";
-  if (ref === orderItems) return "orderItems";
-  if (ref === products) return "products";
-  if (ref === shops) return "shops";
-  if (ref === users) return "users";
-  if (ref === arrivals) return "arrivals";
-  if (ref === dailyPlans) return "dailyPlans";
-  return "unknown";
-}
-
 function evalCond(row: Record<string, unknown>, cond: Record<string, unknown>): boolean {
   // Set membership. Without this branch an inArray filter falls through to the
   // permissive default below and the query appears to match every row — which

@@ -187,6 +187,7 @@ function makeMockDb() {
           const id = nextStockId++;
           stockTable.push({
             id, tenantId: vals.tenantId as number, productId: vals.productId as number,
+            warehouseId: Number(vals.warehouseId ?? 1),
             currentStock: String(vals.currentStock ?? "0.00"),
             reserved: String(vals.reserved ?? "0.00"),
             available: String(vals.available ?? "0.00"),

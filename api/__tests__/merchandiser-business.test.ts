@@ -40,7 +40,7 @@ function makeCtx(role = "merchandiser"): any {
 
 describe("merchandiser.submitReport", () => {
   it("delegates to MerchandiserService.submitReport", async () => {
-    mocks.mockSubmitReport.mockResolvedValue({ id: 1, reportNumber: "MR-001" });
+    mocks.mockSubmitReport.mockResolvedValue({ success: true, reportId: 1 });
     const caller = merchandiserRouter.createCaller(makeCtx());
     const result = await caller.submitReport({
       planId: 1,
@@ -55,7 +55,7 @@ describe("merchandiser.submitReport", () => {
       10,
       expect.objectContaining({ planId: 1, shopId: 1 }),
     );
-    expect(result.id).toBe(1);
+    expect(result.reportId).toBe(1);
   });
 });
 

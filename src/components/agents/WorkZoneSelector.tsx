@@ -80,7 +80,9 @@ export function WorkZoneSelector({ agentId, agentName, lang, onClose, onSaved }:
                   <div style={{
                     width: "20px", height: "20px", borderRadius: "6px", flexShrink: 0,
                     display: "flex", alignItems: "center", justifyContent: "center",
-                    background: isSelected ? COLORS.primary : COLORS.surfaceHover,
+                    // Shared COLORS has no hover token, so the unchecked box
+                    // reads the variable directly rather than render unfilled.
+                    background: isSelected ? COLORS.primary : "var(--color-surface-hover, #e5e3de)",
                     border: `2px solid ${isSelected ? COLORS.primary : COLORS.border}`,
                     transition: "all 0.15s",
                   }}>

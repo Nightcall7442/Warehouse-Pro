@@ -140,23 +140,13 @@ function evalAggSql(def: any, rows: Record<string, unknown>[]): number {
       return rows.reduce((acc, r) => acc + Number(r[field] ?? 0), 0);
     }
     return rows.reduce((acc, r) => {
-      const totalVal = Object.values(r).filter(v => typeof v === "string" && !isNaN(Number(v))).reduce((s, v) => s + Number(v), 0);
+      const totalVal = Object.values(r)
+        .filter((v): v is string => typeof v === "string" && !isNaN(Number(v)))
+        .reduce((s, v) => s + Number(v), 0);
       return acc + totalVal;
     }, 0);
   }
   return 0;
-}
-
-function buildChain(rows: Record<string, unknown>[], fields?: any) {
-  const chain: any = Promise.resolve(rows);
-  chain.limit = (n: number) => buildChain(rows.slice(0, n), fields);
-  chain.orderBy = () => chain;
-  chain.where = (cond: unknown) => buildChain(rows.filter(r => evalCond(r, cond)), fields);
-  chain.leftJoin = () => chain;
-  chain.innerJoin = () => chain;
-  chain.groupBy = () => chain;
-  chain.for = () => chain;
-  return chain;
 }
 
 function useTable(col: unknown): Record<string, unknown>[] {

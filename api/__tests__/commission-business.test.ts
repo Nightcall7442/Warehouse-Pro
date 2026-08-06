@@ -211,10 +211,10 @@ function makeMockDb() {
     };
     return sel;
   };
-  db.insert = (table: any) => ({
+  db.insert = () => ({
     values: vi.fn(() => [{ insertId: nextId++ }]),
   });
-  db.update = (table: any) => ({
+  db.update = () => ({
     set: vi.fn(() => ({
       where: vi.fn(() => Promise.resolve({ affectedRows: 1 })),
     })),

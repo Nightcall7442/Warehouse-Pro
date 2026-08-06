@@ -5,7 +5,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import { sentryVitePlugin } from "@sentry/vite-plugin";
 
-let VitePWA: () => unknown = () => ({});
+let VitePWA: typeof import("vite-plugin-pwa").VitePWA = () => [];
 try {
   const mod = await import("vite-plugin-pwa");
   VitePWA = mod.VitePWA;
@@ -21,7 +21,7 @@ export default defineConfig({
     }),
     react(),
     // Sentry source maps upload — only when SENTRY_AUTH_TOKEN is set
-    process.env.SENTRY_AUTH_TOKEN && sentryVitePlugin({
+    !!process.env.SENTRY_AUTH_TOKEN && sentryVitePlugin({
       org: process.env.SENTRY_ORG || "nightcall",
       project: process.env.SENTRY_PROJECT || "warehouse-pro",
       authToken: process.env.SENTRY_AUTH_TOKEN,

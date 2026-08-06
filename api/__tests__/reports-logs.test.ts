@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { asTestContext } from "./helpers/test-context";
 
 let mockDb: any;
 vi.mock("../queries/connection", () => ({ getDb: () => mockDb }));
@@ -183,18 +184,18 @@ function makeMockDb() {
 }
 
 function ctx() {
-  return {
+  return asTestContext({
     req: new Request("http://localhost/"),
     resHeaders: new Headers(),
     db: mockDb,
     tenant: { id: 1, slug: "t", name: "T", plan: "trial" as const, status: "active" as const, createdAt: new Date(), updatedAt: new Date() },
     user: { id: 1, tenantId: 1, role: "operator", status: "active" as const, name: "T", email: "t@t.com", passwordHash: "x", avatar: null, phone: null, createdAt: new Date(), updatedAt: new Date(), lastSignInAt: new Date() },
-  };
+  });
 }
 
 async function caller() {
   const { reportsRouter } = await import("../reports-router");
-  return reportsRouter.createCaller(ctx() as Parameters<typeof reportsRouter.createCaller>[0]);
+  return reportsRouter.createCaller(ctx());
 }
 
 beforeEach(() => {

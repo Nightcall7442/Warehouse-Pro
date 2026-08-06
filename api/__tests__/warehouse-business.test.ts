@@ -212,15 +212,15 @@ function makeMockDb() {
     };
     return sel;
   };
-  db.insert = (table: any) => ({
+  db.insert = () => ({
     values: vi.fn(() => [{ insertId: nextId++ }]),
   });
-  db.update = (table: any) => ({
+  db.update = () => ({
     set: vi.fn(() => ({
       where: vi.fn(() => Promise.resolve({ affectedRows: 1 })),
     })),
   });
-  db.delete = (table: any) => ({
+  db.delete = () => ({
     where: vi.fn(() => Promise.resolve({ affectedRows: 1 })),
   });
   db.execute = vi.fn(async (rawSql: unknown) => {

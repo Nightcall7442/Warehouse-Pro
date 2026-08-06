@@ -17,6 +17,10 @@ import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { WorkZoneSelector } from "@/components/agents/WorkZoneSelector";
 import { AgentTerritoriesSection } from "@/components/users/AgentTerritoriesSection";
 import { TransferCredentialsModal } from "@/components/users/TransferCredentialsModal";
+import { ROLES, type Role } from "@contracts/types";
+
+// The filter select carries "" for "all roles"; the list query wants no role at all.
+const isRole = (value: string): value is Role => ROLES.some(r => r === value);
 
 /* ── KPI Card ──────────────────────────────────────────────────────────────── */
 function KpiCard({
@@ -255,7 +259,7 @@ export default function Users() {
   const { data, isLoading, isError, refetch } = trpc.user.list.useQuery({
     page, pageSize: 25,
     search: search || undefined,
-    role: role || undefined,
+    role: isRole(role) ? role : undefined,
   });
   const utils = trpc.useUtils();
   const { confirm, dialog } = useConfirm();

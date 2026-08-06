@@ -1,16 +1,18 @@
 import { Package } from "lucide-react";
 import { F, COLORS, thStyle, tdStyle } from "./styles";
 
+// SUM()/COALESCE() come back from MySQL as decimal strings, and the product
+// name is null-able through the LEFT JOIN — see analytics.cogsByProduct.
 interface CogsByProductRow {
-  productName: string;
-  totalQty: number;
-  totalRevenue: number;
-  totalCost: number;
+  productName: string | null;
+  totalQty: string;
+  totalRevenue: string;
+  totalCost: string;
 }
 
 interface PnLExpenseBreakdownProps {
   cogsByProduct: CogsByProductRow[] | undefined;
-  fmt: (value: number) => string;
+  fmt: (value: string | number) => string;
   lang: string;
 }
 

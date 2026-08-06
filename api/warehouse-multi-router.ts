@@ -149,7 +149,8 @@ export const warehouseMultiRouter = createRouter({
         // Blanked rather than deleted: the web stock table reads the field, and
         // an absent key would read as "free" rather than "not yours to see".
         : rows.map(r => ({ ...(r as unknown as Record<string, unknown>), costPrice: undefined }));
-      const total = Number(((countResult as unknown[][])[0] as Record<string, unknown>)?.cnt ?? 0);
+      const countRows = (countResult as unknown[][])[0] as Array<{ cnt: number | string }> | undefined;
+      const total = Number(countRows?.[0]?.cnt ?? 0);
       const summary = Array.isArray((summaryResult as unknown[][])[0]) ? (summaryResult as unknown[][])[0] : [{}];
 
       return { data, total, page, pageSize, summary: summary[0] ?? {} };

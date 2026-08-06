@@ -40,7 +40,7 @@ import { createExecuteMock } from "./helpers/mock-execute";
 // ── Fake in-memory tables ─────────────────────────────────────────────────────
 interface FakeOrder { id: number; tenantId: number; agentId: number; shopId: number; status: string; deletedAt: Date | null; subtotal: string; discount: string; total: string; paymentMethod: string; }
 interface FakeOrderItem { id: number; orderId: number; productId: number; quantity: string; }
-interface FakeStock { productId: number; tenantId: number; currentStock: string; reserved: string; available: string; }
+interface FakeStock { productId: number; tenantId: number; warehouseId: number; currentStock: string; reserved: string; available: string; }
 interface FakeProduct { id: number; tenantId: number; name: string; unitPrice: string; status: string; }
 
 let ordersTable: FakeOrder[]         = [];
@@ -73,7 +73,7 @@ function resetFakeTables() {
   nextItemId  = 1;
 }
 
-function tableOf(ref: unknown): "orders" | "orderItems" | "warehouseStock" | "other" {
+function tableOf(ref: unknown): "orders" | "orderItems" | "warehouseStock" | "products" | "warehouses" | "shops" | "other" {
   if (ref === orders) return "orders";
   if (ref === orderItems) return "orderItems";
   if (ref === warehouseStock) return "warehouseStock";

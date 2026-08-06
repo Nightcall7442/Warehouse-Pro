@@ -28,8 +28,8 @@ vi.mock("../lib/sse", () => ({
 import { arrivals, arrivalItems, warehouses, warehouseStock, stockMovements, products } from "@db/schema";
 
 // ── Fake tables ──────────────────────────────────────────────────────────────
-interface FakeArrival { id: number; tenantId: number; arrivalNumber: string; truckId: string | null; driverName: string | null; driverPhone: string | null; status: string; fuelCost: string; tollCost: string; otherCost: string; totalExpense: string; arrivalDate: Date; arrivalTime: string | null; unloadingTime: string | null; notes: string | null; createdAt: Date; }
-interface FakeArrivalItem { id: number; arrivalId: number; productId: number; quantity: string; costPrice: string; sellingPrice: string; condition: string | null; notes: string | null; }
+type FakeArrival = { id: number; tenantId: number; arrivalNumber: string; truckId: string | null; driverName: string | null; driverPhone: string | null; status: string; fuelCost: string; tollCost: string; otherCost: string; totalExpense: string; arrivalDate: Date; arrivalTime: string | null; unloadingTime: string | null; notes: string | null; createdAt: Date; };
+type FakeArrivalItem = { id: number; arrivalId: number; productId: number; quantity: string; costPrice: string; sellingPrice: string; condition: string | null; notes: string | null; };
 interface FakeWarehouse { id: number; tenantId: number; name: string; isDefault: boolean; status: string; }
 interface FakeStock { id: number; productId: number; tenantId: number; warehouseId: number; currentStock: string; reserved: string; available: string; }
 interface FakeStockMovement { id: number; tenantId: number; productId: number; type: string; quantity: string; referenceType: string | null; referenceId: number | null; notes: string | null; createdAt: Date; }
@@ -215,10 +215,10 @@ function makeMockDb() {
       where: (cond: Record<string, unknown>) => {
         const table = tableOf(ref);
         if (table === "arrivalItems") {
-          arrivalItemsTable = arrivalItemsTable.filter((r) => !evalCond(r as Record<string, unknown>, cond));
+          arrivalItemsTable = arrivalItemsTable.filter((r) => !evalCond(r, cond));
         }
         if (table === "arrivals") {
-          arrivalsTable = arrivalsTable.filter((r) => !evalCond(r as Record<string, unknown>, cond));
+          arrivalsTable = arrivalsTable.filter((r) => !evalCond(r, cond));
         }
         return Promise.resolve();
       },

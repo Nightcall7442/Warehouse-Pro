@@ -34,13 +34,13 @@ vi.mock("../services/push-service", () => ({
   sendPushToUser: vi.fn(async () => {}),
 }));
 
-import { orders, shops, users, payments, notifications, orderItems, products, warehouseStock, warehouses } from "@db/schema";
+import { orders, shops, users, payments, notifications, orderItems, warehouseStock, warehouses } from "@db/schema";
 
 // ── Fake tables ──────────────────────────────────────────────────────────────
 interface FakeOrder { id: number; tenantId: number; orderNumber: string; status: string; deliveryStatus: string; total: string; shopId: number; courierId: number | null; agentId: number; deliveredAt: Date | null; createdAt: Date; }
 interface FakeShop { id: number; tenantId: number; name: string; address: string; city: string; debt: string; status: string; agentId: number | null; territoryId: number | null; }
 interface FakeUser { id: number; tenantId: number; name: string; email: string; role: string; status: string; }
-interface FakePayment { id: number; tenantId: number; shopId: number; amount: string; type: string; notes: string; createdBy: number; createdAt: Date; }
+interface FakePayment { id: number; tenantId: number; shopId: number; orderId: number | null; amount: string; type: string; notes: string; createdBy: number; createdAt: Date; }
 interface FakeNotification { id: number; tenantId: number; userId: number; type: string; title: string; message: string; createdAt: Date; }
 interface FakeOrderItem { id: number; orderId: number; productId: number; quantity: string; }
 interface FakeStock { id: number; productId: number; tenantId: number; warehouseId: number; currentStock: string; reserved: string; available: string; }
@@ -158,12 +158,12 @@ function chainable(rows: Record<string, unknown>[]) {
 
 function makeMockDb() {
   const db: any = {
-    select: (proj?: unknown) => {
+    select: () => {
       let currentTable = "other";
       const api: Record<string, any> = {
         from(ref: unknown) { currentTable = tableOf(ref); return api; },
-        leftJoin(ref: unknown) { return api; },
-        innerJoin(ref: unknown) { return api; },
+        leftJoin() { return api; },
+        innerJoin() { return api; },
         where(cond: unknown) {
           const filtered = rowsFor(currentTable).filter((r) => evalCond(r, cond as Record<string, unknown>));
           return chainable(filtered);
@@ -182,6 +182,7 @@ function makeMockDb() {
           const id = nextPaymentId++;
           paymentsTable.push({
             id, tenantId: vals.tenantId as number, shopId: vals.shopId as number,
+            orderId: (vals.orderId as number | null) ?? null,
             amount: String(vals.amount ?? "0"), type: String(vals.type ?? "payment"),
             notes: String(vals.notes ?? ""), createdBy: (vals.createdBy as number) ?? 0, createdAt: new Date(),
           });
@@ -216,14 +217,11 @@ function makeMockDb() {
         };
       },
     }),
-    delete: (ref: unknown) => ({
-      where: (cond: Record<string, unknown>) => {
-        return Promise.resolve();
-      },
+    delete: () => ({
+      where: () => Promise.resolve(),
     }),
     transaction: async (fn: (tx: Record<string, unknown>) => Promise<unknown>) => fn(db),
     execute: (query: { values?: unknown[]; strings?: string[] }) => {
-      const vals = query.values ?? [];
       const rawSql = (query.strings ?? []).join("?");
       // UPDATE warehouse_stock (for stock deduction)
       if (rawSql.includes("UPDATE") && rawSql.includes("warehouse_stock")) {
@@ -322,10 +320,10 @@ describe("courier.markDelivered", () => {
     const { courierRouter } = await import("../courier-router");
     const caller = courierRouter.createCaller(makeCtx(1, 100));
     await caller.markDelivered({ orderId: 1, cashAmount: "500.00" });
-    const payment = paymentsTable.find((p) => p.orderId === 1 as any);
-    expect(paymentsTable.length).toBeGreaterThan(0);
-    expect(paymentsTable[0].amount).toBe("500.00");
-    expect(paymentsTable[0].type).toBe("payment");
+    const payment = paymentsTable.find((p) => p.orderId === 1);
+    expect(payment).toBeDefined();
+    expect(payment!.amount).toBe("500.00");
+    expect(payment!.type).toBe("payment");
   });
 
   it("throws if cashAmount exceeds order total by >20%", async () => {

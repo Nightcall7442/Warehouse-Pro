@@ -88,8 +88,10 @@ describe("mapOrder1C", () => {
       createdAt: new Date("2025-06-15T10:30:00Z"),
       shopExternalId: "shop-uuid-abc",
       items: [
-        { productExternalId: "prod-uuid-1", quantity: 5, unitPrice: 100 },
-        { productExternalId: "prod-uuid-2", quantity: 2, unitPrice: 250.5 },
+        // unitWeight 0 is what the sync sends for a product with no weight on
+        // record, and mapOrder1C treats that as one kg per unit.
+        { productExternalId: "prod-uuid-1", quantity: 5, unitPrice: 100, unitWeight: 0, unit: "pcs" },
+        { productExternalId: "prod-uuid-2", quantity: 2, unitPrice: 250.5, unitWeight: 0, unit: "pcs" },
       ],
     };
     const result = mapOrder1C(order);

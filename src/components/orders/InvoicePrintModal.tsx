@@ -19,7 +19,10 @@ interface Props {
 // compact default: A4, QR code, signature line, continuous sheet, sorted by
 // order number. The debt block (buildDebtBlock in lib/documents) and notes
 // print unconditionally whenever present, no toggle needed for either.
-const PRINT_OPTIONS: BatchPrintOptions = {
+// `satisfies`, not a type annotation: order.batchPrintInvoices accepts a
+// narrower sortBy than the print helper does, so sortBy has to stay the
+// literal "orderNumber" to be sendable as mutation input.
+const PRINT_OPTIONS = {
   includeQrCode: true,
   includeBarcodes: false,
   includeCostPrice: false,
@@ -27,7 +30,7 @@ const PRINT_OPTIONS: BatchPrintOptions = {
   includeNotes: true,
   pageBreakPerOrder: false,
   sortBy: "orderNumber",
-};
+} satisfies BatchPrintOptions;
 const PRINT_FORMAT = "a4" as const;
 
 export function InvoicePrintModal({ open, onOpenChange, orderIds, onDone }: Props) {

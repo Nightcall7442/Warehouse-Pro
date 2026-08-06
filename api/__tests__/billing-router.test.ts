@@ -526,8 +526,10 @@ describe("billing.status — plan comparison", () => {
     const { billingRouter } = await import("../billing-router");
     const caller = billingRouter.createCaller(makeCtx(1, 10));
     const result = await caller.status();
-    const basicPlan = result.plans.find((p: any) => p.key === "basic");
-    const proPlan = result.plans.find((p: any) => p.key === "pro");
-    expect(proPlan.maxUsers).toBeGreaterThanOrEqual(basicPlan.maxUsers);
+    const basicPlan = result.plans.find(p => p.key === "basic");
+    const proPlan = result.plans.find(p => p.key === "pro");
+    if (!basicPlan || !proPlan) throw new Error("status() must offer both basic and pro");
+    // A null cap is "unlimited", which outranks any number.
+    expect(proPlan.maxUsers ?? Infinity).toBeGreaterThanOrEqual(basicPlan.maxUsers ?? Infinity);
   });
 });

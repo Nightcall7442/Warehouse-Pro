@@ -1,5 +1,6 @@
 import { FileDown, FileSpreadsheet } from "lucide-react";
 import { F, COLORS } from "./styles";
+import type { Lang } from "@/i18n";
 
 export type Range = "7d" | "30d" | "90d" | "12m" | "ytd" | "custom";
 
@@ -20,7 +21,7 @@ interface PnLPeriodSelectorProps {
   from: string;
   to: string;
   t: (ru: string, uz: string) => string;
-  lang: string;
+  lang: Lang;
 }
 
 export function PnLPeriodSelector({

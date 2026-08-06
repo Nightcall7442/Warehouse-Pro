@@ -14,11 +14,6 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
-import {
   useSidebar,
   SIDEBAR_WIDTH_MOBILE,
 } from "./SidebarConstants"

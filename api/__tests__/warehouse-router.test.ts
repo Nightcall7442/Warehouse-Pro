@@ -31,6 +31,7 @@ interface FakeStock {
   id: number;
   productId: number;
   tenantId: number;
+  warehouseId: number;
   currentStock: string;
   reserved: string;
   available: string;

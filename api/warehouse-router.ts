@@ -236,7 +236,9 @@ export const warehouseRouter = createRouter({
           AND ws.id IS NULL
       `);
 
-      const rows = Array.isArray(missing) ? missing : (missing as unknown[][])[0] ?? [];
+      // db.execute resolves to mysql2's [rows, fields] — itself an array, so a
+      // plain Array.isArray() check on it does not tell the two apart.
+      const [rows] = missing as unknown as [Array<{ id: number }>, unknown];
       if (rows.length === 0) return { created: 0 };
 
       // Get default warehouse for tenant
@@ -248,7 +250,7 @@ export const warehouseRouter = createRouter({
       if (!defaultWarehouse) return { created: 0 };
 
       await db.insert(warehouseStock).values(
-        rows.map((r: Record<string, unknown>) => ({
+        rows.map(r => ({
           tenantId,
           warehouseId: defaultWarehouse.id,
           productId: Number(r.id),

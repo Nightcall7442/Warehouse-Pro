@@ -56,7 +56,7 @@ export const forecastRouter = createRouter({
 
       const seasonality = weeklySeasonality(demand);
       const response = { ...result, seasonality, historicalPoints: demand.length };
-      cache.set(cacheKey, response, CacheTTL.analytics);
+      cache.set(cacheKey, response, CacheTTL.kpis);
       return response;
     }),
 

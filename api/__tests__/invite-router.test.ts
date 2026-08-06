@@ -107,7 +107,7 @@ function useTable(col: unknown): Record<string, unknown>[] {
 function makeMockDb() {
   let nextId = 200;
   const db: any = {};
-  db.select = (fields?: any) => {
+  db.select = () => {
     const sel: any = {};
     sel.from = (table: any) => {
       const primaryRows = useTable(table);

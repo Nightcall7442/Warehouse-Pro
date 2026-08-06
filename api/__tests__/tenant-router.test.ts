@@ -200,7 +200,7 @@ function buildChain(rows: Record<string, unknown>[], fields?: any, groupByCol?: 
   chain._groupByCol = groupByCol;
 
   chain.then = (resolve: any, reject: any) => {
-    let result = chain._rows;
+    let result: Record<string, unknown>[] = chain._rows;
     if (chain._groupByCol) {
       const groups = new Map<string, Record<string, unknown>[]>();
       for (const row of result) {

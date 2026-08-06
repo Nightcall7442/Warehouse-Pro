@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, operatorQuery, fieldSalesQuery, supervisorQuery } from "./middleware";
+import { createRouter, fieldSalesQuery, supervisorQuery } from "./middleware";
 import { orders, warehouseStock, users, shops, agentLocations, dailyPlans, orderItems, products } from "@db/schema";
 import { eq, and, sql, desc, isNull , inArray } from "drizzle-orm";
 import { REVENUE_ORDER_STATUSES } from "./lib/order-status";
@@ -7,11 +7,20 @@ import { subDays } from "date-fns";
 import { cache, CacheKeys, CacheTTL } from "./lib/cache";
 import { onDay, onDate, sinceDay } from "./lib/date-range";
 
+type DashboardKpis = {
+  todayOrders:  number;
+  todayRevenue: number;
+  activeAgents: number;
+  totalStock:   number;
+  customerDebt: number;
+  grossMargin:  number;
+};
+
 export const dashboardRouter = createRouter({
   kpis: supervisorQuery.query(async ({ ctx }) => {
     const tenantId = ctx.tenant.id;
     const cacheKey = CacheKeys.dashboardKpis(tenantId);
-    const cached = cache.get(cacheKey);
+    const cached = cache.get<DashboardKpis>(cacheKey);
     if (cached) return cached;
 
     const db       = ctx.db;
@@ -44,7 +53,7 @@ export const dashboardRouter = createRouter({
     const totalCostVal = Number(costResult[0]?.totalCost ?? 0);
     const grossMargin = totalRev > 0 ? ((totalRev - totalCostVal) / totalRev) * 100 : 0;
 
-    const result = {
+    const result: DashboardKpis = {
       todayOrders:  Number(todaysOrders[0]?.count ?? 0),
       todayRevenue: Number(todaysRevenue[0]?.total ?? 0),
       activeAgents: Number(activeAgents[0]?.count ?? 0),

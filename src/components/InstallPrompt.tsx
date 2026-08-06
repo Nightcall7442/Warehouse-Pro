@@ -4,6 +4,18 @@ import { Download, X, Share } from "lucide-react";
 const DISMISS_KEY = "pwa_prompt_dismissed_until";
 const iOSDismissKey = "pwa_ios_prompt_dismissed";
 
+// Chromium-only, so lib.dom doesn't carry it.
+interface BeforeInstallPromptEvent extends Event {
+  prompt(): Promise<void>;
+  readonly userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
+}
+
+declare global {
+  interface WindowEventMap {
+    beforeinstallprompt: BeforeInstallPromptEvent;
+  }
+}
+
 function isIOS(): boolean {
   return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 }
@@ -13,7 +25,7 @@ function isStandalone(): boolean {
 }
 
 export function InstallPrompt() {
-  const [prompt, setPrompt]     = useState<Event | null>(null);
+  const [prompt, setPrompt]     = useState<BeforeInstallPromptEvent | null>(null);
   const [visible, setVisible]   = useState(false);
   const [isIos, setIsIos]       = useState(false);
 
@@ -44,7 +56,7 @@ export function InstallPrompt() {
     }
 
     // Android/Chrome: use beforeinstallprompt
-    const handler = (e: Event) => {
+    const handler = (e: BeforeInstallPromptEvent) => {
       e.preventDefault();
       setPrompt(e);
       setVisible(true);

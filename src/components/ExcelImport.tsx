@@ -1,9 +1,13 @@
 import { useRef, useState } from "react";
+import type { inferRouterOutputs } from "@trpc/server";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { Upload, FileSpreadsheet, X, CheckCircle2, AlertTriangle, Loader2, Download } from "lucide-react";
+import type { AppRouter } from "../../api/router";
 
 type ImportType = "products" | "shops";
+
+type PreviewRow = inferRouterOutputs<AppRouter>["import"]["previewImport"]["preview"][number];
 
 interface Props {
   type: ImportType;
@@ -29,8 +33,7 @@ export function ExcelImport({ type, onDone, onCancel }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState("");
   const [base64, setBase64] = useState("");
-  const [preview, setPreview] = useState<unknown[]>([]);
-  const [headers, setHeaders] = useState<string[]>([]);
+  const [preview, setPreview] = useState<PreviewRow[]>([]);
   const [totalRows, setTotalRows] = useState(0);
   const [errors, setErrors] = useState<string[]>([]);
   const [importing, setImporting] = useState(false);
@@ -45,7 +48,6 @@ export function ExcelImport({ type, onDone, onCancel }: Props) {
     setFileName(file.name);
     setErrors([]);
     setPreview([]);
-    setHeaders([]);
     setTotalRows(0);
 
     try {
@@ -57,7 +59,6 @@ export function ExcelImport({ type, onDone, onCancel }: Props) {
         base64: b64,
         filename: file.name,
       });
-      setHeaders(result.headers);
       setPreview(result.preview);
       setTotalRows(result.totalRows);
     } catch (e: unknown) {
@@ -125,6 +126,12 @@ export function ExcelImport({ type, onDone, onCancel }: Props) {
     URL.revokeObjectURL(url);
   };
 
+  // Preview rows are keyed by the field the server mapped each column to, not by
+  // the column title in the file — a file with Russian headers has no "Название"
+  // key to look up. Columns the importer didn't recognise aren't in the row at
+  // all, which is worth seeing before you commit the import.
+  const columns = preview.length > 0 ? Object.keys(preview[0]) : [];
+
   return (
     <div style={{ background: "var(--color-surface, #efedea)", borderRadius: "20px", padding: "24px", boxShadow: "0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)" }}>
       {/* Header */}
@@ -188,21 +195,21 @@ export function ExcelImport({ type, onDone, onCancel }: Props) {
           <table style={{ width: "100%", fontSize: "11px", fontFamily: "'DM Sans', sans-serif" }}>
             <thead>
               <tr style={{ borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
-                {headers.map(h => (
-                  <th key={h} style={{ textAlign: "left", padding: "8px 10px", fontWeight: 600, color: "var(--color-text-tertiary, #6b6760)", textTransform: "uppercase", letterSpacing: "0.05em", fontSize: "10px" }}>{h}</th>
+                {columns.map(c => (
+                  <th key={c} style={{ textAlign: "left", padding: "8px 10px", fontWeight: 600, color: "var(--color-text-tertiary, #6b6760)", textTransform: "uppercase", letterSpacing: "0.05em", fontSize: "10px" }}>{c}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {preview.map((row, i) => (
                 <tr key={i} style={{ borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
-                  {headers.map(h => (
-                    <td key={h} style={{ padding: "6px 10px", color: "var(--color-text-primary, #2b2a28)" }}>{String(row[h] ?? "")}</td>
+                  {columns.map(c => (
+                    <td key={c} style={{ padding: "6px 10px", color: "var(--color-text-primary, #2b2a28)" }}>{String(row[c] ?? "")}</td>
                   ))}
                 </tr>
               ))}
               {totalRows > 5 && (
-                <tr><td colSpan={headers.length} style={{ padding: "8px 10px", textAlign: "center", color: "var(--color-text-tertiary, #6b6760)", fontSize: "11px" }}>... и ещё {totalRows - 5} строк</td></tr>
+                <tr><td colSpan={columns.length} style={{ padding: "8px 10px", textAlign: "center", color: "var(--color-text-tertiary, #6b6760)", fontSize: "11px" }}>... и ещё {totalRows - 5} строк</td></tr>
               )}
             </tbody>
           </table>

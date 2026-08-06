@@ -18,16 +18,6 @@ const UNIT_LABELS: Record<string,[string,string]> = {
   box:  ["ящ","quti"], pack: ["упак","pachka"], m: ["м","m"], block: ["бл","blok"],
 };
 
-const _COLORS = {
-  primary: "var(--color-primary, #5b6d8a)",
-  secondary: "var(--color-text-secondary, #5e5b54)",
-  danger: "var(--color-danger, #d45050)",
-  surface: "var(--color-surface, #efedea)",
-  surfaceLight: "var(--color-surface-light, #f6f4f0)",
-  border: "var(--color-border, #d8d5cd)",
-  borderSubtle: "var(--color-border-subtle, #e0ddd7)",
-};
-
 const TYPE_ICONS: Record<string, React.ReactNode> = {
   in:         <TrendingUp  size={13} className="text-success"/>,
   out:        <TrendingDown size={13} className="text-danger"/>,
@@ -134,9 +124,9 @@ export default function ProductDetail() {
           <div className="flex-1">
             {editing ? (
               <div className="grid grid-cols-2 gap-3">
-                {[["code","Код"],["name","Название"],["category","Категория"]].map(([k,p])=>(
+                {([["code","Код"],["name","Название"],["category","Категория"]] as const).map(([k,p])=>(
                   <input key={k} className="neo-input" placeholder={p}
-                    defaultValue={product[k as keyof typeof product] ?? ""}
+                    defaultValue={product[k] ?? ""}
                     onChange={e=>setEditData((d: Record<string, unknown>)=>({...d,[k]:e.target.value}))}/>
                 ))}
                 <PremiumSelect value={product.unit ?? "pcs"}
@@ -226,7 +216,9 @@ export default function ProductDetail() {
         <div className="px-4 pt-4 pb-2 border-b border-border-subtle flex items-center justify-between">
           <span className="font-label text-primary tracking-wider text-xs">{tr("ИСТОРИЯ ДВИЖЕНИЙ","HARAKATLAR TARIXI")}</span>
           {movements.length>0 && (
-            <button onClick={()=>exportToExcel(formatMovementsForExport(movements),`movements-${product.name}`)}
+            // The exporter's «Товар» column reads productName off each row, and
+            // one product's own history carries none — it is this page's product.
+            <button onClick={()=>exportToExcel(formatMovementsForExport(movements.map(m=>({...m,productName:product.name}))),`movements-${product.name}`)}
               className="neo-btn py-1 px-3 text-xs">{tr("Экспорт","Eksport")}</button>
           )}
         </div>

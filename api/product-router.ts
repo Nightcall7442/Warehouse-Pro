@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, operatorQuery, fieldSalesQuery, supervisorQuery } from "./middleware";
+import { createRouter, operatorQuery, fieldSalesQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { products, warehouseStock, stockMovements, warehouses } from "@db/schema";
 import { eq, like, and, sql, desc } from "drizzle-orm";
@@ -94,7 +94,7 @@ export const productRouter = createRouter({
       // with cost-bearing rows and every agent behind them would be served
       // that same payload.
       const canSeeCost = ctx.user.role === "ceo" || ctx.user.role === "operator";
-      const cacheKey = CacheKeys.productList(tenantId, page, input?.search, input?.category)
+      const cacheKey = CacheKeys.productList(tenantId, page, pageSize, input?.search, input?.category)
         + (input?.includeAll ? ":all" : "")
         + (canSeeCost ? ":cost" : ":nocost");
       const cached = cache.get(cacheKey);

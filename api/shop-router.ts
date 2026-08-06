@@ -51,7 +51,7 @@ export const shopRouter = createRouter({
       const offset   = (page - 1) * pageSize;
       const sortBy   = input?.sortBy ?? "newest";
 
-      const cacheKey = CacheKeys.shopList(tenantId, page, input?.search, input?.city, input?.district, input?.agentId, input?.territoryId, input?.onlyDebtors, sortBy);
+      const cacheKey = CacheKeys.shopList(tenantId, page, pageSize, input?.search, input?.city, input?.district, input?.agentId, input?.territoryId, input?.onlyDebtors, sortBy);
       const cached = cache.get(cacheKey);
       if (cached) return cached;
 

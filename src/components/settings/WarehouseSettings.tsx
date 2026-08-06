@@ -11,7 +11,7 @@ export function WarehouseSettings() {
 
   const { data: warehouses, isLoading } = trpc.warehouseMulti.list.useQuery();
   const [showForm, setShowForm] = useState(false);
-  const [editId, setEditId] = useState<string | null>(null);
+  const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState({ name: "", address: "", city: "" });
 
   const createWarehouse = trpc.warehouseMulti.create.useMutation({
@@ -50,9 +50,10 @@ export function WarehouseSettings() {
     }
   };
 
-  const handleEdit = (wh: { id: string; name: string; address: string; city: string }) => {
+  const handleEdit = (wh: { id: number; name: string; address: string | null; city: string | null }) => {
     setEditId(wh.id);
-    setForm({ name: wh.name, address: wh.address, city: wh.city });
+    // Both columns are nullable; the form inputs and the update mutation both want a string.
+    setForm({ name: wh.name, address: wh.address ?? "", city: wh.city ?? "" });
     setShowForm(true);
   };
 

@@ -117,11 +117,11 @@ function chainable(rows: Record<string, unknown>[]) {
 
 function makeMockDb() {
   const db: any = {
-    select: (proj?: unknown) => {
+    select: () => {
       let currentTable = "other";
       const api: Record<string, any> = {
         from(ref: unknown) { currentTable = tableOf(ref); return api; },
-        leftJoin(ref: unknown) { return api; },
+        leftJoin() { return api; },
         where(cond: unknown) {
           const filtered = rowsFor(currentTable).filter((r) => evalCond(r, cond as Record<string, unknown>));
           return chainable(filtered);
@@ -186,11 +186,11 @@ function makeMockDb() {
         };
       },
     }),
-    delete: (ref: unknown) => ({
+    delete: () => ({
       where: () => Promise.resolve(),
     }),
     transaction: async (fn: (tx: Record<string, unknown>) => Promise<unknown>) => fn(db),
-    execute: (query: { values?: unknown[]; strings?: string[] }) => Promise.resolve(),
+    execute: () => Promise.resolve(),
   };
   return db;
 }

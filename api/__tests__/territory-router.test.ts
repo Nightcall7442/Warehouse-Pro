@@ -24,7 +24,7 @@ vi.mock("../lib/sse", () => ({
 import { territories, shops } from "@db/schema";
 
 // ── Fake tables ──────────────────────────────────────────────────────────────
-interface FakeTerritory { id: number; tenantId: number; name: string; color: string | null; }
+type FakeTerritory = { id: number; tenantId: number; name: string; color: string | null; };
 interface FakeShop { id: number; tenantId: number; name: string; city: string; address: string; status: string; territoryId: number | null; }
 
 let territoriesTable: FakeTerritory[] = [];
@@ -90,7 +90,7 @@ function makeMockDb() {
       let currentTable = "other";
       const api: Record<string, any> = {
         from(ref: unknown) { currentTable = tableOf(ref); return api; },
-        leftJoin(ref: unknown) {
+        leftJoin() {
           // Simple join simulation: attach shop count
           return {
             where(cond: unknown) {
@@ -154,7 +154,7 @@ function makeMockDb() {
       where: (cond: Record<string, unknown>) => {
         const table = tableOf(ref);
         if (table === "territories") {
-          territoriesTable = territoriesTable.filter((r) => !evalCond(r as Record<string, unknown>, cond));
+          territoriesTable = territoriesTable.filter((r) => !evalCond(r, cond));
         }
         return Promise.resolve();
       },

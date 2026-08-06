@@ -148,13 +148,16 @@ export const ImportService = {
     const db = getDb();
     const success = { count: 0 };
     const errors: string[] = [];
+    const skipped: string[] = [];
 
     for (let i = 0; i < rows.length; i++) {
       const rowNum = i + 2;
       const row = rows[i];
+      // Read before the try so the duplicate branch below can name the shop it
+      // skipped.
+      const name = String(row.name ?? "").trim();
+      if (!name) { errors.push(`Строка ${rowNum}: нет названия`); continue; }
       try {
-        const name = String(row.name ?? "").trim();
-        if (!name) { errors.push(`Строка ${rowNum}: нет названия`); continue; }
         await db.insert(shops).values({
           tenantId, name,
           ownerName: String(row.ownerName ?? "").trim() || undefined,
@@ -177,7 +180,7 @@ export const ImportService = {
     }
 
     cache.invalidatePrefix(CacheKeys.shopList(tenantId, 0).split(":")[0]);
-    return { success: success.count, errors, total: rows.length };
+    return { success: success.count, errors, skipped, total: rows.length };
   },
 
   getTemplate(type: "products" | "shops") {

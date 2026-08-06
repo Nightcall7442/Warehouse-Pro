@@ -1,6 +1,7 @@
 // Warehouse Pro — Push notification service (Expo)
 import { getDb } from "../queries/connection";
 import { users } from "@db/schema";
+import type { User } from "@db/schema";
 import { eq, and } from "drizzle-orm";
 
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
@@ -11,6 +12,18 @@ interface PushMessage {
   data?: Record<string, unknown>;
   sound?: string;
   badge?: number;
+}
+
+/** One Expo receipt ticket — the service answers with one per message sent. */
+interface ExpoPushTicket {
+  status: "ok" | "error";
+  id?: string;
+  message?: string;
+}
+
+/** Expo mirrors the request: one ticket for one message, an array for a batch. */
+interface ExpoPushResponse<T extends ExpoPushTicket | ExpoPushTicket[]> {
+  data?: T;
 }
 
 async function sendExpoPush(token: string, message: PushMessage): Promise<boolean> {
@@ -29,7 +42,7 @@ async function sendExpoPush(token: string, message: PushMessage): Promise<boolea
       }),
     });
 
-    const result = await response.json();
+    const result = await response.json() as ExpoPushResponse<ExpoPushTicket>;
     if (result.data?.status === "error") {
       console.warn("[Push] Expo push error:", result.data.message);
       // If device not registered, remove the token
@@ -62,7 +75,7 @@ export async function sendPushToUser(userId: number, message: PushMessage): Prom
   }
 }
 
-export async function sendPushToRole(tenantId: number, role: string, message: PushMessage): Promise<void> {
+export async function sendPushToRole(tenantId: number, role: User["role"], message: PushMessage): Promise<void> {
   const db = getDb();
   const usersList = await db.select({ id: users.id, pushToken: users.pushToken })
     .from(users)
@@ -100,9 +113,9 @@ export async function sendPushToRole(tenantId: number, role: string, message: Pu
           }))
         ),
       });
-      const result = await response.json();
+      const result = await response.json() as ExpoPushResponse<ExpoPushTicket[]>;
       if (result.data) {
-        tickets.push(...result.data.map((r: { status: string; message?: string }, idx: number) => ({
+        tickets.push(...result.data.map((r, idx) => ({
           id: batch[idx].id,
           status: r.status,
           message: r.message,
@@ -160,9 +173,9 @@ export async function sendPushToTenant(tenantId: number, message: PushMessage): 
           }))
         ),
       });
-      const result = await response.json();
+      const result = await response.json() as ExpoPushResponse<ExpoPushTicket[]>;
       if (result.data) {
-        tickets.push(...result.data.map((r: { status: string; message?: string }, idx: number) => ({
+        tickets.push(...result.data.map((r, idx) => ({
           id: batch[idx].id,
           status: r.status,
           message: r.message,

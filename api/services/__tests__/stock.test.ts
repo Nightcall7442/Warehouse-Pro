@@ -25,7 +25,7 @@ import { warehouseStock, stockMovements, products, warehouses } from "@db/schema
 import { sseBus } from "../../lib/sse";
 
 type FakeStock = {
-  id: number; productId: number; tenantId: number;
+  id: number; productId: number; tenantId: number; warehouseId: number;
   currentStock: string; reserved: string; available: string;
 };
 type FakeMovement = {

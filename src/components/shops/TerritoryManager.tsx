@@ -141,7 +141,7 @@ export function TerritoryManager({ lang, onClose }: TerritoryManagerProps) {
               {t("Нет территорий", "Territoriyalar yo'q")}
             </div>
           ) : (
-            territories.map((ter: { id: number; name: string; color?: string | null; shopCount?: number; centerLat?: string | null; centerLng?: string | null; radiusKm?: string | null }) => (
+            territories.map(ter => (
               <div key={ter.id} style={{
                 display: "flex", alignItems: "center", gap: "8px",
                 padding: "8px 12px", borderRadius: "10px",

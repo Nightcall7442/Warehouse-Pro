@@ -4,9 +4,9 @@
 
 import { getDb } from "../queries/connection";
 import { warehouseStock, orderItems, orders, products, arrivals, arrivalItems } from "@db/schema";
-import { eq, and, sql, gte, desc , inArray } from "drizzle-orm";
+import { eq, and, sql, gte, inArray } from "drizzle-orm";
 import { REVENUE_ORDER_STATUSES } from "../lib/order-status";
-import { DemandPoint } from "./forecast-engine";
+import type { DemandPoint } from "./forecast-engine";
 
 /** Stockout prediction for a single product */
 export interface StockoutPrediction {

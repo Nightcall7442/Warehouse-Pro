@@ -53,6 +53,15 @@ export default function Reports() {
 
   const totalRevenue = topProds?.reduce((s, p) => s + Number(p.totalRevenue), 0) ?? 0;
 
+  // SalesTab keys each card off `method`; the column is `paymentMethod`, so the
+  // rows went in unmapped and every card came out with a blank label.
+  const paymentBreakdown = byPayment?.map(p => ({ method: p.paymentMethod, revenue: p.revenue, orderCount: p.orderCount }));
+  const topProductRows = topProds?.map(p => ({
+    productName: p.productName ?? "", productCode: p.productCode ?? undefined,
+    totalQty: Number(p.totalQty), totalRevenue: Number(p.totalRevenue),
+  }));
+  const agentRows = agents?.map(a => ({ ...a, revenue: Number(a.revenue) }));
+
   const TABS = [
     { key: "overview" as const, ru: "Обзор", uz: "Umumiy", icon: <LayoutDashboard size={16} /> },
     { key: "sales" as const, ru: "Продажи", uz: "Sotuvlar", icon: <ShoppingCart size={16} /> },
@@ -88,7 +97,7 @@ export default function Reports() {
     // the shape the hub produces: those are one report per file with real
     // column headers, which is what you want for a pivot table. This one is for
     // sending someone a picture of the dashboard.
-    const rows: Record<string, unknown>[] = [];
+    const rows: Record<string, string | number | null>[] = [];
 
     if (summary) {
       rows.push({ Раздел: "СВОДКА", Показатель: "Агентов", Значение: summary.totalAgents, "": "" });
@@ -274,8 +283,8 @@ export default function Reports() {
       {tab === "sales" && (
         <SalesTab
           shopChartData={shopChartData}
-          byPayment={byPayment}
-          topProds={topProds}
+          byPayment={paymentBreakdown}
+          topProds={topProductRows}
           totalRevenue={totalRevenue}
           fmt={fmt}
           t={t}
@@ -284,7 +293,7 @@ export default function Reports() {
 
       {tab === "agents" && (
         <AgentsTab
-          agents={agents}
+          agents={agentRows}
           days={days}
           fmt={fmt}
           t={t}

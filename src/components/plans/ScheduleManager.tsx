@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Calendar, Plus, Trash2, Loader2, Play } from "lucide-react";
+import { Calendar, Loader2, Play } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { COLORS, SHADOW, F } from "./constants";
@@ -27,7 +27,6 @@ export function ScheduleManager({ lang }: { lang: string }) {
   const { data: usersData } = trpc.user.list.useQuery({ page: 1, pageSize: 100 });
   const agents = (usersData?.data ?? []).filter((u: { role: string }) => u.role === "agent");
 
-  const { data: agentShops } = trpc.agent.myShops.useQuery(undefined, { enabled: false });
   const { data: allShopsData } = trpc.shop.list.useQuery({ page: 1, pageSize: 500 });
   const shops = allShopsData?.data ?? [];
 

@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { X, Loader2, ShieldCheck, Eye, EyeOff } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
-import { COLORS, SHADOW, F, type Lang } from "./types";
+import { COLORS, F, type Lang } from "./types";
 
 interface Props {
   userId: number;

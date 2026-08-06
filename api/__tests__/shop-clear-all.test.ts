@@ -3,6 +3,7 @@
  * Tests that all shops and related records are deleted correctly.
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { asTestContext } from "./helpers/test-context";
 
 // ── Mocks ───────────────────────────────────────────────────────────────────
 vi.mock("../queries/connection", () => ({ getDb: () => mockDb }));
@@ -85,13 +86,13 @@ function makeMockDb() {
 let mockDb: ReturnType<typeof makeMockDb>;
 
 function makeCtx(tenantId: number, userId: number, role = "operator") {
-  return {
+  return asTestContext({
     req: new Request("http://localhost/"),
     resHeaders: new Headers(),
     user: { id: userId, tenantId, role, status: "active", name: "Test User", email: "test@test.com" },
     tenant: { id: tenantId, slug: "test", name: "Test Co", plan: "trial" },
     db: mockDb,
-  };
+  });
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────────
