@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, reportsQuery } from "./middleware";
+import { createRouter, reportsQuery, financeQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { orders, orderItems, products, shops, users, dailyPlans, arrivals } from "@db/schema";
 import { eq, and, sql, desc , inArray } from "drizzle-orm";
@@ -65,7 +65,7 @@ export const analyticsRouter = createRouter({
   // NOTE: COGS uses current `products.costPrice`, not historical. If product costs
   // change over time, historical P&L and COGS reports will be inaccurate.
   // Consider adding `costPrice` to `orderItems` to snapshot the cost at order time.
-  cogsByProduct: reportsQuery
+  cogsByProduct: financeQuery
     .input(z.object({ dateFrom: z.string().optional(), dateTo: z.string().optional() }).optional())
     .query(async ({ input, ctx }) => {
       const conditions = [eq(orders.tenantId, ctx.tenant.id), inArray(orders.status, REVENUE_ORDER_STATUSES)];
@@ -85,7 +85,7 @@ export const analyticsRouter = createRouter({
         .where(and(...conditions)).groupBy(products.id).orderBy(desc(sql`SUM(${orderItems.subtotal})`)).limit(20);
     }),
 
-  cogsSummary: reportsQuery
+  cogsSummary: financeQuery
     .input(z.object({ dateFrom: z.string().optional(), dateTo: z.string().optional() }).optional())
     .query(async ({ input, ctx }) => {
       const conditions = [eq(orders.tenantId, ctx.tenant.id), inArray(orders.status, REVENUE_ORDER_STATUSES)];
@@ -171,7 +171,7 @@ export const analyticsRouter = createRouter({
     }),
 
   // ── Full P&L Report ─────────────────────────────────────────────────────────
-  pnl: reportsQuery
+  pnl: financeQuery
     .input(z.object({
       from: z.string(),
       to: z.string(),
@@ -333,7 +333,7 @@ export const analyticsRouter = createRouter({
     }),
 
   // ── P&L by Payment Method ──────────────────────────────────────────────────
-  pnlByPaymentMethod: reportsQuery
+  pnlByPaymentMethod: financeQuery
     .input(z.object({ from: z.string(), to: z.string() }))
     .query(async ({ input, ctx }) => {
       const db = getDb();

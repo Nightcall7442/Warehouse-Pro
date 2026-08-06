@@ -126,7 +126,8 @@ export default function App() {
           {/* CEO + Operator */}
           {/* "Аналитика" merged into "Отчёты" — old links/bookmarks still work */}
           <Route path="/analytics"   element={<Navigate to="/reports" replace />} />
-          <Route path="/pnl"         element={<RoleGuard roles={["ceo","operator"]}><PnL /></RoleGuard>} />
+          {/* Margin and profit are the owner's numbers, not the back office's. */}
+          <Route path="/pnl"         element={<RoleGuard roles={["ceo"]}><PnL /></RoleGuard>} />
 
           {/* Agent */}
           <Route path="/agent"         element={<RoleGuard roles={["ceo","agent","merchandiser"]}><AgentDashboard /></RoleGuard>} />

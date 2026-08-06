@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { trpc } from "@/providers/trpc";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useLang } from "@/i18n";
+import { useAuth } from "@/hooks/useAuth";
 import { format, subDays } from "date-fns";
 import { FileDown, Printer, LayoutDashboard, ShoppingCart, Award, Users } from "lucide-react";
 import { exportToExcel } from "@/lib/excel";
@@ -31,9 +32,15 @@ export default function Reports() {
   const { data: chart } = trpc.reports.getVisitChart.useQuery({ days });
   const { data: plans } = trpc.reports.getPlanCompletion.useQuery();
   const { data: byShop } = trpc.analytics.salesByShop.useQuery({ dateFrom: from, dateTo: to });
+  const { user } = useAuth();
+  const isCeo = user?.role === "ceo";
+
   const { data: topProds } = trpc.analytics.topProducts.useQuery({ dateFrom: from, dateTo: to });
   const { data: agents } = trpc.reports.getAgentPerformance.useQuery({ days });
-  const { data: byPayment } = trpc.analytics.pnlByPaymentMethod.useQuery({ from, to });
+  // Carries gross profit and margin per payment method, so it is CEO-only on
+  // the server. Asking for it as an operator would just produce a failed query
+  // and an empty section; not asking is the same result without the noise.
+  const { data: byPayment } = trpc.analytics.pnlByPaymentMethod.useQuery({ from, to }, { enabled: isCeo });
   const { data: agentProducts, isLoading: agentProductsLoading } = trpc.analytics.agentProductSales.useQuery(
     { dateFrom: apDateFrom, dateTo: apDateTo },
     { enabled: tab === "agentProducts" },

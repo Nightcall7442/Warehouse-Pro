@@ -302,6 +302,16 @@ function makeMockDb() {
   return db;
 }
 
+/**
+ * Cost and margin are CEO-only, so these tests need a CEO. The default operator
+ * context is right for the sales-side procedures in this file and deliberately
+ * left alone — it is what proves the narrower gate is actually enforced.
+ */
+function buildCeoCtx() {
+  const ctx = buildCtx();
+  return { ...ctx, user: { ...ctx.user, role: "ceo" as const } };
+}
+
 function buildCtx(overrides: Record<string, unknown> = {}) {
   return {
     req: new Request("http://localhost/"),
@@ -368,7 +378,7 @@ describe("analytics.topProducts", () => {
 describe("analytics.cogsSummary", () => {
   it("calculates total revenue, cost, and discount", async () => {
     const { analyticsRouter } = await import("../analytics-router");
-    const caller = analyticsRouter.createCaller(buildCtx());
+    const caller = analyticsRouter.createCaller(buildCeoCtx());
     const result = await caller.cogsSummary({});
     expect(result).toBeDefined();
     expect(Number(result.totalRevenue)).toBeGreaterThanOrEqual(0);
@@ -379,7 +389,7 @@ describe("analytics.cogsSummary", () => {
   it("returns zeros when no completed orders", async () => {
     ordersTable = [];
     const { analyticsRouter } = await import("../analytics-router");
-    const caller = analyticsRouter.createCaller(buildCtx());
+    const caller = analyticsRouter.createCaller(buildCeoCtx());
     const result = await caller.cogsSummary({});
     expect(Number(result.totalRevenue)).toBe(0);
     expect(Number(result.totalCost)).toBe(0);
@@ -389,14 +399,14 @@ describe("analytics.cogsSummary", () => {
 describe("analytics.debtReport", () => {
   it("returns only shops with positive debt", async () => {
     const { analyticsRouter } = await import("../analytics-router");
-    const caller = analyticsRouter.createCaller(buildCtx());
+    const caller = analyticsRouter.createCaller(buildCeoCtx());
     const result = await caller.debtReport();
     expect(result.every((r: any) => Number(r.debt) > 0)).toBe(true);
   });
 
   it("only shows shops from current tenant", async () => {
     const { analyticsRouter } = await import("../analytics-router");
-    const caller = analyticsRouter.createCaller(buildCtx());
+    const caller = analyticsRouter.createCaller(buildCeoCtx());
     const result = await caller.debtReport();
     expect(result.every((r: any) => {
       const shop = shopsTable.find(s => s.name === r.shopName);
@@ -408,7 +418,7 @@ describe("analytics.debtReport", () => {
 describe("analytics.agentPerformance", () => {
   it("returns agent stats", async () => {
     const { analyticsRouter } = await import("../analytics-router");
-    const caller = analyticsRouter.createCaller(buildCtx());
+    const caller = analyticsRouter.createCaller(buildCeoCtx());
     const result = await caller.agentPerformance({});
     expect(result.length).toBeGreaterThanOrEqual(1);
     expect(result[0].agentName).toBeDefined();

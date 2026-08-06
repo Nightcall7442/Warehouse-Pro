@@ -40,12 +40,17 @@ export const productRouter = createRouter({
         ? and(eq(products.id, warehouseStock.productId), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, warehouseId))
         : and(eq(products.id, warehouseStock.productId), eq(warehouseStock.tenantId, tenantId));
 
+      // costPrice is deliberately absent. This is the feed the mobile app pulls
+      // on every order screen, and fieldSalesQuery admits agents and
+      // merchandisers — so shipping the cost here put the company's buying
+      // price on the phone of everyone who negotiates with a shop. Nothing
+      // reads it from this endpoint: the two web screens that show cost use
+      // product.list and product.getById.
       const data = await db.select({
         id:           products.id,
         code:         products.code,
         name:         products.name,
         category:     products.category,
-        costPrice:    products.costPrice,
         unitPrice:    products.unitPrice,
         unit:         products.unit,
         unitWeight:   products.unitWeight,
@@ -84,7 +89,14 @@ export const productRouter = createRouter({
 
       const warehouseId = await getDefaultWarehouseId(db, tenantId);
 
-      const cacheKey = CacheKeys.productList(tenantId, page, input?.search, input?.category) + (input?.includeAll ? ":all" : "");
+      // Whether the caller may see cost has to be part of the cache key.
+      // Without it the first operator to load the page would fill the cache
+      // with cost-bearing rows and every agent behind them would be served
+      // that same payload.
+      const canSeeCost = ctx.user.role === "ceo" || ctx.user.role === "operator";
+      const cacheKey = CacheKeys.productList(tenantId, page, input?.search, input?.category)
+        + (input?.includeAll ? ":all" : "")
+        + (canSeeCost ? ":cost" : ":nocost");
       const cached = cache.get(cacheKey);
       if (cached) return cached;
 
@@ -125,7 +137,17 @@ export const productRouter = createRouter({
         db.select({ count: sql<number>`count(*)` }).from(products).where(where),
       ]);
 
-      const result = { data, total: Number(countResult[0]?.count ?? 0), page, pageSize };
+      // Blanked rather than zeroed: a cost of "0.00" is a claim the item was
+      // free, which is a different statement from "not yours to see". The web
+      // card tests Number(costPrice) > 0, and Number(undefined) is NaN, so it
+      // renders nothing. Kept as one shape so callers get one type, with the
+      // field simply absent for those who may not have it.
+      const visible = data.map(row => ({
+        ...row,
+        costPrice: canSeeCost ? row.costPrice : undefined,
+      }));
+
+      const result = { data: visible, total: Number(countResult[0]?.count ?? 0), page, pageSize };
       cache.set(cacheKey, result, CacheTTL.products);
       return result;
     }),
@@ -146,6 +168,7 @@ export const productRouter = createRouter({
       }).from(products)
         .where(and(eq(products.id, input.id), eq(products.tenantId, tenantId)))
         .limit(1);
+
       if (!product) return null;
 
       const stockWhere = warehouseId
@@ -169,7 +192,18 @@ export const productRouter = createRouter({
           .limit(20),
       ]);
 
-      return { ...product, stock: stockResult[0] ?? null, movements };
+      // Same rule as list(): the product card shows cost, an agent's app must
+      // not. Applied here, once the full object is assembled — returning early
+      // at the point the row is read would have left the screen with no stock
+      // and no movement history.
+      const canSeeCost = ctx.user.role === "ceo" || ctx.user.role === "operator";
+
+      return {
+        ...product,
+        costPrice: canSeeCost ? product.costPrice : undefined,
+        stock: stockResult[0] ?? null,
+        movements,
+      };
     }),
 
   create: operatorQuery

@@ -276,6 +276,21 @@ export const courierQuery    = authedQuery.use(requireRole(["ceo", "operator", "
 export const reportsQuery    = authedQuery.use(requireRole(["ceo", "operator", "supervisor", "merchandiser"]));
 export const auditQuery      = authedQuery.use(requireRole(["ceo", "superadmin"]));
 
+/**
+ * Cost price and profit.
+ *
+ * These are the numbers that say what the company makes on every item — the
+ * supplier's price, the margin, the bottom line. reportsQuery covers everyone
+ * who needs *sales* reporting, which includes merchandisers walking shop
+ * floors and operators taking phone orders, and none of them have any business
+ * seeing the markup. An agent who knows the cost knows exactly how far a shop
+ * can push on price.
+ *
+ * Kept separate from adminQuery so that widening who may administer the system
+ * never quietly widens who may read the margin.
+ */
+export const financeQuery    = authedQuery.use(requireRole(["ceo"]));
+
 // Subscription-gated variants
 export const billedQuery     = authedQuery.use(requireActiveSubscription);
 export const billedAdmin     = adminQuery.use(requireActiveSubscription);
