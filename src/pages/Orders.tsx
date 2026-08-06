@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import { keepPreviousData } from "@tanstack/react-query";
 import { useCurrency } from "@/hooks/useCurrency";
 import { trpc } from "@/providers/trpc";
 import { useInvalidateOrderCaches } from "@/hooks/useOrderCacheSync";
@@ -38,11 +39,16 @@ import type { CompletionData, CompletionMode } from "@/components/orders/Complet
 import { F, COLORS, SHADOW, OPEN_STATUSES, PAYMENT, STATUS, KpiCard, StatusBadge } from "@/components/orders/theme";
 import { colorMix } from "@/lib/color-mix";
 
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 export default function Orders() {
   const [page, setPage]     = useState(1);
   const { fmt, symbol }     = useCurrency();
   const { lang }            = useLang();
   const [search, setSearch] = useState("");
+  // Поле ввода остаётся мгновенным, а в запрос уходит придержанное
+  // значение: иначе каждая буква — это новый ключ запроса, у которого
+  // ещё нет данных, и страница успевает смениться скелетоном.
+  const debouncedSearch = useDebouncedValue(search);
   const [dateFrom, setDateFrom] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
   const [dateTo, setDateTo] = useState(format(new Date(), "yyyy-MM-dd"));
   const isMobile            = useIsMobile();
@@ -164,7 +170,7 @@ export default function Orders() {
 
   const { data, isLoading, isError, refetch } = trpc.order.list.useQuery({
     page, pageSize: 25,
-    search: search || undefined,
+    search: debouncedSearch || undefined,
     status: (effectiveStatus || undefined) as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" | undefined,
     // Always scoped to the open tab; a status filter now narrows within it
     // rather than replacing it, so the archive keeps showing archive content.
@@ -173,6 +179,11 @@ export default function Orders() {
     dateTo: effectiveDateTo || undefined,
     paymentMethod: effectivePaymentMethod as "cash" | "card" | "transfer" | "debt" | undefined,
     agentIds: agentFilter.length > 0 ? agentFilter.map(Number) : undefined,
+  }, {
+    // Прошлый список остаётся на экране, пока грузится новый: без этого
+    // смена запроса обнуляет data, и страница падает в скелетон на каждый
+    // ввод — именно это и выглядело как перезагрузка.
+    placeholderData: keepPreviousData,
   });
 
   const { refetch: refetchAllOrders } = trpc.order.list.useQuery(
@@ -188,7 +199,7 @@ export default function Orders() {
       dateFrom: effectiveDateFrom || undefined,
       dateTo: effectiveDateTo || undefined,
       archived: section === "archive",
-      search: search || undefined,
+      search: debouncedSearch || undefined,
     },
     // Also feeds the "Агент" filter in the toolbar, so it stays loaded in
     // every view — not just the by-agent one.
@@ -210,7 +221,7 @@ export default function Orders() {
       archived: section === "archive",
       dateFrom: effectiveDateFrom || undefined,
       dateTo: effectiveDateTo || undefined,
-      search: search || undefined,
+      search: debouncedSearch || undefined,
     },
     { enabled: viewMode === "agents" && expandedAgentId !== null },
   );
@@ -370,7 +381,7 @@ export default function Orders() {
     dateTo: effectiveDateTo || undefined,
     status: effectiveStatus || undefined,
     paymentMethod: effectivePaymentMethod || undefined,
-    search: search || undefined,
+    search: debouncedSearch || undefined,
     // The tiles have to describe the same slice the table below them shows.
     // They previously ignored the agent filter entirely, so narrowing to one
     // agent left the totals reading for the whole company.

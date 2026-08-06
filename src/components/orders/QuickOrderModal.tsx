@@ -45,6 +45,58 @@ function IconButton({ onClick, danger, label, children, size = 26 }: {
   );
 }
 
+/**
+ * The quantity, typed rather than clicked.
+ *
+ * The steppers stay — they are the right tool for "one more" — but a
+ * distributor ordering fifty units was pressing plus fifty times. The number
+ * between them is now the input.
+ *
+ * It keeps its own draft while focused, because committing on every keystroke
+ * makes the field impossible to edit: clearing it to type a new number would
+ * pass 0 upward, and 0 removes the line from the cart. So an empty box is a
+ * legal intermediate state, and only a real number is passed on. Leaving the
+ * box empty falls back to 1 on blur — removing a line is what the trash button
+ * is for, and it should not happen because someone tabbed away mid-edit.
+ */
+function QtyInput({ value, onChange, label }: {
+  value: number; onChange: (qty: number) => void; label: string;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      aria-label={label}
+      value={draft ?? String(value)}
+      onFocus={e => e.currentTarget.select()}
+      onChange={e => {
+        // Digits only: a stray letter or minus would otherwise sit in the box
+        // looking accepted while the cart quietly kept the old number.
+        const digits = e.target.value.replace(/\D/g, "").slice(0, 5);
+        setDraft(digits);
+        if (digits !== "") onChange(Number(digits));
+      }}
+      onBlur={() => {
+        if (draft === "" || draft === "0") onChange(1);
+        setDraft(null);
+      }}
+      onKeyDown={e => {
+        if (e.key === "Enter") e.currentTarget.blur();
+      }}
+      className="text-xs font-semibold text-center tabular-nums"
+      style={{
+        width: "44px", height: "24px", padding: "0 2px",
+        borderRadius: "6px",
+        border: "1px solid var(--color-border, #d8d5cd)",
+        background: "var(--color-surface, transparent)",
+        color: "var(--color-text-primary)",
+      }}
+    />
+  );
+}
+
 export function QuickOrderModal({ open, onOpenChange, preselectedShopId, onCreated }: Props) {
   const t = useTranslate();
 
@@ -234,9 +286,13 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, onCreat
                           {item.unitPrice.toLocaleString("ru")} × {item.quantity}
                         </div>
                       </div>
-                      <div className="flex items-center">
+                      <div className="flex items-center gap-0.5">
                         <IconButton size={24} label={t("Меньше", "Kamaytirish")} onClick={() => updateQty(item.productId, item.quantity - 1)}><Minus size={12} /></IconButton>
-                        <span className="text-xs font-semibold w-5 text-center" style={{ color: "var(--color-text-primary)" }}>{item.quantity}</span>
+                        <QtyInput
+                          value={item.quantity}
+                          onChange={qty => updateQty(item.productId, qty)}
+                          label={t("Количество", "Miqdori")}
+                        />
                         <IconButton size={24} label={t("Больше", "Ko'paytirish")} onClick={() => updateQty(item.productId, item.quantity + 1)}><Plus size={12} /></IconButton>
                       </div>
                       <IconButton size={24} danger label={t("Убрать", "Olib tashlash")} onClick={() => updateQty(item.productId, 0)}><Trash2 size={12} /></IconButton>

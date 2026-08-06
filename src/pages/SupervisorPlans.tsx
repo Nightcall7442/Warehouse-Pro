@@ -29,10 +29,19 @@ function CreatePlanForm({ date, onDone, lang }: { date: string; onDone: () => vo
   const { data: territories } = trpc.territory.list.useQuery();
   const utils = trpc.useUtils();
 
-  const createPlan = trpc.agent.createPlan.useMutation({
-    onSuccess: () => {
+  // Один вызов на всю территорию. Раньше здесь шёл Promise.all по одному
+  // запросу на магазин: сорок точек — сорок мутаций, и любой уже назначенный
+  // магазин ронял всю операцию сообщением про дубликат.
+  const createPlans = trpc.agent.createPlans.useMutation({
+    onSuccess: ({ created, skipped }) => {
       utils.agent.getPlans.invalidate();
-      notify.success(t("Планы созданы", "Rejalar yaratildi"));
+      // Говорим, что получилось на самом деле: «создано 12, 28 уже были»
+      // полезнее, чем «планы созданы», когда половина территории уже назначена.
+      notify.success(
+        skipped > 0
+          ? t(`Создано ${created}, уже были: ${skipped}`, `${created} ta yaratildi, ${skipped} ta allaqachon bor edi`)
+          : t("Планы созданы", "Rejalar yaratildi"),
+      );
       onDone();
     },
     onError: (e) => notify.error(e.message),
@@ -48,10 +57,12 @@ function CreatePlanForm({ date, onDone, lang }: { date: string; onDone: () => vo
       notify.error(t("В территории нет магазинов", "Territoriyada do'konlar yo'q"));
       return;
     }
-    const promises = shopsInTerritory.map((shop) =>
-      createPlan.mutateAsync({ agentId, shopId: shop.id, planDate: date, notes: notes || undefined })
-    );
-    await Promise.all(promises);
+    await createPlans.mutateAsync({
+      agentId,
+      shopIds: shopsInTerritory.map((shop) => shop.id),
+      planDate: date,
+      notes: notes || undefined,
+    });
   };
 
   return (
@@ -110,11 +121,11 @@ function CreatePlanForm({ date, onDone, lang }: { date: string; onDone: () => vo
 
       <button
         onClick={handleCreate}
-        disabled={createPlan.isPending || !agentId || !territoryId}
+        disabled={createPlans.isPending || !agentId || !territoryId}
         className="neo-btn-primary flex items-center gap-2"
-        style={{ opacity: createPlan.isPending || !agentId || !territoryId ? 0.5 : 1, width: "100%", justifyContent: "center", padding: "12px 24px" }}
+        style={{ opacity: createPlans.isPending || !agentId || !territoryId ? 0.5 : 1, width: "100%", justifyContent: "center", padding: "12px 24px" }}
       >
-        {createPlan.isPending && <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} />}
+        {createPlans.isPending && <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} />}
         {t(`Создать план (${shopCount})`, `Reja yaratish (${shopCount})`)}
       </button>
     </div>

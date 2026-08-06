@@ -9,6 +9,7 @@ vi.mock("drizzle-orm", () => ({
   desc: (col: unknown) => ({ __kind: "desc", col }),
   sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ __kind: "sql", strings, values }),
   isNull: (col: unknown) => ({ __kind: "isNull", col }),
+  inArray: (col: unknown, vals: unknown[]) => ({ __kind: "inArray", col, vals }),
 }));
 
 vi.mock("../telegram-router", () => ({
@@ -92,10 +93,24 @@ for (const t of [users, shops, dailyPlans, agentLocations]) {
 function evalCond(row: Record<string, unknown>, cond: Record<string, unknown>): boolean {
   if (!cond || typeof cond !== "object") return true;
   if (cond.__kind === "and") return (cond.conds as unknown[]).every((inner: unknown) => evalCond(row, inner as Record<string, unknown>));
+  if (cond.__kind === "inArray") {
+    const fieldName = columnToFieldName.get(cond.col) ?? (cond.col as Record<string, unknown>)?.name ?? cond.col;
+    if (!(fieldName as string in row)) return true;
+    return (cond.vals as unknown[]).some(v => String(v) === String(row[fieldName as string]));
+  }
   if (cond.__kind === "eq") {
     const fieldName = columnToFieldName.get(cond.col) ?? (cond.col as Record<string, unknown>)?.name ?? cond.col;
     if (!(fieldName as string in row)) return true;
-    return row[fieldName as string] === cond.val || String(row[fieldName as string]) === String(cond.val);
+    const actual = row[fieldName as string];
+    // planDate — колонка типа DATE: MySQL сравнивает календарный день, время в
+    // ней не хранится вовсе. Стенд же держит объекты Date и сравнивал полные
+    // метки времени, поэтому «сегодня в 14:32» и «сегодня в 00:00» для него были
+    // разными днями — проверка на дубликат никогда не срабатывала бы, и стенд
+    // подтвердил бы отсутствие ошибки, которой нет только у него.
+    if (fieldName === "planDate" && actual instanceof Date && cond.val instanceof Date) {
+      return actual.toISOString().slice(0, 10) === cond.val.toISOString().slice(0, 10);
+    }
+    return actual === cond.val || String(actual) === String(cond.val);
   }
   return true;
 }
@@ -130,7 +145,15 @@ function makeMockDb() {
       return api;
     },
     insert: (ref: unknown) => ({
-      values: (vals: Record<string, unknown>) => {
+      values: function insertValues(vals: Record<string, unknown> | Record<string, unknown>[]): Promise<{ insertId: number }[]> {
+        // Настоящий drizzle принимает и одну строку, и массив. Пакетная вставка
+        // планов передаёт массив, и мок, знавший только объект, записал бы одну
+        // строку с полями undefined — тест прошёл бы на сломанном коде.
+        if (Array.isArray(vals)) {
+          let last: Promise<{ insertId: number }[]> = Promise.resolve([{ insertId: 0 }]);
+          for (const one of vals) last = insertValues(one);
+          return last;
+        }
         const table = tableOf(ref);
         if (table === "dailyPlans") {
           const id = nextPlanId++;
@@ -240,8 +263,19 @@ describe("agent.createPlan", () => {
   it("creates a plan for an agent", async () => {
     const { agentRouter } = await import("../agent-router");
     const caller = agentRouter.createCaller(makeCtx(1, 1, "supervisor"));
-    const result = await caller.createPlan({ agentId: 10, shopId: 1, planDate: new Date().toISOString().split("T")[0] });
+    // Магазин 3: у агента 10 на сегодня он ещё не запланирован. Раньше здесь
+    // стоял магазин 1, который в наборе УЖЕ запланирован на сегодня, — в бою это
+    // отказ по дубликату, но стенд сравнивал planDate как полную метку времени
+    // и дубликата не видел, поэтому тест зеленел на сценарии, невозможном в бою.
+    const result = await caller.createPlan({ agentId: 10, shopId: 3, planDate: new Date().toISOString().split("T")[0] });
     expect(result.id).toBe(10);
+  });
+
+  it("отказывает, если план на этот день уже есть", async () => {
+    const { agentRouter } = await import("../agent-router");
+    const caller = agentRouter.createCaller(makeCtx(1, 1, "supervisor"));
+    await expect(caller.createPlan({ agentId: 10, shopId: 1, planDate: new Date().toISOString().split("T")[0] }))
+      .rejects.toThrow("уже существует");
   });
 
   it("throws if agent not in tenant", async () => {
@@ -254,6 +288,56 @@ describe("agent.createPlan", () => {
     const { agentRouter } = await import("../agent-router");
     const caller = agentRouter.createCaller(makeCtx(1, 1, "supervisor"));
     await expect(caller.createPlan({ agentId: 10, shopId: 999, planDate: "2025-01-01" })).rejects.toThrow("Магазин не найден");
+  });
+});
+
+describe("agent.createPlans — назначение территории одним вызовом", () => {
+  const today = new Date().toISOString().split("T")[0];
+
+  it("создаёт планы по всем магазинам за один вызов", async () => {
+    const { agentRouter } = await import("../agent-router");
+    const caller = agentRouter.createCaller(makeCtx(1, 1, "supervisor"));
+    // Магазин 3 ещё не назначен агенту 10, магазины 1 и 2 уже назначены (см. resetTables).
+    const result = await caller.createPlans({ agentId: 10, shopIds: [3], planDate: today });
+    expect(result).toMatchObject({ created: 1, skipped: 0, notFound: 0 });
+  });
+
+  it("уже назначенный магазин пропускается, а не роняет весь вызов", async () => {
+    // Это и есть исходная ошибка: цикл createPlan обрывался на первом дубликате,
+    // часть территории оставалась незаписанной, а супервайзер видел только отказ.
+    const { agentRouter } = await import("../agent-router");
+    const caller = agentRouter.createCaller(makeCtx(1, 1, "supervisor"));
+    const result = await caller.createPlans({ agentId: 10, shopIds: [1, 2, 3], planDate: today });
+    expect(result.skipped).toBe(2);
+    expect(result.created).toBe(1);
+  });
+
+  it("чужой магазин отбрасывается, свои записываются", async () => {
+    const { agentRouter } = await import("../agent-router");
+    const caller = agentRouter.createCaller(makeCtx(1, 1, "supervisor"));
+    const result = await caller.createPlans({ agentId: 10, shopIds: [3, 999], planDate: today });
+    expect(result).toMatchObject({ created: 1, notFound: 1 });
+  });
+
+  it("повторяющиеся id в списке не создают двойных планов", async () => {
+    const { agentRouter } = await import("../agent-router");
+    const caller = agentRouter.createCaller(makeCtx(1, 1, "supervisor"));
+    const result = await caller.createPlans({ agentId: 10, shopIds: [3, 3, 3], planDate: today });
+    expect(result.created).toBe(1);
+  });
+
+  it("отказывает по агенту из чужого тенанта", async () => {
+    const { agentRouter } = await import("../agent-router");
+    const caller = agentRouter.createCaller(makeCtx(1, 1, "supervisor"));
+    await expect(caller.createPlans({ agentId: 999, shopIds: [1], planDate: today }))
+      .rejects.toThrow("Агент не найден");
+  });
+
+  it("отказывает на некорректной дате, а не пишет Invalid Date", async () => {
+    const { agentRouter } = await import("../agent-router");
+    const caller = agentRouter.createCaller(makeCtx(1, 1, "supervisor"));
+    await expect(caller.createPlans({ agentId: 10, shopIds: [3], planDate: "не дата" }))
+      .rejects.toThrow("Некорректная дата");
   });
 });
 

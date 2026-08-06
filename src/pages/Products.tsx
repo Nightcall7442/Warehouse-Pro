@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import { keepPreviousData } from "@tanstack/react-query";
 import { useCurrency } from "@/hooks/useCurrency";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
@@ -12,6 +13,7 @@ import { ProductForm, ProductList, ProductFilters, KpiCard, F, COLORS } from "@/
 import { CategoryManager } from "@/components/products/CategoryManager";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 export default function Products() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [page, setPage] = useState(() => Math.max(1, parseInt(searchParams.get("page") || "1", 10) || 1));
@@ -26,13 +28,22 @@ export default function Products() {
   const { fmt } = useCurrency();
   const { lang } = useLang();
   const [search, setSearch] = useState("");
+  // Поле ввода остаётся мгновенным, а в запрос уходит придержанное
+  // значение: иначе каждая буква — это новый ключ запроса, у которого
+  // ещё нет данных, и страница успевает смениться скелетоном.
+  const debouncedSearch = useDebouncedValue(search);
   const [category, setCategory] = useState<string | undefined>(undefined);
   const [showForm, setShowForm] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const navigate = useNavigate();
-  const { data, isLoading, isError, refetch } = trpc.product.list.useQuery({ page, pageSize: 25, search: search || undefined, category });
+  const { data, isLoading, isError, refetch } = trpc.product.list.useQuery({ page, pageSize: 25, search: debouncedSearch || undefined, category }, {
+    // Прошлый список остаётся на экране, пока грузится новый: без этого
+    // смена запроса обнуляет data, и страница падает в скелетон на каждый
+    // ввод — именно это и выглядело как перезагрузка.
+    placeholderData: keepPreviousData,
+  });
   const { refetch: refetchAllProducts } = trpc.product.list.useQuery({ page: 1, pageSize: 10000, includeAll: true }, { enabled: false });
   const { data: categories } = trpc.product.categories.useQuery();
   const utils = trpc.useUtils();

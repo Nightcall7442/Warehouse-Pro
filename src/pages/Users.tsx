@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { keepPreviousData } from "@tanstack/react-query";
 import { createPortal } from "react-dom";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
@@ -19,6 +20,7 @@ import { AgentTerritoriesSection } from "@/components/users/AgentTerritoriesSect
 import { TransferCredentialsModal } from "@/components/users/TransferCredentialsModal";
 import { ROLES, type Role } from "@contracts/types";
 
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 // The filter select carries "" for "all roles"; the list query wants no role at all.
 const isRole = (value: string): value is Role => ROLES.some(r => r === value);
 
@@ -248,6 +250,10 @@ function ResetPasswordModal({ userId, userName, onClose, lang }: {
 export default function Users() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
+  // Поле ввода остаётся мгновенным, а в запрос уходит придержанное
+  // значение: иначе каждая буква — это новый ключ запроса, у которого
+  // ещё нет данных, и страница успевает смениться скелетоном.
+  const debouncedSearch = useDebouncedValue(search);
   const [role, setRole] = useState("");
   const [showInvite, setShowInvite] = useState(false);
   const [resetUser, setResetUser] = useState<{ id: number; name: string } | null>(null);
@@ -258,8 +264,13 @@ export default function Users() {
 
   const { data, isLoading, isError, refetch } = trpc.user.list.useQuery({
     page, pageSize: 25,
-    search: search || undefined,
+    search: debouncedSearch || undefined,
     role: isRole(role) ? role : undefined,
+  }, {
+    // Прошлый список остаётся на экране, пока грузится новый: без этого
+    // смена запроса обнуляет data, и страница падает в скелетон на каждый
+    // ввод — именно это и выглядело как перезагрузка.
+    placeholderData: keepPreviousData,
   });
   const utils = trpc.useUtils();
   const { confirm, dialog } = useConfirm();

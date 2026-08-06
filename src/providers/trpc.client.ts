@@ -30,10 +30,21 @@ export const queryClient = new QueryClient({
     queries: {
       retry: false,
       refetchOnWindowFocus: false,
-      staleTime: 30_000,          // Don't refetch within 30s — eliminates 60-80% redundant calls
-      gcTime: 5 * 60_000,        // Keep cache for 5 min after unmount
-      refetchOnMount: false,      // Use cached data on mount if fresh
-      refetchOnReconnect: false,  // Don't refetch on network reconnect
+      staleTime: 30_000,          // Не перезапрашивать в течение 30 с — снимает основную часть повторов
+      gcTime: 5 * 60_000,        // Держать кэш 5 минут после размонтирования
+      // refetchOnMount оставлен по умолчанию (true) намеренно.
+      //
+      // Со значением false запрос, помеченный устаревшим через invalidate, при
+      // следующем монтировании отдавал старые данные и НЕ обновлялся никогда.
+      // Отсюда шло «добавил магазин — в новом заказе его нет, помогает только
+      // Ctrl+Shift+R»: жёсткая перезагрузка выкидывала кэш целиком, а ничто
+      // другое его не трогало. Касалось это не только магазинов — так вело себя
+      // любое окно, открытое после изменения данных.
+      //
+      // Экономия при этом почти не теряется: true перезапрашивает только то,
+      // что уже считается устаревшим, а staleTime в 30 секунд и так гасит
+      // повторные обращения.
+      refetchOnReconnect: false,  // Не перезапрашивать при восстановлении сети
     },
   },
   queryCache: undefined, // will be set below

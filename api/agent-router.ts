@@ -430,6 +430,77 @@ export const agentRouter = createRouter({
       return { id: Number(result.insertId) };
     }),
 
+  /**
+   * Назначить план сразу по нескольким магазинам — обычно по целой территории.
+   *
+   * Оба клиента раньше звали createPlan в цикле, по вызову на магазин. Район на
+   * сорок магазинов — сорок мутаций подряд, и это ломалось двумя способами.
+   * Первый: у любого уже запланированного магазина createPlan бросает ошибку,
+   * цикл обрывается на середине, часть планов создана, супервайзер видит только
+   * отказ и не знает, что именно записалось. Второй: сорок мутаций за секунды
+   * съедают лимит мутаций, и вторая территория за смену просто не назначается.
+   *
+   * Здесь один вызов: проверка принадлежности арендатору одним запросом,
+   * поиск уже существующих планов одним запросом, вставка остальных одной
+   * вставкой. Уже назначенный магазин — не ошибка, а пропуск: назначить
+   * территорию, где часть точек уже в плане, это нормальное действие, а не
+   * промах пользователя. Сколько записано и сколько пропущено, возвращается,
+   * чтобы клиент мог сказать это словами.
+   */
+  createPlans: supervisorQuery
+    .input(z.object({
+      agentId: z.number(),
+      shopIds: z.array(z.number()).min(1).max(500),
+      planDate: z.string(),
+      notes: z.string().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+      const planDate = new Date(input.planDate);
+      if (Number.isNaN(planDate.getTime())) throw new Error("Некорректная дата плана");
+
+      const [agent] = await db.select({ id: users.id }).from(users)
+        .where(and(eq(users.id, input.agentId), eq(users.tenantId, ctx.tenant.id))).limit(1);
+      if (!agent) throw new Error("Агент не найден в вашем тенанте");
+
+      // Принадлежность проверяется по всем магазинам сразу, и дальше в работу
+      // идут только подтверждённые: чужой id из списка молча отбрасывается,
+      // а не создаёт план на магазин другого арендатора.
+      const uniqueShopIds = [...new Set(input.shopIds)];
+      const ownShops = await db.select({ id: shops.id }).from(shops)
+        .where(and(inArray(shops.id, uniqueShopIds), eq(shops.tenantId, ctx.tenant.id)));
+      if (ownShops.length === 0) throw new Error("Магазины не найдены в вашем тенанте");
+
+      const existing = await db.select({ shopId: dailyPlans.shopId }).from(dailyPlans)
+        .where(and(
+          eq(dailyPlans.tenantId, ctx.tenant.id),
+          eq(dailyPlans.agentId, input.agentId),
+          eq(dailyPlans.planDate, planDate),
+          inArray(dailyPlans.shopId, ownShops.map(s => s.id)),
+        ));
+      const alreadyPlanned = new Set(existing.map(e => e.shopId));
+
+      const toInsert = ownShops
+        .filter(s => !alreadyPlanned.has(s.id))
+        .map(s => ({
+          tenantId:  ctx.tenant.id,
+          agentId:   input.agentId,
+          shopId:    s.id,
+          planDate,
+          notes:     input.notes ? sanitizeString(input.notes) : null,
+          createdBy: ctx.user.id,
+        }));
+
+      if (toInsert.length > 0) await db.insert(dailyPlans).values(toInsert);
+
+      return {
+        created: toInsert.length,
+        skipped: alreadyPlanned.size,
+        // Сколько id клиент прислал зря — чужие или несуществующие.
+        notFound: uniqueShopIds.length - ownShops.length,
+      };
+    }),
+
   // Агент может добавить новый магазин — автоматически привязывается к нему
   createShop: fieldSalesQuery
     .input(z.object({

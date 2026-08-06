@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import { keepPreviousData } from "@tanstack/react-query";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -16,6 +17,7 @@ import type { ShopKpiStats } from "@/components/shops/ShopStats";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { COLORS } from "@/components/shops/constants";
 
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 export default function Shops() {
   const { lang } = useLang();
   const { fmt } = useCurrency();
@@ -24,6 +26,10 @@ export default function Shops() {
 
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
+  // Поле ввода остаётся мгновенным, а в запрос уходит придержанное
+  // значение: иначе каждая буква — это новый ключ запроса, у которого
+  // ещё нет данных, и страница успевает смениться скелетоном.
+  const debouncedSearch = useDebouncedValue(search);
   const [city, setCity] = useState<string | undefined>(undefined);
   const [district, setDistrict] = useState<string | undefined>(undefined);
   const [agentFilter, setAgentFilter] = useState<string | undefined>(undefined);
@@ -36,7 +42,12 @@ export default function Shops() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [viewMode, setViewMode] = useState<"territories" | "list">("territories");
 
-  const { data, isLoading, isError, refetch } = trpc.shop.list.useQuery({ page, pageSize: 25, search: search || undefined, city, district, agentId: agentFilter ? Number(agentFilter) : undefined, territoryId: territoryFilter, onlyDebtors: onlyDebtors || undefined, sortBy });
+  const { data, isLoading, isError, refetch } = trpc.shop.list.useQuery({ page, pageSize: 25, search: debouncedSearch || undefined, city, district, agentId: agentFilter ? Number(agentFilter) : undefined, territoryId: territoryFilter, onlyDebtors: onlyDebtors || undefined, sortBy }, {
+    // Прошлый список остаётся на экране, пока грузится новый: без этого
+    // смена запроса обнуляет data, и страница падает в скелетон на каждый
+    // ввод — именно это и выглядело как перезагрузка.
+    placeholderData: keepPreviousData,
+  });
   const { data: territories } = trpc.shop.territories.useQuery();
   const { data: realTerritories } = trpc.territory.list.useQuery();
   const { data: usersData } = trpc.user.list.useQuery({ page: 1, pageSize: 100 });

@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import { keepPreviousData } from "@tanstack/react-query";
 import { createPortal } from "react-dom";
 import { trpc } from "@/providers/trpc";
 import { useWarehouse } from "@/providers/WarehouseContext";
@@ -19,6 +20,7 @@ import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { formatQty } from "@/lib/format";
 import { colorMix } from "@/lib/color-mix";
 
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 // warehouseMulti.getStock is raw SQL behind db.execute, so tRPC infers its rows
 // as `unknown` — these two mirror the SELECT lists in that procedure. Decimal
 // columns arrive from mysql2 as strings, COUNT() as numbers.
@@ -55,6 +57,10 @@ export default function Warehouse() {
   const { selectedId: warehouseId } = useWarehouse();
 
   const [search, setSearch] = useState("");
+  // Поле ввода остаётся мгновенным, а в запрос уходит придержанное
+  // значение: иначе каждая буква — это новый ключ запроса, у которого
+  // ещё нет данных, и страница успевает смениться скелетоном.
+  const debouncedSearch = useDebouncedValue(search);
   // `unit` is captured for the adjust dialog, which today renders quantities
   // without a unit label — AdjustModal takes no unit prop yet.
   const [adjusting, setAdjusting] = useState<{ id: number; name: string; stock: number; unit: string; unitWeight: number } | null>(null);
@@ -63,7 +69,12 @@ export default function Warehouse() {
   const [showLowStock, setShowLowStock] = useState(false);
 
 
-  const { data, isLoading, isError, refetch } = trpc.warehouseMulti.getStock.useQuery({ warehouseId: warehouseId ?? undefined, search: search || undefined, pageSize: 10000 });
+  const { data, isLoading, isError, refetch } = trpc.warehouseMulti.getStock.useQuery({ warehouseId: warehouseId ?? undefined, search: debouncedSearch || undefined, pageSize: 10000 }, {
+    // Прошлый список остаётся на экране, пока грузится новый: без этого
+    // смена запроса обнуляет data, и страница падает в скелетон на каждый
+    // ввод — именно это и выглядело как перезагрузка.
+    placeholderData: keepPreviousData,
+  });
   const { data: valuation, isLoading: valLoading } = trpc.warehouse.valuation.useQuery();
   const { data: reorderSuggestions } = trpc.warehouse.reorderSuggestions.useQuery();
   const { data: deadStockItems, isLoading: deadStockLoading } = trpc.warehouse.deadStock.useQuery({ days: deadStockDays });
