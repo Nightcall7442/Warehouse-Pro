@@ -13,9 +13,19 @@ interface Props {
 
 export const ConfirmDialog = memo(function ConfirmDialog({ title, message, confirmText = "Confirm", danger = false, onConfirm, onCancel }: Props) {
   useEffect(() => {
-    const prev = document.body.style.overflow;
+    const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = prev; };
+    // Radix Select/DropdownMenu, закрываясь ровно в тот момент, когда открывается
+    // это подтверждение, оставляет на <body> инлайновый pointer-events:none.
+    // Диалог — это портал ВНУТРИ body, поэтому он наследует none и перестаёт
+    // ловить клики: кнопки не нажимаются, а весь экран мёртв до перезагрузки.
+    // Снимаем залипший стиль при открытии и не восстанавливаем его при закрытии —
+    // «none» на body после закрытого меню никому не нужен и есть сам баг.
+    document.body.style.pointerEvents = "";
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.body.style.pointerEvents = "";
+    };
   }, []);
 
   const content = (
@@ -23,6 +33,9 @@ export const ConfirmDialog = memo(function ConfirmDialog({ title, message, confi
       position: "fixed",
       inset: 0,
       zIndex: 99999,
+      // Явный auto перекрывает возможный pointer-events:none, унаследованный от
+      // body: диалог остаётся кликабельным, что бы ни оставил после себя Radix.
+      pointerEvents: "auto",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
