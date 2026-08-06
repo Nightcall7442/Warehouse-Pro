@@ -230,3 +230,50 @@ describe("list caches key on everything that changes the result", () => {
     expect(call.slice(0, 120)).toMatch(/page,\s*pageSize/);
   });
 });
+
+/**
+ * A field agent sees their own work, and the totals above it must agree.
+ *
+ * OrderService.list has always narrowed to the caller for non-privileged roles.
+ * order.stats and dashboard.revenueTrend did not, so an agent's Orders page
+ * listed their own orders under tiles counting the whole company, and the
+ * sparkline on their phone's home screen drew the company's daily revenue.
+ * Two numbers on one screen disagreeing is how this stayed unnoticed: it reads
+ * as a rendering quirk rather than as a leak.
+ */
+describe("per-agent scoping matches between a list and its totals", () => {
+  const PRIVILEGED = /\["ceo", "operator", "supervisor", "superadmin"\]/;
+
+  it("OrderService.list narrows to the caller", () => {
+    const src = api("services/order.ts");
+    expect(src).toMatch(PRIVILEGED);
+    expect(src).toMatch(/eq\(orders\.agentId,\s*opts\.userId\)/);
+  });
+
+  it.each([
+    ["order-router.ts", "stats"],
+    ["dashboard-router.ts", "revenueTrend"],
+  ])("%s.%s narrows the same way", (file, name) => {
+    const src = api(file);
+    const start = src.indexOf(`  ${name}:`);
+    expect(start, `${name} not found`).toBeGreaterThan(-1);
+    const next = src.slice(start + 1).search(/\n {2}[a-zA-Z][a-zA-Z0-9]*:\s*\w+Query/);
+    const body = next === -1 ? src.slice(start) : src.slice(start, start + 1 + next);
+
+    expect(body, `${name}: no role check`).toMatch(PRIVILEGED);
+    expect(body, `${name}: not narrowed to the caller`).toMatch(/eq\(orders\.agentId,\s*ctx\.user\.id\)/);
+  });
+
+  // The caller passes agentId/agentIds to filter within what they may see. If
+  // that were applied instead of the self-scoping rather than on top of it, an
+  // agent could name a colleague and read their numbers.
+  it("a caller-supplied agentId cannot replace the self-scoping", () => {
+    const src = api("order-router.ts");
+    const start = src.indexOf("  stats:");
+    const body = src.slice(start, src.indexOf("\n  list:", start));
+    const selfScope = body.indexOf("eq(orders.agentId, ctx.user.id)");
+    const supplied = body.indexOf("input?.agentIds");
+    expect(selfScope).toBeGreaterThan(-1);
+    expect(supplied).toBeGreaterThan(selfScope);
+  });
+});

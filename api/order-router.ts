@@ -24,6 +24,15 @@ export const orderRouter = createRouter({
       const tenantId = ctx.tenant.id;
       const conditions = [eq(orders.tenantId, tenantId), isNull(orders.deletedAt)];
 
+      // The same narrowing OrderService.list applies. Without it the tiles above
+      // the Orders table counted the whole company while the table below them
+      // listed only the agent's own work — both a leak of company revenue to a
+      // field agent and a visible disagreement between two numbers on one
+      // screen. A caller-supplied agentId cannot widen this: it is pushed after.
+      if (!["ceo", "operator", "supervisor", "superadmin"].includes(ctx.user.role)) {
+        conditions.push(eq(orders.agentId, ctx.user.id));
+      }
+
       if (input?.status) conditions.push(eq(orders.status, input.status as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned"));
       if (input?.agentIds?.length) conditions.push(inArray(orders.agentId, input.agentIds));
       else if (input?.agentId) conditions.push(eq(orders.agentId, input.agentId));

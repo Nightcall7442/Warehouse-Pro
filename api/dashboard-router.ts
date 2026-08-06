@@ -164,7 +164,17 @@ export const dashboardRouter = createRouter({
         revenue: sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'delivered' THEN ${orders.total} ELSE 0 END), 0)`,
       })
         .from(orders)
-        .where(and(eq(orders.tenantId, tenantId), sinceDay(orders.createdAt, startDate), isNull(orders.deletedAt)))
+        .where(and(
+          eq(orders.tenantId, tenantId),
+          sinceDay(orders.createdAt, startDate),
+          isNull(orders.deletedAt),
+          // This feeds the sparkline on the agent's own home screen, and the
+          // guard admits agents. Unscoped, every agent's phone drew the
+          // company's daily revenue.
+          ...(["ceo", "operator", "supervisor", "superadmin"].includes(ctx.user.role)
+            ? []
+            : [eq(orders.agentId, ctx.user.id)]),
+        ))
         .groupBy(sql`DATE(${orders.createdAt})`)
         .orderBy(sql`DATE(${orders.createdAt})`);
 
