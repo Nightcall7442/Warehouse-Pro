@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createRouter, operatorQuery, authedQuery, supervisorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { salesTargets, users, orders, dailyPlans } from "@db/schema";
-import { eq, and, gte, lte, sql, desc , inArray } from "drizzle-orm";
+import { eq, and, gte, lte, sql, desc, inArray, type SQL } from "drizzle-orm";
 import { REVENUE_ORDER_STATUSES } from "./lib/order-status";
 import { cache, CacheKeys } from "./lib/cache";
 import { suggestQuotas } from "./services/quota-suggest";
@@ -234,12 +234,11 @@ export const salesTargetRouter = createRouter({
       const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split("T")[0];
 
       const [target] = await db.select({
+        shopId: salesTargets.shopId,
+        periodEnd: salesTargets.periodEnd,
         targetAmount: salesTargets.targetAmount,
-        actualAmount: salesTargets.actualAmount,
         orderCountTarget: salesTargets.orderCountTarget,
-        actualOrderCount: salesTargets.actualOrderCount,
         visitTarget: salesTargets.visitTarget,
-        actualVisitPct: salesTargets.actualVisitPct,
       }).from(salesTargets)
         .where(and(
           eq(salesTargets.tenantId, ctx.tenant.id),
@@ -251,12 +250,50 @@ export const salesTargetRouter = createRouter({
 
       if (!target) return null;
 
+      // Progress is computed here rather than read from the stored actual_*
+      // columns. Those are only ever filled in by recalculateActuals, which an
+      // operator has to trigger by hand — so an agent opening their own plan
+      // would be shown whatever was last computed, quite possibly zero, which
+      // is worse than showing nothing. The stored columns still serve the
+      // operator-facing list views, where one query covers every agent.
+      const periodEnd = target.periodEnd ?? monthEnd;
+      // Dates are compared through sql`` rather than gte/lte: these columns are
+      // timestamps and the bounds are date strings, which is the idiom the rest
+      // of the codebase (OrderService.list) already uses for exactly this.
+      const orderConditions: SQL[] = [
+        eq(orders.tenantId, ctx.tenant.id),
+        eq(orders.agentId, ctx.user.id),
+        inArray(orders.status, REVENUE_ORDER_STATUSES),
+        sql`${orders.createdAt} >= ${monthStart}`,
+        sql`${orders.createdAt} <= ${periodEnd + " 23:59:59"}`,
+      ];
+      if (target.shopId) orderConditions.push(eq(orders.shopId, target.shopId));
+
+      const [[orderStats], [visitStats]] = await Promise.all([
+        db.select({
+          total: sql<string>`COALESCE(SUM(CAST(${orders.total} AS DECIMAL(14,2))), 0)`,
+          count: sql<string>`COUNT(*)`,
+        }).from(orders).where(and(...orderConditions)),
+        db.select({
+          total: sql<string>`COUNT(*)`,
+          completed: sql<string>`SUM(CASE WHEN ${dailyPlans.status} = 'visited' THEN 1 ELSE 0 END)`,
+        }).from(dailyPlans).where(and(
+          eq(dailyPlans.tenantId, ctx.tenant.id),
+          eq(dailyPlans.agentId, ctx.user.id),
+          sql`${dailyPlans.planDate} >= ${monthStart}`,
+          sql`${dailyPlans.planDate} <= ${periodEnd}`,
+        )),
+      ]);
+
       const revenueTarget = Number(target.targetAmount);
-      const revenueActual = Number(target.actualAmount);
+      const revenueActual = Number(orderStats?.total ?? 0);
       const orderTarget = target.orderCountTarget ?? 0;
-      const orderActual = target.actualOrderCount;
+      const orderActual = Number(orderStats?.count ?? 0);
       const visitTgt = target.visitTarget ? Number(target.visitTarget) : 0;
-      const visitAct = Number(target.actualVisitPct);
+      const plannedVisits = Number(visitStats?.total ?? 0);
+      const visitAct = plannedVisits > 0
+        ? (Number(visitStats?.completed ?? 0) / plannedVisits) * 100
+        : 0;
 
       return {
         revenue: {
@@ -275,6 +312,17 @@ export const salesTargetRouter = createRouter({
           pct: visitTgt > 0 ? Math.min(100, Math.round(visitAct)) : 0,
         },
         month: monthStart,
+        // How far into the month we are. A bare percentage doesn't tell an
+        // agent whether they are on course — 60% is comfortable on day 25 and
+        // alarming on day 5 — and the client can't derive this safely, since
+        // the device clock and timezone need not agree with the server's.
+        daysTotal: new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate(),
+        daysElapsed: Math.min(
+          new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate(),
+          new Date().getFullYear() === now.getFullYear() && new Date().getMonth() === now.getMonth()
+            ? new Date().getDate()
+            : new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate(),
+        ),
       };
     }),
 
