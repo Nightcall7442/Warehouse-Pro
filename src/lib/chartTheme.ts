@@ -21,7 +21,7 @@ export const CHART_PALETTE = [
   CHART_COLORS.primary,
   CHART_COLORS.teal,
   CHART_COLORS.coral,
-  CHART_COLORS.amber,
+  CHART_COLORS.warning,
   CHART_COLORS.info,
   CHART_COLORS.purple,
   CHART_COLORS.success,

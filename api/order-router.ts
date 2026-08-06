@@ -1,7 +1,6 @@
 import { z } from "zod";
-import { createRouter, operatorQuery, fieldSalesQuery, adminQuery } from "./middleware";
+import { createRouter, operatorQuery, fieldSalesQuery } from "./middleware";
 import { OrderService } from "./services/order";
-import { cache, CacheKeys } from "./lib/cache";
 import { getDb } from "./queries/connection";
 import { savedFilters, orderComments, shops, payments, users, orders } from "@db/schema";
 import { eq, and, or, desc, sql, isNull, inArray } from "drizzle-orm";
@@ -313,7 +312,10 @@ export const orderRouter = createRouter({
         includeNotes: z.boolean().default(true),
         pageBreakPerOrder: z.boolean().default(true),
         sortBy: z.enum(["orderNumber", "shop", "agentRoute"]).default("orderNumber"),
-      }).default({}),
+        // `prefault`, not `default`: zod 4's `default` hands the literal `{}`
+        // straight back without running the schema, so an omitted `options`
+        // arrived with every flag undefined instead of the defaults above.
+      }).prefault({}),
     }))
     .mutation(async ({ input, ctx }) => {
       const result = await OrderService.batchGetOrdersForPrint(ctx.db, ctx.tenant.id, input.orderIds);
@@ -394,7 +396,7 @@ export const orderRouter = createRouter({
         includeWeight: z.boolean().default(true),
         includeTotalWeight: z.boolean().default(true),
         includeRouteMap: z.boolean().default(false),
-      }).default({}),
+      }).prefault({}),
     }))
     .mutation(async ({ input, ctx }) => {
       return OrderService.createLoadingList(ctx.db, ctx.tenant.id, ctx.user.id, input);
@@ -423,7 +425,7 @@ export const orderRouter = createRouter({
   saveFilter: fieldSalesQuery
     .input(z.object({
       name: z.string().min(1).max(100),
-      config: z.record(z.unknown()),
+      config: z.record(z.string(), z.unknown()),
       isDefault: z.boolean().default(false),
     }))
     .mutation(async ({ input, ctx }) => {

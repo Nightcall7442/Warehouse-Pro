@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import type { ComponentProps } from "react";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import {
@@ -18,6 +19,8 @@ import { ErrorLogViewer } from "@/components/monitoring/ErrorLogViewer";
 import { RealTimeMetrics } from "@/components/monitoring/RealTimeMetrics";
 
 const REFRESH_INTERVAL = 3_000;
+
+type ChartPoint = ComponentProps<typeof PerformanceCharts>["chartData"][number];
 
 // ── Keyframes ─────────────────────────────────────────────────────────────────
 const slideUpKeyframe = `
@@ -39,6 +42,7 @@ if (typeof document !== "undefined" && !document.getElementById("monitoring-keyf
 export default function Monitoring() {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [selectedErrorId, setSelectedErrorId] = useState<string | null>(null);
+  const utils = trpc.useUtils();
 
   const { data, isLoading, refetch, isRefetching } = trpc.system.status.useQuery(undefined, {
     refetchInterval: autoRefresh ? REFRESH_INTERVAL : false,
@@ -73,15 +77,25 @@ export default function Monitoring() {
     onSuccess: (data) => notify.success(`Очищено ${data.purged} ошибок, осталось ${data.remaining}`),
   });
 
-  const checkAlertsMutation = trpc.system.checkAlerts.useMutation({
-    onSuccess: (data) => {
-      if (data.alerts.length > 0) {
-        notify.error(`Алерты: ${data.alerts.join(", ")}`);
+  // checkAlerts is a query on the server, so it is fetched on demand rather than
+  // mutated. staleTime: 0 overrides the global 30s window — every press must
+  // re-evaluate the thresholds instead of replaying a cached verdict.
+  const [checkingAlerts, setCheckingAlerts] = useState(false);
+  const runAlertCheck = async () => {
+    setCheckingAlerts(true);
+    try {
+      const result = await utils.system.checkAlerts.fetch(undefined, { staleTime: 0 });
+      if (result.alerts.length > 0) {
+        notify.error(`Алерты: ${result.alerts.join(", ")}`);
       } else {
         notify.success("Все нормально — алертов нет");
       }
-    },
-  });
+    } catch (e) {
+      notify.error(e instanceof Error ? e.message : "Не удалось проверить алерты");
+    } finally {
+      setCheckingAlerts(false);
+    }
+  };
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
@@ -102,7 +116,7 @@ export default function Monitoring() {
     const errData = data.series.errors_per_sec?.data ?? [];
     const heapData = data.series.heap_used_mb?.data ?? [];
 
-    const tsMap = new Map<number, unknown>();
+    const tsMap = new Map<number, ChartPoint>();
     const fmtTime = (ts: number) => new Date(ts).toLocaleTimeString("ru", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
     for (const d of reqData) {
@@ -194,12 +208,12 @@ export default function Monitoring() {
           }}>
             <RefreshCw size={12} style={{ animation: isRefetching ? "spin 1s linear infinite" : undefined }} /> Обновить
           </button>
-          <button onClick={() => checkAlertsMutation.mutate()} disabled={checkAlertsMutation.isPending} style={{
+          <button onClick={runAlertCheck} disabled={checkingAlerts} style={{
             display: "flex", alignItems: "center", gap: "6px", padding: "6px 12px",
             borderRadius: "8px", fontSize: "12px", fontWeight: 600, fontFamily: F.body,
             background: COLORS.surface, color: COLORS.textSecondary,
             border: `1px solid ${COLORS.border}`, cursor: "pointer",
-            opacity: checkAlertsMutation.isPending ? 0.4 : 1, transition: "all 0.2s",
+            opacity: checkingAlerts ? 0.4 : 1, transition: "all 0.2s",
           }}>
             <AlertCircle size={12} /> Проверить алерты
           </button>

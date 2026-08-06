@@ -1,6 +1,6 @@
 import { eq, and, or, desc, sql, isNull, isNotNull, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
-import { orders, orderItems, warehouseStock, shops, users, products, notifications, warehouses, payments, loadingLists, loadingListOrders, auditLog, debtReminders, orderAdjustments, territories, returns, returnItems } from "@db/schema";
+import { orders, orderItems, warehouseStock, shops, users, products, notifications, warehouses, payments, loadingLists, loadingListOrders, debtReminders, orderAdjustments, territories, returns, returnItems } from "@db/schema";
 import { recalcShopDebt } from "./shop-debt";
 import { OPEN_ORDER_STATUSES, CLOSED_ORDER_STATUSES, holdsStock, deductsStock } from "../lib/order-status";
 import { recordStockMovement } from "./stock-ledger";

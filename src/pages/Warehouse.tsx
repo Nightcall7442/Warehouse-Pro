@@ -19,6 +19,32 @@ import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { formatQty } from "@/lib/format";
 import { colorMix } from "@/lib/color-mix";
 
+// warehouseMulti.getStock is raw SQL behind db.execute, so tRPC infers its rows
+// as `unknown` — these two mirror the SELECT lists in that procedure. Decimal
+// columns arrive from mysql2 as strings, COUNT() as numbers.
+type StockRow = {
+  id: number;
+  productId: number;
+  currentStock: string;
+  reserved: string;
+  available: string;
+  productName: string;
+  productCode: string;
+  category: string | null;
+  unit: "kg" | "l" | "pcs" | "box" | "pack" | "m" | "block";
+  unitWeight: string;
+  unitPrice: string;
+  // blanked by the procedure for roles that may not see the buying price
+  costPrice: string | undefined;
+  reorderPoint: string;
+};
+
+type StockSummary = {
+  totalSKUs: number;
+  totalWeight: string;
+  lowStockCount: number;
+};
+
 // ── Main warehouse page ───────────────────────────────────────────────────────
 export default function Warehouse() {
   const { fmt } = useCurrency();
@@ -29,6 +55,8 @@ export default function Warehouse() {
   const { selectedId: warehouseId } = useWarehouse();
 
   const [search, setSearch] = useState("");
+  // `unit` is captured for the adjust dialog, which today renders quantities
+  // without a unit label — AdjustModal takes no unit prop yet.
   const [adjusting, setAdjusting] = useState<{ id: number; name: string; stock: number; unit: string; unitWeight: number } | null>(null);
   const [activeTab, setActiveTab] = useState<"stock" | "deadstock" | "reorder">("stock");
   const [deadStockDays, setDeadStockDays] = useState(30);
@@ -87,7 +115,8 @@ export default function Warehouse() {
     onError: (e) => notify.error(e.message),
   });
 
-  const summary = data?.summary;
+  const stock = data?.data as StockRow[] | undefined;
+  const summary = data?.summary as StockSummary | undefined;
   const lowCount = Number(summary?.lowStockCount ?? 0);
 
   const kpis = useMemo(() => [
@@ -115,7 +144,6 @@ export default function Warehouse() {
             productId={adjusting.id}
             productName={adjusting.name}
             currentStock={adjusting.stock}
-            unit={adjusting.unit}
             unitWeight={adjusting.unitWeight}
             warehouseId={warehouseId ?? undefined}
             onSave={d => adjustMutation.mutate(d as Parameters<typeof adjustMutation.mutate>[0])}
@@ -201,11 +229,11 @@ export default function Warehouse() {
                 {deleteAllMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                 {t("Удалить все", "Hammasini o'chirish")}
               </button>
-              <button onClick={async () => data?.data && await exportToExcel(formatWarehouseForExport(data.data), "warehouse-stock", "Склад", t("Остатки склада", "Ombor qoldiqlari"))}
+              <button onClick={async () => stock && await exportToExcel(formatWarehouseForExport(stock), "warehouse-stock", "Склад", t("Остатки склада", "Ombor qoldiqlari"))}
                 className="neo-btn-primary flex items-center gap-2 text-sm py-2 px-5">
                 <FileDown size={16} /> {t("Остатки", "Qoldiqlar")}
               </button>
-              <button onClick={async () => data?.data && await exportToExcel(formatStockValuationForExport(data.data), "stock-valuation", "Оценка склада", t("Оценка стоимости склада", "Ombor qiymati"))}
+              <button onClick={async () => stock && await exportToExcel(formatStockValuationForExport(stock), "stock-valuation", "Оценка склада", t("Оценка стоимости склада", "Ombor qiymati"))}
                 className="neo-btn flex items-center gap-2 text-sm py-2 px-5">
                 <FileDown size={16} /> {t("Оценка", "Qiymat")}
               </button>
@@ -315,7 +343,7 @@ export default function Warehouse() {
                 ? Array.from({ length: 4 }).map((_, i) => (
                     <div key={i} className="h-28 rounded-2xl animate-pulse" style={{ background: "var(--color-surface-light, #f6f4f0)" }} />
                   ))
-                : data?.data.map((item) => {
+                : stock?.map((item) => {
                     const low = Number(item.available ?? 0) < Number(item.reorderPoint ?? 0);
                     return (
                       <div key={item.id} className="rounded-2xl overflow-hidden"
@@ -384,11 +412,11 @@ export default function Warehouse() {
                           <div className="h-5 rounded-lg animate-pulse" style={{ background: "var(--color-surface-light, #f6f4f0)" }} />
                         </td></tr>
                       ))
-                    : data?.data.length === 0
+                    : stock?.length === 0
                     ? <tr><td colSpan={9} className="text-center py-16 text-sm" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
                         {t("Нет товаров на складе","Omborda mahsulot yo'q")}
                       </td></tr>
-                    : data?.data.map((item) => {
+                    : stock?.map((item) => {
                         const low = Number(item.available ?? 0) < Number(item.reorderPoint ?? 0);
                         return (
                           <tr key={item.id} style={low ? { background: "rgba(232,80,80,0.03)" } : undefined}>
@@ -613,8 +641,8 @@ export default function Warehouse() {
                           </span>
                         </div>
                         <div className="flex items-center justify-between text-xs" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
-                          <span>{t("Остаток:", "Qoldiq:")} {formatQty(item.currentStock)} / {formatQty(item.reorderPoint, 0)} {unitLabel(item.unit, lang)}</span>
-                          <span className="font-semibold" style={{ color: badgeColor }}>+{item.suggestedQty} {unitLabel(item.unit, lang)}</span>
+                          <span>{t("Остаток:", "Qoldiq:")} {formatQty(item.currentStock)} / {formatQty(item.reorderPoint, 0)} {unitLabel(item.unit ?? undefined, lang)}</span>
+                          <span className="font-semibold" style={{ color: badgeColor }}>+{item.suggestedQty} {unitLabel(item.unit ?? undefined, lang)}</span>
                         </div>
                       </div>
                     </div>
@@ -651,10 +679,10 @@ export default function Warehouse() {
                           </div>
                         </td>
                         <td className="px-5 py-3.5 text-sm font-bold" style={{ color: badgeColor, fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
-                          {formatQty(item.currentStock)} {unitLabel(item.unit, lang)}
+                          {formatQty(item.currentStock)} {unitLabel(item.unit ?? undefined, lang)}
                         </td>
                         <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
-                          {formatQty(item.reorderPoint, 0)} {unitLabel(item.unit, lang)}
+                          {formatQty(item.reorderPoint, 0)} {unitLabel(item.unit ?? undefined, lang)}
                         </td>
                         <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-secondary, #5e5b54)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                           {item.avgDailySales}
@@ -666,7 +694,7 @@ export default function Warehouse() {
                           </span>
                         </td>
                         <td className="px-5 py-3.5 text-sm font-bold" style={{ color: badgeColor, fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
-                          +{item.suggestedQty} {unitLabel(item.unit, lang)}
+                          +{item.suggestedQty} {unitLabel(item.unit ?? undefined, lang)}
                         </td>
                         <td className="px-5 py-3.5 text-sm font-bold" style={{ color: "var(--color-text-primary, #2b2a28)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                           {fmt(Number(item.suggestedCost ?? 0).toFixed(0))}

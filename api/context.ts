@@ -1,6 +1,6 @@
 import type { FetchCreateContextFnOptions } from "@trpc/server/adapters/fetch";
-import type { User, Tenant } from "@db/schema";
-import { authenticateRequest } from "./auth";
+import type { Tenant } from "@db/schema";
+import { authenticateRequest, type AuthenticatedUser } from "./auth";
 import { getDb } from "./queries/connection";
 
 type DrizzleInstance = ReturnType<typeof getDb>;
@@ -8,7 +8,7 @@ type DrizzleInstance = ReturnType<typeof getDb>;
 export type TrpcContext = {
   req:        Request;
   resHeaders: Headers;
-  user?:      User;
+  user?:      AuthenticatedUser;
   tenant?:    Tenant;
   correlationId?: string;
   db:         DrizzleInstance;

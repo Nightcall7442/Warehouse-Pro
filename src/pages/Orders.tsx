@@ -175,7 +175,7 @@ export default function Orders() {
     agentIds: agentFilter.length > 0 ? agentFilter.map(Number) : undefined,
   });
 
-  const { data: allOrders, refetch: refetchAllOrders } = trpc.order.list.useQuery(
+  const { refetch: refetchAllOrders } = trpc.order.list.useQuery(
     { page: 1, pageSize: 5000, showDeleted: false, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined },
     { enabled: false }
   );
@@ -331,8 +331,6 @@ export default function Orders() {
     exportToPDF(`Заказы ${dateFrom} — ${dateTo}`, html);
   }, [refetchAllOrders, dateFrom, dateTo]);
 
-  const handleNewOrder = useCallback(() => navigate("/orders/new"), [navigate]);
-
   const allVisibleIds = useMemo(() => (data?.data ?? []).map(o => o.id as number), [data]);
   const allSelected = allVisibleIds.length > 0 && allVisibleIds.every(id => selected.has(id));
 
@@ -357,23 +355,6 @@ export default function Orders() {
       return next;
     });
   }, [allSelected, allVisibleIds]);
-
-  const selectedNewIds = useMemo(
-    () => (data?.data ?? []).filter(o => selected.has(o.id as number) && o.status === "new").map(o => o.id as number),
-    [data, selected],
-  );
-  const selectedProcessingIds = useMemo(
-    () => (data?.data ?? []).filter(o => selected.has(o.id as number) && o.status === "processing").map(o => o.id as number),
-    [data, selected],
-  );
-
-  const handleBulkStatus = useCallback(async (ids: number[], status: string) => {
-    if (ids.length === 0) return;
-    for (const id of ids) {
-      await updateStatus.mutateAsync({ id, status });
-    }
-    clearSelection();
-  }, [updateStatus]);
 
   const handleExportSelected = useCallback(async () => {
     const result = await refetchAllOrders();
@@ -520,7 +501,12 @@ export default function Orders() {
   };
 
   const askDelete = async (id: number) => {
-    const ok = await confirm({ title: t("Удалить заказ?", "Buyurtmani o'chirish?"), danger: true, confirmText: t("Удалить", "O'chirish") });
+    const ok = await confirm({
+      title: t("Удалить заказ?", "Buyurtmani o'chirish?"),
+      message: t("Это действие нельзя отменить", "Bu amalni qaytarib bo'lmaydi"),
+      danger: true,
+      confirmText: t("Удалить", "O'chirish"),
+    });
     if (ok) deleteOrder.mutate({ id });
   };
 
@@ -1169,7 +1155,7 @@ export default function Orders() {
           unitPrice: i.unitPrice,
           unit: i.unit ?? undefined,
           subtotal: i.subtotal,
-          deliveredQuantity: i.deliveredQuantity,
+          deliveredQuantity: i.deliveredQuantity === null ? null : Number(i.deliveredQuantity),
           returnReason: i.returnReason,
         }))}
         currency={symbol}

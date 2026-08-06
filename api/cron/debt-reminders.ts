@@ -1,6 +1,6 @@
 import { getDb } from "../queries/connection";
-import { debtReminders, shops, orders, users, notifications } from "@db/schema";
-import { eq, and, sql, lt } from "drizzle-orm";
+import { debtReminders, users, notifications } from "@db/schema";
+import { eq, and, sql } from "drizzle-orm";
 import { logger } from "../lib/logger";
 
 /**
@@ -65,7 +65,7 @@ export async function runDebtReminders() {
     }).from(debtReminders)
       .where(and(
         eq(debtReminders.status, "sent"),
-        lt(debtReminders.dueDate, todayStr),
+        sql`${debtReminders.dueDate} < ${todayStr}`,
       ));
 
     for (const reminder of overdue) {

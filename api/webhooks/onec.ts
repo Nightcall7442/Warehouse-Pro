@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { getDb } from "../queries/connection";
-import { payments, shops, warehouseStock, tenants, warehouses, onecConfig } from "@db/schema";
+import { payments, shops, warehouseStock, warehouses, onecConfig } from "@db/schema";
 import { eq, and } from "drizzle-orm";
 import { OneCMapper } from "../services/onec-mapper";
 import { logger } from "../lib/logger";

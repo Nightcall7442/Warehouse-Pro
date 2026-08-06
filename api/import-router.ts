@@ -7,8 +7,17 @@ import { eq, and, sql } from "drizzle-orm";
 import { cache } from "./lib/cache";
 import { env } from "./lib/env";
 import { recordStockMovement } from "./services/stock-ledger";
+// Type-only: exceljs itself stays behind the dynamic imports below so it never
+// lands in the boot bundle.
+import type { CellValue } from "exceljs";
 
-type ParsedRow = Record<string, string | number | null>;
+/**
+ * A spreadsheet cell is whatever exceljs hands back — a string or number for
+ * the templates we publish, but also a Date, a formula result or rich text for
+ * files people actually upload. Every consumer below funnels these through
+ * String()/Number(), so the union is carried rather than narrowed here.
+ */
+type ParsedRow = Record<string, CellValue>;
 
 /** Upload base64 data URI to S3. Returns the S3 URL or empty string if S3 not configured. */
 async function uploadBase64ToS3(dataUrl: string, folder: string, tenantId: number): Promise<string> {
@@ -82,7 +91,7 @@ function mapColumns(headers: string[], mapping: Record<string, string>): Record<
   return result;
 }
 
-function parseRow(cells: (string | number | null)[], colMap: Record<string, number>): ParsedRow {
+function parseRow(cells: CellValue[], colMap: Record<string, number>): ParsedRow {
   const row: ParsedRow = {};
   for (const [field, idx] of Object.entries(colMap)) {
     row[field] = cells[idx] ?? null;
@@ -91,24 +100,28 @@ function parseRow(cells: (string | number | null)[], colMap: Record<string, numb
 }
 
 /** Parse file (CSV or XLSX) into headers + rows */
-async function parseFile(base64: string, filename: string): Promise<{ headers: string[]; rows: (string | number | null)[][] }> {
+async function parseFile(base64: string, filename: string): Promise<{ headers: string[]; rows: CellValue[][] }> {
   const isXlsx = filename.toLowerCase().endsWith(".xlsx") || filename.toLowerCase().endsWith(".xls");
 
   if (isXlsx) {
     const ExcelJS = await import("exceljs");
     const workbook = new ExcelJS.Workbook();
-    const buf = Buffer.from(base64, "base64");
-    await workbook.xlsx.load(buf);
+    const bytes = Buffer.from(base64, "base64");
+    // exceljs declares its own `Buffer extends ArrayBuffer`, so it wants the
+    // bytes themselves rather than a Node view over a pooled allocation.
+    await workbook.xlsx.load(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
     const sheet = workbook.worksheets[0];
     if (!sheet || sheet.rowCount === 0) throw new TRPCError({ code: "BAD_REQUEST", message: "Файл пуст" });
     const headers: string[] = [];
-    const rows: (string | number | null)[][] = [];
+    const rows: CellValue[][] = [];
     sheet.eachRow((row, rowNumber) => {
-      const values = row.values.slice(1); // ExcelJS row.values is 1-indexed with first element undefined
+      // `values` is typed for its setter, which also takes a keyed object; the
+      // getter always returns the 1-indexed array whose first slot is padding.
+      const values: CellValue[] = Array.isArray(row.values) ? row.values.slice(1) : [];
       if (rowNumber === 1) {
-        headers.push(...values.map((h: unknown) => String(h ?? "").trim()));
+        headers.push(...values.map(h => String(h ?? "").trim()));
       } else {
-        const filtered = values.map((c: unknown) => c ?? null);
+        const filtered = values.map(c => c ?? null);
         if (filtered.some(c => c !== null && c !== "")) {
           rows.push(filtered);
         }

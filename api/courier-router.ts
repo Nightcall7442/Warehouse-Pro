@@ -220,7 +220,7 @@ export const courierRouter = createRouter({
             WHERE product_id = ${item.productId} AND tenant_id = ${ctx.tenant.id} AND warehouse_id = ${whId}
           `);
           // If no rows affected, stock row doesn't exist — log warning but continue
-          if (result && typeof result === "object" && "affectedRows" in result && (result as Record<string, unknown>).affectedRows === 0) {
+          if (result.affectedRows === 0) {
             console.warn(`[Stock] No stock row for product ${item.productId} in tenant ${ctx.tenant.id}`);
           }
           await recordStockMovement(tx, {

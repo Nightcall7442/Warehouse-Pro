@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { createRouter, supervisorQuery, authedQuery } from "./middleware";
+import { createRouter, supervisorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { visitSchedules, dailyPlans, shops, users } from "@db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 export const scheduleRouter = createRouter({
   /** List schedules, optionally filtered by agent or shop */

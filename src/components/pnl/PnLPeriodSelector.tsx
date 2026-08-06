@@ -1,4 +1,3 @@
-import React from "react";
 import { FileDown, FileSpreadsheet } from "lucide-react";
 import { F, COLORS } from "./styles";
 

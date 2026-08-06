@@ -26,11 +26,11 @@ export default function SupervisorTracking() {
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
 
   const { data: locations, isLoading, refetch, dataUpdatedAt } = trpc.agent.getLocations.useQuery(
-    {}, { refetchInterval: 30_000 }
+    undefined, { refetchInterval: 30_000 }
   );
-  const mapRef     = useRef<unknown>(null);
+  const mapRef     = useRef<YandexMap | null>(null);
   const mapDivRef  = useRef<HTMLDivElement>(null);
-  const markersMapRef = useRef<Map<number, unknown>>(new Map());
+  const markersMapRef = useRef<Map<number, YandexPlacemark>>(new Map());
   const [selected, setSelected] = useState<number | null>(null);
   const lastUpdate = dataUpdatedAt ? new Date(dataUpdatedAt) : null;
 
@@ -38,11 +38,13 @@ export default function SupervisorTracking() {
 
   // Initialize map
   function initMap() {
-    if (!mapDivRef.current || mapRef.current) return;
-    if (!window.ymaps) return;
+    const div = mapDivRef.current;
+    const ymaps = window.ymaps;
+    if (!div || mapRef.current) return;
+    if (!ymaps) return;
 
-    window.ymaps.ready(() => {
-      const map = new window.ymaps.Map(mapDivRef.current!, {
+    ymaps.ready(() => {
+      const map = new ymaps.Map(div, {
         center: [41.2995, 69.2401],
         zoom: 11,
         controls: ["zoomControl", "fullscreenControl", "geolocationControl"],
@@ -71,11 +73,13 @@ export default function SupervisorTracking() {
 
   // Update markers when locations change
   useEffect(() => {
-    if (!window.ymaps || !mapRef.current || !locations) return;
+    const ymaps = window.ymaps;
+    const map = mapRef.current;
+    if (!ymaps || !map || !locations) return;
 
-    window.ymaps.ready(() => {
+    ymaps.ready(() => {
       // Remove old markers
-      markersMapRef.current.forEach(m => mapRef.current.geoObjects.remove(m));
+      markersMapRef.current.forEach(m => map.geoObjects.remove(m));
       markersMapRef.current = new Map();
 
       const coords: number[][] = [];
@@ -89,7 +93,7 @@ export default function SupervisorTracking() {
         const color = online ? "var(--color-success-text)" : "var(--color-text-tertiary, #6b6760)";
         const initial = (loc.agentName ?? "A")[0].toUpperCase();
 
-        const placemark = new window.ymaps.Placemark(
+        const placemark = new ymaps.Placemark(
           [lat, lng],
           {
             balloonContentHeader: `<b style="font-family:Inter,sans-serif;font-size:14px">${loc.agentName ?? t("Агент","Agent")}</b>`,
@@ -120,29 +124,33 @@ export default function SupervisorTracking() {
           }
         );
 
-        mapRef.current.geoObjects.add(placemark);
+        map.geoObjects.add(placemark);
         markersMapRef.current.set(loc.agentId, placemark);
         coords.push([lat, lng]);
       });
 
       // Fit bounds
       if (coords.length > 1) {
-        mapRef.current.setBounds(mapRef.current.geoObjects.getBounds(), {
-          checkZoomRange: true,
-          zoomMargin: 40,
-        });
+        const bounds = map.geoObjects.getBounds();
+        if (bounds) {
+          map.setBounds(bounds, {
+            checkZoomRange: true,
+            zoomMargin: 40,
+          });
+        }
       } else if (coords.length === 1) {
-        mapRef.current.setCenter(coords[0], 14);
+        map.setCenter(coords[0], 14);
       }
     });
   }, [locations]);
 
   // Focus on agent when selected from list
   useEffect(() => {
-    if (!selected || !mapRef.current || !locations) return;
+    const map = mapRef.current;
+    if (!selected || !map || !locations) return;
     const loc = locations.find((l) => l.agentId === selected);
     if (loc && Number(loc.lat) && Number(loc.lng)) {
-      mapRef.current.setCenter([Number(loc.lat), Number(loc.lng)], 15);
+      map.setCenter([Number(loc.lat), Number(loc.lng)], 15);
       // Open balloon
       const pm = markersMapRef.current.get(selected);
       if (pm) pm.balloon.open();
@@ -297,9 +305,46 @@ export default function SupervisorTracking() {
   );
 }
 
-// Yandex Maps type declarations
+// Yandex Maps type declarations — only the surface this app actually calls.
 declare global {
+  interface YandexPlacemark {
+    balloon: { open(): void };
+  }
+
+  interface YandexMap {
+    geoObjects: {
+      add(object: YandexPlacemark): void;
+      remove(object: YandexPlacemark): void;
+      /** null while the map holds no geo objects. */
+      getBounds(): number[][] | null;
+    };
+    controls: {
+      get(name: string): {
+        options: { set(options: { position: { left?: number; right?: number; top?: number; bottom?: number } }): void };
+      } | undefined;
+    };
+    setBounds(bounds: number[][], options?: { checkZoomRange?: boolean; zoomMargin?: number }): void;
+    setCenter(center: number[], zoom?: number): void;
+  }
+
+  interface YandexMaps {
+    ready(callback: () => void): void;
+    Map: new (element: HTMLElement, options: { center: number[]; zoom: number; controls?: string[] }) => YandexMap;
+    Placemark: new (
+      geometry: number[],
+      properties: { balloonContentHeader?: string; balloonContentBody?: string; hintContent?: string },
+      options: {
+        iconLayout?: string;
+        iconImageHref?: string;
+        iconImageSize?: number[];
+        iconImageOffset?: number[];
+        balloonPanelMaxMapArea?: number;
+      },
+    ) => YandexPlacemark;
+  }
+
   interface Window {
-    ymaps: unknown;
+    // Absent until the api-maps.yandex.ru script has loaded.
+    ymaps?: YandexMaps;
   }
 }

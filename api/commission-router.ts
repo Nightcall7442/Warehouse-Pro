@@ -2,7 +2,8 @@ import { z } from "zod";
 import { createRouter, operatorQuery, authedQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { commissions, users } from "@db/schema";
-import { eq, and, gte, lte, desc, isNull , inArray } from "drizzle-orm";
+import { eq, and, gte, lte, desc, isNull , inArray, sql } from "drizzle-orm";
+import { onDate } from "./lib/date-range";
 import { REVENUE_ORDER_STATUSES } from "./lib/order-status";
 import { cache, CacheKeys } from "./lib/cache";
 
@@ -68,7 +69,7 @@ export const commissionRouter = createRouter({
           eq(commissions.tenantId, ctx.tenant.id),
           eq(commissions.userId, input.userId),
           eq(commissions.periodType, "monthly"),
-          eq(commissions.periodStart, monthStart),
+          onDate(commissions.periodStart, monthStart),
         )).limit(1);
 
       if (existing) {
@@ -81,8 +82,12 @@ export const commissionRouter = createRouter({
           userId: input.userId,
           commissionRate: input.commissionRate.toFixed(2),
           periodType: "monthly",
-          periodStart: monthStart,
-          periodEnd: monthEnd,
+          // These are `date` columns, so drizzle types them as Date, but the
+          // period is keyed by the "YYYY-MM-DD" string the lookup above uses —
+          // handing the driver a Date instead would shift the stored day by the
+          // server's UTC offset and stop the two ever matching.
+          periodStart: sql`${monthStart}`,
+          periodEnd: sql`${monthEnd}`,
           salesAmount: "0.00",
           commissionAmount: "0.00",
         });
@@ -107,8 +112,8 @@ export const commissionRouter = createRouter({
         .where(and(
           eq(commissions.tenantId, ctx.tenant.id),
           eq(commissions.periodType, input.periodType),
-          gte(commissions.periodStart, input.periodStart),
-          lte(commissions.periodEnd, input.periodEnd),
+          sql`${commissions.periodStart} >= ${input.periodStart}`,
+          sql`${commissions.periodEnd} <= ${input.periodEnd}`,
         ));
 
       const { orders, returns } = await import("@db/schema");
@@ -122,7 +127,11 @@ export const commissionRouter = createRouter({
           // them by the same, later `input.periodEnd` pulled each later
           // period's sales into every earlier one — January's commission was
           // computed over Jan 1 through Dec 31.
-          const agentPeriodEndDate = new Date(agent.periodEnd + "T23:59:59");
+          // periodEnd comes back from a `date` column as a Date at midnight, so
+          // it has to be pushed to the end of that day or the last day's orders
+          // fall outside the range.
+          const agentPeriodEndDate = new Date(agent.periodEnd);
+          agentPeriodEndDate.setHours(23, 59, 59, 999);
           const [orderResult] = await db.select({
             total: sqlFn<string>`COALESCE(SUM(${orders.total}), 0)`,
           }).from(orders).where(and(

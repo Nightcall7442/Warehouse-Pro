@@ -33,7 +33,7 @@ export default function Products() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const navigate = useNavigate();
   const { data, isLoading, isError, refetch } = trpc.product.list.useQuery({ page, pageSize: 25, search: search || undefined, category });
-  const { data: allProductsData, refetch: refetchAllProducts } = trpc.product.list.useQuery({ page: 1, pageSize: 10000, includeAll: true }, { enabled: false });
+  const { refetch: refetchAllProducts } = trpc.product.list.useQuery({ page: 1, pageSize: 10000, includeAll: true }, { enabled: false });
   const { data: categories } = trpc.product.categories.useQuery();
   const utils = trpc.useUtils();
   const createMutation = trpc.product.create.useMutation({

@@ -182,10 +182,22 @@ export function exportToCSV(rows: Row[], filename: string) {
 
 // ── Форматтеры ────────────────────────────────────────────────────────────────
 
+/**
+ * Every formatter below takes rows from a different query, so a timestamp cell
+ * can arrive as a Date, an ISO string or an epoch number depending on which one
+ * produced it. Anything else is not a date and is rendered as blank rather than
+ * as "Invalid Date".
+ */
+function toDate(value: unknown): Date | null {
+  if (value instanceof Date) return value;
+  if (typeof value === "string" || typeof value === "number") return new Date(value);
+  return null;
+}
+
 export function formatOrdersForExport(orders: Record<string, unknown>[]) {
   return orders.map(o => ({
     "Заказ №":   o.orderNumber,
-    "Дата":      o.createdAt ? new Date(o.createdAt).toLocaleDateString("ru-RU") : "",
+    "Дата":      toDate(o.createdAt)?.toLocaleDateString("ru-RU") ?? "",
     "Магазин":   o.shopName ?? "",
     "Территория":o.territoryName ?? "",
     "Агент":     o.agentName ?? "",
@@ -200,7 +212,7 @@ export function formatOrdersForExport(orders: Record<string, unknown>[]) {
 export function formatArrivalsForExport(arrivals: Record<string, unknown>[]) {
   return arrivals.map(a => ({
     "Приход №":      a.arrivalNumber,
-    "Дата":          a.arrivalDate ? new Date(a.arrivalDate).toLocaleDateString("ru-RU") : "",
+    "Дата":          toDate(a.arrivalDate)?.toLocaleDateString("ru-RU") ?? "",
     "Грузовик":      a.truckId ?? "",
     "Водитель":      a.driverName ?? "",
     "Телефон":       a.driverPhone ?? "",
@@ -232,7 +244,7 @@ export function formatWarehouseForExport(stock: Record<string, unknown>[]) {
 
 export function formatMovementsForExport(movements: Record<string, unknown>[]) {
   return movements.map(m => ({
-    "Дата":      m.createdAt ? new Date(m.createdAt).toLocaleDateString("ru-RU") : "",
+    "Дата":      toDate(m.createdAt)?.toLocaleDateString("ru-RU") ?? "",
     "Товар":     m.productName ?? "",
     "Status":    m.type ?? "",
     "Количество":Number(m.quantity ?? 0).toFixed(2),
@@ -289,7 +301,7 @@ export function formatUsersForExport(users: Record<string, unknown>[]) {
     "Телефон":     u.phone ?? "",
     "Роль":        u.role ?? "",
     "Status":      u.status ?? "",
-    "Последний вход": u.lastSignInAt ? new Date(u.lastSignInAt).toLocaleString("ru-RU") : "",
+    "Последний вход": toDate(u.lastSignInAt)?.toLocaleString("ru-RU") ?? "",
   }));
 }
 
@@ -316,7 +328,7 @@ export function formatDeadStockForExport(items: Record<string, unknown>[]) {
     "Себестоимость": Number(s.costPrice ?? 0).toFixed(2),
     "Цена продажи":  Number(s.unitPrice ?? 0).toFixed(2),
     "Стоимость":     Number(s.value ?? 0).toFixed(2),
-    "Последний заказ": s.lastOrderDate ? new Date(s.lastOrderDate).toLocaleDateString("ru-RU") : "Никогда",
+    "Последний заказ": toDate(s.lastOrderDate)?.toLocaleDateString("ru-RU") ?? "Никогда",
     "Дней без продаж": Number(s.daysSinceOrder ?? 99999),
   }));
 }
@@ -338,7 +350,14 @@ export function formatReorderForExport(items: Record<string, unknown>[]) {
 export function formatPnLForExport(data: {
   revenue: number; cogs: number; grossProfit: number; grossMargin: number;
   transportExpenses: number; netProfit: number; netMargin: number;
-  products: Record<string, unknown>[];
+  // The per-product rows the P&L query returns: SUM()s come back from MySQL as
+  // decimal strings, hence the Number() calls below.
+  products: Array<{
+    productName: string;
+    totalQty: string | number;
+    totalRevenue: string | number;
+    totalCost: string | number;
+  }>;
 }) {
   const rows: Row[] = [
     { Показатель: "Выручка", Сумма: data.revenue.toFixed(0) },

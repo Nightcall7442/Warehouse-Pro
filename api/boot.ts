@@ -74,7 +74,7 @@ app.use("*", async (c, next) => {
 
       if (authUser) {
         scope.setUser({ id: String(authUser.id), username: authUser.email });
-        scope.setContext("tenant", authTenant);
+        scope.setContext("tenant", authTenant ?? null);
       }
 
       // Set request context

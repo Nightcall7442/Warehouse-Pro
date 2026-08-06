@@ -3,11 +3,15 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend,
 } from "recharts";
+import type { inferRouterOutputs } from "@trpc/server";
 import { Users, MapPin, ClipboardList, TrendingUp, Activity } from "lucide-react";
 import { ProgressRing } from "@/components/ProgressRing";
 import { F, COLORS } from "./report-constants";
 import { KpiCard } from "./ReportKpiCards";
 import { ChartPanel, GlassPanel, PlanCompletion } from "./ReportCharts";
+import type { AppRouter } from "../../../api/router";
+
+type PlanRow = inferRouterOutputs<AppRouter>["reports"]["getPlanCompletion"][number];
 
 interface OverviewTabProps {
   summary: {
@@ -20,7 +24,7 @@ interface OverviewTabProps {
   } | undefined;
   summaryLoading: boolean;
   chart: { date: string; visits: number; orders: number }[] | undefined;
-  plans: unknown[] | undefined;
+  plans: PlanRow[] | undefined;
   days: number;
   fmt: (v: string | number, short?: boolean) => string;
   t: (ru: string, uz: string) => string;

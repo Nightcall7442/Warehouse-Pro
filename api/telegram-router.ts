@@ -8,7 +8,9 @@ import { onDay, onDate } from "./lib/date-range";
 import type { Role } from "@contracts/types";
 
 // ── Core send function ───────────────────────────────────────────────────────
-async function sendTelegram(chatId: string, text: string): Promise<boolean> {
+// Exported for the AI bot cron, which replies to whichever chat messaged it and
+// so can't go through the notify* helpers below.
+export async function sendTelegram(chatId: string, text: string): Promise<boolean> {
   const token = env.telegramBotToken;
   if (!token || !chatId) return false;
   try {

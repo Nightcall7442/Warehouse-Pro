@@ -1,4 +1,3 @@
-import React from "react";
 import { TrendingUp, DollarSign, Truck, Package, ShoppingCart } from "lucide-react";
 import { KpiCard } from "./KpiCard";
 

@@ -1,4 +1,3 @@
-import React from "react";
 import { ProgressRing } from "@/components/ProgressRing";
 import { F, COLORS, SHADOW } from "./styles";
 

@@ -46,8 +46,8 @@ function formatDateGroup(date: Date, lang: string): string {
   return format(date, "d MMMM yyyy", { locale: lang === "ru" ? dateRu : undefined });
 }
 
-function groupByDate(items: Array<{ createdAt: Date | string }>): Map<string, typeof items> {
-  const groups = new Map<string, typeof items>();
+function groupByDate<T extends { createdAt: Date | string }>(items: T[]): Map<string, T[]> {
+  const groups = new Map<string, T[]>();
   for (const item of items) {
     const date = new Date(item.createdAt);
     const key = date.toISOString().split("T")[0];

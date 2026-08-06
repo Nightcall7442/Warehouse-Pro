@@ -1,9 +1,10 @@
 import { sql, eq, and, gte, lte, inArray, isNull, desc } from "drizzle-orm";
 import { REVENUE_ORDER_STATUSES } from "../lib/order-status";
-import type { DrizzleInstance } from "../queries/connection";
 import { orders, dailyPlans, returns, shops, salesTargets, commissions, agentLocations, visitReports, users, payments } from "@db/schema";
 import { calculateFraudMetrics } from "./anti-fraud";
 import { logger } from "../lib/logger";
+
+type DrizzleInstance = ReturnType<typeof import("../queries/connection").getDb>;
 
 export interface AgentKpiData {
   agentId: number;
@@ -438,6 +439,10 @@ export async function calculateSalary(
   // view, and only while the record is still a draft. A record already
   // "approved" or "paid" has been signed off on; simply opening the salary
   // screen again must not silently rewrite figures finance already acted on.
+  // `period_start`/`period_end` are `date` columns, so drizzle types them as
+  // Date, but commission-router keys the period by this "YYYY-MM-DD" string —
+  // handing the driver a Date instead would shift the stored day by the
+  // server's UTC offset and stop the two ever matching.
   const monthStart = periodStart.toISOString().slice(0, 10);
   const monthEnd = periodEnd.toISOString().slice(0, 10);
   if (persist && (!commissionRecord || commissionRecord.status === "pending")) {
@@ -447,8 +452,8 @@ export async function calculateSalary(
           .set({
             salesAmount: salesAmount.toFixed(2),
             commissionAmount: commissionAmount.toFixed(2),
-            periodStart: monthStart,
-            periodEnd: monthEnd,
+            periodStart: sql`${monthStart}`,
+            periodEnd: sql`${monthEnd}`,
           })
           .where(and(eq(commissions.id, commissionRecord.id), eq(commissions.status, "pending")));
       } else if (commissionRate > 0) {
@@ -457,8 +462,8 @@ export async function calculateSalary(
           userId: agentId,
           commissionRate: commissionRate.toFixed(2),
           periodType: "monthly",
-          periodStart: monthStart,
-          periodEnd: monthEnd,
+          periodStart: sql`${monthStart}`,
+          periodEnd: sql`${monthEnd}`,
           salesAmount: salesAmount.toFixed(2),
           commissionAmount: commissionAmount.toFixed(2),
         });

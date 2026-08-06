@@ -47,13 +47,6 @@ interface EditLine {
   unitPrice: string;
 }
 
-/** Only the fields the product picker needs; tRPC inference is unreliable here. */
-interface PickerProduct {
-  id: number;
-  name: string;
-  price?: string | null;
-}
-
 const UNIT_LABELS_MAP: Record<string, string> = {
   kg: "кг", l: "л", pcs: "шт", box: "блок", pack: "упак", m: "м", block: "блок",
 };
@@ -267,7 +260,7 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
     { pageSize: 500 },
     { enabled: isOperatorOrCeo && editing },
   );
-  const pickerProducts = ((productsRaw as { items?: PickerProduct[] } | undefined)?.items ?? []);
+  const pickerProducts = productsRaw?.data ?? [];
 
   const { data: couriers } = trpc.user.list.useQuery(
     { role: "courier" },
@@ -336,7 +329,7 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
       productId: p.id,
       productName: p.name,
       quantity: "1",
-      unitPrice: String(Number(p.price ?? 0)),
+      unitPrice: String(Number(p.unitPrice ?? 0)),
     }]);
     setAddProductId("");
   }
@@ -610,7 +603,7 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
                                 .filter(p => !editLines.some(l => l.productId === p.id))
                                 .map(p => (
                                   <SelectItem key={p.id} value={String(p.id)}>
-                                    {p.name} — {Number(p.price ?? 0).toLocaleString("ru")}
+                                    {p.name} — {Number(p.unitPrice ?? 0).toLocaleString("ru")}
                                   </SelectItem>
                                 ))}
                             </SelectContent>
@@ -844,7 +837,7 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
           unitPrice: i.unitPrice,
           unit: i.unit ?? undefined,
           subtotal: i.subtotal,
-          deliveredQuantity: i.deliveredQuantity,
+          deliveredQuantity: i.deliveredQuantity != null ? Number(i.deliveredQuantity) : null,
           returnReason: i.returnReason,
         }))}
         currency={currency}

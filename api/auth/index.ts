@@ -6,8 +6,15 @@ import { findUserById } from "../queries/users";
 import { findTenantById } from "../queries/tenants";
 import type { Tenant, User } from "@db/schema";
 
+/**
+ * findUserById projects every column except the password hash, so an
+ * authenticated request never carries one around — the two flows that need it
+ * (login, change password) read it themselves.
+ */
+export type AuthenticatedUser = Omit<User, "passwordHash">;
+
 export type AuthResult = {
-  user: User;
+  user: AuthenticatedUser;
   tenant: Tenant;
 };
 

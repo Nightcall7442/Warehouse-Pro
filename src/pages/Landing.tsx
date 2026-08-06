@@ -3,30 +3,16 @@ import { useMemo } from "react";
 import { useTranslate } from "@/i18n";
 import {
   Warehouse,
-  CheckCircle2,
   ArrowRight,
-  TrendingUp,
-  Package,
-  MapPin,
-  Eye,
-  Layers,
-  FileText,
-  Zap,
   Headphones,
-  Settings as SettingsIcon,
-  Rocket,
 } from "lucide-react";
 
 import {
   cn,
   NEU,
   raisedSm,
-  insetSm,
-  ROLE_TONES,
   FadeIn,
-  Stagger,
   Counter,
-  NeuButton,
   NeuCard,
   Eyebrow,
   Accordion,

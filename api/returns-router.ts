@@ -20,11 +20,10 @@ export const returnsRouter = createRouter({
     }).optional())
     .query(async ({ input, ctx }) => {
       const db = getDb();
-      const f = input ?? {};
       const conditions = [eq(returns.tenantId, ctx.tenant.id)];
-      if (f.status) conditions.push(eq(returns.status, f.status));
-      if (f.shopId) conditions.push(eq(returns.shopId, f.shopId));
-      if (f.orderId) conditions.push(eq(returns.orderId, f.orderId));
+      if (input?.status) conditions.push(eq(returns.status, input.status));
+      if (input?.shopId) conditions.push(eq(returns.shopId, input.shopId));
+      if (input?.orderId) conditions.push(eq(returns.orderId, input.orderId));
 
       const [data, countResult] = await Promise.all([
         db.select({
@@ -42,8 +41,8 @@ export const returnsRouter = createRouter({
           .leftJoin(shops, eq(returns.shopId, shops.id))
           .where(and(...conditions))
           .orderBy(desc(returns.createdAt))
-          .limit(f.pageSize ?? 25)
-          .offset(((f.page ?? 1) - 1) * (f.pageSize ?? 25)),
+          .limit(input?.pageSize ?? 25)
+          .offset(((input?.page ?? 1) - 1) * (input?.pageSize ?? 25)),
         db.select({ count: sql<number>`count(*)` }).from(returns).where(and(...conditions)),
       ]);
 

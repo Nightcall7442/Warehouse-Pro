@@ -1,4 +1,4 @@
-import type { Hono } from "hono";
+import type { Env, Hono } from "hono";
 import type Stripe from "stripe";
 import { randomUUID } from "crypto";
 import { eq } from "drizzle-orm";
@@ -8,10 +8,17 @@ import { verifyWebhook } from "../lib/stripe";
 import { sendEmail } from "../lib/mailer";
 import { env } from "../lib/env";
 import { logger } from "../lib/logger";
-import type { Context } from "hono";
 
-export function registerStripeWebhook(app: Hono) {
-  app.post("/api/webhooks/stripe", async (c: Context) => {
+/** Stripe sets this in checkout metadata; anything else is not a plan we sell. */
+type PaidPlan = "basic" | "pro" | "exclusive";
+function toPaidPlan(value: string | undefined): PaidPlan {
+  return value === "pro" || value === "exclusive" ? value : "basic";
+}
+
+// Generic over the env so the caller's bindings (node-server's HttpBindings)
+// survive — a bare `Hono` here means `Hono<BlankEnv>`, which the boot app is not.
+export function registerStripeWebhook<E extends Env>(app: Hono<E>) {
+  app.post("/api/webhooks/stripe", async (c) => {
     const signature = c.req.header("stripe-signature");
     if (!signature) return c.json({ error: "No signature" }, 400);
 
@@ -54,7 +61,7 @@ export function registerStripeWebhook(app: Hono) {
             const session  = event.data.object as Stripe.Checkout.Session;
             tenantId = Number(session.metadata?.tenantId);
             if (!tenantId) break;
-            const plan = (session.metadata?.plan as string) || 'basic';
+            const plan = toPaidPlan(session.metadata?.plan);
             // P0-8 FIX: Use upsert to handle missing subscription rows
             const stripeSubId = typeof session.subscription === "string" ? session.subscription : session.subscription?.id ?? null;
             const stripeCustId = typeof session.customer === "string" ? session.customer : session.customer?.id ?? null;
@@ -74,7 +81,7 @@ export function registerStripeWebhook(app: Hono) {
               });
             }
             // P0-8 FIX: Sync plan to tenants table (single source of truth)
-            await tx.update(tenants).set({ plan: plan as "basic" | "pro" | "exclusive", updatedAt: new Date() }).where(eq(tenants.id, tenantId));
+            await tx.update(tenants).set({ plan, updatedAt: new Date() }).where(eq(tenants.id, tenantId));
             break;
           }
           case "customer.subscription.updated": {

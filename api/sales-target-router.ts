@@ -28,8 +28,8 @@ export const salesTargetRouter = createRouter({
       if (input?.periodType) conditions.push(eq(salesTargets.periodType, input.periodType));
       if (input?.userId) conditions.push(eq(salesTargets.userId, input.userId));
       if (input?.territoryId) conditions.push(eq(salesTargets.territoryId, input.territoryId));
-      if (input?.dateFrom) conditions.push(gte(salesTargets.periodStart, input.dateFrom));
-      if (input?.dateTo) conditions.push(lte(salesTargets.periodEnd, input.dateTo));
+      if (input?.dateFrom) conditions.push(sql`${salesTargets.periodStart} >= ${input.dateFrom}`);
+      if (input?.dateTo) conditions.push(sql`${salesTargets.periodEnd} <= ${input.dateTo}`);
 
       return db.select({
         id: salesTargets.id,
@@ -90,8 +90,12 @@ export const salesTargetRouter = createRouter({
         shopId: input.shopId ?? null,
         territoryId: input.territoryId ?? null,
         periodType: input.periodType,
-        periodStart: input.periodStart,
-        periodEnd: input.periodEnd,
+        // period_start/period_end are DATE columns, which drizzle types as Date
+        // — but the period is keyed by the "YYYY-MM-DD" string every lookup
+        // here compares against, and a Date param would be rendered in the
+        // server's local zone and could land on the neighbouring day.
+        periodStart: sql`${input.periodStart}`,
+        periodEnd: sql`${input.periodEnd}`,
         targetAmount: input.targetAmount.toFixed(2),
         orderCountTarget: input.orderCountTarget ?? null,
         visitTarget: input.visitTarget != null ? String(input.visitTarget) : null,
@@ -126,7 +130,7 @@ export const salesTargetRouter = createRouter({
             eq(salesTargets.tenantId, ctx.tenant.id),
             eq(salesTargets.userId, t.userId),
             eq(salesTargets.periodType, "monthly"),
-            eq(salesTargets.periodStart, input.periodStart),
+            sql`${salesTargets.periodStart} = ${input.periodStart}`,
           ))
           .limit(1);
 
@@ -144,8 +148,8 @@ export const salesTargetRouter = createRouter({
             tenantId: ctx.tenant.id,
             userId: t.userId,
             periodType: "monthly",
-            periodStart: input.periodStart,
-            periodEnd: input.periodEnd,
+            periodStart: sql`${input.periodStart}`,
+            periodEnd: sql`${input.periodEnd}`,
             targetAmount: t.targetAmount.toFixed(2),
             orderCountTarget: t.orderCountTarget ?? null,
             visitTarget: t.visitTarget != null ? String(t.visitTarget) : null,
@@ -173,17 +177,23 @@ export const salesTargetRouter = createRouter({
         .where(and(
           eq(salesTargets.tenantId, ctx.tenant.id),
           eq(salesTargets.periodType, input.periodType),
-          gte(salesTargets.periodStart, input.periodStart),
-          lte(salesTargets.periodEnd, input.periodEnd),
+          sql`${salesTargets.periodStart} >= ${input.periodStart}`,
+          sql`${salesTargets.periodEnd} <= ${input.periodEnd}`,
         ));
 
       for (const target of targets) {
+        // periodEnd arrives from a DATE column as a Date at midnight, so the
+        // upper bound has to be moved to the end of that day — otherwise the
+        // whole of the target's last day falls outside the range.
+        const periodEndOfDay = new Date(target.periodEnd);
+        periodEndOfDay.setHours(23, 59, 59, 999);
+
         const conditions = [
           eq(orders.tenantId, ctx.tenant.id),
           eq(orders.agentId, target.userId),
           inArray(orders.status, REVENUE_ORDER_STATUSES),
           gte(orders.createdAt, target.periodStart),
-          lte(orders.createdAt, target.periodEnd + " 23:59:59"),
+          lte(orders.createdAt, periodEndOfDay),
         ];
         if (target.shopId) conditions.push(eq(orders.shopId, target.shopId));
 
@@ -248,7 +258,7 @@ export const salesTargetRouter = createRouter({
           eq(salesTargets.tenantId, ctx.tenant.id),
           eq(salesTargets.userId, ctx.user.id),
           eq(salesTargets.periodType, "monthly"),
-          eq(salesTargets.periodStart, monthStart),
+          sql`${salesTargets.periodStart} = ${monthStart}`,
         ))
         .limit(1);
 
@@ -261,6 +271,11 @@ export const salesTargetRouter = createRouter({
       // is worse than showing nothing. The stored columns still serve the
       // operator-facing list views, where one query covers every agent.
       const periodEnd = target.periodEnd ?? monthEnd;
+      // periodEnd arrives from a DATE column as a Date at midnight, so the upper
+      // bound has to be moved to the end of that day — otherwise every order
+      // placed on the last day of the plan falls outside the range.
+      const periodEndOfDay = new Date(periodEnd);
+      periodEndOfDay.setHours(23, 59, 59, 999);
       // Dates are compared through sql`` rather than gte/lte: these columns are
       // timestamps and the bounds are date strings, which is the idiom the rest
       // of the codebase (OrderService.list) already uses for exactly this.
@@ -269,7 +284,7 @@ export const salesTargetRouter = createRouter({
         eq(orders.agentId, ctx.user.id),
         inArray(orders.status, REVENUE_ORDER_STATUSES),
         sql`${orders.createdAt} >= ${monthStart}`,
-        sql`${orders.createdAt} <= ${periodEnd + " 23:59:59"}`,
+        sql`${orders.createdAt} <= ${periodEndOfDay}`,
       ];
       if (target.shopId) orderConditions.push(eq(orders.shopId, target.shopId));
 
@@ -352,8 +367,8 @@ export const salesTargetRouter = createRouter({
         .where(and(
           eq(salesTargets.tenantId, ctx.tenant.id),
           eq(salesTargets.periodType, "monthly"),
-          gte(salesTargets.periodStart, monthStart),
-          lte(salesTargets.periodEnd, monthEnd),
+          sql`${salesTargets.periodStart} >= ${monthStart}`,
+          sql`${salesTargets.periodEnd} <= ${monthEnd}`,
         ));
 
       return targets.map(t => ({

@@ -1,6 +1,6 @@
 import { trpc } from "@/providers/trpc";
 import { useInvalidateOrderCaches } from "@/hooks/useOrderCacheSync";
-import { useLang } from "@/i18n";
+import { useLang, useTranslate } from "@/i18n";
 import { useAuth } from "@/hooks/useAuth";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useState, useRef, useEffect, useMemo } from "react";
@@ -8,6 +8,10 @@ import { Truck, MapPin, CheckCircle2, Package, ArrowRight } from "lucide-react";
 import { notify } from "@/lib/toast";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { formatQty } from "@/lib/format";
+import type { inferRouterOutputs } from "@trpc/server";
+import type { AppRouter } from "../../api/router";
+
+type Delivery = inferRouterOutputs<AppRouter>["courier"]["listMyDeliveries"][number];
 
 const DELIVERY_STATUS_STYLES: Record<string, string> = {
   assigned:        "bg-info/15 text-info border-info/30",
@@ -26,7 +30,9 @@ const DELIVERY_STATUS_LABELS: Record<string, { ru: string; uz: string }> = {
 export default function CourierDeliveries() {
   const { user } = useAuth();
   const { fmt } = useCurrency();
-  const { t } = useLang();
+  // This page is written with inline ru/uz pairs; `tKey` is for the shared dictionary.
+  const t = useTranslate();
+  const { t: tKey } = useLang();
   const [cashInput, setCashInput] = useState<Record<number, string>>({});
   const invalidateOrderCaches = useInvalidateOrderCaches();
 
@@ -35,7 +41,7 @@ export default function CourierDeliveries() {
   const markOutForDelivery = trpc.courier.markOutForDelivery.useMutation({
     onSuccess: () => {
       invalidateOrderCaches();
-      notify.success(t("common.success"));
+      notify.success(tKey("common.success"));
     },
     onError: (e) => notify.error(e.message),
   });
@@ -43,7 +49,7 @@ export default function CourierDeliveries() {
   const markDelivered = trpc.courier.markDelivered.useMutation({
     onSuccess: () => {
       invalidateOrderCaches();
-      notify.success(t("common.success"));
+      notify.success(tKey("common.success"));
       setCashInput(prev => {
         const next = { ...prev };
         delete next[markDelivered.variables?.orderId ?? 0];
@@ -119,15 +125,7 @@ export default function CourierDeliveries() {
             <Truck size={16} className="text-warning" />
             {t("В пути", "Yo'lda")}
           </h2>
-          {inTransit.map((order: {
-            id: number;
-            orderNumber: string;
-            total: string;
-            shopName: string | null;
-            shopAddress: string | null;
-            shopCity: string | null;
-            deliveryStatus: string;
-          }) => (
+          {inTransit.map((order) => (
             <DeliveryCard
               key={order.id}
               order={order}
@@ -153,15 +151,7 @@ export default function CourierDeliveries() {
             <Package size={16} className="text-info" />
             {t("Ожидают доставки", "Yetkazishni kutmoqda")}
           </h2>
-          {assigned.map((order: {
-            id: number;
-            orderNumber: string;
-            total: string;
-            shopName: string | null;
-            shopAddress: string | null;
-            shopCity: string | null;
-            deliveryStatus: string;
-          }) => (
+          {assigned.map((order) => (
             <div key={order.id} className="neo-card" style={{ padding: "16px" }}>
               <div className="flex items-start justify-between">
                 <div>
@@ -214,17 +204,17 @@ export default function CourierDeliveries() {
   );
 }
 
-function MapView({ deliveries }: { deliveries: unknown[] | undefined }) {
-  const mapRef = useRef<unknown>(null);
+function MapView({ deliveries }: { deliveries: Delivery[] | undefined }) {
+  const mapRef = useRef<YandexMap | null>(null);
   const mapDivRef = useRef<HTMLDivElement>(null);
-  const markersRef = useRef<unknown[]>([]);
+  const markersRef = useRef<YandexPlacemark[]>([]);
 
   const allDeliveries = useMemo(() => deliveries ?? [], [deliveries]);
 
   const mapMarkers = useMemo(() =>
     allDeliveries
-      .filter((d: Record<string, unknown>) => d.shopGpsLat && d.shopGpsLng)
-      .map((d: Record<string, unknown>) => ({
+      .filter((d) => d.shopGpsLat && d.shopGpsLng)
+      .map((d) => ({
         lat: Number(d.shopGpsLat),
         lng: Number(d.shopGpsLng),
         name: d.shopName ?? "Магазин",
@@ -234,14 +224,16 @@ function MapView({ deliveries }: { deliveries: unknown[] | undefined }) {
   );
 
   useEffect(() => {
-    if (!mapDivRef.current || mapRef.current || !window.ymaps) return;
+    const div = mapDivRef.current;
+    const ymaps = window.ymaps;
+    if (!div || mapRef.current || !ymaps) return;
 
-    window.ymaps.ready(() => {
+    ymaps.ready(() => {
       const center = mapMarkers.length > 0
         ? [mapMarkers.reduce((s, m) => s + m.lat, 0) / mapMarkers.length, mapMarkers.reduce((s, m) => s + m.lng, 0) / mapMarkers.length]
         : [41.2995, 69.2401];
 
-      const map = new window.ymaps.Map(mapDivRef.current!, {
+      const map = new ymaps.Map(div, {
         center,
         zoom: 12,
         controls: ["zoomControl", "fullscreenControl"],
@@ -251,7 +243,7 @@ function MapView({ deliveries }: { deliveries: unknown[] | undefined }) {
 
       mapMarkers.forEach((m) => {
         const color = m.status === "out_for_delivery" ? "var(--color-warning-text)" : m.status === "delivered" ? "var(--color-success-text)" : "var(--color-primary-text)";
-        const placemark = new window.ymaps.Placemark(
+        const placemark = new ymaps.Placemark(
           [m.lat, m.lng],
           {
             balloonContentHeader: `<b style="font-family:Inter,sans-serif;font-size:14px">${m.name}</b>`,
@@ -273,19 +265,22 @@ function MapView({ deliveries }: { deliveries: unknown[] | undefined }) {
       });
 
       if (mapMarkers.length > 1) {
-        map.setBounds(map.geoObjects.getBounds(), { checkZoomRange: true, zoomMargin: 40 });
+        const bounds = map.geoObjects.getBounds();
+        if (bounds) map.setBounds(bounds, { checkZoomRange: true, zoomMargin: 40 });
       }
     });
   }, [mapMarkers]);
 
   useEffect(() => {
-    if (!window.ymaps || !mapRef.current) return;
-    window.ymaps.ready(() => {
-      markersRef.current.forEach((m: unknown) => (mapRef.current as { geoObjects: { remove: (m: unknown) => void } }).geoObjects.remove(m));
+    const ymaps = window.ymaps;
+    const map = mapRef.current;
+    if (!ymaps || !map) return;
+    ymaps.ready(() => {
+      markersRef.current.forEach((m) => map.geoObjects.remove(m));
       markersRef.current = [];
       mapMarkers.forEach((m) => {
         const color = m.status === "out_for_delivery" ? "var(--color-warning-text)" : m.status === "delivered" ? "var(--color-success-text)" : "var(--color-primary-text)";
-        const placemark = new window.ymaps.Placemark(
+        const placemark = new ymaps.Placemark(
           [m.lat, m.lng],
           {
             balloonContentHeader: `<b style="font-family:Inter,sans-serif;font-size:14px">${m.name}</b>`,
@@ -302,14 +297,12 @@ function MapView({ deliveries }: { deliveries: unknown[] | undefined }) {
             iconImageOffset: [-16, -16],
           }
         );
-        (mapRef.current as { geoObjects: { add: (m: unknown) => void } }).geoObjects.add(placemark);
+        map.geoObjects.add(placemark);
         markersRef.current.push(placemark);
       });
       if (mapMarkers.length > 1) {
-        (mapRef.current as { setBounds: (b: unknown, o: unknown) => void }).setBounds(
-          (mapRef.current as { geoObjects: { getBounds: () => unknown } }).geoObjects.getBounds(),
-          { checkZoomRange: true, zoomMargin: 40 }
-        );
+        const bounds = map.geoObjects.getBounds();
+        if (bounds) map.setBounds(bounds, { checkZoomRange: true, zoomMargin: 40 });
       }
     });
   }, [mapMarkers]);
@@ -326,18 +319,9 @@ function MapView({ deliveries }: { deliveries: unknown[] | undefined }) {
 function DeliveryCard({
   order, fmt, t, cashInput, onCashChange, onDeliver, onFail, isPending,
 }: {
-  order: {
-    id: number;
-    orderNumber: string;
-    total: string;
-    totalWeightKg: string;
-    shopName: string | null;
-    shopAddress: string | null;
-    shopCity: string | null;
-    deliveryStatus: string;
-  };
+  order: Delivery;
   fmt: (v: string | number) => string;
-  t: (key: string, fallback?: string) => string;
+  t: (ru: string, uz: string) => string;
   cashInput: string;
   onCashChange: (v: string) => void;
   onDeliver: () => void;

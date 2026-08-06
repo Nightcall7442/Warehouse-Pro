@@ -1,4 +1,3 @@
-import React from "react";
 import { F, COLORS } from "./styles";
 
 interface ChartTooltipProps {

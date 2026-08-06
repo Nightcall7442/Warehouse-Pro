@@ -776,7 +776,7 @@ export type BatchPrintOptions = {
   includeSignature: boolean;
   includeNotes: boolean;
   pageBreakPerOrder: boolean;
-  sortBy: "orderNumber" | "shop" | "agentRoute";
+  sortBy: "orderNumber" | "shop" | "agentRoute" | "territory";
 };
 
 function debtStatusColor(amount: number): string {

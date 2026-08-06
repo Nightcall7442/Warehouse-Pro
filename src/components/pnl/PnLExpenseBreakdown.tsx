@@ -1,4 +1,3 @@
-import React from "react";
 import { Package } from "lucide-react";
 import { F, COLORS, thStyle, tdStyle } from "./styles";
 

@@ -1,9 +1,8 @@
 import { eq, and, gte, lte, sql , inArray } from "drizzle-orm";
 import { REVENUE_ORDER_STATUSES } from "../lib/order-status";
-import type { MySql2Database } from "drizzle-orm/mysql2";
-import { orders, dailyPlans, users, salesTargets } from "@db/schema";
+import { orders, dailyPlans, users } from "@db/schema";
 
-type Db = MySql2Database<Record<string, never>>;
+type Db = ReturnType<typeof import("../queries/connection").getDb>;
 
 export interface QuotaSuggestion {
   userId: number;
@@ -40,6 +39,8 @@ export async function suggestQuotas(
   start.setMonth(start.getMonth() - 3);
   const startStr = start.toISOString().split("T")[0];
   const endStr = new Date(end.getTime() - 86_400_000).toISOString().split("T")[0];
+  const periodStart = new Date(`${startStr}T00:00:00Z`);
+  const periodEnd = new Date(`${endStr}T23:59:59Z`);
 
   const agents = await db.select({ id: users.id, name: users.name })
     .from(users)
@@ -56,8 +57,8 @@ export async function suggestQuotas(
         eq(orders.tenantId, tenantId),
         eq(orders.agentId, agent.id),
         inArray(orders.status, REVENUE_ORDER_STATUSES),
-        gte(orders.createdAt, startStr),
-        lte(orders.createdAt, endStr + " 23:59:59"),
+        gte(orders.createdAt, periodStart),
+        lte(orders.createdAt, periodEnd),
       ))
       .groupBy(sql`DATE_FORMAT(${orders.createdAt}, '%Y-%m-01')`);
 
@@ -69,23 +70,23 @@ export async function suggestQuotas(
         eq(orders.tenantId, tenantId),
         eq(orders.agentId, agent.id),
         inArray(orders.status, REVENUE_ORDER_STATUSES),
-        gte(orders.createdAt, startStr),
-        lte(orders.createdAt, endStr + " 23:59:59"),
+        gte(orders.createdAt, periodStart),
+        lte(orders.createdAt, periodEnd),
       ))
       .groupBy(sql`DATE_FORMAT(${orders.createdAt}, '%Y-%m-01')`);
 
     const monthlyVisits = await db.select({
-      month: sql<string>`DATE_FORMAT(${dailyPlans.date}, '%Y-%m-01')`,
+      month: sql<string>`DATE_FORMAT(${dailyPlans.planDate}, '%Y-%m-01')`,
       total: sql<string>`COUNT(*)`,
       completed: sql<string>`SUM(CASE WHEN ${dailyPlans.status} = 'visited' THEN 1 ELSE 0 END)`,
     }).from(dailyPlans)
       .where(and(
         eq(dailyPlans.tenantId, tenantId),
-        eq(dailyPlans.userId, agent.id),
-        gte(dailyPlans.date, startStr),
-        lte(dailyPlans.date, endStr),
+        eq(dailyPlans.agentId, agent.id),
+        gte(dailyPlans.planDate, periodStart),
+        lte(dailyPlans.planDate, periodEnd),
       ))
-      .groupBy(sql`DATE_FORMAT(${dailyPlans.date}, '%Y-%m-01')`);
+      .groupBy(sql`DATE_FORMAT(${dailyPlans.planDate}, '%Y-%m-01')`);
 
     const monthsOfData = Math.max(monthlyRevenue.length, 1);
     const avgRevenue = monthlyRevenue.reduce((s, m) => s + Number(m.total), 0) / monthsOfData;

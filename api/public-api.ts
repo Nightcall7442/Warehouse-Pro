@@ -9,7 +9,13 @@ import { eq, and, desc, sql } from "drizzle-orm";
 import { createHash } from "crypto";
 import { checkRateLimit as sharedCheckRateLimit } from "./lib/rate-limit";
 
-const app = new Hono();
+/** What the API-key middleware below puts on the context for every route. */
+type PublicApiVariables = {
+  tenantId: number;
+  scopes: string[];
+};
+
+const app = new Hono<{ Variables: PublicApiVariables }>();
 
 // ── API Key validation middleware ─────────────────────────────────────────────
 app.use("*", async (c, next) => {
@@ -52,8 +58,8 @@ function requireScope(scopes: string[], required: string): boolean {
 
 /** GET /api/v1/products — list products */
 app.get("/products", async (c) => {
-  const tenantId = c.get("tenantId") as number;
-  const scopes = c.get("scopes") as string[];
+  const tenantId = c.get("tenantId");
+  const scopes = c.get("scopes");
   if (!requireScope(scopes, "products")) return c.json({ error: "Scope 'products' required" }, 403);
 
   const db = getDb();
@@ -73,8 +79,8 @@ app.get("/products", async (c) => {
 
 /** GET /api/v1/products/:id — get product by ID */
 app.get("/products/:id", async (c) => {
-  const tenantId = c.get("tenantId") as number;
-  const scopes = c.get("scopes") as string[];
+  const tenantId = c.get("tenantId");
+  const scopes = c.get("scopes");
   if (!requireScope(scopes, "products")) return c.json({ error: "Scope 'products' required" }, 403);
 
   const db = getDb();
@@ -91,8 +97,8 @@ app.get("/products/:id", async (c) => {
 
 /** GET /api/v1/orders — list orders */
 app.get("/orders", async (c) => {
-  const tenantId = c.get("tenantId") as number;
-  const scopes = c.get("scopes") as string[];
+  const tenantId = c.get("tenantId");
+  const scopes = c.get("scopes");
   if (!requireScope(scopes, "orders")) return c.json({ error: "Scope 'orders' required" }, 403);
 
   const db = getDb();
@@ -116,8 +122,8 @@ app.get("/orders", async (c) => {
 
 /** GET /api/v1/orders/:id — get order with items */
 app.get("/orders/:id", async (c) => {
-  const tenantId = c.get("tenantId") as number;
-  const scopes = c.get("scopes") as string[];
+  const tenantId = c.get("tenantId");
+  const scopes = c.get("scopes");
   if (!requireScope(scopes, "orders")) return c.json({ error: "Scope 'orders' required" }, 403);
 
   const db = getDb();
@@ -143,8 +149,8 @@ app.get("/orders/:id", async (c) => {
 
 /** GET /api/v1/stock — list stock levels */
 app.get("/stock", async (c) => {
-  const tenantId = c.get("tenantId") as number;
-  const scopes = c.get("scopes") as string[];
+  const tenantId = c.get("tenantId");
+  const scopes = c.get("scopes");
   if (!requireScope(scopes, "stock")) return c.json({ error: "Scope 'stock' required" }, 403);
 
   const db = getDb();
@@ -167,8 +173,8 @@ app.get("/stock", async (c) => {
 
 /** GET /api/v1/shops — list shops */
 app.get("/shops", async (c) => {
-  const tenantId = c.get("tenantId") as number;
-  const scopes = c.get("scopes") as string[];
+  const tenantId = c.get("tenantId");
+  const scopes = c.get("scopes");
   if (!requireScope(scopes, "shops")) return c.json({ error: "Scope 'shops' required" }, 403);
 
   const db = getDb();

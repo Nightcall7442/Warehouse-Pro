@@ -6,9 +6,9 @@ import { useLang } from "@/i18n";
 import { format } from "date-fns";
 import { ru as dateRu } from "date-fns/locale";
 import {
-  ArrowLeft, Printer, FileDown, CheckCircle2, XCircle, RefreshCw,
-  ChevronDown, Truck, Trash2, Edit3, Save, X, CreditCard, MapPin,
-  Phone, Package, User, Clock, AlertTriangle, ChevronRight, Store,
+  ArrowLeft, Printer, FileDown, CheckCircle2,
+  ChevronDown, Truck, Trash2, Edit3, CreditCard,
+  Phone, Package, User, Clock, AlertTriangle, Store,
 } from "lucide-react";
 import { useState, useCallback } from "react";
 import { PremiumSelect } from "@/components/PremiumSelect";
@@ -22,7 +22,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
 import { CompletionFlowModal } from "@/components/orders/CompletionFlowModal";
 import type { CompletionData, CompletionMode } from "@/components/orders/CompletionFlowModal";
 import { useCompletionFlow } from "@/hooks/useCompletionFlow";
@@ -82,8 +81,8 @@ function cleanNum(val: string | number | null | undefined): string {
 export default function OrderDetail() {
   const { id }      = useParams<{ id: string }>();
   const navigate    = useNavigate();
-  const { fmt, currency, symbol } = useCurrency();
-  const { t, lang } = useLang();
+  const { currency, symbol } = useCurrency();
+  const { lang } = useLang();
   const { user }    = useAuth();
   const invalidateOrderCaches = useInvalidateOrderCaches();
   const [printMenu, setPrintMenu] = useState(false);
@@ -156,7 +155,7 @@ export default function OrderDetail() {
   });
 
   // ── Completion flow (shared hook) ───────────────────────────────────────
-  const { saving: completionSaving, handleCompletionSave: baseHandleCompletionSave, isCompletionStatus, getCompletionMode } = useCompletionFlow({
+  const { saving: completionSaving, handleCompletionSave: baseHandleCompletionSave, getCompletionMode } = useCompletionFlow({
     orderId: Number(id),
     // useCompletionFlow refreshes the caches itself; nothing extra to do here.
   });
@@ -179,7 +178,6 @@ export default function OrderDetail() {
 
   const saveEditing = useCallback(() => {
     if (!order) return;
-    const subtotal = Number(order.subtotal ?? 0);
     const newDiscount = Number(editDiscount);
     if (newDiscount < 0 || newDiscount > 100) {
       notify.error(lang === "uz" ? "Chegirma 0-100 oralig'ida bo'lishi kerak" : "Скидка должна быть от 0 до 100");
@@ -203,11 +201,10 @@ export default function OrderDetail() {
       account: settings?.companyBankAccount ?? "",
       mfo:     settings?.companyMfo ?? "",
     };
-    const shopExtra = order.shop as Record<string, unknown> | undefined;
+    // Shops carry no INN of their own, so the buyer's ИНН stays blank on documents.
     const buyer: CompanyInfo = {
       name:    order.shop?.name ?? "",
-      address: (shopExtra?.address as string) ?? "",
-      inn:     (shopExtra?.inn as string) ?? "",
+      address: order.shop?.address ?? "",
     };
     const pm = PAYMENT_METHODS[order.paymentMethod ?? "cash"];
     return {
@@ -236,8 +233,8 @@ export default function OrderDetail() {
       paymentMethodLabel: pm ? (lang === "uz" ? pm.uz : pm.ru) : undefined,
       paymentMethodColor: pm?.color,
       shopOwner:  order.shop?.ownerName ?? undefined,
-      shopPhone:  ((order.shop as Record<string, unknown>)?.phone as string) ?? undefined,
-      territoryName: (order.shop as Record<string, unknown>)?.territoryName as string ?? undefined,
+      shopPhone:  order.shop?.phone ?? undefined,
+      territoryName: order.shop?.territoryName ?? undefined,
     };
   };
 
@@ -291,7 +288,7 @@ export default function OrderDetail() {
   const subtotal = Number(order.subtotal ?? 0);
   const discount = Number(order.discount ?? 0);
   const total    = Number(order.total ?? 0);
-  const shopDebt = Number((order.shop as Record<string, unknown>)?.debt ?? 0);
+  const shopDebt = Number(order.shop?.debt ?? 0);
 
   return (
     <div className="max-w-4xl mx-auto space-y-4">
@@ -450,9 +447,9 @@ export default function OrderDetail() {
               <Store size={12}/> {lang === "uz" ? "XARIDOR" : "ПОКУПАТЕЛЬ"}
             </p>
             <p className="text-sm font-medium text-primary">{order.shop?.name ?? "—"}</p>
-            {(order.shop as Record<string, unknown>)?.phone && (
+            {order.shop?.phone && (
               <p className="text-xs text-secondary flex items-center gap-1 mt-0.5">
-                <Phone size={10}/> {(order.shop as Record<string, unknown>).phone as string}
+                <Phone size={10}/> {order.shop.phone}
               </p>
             )}
             {shopDebt > 0 && (
@@ -749,7 +746,7 @@ export default function OrderDetail() {
           unitPrice: i.unitPrice,
           unit: i.unit ?? undefined,
           subtotal: i.subtotal,
-          deliveredQuantity: i.deliveredQuantity,
+          deliveredQuantity: i.deliveredQuantity != null ? Number(i.deliveredQuantity) : null,
           returnReason: i.returnReason,
         }))}
         currency={symbol}
