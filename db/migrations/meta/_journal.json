@@ -274,6 +274,13 @@
       "when": 1785910010000,
       "tag": "0038_daily_plans_visited_at",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "5",
+      "when": 1786600001000,
+      "tag": "0039_daily_plans_visited_at_mysql",
+      "breakpoints": true
     }
   ]
 }

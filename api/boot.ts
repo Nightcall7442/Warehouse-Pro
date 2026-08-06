@@ -573,6 +573,61 @@ async function checkDatabaseHealth(): Promise<boolean> {
   }
 }
 
+/**
+ * Назвать миграции, которые drizzle пропустил, не сказав об этом.
+ *
+ * Мигратор применяет только записи журнала, чья метка `when` больше самой
+ * поздней уже применённой. Меткам полагается расти вместе с номером, но три
+ * записи (0018, 0019, 0020) получили проставленные вручную даты из будущего —
+ * у 0020 это 13 августа. После неё каждая миграция с меньшей меткой, то есть
+ * ВСЕ с 0021 по 0038, пропускается молча и навсегда.
+ *
+ * Обнаружилось это тем, что супервайзер не мог создать план визита: колонка
+ * daily_plans.visited_at из миграции 0038 в базе так и не появилась, а drizzle
+ * перечисляет во вставке все колонки схемы, поэтому падала любая запись плана.
+ * Схема при этом «держалась» ровно потому, что недостающее досыпали руками, —
+ * и то, что досыпать забыли, вылезло через несколько дней и совсем в другом
+ * месте.
+ *
+ * Проверка сравнивает журнал с таблицей __drizzle_migrations и пишет в лог
+ * список нанесённых, но не записанных миграций. Она НЕ останавливает запуск:
+ * сейчас незаписанными числятся и те, что применили руками, — падение на них
+ * положило бы рабочий продукт ради предупреждения.
+ */
+async function reportSkippedMigrations(): Promise<void> {
+  try {
+    const { readFile } = await import("node:fs/promises");
+    const { getDb }    = await import("./queries/connection");
+    const { sql }      = await import("drizzle-orm");
+
+    const journal = JSON.parse(
+      await readFile("./db/migrations/meta/_journal.json", "utf-8"),
+    ) as { entries: Array<{ idx: number; when: number; tag: string }> };
+
+    const [rows] = await getDb().execute(
+      sql`SELECT created_at FROM __drizzle_migrations`,
+    ) as unknown as [Array<{ created_at: number | string }>, unknown];
+    const applied = new Set((rows ?? []).map(r => String(Number(r.created_at))));
+
+    const missing = journal.entries
+      .filter(e => !applied.has(String(e.when)))
+      .map(e => e.tag);
+
+    if (missing.length > 0) {
+      logger.error("МИГРАЦИИ НЕ ЗАПИСАНЫ КАК ПРИМЕНЁННЫЕ — схема может расходиться с кодом", {
+        count: missing.length,
+        migrations: missing,
+        hint: "метки when в _journal.json должны строго расти; запись из будущего заставляет мигратор пропускать всё, что после неё",
+      });
+    }
+  } catch (e) {
+    // Проверка диагностическая: её собственный сбой не повод не запускаться.
+    logger.warn("не удалось сверить журнал миграций с базой", {
+      error: e instanceof Error ? e.message : String(e),
+    });
+  }
+}
+
 export default app;
 
 if (env.isProduction) {
@@ -602,6 +657,7 @@ if (env.isProduction) {
     const { getDb } = await import("./queries/connection");
     await migrate(getDb(), { migrationsFolder: "./db/migrations" });
     logger.info("database migrations up to date");
+    await reportSkippedMigrations();
   } catch (e) {
     logger.error("database migration failed — refusing to start", {
       error: e instanceof Error ? e.message : String(e),
