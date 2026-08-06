@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createRouter, publicQuery, authedQuery } from "./middleware";
 import { requestPasswordReset, confirmPasswordReset } from "./services/password-reset";
-import { checkRateLimit, getClientIp } from "./lib/rate-limit";
+import { checkRateLimit, rateLimitSubject } from "./lib/rate-limit";
 import { TRPCError } from "@trpc/server";
 import { env } from "./lib/env";
 
@@ -13,8 +13,10 @@ export const authRouter = createRouter({
   requestPasswordReset: publicQuery
     .input(z.object({ email: z.string().email() }))
     .mutation(async ({ input, ctx }) => {
-      const ip = getClientIp(ctx.req);
-      if (!(await checkRateLimit(ip, { windowMs: 60_000, limit: 5, namespace: "forgotPassword" }))) {
+      // Per email address: the point is to stop one mailbox being flooded, and
+      // the address is the only thing here the server can actually identify.
+      const subject = rateLimitSubject(ctx.req, `email:${input.email.trim().toLowerCase()}`);
+      if (!(await checkRateLimit(subject, { windowMs: 60_000, limit: 5, namespace: "forgotPassword" }))) {
         throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Слишком много запросов. Попробуйте позже." });
       }
 
@@ -33,8 +35,10 @@ export const authRouter = createRouter({
     }))
     .mutation(async ({ input, ctx }) => {
       // P0-11 FIX: Rate limit password reset confirmation
-      const ip = getClientIp(ctx.req);
-      if (!(await checkRateLimit(ip, { windowMs: 15 * 60_000, limit: 5, namespace: "confirmReset" }))) {
+      // Per reset token: guessing a 64-char token is what this limit defends
+      // against, and each guess names the token it is guessing.
+      const subject = rateLimitSubject(ctx.req, `token:${input.token.slice(0, 16)}`);
+      if (!(await checkRateLimit(subject, { windowMs: 15 * 60_000, limit: 5, namespace: "confirmReset" }))) {
         throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Слишком много запросов. Попробуйте позже." });
       }
       return confirmPasswordReset(ctx.db, input.token, input.newPassword);

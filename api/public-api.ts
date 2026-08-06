@@ -34,7 +34,10 @@ app.use("*", async (c, next) => {
   if (key.expiresAt && new Date(key.expiresAt) < new Date()) return c.json({ error: "API key has expired" }, 403);
 
   // Rate limit (using shared Redis-backed limiter)
-  if (!sharedCheckRateLimit(keyHash, { windowMs: 60_000, limit: key.rateLimit, namespace: "public-api" })) {
+  // await matters: checkRateLimit is async, and `!promise` is always false —
+  // without it this branch never ran and every key's configured rateLimit was
+  // decoration.
+  if (!(await sharedCheckRateLimit(keyHash, { windowMs: 60_000, limit: key.rateLimit, namespace: "public-api" }))) {
     return c.json({ error: "Rate limit exceeded", retryAfter: 60 }, 429);
   }
 

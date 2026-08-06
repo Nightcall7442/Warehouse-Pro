@@ -3,10 +3,7 @@ import { asTestContext } from "./helpers/test-context";
 
 let mockDb: any;
 vi.mock("../queries/connection", () => ({ getDb: () => mockDb }));
-vi.mock("../lib/rate-limit", () => ({
-  checkRateLimit: vi.fn(() => true),
-  getClientIp: vi.fn(() => "127.0.0.1"),
-}));
+vi.mock("../lib/rate-limit", async () => (await import("./helpers/rate-limit-mock")).rateLimitMock());
 vi.mock("drizzle-orm", () => {
   const sqlFn = Object.assign(
     (strings: TemplateStringsArray, ...values: unknown[]) => ({ __kind: "sql", strings, values }),

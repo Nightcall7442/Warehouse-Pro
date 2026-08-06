@@ -278,19 +278,24 @@ import { verifyPassword } from "./auth/password";
 import { findUserByEmailAnyTenant, updateUserLastSignIn } from "./queries/users";
 import { findTenantById } from "./queries/tenants";
 import { signSessionToken } from "./auth/session";
-import { checkRateLimit, getClientIp } from "./lib/rate-limit";
+import { checkRateLimit, rateLimitSubject } from "./lib/rate-limit";
 
 const LOGIN_RATE_LIMIT = { windowMs: 15 * 60 * 1000, limit: 20, namespace: "login" };
 
 app.post("/api/login", async (c) => {
   try {
-    const ip = getClientIp(c.req.raw);
-    if (!(await checkRateLimit(ip, LOGIN_RATE_LIMIT))) {
-      return c.json({ error: "Too many login attempts. Please try again in 15 minutes." }, 429);
-    }
-
     const { email, password } = await c.req.json();
     if (!email || !password) return c.json({ error: "Email and password required" }, 400);
+
+    // Per account, read after the body so the address is available. Brute force
+    // targets one account, so counting attempts against that account is both
+    // the real defence and unspoofable — unlike a client-supplied IP header.
+    // Counting them globally, as this did, meant twenty wrong passwords from
+    // anyone locked every tenant out of the product for fifteen minutes.
+    const subject = rateLimitSubject(c.req.raw, `email:${String(email).trim().toLowerCase()}`);
+    if (!(await checkRateLimit(subject, LOGIN_RATE_LIMIT))) {
+      return c.json({ error: "Too many login attempts. Please try again in 15 minutes." }, 429);
+    }
 
     const user = await findUserByEmailAnyTenant(email);
     const dummyHash = "pbkdf2$100000$00000000000000000000000000000000$" + "0".repeat(128);
@@ -369,16 +374,17 @@ app.post("/api/refresh-token", async (c) => {
 
 // Logout all devices — invalidate all tokens by incrementing tokenVersion
 app.post("/api/logout-all", async (c) => {
-  // Rate limit: 5 per 15 minutes per IP
-  const ip = getClientIp(c.req.raw);
-  if (!(await checkRateLimit(ip, { windowMs: 15 * 60 * 1000, limit: 5, namespace: "logout-all" }))) {
-    return c.json({ error: "Too many requests. Try again later." }, 429);
-  }
-
   const authHeader = c.req.header("authorization");
   const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : undefined;
 
   if (!token) return c.json({ error: "No token" }, 401);
+
+  // Rate limit: 5 per 15 minutes per session token. The caller already proved
+  // possession of one, so it names the subject better than any header does.
+  const subject = rateLimitSubject(c.req.raw, `token:${token.slice(-24)}`);
+  if (!(await checkRateLimit(subject, { windowMs: 15 * 60 * 1000, limit: 5, namespace: "logout-all" }))) {
+    return c.json({ error: "Too many requests. Try again later." }, 429);
+  }
 
   try {
     const { verifySessionToken } = await import("./auth/session");

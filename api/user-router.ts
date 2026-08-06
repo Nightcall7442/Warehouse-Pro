@@ -5,7 +5,7 @@ import { users } from "@db/schema";
 import { eq, ne, like, and, sql, desc } from "drizzle-orm";
 import { hashPassword, verifyPassword } from "./auth/password";
 import { TRPCError } from "@trpc/server";
-import { checkRateLimit, getClientIp } from "./lib/rate-limit";
+import { checkRateLimit, getClientIp, rateLimitSubject } from "./lib/rate-limit";
 import { sanitizeSearch } from "./lib/sanitize";
 import { recordAudit } from "./services/audit-log";
 import { ROLES } from "@contracts/types";
@@ -72,8 +72,10 @@ export const userRouter = createRouter({
       newPassword:     z.string().min(8, "New password must be at least 8 characters"),
     }))
     .mutation(async ({ input, ctx }) => {
-      const ip = getClientIp(ctx.req);
-      if (!(await checkRateLimit(ip, { windowMs: 15 * 60 * 1000, limit: 5, namespace: "changePassword" }))) {
+      // Per account: five wrong current-passwords is a budget for the person
+      // holding this session, not for everyone changing a password today.
+      const subject = rateLimitSubject(ctx.req, `user:${ctx.user.id}`);
+      if (!(await checkRateLimit(subject, { windowMs: 15 * 60 * 1000, limit: 5, namespace: "changePassword" }))) {
         throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Too many attempts. Try again in 15 minutes." });
       }
 
@@ -138,7 +140,7 @@ export const userRouter = createRouter({
           targetType: "user",
           targetId: id,
           meta: { before: { role: before?.role, status: before?.status }, after: { role: data.role ?? before?.role, status: data.status ?? before?.status }, userName: before?.name },
-          ip: getClientIp(ctx.req),
+          ip: getClientIp(ctx.req) ?? undefined,
         });
       }
       return { success: true };
@@ -163,7 +165,7 @@ export const userRouter = createRouter({
         action: "user.password_reset_by_admin",
         targetType: "user",
         targetId: input.id,
-        ip: getClientIp(ctx.req),
+        ip: getClientIp(ctx.req) ?? undefined,
       });
       return { success: true };
     }),
@@ -197,7 +199,7 @@ export const userRouter = createRouter({
         targetType: "user",
         targetId: input.id,
         meta: { userName: target?.name, role: target?.role },
-        ip: getClientIp(ctx.req),
+        ip: getClientIp(ctx.req) ?? undefined,
       });
       return { success: true };
     }),
@@ -260,7 +262,7 @@ export const userRouter = createRouter({
           newEmail: email,
           deactivated: deactivate,
         },
-        ip: getClientIp(ctx.req),
+        ip: getClientIp(ctx.req) ?? undefined,
       });
 
       return { success: true };

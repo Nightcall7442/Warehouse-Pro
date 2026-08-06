@@ -10,7 +10,7 @@ import { sendInviteEmail } from "./lib/mailer";
 import { env } from "./lib/env";
 import { logger } from "./lib/logger";
 import { INVITE_EXPIRY_MS } from "./lib/constants";
-import { checkRateLimit, getClientIp } from "./lib/rate-limit";
+import { checkRateLimit, rateLimitSubject } from "./lib/rate-limit";
 import { checkPlanLimits } from "./lib/plan-limits";
 
 export const inviteRouter = createRouter({
@@ -63,8 +63,8 @@ export const inviteRouter = createRouter({
     .input(z.object({ token: z.string() }))
     .query(async ({ input, ctx }) => {
       // P0-11 FIX: Rate limit invite verification
-      const ip = getClientIp(ctx.req);
-      if (!(await checkRateLimit(ip, { windowMs: 60_000, limit: 30, namespace: "invite.verify" }))) {
+      const subject = rateLimitSubject(ctx.req, `token:${input.token.slice(0, 16)}`);
+      if (!(await checkRateLimit(subject, { windowMs: 60_000, limit: 30, namespace: "invite.verify" }))) {
         throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Слишком много запросов." });
       }
       const db  = getDb();
@@ -104,8 +104,8 @@ export const inviteRouter = createRouter({
     }))
     .mutation(async ({ input, ctx }) => {
       // P0-11 FIX: Rate limit invite acceptance
-      const ip = getClientIp(ctx.req);
-      if (!(await checkRateLimit(ip, { windowMs: 60 * 60_000, limit: 10, namespace: "invite.accept" }))) {
+      const subject = rateLimitSubject(ctx.req, `token:${input.token.slice(0, 16)}`);
+      if (!(await checkRateLimit(subject, { windowMs: 60 * 60_000, limit: 10, namespace: "invite.accept" }))) {
         throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Слишком много запросов." });
       }
       const db  = getDb();

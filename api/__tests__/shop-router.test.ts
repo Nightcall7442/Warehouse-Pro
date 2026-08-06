@@ -5,10 +5,7 @@ vi.mock("../queries/connection", () => ({
   getDb: vi.fn(),
 }));
 
-vi.mock("../lib/rate-limit", () => ({
-  checkRateLimit: vi.fn(() => true),
-  getClientIp: vi.fn(() => "127.0.0.1"),
-}));
+vi.mock("../lib/rate-limit", async () => (await import("./helpers/rate-limit-mock")).rateLimitMock());
 
 vi.mock("../lib/sanitize", () => ({
   sanitizeSearch: vi.fn((s: string) => s),

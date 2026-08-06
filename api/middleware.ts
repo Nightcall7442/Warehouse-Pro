@@ -5,7 +5,7 @@ import type { TrpcContext } from "./context";
 import type { Role } from "@contracts/types";
 import { env } from "./lib/env";
 import { checkSubscriptionAccess } from "./lib/feature-gating";
-import { checkRateLimit, getClientIp } from "./lib/rate-limit";
+import { checkRateLimit, rateLimitSubject } from "./lib/rate-limit";
 
 // ── Translate ZodError codes into user-friendly Russian messages ─────────────
 const FIELD_LABELS: Record<string, string> = {
@@ -180,8 +180,12 @@ const withTenantIsolation = t.middleware(async ({ ctx, next }) => {
 const GLOBAL_RATE_LIMIT = { windowMs: 60 * 1000, limit: 120, namespace: "global" };
 
 const withGlobalRateLimit = t.middleware(async ({ ctx, next }) => {
-  const ip = getClientIp(ctx.req);
-  if (!(await checkRateLimit(ip, GLOBAL_RATE_LIMIT))) {
+  // Per user, not per IP: createContext has already resolved ctx.user from the
+  // token, and "120 requests a minute" only ever meant one person's traffic.
+  // Keyed on an unidentifiable IP it meant the whole platform's, and eight
+  // people opening a dashboard at once spent it.
+  const subject = rateLimitSubject(ctx.req, ctx.user ? `user:${ctx.user.id}` : null);
+  if (!(await checkRateLimit(subject, GLOBAL_RATE_LIMIT))) {
     throw new TRPCError({
       code:    "TOO_MANY_REQUESTS",
       message: "Слишком много запросов. Подождите минуту.",
@@ -212,8 +216,11 @@ function requireRole(roles: Role[]) {
 const mutationRateLimit = (namespace: string, limit: number, windowMs: number = 15 * 60 * 1000) =>
   t.middleware(async ({ ctx, next }) => {
     if (ctx.req.method === "POST" || ctx.req.method === "PUT" || ctx.req.method === "DELETE") {
-      const ip = getClientIp(ctx.req);
-      if (!(await checkRateLimit(ip, { windowMs, limit, namespace }))) {
+      // Same reasoning as withGlobalRateLimit: "200 agent mutations per 15
+      // minutes" is a budget for one agent. Shared across every agent in every
+      // tenant it became roughly a dozen orders each before the day stopped.
+      const subject = rateLimitSubject(ctx.req, ctx.user ? `user:${ctx.user.id}` : null);
+      if (!(await checkRateLimit(subject, { windowMs, limit, namespace }))) {
         throw new TRPCError({
           code:    "TOO_MANY_REQUESTS",
           message: "Слишком много запросов. Попробуйте позже.",

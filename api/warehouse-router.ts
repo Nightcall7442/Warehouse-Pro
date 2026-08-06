@@ -119,7 +119,7 @@ export const warehouseRouter = createRouter({
       return StockService.adjust(ctx.db, ctx.tenant.id, input.productId, Number(input.quantity), input.type, input.notes, {
         id: ctx.user.id,
         name: ctx.user.name,
-        ip: getClientIp(ctx.req),
+        ip: getClientIp(ctx.req) ?? undefined,
       }, input.warehouseId);
     }),
 

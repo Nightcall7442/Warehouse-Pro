@@ -14,10 +14,7 @@ vi.mock("../lib/feature-gating", () => ({
   checkSubscriptionAccess: (...args: unknown[]) => mockCheckSubscriptionAccess(...args),
 }));
 
-vi.mock("../lib/rate-limit", () => ({
-  checkRateLimit: vi.fn(() => true),
-  getClientIp: vi.fn(() => "127.0.0.1"),
-}));
+vi.mock("../lib/rate-limit", async () => (await import("./helpers/rate-limit-mock")).rateLimitMock());
 
 function makeCtx(tenantId: number, userId: number, role = "operator"): TrpcContext {
   return asTestContext({
