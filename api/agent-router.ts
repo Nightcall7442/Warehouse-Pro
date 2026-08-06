@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { createRouter, fieldSalesQuery, merchVisitQuery, supervisorQuery, authedQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { agentLocations, dailyPlans, shops, users, agentTerritories, territories } from "@db/schema";
@@ -457,11 +458,18 @@ export const agentRouter = createRouter({
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
       const planDate = new Date(input.planDate);
-      if (Number.isNaN(planDate.getTime())) throw new Error("Некорректная дата плана");
+      // TRPCError, а не throw new Error: обработчик ошибок подменяет текст у
+      // INTERNAL_SERVER_ERROR на «Внутренняя ошибка сервера», и отказ по делу
+      // становится неотличим от падения — ни пользователю, ни в разборе.
+      if (Number.isNaN(planDate.getTime())) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Некорректная дата плана" });
+      }
 
       const [agent] = await db.select({ id: users.id }).from(users)
         .where(and(eq(users.id, input.agentId), eq(users.tenantId, ctx.tenant.id))).limit(1);
-      if (!agent) throw new Error("Агент не найден в вашем тенанте");
+      if (!agent) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Агент не найден в вашей организации" });
+      }
 
       // Принадлежность проверяется по всем магазинам сразу, и дальше в работу
       // идут только подтверждённые: чужой id из списка молча отбрасывается,
@@ -469,7 +477,9 @@ export const agentRouter = createRouter({
       const uniqueShopIds = [...new Set(input.shopIds)];
       const ownShops = await db.select({ id: shops.id }).from(shops)
         .where(and(inArray(shops.id, uniqueShopIds), eq(shops.tenantId, ctx.tenant.id)));
-      if (ownShops.length === 0) throw new Error("Магазины не найдены в вашем тенанте");
+      if (ownShops.length === 0) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Ни один из выбранных магазинов не найден в вашей организации" });
+      }
 
       const existing = await db.select({ shopId: dailyPlans.shopId }).from(dailyPlans)
         .where(and(
