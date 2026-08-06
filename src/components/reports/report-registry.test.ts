@@ -156,3 +156,68 @@ describe("report filters", () => {
     }
   });
 });
+
+/**
+ * A card's roles have to match the middleware guarding its endpoint.
+ *
+ * Showing a card the server will refuse produces a button that always errors —
+ * worse than not offering the report, because the user reasonably concludes
+ * the export is broken rather than not theirs. Hiding a card whose endpoint
+ * would have allowed it costs them a report they are entitled to.
+ */
+describe("card roles match endpoint permissions", () => {
+  const registrySource = readFileSync(resolve(__dirname, "report-registry.ts"), "utf8");
+  const api = (f: string) => readFileSync(resolve(__dirname, "../../../api", f), "utf8");
+
+  const MIDDLEWARE_ROLES: Record<string, string[]> = {
+    financeQuery:    ["ceo"],
+    adminQuery:      ["ceo"],
+    operatorQuery:   ["ceo", "operator"],
+    supervisorQuery: ["ceo", "supervisor"],
+    reportsQuery:    ["ceo", "operator", "supervisor", "merchandiser"],
+  };
+
+  /** Which middleware guards `router.procedure`. */
+  function guardOf(router: string, procedure: string): string {
+    // Plain string scanning rather than a regex built from the procedure name:
+    // escaping that correctly is more fragile than just reading the line.
+    const line = api(`${router}-router.ts`)
+      .split("\n")
+      .find(l => l.trimEnd().startsWith(`  ${procedure}:`));
+    const guard = line?.match(/(\w+Query)/)?.[1];
+    if (!guard) throw new Error(`${router}.${procedure} not found`);
+    return guard;
+  }
+
+  /**
+   * Which endpoint a report calls. Roles come from the exported objects rather
+   * than from the file text — an earlier version parsed both out of the source
+   * and quietly matched the wrong entry, so the check passed while the card was
+   * misconfigured.
+   */
+  function endpointOf(id: string): [string, string] {
+    const at = registrySource.indexOf(`id: "${id}"`);
+    expect(at, `${id} not found in source`).toBeGreaterThan(-1);
+    const m = registrySource.slice(at).match(/trpc\.(\w+)\.(\w+)\.useQuery/);
+    if (!m) throw new Error(`${id}: no trpc call`);
+    return [m[1], m[2]];
+  }
+
+  it.each(REPORTS.map(r => [r.id, r] as const))(
+    "%s is offered only to roles its endpoint accepts",
+    (id, def) => {
+      const [router, procedure] = endpointOf(id);
+      const guard = guardOf(router, procedure);
+      const allowed = MIDDLEWARE_ROLES[guard];
+      expect(allowed, `${id}: unknown middleware ${guard}`).toBeDefined();
+
+      // No roles on the card means it shows to everyone the reports page admits.
+      const cardRoles = def.roles ?? MIDDLEWARE_ROLES.reportsQuery;
+
+      for (const role of cardRoles) {
+        expect(allowed, `${id}: shown to ${role}, but ${router}.${procedure} is ${guard}`)
+          .toContain(role);
+      }
+    },
+  );
+});

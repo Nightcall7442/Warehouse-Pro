@@ -8,8 +8,14 @@ export const warehouseRouter = createRouter({
   list: operatorQuery
     .input(z.object({
       page:        z.number().default(1),
-      pageSize:    z.number().min(1).max(500).default(25),
+      // Capped at 500 for a paginated screen, but an export has to be able to
+      // ask for everything: a report that silently stops at row 500 says
+      // nothing on the sheet about the rows it dropped. The default is
+      // unchanged, so only a caller that deliberately asks gets more.
+      pageSize:    z.number().min(1).max(10000).default(25),
       search:      z.string().optional(),
+      // Category is a varchar on the product, not a foreign key.
+      category:    z.string().max(100).optional(),
       warehouseId: z.number().optional(),
     }).optional())
     .query(async ({ input, ctx }) => {
@@ -32,6 +38,7 @@ export const warehouseRouter = createRouter({
       const stockCond = [eq(warehouseStock.tenantId, tenantId)];
       if (targetWarehouseId) stockCond.push(eq(warehouseStock.warehouseId, targetWarehouseId));
       if (input?.search) stockCond.push(like(products.name, `%${input.search}%`));
+      if (input?.category) stockCond.push(eq(products.category, input.category));
       const where = and(...stockCond);
 
       const [data, countResult, summary] = await Promise.all([

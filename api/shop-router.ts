@@ -30,7 +30,11 @@ export const shopRouter = createRouter({
   list: supervisorQuery
     .input(z.object({
       page:     z.number().default(1),
-      pageSize: z.number().min(1).max(500).default(25),
+      // Capped at 500 for a paginated screen, but an export has to be able to
+      // ask for everything: a report that silently stops at row 500 says
+      // nothing on the sheet about the rows it dropped. The default is
+      // unchanged, so only a caller that deliberately asks gets more.
+      pageSize: z.number().min(1).max(10000).default(25),
       search:     z.string().optional(),
       city:       z.string().optional(),
       district:   z.string().optional(),
