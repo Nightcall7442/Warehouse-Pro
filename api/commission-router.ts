@@ -18,8 +18,17 @@ export const commissionRouter = createRouter({
       const db = getDb();
       const conditions = [eq(commissions.tenantId, ctx.tenant.id)];
 
+      // What somebody earns is their own business and their manager's. This
+      // runs under authedQuery and the KPI page that calls it is open to
+      // agents, couriers and merchandisers — so without this an agent could
+      // read every colleague's commission, and pass userId to pick one.
+      // Narrowed rather than forbidden: their own row is exactly what that
+      // page is for.
+      const seesEveryone = ["ceo", "operator", "supervisor"].includes(ctx.user.role);
+      if (!seesEveryone) conditions.push(eq(commissions.userId, ctx.user.id));
+
       if (input?.periodType) conditions.push(eq(commissions.periodType, input.periodType));
-      if (input?.userId) conditions.push(eq(commissions.userId, input.userId));
+      if (input?.userId && seesEveryone) conditions.push(eq(commissions.userId, input.userId));
       if (input?.status) conditions.push(eq(commissions.status, input.status));
 
       return db.select({

@@ -133,3 +133,65 @@ describe("report queries stay inside the tenant", () => {
     }
   });
 });
+
+/**
+ * Data that belongs to management, reachable by anyone who is merely signed in.
+ *
+ * Four procedures sat behind authedQuery — the guard that means "has a session"
+ * and nothing more — while returning integration keys, the buying price, other
+ * people's commissions and the whole team's quotas. Three of them had siblings
+ * in the same file that did check, which is how the gap stayed invisible: the
+ * file looked guarded.
+ */
+describe("management data is not reachable by every signed-in user", () => {
+  function procedureBody(file: string, name: string): string {
+    const src = api(file);
+    const start = src.indexOf(`  ${name}:`);
+    expect(start, `${file}: ${name} not found`).toBeGreaterThan(-1);
+    const next = src.slice(start + 1).search(/\n {2}[a-zA-Z][a-zA-Z0-9]*:\s*\w+Query/);
+    return next === -1 ? src.slice(start) : src.slice(start, start + 1 + next);
+  }
+
+  const guardOf = (file: string, name: string) =>
+    procedureBody(file, name).match(/^\s{2}\w+:\s*(\w+Query)/)?.[1];
+
+  // Listing the keys tells an attacker which integrations exist, what they may
+  // do and what their prefixes look like — the three mutations beside it have
+  // always checked, and the module header has always said CEO only.
+  it("api keys cannot be listed without the same role check the mutations make", () => {
+    const body = procedureBody("api-key-router.ts", "list");
+    expect(body).toMatch(/role !== "superadmin"/);
+    expect(body).toMatch(/role !== "ceo"/);
+  });
+
+  // The same buying price that was closed in product-router, leaking through a
+  // raw SQL query in a different router that the earlier fix never touched.
+  it("the multi-warehouse stock query hands cost only to ceo or operator", () => {
+    const body = procedureBody("warehouse-multi-router.ts", "getStock");
+    expect(body).toMatch(/canSeeCost/);
+    expect(body).toMatch(/ctx\.user\.role === "ceo"/);
+    expect(body).toMatch(/ctx\.user\.role === "operator"/);
+  });
+
+  // The KPI page that calls this is open to agents, so the fix narrows the rows
+  // rather than refusing the call — an agent still sees their own commission.
+  it("commissions are narrowed to the caller unless they manage people", () => {
+    const body = procedureBody("commission-router.ts", "list");
+    expect(body).toMatch(/seesEveryone/);
+    expect(body).toMatch(/eq\(commissions\.userId,\s*ctx\.user\.id\)/);
+    // And a caller must not be able to name somebody else and get around it.
+    expect(body).toMatch(/input\?\.userId && seesEveryone/);
+  });
+
+  it("team quotas are behind a management guard, personal quota is not", () => {
+    expect(guardOf("sales-target-router.ts", "list")).toBe("managementQuery");
+    expect(guardOf("sales-target-router.ts", "summary")).toBe("managementQuery");
+    // myQuota returns the caller's own plan, so it stays open to everyone.
+    expect(guardOf("sales-target-router.ts", "myQuota")).toBe("authedQuery");
+  });
+
+  it("managementQuery admits exactly the roles the mobile tab is shown to", () => {
+    const line = api("middleware.ts").split("\n").find(l => l.includes("export const managementQuery"));
+    expect(line).toMatch(/\["ceo", "operator", "supervisor"\]/);
+  });
+});

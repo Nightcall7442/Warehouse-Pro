@@ -136,7 +136,19 @@ export const warehouseMultiRouter = createRouter({
         db.execute(summaryQuery),
       ]);
 
-      const data = Array.isArray((dataResult as unknown[][])[0]) ? (dataResult as unknown[][])[0] : [];
+      const rows = Array.isArray((dataResult as unknown[][])[0]) ? (dataResult as unknown[][])[0] : [];
+
+      // The buying price leaves only for the two roles that need it. This
+      // procedure runs under authedQuery, so without this an agent, a courier
+      // or a merchandiser could read the company's cost on every product — the
+      // same leak that was closed in product-router, in a query that shape of
+      // fix never reached because it is raw SQL in a different file.
+      const canSeeCost = ctx.user.role === "ceo" || ctx.user.role === "operator";
+      const data = canSeeCost
+        ? rows
+        // Blanked rather than deleted: the web stock table reads the field, and
+        // an absent key would read as "free" rather than "not yours to see".
+        : rows.map(r => ({ ...(r as unknown as Record<string, unknown>), costPrice: undefined }));
       const total = Number(((countResult as unknown[][])[0] as Record<string, unknown>)?.cnt ?? 0);
       const summary = Array.isArray((summaryResult as unknown[][])[0]) ? (summaryResult as unknown[][])[0] : [{}];
 

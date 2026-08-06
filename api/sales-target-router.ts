@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, operatorQuery, authedQuery, supervisorQuery } from "./middleware";
+import { createRouter, operatorQuery, authedQuery, supervisorQuery, managementQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { salesTargets, users, orders, dailyPlans } from "@db/schema";
 import { eq, and, gte, lte, sql, desc, inArray, type SQL } from "drizzle-orm";
@@ -9,7 +9,11 @@ import { suggestQuotas } from "./services/quota-suggest";
 
 export const salesTargetRouter = createRouter({
   // List sales targets for a period
-  list: authedQuery
+  // Everyone's targets and everyone's progress against them. The mobile app
+  // already shows this tab to supervisors only — that was a hidden button, not
+  // a closed door, and the procedure answered anyone who asked. myQuota below
+  // stays open to all: it returns the caller's own plan and nobody else's.
+  list: managementQuery
     .input(z.object({
       periodType: z.enum(["daily", "weekly", "monthly"]).optional(),
       userId: z.number().optional(),
@@ -327,7 +331,7 @@ export const salesTargetRouter = createRouter({
     }),
 
   // Get sales target summary for dashboard
-  summary: authedQuery
+  summary: managementQuery
     .query(async ({ ctx }) => {
       const db = getDb();
       const now = new Date();

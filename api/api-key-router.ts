@@ -24,6 +24,13 @@ function generateApiKey(): { raw: string; hash: string; prefix: string } {
 export const apiKeyRouter = createRouter({
   /** List all API keys for current tenant */
   list: authedQuery.query(async ({ ctx }) => {
+    // The three mutations below check this; the list did not, so every
+    // authenticated user — agents included — could enumerate the company's
+    // integration keys, their scopes and their prefixes. The module header
+    // has always said CEO and superadmin only.
+    if (ctx.user.role !== "superadmin" && ctx.user.role !== "ceo") {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Only CEO or SuperAdmin can manage API keys." });
+    }
     const db = getDb();
     const rows = await db.select().from(apiKeys)
       .where(eq(apiKeys.tenantId, ctx.user.tenantId))

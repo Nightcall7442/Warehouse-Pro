@@ -291,6 +291,16 @@ export const auditQuery      = authedQuery.use(requireRole(["ceo", "superadmin"]
  */
 export const financeQuery    = authedQuery.use(requireRole(["ceo"]));
 
+/**
+ * The team's numbers, as opposed to your own.
+ *
+ * Quotas, targets and progress for everyone in the company: management sees the
+ * whole board, field staff see the row with their name on it. Narrower than
+ * reportsQuery, which also admits merchandisers — they walk shop floors and
+ * have no business reading the sales team's plan.
+ */
+export const managementQuery = authedQuery.use(requireRole(["ceo", "operator", "supervisor"]));
+
 // Subscription-gated variants
 export const billedQuery     = authedQuery.use(requireActiveSubscription);
 export const billedAdmin     = adminQuery.use(requireActiveSubscription);
