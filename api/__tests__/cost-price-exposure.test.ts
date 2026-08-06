@@ -83,3 +83,53 @@ describe("cost price and margin exposure", () => {
     });
   });
 });
+
+/**
+ * A filter narrows; it must never widen.
+ *
+ * Every report gained agent, territory and category filters, and each of those
+ * is a value the caller supplies. The one thing none of them may do is reach
+ * outside the caller's own tenant — so every reporting query has to carry a
+ * tenant condition of its own, independent of whatever the caller passed.
+ */
+describe("report queries stay inside the tenant", () => {
+  const REPORTING = ["analytics-router.ts", "reports-router.ts"];
+
+  it.each(REPORTING)("%s scopes every query to ctx.tenant.id", (file) => {
+    const src = api(file);
+
+    // Each procedure body, from its name to the next one.
+    const starts = [...src.matchAll(/\n {2}(\w+):\s*\w+Query/g)];
+    expect(starts.length).toBeGreaterThan(0);
+
+    for (let i = 0; i < starts.length; i++) {
+      const from = starts[i].index!;
+      const to = i + 1 < starts.length ? starts[i + 1].index! : src.length;
+      const body = src.slice(from, to);
+      const name = starts[i][1];
+
+      // Procedures that read no table at all have nothing to scope.
+      if (!/\.from\(/.test(body)) continue;
+
+      // Either straight from the context, or through a local alias bound to it
+      // at the top of the procedure — several do `const tid = ctx.tenant.id`.
+      const alias = body.match(/const (\w+)\s*=\s*ctx\.tenant\.id/)?.[1];
+      // A plain substring for the alias case: building a RegExp from a template
+      // literal silently ate the \s and \b as JS escapes, so it matched nothing.
+      const scoped = /tenantId,\s*ctx\.tenant\.id/.test(body)
+        || (alias !== undefined && body.includes(`tenantId, ${alias})`));
+
+      expect(scoped, `${name}: no tenant scoping`).toBe(true);
+    }
+  });
+
+  // The filters are all optional and additive — none of them may replace the
+  // tenant condition rather than joining it.
+  it("never lets a caller-supplied id stand in for the tenant", () => {
+    for (const file of REPORTING) {
+      const src = api(file);
+      expect(src).not.toMatch(/tenantId,\s*input[?.]/);
+      expect(src).not.toMatch(/tenantId,\s*input\./);
+    }
+  });
+});

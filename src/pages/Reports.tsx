@@ -84,10 +84,14 @@ export default function Reports() {
   };
 
   const handleExport = async () => {
+    // A snapshot of this page, sections stacked on one sheet. Deliberately not
+    // the shape the hub produces: those are one report per file with real
+    // column headers, which is what you want for a pivot table. This one is for
+    // sending someone a picture of the dashboard.
     const rows: Record<string, unknown>[] = [];
 
     if (summary) {
-      rows.push({ Раздел: "📊 СВОДКА", Показатель: "Агентов", Значение: summary.totalAgents, "": "" });
+      rows.push({ Раздел: "СВОДКА", Показатель: "Агентов", Значение: summary.totalAgents, "": "" });
       rows.push({ Раздел: "", Показатель: "Онлайн", Значение: summary.activeNow });
       rows.push({ Раздел: "", Показатель: "Визитов сегодня", Значение: summary.visitsToday });
       rows.push({ Раздел: "", Показатель: `Заказов за ${days}д`, Значение: summary.ordersMonth });
@@ -95,36 +99,42 @@ export default function Reports() {
     }
 
     if (byShop && byShop.length > 0) {
-      rows.push({ Раздел: "🛒 ПРОДАЖИ ПО МАГАЗИНАМ", Показатель: "Магазин", Значение: "Выручка", "": "Заказов" });
+      rows.push({ Раздел: "ПРОДАЖИ ПО МАГАЗИНАМ", Показатель: "Магазин", Значение: "Выручка", "": "Заказов" });
       for (const s of byShop) {
         rows.push({ Раздел: "", Показатель: s.shopName ?? "—", Значение: Number(s.revenue ?? 0).toFixed(2), "": s.orderCount ?? 0 });
       }
     }
 
     if (topProds && topProds.length > 0) {
-      rows.push({ Раздел: "📦 ТОП ТОВАРОВ", Показатель: "Товар", Значение: "Объём", "": "Выручка" });
+      rows.push({ Раздел: "ТОП ТОВАРОВ", Показатель: "Товар", Значение: "Объём", "": "Выручка" });
       for (const p of topProds) {
         rows.push({ Раздел: "", Показатель: p.productName, Значение: Number(p.totalQty ?? 0).toFixed(0), "": Number(p.totalRevenue ?? 0).toFixed(2) });
       }
     }
 
     if (byPayment && byPayment.length > 0) {
-      rows.push({ Раздел: "💳 МЕТОДЫ ОПЛАТЫ", Показатель: "Метод", Значение: "Выручка", "": "Заказов" });
+      rows.push({ Раздел: "МЕТОДЫ ОПЛАТЫ", Показатель: "Метод", Значение: "Выручка", "": "Заказов" });
       for (const p of byPayment) {
-        const pm = PAYMENT_MAP[p.method] ?? { label: p.method };
+        // The field is paymentMethod; reading `p.method` gave undefined, so
+        // PAYMENT_MAP missed and the fallback printed undefined too — this
+        // column has been blank in the summary and the PDF alike.
+        const pm = PAYMENT_MAP[p.paymentMethod] ?? { label: p.paymentMethod };
         rows.push({ Раздел: "", Показатель: pm.label, Значение: Number(p.revenue ?? 0).toFixed(2), "": p.orderCount ?? 0 });
       }
     }
 
     if (agents && agents.length > 0) {
-      rows.push({ Раздел: "👤 АГЕНТЫ", Показатель: "Агент", Значение: "Выручка", "": "Заказов" });
+      rows.push({ Раздел: "АГЕНТЫ", Показатель: "Агент", Значение: "Выручка", "": "Заказов" });
       for (const a of agents) {
         rows.push({ Раздел: "", Показатель: a.agentName ?? `Agent #${a.agentId}`, Значение: Number(a.revenue ?? 0).toFixed(2), "": Number(a.orders ?? 0) });
       }
     }
 
     if (rows.length === 0) return;
-    await exportToExcel(rows, `report-${format(new Date(), "yyyy-MM-dd")}`, t("Отчёт", "Hisobot"), `${t("Сводный отчёт", "Yig'ma hisobot")} — ${format(new Date(), "dd.MM.yyyy")}`);
+    // Named like the hub's files — id then period — so the whole downloads
+    // folder sorts and reads the same way. `report-<today>` said neither which
+    // report it was nor what it covered.
+    await exportToExcel(rows, `summary-last${days}d-${format(new Date(), "yyyy-MM-dd")}`, t("Отчёт", "Hisobot"), `${t("Сводный отчёт", "Yig'ma hisobot")} — ${format(new Date(), "dd.MM.yyyy")}`);
   };
 
   const handleExportPDF = () => {
@@ -162,7 +172,7 @@ export default function Reports() {
       html += `<div class="section"><h2>По методам оплаты</h2>
         <table><thead><tr><th>Метод</th><th class="right">Выручка</th><th class="right">Заказов</th></tr></thead><tbody>`;
       for (const p of byPayment) {
-        const pm = PAYMENT_MAP[p.method] ?? { label: p.method };
+        const pm = PAYMENT_MAP[p.paymentMethod] ?? { label: p.paymentMethod };
         html += `<tr><td>${pm.label}</td><td class="right">${fmtNum(Number(p.revenue ?? 0))}</td><td class="right">${p.orderCount ?? 0}</td></tr>`;
       }
       html += `</tbody></table></div>`;
@@ -202,7 +212,11 @@ export default function Reports() {
             border: "none", cursor: "pointer", background: COLORS.surfaceLight, color: COLORS.textSecondary,
             boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
           }}>
-            <FileDown size={14} /> Excel
+            {/* Not "Excel" any more: the hub has fourteen buttons with that
+                label, each producing one clean report. This one is a snapshot
+                of the page as it stands — a different, still useful thing, and
+                the name should say which is which. */}
+            <FileDown size={14} /> {t("Сводка", "Yig'ma")}
           </button>
           <button onClick={handleExportPDF} style={{
             display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
