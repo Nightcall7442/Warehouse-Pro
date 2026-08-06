@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Package, Store, Wallet, CreditCard, Award, Users, Boxes, Truck, TrendingUp, Coins } from "lucide-react";
+import { Package, Store, Wallet, CreditCard, Award, Users, Boxes, Truck, TrendingUp, Coins, MapPin, ArrowLeftRight } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 
 /**
@@ -73,6 +73,22 @@ function formatDate(v: unknown): string {
   if (!v) return "—";
   const d = new Date(v as string);
   return Number.isNaN(d.getTime()) ? String(v) : d.toISOString().slice(0, 10);
+}
+
+const PLAN_STATUS_LABEL: Record<string, string> = {
+  planned: "Запланирован", visited: "Посещён", skipped: "Пропущен",
+};
+
+const MOVEMENT_LABEL: Record<string, string> = {
+  in: "Приход", out: "Расход", adjustment: "Корректировка",
+};
+
+/** Date with the time, for logs where the hour is the point. */
+function formatDateTime(v: unknown): string {
+  if (!v) return "—";
+  const d = new Date(v as string);
+  if (Number.isNaN(d.getTime())) return String(v);
+  return `${d.toISOString().slice(0, 10)} ${d.toISOString().slice(11, 16)}`;
 }
 
 /**
@@ -406,6 +422,61 @@ export const REPORTS: ReportDef[] = [
       })),
     filename: () => "staff",
     sheet: { ru: "Сотрудники", uz: "Xodimlar" },
+  },
+  {
+    id: "visits-log",
+    category: "shops",
+    title: { ru: "Журнал визитов", uz: "Tashriflar jurnali" },
+    description: { ru: "Каждый запланированный визит: статус, время и фото", uz: "Har bir tashrif: holati, vaqti va foto" },
+    icon: MapPin,
+    needsPeriod: true,
+    filters: ["agent", "shop"],
+    useQuery: (p, opts) => trpc.reports.getVisitsLog.useQuery(
+      { dateFrom: p.from, dateTo: p.to, agentId: p.agentId, shopId: p.shopId, limit: EXPORT_LIMIT },
+      { enabled: opts.enabled },
+    ),
+    toRows: (data) => (data as Array<Record<string, unknown>>)
+      .map(r => ({
+        "Дата плана": formatDate(r.planDate),
+        "Статус": PLAN_STATUS_LABEL[String(r.status)] ?? String(r.status ?? "—"),
+        // Blank for plans recorded before visited_at existed — an absent time
+        // is the truth there, and filling it from updated_at would be a guess
+        // presented as a fact.
+        "Время визита": formatDateTime(r.visitedAt),
+        "Агент": String(r.agentName ?? "—"),
+        "Магазин": String(r.shopName ?? "—"),
+        "Город": String(r.shopCity ?? "—"),
+        "Адрес": String(r.shopAddress ?? "—"),
+        "Фото": num(r.hasPhoto) > 0 ? "да" : "нет",
+        "Заметка": String(r.notes ?? ""),
+      })),
+    filename: (p) => `visits-log-${p.from}_${p.to}${suffix(p)}`,
+    sheet: { ru: "Журнал визитов", uz: "Tashriflar jurnali" },
+  },
+  {
+    id: "stock-movements",
+    category: "warehouse",
+    title: { ru: "Движения склада", uz: "Ombor harakatlari" },
+    description: { ru: "Приход, расход и корректировки за период", uz: "Davr uchun kirim, chiqim va tuzatishlar" },
+    icon: ArrowLeftRight,
+    needsPeriod: true,
+    useQuery: (p, opts) => trpc.reports.getStockMovements.useQuery(
+      { dateFrom: p.from, dateTo: p.to, limit: EXPORT_LIMIT },
+      { enabled: opts.enabled },
+    ),
+    toRows: (data) => (data as Array<Record<string, unknown>>)
+      .map(r => ({
+        "Дата": formatDateTime(r.createdAt),
+        "Товар": String(r.productName ?? "—"),
+        "Код": String(r.productCode ?? "—"),
+        "Тип": MOVEMENT_LABEL[String(r.type)] ?? String(r.type ?? "—"),
+        "Количество": num(r.quantity),
+        "Основание": String(r.referenceType ?? "—"),
+        "Документ": r.referenceId ? num(r.referenceId) : "—",
+        "Примечание": String(r.notes ?? ""),
+      })),
+    filename: (p) => `stock-movements-${p.from}_${p.to}`,
+    sheet: { ru: "Движения склада", uz: "Ombor harakatlari" },
   },
 ];
 

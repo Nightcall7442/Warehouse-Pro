@@ -267,6 +267,13 @@
       "when": 1785910000000,
       "tag": "0037_stock_movements_warehouse",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "5",
+      "when": 1785910010000,
+      "tag": "0038_daily_plans_visited_at",
+      "breakpoints": true
     }
   ]
 }

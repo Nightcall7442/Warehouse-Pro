@@ -1,0 +1,14 @@
+-- When a visit actually happened.
+--
+-- The visits report needs this and there was nowhere to read it from. The
+-- nearest thing, updated_at, is the time the row was last touched — edit a note
+-- a week later and it moves, so a report built on it would quietly misdate the
+-- visit, which is precisely the kind of number people use to settle disputes.
+--
+-- Nullable and not backfilled: rows written before this column existed have no
+-- recorded visit time, and inventing one from updated_at would bake the same
+-- wrong answer into the data instead of leaving it visibly absent.
+--
+-- IF NOT EXISTS so this is a safe no-op against a dev DB already carrying the
+-- column via `drizzle-kit push`.
+ALTER TABLE `daily_plans` ADD COLUMN IF NOT EXISTS `visited_at` timestamp NULL;

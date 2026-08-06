@@ -536,6 +536,9 @@ export const dailyPlans = mysqlTable("daily_plans", {
   shopId:    bigint("shop_id", { mode: "number", unsigned: true }).notNull().references(() => shops.id, { onDelete: "restrict" }),
   planDate:  date("plan_date").notNull(),
   status:    mysqlEnum("status", ["planned", "visited", "skipped"]).default("planned").notNull(),
+  // When the visit happened, as distinct from updatedAt, which moves whenever
+  // anything on the row is edited. Null for plans recorded before this existed.
+  visitedAt: timestamp("visited_at"),
   photoUrl:  mediumtext("photo_url"),
   notes:     text("notes"),
   createdBy: bigint("created_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),

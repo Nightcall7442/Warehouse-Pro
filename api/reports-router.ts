@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createRouter, reportsQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { orders, users, dailyPlans, agentLocations, subscriptions } from "@db/schema";
+import { orders, users, dailyPlans, agentLocations, subscriptions, shops, products, stockMovements } from "@db/schema";
 import { eq, and, sql, gte, desc , inArray } from "drizzle-orm";
 import { REVENUE_ORDER_STATUSES } from "./lib/order-status";
 import { subDays, format } from "date-fns";
@@ -156,4 +156,89 @@ export const reportsRouter = createRouter({
       pct: r.total > 0 ? Math.round((Number(r.visited) / Number(r.total)) * 100) : 0,
     }));
   }),
+
+  /**
+   * Every planned visit in a period, one row each.
+   *
+   * The other visit endpoints here answer "how many" — this one answers "which
+   * ones", which is what somebody reaches for when a shop says nobody came.
+   * Photo and note presence rather than their contents: a visit photo is a
+   * multi-megabyte blob and no spreadsheet wants it, but whether one exists is
+   * exactly the question being asked.
+   */
+  getVisitsLog: reportsQuery
+    .input(z.object({
+      dateFrom: z.string(),
+      dateTo: z.string(),
+      agentId: z.number().int().positive().optional(),
+      shopId: z.number().int().positive().optional(),
+      limit: z.number().int().min(1).max(10000).default(1000),
+    }))
+    .query(async ({ input, ctx }) => {
+      const conditions = [
+        eq(dailyPlans.tenantId, ctx.tenant.id),
+        sql`${dailyPlans.planDate} >= ${input.dateFrom}`,
+        sql`${dailyPlans.planDate} <= ${input.dateTo}`,
+      ];
+      if (input.agentId) conditions.push(eq(dailyPlans.agentId, input.agentId));
+      if (input.shopId) conditions.push(eq(dailyPlans.shopId, input.shopId));
+
+      return getDb().select({
+        planDate: dailyPlans.planDate,
+        status: dailyPlans.status,
+        visitedAt: dailyPlans.visitedAt,
+        agentName: users.name,
+        shopName: shops.name,
+        shopCity: shops.city,
+        shopAddress: shops.address,
+        // Presence, not payload — photo_url holds a data URL up to several MB.
+        hasPhoto: sql<number>`CASE WHEN ${dailyPlans.photoUrl} IS NULL OR ${dailyPlans.photoUrl} = '' THEN 0 ELSE 1 END`,
+        notes: dailyPlans.notes,
+      })
+        .from(dailyPlans)
+        .leftJoin(users, eq(dailyPlans.agentId, users.id))
+        .leftJoin(shops, eq(dailyPlans.shopId, shops.id))
+        .where(and(...conditions))
+        .orderBy(desc(dailyPlans.planDate))
+        .limit(input.limit);
+    }),
+
+  /**
+   * Warehouse-wide stock movement log.
+   *
+   * warehouse.movements answers for one product at a time — it takes a
+   * productId — so there was no way to export what moved through the warehouse
+   * over a period, which is the version an accountant asks for.
+   */
+  getStockMovements: reportsQuery
+    .input(z.object({
+      dateFrom: z.string(),
+      dateTo: z.string(),
+      type: z.enum(["in", "out", "adjustment"]).optional(),
+      limit: z.number().int().min(1).max(10000).default(1000),
+    }))
+    .query(async ({ input, ctx }) => {
+      const conditions = [
+        eq(stockMovements.tenantId, ctx.tenant.id),
+        sql`${stockMovements.createdAt} >= ${input.dateFrom}`,
+        sql`${stockMovements.createdAt} <= ${input.dateTo + " 23:59:59"}`,
+      ];
+      if (input.type) conditions.push(eq(stockMovements.type, input.type));
+
+      return getDb().select({
+        createdAt: stockMovements.createdAt,
+        type: stockMovements.type,
+        quantity: stockMovements.quantity,
+        productName: products.name,
+        productCode: products.code,
+        referenceType: stockMovements.referenceType,
+        referenceId: stockMovements.referenceId,
+        notes: stockMovements.notes,
+      })
+        .from(stockMovements)
+        .leftJoin(products, eq(stockMovements.productId, products.id))
+        .where(and(...conditions))
+        .orderBy(desc(stockMovements.createdAt))
+        .limit(input.limit);
+    }),
 });

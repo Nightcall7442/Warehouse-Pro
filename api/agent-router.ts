@@ -332,7 +332,14 @@ export const agentRouter = createRouter({
       if (!isPrivileged) {
         conditions.push(eq(dailyPlans.agentId, ctx.user.id));
       }
-      await getDb().update(dailyPlans).set({ status: input.status })
+      // Stamped only on the way in to "visited", and cleared if the plan is
+      // moved back — a stale timestamp on a plan that is no longer visited
+      // would show up in the report as a visit that never happened.
+      await getDb().update(dailyPlans)
+        .set({
+          status: input.status,
+          visitedAt: input.status === "visited" ? new Date() : null,
+        })
         .where(and(...conditions));
       return { success: true };
     }),
