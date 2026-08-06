@@ -8,24 +8,37 @@ import { MS_PER_DAY } from "./lib/constants";
 
 export const analyticsRouter = createRouter({
   salesByShop: reportsQuery
-    .input(z.object({ dateFrom: z.string().optional(), dateTo: z.string().optional() }).optional())
+    .input(z.object({
+      dateFrom: z.string().optional(),
+      dateTo: z.string().optional(),
+      limit: z.number().int().min(1).max(10000).optional(),
+    }).optional())
     .query(async ({ input, ctx }) => {
       const conditions = [eq(orders.tenantId, ctx.tenant.id), inArray(orders.status, REVENUE_ORDER_STATUSES)];
       if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
       // P1-15 FIX: Include full last day by adding 23:59:59
       if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`);
 
+      // The dashboard wants a top-N chart; an export wants every row. Left at
+      // the chart default so existing callers are untouched, and raised only
+      // when the reports hub explicitly asks — an export that silently drops
+      // the tail is worse than no export, because nothing on the sheet says
+      // anything is missing.
       return getDb().select({
         shopName:   shops.name,
         revenue:    sql<string>`COALESCE(SUM(${orders.total}), 0)`,
         orderCount: sql<number>`count(*)`,
       })
         .from(orders).leftJoin(shops, eq(orders.shopId, shops.id))
-        .where(and(...conditions)).groupBy(shops.id).orderBy(desc(sql`SUM(${orders.total})`)).limit(20);
+        .where(and(...conditions)).groupBy(shops.id).orderBy(desc(sql`SUM(${orders.total})`)).limit(input?.limit ?? 20);
     }),
 
   topProducts: reportsQuery
-    .input(z.object({ dateFrom: z.string().optional(), dateTo: z.string().optional() }).optional())
+    .input(z.object({
+      dateFrom: z.string().optional(),
+      dateTo: z.string().optional(),
+      limit: z.number().int().min(1).max(10000).optional(),
+    }).optional())
     .query(async ({ input, ctx }) => {
       const conditions = [eq(orders.tenantId, ctx.tenant.id), inArray(orders.status, REVENUE_ORDER_STATUSES)];
       if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
@@ -40,7 +53,7 @@ export const analyticsRouter = createRouter({
         .from(orderItems)
         .leftJoin(products, eq(orderItems.productId, products.id))
         .leftJoin(orders, eq(orderItems.orderId, orders.id))
-        .where(and(...conditions)).groupBy(products.id).orderBy(desc(sql`SUM(${orderItems.quantity})`)).limit(10);
+        .where(and(...conditions)).groupBy(products.id).orderBy(desc(sql`SUM(${orderItems.quantity})`)).limit(input?.limit ?? 10);
     }),
 
   agentPerformance: reportsQuery

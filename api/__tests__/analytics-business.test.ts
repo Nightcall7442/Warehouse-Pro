@@ -308,8 +308,7 @@ function makeMockDb() {
  * left alone — it is what proves the narrower gate is actually enforced.
  */
 function buildCeoCtx() {
-  const ctx = buildCtx();
-  return { ...ctx, user: { ...ctx.user, role: "ceo" as const } };
+  return buildCtx({ user: { ...buildCtx().user, role: "ceo" as const } });
 }
 
 function buildCtx(overrides: Record<string, unknown> = {}) {

@@ -4,7 +4,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { useLang } from "@/i18n";
 import { useAuth } from "@/hooks/useAuth";
 import { format, subDays } from "date-fns";
-import { FileDown, Printer, LayoutDashboard, ShoppingCart, Award, Users } from "lucide-react";
+import { FileDown, Printer, LayoutDashboard, ShoppingCart, Award, Users, LayoutGrid } from "lucide-react";
 import { exportToExcel } from "@/lib/excel";
 import { exportToPDF } from "@/lib/export";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
@@ -14,6 +14,7 @@ import { OverviewTab } from "@/components/reports/OverviewTab";
 import { SalesTab } from "@/components/reports/SalesTab";
 import { AgentsTab } from "@/components/reports/AgentsTab";
 import { AgentProductsTab } from "@/components/reports/AgentProductsTab";
+import { ReportsHub } from "@/components/reports/ReportsHub";
 
 export default function Reports() {
   const [tab, setTab] = useState<TabKey>("overview");
@@ -57,6 +58,7 @@ export default function Reports() {
     { key: "sales" as const, ru: "Продажи", uz: "Sotuvlar", icon: <ShoppingCart size={16} /> },
     { key: "agents" as const, ru: "Агенты", uz: "Agentlar", icon: <Award size={16} /> },
     { key: "agentProducts" as const, ru: "Агент × Товар", uz: "Agent × Mahsulot", icon: <Users size={16} /> },
+    { key: "all" as const, ru: "Все отчёты", uz: "Barcha hisobotlar", icon: <LayoutGrid size={16} /> },
   ];
 
   const handleExportAgentProducts = async () => {
@@ -239,6 +241,10 @@ export default function Reports() {
       </div>
 
       {/* Tab content */}
+      {tab === "all" && (
+        <ReportsHub role={user?.role} t={t} lang={lang} />
+      )}
+
       {tab === "overview" && (
         <OverviewTab
           summary={summary}
