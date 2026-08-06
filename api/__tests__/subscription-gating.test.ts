@@ -6,6 +6,8 @@
  * the subscription is active or within the grace period.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { TrpcContext } from "../context";
+import { asTestContext } from "./helpers/test-context";
 import { TRPCError } from "@trpc/server";
 
 const mockCheckSubscriptionAccess = vi.fn();
@@ -18,13 +20,13 @@ vi.mock("../lib/rate-limit", () => ({
   getClientIp: vi.fn(() => "127.0.0.1"),
 }));
 
-function makeCtx(tenantId: number, userId: number, role = "operator") {
-  return {
+function makeCtx(tenantId: number, userId: number, role = "operator"): TrpcContext {
+  return asTestContext({
     req: new Request("http://localhost/"),
     resHeaders: new Headers(),
     user: { id: userId, tenantId, role, status: "active" as const, name: "Test", email: "t@t.com", passwordHash: "x", avatar: null, phone: null, createdAt: new Date(), updatedAt: new Date(), lastSignInAt: new Date() },
     tenant: { id: tenantId, slug: "test", name: "Test Co", plan: "trial" as const, status: "active" as const, createdAt: new Date(), updatedAt: new Date() },
-  };
+  });
 }
 
 beforeEach(() => {

@@ -326,7 +326,7 @@ describe("stock reservation — order creation", () => {
   it("reserves exactly the requested quantity", async () => {
     const { orderRouter } = await import("../order-router");
     const caller = orderRouter.createCaller({ ...makeCtx(1, 10, "agent"), db: mockDb });
-    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 20, unitPrice: 100 }] });
+    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 20}] });
 
     const stock = stockTable.find(s => s.productId === 1 && s.tenantId === 1)!;
     expect(stock.reserved).toBe("20.00");
@@ -338,7 +338,7 @@ describe("stock reservation — order creation", () => {
     const { orderRouter } = await import("../order-router");
     const caller = orderRouter.createCaller({ ...makeCtx(1, 10, "agent"), db: mockDb });
     await expect(
-      caller.create({ shopId: 1, items: [{ productId: 2, quantity: 50, unitPrice: 10 }] })
+      caller.create({ shopId: 1, items: [{ productId: 2, quantity: 50}] })
     ).rejects.toThrow(/Недостаточно товара/);
 
     const stock = stockTable.find(s => s.productId === 2)!;
@@ -350,7 +350,7 @@ describe("stock reservation — order creation", () => {
     const { orderRouter } = await import("../order-router");
     const caller = orderRouter.createCaller({ ...makeCtx(1, 10, "agent"), db: mockDb });
     await expect(
-      caller.create({ shopId: 1, items: [{ productId: 3, quantity: 1, unitPrice: 200 }] })
+      caller.create({ shopId: 1, items: [{ productId: 3, quantity: 1}] })
     ).rejects.toThrow(/Недостаточно товара/);
   });
 
@@ -360,8 +360,8 @@ describe("stock reservation — order creation", () => {
     await caller.create({
       shopId: 1,
       items: [
-        { productId: 1, quantity: 10, unitPrice: 100 },
-        { productId: 2, quantity: 3, unitPrice: 50 },
+        { productId: 1, quantity: 10},
+        { productId: 2, quantity: 3},
       ],
     });
 
@@ -376,7 +376,7 @@ describe("stock reservation — order creation", () => {
   it("does not modify currentStock on reservation", async () => {
     const { orderRouter } = await import("../order-router");
     const caller = orderRouter.createCaller({ ...makeCtx(1, 10, "agent"), db: mockDb });
-    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 20, unitPrice: 100 }] });
+    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 20}] });
 
     const stock = stockTable.find(s => s.productId === 1)!;
     expect(stock.currentStock).toBe("100.00");
@@ -388,7 +388,7 @@ describe("stock restoration — order cancellation", () => {
   it("returns full reservation to available stock", async () => {
     const { orderRouter } = await import("../order-router");
     const caller = orderRouter.createCaller({ ...makeCtx(1, 10, "agent"), db: mockDb });
-    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 15, unitPrice: 100 }] });
+    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 15}] });
 
     expect(stockTable.find(s => s.productId === 1)!.reserved).toBe("15.00");
 
@@ -406,8 +406,8 @@ describe("stock restoration — order cancellation", () => {
     await caller.create({
       shopId: 1,
       items: [
-        { productId: 1, quantity: 10, unitPrice: 100 },
-        { productId: 2, quantity: 3, unitPrice: 50 },
+        { productId: 1, quantity: 10},
+        { productId: 2, quantity: 3},
       ],
     });
     await caller.cancel({ id: 1 });
@@ -421,7 +421,7 @@ describe("stock restoration — order cancellation", () => {
   it("stock is not double-restored on double cancel", async () => {
     const { orderRouter } = await import("../order-router");
     const caller = orderRouter.createCaller({ ...makeCtx(1, 10, "agent"), db: mockDb });
-    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 15, unitPrice: 100 }] });
+    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 15}] });
     await caller.cancel({ id: 1 });
 
     await expect(caller.cancel({ id: 1 })).rejects.toThrow(/Можно отменить только новые заказы/);
@@ -438,7 +438,7 @@ describe("stock deduction — order completion", () => {
     const agentCaller = orderRouter.createCaller({ ...makeCtx(1, 10, "agent"), db: mockDb });
     const opCaller = orderRouter.createCaller({ ...makeCtx(1, 1, "operator"), db: mockDb });
 
-    await agentCaller.create({ shopId: 1, items: [{ productId: 1, quantity: 10, unitPrice: 100 }] });
+    await agentCaller.create({ shopId: 1, items: [{ productId: 1, quantity: 10}] });
     await opCaller.updateStatus({ id: 1, status: "delivered" });
 
     const stock = stockTable.find(s => s.productId === 1)!;
@@ -455,8 +455,8 @@ describe("stock deduction — order completion", () => {
     await agentCaller.create({
       shopId: 1,
       items: [
-        { productId: 1, quantity: 10, unitPrice: 100 },
-        { productId: 2, quantity: 3, unitPrice: 50 },
+        { productId: 1, quantity: 10},
+        { productId: 2, quantity: 3},
       ],
     });
     await opCaller.updateStatus({ id: 1, status: "delivered" });
@@ -474,7 +474,7 @@ describe("stock deduction — order completion", () => {
     const agentCaller = orderRouter.createCaller({ ...makeCtx(1, 10, "agent"), db: mockDb });
     const opCaller = orderRouter.createCaller({ ...makeCtx(1, 1, "operator"), db: mockDb });
 
-    await agentCaller.create({ shopId: 1, items: [{ productId: 1, quantity: 20, unitPrice: 100 }] });
+    await agentCaller.create({ shopId: 1, items: [{ productId: 1, quantity: 20}] });
     const s1 = stockTable.find(s => s.productId === 1)!;
     expect(s1.reserved).toBe("20.00");
     expect(s1.available).toBe("80.00");
@@ -496,7 +496,7 @@ describe("stock operations — tenant isolation", () => {
 
     // Tenant 2 has no products, so order should fail
     await expect(
-      t2Caller.create({ shopId: 2, items: [{ productId: 1, quantity: 1, unitPrice: 100 }] })
+      t2Caller.create({ shopId: 2, items: [{ productId: 1, quantity: 1}] })
     ).rejects.toThrow();
 
     // Tenant 1 stock unchanged

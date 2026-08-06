@@ -289,7 +289,7 @@ describe("order.create — POST /api/orders", () => {
     const { orderRouter } = await import("../order-router");
     const caller = orderRouter.createCaller({ ...makeCtx(1, 10), db: mockDb });
     const result = await caller.create({
-      shopId: 1, items: [{ productId: 1, quantity: 20, unitPrice: 100 }],
+      shopId: 1, items: [{ productId: 1, quantity: 20}],
     });
     expect(result.id).toBe(1);
     expect(result.orderNumber).toMatch(/^ORD-/);
@@ -298,7 +298,7 @@ describe("order.create — POST /api/orders", () => {
   it("reserves stock on creation", async () => {
     const { orderRouter } = await import("../order-router");
     const caller = orderRouter.createCaller({ ...makeCtx(1, 10), db: mockDb });
-    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 10, unitPrice: 50 }] });
+    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 10}] });
 
     const stock = stockTable.find(s => s.productId === 1)!;
     expect(stock.reserved).toBe("10.00");
@@ -309,7 +309,7 @@ describe("order.create — POST /api/orders", () => {
     const { orderRouter } = await import("../order-router");
     const caller = orderRouter.createCaller({ ...makeCtx(1, 10), db: mockDb });
     await expect(
-      caller.create({ shopId: 1, items: [{ productId: 2, quantity: 50, unitPrice: 10 }] })
+      caller.create({ shopId: 1, items: [{ productId: 2, quantity: 50}] })
     ).rejects.toThrow(/Недостаточно товара/);
     expect(ordersTable).toHaveLength(0);
   });
@@ -320,8 +320,8 @@ describe("order.create — POST /api/orders", () => {
     await caller.create({
       shopId: 1,
       items: [
-        { productId: 1, quantity: 5, unitPrice: 100 },
-        { productId: 2, quantity: 2, unitPrice: 50 },
+        { productId: 1, quantity: 5},
+        { productId: 2, quantity: 2},
       ],
     });
     expect(ordersTable).toHaveLength(1);
@@ -343,7 +343,7 @@ describe("order.create — POST /api/orders", () => {
     delete (ctx as any).tenant;
     const caller = orderRouter.createCaller({ ...ctx, db: mockDb });
     await expect(
-      caller.create({ shopId: 1, items: [{ productId: 1, quantity: 1, unitPrice: 100 }] })
+      caller.create({ shopId: 1, items: [{ productId: 1, quantity: 1}] })
     ).rejects.toThrow();
   }  );
 });
@@ -361,7 +361,7 @@ describe("order.list — GET /api/orders", () => {
   it("returns created orders", async () => {
     const { orderRouter } = await import("../order-router");
     const caller = orderRouter.createCaller({ ...makeCtx(1, 10), db: mockDb });
-    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 5, unitPrice: 100 }] });
+    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 5}] });
 
     const result = await caller.list();
     expect(result.data).toHaveLength(1);
@@ -372,7 +372,7 @@ describe("order.list — GET /api/orders", () => {
   it("filters by status", async () => {
     const { orderRouter } = await import("../order-router");
     const caller = orderRouter.createCaller({ ...makeCtx(1, 10), db: mockDb });
-    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 5, unitPrice: 100 }] });
+    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 5}] });
 
     const result = await caller.list({ status: "cancelled" });
     expect(result.data).toHaveLength(0);
@@ -447,7 +447,7 @@ describe("order.list — GET /api/orders", () => {
     const caller1 = orderRouter.createCaller({ ...makeCtx(1, 10), db: mockDb });
     const caller2 = orderRouter.createCaller({ ...makeCtx(2, 100), db: mockDb });
 
-    await caller1.create({ shopId: 1, items: [{ productId: 1, quantity: 5, unitPrice: 100 }] });
+    await caller1.create({ shopId: 1, items: [{ productId: 1, quantity: 5}] });
 
     const result1 = await caller1.list();
     const result2 = await caller2.list();
@@ -463,7 +463,7 @@ describe("order.getById — GET /api/orders/:id", () => {
     const caller = orderRouter.createCaller({ ...makeCtx(1, 10), db: mockDb });
     const created = await caller.create({
       shopId: 1,
-      items: [{ productId: 1, quantity: 5, unitPrice: 100 }],
+      items: [{ productId: 1, quantity: 5}],
     });
 
     const order = await caller.getById({ id: created.id });
@@ -484,7 +484,7 @@ describe("order.getById — GET /api/orders/:id", () => {
   it("returns null for order belonging to different tenant", async () => {
     const { orderRouter } = await import("../order-router");
     const caller1 = orderRouter.createCaller({ ...makeCtx(1, 10), db: mockDb });
-    await caller1.create({ shopId: 1, items: [{ productId: 1, quantity: 5, unitPrice: 100 }] });
+    await caller1.create({ shopId: 1, items: [{ productId: 1, quantity: 5}] });
 
     const caller2 = orderRouter.createCaller({ ...makeCtx(2, 100), db: mockDb });
     const order = await caller2.getById({ id: 1 });
@@ -497,7 +497,7 @@ describe("order.cancel — PATCH /api/orders/:id/cancel", () => {
   it("cancels a new order and restores stock", async () => {
     const { orderRouter } = await import("../order-router");
     const caller = orderRouter.createCaller({ ...makeCtx(1, 10), db: mockDb });
-    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 15, unitPrice: 100 }] });
+    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 15}] });
 
     const result = await caller.cancel({ id: 1 });
     expect(result.success).toBe(true);
@@ -511,7 +511,7 @@ describe("order.cancel — PATCH /api/orders/:id/cancel", () => {
   it("refuses to cancel a non-new order", async () => {
     const { orderRouter } = await import("../order-router");
     const caller = orderRouter.createCaller({ ...makeCtx(1, 10), db: mockDb });
-    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 5, unitPrice: 100 }] });
+    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 5}] });
     await caller.cancel({ id: 1 });
 
     await expect(caller.cancel({ id: 1 })).rejects.toThrow(/Можно отменить только новые заказы/);
@@ -520,7 +520,7 @@ describe("order.cancel — PATCH /api/orders/:id/cancel", () => {
   it("agent cannot cancel another agent's order", async () => {
     const { orderRouter } = await import("../order-router");
     const ownerCaller = orderRouter.createCaller({ ...makeCtx(1, 10), db: mockDb });
-    await ownerCaller.create({ shopId: 1, items: [{ productId: 1, quantity: 5, unitPrice: 100 }] });
+    await ownerCaller.create({ shopId: 1, items: [{ productId: 1, quantity: 5}] });
 
     const intruderCaller = orderRouter.createCaller({ ...makeCtx(1, 11), db: mockDb });
     await expect(intruderCaller.cancel({ id: 1 })).rejects.toThrow(/Заказ не найден/);
@@ -540,7 +540,7 @@ describe("order.updateStatus — PATCH /api/orders/:id/status", () => {
     const agentCaller = orderRouter.createCaller({ ...makeCtx(1, 10), db: mockDb });
     const opCaller = orderRouter.createCaller({ ...makeCtx(1, 1, "operator"), db: mockDb });
 
-    await agentCaller.create({ shopId: 1, items: [{ productId: 1, quantity: 5, unitPrice: 100 }] });
+    await agentCaller.create({ shopId: 1, items: [{ productId: 1, quantity: 5}] });
     await opCaller.updateStatus({ id: 1, status: "processing" });
     expect(ordersTable[0].status).toBe("processing");
   });
@@ -550,7 +550,7 @@ describe("order.updateStatus — PATCH /api/orders/:id/status", () => {
     const agentCaller = orderRouter.createCaller({ ...makeCtx(1, 10), db: mockDb });
     const opCaller = orderRouter.createCaller({ ...makeCtx(1, 1, "operator"), db: mockDb });
 
-    await agentCaller.create({ shopId: 1, items: [{ productId: 1, quantity: 10, unitPrice: 100 }] });
+    await agentCaller.create({ shopId: 1, items: [{ productId: 1, quantity: 10}] });
     await opCaller.updateStatus({ id: 1, status: "delivered" });
 
     const stock = stockTable.find(s => s.productId === 1)!;
@@ -563,7 +563,7 @@ describe("order.updateStatus — PATCH /api/orders/:id/status", () => {
     const agentCaller = orderRouter.createCaller({ ...makeCtx(1, 10), db: mockDb });
     const opCaller = orderRouter.createCaller({ ...makeCtx(1, 1, "operator"), db: mockDb });
 
-    await agentCaller.create({ shopId: 1, items: [{ productId: 1, quantity: 10, unitPrice: 100 }] });
+    await agentCaller.create({ shopId: 1, items: [{ productId: 1, quantity: 10}] });
     await opCaller.updateStatus({ id: 1, status: "cancelled" });
 
     const stock = stockTable.find(s => s.productId === 1)!;
@@ -576,7 +576,7 @@ describe("order.updateStatus — PATCH /api/orders/:id/status", () => {
     const agentCaller = orderRouter.createCaller({ ...makeCtx(1, 10), db: mockDb });
     const opCaller = orderRouter.createCaller({ ...makeCtx(1, 1, "operator"), db: mockDb });
 
-    await agentCaller.create({ shopId: 1, items: [{ productId: 1, quantity: 5, unitPrice: 100 }] });
+    await agentCaller.create({ shopId: 1, items: [{ productId: 1, quantity: 5}] });
     await opCaller.updateStatus({ id: 1, status: "delivered" });
     await opCaller.updateStatus({ id: 1, status: "processing" });
 
@@ -586,7 +586,7 @@ describe("order.updateStatus — PATCH /api/orders/:id/status", () => {
   it("agents cannot update status (operator+ only)", async () => {
     const { orderRouter } = await import("../order-router");
     const agentCaller = orderRouter.createCaller({ ...makeCtx(1, 10), db: mockDb });
-    await agentCaller.create({ shopId: 1, items: [{ productId: 1, quantity: 5, unitPrice: 100 }] });
+    await agentCaller.create({ shopId: 1, items: [{ productId: 1, quantity: 5}] });
 
     await expect(
       agentCaller.updateStatus({ id: 1, status: "delivered" })
@@ -598,7 +598,7 @@ describe("order.updateStatus — PATCH /api/orders/:id/status", () => {
     const agentCaller = orderRouter.createCaller({ ...makeCtx(1, 10), db: mockDb });
     const opCaller = orderRouter.createCaller({ ...makeCtx(1, 1, "operator"), db: mockDb });
 
-    await agentCaller.create({ shopId: 1, items: [{ productId: 1, quantity: 10, unitPrice: 100 }] });
+    await agentCaller.create({ shopId: 1, items: [{ productId: 1, quantity: 10}] });
     await opCaller.updateStatus({ id: 1, status: "delivered" });
     try { await opCaller.updateStatus({ id: 1, status: "delivered" }); } catch { /* expected */ }
 
@@ -614,7 +614,7 @@ describe("order.delete — DELETE /api/orders/:id", () => {
     const agentCaller = orderRouter.createCaller({ ...makeCtx(1, 10), db: mockDb });
     const opCaller = orderRouter.createCaller({ ...makeCtx(1, 1, "operator"), db: mockDb });
 
-    await agentCaller.create({ shopId: 1, items: [{ productId: 1, quantity: 10, unitPrice: 100 }] });
+    await agentCaller.create({ shopId: 1, items: [{ productId: 1, quantity: 10}] });
     const result = await opCaller.delete({ id: 1 });
 
     expect(result.success).toBe(true);
@@ -630,7 +630,7 @@ describe("order.delete — DELETE /api/orders/:id", () => {
     const agentCaller = orderRouter.createCaller({ ...makeCtx(1, 10), db: mockDb });
     const opCaller = orderRouter.createCaller({ ...makeCtx(1, 1, "operator"), db: mockDb });
 
-    await agentCaller.create({ shopId: 1, items: [{ productId: 1, quantity: 10, unitPrice: 100 }] });
+    await agentCaller.create({ shopId: 1, items: [{ productId: 1, quantity: 10}] });
     await opCaller.updateStatus({ id: 1, status: "processing" });
     await opCaller.delete({ id: 1 });
 
@@ -647,7 +647,7 @@ describe("order.delete — DELETE /api/orders/:id", () => {
   it("agents cannot delete orders (operator+ only)", async () => {
     const { orderRouter } = await import("../order-router");
     const agentCaller = orderRouter.createCaller({ ...makeCtx(1, 10), db: mockDb });
-    await agentCaller.create({ shopId: 1, items: [{ productId: 1, quantity: 5, unitPrice: 100 }] });
+    await agentCaller.create({ shopId: 1, items: [{ productId: 1, quantity: 5}] });
 
     await expect(agentCaller.delete({ id: 1 })).rejects.toThrow();
   });
@@ -655,7 +655,7 @@ describe("order.delete — DELETE /api/orders/:id", () => {
   it("cannot delete another tenant's order", async () => {
     const { orderRouter } = await import("../order-router");
     const caller1 = orderRouter.createCaller({ ...makeCtx(1, 10), db: mockDb });
-    await caller1.create({ shopId: 1, items: [{ productId: 1, quantity: 5, unitPrice: 100 }] });
+    await caller1.create({ shopId: 1, items: [{ productId: 1, quantity: 5}] });
 
     const opCaller2 = orderRouter.createCaller({ ...makeCtx(2, 1, "operator"), db: mockDb });
     await expect(opCaller2.delete({ id: 1 })).rejects.toThrow();

@@ -285,7 +285,7 @@ describe("order.create — stock reservation", () => {
   it("reserves exactly the requested quantity and reduces available", async () => {
     const { orderRouter } = await import("../order-router");
     const caller = orderRouter.createCaller(makeCtx(1, 10, "agent"));
-    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 20, unitPrice: 100 }] });
+    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 20}] });
 
     const stock = stockTable.find(s => s.productId === 1)!;
     expect(stock.reserved).toBe("20.00");
@@ -297,7 +297,7 @@ describe("order.create — stock reservation", () => {
     const { orderRouter } = await import("../order-router");
     const caller = orderRouter.createCaller(makeCtx(1, 10, "agent"));
     await expect(
-      caller.create({ shopId: 1, items: [{ productId: 2, quantity: 50, unitPrice: 10 }] })
+      caller.create({ shopId: 1, items: [{ productId: 2, quantity: 50}] })
     ).rejects.toThrow(/Недостаточно товара/);
 
     const stock = stockTable.find(s => s.productId === 2)!;
@@ -312,8 +312,8 @@ describe("order.create — stock reservation", () => {
     await caller.create({
       shopId: 1,
       items: [
-        { productId: 1, quantity: 5, unitPrice: 100 },
-        { productId: 2, quantity: 2, unitPrice: 50 },
+        { productId: 1, quantity: 5},
+        { productId: 2, quantity: 2},
       ],
     });
     expect(ordersTable).toHaveLength(1);
@@ -325,7 +325,7 @@ describe("order.cancel — stock release", () => {
   it("returns the full reservation back to available stock", async () => {
     const { orderRouter } = await import("../order-router");
     const caller = orderRouter.createCaller(makeCtx(1, 10, "agent"));
-    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 15, unitPrice: 100 }] });
+    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 15}] });
 
     expect(stockTable.find(s => s.productId === 1)!.reserved).toBe("15.00");
 
@@ -340,7 +340,7 @@ describe("order.cancel — stock release", () => {
   it("refuses to cancel an order that isn't in 'new' status", async () => {
     const { orderRouter } = await import("../order-router");
     const caller = orderRouter.createCaller(makeCtx(1, 10, "agent"));
-    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 10, unitPrice: 100 }] });
+    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 10}] });
     await caller.cancel({ id: 1 });
 
     await expect(caller.cancel({ id: 1 })).rejects.toThrow(/Можно отменить только новые заказ/);
@@ -351,7 +351,7 @@ describe("order.cancel — stock release", () => {
     const ownerCaller    = orderRouter.createCaller(makeCtx(1, 10, "agent"));
     const intruderCaller = orderRouter.createCaller(makeCtx(1, 99, "agent"));
 
-    await ownerCaller.create({ shopId: 1, items: [{ productId: 1, quantity: 10, unitPrice: 100 }] });
+    await ownerCaller.create({ shopId: 1, items: [{ productId: 1, quantity: 10}] });
 
     await expect(intruderCaller.cancel({ id: 1 })).rejects.toThrow(/Заказ не найден/);
   });
@@ -363,7 +363,7 @@ describe("order.updateStatus — no double-apply on stock", () => {
     const caller   = orderRouter.createCaller(makeCtx(1, 10, "agent"));
     const opCaller = orderRouter.createCaller(makeCtx(1, 1, "operator"));
 
-    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 10, unitPrice: 100 }] });
+    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 10}] });
     await opCaller.updateStatus({ id: 1, status: "delivered" });
 
     const stock = stockTable.find(s => s.productId === 1)!;
@@ -376,7 +376,7 @@ describe("order.updateStatus — no double-apply on stock", () => {
     const caller   = orderRouter.createCaller(makeCtx(1, 10, "agent"));
     const opCaller = orderRouter.createCaller(makeCtx(1, 1, "operator"));
 
-    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 10, unitPrice: 100 }] });
+    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 10}] });
     await opCaller.updateStatus({ id: 1, status: "delivered" });
     try { await opCaller.updateStatus({ id: 1, status: "delivered" }); } catch { /* expected */ }
 
@@ -389,7 +389,7 @@ describe("order.updateStatus — no double-apply on stock", () => {
     const caller   = orderRouter.createCaller(makeCtx(1, 10, "agent"));
     const opCaller = orderRouter.createCaller(makeCtx(1, 1, "operator"));
 
-    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 10, unitPrice: 100 }] });
+    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 10}] });
     await opCaller.updateStatus({ id: 1, status: "cancelled" });
     try { await opCaller.updateStatus({ id: 1, status: "cancelled" }); } catch { /* expected */ }
 
@@ -404,7 +404,7 @@ describe("order.delete — soft delete with stock release", () => {
     const caller = orderRouter.createCaller(makeCtx(1, 10, "agent"));
     const opCaller = orderRouter.createCaller(makeCtx(1, 1, "operator"));
 
-    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 15, unitPrice: 100 }] });
+    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 15}] });
     expect(stockTable.find(s => s.productId === 1)!.reserved).toBe("15.00");
 
     await opCaller.delete({ id: 1 });
@@ -420,7 +420,7 @@ describe("order.delete — soft delete with stock release", () => {
     const caller = orderRouter.createCaller(makeCtx(1, 10, "agent"));
     const opCaller = orderRouter.createCaller(makeCtx(1, 1, "operator"));
 
-    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 10, unitPrice: 100 }] });
+    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 10}] });
     await opCaller.cancel({ id: 1 });
     await opCaller.delete({ id: 1 });
 
@@ -435,7 +435,7 @@ describe("order.restore — restore soft-deleted order", () => {
     const caller = orderRouter.createCaller(makeCtx(1, 10, "agent"));
     const opCaller = orderRouter.createCaller(makeCtx(1, 1, "operator"));
 
-    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 10, unitPrice: 100 }] });
+    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 10}] });
     await opCaller.delete({ id: 1 });
 
     const stockBefore = stockTable.find(s => s.productId === 1)!;
@@ -457,8 +457,8 @@ describe("order.create — multi-product reservation", () => {
     await caller.create({
       shopId: 1,
       items: [
-        { productId: 1, quantity: 5, unitPrice: 100 },
-        { productId: 2, quantity: 3, unitPrice: 50 },
+        { productId: 1, quantity: 5},
+        { productId: 2, quantity: 3},
       ],
     });
 
@@ -477,8 +477,8 @@ describe("order.create — multi-product reservation", () => {
     await expect(caller.create({
       shopId: 1,
       items: [
-        { productId: 1, quantity: 5, unitPrice: 100 },
-        { productId: 2, quantity: 50, unitPrice: 50 },
+        { productId: 1, quantity: 5},
+        { productId: 2, quantity: 50},
       ],
     })).rejects.toThrow(/Недостаточно товара/);
 
@@ -495,7 +495,7 @@ describe("order lifecycle — shop debt", () => {
 
     const created = await caller.create({
       shopId: 1,
-      items: [{ productId: 1, quantity: 5, unitPrice: 100 }],
+      items: [{ productId: 1, quantity: 5}],
       paymentMethod: "debt",
     }) as { id: number };
 
@@ -512,7 +512,7 @@ describe("order lifecycle — shop debt", () => {
 
     const created = await caller.create({
       shopId: 1,
-      items: [{ productId: 1, quantity: 5, unitPrice: 100 }],
+      items: [{ productId: 1, quantity: 5}],
       paymentMethod: "cash",
     }) as { id: number };
 
@@ -529,7 +529,7 @@ describe("order lifecycle — shop debt", () => {
 
     const created = await caller.create({
       shopId: 1,
-      items: [{ productId: 1, quantity: 4, unitPrice: 100 }],
+      items: [{ productId: 1, quantity: 4}],
       paymentMethod: "debt",
     }) as { id: number };
     expect(shopsTable[0].debt).toBe("400.00");
@@ -547,7 +547,7 @@ describe("order lifecycle — shop debt", () => {
 
     const created = await caller.create({
       shopId: 1,
-      items: [{ productId: 1, quantity: 5, unitPrice: 100 }],
+      items: [{ productId: 1, quantity: 5}],
       paymentMethod: "debt",
     }) as { id: number };
     expect(shopsTable[0].debt).toBe("500.00");
@@ -566,7 +566,7 @@ describe("order lifecycle — soft-deleted orders are out of play", () => {
 
     const created = await caller.create({
       shopId: 1,
-      items: [{ productId: 1, quantity: 10, unitPrice: 100 }],
+      items: [{ productId: 1, quantity: 10}],
     }) as { id: number };
 
     await caller.delete({ id: created.id });
@@ -583,7 +583,7 @@ describe("order lifecycle — soft-deleted orders are out of play", () => {
 
     const created = await caller.create({
       shopId: 1,
-      items: [{ productId: 1, quantity: 10, unitPrice: 100 }],
+      items: [{ productId: 1, quantity: 10}],
     }) as { id: number };
 
     await caller.delete({ id: created.id });

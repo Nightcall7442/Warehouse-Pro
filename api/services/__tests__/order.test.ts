@@ -252,7 +252,7 @@ import { OrderService } from "../order";
 describe("OrderService.create", () => {
   it("reserves stock and creates order atomically", async () => {
     const result = await OrderService.create(mockDb as any, 1, 10, {
-      shopId: 1, items: [{ productId: 1, quantity: "20", unitPrice: "100" }],
+      shopId: 1, items: [{ productId: 1, quantity: "20"}],
     });
 
     expect(result.id).toBe(1);
@@ -268,7 +268,7 @@ describe("OrderService.create", () => {
   it("rejects when stock is insufficient", async () => {
     await expect(
       OrderService.create(mockDb as any, 1, 10, {
-        shopId: 1, items: [{ productId: 1, quantity: "200", unitPrice: "50" }],
+        shopId: 1, items: [{ productId: 1, quantity: "200"}],
       }),
     ).rejects.toThrow(/Недостаточно товара/);
 
@@ -280,8 +280,8 @@ describe("OrderService.create", () => {
     await OrderService.create(mockDb as any, 1, 10, {
       shopId: 1,
       items: [
-        { productId: 1, quantity: "5", unitPrice: "100" },
-        { productId: 2, quantity: "3", unitPrice: "200" },
+        { productId: 1, quantity: "5"},
+        { productId: 2, quantity: "3"},
       ],
     });
 
@@ -295,7 +295,7 @@ describe("OrderService.create", () => {
     // discount is a percentage (0-100); 50% of a 1000 subtotal is 500 off.
     await OrderService.create(mockDb as any, 1, 10, {
       shopId: 1,
-      items: [{ productId: 1, quantity: "10", unitPrice: "100" }],
+      items: [{ productId: 1, quantity: "10"}],
       discount: "50",
     });
 
@@ -309,7 +309,7 @@ describe("OrderService.create", () => {
 describe("OrderService.cancel", () => {
   it("restores stock and marks order cancelled", async () => {
     await OrderService.create(mockDb as any, 1, 10, {
-      shopId: 1, items: [{ productId: 1, quantity: "15", unitPrice: "100" }],
+      shopId: 1, items: [{ productId: 1, quantity: "15"}],
     });
 
     const result = await OrderService.cancel(mockDb as any, 1, 1, { userId: 10, userRole: "agent" });
@@ -329,7 +329,7 @@ describe("OrderService.cancel", () => {
 
   it("throws when order is not in 'new' status", async () => {
     await OrderService.create(mockDb as any, 1, 10, {
-      shopId: 1, items: [{ productId: 1, quantity: "5", unitPrice: "100" }],
+      shopId: 1, items: [{ productId: 1, quantity: "5"}],
     });
     await OrderService.cancel(mockDb as any, 1, 1, { userId: 10, userRole: "agent" });
 
@@ -340,7 +340,7 @@ describe("OrderService.cancel", () => {
 
   it("agent cannot cancel another agent's order", async () => {
     await OrderService.create(mockDb as any, 1, 10, {
-      shopId: 1, items: [{ productId: 1, quantity: "5", unitPrice: "100" }],
+      shopId: 1, items: [{ productId: 1, quantity: "5"}],
     });
 
     await expect(
@@ -352,7 +352,7 @@ describe("OrderService.cancel", () => {
 describe("OrderService.updateStatus", () => {
   it("transitions new -> processing", async () => {
     await OrderService.create(mockDb as any, 1, 10, {
-      shopId: 1, items: [{ productId: 1, quantity: "10", unitPrice: "100" }],
+      shopId: 1, items: [{ productId: 1, quantity: "10"}],
     });
 
     await OrderService.updateStatus(mockDb as any, 1, 1, "processing");
@@ -361,7 +361,7 @@ describe("OrderService.updateStatus", () => {
 
   it("transitions new -> delivered and deducts stock", async () => {
     await OrderService.create(mockDb as any, 1, 10, {
-      shopId: 1, items: [{ productId: 1, quantity: "10", unitPrice: "100" }],
+      shopId: 1, items: [{ productId: 1, quantity: "10"}],
     });
 
     await OrderService.updateStatus(mockDb as any, 1, 1, "delivered");
@@ -374,7 +374,7 @@ describe("OrderService.updateStatus", () => {
 
   it("transitions new -> cancelled and restores available stock", async () => {
     await OrderService.create(mockDb as any, 1, 10, {
-      shopId: 1, items: [{ productId: 1, quantity: "10", unitPrice: "100" }],
+      shopId: 1, items: [{ productId: 1, quantity: "10"}],
     });
 
     await OrderService.updateStatus(mockDb as any, 1, 1, "cancelled");
@@ -386,7 +386,7 @@ describe("OrderService.updateStatus", () => {
 
   it("re-setting the same status is a no-op", async () => {
     await OrderService.create(mockDb as any, 1, 10, {
-      shopId: 1, items: [{ productId: 1, quantity: "10", unitPrice: "100" }],
+      shopId: 1, items: [{ productId: 1, quantity: "10"}],
     });
     const before = { ...stockTable[0] };
 
@@ -402,7 +402,7 @@ describe("OrderService.updateStatus", () => {
 
   it("allows correcting a delivered order back to cancelled, returning the goods", async () => {
     await OrderService.create(mockDb as any, 1, 10, {
-      shopId: 1, items: [{ productId: 1, quantity: "10", unitPrice: "100" }],
+      shopId: 1, items: [{ productId: 1, quantity: "10"}],
     });
     const beforeCreate = Number(stockTable[0].currentStock);
     await OrderService.updateStatus(mockDb as any, 1, 1, "delivered");
@@ -418,7 +418,7 @@ describe("OrderService.updateStatus", () => {
 describe("OrderService.delete", () => {
   it("restores stock for new orders and soft deletes order", async () => {
     await OrderService.create(mockDb as any, 1, 10, {
-      shopId: 1, items: [{ productId: 1, quantity: "25", unitPrice: "100" }],
+      shopId: 1, items: [{ productId: 1, quantity: "25"}],
     });
 
     await OrderService.delete(mockDb as any, 1, 1);
@@ -433,7 +433,7 @@ describe("OrderService.delete", () => {
 
   it("restores stock for processing orders", async () => {
     await OrderService.create(mockDb as any, 1, 10, {
-      shopId: 1, items: [{ productId: 1, quantity: "10", unitPrice: "100" }],
+      shopId: 1, items: [{ productId: 1, quantity: "10"}],
     });
     await OrderService.updateStatus(mockDb as any, 1, 1, "processing");
 
@@ -446,7 +446,7 @@ describe("OrderService.delete", () => {
 
   it("does not restore stock for delivered orders", async () => {
     await OrderService.create(mockDb as any, 1, 10, {
-      shopId: 1, items: [{ productId: 1, quantity: "10", unitPrice: "100" }],
+      shopId: 1, items: [{ productId: 1, quantity: "10"}],
     });
     await OrderService.updateStatus(mockDb as any, 1, 1, "delivered");
 
@@ -466,7 +466,7 @@ describe("OrderService.delete", () => {
 describe("OrderService.list", () => {
   it("returns paginated results with shopName and agentName", async () => {
     await OrderService.create(mockDb as any, 1, 10, {
-      shopId: 1, items: [{ productId: 1, quantity: "5", unitPrice: "100" }],
+      shopId: 1, items: [{ productId: 1, quantity: "5"}],
     });
 
     const result = await OrderService.list(mockDb as any, 1, {}, { userId: 10, userRole: "agent" });
@@ -480,7 +480,7 @@ describe("OrderService.list", () => {
 
   it("filters by status", async () => {
     await OrderService.create(mockDb as any, 1, 10, {
-      shopId: 1, items: [{ productId: 1, quantity: "5", unitPrice: "100" }],
+      shopId: 1, items: [{ productId: 1, quantity: "5"}],
     });
     await OrderService.updateStatus(mockDb as any, 1, 1, "processing");
 
@@ -502,7 +502,7 @@ describe("OrderService.list", () => {
 describe("OrderService.create — costPrice snapshot", () => {
   it("snapshots costPrice from product into order items", async () => {
     await OrderService.create(mockDb as any, 1, 10, {
-      shopId: 1, items: [{ productId: 1, quantity: "5", unitPrice: "100" }],
+      shopId: 1, items: [{ productId: 1, quantity: "5"}],
     });
 
     expect(orderItemsTable).toHaveLength(1);
@@ -511,7 +511,7 @@ describe("OrderService.create — costPrice snapshot", () => {
 
   it("uses server-side unitPrice, not client-provided", async () => {
     await OrderService.create(mockDb as any, 1, 10, {
-      shopId: 1, items: [{ productId: 1, quantity: "5", unitPrice: "999" }],
+      shopId: 1, items: [{ productId: 1, quantity: "5"}],
     });
 
     // Server should use DB price (100.00), not client price (999)
@@ -523,12 +523,12 @@ describe("OrderService.create — costPrice snapshot", () => {
 describe("OrderService.create — idempotency", () => {
   it("returns existing order when idempotencyKey matches", async () => {
     const first = await OrderService.create(mockDb as any, 1, 10, {
-      shopId: 1, items: [{ productId: 1, quantity: "5", unitPrice: "100" }],
+      shopId: 1, items: [{ productId: 1, quantity: "5"}],
       idempotencyKey: "test-key-123",
     });
 
     const second = await OrderService.create(mockDb as any, 1, 10, {
-      shopId: 1, items: [{ productId: 1, quantity: "5", unitPrice: "100" }],
+      shopId: 1, items: [{ productId: 1, quantity: "5"}],
       idempotencyKey: "test-key-123",
     });
 
@@ -540,12 +540,12 @@ describe("OrderService.create — idempotency", () => {
 
   it("creates different orders for different idempotencyKeys", async () => {
     await OrderService.create(mockDb as any, 1, 10, {
-      shopId: 1, items: [{ productId: 1, quantity: "5", unitPrice: "100" }],
+      shopId: 1, items: [{ productId: 1, quantity: "5"}],
       idempotencyKey: "key-1",
     });
 
     await OrderService.create(mockDb as any, 1, 10, {
-      shopId: 1, items: [{ productId: 1, quantity: "3", unitPrice: "100" }],
+      shopId: 1, items: [{ productId: 1, quantity: "3"}],
       idempotencyKey: "key-2",
     });
 

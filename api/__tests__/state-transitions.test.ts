@@ -9,6 +9,8 @@
  *  - Idempotent: delivered → delivered (no double-deduct), cancelled → cancelled (no double-release)
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import type { TrpcContext } from "../context";
+import { asTestContext } from "./helpers/test-context";
 
 vi.mock("drizzle-orm", () => {
   const sqlFn = Object.assign(
@@ -199,19 +201,19 @@ function makeMockDb() {
 let mockDb: ReturnType<typeof makeMockDb>;
 vi.mock("../queries/connection", () => ({ getDb: () => mockDb }));
 
-function makeCtx(tenantId: number, userId: number, role = "agent") {
-  return {
+function makeCtx(tenantId: number, userId: number, role = "agent"): TrpcContext {
+  return asTestContext({
     req: new Request("http://localhost/"),
     resHeaders: new Headers(),
     user: { id: userId, tenantId, role, status: "active" as const, name: "Test", email: "t@t.com", passwordHash: "x", avatar: null, phone: null, createdAt: new Date(), updatedAt: new Date(), lastSignInAt: new Date() },
     tenant: { id: tenantId, slug: "test", name: "Test Co", plan: "trial" as const, status: "active" as const, createdAt: new Date(), updatedAt: new Date() },
     db: mockDb,
-  };
+  });
 }
 
 // ── Helpers for creating an order in a specific state ─────────────────────────
 async function createOrder(caller: ReturnType<typeof import("../order-router")["orderRouter"]["createCaller"]>) {
-  return caller.create({ shopId: 1, items: [{ productId: 1, quantity: 10, unitPrice: 100 }] });
+  return caller.create({ shopId: 1, items: [{ productId: 1, quantity: 10}] });
 }
 
 beforeEach(() => {

@@ -328,8 +328,8 @@ describe("integration: complete order lifecycle", () => {
     const created = await agentCaller.create({
       shopId: 1,
       items: [
-        { productId: 1, quantity: 10, unitPrice: 100 },
-        { productId: 2, quantity: 5, unitPrice: 50 },
+        { productId: 1, quantity: 10},
+        { productId: 2, quantity: 5},
       ],
     });
 
@@ -366,8 +366,8 @@ describe("integration: order create then cancel", () => {
     await agentCaller.create({
       shopId: 1,
       items: [
-        { productId: 1, quantity: 20, unitPrice: 100 },
-        { productId: 2, quantity: 10, unitPrice: 50 },
+        { productId: 1, quantity: 20},
+        { productId: 2, quantity: 10},
       ],
     });
 
@@ -438,7 +438,7 @@ describe("integration: multi-tenant isolation", () => {
     const t1Caller = orderRouter.createCaller({ ...makeCtx(1, 10, "agent"), db: mockDb });
     const t2Caller = orderRouter.createCaller({ ...makeCtx(2, 20, "agent"), db: mockDb });
 
-    await t1Caller.create({ shopId: 1, items: [{ productId: 1, quantity: 5, unitPrice: 100 }] });
+    await t1Caller.create({ shopId: 1, items: [{ productId: 1, quantity: 5}] });
 
     const t1Orders = await t1Caller.list();
     const t2Orders = await t2Caller.list();
@@ -452,7 +452,7 @@ describe("integration: multi-tenant isolation", () => {
     const t1Caller = orderRouter.createCaller({ ...makeCtx(1, 10, "agent"), db: mockDb });
     const t2Caller = orderRouter.createCaller({ ...makeCtx(2, 20, "agent"), db: mockDb });
 
-    await t1Caller.create({ shopId: 1, items: [{ productId: 1, quantity: 5, unitPrice: 100 }] });
+    await t1Caller.create({ shopId: 1, items: [{ productId: 1, quantity: 5}] });
 
     const t1Order = await t1Caller.getById({ id: 1 });
     const t2Order = await t2Caller.getById({ id: 1 });

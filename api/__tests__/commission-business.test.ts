@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import type { TrpcContext } from "../context";
+import { asTestContext } from "./helpers/test-context";
 
 vi.mock("drizzle-orm", async () => {
   const { drizzleMock } = await import("./helpers/drizzle-mock");
@@ -82,8 +84,11 @@ function resetTables() {
 }
 
 const columnToField = new Map<unknown, string>();
-function reg(table: Record<string, unknown>, name: string) {
-  columnToField.set(table[name], name);
+// Takes a drizzle table, whose type is nothing like Record<string, unknown> —
+// the narrower signature made every call site an error without catching
+// anything, since the body only ever reads one property by name.
+function reg(table: object, name: string) {
+  columnToField.set((table as Record<string, unknown>)[name], name);
 }
 reg(commissions, "id"); reg(commissions, "tenantId"); reg(commissions, "userId");
 reg(commissions, "commissionRate"); reg(commissions, "periodType");
@@ -218,15 +223,15 @@ function makeMockDb() {
   return db;
 }
 
-function buildCtx(overrides: Record<string, unknown> = {}) {
-  return {
+function buildCtx(overrides: Record<string, unknown> = {}): TrpcContext {
+  return asTestContext({
     req: new Request("http://localhost/"),
     resHeaders: new Headers(),
     db: mockDb,
     tenant: { id: 1, slug: "test", name: "Test Co", plan: "trial" as const, status: "active" as const, createdAt: new Date(), updatedAt: new Date() },
     user: { id: 1, tenantId: 1, role: "operator" as const, status: "active" as const, name: "Test", email: "t@t.com", passwordHash: "x", avatar: null, phone: null, createdAt: new Date(), updatedAt: new Date(), lastSignInAt: new Date() },
     ...overrides,
-  };
+  });
 }
 
 beforeEach(() => {

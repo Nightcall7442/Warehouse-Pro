@@ -225,13 +225,13 @@ describe("stock concurrency — sequential correctness", () => {
     const caller = orderRouter.createCaller(makeCtx(1, 10, "agent"));
 
     // First order: takes 30 of 50 available
-    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 30, unitPrice: 100 }] });
+    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 30}] });
     expect(stockTable.find(s => s.productId === 1)!.available).toBe("20.00");
     expect(stockTable.find(s => s.productId === 1)!.reserved).toBe("30.00");
 
     // Second order: tries to take 25 of 20 remaining — should fail
     await expect(
-      caller.create({ shopId: 1, items: [{ productId: 1, quantity: 25, unitPrice: 100 }] })
+      caller.create({ shopId: 1, items: [{ productId: 1, quantity: 25}] })
     ).rejects.toThrow();
     expect(stockTable.find(s => s.productId === 1)!.available).toBe("20.00");
     expect(stockTable.find(s => s.productId === 1)!.reserved).toBe("30.00");
@@ -241,12 +241,12 @@ describe("stock concurrency — sequential correctness", () => {
     const { orderRouter } = await import("../order-router");
     const caller = orderRouter.createCaller(makeCtx(1, 10, "agent"));
 
-    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 50, unitPrice: 100 }] });
+    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 50}] });
     expect(stockTable.find(s => s.productId === 1)!.available).toBe("0.00");
     expect(stockTable.find(s => s.productId === 1)!.reserved).toBe("50.00");
 
     await expect(
-      caller.create({ shopId: 1, items: [{ productId: 1, quantity: 1, unitPrice: 100 }] })
+      caller.create({ shopId: 1, items: [{ productId: 1, quantity: 1}] })
     ).rejects.toThrow();
   });
 
@@ -255,8 +255,8 @@ describe("stock concurrency — sequential correctness", () => {
     const caller = orderRouter.createCaller(makeCtx(1, 10, "agent"));
 
     await caller.create({ shopId: 1, items: [
-      { productId: 1, quantity: 50, unitPrice: 100 },
-      { productId: 2, quantity: 25, unitPrice: 200 },
+      { productId: 1, quantity: 50},
+      { productId: 2, quantity: 25},
     ]});
 
     expect(stockTable.find(s => s.productId === 1)!.available).toBe("0.00");
@@ -265,7 +265,7 @@ describe("stock concurrency — sequential correctness", () => {
     expect(stockTable.find(s => s.productId === 2)!.reserved).toBe("25.00");
 
     // Second order for product 2 only should succeed (there's still 5 left)
-    await caller.create({ shopId: 1, items: [{ productId: 2, quantity: 5, unitPrice: 200 }] });
+    await caller.create({ shopId: 1, items: [{ productId: 2, quantity: 5}] });
     expect(stockTable.find(s => s.productId === 2)!.available).toBe("0.00");
     expect(stockTable.find(s => s.productId === 2)!.reserved).toBe("30.00");
   });
@@ -274,10 +274,10 @@ describe("stock concurrency — sequential correctness", () => {
     const { orderRouter } = await import("../order-router");
     const caller = orderRouter.createCaller(makeCtx(1, 10, "agent"));
 
-    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 40, unitPrice: 100 }] });
+    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 40}] });
     expect(stockTable.find(s => s.productId === 1)!.available).toBe("10.00");
 
-    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 10, unitPrice: 100 }] });
+    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 10}] });
     expect(stockTable.find(s => s.productId === 1)!.available).toBe("0.00");
 
     // Cancel the first order — stock should be released
@@ -286,7 +286,7 @@ describe("stock concurrency — sequential correctness", () => {
     expect(stockTable.find(s => s.productId === 1)!.reserved).toBe("10.00");
 
     // Now create a new order using the released stock
-    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 30, unitPrice: 100 }] });
+    await caller.create({ shopId: 1, items: [{ productId: 1, quantity: 30}] });
     expect(stockTable.find(s => s.productId === 1)!.available).toBe("10.00");
     expect(stockTable.find(s => s.productId === 1)!.reserved).toBe("40.00");
   });
