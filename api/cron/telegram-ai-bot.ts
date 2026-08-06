@@ -14,7 +14,7 @@ import { products, warehouseStock, orders, orderItems, users, shops } from "@db/
 import { eq, and, sql, desc, gte, like , inArray } from "drizzle-orm";
 import { REVENUE_ORDER_STATUSES } from "../lib/order-status";
 import { logger } from "../lib/logger";
-import { sendTelegram } from "../telegram-router";
+import { sendTelegram, tgEscape } from "../telegram-router";
 import { env } from "../lib/env";
 
 const app = new Hono<{ Variables: { validatedBody: Record<string, unknown> } }>();
@@ -81,13 +81,13 @@ async function handleIntent(
 
       if (product) {
         return [
-          `📦 <b>${product.name}</b>`,
+          `📦 <b>${tgEscape(product.name)}</b>`,
           `• На складе: ${product.currentStock ?? 0}`,
           `• Доступно: ${product.available ?? 0}`,
         ].join("\n");
       }
 
-      return `❌ Товар «${productKeywords}» не найден на складе.`;
+      return `❌ Товар «${tgEscape(productKeywords)}» не найден на складе.`;
     }
 
     // Show all stock summary
@@ -109,7 +109,7 @@ async function handleIntent(
     }
 
     const lines = stock.map((s) =>
-      `• ${s.name}: ${s.available ?? 0}`
+      `• ${tgEscape(s.name)}: ${s.available ?? 0}`
     );
 
     return [
@@ -149,7 +149,7 @@ async function handleIntent(
     };
 
     const lines = recentOrders.map((o) =>
-      `${statusEmoji[o.status] ?? "📋"} ${o.orderNumber} — ${o.shopName ?? "—"} — ${o.total} сум`
+      `${statusEmoji[o.status] ?? "📋"} ${tgEscape(o.orderNumber)} — ${tgEscape(o.shopName ?? "—")} — ${o.total} сум`
     );
 
     return [
@@ -180,7 +180,7 @@ async function handleIntent(
     }
 
     const lines = topProducts.map((p, i) =>
-      `${i + 1}. ${p.name} — ${p.totalSold} шт.`
+      `${i + 1}. ${tgEscape(p.name)} — ${p.totalSold} шт.`
     );
 
     return [

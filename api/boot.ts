@@ -93,8 +93,13 @@ app.use("*", async (c, next) => {
     // P1-11 FIX: Only alert on 5xx errors that are not Zod validation errors
     if (status >= 500 && !(err instanceof Error && err.message.includes("ZodError"))) {
       try {
-        const { notifyAdmin } = await import("./telegram-router");
-        const msg = `🔴 <b>Server Error</b>\n<code>${method} ${path}</code>\n${err instanceof Error ? err.message : String(err).slice(0, 200)}`;
+        const { notifyAdmin, tgEscape } = await import("./telegram-router");
+        // Error text is the likeliest thing in the whole system to contain <>&
+        // — a MySQL message quoting a value, a stack frame with a generic type.
+        // Unescaped, the alert about a 500 is itself rejected by Telegram, so
+        // the outages you most need to hear about were the quiet ones.
+        const detail = err instanceof Error ? err.message : String(err).slice(0, 200);
+        const msg = `🔴 <b>Server Error</b>\n<code>${tgEscape(method)} ${tgEscape(path)}</code>\n${tgEscape(detail)}`;
         notifyAdmin(msg);
       } catch { /* Telegram not configured — skip */ }
     }

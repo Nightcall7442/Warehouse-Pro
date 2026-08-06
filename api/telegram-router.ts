@@ -7,6 +7,31 @@ import { env } from "./lib/env";
 import { onDay, onDate } from "./lib/date-range";
 import type { Role } from "@contracts/types";
 
+/**
+ * Escape a value that is about to be dropped into a Telegram message.
+ *
+ * Messages here are sent with parse_mode "HTML" so the templates can use <b>.
+ * That makes every interpolated value markup too, and Telegram's parser is not
+ * forgiving: a shop called «Восток <Азия>» makes it reject the whole message
+ * with 400, an order named with & does the same. sendTelegram then returned
+ * false and nobody heard about it — the notification simply never arrived, and
+ * the failure looked exactly like Telegram not being configured.
+ *
+ * The lenient-looking cases are worse than the loud ones. A shop named
+ * «<b>СРОЧНО</b>» renders as bold in the director's chat, and the org name from
+ * the public signup form reaches the platform owner's chat — where an <a href>
+ * becomes a real, clickable link sent by a bot the owner trusts.
+ *
+ * Escape at the template, not inside sendTelegram: by the time text reaches
+ * sendTelegram it legitimately contains the <b> tags the templates put there.
+ */
+export function tgEscape(value: unknown): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 // ── Core send function ───────────────────────────────────────────────────────
 // Exported for the AI bot cron, which replies to whichever chat messaged it and
 // so can't go through the notify* helpers below.
@@ -19,8 +44,16 @@ export async function sendTelegram(chatId: string, text: string): Promise<boolea
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML" }),
     });
+    if (!res.ok) {
+      // Say why. A rejected message is indistinguishable from a disabled
+      // integration when the only signal is `false`, which is how unescaped
+      // markup managed to drop notifications quietly for so long.
+      const detail = await res.text().catch(() => "");
+      console.error(`[telegram] sendMessage ${res.status}: ${detail.slice(0, 300)}`);
+    }
     return res.ok;
-  } catch {
+  } catch (e) {
+    console.error("[telegram] sendMessage failed:", e instanceof Error ? e.message : String(e));
     return false;
   }
 }
@@ -50,27 +83,34 @@ export async function notifyTenantRole(
 }
 
 // ── Message templates ────────────────────────────────────────────────────────
+// Every interpolation below goes through tgEscape: all of these values —
+// shop names, product names, org names from the public signup form, contact
+// strings, user names — are typed by people, and any of them containing
+// <, > or & would otherwise make Telegram reject the whole notification.
 export const tgMessages = {
   newOrder: (n: string, shop: string, total: string, cur: string) =>
-    `🛒 <b>Новый заказ</b>\n📋 ${n}\n🏪 ${shop}\n💰 ${total} ${cur}`,
+    `🛒 <b>Новый заказ</b>\n📋 ${tgEscape(n)}\n🏪 ${tgEscape(shop)}\n💰 ${tgEscape(total)} ${tgEscape(cur)}`,
 
   lowStock: (name: string, qty: string) =>
-    `⚠️ <b>Мало на складе</b>\n📦 ${name}\n📉 Остаток: ${qty} кг`,
+    `⚠️ <b>Мало на складе</b>\n📦 ${tgEscape(name)}\n📉 Остаток: ${tgEscape(qty)} кг`,
 
   paymentReceived: (shop: string, amount: string, cur: string) =>
-    `✅ <b>Оплата получена</b>\n🏪 ${shop}\n💵 ${amount} ${cur}`,
+    `✅ <b>Оплата получена</b>\n🏪 ${tgEscape(shop)}\n💵 ${tgEscape(amount)} ${tgEscape(cur)}`,
 
   newRegistration: (org: string, email: string) =>
-    `🆕 <b>Новая регистрация</b>\n🏢 ${org}\n📧 ${email}`,
+    `🆕 <b>Новая регистрация</b>\n🏢 ${tgEscape(org)}\n📧 ${tgEscape(email)}`,
 
   upgradeRequest: (org: string, plan: string, price: string, contact: string) =>
-    `💳 <b>Запрос на апгрейд</b>\n🏢 ${org}\n📈 Тариф: ${plan}\n💰 ${price} сум/мес\n📞 ${contact}`,
+    `💳 <b>Запрос на апгрейд</b>\n🏢 ${tgEscape(org)}\n📈 Тариф: ${tgEscape(plan)}\n💰 ${tgEscape(price)} сум/мес\n📞 ${tgEscape(contact)}`,
 
+  // count is typed number, and is escaped anyway: "everything interpolated is
+  // escaped" is a rule that survives a refactor, "everything except the numeric
+  // ones" is a rule someone eventually gets wrong.
   agentPlan: (agent: string, count: number, date: string) =>
-    `📅 <b>Ваш план на ${date}</b>\n👤 ${agent}\n🏪 ${count} визитов`,
+    `📅 <b>Ваш план на ${tgEscape(date)}</b>\n👤 ${tgEscape(agent)}\n🏪 ${tgEscape(count)} визитов`,
 
   orderStatusChange: (n: string, shop: string, status: string) =>
-    `📦 <b>Статус заказа изменён</b>\n📋 ${n}\n🏪 ${shop}\n➡️ ${status}`,
+    `📦 <b>Статус заказа изменён</b>\n📋 ${tgEscape(n)}\n🏪 ${tgEscape(shop)}\n➡️ ${tgEscape(status)}`,
 };
 
 // ── tRPC router ──────────────────────────────────────────────────────────────
@@ -90,7 +130,7 @@ export const telegramRouter = createRouter({
       // Test: send a welcome message
       const ok = await sendTelegram(
         input.chatId,
-        `✅ <b>Warehouse Pro</b>\n\nВы успешно подключили Telegram уведомления!\n👤 ${ctx.user.name}`,
+        `✅ <b>Warehouse Pro</b>\n\nВы успешно подключили Telegram уведомления!\n👤 ${tgEscape(ctx.user.name)}`,
       );
 
       return { success: true, testMessageSent: ok };
@@ -117,7 +157,9 @@ export const telegramRouter = createRouter({
   testBroadcast: adminQuery
     .input(z.object({ message: z.string().min(1) }))
     .mutation(async ({ input, ctx }) => {
-      await notifyTenantRole(ctx.tenant.id, "agent", input.message);
+      // The director types this by hand, not as markup — send the text they
+      // actually wrote rather than letting a stray < swallow the broadcast.
+      await notifyTenantRole(ctx.tenant.id, "agent", tgEscape(input.message));
       return { success: true };
     }),
 
