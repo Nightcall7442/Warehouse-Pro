@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createRouter, reportsQuery, financeQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { orders, orderItems, products, shops, users, dailyPlans, arrivals } from "@db/schema";
+import { orders, orderItems, products, shops, users, dailyPlans, arrivals, agentTerritories } from "@db/schema";
 import { eq, and, sql, desc , inArray } from "drizzle-orm";
 import { REVENUE_ORDER_STATUSES } from "./lib/order-status";
 import { MS_PER_DAY } from "./lib/constants";
@@ -11,6 +11,8 @@ export const analyticsRouter = createRouter({
     .input(z.object({
       dateFrom: z.string().optional(),
       dateTo: z.string().optional(),
+      agentId: z.number().int().positive().optional(),
+      territoryId: z.number().int().positive().optional(),
       limit: z.number().int().min(1).max(10000).optional(),
     }).optional())
     .query(async ({ input, ctx }) => {
@@ -18,6 +20,8 @@ export const analyticsRouter = createRouter({
       if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
       // P1-15 FIX: Include full last day by adding 23:59:59
       if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`);
+      if (input?.agentId)     conditions.push(eq(orders.agentId, input.agentId));
+      if (input?.territoryId) conditions.push(eq(shops.territoryId, input.territoryId));
 
       // The dashboard wants a top-N chart; an export wants every row. Left at
       // the chart default so existing callers are untouched, and raised only
@@ -37,12 +41,18 @@ export const analyticsRouter = createRouter({
     .input(z.object({
       dateFrom: z.string().optional(),
       dateTo: z.string().optional(),
+      agentId: z.number().int().positive().optional(),
+      // Category is a varchar on the product, not a foreign key — there is no
+      // categories table — so this filters by the name itself.
+      category: z.string().max(100).optional(),
       limit: z.number().int().min(1).max(10000).optional(),
     }).optional())
     .query(async ({ input, ctx }) => {
       const conditions = [eq(orders.tenantId, ctx.tenant.id), inArray(orders.status, REVENUE_ORDER_STATUSES)];
       if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
       if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`);
+      if (input?.agentId)  conditions.push(eq(orders.agentId, input.agentId));
+      if (input?.category) conditions.push(eq(products.category, input.category));
 
       return getDb().select({
         productName:  products.name,
@@ -79,11 +89,16 @@ export const analyticsRouter = createRouter({
   // change over time, historical P&L and COGS reports will be inaccurate.
   // Consider adding `costPrice` to `orderItems` to snapshot the cost at order time.
   cogsByProduct: financeQuery
-    .input(z.object({ dateFrom: z.string().optional(), dateTo: z.string().optional() }).optional())
+    .input(z.object({
+      dateFrom: z.string().optional(),
+      dateTo: z.string().optional(),
+      category: z.string().max(100).optional(),
+    }).optional())
     .query(async ({ input, ctx }) => {
       const conditions = [eq(orders.tenantId, ctx.tenant.id), inArray(orders.status, REVENUE_ORDER_STATUSES)];
       if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
       if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`);
+      if (input?.category) conditions.push(eq(products.category, input.category));
 
       return getDb().select({
         productName:  products.name,
@@ -144,21 +159,37 @@ export const analyticsRouter = createRouter({
     }),
 
   // ── Debt Report ─────────────────────────────────────────────────────────────
-  debtReport: reportsQuery.query(async ({ ctx }) => {
-    return getDb().select({
-      shopName: shops.name,
-      city: shops.city,
-      debt: shops.debt,
-      agentName: users.name,
-    })
-      .from(shops).leftJoin(users, eq(shops.agentId, users.id))
-      .where(and(eq(shops.tenantId, ctx.tenant.id), sql`${shops.debt} > 0`))
-      .orderBy(desc(sql`CAST(${shops.debt} AS DECIMAL)`));
-  }),
+  // Debt is a balance as of now, not a flow over a range, so there is no period
+  // here on purpose.
+  debtReport: reportsQuery
+    .input(z.object({
+      agentId: z.number().int().positive().optional(),
+      territoryId: z.number().int().positive().optional(),
+    }).optional())
+    .query(async ({ input, ctx }) => {
+      const conditions = [eq(shops.tenantId, ctx.tenant.id), sql`${shops.debt} > 0`];
+      // The agent who holds the shop, not the one who took the last order —
+      // the question this report answers is whose round the debt sits on.
+      if (input?.agentId)     conditions.push(eq(shops.agentId, input.agentId));
+      if (input?.territoryId) conditions.push(eq(shops.territoryId, input.territoryId));
+
+      return getDb().select({
+        shopName: shops.name,
+        city: shops.city,
+        debt: shops.debt,
+        agentName: users.name,
+      })
+        .from(shops).leftJoin(users, eq(shops.agentId, users.id))
+        .where(and(...conditions))
+        .orderBy(desc(sql`CAST(${shops.debt} AS DECIMAL)`));
+    }),
 
   // ── Agent Efficiency ────────────────────────────────────────────────────────
   agentEfficiency: reportsQuery
-    .input(z.object({ days: z.number().default(30) }).optional())
+    .input(z.object({
+      days: z.number().default(30),
+      territoryId: z.number().int().positive().optional(),
+    }).optional())
     .query(async ({ input, ctx }) => {
       const days = input?.days ?? 30;
       const cutoff = new Date(Date.now() - days * MS_PER_DAY).toISOString();
@@ -174,7 +205,19 @@ export const analyticsRouter = createRouter({
         .from(users)
         .leftJoin(dailyPlans, and(eq(dailyPlans.agentId, users.id), sql`${dailyPlans.planDate} >= ${cutoff}`))
         .leftJoin(orders, and(eq(orders.agentId, users.id), inArray(orders.status, REVENUE_ORDER_STATUSES), sql`${orders.createdAt} >= ${cutoff}`))
-        .where(and(eq(users.tenantId, ctx.tenant.id), eq(users.role, "agent")))
+        .where(and(
+          eq(users.tenantId, ctx.tenant.id),
+          eq(users.role, "agent"),
+          // An agent can work several territories, so this is a membership
+          // test rather than a column comparison. EXISTS rather than a join:
+          // joining agent_territories would multiply the rows an agent
+          // contributes and quietly inflate every aggregate above.
+          ...(input?.territoryId ? [sql`EXISTS (
+            SELECT 1 FROM ${agentTerritories}
+            WHERE ${agentTerritories.agentId} = ${users.id}
+              AND ${agentTerritories.tenantId} = ${ctx.tenant.id}
+              AND ${agentTerritories.territoryId} = ${input.territoryId})`] : []),
+        ))
         .groupBy(users.id).orderBy(desc(sql`COALESCE(SUM(${orders.total}), 0)`));
 
       return rows.map(r => ({
@@ -347,7 +390,11 @@ export const analyticsRouter = createRouter({
 
   // ── P&L by Payment Method ──────────────────────────────────────────────────
   pnlByPaymentMethod: financeQuery
-    .input(z.object({ from: z.string(), to: z.string() }))
+    .input(z.object({
+      from: z.string(),
+      to: z.string(),
+      agentId: z.number().int().positive().optional(),
+    }))
     .query(async ({ input, ctx }) => {
       const db = getDb();
       const tid = ctx.tenant.id;
@@ -366,6 +413,7 @@ export const analyticsRouter = createRouter({
           inArray(orders.status, REVENUE_ORDER_STATUSES),
           sql`${orders.createdAt} >= ${input.from}`,
           sql`${orders.createdAt} <= ${input.to + " 23:59:59"}`,
+          ...(input.agentId ? [eq(orders.agentId, input.agentId)] : []),
         ))
         .groupBy(orders.paymentMethod);
 
@@ -391,12 +439,14 @@ export const analyticsRouter = createRouter({
       dateFrom: z.string().optional(),
       dateTo: z.string().optional(),
       agentId: z.number().int().positive().optional(),
+      category: z.string().max(100).optional(),
     }).optional())
     .query(async ({ input, ctx }) => {
       const conditions = [eq(orders.tenantId, ctx.tenant.id), inArray(orders.status, REVENUE_ORDER_STATUSES)];
       if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
       if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`);
       if (input?.agentId)  conditions.push(eq(orders.agentId, input.agentId));
+      if (input?.category) conditions.push(eq(products.category, input.category));
 
       return getDb().select({
         agentId:      users.id,

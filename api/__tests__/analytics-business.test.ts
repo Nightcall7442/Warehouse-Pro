@@ -31,8 +31,8 @@ import { orders, orderItems, products, shops, users, dailyPlans, arrivals } from
 
 interface FakeOrder { id: number; tenantId: number; agentId: number; shopId: number; status: string; total: string; discount: string; paymentMethod: string; createdAt: string; }
 interface FakeOrderItem { id: number; orderId: number; productId: number; quantity: string; subtotal: string; }
-interface FakeProduct { id: number; tenantId: number; name: string; code: string; costPrice: string; }
-interface FakeShop { id: number; tenantId: number; name: string; city: string; debt: string; }
+interface FakeProduct { id: number; tenantId: number; name: string; code: string; costPrice: string; category: string; }
+interface FakeShop { id: number; tenantId: number; name: string; city: string; debt: string; agentId: number; territoryId: number; }
 interface FakeUser { id: number; tenantId: number; name: string; role: string; }
 interface FakeArrival { id: number; tenantId: number; status: string; totalExpense: string; arrivalDate: string; }
 
@@ -56,13 +56,13 @@ function resetTables() {
     { id: 3, orderId: 3, productId: 1, quantity: "2.00", subtotal: "200.00" },
   ];
   productsTable = [
-    { id: 1, tenantId: 1, name: "Product A", code: "PA001", costPrice: "80.00" },
-    { id: 2, tenantId: 1, name: "Product B", code: "PB002", costPrice: "25.00" },
+    { id: 1, tenantId: 1, name: "Product A", code: "PA001", costPrice: "80.00", category: "Напитки" },
+    { id: 2, tenantId: 1, name: "Product B", code: "PB002", costPrice: "25.00", category: "Снеки" },
   ];
   shopsTable = [
-    { id: 1, tenantId: 1, name: "Shop Alpha", city: "Tashkent", debt: "150.00" },
-    { id: 2, tenantId: 1, name: "Shop Beta", city: "Samarkand", debt: "0.00" },
-    { id: 3, tenantId: 2, name: "Shop Gamma", city: "Bukhara", debt: "200.00" },
+    { id: 1, tenantId: 1, name: "Shop Alpha", city: "Tashkent", debt: "150.00", agentId: 10, territoryId: 100 },
+    { id: 2, tenantId: 1, name: "Shop Beta", city: "Samarkand", debt: "400.00", agentId: 11, territoryId: 200 },
+    { id: 3, tenantId: 2, name: "Shop Gamma", city: "Bukhara", debt: "200.00", agentId: 10, territoryId: 100 },
   ];
   usersTable = [
     { id: 10, tenantId: 1, name: "Agent One", role: "agent" },
@@ -75,15 +75,17 @@ function resetTables() {
 }
 
 const columnToField = new Map<unknown, string>();
-function reg(table: Record<string, unknown>, name: string) {
-  columnToField.set(table[name], name);
+// Takes a drizzle table, whose type is far from Record<string, unknown> — the
+// narrower signature made every call site an error.
+function reg(table: object, name: string) {
+  columnToField.set((table as Record<string, unknown>)[name], name);
 }
 reg(orders, "id"); reg(orders, "tenantId"); reg(orders, "agentId"); reg(orders, "shopId");
 reg(orders, "status"); reg(orders, "total"); reg(orders, "discount"); reg(orders, "paymentMethod"); reg(orders, "createdAt");
 reg(orderItems, "id"); reg(orderItems, "orderId"); reg(orderItems, "productId");
 reg(orderItems, "quantity"); reg(orderItems, "subtotal");
-reg(products, "id"); reg(products, "tenantId"); reg(products, "name"); reg(products, "code"); reg(products, "costPrice");
-reg(shops, "id"); reg(shops, "tenantId"); reg(shops, "name"); reg(shops, "city"); reg(shops, "debt"); reg(shops, "agentId");
+reg(products, "id"); reg(products, "tenantId"); reg(products, "name"); reg(products, "code"); reg(products, "costPrice"); reg(products, "category");
+reg(shops, "id"); reg(shops, "tenantId"); reg(shops, "name"); reg(shops, "city"); reg(shops, "debt"); reg(shops, "agentId"); reg(shops, "territoryId");
 reg(users, "id"); reg(users, "tenantId"); reg(users, "name"); reg(users, "role");
 reg(arrivals, "id"); reg(arrivals, "tenantId"); reg(arrivals, "status"); reg(arrivals, "totalExpense"); reg(arrivals, "arrivalDate");
 
@@ -224,9 +226,13 @@ function makeMockDb() {
       };
       from.innerJoin = from.leftJoin;
       from.where = (cond: unknown) => {
-        const filtered = primaryRows.filter((r: any) => evalCond(r, cond as Record<string, unknown>));
-
-        let expanded: Record<string, unknown>[] = filtered;
+        // Joins first, then the condition — the order SQL itself uses. Filtering
+        // the primary rows before expanding meant any condition naming a joined
+        // table's column hit a row that didn't carry it, fell through the
+        // `!(field in row)` escape hatch, and was silently ignored. Every filter
+        // on products.category or orders.agentId in a query that starts FROM
+        // order_items would have tested nothing.
+        let expanded: Record<string, unknown>[] = primaryRows;
         for (const join of joins) {
           const newExpanded: Record<string, unknown>[] = [];
           for (const row of expanded) {
@@ -235,12 +241,20 @@ function makeMockDb() {
               newExpanded.push({ ...row });
             } else {
               for (const match of matches) {
-                newExpanded.push({ ...row, ...match });
+                // The FROM table wins a name collision. Rows here are flat, so
+                // joining users onto shops put the agent's name into `name` and
+                // the agent's tenant into `tenantId` — which meant the tenant
+                // scoping in every such query was checking the wrong table.
+                // Real SQL qualifies each column; flattening has to pick, and
+                // picking the primary keeps WHERE honest.
+                newExpanded.push({ ...match, ...row });
               }
             }
           }
           expanded = newExpanded;
         }
+
+        expanded = expanded.filter((r) => evalCond(r, cond as Record<string, unknown>));
 
         if (fields && typeof fields === "object" && !Array.isArray(fields)) {
           const hasAgg = Object.values(fields).some(
@@ -307,6 +321,17 @@ function makeMockDb() {
  * context is right for the sales-side procedures in this file and deliberately
  * left alone — it is what proves the narrower gate is actually enforced.
  */
+/**
+ * One place where the fake context meets the real router's context type. They
+ * do not line up — the mock db is `any` and the user is a literal — and casting
+ * at every call site turned each new test case into another type error.
+ */
+async function analytics(ctx: unknown = undefined) {
+  const { analyticsRouter } = await import("../analytics-router");
+  const context = (ctx ?? buildCtx()) as Parameters<typeof analyticsRouter.createCaller>[0];
+  return analyticsRouter.createCaller(context);
+}
+
 function buildCeoCtx() {
   return buildCtx({ user: { ...buildCtx().user, role: "ceo" as const } });
 }
@@ -422,5 +447,166 @@ describe("analytics.agentPerformance", () => {
     expect(result.length).toBeGreaterThanOrEqual(1);
     expect(result[0].agentName).toBeDefined();
     expect(result[0].orderCount).toBeDefined();
+  });
+});
+
+// ── Report filters ──────────────────────────────────────────────────────────
+//
+// Every card in the reports hub narrows the same handful of queries. A filter
+// that is accepted by the schema and then dropped before the WHERE clause is
+// the worst outcome available: the file downloads, looks plausible, and covers
+// the wrong set — and nothing on the sheet says so.
+//
+// Watch the fixtures rather than the assertions when reading these. The fake db
+// ignores a condition on a column its rows don't carry (`if (!(field in row))
+// return true`), so a filter tested against a row without that field passes
+// while doing nothing. Every column filtered below is present in the fixtures
+// and registered with reg().
+describe("report filters", () => {
+  describe("analytics.topProducts", () => {
+    it("narrows to one agent", async () => {
+      const caller = await analytics();
+
+      const all = await caller.topProducts({});
+      const agent10 = await caller.topProducts({ agentId: 10 });
+      const agent11 = await caller.topProducts({ agentId: 11 });
+
+      expect(all.length).toBeGreaterThan(agent11.length);
+      // Order 3 is Agent Two's and it is "processing", so it never counts as
+      // revenue — the agent's product list comes back empty, not merely smaller.
+      expect(agent11).toHaveLength(0);
+      expect(agent10.map(r => r.productName).sort()).toEqual(["Product A", "Product B"]);
+    });
+
+    it("narrows to one category", async () => {
+      const caller = await analytics();
+
+      const drinks = await caller.topProducts({ category: "Напитки" });
+
+      expect(drinks.map(r => r.productName)).toEqual(["Product A"]);
+    });
+
+    it("combines both filters rather than letting the last one win", async () => {
+      const caller = await analytics();
+
+      expect(await caller.topProducts({ agentId: 10, category: "Снеки" }))
+        .toHaveLength(1);
+      // Agent Two sold nothing that counts, so adding a category they never
+      // touched must still come back empty.
+      expect(await caller.topProducts({ agentId: 11, category: "Напитки" }))
+        .toHaveLength(0);
+    });
+  });
+
+  describe("analytics.salesByShop", () => {
+    it("narrows to one agent", async () => {
+      const caller = await analytics();
+
+      const rows = await caller.salesByShop({ agentId: 10 });
+
+      expect(rows.every(r => Number(r.revenue) > 0)).toBe(true);
+      expect(rows.length).toBeGreaterThan(0);
+    });
+
+    it("narrows to one territory", async () => {
+      const caller = await analytics();
+
+      const t100 = await caller.salesByShop({ territoryId: 100 });
+      const t999 = await caller.salesByShop({ territoryId: 999 });
+
+      expect(t100.map(r => r.shopName)).toEqual(["Shop Alpha"]);
+      expect(t999).toHaveLength(0);
+    });
+  });
+
+  describe("analytics.debtReport", () => {
+    it("returns every debtor when unfiltered", async () => {
+      const caller = await analytics();
+
+      const rows = await caller.debtReport();
+
+      // Shop Gamma belongs to another tenant and must never appear.
+      expect(rows.map(r => r.shopName).sort()).toEqual(["Shop Alpha", "Shop Beta"]);
+    });
+
+    it("narrows to the agent who holds the shop", async () => {
+      const caller = await analytics();
+
+      expect((await caller.debtReport({ agentId: 10 })).map(r => r.shopName)).toEqual(["Shop Alpha"]);
+      expect((await caller.debtReport({ agentId: 11 })).map(r => r.shopName)).toEqual(["Shop Beta"]);
+    });
+
+    it("narrows to one territory", async () => {
+      const caller = await analytics();
+
+      expect((await caller.debtReport({ territoryId: 200 })).map(r => r.shopName)).toEqual(["Shop Beta"]);
+    });
+
+    // Tenant isolation is the one thing a filter must never be able to widen.
+    it("cannot be used to reach another tenant's shops", async () => {
+      const caller = await analytics();
+
+      const rows = await caller.debtReport({ agentId: 10, territoryId: 100 });
+
+      expect(rows.map(r => r.shopName)).not.toContain("Shop Gamma");
+    });
+  });
+
+  describe("analytics.agentProductSales", () => {
+    it("narrows to one category", async () => {
+      const caller = await analytics();
+
+      const rows = await caller.agentProductSales({ category: "Снеки" });
+
+      // Asserted on the code, not the name: this query joins both users and
+      // products, and the harness flattens rows, so a `name` column exists on
+      // both and one of them has to lose. `code` belongs to products alone.
+      expect(rows.map(r => r.productCode)).toEqual(["PB002"]);
+    });
+  });
+
+  describe("analytics.pnlByPaymentMethod", () => {
+    it("narrows to one agent", async () => {
+      const caller = await analytics(buildCeoCtx());
+
+      const range = { from: "2025-06-01", to: "2025-06-30" };
+      const all = await caller.pnlByPaymentMethod(range);
+      const agent11 = await caller.pnlByPaymentMethod({ ...range, agentId: 11 });
+
+      expect(all.length).toBeGreaterThan(0);
+      // Agent Two's only order is "processing", so nothing of theirs counts.
+      expect(agent11).toHaveLength(0);
+    });
+  });
+
+  // agentEfficiency filters by territory through an EXISTS against
+  // agent_territories, because an agent can work several. The fake db has no
+  // subquery support — it would return every row and the test would pass while
+  // proving nothing — so this one is asserted against the source instead, and
+  // is the only filter here not covered behaviourally.
+  describe("analytics.agentEfficiency", () => {
+    it("filters by territory with EXISTS rather than a join", async () => {
+      const { readFileSync } = await import("node:fs");
+      const { resolve } = await import("node:path");
+      const src = readFileSync(resolve(__dirname, "../analytics-router.ts"), "utf8");
+      const start = src.indexOf("  agentEfficiency:");
+      const body = src.slice(start, src.indexOf("  pnl:", start));
+
+      expect(body).toMatch(/territoryId: z\.number\(\)/);
+      // A join would multiply an agent's rows once per territory and inflate
+      // every aggregate above it.
+      expect(body).toMatch(/EXISTS \(/);
+      expect(body).not.toMatch(/leftJoin\(agentTerritories/);
+    });
+  });
+
+  describe("analytics.cogsByProduct", () => {
+    it("narrows to one category", async () => {
+      const caller = await analytics(buildCeoCtx());
+
+      const rows = await caller.cogsByProduct({ category: "Напитки" });
+
+      expect(rows.map(r => r.productName)).toEqual(["Product A"]);
+    });
   });
 });

@@ -58,6 +58,22 @@ const EXPORT_LIMIT = 10000;
 
 const num = (v: unknown) => Number(v ?? 0);
 
+/**
+ * Which slice a file holds, in its name.
+ *
+ * Two exports of the same report for different agents otherwise land in the
+ * downloads folder as "sales-by-shop-…(1).xlsx", and by the time anyone opens
+ * them there is nothing to say which is which.
+ */
+function suffix(p: ReportParams): string {
+  const parts: string[] = [];
+  if (p.agentId) parts.push(`agent${p.agentId}`);
+  if (p.territoryId) parts.push(`terr${p.territoryId}`);
+  if (p.shopId) parts.push(`shop${p.shopId}`);
+  if (p.category) parts.push(p.category.toLowerCase().replace(/[^a-zа-я0-9]+/gi, "-"));
+  return parts.length ? `-${parts.join("-")}` : "";
+}
+
 export const REPORTS: ReportDef[] = [
   {
     id: "sales-by-product",
@@ -66,8 +82,9 @@ export const REPORTS: ReportDef[] = [
     description: { ru: "Объём и выручка по каждому товару", uz: "Har bir mahsulot bo'yicha hajm va tushum" },
     icon: Package,
     needsPeriod: true,
+    filters: ["agent", "category"],
     useQuery: (p, opts) => trpc.analytics.topProducts.useQuery(
-      { dateFrom: p.from, dateTo: p.to, limit: EXPORT_LIMIT },
+      { dateFrom: p.from, dateTo: p.to, agentId: p.agentId, category: p.category, limit: EXPORT_LIMIT },
       { enabled: opts.enabled },
     ),
     toRows: (data) => (data as Array<{ productName: string | null; productCode: string | null; totalQty: string; totalRevenue: string }>)
@@ -77,7 +94,7 @@ export const REPORTS: ReportDef[] = [
         "Объём": num(r.totalQty),
         "Выручка": num(r.totalRevenue),
       })),
-    filename: (p) => `sales-by-product-${p.from}_${p.to}`,
+    filename: (p) => `sales-by-product-${p.from}_${p.to}${suffix(p)}`,
     sheet: { ru: "Продажи по товарам", uz: "Mahsulotlar bo'yicha" },
   },
   {
@@ -87,8 +104,9 @@ export const REPORTS: ReportDef[] = [
     description: { ru: "Выручка и число заказов по каждому магазину", uz: "Har bir do'kon bo'yicha tushum va buyurtmalar" },
     icon: Store,
     needsPeriod: true,
+    filters: ["agent", "territory"],
     useQuery: (p, opts) => trpc.analytics.salesByShop.useQuery(
-      { dateFrom: p.from, dateTo: p.to, limit: EXPORT_LIMIT },
+      { dateFrom: p.from, dateTo: p.to, agentId: p.agentId, territoryId: p.territoryId, limit: EXPORT_LIMIT },
       { enabled: opts.enabled },
     ),
     toRows: (data) => (data as Array<{ shopName: string | null; revenue: string; orderCount: number }>)
@@ -97,7 +115,7 @@ export const REPORTS: ReportDef[] = [
         "Выручка": num(r.revenue),
         "Заказов": num(r.orderCount),
       })),
-    filename: (p) => `sales-by-shop-${p.from}_${p.to}`,
+    filename: (p) => `sales-by-shop-${p.from}_${p.to}${suffix(p)}`,
     sheet: { ru: "Продажи по магазинам", uz: "Do'konlar bo'yicha" },
   },
   {
@@ -108,7 +126,11 @@ export const REPORTS: ReportDef[] = [
     icon: Wallet,
     // Debt has no period: it is a balance as of now, not a flow over a range.
     needsPeriod: false,
-    useQuery: (_p, opts) => trpc.analytics.debtReport.useQuery(undefined, { enabled: opts.enabled }),
+    filters: ["agent", "territory"],
+    useQuery: (p, opts) => trpc.analytics.debtReport.useQuery(
+      { agentId: p.agentId, territoryId: p.territoryId },
+      { enabled: opts.enabled },
+    ),
     toRows: (data) => (data as Array<{ shopName: string | null; city: string | null; debt: string; agentName: string | null }>)
       .map(r => ({
         "Магазин": r.shopName ?? "—",
@@ -116,7 +138,7 @@ export const REPORTS: ReportDef[] = [
         "Агент": r.agentName ?? "—",
         "Долг": num(r.debt),
       })),
-    filename: () => "debt-report",
+    filename: (p) => `debt-report${suffix(p)}`,
     sheet: { ru: "Долги магазинов", uz: "Do'konlar qarzi" },
   },
 ];

@@ -109,3 +109,50 @@ describe("reports do not run until asked", () => {
     }
   });
 });
+
+/**
+ * Filters have to reach both the query and the filename. A card that offers a
+ * filter the query ignores produces a file covering the wrong set; one the
+ * filename ignores produces two indistinguishable files in a downloads folder.
+ */
+describe("report filters", () => {
+  const source = readFileSync(resolve(__dirname, "report-registry.ts"), "utf8");
+  const entries = source.slice(source.indexOf("export const REPORTS")).split(/\n {2}\{\n/).slice(1);
+
+  it("passes every offered filter into its query", () => {
+    const FIELD: Record<string, string> = {
+      agent: "agentId", territory: "territoryId", shop: "shopId", category: "category",
+    };
+    for (const entry of entries) {
+      const declared = entry.match(/filters:\s*\[([^\]]*)\]/);
+      if (!declared) continue;
+      const kinds = declared[1].split(",").map(k => k.trim().replace(/["']/g, "")).filter(Boolean);
+      const call = entry.slice(entry.indexOf("useQuery:"), entry.indexOf("toRows:"));
+      for (const kind of kinds) {
+        expect(call).toContain(`p.${FIELD[kind]}`);
+      }
+    }
+  });
+
+  it("puts the active filters in the filename", () => {
+    const withFilters = REPORTS.filter(r => r.filters?.length);
+    expect(withFilters.length).toBeGreaterThan(0);
+    for (const r of withFilters) {
+      const base = r.filename({ from: "2026-01-01", to: "2026-01-31" });
+      const filtered = r.filename({
+        from: "2026-01-01", to: "2026-01-31", agentId: 7, territoryId: 3, category: "Напитки",
+      });
+      expect(filtered).not.toBe(base);
+      expect(filtered).toContain("agent7");
+    }
+  });
+
+  it("keeps filenames free of characters a filesystem rejects", () => {
+    for (const r of REPORTS) {
+      const name = r.filename({
+        from: "2026-01-01", to: "2026-01-31", agentId: 7, category: "Напитки / соки",
+      });
+      expect(name).not.toMatch(/[/:*?"<>|\s]/);
+    }
+  });
+});
