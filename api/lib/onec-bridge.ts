@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "../queries/connection";
 import { onecConfig } from "@db/schema";
+import { safeFetch } from "./safe-fetch";
 
 export interface OneCBridgeConfig {
   url: string;
@@ -35,7 +36,10 @@ export class OneCBridge {
     }
     url.searchParams.set("$format", "json");
 
-    const response = await fetch(url.toString(), {
+    // safeFetch, not fetch: baseUrl is typed in by a tenant's director, so
+    // every call out of here could otherwise be aimed at the private network
+    // this server sits in. See lib/safe-fetch.ts.
+    const response = await safeFetch(url.toString(), {
       headers: {
         ...this.authHeaders(),
         Accept: "application/json",
@@ -52,7 +56,7 @@ export class OneCBridge {
   }
 
   async createDocument(entitySet: string, document: unknown): Promise<{ id: string }> {
-    const response = await fetch(`${this.baseUrl}/odata/${entitySet}?$format=json`, {
+    const response = await safeFetch(`${this.baseUrl}/odata/${entitySet}?$format=json`, {
       method: "POST",
       headers: {
         ...this.authHeaders(),
@@ -70,7 +74,7 @@ export class OneCBridge {
   }
 
   async postDocument(entitySet: string, id: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/odata/${entitySet}('${id}')/Провести`, {
+    const response = await safeFetch(`${this.baseUrl}/odata/${entitySet}('${id}')/Провести`, {
       method: "POST",
       headers: this.authHeaders(),
       signal: AbortSignal.timeout(this.timeout()),
@@ -83,11 +87,14 @@ export class OneCBridge {
 
   async healthCheck(): Promise<boolean> {
     try {
-      await fetch(`${this.baseUrl}/health`, {
+      await safeFetch(`${this.baseUrl}/health`, {
         signal: AbortSignal.timeout(5000),
       });
       return true;
     } catch {
+      // A blocked address lands here too, and returning false is the right
+      // answer for it: "мы туда не пойдём" and "хост не ответил" are the same
+      // thing as far as the caller's connection test is concerned.
       return false;
     }
   }
