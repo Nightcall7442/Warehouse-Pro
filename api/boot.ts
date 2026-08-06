@@ -609,8 +609,16 @@ async function reportSkippedMigrations(): Promise<void> {
     ) as unknown as [Array<{ created_at: number | string }>, unknown];
     const applied = new Set((rows ?? []).map(r => String(Number(r.created_at))));
 
+    // 0038 не записана и записана не будет: её пропустили из-за метки из
+    // будущего у 0020, а переписать её метку нельзя — файл содержит
+    // `ADD COLUMN IF NOT EXISTS`, синтаксис MariaDB, который MySQL отвергнет и
+    // остановит запуск. Её действие целиком перекрыто миграцией 0039. Держать
+    // о ней вечное сообщение об ошибке значит приучить читателя пролистывать
+    // этот лог — а он нужен именно для того, чтобы его читали.
+    const superseded = new Set(["0038_daily_plans_visited_at"]);
+
     const missing = journal.entries
-      .filter(e => !applied.has(String(e.when)))
+      .filter(e => !applied.has(String(e.when)) && !superseded.has(e.tag))
       .map(e => e.tag);
 
     if (missing.length > 0) {
