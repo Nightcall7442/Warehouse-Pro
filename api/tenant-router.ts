@@ -11,6 +11,7 @@ import { checkRateLimit, getClientIp } from "./lib/rate-limit";
 import { logger } from "./lib/logger";
 import { checkPlanLimits } from "./lib/plan-limits";
 
+import { rowsOf } from "./lib/db-rows";
 const REGISTER_RATE_LIMIT = { windowMs: 60 * 60 * 1000, limit: 5, namespace: "register" };
 
 function slugify(name: string): string {
@@ -211,7 +212,7 @@ export const tenantRouter = createRouter({
           products: Number(productStat[0]?.cnt ?? 0),
           shops:    Number(shopStat[0]?.cnt    ?? 0),
         },
-        monthlyOrders: (monthlyOrders as unknown as Array<{ month: string; cnt: string; total: string }>).map(r => ({
+        monthlyOrders: rowsOf<{ month: string; cnt: string; total: string }>(monthlyOrders).map(r => ({
           month:   r.month,
           orders:  Number(r.cnt),
           revenue: Number(r.total),
@@ -397,7 +398,7 @@ export const tenantRouter = createRouter({
       revenue:  Number(orderStat?.revenue ?? 0),
       byPlan:   Object.fromEntries(byPlan.map(r => [r.plan, Number(r.cnt)])),
       byStatus: Object.fromEntries(byStatus.map(r => [r.status, Number(r.cnt)])),
-      growth:   (growth as unknown as Array<{ month: string; cnt: string }>).map(r => ({
+      growth:   rowsOf<{ month: string; cnt: string }>(growth).map(r => ({
         month: r.month, count: Number(r.cnt),
       })),
     };

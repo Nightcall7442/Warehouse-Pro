@@ -11,6 +11,7 @@ import { recordStockMovement } from "./services/stock-ledger";
 // lands in the boot bundle.
 import type { CellValue } from "exceljs";
 
+import { firstRow } from "./lib/db-rows";
 /**
  * A spreadsheet cell is whatever exceljs hands back — a string or number for
  * the templates we publish, but also a Date, a formula result or rich text for
@@ -337,7 +338,14 @@ export const importRouter = createRouter({
           SELECT MAX(CAST(code AS UNSIGNED)) AS maxCode FROM products
           WHERE tenant_id = ${tenantId} AND code REGEXP '^[0-9]+$'
         `);
-        const maxVal = Number((currentMax as unknown as Array<{ maxCode: string | null }>)?.[0]?.maxCode ?? 0);
+        // db.execute отдаёт кортеж mysql2 [rows, fields], поэтому [0] — это
+        // МАССИВ строк, а сама строка лежит в [0][0]. Прежний код читал maxCode
+        // прямо с массива, получал undefined и через ?? 0 приходил к нулю —
+        // тихо, без ошибки. Значит nextCodeNum всегда оставался единицей, и
+        // ВТОРОЙ импорт товаров без кодов выдавал те же 000001, 000002…
+        // На products стоит уникальный индекс uq_product_code_tenant, так что
+        // второй импорт просто падал по дубликату ключа.
+        const maxVal = Number(firstRow<{ maxCode: string | null }>(currentMax)?.maxCode ?? 0);
         if (maxVal > 0) nextCodeNum = maxVal + 1;
 
         for (let i = 0; i < dataRows.length; i++) {

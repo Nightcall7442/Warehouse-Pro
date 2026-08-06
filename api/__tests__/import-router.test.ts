@@ -151,6 +151,19 @@ function makeMockDb() {
         });
         return Promise.resolve([]);
       }
+      if (fullSql.includes("MAX(CAST(code AS UNSIGNED))")) {
+        // Форма ответа здесь принципиальна. Настоящий mysql2 отдаёт кортеж
+        // [rows, fields], то есть строка лежит в [0][0]. Мок, возвращавший
+        // просто [], подтверждал бы «максимум не найден» одинаково и для
+        // верного кода, и для кода, читающего maxCode прямо с массива строк, —
+        // а именно этой ошибкой второй импорт и падал по дубликату ключа.
+        const numeric = productsTable
+          .map(pr => String(pr.code ?? ""))
+          .filter(c => /^[0-9]+$/.test(c))
+          .map(Number);
+        const maxCode = numeric.length ? String(Math.max(...numeric)) : null;
+        return Promise.resolve([[{ maxCode }], []]);
+      }
     }
     return Promise.resolve([]);
   };
@@ -263,6 +276,40 @@ describe("import.executeImport", () => {
     expect(productsTable.length).toBe(2);
     expect(productsTable[0].name).toBe("Tomato");
     expect(productsTable[0].unit).toBe("kg");
+  });
+
+  it("автокоды продолжают нумерацию, а не начинаются с 000001 заново", async () => {
+    // Товар с числовым кодом уже есть — значит следующий автокод обязан быть 43.
+    productsTable.push({ id: 500, tenantId: 1, name: "Существующий", code: "000042", status: "active" });
+
+    const base64 = csvBase64(
+      ["Название", "Цена продажи", "Себестоимость", "Ед. измерения"],
+      [["Без кода", "1000", "800", "kg"]],
+    );
+    const { importRouter } = await import("../import-router");
+    const caller = importRouter.createCaller(buildCtx());
+    await caller.executeImport({ type: "products", base64, filename: "import.csv" });
+
+    const imported = productsTable.find(pr => pr.name === "Без кода");
+    expect(imported?.code).toBe("000043");
+  });
+
+  it("второй импорт без кодов не повторяет коды первого", async () => {
+    // Ровно тот отказ, что видел пользователь: на products стоит уникальный
+    // индекс по (code, tenant_id), поэтому повтор кода — не косметика, а
+    // падение импорта по дубликату ключа.
+    const { importRouter } = await import("../import-router");
+    const caller = importRouter.createCaller(buildCtx());
+    const csv = () => csvBase64(
+      ["Название", "Цена продажи", "Себестоимость", "Ед. измерения"],
+      [["Первый", "1000", "800", "kg"], ["Второй", "2000", "1500", "kg"]],
+    );
+
+    await caller.executeImport({ type: "products", base64: csv(), filename: "a.csv" });
+    await caller.executeImport({ type: "products", base64: csv(), filename: "b.csv" });
+
+    const codes = productsTable.map(pr => pr.code);
+    expect(new Set(codes).size).toBe(codes.length);
   });
 
   it("imports shops from CSV", async () => {

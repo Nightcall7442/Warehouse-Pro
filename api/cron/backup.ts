@@ -4,6 +4,7 @@ import { getDb } from "../queries/connection";
 import { logger } from "../lib/logger";
 import { env } from "../lib/env";
 
+import { firstRow } from "../lib/db-rows";
 /**
  * Database backup cron job
  * Runs daily at 3 AM UTC
@@ -27,8 +28,7 @@ export async function runBackup(): Promise<{ success: boolean; message: string }
     for (const table of tables) {
       try {
         const result = await db.execute(`SELECT COUNT(*) as count FROM ${table}`);
-        const rows = result as unknown as Array<{ count: number }>;
-        counts[table] = rows[0]?.count ?? 0;
+        counts[table] = Number(firstRow<{ count: number }>(result)?.count ?? 0);
       } catch {
         counts[table] = -1;
       }
