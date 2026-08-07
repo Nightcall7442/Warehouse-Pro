@@ -7,7 +7,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useLang } from "@/i18n";
 import { format } from "date-fns";
 import {
-  Search, AlertTriangle, Package, FileDown, Trash2,
+  AlertTriangle, Package, FileDown, Trash2,
   Loader2, Boxes, Scale, AlertCircle, DollarSign,
   Clock, ShoppingCart,
 } from "lucide-react";
@@ -20,7 +20,7 @@ import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { formatQty } from "@/lib/format";
 import { colorMix } from "@/lib/color-mix";
 
-import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { SearchInput } from "@/components/SearchInput";
 // warehouseMulti.getStock is raw SQL behind db.execute, so tRPC infers its rows
 // as `unknown` — these two mirror the SELECT lists in that procedure. Decimal
 // columns arrive from mysql2 as strings, COUNT() as numbers.
@@ -56,11 +56,12 @@ export default function Warehouse() {
   const { confirm, dialog } = useConfirm();
   const { selectedId: warehouseId } = useWarehouse();
 
-  const [search, setSearch] = useState("");
+  // Строка живёт в SearchInput: страница на 700+ строк не должна
+  // перерисовываться на каждую набранную букву.
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   // Поле ввода остаётся мгновенным, а в запрос уходит придержанное
   // значение: иначе каждая буква — это новый ключ запроса, у которого
   // ещё нет данных, и страница успевает смениться скелетоном.
-  const debouncedSearch = useDebouncedValue(search);
   // `unit` is captured for the adjust dialog, which today renders quantities
   // without a unit label — AdjustModal takes no unit prop yet.
   const [adjusting, setAdjusting] = useState<{ id: number; name: string; stock: number; unit: string; unitWeight: number } | null>(null);
@@ -337,15 +338,14 @@ export default function Warehouse() {
           )}
 
           {/* Search */}
-          <div style={{ position: "relative" }}>
-            <Search size={16} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--color-text-tertiary, #6b6760)", pointerEvents: "none" }} />
-            <input className="w-full py-3 pl-10 pr-4 rounded-xl text-sm outline-none transition-all"
-              style={{ background: "var(--color-surface-light, #f6f4f0)", color: "var(--color-text-primary, #2b2a28)", border: "2px solid transparent", fontFamily: "'DM Sans', sans-serif" }}
-              onFocus={e => { e.currentTarget.style.borderColor = "var(--color-primary)"; e.currentTarget.style.boxShadow = "0 0 0 4px color-mix(in srgb, var(--color-primary) 10%, transparent)"; e.currentTarget.style.background = "var(--color-surface, #efedea)"; }}
-              onBlur={e => { e.currentTarget.style.borderColor = "transparent"; e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.background = "var(--color-surface-light, #f6f4f0)"; }}
-              placeholder={t("Поиск товаров…", "Mahsulot qidirish…")}
-              value={search} onChange={e => setSearch(e.target.value)} />
-          </div>
+          <SearchInput
+            placeholder={t("Поиск товаров…", "Mahsulot qidirish…")}
+            onSearch={setDebouncedSearch}
+            iconSize={16}
+            focusRing
+            inputClassName="w-full py-3 pl-10 pr-4 rounded-xl text-sm outline-none transition-all"
+            inputStyle={{ background: "var(--color-surface-light, #f6f4f0)", color: "var(--color-text-primary, #2b2a28)", border: "2px solid transparent", fontFamily: "'DM Sans', sans-serif" }}
+          />
 
           {/* Table */}
           {isMobile ? (

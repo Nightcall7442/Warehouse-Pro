@@ -9,7 +9,7 @@ import { useNavigate, useSearchParams } from "react-router";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/hooks/useAuth";
 import {
-  Search, Plus, FileDown, ChevronRight, Store, User,
+  Plus, FileDown, ChevronRight, Store, User,
   ShoppingCart, Clock, CheckCircle2, XCircle, DollarSign,
   Trash2, RotateCcw, Printer,
   CheckSquare, Square, LayoutGrid, Table as TableIcon, Eye, Users,
@@ -39,16 +39,20 @@ import type { CompletionData, CompletionMode } from "@/components/orders/Complet
 import { F, COLORS, SHADOW, OPEN_STATUSES, PAYMENT, STATUS, KpiCard, StatusBadge } from "@/components/orders/theme";
 import { colorMix } from "@/lib/color-mix";
 
-import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { SearchInput } from "@/components/SearchInput";
 export default function Orders() {
   const [page, setPage]     = useState(1);
   const { fmt, symbol }     = useCurrency();
   const { lang }            = useLang();
-  const [search, setSearch] = useState("");
-  // Поле ввода остаётся мгновенным, а в запрос уходит придержанное
-  // значение: иначе каждая буква — это новый ключ запроса, у которого
-  // ещё нет данных, и страница успевает смениться скелетоном.
-  const debouncedSearch = useDebouncedValue(search);
+  // Строка поиска НЕ хранится на этой странице. Компонент SearchInput держит её
+  // у себя и отдаёт сюда, когда набор остановился: иначе каждая буква
+  // перерисовывала бы страницу целиком — тысяча строк разметки и таблица на
+  // полторы сотни заказов, — и между нажатиями появлялась ощутимая пауза.
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const handleSearch = useCallback((value: string) => {
+    setDebouncedSearch(value);
+    setPage(1);
+  }, []);
   const [dateFrom, setDateFrom] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
   const [dateTo, setDateTo] = useState(format(new Date(), "yyyy-MM-dd"));
   const isMobile            = useIsMobile();
@@ -748,19 +752,11 @@ export default function Orders() {
         background: COLORS.surface, borderRadius: "16px", padding: "16px 20px",
         boxShadow: SHADOW,
       }}>
-        <div style={{ position: "relative", flex: "1 1 160px" }}>
-          <Search size={15} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: COLORS.textSecondary }} />
-          <input
-            style={{
-              width: "100%", padding: "10px 12px 10px 36px", fontSize: "13px", fontFamily: F.body,
-              borderRadius: "10px", border: `1px solid ${COLORS.border}`,
-              background: COLORS.surfaceLight, color: COLORS.textPrimary, outline: "none",
-            }}
-            placeholder={t("Поиск заказов…", "Buyurtma qidirish…")}
-            value={search}
-            onChange={e => { setSearch(e.target.value); setPage(1); }}
-          />
-        </div>
+        <SearchInput
+          placeholder={t("Поиск заказов…", "Buyurtma qidirish…")}
+          onSearch={handleSearch}
+          style={{ flex: "1 1 160px" }}
+        />
         <PremiumSelect value={status} onChange={v => { setStatus(v); setPage(1); }}
           options={[{value:"",label:t("Все статусы","Barcha holatlar")},...Object.entries(STATUS).map(([k,v])=>({value:k,label:lang==="uz"?v.uz:v.ru}))]}
           width="180px" />
