@@ -30,6 +30,10 @@ function PaymentModal({ shopId, onClose }: { shopId: number; onClose: () => void
   const [amount, setAmount] = useState("");
   const [type,   setType]   = useState<"payment" | "debt">("payment");
   const [notes,  setNotes]  = useState("");
+  // Метка этой попытки оплаты: одна на открытую форму. Второй клик по кнопке
+  // или повтор после сорванной связи уходят с той же меткой, и сервер не
+  // списывает долг дважды. Новая оплата — новое открытие формы, новая метка.
+  const [idempotencyKey] = useState(() => crypto.randomUUID());
   const { lang } = useLang();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const utils = trpc.useUtils();
@@ -89,7 +93,7 @@ function PaymentModal({ shopId, onClose }: { shopId: number; onClose: () => void
 
         <div className="flex gap-2">
           <button
-            onClick={() => amount && addPayment.mutate({ shopId, amount, type, notes: notes || undefined })}
+            onClick={() => amount && addPayment.mutate({ shopId, amount, type, notes: notes || undefined, idempotencyKey })}
             disabled={addPayment.isPending || !amount}
             className="neo-btn-primary flex-1 flex items-center justify-center gap-2 disabled:opacity-40">
             {addPayment.isPending && <Loader2 size={14} className="animate-spin" />}

@@ -281,6 +281,13 @@
       "when": 1786600001000,
       "tag": "0039_daily_plans_visited_at_mysql",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "5",
+      "when": 1786600002000,
+      "tag": "0040_payments_idempotency",
+      "breakpoints": true
     }
   ]
 }

@@ -277,6 +277,11 @@ export const shopRouter = createRouter({
       amount: z.string().refine(v => /^\d+(\.\d{1,2})?$/.test(v) && Number(v) > 0, "Неверный формат суммы"),
       type:   z.enum(["payment", "debt"]).default("payment"),
       notes:  z.string().optional(),
+      // Метка одной попытки оплаты, одинаковая у всех её повторов. Клиент
+      // выдаёт её один раз на открытую форму, поэтому повторная отправка —
+      // сорванная связь, второй клик, две вкладки — приходит с той же меткой
+      // и не списывает долг второй раз.
+      idempotencyKey: z.string().min(8).max(100).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       return PaymentService.addPayment(ctx.db, ctx.tenant.id, {

@@ -16,6 +16,7 @@ import { payments, shops } from "@db/schema";
 type FakePayment = {
   id: number; tenantId: number; shopId: number; amount: string;
   type: string; notes?: string; createdBy: number; createdAt: Date;
+  idempotencyKey?: string;
 };
 type FakeShop = { id: number; tenantId: number; name: string; debt: string };
 
@@ -130,10 +131,22 @@ function makeMockDb() {
         if (tbl === "payments") {
           const list = Array.isArray(vals) ? (vals as Record<string, unknown>[]) : [vals as Record<string, unknown>];
           for (const v of list) {
+            const key = v.idempotencyKey as string | undefined;
+            // Уникальный индекс uq_payments_idempotency. Воспроизведён здесь
+            // потому, что вся защита от повторной оплаты держится именно на
+            // нём: стенд, который принимает любую вставку, показал бы зелёное
+            // и на коде без всякой защиты.
+            //
+            // NULL-ы намеренно не сравниваются — так ведёт себя MySQL, и
+            // именно поэтому индекс встаёт на таблицу с уже существующими
+            // платежами, у которых ключа нет.
+            if (key != null && paymentsTable.some(p => p.tenantId === v.tenantId && p.idempotencyKey === key)) {
+              return Promise.reject(Object.assign(new Error("Duplicate entry"), { code: "ER_DUP_ENTRY" }));
+            }
             paymentsTable.push({
               id: nextPaymentId++, tenantId: v.tenantId as number, shopId: v.shopId as number,
               amount: String(v.amount), type: v.type as string, notes: v.notes as string | undefined,
-              createdBy: v.createdBy as number, createdAt: new Date(),
+              createdBy: v.createdBy as number, createdAt: new Date(), idempotencyKey: key,
             });
           }
           return Promise.resolve([{ insertId: nextPaymentId }]);
@@ -163,7 +176,23 @@ function makeMockDb() {
       }
       return Promise.resolve([]);
     },
-    transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(db),
+    // Откат существенен для проверок повтора: обработчик считает отказ по
+    // индексу безопасным только потому, что вместе со вставкой откатывается и
+    // пересчёт долга. Стенд, который сохраняет половину транзакции, подтвердил
+    // бы вывод, неверный для настоящей базы.
+    transaction: async (fn: (tx: unknown) => Promise<unknown>) => {
+      const savedPayments = paymentsTable.map(p => ({ ...p }));
+      const savedShops = shopsTable.map(s => ({ ...s }));
+      const savedNextId = nextPaymentId;
+      try {
+        return await fn(db);
+      } catch (e) {
+        paymentsTable = savedPayments;
+        shopsTable = savedShops;
+        nextPaymentId = savedNextId;
+        throw e;
+      }
+    },
   };
   return db;
 }
@@ -270,5 +299,74 @@ describe("PaymentService.getPaymentHistory", () => {
 
     const history = await PaymentService.getPaymentHistory(mockDb as any, 1, 1);
     expect(history.length).toBeLessThanOrEqual(20);
+  });
+});
+
+describe("PaymentService.addPayment — повторно отправленная оплата", () => {
+  it("списывает долг один раз, а не дважды", async () => {
+    const key = "attempt-0001";
+    const debtBefore = shopsTable.find(s => s.id === 1)!.debt;
+
+    await PaymentService.addPayment(mockDb as any, 1, { shopId: 1, amount: "300.00", createdBy: 10, idempotencyKey: key });
+    const debtAfterFirst = shopsTable.find(s => s.id === 1)!.debt;
+
+    // Тот же платёж уходит второй раз: сорвалась связь, кассир нажал кнопку
+    // ещё раз, открыты две вкладки. Раньше это записывало вторую строку, и
+    // магазин «погашал» 600 вместо 300.
+    const second = await PaymentService.addPayment(mockDb as any, 1, { shopId: 1, amount: "300.00", createdBy: 10, idempotencyKey: key });
+
+    expect(debtBefore).toBe("500.00");
+    expect(debtAfterFirst).toBe("200.00");
+    expect(shopsTable.find(s => s.id === 1)!.debt).toBe("200.00");
+    expect(paymentsTable).toHaveLength(1);
+    expect(second).toEqual({ success: true, duplicate: true });
+  });
+
+  it("две разные оплаты подряд проходят обе", async () => {
+    await PaymentService.addPayment(mockDb as any, 1, { shopId: 1, amount: "100.00", createdBy: 10, idempotencyKey: "attempt-a" });
+    await PaymentService.addPayment(mockDb as any, 1, { shopId: 1, amount: "100.00", createdBy: 10, idempotencyKey: "attempt-b" });
+
+    // Одинаковая сумма в один день — обычное дело, и защита от повторов не
+    // вправе принимать вторую честную оплату за отражение первой.
+    expect(paymentsTable).toHaveLength(2);
+    expect(shopsTable.find(s => s.id === 1)!.debt).toBe("300.00");
+  });
+
+  it("вызовы без ключа продолжают работать", async () => {
+    // Ключ необязателен: столбец пуст у всех платежей, записанных до этой
+    // правки, и у вызовов, которые его ещё не передают. Отказать им значило
+    // бы, что оплату нельзя провести вообще.
+    await PaymentService.addPayment(mockDb as any, 1, { shopId: 1, amount: "100.00", createdBy: 10 });
+    await PaymentService.addPayment(mockDb as any, 1, { shopId: 1, amount: "100.00", createdBy: 10 });
+
+    expect(paymentsTable).toHaveLength(2);
+    expect(shopsTable.find(s => s.id === 1)!.debt).toBe("300.00");
+  });
+
+  it("один и тот же ключ в разных организациях не конфликтует", async () => {
+    shopsTable.push({ id: 3, tenantId: 2, name: "Other tenant shop", debt: "500.00" });
+    openingBalance[3] = 500;
+
+    await PaymentService.addPayment(mockDb as any, 1, { shopId: 1, amount: "100.00", createdBy: 10, idempotencyKey: "attempt-1" });
+    await PaymentService.addPayment(mockDb as any, 2, { shopId: 3, amount: "100.00", createdBy: 10, idempotencyKey: "attempt-1" });
+
+    // Ключи выдают клиенты разных организаций и договориться между собой не
+    // могут; совпадение не должно гасить чужую оплату.
+    expect(paymentsTable).toHaveLength(2);
+    expect(shopsTable.find(s => s.id === 1)!.debt).toBe("400.00");
+    expect(shopsTable.find(s => s.id === 3)!.debt).toBe("400.00");
+  });
+
+  it("отброшенный повтор не оставляет следов: долг не тронут", async () => {
+    const key = "attempt-rollback";
+    await PaymentService.addPayment(mockDb as any, 1, { shopId: 1, amount: "300.00", createdBy: 10, idempotencyKey: key });
+    const snapshot = shopsTable.find(s => s.id === 1)!.debt;
+
+    await PaymentService.addPayment(mockDb as any, 1, { shopId: 1, amount: "300.00", createdBy: 10, idempotencyKey: key });
+
+    // Отказ по индексу откатывает транзакцию целиком — вместе со вставкой
+    // отменяется и пересчёт долга. Успех возвращается только поэтому.
+    expect(shopsTable.find(s => s.id === 1)!.debt).toBe(snapshot);
+    expect(paymentsTable).toHaveLength(1);
   });
 });

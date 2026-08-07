@@ -141,6 +141,11 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
 
   // ── New-debt modal ─────────────────────────────────────────────────────
   const [showDebtModal, setShowDebtModal] = useState(false);
+  // Метка одной записи долга. Здесь окно не пересоздаётся — панель заказа
+  // остаётся смонтированной, — поэтому метка обновляется при каждом открытии
+  // окна, а не один раз на монтирование: иначе вторая запись долга подряд
+  // ушла бы с той же меткой и сервер отбросил бы её как повтор.
+  const [debtIdempotencyKey, setDebtIdempotencyKey] = useState(() => crypto.randomUUID());
   const [debtAmount, setDebtAmount] = useState("");
   const [debtNotes, setDebtNotes] = useState("");
 
@@ -399,6 +404,7 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
       amount: amt.toFixed(2),
       type: "debt",
       notes: debtNotes || undefined,
+      idempotencyKey: debtIdempotencyKey,
     });
   }
 
@@ -693,7 +699,7 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
                   )}
                   {isOperatorOrCeo && !order.deletedAt && (
                     <div>
-                      <PillButton tone="neutral" onClick={() => setShowDebtModal(true)}>
+                      <PillButton tone="neutral" onClick={() => { setDebtIdempotencyKey(crypto.randomUUID()); setShowDebtModal(true); }}>
                         <Plus size={14} />{t("Новый долг", "Yangi qarz")}
                       </PillButton>
                     </div>

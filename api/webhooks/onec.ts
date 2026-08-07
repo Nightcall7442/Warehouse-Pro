@@ -67,44 +67,63 @@ app.post("/payment", async (c) => {
       return c.json({ error: "Shop not mapped" }, 400);
     }
 
-    // Idempotency: skip if this reference was already processed
-    if (reference) {
-      const [existing] = await db.select({ id: payments.id }).from(payments)
-        .where(and(eq(payments.tenantId, tenantId), eq(payments.notes, `1C: ${reference}`)))
-        .limit(1);
-      if (existing) {
+    // Номер документа 1С и есть метка попытки: ретрай после таймаута присылает
+    // тот же reference, и уникальный индекс не даст записать оплату дважды.
+    //
+    // Прежняя защита — «поискать платёж с такой же заметкой» — стояла ДО
+    // транзакции и потому не защищала: два ретрая, пришедшие одновременно, оба
+    // видели пусто и оба вставляли строку. Долг магазина уменьшался вдвое.
+    // Сравнение шло к тому же по тексту заметки, так что вручную введённая
+    // заметка «1C: 123» могла случайно погасить настоящий платёж.
+    const idempotencyKey = typeof reference === "string" && reference
+      ? `1c:${reference}`.slice(0, 100)
+      : undefined;
+
+    try {
+      await db.transaction(async (tx) => {
+        // #FIX3: Check shop exists and validate against outstanding debt
+        const [shop] = await tx.select({ debt: shops.debt })
+          .from(shops)
+          .where(and(eq(shops.id, shopId), eq(shops.tenantId, tenantId)))
+          .limit(1)
+          .for("update");
+
+        if (!shop) {
+          throw new Error("Shop not found");
+        }
+
+        const currentDebt = Number(shop.debt);
+        if (parsedAmount > currentDebt) {
+          logger.warn("Payment exceeds debt", { tenantId, shopId, amount: parsedAmount, debt: currentDebt });
+          // Allow but log warning — don't block legitimate overpayments from 1C
+        }
+
+        await tx.insert(payments).values({
+          tenantId,
+          shopId,
+          amount: parsedAmount.toFixed(2),
+          type: "payment",
+          notes: `1C: ${reference ?? "Payment"}`,
+          idempotencyKey,
+        });
+
+        await recalcShopDebt(tx, tenantId, shopId);
+      });
+    } catch (e) {
+      // Отказ по уникальному индексу означает: этот документ уже проведён, а
+      // транзакция откатилась целиком — лишней строки нет, долг не тронут. 1С
+      // получает тот же успех, что и с первого раза: ошибка заставила бы её
+      // повторять снова или считать оплату непринятой.
+      //
+      // Условие на ключ обязательно: без reference столбец пуст, конфликтовать
+      // нечему, и ER_DUP_ENTRY означал бы нарушение другого индекса, которое
+      // нельзя выдавать за принятую оплату.
+      if (idempotencyKey && (e as { code?: string } | null)?.code === "ER_DUP_ENTRY") {
+        logger.info("1C payment already processed", { tenantId, shopId, reference });
         return c.json({ success: true, duplicate: true });
       }
+      throw e;
     }
-
-    await db.transaction(async (tx) => {
-      // #FIX3: Check shop exists and validate against outstanding debt
-      const [shop] = await tx.select({ debt: shops.debt })
-        .from(shops)
-        .where(and(eq(shops.id, shopId), eq(shops.tenantId, tenantId)))
-        .limit(1)
-        .for("update");
-
-      if (!shop) {
-        throw new Error("Shop not found");
-      }
-
-      const currentDebt = Number(shop.debt);
-      if (parsedAmount > currentDebt) {
-        logger.warn("Payment exceeds debt", { tenantId, shopId, amount: parsedAmount, debt: currentDebt });
-        // Allow but log warning — don't block legitimate overpayments from 1C
-      }
-
-      await tx.insert(payments).values({
-        tenantId,
-        shopId,
-        amount: parsedAmount.toFixed(2),
-        type: "payment",
-        notes: `1C: ${reference ?? "Payment"}`,
-      });
-
-      await recalcShopDebt(tx, tenantId, shopId);
-    });
 
     logger.info("Payment received from 1C", { tenantId, shopId, amount: parsedAmount });
     return c.json({ success: true });

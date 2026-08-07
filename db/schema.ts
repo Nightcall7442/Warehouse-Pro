@@ -499,6 +499,15 @@ export const payments = mysqlTable("payments", {
   debtDueDate:     date("debt_due_date"),
   paidAt:          timestamp("paid_at"),
   notes:     text("notes"),
+  // Метка одной попытки оплаты. Повтор той же попытки — сорванная связь и
+  // повторная отправка, второй клик по кнопке, ретрай 1С — приходит с тем же
+  // ключом, и уникальный индекс не даёт записать деньги дважды.
+  //
+  // Столбец необязательный намеренно: в MySQL уникальный индекс не считает
+  // NULL-ы одинаковыми, поэтому все уже существующие платежи с пустым ключом
+  // друг другу не мешают, и индекс встаёт на живую таблицу без разбора старых
+  // данных.
+  idempotencyKey: varchar("idempotency_key", { length: 100 }),
   createdBy: bigint("created_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({
@@ -507,6 +516,7 @@ export const payments = mysqlTable("payments", {
   orderIdx:  index("idx_payments_order").on(t.orderId),
   tenantShopIdx: index("idx_payments_tenant_shop").on(t.tenantId, t.shopId),
   createdAtIdx:  index("idx_payments_created_at").on(t.createdAt),
+  idempotencyUq: uniqueIndex("uq_payments_idempotency").on(t.tenantId, t.idempotencyKey),
 }));
 
 export type Payment       = typeof payments.$inferSelect;
