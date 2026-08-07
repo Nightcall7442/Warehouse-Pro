@@ -18,7 +18,7 @@ import { authenticateRequest } from "./auth";
 import { cache } from "./lib/cache";
 import { getDb } from "./queries/connection";
 import { tenants } from "@db/schema";
-import { sql } from "drizzle-orm";
+import { sql, type SQL } from "drizzle-orm";
 import { logger } from "./lib/logger";
 import { recordRequest } from "./system-router";
 import { logError } from "./lib/error-log";
@@ -594,6 +594,66 @@ async function checkDatabaseHealth(): Promise<boolean> {
  * сейчас незаписанными числятся и те, что применили руками, — падение на них
  * положило бы рабочий продукт ради предупреждения.
  */
+/**
+ * Сколько ждать базу при запуске, прежде чем сдаться.
+ *
+ * Пять минут покрывают обычный перезапуск MySQL — он занимает секунды — и
+ * оставляют запас на затяжной. Если база не вернулась и за это время, дело не
+ * в перезапуске, и висеть дольше вредно: платформа так и не увидит рабочего
+ * экземпляра, а причина останется незамеченной.
+ */
+const DB_STARTUP_WAIT_MS = 5 * 60_000;
+
+/**
+ * Дождаться, пока база начнёт отвечать.
+ *
+ * Проверка — самый дешёвый запрос, какой существует: важно отличить «сервер
+ * принимает соединения» от «сервер поднялся, но ещё не готов». Пауза между
+ * попытками растёт до пяти секунд, чтобы перезапускающаяся база не получила
+ * шквал соединений в момент, когда ей тяжелее всего.
+ *
+ * Ошибка последней попытки пробрасывается наружу, а не заменяется своей: в ней
+ * написано, что именно произошло — отказ в соединении, неверный пароль,
+ * неизвестное имя узла, — и подменять это словами «база недоступна» значит
+ * потерять единственную подсказку.
+ */
+export async function waitForDatabase(
+  // Метод, а не поле с функцией: у настоящего drizzle execute перегружен, и
+  // строгая проверка типов не пустила бы его в поле, объявленное через
+  // стрелку. Здесь нужен лишь способ задать один запрос — форму базы целиком
+  // требовать незачем, иначе тест не сможет подставить двойник.
+  getDbFn: () => { execute(query: SQL): Promise<unknown> },
+  maxWaitMs: number,
+  sleep: (ms: number) => Promise<void> = ms => new Promise(r => setTimeout(r, ms)),
+  now: () => number = Date.now,
+): Promise<void> {
+  const startedAt = now();
+  let attempt = 0;
+
+  for (;;) {
+    try {
+      await getDbFn().execute(sql`SELECT 1`);
+      if (attempt > 0) {
+        logger.info("database reachable again", { attempts: attempt + 1, waitedMs: now() - startedAt });
+      }
+      return;
+    } catch (e) {
+      attempt++;
+      const waited = now() - startedAt;
+      // Проверка «время вышло» стоит ПОСЛЕ попытки, а не до неё: иначе при
+      // нулевом или крошечном лимите не случилось бы ни одного обращения к
+      // базе, и запуск падал бы, ни разу её не спросив.
+      if (waited >= maxWaitMs) throw e;
+      const delay = Math.min(5_000, 500 * 2 ** Math.min(attempt - 1, 4));
+      logger.warn("database not reachable yet — retrying", {
+        attempt, waitedMs: waited, nextRetryInMs: delay,
+        error: e instanceof Error ? e.message : String(e),
+      });
+      await sleep(delay);
+    }
+  }
+}
+
 async function reportSkippedMigrations(): Promise<void> {
   try {
     const { readFile } = await import("node:fs/promises");
@@ -660,6 +720,32 @@ if (env.isProduction) {
   // A failure here stops the process. Serving against a schema the code does
   // not match is what caused the outages this replaces; a deploy that fails
   // loudly is recoverable, one that half-works is not.
+  // Недоступная база и несовпадающая схема — разные беды, и путать их дорого.
+  //
+  // Отказ стартовать задуман против второй: схема, которой код не соответствует,
+  // уже приводила к авариям, и деплой, упавший громко, лучше наполовину
+  // работающего. Но под то же правило попадала и первая, а это просто «база
+  // сейчас перезапускается». Процесс выходил с ошибкой за секунды, платформе
+  // разрешено ограниченное число перезапусков, и они сгорали за минуту — после
+  // чего приложение не поднималось само даже тогда, когда база возвращалась.
+  // Именно так вышло 7 августа: база лежала около сорока минут.
+  //
+  // Поэтому сначала дожидаемся соединения, и только потом применяем миграции.
+  // Ожидание конечно: если база не вернулась за отведённое время, выходим с
+  // ошибкой, как раньше. Падение самой миграции по-прежнему останавливает
+  // запуск немедленно, без единой повторной попытки — повторять сломанный SQL
+  // бессмысленно, и растянутое ожидание только спрячет причину.
+  try {
+    const { getDb } = await import("./queries/connection");
+    await waitForDatabase(getDb, DB_STARTUP_WAIT_MS);
+  } catch (e) {
+    logger.error("database unreachable at startup — refusing to start", {
+      waitedMs: DB_STARTUP_WAIT_MS,
+      error: e instanceof Error ? e.message : String(e),
+    });
+    process.exit(1);
+  }
+
   try {
     const { migrate } = await import("drizzle-orm/mysql2/migrator");
     const { getDb } = await import("./queries/connection");

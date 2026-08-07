@@ -64,11 +64,30 @@ export function AppModal({
 
   return createPortal(
     <>
+      {/*
+        pointer-events-auto обязателен на обоих слоях.
+
+        Пока открыта боковая панель Radix, он держит на <body> инлайновый
+        pointer-events: none, чтобы страница под панелью не принимала клики.
+        Этот портал — прямой потомок body, поэтому наследует запрет и окно
+        оказывается видимым, но полностью мёртвым: ни ввести сумму, ни нажать
+        «Завершить», ни «Отмена». Выход остаётся только через перезагрузку
+        страницы.
+
+        Сторож RadixPointerEventsGuard здесь не помогает и не должен: он снимает
+        залипший запрет лишь тогда, когда открытых слоёв Radix не осталось, а
+        панель в этот момент открыта намеренно — окно завершения заказа живёт
+        поверх неё.
+
+        Ровно так же вылечено окно долга в OrderSlideOver; здесь эта строка
+        просто не была проставлена.
+      */}
       <div
+        className="pointer-events-auto"
         style={{ position: "fixed", inset: 0, zIndex: 9999, backgroundColor: "rgba(0,0,0,0.75)" }}
         onClick={onClose}
       />
-      <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+      <div className="pointer-events-auto fixed inset-0 z-[10000] flex items-center justify-center p-4">
         <div
           ref={panelRef}
           role="dialog"
