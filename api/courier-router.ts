@@ -295,7 +295,14 @@ export const courierRouter = createRouter({
       returnReason: z.string().max(200).optional(), // for returned/partial_returned
       returnedItems: z.array(z.object({          // for partial_returned
         itemId: z.number(),
-        returnedQty: z.number(),
+        // .min(0) обязателен: без него отрицательное возвращённое количество
+        // превращается в доставленное БОЛЬШЕ заказанного (qty - (-3) = qty + 3),
+        // и со склада списывается товар, которого в заказе не было. Верхняя
+        // граница проверяется на сервере против фактического количества строки —
+        // здесь она неизвестна. Операторский путь имеет обе проверки
+        // (order-router.ts:550 и services/order.ts:304), курьерский не имел ни
+        // одной, хотя роль курьера — наименее доверенная из всех.
+        returnedQty: z.number().min(0, "Возвращённое количество не может быть отрицательным"),
       })).optional(),
       notes: z.string().max(500).optional(),
     }))
@@ -417,6 +424,19 @@ export const courierRouter = createRouter({
           for (const item of items) {
             const qty = Number(item.quantity);
             const returnedQty = returnedMap.get(item.id) ?? 0;
+
+            // Вернуть больше, чем было в заказе, нельзя. Без этой проверки
+            // курьер обнулял заказ: при returnedQty=25 по строке из 10 и -3 по
+            // строке из 5 заказ на 1800 записывался как 90, а при возврате
+            // «25 из всего» subtotal уходил в минус (-5500) и попадал в SUM
+            // отчёта P&L. Колонки DECIMAL без unsigned, отрицательное значение
+            // сохраняется молча. Зеркало проверки из services/order.ts:304.
+            if (returnedQty > qty) {
+              throw new Error(
+                `Возвращено больше, чем в заказе: ${returnedQty} из ${qty} (позиция #${item.id})`,
+              );
+            }
+
             const deliveredQty = qty - returnedQty;
             newSubtotal += Number(item.unitPrice) * deliveredQty;
 
