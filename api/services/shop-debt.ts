@@ -49,17 +49,29 @@ export async function recalcShopDebt(tx: Tx, tenantId: number, shopId: number): 
           CASE
             WHEN o.status IN ('cancelled', 'returned') THEN 0
             WHEN o.payment_method = 'debt' OR o.status = 'delivered'
-              THEN GREATEST(0, CAST(o.total AS DECIMAL(15,2)) - COALESCE(op.paid, 0))
+              THEN GREATEST(0, CAST(o.total AS DECIMAL(15,2)) - COALESCE((
+                -- Сколько уже заплачено по ЭТОМУ заказу.
+                --
+                -- Раньше здесь стоял LEFT JOIN на подзапрос, который считал
+                -- суммы по всем заказам всех организаций разом, а потом
+                -- отбрасывал всё лишнее. Пересчёт долга вызывается на каждое
+                -- изменение статуса заказа, каждую оплату, каждый возврат и
+                -- каждое действие курьера, так что вся таблица платежей
+                -- перемалывалась заново по нескольку раз в минуту. Сейчас в
+                -- ней полторы сотни строк и этого не видно; на десятках тысяч
+                -- это стало бы самым дорогим запросом в системе.
+                --
+                -- Здесь же читаются только платежи одного заказа, по индексу
+                -- idx_payments_order. Результат тот же: прежний JOIN
+                -- группировал по order_id и подставлял строку с тем же
+                -- условием, что стоит теперь в WHERE.
+                SELECT SUM(CAST(p.amount AS DECIMAL(15,2))) FROM payments p
+                WHERE p.order_id = o.id AND p.type = 'payment'
+              ), 0))
             ELSE 0
           END
         )
         FROM orders o
-        LEFT JOIN (
-          SELECT order_id, SUM(CAST(amount AS DECIMAL(15,2))) AS paid
-          FROM payments
-          WHERE type = 'payment' AND order_id IS NOT NULL
-          GROUP BY order_id
-        ) op ON op.order_id = o.id
         WHERE o.shop_id = s.id AND o.tenant_id = s.tenant_id AND o.deleted_at IS NULL
       ), 0)
       -- Shop-level entries recorded directly against the shop, not an order.
