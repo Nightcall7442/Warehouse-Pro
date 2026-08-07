@@ -362,13 +362,13 @@ export async function calculateSalary(
   // narrower figures.
   persist = true,
 ): Promise<SalaryData> {
-  // Ordered and typed so a tenant with more than one row for this agent (an
-  // old month plus the current one) gets the current one deterministically,
-  // not whichever MySQL happens to return first.
+  // Отсюда берётся ТОЛЬКО ставка комиссии агента: самая свежая назначенная
+  // переносится на новые месяцы, пока её не изменят. Раньше эта же строка
+  // служила и целью для записи расчёта — из-за чего расчёт августа переписывал
+  // июльскую строку. Цель для записи теперь ищется отдельно, по конкретному
+  // периоду (см. блок persist ниже).
   const [commissionRecord] = await db.select({
     commissionRate: sql<string>`commission_rate`,
-    id: commissions.id,
-    status: commissions.status,
   }).from(commissions)
     .where(and(
       eq(commissions.tenantId, tenantId),
@@ -445,29 +445,64 @@ export async function calculateSalary(
   // server's UTC offset and stop the two ever matching.
   const monthStart = periodStart.toISOString().slice(0, 10);
   const monthEnd = periodEnd.toISOString().slice(0, 10);
-  if (persist && (!commissionRecord || commissionRecord.status === "pending")) {
+
+  if (persist) {
     try {
-      if (commissionRecord?.id) {
+      // Строка ИМЕННО за этот период, а не «последняя строка агента».
+      //
+      // Раньше запись выбиралась выше — последней по periodStart, без фильтра
+      // периода, — и блок ниже переписывал её под текущий месяц вместе с
+      // periodStart/periodEnd. Первого августа агент (или супервайзер через
+      // salaryReport) открывал экран зарплаты, и июльская строка со статусом
+      // pending и комиссией 2 500 000 превращалась в августовскую с почти
+      // нулевыми числами. История выплат не существовала: строк по агенту
+      // физически не могло быть больше одной. И всё это — от обычного открытия
+      // экрана, без единой мутации.
+      //
+      // Вторая половина той же беды: ветка INSERT срабатывала, только когда
+      // записи не было ВООБЩЕ. Как только единственная строка получала статус
+      // approved или paid, внешнее условие переставало пропускать блок, и новые
+      // месяцы не создавались никогда — нормальное завершение первого
+      // расчётного месяца молча выключало учёт комиссий этого агента.
+      const [periodRecord] = await db.select({
+        id: commissions.id,
+        status: commissions.status,
+      }).from(commissions)
+        .where(and(
+          eq(commissions.tenantId, tenantId),
+          eq(commissions.userId, agentId),
+          eq(commissions.periodType, "monthly"),
+          sql`${commissions.periodStart} = ${monthStart}`,
+        ))
+        .limit(1);
+
+      if (!periodRecord) {
+        // Строки за этот период нет — создаём, независимо от того, в каком
+        // состоянии строки за прошлые месяцы.
+        if (commissionRate > 0) {
+          await db.insert(commissions).values({
+            tenantId,
+            userId: agentId,
+            commissionRate: commissionRate.toFixed(2),
+            periodType: "monthly",
+            periodStart: sql`${monthStart}`,
+            periodEnd: sql`${monthEnd}`,
+            salesAmount: salesAmount.toFixed(2),
+            commissionAmount: commissionAmount.toFixed(2),
+          });
+        }
+      } else if (periodRecord.status === "pending") {
+        // Черновик за текущий период — обновляем только суммы. Границы периода
+        // не трогаем: строка уже принадлежит этому месяцу, а их перезапись и
+        // была способом угробить предыдущий.
         await db.update(commissions)
           .set({
             salesAmount: salesAmount.toFixed(2),
             commissionAmount: commissionAmount.toFixed(2),
-            periodStart: sql`${monthStart}`,
-            periodEnd: sql`${monthEnd}`,
           })
-          .where(and(eq(commissions.id, commissionRecord.id), eq(commissions.status, "pending")));
-      } else if (commissionRate > 0) {
-        await db.insert(commissions).values({
-          tenantId,
-          userId: agentId,
-          commissionRate: commissionRate.toFixed(2),
-          periodType: "monthly",
-          periodStart: sql`${monthStart}`,
-          periodEnd: sql`${monthEnd}`,
-          salesAmount: salesAmount.toFixed(2),
-          commissionAmount: commissionAmount.toFixed(2),
-        });
+          .where(and(eq(commissions.id, periodRecord.id), eq(commissions.status, "pending")));
       }
+      // approved / paid за этот период — финансы уже подписали, не трогаем.
     } catch (e) {
       // Commission persistence is non-critical but should be logged
       logger.warn("Failed to persist commission", { agentId, error: String(e) });

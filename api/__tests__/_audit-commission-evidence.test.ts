@@ -88,7 +88,27 @@ function evalCond(row: any, cond: any): boolean {
       }
       return cond.__kind === "gte" ? a >= b : a <= b;
     }
-    default: return true; // raw sql conditions: not used by the code under test
+    case "sql": {
+      // Сравнение вида sql`${колонка} = ${значение}`. Раньше здесь стоял
+      // безусловный true с пометкой «сырые условия в проверяемом коде не
+      // используются» — и это перестало быть правдой ровно тогда, когда
+      // calculateSalary начал искать строку за КОНКРЕТНЫЙ период. Стенд молча
+      // пропускал фильтр, отдавал первую попавшуюся строку, и проверка
+      // «новый месяц создаётся» зеленела, ничего не проверив.
+      const [lhs, rhs] = (cond.values ?? []) as unknown[];
+      const op = String(cond.strings?.[1] ?? "").trim();
+      if (op === "=" && colInfo.has(lhs)) {
+        const actual = readCol(row, lhs);
+        if (actual == null) return false;
+        // period_start — колонка типа date; в базе это календарный день, а в
+        // стенде может лежать как строка, так и Date.
+        const norm = (v: unknown) =>
+          v instanceof Date ? v.toISOString().slice(0, 10) : String(v).slice(0, 10);
+        return norm(actual) === norm(rhs);
+      }
+      return true; // прочие сырые выражения стенд по-прежнему не толкует
+    }
+    default: return true;
   }
 }
 
@@ -241,8 +261,14 @@ beforeEach(() => {
 const JULY = { s: new Date(Date.UTC(2026, 6, 1)), e: new Date(Date.UTC(2026, 6, 31, 23, 59, 59)) };
 const AUG_MTD = { s: new Date(Date.UTC(2026, 7, 1)), e: new Date(Date.UTC(2026, 7, 6, 23, 59, 59)) };
 
-describe("EVIDENCE: calculateSalary persistence", () => {
-  it("A. rewrites LAST month's pending commission row into the new month", async () => {
+/**
+ * Раньше это был файл-улика: проверки утверждали НАБЛЮДАЕМОЕ, то есть неверное
+ * поведение. Ошибки исправлены (см. блок persist в services/kpi.ts), поэтому
+ * проверки переписаны на правильный исход — иначе они закрепляли бы баг и
+ * покраснели бы у того, кто его чинит.
+ */
+describe("calculateSalary: запись расчёта по месяцам", () => {
+  it("A. расчёт нового месяца НЕ переписывает строку прошлого", async () => {
     data.commissions = [{
       id: 1, tenantId: 1, userId: 10, commissionRate: "5.00", periodType: "monthly",
       periodStart: "2026-07-01", periodEnd: "2026-07-31",
@@ -256,12 +282,18 @@ describe("EVIDENCE: calculateSalary persistence", () => {
     const res = await calculateSalary(db as any, 10, 1, AUG_MTD.s, AUG_MTD.e, KPI, true);
     console.log("  August MTD salary:", { sales: res.salesAmount, commission: res.commissionAmount });
     console.log("  commissions row after viewing the August salary page:", data.commissions[0]);
-    expect(data.commissions).toHaveLength(1);           // no new row
-    expect(data.commissions[0].periodStart).toBe("2026-08-01");
-    expect(data.commissions[0].salesAmount).toBe("1000000.00"); // July's 2 500 000 commission is gone
+    // Июльская строка на месте и нетронута: агент получит свои 2 500 000.
+    const july = data.commissions.find(r => r.periodStart === "2026-07-01")!;
+    expect(july, "июльская строка исчезла — комиссия за месяц потеряна").toBeTruthy();
+    expect(july.salesAmount).toBe("50000000.00");
+    expect(july.commissionAmount).toBe("2500000.00");
+    // И появилась отдельная строка за август.
+    const august = data.commissions.find(r => r.periodStart === "2026-08-01")!;
+    expect(august, "строка за новый месяц не создана").toBeTruthy();
+    expect(august.salesAmount).toBe("1000000.00");
   });
 
-  it("B. once a row is approved/paid, NO row is ever created for later months", async () => {
+  it("B. после выплаченной строки новые месяцы продолжают создаваться", async () => {
     data.commissions = [{
       id: 1, tenantId: 1, userId: 10, commissionRate: "5.00", periodType: "monthly",
       periodStart: "2026-07-01", periodEnd: "2026-07-31",
@@ -275,12 +307,19 @@ describe("EVIDENCE: calculateSalary persistence", () => {
     console.log("  August salary shown to the agent:", { sales: res.salesAmount, commission: res.commissionAmount });
     console.log("  rows in commissions:", data.commissions.map(r => ({ p: r.periodStart, s: r.salesAmount, st: r.status })));
     console.log("  inserts performed:", inserted.length);
-    expect(data.commissions).toHaveLength(1);
-    expect(data.commissions[0].periodStart).toBe("2026-07-01"); // still July only
-    expect(inserted).toHaveLength(0);
+    // Выплаченный июль остаётся выплаченным…
+    const july = data.commissions.find(r => r.periodStart === "2026-07-01")!;
+    expect(july.status).toBe("paid");
+    expect(july.salesAmount).toBe("50000000.00");
+    // …а август заводится заново. Раньше ветка создания срабатывала, только
+    // когда строк не было вовсе, и нормальное закрытие первого месяца молча
+    // выключало начисление комиссий этому агенту навсегда.
+    const august = data.commissions.find(r => r.periodStart === "2026-08-01")!;
+    expect(august, "после выплаты за прошлый месяц новый месяц не создаётся").toBeTruthy();
+    expect(august.salesAmount).toBe("1000000.00");
   });
 
-  it("C. period_end is written as TODAY, not as the end of the month", async () => {
+  it("C. открытие экрана в середине месяца не обрезает period_end до сегодня", async () => {
     data.commissions = [{
       id: 1, tenantId: 1, userId: 10, commissionRate: "5.00", periodType: "monthly",
       periodStart: "2026-08-01", periodEnd: "2026-08-31",
@@ -289,7 +328,10 @@ describe("EVIDENCE: calculateSalary persistence", () => {
     const db = makeDb();
     await calculateSalary(db as any, 10, 1, AUG_MTD.s, AUG_MTD.e, KPI, true);
     console.log("  period_end after opening the salary page on 6 Aug:", data.commissions[0].periodEnd);
-    expect(data.commissions[0].periodEnd).toBe("2026-08-06");
+    // Строка уже принадлежит августу; обновляются только суммы, границы периода
+    // не трогаются. Прежде period_end переписывался на «сегодня», и последующий
+    // пересчёт видел обрезанный месяц.
+    expect(data.commissions[0].periodEnd).toBe("2026-08-31");
   });
 });
 
