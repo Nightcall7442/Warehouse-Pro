@@ -245,8 +245,9 @@ beforeEach(() => {
 });
 
 describe("гонки, известные и пока не исправленные", () => {
-  // OrderService.restore проверяет deletedAt ВНЕ транзакции.
-  it.fails("два одновременных восстановления удалённого заказа резервируют товар один раз", async () => {
+  // Исправлено: restore читает заказ внутри транзакции под .for("update"),
+  // а снятие пометки удаления защищено условием isNotNull.
+  it("два одновременных восстановления удалённого заказа резервируют товар один раз", async () => {
     const { OrderService } = await import("../services/order");
 
     // A deleted order for 10 units. delete() already released the reservation,

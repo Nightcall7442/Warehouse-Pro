@@ -48,6 +48,69 @@ function releasesStock(status: string): boolean {
 }
 
 /**
+ * Сколько по каждому товару уже возвращено ПРОВЕДЁННЫМИ возвратами по заказу.
+ *
+ * Только completed: заявленный или отклонённый возврат товара не двигал, и
+ * учитывать его — значит вычесть дважды.
+ */
+async function returnedQuantitiesByProduct(
+  tx: Tx, tenantId: number, orderId: number,
+): Promise<Map<number, number>> {
+  const byProduct = new Map<number, number>();
+  const completedReturns = await tx.select({ id: returns.id })
+    .from(returns)
+    .where(and(
+      eq(returns.orderId, orderId),
+      eq(returns.tenantId, tenantId),
+      eq(returns.status, "completed"),
+    ));
+  if (completedReturns.length === 0) return byProduct;
+
+  const returnedRows = await tx.select({
+    productId: returnItems.productId,
+    quantity: returnItems.quantity,
+  })
+    .from(returnItems)
+    .where(inArray(returnItems.returnId, completedReturns.map(r => Number(r.id))));
+
+  for (const r of returnedRows) {
+    const pid = Number(r.productId);
+    byProduct.set(pid, (byProduct.get(pid) ?? 0) + Number(r.quantity));
+  }
+  return byProduct;
+}
+
+/**
+ * Сколько единиц строка заказа ДЕЙСТВИТЕЛЬНО держит на складе сейчас.
+ *
+ * Это не orderItems.quantity. Строка, прошедшая частичную доставку, физически
+ * подвинула только deliveredQuantity — недовезённый остаток уже вернулся в
+ * available, а не ждёт отгрузки. И проведённый возврат тоже уже вернул своё.
+ *
+ * Разницу считал только updateStatus, а cancel(), delete() и restore() брали
+ * сырое quantity — то есть отдавали назад БОЛЬШЕ, чем занимали. Ни в cancel, ни
+ * в delete не было и клампа GREATEST, поэтому reserved просто уходил в минус:
+ * молча аннулировался резерв ДРУГИХ открытых заказов, а available становился
+ * больше физического остатка, и система разрешала продать несуществующий товар.
+ * Инвариант current = available + reserved при этом сохранялся, так что ни одна
+ * проверка целостности этого не замечала.
+ *
+ * Проверено на движке-двойнике: заказ на 10, возврат на 4, откат в new —
+ * cancel() освобождал 10 вместо 6 и оставлял reserved = -4, available = 104
+ * при current = 100.
+ */
+function heldQuantity(
+  item: { productId: number; quantity: unknown; deliveredQuantity?: unknown },
+  returnedByProduct: Map<number, number>,
+): number {
+  const base = item.deliveredQuantity != null
+    ? Number(item.deliveredQuantity)
+    : Number(item.quantity);
+  const alreadyReturned = returnedByProduct.get(item.productId) ?? 0;
+  return Math.max(0, base - alreadyReturned);
+}
+
+/**
  * What one unit of an order line has done to warehouse stock by the time the
  * order sits in `status`, counted from "the order does not exist":
  *
@@ -755,6 +818,10 @@ export const OrderService = {
       if (order.status !== "new") throw new Error("Можно отменить только новые заказы");
 
       const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
+      // Освобождаем ровно то, что строка действительно держит: частичная
+      // доставка и проведённый возврат уже вернули своё, поэтому отдать назад
+      // полное quantity значит аннулировать резерв чужих заказов.
+      const cancelReturned = await returnedQuantitiesByProduct(tx, tenantId, orderId);
       if (items.length > 0) {
         const cancelWhId = await resolveOrderWarehouse(tx, tenantId);
 
@@ -768,10 +835,10 @@ export const OrderService = {
           UPDATE warehouse_stock
           SET
             reserved = CASE ${sql.join(items.map(i =>
-              sql`WHEN product_id = ${i.productId} THEN reserved - ${Number(i.quantity)}`
+              sql`WHEN product_id = ${i.productId} THEN GREATEST(0, reserved - ${heldQuantity(i, cancelReturned)})`
             ), sql`\n`)} ELSE reserved END,
             available = CASE ${sql.join(items.map(i =>
-              sql`WHEN product_id = ${i.productId} THEN available + ${Number(i.quantity)}`
+              sql`WHEN product_id = ${i.productId} THEN available + ${heldQuantity(i, cancelReturned)}`
             ), sql`\n`)} ELSE available END
           WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
             AND tenant_id = ${tenantId}
@@ -832,26 +899,7 @@ export const OrderService = {
       // Two plain selects and a sum in JS rather than a join + GROUP BY: the
       // volume here is a handful of rows, and it keeps this query inside the
       // subset of the builder the service-level test doubles implement.
-      const returnedByProduct = new Map<number, number>();
-      const completedReturns = await tx.select({ id: returns.id })
-        .from(returns)
-        .where(and(
-          eq(returns.orderId, orderId),
-          eq(returns.tenantId, tenantId),
-          eq(returns.status, "completed"),
-        ));
-      if (completedReturns.length > 0) {
-        const returnedRows = await tx.select({
-          productId: returnItems.productId,
-          quantity: returnItems.quantity,
-        })
-          .from(returnItems)
-          .where(inArray(returnItems.returnId, completedReturns.map(r => Number(r.id))));
-        for (const r of returnedRows) {
-          const pid = Number(r.productId);
-          returnedByProduct.set(pid, (returnedByProduct.get(pid) ?? 0) + Number(r.quantity));
-        }
-      }
+      const returnedByProduct = await returnedQuantitiesByProduct(tx, tenantId, orderId);
 
       // A line that already went through partial delivery moved only
       // `deliveredQuantity` physically, not the full ordered `quantity` — the
@@ -860,11 +908,7 @@ export const OrderService = {
       // what's actually still in play for this line, or a later status change
       // (e.g. correcting "delivered" back to "cancelled") fabricates stock for
       // units that were never there.
-      const effectiveQty = (i: (typeof items)[number]) => {
-        const base = i.deliveredQuantity != null ? Number(i.deliveredQuantity) : Number(i.quantity);
-        const alreadyReturned = returnedByProduct.get(i.productId) ?? 0;
-        return Math.max(0, base - alreadyReturned);
-      };
+      const effectiveQty = (i: (typeof items)[number]) => heldQuantity(i, returnedByProduct);
       // The courier flow already moved the stock for this delivery; replaying
       // the same move here would deduct it a second time.
       const courierAlreadySettled = order.deliveryStatus === "delivered" && deductsStock(newStatus);
@@ -985,9 +1029,14 @@ export const OrderService = {
         const items = await tx.select({
           productId: orderItems.productId,
           quantity: orderItems.quantity,
+          // Нужно heldQuantity: строка после частичной доставки держит только
+          // доставленное, а не заказанное.
+          deliveredQuantity: orderItems.deliveredQuantity,
         }).from(orderItems).where(eq(orderItems.orderId, orderId));
         if (items.length > 0) {
           const deleteWhId = await resolveOrderWarehouse(tx, tenantId);
+          // См. heldQuantity: отдаём назад ровно то, что строка держит сейчас.
+          const deleteReturned = await returnedQuantitiesByProduct(tx, tenantId, orderId);
 
           // Lock stock rows before releasing
           for (const item of items) {
@@ -998,11 +1047,11 @@ export const OrderService = {
           await tx.execute(sql`
             UPDATE warehouse_stock
             SET
-              reserved = reserved - CASE ${sql.join(items.map(i =>
-                sql`WHEN product_id = ${i.productId} THEN ${Number(i.quantity)}`
-              ), sql`\n`)} ELSE 0 END,
+              reserved = GREATEST(0, reserved - CASE ${sql.join(items.map(i =>
+                sql`WHEN product_id = ${i.productId} THEN ${heldQuantity(i, deleteReturned)}`
+              ), sql`\n`)} ELSE 0 END),
               available = available + CASE ${sql.join(items.map(i =>
-                sql`WHEN product_id = ${i.productId} THEN ${Number(i.quantity)}`
+                sql`WHEN product_id = ${i.productId} THEN ${heldQuantity(i, deleteReturned)}`
               ), sql`\n`)} ELSE 0 END
             WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
               AND tenant_id = ${tenantId}
@@ -1206,36 +1255,69 @@ export const OrderService = {
   },
 
   async restore(db: Db, tenantId: number, orderId: number) {
-    const [order] = await db.select({
-      id: orders.id, deletedAt: orders.deletedAt, status: orders.status,
-      shopId: orders.shopId, total: orders.total, paymentMethod: orders.paymentMethod,
-    }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId))).limit(1);
-    if (!order) throw new Error("Заказ не найден");
-    if (!order.deletedAt) throw new Error("Заказ не удалён");
-
     await db.transaction(async (tx) => {
+      // Читаем заказ ВНУТРИ транзакции и под блокировкой — первым же запросом.
+      //
+      // Раньше проверка «заказ удалён» читалась снаружи, без лока, а UPDATE
+      // снимал deletedAt безусловно. Два одновременных восстановления (двойной
+      // клик, повтор по таймауту) оба видели удалённый заказ и оба выполняли
+      // резервирование: на полке в 100 единиц заказ на 10 оставлял reserved=20,
+      // available=80. Освобождает потом заказ только свои 10 — вторые 10
+      // остаются в резерве навсегда, без заказа, который бы их объяснял.
+      // cancel() и delete() рядом делают это правильно; restore был единственным
+      // из трёх без защиты.
+      const [order] = await tx.select({
+        id: orders.id, deletedAt: orders.deletedAt, status: orders.status,
+        shopId: orders.shopId, total: orders.total, paymentMethod: orders.paymentMethod,
+      }).from(orders)
+        .where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)))
+        .for("update")
+        .limit(1);
+      if (!order) throw new Error("Заказ не найден");
+      if (!order.deletedAt) throw new Error("Заказ не удалён");
+
       // Mirror of delete(): the order counts again, and so does what it owes.
-      await tx.update(orders).set({ deletedAt: null }).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)));
+      // Условие isNotNull — вторая половина защиты: даже если проверка выше
+      // окажется по устаревшим данным, снять пометку сможет только тот вызов,
+      // который застал её на месте.
+      const [res] = await tx.update(orders).set({ deletedAt: null })
+        .where(and(
+          eq(orders.id, orderId),
+          eq(orders.tenantId, tenantId),
+          isNotNull(orders.deletedAt),
+        )) as unknown as [{ affectedRows: number }];
+      if (res && res.affectedRows === 0) throw new Error("Заказ уже восстановлен");
+
       await settleShopDebt(tx, tenantId, order.shopId);
 
       // Re-reserve stock if order was new/processing when deleted
       if (holdsStock(order.status)) {
         const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
         const restoreWhId = await resolveOrderWarehouse(tx, tenantId);
+        const restoreReturned = await returnedQuantitiesByProduct(tx, tenantId, orderId);
 
-        // Lock stock rows before checking and updating
+        // Блокируем и СРАЗУ читаем available той же выборкой. Прежде остаток
+        // читался вторым, обычным SELECT: под REPEATABLE READ он обслуживается
+        // из снимка, зафиксированного первым чтением транзакции, то есть ДО
+        // взятия блокировки, — проверка «хватает ли товара» могла одобрить
+        // резерв против остатка, уже израсходованного соседней транзакцией.
+        const stockRows = await tx.select({
+          productId: warehouseStock.productId,
+          available: warehouseStock.available,
+        })
+          .from(warehouseStock)
+          .where(and(
+            eq(warehouseStock.tenantId, tenantId),
+            eq(warehouseStock.warehouseId, restoreWhId),
+            inArray(warehouseStock.productId, items.map(i => i.productId)),
+          ))
+          .for("update");
+
         for (const item of items) {
-          await tx.select({ id: warehouseStock.id }).from(warehouseStock)
-            .where(and(eq(warehouseStock.productId, item.productId), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, restoreWhId)))
-            .for("update");
-        }
-        for (const item of items) {
-          const qty = Number(item.quantity);
-          const [stock] = await tx.select({ available: warehouseStock.available })
-            .from(warehouseStock)
-            .where(and(eq(warehouseStock.productId, item.productId), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, restoreWhId)))
-            .limit(1);
-          const available = Number(stock?.available ?? 0);
+          const qty = heldQuantity(item, restoreReturned);
+          if (qty === 0) continue;
+          const row = stockRows.find(r => Number(r.productId) === item.productId);
+          const available = Number(row?.available ?? 0);
           if (available < qty) {
             throw new Error(`Недостаточно товара на складе для восстановления (товар ID ${item.productId}: доступно ${available}, нужно ${qty})`);
           }

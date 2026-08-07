@@ -127,12 +127,37 @@ describe("the two return routes cannot credit the same goods twice", () => {
 
   it("updateStatus sizes its stock delta net of units already returned by document", () => {
     const source = readFileSync(join(API_DIR, join("services", "order.ts")), "utf8");
-    // effectiveQty decides how many units a status change moves. It has to
-    // subtract what a completed return document already put back on the shelf.
-    expect(source).toMatch(/returnedByProduct/);
+    // Сколько единиц двигает смена статуса, решает heldQuantity: из доставленного
+    // (или заказанного) вычитается уже возвращённое проведённым документом.
+    // Раньше этот расчёт был вписан прямо в updateStatus, и проверка искала его
+    // текст там же. Теперь он вынесен в общую функцию и применяется ещё и в
+    // cancel/delete/restore — которые как раз и брали сырое quantity, — поэтому
+    // проверяется сама функция, а не место, где её вызвали.
     expect(source).toMatch(/eq\(\s*returns\.status\s*,\s*"completed"\s*\)/);
-    const effective = source.slice(source.indexOf("const effectiveQty"));
-    expect(effective.slice(0, 400)).toMatch(/base\s*-\s*alreadyReturned/);
+
+    const held = source.slice(source.indexOf("function heldQuantity"));
+    expect(held.slice(0, 600), "heldQuantity больше не вычитает возвращённое")
+      .toMatch(/base\s*-\s*alreadyReturned/);
+    expect(held.slice(0, 600), "heldQuantity больше не учитывает частичную доставку")
+      .toMatch(/deliveredQuantity/);
+
+    // Проверять наличие имён недостаточно: объявить cancelReturned и не
+    // применить его в самом запросе — ровно та ошибка, которую надо ловить.
+    // Поэтому смотрим на сами формулы освобождения резерва.
+    const RAW_RELEASE = [
+      "reserved - ${Number(i.quantity)}",
+      "available + ${Number(i.quantity)}",
+    ];
+    for (const pattern of RAW_RELEASE) {
+      expect(source, `освобождение резерва по сырому quantity: ${pattern} — вернётся больше, чем строка держит`)
+        .not.toContain(pattern);
+    }
+
+    // И каждая из формул должна считаться через heldQuantity: два вызова в
+    // cancel, два в delete, один в restore, один в updateStatus.
+    const heldCalls = (source.match(/heldQuantity\(/g) ?? []).length;
+    expect(heldCalls, "heldQuantity перестал применяться во всех путях освобождения")
+      .toBeGreaterThanOrEqual(6);
   });
 
   it("completing a return is refused when its order is already cancelled/returned", () => {
