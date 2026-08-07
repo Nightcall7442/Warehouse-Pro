@@ -30,3 +30,23 @@ export function rowsOf<T = Record<string, unknown>>(result: unknown): T[] {
 export function firstRow<T = Record<string, unknown>>(result: unknown): T | undefined {
   return rowsOf<T>(result)[0];
 }
+
+/**
+ * Сколько строк изменил UPDATE — или undefined, если ответ этого не сообщает.
+ *
+ * Нужна там, где условная запись служит защитой: «перевести возврат в
+ * completed может только тот вызов, который застал его approved». Проверка
+ * `affectedRows === 1` и есть способ узнать, кто оказался первым.
+ *
+ * Разбирать ответ вручную через `const [res] = await tx.update(...)` нельзя:
+ * настоящий драйвер отдаёт [ResultSetHeader, fields], а тестовые двойники —
+ * кто объект, кто вообще ничего, и деструктуризация undefined роняет запрос
+ * целиком. Отдельно от формы стоит и смысл: undefined здесь означает «ответ
+ * промолчал», а не «изменено ноль строк», и путать эти два случая нельзя —
+ * иначе на стенде защита будет срабатывать вхолостую.
+ */
+export function affectedRows(result: unknown): number | undefined {
+  const head = Array.isArray(result) ? result[0] : result;
+  const n = (head as { affectedRows?: unknown } | null | undefined)?.affectedRows;
+  return typeof n === "number" ? n : undefined;
+}

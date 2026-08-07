@@ -10,6 +10,7 @@ const couriers = alias(users, "couriers");
 import { cache, CacheKeys } from "../lib/cache";
 import { logger } from "../lib/logger";
 
+import { affectedRows } from "../lib/db-rows";
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
@@ -1287,13 +1288,13 @@ export const OrderService = {
       // Условие isNotNull — вторая половина защиты: даже если проверка выше
       // окажется по устаревшим данным, снять пометку сможет только тот вызов,
       // который застал её на месте.
-      const [res] = await tx.update(orders).set({ deletedAt: null })
+      const restored = affectedRows(await tx.update(orders).set({ deletedAt: null })
         .where(and(
           eq(orders.id, orderId),
           eq(orders.tenantId, tenantId),
           isNotNull(orders.deletedAt),
-        )) as unknown as [{ affectedRows: number }];
-      if (res && res.affectedRows === 0) throw new Error("Заказ уже восстановлен");
+        )));
+      if (restored === 0) throw new Error("Заказ уже восстановлен");
 
       await settleShopDebt(tx, tenantId, order.shopId);
 

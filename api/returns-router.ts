@@ -8,6 +8,7 @@ import { sanitizeString } from "./lib/sanitize";
 import { recalcShopDebt } from "./services/shop-debt";
 import { recordStockMovement } from "./services/stock-ledger";
 
+import { affectedRows } from "./lib/db-rows";
 export const returnsRouter = createRouter({
   // List returns
   list: fieldSalesQuery
@@ -212,9 +213,27 @@ export const returnsRouter = createRouter({
       const db = getDb();
       const tenantId = ctx.tenant.id;
 
-      // Validate status transitions
-      const [ret] = await db.select({ status: returns.status, totalAmount: returns.totalAmount, shopId: returns.shopId, orderId: returns.orderId })
+      // Всё решение — чтение статуса, проверка связанного заказа, проверка
+      // допустимости перехода и сама запись — происходит ВНУТРИ транзакции, под
+      // блокировкой строки возврата.
+      //
+      // Раньше статус читался здесь, снаружи и без блокировки, транзакция
+      // открывалась только ради движения остатка, а UPDATE статуса не имел
+      // условия по прежнему значению. Поэтому двойной щелчок по «Завершить»
+      // (или повтор запроса по таймауту) проходил дважды: оба вызова видели
+      // approved, оба входили внутрь, оба выполняли прибавляющий UPDATE
+      // остатка и оба писали completed. Возврат на 10 единиц против полки в 100
+      // оставлял current_stock = 120: товар возникал из воздуха, и две записи в
+      // журнале движений делали историю согласованной с испорченной цифрой.
+      // Склад потом продавал 10 единиц, которых нет.
+      //
+      // Блокировка склада, что стояла ниже, помочь не могла: она запирает
+      // warehouse_stock, а не строку возврата, и к моменту её взятия решение
+      // «переводим в completed» уже было принято обоими вызовами.
+      await db.transaction(async (tx) => {
+      const [ret] = await tx.select({ status: returns.status, totalAmount: returns.totalAmount, shopId: returns.shopId, orderId: returns.orderId })
         .from(returns).where(and(eq(returns.id, input.id), eq(returns.tenantId, tenantId)))
+        .for("update")
         .limit(1);
       if (!ret) throw new Error("Возврат не найден");
 
@@ -224,7 +243,7 @@ export const returnsRouter = createRouter({
       // the shelf twice. Both return routes stay available — they just can't
       // both be applied to the same order.
       if (input.status === "completed" && ret.orderId) {
-        const [linkedOrder] = await db.select({ status: orders.status, orderNumber: orders.orderNumber })
+        const [linkedOrder] = await tx.select({ status: orders.status, orderNumber: orders.orderNumber })
           .from(orders)
           .where(and(eq(orders.id, ret.orderId), eq(orders.tenantId, tenantId)))
           .limit(1);
@@ -249,7 +268,7 @@ export const returnsRouter = createRouter({
 
       // Only add stock on "completed" — never before approval
       if (input.status === "completed") {
-        await db.transaction(async (tx) => {
+        {
           // Returned goods land in one warehouse. Without this filter the quantity
           // was added to every warehouse holding the product, inflating stock by a
           // multiple of the return for multi-warehouse tenants.
@@ -289,18 +308,40 @@ export const returnsRouter = createRouter({
             }
           }
 
-          await tx.update(returns).set({ status: input.status })
-            .where(and(eq(returns.id, input.id), eq(returns.tenantId, tenantId)));
+          // Условие по прежнему статусу — вторая половина защиты. Даже если
+          // блокировка выше почему-то не сработала, перевести возврат в
+          // completed сможет только тот вызов, который застал его approved;
+          // второй увидит ноль изменённых строк и откатит свою транзакцию
+          // вместе с уже начисленным остатком.
+          const done = affectedRows(await tx.update(returns).set({ status: input.status })
+            .where(and(
+              eq(returns.id, input.id),
+              eq(returns.tenantId, tenantId),
+              eq(returns.status, "approved"),
+            )));
+          if (done !== undefined && done !== 1) {
+            throw new Error("Возврат уже проведён — повторное зачисление на склад отменено");
+          }
 
           // A completed return is no longer owed for; re-derive the balance
           // now that the return's status is written.
           await recalcShopDebt(tx, tenantId, ret.shopId);
-        });
+        }
       } else {
-        await db.update(returns)
+        // Прочие переходы тоже защищены прежним значением: два одновременных
+        // вызова не должны, например, оба перевести pending в разные статусы.
+        const done = affectedRows(await tx.update(returns)
           .set({ status: input.status })
-          .where(and(eq(returns.id, input.id), eq(returns.tenantId, tenantId)));
+          .where(and(
+            eq(returns.id, input.id),
+            eq(returns.tenantId, tenantId),
+            eq(returns.status, ret.status),
+          )));
+        if (done !== undefined && done !== 1) {
+          throw new Error("Статус возврата изменился — повторите операцию");
+        }
       }
+      });
 
       cache.invalidate(CacheKeys.returns(tenantId));
       return { success: true };
