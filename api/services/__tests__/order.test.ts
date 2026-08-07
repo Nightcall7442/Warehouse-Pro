@@ -257,7 +257,10 @@ describe("OrderService.create", () => {
     });
 
     expect(result.id).toBe(1);
-    expect(result.orderNumber).toMatch(/^ORD-/);
+    // Номер стал порядковым: №1 в пустом стенде, №149 и далее на живой базе.
+    // Прежний ORD- + кусок UUID не читался и ничего не говорил о порядке;
+    // старые заказы свои номера сохранили, менялась только выдача новых.
+    expect(result.orderNumber).toMatch(/^№\d+$/);
     expect(ordersTable).toHaveLength(1);
     expect(orderItemsTable).toHaveLength(1);
 

@@ -49,6 +49,33 @@ function releasesStock(status: string): boolean {
 }
 
 /**
+ * Следующий порядковый номер заказа для организации: «№149», «№150», …
+ *
+ * Считается внутри транзакции создания, чтобы не разъезжаться с одновременными
+ * вставками; окончательную защиту от совпадения даёт уникальный индекс
+ * uq_order_number_tenant, а вызывающий на его ошибку берёт следующий номер.
+ *
+ * Отсчёт продолжает уже существующие заказы, а не начинается с единицы: берётся
+ * большее из общего числа заказов организации и максимума среди выданных
+ * №-номеров. Первое нужно, чтобы у бизнеса со ста сорока восемью старыми
+ * заказами (их номера — куски UUID вида ORD-B650EBBC369B) следующий получил
+ * №149, а не №1. Второе — чтобы после удаления заказов номера не поехали назад
+ * и не столкнулись с уже выданными.
+ */
+async function nextOrderNumber(tx: Tx, tenantId: number): Promise<string> {
+  const [row] = await tx.select({
+    total: sql<number>`COUNT(*)`,
+    maxNumbered: sql<number>`COALESCE(MAX(CAST(SUBSTRING(${orders.orderNumber}, 2) AS UNSIGNED)), 0)`,
+  })
+    .from(orders)
+    .where(eq(orders.tenantId, tenantId));
+
+  const total = Number(row?.total ?? 0);
+  const maxNumbered = Number(row?.maxNumbered ?? 0);
+  return `№${Math.max(total, maxNumbered) + 1}`;
+}
+
+/**
  * Сколько по каждому товару уже возвращено ПРОВЕДЁННЫМИ возвратами по заказу.
  *
  * Только completed: заявленный или отклонённый возврат товара не двигал, и
@@ -639,11 +666,11 @@ export const OrderService = {
       }
     }
 
-    const raw = crypto.randomUUID().replace(/-/g, "");
-    const orderNumber = `ORD-${raw.slice(0, 12).toUpperCase()}`;
-
     let orderId: number;
     let orderTotal: number;
+    // Номер присваивается внутри транзакции (см. nextOrderNumber) и возвращается
+    // наружу: он нужен и для уведомлений, и в ответе клиенту.
+    let orderNumber: string;
     try {
       const txResult = await db.transaction(async (tx) => {
       // #FIX1: Look up prices from the database, never trust client
@@ -706,14 +733,42 @@ export const OrderService = {
         }
       }
 
-      const [result] = await tx.insert(orders).values({
-        tenantId, orderNumber, shopId: input.shopId, agentId, status: "new",
-        subtotal: subtotal.toFixed(2), discount: discount.toFixed(2), total: total.toFixed(2),
-        notes: input.notes,
-        idempotencyKey: input.idempotencyKey ?? null,
-        paymentMethod: input.paymentMethod ?? "cash",
-      });
-      const id = Number(result.insertId);
+      // Номер заказа — порядковый в пределах организации: №149, №150, …
+      //
+      // Раньше он был куском случайного UUID (ORD-B650EBBC369B): не читается,
+      // не называется вслух по телефону, ничего не говорит о порядке. Старые
+      // номера остаются как есть — их печатали на накладных, и менять их задним
+      // числом значит разойтись с бумагой на руках.
+      //
+      // Отсчёт продолжает существующие заказы, а не начинается с №1: у бизнеса
+      // со ста сорока восемью заказами свежий заказ под номером один выглядел бы
+      // ошибкой. Поэтому берётся большее из числа заказов организации и
+      // максимума среди уже выданных №-номеров.
+      let number = await nextOrderNumber(tx, tenantId);
+      let id = 0;
+      for (let attempt = 0; ; attempt++) {
+        try {
+          const [result] = await tx.insert(orders).values({
+            tenantId, orderNumber: number, shopId: input.shopId, agentId, status: "new",
+            subtotal: subtotal.toFixed(2), discount: discount.toFixed(2), total: total.toFixed(2),
+            notes: input.notes,
+            idempotencyKey: input.idempotencyKey ?? null,
+            paymentMethod: input.paymentMethod ?? "cash",
+          });
+          id = Number(result.insertId);
+          break;
+        } catch (err: unknown) {
+          // Два заказа, оформленные в одну секунду, посчитают один и тот же
+          // следующий номер. Уникальный индекс uq_order_number_tenant отклонит
+          // второго — берём следующий и пробуем снова. Дубликат по ключу
+          // идемпотентности здесь не наш случай: его разбирает обработчик
+          // снаружи транзакции, поэтому такую ошибку пробрасываем как есть.
+          const code = (err as { code?: string } | null)?.code;
+          const isNumberClash = code === "ER_DUP_ENTRY" && !input.idempotencyKey;
+          if (!isNumberClash || attempt >= 4) throw err;
+          number = `№${Number(number.slice(1)) + 1}`;
+        }
+      }
 
       await tx.insert(orderItems).values(input.items.map(item => {
         const unitPrice = Number(priceMap.get(item.productId)!);
@@ -746,10 +801,11 @@ export const OrderService = {
       // balance picks it up.
       await recalcShopDebt(tx, tenantId, input.shopId);
 
-      return { id, total };
+      return { id, total, number };
     });
       orderId = txResult.id;
       orderTotal = txResult.total;
+      orderNumber = txResult.number;
     } catch (err: unknown) {
       // Handle idempotency key race condition (MySQL error 23000 = duplicate entry)
       const code = err && typeof err === "object" && "code" in err ? (err as { code?: string }).code : undefined;

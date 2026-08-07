@@ -292,7 +292,10 @@ describe("order.create — POST /api/orders", () => {
       shopId: 1, items: [{ productId: 1, quantity: 20}],
     });
     expect(result.id).toBe(1);
-    expect(result.orderNumber).toMatch(/^ORD-/);
+    // Номер стал порядковым: №1 в пустом стенде, №149 и далее на живой базе.
+    // Прежний ORD- + кусок UUID не читался и ничего не говорил о порядке;
+    // старые заказы свои номера сохранили, менялась только выдача новых.
+    expect(result.orderNumber).toMatch(/^№\d+$/);
   });
 
   it("reserves stock on creation", async () => {
