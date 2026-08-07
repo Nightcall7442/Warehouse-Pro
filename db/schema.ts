@@ -250,6 +250,13 @@ export const orders = mysqlTable("orders", {
     agentIdx:          index("idx_orders_agent").on(t.agentId),
     statusIdx:         index("idx_orders_status").on(t.status),
     createdAtIdx:      index("idx_orders_created_at").on(t.createdAt),
+    // Существует в базе с миграции 0027, но в модели объявлен не был —
+    // расхождение, из-за которого drizzle-kit при следующей генерации попытался
+    // бы его «создать заново». Нужен он теперь по-настоящему: фильтр
+    // isNull(deleted_at) стоит во ВСЕХ денежных запросах (см.
+    // revenueOrderConditions), и без этого индекса они с ростом числа заказов
+    // будут отбрасывать удалённые уже после чтения строк.
+    tenantDeletedIdx:  index("idx_orders_tenant_deleted").on(t.tenantId, t.deletedAt),
   }));
 
 export type Order       = typeof orders.$inferSelect;
