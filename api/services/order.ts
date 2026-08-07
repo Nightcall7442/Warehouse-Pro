@@ -335,7 +335,14 @@ async function applyPartialDelivery(
   // A cancelled/returned order already released its stock; recording a
   // delivery against it here would consume stock a second time for goods
   // that were already given back.
-  if (order.status === "cancelled" || order.status === "returned") {
+  //
+  // delivered — зеркало той же дыры со стороны курьера. Курьерский
+  // completeDelivery ставит orders.status='delivered', и если после этого
+  // оператор проведёт частичную доставку по тому же заказу (например, нажмёт
+  // «Выполнен» на устаревшей строке списка — она закеширована, а проверка
+  // на клиенте сравнивает со СТАРЫМ статусом), остаток спишется второй раз.
+  // Обе операции при этом возвращают успех, и оператор ничего не замечает.
+  if (order.status === "cancelled" || order.status === "returned" || order.status === "delivered") {
     throw new Error(`Нельзя оформить доставку по заказу в статусе «${order.status}»`);
   }
 

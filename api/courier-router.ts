@@ -324,6 +324,20 @@ export const courierRouter = createRouter({
         )).limit(1);
       if (!order) throw new Error("Заказ не найден или не назначен на вас");
 
+      // Та же защита, что в markDelivered выше. Здесь её не было, и проверялся
+      // только deliveryStatus — а операторская частичная доставка
+      // (OrderService.applyPartialDelivery) ставит orders.status='delivered', но
+      // deliveryStatus не трогает. Поэтому заказ, уже проведённый оператором,
+      // проходил сюда второй раз и списывал остаток ещё раз: current_stock падал
+      // при неизменном available, то есть ломался инвариант
+      // current = available + reserved, и система считала своими 94 единицы,
+      // которых физически 84. GREATEST(0, ...) в обоих местах маскировал это —
+      // reserved в минус не уходил, а current_stock уходил.
+      // Недостача всплывала только при инвентаризации.
+      if (order.status === "delivered" || order.status === "cancelled" || order.status === "returned") {
+        throw new Error(`Заказ уже завершён (статус «${order.status}») — повторное списание невозможно`);
+      }
+
       // Declared here, not inside the transaction below, so the notification
       // text and the return value after the transaction commits can still
       // read them — they were previously declared inside the transaction
