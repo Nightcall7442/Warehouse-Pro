@@ -116,7 +116,16 @@ describe("report queries stay inside the tenant", () => {
       const alias = body.match(/const (\w+)\s*=\s*ctx\.tenant\.id/)?.[1];
       // A plain substring for the alias case: building a RegExp from a template
       // literal silently ate the \s and \b as JS escapes, so it matched nothing.
-      const scoped = /tenantId,\s*ctx\.tenant\.id/.test(body)
+      //
+      // Помощники revenueOrderConditions / liveOrderConditions ставят
+      // eq(orders.tenantId, …) внутри себя (api/lib/order-status.ts) — вместе с
+      // фильтром удалённых заказов, который иначе забывали. Для этой проверки
+      // они засчитываются как ограничение по арендатору: иначе тест толкал бы
+      // обратно к ручному условию, то есть ровно к той форме, которую и
+      // потребовалось убрать.
+      const viaHelper = /(revenueOrderConditions|liveOrderConditions)\(\s*(ctx\.tenant\.id|\w+)\s*\)/.test(body);
+      const scoped = viaHelper
+        || /tenantId,\s*ctx\.tenant\.id/.test(body)
         || (alias !== undefined && body.includes(`tenantId, ${alias})`));
 
       expect(scoped, `${name}: no tenant scoping`).toBe(true);

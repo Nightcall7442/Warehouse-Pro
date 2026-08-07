@@ -3,7 +3,7 @@ import { createRouter, reportsQuery, financeQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { orders, orderItems, products, shops, users, dailyPlans, arrivals, agentTerritories } from "@db/schema";
 import { eq, and, sql, desc , inArray } from "drizzle-orm";
-import { REVENUE_ORDER_STATUSES } from "./lib/order-status";
+import { REVENUE_ORDER_STATUSES, revenueOrderConditions, liveOrderConditions } from "./lib/order-status";
 import { MS_PER_DAY } from "./lib/constants";
 
 export const analyticsRouter = createRouter({
@@ -16,7 +16,7 @@ export const analyticsRouter = createRouter({
       limit: z.number().int().min(1).max(10000).optional(),
     }).optional())
     .query(async ({ input, ctx }) => {
-      const conditions = [eq(orders.tenantId, ctx.tenant.id), inArray(orders.status, REVENUE_ORDER_STATUSES)];
+      const conditions = revenueOrderConditions(ctx.tenant.id);
       if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
       // P1-15 FIX: Include full last day by adding 23:59:59
       if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`);
@@ -48,7 +48,7 @@ export const analyticsRouter = createRouter({
       limit: z.number().int().min(1).max(10000).optional(),
     }).optional())
     .query(async ({ input, ctx }) => {
-      const conditions = [eq(orders.tenantId, ctx.tenant.id), inArray(orders.status, REVENUE_ORDER_STATUSES)];
+      const conditions = revenueOrderConditions(ctx.tenant.id);
       if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
       if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`);
       if (input?.agentId)  conditions.push(eq(orders.agentId, input.agentId));
@@ -69,7 +69,7 @@ export const analyticsRouter = createRouter({
   agentPerformance: reportsQuery
     .input(z.object({ dateFrom: z.string().optional(), dateTo: z.string().optional() }).optional())
     .query(async ({ input, ctx }) => {
-      const conditions = [eq(orders.tenantId, ctx.tenant.id)];
+      const conditions = liveOrderConditions(ctx.tenant.id);
       if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
       if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`);
 
@@ -95,7 +95,7 @@ export const analyticsRouter = createRouter({
       category: z.string().max(100).optional(),
     }).optional())
     .query(async ({ input, ctx }) => {
-      const conditions = [eq(orders.tenantId, ctx.tenant.id), inArray(orders.status, REVENUE_ORDER_STATUSES)];
+      const conditions = revenueOrderConditions(ctx.tenant.id);
       if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
       if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`);
       if (input?.category) conditions.push(eq(products.category, input.category));
@@ -116,7 +116,7 @@ export const analyticsRouter = createRouter({
   cogsSummary: financeQuery
     .input(z.object({ dateFrom: z.string().optional(), dateTo: z.string().optional() }).optional())
     .query(async ({ input, ctx }) => {
-      const conditions = [eq(orders.tenantId, ctx.tenant.id), inArray(orders.status, REVENUE_ORDER_STATUSES)];
+      const conditions = revenueOrderConditions(ctx.tenant.id);
       if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
       if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`);
 
@@ -313,24 +313,50 @@ export const analyticsRouter = createRouter({
         return ((curr - prev) / Math.abs(prev)) * 100;
       };
 
-      // Monthly trend (group by YYYY-MM)
-      const monthlyRows = await db.select({
+      // Помесячный ряд. Выручка и себестоимость берутся ДВУМЯ запросами и
+      // сшиваются по месяцу в JS — тем же приёмом, что и в cogsSummary выше.
+      //
+      // Одним запросом было нельзя: присоединение order_items размножает строку
+      // заказа по числу позиций, и SUM(orders.total) поверх такого набора
+      // считает заказ столько раз, сколько в нём товаров. orderCount от этого
+      // защищён через COUNT(DISTINCT), а revenue — нет, поэтому на одном и том
+      // же экране P&L карточки показывали 5 520 500, а график под ними —
+      // 29 673 500. И grossProfit, и маржа считаются от выручки, то есть весь
+      // график был выдумкой, растущей вместе со средним размером корзины.
+      const monthlyRevenue = await db.select({
         month: sql<string>`DATE_FORMAT(${orders.createdAt}, '%Y-%m')`,
         revenue: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
-        cogs: sql<string>`COALESCE(SUM(${orderItems.quantity} * COALESCE(${orderItems.costPrice}, 0)), 0)`,
         orderCount: sql<number>`count(DISTINCT ${orders.id})`,
       })
         .from(orders)
-        .leftJoin(orderItems, eq(orderItems.orderId, orders.id))
-        .leftJoin(products, eq(orderItems.productId, products.id))
         .where(and(
-          eq(orders.tenantId, tid),
-          inArray(orders.status, REVENUE_ORDER_STATUSES),
+          ...revenueOrderConditions(tid),
           sql`${orders.createdAt} >= ${from}`,
           sql`${orders.createdAt} <= ${to + " 23:59:59"}`,
         ))
         .groupBy(sql`DATE_FORMAT(${orders.createdAt}, '%Y-%m')`)
         .orderBy(sql`DATE_FORMAT(${orders.createdAt}, '%Y-%m')`);
+
+      const monthlyCogs = await db.select({
+        month: sql<string>`DATE_FORMAT(${orders.createdAt}, '%Y-%m')`,
+        cogs: sql<string>`COALESCE(SUM(${orderItems.quantity} * COALESCE(${orderItems.costPrice}, 0)), 0)`,
+      })
+        .from(orders)
+        .leftJoin(orderItems, eq(orderItems.orderId, orders.id))
+        .where(and(
+          ...revenueOrderConditions(tid),
+          sql`${orders.createdAt} >= ${from}`,
+          sql`${orders.createdAt} <= ${to + " 23:59:59"}`,
+        ))
+        .groupBy(sql`DATE_FORMAT(${orders.createdAt}, '%Y-%m')`);
+
+      const cogsByMonth: Record<string, string> = {};
+      for (const r of monthlyCogs) cogsByMonth[r.month] = r.cogs;
+
+      const monthlyRows = monthlyRevenue.map(r => ({
+        ...r,
+        cogs: cogsByMonth[r.month] ?? "0",
+      }));
 
       const monthlyExpenses = await db.select({
         month: sql<string>`DATE_FORMAT(${arrivals.arrivalDate}, '%Y-%m')`,
@@ -442,7 +468,7 @@ export const analyticsRouter = createRouter({
       category: z.string().max(100).optional(),
     }).optional())
     .query(async ({ input, ctx }) => {
-      const conditions = [eq(orders.tenantId, ctx.tenant.id), inArray(orders.status, REVENUE_ORDER_STATUSES)];
+      const conditions = revenueOrderConditions(ctx.tenant.id);
       if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
       if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`);
       if (input?.agentId)  conditions.push(eq(orders.agentId, input.agentId));

@@ -1,3 +1,6 @@
+import { eq, inArray, isNull, type SQL } from "drizzle-orm";
+import { orders } from "@db/schema";
+
 /**
  * The order lifecycle, named once.
  *
@@ -40,4 +43,45 @@ export function holdsStock(status: string): boolean {
 /** Goods have left the warehouse for good. */
 export function deductsStock(status: string): boolean {
   return (REVENUE_ORDER_STATUSES as readonly string[]).includes(status);
+}
+
+/**
+ * «Этот заказ считается выручкой» — одним выражением, чтобы условие нельзя было
+ * забыть по частям.
+ *
+ * Забывали именно так: OrderService.delete помечает заказ deletedAt, снимает
+ * резерв и пересчитывает долг магазина — то есть по всем признакам заказа
+ * больше нет. Но isNull(orders.deletedAt) не встречалось НИ РАЗУ в семи файлах
+ * отчётности (analytics, reports, sales-target, kpi-router, forecast,
+ * warehouse-reports, quota-suggest), хотя dashboard-router фильтрует его в
+ * одиннадцати местах. Оператор удалял ошибочный заказ на 9 000 000 — заказ
+ * исчезал из списка, из дашборда и из долга магазина, и НАВСЕГДА оставался в
+ * P&L, в продажах по магазинам, в прогрессе квоты агента и в прогнозе спроса.
+ * Две цифры выручки в продукте расходились, и ни один экран не объяснял почему.
+ *
+ * Удаление — это штатный способ исправить ошибку ввода, поэтому промах бил
+ * ровно по тем заказам, которые считать и не следовало.
+ *
+ * Возвращает массив условий, который дописывается фильтрами вызывающего:
+ *   const conditions = [...revenueOrderConditions(ctx.tenant.id)];
+ *   if (input?.agentId) conditions.push(eq(orders.agentId, input.agentId));
+ *
+ * Для запросов, которым нужны заказы ЛЮБОГО статуса (например, воронка по
+ * статусам), есть liveOrderConditions — та же защита от удалённых, без фильтра
+ * статуса.
+ */
+export function revenueOrderConditions(tenantId: number): SQL[] {
+  return [
+    eq(orders.tenantId, tenantId),
+    inArray(orders.status, [...REVENUE_ORDER_STATUSES]),
+    isNull(orders.deletedAt),
+  ];
+}
+
+/** Заказы арендатора без учёта статуса, но по-прежнему без удалённых. */
+export function liveOrderConditions(tenantId: number): SQL[] {
+  return [
+    eq(orders.tenantId, tenantId),
+    isNull(orders.deletedAt),
+  ];
 }

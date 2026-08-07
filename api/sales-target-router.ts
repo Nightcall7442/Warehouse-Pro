@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createRouter, operatorQuery, authedQuery, supervisorQuery, managementQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { salesTargets, users, orders, dailyPlans } from "@db/schema";
-import { eq, and, gte, lte, sql, desc, inArray, type SQL } from "drizzle-orm";
+import { eq, and, gte, lte, sql, desc, inArray, type SQL, isNull } from "drizzle-orm";
 import { REVENUE_ORDER_STATUSES } from "./lib/order-status";
 import { cache, CacheKeys } from "./lib/cache";
 import { suggestQuotas } from "./services/quota-suggest";
@@ -189,7 +189,7 @@ export const salesTargetRouter = createRouter({
         periodEndOfDay.setHours(23, 59, 59, 999);
 
         const conditions = [
-          eq(orders.tenantId, ctx.tenant.id),
+          eq(orders.tenantId, ctx.tenant.id), isNull(orders.deletedAt),
           eq(orders.agentId, target.userId),
           inArray(orders.status, REVENUE_ORDER_STATUSES),
           gte(orders.createdAt, target.periodStart),
@@ -280,7 +280,7 @@ export const salesTargetRouter = createRouter({
       // timestamps and the bounds are date strings, which is the idiom the rest
       // of the codebase (OrderService.list) already uses for exactly this.
       const orderConditions: SQL[] = [
-        eq(orders.tenantId, ctx.tenant.id),
+        eq(orders.tenantId, ctx.tenant.id), isNull(orders.deletedAt),
         eq(orders.agentId, ctx.user.id),
         inArray(orders.status, REVENUE_ORDER_STATUSES),
         sql`${orders.createdAt} >= ${monthStart}`,

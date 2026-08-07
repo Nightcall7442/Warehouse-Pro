@@ -10,6 +10,7 @@ import { LangProvider } from "@/i18n"
 import { InstallPrompt } from "@/components/InstallPrompt"
 import { notify } from "@/lib/toast"
 import App from './App.tsx'
+import { RadixPointerEventsGuard } from "@/components/RadixPointerEventsGuard"
 
 // Sentry captures errors via globalHandlers integration
 // These handlers show toast notifications to the user
@@ -34,6 +35,8 @@ createRoot(document.getElementById('root')!).render(
         <WarehouseProvider>
         <LangProvider>
           <App />
+          {/* Возвращает клики, если Radix оставил pointer-events:none на body */}
+          <RadixPointerEventsGuard />
           <Toaster richColors position="top-right" />
         <InstallPrompt />
         </LangProvider>

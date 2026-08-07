@@ -1,4 +1,4 @@
-import { eq, and, gte, lte, sql , inArray } from "drizzle-orm";
+import { eq, and, gte, lte, sql , inArray, isNull } from "drizzle-orm";
 import { REVENUE_ORDER_STATUSES } from "../lib/order-status";
 import { orders, dailyPlans, users } from "@db/schema";
 
@@ -54,7 +54,7 @@ export async function suggestQuotas(
       total: sql<string>`COALESCE(SUM(CAST(${orders.total} AS DECIMAL(14,2))), 0)`,
     }).from(orders)
       .where(and(
-        eq(orders.tenantId, tenantId),
+        eq(orders.tenantId, tenantId), isNull(orders.deletedAt),
         eq(orders.agentId, agent.id),
         inArray(orders.status, REVENUE_ORDER_STATUSES),
         gte(orders.createdAt, periodStart),
@@ -67,7 +67,7 @@ export async function suggestQuotas(
       count: sql<string>`COUNT(*)`,
     }).from(orders)
       .where(and(
-        eq(orders.tenantId, tenantId),
+        eq(orders.tenantId, tenantId), isNull(orders.deletedAt),
         eq(orders.agentId, agent.id),
         inArray(orders.status, REVENUE_ORDER_STATUSES),
         gte(orders.createdAt, periodStart),

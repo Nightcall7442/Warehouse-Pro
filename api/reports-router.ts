@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createRouter, reportsQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { orders, users, dailyPlans, agentLocations, subscriptions, shops, products, stockMovements } from "@db/schema";
-import { eq, and, sql, gte, desc , inArray } from "drizzle-orm";
+import { eq, and, sql, gte, desc , inArray, isNull } from "drizzle-orm";
 import { REVENUE_ORDER_STATUSES } from "./lib/order-status";
 import { subDays, format } from "date-fns";
 import { onDate } from "./lib/date-range";
@@ -27,10 +27,10 @@ export const reportsRouter = createRouter({
         .where(and(eq(dailyPlans.tenantId, tenantId), onDate(dailyPlans.planDate, today), eq(dailyPlans.status, "visited"))),
 
       db.select({ count: sql<number>`count(*)` }).from(orders)
-        .where(and(eq(orders.tenantId, tenantId), inArray(orders.status, REVENUE_ORDER_STATUSES), gte(orders.createdAt, new Date(d30ago)))),
+        .where(and(eq(orders.tenantId, tenantId), isNull(orders.deletedAt), inArray(orders.status, REVENUE_ORDER_STATUSES), gte(orders.createdAt, new Date(d30ago)))),
 
       db.select({ total: sql<string>`COALESCE(SUM(${orders.total}), 0)` }).from(orders)
-        .where(and(eq(orders.tenantId, tenantId), inArray(orders.status, REVENUE_ORDER_STATUSES), gte(orders.createdAt, new Date(d30ago)))),
+        .where(and(eq(orders.tenantId, tenantId), isNull(orders.deletedAt), inArray(orders.status, REVENUE_ORDER_STATUSES), gte(orders.createdAt, new Date(d30ago)))),
 
       db.select().from(subscriptions).where(eq(subscriptions.tenantId, tenantId)).limit(1),
     ]);
@@ -82,7 +82,7 @@ export const reportsRouter = createRouter({
           revenue: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
         })
           .from(orders)
-          .where(and(eq(orders.tenantId, tenantId), gte(orders.createdAt, since)))
+          .where(and(eq(orders.tenantId, tenantId), isNull(orders.deletedAt), gte(orders.createdAt, since)))
           .groupBy(sql`DATE(${orders.createdAt})`)
           .orderBy(sql`DATE(${orders.createdAt})`),
       ]);
