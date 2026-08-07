@@ -194,17 +194,25 @@ export const analyticsRouter = createRouter({
       const days = input?.days ?? 30;
       const cutoff = new Date(Date.now() - days * MS_PER_DAY).toISOString();
 
-      const rows = await getDb().select({
-        agentName: users.name,
+      // Визиты и деньги — двумя запросами, сшиваются по агенту.
+      //
+      // Здесь фан-аут был обиднее, чем в отчёте по агентам: присоединение
+      // daily_plans идёт БЕЗ фильтра статуса, поэтому выручку умножал каждый
+      // ЗАПЛАНИРОВАННЫЙ визит, а не только состоявшийся — за месяц это десятки
+      // и сотни крат. Причём avgOrderValue при этом оставался верным (среднее
+      // от продублированных значений то же самое), и conversionRate тоже — он
+      // считается от DISTINCT-счётчиков. Две соседние колонки в одной строке,
+      // одна врёт, другая нет: заметить глазом почти невозможно.
+      //
+      // Ирония в том, что для agent_territories фан-аут ниже уже осознан — там
+      // стоит EXISTS вместо джойна ровно с этим объяснением.
+      const agentRows = await getDb().select({
         agentId: users.id,
+        agentName: users.name,
         visits: sql<number>`count(DISTINCT ${dailyPlans.id})`,
-        orders: sql<number>`count(DISTINCT ${orders.id})`,
-        revenue: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
-        avgOrderValue: sql<string>`COALESCE(AVG(${orders.total}), 0)`,
       })
         .from(users)
         .leftJoin(dailyPlans, and(eq(dailyPlans.agentId, users.id), sql`${dailyPlans.planDate} >= ${cutoff}`))
-        .leftJoin(orders, and(eq(orders.agentId, users.id), inArray(orders.status, REVENUE_ORDER_STATUSES), sql`${orders.createdAt} >= ${cutoff}`))
         .where(and(
           eq(users.tenantId, ctx.tenant.id),
           eq(users.role, "agent"),
@@ -218,12 +226,44 @@ export const analyticsRouter = createRouter({
               AND ${agentTerritories.tenantId} = ${ctx.tenant.id}
               AND ${agentTerritories.territoryId} = ${input.territoryId})`] : []),
         ))
-        .groupBy(users.id).orderBy(desc(sql`COALESCE(SUM(${orders.total}), 0)`));
+        .groupBy(users.id);
 
-      return rows.map(r => ({
-        ...r,
-        conversionRate: Number(r.visits) > 0 ? ((Number(r.orders) / Number(r.visits)) * 100).toFixed(1) : "0",
-      }));
+      if (agentRows.length === 0) return [];
+
+      const moneyRows = await getDb().select({
+        agentId: orders.agentId,
+        orders: sql<number>`count(DISTINCT ${orders.id})`,
+        revenue: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
+        avgOrderValue: sql<string>`COALESCE(AVG(${orders.total}), 0)`,
+      })
+        .from(orders)
+        .where(and(
+          ...revenueOrderConditions(ctx.tenant.id),
+          sql`${orders.createdAt} >= ${cutoff}`,
+          inArray(orders.agentId, agentRows.map(r => r.agentId)),
+        ))
+        .groupBy(orders.agentId);
+
+      const moneyByAgent = new Map(moneyRows.map(r => [r.agentId, r]));
+
+      return agentRows
+        .map(r => {
+          const money = moneyByAgent.get(r.agentId);
+          const ordersCount = Number(money?.orders ?? 0);
+          return {
+            agentId: r.agentId,
+            agentName: r.agentName,
+            visits: r.visits,
+            orders: ordersCount,
+            revenue: money?.revenue ?? "0",
+            avgOrderValue: money?.avgOrderValue ?? "0",
+            conversionRate: Number(r.visits) > 0 ? ((ordersCount / Number(r.visits)) * 100).toFixed(1) : "0",
+          };
+        })
+        // Порядок сохранён прежний — по выручке убыванию; раньше это делал
+        // ORDER BY по той же (завышенной) сумме, то есть список фактически
+        // сортировался по числу визитов.
+        .sort((a, b) => Number(b.revenue) - Number(a.revenue));
     }),
 
   // ── Full P&L Report ─────────────────────────────────────────────────────────
@@ -425,23 +465,40 @@ export const analyticsRouter = createRouter({
       const db = getDb();
       const tid = ctx.tenant.id;
 
-      const rows = await db.select({
+      // Выручка и себестоимость — раздельно, как и в помесячном ряду выше.
+      // Здесь присоединение позиций завышало ОБЕ колонки сразу: и SUM(total), и
+      // count(*) без DISTINCT, — то есть маржа по способу оплаты, по которой
+      // решают, продавать ли в долг, была выдумкой в разы.
+      const periodConditions = [
+        ...revenueOrderConditions(tid),
+        sql`${orders.createdAt} >= ${input.from}`,
+        sql`${orders.createdAt} <= ${input.to + " 23:59:59"}`,
+        ...(input.agentId ? [eq(orders.agentId, input.agentId)] : []),
+      ];
+
+      const revenueRows = await db.select({
         paymentMethod: orders.paymentMethod,
         revenue: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
         orderCount: sql<number>`count(*)`,
+      })
+        .from(orders)
+        .where(and(...periodConditions))
+        .groupBy(orders.paymentMethod);
+
+      const cogsRows = await db.select({
+        paymentMethod: orders.paymentMethod,
         cogs: sql<string>`COALESCE(SUM(${orderItems.quantity} * COALESCE(${orderItems.costPrice}, 0)), 0)`,
       })
         .from(orders)
         .leftJoin(orderItems, eq(orderItems.orderId, orders.id))
-        .leftJoin(products, eq(orderItems.productId, products.id))
-        .where(and(
-          eq(orders.tenantId, tid),
-          inArray(orders.status, REVENUE_ORDER_STATUSES),
-          sql`${orders.createdAt} >= ${input.from}`,
-          sql`${orders.createdAt} <= ${input.to + " 23:59:59"}`,
-          ...(input.agentId ? [eq(orders.agentId, input.agentId)] : []),
-        ))
+        .where(and(...periodConditions))
         .groupBy(orders.paymentMethod);
+
+      const cogsByMethod = new Map(cogsRows.map(r => [r.paymentMethod, r.cogs]));
+      const rows = revenueRows.map(r => ({
+        ...r,
+        cogs: cogsByMethod.get(r.paymentMethod) ?? "0",
+      }));
 
       return rows.map(r => {
         const revenue = Number(r.revenue);

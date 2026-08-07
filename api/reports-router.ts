@@ -109,12 +109,20 @@ export const reportsRouter = createRouter({
       const tenantId = ctx.tenant.id;
       const since    = subDays(new Date(), input.days);
 
-      return db.select({
-        agentId:     users.id,
-        agentName:   users.name,
-        visits:      sql<number>`COALESCE(COUNT(DISTINCT ${dailyPlans.id}), 0)`,
-        orders:      sql<number>`COALESCE(COUNT(DISTINCT ${orders.id}), 0)`,
-        revenue:     sql<string>`COALESCE(SUM(${orders.total}), 0)`,
+      // Визиты и деньги считаются РАЗНЫМИ запросами и сшиваются по агенту.
+      //
+      // Одним запросом было нельзя. Присоединение daily_plans размножает строку
+      // заказа по числу визитов, и SUM(orders.total) поверх такого набора
+      // складывает каждый заказ столько раз, сколько у агента отмечено визитов.
+      // visits и orders от этого защищены через COUNT(DISTINCT), а revenue —
+      // нет: агент с 22 визитами и 5 заказами на 13 221 250 показывался как
+      // 290 867 500, ровно в 22 раза больше. Ошибка росла вместе с
+      // прилежностью — чем добросовестнее агент отмечал визиты, тем сильнее
+      // раздувалась его выручка, и это же число уходило в выгрузку отчёта.
+      const visitRows = await db.select({
+        agentId:   users.id,
+        agentName: users.name,
+        visits:    sql<number>`COALESCE(COUNT(DISTINCT ${dailyPlans.id}), 0)`,
       })
         .from(users)
         .leftJoin(dailyPlans, and(
@@ -122,14 +130,36 @@ export const reportsRouter = createRouter({
           eq(dailyPlans.status, "visited"),
           gte(dailyPlans.planDate, since),
         ))
-        .leftJoin(orders, and(
-          eq(orders.agentId, users.id),
-          gte(orders.createdAt, since),
-        ))
         .where(and(eq(users.tenantId, tenantId), eq(users.role, "agent")))
         .groupBy(users.id)
         .orderBy(desc(sql`COALESCE(COUNT(DISTINCT ${dailyPlans.id}), 0)`))
         .limit(10);
+
+      if (visitRows.length === 0) return [];
+
+      const moneyRows = await db.select({
+        agentId: orders.agentId,
+        orders:  sql<number>`COUNT(DISTINCT ${orders.id})`,
+        revenue: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
+      })
+        .from(orders)
+        .where(and(
+          eq(orders.tenantId, tenantId),
+          isNull(orders.deletedAt),
+          gte(orders.createdAt, since),
+          inArray(orders.agentId, visitRows.map(r => r.agentId)),
+        ))
+        .groupBy(orders.agentId);
+
+      const moneyByAgent = new Map(moneyRows.map(r => [r.agentId, r]));
+
+      return visitRows.map(r => ({
+        agentId:   r.agentId,
+        agentName: r.agentName,
+        visits:    r.visits,
+        orders:    Number(moneyByAgent.get(r.agentId)?.orders ?? 0),
+        revenue:   moneyByAgent.get(r.agentId)?.revenue ?? "0",
+      }));
     }),
 
   /** Today's plan completion per agent */
