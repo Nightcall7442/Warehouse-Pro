@@ -12,6 +12,7 @@ vi.mock("../lib/sanitize", () => ({
 }));
 
 import { payments, shops } from "@db/schema";
+import { makeConditionEvaluator } from "../../__tests__/helpers/fake-conditions";
 
 type FakePayment = {
   id: number; tenantId: number; shopId: number; amount: string;
@@ -57,19 +58,23 @@ const colToField = new Map<unknown, string>();
 for (const [f, c] of Object.entries(payments)) colToField.set(c, f);
 for (const [f, c] of Object.entries(shops)) colToField.set(c, f);
 
-function evalCond(row: unknown, cond: unknown): boolean {
-  if (!cond || typeof cond !== "object") return true;
-  const c = cond as Record<string, unknown>;
-  if (c.__kind === "and") return (c.conds as unknown[]).every((child: unknown) => evalCond(row, child));
-  if (c.__kind === "eq") {
-    const col = c.col as { name?: string } | string;
-    const val = c.val as { name?: string } | string | number;
-    const fn = (typeof col === "object" && col !== null ? (colToField.get(col) ?? col.name ?? col) : colToField.get(col) ?? (typeof col === "string" ? col : "")) as string;
-    const r = row as Record<string, unknown>;
-    return r[fn] === val || String(r[fn]) === String(val);
-  }
-  return true;
-}
+/**
+ * Разбор условий отдан общему строгому разборщику.
+ *
+ * Прежняя местная копия понимала только `and` и `eq`, а всё остальное считала
+ * выполненным. В этом файле проверяются деньги: долг магазина, повторные
+ * оплаты, история платежей. Условие, которое стенд не понял и молча одобрил, —
+ * это утверждение о деньгах, сделанное наугад.
+ *
+ * Сырой sql`` здесь один: отбор истории за последние N дней. Поддельная
+ * таблица его не воспроизводит, и все её строки укладываются в любой разумный
+ * период, поэтому он считается выполненным — но теперь это написанное решение
+ * конкретного теста, а не общее умолчание, о котором никто не помнит.
+ */
+const evalCond = makeConditionEvaluator({
+  fieldOf: col => colToField.get(col),
+  rawSql: () => true,
+});
 
 function evalSqlDelta(row: unknown, fieldName: string, expr: unknown): string {
   if (!expr || typeof expr !== "object") return (row as Record<string, string>)[fieldName];
