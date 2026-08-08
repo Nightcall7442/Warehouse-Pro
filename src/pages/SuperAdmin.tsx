@@ -3,7 +3,7 @@ import { trpc } from "@/providers/trpc";
 import { Zap, RefreshCw, Plus } from "lucide-react";
 import { F, COLORS } from "@/components/superadmin/types";
 import { BtnPrimary, BtnSecondary } from "@/components/superadmin/ui";
-import { PlatformStats, TenantList, TenantDetail, AdminActions, CreateTenantModal } from "@/components/superadmin";
+import { PlatformStats, TenantList, TenantDetail, AdminActions, CreateTenantModal, BackupSection } from "@/components/superadmin";
 
 export default function SuperAdmin() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -36,6 +36,7 @@ export default function SuperAdmin() {
 
       <PlatformStats />
       <AdminActions />
+      <BackupSection />
       <TenantList onSelect={id => setSelectedId(id)} />
     </div>
   );

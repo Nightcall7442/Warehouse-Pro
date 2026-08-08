@@ -246,6 +246,81 @@ app.get("/api/cron/backup", async (c) => {
   return c.json(result, result.success ? 200 : 500);
 });
 
+// ── Резервная копия по требованию: суперадмин скачивает SQL-дамп ────────────
+//
+// Снимки диска, которые делает платформа, — первая линия и остаются на месте.
+// Но они защищают только от смерти диска. От ошибки человека — «удалили не тот
+// заказ», «испортили цены импортом» — они предлагают откатить базу целиком на
+// сутки назад, вместе со всем, что записано после. Вдобавок восстановление
+// снимка на Railway удаляет все копии, сделанные позже восстанавливаемой,
+// поэтому и проверить его нельзя, не израсходовав сам запас.
+//
+// Этот путь даёт то, чего там нет: копию вне платформы, из которой можно
+// достать одну таблицу, и которую можно развернуть у себя и убедиться, что она
+// разворачивается, ничего при этом не потратив.
+//
+// Отдаётся потоком, файл на сервере не появляется: писать копию всей базы на
+// диск контейнера незачем — он не переживает следующий деплой, а до тех пор
+// лежит лишней целью.
+app.get("/api/admin/backup/download", async (c) => {
+  let auth;
+  try {
+    auth = await authenticateRequest(c.req.raw.headers);
+  } catch {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  // Выгрузка содержит данные всех организаций разом, поэтому доступна только
+  // суперадмину — владелец одной организации не вправе получить чужие.
+  if (auth.user.role !== "superadmin") {
+    logger.warn("backup download refused: not a superadmin", { userId: auth.user.id, role: auth.user.role });
+    return c.json({ error: "Forbidden" }, 403);
+  }
+
+  // Выгрузка стоит дорого и базе, и процессу. Ограничение считается по
+  // пользователю, а не по адресу: адрес подделывается заголовком, а
+  // идентификатор берётся из проверенной сессии.
+  const allowed = await checkRateLimit(String(auth.user.id), { limit: 3, windowMs: 60 * 60_000, namespace: "backup-download" });
+  if (!allowed) {
+    return c.json({ error: "Слишком часто. Выгрузка доступна три раза в час." }, 429);
+  }
+
+  const { startDump, DumpUnavailableError } = await import("./services/db-dump");
+  let dump;
+  try {
+    dump = await startDump();
+  } catch (e) {
+    // Ответ об ошибке возможен только здесь: startDump ждёт первых байт, а
+    // после отправки заголовков сменить код ответа уже нельзя.
+    const message = e instanceof DumpUnavailableError ? e.message : String(e);
+    logger.error("backup download failed to start", { userId: auth.user.id, error: message });
+    return c.json({ error: `Не удалось сделать выгрузку: ${message}` }, 500);
+  }
+
+  // Кто и когда унёс полную копию базы — это то, что обязано остаться в
+  // журнале. Запись делается до отдачи потока: оборвись передача на середине,
+  // данные всё равно уже покинули сервер.
+  const { recordAudit } = await import("./services/audit-log");
+  await recordAudit(getDb(), {
+    tenantId: auth.tenant.id,
+    actorId: auth.user.id,
+    actorName: auth.user.name,
+    action: "system.backup_downloaded",
+    targetType: "database",
+    meta: { filename: dump.filename },
+  });
+
+  const { Readable } = await import("node:stream");
+  return new Response(Readable.toWeb(dump.stream) as ReadableStream, {
+    headers: {
+      "Content-Type": "application/gzip",
+      "Content-Disposition": `attachment; filename="${dump.filename}"`,
+      // Копия базы не должна осесть ни в одном промежуточном кеше.
+      "Cache-Control": "no-store",
+    },
+  });
+});
+
 // ── Cron: debt reminders ────────────────────────────────────────────────────
 app.get("/api/cron/debt-reminders", async (c) => {
   if (!env.cronSecret) {
