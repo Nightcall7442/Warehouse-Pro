@@ -44,6 +44,7 @@ let mockDb: any;
 vi.mock("../queries/connection", () => ({ getDb: () => mockDb }));
 
 import { warehouseStock, products, warehouses, orders, orderItems } from "@db/schema";
+import { makeConditionEvaluator } from "./helpers/fake-conditions";
 
 interface FakeStock { id: number; productId: number; tenantId: number; warehouseId: number; currentStock: string; reserved: string; available: string; costPrice: string; }
 interface FakeProduct { id: number; tenantId: number; name: string; unitPrice: string; costPrice: string; status: string; weight: string | null; reorderPoint: number | null; }
@@ -104,41 +105,26 @@ function mapCol(col: unknown): string {
   return columnToField.get(col) ?? (col as any)?.name ?? String(col);
 }
 
-function evalCond(row: Record<string, unknown>, cond: Record<string, unknown>): boolean {
-  // Set membership. Without this branch an inArray filter falls through to the
-  // permissive default below and the query appears to match every row — which
-  // is how "only counts delivered orders" passed while counting all of them.
-  if (cond && (cond as Record<string, unknown>).__kind === "inArray") {
-    const field = mapCol((cond as Record<string, unknown>).col);
-    if (!(field in row)) return true;
-    const values = ((cond as Record<string, unknown>).values ?? []) as unknown[];
-    return values.map(String).includes(String(row[field]));
-  }
-
-  if (!cond || typeof cond !== "object") return true;
-  if (cond.__kind === "and") return (cond.conds as unknown[]).every((c: unknown) => evalCond(row, c as Record<string, unknown>));
-  if (cond.__kind === "eq") {
-    const field = mapCol(cond.col);
-    if (!(field in row)) return true;
-    return row[field] === cond.val || String(row[field]) === String(cond.val);
-  }
-  if (cond.__kind === "like") {
-    const field = mapCol(cond.col);
-    if (!(field in row)) return true;
-    const pattern = String(cond.val ?? "").replace(/%/g, "");
-    const val = String(row[field] ?? "");
-    return val.includes(pattern);
-  }
-  if (cond.__kind === "sql") {
-    const sqlStr = String((cond as any).strings?.join?.("") ?? "");
-    if (sqlStr.includes("IS NULL")) {
-      const field = mapCol((cond as any).values?.[0]);
-      return row[field] === null || row[field] === undefined;
-    }
-    return true;
-  }
-  return true;
-}
+/**
+ * Разбор условий отдан общему строгому разборщику.
+ *
+ * Местная копия считала выполненным всё, чего не понимала: из операторов она
+ * знала не более двух-трёх, а остальные — включая `isNull` и `inArray` —
+ * молча проходили. Убери кто-нибудь такой фильтр из продакшена, тест остался
+ * бы зелёным.
+ *
+ * treatMissingColumnAsMatch оставлен намеренно: строки этого стенда описаны
+ * частично, и без послабления упали бы проверки, к самому продукту отношения
+ * не имеющие. Флаг виден здесь при чтении и снимается отдельно, вместе с
+ * доописыванием строк.
+ */
+const evalCond = makeConditionEvaluator({
+  fieldOf: mapCol,
+  treatMissingColumnAsMatch: true,
+  // Сырой sql`` этот стенд не воспроизводит; условие считается выполненным.
+  // Решение записано здесь, а не спрятано в умолчании разборщика.
+  rawSql: () => true,
+});
 
 function buildChain(rows: Record<string, unknown>[]) {
   const chain: any = Promise.resolve(rows);

@@ -3,6 +3,7 @@
  * Tests that shops can be imported with territory assignment.
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { makeConditionEvaluator } from "./helpers/fake-conditions";
 
 // ── Mocks ───────────────────────────────────────────────────────────────────
 vi.mock("../queries/connection", () => ({ getDb: () => mockDb }));
@@ -49,18 +50,26 @@ function resetTables() {
 }
 
 // ── Mock DB ─────────────────────────────────────────────────────────────────
-function evalCond(row: Record<string, unknown>, cond: unknown): boolean {
-  if (!cond || typeof cond !== "object") return true;
-  const c = cond as Record<string, unknown>;
-  if (c.__kind === "eq") {
-    const field = columnToFieldName.get(c.col as object) ?? String(c.col);
-    return row[field] === c.val;
-  }
-  if (c.__kind === "and") {
-    return (c.conds as unknown[]).every((sub: unknown) => evalCond(row, sub));
-  }
-  return true;
-}
+/**
+ * Разбор условий отдан общему строгому разборщику.
+ *
+ * Местная копия считала выполненным всё, чего не понимала: из операторов она
+ * знала не более двух-трёх, а остальные — включая `isNull` и `inArray` —
+ * молча проходили. Убери кто-нибудь такой фильтр из продакшена, тест остался
+ * бы зелёным.
+ *
+ * treatMissingColumnAsMatch оставлен намеренно: строки этого стенда описаны
+ * частично, и без послабления упали бы проверки, к самому продукту отношения
+ * не имеющие. Флаг виден здесь при чтении и снимается отдельно, вместе с
+ * доописыванием строк.
+ */
+const evalCond = makeConditionEvaluator({
+  fieldOf: col => columnToFieldName.get(col as object) ?? (col as { name?: string } | null)?.name,
+  treatMissingColumnAsMatch: true,
+  // Сырой sql`` этот стенд не воспроизводит; условие считается выполненным.
+  // Решение записано здесь, а не спрятано в умолчании разборщика.
+  rawSql: () => true,
+});
 
 const columnToFieldName = new Map<object, string>();
 

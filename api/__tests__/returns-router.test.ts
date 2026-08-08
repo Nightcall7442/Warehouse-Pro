@@ -136,29 +136,26 @@ function useTable(col: unknown) {
   else if (col === users) { currentTable = usersTable; currentTableName = "users"; }
 }
 
-function evalCond(row: Record<string, unknown>, cond: Record<string, unknown>): boolean {
-  // Set membership. Without this branch an inArray filter falls through to the
-  // permissive default below and the query appears to match every row — which
-  // is how "only counts delivered orders" passed while counting all of them.
-  if (cond && (cond as Record<string, unknown>).__kind === "inArray") {
-    const field = mapCol((cond as Record<string, unknown>).col);
-    if (!(field in row)) return true;
-    const values = ((cond as Record<string, unknown>).values ?? []) as unknown[];
-    return values.map(String).includes(String(row[field]));
-  }
-
-  if (!cond || typeof cond !== "object") return true;
-  if (cond.__kind === "and") return (cond.conds as unknown[]).every((c: unknown) => evalCond(row, c as Record<string, unknown>));
-  if (cond.__kind === "eq" || cond.__kind === "ne" || cond.__kind === "gte" || cond.__kind === "lte") {
-    const field = mapCol(cond.col);
-    if (!(field in row)) return cond.__kind !== "eq";
-    if (cond.__kind === "gte") return Number(row[field]) >= Number(cond.val);
-    if (cond.__kind === "lte") return Number(row[field]) <= Number(cond.val);
-    if (cond.__kind === "ne") return row[field] !== cond.val && String(row[field]) !== String(cond.val);
-    return row[field] === cond.val || String(row[field]) === String(cond.val);
-  }
-  return true;
-}
+/**
+ * Разбор условий отдан общему строгому разборщику.
+ *
+ * Местная копия считала выполненным всё, чего не понимала: из операторов она
+ * знала не более двух-трёх, а остальные — включая `isNull` и `inArray` —
+ * молча проходили. Убери кто-нибудь такой фильтр из продакшена, тест остался
+ * бы зелёным.
+ *
+ * treatMissingColumnAsMatch оставлен намеренно: строки этого стенда описаны
+ * частично, и без послабления упали бы проверки, к самому продукту отношения
+ * не имеющие. Флаг виден здесь при чтении и снимается отдельно, вместе с
+ * доописыванием строк.
+ */
+const evalCond = makeConditionEvaluator({
+  fieldOf: mapCol,
+  treatMissingColumnAsMatch: true,
+  // Сырой sql`` этот стенд не воспроизводит; условие считается выполненным.
+  // Решение записано здесь, а не спрятано в умолчании разборщика.
+  rawSql: () => true,
+});
 
 function buildChain(rows: Record<string, unknown>[], groupCol?: string, wrapKey?: string) {
   const resolved = groupCol ? groupRows(rows, groupCol) : rows;
@@ -326,6 +323,7 @@ function buildCtx(overrides: Record<string, unknown> = {}): TrpcContext {
 }
 
 import { returnsRouter } from "../returns-router";
+import { makeConditionEvaluator } from "./helpers/fake-conditions";
 
 describe("returnsRouter", () => {
   beforeEach(() => {

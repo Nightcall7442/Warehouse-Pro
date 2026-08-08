@@ -31,6 +31,7 @@ vi.mock("../lib/sse", () => ({
 
 import { orders, orderItems, warehouseStock, products, stockMovements, settings, warehouses, shops } from "@db/schema";
 import { createExecuteMock } from "./helpers/mock-execute";
+import { makeConditionEvaluator } from "./helpers/fake-conditions";
 
 // ── Fake tables ──────────────────────────────────────────────────────────────
 interface FakeStock { id: number; productId: number; tenantId: number; warehouseId: number; currentStock: string; reserved: string; available: string; updatedAt: Date; }
@@ -112,25 +113,26 @@ for (const [field, col] of Object.entries(settings)) columnToFieldName.set(col, 
 for (const [field, col] of Object.entries(warehouses)) columnToFieldName.set(col, field);
 for (const [field, col] of Object.entries(shops)) columnToFieldName.set(col, field);
 
-function evalCond(row: Record<string, unknown>, cond: Record<string, unknown>): boolean {
-  if (!cond || typeof cond !== "object") return true;
-  if (cond.__kind === "and") return (cond.conds as unknown[]).every((c: unknown) => evalCond(row, c as Record<string, unknown>));
-  if (cond.__kind === "eq") {
-    const fieldName = columnToFieldName.get(cond.col) ?? (cond.col as Record<string, unknown>)?.name ?? cond.col;
-    return row[fieldName as string] === cond.val || String(row[fieldName as string]) === String(cond.val);
-  }
-  if (cond.__kind === "like") {
-    const fieldName = columnToFieldName.get(cond.col) ?? (cond.col as Record<string, unknown>)?.name ?? cond.col;
-    const val = row[fieldName as string] ?? "";
-    const pattern = String(cond.val).replace(/^%/, ".*").replace(/%$/, "");
-    return new RegExp(pattern, "i").test(String(val));
-  }
-  if (cond.__kind === "ne") {
-    const fieldName = columnToFieldName.get(cond.col) ?? (cond.col as Record<string, unknown>)?.name ?? cond.col;
-    return row[fieldName as string] !== cond.val && String(row[fieldName as string]) !== String(cond.val);
-  }
-  return true;
-}
+/**
+ * Разбор условий отдан общему строгому разборщику.
+ *
+ * Местная копия считала выполненным всё, чего не понимала: из операторов она
+ * знала не более двух-трёх, а остальные — включая `isNull` и `inArray` —
+ * молча проходили. Убери кто-нибудь такой фильтр из продакшена, тест остался
+ * бы зелёным.
+ *
+ * treatMissingColumnAsMatch оставлен намеренно: строки этого стенда описаны
+ * частично, и без послабления упали бы проверки, к самому продукту отношения
+ * не имеющие. Флаг виден здесь при чтении и снимается отдельно, вместе с
+ * доописыванием строк.
+ */
+const evalCond = makeConditionEvaluator({
+  fieldOf: col => columnToFieldName.get(col) ?? (col as { name?: string } | null)?.name,
+  treatMissingColumnAsMatch: true,
+  // Сырой sql`` этот стенд не воспроизводит; условие считается выполненным.
+  // Решение записано здесь, а не спрятано в умолчании разборщика.
+  rawSql: () => true,
+});
 
 function evalSqlDelta(row: Record<string, unknown>, fieldName: string, expr: Record<string, unknown>): string {
   if (!expr || expr.__kind !== "sql") return row[fieldName] as string;

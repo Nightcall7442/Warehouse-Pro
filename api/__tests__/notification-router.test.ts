@@ -22,6 +22,7 @@ vi.mock("../lib/sse", () => ({
 }));
 
 import { notifications, warehouseStock, products, orders, dailyPlans, shops } from "@db/schema";
+import { makeConditionEvaluator } from "./helpers/fake-conditions";
 
 interface FakeNotification {
   id: number;
@@ -109,34 +110,64 @@ for (const [_field, col] of Object.entries(orders)) columnToFieldName.set(col, _
 for (const [_field, col] of Object.entries(dailyPlans)) columnToFieldName.set(col, _field);
 for (const [_field, col] of Object.entries(shops)) columnToFieldName.set(col, _field);
 
-function evalCond(row: unknown, cond: unknown): boolean {
-  if (!cond || typeof cond !== "object") return true;
-  const c = cond as Record<string, unknown>;
-  const r = row as Record<string, unknown>;
-  if (c.__kind === "and") return (c.conds as unknown[]).every((inner: unknown) => evalCond(row, inner));
-  if (c.__kind === "eq") {
-    const fieldName = (columnToFieldName.get(c.col) ?? (c.col as Record<string, unknown>)?.name ?? c.col) as string;
-    if (c.val && typeof c.val === "object" && columnToFieldName.has(c.val)) {
-      const otherField = columnToFieldName.get(c.val)!;
-      return r[fieldName] === r[otherField] || String(r[fieldName]) === String(r[otherField]);
-    }
-    return r[fieldName] === c.val || String(r[fieldName]) === String(c.val);
-  }
-  if (c.__kind === "sql") {
-    if (c.strings && (c.strings as string[]).some((s: string) => s.includes("<"))) {
-      const leftField = (columnToFieldName.get((c.values as unknown[])[0]) ?? ((c.values as unknown[])[0] as Record<string, unknown>)?.name) as string;
-      const rightField = (columnToFieldName.get((c.values as unknown[])[1]) ?? ((c.values as unknown[])[1] as Record<string, unknown>)?.name) as string;
-      if (leftField && rightField) {
-        return Number(r[leftField]) < Number(r[rightField]);
-      }
-      if (leftField && !rightField) {
-        return Number(r[leftField]) < Number((c.values as unknown[])[1]);
-      }
-    }
-    return true;
-  }
-  return true;
+/**
+ * Разбор условий отдан общему строгому разборщику.
+ *
+ * Местная копия считала выполненным всё, чего не понимала: из операторов она
+ * знала не более двух-трёх, а остальные — включая `isNull` и `inArray` —
+ * молча проходили. Убери кто-нибудь такой фильтр из продакшена, тест остался
+ * бы зелёным.
+ *
+ * treatMissingColumnAsMatch оставлен намеренно: строки этого стенда описаны
+ * частично, и без послабления упали бы проверки, к самому продукту отношения
+ * не имеющие. Флаг виден здесь при чтении и снимается отдельно, вместе с
+ * доописыванием строк.
+ */
+
+/** Имя поля поддельной строки для объекта колонки; undefined — это не колонка. */
+function fieldNameOf(value: unknown): string | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  return columnToFieldName.get(value) ?? (value as { name?: string }).name;
 }
+
+const evalCond = makeConditionEvaluator({
+  fieldOf: col => columnToFieldName.get(col) ?? (col as { name?: string } | null)?.name,
+  treatMissingColumnAsMatch: true,
+
+  /**
+   * Здесь справа от равенства стоит не значение, а другая колонка.
+   *
+   * Общий разборщик сравнивает значение с литералом — для него объект колонки
+   * это просто объект, и совпадений не было бы никогда.
+   */
+  equals: (_field, rowValue, condValue, row) => {
+    const other = fieldNameOf(condValue);
+    if (other === undefined) return undefined;
+    const right = (row as Record<string, unknown>)[other];
+    return rowValue === right || String(rowValue) === String(right);
+  },
+
+  /**
+   * Сырой sql`` здесь один и по существу: остаток ниже порога дозаказа.
+   *
+   * Заглушка «считать выполненным» тут недопустима: именно это условие
+   * отличает товар на исходе от нормального. С заглушкой предупреждение о
+   * низком остатке выдавалось на полный склад — что и случилось при первом,
+   * механическом переводе файла.
+   */
+  rawSql: (cond, row) => {
+    const strings = (cond.strings ?? []) as string[];
+    if (!strings.some(part => part.includes("<"))) return true;
+
+    const values = (cond.values ?? []) as unknown[];
+    const left = fieldNameOf(values[0]);
+    if (left === undefined) return true;
+
+    const right = fieldNameOf(values[1]);
+    const rightValue = right === undefined ? values[1] : (row as Record<string, unknown>)[right];
+    return Number((row as Record<string, unknown>)[left]) < Number(rightValue);
+  },
+});
 
 function evalCondCross(leftRow: unknown, rightRow: unknown, cond: unknown): boolean {
   if (!cond || typeof cond !== "object") return true;

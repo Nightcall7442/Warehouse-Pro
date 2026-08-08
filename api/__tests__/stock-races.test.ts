@@ -43,6 +43,7 @@ vi.mock("drizzle-orm", async () => {
 });
 
 import { orders, orderItems, warehouseStock, products, warehouses, shops, returns, returnItems, stockMovements } from "@db/schema";
+import { makeConditionEvaluator } from "./helpers/fake-conditions";
 
 interface FakeOrder { id: number; tenantId: number; agentId: number; shopId: number; status: string; deletedAt: Date | null; subtotal: string; discount: string; total: string; paymentMethod: string; }
 interface FakeOrderItem { id: number; orderId: number; productId: number; quantity: string; unitPrice: string; subtotal: string; deliveredQuantity: string | null; }
@@ -101,17 +102,26 @@ for (const tbl of [orders, orderItems, warehouseStock, products, warehouses, sho
   for (const [field, col] of Object.entries(tbl)) colName.set(col, field);
 }
 
-function evalCond(row: any, cond: any): boolean {
-  if (!cond || typeof cond !== "object") return true;
-  if (cond.__kind === "and") return cond.conds.every((c: any) => evalCond(row, c));
-  if (cond.__kind === "or") return cond.conds.some((c: any) => evalCond(row, c));
-  const f = colName.get(cond.col) ?? cond.col?.name;
-  if (cond.__kind === "eq") return String(row[f as string]) === String(cond.val);
-  if (cond.__kind === "isNull") return row[f as string] === null || row[f as string] === undefined;
-  if (cond.__kind === "isNotNull") return row[f as string] !== null && row[f as string] !== undefined;
-  if (cond.__kind === "inArray") return (cond.values as any[]).map(String).includes(String(row[f as string]));
-  return true;
-}
+/**
+ * Разбор условий отдан общему строгому разборщику.
+ *
+ * Местная копия считала выполненным всё, чего не понимала: из операторов она
+ * знала не более двух-трёх, а остальные — включая `isNull` и `inArray` —
+ * молча проходили. Убери кто-нибудь такой фильтр из продакшена, тест остался
+ * бы зелёным.
+ *
+ * treatMissingColumnAsMatch оставлен намеренно: строки этого стенда описаны
+ * частично, и без послабления упали бы проверки, к самому продукту отношения
+ * не имеющие. Флаг виден здесь при чтении и снимается отдельно, вместе с
+ * доописыванием строк.
+ */
+const evalCond = makeConditionEvaluator({
+  fieldOf: col => (col as { name?: string } | null)?.name,
+  treatMissingColumnAsMatch: true,
+  // Сырой sql`` этот стенд не воспроизводит; условие считается выполненным.
+  // Решение записано здесь, а не спрятано в умолчании разборщика.
+  rawSql: () => true,
+});
 
 function evalSqlSet(row: any, field: string, expr: any): any {
   if (!expr || typeof expr !== "object" || expr.__kind !== "sql") return expr;

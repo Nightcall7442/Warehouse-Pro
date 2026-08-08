@@ -32,6 +32,7 @@ vi.mock("../lib/sanitize", () => ({
 }));
 
 import { agentLocations, dailyPlans, shops, users } from "@db/schema";
+import { makeConditionEvaluator } from "./helpers/fake-conditions";
 
 // ── Fake tables ──────────────────────────────────────────────────────────────
 interface FakeUser { id: number; tenantId: number; name: string; email: string; role: string; status: string; }
@@ -90,30 +91,36 @@ for (const t of [users, shops, dailyPlans, agentLocations]) {
   for (const [field, col] of Object.entries(t)) columnToFieldName.set(col, field);
 }
 
-function evalCond(row: Record<string, unknown>, cond: Record<string, unknown>): boolean {
-  if (!cond || typeof cond !== "object") return true;
-  if (cond.__kind === "and") return (cond.conds as unknown[]).every((inner: unknown) => evalCond(row, inner as Record<string, unknown>));
-  if (cond.__kind === "inArray") {
-    const fieldName = columnToFieldName.get(cond.col) ?? (cond.col as Record<string, unknown>)?.name ?? cond.col;
-    if (!(fieldName as string in row)) return true;
-    return (cond.vals as unknown[]).some(v => String(v) === String(row[fieldName as string]));
-  }
-  if (cond.__kind === "eq") {
-    const fieldName = columnToFieldName.get(cond.col) ?? (cond.col as Record<string, unknown>)?.name ?? cond.col;
-    if (!(fieldName as string in row)) return true;
-    const actual = row[fieldName as string];
-    // planDate — колонка типа DATE: MySQL сравнивает календарный день, время в
-    // ней не хранится вовсе. Стенд же держит объекты Date и сравнивал полные
-    // метки времени, поэтому «сегодня в 14:32» и «сегодня в 00:00» для него были
-    // разными днями — проверка на дубликат никогда не срабатывала бы, и стенд
-    // подтвердил бы отсутствие ошибки, которой нет только у него.
-    if (fieldName === "planDate" && actual instanceof Date && cond.val instanceof Date) {
-      return actual.toISOString().slice(0, 10) === cond.val.toISOString().slice(0, 10);
-    }
-    return actual === cond.val || String(actual) === String(cond.val);
-  }
-  return true;
-}
+/**
+ * Разбор условий отдан общему строгому разборщику.
+ *
+ * Местная копия считала выполненным всё, чего не понимала: из операторов она
+ * знала не более двух-трёх, а остальные — включая `isNull` и `inArray` —
+ * молча проходили. Убери кто-нибудь такой фильтр из продакшена, тест остался
+ * бы зелёным.
+ *
+ * treatMissingColumnAsMatch оставлен намеренно: строки этого стенда описаны
+ * частично, и без послабления упали бы проверки, к самому продукту отношения
+ * не имеющие. Флаг виден здесь при чтении и снимается отдельно, вместе с
+ * доописыванием строк.
+ */
+const evalCond = makeConditionEvaluator({
+  fieldOf: col => columnToFieldName.get(col) ?? (col as { name?: string } | null)?.name,
+  treatMissingColumnAsMatch: true,
+  // planDate — колонка типа DATE: MySQL сравнивает календарный день, времени в
+  // ней нет вовсе. Стенд держит объекты Date, и без этого правила «сегодня в
+  // 14:32» и «сегодня в 00:00» оказывались разными днями: проверка на дубликат
+  // плана не срабатывала никогда, и стенд подтверждал отсутствие ошибки,
+  // которой нет только у него.
+  equals: (field, rowValue, condValue) => {
+    if (field !== "planDate") return undefined;
+    if (!(rowValue instanceof Date) || !(condValue instanceof Date)) return undefined;
+    return rowValue.toISOString().slice(0, 10) === condValue.toISOString().slice(0, 10);
+  },
+  // Сырой sql`` этот стенд не воспроизводит; условие считается выполненным.
+  // Решение записано здесь, а не спрятано в умолчании разборщика.
+  rawSql: () => true,
+});
 
 function chainable(rows: Record<string, unknown>[]) {
   const p = Promise.resolve(rows) as Promise<Record<string, unknown>[]> & {

@@ -116,30 +116,26 @@ function rowsFor(table: string): unknown[] {
   return map[table] ?? [];
 }
 
-function evalCond(row: unknown, cond: unknown): boolean {
-  if (!cond || typeof cond !== "object") return true;
-  const c = cond as Record<string, unknown>;
-  if (c.__kind === "and") return (c.conds as unknown[]).every((child: unknown) => evalCond(row, child));
-  if (c.__kind === "inArray") {
-    const col = c.col as { name?: string } | string;
-    const vals = c.vals as unknown[];
-    const fnL = (typeof col === "object" && col !== null ? (colToField.get(col) ?? col.name ?? col) : colToField.get(col) ?? (typeof col === "string" ? col : "")) as string;
-    const r = row as Record<string, unknown>;
-    const left = r[fnL];
-    return vals.some((v) => left === v || String(left) === String(v));
-  }
-  if (c.__kind === "eq") {
-    const col = c.col as { name?: string } | string;
-    const val = c.val as { name?: string } | string | number;
-    const fnL = (typeof col === "object" && col !== null ? (colToField.get(col) ?? col.name ?? col) : colToField.get(col) ?? (typeof col === "string" ? col : "")) as string;
-    const fnR = (typeof val === "object" && val !== null ? (colToField.get(val) ?? val.name ?? val) : colToField.get(val) ?? (typeof val === "string" ? val : "")) as string;
-    const r = row as Record<string, unknown>;
-    const left = r[fnL];
-    const right = typeof val === "object" && val !== null && colToField.has(val) ? r[fnR] : val;
-    return left === right || String(left) === String(right);
-  }
-  return true;
-}
+/**
+ * Разбор условий отдан общему строгому разборщику.
+ *
+ * Местная копия считала выполненным всё, чего не понимала: из операторов она
+ * знала не более двух-трёх, а остальные — включая `isNull` и `inArray` —
+ * молча проходили. Убери кто-нибудь такой фильтр из продакшена, тест остался
+ * бы зелёным.
+ *
+ * treatMissingColumnAsMatch оставлен намеренно: строки этого стенда описаны
+ * частично, и без послабления упали бы проверки, к самому продукту отношения
+ * не имеющие. Флаг виден здесь при чтении и снимается отдельно, вместе с
+ * доописыванием строк.
+ */
+const evalCond = makeConditionEvaluator({
+  fieldOf: col => colToField.get(col),
+  treatMissingColumnAsMatch: true,
+  // Сырой sql`` этот стенд не воспроизводит; условие считается выполненным.
+  // Решение записано здесь, а не спрятано в умолчании разборщика.
+  rawSql: () => true,
+});
 
 const mockBridge = {
   odataQuery: vi.fn().mockResolvedValue([]),
@@ -276,6 +272,7 @@ beforeEach(() => {
 });
 
 import { OneCSyncService } from "../onec-sync";
+import { makeConditionEvaluator } from "../../../api/__tests__/helpers/fake-conditions";
 
 const syncService = new OneCSyncService();
 

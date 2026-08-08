@@ -26,6 +26,7 @@ vi.mock("../lib/sse", () => ({
 }));
 
 import { arrivals, arrivalItems, warehouses, warehouseStock, stockMovements, products } from "@db/schema";
+import { makeConditionEvaluator } from "./helpers/fake-conditions";
 
 // ── Fake tables ──────────────────────────────────────────────────────────────
 type FakeArrival = { id: number; tenantId: number; arrivalNumber: string; truckId: string | null; driverName: string | null; driverPhone: string | null; status: string; fuelCost: string; tollCost: string; otherCost: string; totalExpense: string; arrivalDate: Date; arrivalTime: string | null; unloadingTime: string | null; notes: string | null; createdAt: Date; };
@@ -101,21 +102,26 @@ for (const [field, col] of Object.entries(warehouseStock)) columnToFieldName.set
 for (const [field, col] of Object.entries(stockMovements)) columnToFieldName.set(col, field);
 for (const [field, col] of Object.entries(products)) columnToFieldName.set(col, field);
 
-function evalCond(row: Record<string, unknown>, cond: Record<string, unknown>): boolean {
-  if (!cond || typeof cond !== "object") return true;
-  if (cond.__kind === "and") return (cond.conds as unknown[]).every((inner: unknown) => evalCond(row, inner as Record<string, unknown>));
-  if (cond.__kind === "eq") {
-    const fieldName = columnToFieldName.get(cond.col) ?? (cond.col as Record<string, unknown>)?.name ?? cond.col;
-    if (cond.val && typeof cond.val === "object" && columnToFieldName.has(cond.val)) {
-      const otherField = columnToFieldName.get(cond.val)!;
-      if (!(fieldName as string in row) || !(otherField as string in row)) return true;
-      return row[fieldName as string] === row[otherField] || String(row[fieldName as string]) === String(row[otherField]);
-    }
-    if (!(fieldName as string in row)) return true;
-    return row[fieldName as string] === cond.val || String(row[fieldName as string]) === String(cond.val);
-  }
-  return true;
-}
+/**
+ * Разбор условий отдан общему строгому разборщику.
+ *
+ * Местная копия считала выполненным всё, чего не понимала: из операторов она
+ * знала не более двух-трёх, а остальные — включая `isNull` и `inArray` —
+ * молча проходили. Убери кто-нибудь такой фильтр из продакшена, тест остался
+ * бы зелёным.
+ *
+ * treatMissingColumnAsMatch оставлен намеренно: строки этого стенда описаны
+ * частично, и без послабления упали бы проверки, к самому продукту отношения
+ * не имеющие. Флаг виден здесь при чтении и снимается отдельно, вместе с
+ * доописыванием строк.
+ */
+const evalCond = makeConditionEvaluator({
+  fieldOf: col => columnToFieldName.get(col) ?? (col as { name?: string } | null)?.name,
+  treatMissingColumnAsMatch: true,
+  // Сырой sql`` этот стенд не воспроизводит; условие считается выполненным.
+  // Решение записано здесь, а не спрятано в умолчании разборщика.
+  rawSql: () => true,
+});
 
 function chainable(rows: Record<string, unknown>[]) {
   const p = Promise.resolve(rows) as Promise<Record<string, unknown>[]> & {

@@ -77,6 +77,30 @@ export interface EvaluatorOptions {
    * можно посчитать и сокращать. По умолчанию выключен.
    */
   treatMissingColumnAsMatch?: boolean;
+
+  /**
+   * Своё правило сравнения для отдельных колонок.
+   *
+   * Возврат `undefined` означает «считай как обычно»; булево значение —
+   * окончательный ответ.
+   *
+   * Нужно там, где тип колонки в базе ведёт себя не так, как значение в
+   * поддельной строке. Живой пример: daily_plans.plan_date — колонка типа
+   * DATE, MySQL сравнивает календарный день и времени не хранит вовсе, а
+   * стенд держит объекты Date. Без этого правила «сегодня в 14:32» и
+   * «сегодня в 00:00» оказывались разными днями, проверка на дубликат плана
+   * не срабатывала никогда, и стенд подтверждал отсутствие ошибки, которой
+   * нет только у него.
+   *
+   * Место такому правилу — в файле, которого оно касается, а не в общем
+   * разборщике: особенность здесь у конкретного стенда, а не у SQL.
+   */
+  equals?: (
+    field: string,
+    rowValue: unknown,
+    condValue: unknown,
+    row: Row,
+  ) => boolean | undefined;
 }
 
 /**
@@ -136,6 +160,16 @@ export function makeConditionEvaluator(options: EvaluatorOptions) {
   /** Отсутствие колонки в строке — особый случай, а не обычное значение. */
   const MISSING = Symbol("missing column");
 
+  /** Имя поля для колонки — с той же проверкой, что и valueOf. */
+  const fieldName = (col: unknown): string => {
+    const field = options.fieldOf(col);
+    if (field === undefined) {
+      const name = (col as { name?: string } | null)?.name;
+      throw new UnsupportedCondition("колонка", `неизвестная колонка${name ? ` «${name}»` : ""}`);
+    }
+    return field;
+  };
+
   const valueOf = (row: Row, col: unknown): unknown => {
     const field = options.fieldOf(col);
     if (field === undefined) {
@@ -186,8 +220,18 @@ export function makeConditionEvaluator(options: EvaluatorOptions) {
       case "or":  return (cond.conds as Cond[]).some(c => evaluate(row, c));
       case "not": return !evaluate(row, cond.cond as Cond);
 
-      case "eq": { const v = valueOf(row, cond.col); return missing(v) || looseEquals(v, cond.val); }
-      case "ne": { const v = valueOf(row, cond.col); return missing(v) || !looseEquals(v, cond.val); }
+      case "eq": {
+        const v = valueOf(row, cond.col);
+        if (missing(v)) return true;
+        const custom = options.equals?.(fieldName(cond.col), v, cond.val, row);
+        return custom !== undefined ? custom : looseEquals(v, cond.val);
+      }
+      case "ne": {
+        const v = valueOf(row, cond.col);
+        if (missing(v)) return true;
+        const custom = options.equals?.(fieldName(cond.col), v, cond.val, row);
+        return custom !== undefined ? !custom : !looseEquals(v, cond.val);
+      }
 
       case "gt":  { const v = valueOf(row, cond.col); return missing(v) || compare(v, cond.val) > 0; }
       case "gte": { const v = valueOf(row, cond.col); return missing(v) || compare(v, cond.val) >= 0; }

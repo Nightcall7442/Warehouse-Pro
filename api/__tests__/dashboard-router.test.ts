@@ -34,6 +34,7 @@ let mockDb: any;
 vi.mock("../queries/connection", () => ({ getDb: () => mockDb }));
 
 import { orders, warehouseStock, users, shops, agentLocations, dailyPlans, orderItems, products } from "@db/schema";
+import { makeConditionEvaluator } from "./helpers/fake-conditions";
 
 let ordersTable: any[] = [];
 let warehouseStockTable: any[] = [];
@@ -94,24 +95,26 @@ reg(products, "id"); reg(products, "tenantId"); reg(products, "name"); reg(produ
 
 function mapCol(col: unknown): string { return colToField.get(col) ?? (col as any)?.name ?? String(col); }
 
-function evalCond(row: Record<string, unknown>, cond: unknown): boolean {
-  // Set membership. Without this branch an inArray filter falls through to the
-  // permissive default below and the query appears to match every row — which
-  // is how "only counts delivered orders" passed while counting all of them.
-  if (cond && (cond as Record<string, unknown>).__kind === "inArray") {
-    const field = mapCol((cond as Record<string, unknown>).col);
-    if (!(field in row)) return true;
-    const values = ((cond as Record<string, unknown>).values ?? []) as unknown[];
-    return values.map(String).includes(String(row[field]));
-  }
-
-  if (!cond || typeof cond !== "object") return true;
-  const c = cond as Record<string, unknown>;
-  if (c.__kind === "and") return (c.conds as unknown[]).every((x: unknown) => evalCond(row, x));
-  if (c.__kind === "eq") { const f = mapCol(c.col); return !(f in row) || row[f] === c.val || String(row[f]) === String(c.val); }
-  if (c.__kind === "isNull") { const f = mapCol(c.col); return !(f in row) || row[f] === null || row[f] === undefined; }
-  return true;
-}
+/**
+ * Разбор условий отдан общему строгому разборщику.
+ *
+ * Местная копия считала выполненным всё, чего не понимала: из операторов она
+ * знала не более двух-трёх, а остальные — включая `isNull` и `inArray` —
+ * молча проходили. Убери кто-нибудь такой фильтр из продакшена, тест остался
+ * бы зелёным.
+ *
+ * treatMissingColumnAsMatch оставлен намеренно: строки этого стенда описаны
+ * частично, и без послабления упали бы проверки, к самому продукту отношения
+ * не имеющие. Флаг виден здесь при чтении и снимается отдельно, вместе с
+ * доописыванием строк.
+ */
+const evalCond = makeConditionEvaluator({
+  fieldOf: mapCol,
+  treatMissingColumnAsMatch: true,
+  // Сырой sql`` этот стенд не воспроизводит; условие считается выполненным.
+  // Решение записано здесь, а не спрятано в умолчании разборщика.
+  rawSql: () => true,
+});
 
 function isAggSql(def: unknown): boolean {
   if (typeof def !== "object" || def === null) return false;

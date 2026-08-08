@@ -25,6 +25,7 @@ vi.mock("../services/anti-fraud", () => ({
 }));
 
 import { orders, dailyPlans, returns, shops, salesTargets, commissions, agentLocations, visitReports, users } from "@db/schema";
+import { makeConditionEvaluator } from "./helpers/fake-conditions";
 
 // ── Fake tables ──────────────────────────────────────────────────────────────
 interface FakeOrder { id: number; tenantId: number; agentId: number; courierId: number | null; shopId: number; status: string; deliveryStatus: string; total: string; createdAt: Date; }
@@ -107,31 +108,26 @@ for (const t of [orders, dailyPlans, returns, shops, salesTargets, commissions, 
   for (const [field, col] of Object.entries(t)) columnToFieldName.set(col, field);
 }
 
-function evalCond(row: Record<string, unknown>, cond: Record<string, unknown>): boolean {
-  if (!cond || typeof cond !== "object") return true;
-  if (cond.__kind === "and") return (cond.conds as unknown[]).every((inner: unknown) => evalCond(row, inner as Record<string, unknown>));
-  if (cond.__kind === "eq" || cond.__kind === "gte" || cond.__kind === "lte") {
-    const fieldName = columnToFieldName.get(cond.col) ?? (cond.col as Record<string, unknown>)?.name ?? cond.col;
-    if (!(fieldName as string in row)) return true;
-    const rowVal = row[fieldName as string];
-    const condVal = cond.val;
-    // For gte/lte with Date objects, convert both to timestamps
-    if (cond.__kind === "gte") {
-      const rv = rowVal instanceof Date ? rowVal.getTime() : Number(rowVal);
-      const cv = condVal instanceof Date ? condVal.getTime() : Number(condVal);
-      if (!isNaN(rv) && !isNaN(cv)) return rv >= cv;
-      return rowVal === condVal || String(rowVal) === String(condVal);
-    }
-    if (cond.__kind === "lte") {
-      const rv = rowVal instanceof Date ? rowVal.getTime() : Number(rowVal);
-      const cv = condVal instanceof Date ? condVal.getTime() : Number(condVal);
-      if (!isNaN(rv) && !isNaN(cv)) return rv <= cv;
-      return rowVal === condVal || String(rowVal) === String(condVal);
-    }
-    return rowVal === condVal || String(rowVal) === String(condVal);
-  }
-  return true;
-}
+/**
+ * Разбор условий отдан общему строгому разборщику.
+ *
+ * Местная копия считала выполненным всё, чего не понимала: из операторов она
+ * знала не более двух-трёх, а остальные — включая `isNull` и `inArray` —
+ * молча проходили. Убери кто-нибудь такой фильтр из продакшена, тест остался
+ * бы зелёным.
+ *
+ * treatMissingColumnAsMatch оставлен намеренно: строки этого стенда описаны
+ * частично, и без послабления упали бы проверки, к самому продукту отношения
+ * не имеющие. Флаг виден здесь при чтении и снимается отдельно, вместе с
+ * доописыванием строк.
+ */
+const evalCond = makeConditionEvaluator({
+  fieldOf: col => columnToFieldName.get(col) ?? (col as { name?: string } | null)?.name,
+  treatMissingColumnAsMatch: true,
+  // Сырой sql`` этот стенд не воспроизводит; условие считается выполненным.
+  // Решение записано здесь, а не спрятано в умолчании разборщика.
+  rawSql: () => true,
+});
 
 function chainable(rows: Record<string, unknown>[]) {
   const p = Promise.resolve(rows) as Promise<Record<string, unknown>[]> & {
