@@ -11,6 +11,77 @@ import { cache, CacheKeys } from "../lib/cache";
 import { logger } from "../lib/logger";
 
 import { affectedRows } from "../lib/db-rows";
+import { TRPCError } from "@trpc/server";
+
+/**
+ * Ошибка, которую оператор должен увидеть и может исправить сам.
+ *
+ * Обычный `throw new Error` до него не доходит: tRPC считает такое внутренним
+ * сбоем, и в проде форматтер подменяет текст на «Внутренняя ошибка сервера,
+ * попробуйте позже» (api/middleware.ts). Для настоящего сбоя это правильно —
+ * незачем показывать наружу устройство системы. Но «не указаны все позиции» и
+ * «нельзя передать больше заказанного» — не сбой, а разговор с человеком, и
+ * подмена превращает поправимую ситуацию в тупик: оператор видит одно и то же
+ * непонятное сообщение и повторяет то же действие.
+ */
+function badRequest(message: string): TRPCError {
+  return new TRPCError({ code: "BAD_REQUEST", message });
+}
+
+/**
+ * Запрос на доставку обязан перечислять ВСЕ позиции заказа.
+ *
+ * Вынесено отдельной функцией, чтобы это правило можно было проверить само по
+ * себе. Внутри applyPartialDelivery оно окружено блокировкой строки, сырым SQL
+ * по остаткам и пересчётом долга — проверять его там значит проверять
+ * поддельную базу, а не правило.
+ *
+ * Почему правило именно такое. Непереданная позиция исчезала дважды. Из денег:
+ * сумма заказа пересобирается из присланных строк и записывается в
+ * orders.total, поэтому заказ из двух позиций по 10 000, проведённый по одной,
+ * становился заказом на 8 000 — магазин недоплачивал 10 000, и пересчёт долга
+ * честно повторял эту цифру. Из склада: резерв освобождается только по
+ * присланным позициям, а заказ получает статус delivered, после которого ни
+ * отмена, ни удаление к нему уже неприменимы — товар оставался заперт навсегда.
+ *
+ * Додумать пропущенную позицию нельзя: «не указана» одинаково читается и как
+ * «доставлена полностью», и как «полностью возвращена», а это противоположные
+ * проводки и по деньгам, и по остаткам. Поэтому отказ с объяснением.
+ *
+ * Обычный клиент под правило уже подходит: окно завершения заказа в вебе
+ * строит список из всех позиций, а курьерское приложение сюда не обращается —
+ * у него свой путь через courier.completeDelivery.
+ */
+export function assertDeliveryCoversAllLines(
+  orderLineIds: number[],
+  items: Array<{ itemId: number }>,
+): void {
+  const sent = new Set<number>();
+  for (const item of items) {
+    if (sent.has(item.itemId)) {
+      throw badRequest(`Позиция заказа #${item.itemId} передана в запросе дважды`);
+    }
+    sent.add(item.itemId);
+  }
+
+  // Чужой идентификатор ловится здесь, а не в цикле обработки: там он всплыл
+  // бы уже после того, как часть позиций записана, и откат зависел бы от
+  // транзакции. Отказать до первой записи дешевле и понятнее.
+  const known = new Set(orderLineIds);
+  const foreign = [...sent].filter(id => !known.has(id));
+  if (foreign.length > 0) {
+    throw badRequest(`Позиция заказа #${foreign[0]} не относится к этому заказу`);
+  }
+
+  const missing = orderLineIds.filter(id => !sent.has(id));
+  if (missing.length > 0) {
+    throw badRequest(
+      `В доставке указаны не все позиции заказа: не хватает ${missing.length} из ${orderLineIds.length}. ` +
+      `Укажите по каждой позиции, сколько доставлено — в том числе по тем, что доставлены полностью.`,
+    );
+  }
+}
+
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
@@ -346,7 +417,7 @@ async function applyPartialDelivery(
   tx: Tx, tenantId: number, userId: number,
   input: { orderId: number; items: Array<{ itemId: number; deliveredQuantity: number; returnReason?: string }>; photos?: string[] },
 ): Promise<void> {
-  if (input.items.length === 0) throw new Error("Выберите хотя бы один товар");
+  if (input.items.length === 0) throw badRequest("Выберите хотя бы один товар");
 
   // Locked for the rest of this function — see the identical comment in
   // applyPartialPayment for why a concurrent call must queue here rather than
@@ -359,7 +430,7 @@ async function applyPartialDelivery(
     .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt)))
     .for("update")
     .limit(1);
-  if (!order) throw new Error("Заказ не найден");
+  if (!order) throw new TRPCError({ code: "NOT_FOUND", message: "Заказ не найден" });
   // A cancelled/returned order already released its stock; recording a
   // delivery against it here would consume stock a second time for goods
   // that were already given back.
@@ -371,8 +442,33 @@ async function applyPartialDelivery(
   // на клиенте сравнивает со СТАРЫМ статусом), остаток спишется второй раз.
   // Обе операции при этом возвращают успех, и оператор ничего не замечает.
   if (order.status === "cancelled" || order.status === "returned" || order.status === "delivered") {
-    throw new Error(`Нельзя оформить доставку по заказу в статусе «${order.status}»`);
+    throw badRequest(`Нельзя оформить доставку по заказу в статусе «${order.status}»`);
   }
+
+  // Доставка закрывает заказ целиком, поэтому в запросе обязаны быть ВСЕ его
+  // позиции — включая доставленные полностью.
+  //
+  // Без этого условия непереданная позиция исчезала дважды. Из денег: ниже
+  // сумма заказа пересобирается из присланных строк и записывается в
+  // orders.total, так что заказ из двух позиций по 10 000, проведённый по
+  // одной, становился заказом на 8 000 — магазин недоплачивал 10 000, и
+  // recalcShopDebt честно повторял эту цифру в долге. Из склада: резерв
+  // освобождается только внутри цикла по присланным позициям, а заказ при этом
+  // получает статус delivered, после которого ни отмена, ни удаление к нему
+  // уже неприменимы — товар оставался заперт в reserved навсегда.
+  //
+  // Молчаливо додумать пропущенную позицию нельзя: «не указана» одинаково
+  // читается и как «доставлена полностью», и как «полностью возвращена», а это
+  // противоположные проводки и по деньгам, и по остаткам. Поэтому отказ с
+  // объяснением, а не догадка.
+  //
+  // Обычный клиент под это условие уже подходит: окно завершения заказа в вебе
+  // строит список из всех позиций. Курьерское приложение сюда не обращается —
+  // у него свой путь через courier.completeDelivery.
+  const orderLines = await tx.select({ id: orderItems.id }).from(orderItems)
+    .where(eq(orderItems.orderId, order.id));
+
+  assertDeliveryCoversAllLines(orderLines.map(l => l.id), input.items);
 
   let newSubtotal = 0;
   const oldItems: Array<{ id: number; quantity: string; subtotal: string }> = [];
@@ -389,17 +485,17 @@ async function applyPartialDelivery(
     }).from(orderItems)
       .where(and(eq(orderItems.id, item.itemId), eq(orderItems.orderId, order.id)))
       .limit(1);
-    if (!orderItem) throw new Error(`Позиция заказа #${item.itemId} не найдена`);
+    if (!orderItem) throw badRequest(`Позиция заказа #${item.itemId} не найдена`);
     // Idempotency guard: this item has already gone through a partial-delivery
     // pass (deliveredQuantity was set). Re-running would return the same stock
     // to the warehouse and shave the same amount off shop debt a second time.
     if (orderItem.deliveredQuantity !== null) {
-      throw new Error(`Позиция заказа #${item.itemId} уже обработана как частичная доставка`);
+      throw badRequest(`Позиция заказа #${item.itemId} уже обработана как частичная доставка`);
     }
 
     const orderedQty = Number(orderItem.quantity);
     const deliveredQty = item.deliveredQuantity;
-    if (deliveredQty > orderedQty) throw new Error(`Нельзя передать больше заказанного (${orderedQty})`);
+    if (deliveredQty > orderedQty) throw badRequest(`Нельзя передать больше заказанного (${orderedQty})`);
 
     const returnedQty = orderedQty - deliveredQty;
     const unitPrice = Number(orderItem.unitPrice);
