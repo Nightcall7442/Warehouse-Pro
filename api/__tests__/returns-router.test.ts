@@ -10,6 +10,7 @@ vi.mock("drizzle-orm", () => {
   eq:  (col: unknown, val: unknown) => ({ __kind: "eq", col, val }),
   ne:  (col: unknown, val: unknown) => ({ __kind: "ne", col, val }),
   and: (...conds: unknown[]) => ({ __kind: "and", conds }),
+  inArray: (col: unknown, values: unknown[]) => ({ __kind: "inArray", col, values }),
   gte: (col: unknown, val: unknown) => ({ __kind: "gte", col, val }),
   lte: (col: unknown, val: unknown) => ({ __kind: "lte", col, val }),
   desc: (col: unknown) => ({ __kind: "desc", col }),

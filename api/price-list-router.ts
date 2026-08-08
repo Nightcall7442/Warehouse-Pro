@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { createRouter, operatorQuery, authedQuery, supervisorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
+import { assertProductsBelongToTenant } from "./lib/tenant-refs";
 import { priceLists, priceListItems, priceListAssignments, products, shops } from "@db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 
@@ -44,7 +45,7 @@ export const priceListRouter = createRouter({
         unitPrice: products.unitPrice,
       }).from(priceListItems)
         .innerJoin(priceLists, eq(priceListItems.priceListId, priceLists.id))
-        .leftJoin(products, eq(priceListItems.productId, products.id))
+        .leftJoin(products, and(eq(priceListItems.productId, products.id), eq(products.tenantId, ctx.tenant.id)))
         .where(and(eq(priceListItems.priceListId, input.id), eq(priceLists.tenantId, ctx.tenant.id)));
 
       const assignments = await db.select({
@@ -125,6 +126,13 @@ export const priceListRouter = createRouter({
         .where(and(eq(priceLists.id, input.priceListId), eq(priceLists.tenantId, tenantId)))
         .limit(1);
       if (!priceList) throw new Error("Прайс-лист не найден");
+
+      // Прайс-лист свой, а товар в него кладут по идентификатору от клиента.
+      // Без этой проверки в него добавлялся чужой product_id, а чтение
+      // соединялось с products без границы организации — и отдавало название,
+      // код и цену товара другой компании. Перебором так выгружался чужой
+      // каталог целиком, вместе с прайсом.
+      await assertProductsBelongToTenant(db, tenantId, [input.productId]);
 
       // Check if item exists
       const [existing] = await db.select()

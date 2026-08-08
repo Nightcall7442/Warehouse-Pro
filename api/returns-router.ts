@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { createRouter, fieldSalesQuery, operatorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
+import { assertProductsBelongToTenant } from "./lib/tenant-refs";
 import { returns, returnItems, orderItems, shops, users, products, orders, warehouseStock, warehouses } from "@db/schema";
 import { eq, and, desc, sql, ne } from "drizzle-orm";
 import { cache, CacheKeys } from "./lib/cache";
@@ -88,7 +89,7 @@ export const returnsRouter = createRouter({
         condition: returnItems.condition,
       }).from(returnItems)
         .innerJoin(returns, eq(returnItems.returnId, returns.id))
-        .leftJoin(products, eq(returnItems.productId, products.id))
+        .leftJoin(products, and(eq(returnItems.productId, products.id), eq(products.tenantId, ctx.tenant.id)))
         .where(and(eq(returnItems.returnId, input.id), eq(returns.tenantId, ctx.tenant.id)));
 
       return { ...ret, items };
@@ -117,6 +118,14 @@ export const returnsRouter = createRouter({
         .where(and(eq(shops.id, input.shopId), eq(shops.tenantId, ctx.tenant.id))).limit(1);
       if (!shop) throw new Error("Магазин не найден");
 
+      // Товары проверяются ВСЕГДА, а не только когда указан заказ. Возврат без
+      // заказа — обычный путь (брак, пересорт), и раньше он принимал любой
+      // product_id, а чтение соединялось с products без границы организации и
+      // отдавало чужие название и код. Причём путь открыт рядовому агенту, и
+      // одобрение оператора для утечки не требовалось: хватало возврата в
+      // статусе «на рассмотрении».
+      await assertProductsBelongToTenant(db, ctx.tenant.id, input.items.map(i => i.productId));
+
       const raw = crypto.randomUUID().replace(/-/g, "");
       const returnNumber = `RET-${raw.slice(0, 12).toUpperCase()}`;
 
@@ -130,7 +139,11 @@ export const returnsRouter = createRouter({
 
         const orderItemsData = await db.select().from(orderItems)
           .where(and(eq(orderItems.orderId, input.orderId)))
-          .leftJoin(products, eq(orderItems.productId, products.id));
+          // Заказ выше уже проверен по организации, но соединение с общей
+          // таблицей товаров всё равно несёт границу: цена одной забытой
+          // проверки здесь — чужие название и код в ответе, а стоимость самого
+          // условия нулевая, потому что для нормальных данных выборка та же.
+          .leftJoin(products, and(eq(orderItems.productId, products.id), eq(products.tenantId, ctx.tenant.id)));
 
         // Sum quantities already returned for this order
         const existingReturns = await db.select({

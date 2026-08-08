@@ -9,6 +9,7 @@ vi.mock("drizzle-orm", () => {
   return {
     eq: (col: unknown, val: unknown) => ({ __kind: "eq", col, val }),
     and: (...conds: unknown[]) => ({ __kind: "and", conds }),
+  inArray: (col: unknown, values: unknown[]) => ({ __kind: "inArray", col, values }),
     desc: (col: unknown) => ({ __kind: "desc", col }),
     sql: Object.assign(sqlFn, { join: joinFn }),
     relations: () => ({}),
