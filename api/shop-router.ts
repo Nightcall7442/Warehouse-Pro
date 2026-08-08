@@ -3,12 +3,45 @@ import { createRouter, operatorQuery, supervisorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { shops, users, orders, payments, dailyPlans, territories } from "@db/schema";
 import { eq, like, and, sql, desc } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
 import { sanitizeString, sanitizeSearch } from "./lib/sanitize";
 import { PaymentService } from "./services/payment";
 import { cache, CacheKeys, CacheTTL } from "./lib/cache";
 import { parseLocationFromUrl } from "./lib/parse-location";
 import { haversineKm } from "./lib/geo";
 import { photoRef } from "./lib/photo-url";
+
+/**
+ * Проверить, что чужие идентификаторы в запросе принадлежат этой организации.
+ *
+ * Магазин ссылается на агента и на территорию, и оба идентификатора приходят
+ * от клиента. Раньше они записывались как есть: достаточно было указать своему
+ * магазину чужой agentId, открыть карточку — и чтение отдавало имя и почту
+ * пользователя другой компании. Перебором так выгружалась вся база
+ * пользователей платформы, включая суперадминов.
+ *
+ * Проверка на записи — первая половина защиты. Вторая, обязательная, стоит на
+ * чтении: соединения с users и territories несут условие по организации,
+ * потому что в базе уже могут лежать ссылки, записанные до этой правки, и
+ * молча их доверять нельзя.
+ */
+async function assertTenantOwnsRefs(
+  db: ReturnType<typeof getDb>,
+  tenantId: number,
+  refs: { agentId?: number | null; territoryId?: number | null },
+): Promise<void> {
+  if (refs.agentId != null) {
+    const [row] = await db.select({ id: users.id }).from(users)
+      .where(and(eq(users.id, refs.agentId), eq(users.tenantId, tenantId))).limit(1);
+    if (!row) throw new TRPCError({ code: "BAD_REQUEST", message: "Сотрудник не найден в вашей организации" });
+  }
+  if (refs.territoryId != null) {
+    const [row] = await db.select({ id: territories.id }).from(territories)
+      .where(and(eq(territories.id, refs.territoryId), eq(territories.tenantId, tenantId))).limit(1);
+    if (!row) throw new TRPCError({ code: "BAD_REQUEST", message: "Территория не найдена в вашей организации" });
+  }
+}
+
 
 export const shopRouter = createRouter({
   territories: supervisorQuery.query(async ({ ctx }) => {
@@ -20,7 +53,7 @@ export const shopRouter = createRouter({
       totalDebt: sql<string>`COALESCE(SUM(CAST(${shops.debt} AS DECIMAL)), 0)`,
     })
       .from(territories)
-      .leftJoin(shops, eq(territories.id, shops.territoryId))
+      .leftJoin(shops, and(eq(territories.id, shops.territoryId), eq(shops.tenantId, ctx.tenant.id)))
       .where(eq(territories.tenantId, ctx.tenant.id))
       .groupBy(territories.id)
       .orderBy(sql`count(${shops.id}) DESC`);
@@ -86,7 +119,7 @@ export const shopRouter = createRouter({
           agentName: users.name,
         })
           .from(shops)
-          .leftJoin(users, eq(shops.agentId, users.id))
+          .leftJoin(users, and(eq(shops.agentId, users.id), eq(users.tenantId, tenantId)))
           .where(where)
           .limit(pageSize)
           .offset(offset)
@@ -117,7 +150,7 @@ export const shopRouter = createRouter({
 
       const [agentResult, recentOrders, paymentHistory] = await Promise.all([
         db.select({ id: users.id, name: users.name, email: users.email })
-          .from(users).where(eq(users.id, shop.agentId ?? 0)).limit(1),
+          .from(users).where(and(eq(users.id, shop.agentId ?? 0), eq(users.tenantId, tenantId))).limit(1),
         db.select({ id: orders.id, orderNumber: orders.orderNumber, total: orders.total, status: orders.status, createdAt: orders.createdAt })
           .from(orders).where(and(eq(orders.shopId, shop.id), eq(orders.tenantId, tenantId))).orderBy(desc(orders.createdAt)).limit(20),
         db.select({ id: payments.id, amount: payments.amount, type: payments.type, notes: payments.notes, createdAt: payments.createdAt })
@@ -146,6 +179,7 @@ export const shopRouter = createRouter({
     }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
+      await assertTenantOwnsRefs(db, ctx.tenant.id, { agentId: input.agentId, territoryId: input.territoryId });
 
       // Parse GPS from Telegram link if provided and no manual GPS
       let gpsLat = input.gpsLat;
@@ -227,6 +261,8 @@ export const shopRouter = createRouter({
 
       // Skip update if no fields to set
       if (Object.keys(sanitized).length === 0) return { success: true };
+
+      await assertTenantOwnsRefs(getDb(), ctx.tenant.id, { agentId: data.agentId, territoryId: data.territoryId });
 
       await getDb().update(shops).set(sanitized)
         .where(and(eq(shops.id, id), eq(shops.tenantId, ctx.tenant.id)));
@@ -390,7 +426,7 @@ export const shopRouter = createRouter({
       debt: shops.debt,
       agentName: users.name,
     })
-      .from(shops).leftJoin(users, eq(shops.agentId, users.id))
+      .from(shops).leftJoin(users, and(eq(shops.agentId, users.id), eq(users.tenantId, ctx.tenant.id)))
       .where(and(eq(shops.tenantId, ctx.tenant.id), sql`${shops.debt} != 0`))
       .orderBy(desc(sql`CAST(${shops.debt} AS DECIMAL)`));
   }),
