@@ -42,13 +42,30 @@ export function AppModal({
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useRef(`modal-title-${Math.random().toString(36).slice(2)}`).current;
 
+  // Свежий onClose держится в ссылке, а не в зависимостях эффекта.
+  //
+  // Эффект ставит фокус на панель окна, и в зависимостях у него стоял onClose.
+  // Вызывающая сторона почти всегда передаёт стрелку, создаваемую заново на
+  // каждый рендер, — значит зависимость менялась всегда, эффект перезапускался
+  // на каждый рендер и каждый раз уводил фокус на панель.
+  //
+  // Для человека это выглядело так: в поле поиска товара вводится «м», после
+  // чего каретка исчезает, и «о» с «л» уже некуда печатать. Набрать слово в
+  // быстром заказе было нельзя — только вставить из буфера целиком. То же в
+  // полях скидки и примечания.
+  //
+  // Ссылка решает это без требований к вызывающей стороне: обработчик всегда
+  // берётся последний, а эффект зависит только от того, открыто ли окно.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   // Escape to close, and hold the page still behind the overlay. Without the
   // scroll lock the page underneath scrolls when the cursor leaves the panel,
   // which makes the modal feel detached from the app.
   useEffect(() => {
     if (!open) return;
     const previouslyFocused = document.activeElement as HTMLElement | null;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onCloseRef.current(); };
     document.addEventListener("keydown", onKey);
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -58,7 +75,7 @@ export function AppModal({
       document.body.style.overflow = prevOverflow;
       previouslyFocused?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

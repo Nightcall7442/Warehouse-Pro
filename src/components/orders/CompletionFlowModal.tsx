@@ -98,6 +98,24 @@ export function CompletionFlowModal({
   const total = Number(orderTotal);
   const debt = Math.max(0, total - Number(paidAmount || 0));
 
+  /**
+   * Какие именно позиции сейчас в окне.
+   *
+   * Сброс формы завязан на этот ключ, а не на сам массив. Родительский экран
+   * собирает список через .map() и отдаёт НОВЫЙ массив на каждый свой рендер,
+   * а рендер случается, когда любой сотрудник создаёт заказ: список заказов
+   * обновляется по событию с сервера.
+   *
+   * В итоге оператор отмечал возвраты, вводил сумму оплаты — и всё стиралось
+   * без предупреждения, потому что где-то в поле агент оформил заказ. Не
+   * заметив, он нажимал «Завершить», и уходила оплата 0 с полным долгом на
+   * магазин.
+   *
+   * Ключ из идентификаторов меняется только когда в окне действительно другой
+   * набор позиций, то есть другой заказ.
+   */
+  const itemsKey = items.map(item => item.id).join(",");
+
   // Reset state when modal opens
   useEffect(() => {
     if (open) {
@@ -117,7 +135,10 @@ export function CompletionFlowModal({
       setNotes("");
       setError(null);
     }
-  }, [open, items]);
+    // items намеренно не в зависимостях — см. itemsKey выше. Массив приходит
+    // новым при каждом рендере родителя, и сброс срабатывал бы посреди ввода.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, itemsKey]);
 
   const totalReturned = itemStates.reduce((s, it) => s + it.returnedQty, 0);
   const totalKept = itemStates.reduce((s, it) => s + (it.orderedQty - it.returnedQty), 0);

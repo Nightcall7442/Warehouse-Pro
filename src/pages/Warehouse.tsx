@@ -93,9 +93,31 @@ export default function Warehouse() {
     onError: (e) => notify.error(e.message),
   });
 
-  const handleDelete = useCallback((id: number) => {
-    deleteMutation.mutate({ id });
-  }, [deleteMutation]);
+  /**
+   * Удаление товара — с подтверждением.
+   *
+   * Кнопка с корзиной стоит вплотную к «Скорректировать», и промах по ней
+   * стоил дорого: товар исчезал из каталога, из остатков и из подбора в
+   * заказах, а отмены нет. Подтверждения при этом не было вовсе, хотя рядом,
+   * у «Удалить ВСЕ», оно есть, и на странице товаров та же процедура им
+   * защищена — то есть правило в продукте принято, здесь его просто забыли.
+   *
+   * Название товара в вопросе не для красоты: оно единственное, по чему видно,
+   * что рука попала не в ту строку.
+   */
+  const handleDelete = useCallback(async (id: number, name?: string) => {
+    const ok = await confirm({
+      title: t("Удалить товар?", "Mahsulotni o'chirish?"),
+      message: name
+        ? t(`«${name}» исчезнет из каталога и остатков. Это нельзя отменить.`,
+             `«${name}» katalog va qoldiqlardan yo'qoladi. Buni qaytarib bo'lmaydi.`)
+        : t("Товар исчезнет из каталога и остатков. Это нельзя отменить.",
+             "Mahsulot katalog va qoldiqlardan yo'qoladi. Buni qaytarib bo'lmaydi."),
+      danger: true,
+      confirmText: t("Удалить", "O'chirish"),
+    });
+    if (ok) deleteMutation.mutate({ id });
+  }, [confirm, deleteMutation, t]);
 
   const adjustMutation = trpc.warehouse.adjustStock.useMutation({
     onSuccess: () => {
@@ -372,7 +394,7 @@ export default function Warehouse() {
                                   className="text-xs py-1.5 px-3 rounded-lg transition-colors" style={{ color: "var(--color-primary)", background: "color-mix(in srgb, var(--color-primary) 8%, transparent)" }}>
                                   {t("Скорр.", "Tuzatish")}
                                 </button>
-                                <button onClick={() => handleDelete(item.productId)}
+                                <button onClick={() => handleDelete(item.productId, item.productName ?? undefined)}
                                   disabled={deleteMutation.isPending}
                                   className="text-xs py-1.5 px-2 rounded-lg transition-all"
                                   style={{ color: "var(--color-danger-text)", background: "rgba(232,80,80,0.08)" }}>
@@ -465,7 +487,7 @@ export default function Warehouse() {
                                   style={{ color: "var(--color-primary)", background: "color-mix(in srgb, var(--color-primary) 8%, transparent)" }}>
                                   {t("Скорректировать", "Tuzatish")}
                                 </button>
-                                <button onClick={() => handleDelete(item.productId)}
+                                <button onClick={() => handleDelete(item.productId, item.productName ?? undefined)}
                                   disabled={deleteMutation.isPending}
                                   className="text-xs py-1.5 px-3 rounded-lg transition-all"
                                   style={{ color: "var(--color-danger-text)", background: "rgba(232,80,80,0.08)" }}>
