@@ -61,6 +61,22 @@ export interface EvaluatorOptions {
    * написано оно будет в самом тесте, где его видно при чтении.
    */
   rawSql?: (cond: Row, row: Row) => boolean;
+
+  /**
+   * Считать условие выполненным, если поддельная строка не содержит колонку.
+   *
+   * Это вторая разрешающая уловка прежних копий: `if (!(field in row)) return
+   * true`. Смысл тот же — фильтр по колонке, которую стенд не моделирует,
+   * молча проходит. Строка без deleted_at пройдёт любой фильтр по удалённым.
+   *
+   * Снимать её надо файл за файлом: у многих стендов строки описаны частично,
+   * и строгий режим уронит их пачкой, причём каждое падение придётся
+   * разбирать — это пробел стенда или настоящая ошибка в продукте.
+   *
+   * Поэтому здесь она не умолчание, а явный флаг: виден при чтении файла, его
+   * можно посчитать и сокращать. По умолчанию выключен.
+   */
+  treatMissingColumnAsMatch?: boolean;
 }
 
 /**
@@ -102,11 +118,36 @@ function likeMatches(value: unknown, pattern: unknown): boolean {
 }
 
 export function makeConditionEvaluator(options: EvaluatorOptions) {
+  /**
+   * Значения списка для inArray.
+   *
+   * Моки называют его по-разному: `values` в одних файлах, `vals` в других.
+   * Оба варианта настоящие — это самодельные моки drizzle, и требовать от них
+   * единого имени значило бы править тридцать пять файлов ради одного слова.
+   */
+  const listOf = (cond: Row): unknown[] => {
+    const list = (cond.values ?? cond.vals) as unknown[] | undefined;
+    if (!Array.isArray(list)) {
+      throw new UnsupportedCondition("inArray", "у условия нет списка значений (values или vals)");
+    }
+    return list;
+  };
+
+  /** Отсутствие колонки в строке — особый случай, а не обычное значение. */
+  const MISSING = Symbol("missing column");
+
   const valueOf = (row: Row, col: unknown): unknown => {
     const field = options.fieldOf(col);
     if (field === undefined) {
       const name = (col as { name?: string } | null)?.name;
       throw new UnsupportedCondition("колонка", `неизвестная колонка${name ? ` «${name}»` : ""}`);
+    }
+    if (!(field in row)) {
+      if (options.treatMissingColumnAsMatch) return MISSING;
+      throw new UnsupportedCondition(
+        "колонка",
+        `строка стенда не содержит «${field}» — фильтр по ней ничего не проверит`,
+      );
     }
     return row[field];
   };
@@ -134,34 +175,45 @@ export function makeConditionEvaluator(options: EvaluatorOptions) {
       throw new UnsupportedCondition("без вида", "у объекта условия нет поля __kind");
     }
 
+    // Отсутствующая колонка при включённом флаге означает «условие не
+    // проверяем». Решение принимается один раз здесь, а не в каждой ветке:
+    // забыть его в одной означало бы получить произвольный результат вместо
+    // честного «пропущено».
+    const missing = (v: unknown) => v === MISSING;
+
     switch (kind) {
       case "and": return (cond.conds as Cond[]).every(c => evaluate(row, c));
       case "or":  return (cond.conds as Cond[]).some(c => evaluate(row, c));
       case "not": return !evaluate(row, cond.cond as Cond);
 
-      case "eq": return looseEquals(valueOf(row, cond.col), cond.val);
-      case "ne": return !looseEquals(valueOf(row, cond.col), cond.val);
+      case "eq": { const v = valueOf(row, cond.col); return missing(v) || looseEquals(v, cond.val); }
+      case "ne": { const v = valueOf(row, cond.col); return missing(v) || !looseEquals(v, cond.val); }
 
-      case "gt":  return compare(valueOf(row, cond.col), cond.val) > 0;
-      case "gte": return compare(valueOf(row, cond.col), cond.val) >= 0;
-      case "lt":  return compare(valueOf(row, cond.col), cond.val) < 0;
-      case "lte": return compare(valueOf(row, cond.col), cond.val) <= 0;
+      case "gt":  { const v = valueOf(row, cond.col); return missing(v) || compare(v, cond.val) > 0; }
+      case "gte": { const v = valueOf(row, cond.col); return missing(v) || compare(v, cond.val) >= 0; }
+      case "lt":  { const v = valueOf(row, cond.col); return missing(v) || compare(v, cond.val) < 0; }
+      case "lte": { const v = valueOf(row, cond.col); return missing(v) || compare(v, cond.val) <= 0; }
 
       // NULL и undefined в поддельной строке — одно и то же: колонка пуста.
-      case "isNull":    return valueOf(row, cond.col) == null;
-      case "isNotNull": return valueOf(row, cond.col) != null;
+      case "isNull":    { const v = valueOf(row, cond.col); return missing(v) || v == null; }
+      case "isNotNull": { const v = valueOf(row, cond.col); return missing(v) || v != null; }
 
-      case "inArray":
-        return (cond.values as unknown[]).some(v => looseEquals(valueOf(row, cond.col), v));
-      case "notInArray":
-        return !(cond.values as unknown[]).some(v => looseEquals(valueOf(row, cond.col), v));
+      case "inArray": {
+        const v = valueOf(row, cond.col);
+        return missing(v) || listOf(cond).some(x => looseEquals(v, x));
+      }
+      case "notInArray": {
+        const v = valueOf(row, cond.col);
+        return missing(v) || !listOf(cond).some(x => looseEquals(v, x));
+      }
 
-      case "like":    return likeMatches(valueOf(row, cond.col), cond.val);
-      case "notLike": return !likeMatches(valueOf(row, cond.col), cond.val);
+      case "like":    { const v = valueOf(row, cond.col); return missing(v) || likeMatches(v, cond.val); }
+      case "notLike": { const v = valueOf(row, cond.col); return missing(v) || !likeMatches(v, cond.val); }
 
-      case "between":
-        return compare(valueOf(row, cond.col), cond.min) >= 0
-            && compare(valueOf(row, cond.col), cond.max) <= 0;
+      case "between": {
+        const v = valueOf(row, cond.col);
+        return missing(v) || (compare(v, cond.min) >= 0 && compare(v, cond.max) <= 0);
+      }
 
       case "sql":
       case "sql.join": {

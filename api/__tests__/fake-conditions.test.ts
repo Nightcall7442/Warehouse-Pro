@@ -72,8 +72,16 @@ describe("операторы считаются верно", () => {
     // Тот самый фильтр, который знали пять файлов из тридцати шести.
     const isNull = { __kind: "isNull", col: OTHER };
     expect(ev(row({ deletedAt: null }), isNull)).toBe(true);
-    expect(ev(row({}), isNull)).toBe(true);
     expect(ev(row({ deletedAt: new Date() }), isNull)).toBe(false);
+  });
+
+  it("отсутствие колонки в строке — ошибка, а не «пусто»", () => {
+    // Строка, где колонки нет вовсе, и строка, где колонка пуста, — разные
+    // вещи. Первая означает, что стенд эту колонку не моделирует, и фильтр по
+    // ней ничего не проверит. Прежние копии считали такое совпадением, и
+    // фильтр «не удалённые» проходил на строках, у которых поля просто нет.
+    const isNull = { __kind: "isNull", col: OTHER };
+    expect(() => ev(row({}), isNull)).toThrow(/не содержит/);
   });
 
   it("isNotNull — зеркало", () => {
@@ -135,5 +143,47 @@ describe("операторы считаются верно", () => {
     // непонятое давало true, и вся связка держалась на соседе.
     expect(() => ev(row({ quantity: 5 }), { __kind: "and", conds: [eq(COL, 5), { __kind: "чтотоновое" }] }))
       .toThrow(UnsupportedCondition);
+  });
+});
+
+
+describe("послабление для стендов с частичными строками", () => {
+  // Флаг существует ради перевода тридцати пяти файлов: у многих стендов
+  // строки описаны не полностью, и строгий режим уронил бы их пачкой. Он
+  // виден в самом файле и его можно посчитать — в отличие от прежнего
+  // умолчания, о котором никто не помнил.
+  const lenient = makeConditionEvaluator({ fieldOf, treatMissingColumnAsMatch: true });
+
+  it("отсутствующая колонка пропускает условие", () => {
+    expect(lenient(row({}), { __kind: "isNull", col: OTHER })).toBe(true);
+    expect(lenient(row({}), eq(COL, 5))).toBe(true);
+    expect(lenient(row({}), { __kind: "gte", col: COL, val: 100 })).toBe(true);
+    expect(lenient(row({}), { __kind: "inArray", col: COL, values: [1, 2] })).toBe(true);
+  });
+
+  it("присутствующая колонка проверяется как обычно", () => {
+    // Послабление касается только отсутствующих колонок. Всё, что стенд
+    // моделирует, проверяется строго.
+    expect(lenient(row({ quantity: 5 }), eq(COL, 5))).toBe(true);
+    expect(lenient(row({ quantity: 5 }), eq(COL, 9))).toBe(false);
+  });
+
+  it("неизвестное условие остаётся ошибкой и при послаблении", () => {
+    // Флаг ослабляет одно правило, а не отключает строгость вообще.
+    expect(() => lenient(row({ quantity: 5 }), { __kind: "чтотоновое" })).toThrow(UnsupportedCondition);
+  });
+});
+
+describe("список значений inArray под обоими именами", () => {
+  it("values и vals понимаются одинаково", () => {
+    // Моки drizzle в разных файлах называют список по-разному; оба варианта
+    // настоящие.
+    expect(ev(row({ quantity: 2 }), { __kind: "inArray", col: COL, values: [1, 2] })).toBe(true);
+    expect(ev(row({ quantity: 2 }), { __kind: "inArray", col: COL, vals: [1, 2] })).toBe(true);
+    expect(ev(row({ quantity: 9 }), { __kind: "inArray", col: COL, vals: [1, 2] })).toBe(false);
+  });
+
+  it("условие без списка — ошибка, а не пустое совпадение", () => {
+    expect(() => ev(row({ quantity: 2 }), { __kind: "inArray", col: COL })).toThrow(/списка значений/);
   });
 });
