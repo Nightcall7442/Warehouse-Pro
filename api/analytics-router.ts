@@ -3,7 +3,7 @@ import { createRouter, reportsQuery, financeQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { orders, orderItems, products, shops, users, dailyPlans, arrivals, agentTerritories } from "@db/schema";
 import { eq, and, sql, desc , inArray } from "drizzle-orm";
-import { REVENUE_ORDER_STATUSES, revenueOrderConditions, liveOrderConditions } from "./lib/order-status";
+import { REVENUE_ORDER_STATUSES, revenueOrderConditions, revenuePeriodConditions, deliveredQty } from "./lib/order-status";
 import { MS_PER_DAY } from "./lib/constants";
 
 export const analyticsRouter = createRouter({
@@ -57,8 +57,12 @@ export const analyticsRouter = createRouter({
       return getDb().select({
         productName:  products.name,
         productCode:  products.code,
-        totalQty:     sql<string>`COALESCE(SUM(${orderItems.quantity}), 0)`,
-        totalRevenue: sql<string>`COALESCE(SUM(${orderItems.subtotal}), 0)`,
+        // Проданное и выручка — по ДОСТАВЛЕННОМУ количеству.
+        // orderItems.subtotal и quantity остаются заказанными: курьерский
+        // путь частичного возврата пишет только deliveredQuantity. Отчёт по
+        // товарам показывал бы проданным то, что вернулось.
+        totalQty:     sql<string>`COALESCE(SUM(${deliveredQty()}), 0)`,
+        totalRevenue: sql<string>`COALESCE(SUM(${deliveredQty()} * ${orderItems.unitPrice}), 0)`,
       })
         .from(orderItems)
         .leftJoin(products, eq(orderItems.productId, products.id))
@@ -69,7 +73,12 @@ export const analyticsRouter = createRouter({
   agentPerformance: reportsQuery
     .input(z.object({ dateFrom: z.string().optional(), dateTo: z.string().optional() }).optional())
     .query(async ({ input, ctx }) => {
-      const conditions = liveOrderConditions(ctx.tenant.id);
+      // Выручкой считаются только доставленные заказы — как в соседних
+      // salesByShop и agentProductSales. Здесь стоял liveOrderConditions, то
+      // есть «любой статус, кроме удалённых»: отменённый заказ на пять
+      // миллионов попадал в выручку агента, и отчёт «Эффективность агентов»
+      // расходился с «Продажами по магазинам» кратно.
+      const conditions = revenueOrderConditions(ctx.tenant.id);
       if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
       if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`);
 
@@ -104,13 +113,18 @@ export const analyticsRouter = createRouter({
         productName:  products.name,
         productCode:  products.code,
         totalQty:     sql<string>`COALESCE(SUM(${orderItems.quantity}), 0)`,
-        totalRevenue: sql<string>`COALESCE(SUM(${orderItems.subtotal}), 0)`,
-        totalCost:    sql<string>`COALESCE(SUM(${orderItems.quantity} * COALESCE(${orderItems.costPrice}, 0)), 0)`,
+        // Выручка и себестоимость считаются из ОДНОГО количества.
+        // orderItems.subtotal курьерский путь частичного возврата не
+        // переписывает: там заполняется только deliveredQuantity. Взяв
+        // выручку из subtotal, а себестоимость из доставленного, отчёт
+        // показывал бы прибыль, которой не было.
+        totalRevenue: sql<string>`COALESCE(SUM(${deliveredQty()} * ${orderItems.unitPrice}), 0)`,
+        totalCost:    sql<string>`COALESCE(SUM(${deliveredQty()} * ${orderItems.costPrice}), 0)`,
       })
         .from(orderItems)
         .leftJoin(products, eq(orderItems.productId, products.id))
         .leftJoin(orders, eq(orderItems.orderId, orders.id))
-        .where(and(...conditions)).groupBy(products.id).orderBy(desc(sql`SUM(${orderItems.subtotal})`)).limit(20);
+        .where(and(...conditions)).groupBy(products.id).orderBy(desc(sql`SUM(${deliveredQty()} * ${orderItems.unitPrice})`)).limit(20);
     }),
 
   cogsSummary: financeQuery
@@ -127,7 +141,7 @@ export const analyticsRouter = createRouter({
       }).from(orders).where(and(...conditions));
 
       const [costRow] = await getDb().select({
-        totalCost: sql<string>`COALESCE(SUM(${orderItems.quantity} * COALESCE(${orderItems.costPrice}, 0)), 0)`,
+        totalCost: sql<string>`COALESCE(SUM(${deliveredQty()} * ${orderItems.costPrice}), 0)`,
       })
         .from(orders)
         .leftJoin(orderItems, eq(orderItems.orderId, orders.id))
@@ -287,12 +301,12 @@ export const analyticsRouter = createRouter({
       const prevTo = new Date(currFromMs - MS_PER_DAY).toISOString().slice(0, 10);
 
       async function calcPeriod(dateFrom: string, dateTo: string) {
-        const orderConds = [
-          eq(orders.tenantId, tid),
-          inArray(orders.status, REVENUE_ORDER_STATUSES),
-          sql`${orders.createdAt} >= ${dateFrom}`,
-          sql`${orders.createdAt} <= ${dateTo + " 23:59:59"}`,
-        ];
+        // Через общий помощник — вместе с фильтром удалённых заказов.
+        // Здесь набор был выписан руками и isNull(deletedAt) в нём не было,
+        // тогда как месячный график на том же экране считает через
+        // revenueOrderConditions. Две цифры на одной странице расходились:
+        // удалённый заказ попадал в карточку прибыли и не попадал в график.
+        const orderConds = revenuePeriodConditions(tid, dateFrom, dateTo);
         const revRow = await db.select({
           totalRevenue: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
           totalDiscount: sql<string>`COALESCE(SUM(${orders.discount}), 0)`,
@@ -302,7 +316,7 @@ export const analyticsRouter = createRouter({
           .where(and(...orderConds));
 
         const cogsRow = await db.select({
-          totalCOGS: sql<string>`COALESCE(SUM(${orderItems.quantity} * COALESCE(${orderItems.costPrice}, 0)), 0)`,
+          totalCOGS: sql<string>`COALESCE(SUM(${deliveredQty()} * ${orderItems.costPrice}), 0)`,
         })
           .from(orderItems)
           .leftJoin(products, eq(orderItems.productId, products.id))
@@ -379,7 +393,7 @@ export const analyticsRouter = createRouter({
 
       const monthlyCogs = await db.select({
         month: sql<string>`DATE_FORMAT(${orders.createdAt}, '%Y-%m')`,
-        cogs: sql<string>`COALESCE(SUM(${orderItems.quantity} * COALESCE(${orderItems.costPrice}, 0)), 0)`,
+        cogs: sql<string>`COALESCE(SUM(${deliveredQty()} * ${orderItems.costPrice}), 0)`,
       })
         .from(orders)
         .leftJoin(orderItems, eq(orderItems.orderId, orders.id))
@@ -487,7 +501,7 @@ export const analyticsRouter = createRouter({
 
       const cogsRows = await db.select({
         paymentMethod: orders.paymentMethod,
-        cogs: sql<string>`COALESCE(SUM(${orderItems.quantity} * COALESCE(${orderItems.costPrice}, 0)), 0)`,
+        cogs: sql<string>`COALESCE(SUM(${deliveredQty()} * ${orderItems.costPrice}), 0)`,
       })
         .from(orders)
         .leftJoin(orderItems, eq(orderItems.orderId, orders.id))
@@ -538,8 +552,12 @@ export const analyticsRouter = createRouter({
         productName:  products.name,
         productCode:  products.code,
         unit:         products.unit,
-        totalQty:     sql<string>`COALESCE(SUM(${orderItems.quantity}), 0)`,
-        totalRevenue: sql<string>`COALESCE(SUM(${orderItems.subtotal}), 0)`,
+        // Проданное и выручка — по ДОСТАВЛЕННОМУ количеству.
+        // orderItems.subtotal и quantity остаются заказанными: курьерский
+        // путь частичного возврата пишет только deliveredQuantity. Отчёт по
+        // товарам показывал бы проданным то, что вернулось.
+        totalQty:     sql<string>`COALESCE(SUM(${deliveredQty()}), 0)`,
+        totalRevenue: sql<string>`COALESCE(SUM(${deliveredQty()} * ${orderItems.unitPrice}), 0)`,
         orderCount:   sql<number>`count(DISTINCT ${orders.id})`,
       })
         .from(orderItems)
@@ -548,7 +566,7 @@ export const analyticsRouter = createRouter({
         .leftJoin(products, eq(orderItems.productId, products.id))
         .where(and(...conditions))
         .groupBy(orders.agentId, orderItems.productId)
-        .orderBy(users.name, desc(sql`SUM(${orderItems.subtotal})`));
+        .orderBy(users.name, desc(sql`SUM(${deliveredQty()} * ${orderItems.unitPrice})`));
     }),
 
   // ── Payment Method Trend ──────────────────────────────────────────────────

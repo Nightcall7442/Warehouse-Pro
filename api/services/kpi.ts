@@ -1,5 +1,5 @@
 import { sql, eq, and, gte, lte, inArray, isNull, desc } from "drizzle-orm";
-import { REVENUE_ORDER_STATUSES } from "../lib/order-status";
+import { REVENUE_ORDER_STATUSES, revenueOrderConditions } from "../lib/order-status";
 import { orders, dailyPlans, returns, shops, salesTargets, commissions, agentLocations, visitReports, users, payments } from "@db/schema";
 import { calculateFraudMetrics } from "./anti-fraud";
 import { logger } from "../lib/logger";
@@ -586,8 +586,12 @@ export async function getAgentList(
       revenue: sql<string>`COALESCE(SUM(CAST(total AS DECIMAL(10,2))), 0)`,
     }).from(orders)
       .where(and(
-        eq(orders.tenantId, tenantId),
-        inArray(orders.status, REVENUE_ORDER_STATUSES),
+        // Через тот же помощник, что и карточка агента: он несёт и фильтр
+        // удалённых заказов, которого здесь не было. Мягко удалённый заказ
+        // попадал в выручку списка и не попадал в карточку — две страницы
+        // одного продукта показывали разные цифры по одному человеку, и на
+        // списочной считался балл KPI.
+        ...revenueOrderConditions(tenantId),
         gte(orders.createdAt, periodStart),
         lte(orders.createdAt, periodEnd),
         inArray(orders.agentId, agentIds),

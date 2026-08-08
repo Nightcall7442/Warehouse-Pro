@@ -1,5 +1,5 @@
-import { eq, inArray, isNull, type SQL } from "drizzle-orm";
-import { orders } from "@db/schema";
+import { eq, inArray, isNull, sql, type SQL } from "drizzle-orm";
+import { orders, orderItems } from "@db/schema";
 
 /**
  * The order lifecycle, named once.
@@ -76,6 +76,45 @@ export function revenueOrderConditions(tenantId: number): SQL[] {
     inArray(orders.status, [...REVENUE_ORDER_STATUSES]),
     isNull(orders.deletedAt),
   ];
+}
+
+/**
+ * Выручка арендатора за период — набор условий целиком.
+ *
+ * Отдельный помощник, потому что «за период» переписывалось руками в шести
+ * местах, и в четырёх из них потерялся фильтр удалённых заказов. Итог был
+ * виден на одном экране: карточка прибыли считала по удалённым, а месячный
+ * график под ней — нет, и две цифры на одной странице расходились.
+ *
+ * Верхняя граница расширяется до конца дня. Даты приходят в виде «2026-08-09»,
+ * то есть полночь; без этого заказ, оформленный в тот же день после полуночи,
+ * не попадал бы в период, который человек считает включающим сегодня.
+ */
+export function revenuePeriodConditions(tenantId: number, from: string, to: string): SQL[] {
+  return [
+    ...revenueOrderConditions(tenantId),
+    sql`${orders.createdAt} >= ${from}`,
+    sql`${orders.createdAt} <= ${to + " 23:59:59"}`,
+  ];
+}
+
+/**
+ * Сколько единиц товара по строке заказа реально ушло магазину.
+ *
+ * `orderItems.quantity` — сколько ЗАКАЗАЛИ, и оно не меняется при частичной
+ * доставке. Доставленное лежит в `deliveredQuantity` и заполняется только
+ * тогда, когда часть товара вернулась; у обычного заказа там NULL, и тогда
+ * доставлено ровно заказанное.
+ *
+ * Из-за этого себестоимость считалась по заказанному, а выручка — по
+ * доставленному: при частичной доставке валовая прибыль показывалась нулевой
+ * или отрицательной на совершенно нормальной сделке.
+ *
+ * Функция, а не константа: объект SQL от drizzle нельзя переиспользовать между
+ * запросами — он несёт связанные параметры.
+ */
+export function deliveredQty() {
+  return sql`COALESCE(${orderItems.deliveredQuantity}, ${orderItems.quantity})`;
 }
 
 /** Заказы арендатора без учёта статуса, но по-прежнему без удалённых. */

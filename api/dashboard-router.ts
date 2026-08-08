@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createRouter, fieldSalesQuery, supervisorQuery } from "./middleware";
 import { orders, warehouseStock, users, shops, agentLocations, dailyPlans, orderItems, products } from "@db/schema";
 import { eq, and, sql, desc, isNull , inArray } from "drizzle-orm";
-import { REVENUE_ORDER_STATUSES } from "./lib/order-status";
+import { REVENUE_ORDER_STATUSES, deliveredQty } from "./lib/order-status";
 import { subDays } from "date-fns";
 import { cache, CacheKeys, CacheTTL } from "./lib/cache";
 import { onDay, onDate, sinceDay } from "./lib/date-range";
@@ -42,7 +42,15 @@ export const dashboardRouter = createRouter({
       }).from(orders)
         .where(and(eq(orders.tenantId, tenantId), isNull(orders.deletedAt))),
       db.select({
-        totalCost: sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'delivered' THEN ${orderItems.quantity} * ${products.costPrice} ELSE 0 END), 0)`,
+        // Себестоимость берётся из строки заказа и по доставленному количеству.
+        //
+        // products.costPrice — цена товара СЕГОДНЯ, а не в момент продажи:
+        // подняли закупку — и вся прошлая прибыль пересчиталась задним числом.
+        // В строке заказа себестоимость зафиксирована при оформлении.
+        //
+        // Количество — доставленное: при частичной доставке выручка
+        // уменьшается, и себестоимость обязана уменьшиться вместе с ней.
+        totalCost: sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'delivered' THEN ${deliveredQty()} * ${orderItems.costPrice} ELSE 0 END), 0)`,
       }).from(orderItems)
         .innerJoin(orders, eq(orders.id, orderItems.orderId))
         .innerJoin(products, eq(orderItems.productId, products.id))

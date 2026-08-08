@@ -215,7 +215,15 @@ export const arrivalRouter = createRouter({
           // commits, and each then credits warehouse_stock for the same
           // physical shipment. This lock makes the second one queue behind
           // the first and see it already completed.
-          const [lockedArrival] = await tx.select({ status: arrivals.status })
+          // Расходы читаются здесь же, под той же блокировкой: ниже они нужны
+          // для пересчёта итога, и брать их отдельным запросом значило бы
+          // считать по значениям, которые мог поменять другой вызов.
+          const [lockedArrival] = await tx.select({
+            status: arrivals.status,
+            fuelCost: arrivals.fuelCost,
+            tollCost: arrivals.tollCost,
+            otherCost: arrivals.otherCost,
+          })
             .from(arrivals)
             .where(and(eq(arrivals.id, id), eq(arrivals.tenantId, tenantId)))
             .for("update")
@@ -292,9 +300,20 @@ export const arrivalRouter = createRouter({
           const notCompleted = and(eq(arrivals.id, id), eq(arrivals.tenantId, tenantId), sql`${arrivals.status} != 'completed'`);
           let statusUpdateResult: unknown;
           if (data.fuelCost || data.tollCost || data.otherCost) {
-            const fuel  = Number(data.fuelCost  ?? "0");
-            const toll  = Number(data.tollCost  ?? "0");
-            const other = Number(data.otherCost ?? "0");
+            // Неуказанные расходы берутся из самой записи, а не считаются нулём.
+            //
+            // Оператор, завершая приход, обычно уточняет что-то одно — скажем,
+            // топливо. Прежний код подставлял ноль вместо остальных, и
+            // дорожные с прочими расходами исчезали ИЗ СУММЫ, оставаясь при
+            // этом в своих колонках: строка становилась внутренне
+            // противоречивой, а операционные расходы в отчёте о прибыли
+            // занижались. Навсегда — завершённый приход больше не
+            // редактируется.
+            //
+            // В ветке «не завершение» такая подстановка есть; здесь её забыли.
+            const fuel  = Number(data.fuelCost  ?? lockedArrival.fuelCost  ?? "0");
+            const toll  = Number(data.tollCost  ?? lockedArrival.tollCost  ?? "0");
+            const other = Number(data.otherCost ?? lockedArrival.otherCost ?? "0");
             [statusUpdateResult] = await tx.update(arrivals).set({ ...data, totalExpense: (fuel + toll + other).toFixed(2) })
               .where(notCompleted);
           } else {
