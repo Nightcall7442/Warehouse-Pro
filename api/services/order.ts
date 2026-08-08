@@ -953,7 +953,15 @@ export const OrderService = {
       logger.warn("Order notification failed", { error: String(e) });
     }
 
-    return { id: orderId, orderNumber };
+    // total возвращается наружу, чтобы клиент мог сверить его с суммой,
+    // которую агент назвал владельцу магазина.
+    //
+    // Заказ, оформленный офлайн, уходит на сервер спустя часы, а цены сервер
+    // берёт из базы на момент отправки — свои, не присланные. Если за это
+    // время подняли прайс, накладная приходит на другую сумму, чем записано
+    // на бумаге у владельца, и разбираться с этим агенту у двери магазина.
+    // Зная итог, приложение сообщает о расхождении сразу после отправки.
+    return { id: orderId, orderNumber, total: orderTotal };
   },
 
   async cancel(db: Db, tenantId: number, orderId: number, opts: { userId: number; userRole: string }) {

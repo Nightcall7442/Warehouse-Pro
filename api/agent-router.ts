@@ -12,6 +12,38 @@ import { haversineKm } from "./lib/geo";
 import { onDate } from "./lib/date-range";
 import { photoRef } from "./lib/photo-url";
 
+
+/**
+ * Принять время съёмки от устройства — или отбросить его, оставив точку.
+ *
+ * Время приходит от клиента, и проверить его нечем: часы на телефоне ставит
+ * владелец телефона. Поэтому здесь не «доверять или нет», а «в каких пределах
+ * это вообще осмысленно».
+ *
+ * Из будущего — отбрасывается: точка не может быть снята позже, чем принята.
+ * Небольшой запас оставлен на расхождение часов, оно бывает у всех.
+ *
+ * Старше недели — тоже отбрасывается: буфер устройства столько не живёт, и
+ * такое значение говорит о сбитых часах, а не о долгом отсутствии связи.
+ *
+ * Негодное время НЕ отменяет саму точку. Координата — это факт, зафиксированный
+ * устройством, и терять её из-за неверных часов хуже, чем потерять точность
+ * времени: created_at всё равно останется, и на карте точка будет видна.
+ */
+function sanitizeRecordedAt(value?: string): Date | undefined {
+  if (!value) return undefined;
+  const at = new Date(value);
+  if (Number.isNaN(at.getTime())) return undefined;
+
+  const now = Date.now();
+  const CLOCK_SKEW_MS = 5 * 60_000;
+  const MAX_BUFFER_AGE_MS = 7 * 24 * 60 * 60_000;
+
+  if (at.getTime() > now + CLOCK_SKEW_MS) return undefined;
+  if (at.getTime() < now - MAX_BUFFER_AGE_MS) return undefined;
+  return at;
+}
+
 export const agentRouter = createRouter({
   // Supervisor needs a lightweight agent picker for "assign plan to agent" —
   // full CRUD access to users (user.list) is ceo-only, and giving supervisor
@@ -109,6 +141,9 @@ export const agentRouter = createRouter({
       lng: z.string().refine(v => { const n = Number(v); return v.trim() !== "" && Number.isFinite(n) && n >= -180 && n <= 180; }, "Долгота должна быть от -180 до 180"),
       accuracy: z.string().optional(),
       batteryLevel: z.number().optional(),
+      // Когда точка снята устройством. Приходит у точек, пролежавших в буфере
+      // без связи; у отправленных сразу его нет и оно не нужно.
+      recordedAt: z.string().datetime().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       await getDb().insert(agentLocations).values({
@@ -118,6 +153,7 @@ export const agentRouter = createRouter({
         lng:      input.lng,
         accuracy: input.accuracy,
         batteryLevel: input.batteryLevel,
+        recordedAt: sanitizeRecordedAt(input.recordedAt),
       });
 
       sseBus.emit({
@@ -153,12 +189,17 @@ export const agentRouter = createRouter({
       lat: agentLocations.lat, lng: agentLocations.lng,
       accuracy: agentLocations.accuracy, batteryLevel: agentLocations.batteryLevel,
       createdAt: agentLocations.createdAt,
+      recordedAt: agentLocations.recordedAt,
+      // Время съёмки, если оно известно, иначе время получения сервером. У
+      // точек, пролежавших в буфере без связи, это разные вещи: карта должна
+      // показывать, когда агент там был, а не когда телефон дозвонился.
+      at: sql<Date>`COALESCE(${agentLocations.recordedAt}, ${agentLocations.createdAt})`,
       agentName: users.name,
     })
       .from(agentLocations)
-      .leftJoin(users, eq(agentLocations.agentId, users.id))
+      .leftJoin(users, and(eq(agentLocations.agentId, users.id), eq(users.tenantId, ctx.tenant.id)))
       .where(sql`${agentLocations.id} IN (${sql.join(ids.map(id => sql`${id}`), sql`, `)})`)
-      .orderBy(desc(agentLocations.createdAt));
+      .orderBy(desc(sql`COALESCE(${agentLocations.recordedAt}, ${agentLocations.createdAt})`));
 
     return results;
   }),
@@ -178,15 +219,24 @@ export const agentRouter = createRouter({
         lng: agentLocations.lng,
         accuracy: agentLocations.accuracy,
         createdAt: agentLocations.createdAt,
+        recordedAt: agentLocations.recordedAt,
+      // Время съёмки, если оно известно, иначе время получения сервером. У
+      // точек, пролежавших в буфере без связи, это разные вещи: карта должна
+      // показывать, когда агент там был, а не когда телефон дозвонился.
+        at: sql<Date>`COALESCE(${agentLocations.recordedAt}, ${agentLocations.createdAt})`,
       })
         .from(agentLocations)
         .where(and(
           eq(agentLocations.tenantId, ctx.tenant.id),
           eq(agentLocations.agentId, input.agentId),
-          sql`${agentLocations.createdAt} >= ${start}`,
-          sql`${agentLocations.createdAt} <= ${end}`,
+          // Границы периода тоже по времени съёмки: иначе точка, снятая в два
+          // часа дня и залитая в шесть вечера, не попала бы в запрос за
+          // дневной отрезок — то есть именно тот случай, ради которого поле и
+          // заведено.
+          sql`COALESCE(${agentLocations.recordedAt}, ${agentLocations.createdAt}) >= ${start}`,
+          sql`COALESCE(${agentLocations.recordedAt}, ${agentLocations.createdAt}) <= ${end}`,
         ))
-        .orderBy(agentLocations.createdAt);
+        .orderBy(sql`COALESCE(${agentLocations.recordedAt}, ${agentLocations.createdAt})`);
     }),
 
   getPlans: authedQuery
