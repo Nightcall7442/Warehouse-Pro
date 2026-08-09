@@ -1,171 +1,316 @@
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
-import { useMemo } from "react";
 import { useTranslate } from "@/i18n";
-import {
-  Warehouse,
-  ArrowRight,
-  Headphones,
-} from "lucide-react";
+import { ArrowRight, Send } from "lucide-react";
 
 import {
-  cn,
-  NEU,
-  raisedSm,
-  FadeIn,
+  LX,
+  MONO,
+  LandingStyles,
   Counter,
-  NeuCard,
-  Eyebrow,
   Accordion,
-  ScrollProgress,
+  SectionHead,
+  BtnInk,
+  BtnGhost,
+  tgLink,
 } from "@/components/landing/landing-shared";
-
 import LandingHeader from "@/components/landing/LandingHeader";
 import HeroSection from "@/components/landing/HeroSection";
+import PhotoStrip, { CTA_PHOTO } from "@/components/landing/PhotoStrip";
+import ProductWindow from "@/components/landing/ProductWindow";
 import FeaturesSection from "@/components/landing/FeaturesSection";
 import TestimonialsSection from "@/components/landing/TestimonialsSection";
 import PricingSection from "@/components/landing/PricingSection";
 
-export default function Landing() {
+/* ═══════════════════════════════════════════════════════════════════════════
+   ЛЕНДИНГ «СКЛАДСКАЯ КНИГА»
+
+   Композиция страницы и правила дизайн-системы — в landing-shared.tsx.
+   Порядок: шапка → hero → архивные фото → окно продукта (чернила №1) →
+   полоса фактов → день с продуктом → реестр возможностей → GPS → роли →
+   отзывы → тарифы → FAQ → CTA (чернила №2) → футер. Якоря сохранены.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── 01 / Полоса фактов ────────────────────────────────────────────────────
+   Стоит на месте trust-bar, поэтому без счётчиков функций и без обещаний
+   уровня «99.9% uptime», которые нечем подтвердить. Только то, что можно
+   проверить в продукте за 14 бесплатных дней. */
+function FactsStrip() {
   const tr = useTranslate();
-  const navigate = useNavigate();
-
-  const stats = useMemo(
-    () => [
-      { v: 500, s: "+", l: tr("Компаний", "Kompaniyalar") },
-      { v: 10000, s: "+", l: tr("Заказов в день", "Buyurtmalar kuniga") },
-      { v: 99, s: ".9%", l: "Uptime" },
-      { v: 24, s: "/7", l: tr("Поддержка", "Qo'llab-quvvatlash") },
-    ],
-    [tr]
-  );
-
-  const faqItems = useMemo(
-    () => [
-      { q: tr("Сколько времени занимает настройка?", "Sozlash qancha vaqt oladi?"), a: tr("Базовая настройка занимает 5-10 минут. Вы регистрируетесь, добавляете компанию и товары, приглашаете команду. Для интеграций с 1С мы предоставляем бесплатную помощь.", "Asosiy sozlash 5-10 daqiqa oladi. Siz ro'yxatdan o'tasiz, kompaniya va mahsulotlarni qo'shasiz, jamoani taklif qilasiz. 1C integratsiyalari uchun biz bepul yordam beramiz.") },
-      { q: tr("Можно ли интегрировать с 1С:Предприятие?", "1C:Predpriyatiye bilan integratsiya qilish mumkinmi?"), a: tr("Да, Warehouse Pro поддерживает двустороннюю синхронизацию с 1С:Предприятие. Товары, заказы, остатки и документы синхронизируются автоматически.", "Ha, Warehouse Pro 1C:Predpriyatiye bilan ikki tomonlama sinxronlashtirishni qo'llab-quvvatlaydi.") },
-      { q: tr("Как работает мобильное приложение?", "Mobil ilova qanday ishlaydi?"), a: tr("Мобильное приложение построено на React Native и работает на iOS и Android. Поддерживает офлайн-режим, GPS-трекинг, камеру и push-уведомления.", "Mobil ilova React Native asosida qurilgan va iOS va Android da ishlaydi. Oflayn-rejim, GPS kuzatuv, kamera va push-bildirishnomalarni qo'llab-quvvatlaydi.") },
-      { q: tr("Безопасны ли мои данные?", "Ma'lumotlarim xavfsizmi?"), a: tr("Да, мы используем JWT-аутентификацию, шифрование данных, tenant-изоляцию и регулярные бэкапы.", "Ha, biz JWT-autentifikatsiya, ma'lumotlarni shifrlash, tenant-izolyatsiya va muntazam zaxiralardan foydalanamiz.") },
-      { q: tr("Есть ли бесплатный период?", "Bepul davr bormi?"), a: tr("Да, вы можете бесплатно пользоваться системой 14 дней без ограничений. Привязка карты не требуется.", "Ha, siz tizimdan 14 kun cheksiz bepul foydalanishingiz mumkin. Kartani bog'lash shart emas.") },
-      { q: tr("Какая поддержка предоставляется?", "Qanday qo'llab-quvvatlash beriladi?"), a: tr("Для Basic — email-поддержка в рабочие дни. Для Pro — приоритетная поддержка и персональный менеджер. Для Exclusive — круглосуточная поддержка 24/7.", "Basic uchun — ish kunlari email-qo'llab-quvvatlash. Pro uchun — ustuvor qo'llab-quvvatlash. Exclusive uchun — 24/7 qo'llab-quvvatlash.") },
-    ],
-    [tr]
-  );
-
+  const facts = [
+    {
+      big: <><Counter target={40} />+</>,
+      label: tr("дистрибьюторов ведут учёт в системе", "distribyutor tizimda hisob yuritadi"),
+    },
+    { big: "1С", label: tr("двусторонний обмен: товары, заказы, контрагенты", "ikki tomonlama almashinuv: tovar, buyurtma, kontragent") },
+    { big: <span style={MONO}>24/7</span>, label: tr("офлайн-режим: заказы не теряются без связи", "oflayn rejim: aloqasiz buyurtma yo'qolmaydi") },
+    { big: <span style={MONO}>14</span>, label: tr("дней бесплатно — карта не привязывается", "kun bepul — karta bog'lanmaydi") },
+  ];
   return (
-    <div className="min-h-screen overflow-x-hidden" style={{ background: NEU.bg, color: NEU.text }}>
-      <ScrollProgress />
-      <LandingHeader />
-      <HeroSection />
-
-      {/* Stats */}
-      <section className="py-16">
-        <div className="max-w-7xl mx-auto px-6">
-          <FadeIn>
-            <NeuCard className="p-10" hover={false}>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-                {stats.map(stat => (
-                  <div key={stat.l} className="text-center">
-                    <p className="text-3xl md:text-4xl font-medium tracking-tight mb-1.5" style={{ color: NEU.text }}>
-                      <Counter target={stat.v} />{stat.s}
-                    </p>
-                    <p className="text-[12.5px] font-medium" style={{ color: NEU.textMuted }}>{stat.l}</p>
-                  </div>
-                ))}
+    <section style={{ borderBottom: `1px solid ${LX.rule}` }}>
+      <div className="max-w-[1240px] mx-auto px-6">
+        {/*
+          Разделители через зазор сетки, а не border-left по индексу: на
+          двухколоночном мобильном третья ячейка открывает второй ряд и
+          получала линию у самого края, ни от чего не отделяя.
+        */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-px" style={{ background: LX.rule }}>
+          {facts.map((f, i) => (
+            <div
+              key={i}
+              className="py-8 md:py-10 px-4 md:px-8"
+              style={{ background: LX.paper }}
+            >
+              <div className="font-bold" style={{ fontSize: "clamp(2rem, 3.4vw, 3rem)", letterSpacing: "-0.02em", color: LX.ink }}>
+                {f.big}
               </div>
-            </NeuCard>
-          </FadeIn>
-        </div>
-      </section>
-
-      <FeaturesSection />
-      <TestimonialsSection />
-      <PricingSection />
-
-      {/* FAQ */}
-      <section className="py-24">
-        <div className="max-w-3xl mx-auto px-6">
-          <FadeIn>
-            <div className="text-center mb-12">
-              <Eyebrow icon={Headphones}>FAQ</Eyebrow>
-              <h2 className="text-2xl md:text-[2rem] font-medium tracking-tight">{tr("Частые вопросы", "Ko'p beriladigan savollar")}</h2>
-            </div>
-          </FadeIn>
-          <FadeIn delay={100}>
-            <Accordion items={faqItems} />
-          </FadeIn>
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section className="py-24">
-        <div className="max-w-7xl mx-auto px-6">
-          <FadeIn>
-            <div className="rounded-[2rem] px-8 py-16 md:px-16 md:py-20 text-center" style={{ background: "#2a2924" }}>
-              <div className={cn("inline-flex items-center gap-2 px-4 py-2 rounded-full mb-7")} style={{ background: "rgba(255,255,255,0.06)" }}>
-                <span className="w-1.5 h-1.5 rounded-full" style={{ background: NEU.accent }} />
-                <span className="text-[11px]" style={{ color: "#b8b6ac" }}>{tr("Присоединяйтесь к 500+ компаниям", "500+ kompaniyaga qo'shiling")}</span>
-              </div>
-              <h2 className="text-3xl md:text-[2.4rem] font-medium tracking-tight mb-4" style={{ color: "#f2f0ec" }}>
-                {tr("Готовы начать?", "Boshlashga tayyormisiz?")}
-              </h2>
-              <p className="text-[15px] mb-9 max-w-md mx-auto leading-relaxed" style={{ color: "#918f83" }}>
-                {tr("14 дней бесплатно. Без привязки карты. Настройка за 5 минут.", "14 kun bepul. Kartani bog'lash shart emas.")}
+              <p className="mt-2 text-[12.5px] leading-snug max-w-[220px]" style={{ color: LX.inkSoft }}>
+                {f.label}
               </p>
-              <button
-                onClick={() => navigate("/register")}
-                className="h-13 px-9 rounded-2xl font-medium text-[14px] inline-flex items-center gap-2.5 transition-transform duration-200 hover:-translate-y-0.5"
-                style={{ background: NEU.bg, color: NEU.text }}
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ── 08 / FAQ — реальные возражения, а не декоративные вопросы ───────────── */
+function FaqSection() {
+  const tr = useTranslate();
+  const items = useMemo(
+    () => [
+      {
+        q: tr("Работает ли обмен с 1С:Предприятие?", "1C:Predpriyatiye bilan almashinuv ishlaydimi?"),
+        a: tr(
+          "Да, двусторонний: товары, заказы, остатки и контрагенты синхронизируются автоматически. При подключении помогаем настроить обмен бесплатно.",
+          "Ha, ikki tomonlama: tovarlar, buyurtmalar, qoldiqlar va kontragentlar avtomatik sinxronlanadi. Ulanishda almashinuvni bepul sozlab beramiz.",
+        ),
+      },
+      {
+        q: tr("Агенты не дружат с программами — справятся?", "Agentlar dastur bilan chiqisha olmaydi — uddalay oladimi?"),
+        a: tr(
+          // Без обещания переноса данных всем: это фича тарифа Exclusive, и
+          // FAQ противоречил бы собственному прайсу двумя экранами ниже.
+          "У агента три экрана: план визитов, заказ, долги точки. На освоение уходит один день. Обучение команды и разбор первых заказов входят в подключение на любом тарифе.",
+          "Agentda uchta ekran bor: tashriflar rejasi, buyurtma, nuqta qarzlari. O'rganishga bir kun ketadi. Jamoani o'qitish va birinchi buyurtmalarni birga ko'rib chiqish har qanday tarifda ulanishga kiradi.",
+        ),
+      },
+      {
+        q: tr("Что будет в точках, где нет интернета?", "Internet yo'q nuqtalarda nima bo'ladi?"),
+        a: tr(
+          "Мобильное приложение работает офлайн: заказы, визиты и фото сохраняются на телефоне и уходят на сервер, как только появляется сеть.",
+          "Mobil ilova oflayn ishlaydi: buyurtmalar, tashriflar va suratlar telefonda saqlanadi va tarmoq paydo bo'lishi bilan serverga jo'naydi.",
+        ),
+      },
+      {
+        q: tr("Сколько времени занимает запуск?", "Ishga tushirish qancha vaqt oladi?"),
+        a: tr(
+          "Регистрация и базовая настройка — 10 минут: компания, склад, товары, команда. Перенос остатков и справочников из Excel или 1С входит в тариф Exclusive и занимает несколько дней.",
+          "Ro'yxatdan o'tish va asosiy sozlash — 10 daqiqa: kompaniya, ombor, tovarlar, jamoa. Qoldiq va ma'lumotnomalarni Excel yoki 1C dan ko'chirish Exclusive tarifiga kiradi va bir necha kun oladi.",
+        ),
+      },
+      {
+        q: tr("Что случится после 14 бесплатных дней?", "14 kunlik bepul sinovdan keyin nima bo'ladi?"),
+        a: tr(
+          "Ничего не спишется — карта не привязана. Выбираете тариф и продолжаете; все данные, введённые за триал, сохраняются.",
+          "Hech narsa yechilmaydi — karta bog'lanmagan. Tarifni tanlab davom etasiz; sinov davrida kiritilgan barcha ma'lumotlar saqlanadi.",
+        ),
+      },
+      {
+        q: tr("Насколько защищены мои данные?", "Ma'lumotlarim qanchalik himoyalangan?"),
+        a: tr(
+          "Каждая компания изолирована от других, доступ — по ролям, все действия пишутся в журнал, резервные копии делаются ежедневно.",
+          "Har bir kompaniya boshqalardan izolyatsiyalangan, kirish rollar bo'yicha, barcha amallar jurnalga yoziladi, zaxira nusxalar har kuni olinadi.",
+        ),
+      },
+    ],
+    [tr],
+  );
+  return (
+    <section className="py-16 md:py-24" style={{ borderTop: `1px solid ${LX.rule}` }}>
+      <div className="max-w-[1240px] mx-auto px-6 grid lg:grid-cols-[380px_1fr] gap-10 lg:gap-16">
+        <SectionHead
+          index="08"
+          label="FAQ"
+          title={tr("Вопросы, которые задают до покупки", "Sotib olishdan oldin beriladigan savollar")}
+        />
+        <Accordion items={items} />
+      </div>
+    </section>
+  );
+}
+
+/* ── Чернильная зона №2: финальный CTA ───────────────────────────────────── */
+function CtaSection() {
+  const navigate = useNavigate();
+  const tr = useTranslate();
+  const tg = tgLink(tr("Здравствуйте! Хочу подключить Warehouse Pro.", "Assalomu alaykum! Warehouse Pro'ni ulamoqchiman."));
+  return (
+    <section className="lx-ink relative overflow-hidden" style={{ background: LX.ink }}>
+      <img
+        src={CTA_PHOTO}
+        alt=""
+        aria-hidden="true"
+        loading="lazy"
+        className="absolute inset-0 w-full h-full object-cover"
+        style={{ opacity: 0.16, filter: "grayscale(0.6) sepia(0.3)" }}
+      />
+      <div className="relative max-w-[1240px] mx-auto px-6 py-20 md:py-28 text-center">
+        <p className="text-[11px] uppercase mb-6" style={{ ...MONO, color: LX.softOnInk, letterSpacing: "0.22em" }}>
+          {tr("Последняя строка реестра", "Reyestrning oxirgi qatori")}
+        </p>
+        <h2
+          className="font-extrabold mx-auto max-w-3xl"
+          style={{ fontSize: "clamp(2.1rem, 4.6vw, 3.6rem)", letterSpacing: "-0.035em", lineHeight: 1.05, color: LX.paperOnInk }}
+        >
+          {tr("Наведите порядок на складе за 14 дней", "14 kunda omboringizni tartibga keltiring")}
+        </h2>
+        <p className="mt-5 text-[15px] max-w-md mx-auto" style={{ color: LX.softOnInk }}>
+          {tr("Бесплатно, без привязки карты. Настройка — 10 минут.", "Bepul, karta bog'lamasdan. Sozlash — 10 daqiqa.")}
+        </p>
+        <div className="mt-9 flex flex-wrap justify-center items-center gap-3">
+          <BtnInk onPaper={false} onClick={() => navigate("/register")}>
+            {tr("Начать бесплатно", "Bepul boshlash")}
+            <ArrowRight size={15} />
+          </BtnInk>
+          {tg && (
+            <BtnGhost onPaper={false} href={tg}>
+              <Send size={14} />
+              {tr("Написать в Telegram", "Telegramda yozish")}
+            </BtnGhost>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ── Футер ────────────────────────────────────────────────────────────────── */
+function Footer() {
+  const tr = useTranslate();
+  const cols = [
+    { label: tr("Продукт", "Mahsulot"), href: "#features" },
+    { label: tr("Как работает", "Qanday ishlaydi"), href: "#how" },
+    { label: tr("Роли", "Rollar"), href: "#roles" },
+    { label: tr("Цены", "Narxlar"), href: "#pricing" },
+  ];
+  return (
+    <footer className="py-12" style={{ borderTop: `1px solid ${LX.rule}` }}>
+      <div className="max-w-[1240px] mx-auto px-6">
+        <div className="flex flex-col md:flex-row md:items-start justify-between gap-8">
+          <div className="max-w-xs">
+            <div className="flex items-center gap-3 mb-4">
+              <span
+                className="w-8 h-8 rounded-[7px] flex items-center justify-center text-[12px]"
+                style={{ ...MONO, border: `1.5px solid ${LX.ink}`, color: LX.ink }}
               >
-                {tr("Начать бесплатно", "Bepul boshlash")}
-                <ArrowRight size={16} />
-              </button>
+                WP
+              </span>
+              <span className="font-bold text-[14px]" style={{ color: LX.ink }}>Warehouse Pro</span>
             </div>
-          </FadeIn>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="pt-14 pb-10">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="grid md:grid-cols-5 gap-10 mb-12">
-            <div className="md:col-span-2">
-              <div className="flex items-center gap-2.5 mb-4">
-                <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center", raisedSm)}>
-                  <Warehouse size={14} style={{ color: NEU.accent }} strokeWidth={2.2} />
-                </div>
-                <span className="font-medium text-[14px]">Warehouse Pro</span>
-              </div>
-              <p className="text-[13px] leading-relaxed max-w-xs mb-5" style={{ color: NEU.textMuted }}>
-                {tr("Современная WMS для дистрибьюторов. Управляйте складом, заказами и доставкой из одного приложения.", "Distribyutorlar uchun zamonaviy WMS.")}
-              </p>
-            </div>
-            {[
-              { t: tr("Продукт", "Mahsulot"), items: [tr("Возможности", "Imkoniyatlar"), tr("Тарифы", "Tariflar"), tr("Интеграции", "Integratsiyalar"), "API"] },
-              { t: tr("Компания", "Kompaniya"), items: [tr("О нас", "Biz haqimizda"), tr("Контакты", "Kontaktlar"), tr("Блог", "Blog")] },
-              { t: tr("Поддержка", "Qo'llab-quvvatlash"), items: [tr("Центр помощи", "Yordam markazi"), tr("Статус системы", "Tizim holati"), tr("Безопасность", "Xavfsizlik")] },
-            ].map(col => (
-              <div key={col.t}>
-                <h4 className="text-[11px] font-medium uppercase tracking-widest mb-4" style={{ color: NEU.textMuted }}>{col.t}</h4>
-                <ul className="space-y-2.5">
-                  {col.items.map(item => (
-                    <li key={item} className="text-[13px] cursor-pointer" style={{ color: NEU.textSecondary }}>{item}</li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-          <div className="pt-7 flex flex-col md:flex-row justify-between items-center gap-4" style={{ borderTop: `0.5px solid ${NEU.border}` }}>
-            <p className="text-[12px]" style={{ color: NEU.textMuted }}>
-              &copy; 2026 Warehouse Pro. {tr("Все права защищены.", "Barcha huquqlar himoyalangan.")}
+            <p className="text-[13px] leading-relaxed" style={{ color: LX.inkSoft }}>
+              {tr(
+                "Система учёта склада, заказов и доставки для дистрибьюторов Узбекистана.",
+                "O'zbekiston distribyutorlari uchun ombor, buyurtma va yetkazish hisobi tizimi.",
+              )}
             </p>
-            <div className="flex gap-6">
-              {[tr("Политика конфиденциальности", "Maxfiylik siyosati"), tr("Условия использования", "Foydalanish shartlari")].map(s => (
-                <span key={s} className="text-[12px] cursor-pointer" style={{ color: NEU.textMuted }}>{s}</span>
-              ))}
-            </div>
           </div>
+          <nav className="flex flex-wrap gap-x-8 gap-y-3">
+            {cols.map(c => (
+              <a key={c.href} href={c.href} className="text-[13.5px] hover:underline underline-offset-4" style={{ color: LX.inkSoft }}>
+                {c.label}
+              </a>
+            ))}
+          </nav>
         </div>
-      </footer>
+        <div
+          className="mt-10 pt-6 flex flex-col md:flex-row justify-between gap-3 text-[11.5px]"
+          style={{ ...MONO, color: LX.inkFaint, borderTop: `1px solid ${LX.rule}` }}
+        >
+          <span>© 2026 Warehouse Pro · {tr("Все права защищены", "Barcha huquqlar himoyalangan")}</span>
+          <span>{tr("Ташкент, Узбекистан", "Toshkent, O'zbekiston")}</span>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+/* ── Мобильная закреплённая CTA ───────────────────────────────────────────
+   Директор почти наверняка смотрит с телефона, а до финальной CTA десяток
+   экранов. Панель появляется после первого экрана и не перекрывает hero. */
+function MobileCtaBar() {
+  const navigate = useNavigate();
+  const tr = useTranslate();
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    const h = () => setShown(window.scrollY > 640);
+    window.addEventListener("scroll", h, { passive: true });
+    return () => window.removeEventListener("scroll", h);
+  }, []);
+  const tg = tgLink(tr("Здравствуйте! Интересует Warehouse Pro.", "Assalomu alaykum! Warehouse Pro bo'yicha ma'lumot olmoqchiman."));
+  return (
+    <div
+      // Уехавшая за экран панель остаётся в порядке обхода табом, и, будучи
+      // fixed, доскроллиться до неё браузер не может: фокус пропадал совсем.
+      inert={!shown}
+      className="md:hidden fixed bottom-0 inset-x-0 z-40 transition-transform duration-300 lx-anim"
+      style={{
+        transform: shown ? "none" : "translateY(110%)",
+        background: "rgba(38,35,30,0.97)",
+        paddingBottom: "env(safe-area-inset-bottom)",
+      }}
+    >
+      <div className="px-4 py-3 flex gap-2.5">
+        <button
+          type="button"
+          onClick={() => navigate("/register")}
+          className="flex-1 h-11 rounded-[9px] text-[14px] font-semibold cursor-pointer"
+          style={{ background: LX.paper, color: LX.ink }}
+        >
+          {tr("Начать бесплатно", "Bepul boshlash")}
+        </button>
+        {tg && (
+          <a
+            href={tg}
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Telegram"
+            className="w-11 h-11 rounded-[9px] flex items-center justify-center"
+            style={{ border: `1px solid ${LX.ruleOnInk}`, color: LX.paperOnInk }}
+          >
+            <Send size={16} />
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default function Landing() {
+  return (
+    <div
+      id="top"
+      className="lx-root min-h-screen overflow-x-clip pb-16 md:pb-0"
+      style={{ background: LX.paper, color: LX.ink, fontFamily: "'DM Sans', system-ui, sans-serif" }}
+    >
+      <LandingStyles />
+      <LandingHeader />
+      <div className="lx-rails max-w-[1240px] mx-auto">
+        <HeroSection />
+        <PhotoStrip />
+      </div>
+      <ProductWindow />
+      <div className="lx-rails max-w-[1240px] mx-auto">
+        <FactsStrip />
+        <FeaturesSection />
+        <TestimonialsSection />
+        <PricingSection />
+        <FaqSection />
+      </div>
+      <CtaSection />
+      <Footer />
+      <MobileCtaBar />
     </div>
   );
 }

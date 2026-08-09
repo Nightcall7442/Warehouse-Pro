@@ -8,6 +8,38 @@ declare global {
   interface Window { __LOGGING_OUT?: boolean }
 }
 
+/**
+ * Признак «в этом браузере кто-то входил».
+ *
+ * Сессия живёт в httpOnly-куке, поэтому до ответа `auth.me` фронтенд не знает
+ * даже, стоит ли ждать пользователя. Корню сайта это важно: посетитель
+ * warehouse-pro.uz должен увидеть лендинг сразу, а не спиннер на весь
+ * round-trip до API, — и при этом залогиненный не должен ловить вспышку
+ * лендинга перед своим разделом.
+ *
+ * Флаг ничего не удостоверяет и ничего не открывает: он только подсказывает,
+ * что рисовать в первые 200 мс. Любая настоящая проверка по-прежнему на
+ * сервере.
+ */
+const SESSION_HINT = "wp.hadSession";
+
+export function hadSession(): boolean {
+  try {
+    return localStorage.getItem(SESSION_HINT) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function setSessionHint(v: boolean) {
+  try {
+    if (v) localStorage.setItem(SESSION_HINT, "1");
+    else localStorage.removeItem(SESSION_HINT);
+  } catch {
+    /* приватный режим — подсказки просто не будет */
+  }
+}
+
 type UseAuthOptions = {
   redirectOnUnauthenticated?: boolean;
   redirectPath?: string;
@@ -34,8 +66,10 @@ export function useAuth(options?: UseAuthOptions) {
     if (user) {
       Sentry.setUser({ id: String(user.id), username: user.email });
       Sentry.setContext("tenant", { id: user.tenantId, role: user.role });
+      setSessionHint(true);
     } else if (!isLoading) {
       Sentry.setUser(null);
+      setSessionHint(false);
     }
   }, [user, isLoading]);
 
@@ -46,6 +80,7 @@ export function useAuth(options?: UseAuthOptions) {
     } catch {
       // Ошибка сервера — всё равно редиректим на /login
     }
+    setSessionHint(false);
     // Жёсткий редирект на /login — полная перезагрузка страницы
     window.location.replace(LOGIN_PATH);
   }, []);

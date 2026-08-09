@@ -9,6 +9,10 @@ const ROLE_HOME: Record<string, string> = {
   supervisor:   "/supervisor",
   agent:        "/agent",
   merchandiser: "/agent",
+  // Курьера здесь не было, и он проваливался в общий fallback на /dashboard —
+  // экран директора с выручкой и долгами, у которого нет RoleGuard. Его
+  // рабочий раздел — список доставок.
+  courier:      "/deliveries",
 };
 
 export default function Home() {

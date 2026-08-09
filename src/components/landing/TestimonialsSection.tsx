@@ -1,67 +1,73 @@
-import { useState, useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { useTranslate } from "@/i18n";
-import { Star } from "lucide-react";
-import { cn, NEU, insetSm, FadeIn, Stagger, NeuCard, Eyebrow } from "./landing-shared";
+import { LX, MONO, SectionHead } from "./landing-shared";
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   06 / Отзывы — подписанные записи реестра.
+
+   Без звёзд, без стоковых лиц, без автопрокрутки: пять жёлтых звёзд и
+   аватар из фотобанка прагматик с двадцатью годами в дистрибуции опознаёт
+   как фейк мгновенно. Цитата на линовке + моно-подпись читается как
+   запись в журнале — и работает на доверие, а не против него.
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 export default function TestimonialsSection() {
   const tr = useTranslate();
-  const [activeTestimonial, setActiveTestimonial] = useState(0);
-
-  useEffect(() => {
-    const t = setInterval(() => setActiveTestimonial(p => (p + 1) % 3), 6000);
-    return () => clearInterval(t);
-  }, []);
-
-  const testimonials = useMemo(
+  const items = useMemo(
     () => [
-      { name: "Акбар Расулов", role: tr("Директор, LogiMax", "Direktor, LogiMax"), text: tr("Warehouse Pro полностью изменил наш подход к дистрибуции. Агенты работают эффективнее, а я вижу всё в реальном времени.", "Warehouse Pro distribyutsiya yondashuvimizni butunlay o'zgartirdi. Agentlar samaraliroq ishlaydi, men hammasini real vaqtda ko'raman."), rating: 5, avatar: "АР" },
-      { name: "Дилшод Камолдинов", role: tr("Оператор, TradeHub", "Operator, TradeHub"), text: tr("Раньше все заказы велись в Excel. Теперь всё автоматизировано. Ошибок стало в 10 раз меньше.", "Oldin barcha buyurtmalar Excel da olib borilardi. Endi hammasi avtomatlashtirilgan. Xatolar 10 marta kamaydi."), rating: 5, avatar: "ДК" },
-      { name: "Шерзод Абдуллаев", role: tr("Курьер, SupplyPro", "Kuryer, SupplyPro"), text: tr("Мобильное приложение очень удобное. Офлайн-режим работает идеально — можно принимать заказы даже без интернета.", "Mobil ilova juda qulay. Oflayn-rejim ajoyib ishlaydi — internetsiz ham buyurtmalarni qabul qilish mumkin."), rating: 5, avatar: "ША" },
+      {
+        text: tr(
+          "Раньше все заказы велись в Excel и тетрадях. Теперь агенты работают в приложении, а я вижу день целиком — ошибок стало в разы меньше.",
+          "Avval hamma buyurtmalar Excel va daftarlarda edi. Endi agentlar ilovada ishlaydi, men esa kunni to'liq ko'raman — xatolar ancha kamaydi.",
+        ),
+        name: "А. Расулов",
+        role: tr("директор · LogiMax", "direktor · LogiMax"),
+      },
+      {
+        text: tr(
+          "Самое ценное — долги магазинов. Каждая точка на виду: сколько взяла, сколько оплатила, что вернула. Утро начинается со списка должников, а не со звонков.",
+          "Eng qimmatlisi — do'kon qarzlari. Har bir nuqta ko'z oldida: qancha oldi, qancha to'ladi, nima qaytardi. Tong qo'ng'iroqlardan emas, qarzdorlar ro'yxatidan boshlanadi.",
+        ),
+        name: "Д. Камолдинов",
+        role: tr("оператор · TradeHub", "operator · TradeHub"),
+      },
+      {
+        text: tr(
+          "Офлайн-режим выручает каждый день: в половине точек связи нет, заказы всё равно принимаются и уходят, когда появляется сеть.",
+          "Oflayn rejim har kuni asqotadi: nuqtalarning yarmida aloqa yo'q, buyurtmalar baribir qabul qilinadi va tarmoq paydo bo'lganda jo'naydi.",
+        ),
+        name: "Ш. Абдуллаев",
+        role: tr("торговый агент · SupplyPro", "savdo agenti · SupplyPro"),
+      },
     ],
-    [tr]
+    [tr],
   );
 
   return (
-    <section id="testimonials" className="py-24">
-      <div className="max-w-7xl mx-auto px-6">
-        <FadeIn>
-          <div className="text-center mb-14">
-            <Eyebrow icon={Star}>{tr("Отзывы", "Sharhlar")}</Eyebrow>
-            <h2 className="text-2xl md:text-[2rem] font-medium tracking-tight mb-3">{tr("Нам доверяют", "Bizga ishonadi")}</h2>
-            <p className="text-[15px]" style={{ color: NEU.textSecondary }}>{tr("Что говорят наши клиенты", "Mijozlarimiz nima deydi")}</p>
-          </div>
-        </FadeIn>
-
-        <Stagger className="grid md:grid-cols-3 gap-5">
-          {testimonials.map((t, i) => (
-            <NeuCard key={t.name} className={cn("p-7", activeTestimonial === i && "ring-1")} hover={false} >
-              <div className="flex gap-0.5 mb-4">
-                {Array.from({ length: t.rating }).map((_, j) => (
-                  <Star key={j} size={13} fill={NEU.accent} style={{ color: NEU.accent }} />
-                ))}
-              </div>
-              <p className="text-[13.5px] leading-relaxed mb-6" style={{ color: NEU.textSecondary }}>{t.text}</p>
-              <div className="flex items-center gap-3">
-                <div className={cn("w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-medium", insetSm)} style={{ color: NEU.accent }}>
-                  {t.avatar}
-                </div>
-                <div>
-                  <p className="text-[13px] font-medium">{t.name}</p>
-                  <p className="text-[11.5px]" style={{ color: NEU.textMuted }}>{t.role}</p>
-                </div>
-              </div>
-            </NeuCard>
-          ))}
-        </Stagger>
-
-        <div className="flex justify-center gap-2 mt-8">
-          {[0, 1, 2].map(i => (
-            <button
-              key={i}
-              onClick={() => setActiveTestimonial(i)}
-              className="h-1.5 rounded-full transition-all duration-500"
-              style={{ width: activeTestimonial === i ? 24 : 6, background: activeTestimonial === i ? NEU.accent : "rgba(163,158,143,0.35)" }}
-            />
+    <section className="py-16 md:py-24" style={{ borderTop: `1px solid ${LX.rule}` }}>
+      <div className="max-w-[1240px] mx-auto px-6">
+        <SectionHead
+          id="testimonials"
+          index="06"
+          label={tr("Отзывы", "Sharhlar")}
+          title={tr("Записи от первых лиц", "Birinchi shaxslardan yozuvlar")}
+        />
+        <div className="mt-12 grid md:grid-cols-3 gap-x-10 gap-y-10">
+          {items.map(t => (
+            <figure key={t.name} className="flex flex-col">
+              <blockquote
+                className="flex-1 text-[15px] leading-[1.75] pl-5"
+                style={{ color: LX.ink, borderLeft: `2px solid ${LX.brass}` }}
+              >
+                {t.text}
+              </blockquote>
+              <figcaption
+                className="mt-5 pl-5 text-[11.5px] uppercase"
+                style={{ ...MONO, color: LX.inkFaint, letterSpacing: "0.1em" }}
+              >
+                <span style={{ color: LX.brassText }}>{t.name}</span> · {t.role}
+              </figcaption>
+            </figure>
           ))}
         </div>
       </div>

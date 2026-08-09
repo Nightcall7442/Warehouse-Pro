@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { Routes, Route, Navigate, Outlet } from "react-router";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth, hadSession } from "@/hooks/useAuth";
 import { useHotkeys } from "@/hooks/useHotkeys";
 import Layout from "@/components/Layout";
 import ErrorBoundary from "@/components/ErrorBoundary";
@@ -71,6 +71,43 @@ function AppLayout() {
   return <Layout><ErrorBoundary pageName="Страница"><Outlet /></ErrorBoundary></Layout>;
 }
 
+/**
+ * Корень сайта. Первый визит на warehouse-pro.uz показывает лендинг, а не
+ * форму логина: раньше «/» жил внутри Layout, который любого анонима
+ * немедленно уводил на /login — продукт встречал посетителя дверью без
+ * вывески. Залогиненный пользователь, как и прежде, попадает сразу в свой
+ * раздел (Home разводит по ролям).
+ */
+function RootGate() {
+  const { user, isLoading } = useAuth();
+  // Первый визит без следов сессии — лендинг рисуется сразу, не дожидаясь
+  // ответа auth.me: иначе посетитель warehouse-pro.uz встречал спиннер на
+  // всё время запроса. Тот, кто в этом браузере входил, ждёт ответа, чтобы
+  // не поймать вспышку лендинга перед своим разделом.
+  if (isLoading) return hadSession() ? <PageLoader /> : <Landing />;
+  if (!user) return <Landing />;
+  return <Home />;
+}
+
+/**
+ * Горячие клавиши и палитра команд — только для вошедших.
+ *
+ * Оба слушателя висели над Routes и работали на публичном лендинге: «n» без
+ * модификаторов уводила случайного посетителя на /orders/new, а «/» и Ctrl+K
+ * открывали палитру с внутренними разделами. Человек, набирающий текст мимо
+ * поля ввода, выбрасывался с маркетинговой страницы в приложение.
+ */
+function AppShortcuts() {
+  const { user } = useAuth();
+  if (!user) return null;
+  return (
+    <>
+      <HotkeysListener />
+      <CommandPalette />
+    </>
+  );
+}
+
 function HotkeysListener() {
   useHotkeys();
   return null;
@@ -80,8 +117,7 @@ export default function App() {
   return (
     <Suspense fallback={<PageLoader />}>
       <ErrorBoundary pageName="Приложение">
-      <HotkeysListener />
-      <CommandPalette />
+      <AppShortcuts />
       <Routes>
         {/* Public */}
         <Route path="/login"              element={<Login />} />
@@ -92,10 +128,10 @@ export default function App() {
         <Route path="/subscription-blocked" element={<SubscriptionBlocked />} />
         <Route path="/onboarding" element={<Onboarding />} />
         <Route path="/landing"            element={<Landing />} />
+        <Route path="/"                   element={<RootGate />} />
 
         <Route element={<AppLayout />}>
           {/* Common */}
-          <Route path="/"               element={<Home />} />
           <Route path="/dashboard"      element={<Dashboard />} />
           <Route path="/shops"          element={<Shops />} />
           <Route path="/shops/:id"      element={<ShopDetail />} />

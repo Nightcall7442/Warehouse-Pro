@@ -1,294 +1,323 @@
 import { useMemo } from "react";
 import { useTranslate } from "@/i18n";
-import {
-  BarChart3,
-  Users,
-  Shield,
-  Smartphone,
-  CheckCircle2,
-  Package,
-  MapPin,
-  Rocket,
-  Eye,
-  Layers,
-  FileText,
-  Boxes,
-  Route,
-  Zap,
-  Truck,
-  TrendingUp,
-  Settings as SettingsIcon,
-} from "lucide-react";
-import { cn, NEU, insetSm, ROLE_TONES, FadeIn, Stagger, NeuCard, Eyebrow } from "./landing-shared";
-import { colorMix } from "@/lib/color-mix";
+import { MapPin, Check } from "lucide-react";
+import { LX, MONO, SectionHead } from "./landing-shared";
+import CityMap from "./CityMap";
 
-export default function FeaturesSection() {
+/* ═══════════════════════════════════════════════════════════════════════════
+   Содержательные секции на бумаге.
+
+   «Возможности» намеренно свёрстаны СТРОКАМИ реестра, а не сеткой карточек
+   «иконка-заголовок-текст»: таблица — это буквально то, что продаёт WMS,
+   и после чернильного окна продукта вторая сетка 3×2 читалась бы шаблоном.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── 02 / Как работает: день с Warehouse Pro ─────────────────────────────── */
+function DaySection() {
   const tr = useTranslate();
-
-  const features = useMemo(
-    () => [
-      {
-        icon: Boxes,
-        title: tr("Складской учёт", "Ombor hisobi"),
-        desc: tr("Остатки, резервы, движения товаров. Контроль dead-stock в реальном времени.", "Qoldiqlar, zaxiralar, mahsulot harakatlari. Dead-stockni real vaqtda nazorat qiling."),
-        stat: tr("19 таблиц", "19 jadval"),
-      },
-      {
-        icon: Route,
-        title: tr("Доставка", "Yetkazib berish"),
-        desc: tr("Назначение курьеров, GPS-трекинг, сбор наличных. Мобильное приложение.", "Kuryerlarni tayinlash, GPS kuzatuv, naqd pul yig'ish. Mobil ilova."),
-        stat: "Real-time",
-      },
-      {
-        icon: BarChart3,
-        title: tr("Аналитика", "Tahlil"),
-        desc: tr("Dashboard с KPI, отчёты по продажам, P&L, задолженности.", "KPI bilan boshqaruv paneli, sotish hisobotlari, P&L, qarzlar."),
-        stat: tr("20+ отчётов", "20+ hisobot"),
-      },
-      {
-        icon: Users,
-        title: tr("Команда", "Jamoa"),
-        desc: tr("6 ролей с правами доступа: от директора до курьера.", "6 ta rol kirish huquqlari bilan: direktordan kuryergacha."),
-        stat: tr("6 ролей", "6 ta rol"),
-      },
-      {
-        icon: Smartphone,
-        title: tr("Мобильное приложение", "Mobil ilova"),
-        desc: tr("React Native с офлайн-режимом, камерой, GPS и хаптикой.", "React Native oflayn-rejim, kamera, GPS va haptika bilan."),
-        stat: "iOS + Android",
-      },
-      {
-        icon: Shield,
-        title: tr("Безопасность", "Xavfsizlik"),
-        desc: tr("Мультитенантность, JWT, rate limiting, tenant-изоляция.", "Multi-tenant, JWT, rate limiting, tenant-izolyatsiya."),
-        stat: "Enterprise",
-      },
-    ],
-    [tr]
-  );
-
-  const roles = useMemo(
-    () => [
-      { role: tr("Директор", "Direktor"), icon: TrendingUp, features: [tr("Dashboard с KPI", "KPI bilan boshqaruv paneli"), tr("Финансовые отчёты", "Moliyaviy hisobotlar"), tr("Управление пользователями", "Foydalanuvchilarni boshqarish"), tr("Настройки биллинга", "To'lov sozlamalari")] },
-      { role: tr("Оператор", "Operator"), icon: Package, features: [tr("Управление заказами", "Buyurtmalarni boshqarish"), tr("Назначение курьеров", "Kuryerlarni tayinlash"), tr("Контроль склада", "Omborni nazorat qilish"), tr("Работа с 1C", "1C bilan ishlash")] },
-      { role: tr("Агент", "Agent"), icon: MapPin, features: [tr("Создание заказов", "Buyurtmalar yaratish"), tr("План визитов", "Tashrif rejasi"), tr("GPS-трекинг", "GPS kuzatuv"), tr("Офлайн-режим", "Oflayn-rejim")] },
-      { role: tr("Супервайзер", "Supervisor"), icon: Eye, features: [tr("Мониторинг агентов", "Agentlarni monitoring qilish"), tr("Управление планами", "Rejalarni boshqarish"), tr("Отчёты по визитам", "Tashriflar hisobotlari"), tr("Трекинг в реальном времени", "Real vaqtda kuzatuv")] },
-      { role: tr("Мерчандайзер", "Merchandayzer"), icon: FileText, features: [tr("Отчёты о визитах", "Tashriflar hisobotlari"), tr("Фото-фиксация", "Rasmga olish"), tr("Чек-лист товаров", "Mahsulotlar chek-listi"), tr("Заметки о конкурентах", "Raqobatchilar haqida eslatmalar")] },
-      { role: tr("Курьер", "Kuryer"), icon: Truck, features: [tr("Список доставок", "Yetkazib berish ro'yxati"), tr("Навигация на карте", "Xaritada navigatsiya"), tr("Сбор наличных", "Naqd pul yig'ish"), tr("GPS-трекинг", "GPS kuzatuv")] },
-    ],
-    [tr]
-  );
-
   const steps = useMemo(
     () => [
-      { step: "01", title: tr("Регистрация", "Ro'yxatdan o'tish"), desc: tr("Создайте аккаунт за 30 секунд. Настройте компанию, добавьте склад и товары.", "30 sekundda akkaunt yarating. Kompaniyani sozlang, ombor va mahsulotlarni qo'shing."), icon: Zap },
-      { step: "02", title: tr("Настройка", "Sozlash"), desc: tr("Добавьте команду, назначьте роли, настройте интеграции с 1С и доставкой.", "Jamoa qo'shing, rollarni tayinlang, 1C va yetkazib berish integratsiyalarini sozlang."), icon: SettingsIcon },
-      { step: "03", title: tr("Работа", "Ish"), desc: tr("Агенты создают заказы, курьеры доставляют, директор видит всё в реальном времени.", "Agentlar buyurtmalar yaratadi, kuryerlar yetkazib beradi, direktor hammasini real vaqtda ko'radi."), icon: Rocket },
+      {
+        time: "07:30",
+        who: tr("Агент", "Agent"),
+        title: tr("Маршрут уже в телефоне", "Marshrut allaqachon telefonda"),
+        desc: tr(
+          "Санжар открывает приложение: 18 точек на сегодня, по каждой — долг, история заказов и что взять на пробу.",
+          "Sanjar ilovani ochadi: bugunga 18 nuqta, har birida qarz, buyurtmalar tarixi va namuna uchun nima olish kerakligi.",
+        ),
+      },
+      {
+        time: "14:00",
+        who: tr("В поле", "Dalada"),
+        title: tr("Заказ без связи — не потерян", "Aloqasiz buyurtma yo'qolmaydi"),
+        desc: tr(
+          "В подвальном павильоне сети нет. Заказ сохраняется в очередь и уходит на сервер, как только появляется сигнал.",
+          "Yerto'la do'konida tarmoq yo'q. Buyurtma navbatga saqlanadi va signal paydo bo'lishi bilan serverga jo'naydi.",
+        ),
+      },
+      {
+        time: "18:30",
+        who: tr("Директор", "Direktor"),
+        title: tr("День виден целиком", "Kun to'liq ko'rinadi"),
+        desc: tr(
+          "Выручка, долги, маршруты и остатки — в отчётах и уже выгружены в 1С. Без обзвона агентов и сведения тетрадей.",
+          "Tushum, qarzlar, marshrutlar va qoldiqlar — hisobotlarda va allaqachon 1C ga yuklangan. Agentlarga qo'ng'iroqsiz, daftarlarni solishtirmasdan.",
+        ),
+      },
     ],
-    [tr]
+    [tr],
   );
 
   return (
-    <>
-      {/* How it works */}
-      <section id="how" className="py-24">
-        <div className="max-w-7xl mx-auto px-6">
-          <FadeIn>
-            <div className="text-center max-w-xl mx-auto mb-16">
-              <Eyebrow icon={Zap}>{tr("Как работает", "Qanday ishlaydi")}</Eyebrow>
-              <h2 className="text-2xl md:text-[2.1rem] font-medium tracking-tight leading-tight mb-4">
-                {tr("Три шага до полного контроля", "To'liq nazoratga 3 qadam")}
-              </h2>
-              <p className="text-[15px]" style={{ color: NEU.textSecondary }}>
-                {tr("Начните за 5 минут. Без установки, без сложной настройки.", "5 daqiqada boshlang. O'rnatish shart emas.")}
-              </p>
-            </div>
-          </FadeIn>
-
-          <div className="grid md:grid-cols-3 gap-6">
-            {steps.map((item, i) => (
-              <FadeIn key={item.step} delay={i * 120}>
-                <NeuCard className="p-7 h-full" hover={false}>
-                  <div className="flex items-center justify-between mb-6">
-                    <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center", insetSm)}>
-                      <item.icon size={19} style={{ color: NEU.accent }} strokeWidth={2} />
-                    </div>
-                    <span className="text-[11px] font-mono" style={{ color: NEU.textMuted }}>{item.step}</span>
-                  </div>
-                  <h3 className="font-medium text-[15px] mb-2">{item.title}</h3>
-                  <p className="text-[13px] leading-relaxed" style={{ color: NEU.textSecondary }}>{item.desc}</p>
-                </NeuCard>
-              </FadeIn>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Features */}
-      <section id="features" className="py-24">
-        <div className="max-w-7xl mx-auto px-6">
-          <FadeIn>
-            <div className="max-w-xl mb-14">
-              <Eyebrow icon={Layers}>{tr("Продукт", "Mahsulot")}</Eyebrow>
-              <h2 className="text-2xl md:text-[2.1rem] font-medium tracking-tight leading-tight mb-4">
-                {tr("Всё что нужно", "Sizga kerakli hammasi")}
-                <br />
-                <span style={{ color: NEU.textMuted }}>{tr("для вашего бизнеса", "biznesingiz uchun")}</span>
-              </h2>
-              <p className="text-[15px]" style={{ color: NEU.textSecondary }}>
-                {tr("От склада до доставки — полный контроль над процессами дистрибуции.", "Ombordan yetkazib berishgacha — to'liq nazorat.")}
-              </p>
-            </div>
-          </FadeIn>
-
-          <Stagger className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {features.map((f, i) => (
-              <NeuCard key={f.title} className="p-6">
-                <div className={cn("w-11 h-11 rounded-2xl flex items-center justify-center mb-5", insetSm)}>
-                  <f.icon size={18} style={{ color: ROLE_TONES[i % ROLE_TONES.length] }} strokeWidth={2} />
-                </div>
-                <div className="flex items-center justify-between mb-2.5">
-                  <h3 className="font-medium text-[14.5px]">{f.title}</h3>
-                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-full" style={{ color: NEU.textMuted, background: "rgba(163,158,143,0.12)" }}>{f.stat}</span>
-                </div>
-                <p className="text-[13px] leading-relaxed" style={{ color: NEU.textSecondary }}>{f.desc}</p>
-              </NeuCard>
-            ))}
-          </Stagger>
-        </div>
-      </section>
-
-      {/* Map Feature */}
-      <section id="map" className="py-24">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="grid lg:grid-cols-2 gap-14 items-center">
-            <FadeIn>
-              <div>
-                <Eyebrow icon={MapPin}>{tr("GPS-трекинг", "GPS kuzatuv")}</Eyebrow>
-                <h2 className="text-2xl md:text-[2rem] font-medium tracking-tight mb-4">
-                  {tr("Отслеживайте агентов", "Agentlarni kuzating")}
-                  <br />
-                  <span style={{ color: NEU.textMuted }}>{tr("в реальном времени", "real vaqtda")}</span>
-                </h2>
-                <p className="text-[15px] leading-relaxed mb-7" style={{ color: NEU.textSecondary }}>
-                  {tr("GPS-трекинг всех агентов и курьеров на карте. История маршрутов, контроль посещений, оптимизация доставки.", "Barcha agentlar va kuryerlarni xaritada GPS kuzatuv.")}
-                </p>
-                <ul className="space-y-3.5">
-                  {[
-                    tr("Живая карта с позициями всех агентов", "Barcha agentlar pozitsiyalari bilan jonli xarita"),
-                    tr("История маршрутов за день / неделю / месяц", "Kun/hafta/oy ichida marshrut tarixi"),
-                    tr("Контроль посещения торговых точек", "Savdo nuqtalariga tashriflarni nazorat qilish"),
-                    tr("Уведомления о выходе за пределы зоны", "Zonadan chiqish haqida bildirishnomalar"),
-                  ].map(item => (
-                    <li key={item} className="flex items-center gap-3 text-[13.5px]" style={{ color: NEU.textSecondary }}>
-                      <div className={cn("w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0", insetSm)}>
-                        <CheckCircle2 size={13} style={{ color: NEU.green }} />
-                      </div>
-                      {item}
-                    </li>
-                  ))}
-                </ul>
+    <section className="py-16 md:py-24" style={{ borderTop: `1px solid ${LX.rule}` }}>
+      <div className="max-w-[1240px] mx-auto px-6">
+        <SectionHead
+          id="how"
+          index="02"
+          label={tr("Как работает", "Qanday ishlaydi")}
+          title={tr("Один день с Warehouse Pro", "Warehouse Pro bilan bir kun")}
+        />
+        <div className="mt-12 grid md:grid-cols-3" style={{ borderTop: `1px solid ${LX.rule}` }}>
+          {steps.map((s, i) => (
+            <div
+              key={s.time}
+              className={i > 0 ? "py-8 md:py-10 md:px-8 last:md:pr-0 md:border-l" : "py-8 md:py-10 md:pr-8"}
+              style={{
+                borderBottom: `1px solid ${LX.rule}`,
+                borderLeftColor: LX.rule,
+              }}
+            >
+              <div className="flex items-baseline gap-3 mb-4">
+                <span className="text-[26px] font-medium" style={{ ...MONO, color: LX.brassText }}>
+                  {s.time}
+                </span>
+                <span className="text-[11px] uppercase" style={{ ...MONO, color: LX.inkFaint, letterSpacing: "0.16em" }}>
+                  {s.who}
+                </span>
               </div>
-            </FadeIn>
-            <FadeIn delay={150}>
-              <div className={cn("rounded-2xl p-5 h-[220px] relative overflow-hidden", "shadow-[3px_3px_7px_rgba(163,158,143,0.35),-3px_-3px_7px_rgba(255,255,255,0.9)]")} style={{ background: NEU.bg }}>
-                <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 opacity-40">
-                  <path d="M0,30 Q30,10 60,25 T100,20" stroke={NEU.border} strokeWidth="0.6" fill="none" />
-                  <path d="M0,70 Q40,55 70,72 T100,65" stroke={NEU.border} strokeWidth="0.6" fill="none" />
-                  <path d="M20,0 Q35,40 20,100" stroke={NEU.border} strokeWidth="0.6" fill="none" />
-                  <path d="M75,0 Q65,50 80,100" stroke={NEU.border} strokeWidth="0.6" fill="none" />
-                </svg>
-                {[
-                  { x: 28, y: 32, tone: NEU.green },
-                  { x: 58, y: 20, tone: NEU.accent },
-                  { x: 74, y: 55, tone: NEU.green },
-                  { x: 40, y: 66, tone: NEU.blue },
-                  { x: 85, y: 30, tone: NEU.green },
-                ].map((p, i) => (
-                  <div
-                    key={i}
-                    className="absolute w-2.5 h-2.5 rounded-full"
-                    style={{ left: `${p.x}%`, top: `${p.y}%`, background: p.tone, boxShadow: `0 0 0 4px ${colorMix(p.tone, 13)}` }}
-                  />
-                ))}
-                <div className={cn("absolute bottom-3 left-3 right-3 rounded-xl px-3 py-2.5 flex items-center gap-2", "shadow-[3px_3px_7px_rgba(163,158,143,0.35),-3px_-3px_7px_rgba(255,255,255,0.9)]")} style={{ background: NEU.bg }}>
-                  <MapPin size={13} style={{ color: NEU.accent }} />
-                  <span className="text-[11px]" style={{ color: NEU.text }}>Бехруз — Мирзо-Улугбек, 12 мин назад</span>
-                </div>
-              </div>
-            </FadeIn>
-          </div>
-        </div>
-      </section>
-
-      {/* Roles */}
-      <section id="roles" className="py-24">
-        <div className="max-w-7xl mx-auto px-6">
-          <FadeIn>
-            <div className="max-w-xl mb-14">
-              <Eyebrow icon={Users}>{tr("Решения", "Yechimlar")}</Eyebrow>
-              <h2 className="text-2xl md:text-[2.1rem] font-medium tracking-tight leading-tight mb-4">
-                {tr("Для каждой", "Har bir")}
-                <br />
-                <span style={{ color: NEU.textMuted }}>{tr("роли в команде", "jamoa a'zosi uchun")}</span>
-              </h2>
-              <p className="text-[15px]" style={{ color: NEU.textSecondary }}>
-                {tr("Каждый сотрудник видит только то, что ему нужно.", "Har bir xodim faqat o'ziga kerakli narsalarni ko'radi.")}
+              <h3 className="text-[17px] font-bold mb-2.5" style={{ color: LX.ink }}>
+                {s.title}
+              </h3>
+              <p className="text-[14px] leading-relaxed" style={{ color: LX.inkSoft }}>
+                {s.desc}
               </p>
             </div>
-          </FadeIn>
-
-          <Stagger className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {roles.map((r, i) => (
-              <NeuCard key={r.role} className="p-6">
-                <div className={cn("w-11 h-11 rounded-2xl flex items-center justify-center mb-4", insetSm)}>
-                  <r.icon size={18} style={{ color: ROLE_TONES[i % ROLE_TONES.length] }} strokeWidth={2} />
-                </div>
-                <h3 className="font-medium text-[14.5px] mb-3">{r.role}</h3>
-                <ul className="space-y-2">
-                  {r.features.map(f => (
-                    <li key={f} className="flex items-center gap-2.5 text-[13px]" style={{ color: NEU.textSecondary }}>
-                      <CheckCircle2 size={13} style={{ color: NEU.textMuted }} className="flex-shrink-0" />
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-              </NeuCard>
-            ))}
-          </Stagger>
+          ))}
         </div>
-      </section>
+      </div>
+    </section>
+  );
+}
 
-      {/* Integrations */}
-      <section className="py-20">
-        <div className="max-w-7xl mx-auto px-6">
-          <FadeIn>
-            <div className="text-center mb-12">
-              <Eyebrow icon={MapPin}>{tr("Интеграции", "Integratsiyalar")}</Eyebrow>
-              <h2 className="text-2xl md:text-[2rem] font-medium tracking-tight">
-                {tr("Работает с вашими инструментами", "Sizning vositalaringiz bilan ishlaydi")}
-              </h2>
+/* ── 03 / Возможности: строки реестра ────────────────────────────────────── */
+function LedgerSection() {
+  const tr = useTranslate();
+  const rows = useMemo(
+    () => [
+      {
+        title: tr("Склад и остатки", "Ombor va qoldiqlar"),
+        desc: tr("Приходы, резервы, движения, контроль лежалого товара по каждому складу.", "Kirimlar, zaxiralar, harakatlar, har bir ombor bo'yicha turg'un tovar nazorati."),
+        tag: tr("резервы", "zaxiralar"),
+      },
+      {
+        title: tr("Заказы и частичная доставка", "Buyurtmalar va qisman yetkazish"),
+        desc: tr("Магазин принял 80 из 100 — остаток вернулся на склад, долг посчитан по факту.", "Do'kon 100 tadan 80 tasini oldi — qolgani omborga qaytdi, qarz fakt bo'yicha hisoblandi."),
+        tag: tr("возвраты", "qaytarishlar"),
+      },
+      {
+        title: tr("Доставка и курьеры", "Yetkazish va kuryerlar"),
+        desc: tr("Погрузочные листы, маршруты, сбор наличных и сверка в конце дня.", "Yuklash varaqalari, marshrutlar, naqd yig'ish va kun oxirida solishtirish."),
+        tag: tr("наличные", "naqd pul"),
+      },
+      {
+        title: tr("GPS-контроль агентов", "Agentlar GPS nazorati"),
+        desc: tr("Живая карта, история маршрутов, отметки визитов в торговых точках.", "Jonli xarita, marshrutlar tarixi, savdo nuqtalaridagi tashrif belgilari."),
+        tag: "GPS",
+      },
+      {
+        title: tr("Долги магазинов", "Do'kon qarzlari"),
+        desc: tr("Баланс каждой точки: заказы, оплаты, возвраты — и список должников на утро.", "Har bir nuqta balansi: buyurtmalar, to'lovlar, qaytarishlar — va ertalabki qarzdorlar ro'yxati."),
+        tag: tr("сверка", "solishtiruv"),
+      },
+      {
+        title: tr("Аналитика и прибыль", "Tahlil va foyda"),
+        desc: tr("Выручка, маржа, эффективность агентов и KPI — по доставленному, а не по обещанному.", "Tushum, marja, agentlar samaradorligi va KPI — va'da emas, yetkazilgan asosida."),
+        tag: "P&L",
+      },
+      {
+        title: tr("Обмен с 1С:Предприятие", "1C:Predpriyatiye bilan almashinuv"),
+        desc: tr("Товары, заказы, контрагенты — двусторонняя синхронизация, без двойного ввода.", "Tovarlar, buyurtmalar, kontragentlar — ikki tomonlama sinxronizatsiya, ikki marta kiritmasdan."),
+        tag: "1C",
+      },
+      {
+        title: tr("Мобильное приложение", "Mobil ilova"),
+        desc: tr("iOS и Android, офлайн-режим, камера, GPS. Агенту хватает одного дня, чтобы освоить.", "iOS va Android, oflayn rejim, kamera, GPS. Agent bir kunda o'rganib oladi."),
+        tag: tr("офлайн", "oflayn"),
+      },
+    ],
+    [tr],
+  );
+
+  return (
+    <section className="py-16 md:py-24" style={{ borderTop: `1px solid ${LX.rule}` }}>
+      <div className="max-w-[1240px] mx-auto px-6">
+        <SectionHead
+          id="features"
+          index="03"
+          label={tr("Возможности", "Imkoniyatlar")}
+          title={tr("Реестр возможностей", "Imkoniyatlar reyestri")}
+          lead={tr(
+            "От прихода на склад до сверки наличных вечером — полный контур дистрибуции.",
+            "Omborga kirimdan kechki naqd solishtiruvigacha — distributsiyaning to'liq konturi.",
+          )}
+        />
+        <div className="mt-12" style={{ borderTop: `1px solid ${LX.rule}` }}>
+          {rows.map((r, i) => (
+            <div
+              key={r.title}
+              className="group grid grid-cols-[44px_1fr] md:grid-cols-[64px_260px_1fr_120px] gap-x-4 md:gap-x-8 py-5 md:py-6 items-baseline transition-colors duration-200 hover:bg-[#faf9f5]"
+              style={{ borderBottom: `1px solid ${LX.rule}` }}
+            >
+              <span className="text-[12px]" style={{ ...MONO, color: LX.inkFaint }}>
+                {String(i + 1).padStart(2, "0")}
+              </span>
+              <h3 className="text-[15.5px] font-bold" style={{ color: LX.ink }}>
+                {r.title}
+              </h3>
+              <p className="col-start-2 md:col-start-3 text-[13.5px] leading-relaxed max-w-xl mt-1 md:mt-0" style={{ color: LX.inkSoft }}>
+                {r.desc}
+              </p>
+              <span
+                className="hidden md:block text-[11px] uppercase text-right"
+                style={{ ...MONO, color: LX.brassText, letterSpacing: "0.1em" }}
+              >
+                {r.tag}
+              </span>
             </div>
-          </FadeIn>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
 
-          <Stagger className="grid grid-cols-2 md:grid-cols-4 gap-4">
+/* ── 04 / GPS-сплит ──────────────────────────────────────────────────────── */
+function GpsSection() {
+  const tr = useTranslate();
+  const agents = [
+    { name: tr("Санжар · Юнусабад", "Sanjar · Yunusobod"), pts: "14/18", tone: LX.good },
+    { name: tr("Бехруз · Мирзо-Улугбек", "Behruz · Mirzo Ulug'bek"), pts: "11/16", tone: LX.good },
+    { name: tr("Отабек · Чиланзар", "Otabek · Chilonzor"), pts: "6/15", tone: LX.warn },
+  ];
+  return (
+    <section className="py-16 md:py-24" style={{ borderTop: `1px solid ${LX.rule}` }}>
+      <div className="max-w-[1240px] mx-auto px-6 grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+        <div>
+          <SectionHead
+            id="map"
+            index="04"
+            label={tr("Контроль", "Nazorat")}
+            title={tr("Вы видите поле, не выходя из кабинета", "Dalani kabinetdan chiqmasdan ko'rasiz")}
+          />
+          <ul className="mt-8 space-y-4">
             {[
-              { name: "1С:Предприятие", icon: "1C", desc: tr("Синхронизация данных", "Ma'lumotlarni sinxronlashtirish") },
-              { name: "Payme / Click", icon: "P", desc: tr("Приём платежей", "To'lovlarni qabul qilish") },
-              { name: "Telegram", icon: "T", desc: tr("Уведомления", "Bildirishnomalar") },
-              { name: "AWS S3", icon: "A", desc: tr("Хранилище файлов", "Fayllar xotirasi") },
-            ].map((item, i) => (
-              <NeuCard key={item.name} className="p-6 text-center">
-                <div className={cn("w-13 h-13 rounded-2xl flex items-center justify-center text-lg font-medium mx-auto mb-4", insetSm)} style={{ color: ROLE_TONES[i % ROLE_TONES.length], width: 52, height: 52 }}>
-                  {item.icon}
-                </div>
-                <p className="font-medium text-[13.5px] mb-1">{item.name}</p>
-                <p className="text-[12px]" style={{ color: NEU.textMuted }}>{item.desc}</p>
-              </NeuCard>
+              tr("Живая карта с позициями всех агентов и курьеров", "Barcha agentlar va kuryerlar joylashuvi bilan jonli xarita"),
+              tr("История маршрутов за день, неделю, месяц", "Kun, hafta, oy bo'yicha marshrutlar tarixi"),
+              tr("Отметки визитов: был в точке или проехал мимо", "Tashrif belgilari: nuqtada bo'ldimi yoki o'tib ketdimi"),
+              tr("Визит без заказа — повод для разговора, и он виден", "Buyurtmasiz tashrif — suhbat uchun sabab, va u ko'rinadi"),
+            ].map(item => (
+              <li key={item} className="flex items-start gap-3 text-[14.5px]" style={{ color: LX.inkSoft }}>
+                <Check size={15} strokeWidth={3} className="mt-1 shrink-0" style={{ color: LX.brassText }} />
+                {item}
+              </li>
             ))}
-          </Stagger>
+          </ul>
         </div>
-      </section>
+
+        <div className="rounded-xl relative overflow-hidden h-[300px]" style={{ border: `1px solid ${LX.ruleStrong}` }}>
+          <CityMap
+            pins={[
+              { x: 26, y: 24, tone: LX.goodDot },
+              { x: 44, y: 14, tone: LX.goodDot },
+              { x: 58, y: 26, tone: LX.brass, pulse: true },
+              { x: 74, y: 44, tone: LX.goodDot },
+              { x: 40, y: 52, tone: LX.warn },
+              { x: 86, y: 26, tone: LX.goodDot },
+            ]}
+            route={[
+              [26, 24],
+              [44, 14],
+              [58, 26],
+              [74, 44],
+            ]}
+          />
+          <div className="absolute bottom-3 left-3 right-3 space-y-1.5">
+            {agents.map(a => (
+              <div
+                key={a.name}
+                className="rounded-lg px-3.5 py-2 flex items-center justify-between gap-3"
+                style={{ background: LX.paper, border: `1px solid ${LX.rule}` }}
+              >
+                <span className="flex items-center gap-2 text-[11.5px] min-w-0 truncate" style={{ color: LX.ink }}>
+                  <MapPin size={12} className="shrink-0" style={{ color: a.tone }} />
+                  {a.name}
+                </span>
+                <span className="text-[11px] shrink-0" style={{ ...MONO, color: LX.inkFaint }}>
+                  {a.pts} {tr("точек", "nuqta")}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ── 05 / Роли ───────────────────────────────────────────────────────────── */
+function RolesSection() {
+  const tr = useTranslate();
+  const roles = useMemo(
+    () => [
+      { code: tr("ДИР", "DIR"), role: tr("Директор", "Direktor"), items: [tr("KPI и прибыль", "KPI va foyda"), tr("Финансовые отчёты", "Moliyaviy hisobotlar"), tr("Контроль долгов", "Qarzlar nazorati")] },
+      { code: tr("ОПР", "OPR"), role: tr("Оператор", "Operator"), items: [tr("Обработка заказов", "Buyurtmalarni qayta ishlash"), tr("Назначение курьеров", "Kuryerlarni tayinlash"), tr("Обмен с 1С", "1C bilan almashinuv")] },
+      { code: tr("АГТ", "AGT"), role: tr("Агент", "Agent"), items: [tr("Заказы в поле", "Daladagi buyurtmalar"), tr("План визитов", "Tashriflar rejasi"), tr("Офлайн-режим", "Oflayn rejim")] },
+      { code: tr("СПВ", "SPV"), role: tr("Супервайзер", "Supervayzer"), items: [tr("Мониторинг агентов", "Agentlar monitoringi"), tr("Планы и цели", "Rejalar va maqsadlar"), tr("Отчёты по визитам", "Tashriflar hisobotlari")] },
+      { code: tr("МРЧ", "MRC"), role: tr("Мерчандайзер", "Merchandayzer"), items: [tr("Фото-отчёты с полки", "Peshtaxtadan foto-hisobotlar"), tr("Чек-листы товаров", "Tovarlar chek-listlari"), tr("Заметки о конкурентах", "Raqobatchilar haqida qaydlar")] },
+      { code: tr("КУР", "KUR"), role: tr("Курьер", "Kuryer"), items: [tr("Список доставок", "Yetkazishlar ro'yxati"), tr("Сбор наличных", "Naqd pul yig'ish"), tr("Частичная приёмка", "Qisman qabul qilish")] },
+    ],
+    [tr],
+  );
+  return (
+    <section className="py-16 md:py-24" style={{ borderTop: `1px solid ${LX.rule}` }}>
+      <div className="max-w-[1240px] mx-auto px-6">
+        <SectionHead
+          id="roles"
+          index="05"
+          label={tr("Роли", "Rollar")}
+          title={tr("Каждый видит только своё", "Har kim faqat o'zinikini ko'radi")}
+          lead={tr(
+            "Шесть ролей с разными правами: курьер не видит прибыль, агент — чужие маршруты.",
+            "Har xil huquqli oltita rol: kuryer foydani ko'rmaydi, agent boshqalar marshrutini ko'rmaydi.",
+          )}
+        />
+        <div className="mt-12 grid sm:grid-cols-2 lg:grid-cols-3 gap-px rounded-xl overflow-hidden" style={{ background: LX.rule, border: `1px solid ${LX.rule}` }}>
+          {roles.map(r => (
+            <div key={r.role} className="p-6" style={{ background: LX.paper }}>
+              <div className="flex items-center gap-3 mb-4">
+                <span
+                  className="px-2 py-1 rounded-[6px] text-[10.5px]"
+                  style={{ ...MONO, color: LX.brassText, background: LX.brassSoft, letterSpacing: "0.08em" }}
+                >
+                  {r.code}
+                </span>
+                <h3 className="text-[15px] font-bold" style={{ color: LX.ink }}>
+                  {r.role}
+                </h3>
+              </div>
+              <ul className="space-y-2">
+                {r.items.map(f => (
+                  <li key={f} className="flex items-center gap-2.5 text-[13px]" style={{ color: LX.inkSoft }}>
+                    <span aria-hidden="true" className="w-3 h-px shrink-0" style={{ background: LX.ruleStrong }} />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export default function FeaturesSection() {
+  return (
+    <>
+      <DaySection />
+      <LedgerSection />
+      <GpsSection />
+      <RolesSection />
     </>
   );
 }

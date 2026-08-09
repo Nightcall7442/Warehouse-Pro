@@ -1,485 +1,467 @@
-import { useEffect, useState, useRef, type ReactNode } from "react";
-import { ChevronDown, MapPin } from "lucide-react";
-import { colorMix } from "@/lib/color-mix";
+import { useEffect, useRef, useState, useId, type ReactNode, type CSSProperties } from "react";
 
-// ═══════════════════════════════════════════════════════════════════════════
-// DESIGN TOKENS — Soft UI / Neumorphic
-// ═══════════════════════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════════════════════
+   СКЛАДСКАЯ КНИГА — дизайн-система лендинга
+   ───────────────────────────────────────────────────────────────────────────
+   Метафора: разлинованный складской реестр. Бумага, чернила, латунная печать.
+
+   Три правила, на которых всё держится:
+
+   1. БЮДЖЕТ ЧЕРНИЛ. Ровно две полночернильные зоны на страницу — окно
+      продукта и финальный CTA. Всё остальное — бумага. Контраст стреляет,
+      только когда редок; четыре тёмных пятна превращают ритм в зебру.
+
+   2. ЛИНОВКА, А НЕ ТЕНИ. Секции разделяются волосяными линиями во всю
+      ширину, контент прижат к боковым рельсам. Тени почти не используются —
+      прежний неоморфизм с двойной тенью на каждом элементе и был причиной
+      «дешёвого» вида.
+
+   3. ДВА ШРИФТА, НОЛЬ НОВЫХ ЗАГРУЗОК. DM Sans (уже грузится приложением)
+      несёт заголовки и текст; DM Mono (тоже уже в index.html) — номера
+      строк, суммы, подписи, кольцо печати. Эмфаза строится на смене
+      семейства и масштаба, не на цвете.
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 export const cn = (...classes: (string | false | null | undefined)[]) =>
   classes.filter(Boolean).join(" ");
 
-export const NEU = {
-  bg: "#f2f0ec",
-  text: "#2a2924",
-  textSecondary: "#6b6a61",
-  textMuted: "#8a887c",
-  border: "rgba(163,158,143,0.22)",
-  accent: "#c9884a",
-  accentSoft: "#e7d3ba",
-  green: "#7fa669",
-  blue: "#8ba3c9",
-  coral: "#c97a5a",
+export const LX = {
+  paper: "#f4f2ed",
+  paperRaised: "#faf9f5",
+  ink: "#26231e",
+  inkHover: "#33302a",
+  /* Текстовые тона проверены на контраст по WCAG AA к #f4f2ed. */
+  inkSoft: "#57534a", // 7.0:1
+  inkFaint: "#6e6a60", // 4.8:1 — минимум для мелких подписей
+  rule: "rgba(72,66,55,0.16)",
+  ruleStrong: "rgba(72,66,55,0.34)",
+  /* Латунь в двух тонах: графическая (печать, линии, крупные цифры) и
+     текстовая — затемнена до 5.0:1, потому что #a8763e на бумаге даёт лишь
+     3.5:1 и мелкий текст им не набрать. */
+  brass: "#a8763e",
+  brassText: "#8a5f2e",
+  brassSoft: "rgba(168,118,62,0.10)",
+  paperOnInk: "#f0eee8", // 13.6:1 на чернилах
+  softOnInk: "rgba(240,238,232,0.62)",
+  faintOnInk: "rgba(240,238,232,0.38)", // только для декоративного, не текста
+  ruleOnInk: "rgba(240,238,232,0.14)",
+  /* Статусные тона. Проверены на 4.5:1 к обоим бумажным фонам — здесь ими
+     набирается мелкий текст (10.5px в таблице заказов и подписях KPI), а не
+     только рисуются точки. Прежние #5f7d4e и #b05a44 давали 4.14 и 4.27 на
+     основной бумаге, то есть формально не читались; жёлтый #a8763e — 3.52 и
+     для текста не годился совсем, поэтому статус «в пути» теперь берёт
+     brassText. */
+  good: "#4f6a40", // 5.75 / 5.41
+  warn: "#8a5f2e", // = brassText, 5.31 / 5.00
+  bad: "#9c4a35", // 5.79 / 5.45
+  /* Графические тона: только заливки, точки и линии — контраст текста к ним
+     не применяется. */
+  goodDot: "#5f7d4e",
+  badDot: "#b05a44",
+} as const;
+
+export const MONO: CSSProperties = {
+  fontFamily: "'DM Mono', ui-monospace, 'Cascadia Mono', monospace",
+  fontVariantNumeric: "tabular-nums",
 };
 
-export const raised = "shadow-[6px_6px_14px_rgba(163,158,143,0.35),-6px_-6px_14px_rgba(255,255,255,0.9)]";
-export const raisedSm = "shadow-[3px_3px_7px_rgba(163,158,143,0.35),-3px_-3px_7px_rgba(255,255,255,0.9)]";
-export const raisedLg = "shadow-[9px_9px_22px_rgba(163,158,143,0.38),-9px_-9px_22px_rgba(255,255,255,0.92)]";
-export const insetSm = "shadow-[inset_2px_2px_5px_rgba(163,158,143,0.3),inset_-2px_-2px_5px_rgba(255,255,255,0.75)]";
+/**
+ * Контакты отдела продаж. null скрывает соответствующие кнопки.
+ *
+ * Намеренно не заполнены выдуманными значениями: телефон, по которому никто
+ * не ответит, и мёртвая ссылка t.me для покупателя «по доверию» хуже их
+ * отсутствия. Впишите реальный @username и номер — кнопки «Написать в
+ * Telegram» (hero, тарифы, CTA, мобильная панель) появятся сами.
+ */
+export const CONTACT: { telegram: string | null; phone: string | null } = {
+  telegram: null,
+  phone: null,
+};
 
-export const ROLE_TONES = [NEU.accent, NEU.blue, NEU.green, NEU.coral];
+export const tgLink = (text?: string) =>
+  CONTACT.telegram
+    ? `https://t.me/${CONTACT.telegram}${text ? `?text=${encodeURIComponent(text)}` : ""}`
+    : null;
 
-// ═══════════════════════════════════════════════════════════════════════════
-// PRIMITIVES
-// ═══════════════════════════════════════════════════════════════════════════
+/* ── Глобальные стили лендинга ─────────────────────────────────────────────
+   Один <style> на страницу: keyframes входа, печати и боковые рельсы.
+   Классы с префиксом lx-, чтобы не задеть остальное приложение. */
+export function LandingStyles() {
+  return (
+    <style>{`
+      .lx-rails { position: relative; }
+      @media (min-width: 1240px) {
+        .lx-rails::before, .lx-rails::after {
+          content: ""; position: absolute; top: 0; bottom: 0; width: 1px;
+          background: ${LX.rule};
+        }
+        .lx-rails::before { left: 0; }
+        .lx-rails::after { right: 0; }
+      }
+      @keyframes lx-enter {
+        from { opacity: 0; transform: translateY(14px); }
+        to   { opacity: 1; transform: none; }
+      }
+      .lx-enter { animation: lx-enter .55s ease-out both; }
+      .lx-enter-1 { animation-delay: .05s; }
+      .lx-enter-2 { animation-delay: .14s; }
+      .lx-enter-3 { animation-delay: .23s; }
+      @keyframes lx-stamp {
+        0%   { opacity: 0; transform: scale(1.4) rotate(var(--lx-rot, -5deg)); }
+        55%  { opacity: 1; transform: scale(.94) rotate(var(--lx-rot, -5deg)); }
+        100% { opacity: 1; transform: scale(1) rotate(var(--lx-rot, -5deg)); }
+      }
+      .lx-stamp-hidden { opacity: 0; transform: rotate(var(--lx-rot, -5deg)); }
+      .lx-stamp-in { animation: lx-stamp .5s cubic-bezier(.2,.9,.3,1.2) both; }
+      @media (prefers-reduced-motion: reduce) {
+        .lx-enter, .lx-stamp-in { animation: none; }
+        .lx-stamp-hidden { opacity: 1; }
+        .lx-anim { transition: none !important; }
+      }
+      /* Видимый фокус с клавиатуры: по всей странице кольцо латунью на
+         бумаге и бумагой на чернилах. Без него навигация табом по
+         восьми секциям вслепую. */
+      .lx-root :is(a, button):focus-visible {
+        outline: 2px solid ${LX.brass};
+        outline-offset: 3px;
+        border-radius: 6px;
+      }
+      .lx-ink :is(a, button):focus-visible { outline-color: ${LX.paperOnInk}; }
+    `}</style>
+  );
+}
 
-export function FadeIn({
-  children,
-  delay = 0,
-  className = "",
-}: {
-  children: ReactNode;
-  delay?: number;
-  className?: string;
-}) {
-  const [visible, setVisible] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
+/* ── Появление в вьюпорте ──────────────────────────────────────────────────
+   Единственная скролл-анимация страницы — оттиск печати и счётчики.
+   Ковровые fade-up на каждой секции сняты сознательно: одно точное движение
+   запоминается лучше двадцати одинаковых. */
+export function useInView<T extends HTMLElement>(threshold = 0.3) {
+  const ref = useRef<T>(null);
+  const [seen, setSeen] = useState(false);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setVisible(true);
-          observer.disconnect();
+    const io = new IntersectionObserver(
+      ([e]) => {
+        if (e.isIntersecting) {
+          setSeen(true);
+          io.disconnect();
         }
       },
-      { threshold: 0.05, rootMargin: "0px 0px -60px 0px" }
+      { threshold },
     );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
+    io.observe(el);
+    return () => io.disconnect();
+  }, [threshold]);
+  return { ref, seen };
+}
 
+const prefersReducedMotion = () =>
+  typeof window !== "undefined" &&
+  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/** Число защёлкивается как механический счётчик — один раз, при появлении. */
+export function Counter({ target, duration = 1200 }: { target: number; duration?: number }) {
+  const { ref, seen } = useInView<HTMLSpanElement>(0.4);
+  const [value, setValue] = useState(0);
+  useEffect(() => {
+    if (!seen) return;
+    if (prefersReducedMotion()) {
+      setValue(target);
+      return;
+    }
+    let raf = 0;
+    const start = performance.now();
+    const tick = (now: number) => {
+      const p = Math.min(1, (now - start) / duration);
+      setValue(Math.round(target * (1 - Math.pow(1 - p, 3))));
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [seen, target, duration]);
+  return (
+    <span ref={ref} style={MONO}>
+      {value.toLocaleString("ru-RU")}
+    </span>
+  );
+}
+
+/* ── Печать (muhr) ─────────────────────────────────────────────────────────
+   Фирменный артефакт направления: круглая латунная печать, как на договоре.
+   Появляется оттиском — единственное «грязное» пятно на чистой бумаге.
+   Ровно два оттиска на страницу: hero и карточка Pro. */
+export function Stamp({
+  ring,
+  center,
+  sub,
+  size = 148,
+  rotate = -5,
+  className,
+}: {
+  /** Текст по кольцу; повторите с разделителями до полной окружности. */
+  ring: string;
+  center: string;
+  sub?: string;
+  size?: number;
+  rotate?: number;
+  className?: string;
+}) {
+  const id = useId().replace(/[^a-zA-Z0-9]/g, "");
+  const { ref, seen } = useInView<HTMLDivElement>(0.5);
+  const c = size / 2;
+  const rText = c - 15;
+  // Кольцо растягивается ровно по окружности через textLength.
+  //
+  // С фиксированным letter-spacing длина строки зависела от языка и размера:
+  // узбекская на большом оттиске оставляла пустой сектор в 57°, а на
+  // мобильном (126px) обе строки были ДЛИННЕЕ пути, и SVG обрезал глифы
+  // посреди слова. Здесь браузер сам подбирает межбуквенный интервал под
+  // конкретную строку, поэтому любой язык замыкает круг.
+  const ringLength = 2 * Math.PI * rText;
+  const ringFont = Math.max(7, size / 16.6);
   return (
     <div
       ref={ref}
-      style={{ transitionDelay: `${delay}ms` }}
-      className={cn(
-        "transition-all duration-700 ease-out",
-        visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6",
-        className
-      )}
+      aria-hidden="true"
+      className={cn("select-none", seen ? "lx-stamp-in" : "lx-stamp-hidden", className)}
+      style={{ width: size, height: size, mixBlendMode: "multiply", ["--lx-rot" as string]: `${rotate}deg` }}
     >
-      {children}
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        <defs>
+          <path
+            id={`lxs${id}`}
+            d={`M ${c},${c} m -${rText},0 a ${rText},${rText} 0 1,1 ${rText * 2},0 a ${rText},${rText} 0 1,1 -${rText * 2},0`}
+          />
+        </defs>
+        <circle cx={c} cy={c} r={c - 2} fill="none" stroke={LX.brass} strokeWidth="2.5" opacity="0.9" />
+        <circle cx={c} cy={c} r={c - 7} fill="none" stroke={LX.brass} strokeWidth="1" opacity="0.75" />
+        <circle cx={c} cy={c} r={c - 27} fill="none" stroke={LX.brass} strokeWidth="1" opacity="0.75" />
+        <text
+          fill={LX.brass}
+          style={{ fontFamily: "'DM Mono', monospace", fontSize: ringFont }}
+          opacity="0.92"
+        >
+          <textPath href={`#lxs${id}`} textLength={ringLength} lengthAdjust="spacing">
+            {ring}
+          </textPath>
+        </text>
+        <text
+          x={c}
+          y={sub ? c + 1 : c + 7}
+          textAnchor="middle"
+          fill={LX.brass}
+          style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 800, fontSize: size / 7.4, letterSpacing: 0.5 }}
+        >
+          {center}
+        </text>
+        {sub && (
+          <text
+            x={c}
+            y={c + 17}
+            textAnchor="middle"
+            fill={LX.brass}
+            style={{ fontFamily: "'DM Mono', monospace", fontSize: 8.5, letterSpacing: 1.6 }}
+            opacity="0.9"
+          >
+            {sub}
+          </text>
+        )}
+      </svg>
     </div>
   );
 }
 
-export function Stagger({
-  children,
-  className,
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(false);
+/* ── Кнопки ────────────────────────────────────────────────────────────────
+   Чернильная — единственный сильный элемент; призрачная — контур на
+   волосяной линии. Никаких выпуклых теней. */
+/**
+ * Внешняя ссылка открывается в новой вкладке, якорь на этой же странице — нет.
+ *
+ * Раньше target="_blank" ставился на любой href, поэтому кнопка героя
+ * «Посмотреть интерфейс» с href="#product" открывала копию лендинга в новой
+ * вкладке вместо того, чтобы прокрутить к окну продукта.
+ */
+const linkProps = (href: string) =>
+  href.startsWith("#") ? {} : { target: "_blank" as const, rel: "noreferrer" };
 
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setVisible(true);
-          observer.disconnect();
-        }
-      },
-      { threshold: 0.05, rootMargin: "0px 0px -60px 0px" }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-
-  return (
-    <div ref={ref} className={className}>
-      {Array.isArray(children)
-        ? children.map((child, i) => (
-            <div
-              key={i}
-              style={{ transitionDelay: `${i * 70}ms` }}
-              className={cn(
-                "transition-all duration-500 ease-out",
-                visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
-              )}
-            >
-              {child}
-            </div>
-          ))
-        : children}
-    </div>
-  );
-}
-
-export function Counter({ target }: { target: number }) {
-  const [value, setValue] = useState(0);
-  const ref = useRef<HTMLSpanElement>(null);
-  const started = useRef(false);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !started.current) {
-          started.current = true;
-          const duration = 1400;
-          const start = performance.now();
-          const tick = (now: number) => {
-            const progress = Math.min(1, (now - start) / duration);
-            const eased = 1 - Math.pow(1 - progress, 3);
-            setValue(Math.round(target * eased));
-            if (progress < 1) requestAnimationFrame(tick);
-          };
-          requestAnimationFrame(tick);
-          observer.disconnect();
-        }
-      },
-      { threshold: 0.3 }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [target]);
-
-  return <span ref={ref}>{value.toLocaleString("ru-RU")}</span>;
-}
-
-export function ProgressRing({
-  percent,
-  color,
-  size = 30,
-}: {
-  percent: number;
-  color: string;
-  size?: number;
-}) {
-  const r = size / 2 - 3;
-  const circumference = 2 * Math.PI * r;
-  const offset = circumference * (1 - percent / 100);
-  return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      <circle
-        cx={size / 2}
-        cy={size / 2}
-        r={r}
-        fill="none"
-        stroke="rgba(163,158,143,0.22)"
-        strokeWidth={3.2}
-      />
-      <circle
-        cx={size / 2}
-        cy={size / 2}
-        r={r}
-        fill="none"
-        stroke={color}
-        strokeWidth={3.2}
-        strokeLinecap="round"
-        strokeDasharray={circumference}
-        strokeDashoffset={offset}
-        transform={`rotate(-90 ${size / 2} ${size / 2})`}
-      />
-    </svg>
-  );
-}
-
-export function NeuButton({
+export function BtnInk({
   children,
   onClick,
-  variant = "raised",
+  href,
   className,
+  onPaper = true,
 }: {
   children: ReactNode;
   onClick?: () => void;
-  variant?: "raised" | "inset" | "dark";
+  href?: string;
   className?: string;
+  /** false — кнопка стоит на чернильной зоне и инвертируется в бумагу. */
+  onPaper?: boolean;
 }) {
+  const style: CSSProperties = onPaper
+    ? { background: LX.ink, color: LX.paperOnInk }
+    : { background: LX.paper, color: LX.ink };
+  const cls = cn(
+    "lx-anim inline-flex items-center justify-center gap-2.5 h-12 px-7 rounded-[10px]",
+    "text-[14px] font-semibold cursor-pointer transition-all duration-200",
+    "hover:-translate-y-0.5 active:translate-y-0 hover:shadow-[0_10px_24px_-12px_rgba(38,35,30,0.55)]",
+    className,
+  );
+  if (href)
+    return (
+      <a href={href} {...linkProps(href)} className={cls} style={style}>
+        {children}
+      </a>
+    );
   return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "rounded-xl font-medium text-[13px] transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-2",
-        variant === "raised" && cn("text-[#33322d]", raisedSm, "hover:shadow-[4px_4px_9px_rgba(163,158,143,0.4),-4px_-4px_9px_rgba(255,255,255,0.95)]"),
-        variant === "inset" && cn("text-[#6b6a61]", insetSm),
-        variant === "dark" && "bg-[#2a2924] text-[#f2f0ec] shadow-[4px_4px_10px_rgba(163,158,143,0.35)] hover:bg-[#33322d]",
-        className
-      )}
-      style={{ background: variant !== "dark" ? NEU.bg : undefined }}
-    >
+    <button type="button" onClick={onClick} className={cls} style={style}>
       {children}
     </button>
   );
 }
 
-export function NeuCard({
+export function BtnGhost({
   children,
+  onClick,
+  href,
   className,
-  hover = true,
+  onPaper = true,
 }: {
   children: ReactNode;
+  onClick?: () => void;
+  href?: string;
   className?: string;
-  hover?: boolean;
+  onPaper?: boolean;
+}) {
+  const style: CSSProperties = onPaper
+    ? { border: `1px solid ${LX.ruleStrong}`, color: LX.ink, background: "transparent" }
+    : { border: `1px solid ${LX.ruleOnInk}`, color: LX.paperOnInk, background: "transparent" };
+  const cls = cn(
+    "lx-anim inline-flex items-center justify-center gap-2.5 h-12 px-7 rounded-[10px]",
+    "text-[14px] font-medium cursor-pointer transition-colors duration-200",
+    onPaper ? "hover:bg-[#ece9e2]" : "hover:bg-[rgba(240,238,232,0.08)]",
+    className,
+  );
+  if (href)
+    return (
+      <a href={href} {...linkProps(href)} className={cls} style={style}>
+        {children}
+      </a>
+    );
+  return (
+    <button type="button" onClick={onClick} className={cls} style={style}>
+      {children}
+    </button>
+  );
+}
+
+/* ── Шапка секции: строка реестра ──────────────────────────────────────────
+   Моно-индекс + рубрика, волосяная линия дотягивается до правого рельса.
+   Номера строк здесь мотивированы: это разлиновка журнала, а не
+   декоративные «01/02/03». */
+export function SectionHead({
+  index,
+  label,
+  title,
+  lead,
+  id,
+}: {
+  index: string;
+  label: string;
+  title: ReactNode;
+  lead?: string;
+  id?: string;
 }) {
   return (
-    <div
-      className={cn(
-        "rounded-2xl transition-all duration-300",
-        raised,
-        hover && "hover:shadow-[8px_8px_18px_rgba(163,158,143,0.42),-8px_-8px_18px_rgba(255,255,255,0.95)] hover:-translate-y-0.5",
-        className
+    <div id={id} className="scroll-mt-24">
+      <div className="flex items-center gap-4 mb-8">
+        <span
+          className="text-[11px] uppercase shrink-0"
+          style={{ ...MONO, color: LX.brassText, letterSpacing: "0.22em" }}
+        >
+          {index} / {label}
+        </span>
+        <span aria-hidden="true" className="h-px flex-1" style={{ background: LX.rule }} />
+      </div>
+      <h2
+        className="font-bold max-w-2xl"
+        style={{
+          fontSize: "clamp(1.9rem, 3.6vw, 2.9rem)",
+          letterSpacing: "-0.03em",
+          lineHeight: 1.08,
+          color: LX.ink,
+        }}
+      >
+        {title}
+      </h2>
+      {lead && (
+        <p className="mt-4 max-w-xl text-[15.5px] leading-relaxed" style={{ color: LX.inkSoft }}>
+          {lead}
+        </p>
       )}
-      style={{ background: NEU.bg }}
-    >
-      {children}
     </div>
   );
 }
 
-export function Eyebrow({ icon: Icon, children }: { icon: typeof ChevronDown; children: ReactNode }) {
-  return (
-    <div
-      className={cn("inline-flex items-center gap-2 text-[11px] font-semibold tracking-wide uppercase mb-5 px-4 py-2 rounded-full", insetSm)}
-      style={{ background: NEU.bg, color: NEU.accent }}
-    >
-      <Icon size={13} />
-      {children}
-    </div>
-  );
-}
-
+/* ── Аккордеон на линовке ────────────────────────────────────────────────── */
 export function Accordion({ items }: { items: { q: string; a: string }[] }) {
   const [open, setOpen] = useState<number | null>(0);
+  const uid = useId().replace(/[^a-zA-Z0-9]/g, "");
   return (
-    <div className="space-y-3">
+    <div style={{ borderTop: `1px solid ${LX.rule}` }}>
       {items.map((item, i) => (
-        <div key={item.q} className={cn("rounded-2xl overflow-hidden", raisedSm)} style={{ background: NEU.bg }}>
+        <div key={item.q} style={{ borderBottom: `1px solid ${LX.rule}` }}>
           <button
+            type="button"
             onClick={() => setOpen(open === i ? null : i)}
-            className="w-full flex items-center justify-between gap-4 px-6 py-4.5 text-left"
+            aria-expanded={open === i}
+            aria-controls={`lxfaq${uid}-${i}`}
+            id={`lxfaqb${uid}-${i}`}
+            className="w-full flex items-baseline gap-5 py-5 text-left cursor-pointer group"
           >
-            <span className="text-[14px] font-medium" style={{ color: NEU.text }}>{item.q}</span>
-            <ChevronDown
-              size={16}
-              style={{ color: NEU.textMuted }}
-              className={cn("transition-transform duration-300 flex-shrink-0", open === i && "rotate-180")}
-            />
+            <span
+              className="text-[11px] shrink-0 w-6"
+              style={{ ...MONO, color: open === i ? LX.brassText : LX.inkFaint }}
+            >
+              {String(i + 1).padStart(2, "0")}
+            </span>
+            <span
+              className="text-[15px] font-medium flex-1 transition-colors"
+              style={{ color: LX.ink }}
+            >
+              {item.q}
+            </span>
+            <span
+              aria-hidden="true"
+              className="text-[15px] shrink-0 transition-transform duration-300"
+              style={{ ...MONO, color: LX.inkFaint, transform: open === i ? "rotate(45deg)" : "none" }}
+            >
+              +
+            </span>
           </button>
+          {/*
+            aria-hidden на свёрнутой панели обязателен: приём с
+            grid-template-rows: 0fr прячет ответ только геометрически, а
+            в дереве доступности он остаётся — скринридер зачитывал все шесть
+            ответов подряд, прямо противореча aria-expanded="false".
+          */}
           <div
-            className="grid transition-all duration-300"
+            id={`lxfaq${uid}-${i}`}
+            role="region"
+            aria-labelledby={`lxfaqb${uid}-${i}`}
+            aria-hidden={open !== i}
+            className="grid transition-[grid-template-rows] duration-300 lx-anim"
             style={{ gridTemplateRows: open === i ? "1fr" : "0fr" }}
           >
             <div className="overflow-hidden">
-              <p className="px-6 pb-5 text-[13.5px] leading-relaxed" style={{ color: NEU.textSecondary }}>
+              <p className="pb-6 pl-11 pr-8 text-[14px] leading-relaxed max-w-2xl" style={{ color: LX.inkSoft }}>
                 {item.a}
               </p>
             </div>
           </div>
         </div>
       ))}
-    </div>
-  );
-}
-
-export function ScrollProgress() {
-  const [progress, setProgress] = useState(0);
-  useEffect(() => {
-    const handler = () => {
-      const h = document.documentElement;
-      const scrolled = h.scrollTop;
-      const max = h.scrollHeight - h.clientHeight;
-      setProgress(max > 0 ? (scrolled / max) * 100 : 0);
-    };
-    window.addEventListener("scroll", handler, { passive: true });
-    return () => window.removeEventListener("scroll", handler);
-  }, []);
-  return (
-    <div className="fixed top-0 inset-x-0 h-[2px] z-[60]" style={{ background: "transparent" }}>
-      <div
-        className="h-full transition-[width] duration-150"
-        style={{ width: `${progress}%`, background: NEU.accent }}
-      />
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// PRODUCT PREVIEW (tabbed mock of the real app)
-// ═══════════════════════════════════════════════════════════════════════════
-
-function KpiTile({ label, value, sub, color }: { label: string; value: string; sub: string; color: string }) {
-  return (
-    <div className={cn("rounded-2xl p-4", raisedSm)} style={{ background: NEU.bg }}>
-      <div className="text-[9.5px] font-semibold tracking-wide uppercase mb-3" style={{ color: NEU.textMuted }}>{label}</div>
-      <div className="text-[20px] font-medium mb-1" style={{ color: NEU.text }}>{value}</div>
-      <div className="text-[10.5px]" style={{ color }}>{sub}</div>
-    </div>
-  );
-}
-
-function DashboardTab() {
-  return (
-    <div className="grid grid-cols-3 gap-3">
-      <KpiTile label="Заказов" value="142" sub="↑ 18% за неделю" color={NEU.green} />
-      <KpiTile label="Агентов в поле" value="18" sub="6 территорий" color={NEU.textMuted} />
-      <div className={cn("rounded-2xl p-4 flex flex-col justify-between", raisedSm)} style={{ background: NEU.bg }}>
-        <div className="flex items-center justify-between">
-          <div className="text-[9.5px] font-semibold tracking-wide uppercase" style={{ color: NEU.textMuted }}>Dead-stock</div>
-          <ProgressRing percent={74} color={NEU.accent} />
-        </div>
-        <div className="text-[20px] font-medium" style={{ color: NEU.text }}>&minus;12%</div>
-      </div>
-      <div className={cn("col-span-3 rounded-2xl p-4", raisedSm)} style={{ background: NEU.bg }}>
-        <div className="text-[9.5px] font-semibold tracking-wide uppercase mb-4" style={{ color: NEU.textMuted }}>Динамика продаж, 7 дней</div>
-        <svg viewBox="0 0 300 60" className="w-full h-14">
-          <polyline
-            points="0,45 40,38 80,42 120,20 160,26 200,10 240,18 300,6"
-            fill="none"
-            stroke={NEU.accent}
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      </div>
-    </div>
-  );
-}
-
-function MapTab() {
-  const pins = [
-    { x: 28, y: 32, tone: NEU.green },
-    { x: 58, y: 20, tone: NEU.accent },
-    { x: 74, y: 55, tone: NEU.green },
-    { x: 40, y: 66, tone: NEU.blue },
-    { x: 85, y: 30, tone: NEU.green },
-  ];
-  return (
-    <div className={cn("rounded-2xl p-5 h-[220px] relative overflow-hidden", raisedSm)} style={{ background: NEU.bg }}>
-      <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 opacity-40">
-        <path d="M0,30 Q30,10 60,25 T100,20" stroke={NEU.border} strokeWidth="0.6" fill="none" />
-        <path d="M0,70 Q40,55 70,72 T100,65" stroke={NEU.border} strokeWidth="0.6" fill="none" />
-        <path d="M20,0 Q35,40 20,100" stroke={NEU.border} strokeWidth="0.6" fill="none" />
-        <path d="M75,0 Q65,50 80,100" stroke={NEU.border} strokeWidth="0.6" fill="none" />
-      </svg>
-      {pins.map((p, i) => (
-        <div
-          key={i}
-          className="absolute w-2.5 h-2.5 rounded-full"
-          style={{ left: `${p.x}%`, top: `${p.y}%`, background: p.tone, boxShadow: `0 0 0 4px ${colorMix(p.tone, 13)}` }}
-        />
-      ))}
-      <div className={cn("absolute bottom-3 left-3 right-3 rounded-xl px-3 py-2.5 flex items-center gap-2", raisedSm)} style={{ background: NEU.bg }}>
-        <MapPin size={13} style={{ color: NEU.accent }} />
-        <span className="text-[11px]" style={{ color: NEU.text }}>Бехруз — Мирзо-Улугбек, 12 мин назад</span>
-      </div>
-    </div>
-  );
-}
-
-function MobileTab() {
-  return (
-    <div className="flex justify-center">
-      <div className={cn("rounded-[1.6rem] p-2.5 w-[160px]", raisedSm)} style={{ background: NEU.bg }}>
-        <div className="rounded-[1.2rem] overflow-hidden" style={{ background: NEU.bg }}>
-          <div className="px-3 pt-3 pb-2 flex items-center justify-between">
-            <span className="text-[10px] font-medium" style={{ color: NEU.text }}>Заказы</span>
-            <span className="text-[8px]" style={{ color: NEU.textMuted }}>11 всего</span>
-          </div>
-          <div className="px-3 space-y-2 pb-3">
-            {[
-              { s: "Новый", tone: NEU.blue },
-              { s: "В работе", tone: NEU.accent },
-              { s: "Выполнен", tone: NEU.green },
-            ].map((o, i) => (
-              <div key={i} className={cn("rounded-lg px-2.5 py-2", insetSm)}>
-                <div className="text-[8.5px] font-medium mb-1" style={{ color: NEU.text }}>ORD-{1000 + i}</div>
-                <div className="text-[7.5px]" style={{ color: o.tone }}>{o.s}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AnalyticsTab() {
-  const bars = [40, 65, 30, 80, 55, 90, 45];
-  return (
-    <div className={cn("rounded-2xl p-5", raisedSm)} style={{ background: NEU.bg }}>
-      <div className="flex items-end justify-between h-24 mb-3 gap-2">
-        {bars.map((h, i) => (
-          <div key={i} className="flex-1 rounded-t-md" style={{ height: `${h}%`, background: i === 5 ? NEU.accent : "rgba(163,158,143,0.3)" }} />
-        ))}
-      </div>
-      <div className="grid grid-cols-3 gap-3 pt-3" style={{ borderTop: `0.5px solid ${NEU.border}` }}>
-        <div>
-          <div className="text-[9px]" style={{ color: NEU.textMuted }}>Выручка</div>
-          <div className="text-[14px] font-medium" style={{ color: NEU.text }}>18.4М</div>
-        </div>
-        <div>
-          <div className="text-[9px]" style={{ color: NEU.textMuted }}>Маржа</div>
-          <div className="text-[14px] font-medium" style={{ color: NEU.green }}>24%</div>
-        </div>
-        <div>
-          <div className="text-[9px]" style={{ color: NEU.textMuted }}>Долг</div>
-          <div className="text-[14px] font-medium" style={{ color: NEU.coral }}>1.7М</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export function ProductPreview({ tr }: { tr: (ru: string, uz: string) => string }) {
-  const [tab, setTab] = useState(0);
-  const tabs = ["Dashboard", tr("Карта", "Xarita"), tr("Мобильное", "Mobil"), tr("Аналитика", "Tahlil")];
-  useEffect(() => {
-    const t = setInterval(() => setTab(p => (p + 1) % 4), 5000);
-    return () => clearInterval(t);
-  }, []);
-  return (
-    <div className={cn("rounded-[1.75rem] p-3", raisedLg)} style={{ background: NEU.bg }}>
-      <div className="flex items-center gap-3 px-3 py-2.5">
-        <div className="flex gap-1.5">
-          <div className="w-2.5 h-2.5 rounded-full" style={{ background: "rgba(163,158,143,0.3)" }} />
-          <div className="w-2.5 h-2.5 rounded-full" style={{ background: "rgba(163,158,143,0.3)" }} />
-          <div className="w-2.5 h-2.5 rounded-full" style={{ background: "rgba(163,158,143,0.3)" }} />
-        </div>
-        <div className="flex-1 flex justify-center">
-          <div className={cn("flex gap-0.5 rounded-xl p-1", insetSm)}>
-            {tabs.map((t, i) => (
-              <button
-                key={t}
-                onClick={() => setTab(i)}
-                className={cn(
-                  "px-3.5 py-1.5 rounded-lg text-[11px] font-medium transition-all duration-300",
-                  tab === i ? raisedSm : ""
-                )}
-                style={{ color: tab === i ? NEU.text : NEU.textMuted, background: tab === i ? NEU.bg : "transparent" }}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="w-16" />
-      </div>
-      <div className="p-4 pt-2">
-        {tab === 0 && <DashboardTab />}
-        {tab === 1 && <MapTab />}
-        {tab === 2 && <MobileTab />}
-        {tab === 3 && <AnalyticsTab />}
-      </div>
     </div>
   );
 }

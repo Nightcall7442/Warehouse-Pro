@@ -1,85 +1,142 @@
 import { useNavigate } from "react-router";
 import { useTranslate } from "@/i18n";
-import { CheckCircle2, ArrowRight, Play } from "lucide-react";
-import { cn, NEU, insetSm, FadeIn, NeuButton, ProductPreview } from "./landing-shared";
+import { ArrowRight, ArrowDown, Check, Send } from "lucide-react";
+import { LX, MONO, BtnInk, BtnGhost, Stamp, tgLink } from "./landing-shared";
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   HERO — первая страница реестра.
+
+   Композиция документа: всё выровнено влево, как в настоящем бланке; сверху
+   моно-строка шапки, заголовок — самый крупный объект первого экрана.
+   Эмфаза в H1 — сменой семейства (DM Mono внутри DM Sans 800), а не цветом:
+   при двух запертых шрифтах это единственный доступный display-контраст.
+
+   Справа — оттиск латунной печати «14 дней бесплатно»: культурный знак
+   «сделка реальна» и первое из двух её появлений на странице.
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 export default function HeroSection() {
   const navigate = useNavigate();
   const tr = useTranslate();
+  const tg = tgLink(tr("Здравствуйте! Хочу узнать подробнее о Warehouse Pro.", "Assalomu alaykum! Warehouse Pro haqida bilmoqchiman."));
 
   return (
-    <>
-      <section className="relative pt-32 pb-20 md:pt-40 md:pb-28">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="grid lg:grid-cols-2 gap-14 items-center">
-            <FadeIn>
-              <div>
-                <div className={cn("inline-flex items-center gap-2 rounded-full px-3.5 py-2 mb-7", insetSm)}>
-                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: NEU.green }} />
-                  <span className="text-[11px]" style={{ color: NEU.textSecondary }}>
-                    {tr("Работает у 40+ дистрибьюторов Узбекистана", "40+ O'zbekiston distribyutorlari foydalanadi")}
-                  </span>
-                </div>
+    <section className="relative pt-28 md:pt-36 pb-14 md:pb-20 overflow-hidden">
+      <div className="max-w-[1240px] mx-auto px-6">
+        {/* Шапка бланка */}
+        <div
+          className="lx-enter flex flex-wrap items-center gap-x-3 gap-y-1 text-[10.5px] md:text-[11px] uppercase mb-8 md:mb-10"
+          style={{ ...MONO, color: LX.brassText, letterSpacing: "0.2em" }}
+        >
+          <span>{tr("Складская книга", "Ombor daftari")}</span>
+          <span aria-hidden="true" style={{ color: LX.inkFaint }}>·</span>
+          {/* Без знака «№»: в DM Mono нет этого глифа, браузер подставлял «%» */}
+          <span>{tr("Реестр WP-2026", "Reyestr WP-2026")}</span>
+          <span aria-hidden="true" style={{ color: LX.inkFaint }}>·</span>
+          <span>{tr("Ташкент", "Toshkent")}</span>
+        </div>
 
-                <h1 className="text-[2.3rem] md:text-[3.1rem] font-medium tracking-[-0.02em] leading-[1.1] mb-5">
-                  {tr("Учёт склада и доставки", "Ombor va yetkazib berish hisobi")}
-                  <br />
-                  {tr("без разрывов между отделами", "bo'limlar orasida uzilishsiz")}
-                </h1>
+        <div className="relative">
+          {/*
+            Ширина под самую длинную строку, а не под глазомер: при
+            max-w-4xl (896px) строка «Учёт склада и доставки» на 1280px
+            занимала 931px и переносилась, разбивая заголовок на четыре
+            строки вместо трёх, заложенных <br>. Правый предел оставляет
+            место оттиску печати.
+          */}
+          <h1
+            className="lx-enter lx-enter-1 font-extrabold max-w-[15ch] lg:max-w-[19ch]"
+            style={{
+              fontSize: "clamp(2.4rem, 6.2vw, 5.2rem)",
+              letterSpacing: "-0.04em",
+              lineHeight: 1.02,
+              color: LX.ink,
+            }}
+          >
+            {tr("Учёт склада и доставки", "Ombor va yetkazish hisobi")}
+            <br />
+            <span style={{ ...MONO, fontWeight: 400, fontSize: "0.82em", letterSpacing: "-0.055em", wordSpacing: "-0.3em" }}>
+              {tr("без разрывов", "uzilishlarsiz")}
+            </span>{" "}
+            {tr("между отделами", "— bo'limlar orasida")}
+          </h1>
 
-                <p className="text-[15px] md:text-base leading-relaxed mb-9 max-w-md" style={{ color: NEU.textSecondary }}>
-                  {tr(
-                    "Один источник данных для директора, склада, агентов и курьеров — вместо Excel-таблиц и звонков.",
-                    "Direktor, ombor, agentlar va kuryerlar uchun bitta ma'lumot manbai — Excel jadvallar va qo'ng'iroqlar o'rniga."
-                  )}
-                </p>
-
-                <div className="flex flex-wrap items-center gap-3 mb-10">
-                  <NeuButton onClick={() => navigate("/register")} className="h-12 px-7 text-[14px]">
-                    {tr("Начать бесплатно", "Bepul boshlash")}
-                    <ArrowRight size={15} />
-                  </NeuButton>
-                  <NeuButton variant="inset" className="h-12 px-7 text-[14px]">
-                    <Play size={12} fill={NEU.textSecondary} style={{ color: NEU.textSecondary }} />
-                    {tr("Смотреть демо", "Demo ko'rish")}
-                  </NeuButton>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[12px]" style={{ color: NEU.textMuted }}>
-                  {[
-                    tr("14 дней бесплатно", "14 kun bepul"),
-                    tr("Без привязки карты", "Kartani bog'lash shart emas"),
-                    tr("Настройка за 5 мин", "5 daqiqada sozlash"),
-                  ].map(s => (
-                    <span key={s} className="flex items-center gap-1.5">
-                      <CheckCircle2 size={13} style={{ color: NEU.green }} />
-                      {s}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </FadeIn>
-
-            <FadeIn delay={200}>
-              <ProductPreview tr={tr} />
-            </FadeIn>
+          {/*
+            Оттиск справа появляется только с lg: на планшетных 768–1023px
+            он ложился прямо на строку «между отделами», перекрывая её на
+            120px. Ниже lg печать стоит отдельным блоком под кнопками.
+          */}
+          <div className="hidden lg:block absolute -top-4 right-0 xl:right-10">
+            <Stamp
+              ring={tr(
+                "14 ДНЕЙ БЕСПЛАТНО · КАРТА НЕ НУЖНА · 14 KUN BEPUL · ",
+                "14 KUN BEPUL · KARTA KERAK EMAS · 14 ДНЕЙ · ",
+              )}
+              center="WP"
+              sub="2026"
+              size={158}
+              rotate={-6}
+            />
           </div>
         </div>
-      </section>
 
-      {/* Social proof */}
-      <section className="py-10">
-        <div className="max-w-7xl mx-auto px-6">
-          <p className="text-center text-[10px] uppercase tracking-[0.25em] mb-7 font-medium" style={{ color: NEU.textMuted }}>
-            {tr("Используют ведущие дистрибьюторы", "Yetakchi distribyutorlar foydalanadi")}
-          </p>
-          <div className="flex items-center justify-center gap-10 md:gap-16 flex-wrap">
-            {["Distrubia", "LogiMax", "TradeHub", "SupplyPro", "StockFlow"].map(n => (
-              <span key={n} className="text-lg font-medium tracking-tight" style={{ color: "rgba(138,136,124,0.45)" }}>{n}</span>
-            ))}
-          </div>
+        <p
+          className="lx-enter lx-enter-2 mt-7 md:mt-9 max-w-xl text-[16px] md:text-[17px] leading-relaxed"
+          style={{ color: LX.inkSoft }}
+        >
+          {tr(
+            "Один источник данных для директора, склада, агентов и курьеров — вместо Excel-таблиц, тетрадей и звонков «где машина?».",
+            "Direktor, ombor, agentlar va kuryerlar uchun yagona ma'lumot manbai — Excel jadvallar, daftarlar va «mashina qayerda?» qo'ng'iroqlari o'rniga.",
+          )}
+        </p>
+
+        <div className="lx-enter lx-enter-2 mt-9 flex flex-wrap items-center gap-3">
+          <BtnInk onClick={() => navigate("/register")}>
+            {tr("Начать бесплатно", "Bepul boshlash")}
+            <ArrowRight size={15} />
+          </BtnInk>
+          <BtnGhost href="#product">
+            {tr("Посмотреть интерфейс", "Interfeysni ko'rish")}
+            <ArrowDown size={14} />
+          </BtnGhost>
+          {tg && (
+            <BtnGhost href={tg}>
+              <Send size={14} />
+              {tr("Написать в Telegram", "Telegramda yozish")}
+            </BtnGhost>
+          )}
         </div>
-      </section>
-    </>
+
+        {/* Оттиск в потоке — под кнопками, чтобы не давить на H1 */}
+        <div className="lg:hidden mt-8">
+          <Stamp
+            ring={tr(
+              "14 ДНЕЙ БЕСПЛАТНО · КАРТА НЕ НУЖНА · 14 KUN BEPUL · ",
+              "14 KUN BEPUL · KARTA KERAK EMAS · 14 ДНЕЙ · ",
+            )}
+            center="WP"
+            sub="2026"
+            size={126}
+            rotate={-6}
+          />
+        </div>
+
+        <div
+          className="lx-enter lx-enter-3 mt-10 md:mt-12 pt-6 flex flex-wrap gap-x-8 gap-y-3"
+          style={{ borderTop: `1px solid ${LX.rule}` }}
+        >
+          {[
+            tr("Двусторонний обмен с 1С", "1C bilan ikki tomonlama almashinuv"),
+            tr("Мобильное приложение работает без интернета", "Mobil ilova internetsiz ishlaydi"),
+            tr("14 дней бесплатно, карта не нужна", "14 kun bepul, karta kerak emas"),
+          ].map(s => (
+            <span key={s} className="flex items-center gap-2.5 text-[13px]" style={{ color: LX.inkSoft }}>
+              <Check size={14} strokeWidth={3} style={{ color: LX.brassText }} />
+              {s}
+            </span>
+          ))}
+        </div>
+      </div>
+    </section>
   );
 }
