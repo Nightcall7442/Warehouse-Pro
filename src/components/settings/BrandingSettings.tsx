@@ -3,7 +3,7 @@ import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { notify } from "@/lib/toast";
 import { compressImage } from "@/lib/compress-image";
-import { Loader2, Upload, Palette, RotateCcw } from "lucide-react";
+import { Loader2, Upload, RotateCcw, Eye } from "lucide-react";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 
 const DEFAULTS = {
@@ -23,21 +23,6 @@ const DEFAULTS = {
   mobileTheme: "auto" as const,
 };
 
-function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
-  return (
-    <div className="flex items-center gap-3">
-      <label className="font-label text-[10px] text-secondary tracking-wider w-28 flex-shrink-0">{label}</label>
-      <div className="flex items-center gap-2 flex-1">
-        <input type="color" value={value || "#5b6d8a"}
-          onChange={e => onChange(e.target.value)}
-          className="w-10 h-10 rounded-lg cursor-pointer border border-border" />
-        <input className="neo-input flex-1 font-mono text-sm" value={value}
-          onChange={e => onChange(e.target.value)} placeholder="#5b6d8a" />
-      </div>
-    </div>
-  );
-}
-
 export function BrandingSettings() {
   const { lang } = useLang();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
@@ -46,10 +31,8 @@ export function BrandingSettings() {
 
   const { data: branding, isLoading, isError, refetch } = trpc.branding.get.useQuery();
   const utils = trpc.useUtils();
-
   const [form, setForm] = useState<typeof DEFAULTS | null>(null);
 
-  // Initialize form from API data
   if (!isLoading && branding && !form) {
     setForm({
       primaryColor: branding.primaryColor ?? DEFAULTS.primaryColor,
@@ -78,191 +61,218 @@ export function BrandingSettings() {
     onError: (e) => notify.error(e.message),
   });
 
-  const handleLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImage = async (e: React.ChangeEvent<HTMLInputElement>, field: "logoUrl" | "faviconUrl", maxMb: number) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) { notify.error(t("Макс. 5 МБ", "Maks. 5 MB")); return; }
+    if (file.size > maxMb * 1024 * 1024) { notify.error(t(`Макс. ${maxMb} МБ`, `Maks. ${maxMb} MB`)); return; }
     try {
       const compressed = await compressImage(file);
-      setForm(f => f ? { ...f, logoUrl: compressed } : f);
-    } catch { notify.error(t("Ошибка обработки изображения", "Rasmni qayta ishlash xatosi")); }
-  };
-
-  const handleFavicon = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 1 * 1024 * 1024) { notify.error(t("Макс. 1 МБ", "Maks. 1 MB")); return; }
-    try {
-      const compressed = await compressImage(file);
-      setForm(f => f ? { ...f, faviconUrl: compressed } : f);
-    } catch { notify.error(t("Ошибка обработки изображения", "Rasmni qayta ishlash xatosi")); }
-  };
-
-  const resetColors = () => {
-    setForm(f => f ? {
-      ...f,
-      primaryColor: DEFAULTS.primaryColor,
-      secondaryColor: DEFAULTS.secondaryColor,
-      accentColor: DEFAULTS.accentColor,
-    } : f);
+      setForm(f => f ? { ...f, [field]: compressed } : f);
+    } catch { notify.error(t("Ошибка обработки", "Qayta ishlash xatosi")); }
   };
 
   if (isError) return <QueryErrorFallback onRetry={refetch} />;
-  if (isLoading || !form) return <div className="h-32 bg-surface-light animate-pulse rounded-xl" />;
+  if (isLoading || !form) return <div className="h-48 bg-surface-light animate-pulse rounded-2xl" />;
+
+  const p = form.primaryColor;
+  const s = form.secondaryColor;
 
   return (
-    <div className="space-y-6">
-      {/* ── Logo ──────────────────────────────────────────────── */}
-      <div>
-        <label className="font-label text-[10px] text-secondary tracking-wider block mb-2">
-          {t("ЛОГОТИП", "LOGOTIP")}
-        </label>
-        <div className="flex items-center gap-4">
-          <div
-            className="w-16 h-16 rounded-xl flex items-center justify-center overflow-hidden cursor-pointer border-2 border-dashed transition-colors hover:border-primary"
-            style={{ borderColor: "var(--color-border)", background: "var(--color-surface-light)" }}
-            onClick={() => logoRef.current?.click()}
-          >
-            {form.logoUrl
-              ? <img src={form.logoUrl} alt="logo" className="w-full h-full object-contain" />
-              : <Upload size={20} className="text-secondary" />}
+    <div className="space-y-5">
+
+      {/* ════════════════════════════════════════════════════════
+          LOGO + FAVICON
+          ════════════════════════════════════════════════════════ */}
+      <div className="neo-card p-5">
+        <p className="font-label text-[10px] tracking-wider mb-4" style={{ color: "var(--color-text-secondary)" }}>
+          {t("ИДЕНТИЧНОСТЬ БРЕНДА", "BREND IDENTIFIKATSIYASI")}
+        </p>
+        <div className="flex flex-col sm:flex-row gap-6">
+          {/* Logo */}
+          <div className="flex items-center gap-4">
+            <div
+              className="w-20 h-20 rounded-2xl flex items-center justify-center overflow-hidden cursor-pointer transition-all hover:scale-105"
+              style={{
+                border: `2px dashed ${p}40`,
+                background: `linear-gradient(135deg, ${p}08, ${s}08)`,
+              }}
+              onClick={() => logoRef.current?.click()}
+            >
+              {form.logoUrl
+                ? <img src={form.logoUrl} alt="logo" className="w-full h-full object-contain p-1" />
+                : <div className="text-center">
+                    <Upload size={20} style={{ color: p }} className="mx-auto mb-1" />
+                    <span className="text-[9px]" style={{ color: "var(--color-text-tertiary)" }}>Logo</span>
+                  </div>}
+            </div>
+            <div>
+              <button onClick={() => logoRef.current?.click()}
+                className="text-sm font-medium flex items-center gap-2 px-3 py-2 rounded-xl transition-all hover:scale-[1.02]"
+                style={{ background: `${p}12`, color: p }}>
+                <Upload size={14} />{t("Логотип", "Logotip")}
+              </button>
+              <p className="text-[10px] mt-1.5" style={{ color: "var(--color-text-tertiary)" }}>
+                PNG, JPG · {t("макс. 5 МБ", "maks. 5 MB")}
+              </p>
+            </div>
+            <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={e => handleImage(e, "logoUrl", 5)} />
           </div>
-          <div>
-            <button onClick={() => logoRef.current?.click()} className="neo-btn text-sm flex items-center gap-2">
-              <Upload size={14} />{t("Загрузить логотип", "Logotip yuklash")}
-            </button>
-            <p className="text-xs mt-1" style={{ color: "var(--color-text-tertiary)" }}>
-              {t("PNG, JPG — макс. 5 МБ", "PNG, JPG — maks. 5 MB")}
-            </p>
+
+          {/* Divider */}
+          <div className="hidden sm:block w-px" style={{ background: "var(--color-border)" }} />
+
+          {/* Favicon */}
+          <div className="flex items-center gap-4">
+            <div
+              className="w-12 h-12 rounded-xl flex items-center justify-center overflow-hidden cursor-pointer transition-all hover:scale-105"
+              style={{ border: `2px dashed ${p}30`, background: `var(--color-surface-light)` }}
+              onClick={() => faviconRef.current?.click()}
+            >
+              {form.faviconUrl
+                ? <img src={form.faviconUrl} alt="favicon" className="w-full h-full object-contain p-0.5" />
+                : <Upload size={14} style={{ color: "var(--color-text-tertiary)" }} />}
+            </div>
+            <div>
+              <button onClick={() => faviconRef.current?.click()}
+                className="text-xs font-medium px-3 py-1.5 rounded-lg transition-all hover:scale-[1.02]"
+                style={{ background: "var(--color-surface-light)", color: "var(--color-text-secondary)" }}>
+                <Upload size={12} className="inline mr-1.5" />Favicon
+              </button>
+              <p className="text-[10px] mt-1" style={{ color: "var(--color-text-tertiary)" }}>ICO, PNG · 32×32</p>
+            </div>
+            <input ref={faviconRef} type="file" accept="image/*,.ico" className="hidden" onChange={e => handleImage(e, "faviconUrl", 1)} />
           </div>
-          <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={handleLogo} />
         </div>
       </div>
 
-      {/* ── Favicon ───────────────────────────────────────────── */}
-      <div>
-        <label className="font-label text-[10px] text-secondary tracking-wider block mb-2">
-          {t("FAVICON", "FAVICON")}
-        </label>
-        <div className="flex items-center gap-4">
-          <div
-            className="w-10 h-10 rounded-lg flex items-center justify-center overflow-hidden cursor-pointer border-2 border-dashed transition-colors hover:border-primary"
-            style={{ borderColor: "var(--color-border)", background: "var(--color-surface-light)" }}
-            onClick={() => faviconRef.current?.click()}
-          >
-            {form.faviconUrl
-              ? <img src={form.faviconUrl} alt="favicon" className="w-full h-full object-contain" />
-              : <Upload size={14} className="text-secondary" />}
-          </div>
-          <button onClick={() => faviconRef.current?.click()} className="neo-btn text-sm flex items-center gap-2">
-            <Upload size={14} />{t("Загрузить favicon", "Favicon yuklash")}
+      {/* ════════════════════════════════════════════════════════
+          COLORS + LIVE PREVIEW
+          ════════════════════════════════════════════════════════ */}
+      <div className="neo-card p-5">
+        <div className="flex items-center justify-between mb-4">
+          <p className="font-label text-[10px] tracking-wider flex items-center gap-2" style={{ color: "var(--color-text-secondary)" }}>
+            <Eye size={12} />{t("ЦВЕТОВАЯ СХЕМА", "RANG SXEMASI")}
+          </p>
+          <button onClick={() => setForm(f => f ? { ...f, primaryColor: DEFAULTS.primaryColor, secondaryColor: DEFAULTS.secondaryColor, accentColor: DEFAULTS.accentColor } : f)}
+            className="text-[10px] flex items-center gap-1 px-2 py-1 rounded-md transition-all hover:scale-105"
+            style={{ color: "var(--color-text-tertiary)", background: "var(--color-surface-light)" }}>
+            <RotateCcw size={10} />{t("Сброс", "Tiklash")}
           </button>
-          <input ref={faviconRef} type="file" accept="image/*" className="hidden" onChange={handleFavicon} />
-        </div>
-      </div>
-
-      {/* ── Colors ────────────────────────────────────────────── */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <label className="font-label text-[10px] text-secondary tracking-wider flex items-center gap-2">
-            <Palette size={12} />{t("ЦВЕТА БРЕНДА", "BREND RANGLARI")}
-          </label>
-          <button onClick={resetColors} className="text-xs text-secondary hover:text-primary flex items-center gap-1 transition-colors">
-            <RotateCcw size={12} />{t("Сбросить", "Tiklash")}
-          </button>
-        </div>
-        <div className="space-y-3">
-          <ColorField label={t("Основной", "Asosiy")} value={form.primaryColor} onChange={v => setForm(f => f ? { ...f, primaryColor: v } : f)} />
-          <ColorField label={t("Вторичный", "Ikkinchi")} value={form.secondaryColor} onChange={v => setForm(f => f ? { ...f, secondaryColor: v } : f)} />
-          <ColorField label={t("Акцент", "Aksent")} value={form.accentColor} onChange={v => setForm(f => f ? { ...f, accentColor: v } : f)} />
         </div>
 
-        {/* Preview */}
-        <div className="mt-4 p-4 rounded-xl border" style={{ borderColor: "var(--color-border)" }}>
-          <p className="text-[10px] text-secondary tracking-wider mb-2">{t("ПРЕДПРОСМОТР", "OLDINDAN KO'RISH")}</p>
-          <div className="flex gap-2">
-            <div className="w-10 h-10 rounded-lg" style={{ background: form.primaryColor }} title="Primary" />
-            <div className="w-10 h-10 rounded-lg" style={{ background: form.secondaryColor }} title="Secondary" />
-            <div className="w-10 h-10 rounded-lg" style={{ background: form.accentColor }} title="Accent" />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          {/* Color pickers */}
+          <div className="space-y-3">
+            {[
+              { key: "primaryColor" as const, label: t("Основной", "Asosiy"), desc: t("Кнопки, ссылки, акценты", "Tugmalar, havolalar, aksentlar") },
+              { key: "secondaryColor" as const, label: t("Вторичный", "Ikkinchi"), desc: t("Hover-состояния, заголовки", "Holatlar, sarlavhalar") },
+              { key: "accentColor" as const, label: t("Акцент", "Aksent"), desc: t("Уведомления, бейджи", "Bildirishnomalar, belgilar") },
+            ].map(c => (
+              <div key={c.key} className="flex items-center gap-3 p-3 rounded-xl transition-all hover:scale-[1.01]"
+                style={{ background: "var(--color-surface-light)" }}>
+                <div className="relative">
+                  <input type="color" value={form[c.key]}
+                    onChange={e => setForm(f => f ? { ...f, [c.key]: e.target.value } : f)}
+                    className="w-11 h-11 rounded-xl cursor-pointer border-2 border-white/50 shadow-md" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold" style={{ color: "var(--color-text-primary)" }}>{c.label}</span>
+                    <code className="text-[10px] px-1.5 py-0.5 rounded font-mono" style={{ background: "var(--color-surface)", color: "var(--color-text-tertiary)" }}>
+                      {form[c.key]}
+                    </code>
+                  </div>
+                  <p className="text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>{c.desc}</p>
+                </div>
+                <input className="w-20 text-center text-xs font-mono neo-input px-1 py-1.5"
+                  value={form[c.key]} onChange={e => setForm(f => f ? { ...f, [c.key]: e.target.value } : f)} />
+              </div>
+            ))}
           </div>
-          <div className="mt-3 flex gap-2">
-            <button className="px-4 py-2 rounded-lg text-white text-sm font-medium" style={{ background: form.primaryColor }}>
-              {t("Кнопка", "Tugma")}
-            </button>
-            <button className="px-4 py-2 rounded-lg text-sm font-medium border" style={{ borderColor: form.primaryColor, color: form.primaryColor }}>
-              {t("Вторичная", "Ikkinchi")}
-            </button>
+
+          {/* Live preview card */}
+          <div className="rounded-2xl overflow-hidden shadow-lg" style={{ border: `1px solid ${p}20` }}>
+            {/* Header bar */}
+            <div className="px-4 py-3 flex items-center gap-3" style={{ background: `linear-gradient(135deg, ${p}, ${s})` }}>
+              {form.logoUrl
+                ? <img src={form.logoUrl} alt="" className="w-6 h-6 rounded object-contain bg-white/20 p-0.5" />
+                : <div className="w-6 h-6 rounded bg-white/20" />}
+              <span className="text-white text-sm font-semibold truncate">{form.appName || "Warehouse Pro"}</span>
+            </div>
+            {/* Content */}
+            <div className="p-4 space-y-3" style={{ background: "var(--color-surface)" }}>
+              <div className="flex gap-2">
+                <div className="flex-1 h-2 rounded-full" style={{ background: `${p}30` }} />
+                <div className="flex-1 h-2 rounded-full" style={{ background: "var(--color-border)" }} />
+              </div>
+              <div className="flex gap-3">
+                <button className="flex-1 py-2 rounded-xl text-white text-xs font-semibold shadow-md"
+                  style={{ background: `linear-gradient(135deg, ${p}, ${s})` }}>
+                  {t("Создать заказ", "Buyurtma yaratish")}
+                </button>
+                <button className="flex-1 py-2 rounded-xl text-xs font-semibold border"
+                  style={{ borderColor: `${p}40`, color: p, background: `${p}06` }}>
+                  {t("Отмена", "Bekor qilish")}
+                </button>
+              </div>
+              <div className="flex items-center gap-2 mt-1">
+                <div className="w-2 h-2 rounded-full" style={{ background: form.accentColor }} />
+                <span className="text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>
+                  {t("Акцентный цвет", "Aksent rang")} — {form.accentColor}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* ── Text fields ───────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div>
-          <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">
-            {t("НАЗВАНИЕ КОМПАНИИ", "KOMPANIYA NOMI")}
-          </label>
-          <input className="neo-input w-full" value={form.companyName}
-            onChange={e => setForm(f => f ? { ...f, companyName: e.target.value } : f)}
-            placeholder="Warehouse Pro" />
+      {/* ════════════════════════════════════════════════════════
+          TEXT FIELDS
+          ════════════════════════════════════════════════════════ */}
+      <div className="neo-card p-5">
+        <p className="font-label text-[10px] tracking-wider mb-4" style={{ color: "var(--color-text-secondary)" }}>
+          {t("ТЕКСТЫ И КОНТАКТЫ", "MATNLAR VA KONTAKTLAR")}
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {[
+            { key: "companyName" as const, label: t("Компания", "Kompaniya"), ph: "Acme Corp" },
+            { key: "appName" as const, label: t("Приложение", "Ilova"), ph: "Warehouse Pro" },
+            { key: "loginTitle" as const, label: t("Заголовок логина", "Login sarlavhasi"), ph: t("Добро пожаловать", "Xush kelibsiz") },
+            { key: "loginSubtitle" as const, label: t("Подзаголовок", "Taglavha"), ph: t("Войдите в систему", "Tizimga kiring") },
+            { key: "supportEmail" as const, label: t("Email поддержки", "Qo'llab-quvvatlash email"), ph: "support@company.com" },
+            { key: "supportPhone" as const, label: t("Телефон", "Telefon"), ph: "+998 XX XXX XX XX" },
+          ].map(f => (
+            <div key={f.key}>
+              <label className="font-label text-[10px] tracking-wider block mb-1.5" style={{ color: "var(--color-text-secondary)" }}>
+                {f.label}
+              </label>
+              <input className="neo-input w-full text-sm" value={form[f.key]}
+                onChange={e => setForm(v => v ? { ...v, [f.key]: e.target.value } : v)}
+                placeholder={f.ph} />
+            </div>
+          ))}
         </div>
-        <div>
-          <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">
-            {t("НАЗВАНИЕ ПРИЛОЖЕНИЯ", "ILOVA NOMI")}
+        <div className="mt-4">
+          <label className="font-label text-[10px] tracking-wider block mb-1.5" style={{ color: "var(--color-text-secondary)" }}>
+            {t("Текст в подвале", "Pastki matn")}
           </label>
-          <input className="neo-input w-full" value={form.appName}
-            onChange={e => setForm(f => f ? { ...f, appName: e.target.value } : f)}
-            placeholder="Warehouse Pro" />
-        </div>
-        <div>
-          <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">
-            {t("ЗАГОЛОВОК ЛОГИНА", "LOGIN SARLAVHASI")}
-          </label>
-          <input className="neo-input w-full" value={form.loginTitle}
-            onChange={e => setForm(f => f ? { ...f, loginTitle: e.target.value } : f)}
-            placeholder={t("Добро пожаловать", "Xush kelibsiz")} />
-        </div>
-        <div>
-          <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">
-            {t("ПОДЗАГОЛОВОК ЛОГИНА", "LOGIN TAGLAVHASI")}
-          </label>
-          <input className="neo-input w-full" value={form.loginSubtitle}
-            onChange={e => setForm(f => f ? { ...f, loginSubtitle: e.target.value } : f)}
-            placeholder={t("Войдите в систему", "Tizimga kiring")} />
-        </div>
-        <div>
-          <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">
-            {t("EMAIL ПОДДЕРЖKI", "QO'LLAB-QUVVATLASH EMAIL")}
-          </label>
-          <input className="neo-input w-full" value={form.supportEmail}
-            onChange={e => setForm(f => f ? { ...f, supportEmail: e.target.value } : f)}
-            placeholder="support@example.com" />
-        </div>
-        <div>
-          <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">
-            {t("ТЕЛЕФОН ПОДДЕРЖКИ", "QO'LLAB-QUVVATLASH TELEFONI")}
-          </label>
-          <input className="neo-input w-full" value={form.supportPhone}
-            onChange={e => setForm(f => f ? { ...f, supportPhone: e.target.value } : f)}
-            placeholder="+998 XX XXX XX XX" />
+          <input className="neo-input w-full text-sm" value={form.footerText}
+            onChange={e => setForm(v => v ? { ...v, footerText: e.target.value } : v)}
+            placeholder="© 2026 Company Name" />
         </div>
       </div>
 
-      <div>
-        <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">
-          {t("ТЕКСТ В ПОДВАЛЕ", "ALOYIDAGI MATN")}
-        </label>
-        <input className="neo-input w-full" value={form.footerText}
-          onChange={e => setForm(f => f ? { ...f, footerText: e.target.value } : f)}
-          placeholder="© 2026 Company Name" />
+      {/* ════════════════════════════════════════════════════════
+          SAVE
+          ════════════════════════════════════════════════════════ */}
+      <div className="flex justify-end">
+        <button onClick={() => saveMutation.mutate(form)} disabled={saveMutation.isPending}
+          className="neo-btn-primary px-6 py-2.5 flex items-center gap-2 text-sm font-semibold rounded-xl disabled:opacity-40 transition-all hover:scale-[1.02] active:scale-[0.98]"
+          style={{ background: `linear-gradient(135deg, ${p}, ${s})` }}>
+          {saveMutation.isPending && <Loader2 size={14} className="animate-spin" />}
+          {t("Сохранить", "Saqlash")}
+        </button>
       </div>
-
-      {/* ── Save ──────────────────────────────────────────────── */}
-      <button onClick={() => saveMutation.mutate(form)} disabled={saveMutation.isPending}
-        className="neo-btn-primary flex items-center gap-2 disabled:opacity-40">
-        {saveMutation.isPending && <Loader2 size={14} className="animate-spin" />}
-        {t("Сохранить брендинг", "Brendingni saqlash")}
-      </button>
     </div>
   );
 }
