@@ -194,7 +194,7 @@ export function BackupSection() {
           {[
             { label: "S3", value: status.s3.configured ? "Подключён" : "Не настроен", icon: HardDrive },
             { label: "Всего бэкапов", value: String(status.s3.totalBackups), icon: Database },
-            { label: "Последний", value: status.s3.ageDays !== null ? `${status.s3.ageDays}д назад" : "—"`, icon: Clock },
+            { label: "Последний", value: status.s3.ageDays !== null ? `${status.s3.ageDays}д назад` : "—", icon: Clock },
             { label: "Размер", value: status.s3.latestSize ? formatBytes(status.s3.latestSize) : "—", icon: Download },
           ].map(kpi => (
             <div key={kpi.label} style={{
