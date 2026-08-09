@@ -22,8 +22,8 @@ function generateCSSVariables(branding: {
   companyName: string | null;
   appName: string | null;
 }): string {
-  const primary   = branding.primaryColor ?? "#2563eb";
-  const secondary = branding.secondaryColor ?? "#1e40af";
+  const primary   = branding.primaryColor ?? "#5b6d8a";
+  const secondary = branding.secondaryColor ?? "#4a5c78";
   const accent    = branding.accentColor ?? "#3b82f6";
   const logoUrl   = escapeCSS(branding.logoUrl ?? "");
   const company   = escapeCSS(branding.companyName ?? "Warehouse Pro");
@@ -59,14 +59,22 @@ export const tenantBrandingRouter = createRouter({
       .where(eq(tenantBranding.tenantId, ctx.tenant.id)).limit(1);
 
     const result = row ?? {
-      primaryColor:   "#2563eb",
-      secondaryColor: "#1e40af",
+      primaryColor:   "#5b6d8a",
+      secondaryColor: "#4a5c78",
       accentColor:    "#3b82f6",
       logoUrl:        null,
       companyName:    null,
       appName:        "Warehouse Pro",
       supportEmail:   null,
       supportPhone:   null,
+      customDomain:   null,
+      faviconUrl:     null,
+      loginTitle:     null,
+      loginSubtitle:  null,
+      footerText:     null,
+      mobileTheme:    "auto",
+      inn:            null,
+      legalAddress:   null,
     };
 
     cache.set(cacheKey, result, CacheTTL.branding);
@@ -83,14 +91,14 @@ export const tenantBrandingRouter = createRouter({
       const db = getDb();
       const [row] = await db.select().from(tenantBranding)
         .where(eq(tenantBranding.tenantId, ctx.tenant.id)).limit(1);
-      return row ?? { primaryColor: "#2563eb", secondaryColor: "#1e40af", accentColor: "#3b82f6", logoUrl: null, companyName: null, appName: "Warehouse Pro" };
+      return row ?? { primaryColor: "#5b6d8a", secondaryColor: "#4a5c78", accentColor: "#3b82f6", logoUrl: null, companyName: null, appName: "Warehouse Pro" };
     })();
 
     return {
       css: generateCSSVariables(branding),
       variables: {
-        primary:   branding.primaryColor ?? "#2563eb",
-        secondary: branding.secondaryColor ?? "#1e40af",
+        primary:   branding.primaryColor ?? "#5b6d8a",
+        secondary: branding.secondaryColor ?? "#4a5c78",
         accent:    branding.accentColor ?? "#3b82f6",
       },
     };
