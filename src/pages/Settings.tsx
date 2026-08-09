@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useLang } from "@/i18n";
 import {
-  User, Bell, Building2, Moon, Database, Warehouse,
+  User, Bell, Building2, Moon, Database, Warehouse, Palette,
 } from "lucide-react";
 import { ProfileSettings } from "@/components/settings/ProfileSettings";
 import { CompanySettings } from "@/components/settings/CompanySettings";
@@ -9,10 +9,12 @@ import { WarehouseSettings } from "@/components/settings/WarehouseSettings";
 import { TelegramSettings } from "@/components/settings/TelegramSettings";
 import { OneCSettings } from "@/components/settings/OneCSettings";
 import { AppearanceSettings } from "@/components/settings/AppearanceSettings";
+import { BrandingSettings } from "@/components/settings/BrandingSettings";
 
 const SECTIONS = [
   { key: "profile",    iconRu: "Профиль",    iconUz: "Profil",        Icon: User,      Comp: ProfileSettings    },
   { key: "company",    iconRu: "Компания",   iconUz: "Kompaniya",     Icon: Building2, Comp: CompanySettings    },
+  { key: "branding",   iconRu: "Брендинг",   iconUz: "Brending",     Icon: Palette,   Comp: BrandingSettings   },
   { key: "warehouses", iconRu: "Склады",     iconUz: "Omborxona",     Icon: Warehouse, Comp: WarehouseSettings  },
   { key: "telegram",   iconRu: "Telegram",   iconUz: "Telegram",      Icon: Bell,      Comp: TelegramSettings   },
   { key: "onec",       iconRu: "1С",         iconUz: "1C",            Icon: Database,  Comp: OneCSettings       },
