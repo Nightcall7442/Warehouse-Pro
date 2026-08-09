@@ -246,6 +246,23 @@ app.get("/api/cron/backup", async (c) => {
   return c.json(result, result.success ? 200 : 500);
 });
 
+// ── Cron: incremental backup (every 6 hours) ───────────────────────────────
+app.get("/api/cron/backup-incremental", async (c) => {
+  if (!env.cronSecret) {
+    return c.json({ error: "Cron endpoint not configured" }, 401);
+  }
+  const secret = c.req.query("secret") ?? c.req.header("x-cron-secret");
+  if (!safeEqual(secret ?? "", env.cronSecret)) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+  // Changes since midnight today
+  const sinceDate = new Date();
+  sinceDate.setHours(0, 0, 0, 0);
+  const { runIncrementalBackup } = await import("./services/db-incremental");
+  const result = await runIncrementalBackup(sinceDate);
+  return c.json(result, result.success ? 200 : 500);
+});
+
 // ── Резервная копия по требованию: суперадмин скачивает SQL-дамп ────────────
 //
 // Снимки диска, которые делает платформа, — первая линия и остаются на месте.
@@ -319,6 +336,96 @@ app.get("/api/admin/backup/download", async (c) => {
       "Cache-Control": "no-store",
     },
   });
+});
+
+// ── Restore: restore database from S3 backup ──────────────────────────────
+app.post("/api/admin/backup/restore", async (c) => {
+  let auth;
+  try {
+    auth = await authenticateRequest(c.req.raw.headers);
+  } catch {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  if (auth.user.role !== "superadmin") {
+    logger.warn("restore refused: not a superadmin", { userId: auth.user.id });
+    return c.json({ error: "Forbidden" }, 403);
+  }
+
+  // Rate limit: 1 restore per hour
+  const allowed = await checkRateLimit(String(auth.user.id), { limit: 1, windowMs: 60 * 60_000, namespace: "backup-restore" });
+  if (!allowed) {
+    return c.json({ error: "Слишком часто. Восстановление доступно раз в час." }, 429);
+  }
+
+  let body: { backupKey?: string; confirm?: boolean };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "Invalid JSON body" }, 400);
+  }
+
+  if (!body.confirm) {
+    return c.json({
+      error: "Требуется подтверждение",
+      hint: 'Отправьте { "backupKey": "backups/warehouse-pro-YYYY-MM-DD.sql.gz", "confirm": true }',
+    }, 400);
+  }
+
+  if (!body.backupKey || !body.backupKey.startsWith("backups/")) {
+    return c.json({ error: "Invalid backupKey — must start with backups/" }, 400);
+  }
+
+  // Audit log BEFORE restore
+  const { recordAudit } = await import("./services/audit-log");
+  await recordAudit(getDb(), {
+    tenantId: auth.tenant.id,
+    actorId: auth.user.id,
+    actorName: auth.user.name,
+    action: "system.backup_restore_started",
+    targetType: "database",
+    meta: { backupKey: body.backupKey },
+  });
+
+  logger.warn("DATABASE RESTORE INITIATED", { userId: auth.user.id, backupKey: body.backupKey });
+
+  const { restoreFromS3 } = await import("./services/db-restore");
+  const result = await restoreFromS3(body.backupKey);
+
+  // Audit log after restore
+  await recordAudit(getDb(), {
+    tenantId: auth.tenant.id,
+    actorId: auth.user.id,
+    actorName: auth.user.name,
+    action: result.success ? "system.backup_restore_completed" : "system.backup_restore_failed",
+    targetType: "database",
+    meta: { backupKey: body.backupKey, success: result.success, message: result.message },
+  });
+
+  return c.json(result, result.success ? 200 : 500);
+});
+
+// ── Incremental backup: dump only rows changed since last full backup ─────
+app.post("/api/admin/backup/incremental", async (c) => {
+  let auth;
+  try {
+    auth = await authenticateRequest(c.req.raw.headers);
+  } catch {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  if (auth.user.role !== "superadmin") {
+    return c.json({ error: "Forbidden" }, 403);
+  }
+
+  // Default: changes since midnight today
+  const sinceDate = new Date();
+  sinceDate.setHours(0, 0, 0, 0);
+
+  const { runIncrementalBackup } = await import("./services/db-incremental");
+  const result = await runIncrementalBackup(sinceDate);
+
+  return c.json(result, result.success ? 200 : 500);
 });
 
 // ── Cron: debt reminders ────────────────────────────────────────────────────
