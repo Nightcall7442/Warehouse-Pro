@@ -595,6 +595,18 @@ app.get("/health", async (c) => {
   }
 
   const status = dbHealthy ? "ok" : "degraded";
+
+  // Backup status (lightweight — just reads in-memory state)
+  let backupStatus = "unknown";
+  try {
+    const { lastBackup } = await import("./cron/backup");
+    if (lastBackup) {
+      const ageMs = Date.now() - new Date(lastBackup.date).getTime();
+      const ageDays = Math.floor(ageMs / 86_400_000);
+      backupStatus = lastBackup.success ? (ageDays <= 2 ? "ok" : `stale_${ageDays}d`) : "failed";
+    }
+  } catch { /* backup module not loaded */ }
+
   return c.json({
     status,
     version: APP_VERSION,
@@ -604,6 +616,7 @@ app.get("/health", async (c) => {
     cache: cache.getStats(),
     database: dbHealthy ? "connected" : "disconnected",
     s3: s3Status,
+    backup: backupStatus,
   });
 });
 

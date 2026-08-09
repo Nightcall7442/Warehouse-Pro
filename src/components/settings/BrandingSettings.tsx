@@ -3,6 +3,7 @@ import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { notify } from "@/lib/toast";
 import { compressImage } from "@/lib/compress-image";
+import { colorMix } from "@/lib/color-mix";
 import { Loader2, Upload, RotateCcw, Eye } from "lucide-react";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 
@@ -93,8 +94,8 @@ export function BrandingSettings() {
             <div
               className="w-20 h-20 rounded-2xl flex items-center justify-center overflow-hidden cursor-pointer transition-all hover:scale-105"
               style={{
-                border: `2px dashed ${p}40`,
-                background: `linear-gradient(135deg, ${p}08, ${s}08)`,
+                border: `2px dashed ${colorMix(p, 25)}`,
+                background: `linear-gradient(135deg, ${colorMix(p, 5)}, ${colorMix(s, 5)})`,
               }}
               onClick={() => logoRef.current?.click()}
             >
@@ -108,7 +109,7 @@ export function BrandingSettings() {
             <div>
               <button onClick={() => logoRef.current?.click()}
                 className="text-sm font-medium flex items-center gap-2 px-3 py-2 rounded-xl transition-all hover:scale-[1.02]"
-                style={{ background: `${p}12`, color: p }}>
+                style={{ background: colorMix(p, 7), color: p }}>
                 <Upload size={14} />{t("Логотип", "Logotip")}
               </button>
               <p className="text-[10px] mt-1.5" style={{ color: "var(--color-text-tertiary)" }}>
@@ -125,7 +126,7 @@ export function BrandingSettings() {
           <div className="flex items-center gap-4">
             <div
               className="w-12 h-12 rounded-xl flex items-center justify-center overflow-hidden cursor-pointer transition-all hover:scale-105"
-              style={{ border: `2px dashed ${p}30`, background: `var(--color-surface-light)` }}
+              style={{ border: `2px dashed ${colorMix(p, 19)}`, background: `var(--color-surface-light)` }}
               onClick={() => faviconRef.current?.click()}
             >
               {form.faviconUrl
@@ -191,7 +192,7 @@ export function BrandingSettings() {
           </div>
 
           {/* Live preview card */}
-          <div className="rounded-2xl overflow-hidden shadow-lg" style={{ border: `1px solid ${p}20` }}>
+          <div className="rounded-2xl overflow-hidden shadow-lg" style={{ border: `1px solid ${colorMix(p, 12)}` }}>
             {/* Header bar */}
             <div className="px-4 py-3 flex items-center gap-3" style={{ background: `linear-gradient(135deg, ${p}, ${s})` }}>
               {form.logoUrl
@@ -202,7 +203,7 @@ export function BrandingSettings() {
             {/* Content */}
             <div className="p-4 space-y-3" style={{ background: "var(--color-surface)" }}>
               <div className="flex gap-2">
-                <div className="flex-1 h-2 rounded-full" style={{ background: `${p}30` }} />
+                <div className="flex-1 h-2 rounded-full" style={{ background: colorMix(p, 19) }} />
                 <div className="flex-1 h-2 rounded-full" style={{ background: "var(--color-border)" }} />
               </div>
               <div className="flex gap-3">
@@ -211,7 +212,7 @@ export function BrandingSettings() {
                   {t("Создать заказ", "Buyurtma yaratish")}
                 </button>
                 <button className="flex-1 py-2 rounded-xl text-xs font-semibold border"
-                  style={{ borderColor: `${p}40`, color: p, background: `${p}06` }}>
+                  style={{ borderColor: colorMix(p, 25), color: p, background: colorMix(p, 4) }}>
                   {t("Отмена", "Bekor qilish")}
                 </button>
               </div>

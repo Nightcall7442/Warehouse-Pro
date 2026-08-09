@@ -245,6 +245,49 @@ export const systemRouter = createRouter({
       return { healthy: false, error: String(e) };
     }
   }),
+
+  /** Backup status — last backup result and health */
+  backupStatus: superAdminQuery.query(async () => {
+    const { lastBackup } = await import("./cron/backup");
+    const { S3Client, ListObjectsV2Command } = await import("@aws-sdk/client-s3");
+
+    let s3Backups: Array<{ key: string; size: number; lastModified: Date }> = [];
+    if (env.s3Bucket && env.s3AccessKey && env.s3SecretKey) {
+      try {
+        const s3 = new S3Client({
+          region: env.s3Region || "us-east-1",
+          credentials: { accessKeyId: env.s3AccessKey, secretAccessKey: env.s3SecretKey },
+        });
+        const list = await s3.send(new ListObjectsV2Command({
+          Bucket: env.s3Bucket,
+          Prefix: "backups/warehouse-pro-",
+        }));
+        s3Backups = (list.Contents ?? []).map(obj => ({
+          key: obj.Key ?? "",
+          size: obj.Size ?? 0,
+          lastModified: obj.LastModified ?? new Date(0),
+        })).sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime());
+      } catch { /* S3 not available */ }
+    }
+
+    const latest = s3Backups[0];
+    const ageDays = latest ? Math.floor((Date.now() - latest.lastModified.getTime()) / 86_400_000) : null;
+    const healthy = lastBackup?.success === true && (ageDays === null || ageDays <= 2);
+
+    return {
+      healthy,
+      lastBackup,
+      s3: {
+        configured: !!(env.s3Bucket && env.s3AccessKey),
+        totalBackups: s3Backups.length,
+        latestKey: latest?.key ?? null,
+        latestSize: latest?.size ?? null,
+        latestDate: latest?.lastModified.toISOString() ?? null,
+        ageDays,
+      },
+      retention: { days: 30 },
+    };
+  }),
 });
 
 function formatUptime(seconds: number): string {
