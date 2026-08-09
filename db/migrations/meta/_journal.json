@@ -1,0 +1,300 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1782062632383,
+      "tag": "0000_baseline",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1782150000000,
+      "tag": "0001_add_performance_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1782851951426,
+      "tag": "0002_friendly_millenium_guard",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1783456800000,
+      "tag": "0003_add_order_idempotency_key",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1783543200000,
+      "tag": "0004_add_audit_log",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1783629600000,
+      "tag": "0005_add_password_reset_tokens",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1783716000000,
+      "tag": "0006_add_api_keys",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1783802400000,
+      "tag": "0007_add_exclusive_plan",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1783888800000,
+      "tag": "0008_fix_reorder_point_default",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1783975200000,
+      "tag": "0009_fix_multi_warehouse_and_cascade",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1784072143935,
+      "tag": "0010_add_payment_method",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1784158543935,
+      "tag": "0011_add_performance_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "5",
+      "when": 1784588081208,
+      "tag": "0012_friendly_silvermane",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "5",
+      "when": 1784674481208,
+      "tag": "0013_add_territories",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "5",
+      "when": 1784760881208,
+      "tag": "0014_add_daily_plans_photo_url",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "5",
+      "when": 1784847281208,
+      "tag": "0015_add_battery_level_to_agent_locations",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "5",
+      "when": 1784933681208,
+      "tag": "0016_add_arrival_items_price_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "5",
+      "when": 1785020081208,
+      "tag": "0017_ensure_warehouse_stock_warehouse_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1785060081208,
+      "tag": "0018_add_kpi_performance_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "5",
+      "when": 1785100081208,
+      "tag": "0019_fix_schema_issues",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "5",
+      "when": 1785140081208,
+      "tag": "0020_add_orders_deleted_at_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "5",
+      "when": 1785159763169,
+      "tag": "0021_add_block_unit",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "5",
+      "when": 1785178657000,
+      "tag": "0022_add_order_items_cost_price",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "5",
+      "when": 1785180659000,
+      "tag": "0023_extend_sales_targets_quotas",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "5",
+      "when": 1785241628000,
+      "tag": "0024_add_territory_geo",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "5",
+      "when": 1785241629000,
+      "tag": "0025_add_visit_schedules",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "5",
+      "when": 1785241630000,
+      "tag": "0026_add_territory_to_sales_targets",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "5",
+      "when": 1785241631000,
+      "tag": "0027_add_orders_tenant_deleted_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "5",
+      "when": 1785251305000,
+      "tag": "0028_add_agent_territories",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "5",
+      "when": 1785254416000,
+      "tag": "0029_fix_warehouse_stock_unique_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "5",
+      "when": 1785254417000,
+      "tag": "0030_create_onec_config",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "5",
+      "when": 1785362921000,
+      "tag": "0031_photo_url_mediumtext",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "5",
+      "when": 1785611753860,
+      "tag": "0032_fluffy_naoko",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "5",
+      "when": 1785625877867,
+      "tag": "0033_early_roxanne_simpson",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "5",
+      "when": 1785800000000,
+      "tag": "0034_drop_partial_return_statuses",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "5",
+      "when": 1785800001000,
+      "tag": "0035_add_delivery_result_notes",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "5",
+      "when": 1785900000000,
+      "tag": "0036_preserve_unexplained_shop_debt",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "5",
+      "when": 1785910000000,
+      "tag": "0037_stock_movements_warehouse",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "5",
+      "when": 1785910010000,
+      "tag": "0038_daily_plans_visited_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "5",
+      "when": 1786600001000,
+      "tag": "0039_daily_plans_visited_at_mysql",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "5",
+      "when": 1786600002000,
+      "tag": "0040_payments_idempotency",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "5",
+      "when": 1786600003000,
+      "tag": "0041_agent_locations_recorded_at",
+      "breakpoints": true
+    }
+  ]
+}

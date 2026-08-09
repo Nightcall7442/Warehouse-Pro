@@ -1,0 +1,377 @@
+import { describe, it, expect, beforeEach, vi } from "vitest";
+
+vi.mock("drizzle-orm", () => ({
+  eq: (col: unknown, val: unknown) => ({ __kind: "eq", col, val }),
+  and: (...conds: unknown[]) => ({ __kind: "and", conds }),
+  desc: (col: unknown) => ({ __kind: "desc", col }),
+  sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ __kind: "sql", strings, values }),
+}));
+
+vi.mock("../lib/sanitize", () => ({
+  sanitizeString: (s: string) => s.replace(/<[^>]*>/g, "").trim(),
+}));
+
+import { payments, shops } from "@db/schema";
+import { makeConditionEvaluator } from "../../__tests__/helpers/fake-conditions";
+
+type FakePayment = {
+  id: number; tenantId: number; shopId: number; amount: string;
+  type: string; notes?: string; createdBy: number; createdAt: Date;
+  idempotencyKey?: string;
+};
+type FakeShop = { id: number; tenantId: number; name: string; debt: string };
+
+let paymentsTable: FakePayment[] = [];
+let shopsTable: FakeShop[] = [];
+let nextPaymentId = 1;
+
+/**
+ * What each shop owed before any payment in the test — the balance carried
+ * over from before the ledger existed. Production records this as a shop-level
+ * "debt" row (migration 0036); it is held separately here only so the tests can
+ * keep asserting on the payments they themselves create.
+ */
+let openingBalance: Record<number, number> = {};
+
+function resetTables() {
+  paymentsTable = [];
+  shopsTable = [
+    { id: 1, tenantId: 1, name: "Test Shop", debt: "500.00" },
+    { id: 2, tenantId: 1, name: "Another Shop", debt: "0.00" },
+  ];
+  openingBalance = { 1: 500, 2: 0 };
+  nextPaymentId = 1;
+}
+
+function tableOf(ref: unknown): string {
+  if (ref === payments) return "payments";
+  if (ref === shops) return "shops";
+  return "other";
+}
+
+function rowsFor(table: string): unknown[] {
+  const map: Record<string, unknown[]> = { payments: paymentsTable, shops: shopsTable };
+  return map[table] ?? [];
+}
+
+const colToField = new Map<unknown, string>();
+for (const [f, c] of Object.entries(payments)) colToField.set(c, f);
+for (const [f, c] of Object.entries(shops)) colToField.set(c, f);
+
+/**
+ * Разбор условий отдан общему строгому разборщику.
+ *
+ * Прежняя местная копия понимала только `and` и `eq`, а всё остальное считала
+ * выполненным. В этом файле проверяются деньги: долг магазина, повторные
+ * оплаты, история платежей. Условие, которое стенд не понял и молча одобрил, —
+ * это утверждение о деньгах, сделанное наугад.
+ *
+ * Сырой sql`` здесь один: отбор истории за последние N дней. Поддельная
+ * таблица его не воспроизводит, и все её строки укладываются в любой разумный
+ * период, поэтому он считается выполненным — но теперь это написанное решение
+ * конкретного теста, а не общее умолчание, о котором никто не помнит.
+ */
+const evalCond = makeConditionEvaluator({
+  fieldOf: col => colToField.get(col),
+  rawSql: () => true,
+});
+
+function evalSqlDelta(row: unknown, fieldName: string, expr: unknown): string {
+  if (!expr || typeof expr !== "object") return (row as Record<string, string>)[fieldName];
+  const e = expr as Record<string, unknown>;
+  if (e.__kind !== "sql") return (row as Record<string, string>)[fieldName];
+  const opStr = (e.strings as string[]).find((s: string) => s.includes("+") || s.includes("-")) ?? "";
+  const op = opStr.includes("+") ? "+" : "-";
+  const amount = Number((e.values as unknown[])[(e.values as unknown[]).length - 1]);
+  const current = Number((row as Record<string, string>)[fieldName]);
+  return (op === "+" ? current + amount : current - amount).toFixed(2);
+}
+
+function makeMockDb() {
+  const selectBuilder = () => {
+    let tbl = "";
+    const api: Record<string, unknown> = {
+      from(ref: unknown) { tbl = tableOf(ref); return api; },
+      where(cond: unknown) {
+        const filtered = rowsFor(tbl).filter((r) => evalCond(r, cond));
+        const chainable = Object.assign(Promise.resolve(filtered), {
+          orderBy: () => Object.assign(Promise.resolve(filtered), {
+            limit: (n: number) => Promise.resolve(filtered.slice(0, n)),
+          }),
+          limit: (n: number) => Object.assign(Promise.resolve(filtered.slice(0, n)), {
+            for: () => Promise.resolve(filtered.slice(0, n)),
+          }),
+          for: () => Promise.resolve(filtered),
+        });
+        return chainable;
+      },
+      limit(n: number) { return Promise.resolve(rowsFor(tbl).slice(0, n)); },
+    };
+    return api;
+  };
+
+  const updateBuilder = (tbl: string) => ({
+    set(patch: Record<string, unknown>) {
+      return {
+        where(cond: unknown) {
+          for (const row of rowsFor(tbl)) {
+            if (!evalCond(row, cond)) continue;
+            const r = row as Record<string, unknown>;
+            for (const [key, val] of Object.entries(patch)) {
+              r[key] = val && typeof val === "object" && (val as Record<string, unknown>).__kind === "sql"
+                ? evalSqlDelta(row, key, val) : val;
+            }
+          }
+          return Promise.resolve();
+        },
+      };
+    },
+  });
+
+  const db = {
+    select: () => selectBuilder(),
+    insert: (ref: unknown) => ({
+      values: (vals: unknown) => {
+        const tbl = tableOf(ref);
+        if (tbl === "payments") {
+          const list = Array.isArray(vals) ? (vals as Record<string, unknown>[]) : [vals as Record<string, unknown>];
+          for (const v of list) {
+            const key = v.idempotencyKey as string | undefined;
+            // Уникальный индекс uq_payments_idempotency. Воспроизведён здесь
+            // потому, что вся защита от повторной оплаты держится именно на
+            // нём: стенд, который принимает любую вставку, показал бы зелёное
+            // и на коде без всякой защиты.
+            //
+            // NULL-ы намеренно не сравниваются — так ведёт себя MySQL, и
+            // именно поэтому индекс встаёт на таблицу с уже существующими
+            // платежами, у которых ключа нет.
+            if (key != null && paymentsTable.some(p => p.tenantId === v.tenantId && p.idempotencyKey === key)) {
+              return Promise.reject(Object.assign(new Error("Duplicate entry"), { code: "ER_DUP_ENTRY" }));
+            }
+            paymentsTable.push({
+              id: nextPaymentId++, tenantId: v.tenantId as number, shopId: v.shopId as number,
+              amount: String(v.amount), type: v.type as string, notes: v.notes as string | undefined,
+              createdBy: v.createdBy as number, createdAt: new Date(), idempotencyKey: key,
+            });
+          }
+          return Promise.resolve([{ insertId: nextPaymentId }]);
+        }
+        return Promise.resolve([{ insertId: 1 }]);
+      },
+    }),
+    update: (ref: unknown) => updateBuilder(tableOf(ref)),
+    delete: () => ({
+      where: () => Promise.resolve(),
+    }),
+    // The only raw statement PaymentService issues is recalcShopDebt's, which
+    // re-derives the balance rather than nudging it. Mirror that here: the
+    // shop owes its opening balance plus every debt entry, less every payment.
+    // (The real statement also folds in orders and returns; this service has
+    // neither, so those terms are zero.)
+    execute: (query: unknown) => {
+      const [shopId, tenantId] = ((query as { values?: unknown[] }).values ?? []) as number[];
+      const sumOf = (type: string) => paymentsTable
+        .filter(p => p.shopId === shopId && p.tenantId === tenantId && p.type === type)
+        .reduce((total, p) => total + Number(p.amount), 0);
+
+      const shop = shopsTable.find(s => s.id === shopId && s.tenantId === tenantId);
+      if (shop) {
+        const owed = (openingBalance[shopId] ?? 0) + sumOf("debt") - sumOf("payment");
+        shop.debt = Math.max(0, owed).toFixed(2);
+      }
+      return Promise.resolve([]);
+    },
+    // Откат существенен для проверок повтора: обработчик считает отказ по
+    // индексу безопасным только потому, что вместе со вставкой откатывается и
+    // пересчёт долга. Стенд, который сохраняет половину транзакции, подтвердил
+    // бы вывод, неверный для настоящей базы.
+    transaction: async (fn: (tx: unknown) => Promise<unknown>) => {
+      const savedPayments = paymentsTable.map(p => ({ ...p }));
+      const savedShops = shopsTable.map(s => ({ ...s }));
+      const savedNextId = nextPaymentId;
+      try {
+        return await fn(db);
+      } catch (e) {
+        paymentsTable = savedPayments;
+        shopsTable = savedShops;
+        nextPaymentId = savedNextId;
+        throw e;
+      }
+    },
+  };
+  return db;
+}
+
+let mockDb: ReturnType<typeof makeMockDb>;
+vi.mock("../queries/connection", () => ({ getDb: () => mockDb }));
+
+beforeEach(() => {
+  resetTables();
+  mockDb = makeMockDb();
+});
+
+import { PaymentService } from "../payment";
+
+describe("PaymentService.addPayment", () => {
+  it("creates payment record and reduces shop debt for payment type", async () => {
+    const result = await PaymentService.addPayment(mockDb as any, 1, {
+      shopId: 1, amount: "200.00", type: "payment", createdBy: 10,
+    });
+
+    expect(result.success).toBe(true);
+    expect(paymentsTable).toHaveLength(1);
+    expect(paymentsTable[0].amount).toBe("200.00");
+    expect(paymentsTable[0].type).toBe("payment");
+
+    const shop = shopsTable.find((s) => s.id === 1)!;
+    expect(shop.debt).toBe("300.00");
+  });
+
+  it("creates payment record and increases shop debt for debt type", async () => {
+    await PaymentService.addPayment(mockDb as any, 1, {
+      shopId: 1, amount: "100.00", type: "debt", createdBy: 10,
+    });
+
+    expect(paymentsTable).toHaveLength(1);
+    expect(paymentsTable[0].type).toBe("debt");
+
+    const shop = shopsTable.find((s) => s.id === 1)!;
+    expect(shop.debt).toBe("600.00");
+  });
+
+  it("defaults to payment type when type is not specified", async () => {
+    await PaymentService.addPayment(mockDb as any, 1, {
+      shopId: 1, amount: "50.00", createdBy: 10,
+    });
+
+    expect(paymentsTable[0].type).toBe("payment");
+    const shop = shopsTable.find((s) => s.id === 1)!;
+    expect(shop.debt).toBe("450.00");
+  });
+
+  it("sanitizes notes input", async () => {
+    await PaymentService.addPayment(mockDb as any, 1, {
+      shopId: 1, amount: "10.00", notes: "<script>alert('xss')</script>Cash payment", createdBy: 10,
+    });
+
+    expect(paymentsTable[0].notes).toBe("alert('xss')Cash payment");
+  });
+
+  it("records the createdBy user", async () => {
+    await PaymentService.addPayment(mockDb as any, 1, {
+      shopId: 1, amount: "100.00", createdBy: 42,
+    });
+
+    expect(paymentsTable[0].createdBy).toBe(42);
+  });
+
+  it("records the tenantId", async () => {
+    await PaymentService.addPayment(mockDb as any, 1, {
+      shopId: 1, amount: "100.00", createdBy: 10,
+    });
+
+    expect(paymentsTable[0].tenantId).toBe(1);
+  });
+});
+
+describe("PaymentService.getPaymentHistory", () => {
+  it("returns payments for the given shop ordered by createdAt desc", async () => {
+    await PaymentService.addPayment(mockDb as any, 1, { shopId: 1, amount: "100.00", createdBy: 10 });
+    await PaymentService.addPayment(mockDb as any, 1, { shopId: 1, amount: "200.00", createdBy: 10 });
+    await PaymentService.addPayment(mockDb as any, 1, { shopId: 2, amount: "50.00", createdBy: 10 });
+
+    const history = await PaymentService.getPaymentHistory(mockDb as any, 1, 1);
+    expect(history).toHaveLength(2);
+    expect(history.every((p: unknown) => (p as FakePayment).shopId === 1)).toBe(true);
+  });
+
+  it("returns empty array for shop with no payments", async () => {
+    const history = await PaymentService.getPaymentHistory(mockDb as any, 1, 999);
+    expect(history).toHaveLength(0);
+  });
+
+  it("returns empty array for wrong tenant", async () => {
+    await PaymentService.addPayment(mockDb as any, 1, { shopId: 1, amount: "100.00", createdBy: 10 });
+
+    const history = await PaymentService.getPaymentHistory(mockDb as any, 2, 1);
+    expect(history).toHaveLength(0);
+  });
+
+  it("limits results to 20", async () => {
+    for (let i = 0; i < 25; i++) {
+      await PaymentService.addPayment(mockDb as any, 1, { shopId: 1, amount: "10.00", createdBy: 10 });
+    }
+
+    const history = await PaymentService.getPaymentHistory(mockDb as any, 1, 1);
+    expect(history.length).toBeLessThanOrEqual(20);
+  });
+});
+
+describe("PaymentService.addPayment — повторно отправленная оплата", () => {
+  it("списывает долг один раз, а не дважды", async () => {
+    const key = "attempt-0001";
+    const debtBefore = shopsTable.find(s => s.id === 1)!.debt;
+
+    await PaymentService.addPayment(mockDb as any, 1, { shopId: 1, amount: "300.00", createdBy: 10, idempotencyKey: key });
+    const debtAfterFirst = shopsTable.find(s => s.id === 1)!.debt;
+
+    // Тот же платёж уходит второй раз: сорвалась связь, кассир нажал кнопку
+    // ещё раз, открыты две вкладки. Раньше это записывало вторую строку, и
+    // магазин «погашал» 600 вместо 300.
+    const second = await PaymentService.addPayment(mockDb as any, 1, { shopId: 1, amount: "300.00", createdBy: 10, idempotencyKey: key });
+
+    expect(debtBefore).toBe("500.00");
+    expect(debtAfterFirst).toBe("200.00");
+    expect(shopsTable.find(s => s.id === 1)!.debt).toBe("200.00");
+    expect(paymentsTable).toHaveLength(1);
+    expect(second).toEqual({ success: true, duplicate: true });
+  });
+
+  it("две разные оплаты подряд проходят обе", async () => {
+    await PaymentService.addPayment(mockDb as any, 1, { shopId: 1, amount: "100.00", createdBy: 10, idempotencyKey: "attempt-a" });
+    await PaymentService.addPayment(mockDb as any, 1, { shopId: 1, amount: "100.00", createdBy: 10, idempotencyKey: "attempt-b" });
+
+    // Одинаковая сумма в один день — обычное дело, и защита от повторов не
+    // вправе принимать вторую честную оплату за отражение первой.
+    expect(paymentsTable).toHaveLength(2);
+    expect(shopsTable.find(s => s.id === 1)!.debt).toBe("300.00");
+  });
+
+  it("вызовы без ключа продолжают работать", async () => {
+    // Ключ необязателен: столбец пуст у всех платежей, записанных до этой
+    // правки, и у вызовов, которые его ещё не передают. Отказать им значило
+    // бы, что оплату нельзя провести вообще.
+    await PaymentService.addPayment(mockDb as any, 1, { shopId: 1, amount: "100.00", createdBy: 10 });
+    await PaymentService.addPayment(mockDb as any, 1, { shopId: 1, amount: "100.00", createdBy: 10 });
+
+    expect(paymentsTable).toHaveLength(2);
+    expect(shopsTable.find(s => s.id === 1)!.debt).toBe("300.00");
+  });
+
+  it("один и тот же ключ в разных организациях не конфликтует", async () => {
+    shopsTable.push({ id: 3, tenantId: 2, name: "Other tenant shop", debt: "500.00" });
+    openingBalance[3] = 500;
+
+    await PaymentService.addPayment(mockDb as any, 1, { shopId: 1, amount: "100.00", createdBy: 10, idempotencyKey: "attempt-1" });
+    await PaymentService.addPayment(mockDb as any, 2, { shopId: 3, amount: "100.00", createdBy: 10, idempotencyKey: "attempt-1" });
+
+    // Ключи выдают клиенты разных организаций и договориться между собой не
+    // могут; совпадение не должно гасить чужую оплату.
+    expect(paymentsTable).toHaveLength(2);
+    expect(shopsTable.find(s => s.id === 1)!.debt).toBe("400.00");
+    expect(shopsTable.find(s => s.id === 3)!.debt).toBe("400.00");
+  });
+
+  it("отброшенный повтор не оставляет следов: долг не тронут", async () => {
+    const key = "attempt-rollback";
+    await PaymentService.addPayment(mockDb as any, 1, { shopId: 1, amount: "300.00", createdBy: 10, idempotencyKey: key });
+    const snapshot = shopsTable.find(s => s.id === 1)!.debt;
+
+    await PaymentService.addPayment(mockDb as any, 1, { shopId: 1, amount: "300.00", createdBy: 10, idempotencyKey: key });
+
+    // Отказ по индексу откатывает транзакцию целиком — вместе со вставкой
+    // отменяется и пересчёт долга. Успех возвращается только поэтому.
+    expect(shopsTable.find(s => s.id === 1)!.debt).toBe(snapshot);
+    expect(paymentsTable).toHaveLength(1);
+  });
+});

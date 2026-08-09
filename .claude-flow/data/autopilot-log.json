@@ -1,0 +1,29 @@
+[
+  {
+    "ts": 1784123917794,
+    "event": "enabled",
+    "sessionId": "7e3fd7db-a7c1-4765-a7b4-d90d6222abba"
+  },
+  {
+    "ts": 1784125496729,
+    "event": "enabled",
+    "sessionId": "7e3fd7db-a7c1-4765-a7b4-d90d6222abba",
+    "maxIterations": 50
+  },
+  {
+    "ts": 1784125689751,
+    "event": "disabled",
+    "iterations": 0
+  },
+  {
+    "ts": 1784125690713,
+    "event": "enabled",
+    "sessionId": "7e3fd7db-a7c1-4765-a7b4-d90d6222abba",
+    "maxIterations": 50
+  },
+  {
+    "ts": 1784125836563,
+    "event": "disabled",
+    "iterations": 0
+  }
+]

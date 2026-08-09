@@ -1,0 +1,311 @@
+import { useCallback, useMemo, useState } from "react";
+import { keepPreviousData } from "@tanstack/react-query";
+import { trpc } from "@/providers/trpc";
+import { useLang } from "@/i18n";
+import { useCurrency } from "@/hooks/useCurrency";
+import { notify } from "@/lib/toast";
+import { exportToExcel } from "@/lib/excel";
+import { ExcelImport } from "@/components/ExcelImport";
+import { useNavigate } from "react-router";
+import { FileDown, Upload, Plus, Trash2 } from "lucide-react";
+import { useConfirm } from "@/components/ConfirmDialog";
+import {
+  ShopForm, ShopStats, ShopFilters, TerritoriesGrid, ShopList, SelectionBar, CityBreadcrumb,
+} from "@/components/shops";
+import { TerritoryManager } from "@/components/shops/TerritoryManager";
+import type { ShopKpiStats } from "@/components/shops/ShopStats";
+import { QueryErrorFallback } from "@/components/QueryErrorFallback";
+import { COLORS } from "@/components/shops/constants";
+
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+export default function Shops() {
+  const { lang } = useLang();
+  const { fmt } = useCurrency();
+  const navigate = useNavigate();
+  const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);
+
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  // Поле ввода остаётся мгновенным, а в запрос уходит придержанное
+  // значение: иначе каждая буква — это новый ключ запроса, у которого
+  // ещё нет данных, и страница успевает смениться скелетоном.
+  const debouncedSearch = useDebouncedValue(search);
+  const [city, setCity] = useState<string | undefined>(undefined);
+  const [district, setDistrict] = useState<string | undefined>(undefined);
+  const [agentFilter, setAgentFilter] = useState<string | undefined>(undefined);
+  const [territoryFilter, setTerritoryFilter] = useState<number | undefined>(undefined);
+  const [onlyDebtors, setOnlyDebtors] = useState(false);
+  const [sortBy, setSortBy] = useState<"newest" | "debtDesc" | "debtAsc">("newest");
+  const [showForm, setShowForm] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [showTerritoryManager, setShowTerritoryManager] = useState(false);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [viewMode, setViewMode] = useState<"territories" | "list">("territories");
+
+  const { data, isLoading, isError, refetch } = trpc.shop.list.useQuery({ page, pageSize: 25, search: debouncedSearch || undefined, city, district, agentId: agentFilter ? Number(agentFilter) : undefined, territoryId: territoryFilter, onlyDebtors: onlyDebtors || undefined, sortBy }, {
+    // Прошлый список остаётся на экране, пока грузится новый: без этого
+    // смена запроса обнуляет data, и страница падает в скелетон на каждый
+    // ввод — именно это и выглядело как перезагрузка.
+    placeholderData: keepPreviousData,
+  });
+  const { data: territories } = trpc.shop.territories.useQuery();
+  const { data: realTerritories } = trpc.territory.list.useQuery();
+  const { data: usersData } = trpc.user.list.useQuery({ page: 1, pageSize: 100 });
+  const agents = useMemo(() => (usersData?.data ?? []).filter((u: { role: string }) => u.role === "agent"), [usersData?.data]);
+  const utils = trpc.useUtils();
+
+  const createMutation = trpc.shop.create.useMutation({
+    onSuccess: () => { utils.shop.list.invalidate(); utils.shop.cities.invalidate(); setShowForm(false); notify.success("Магазин добавлен"); },
+    onError: (e) => notify.error(e.message),
+  });
+  const deleteMutation = trpc.shop.delete.useMutation({
+    onSuccess: () => { utils.shop.list.invalidate(); setSelected(new Set()); notify.success("Магазины удалены"); },
+    onError: (e) => notify.error(e.message),
+  });
+  const clearAllMutation = trpc.shop.clearAll.useMutation({
+    onSuccess: () => { utils.shop.list.invalidate(); utils.territory.list.invalidate(); notify.success(t("Все магазины удалены", "Barcha do'konlar o'chirildi")); },
+    onError: (e) => notify.error(e.message),
+  });
+  const { confirm, dialog } = useConfirm();
+
+  const kpiStats = useMemo<ShopKpiStats>(() => {
+    const shops = data?.data ?? [];
+    const total = data?.total ?? 0;
+    const activeCount = shops.filter((s) => s.status === "active").length;
+    const debtCount = shops.filter((s) => Number(s.debt ?? 0) > 0).length;
+    const totalDebt = shops.reduce((sum: number, s) => sum + Number(s.debt ?? 0), 0);
+    return { total, activeCount, debtCount, totalDebt };
+  }, [data]);
+
+  const allVisibleIds = useMemo(() => (data?.data ?? []).map((s) => s.id as number), [data]);
+  const allSelected = allVisibleIds.length > 0 && allVisibleIds.every(id => selected.has(id));
+
+  const toggleSelect = useCallback((id: number) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback(async () => {
+    if (allSelected) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(allVisibleIds));
+    }
+  }, [allSelected, allVisibleIds]);
+
+  const handleBulkDelete = async () => {
+    const count = selected.size;
+    if (count === 0) return;
+    const ok = await confirm({
+      title: t(`Удалить ${count} магазинов?`, `${count} ta do'kon o'chirilsinmi?`),
+      message: t("Данные будут удалены безвозвратно.", "Ma'lumotlar qaytarib bo'lmaydigan tarzda o'chiriladi."),
+      confirmText: t("Удалить", "O'chirish"),
+      danger: true,
+    });
+    if (ok) {
+      for (const id of selected) {
+        await deleteMutation.mutateAsync({ id });
+      }
+    }
+  };
+
+  const resetFilters = useCallback(async () => {
+    setCity(undefined);
+    setDistrict(undefined);
+    setTerritoryFilter(undefined);
+    setSearch("");
+    setOnlyDebtors(false);
+    setSortBy("newest");
+    setPage(1);
+  }, []);
+
+  if (isError) return <QueryErrorFallback onRetry={refetch} />;
+  if (isLoading && !data) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ height: "28px", width: "200px", borderRadius: "8px", background: COLORS.surfaceLight, marginBottom: "8px" }} />
+            <div style={{ height: "16px", width: "260px", borderRadius: "6px", background: COLORS.surfaceLight }} />
+          </div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
+          {[0, 1, 2, 3].map(i => (
+            <div key={i} style={{ height: "140px", borderRadius: "24px", background: COLORS.surfaceLight, animation: `slideUp ${0.4 + i * 0.05}s ease forwards` }} />
+          ))}
+        </div>
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} style={{ height: "96px", borderRadius: "24px", background: COLORS.surfaceLight, animation: `slideUp ${0.4 + i * 0.05}s ease forwards` }} />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+      <div key="confirm-dialog">{dialog}</div>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
+        <div>
+          <h1 style={{ fontFamily: "'DM Sans', -apple-system, sans-serif", fontSize: "24px", fontWeight: 700, color: COLORS.textPrimary, letterSpacing: "-0.025em", margin: 0 }}>
+            {t("Магазины", "Do'konlar")}
+          </h1>
+          <p style={{ fontSize: "13px", color: COLORS.textSecondary, margin: "4px 0 0" }}>
+            {t("Управление точками продаж", "Savdo nuqtalarini boshqarish")}
+          </p>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <button onClick={async () => {
+            // Fetch all shops via pagination
+            const allShops: Record<string, unknown>[] = [];
+            let page = 1;
+            while (true) {
+              const result = await utils.shop.list.fetch({ page, pageSize: 500 });
+              if (!result?.data?.length) break;
+              allShops.push(...result.data as Record<string, unknown>[]);
+              if (allShops.length >= (result?.total ?? 0)) break;
+              page++;
+            }
+            if (!allShops.length) {
+              notify.error(t("Нет магазинов для экспорта", "Eksport uchun do'konlar yo'q"));
+              return;
+            }
+            // Group by territory
+            const grouped = new Map<string, typeof allShops>();
+            for (const s of allShops) {
+              const territory = (s as Record<string, unknown>).district as string || (s as Record<string, unknown>).city as string || t("Другие", "Boshqalar");
+              if (!grouped.has(territory)) grouped.set(territory, []);
+              grouped.get(territory)!.push(s);
+            }
+            // Build rows with consistent columns
+            const rows: Record<string, unknown>[] = [];
+            for (const [territory, shops] of Array.from(grouped.entries()).sort(([a], [b]) => a.localeCompare(b, "ru"))) {
+              rows.push({ Территория: territory, Название: "", Владелец: "", Телефон: "", Город: "", Район: "", Адрес: "", Агент: "", Долг: "", Статус: "" });
+              for (const s of shops) {
+                const shop = s as Record<string, unknown>;
+                rows.push({
+                  Территория: "",
+                  Название: shop.name ?? "",
+                  Владелец: shop.ownerName ?? "",
+                  Телефон: shop.phone ?? "",
+                  Город: shop.city ?? "",
+                  Район: shop.district ?? "",
+                  Адрес: shop.address ?? "",
+                  Агент: shop.agentName ?? "",
+                  Долг: Number(shop.debt ?? 0).toFixed(0),
+                  Статус: shop.status ?? "",
+                });
+              }
+              rows.push({ Территория: "", Название: "", Владелец: "", Телефон: "", Город: "", Район: "", Адрес: "", Агент: "", Долг: "", Статус: "" });
+            }
+            await exportToExcel(rows, `shops-all`, "Магазины", `Магазины по территориям`);
+          }}
+            style={{
+              display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
+              fontSize: "13px", fontWeight: 500, borderRadius: "10px",
+              border: `1px solid ${COLORS.border}`, cursor: "pointer",
+              background: COLORS.surface, color: COLORS.textSecondary,
+            }}>
+            <FileDown size={14} /> Excel
+          </button>
+          <button onClick={() => setShowImport(v => !v)} style={{
+            display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
+            fontSize: "13px", fontWeight: 500, borderRadius: "10px",
+            border: `1px solid ${COLORS.border}`, cursor: "pointer",
+            background: COLORS.surface, color: COLORS.textSecondary,
+          }}>
+            <Upload size={14} /><span className="hidden sm:inline">{t("Импорт", "Import")}</span>
+          </button>
+          <button onClick={async () => {
+            const ok = await confirm({
+              title: t("Удалить ВСЕ магазины?", "BARCHA do'konlarni o'chirilsinmi?"),
+              message: t("Это действие нельзя отменить. Все магазины, долги и история будут удалены.", "Bu amalni bekor qilib bo'lmaydi. Barcha do'konlar, qarzlar va tarix o'chiriladi."),
+              confirmText: t("Удалить все", "Hammasini o'chirish"),
+              danger: true,
+            });
+            if (ok) clearAllMutation.mutate();
+          }} style={{
+            display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
+            fontSize: "13px", fontWeight: 500, borderRadius: "10px",
+            border: `1px solid rgba(212,80,80,.3)`, cursor: "pointer",
+            background: "rgba(212,80,80,.08)", color: "var(--color-danger-text)",
+          }}>
+            <Trash2 size={14} /><span className="hidden sm:inline">{t("Очистить", "Tozalash")}</span>
+          </button>
+          <button onClick={() => setShowForm(!showForm)} className="neo-btn-primary flex items-center gap-2">
+            <Plus size={16} /><span className="hidden sm:inline">{t("Добавить", "Qo'shish")}</span>
+          </button>
+          <button onClick={() => setShowTerritoryManager(true)} style={{
+            display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px", fontSize: "13px", fontWeight: 500, borderRadius: "10px",
+            border: `1px solid ${COLORS.border}`, cursor: "pointer", background: COLORS.surface, color: COLORS.textSecondary,
+          }}>
+            {t("Территории", "Territoriyalar")}
+          </button>
+        </div>
+      </div>
+
+      <div key="shop-form">
+        {showForm && <ShopForm isPending={createMutation.isPending} lang={lang} agents={agents} territories={realTerritories ?? []} onSave={d => createMutation.mutate(d)} onCancel={() => setShowForm(false)} />}
+      </div>
+
+      <div key="shop-import">
+        {showImport && <ExcelImport type="shops" onDone={() => { setShowImport(false); utils.shop.list.invalidate(); }} onCancel={() => setShowImport(false)} />}
+      </div>
+
+      <ShopStats stats={kpiStats} lang={lang} fmt={fmt} />
+
+      <ShopFilters
+        lang={lang} search={search} setSearch={setSearch}
+        viewMode={viewMode} setViewMode={setViewMode}
+        agentFilter={agentFilter} setAgentFilter={setAgentFilter}
+        city={city} district={district} agents={agents}
+        onlyDebtors={onlyDebtors} setOnlyDebtors={setOnlyDebtors}
+        sortBy={sortBy} setSortBy={setSortBy}
+        setPage={setPage} resetFilters={resetFilters}
+      />
+
+      {/* Territories grid */}
+      <div key="territories-grid">
+        {viewMode === "territories" && !territoryFilter && !onlyDebtors && (
+          <TerritoriesGrid
+            territories={territories ?? []}
+            totalShops={data?.total ?? 0}
+            lang={lang} fmt={fmt}
+            onSelectAll={() => setViewMode("list")}
+            onSelectTerritory={(territoryId) => { setTerritoryFilter(territoryId); setViewMode("list"); setPage(1); }}
+          />
+        )}
+      </div>
+
+      <div key="shop-list-view">
+        {(viewMode === "list" || city || district || territoryFilter || onlyDebtors) && (
+          <>
+            {(city || district) && (
+              <CityBreadcrumb city={city} district={district} total={data?.total ?? 0} lang={lang} />
+            )}
+
+            {selected.size > 0 && (
+              <SelectionBar count={selected.size} lang={lang} onReset={() => setSelected(new Set())} onBulkDelete={handleBulkDelete} isDeleting={deleteMutation.isPending} />
+            )}
+
+            <ShopList
+              data={data?.data} isLoading={isLoading} lang={lang} fmt={fmt}
+              selected={selected} allSelected={allSelected}
+              onSelectAll={toggleSelectAll} onToggleSelect={toggleSelect}
+              onNavigate={id => navigate(`/shops/${id}?fromPage=${page}${search ? `&search=${encodeURIComponent(search)}` : ""}${city ? `&city=${encodeURIComponent(city)}` : ""}${district ? `&district=${encodeURIComponent(district)}` : ""}`)}
+              page={page} setPage={setPage}
+              total={data?.total ?? 0} city={city} district={district} t={t}
+            />
+          </>
+        )}
+      </div>
+
+      <div key="territory-manager">
+        {showTerritoryManager && <TerritoryManager lang={lang} onClose={() => setShowTerritoryManager(false)} />}
+      </div>
+    </div>
+  );
+}

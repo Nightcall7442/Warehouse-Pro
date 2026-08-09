@@ -1,0 +1,112 @@
+{
+  "title": "Warehouse Pro — Production Monitoring",
+  "widgets": [
+    {
+      "title": "Error Rate (5min)",
+      "displayType": "line",
+      "query": {
+        "fields": ["count()"],
+        "conditions": "event.type:error",
+        "aggregates": ["count()"],
+        "orderby": "-count()",
+        "interval": "5m"
+      },
+      "position": { "x": 0, "y": 0, "w": 6, "h": 2 }
+    },
+    {
+      "title": "Top Errors by Count",
+      "displayType": "table",
+      "query": {
+        "fields": ["title", "count()", "last_seen()"],
+        "conditions": "event.type:error",
+        "aggregates": ["count()", "last_seen()"],
+        "orderby": "-count()"
+      },
+      "position": { "x": 6, "y": 0, "w": 6, "h": 2 }
+    },
+    {
+      "title": "P50 / P95 / P99 Latency",
+      "displayType": "line",
+      "query": {
+        "fields": ["p50(transaction.duration)", "p95(transaction.duration)", "p99(transaction.duration)"],
+        "conditions": "event.type:transaction",
+        "aggregates": ["p50(transaction.duration)", "p95(transaction.duration)", "p99(transaction.duration)"],
+        "interval": "5m"
+      },
+      "position": { "x": 0, "y": 2, "w": 6, "h": 2 }
+    },
+    {
+      "title": "Slowest Endpoints (P95)",
+      "displayType": "table",
+      "query": {
+        "fields": ["transaction", "p95(transaction.duration)", "count()"],
+        "conditions": "event.type:transaction",
+        "aggregates": ["p95(transaction.duration)", "count()"],
+        "orderby": "-p95(transaction.duration)"
+      },
+      "position": { "x": 6, "y": 2, "w": 6, "h": 2 }
+    },
+    {
+      "title": "tRPC Errors by Path",
+      "displayType": "table",
+      "query": {
+        "fields": ["trpc_path", "count()", "last_seen()"],
+        "conditions": "error_type:trpc",
+        "aggregates": ["count()", "last_seen()"],
+        "orderby": "-count()"
+      },
+      "position": { "x": 0, "y": 4, "w": 6, "h": 2 }
+    },
+    {
+      "title": "500 Errors by Endpoint",
+      "displayType": "table",
+      "query": {
+        "fields": ["path", "count()", "last_seen()"],
+        "conditions": "status:500",
+        "aggregates": ["count()", "last_seen()"],
+        "orderby": "-count()"
+      },
+      "position": { "x": 6, "y": 4, "w": 6, "h": 2 }
+    },
+    {
+      "title": "Active Users (24h)",
+      "displayType": "big_number",
+      "query": {
+        "fields": ["count_unique(user.id)"],
+        "conditions": "event.type:transaction",
+        "aggregates": ["count_unique(user.id)"]
+      },
+      "position": { "x": 0, "y": 6, "w": 3, "h": 1 }
+    },
+    {
+      "title": "Total Errors (24h)",
+      "displayType": "big_number",
+      "query": {
+        "fields": ["count()"],
+        "conditions": "event.type:error",
+        "aggregates": ["count()"]
+      },
+      "position": { "x": 3, "y": 6, "w": 3, "h": 1 }
+    },
+    {
+      "title": "Apdex Score",
+      "displayType": "big_number",
+      "query": {
+        "fields": ["apdex(transaction.duration, 500)"],
+        "conditions": "event.type:transaction",
+        "aggregates": ["apdex(transaction.duration, 500)"]
+      },
+      "position": { "x": 6, "y": 6, "w": 3, "h": 1 }
+    },
+    {
+      "title": "Crash Free Rate",
+      "displayType": "big_number",
+      "query": {
+        "fields": ["crash_free_rate()"],
+        "conditions": "",
+        "aggregates": ["crash_free_rate()"]
+      },
+      "position": { "x": 9, "y": 6, "w": 3, "h": 1 }
+    }
+  ]
+}

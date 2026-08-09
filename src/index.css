@@ -1,0 +1,1380 @@
+/* ═════════════════════════════════════════════════════════════════════════════
+   Warehouse Pro — Neumorphic Soft UI Design System
+   Light: soft gray canvas, raised white cards, dual shadows
+   Dark:  charcoal canvas, raised dark cards, cyan accent
+   Font: DM Sans
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* shadcn/ui's token set, in the HSL triplet form its utilities expect.
+     Every primitive built on it — Dialog, Sheet, Drawer, Popover, AlertDialog
+     — paints from these via `bg-background`, `bg-popover` and friends, so they
+     have to carry the *same* palette as the --color-* tokens below or those
+     components silently render in a different design from the rest of the app.
+
+     They used to hold the retired cold blue-grey scheme (hue 220, e.g.
+     `--background: 220 18% 10%` → rgb(21,24,30)) while the app moved to the
+     warm beige/charcoal palette (hue ~36, `--color-surface: #221f1c` →
+     rgb(34,31,28)). Nothing pointed the two at each other, so the order-detail
+     panel and every other shadcn surface came out navy against a warm app.
+     Values below are converted from the --color-* hexes, not eyeballed. */
+  :root {
+    --background:           43 13% 90%;   /* --color-canvas        #e8e6e1 */
+    --foreground:           40 4% 16%;    /* --color-text-primary  #2b2a28 */
+    --card:                 36 14% 93%;   /* --color-surface       #efedea */
+    --card-foreground:      40 4% 16%;
+    --popover:              36 14% 93%;
+    --popover-foreground:   40 4% 16%;
+    --primary:              217 21% 45%;  /* --color-primary       #5b6d8a */
+    --primary-foreground:   0 0% 100%;    /* --color-on-primary    #ffffff */
+    --secondary:            40 25% 95%;   /* --color-surface-light #f6f4f0 */
+    --secondary-foreground: 42 6% 35%;    /* --color-text-secondary #5e5b54 */
+    --muted:                40 25% 95%;
+    --muted-foreground:     42 6% 35%;
+    --accent:               40 25% 95%;
+    --accent-foreground:    42 6% 35%;
+    --destructive:          0 61% 57%;    /* --color-danger        #d45050 */
+    --destructive-foreground: 0 0% 100%;
+    --border:               44 12% 83%;   /* --color-border        #d8d5cd */
+    --input:                44 12% 83%;
+    --ring:                 217 21% 45%;
+    --radius:               1.5rem;
+    --sidebar-background:   36 14% 93%;
+    --sidebar-foreground:   40 4% 16%;
+    --sidebar-primary:      217 21% 45%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent:       40 25% 95%;
+    --sidebar-accent-foreground:  40 4% 16%;
+    --sidebar-border:       44 12% 83%;
+    --sidebar-ring:         217 21% 45%;
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     LIGHT THEME — Soft UI Neumorphism
+     ══════════════════════════════════════════════════════════════════════ */
+  :root, .light {
+    --color-canvas:          #e8e6e1;
+    --color-canvas-alt:      #e0ddd7;
+    --color-surface:         #efedea;
+    --color-surface-raised:  #f2f0ec;
+    --color-surface-light:   #f6f4f0;
+    --color-surface-hover:   #e5e3de;
+
+    --color-border:          #d8d5cd;
+    --color-border-subtle:   #e0ddd7;
+    --color-border-custom:   #d8d5cd;
+    --color-border-strong:   #c4c0b8;
+
+    --color-text-primary:    #2b2a28;
+    --color-text-secondary:  #5e5b54;
+    /* Measured on the raised surface (#efedea), where most tertiary text
+       actually sits — the previous value only cleared 4.5:1 against pure
+       white and dropped to 4.16 on a card. */
+    --color-text-tertiary:   #6b6760;  /* WCAG AA: 4.81:1 on #efedea */
+    --color-text-inverse:    #ffffff;
+
+    --color-primary:         #5b6d8a;
+    --color-primary-hover:   #4a5c78;
+    --color-primary-subtle:  rgba(91,109,138,.10);
+    --color-primary-muted:   #94a3b8;
+    /* Ink for text and glyphs sitting ON the accent. The two themes need
+       opposite answers: the light accent is dark, the dark accent is light. */
+    --color-on-primary:      #ffffff;
+
+    --color-success:         #34c473;
+    --color-success-subtle:  rgba(52,196,115,.10);
+    --color-warning:         #d4973a;
+    --color-warning-subtle:  rgba(212,151,58,.10);
+    --color-danger:          #d45050;
+    --color-danger-subtle:   rgba(212,80,80,.10);
+    /* Solid ground for a small counter chip (the bell badge, "3 unread").
+       --color-danger itself is a mid-tone: white on it measures 4.15 in light
+       and 3.22 in dark, both under the 4.5 floor for text this size. These are
+       the same red pushed darker until white clears it — 5.89 and 5.44. */
+    --color-danger-strong:   #b8323f;
+    --color-info:            #5a8fad;
+    --color-info-subtle:     rgba(90,143,173,.10);
+
+    /* The colours above are tuned to be legible as a *fill* — a badge ground, a
+       status dot, a chart series. On a light page they are far too pale to read
+       as text: #34c473 on white is 2.26:1, well under the 4.5:1 minimum. These
+       darker siblings are for semantic text and icons only, so a status word
+       stays as readable as the number next to it.
+       (The dark theme's own values already clear 4.5:1 on a card, so there
+       these simply alias the base colour.) */
+    --color-success-text:    #157a45;  /* 5.38:1 on #ffffff */
+    --color-warning-text:    #7a5810;  /* 6.50:1 on #ffffff */
+    --color-danger-text:     #a32d2d;  /* 7.07:1 on #ffffff */
+    /* Same idea for the accent: the fill colour reads at only 4.49:1 as text
+       on a raised card, a hair under the minimum. */
+    --color-primary-text:    #53637d;  /* 5.21:1 on #efedea */
+
+    --accent-pink:    #c06080;
+    --accent-orange:  #c49530;
+    --accent-teal:    #3a9a8a;
+    --accent-purple:  #7a6db5;
+    --accent-cyan:    #3a9ab5;
+
+    /* KPI colors */
+    --kpi-indigo:  #5b6d8a;
+    --kpi-blue:    #5a8fad;
+    --kpi-teal:    #3a9a8a;
+    --kpi-green:   #34c473;
+    --kpi-amber:   #d4973a;
+    --kpi-orange:  #c07040;
+    --kpi-red:     #d45050;
+    --kpi-pink:    #c06080;
+    --kpi-purple:  #7a6db5;
+    --kpi-coral:   #f06895;
+
+    /* KPI tracks — the tinted ground a KPI icon or badge sits on.
+       KpiIcon.tsx and badge.tsx have referenced these all along but nothing
+       declared them, so every icon rendered on a transparent ground and every
+       badge fell through to a stale light-theme hex — which showed up as a
+       pale pink chip in dark mode.
+
+       Derived from the KPI colour rather than written out by hand: a track is
+       by definition a faint version of its own colour, so deriving it removes
+       the chance of the twenty values drifting apart. They must be declared in
+       each theme block, not once in :root — a custom property is substituted
+       where it is *declared*, so a single :root definition would bake in the
+       light palette and keep using it in dark mode. */
+    --kpi-indigo-track: color-mix(in srgb, var(--kpi-indigo) 12%, transparent);
+    --kpi-blue-track:   color-mix(in srgb, var(--kpi-blue)   12%, transparent);
+    --kpi-teal-track:   color-mix(in srgb, var(--kpi-teal)   12%, transparent);
+    --kpi-green-track:  color-mix(in srgb, var(--kpi-green)  12%, transparent);
+    --kpi-amber-track:  color-mix(in srgb, var(--kpi-amber)  12%, transparent);
+    --kpi-orange-track: color-mix(in srgb, var(--kpi-orange) 12%, transparent);
+    --kpi-red-track:    color-mix(in srgb, var(--kpi-red)    12%, transparent);
+    --kpi-pink-track:   color-mix(in srgb, var(--kpi-pink)   12%, transparent);
+    --kpi-purple-track: color-mix(in srgb, var(--kpi-purple) 12%, transparent);
+    --kpi-coral-track:  color-mix(in srgb, var(--kpi-coral)  12%, transparent);
+
+    /* Named radius scale — mirrors mobile/theme.ts Radii so the two platforms
+       step through the same values instead of each screen picking a number. */
+    --radius-xs:   6px;
+    --radius-sm:  10px;
+    --radius-md:  12px;
+    --radius-lg:  16px;
+    --radius-xl:  20px;
+    --radius-xxl: 24px;
+    --radius-2xl: 28px;
+    --radius-full: 999px;
+
+    /* Neumorphic shadow system — мягкая асимметричная диффузия, а не
+       "тиснёный" эффект в 50/50: тёплый приглушённый тон тени (не холодный
+       серо-синий), ниже непрозрачность тёмной стороны, больше blur. */
+    --shadow-raised:  8px 8px 20px rgba(160,152,140,0.38), -8px -8px 20px rgba(255,255,255,0.55);
+    --shadow-pressed: inset 5px 5px 10px rgba(160,152,140,0.28), inset -5px -5px 10px rgba(255,255,255,0.45);
+    --shadow-sm:      3px 3px 8px rgba(160,152,140,0.28), -3px -3px 8px rgba(255,255,255,0.45);
+    --shadow-xs:      2px 2px 4px rgba(160,152,140,0.22), -2px -2px 4px rgba(255,255,255,0.35);
+    --shadow-md:      10px 10px 24px rgba(160,152,140,0.32), -10px -10px 24px rgba(255,255,255,0.5);
+    --shadow-lg:      14px 14px 32px rgba(160,152,140,0.35), -14px -14px 32px rgba(255,255,255,0.45);
+    --shadow-xl:      18px 18px 40px rgba(160,152,140,0.4), -18px -18px 40px rgba(255,255,255,0.4);
+    --shadow-ring:    drop-shadow(0 4px 10px rgba(180,172,158,0.3));
+    --shadow-popover: 0 12px 32px rgba(120,112,100,.22), 0 2px 8px rgba(120,112,100,.12);
+    --ring-primary:   0 0 0 3px color-mix(in srgb, var(--color-primary) 18%, transparent);
+
+    /* Chart colors */
+    --chart-blue:     #5b6d8a;
+    --chart-cyan:     #3a9ab5;
+    --chart-teal:     #3a9a8a;
+    --chart-green:    #34c473;
+    --chart-amber:    #d4973a;
+    --chart-orange:   #c07040;
+    --chart-red:      #d45050;
+    --chart-pink:     #c06080;
+    --chart-purple:   #7a6db5;
+
+    color-scheme: light;
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     DARK THEME — Neumorphic Dark with cyan accent
+     ══════════════════════════════════════════════════════════════════════ */
+  .dark {
+    /* Converted from the dark --color-* hexes — see the note in :root. The
+       accent was already brass here (45°), but every neutral was still hue 220
+       navy, which is what made shadcn surfaces read as cold against the warm
+       charcoal the rest of the dark theme uses. */
+    --background:            36 10% 10%;   /* --color-canvas        #1c1a17 */
+    --foreground:            36 22% 91%;   /* --color-text-primary  #ede9e3 */
+    --card:                  30 10% 12%;   /* --color-surface       #221f1c */
+    --card-foreground:       36 22% 91%;
+    --popover:               30 10% 12%;
+    --popover-foreground:    36 22% 91%;
+    --primary:               46 68% 47%;   /* --color-primary       #c9a227 */
+    --primary-foreground:    36 10% 10%;   /* --color-on-primary    #1c1a17 */
+    --secondary:             30 11% 15%;   /* --color-surface-light #2a2622 */
+    --secondary-foreground:  39 8% 61%;    /* --color-text-secondary #a39d92 */
+    --muted:                 30 11% 15%;
+    --muted-foreground:      39 8% 61%;
+    --accent:                30 11% 15%;
+    --accent-foreground:     39 8% 61%;
+    --destructive:           350 100% 65%; /* --color-danger        #ff4d6a */
+    --destructive-foreground: 0 0% 100%;
+    --border:                36 11% 18%;   /* --color-border        #322e28 */
+    --input:                 30 11% 15%;
+    --ring:                  46 68% 47%;
+    --sidebar-background:    30 10% 12%;
+    --sidebar-foreground:    36 22% 91%;
+    --sidebar-primary:       46 68% 47%;
+    --sidebar-primary-foreground: 36 10% 10%;
+    --sidebar-accent:        30 11% 15%;
+    --sidebar-accent-foreground:  36 22% 91%;
+    --sidebar-border:        36 11% 18%;
+    --sidebar-ring:          45 68% 47%;
+
+    --color-canvas:          #1c1a17;
+    --color-canvas-alt:      #211f1b;
+    --color-surface:         #221f1c;
+    --color-surface-raised:  #262320;
+    --color-surface-light:   #2a2622;
+    --color-surface-hover:   #2e2a25;
+
+    --color-border:          #322e28;
+    --color-border-subtle:   #2a2622;
+    --color-border-custom:   #322e28;
+    --color-border-strong:   #423d35;
+
+    --color-text-primary:    #ede9e3;
+    --color-text-secondary:  #a39d92;
+    /* Measured against the *raised* card surface (#262320), not just the page
+       canvas — the old value cleared 4.5:1 on the canvas but dropped to 4.21
+       on a card, which is where most tertiary text actually sits. */
+    --color-text-tertiary:   #948e81;  /* WCAG AA: 4.80:1 on #262320 */
+    --color-text-inverse:    #1c1a17;
+
+    --color-primary:         #c9a227;
+    --color-primary-hover:   #dbb43f;
+    --color-primary-subtle:  rgba(201,162,39,.12);
+    --color-primary-muted:   #4a3f1c;
+    --color-on-primary:      #1c1a17;
+
+    --color-success:         #00e68a;
+    --color-success-subtle:  rgba(0,230,138,.12);
+    --color-warning:         #ffb020;
+    --color-warning-subtle:  rgba(255,176,32,.12);
+    --color-danger:          #ff4d6a;
+    --color-danger-subtle:   rgba(255,77,106,.12);
+    /* See the light block — same role, kept closer to the dark palette's
+       pinker red. White on it measures 5.44. */
+    --color-danger-strong:   #c9264a;
+    --color-info:            #00b4ff;
+    --color-info-subtle:     rgba(0,180,255,.12);
+
+    /* On this dark ground the fill colours are already legible as text
+       (9.44 / 8.55 / 4.85 : 1 on a raised card), so the text variants are
+       plain aliases — they exist so a component can say "semantic text"
+       without having to know which theme it is in. */
+    --color-success-text:    var(--color-success);
+    --color-warning-text:    var(--color-warning);
+    --color-danger-text:     var(--color-danger);
+    --color-primary-text:    var(--color-primary);  /* 6.78:1 on a card */
+
+    /* KPI colors — dark mode */
+    --kpi-indigo:  #7b94f8;
+    --kpi-blue:    #58a8f0;
+    --kpi-teal:    #3cd0b0;
+    --kpi-green:   #5ad88e;
+    --kpi-amber:   #f0c040;
+    --kpi-orange:  #f09858;
+    --kpi-red:     #f06060;
+    --kpi-pink:    #e878a8;
+    --kpi-purple:  #a088f0;
+    --kpi-coral:   #e878a8;
+
+    /* Re-derived against the dark KPI palette — see the note in the light
+       block for why these cannot simply be inherited from :root. */
+    --kpi-indigo-track: color-mix(in srgb, var(--kpi-indigo) 12%, transparent);
+    --kpi-blue-track:   color-mix(in srgb, var(--kpi-blue)   12%, transparent);
+    --kpi-teal-track:   color-mix(in srgb, var(--kpi-teal)   12%, transparent);
+    --kpi-green-track:  color-mix(in srgb, var(--kpi-green)  12%, transparent);
+    --kpi-amber-track:  color-mix(in srgb, var(--kpi-amber)  12%, transparent);
+    --kpi-orange-track: color-mix(in srgb, var(--kpi-orange) 12%, transparent);
+    --kpi-red-track:    color-mix(in srgb, var(--kpi-red)    12%, transparent);
+    --kpi-pink-track:   color-mix(in srgb, var(--kpi-pink)   12%, transparent);
+    --kpi-purple-track: color-mix(in srgb, var(--kpi-purple) 12%, transparent);
+    --kpi-coral-track:  color-mix(in srgb, var(--kpi-coral)  12%, transparent);
+
+    /* Dark neumorphic shadows — более выраженные для глубины */
+    --shadow-raised:  8px 8px 20px rgba(0,0,0,0.5), -4px -4px 12px rgba(255,255,255,0.04);
+    --shadow-pressed: inset 6px 6px 12px rgba(0,0,0,0.5), inset -3px -3px 8px rgba(255,255,255,0.03);
+    --shadow-sm:      4px 4px 10px rgba(0,0,0,0.4), -2px -2px 6px rgba(255,255,255,0.03);
+    --shadow-xs:      2px 2px 6px rgba(0,0,0,0.3), -1px -1px 4px rgba(255,255,255,0.025);
+    --shadow-md:      10px 10px 28px rgba(0,0,0,0.5), -5px -5px 14px rgba(255,255,255,0.035);
+    --shadow-lg:      14px 14px 36px rgba(0,0,0,0.55), -7px -7px 18px rgba(255,255,255,0.03);
+    --shadow-popover: 0 16px 40px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.06);
+    --shadow-xl:      20px 20px 44px rgba(0,0,0,0.6), -10px -10px 22px rgba(255,255,255,0.025);
+    --shadow-ring:    drop-shadow(0 4px 10px rgba(0,0,0,0.5));
+    --ring-primary:   0 0 0 3px color-mix(in srgb, var(--color-primary) 25%, transparent);
+
+    /* Chart colors */
+    --chart-blue:     #00d4ff;
+    --chart-cyan:     #00e5ff;
+    --chart-teal:     #00e68a;
+    --chart-green:    #00e68a;
+    --chart-amber:    #ffb020;
+    --chart-orange:   #ff8c40;
+    --chart-red:      #ff4d6a;
+    --chart-pink:     #ff6b9d;
+    --chart-purple:   #a78bfa;
+
+    color-scheme: dark;
+  }
+
+  /* ── Base ─────────────────────────────────────────────────────────────── */
+  html { font-size: 14px; }
+
+  body {
+    background: var(--color-canvas, #e8e6e1);
+    color: var(--color-text-primary, #2b2a28);
+    font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    position: relative;
+    overflow-x: hidden;
+    min-height: 100vh;
+  }
+
+  /* Subtle radial glow for depth */
+  body::before {
+    content: '';
+    position: fixed;
+    top: -200px; right: -200px;
+    width: 600px; height: 600px;
+    border-radius: 50%;
+    background: radial-gradient(circle, color-mix(in srgb, var(--color-primary) 8%, transparent) 0%, transparent 70%);
+    filter: blur(60px);
+    pointer-events: none;
+    z-index: 0;
+  }
+  body::after {
+    content: '';
+    position: fixed;
+    bottom: -200px; left: -200px;
+    width: 500px; height: 500px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(46,196,176,.06) 0%, transparent 70%);
+    filter: blur(60px);
+    pointer-events: none;
+    z-index: 0;
+  }
+  .dark body::before {
+    background: radial-gradient(circle, color-mix(in srgb, var(--color-primary) 5%, transparent) 0%, transparent 70%);
+  }
+  .dark body::after {
+    background: radial-gradient(circle, rgba(0,230,138,.03) 0%, transparent 70%);
+  }
+  #root { position: relative; z-index: 1; }
+
+  * { border-color: var(--color-border-custom); }
+
+  ::selection {
+    background: var(--color-primary);
+    color: var(--color-text-inverse);
+  }
+}
+
+@layer components {
+  /* ProductCard's delete control: the button is a 44px touch target with a
+     transparent hit area around a 28px visible pill, so the hover feedback
+     has to live on the parent (JS mouseenter/leave has nothing to grab onto
+     when the styled element isn't the one being hovered). */
+  button:hover > .product-delete-pill { background: rgba(232,80,80,0.2); }
+
+
+  /* ══════════════════════════════════════════════════════════════════════
+     NEUMORPHIC CARDS — The core of Soft UI
+     ══════════════════════════════════════════════════════════════════════ */
+  .neo-card {
+    background: var(--color-surface, #efedea);
+    border-radius: 24px;
+    padding: 24px;
+    box-shadow: var(--shadow-raised);
+    border: 1px solid rgba(255,255,255,0.1);
+    transition: box-shadow 0.4s cubic-bezier(0.25, 0.1, 0.25, 1), transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Panel — generic container for dropdowns, sidebars, etc. */
+  .panel {
+    background: var(--color-surface, #efedea);
+    border: 1px solid var(--color-border, #d8d5cd);
+    border-radius: 12px;
+  }
+  .neo-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+  }
+  .dark .neo-card {
+    border-color: rgba(255,255,255,0.04);
+    background: linear-gradient(145deg, var(--color-surface-raised), var(--color-surface));
+    box-shadow: var(--shadow-raised);
+  }
+  .dark .neo-card::before {
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+  }
+  .neo-card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+  }
+  .neo-card:active {
+    box-shadow: var(--shadow-pressed);
+    transform: translateY(0) scale(0.99);
+  }
+
+  /* Pressed/inset card variant */
+  .neo-card-pressed {
+    background: var(--color-surface);
+    border-radius: 24px;
+    padding: 24px;
+    box-shadow: var(--shadow-pressed);
+    border: 1px solid rgba(255,255,255,0.05);
+  }
+  .dark .neo-card-pressed {
+    border-color: rgba(255,255,255,0.02);
+  }
+
+  /* Small card variant */
+  .neo-card-sm {
+    background: var(--color-surface);
+    border-radius: 20px;
+    padding: 20px;
+    box-shadow: var(--shadow-sm);
+    border: 1px solid rgba(255,255,255,0.1);
+    transition: all 0.25s ease;
+  }
+  .neo-card-sm:hover {
+    box-shadow: var(--shadow-raised);
+    transform: translateY(-1px);
+  }
+  .dark .neo-card-sm {
+    background: linear-gradient(145deg, var(--color-surface-raised), var(--color-surface));
+    border-color: rgba(255,255,255,0.04);
+    box-shadow: var(--shadow-sm);
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     NEUMORPHIC BUTTONS
+     ══════════════════════════════════════════════════════════════════════ */
+  .neo-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    background: var(--color-surface, #efedea);
+    color: var(--color-text-primary, #2b2a28);
+    border: none;
+    border-radius: 12px;
+    padding: 10px 20px;
+    font-size: 13px; font-weight: 600; font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    transition: box-shadow 0.3s cubic-bezier(0.25, 0.1, 0.25, 1), transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.15s ease;
+    white-space: nowrap;
+    box-shadow: var(--shadow-sm);
+  }
+  .neo-btn:hover {
+    box-shadow: var(--shadow-raised);
+    transform: translateY(-1px);
+  }
+  .neo-btn:active {
+    box-shadow: var(--shadow-pressed);
+    transform: translateY(0) scale(0.98);
+  }
+  .neo-btn:disabled {
+    opacity: .35; cursor: not-allowed; box-shadow: none; transform: none;
+  }
+
+  /* Primary neumorphic button */
+  .neo-btn-primary {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-hover, #4a5c78));
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    padding: 10px 20px;
+    font-size: 13px; font-weight: 600; font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    transition: box-shadow 0.3s cubic-bezier(0.25, 0.1, 0.25, 1), transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    white-space: nowrap;
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--color-primary) 25%, transparent);
+  }
+  .neo-btn-primary:hover {
+    box-shadow: 0 4px 16px color-mix(in srgb, var(--color-primary) 35%, transparent);
+    transform: translateY(-2px);
+  }
+  .neo-btn-primary:active {
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.15);
+    transform: translateY(0) scale(0.98);
+  }
+  .dark .neo-btn-primary {
+    color: #fff !important;
+    box-shadow: 4px 4px 12px rgba(0,0,0,0.4), -2px -2px 6px rgba(255,255,255,0.03);
+  }
+
+  /* Button size variants */
+  .neo-btn-sm { padding: 6px 12px; font-size: 11px; }
+  .neo-btn-md { padding: 10px 20px; font-size: 13px; }
+  .neo-btn-lg { padding: 14px 28px; font-size: 15px; }
+  .neo-btn-xs { padding: 4px 8px; font-size: 10px; }
+
+  /* Icon button (circular) */
+  .neo-btn-icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 44px; height: 44px;
+    background: var(--color-surface, #efedea);
+    color: var(--color-text-secondary, #5e5b54);
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: var(--shadow-sm);
+  }
+  .neo-btn-icon:hover {
+    box-shadow: var(--shadow-raised);
+    color: var(--color-primary);
+    transform: translateY(-1px);
+  }
+  .neo-btn-icon:active {
+    box-shadow: var(--shadow-pressed);
+    transform: translateY(0);
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     NEUMORPHIC INPUTS
+     ══════════════════════════════════════════════════════════════════════ */
+  .neo-input {
+    background: var(--color-surface, #efedea);
+    border: none;
+    border-radius: 16px;
+    padding: 13px 18px;
+    font-size: 13px;
+    font-family: 'DM Sans', sans-serif;
+    color: var(--color-text-primary, #2b2a28);
+    outline: none;
+    transition: all 0.2s ease;
+    width: 100%;
+    line-height: 1.5;
+    box-shadow: var(--shadow-pressed);
+  }
+  .neo-input::placeholder { color: var(--color-text-tertiary, #6b6760); }
+  .neo-input:focus {
+    box-shadow: var(--shadow-raised), 0 0 0 2px color-mix(in srgb, var(--color-primary) 20%, transparent);
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     TOGGLE SWITCH — Neumorphic
+     ══════════════════════════════════════════════════════════════════════ */
+  .neo-toggle {
+    position: relative;
+    width: 52px; height: 28px;
+    background: var(--color-surface, #efedea);
+    border-radius: 14px;
+    box-shadow: var(--shadow-pressed);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    appearance: none;
+    -webkit-appearance: none;
+    border: none;
+    outline: none;
+  }
+  .neo-toggle::after {
+    content: '';
+    position: absolute;
+    top: 4px; left: 4px;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #fff, #e0e5ec);
+    box-shadow: 2px 2px 4px rgba(163,177,198,0.4);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .neo-toggle:checked {
+    background: var(--color-primary);
+    box-shadow: inset 3px 3px 6px rgba(0,0,0,0.2), inset -3px -3px 6px rgba(255,255,255,0.1);
+  }
+  .neo-toggle:checked::after {
+    left: 28px;
+    background: #fff;
+    box-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     PROGRESS RING — Neumorphic
+     ══════════════════════════════════════════════════════════════════════ */
+  .neo-progress-ring {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    box-shadow: var(--shadow-raised);
+    padding: 4px;
+  }
+  .neo-progress-ring-inner {
+    position: absolute;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 700;
+    color: var(--color-text-primary);
+    pointer-events: none;
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     KPI CARD — Neumorphic Hero
+     ══════════════════════════════════════════════════════════════════════ */
+  .kpi-hero {
+    background: var(--color-surface, #efedea);
+    border-radius: 24px;
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: var(--shadow-raised);
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  .kpi-hero::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+  }
+  .dark .kpi-hero {
+    border-color: rgba(255,255,255,0.04);
+    background: linear-gradient(145deg, var(--color-surface-raised), var(--color-surface));
+  }
+  .dark .kpi-hero::before {
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+  }
+  .kpi-hero:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-3px);
+  }
+
+  /* Компактная версия карточки — используется на AgentDashboard/SupervisorTracking
+     как облегчённый вариант .kpi-hero (меньше паддинг). */
+  .kpi-card {
+    background: var(--color-surface);
+    border-radius: 20px;
+    padding: 18px;
+    box-shadow: var(--shadow-raised);
+    border: 1px solid rgba(255,255,255,0.1);
+    transition: box-shadow 0.3s cubic-bezier(0.25, 0.1, 0.25, 1), transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .dark .kpi-card { border-color: rgba(255,255,255,0.03); }
+  .kpi-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+
+  /* Прозрачная icon/text-кнопка — используется в шапках карточек и модалках
+     (крестик закрытия, второстепенные действия). */
+  .btn-ghost {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    border: none; background: transparent; cursor: pointer;
+    border-radius: 10px; color: var(--color-text-secondary);
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .btn-ghost:hover { background: var(--color-surface-hover); color: var(--color-text-primary); }
+
+  .kpi-hero-label {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 10px; font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--color-text-tertiary, #6b6760);
+  }
+
+  .kpi-hero-value {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    font-size: 32px; font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    color: var(--color-text-primary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .kpi-hero-icon {
+    width: 48px; height: 48px;
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: var(--shadow-sm);
+  }
+
+  /* The hue identifies the metric, so it lives in the glyph rather than in a
+     solid fill — six saturated tiles in a row outshouted the numbers they
+     labelled. Call sites still hand lucide a `color="#fff"` prop, which lands
+     as a stroke attribute; the rule below outranks it. */
+  .kpi-tile {
+    width: 44px; height: 44px;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  }
+  .kpi-tile svg {
+    stroke: currentColor;
+    color: currentColor;
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     ORDER GRID — ProductSelector responsive layout
+     ══════════════════════════════════════════════════════════════════════ */
+  .order-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+    align-items: start;
+  }
+  @media (min-width: 768px) {
+    .order-grid {
+      grid-template-columns: 1fr 320px;
+    }
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     DASHBOARD RESPONSIVE GRIDS
+     ══════════════════════════════════════════════════════════════════════ */
+  .dashboard-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+  @media (min-width: 768px) {
+    .dashboard-kpi-grid {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
+  .dashboard-charts-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  @media (min-width: 768px) {
+    .dashboard-charts-grid {
+      grid-template-columns: 2fr 1fr;
+    }
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     PIE CHART CONTAINER
+     ══════════════════════════════════════════════════════════════════════ */
+  .neo-pie-chart {
+    position: relative;
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    box-shadow: var(--shadow-raised);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-surface);
+  }
+  .neo-pie-chart-inner {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: var(--color-surface);
+    box-shadow: var(--shadow-pressed);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     SIDEBAR NAV — Neumorphic
+     ══════════════════════════════════════════════════════════════════════ */
+  .sidebar-nav-item {
+    position: relative;
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 18px; margin: 4px 10px;
+    border-radius: 16px;
+    font-size: 13px; font-weight: 500;
+    color: var(--color-text-secondary, #5e5b54);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    width: calc(100% - 20px); text-align: left;
+    transition: all 0.2s ease;
+  }
+  .sidebar-nav-item:hover {
+    color: var(--color-text-primary, #2b2a28);
+    background: color-mix(in srgb, var(--color-primary) 6%, transparent);
+    box-shadow: var(--shadow-xs);
+  }
+  .sidebar-nav-item.active {
+    color: var(--color-primary-text);
+    background: var(--color-surface, #efedea);
+    font-weight: 600;
+    box-shadow: var(--shadow-raised);
+  }
+  .dark .sidebar-nav-item:hover {
+    color: var(--color-text-primary, #2b2a28);
+    background: var(--color-primary-subtle);
+  }
+  .dark .sidebar-nav-item.active {
+    color: var(--color-primary-text);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-raised);
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     RANGE PILLS — Neumorphic
+     ══════════════════════════════════════════════════════════════════════ */
+  .range-pills {
+    display: inline-flex;
+    background: var(--color-surface, #efedea);
+    border-radius: 14px;
+    padding: 4px;
+    gap: 2px;
+    box-shadow: var(--shadow-pressed);
+  }
+  .range-pill {
+    padding: 8px 16px;
+    font-size: 12px; font-weight: 600;
+    font-family: 'DM Sans', sans-serif;
+    border-radius: 12px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: var(--color-text-secondary, #5e5b54);
+    background: transparent;
+  }
+  .range-pill:hover {
+    color: var(--color-text-primary, #2b2a28);
+  }
+  .range-pill.active {
+    background: var(--color-surface, #efedea);
+    color: var(--color-primary);
+    box-shadow: var(--shadow-sm);
+    font-weight: 700;
+  }
+  .dark .range-pill.active {
+    color: var(--color-primary-text);
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     DATA TABLE — Neumorphic
+     ══════════════════════════════════════════════════════════════════════ */
+  .data-table { width: 100%; border-collapse: collapse; }
+  .data-table th {
+    background: var(--color-surface, #efedea);
+    color: var(--color-text-tertiary, #6b6760);
+    font-size: 10px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .08em;
+    padding: 12px 16px; text-align: left;
+    box-shadow: 0 1px 0 var(--color-border, #d8d5cd);
+  }
+  .data-table td {
+    padding: 12px 16px; font-size: 13px;
+    color: var(--color-text-primary, #2b2a28);
+    border-bottom: 1px solid var(--color-border-subtle, #e0ddd7);
+  }
+  .data-table tbody tr {
+    transition: background 0.15s ease;
+  }
+  .data-table tbody tr:hover {
+    background: color-mix(in srgb, var(--color-primary) 4%, transparent);
+  }
+  .data-table tbody tr:last-child td { border-bottom: none; }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     GLASS PANEL (for Login, modals)
+     ══════════════════════════════════════════════════════════════════════ */
+  .glass-panel {
+    background: rgba(224,229,236,.7);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border-radius: 28px;
+    box-shadow: var(--shadow-lg);
+    border: 1px solid rgba(255,255,255,.3);
+  }
+  .dark .glass-panel {
+    background: rgba(26,31,46,.75);
+    border-color: rgba(255,255,255,.04);
+    box-shadow: var(--shadow-lg);
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     LANGUAGE TOGGLE
+     ══════════════════════════════════════════════════════════════════════ */
+
+  /* ── Select ────────────────────────────────────────────────────────────
+     Styling lives here rather than in inline styles so hover and the active
+     row can be expressed as states instead of mouse handlers fighting each
+     other, and so both themes are driven by the same tokens. */
+  .premium-select-trigger {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    width: 100%; padding: 10px 14px;
+    border-radius: 10px;
+    background: var(--color-surface-light);
+    color: var(--color-text-primary);
+    border: 1.5px solid transparent;
+    font-size: 13px; font-family: 'DM Sans', sans-serif; font-weight: 500;
+    cursor: pointer; outline: none;
+    transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+  }
+  .premium-select-trigger:hover:not(:disabled) { background: var(--color-surface-hover); }
+  .premium-select-trigger:disabled { opacity: .55; cursor: not-allowed; }
+  .premium-select-trigger.open,
+  .premium-select-trigger:focus-visible {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 18%, transparent);
+  }
+  .premium-select-label {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left;
+  }
+  .premium-select-label[data-placeholder] { color: var(--color-text-tertiary); }
+  .premium-select-chevron {
+    color: var(--color-text-tertiary); flex-shrink: 0;
+    transition: transform .15s ease;
+  }
+  .premium-select-trigger.open .premium-select-chevron { transform: rotate(180deg); }
+
+  .premium-select-panel {
+    position: fixed; z-index: 99999;
+    background: var(--color-surface-raised, var(--color-surface));
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    box-shadow: var(--shadow-popover);
+    padding: 4px; overflow-y: auto; overscroll-behavior: contain;
+    animation: selectIn .13s ease-out;
+  }
+  .premium-select-panel.above { transform-origin: bottom center; }
+  @keyframes selectIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .premium-select-panel { animation: none; }
+  }
+
+  .premium-select-option {
+    display: flex; align-items: center; gap: 8px;
+    padding: 9px 10px; border-radius: 8px;
+    font-size: 13px; font-family: 'DM Sans', sans-serif; font-weight: 400;
+    color: var(--color-text-primary);
+    cursor: pointer; user-select: none;
+  }
+  .premium-select-option[data-active] { background: var(--color-surface-hover); }
+  .premium-select-option[aria-selected="true"] {
+    color: var(--color-primary); font-weight: 600;
+  }
+  .premium-select-option[aria-selected="true"][data-active] {
+    background: var(--color-primary-subtle);
+  }
+  /* A fixed gutter keeps every label on the same left edge, ticked or not. */
+  .premium-select-tick {
+    width: 14px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--color-primary);
+  }
+  .premium-select-option-label {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  .lang-btn {
+    flex: 1; padding: 6px;
+    font-size: 11px; font-family: 'DM Sans', sans-serif; font-weight: 600;
+    border-radius: 10px; border: none;
+    cursor: pointer; transition: all .2s;
+    color: var(--color-text-secondary, #5e5b54);
+    background: transparent;
+    text-transform: uppercase; letter-spacing: .06em;
+  }
+  .lang-btn:hover {
+    color: var(--color-primary);
+    background: var(--color-primary-subtle);
+  }
+  .lang-btn.active {
+    background: var(--color-primary);
+    color: var(--color-on-primary, #ffffff);
+    box-shadow: 2px 2px 4px color-mix(in srgb, var(--color-primary) 30%, transparent);
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     SEARCH RESULT ITEM — Touch-friendly hover/tap feedback
+     ══════════════════════════════════════════════════════════════════════ */
+  .search-result-item {
+    background: transparent;
+    transition: background 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .search-result-item:hover {
+    background: var(--color-surface-light, #f6f4f0);
+  }
+  .search-result-item:active {
+    background: var(--color-surface-hover, #e5e3de);
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     ANIMATIONS
+     ══════════════════════════════════════════════════════════════════════ */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes scaleIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+  @keyframes shimmer {
+    0%   { background-position: -200% 0; }
+    100% { background-position:  200% 0; }
+  }
+  @keyframes countUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  @keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-primary) 20%, transparent); }
+    50% { box-shadow: 0 0 20px 4px color-mix(in srgb, var(--color-primary) 10%, transparent); }
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+  }
+
+  .animate-fade-up { animation: fadeUp .3s ease forwards; }
+  .animate-slide-up { animation: slideUp .4s cubic-bezier(.16,1,.3,1) forwards; }
+  .animate-scale-in { animation: scaleIn .3s ease forwards; }
+
+  @keyframes slideIn {
+    from { transform: translateX(-100%); }
+    to   { transform: translateX(0); }
+  }
+  .animate-slide-in {
+    animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .animate-count-up { animation: countUp 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards; }
+  .animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
+  .animate-float { animation: float 3s ease-in-out infinite; }
+
+  /* Stagger children */
+  .stagger-children > * {
+    opacity: 0;
+    animation: fadeUp .4s ease forwards;
+  }
+  .stagger-children > *:nth-child(1) { animation-delay: 0s; }
+  .stagger-children > *:nth-child(2) { animation-delay: 0.06s; }
+  .stagger-children > *:nth-child(3) { animation-delay: 0.12s; }
+  .stagger-children > *:nth-child(4) { animation-delay: 0.18s; }
+  .stagger-children > *:nth-child(5) { animation-delay: 0.24s; }
+  .stagger-children > *:nth-child(6) { animation-delay: 0.30s; }
+
+  /* Hover lift with spring physics */
+  .hover-lift {
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
+  }
+  .hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+  }
+
+  /* Safe area */
+  .safe-area-pb { padding-bottom: env(safe-area-inset-bottom); }
+  .safe-area-pt { padding-top:    env(safe-area-inset-top);    }
+  .transition-fast { transition: all 0.15s ease; }
+
+  /* Gradient text */
+  .gradient-text {
+    background: linear-gradient(135deg, var(--color-primary), var(--accent-teal));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Sidebar transition */
+  .sidebar-collapse-transition {
+    transition: width 0.25s ease, opacity 0.2s ease, transform 0.25s ease;
+  }
+
+  /* Premium scrollbar */
+  .premium-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+  .premium-scrollbar::-webkit-scrollbar-track { background: transparent; }
+  .premium-scrollbar::-webkit-scrollbar-thumb {
+    background: var(--color-border-strong, #c4c0b8);
+    border-radius: 100px;
+  }
+  .premium-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: var(--color-text-tertiary, #6b6760);
+  }
+  .premium-scrollbar::-webkit-scrollbar-corner { background: transparent; }
+
+  /* Animated gradient */
+  @keyframes gradient-shift {
+    0%   { background-position: 0% 50%; }
+    50%  { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+  .animate-gradient {
+    background-size: 200% 200%;
+    animation: gradient-shift 3s ease infinite;
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     MOBILE — Bottom nav & Header
+     ══════════════════════════════════════════════════════════════════════ */
+  .bottom-nav-premium {
+    background: var(--color-surface, #efedea);
+    box-shadow: 0 -4px 20px rgba(163,177,198,0.3), 0 -1px 0 rgba(255,255,255,0.3);
+    border-top: 1px solid rgba(255,255,255,0.2);
+  }
+  .dark .bottom-nav-premium {
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.4), 0 -1px 0 rgba(255,255,255,0.02);
+    border-top-color: rgba(255,255,255,0.03);
+  }
+
+  .mobile-header-premium {
+    background: var(--color-surface, #efedea);
+    box-shadow: 0 2px 12px rgba(163,177,198,0.2), 0 1px 0 rgba(255,255,255,0.3);
+    border-bottom: 1px solid rgba(255,255,255,0.2);
+  }
+  .dark .mobile-header-premium {
+    box-shadow: 0 2px 12px rgba(0,0,0,0.3), 0 1px 0 rgba(255,255,255,0.02);
+    border-bottom-color: rgba(255,255,255,0.03);
+  }
+
+  /* Glass overlay */
+  .glass-overlay {
+    background: rgba(0,0,0,.15);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     STATUS BADGE — Soft UI
+     ══════════════════════════════════════════════════════════════════════ */
+  .status-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11px; font-weight: 600;
+    padding: 4px 12px;
+    border-radius: 9999px;
+    border: none;
+    white-space: nowrap;
+    box-shadow: var(--shadow-xs);
+  }
+
+  /* Avatar */
+  .avatar-premium {
+    width: 40px; height: 40px; border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 14px;
+    box-shadow: var(--shadow-xs);
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   RECHARTS OVERRIDES — Neumorphic Style
+   ════════════════════════════════════════════════════════════════════════ */
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: var(--color-border, #d8d5cd) !important;
+  stroke-dasharray: 4 4;
+  opacity: 0.5;
+}
+.recharts-tooltip-wrapper .recharts-default-tooltip {
+  background: var(--color-surface, #efedea) !important;
+  border: 1px solid rgba(255,255,255,0.3) !important;
+  border-radius: 16px !important;
+  box-shadow: var(--shadow-raised) !important;
+  padding: 14px 18px !important;
+}
+.recharts-tooltip-label {
+  color: var(--color-text-tertiary, #6b6760) !important;
+  font-size: 10px !important;
+  margin-bottom: 8px !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.08em !important;
+}
+.recharts-tooltip-item {
+  color: var(--color-text-primary, #2b2a28) !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+}
+.recharts-legend-wrapper {
+  font-family: 'DM Sans', sans-serif !important;
+}
+.recharts-legend-item-text {
+  color: var(--color-text-secondary, #5e5b54) !important;
+  font-size: 12px !important;
+}
+.recharts-bar-rectangle {
+  rx: 6;
+  ry: 6;
+}
+.recharts-pie-sector {
+  filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.1));
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   SCROLLBAR
+   ════════════════════════════════════════════════════════════════════════ */
+* { scrollbar-width: thin; scrollbar-color: var(--color-border-strong, #c4c0b8) transparent; }
+::-webkit-scrollbar         { width: 6px; height: 6px; }
+::-webkit-scrollbar-track   { background: transparent; }
+::-webkit-scrollbar-thumb   { background: var(--color-border-strong, #c4c0b8); border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-text-tertiary, #6b6760); }
+
+/* ════════════════════════════════════════════════════════════════════════
+   ACCESSIBILITY — Focus indicators + reduced motion
+   ════════════════════════════════════════════════════════════════════════ */
+*:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+/* Remove default outline for mouse users */
+*:focus:not(:focus-visible) {
+  outline: none;
+}
+/* Prefers reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .hover-lift:hover,
+  .neo-card:hover,
+  .neo-card-sm:hover,
+  .kpi-hero:hover,
+  .kpi-card:hover {
+    transform: none;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   DARK MODE OVERRIDES
+   ════════════════════════════════════════════════════════════════════════ */
+.dark .recharts-tooltip-wrapper .recharts-default-tooltip {
+  background: var(--color-surface-raised) !important;
+  border: 1px solid rgba(255,255,255,0.06) !important;
+  box-shadow: var(--shadow-md) !important;
+}
+.dark .recharts-cartesian-grid-horizontal line,
+.dark .recharts-cartesian-grid-vertical line {
+  stroke: rgba(255,255,255,0.06) !important;
+  stroke-dasharray: 3 3;
+  opacity: 0.6;
+}
+.dark .recharts-tooltip-label {
+  color: var(--color-text-tertiary, #6b6760) !important;
+}
+.dark .recharts-tooltip-item {
+  color: var(--color-text-primary, #2b2a28) !important;
+}
+.dark .recharts-legend-item-text {
+  color: var(--color-text-secondary, #5e5b54) !important;
+}
+.dark .recharts-pie-sector {
+  filter: drop-shadow(2px 2px 6px rgba(0,0,0,0.3));
+}
+.dark .recharts-bar-rectangle {
+  filter: drop-shadow(1px 1px 3px rgba(0,0,0,0.2));
+}
+.dark .leaflet-container { background: #0b0c10 !important; }
+.dark .progress-ring-label { color: var(--color-text-primary); }
+
+/* ── Light mode text visibility fix ──────────────────────────────────────────── */
+.light .text-primary, :root .text-primary { color: var(--color-text-primary) !important; }
+.light .text-secondary, :root .text-secondary { color: var(--color-text-secondary) !important; }
+.light .text-tertiary, :root .text-tertiary { color: var(--color-text-tertiary) !important; }
+.light .text-danger, :root .text-danger { color: var(--color-danger) !important; }
+.light .text-success, :root .text-success { color: var(--color-success) !important; }
+.light .text-warning, :root .text-warning { color: var(--color-warning) !important; }
+.light .text-info, :root .text-info { color: var(--color-info) !important; }
+.light .bg-surface-light, :root .bg-surface-light { background-color: var(--color-surface-light) !important; }
+.light .border-border-subtle, :root .border-border-subtle { border-color: var(--color-border-subtle) !important; }
+
+/* Button visibility fix — light mode */
+.light .neo-btn, :root .neo-btn { color: var(--color-text-primary) !important; }
+.light .neo-btn:hover, :root .neo-btn:hover { color: var(--color-primary) !important; }
+.light .neo-btn-icon, :root .neo-btn-icon { color: var(--color-text-secondary) !important; }
+.light .neo-btn-icon:hover, :root .neo-btn-icon:hover { color: var(--color-primary) !important; }
+.light .btn-ghost, :root .btn-ghost { color: var(--color-text-secondary) !important; }
+.light .btn-ghost:hover, :root .btn-ghost:hover { color: var(--color-primary) !important; }
+.light .btn-secondary, :root .btn-secondary { color: var(--color-text-primary) !important; }
+.light .btn-secondary:hover, :root .btn-secondary:hover { color: var(--color-primary) !important; }
+
+/* Button visibility fix — dark mode */
+.dark .neo-btn { color: var(--color-text-primary) !important; }
+.dark .neo-btn:hover { color: var(--color-primary) !important; }
+.dark .neo-btn-icon { color: var(--color-text-secondary) !important; }
+.dark .neo-btn-icon:hover { color: var(--color-primary) !important; }
+.dark .btn-ghost { color: var(--color-text-secondary) !important; }
+.dark .btn-ghost:hover { color: var(--color-primary) !important; }
+.dark .btn-secondary { color: var(--color-text-primary) !important; }
+.dark .btn-secondary:hover { color: var(--color-primary) !important; }
+.dark .neo-btn-primary { color: #fff !important; }
+.dark .neo-btn-primary:hover { color: #fff !important; }
+.dark .dark-mode-header { background: linear-gradient(135deg, #1e293b, #0f172a) !important; }
+/* Neutralise user-agent colours (mainly the browser's blue <a>) so dark mode
+   inherits the surrounding text colour instead.
+
+   Wrapped in :where() deliberately. Written plainly as `.dark span, .dark a …`
+   this is specificity (0,1,1) — higher than any single-class colour utility
+   (0,1,0) — so in dark mode it silently beat `text-white`, `text-danger` and
+   every other colour class on a p/span/heading/label/td/th/li/a. The badge on
+   the notification bell was the visible symptom: `text-white` on a <span>
+   rendered grey at 1.2:1. There is no light-mode twin of this rule, which is
+   why the two themes failed contrast in different places.
+
+   :where() contributes zero specificity, so the reset still applies where
+   nothing else speaks, and any utility or component class now wins. */
+:where(.dark) :where(p, span, h1, h2, h3, h4, h5, h6, label, td, th, li, a) {
+  color: inherit;
+}
+.dark .text-primary { color: var(--color-text-primary) !important; }
+.dark .text-secondary { color: var(--color-text-secondary) !important; }
+.dark .text-tertiary { color: var(--color-text-tertiary) !important; }
+.dark .text-danger { color: var(--color-danger) !important; }
+.dark .text-success { color: var(--color-success) !important; }
+.dark .text-warning { color: var(--color-warning) !important; }
+.dark .text-info { color: var(--color-info) !important; }
+.dark .bg-surface-light { background-color: var(--color-surface-light) !important; }
+.dark .border-border-subtle { border-color: var(--color-border-subtle) !important; }
+
+/* Button visibility fix */
+.dark .neo-btn { color: var(--color-text-primary) !important; }
+.dark .neo-btn:hover { color: var(--color-primary) !important; }
+.dark .neo-btn-icon { color: var(--color-text-secondary) !important; }
+.dark .neo-btn-icon:hover { color: var(--color-primary) !important; }
+.dark .btn-ghost { color: var(--color-text-secondary) !important; }
+.dark .btn-ghost:hover { color: var(--color-primary) !important; }
+.dark .btn-secondary { color: var(--color-text-primary) !important; }
+.dark .btn-secondary:hover { color: var(--color-primary) !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    transition-duration: .001ms !important;
+  }
+}
+
+@media print {
+  .no-print { display: none !important; }
+  body { background: white !important; color: black !important; }
+  .neo-card, .kpi-hero, .neo-card-sm, .glass-panel { box-shadow: none !important; border: 1px solid #ddd !important; }
+}

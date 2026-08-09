@@ -1,0 +1,86 @@
+import { CheckCircle2, AlertTriangle } from "lucide-react";
+import { COLORS, FONTS, GRADIENTS } from "./designTokens";
+import { DaysRing } from "./DaysRing";
+
+interface HeroStatusCardProps {
+  daysLeft: number;
+  isExpired: boolean;
+  trialActive: boolean;
+  planName: string;
+  t: (ru: string, uz: string) => string;
+}
+
+export function HeroStatusCard({
+  daysLeft,
+  isExpired,
+  trialActive,
+  planName,
+  t,
+}: HeroStatusCardProps) {
+  return (
+    <div
+      className="neo-card"
+      style={{
+        position: "relative",
+        overflow: "hidden",
+        padding: "28px",
+        background: isExpired ? GRADIENTS.heroExpired : GRADIENTS.hero,
+        marginBottom: "24px",
+        animation: "slideUp 0.7s ease forwards",
+      }}
+    >
+      {/* Ambient glow */}
+      <div style={{
+        position: "absolute",
+        top: "-40px",
+        right: "-40px",
+        width: "160px",
+        height: "160px",
+        borderRadius: "50%",
+        background: isExpired ? "var(--color-danger)" : "var(--color-primary)",
+        opacity: 0.06,
+        filter: "blur(40px)",
+      }} />
+
+      <div style={{
+        position: "relative",
+        display: "flex",
+        alignItems: "center",
+        gap: "20px",
+      }}>
+        <DaysRing daysLeft={daysLeft} danger={!!isExpired} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            marginBottom: "6px",
+          }}>
+            {isExpired
+              ? <AlertTriangle size={18} style={{ color: COLORS.danger }} />
+              : <CheckCircle2 size={18} style={{ color: COLORS.success }} />}
+            <span style={{
+              fontFamily: FONTS.display,
+              fontSize: "18px",
+              fontWeight: "700",
+              color: COLORS.textPrimary,
+            }}>
+              {planName}
+            </span>
+          </div>
+          <p style={{
+            fontSize: "14px",
+            color: COLORS.textSecondary,
+            margin: 0,
+          }}>
+            {isExpired
+              ? t("Подписка истекла — продлите доступ", "Obuna tugadi — kirishni uzaytiring")
+              : trialActive
+                ? t(`Осталось ${daysLeft} дн. пробного периода`, `Sinov muddati ${daysLeft} kun qoldi`)
+                : t(`Активна ещё ${daysLeft} дней`, `Yana ${daysLeft} kun faol`)}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,16 @@
+node_modules
+dist
+.git
+.github
+.env
+.env.*
+!.env.example
+*.swp
+*.log
+e2e
+playwright-report
+playwright-report/
+.dockerignore
+docker-compose.yml
+README.md
+info.md
