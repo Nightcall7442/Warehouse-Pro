@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /super-admin
+Disallow: /monitoring
+
+Sitemap: https://www.warehouse-pro.uz/sitemap.xml
