@@ -86,6 +86,39 @@ export async function sendTelegramDocument(chatId: string, buffer: Buffer, filen
   }
 }
 
+/**
+ * Send a message with inline keyboard buttons.
+ * Used for approve/reject workflows (subscription requests, etc.)
+ */
+export async function sendTelegramWithButtons(
+  chatId: string,
+  text: string,
+  buttons: Array<Array<{ text: string; callback_data: string }>>,
+): Promise<boolean> {
+  const token = env.telegramBotToken;
+  if (!token || !chatId) return false;
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text,
+        parse_mode: "HTML",
+        reply_markup: { inline_keyboard: buttons },
+      }),
+    });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      console.error(`[telegram] sendWithButtons ${res.status}: ${detail.slice(0, 300)}`);
+    }
+    return res.ok;
+  } catch (e) {
+    console.error("[telegram] sendWithButtons failed:", e instanceof Error ? e.message : String(e));
+    return false;
+  }
+}
+
 // ── Notification helpers (used from other routers) ───────────────────────────
 export async function notifyAdmin(message: string) {
   return sendTelegram(env.telegramAdminChatId, message);

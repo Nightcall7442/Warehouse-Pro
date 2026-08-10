@@ -10,6 +10,7 @@ vi.mock("drizzle-orm", () => ({
 
 vi.mock("../telegram-router", () => ({
   notifyAdmin: vi.fn(async () => {}),
+  sendTelegramWithButtons: vi.fn(async () => true),
   tgMessages: { upgradeRequest: vi.fn(() => "mock upgrade message") },
 }));
 
@@ -424,9 +425,9 @@ describe("billing.requestUpgrade", () => {
     expect(tenantsTable[0].updatedAt).toBeInstanceOf(Date);
   });
 
-  it("calls notifyAdmin with tgMessages.upgradeRequest", async () => {
+  it("calls sendTelegramWithButtons with upgrade request", async () => {
     const { billingRouter } = await import("../billing-router");
-    const { notifyAdmin, tgMessages } = await import("../telegram-router");
+    const { sendTelegramWithButtons, tgMessages } = await import("../telegram-router");
     const caller = billingRouter.createCaller(makeCtx(1, 10, "ceo"));
     await caller.requestUpgrade({ plan: "basic" });
 
@@ -436,7 +437,7 @@ describe("billing.requestUpgrade", () => {
       expect.any(String),
       "+998901234567",
     );
-    expect(notifyAdmin).toHaveBeenCalled();
+    expect(sendTelegramWithButtons).toHaveBeenCalled();
   });
 
   it("rejects non-admin roles (operator)", async () => {

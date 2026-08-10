@@ -210,6 +210,166 @@ registerStripeWebhook(app);
 app.use("/api/webhooks/1c/*", bodyLimit({ maxSize: 256 * 1024 })); // 256 KB max
 app.route("/api/webhooks/1c", onecWebhooks);
 
+// ── Telegram bot webhook (inline button callbacks) ────────────────────────
+app.post("/api/webhooks/telegram", async (c) => {
+  const body = await c.req.json().catch(() => null);
+  if (!body) return c.json({ ok: true });
+
+  // Handle callback query (inline button press)
+  if (body.callback_query) {
+    const cq = body.callback_query;
+    const data: string = cq.data ?? "";
+    const chatId: string = cq.message?.chat?.id?.toString() ?? "";
+    const callbackQueryId: string = cq.id ?? "";
+
+    // Acknowledge the callback to remove loading spinner
+    const answerCallback = async (text: string, showAlert = false) => {
+      await fetch(`https://api.telegram.org/bot${env.telegramBotToken}/answerCallbackQuery`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ callback_query_id: callbackQueryId, text, show_alert: showAlert }),
+      }).catch(() => {});
+    };
+
+    // Approve plan upgrade: approve_plan:<tenantId>:<plan>
+    if (data.startsWith("approve_plan:")) {
+      const [, tenantIdStr, plan] = data.split(":");
+      const tenantId = Number(tenantIdStr);
+
+      if (!tenantId || !plan) {
+        await answerCallback("Ошибка: неверные данные");
+        return c.json({ ok: true });
+      }
+
+      try {
+        const { getDb } = await import("./queries/connection");
+        const { tenants, subscriptions } = await import("@db/schema");
+        const { eq } = await import("drizzle-orm");
+        const db = getDb();
+
+        // Update tenant plan
+        await db.update(tenants)
+          .set({ plan, updatedAt: new Date() })
+          .where(eq(tenants.id, tenantId));
+
+        // Update subscription
+        const [existingSub] = await db.select({ id: subscriptions.id })
+          .from(subscriptions).where(eq(subscriptions.tenantId, tenantId)).limit(1);
+
+        if (existingSub) {
+          await db.update(subscriptions)
+            .set({ plan: plan as "basic" | "pro" | "exclusive", status: "active", updatedAt: new Date() })
+            .where(eq(subscriptions.tenantId, tenantId));
+        } else {
+          await db.insert(subscriptions).values({
+            id: crypto.randomUUID(),
+            tenantId,
+            plan: plan as "basic" | "pro" | "exclusive",
+            status: "active",
+          });
+        }
+
+        // Update the original message to show approved
+        await fetch(`https://api.telegram.org/bot${env.telegramBotToken}/editMessageText`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id: chatId,
+            message_id: cq.message?.message_id,
+            text: `${cq.message?.text}\n\n✅ <b>ОДОБРЕНО</b> — тариф "${plan}" активирован`,
+            parse_mode: "HTML",
+          }),
+        }).catch(() => {});
+
+        await answerCallback(`Тариф ${plan} активирован!`, true);
+
+        // Notify the tenant's CEO
+        try {
+          const { notifyTenantRole } = await import("./telegram-router");
+          await notifyTenantRole(tenantId, "ceo",
+            `✅ <b>Тариф обновлён</b>\n📈 Ваш тариф "${plan}" активирован.\nСпасибо за оплату!`
+          );
+        } catch { /* ok */ }
+
+        logger.info("Plan approved via Telegram", { tenantId, plan });
+      } catch (e) {
+        await answerCallback("Ошибка при активации", true);
+        logger.error("Plan approval failed", { error: String(e) });
+      }
+
+      return c.json({ ok: true });
+    }
+
+    // Reject plan upgrade: reject_plan:<tenantId>
+    if (data.startsWith("reject_plan:")) {
+      const [, tenantIdStr] = data.split(":");
+      const tenantId = Number(tenantIdStr);
+
+      // Update the original message to show rejected
+      await fetch(`https://api.telegram.org/bot${env.telegramBotToken}/editMessageText`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: chatId,
+          message_id: cq.message?.message_id,
+          text: `${cq.message?.text}\n\n❌ <b>ОТКЛОНЕНО</b>`,
+          parse_mode: "HTML",
+        }),
+      }).catch(() => {});
+
+      await answerCallback("Запрос отклонён", true);
+
+      // Notify the tenant's CEO
+      try {
+        const { notifyTenantRole } = await import("./telegram-router");
+        await notifyTenantRole(tenantId, "ceo",
+          `❌ <b>Запрос на апгрейд отклонён</b>\nСвяжитесь с поддержкой для уточнения деталей.`
+        );
+      } catch { /* ok */ }
+
+      logger.info("Plan rejected via Telegram", { tenantId });
+      return c.json({ ok: true });
+    }
+
+    return c.json({ ok: true });
+  }
+
+  return c.json({ ok: true });
+});
+
+// ── Setup Telegram webhook (run once after deploy) ─────────────────────────
+app.get("/api/admin/setup-telegram-webhook", async (c) => {
+  let auth;
+  try {
+    auth = await authenticateRequest(c.req.raw.headers);
+  } catch {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+  if (auth.user.role !== "superadmin") {
+    return c.json({ error: "Forbidden" }, 403);
+  }
+
+  if (!env.telegramBotToken) {
+    return c.json({ error: "TELEGRAM_BOT_TOKEN not configured" }, 400);
+  }
+
+  const webhookUrl = `${env.appUrl}/api/webhooks/telegram`;
+  const res = await fetch(`https://api.telegram.org/bot${env.telegramBotToken}/setWebhook`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      url: webhookUrl,
+      allowed_updates: ["callback_query"],
+    }),
+  });
+  const result = await res.json();
+
+  if (res.ok) {
+    return c.json({ success: true, webhookUrl, result });
+  }
+  return c.json({ success: false, error: result }, 500);
+});
+
 // ── Public REST API (Exclusive tier) ─────────────────────────────────────────
 app.route("/api/v1", publicApi);
 

@@ -1,12 +1,13 @@
 import { z } from "zod";
 import { createRouter, authedQuery, adminQuery } from "./middleware";
-import { notifyAdmin, tgMessages } from "./telegram-router";
+import { notifyAdmin, tgMessages, sendTelegramWithButtons } from "./telegram-router";
 import { getDb } from "./queries/connection";
 import { tenants, users, orders, products } from "@db/schema";
 import { eq, and, sql, gte } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { PLANS, PLAN_PRICES_UZS, type PlanKey } from "../contracts/constants";
 import { logger } from "./lib/logger";
+import { env } from "./lib/env";
 
 export const billingRouter = createRouter({
   /** Current tenant subscription status */
@@ -87,15 +88,22 @@ export const billingRouter = createRouter({
         .set({ updatedAt: new Date() })
         .where(eq(tenants.id, ctx.tenant.id));
 
-      // Notify admin via Telegram
+      // Notify admin via Telegram with approve/reject buttons
       const plan    = PLANS[input.plan];
       const tenant  = ctx.tenant;
-      await notifyAdmin(tgMessages.upgradeRequest(
+      const planPrices: Record<string, number> = { basic: 99000, pro: 299000, exclusive: 799000 };
+      const price = planPrices[input.plan] ?? 0;
+      const msg = tgMessages.upgradeRequest(
         tenant.name,
         plan.name,
-        PLAN_PRICES_UZS[input.plan].toLocaleString("ru-RU"),
+        price.toLocaleString("ru-RU"),
         tenant.ownerPhone ?? tenant.ownerEmail ?? "не указан"
-      )).catch((err) => {
+      );
+      const buttons = [[
+        { text: "✅ Одобрить", callback_data: `approve_plan:${tenant.id}:${input.plan}` },
+        { text: "❌ Отклонить", callback_data: `reject_plan:${tenant.id}` },
+      ]];
+      await sendTelegramWithButtons(env.telegramAdminChatId, msg, buttons).catch((err) => {
         logger.error("Failed to notify admin about plan upgrade request", {
           tenantId: tenant.id,
           plan: input.plan,
