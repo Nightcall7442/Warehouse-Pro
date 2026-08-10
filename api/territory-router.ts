@@ -30,7 +30,7 @@ export const territoryRouter = createRouter({
   create: supervisorQuery
     .input(z.object({
       name: z.string().min(1).max(255),
-      color: z.string().max(7).optional(),
+      color: z.string().regex(/^#[0-9a-fA-F]{3,8}$/, "Цвет должен быть в формате #hex").optional(),
       centerLat: z.number().min(-90).max(90).optional(),
       centerLng: z.number().min(-180).max(180).optional(),
       radiusKm: z.number().min(0.1).max(1000).optional(),
@@ -77,7 +77,7 @@ export const territoryRouter = createRouter({
     .input(z.object({
       id: z.number(),
       name: z.string().min(1).max(255).optional(),
-      color: z.string().max(7).optional(),
+      color: z.string().regex(/^#[0-9a-fA-F]{3,8}$/, "Цвет должен быть в формате #hex").optional(),
       centerLat: z.number().min(-90).max(90).optional(),
       centerLng: z.number().min(-180).max(180).optional(),
       radiusKm: z.number().min(0.1).max(1000).optional(),
