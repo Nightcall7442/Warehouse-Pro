@@ -51,8 +51,16 @@ export function getDb(): DrizzleInstance {
       enableKeepAlive: true,
       keepAliveInitialDelay: 0,
       connectTimeout: 30_000,
+      // Close idle connections after 30s to avoid stale connections after MySQL restart
+      maxIdle: 10,
+      idleTimeout: 30_000,
       // SSL required for Railway and other cloud MySQL providers
       ...(remote ? { ssl: { rejectUnauthorized: false } } : {}),
+    });
+
+    // Log pool errors for debugging connection issues
+    pool.on("error", (err) => {
+      console.error("[DB Pool Error]", err.message);
     });
 
     // NOTE: drizzle-orm's generic inference doesn't fully resolve when `schema`
