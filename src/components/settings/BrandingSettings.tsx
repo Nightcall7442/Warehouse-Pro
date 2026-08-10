@@ -4,8 +4,9 @@ import { useLang } from "@/i18n";
 import { notify } from "@/lib/toast";
 import { compressImage } from "@/lib/compress-image";
 import { colorMix } from "@/lib/color-mix";
-import { Loader2, Upload, RotateCcw, Eye } from "lucide-react";
+import { Loader2, Upload, RotateCcw, Eye, Lock } from "lucide-react";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
+import { useNavigate } from "react-router";
 
 const DEFAULTS = {
   primaryColor: "#5b6d8a",
@@ -29,10 +30,50 @@ export function BrandingSettings() {
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const logoRef = useRef<HTMLInputElement>(null);
   const faviconRef = useRef<HTMLInputElement>(null);
+  const navigate = useNavigate();
 
+  const { data: billing } = trpc.billing.status.useQuery();
   const { data: branding, isLoading, isError, refetch } = trpc.branding.get.useQuery();
   const utils = trpc.useUtils();
   const [form, setForm] = useState<typeof DEFAULTS | null>(null);
+
+  // Check if user has access to white label features
+  const hasWhiteLabel = billing?.plan === "exclusive";
+
+  if (!hasWhiteLabel) {
+    return (
+      <div style={{ textAlign: "center", padding: "40px 20px" }}>
+        <div style={{
+          width: 64, height: 64, borderRadius: 16, margin: "0 auto 16px",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          background: "color-mix(in srgb, var(--color-primary) 10%, transparent)",
+        }}>
+          <Lock size={28} style={{ color: "var(--color-primary)" }} />
+        </div>
+        <h3 style={{ fontFamily: "DM Sans", fontSize: 18, fontWeight: 700, marginBottom: 8, color: "var(--color-text-primary)" }}>
+          {t("Брендинг доступен на Exclusive", "Brending Exclusive tarifida mavjud")}
+        </h3>
+        <p style={{ fontFamily: "DM Sans", fontSize: 14, color: "var(--color-text-secondary)", marginBottom: 20, maxWidth: 400, margin: "0 auto 20px" }}>
+          {t(
+            "Настройка цветов, логотипа и названия приложения доступна только на тарифе Exclusive.",
+            "Ranglar, logotip va ilova nomini sozlash faqat Exclusive tarifida mavjud."
+          )}
+        </p>
+        <button
+          onClick={() => navigate("/settings/billing")}
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 8,
+            padding: "10px 24px", borderRadius: 12, fontSize: 14, fontWeight: 600,
+            fontFamily: "DM Sans", color: "#fff",
+            background: "linear-gradient(135deg, var(--color-primary), var(--color-primary-hover))",
+            border: "none", cursor: "pointer",
+          }}
+        >
+          {t("Обновить тариф", "Tarifni yangilash")}
+        </button>
+      </div>
+    );
+  }
 
   if (!isLoading && branding && !form) {
     setForm({
