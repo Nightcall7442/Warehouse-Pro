@@ -224,7 +224,7 @@ export const orderRouter = createRouter({
       shopId:         z.number().int().positive(),
       agentId:        z.number().int().positive().optional(),
       warehouseId:    z.number().int().positive().optional(),
-      idempotencyKey: z.string().uuid().optional(),
+      idempotencyKey: z.string().min(1).max(100).optional(),
       items:          z.array(z.object({
         productId: z.number().int().positive(),
         quantity:  z.union([z.number(), z.string()]).transform(String).refine(v => Number(v) > 0, "Количество должно быть положительным"),
