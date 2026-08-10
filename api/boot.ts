@@ -249,7 +249,7 @@ app.post("/api/webhooks/telegram", async (c) => {
 
         // Update tenant plan
         await db.update(tenants)
-          .set({ plan, updatedAt: new Date() })
+          .set({ plan: plan as "basic" | "pro" | "exclusive", updatedAt: new Date() })
           .where(eq(tenants.id, tenantId));
 
         // Update subscription

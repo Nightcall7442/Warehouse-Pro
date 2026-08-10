@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { createRouter, authedQuery, adminQuery } from "./middleware";
-import { notifyAdmin, tgMessages, sendTelegramWithButtons } from "./telegram-router";
+import { tgMessages, sendTelegramWithButtons } from "./telegram-router";
 import { getDb } from "./queries/connection";
 import { tenants, users, orders, products } from "@db/schema";
 import { eq, and, sql, gte } from "drizzle-orm";
