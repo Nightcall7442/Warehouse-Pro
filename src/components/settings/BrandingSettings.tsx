@@ -60,7 +60,7 @@ export function BrandingSettings() {
           )}
         </p>
         <button
-          onClick={() => navigate("/settings/billing")}
+          onClick={() => navigate("/billing")}
           style={{
             display: "inline-flex", alignItems: "center", gap: 8,
             padding: "10px 24px", borderRadius: 12, fontSize: 14, fontWeight: 600,
