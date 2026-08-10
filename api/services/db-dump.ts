@@ -84,7 +84,9 @@ export async function startDump(now: Date = new Date()): Promise<DumpHandle> {
   const stamp = now.toISOString().replace(/[:.]/g, "-").slice(0, 19);
   const filename = `warehouse-pro-${stamp}.sql.gz`;
 
-  const child = spawn("mysqldump", [
+  // Use mariadb-dump (Alpine's mysql-client package) — mysqldump is
+  // deprecated and can't authenticate against MySQL 8's caching_sha2_password.
+  const child = spawn("mariadb-dump", [
     // Согласованный снимок без блокировки таблиц: выгрузка не должна
     // останавливать работу склада.
     "--single-transaction",

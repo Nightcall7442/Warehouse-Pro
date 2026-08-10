@@ -93,7 +93,10 @@ export async function runBackup(): Promise<{ success: boolean; message: string }
         `--user=${dbUser}`,
         dbName,
       ];
-      const child = spawn("mysqldump", args, { env: { ...process.env, MYSQL_PWD: dbPassword } });
+      // Use mariadb-dump (Alpine's mysql-client package) — mysqldump is
+      // deprecated and can't authenticate against MySQL 8's caching_sha2_password.
+      const dumpCmd = "mariadb-dump";
+      const child = spawn(dumpCmd, args, { env: { ...process.env, MYSQL_PWD: dbPassword } });
 
       const chunks: Buffer[] = [];
       let stderr = "";

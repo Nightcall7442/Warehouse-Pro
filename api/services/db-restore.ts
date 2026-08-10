@@ -31,7 +31,8 @@ export async function restoreFromStream(dumpStream: Readable): Promise<RestoreRe
 
   return new Promise<RestoreResult>((resolve) => {
     const gunzip = createGunzip();
-    const mysql = spawn("mysql", [
+    // Use mariadb client (Alpine's mysql-client package)
+    const mysql = spawn("mariadb", [
       `--host=${creds.host}`,
       `--port=${creds.port}`,
       `--user=${creds.user}`,
