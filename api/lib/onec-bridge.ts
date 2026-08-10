@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "../queries/connection";
 import { onecConfig } from "@db/schema";
+import { decryptSecret } from "./crypto";
 import { safeFetch } from "./safe-fetch";
 
 export interface OneCBridgeConfig {
@@ -121,7 +122,7 @@ export async function getBridgeForTenant(tenantId: number): Promise<OneCBridge> 
     const cfg: OneCBridgeConfig = {
       url: config.url,
       username: config.username,
-      password: config.password,
+      password: decryptSecret(config.password),
       timeout: 10000,
     };
     const bridge = new OneCBridge(cfg);

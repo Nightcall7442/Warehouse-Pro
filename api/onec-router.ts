@@ -4,6 +4,7 @@ import { getDb } from "./queries/connection";
 import { oneCSync } from "./services/onec-sync";
 import { getBridgeForTenant, OneCBridge, clearBridgeCache } from "./lib/onec-bridge";
 import { onecConfig } from "@db/schema";
+import { encryptSecret } from "./lib/crypto";
 import { eq } from "drizzle-orm";
 import { logger } from "./lib/logger";
 import { getMetricsSummary } from "./lib/metrics";
@@ -33,7 +34,7 @@ export const onecRouter = createRouter({
             .set({
               url: input.url,
               username: input.username,
-              password: input.password,
+              password: encryptSecret(input.password),
               syncProducts: input.syncProducts,
               syncOrders: input.syncOrders,
               intervalMinutes: input.intervalMinutes,
@@ -44,7 +45,7 @@ export const onecRouter = createRouter({
             tenantId: ctx.tenant.id,
             url: input.url,
             username: input.username,
-            password: input.password,
+            password: encryptSecret(input.password),
             syncProducts: input.syncProducts,
             syncOrders: input.syncOrders,
             intervalMinutes: input.intervalMinutes,
