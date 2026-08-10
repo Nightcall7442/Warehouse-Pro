@@ -117,13 +117,8 @@ export async function runBackup(): Promise<{ success: boolean; message: string }
       logger.warn("mariadb-dump failed, falling back to mysql2 driver", {
         error: mariadbErr instanceof Error ? mariadbErr.message : String(mariadbErr),
       });
-      const { createDumpStream } = await import("../services/db-dump-native");
-      const result = await createDumpStream();
-      const chunks: Buffer[] = [];
-      for await (const chunk of result.stream) {
-        chunks.push(Buffer.from(chunk));
-      }
-      dump = Buffer.concat(chunks);
+      const { createDumpBuffer } = await import("../services/db-dump-native");
+      dump = await createDumpBuffer();
     }
 
     if (dump.length === 0) throw new Error("Dump produced empty output");

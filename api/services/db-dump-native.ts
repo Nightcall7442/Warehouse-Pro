@@ -1,6 +1,4 @@
 import { createConnection } from "mysql2/promise";
-import { createGzip } from "zlib";
-import { Readable } from "node:stream";
 import { env } from "../lib/env";
 import { logger } from "../lib/logger";
 import { parseDatabaseUrl } from "./db-dump";
@@ -9,12 +7,10 @@ import { parseDatabaseUrl } from "./db-dump";
  * SQL dump using mysql2 driver — works with MySQL 8's caching_sha2_password.
  *
  * Fallback for environments where mariadb-dump can't authenticate (Alpine + MySQL 8).
- * Streams each table row-by-row so memory stays flat.
+ * Returns raw SQL buffer (not gzipped) — caller handles compression.
  */
-export async function createDumpStream(): Promise<{ stream: Readable; filename: string }> {
+export async function createDumpBuffer(): Promise<Buffer> {
   const creds = parseDatabaseUrl(env.databaseUrl);
-  const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-  const filename = `warehouse-pro-${stamp}.sql.gz`;
 
   const conn = await createConnection({
     host: creds.host,
@@ -27,17 +23,8 @@ export async function createDumpStream(): Promise<{ stream: Readable; filename: 
     dateStrings: true,
   });
 
-  const gzip = createGzip();
-  const chunks: Buffer[] = [];
-
-  // Pipe gzip output to buffer
-  gzip.on("data", (chunk: Buffer) => chunks.push(chunk));
-
-  const write = async (text: string) => {
-    if (!gzip.write(text)) {
-      await new Promise<void>(resolve => gzip.once("drain", resolve));
-    }
-  };
+  const parts: string[] = [];
+  const write = (text: string) => { parts.push(text); };
 
   const q = async (sql: string, params?: unknown[]) => {
     const [rows] = await conn.query(sql, params);
@@ -46,7 +33,7 @@ export async function createDumpStream(): Promise<{ stream: Readable; filename: 
 
   // Header
   const [{ db }] = await q("SELECT DATABASE() AS db") as Array<{ db: string }>;
-  await write(
+  write(
     `-- Warehouse Pro backup of \`${db}\`\n` +
     `-- ${new Date().toISOString()}\n` +
     `SET NAMES utf8mb4;\nSET FOREIGN_KEY_CHECKS = 0;\nSET SQL_MODE = 'NO_AUTO_VALUE_ON_ZERO';\n\n`
@@ -65,7 +52,7 @@ export async function createDumpStream(): Promise<{ stream: Readable; filename: 
   for (const table of tables) {
     // DDL
     const [{ "Create Table": ddl }] = await q(`SHOW CREATE TABLE \`${table}\``) as Array<{ "Create Table": string }>;
-    await write(`DROP TABLE IF EXISTS \`${table}\`;\n${ddl};\n\n`);
+    write(`DROP TABLE IF EXISTS \`${table}\`;\n${ddl};\n\n`);
 
     // Columns
     const columns = (
@@ -79,7 +66,6 @@ export async function createDumpStream(): Promise<{ stream: Readable; filename: 
     // Stream rows
     const stream = (conn as any).connection.query(`SELECT * FROM \`${table}\``).stream();
     let batch: string[] = [];
-    let batchBytes = 0;
     let rowCount = 0;
 
     const literal = (v: unknown): string => {
@@ -91,35 +77,29 @@ export async function createDumpStream(): Promise<{ stream: Readable; filename: 
       return `'${String(v).replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'`;
     };
 
-    const flush = async () => {
-      if (batch.length === 0) return;
-      await write(`INSERT INTO \`${table}\` (${colList}) VALUES\n${batch.join(",\n")};\n`);
-      batch = [];
-      batchBytes = 0;
-    };
-
     for await (const row of stream) {
       const tuple = `(${columns.map(c => literal(row[c])).join(", ")})`;
       batch.push(tuple);
-      batchBytes += tuple.length + 2;
       rowCount++;
-      if (batchBytes >= 300_000 || batch.length >= 500) await flush();
+
+      if (batch.length >= 500) {
+        write(`INSERT INTO \`${table}\` (${colList}) VALUES\n${batch.join(",\n")};\n`);
+        batch = [];
+      }
     }
-    await flush();
-    await write("\n");
+    if (batch.length > 0) {
+      write(`INSERT INTO \`${table}\` (${colList}) VALUES\n${batch.join(",\n")};\n`);
+    }
+    write("\n");
     totalRows += rowCount;
     logger.info(`dump: ${table}`, { rows: rowCount });
   }
 
-  await write(`SET FOREIGN_KEY_CHECKS = 1;\n`);
-  gzip.end();
-
-  // Wait for gzip to finish
-  await new Promise<void>(resolve => gzip.once("end", resolve));
+  write(`SET FOREIGN_KEY_CHECKS = 1;\n`);
   await conn.end();
 
-  const result = Buffer.concat(chunks);
+  const result = Buffer.from(parts.join(""), "utf8");
   logger.info("dump complete", { tables: tables.length, rows: totalRows, bytes: result.length });
 
-  return { stream: Readable.from(result), filename };
+  return result;
 }
