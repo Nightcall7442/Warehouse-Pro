@@ -58,6 +58,34 @@ export async function sendTelegram(chatId: string, text: string): Promise<boolea
   }
 }
 
+/**
+ * Send a file to Telegram chat (up to 50 MB).
+ * Used for backup dumps — the admin gets the .sql.gz file directly in Telegram.
+ */
+export async function sendTelegramDocument(chatId: string, buffer: Buffer, filename: string, caption?: string): Promise<boolean> {
+  const token = env.telegramBotToken;
+  if (!token || !chatId) return false;
+  try {
+    const form = new FormData();
+    form.set("chat_id", chatId);
+    form.set("document", new Blob([buffer], { type: "application/gzip" }), filename);
+    if (caption) form.set("caption", caption);
+
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendDocument`, {
+      method: "POST",
+      body: form,
+    });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      console.error(`[telegram] sendDocument ${res.status}: ${detail.slice(0, 300)}`);
+    }
+    return res.ok;
+  } catch (e) {
+    console.error("[telegram] sendDocument failed:", e instanceof Error ? e.message : String(e));
+    return false;
+  }
+}
+
 // ── Notification helpers (used from other routers) ───────────────────────────
 export async function notifyAdmin(message: string) {
   return sendTelegram(env.telegramAdminChatId, message);

@@ -49,12 +49,14 @@ export async function runBackup(): Promise<{ success: boolean; message: string }
     logger.error("Backup: failed to read table counts", { error: err instanceof Error ? err.message : String(err) });
   }
 
-  // ── 2. S3 check ─────────────────────────────────────────────────
-  if (!(env.s3Bucket && env.s3AccessKey && env.s3SecretKey)) {
-    const msg = "S3 not configured — dump has nowhere durable to go";
+  // ── 2. Check storage options ──────────────────────────────────────
+  const hasS3 = !!(env.s3Bucket && env.s3AccessKey && env.s3SecretKey);
+  const hasTelegram = !!(env.telegramBotToken && env.telegramAdminChatId);
+
+  if (!hasS3 && !hasTelegram) {
+    const msg = "Neither S3 nor Telegram configured — backup has nowhere to go";
     logger.error("Backup skipped", { counts, reason: msg });
     lastBackup = { date: timestamp, success: false, message: msg };
-    await notifyAdmin(`⚠️ Backup skipped: ${msg}`);
     return { success: false, message: msg };
   }
 
@@ -117,56 +119,72 @@ export async function runBackup(): Promise<{ success: boolean; message: string }
 
     const gzipped = gzipSync(dump);
 
-    // ── 6. Upload to S3 ──────────────────────────────────────────
-    const { S3Client, PutObjectCommand } = await import("@aws-sdk/client-s3");
-    const s3 = new S3Client({
-      region: env.s3Region || "us-east-1",
-      credentials: { accessKeyId: env.s3AccessKey, secretAccessKey: env.s3SecretKey },
-    });
+    // ── 6. Store backup ─────────────────────────────────────────
+    let storageMsg = "";
 
-    await s3.send(new PutObjectCommand({
-      Bucket: env.s3Bucket,
-      Key: backupKey,
-      Body: gzipped,
-      ContentType: "application/gzip",
-      Metadata: {
-        tableCounts: JSON.stringify(counts),
-        dumpBytes: String(dump.length),
-        verified: "true",
-      },
-    }));
+    if (hasS3) {
+      // Upload to S3
+      const { S3Client, PutObjectCommand } = await import("@aws-sdk/client-s3");
+      const s3 = new S3Client({
+        region: env.s3Region || "us-east-1",
+        credentials: { accessKeyId: env.s3AccessKey, secretAccessKey: env.s3SecretKey },
+      });
 
-    // ── 7. Retention: delete old backups ──────────────────────────
-    let deleted = 0;
-    try {
-      const { ListObjectsV2Command, DeleteObjectCommand } = await import("@aws-sdk/client-s3");
-      const cutoff = new Date(now.getTime() - RETENTION_DAYS * 86_400_000);
+      await s3.send(new PutObjectCommand({
+        Bucket: env.s3Bucket,
+        Key: backupKey,
+        Body: gzipped,
+        ContentType: "application/gzip",
+        Metadata: {
+          tableCounts: JSON.stringify(counts),
+          dumpBytes: String(dump.length),
+          verified: "true",
+        },
+      }));
 
-      let continuationToken: string | undefined;
-      do {
-        const list = await s3.send(new ListObjectsV2Command({
-          Bucket: env.s3Bucket,
-          Prefix: BACKUP_PREFIX,
-          ContinuationToken: continuationToken,
-        }));
+      // Retention: delete old backups
+      let deleted = 0;
+      try {
+        const { ListObjectsV2Command, DeleteObjectCommand } = await import("@aws-sdk/client-s3");
+        const cutoff = new Date(now.getTime() - RETENTION_DAYS * 86_400_000);
 
-        for (const obj of list.Contents ?? []) {
-          if (obj.LastModified && obj.LastModified < cutoff && obj.Key) {
-            await s3.send(new DeleteObjectCommand({ Bucket: env.s3Bucket, Key: obj.Key }));
-            deleted++;
+        let continuationToken: string | undefined;
+        do {
+          const list = await s3.send(new ListObjectsV2Command({
+            Bucket: env.s3Bucket,
+            Prefix: BACKUP_PREFIX,
+            ContinuationToken: continuationToken,
+          }));
+
+          for (const obj of list.Contents ?? []) {
+            if (obj.LastModified && obj.LastModified < cutoff && obj.Key) {
+              await s3.send(new DeleteObjectCommand({ Bucket: env.s3Bucket, Key: obj.Key }));
+              deleted++;
+            }
           }
-        }
-        continuationToken = list.NextContinuationToken;
-      } while (continuationToken);
-    } catch (retErr) {
-      logger.warn("Backup retention cleanup failed (non-fatal)", { error: retErr instanceof Error ? retErr.message : String(retErr) });
+          continuationToken = list.NextContinuationToken;
+        } while (continuationToken);
+      } catch (retErr) {
+        logger.warn("Backup retention cleanup failed (non-fatal)", { error: retErr instanceof Error ? retErr.message : String(retErr) });
+      }
+
+      storageMsg = `S3: ${backupKey}${deleted > 0 ? ` (cleaned ${deleted} old)` : ""}`;
+
+    } else {
+      // Send to Telegram as document
+      const { sendTelegramDocument } = await import("../telegram-router");
+      const caption = `📦 Backup ${timestamp}\n${Object.entries(counts).map(([t, c]) => `${t}: ${c}`).join("\n")}`;
+      const sent = await sendTelegramDocument(env.telegramAdminChatId, gzipped, `warehouse-pro-${timestamp}.sql.gz`, caption);
+
+      if (!sent) throw new Error("Failed to send backup to Telegram");
+      storageMsg = `Telegram: warehouse-pro-${timestamp}.sql.gz (${(gzipped.length / 1024 / 1024).toFixed(1)} MB)`;
     }
 
-    const msg = `${backupKey} (${(gzipped.length / 1024 / 1024).toFixed(1)} MB)`;
-    logger.info("Backup complete", { key: backupKey, rawBytes: dump.length, gzippedBytes: gzipped.length, counts, deletedOld: deleted });
-    lastBackup = { date: timestamp, success: true, message: msg, bytes: gzipped.length, tables: counts };
+    // ── 7. Success ──────────────────────────────────────────────
+    logger.info("Backup complete", { key: backupKey, rawBytes: dump.length, gzippedBytes: gzipped.length, counts, storage: storageMsg });
+    lastBackup = { date: timestamp, success: true, message: storageMsg, bytes: gzipped.length, tables: counts };
 
-    return { success: true, message: `Backup saved: ${msg}${deleted > 0 ? `. Cleaned ${deleted} old backup(s)` : ""}` };
+    return { success: true, message: `Backup saved: ${storageMsg}` };
 
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
