@@ -1,6 +1,21 @@
 import { useEffect } from "react";
 import { trpc } from "@/providers/trpc";
 
+interface BrandingData {
+  primaryColor: string | null;
+  secondaryColor: string | null;
+  accentColor: string | null;
+  logoUrl: string | null;
+  companyName: string | null;
+  appName: string | null;
+  faviconUrl: string | null;
+  loginTitle: string | null;
+  loginSubtitle: string | null;
+  footerText: string | null;
+  supportEmail: string | null;
+  supportPhone: string | null;
+}
+
 function hexToRgba(hex: string, alpha: number): string {
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
@@ -13,7 +28,8 @@ function hexToRgba(hex: string, alpha: number): string {
  * Call once at app level (e.g. in App.tsx or a provider).
  */
 export function useBranding() {
-  const { data: branding } = trpc.branding.get.useQuery();
+  const { data } = trpc.branding.get.useQuery();
+  const branding = data as BrandingData | undefined;
 
   useEffect(() => {
     if (!branding) return;
@@ -21,7 +37,6 @@ export function useBranding() {
 
     const primary = branding.primaryColor ?? "#5b6d8a";
     const secondary = branding.secondaryColor ?? "#4a5c78";
-    const accent = branding.accentColor ?? "#3b82f6";
 
     root.style.setProperty("--color-primary", primary);
     root.style.setProperty("--color-primary-hover", secondary);

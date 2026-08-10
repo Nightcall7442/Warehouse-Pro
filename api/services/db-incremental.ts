@@ -2,6 +2,7 @@ import { getDb } from "../queries/connection";
 import { logger } from "../lib/logger";
 import { env } from "../lib/env";
 import { gzipSync } from "zlib";
+import { sql } from "drizzle-orm";
 
 /**
  * Incremental backup — dumps only rows modified since `sinceDate`.
@@ -55,8 +56,8 @@ export async function runIncrementalBackup(sinceDate: Date): Promise<{ success: 
   const sinceStr = sinceDate.toISOString().slice(0, 19).replace("T", " ");
   const backupKey = `backups/incremental/warehouse-pro-inc-${timestamp}.sql.gz`;
 
-  let sql = `-- Incremental backup since ${sinceStr}\n`;
-  sql += `SET NAMES utf8mb4;\nSET FOREIGN_KEY_CHECKS = 0;\n\n`;
+  let sqlOutput = `-- Incremental backup since ${sinceStr}\n`;
+  sqlOutput += `SET NAMES utf8mb4;\nSET FOREIGN_KEY_CHECKS = 0;\n\n`;
 
   const tableCounts: Record<string, number> = {};
   let totalRows = 0;
@@ -65,9 +66,7 @@ export async function runIncrementalBackup(sinceDate: Date): Promise<{ success: 
     try {
       // Get column names
       const [colRows] = await db.execute(
-        `SELECT column_name AS c FROM information_schema.columns
-         WHERE table_schema = DATABASE() AND table_name = ? ORDER BY ordinal_position`,
-        [table]
+        sql`SELECT column_name AS c FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ${table} ORDER BY ordinal_position`
       ) as unknown as [Array<{ c: string }>, unknown];
 
       if (!colRows || colRows.length === 0) {
@@ -80,8 +79,7 @@ export async function runIncrementalBackup(sinceDate: Date): Promise<{ success: 
 
       // Get changed rows
       const [rows] = await db.execute(
-        `SELECT * FROM \`${table}\` WHERE \`updated_at\` >= ? ORDER BY \`updated_at\``,
-        [sinceStr]
+        sql`SELECT * FROM \`${table}\` WHERE \`updated_at\` >= ${sinceStr} ORDER BY \`updated_at\``
       ) as unknown as [Array<Record<string, unknown>>, unknown];
 
       if (rows.length === 0) {
@@ -105,17 +103,17 @@ export async function runIncrementalBackup(sinceDate: Date): Promise<{ success: 
         batchBytes += tuple.length + 2;
 
         if (batchBytes >= 300_000 || batch.length >= 500) {
-          sql += `INSERT INTO \`${table}\` (${colList}) VALUES\n${batch.join(",\n")}\nON DUPLICATE KEY UPDATE ${updateParts};\n`;
+          sqlOutput += `INSERT INTO \`${table}\` (${colList}) VALUES\n${batch.join(",\n")}\nON DUPLICATE KEY UPDATE ${updateParts};\n`;
           batch = [];
           batchBytes = 0;
         }
       }
 
       if (batch.length > 0) {
-        sql += `INSERT INTO \`${table}\` (${colList}) VALUES\n${batch.join(",\n")}\nON DUPLICATE KEY UPDATE ${updateParts};\n`;
+        sqlOutput += `INSERT INTO \`${table}\` (${colList}) VALUES\n${batch.join(",\n")}\nON DUPLICATE KEY UPDATE ${updateParts};\n`;
       }
 
-      sql += "\n";
+      sqlOutput += "\n";
       tableCounts[table] = rows.length;
       totalRows += rows.length;
     } catch (err) {
@@ -124,14 +122,14 @@ export async function runIncrementalBackup(sinceDate: Date): Promise<{ success: 
     }
   }
 
-  sql += `SET FOREIGN_KEY_CHECKS = 1;\n`;
+  sqlOutput += `SET FOREIGN_KEY_CHECKS = 1;\n`;
 
   if (totalRows === 0) {
     return { success: true, message: "No changes since last backup", tables: tableCounts };
   }
 
   // Compress and upload
-  const gzipped = gzipSync(Buffer.from(sql, "utf8"));
+  const gzipped = gzipSync(Buffer.from(sqlOutput, "utf8"));
 
   const { S3Client, PutObjectCommand } = await import("@aws-sdk/client-s3");
   const s3 = new S3Client({

@@ -1,5 +1,5 @@
 import { spawn } from "child_process";
-import { gzipSync, gunzipSync } from "zlib";
+import { gzipSync } from "zlib";
 import { getDb } from "../queries/connection";
 import { logger } from "../lib/logger";
 import { env } from "../lib/env";

@@ -201,7 +201,7 @@ function makeDb() {
     function chain(rs: any[]): any {
       const p: any = Promise.resolve(rs);
       p.limit = (n: number) => chain(rs.slice(0, n));
-      p.orderBy = (...a: any[]) => {
+      p.orderBy = (..._a: any[]) => {
         // rows here are already projected; re-sort by the raw source instead
         const src = rows.filter(() => true);
         void src;

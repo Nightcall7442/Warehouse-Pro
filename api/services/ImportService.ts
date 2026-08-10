@@ -140,7 +140,7 @@ export const ImportService = {
       }
     });
 
-    cache.invalidatePrefix(CacheKeys.productList(tenantId, 0).split(":")[0]);
+    cache.invalidatePrefix(CacheKeys.productList(tenantId, 0, 50).split(":")[0]);
     return { success: success.count, errors, skipped, total: rows.length };
   },
 
@@ -179,7 +179,7 @@ export const ImportService = {
       }
     }
 
-    cache.invalidatePrefix(CacheKeys.shopList(tenantId, 0).split(":")[0]);
+    cache.invalidatePrefix(CacheKeys.shopList(tenantId, 0, 50).split(":")[0]);
     return { success: success.count, errors, skipped, total: rows.length };
   },
 

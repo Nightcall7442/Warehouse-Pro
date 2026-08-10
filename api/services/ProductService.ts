@@ -61,7 +61,7 @@ export const ProductService = {
     const pageSize = filters?.pageSize ?? 25;
     const offset = (page - 1) * pageSize;
 
-    const cacheKey = CacheKeys.productList(tenantId, page, filters?.search, filters?.category);
+    const cacheKey = CacheKeys.productList(tenantId, page, pageSize, filters?.search, filters?.category);
     const cached = cache.get(cacheKey);
     if (cached) return cached;
 
