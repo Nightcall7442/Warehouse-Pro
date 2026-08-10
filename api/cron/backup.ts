@@ -80,39 +80,53 @@ export async function runBackup(): Promise<{ success: boolean; message: string }
     return { success: false, message: msg };
   }
 
-  // ── 4. mysqldump → gzip → S3 ────────────────────────────────────
+  // ── 4. Create dump ─────────────────────────────────────────────
   try {
-    const dump = await new Promise<Buffer>((resolve, reject) => {
-      const args = [
-        "--single-transaction",
-        "--quick",
-        "--routines",
-        "--triggers",
-        `--host=${dbHost}`,
-        `--port=${dbPort}`,
-        `--user=${dbUser}`,
-        dbName,
-      ];
-      // Use mariadb-dump (Alpine's mysql-client package) — mysqldump is
-      // deprecated and can't authenticate against MySQL 8's caching_sha2_password.
-      const dumpCmd = "mariadb-dump";
-      const child = spawn(dumpCmd, args, { env: { ...process.env, MYSQL_PWD: dbPassword } });
+    let dump: Buffer;
 
-      const chunks: Buffer[] = [];
-      let stderr = "";
-      child.stdout.on("data", (c: Buffer) => chunks.push(c));
-      child.stderr.on("data", (c: Buffer) => { stderr += c.toString(); });
-      child.on("error", reject);
-      child.on("close", (code) => {
-        if (code !== 0) {
-          reject(new Error(`mysqldump exited with code ${code}: ${stderr.slice(0, 2000)}`));
-          return;
-        }
-        resolve(Buffer.concat(chunks));
+    // Try mariadb-dump first (fast, streams directly)
+    try {
+      dump = await new Promise<Buffer>((resolve, reject) => {
+        const args = [
+          "--single-transaction",
+          "--quick",
+          "--routines",
+          "--triggers",
+          `--host=${dbHost}`,
+          `--port=${dbPort}`,
+          `--user=${dbUser}`,
+          dbName,
+        ];
+        const child = spawn("mariadb-dump", args, { env: { ...process.env, MYSQL_PWD: dbPassword } });
+
+        const chunks: Buffer[] = [];
+        let stderr = "";
+        child.stdout.on("data", (c: Buffer) => chunks.push(c));
+        child.stderr.on("data", (c: Buffer) => { stderr += c.toString(); });
+        child.on("error", reject);
+        child.on("close", (code) => {
+          if (code !== 0) {
+            reject(new Error(`mariadb-dump exited with code ${code}: ${stderr.slice(0, 2000)}`));
+            return;
+          }
+          resolve(Buffer.concat(chunks));
+        });
       });
-    });
+    } catch (mariadbErr) {
+      // Fallback: Node.js mysql2 driver (works with caching_sha2_password)
+      logger.warn("mariadb-dump failed, falling back to mysql2 driver", {
+        error: mariadbErr instanceof Error ? mariadbErr.message : String(mariadbErr),
+      });
+      const { createDumpStream } = await import("../services/db-dump-native");
+      const result = await createDumpStream();
+      const chunks: Buffer[] = [];
+      for await (const chunk of result.stream) {
+        chunks.push(Buffer.from(chunk));
+      }
+      dump = Buffer.concat(chunks);
+    }
 
-    if (dump.length === 0) throw new Error("mysqldump produced empty output");
+    if (dump.length === 0) throw new Error("Dump produced empty output");
 
     // ── 5. Verify dump is valid SQL ──────────────────────────────
     const head = dump.slice(0, 2048).toString("utf8");
