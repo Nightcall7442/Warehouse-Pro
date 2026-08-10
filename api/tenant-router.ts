@@ -81,6 +81,12 @@ export const tenantRouter = createRouter({
         });
       });
 
+      // Notify admin about new registration
+      try {
+        const { notifyAdmin, tgMessages } = await import("./telegram-router");
+        await notifyAdmin(tgMessages.newRegistration(input.orgName, input.email));
+      } catch { /* Telegram not configured */ }
+
       return { slug, message: "Organisation created. You can now sign in." };
     }),
 

@@ -963,6 +963,12 @@ if (env.isProduction) {
   attachWebSocket(server);
   logger.info("websocket attached");
 
+  // Notify superadmin about server start
+  try {
+    const { notifyAdmin } = await import("./telegram-router");
+    await notifyAdmin(`🟢 <b>Сервер запущен</b>\n📦 v${APP_VERSION}\n🔌 Port ${port}`);
+  } catch { /* Telegram not configured */ }
+
   // Graceful shutdown
   const shutdown = async (signal: string) => {
     logger.info(`${signal} received, starting graceful shutdown`);

@@ -152,6 +152,18 @@ export function registerStripeWebhook<E extends Env>(app: Hono<E>) {
           logger.warn("stripe webhook event has no resolvable tenantId, skipping billingEvents record", { eventId: event.id, eventType: event.type });
         }
       });
+
+      // Notify superadmin about new subscription
+      if (event.type === "checkout.session.completed" && tenantId) {
+        try {
+          const { notifyAdmin } = await import("../telegram-router");
+          const session = event.data.object as Stripe.Checkout.Session;
+          const plan = session.metadata?.plan ?? "unknown";
+          const amount = session.amount_total ? (session.amount_total / 100).toFixed(2) : "?";
+          const currency = session.currency?.toUpperCase() ?? "USD";
+          await notifyAdmin(`💳 <b>Новая подписка</b>\n🏢 Tenant #${tenantId}\n📈 Тариф: ${plan}\n💰 ${amount} ${currency}`);
+        } catch { /* Telegram not configured */ }
+      }
     } catch (err) {
       logger.error("stripe webhook handler error", { error: err instanceof Error ? err.message : String(err) });
       return c.json({ error: "Handler failed" }, 500);
