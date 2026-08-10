@@ -64,3 +64,36 @@ export const PLAN_PRICES_UZS: Record<PlanKey, number> = {
   pro:       599_000,
   exclusive: 1_299_000,
 };
+
+/** Feature flags per plan — what each tier can access */
+export const PLAN_FEATURES: Record<PlanKey, {
+  multiWarehouse: boolean;
+  whiteLabel: boolean;
+  onecIntegration: boolean;
+  apiAccess: boolean;
+}> = {
+  trial: {
+    multiWarehouse: false,
+    whiteLabel: false,
+    onecIntegration: false,
+    apiAccess: false,
+  },
+  basic: {
+    multiWarehouse: false,
+    whiteLabel: false,
+    onecIntegration: false,
+    apiAccess: false,
+  },
+  pro: {
+    multiWarehouse: true,
+    whiteLabel: false,
+    onecIntegration: true,
+    apiAccess: false,
+  },
+  exclusive: {
+    multiWarehouse: true,
+    whiteLabel: true,
+    onecIntegration: true,
+    apiAccess: true,
+  },
+};

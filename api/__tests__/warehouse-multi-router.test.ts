@@ -15,6 +15,10 @@ vi.mock("../lib/cache", () => ({
   CacheTTL: { commissions: 60, kpis: 60 },
 }));
 
+vi.mock("../lib/feature-gating", () => ({
+  checkFeatureAccess: vi.fn(async () => true),
+}));
+
 let mockDb: any;
 vi.mock("../queries/connection", () => ({ getDb: () => mockDb }));
 

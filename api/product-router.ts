@@ -8,6 +8,8 @@ import { decimalOrDefault } from "./lib/zod-decimal";
 import { cache, CacheKeys, CacheTTL } from "./lib/cache";
 import { photoRef } from "./lib/photo-url";
 import { ProductService } from "./services/ProductService";
+import { checkPlanLimits } from "./lib/plan-limits";
+import { TRPCError } from "@trpc/server";
 
 async function getDefaultWarehouseId(db: ReturnType<typeof getDb>, tenantId: number): Promise<number | null> {
   const [wh] = await db.select({ id: warehouses.id })
@@ -230,6 +232,15 @@ export const productRouter = createRouter({
         category: input.category ? sanitizeString(input.category) : undefined,
         description: input.description ? sanitizeString(input.description) : undefined,
       };
+
+      // Check plan limits before creating
+      const limits = await checkPlanLimits(db, tenantId, "products");
+      if (!limits.allowed) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: `Достигнут лимит товаров тарифа (${limits.limit}). Обновите тариф для добавления новых товаров.`,
+        });
+      }
 
       const productId = await db.transaction(async (tx) => {
         const [result] = await tx.insert(products).values({ tenantId, ...sanitized, status: "active" });

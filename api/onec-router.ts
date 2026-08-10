@@ -8,6 +8,8 @@ import { encryptSecret } from "./lib/crypto";
 import { eq } from "drizzle-orm";
 import { logger } from "./lib/logger";
 import { getMetricsSummary } from "./lib/metrics";
+import { checkFeatureAccess } from "./lib/feature-gating";
+import { TRPCError } from "@trpc/server";
 
 export const onecRouter = createRouter({
   // ── Setup Wizard ──────────────────────────────────────────────────────────
@@ -23,6 +25,13 @@ export const onecRouter = createRouter({
         intervalMinutes: z.number().min(5).max(1440).optional().default(60),
       }))
       .mutation(async ({ input, ctx }) => {
+        const hasAccess = await checkFeatureAccess(ctx.tenant.id, "onecIntegration");
+        if (!hasAccess) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Интеграция с 1С доступна на тарифах Pro и Exclusive. Обновите тариф.",
+          });
+        }
         const db = getDb();
         const existing = await db.select({ id: onecConfig.id })
           .from(onecConfig)
@@ -59,6 +68,13 @@ export const onecRouter = createRouter({
 
     /** Get current per-tenant 1C config (password masked) */
     getConfig: adminQuery.query(async ({ ctx }) => {
+      const hasAccess = await checkFeatureAccess(ctx.tenant.id, "onecIntegration");
+      if (!hasAccess) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Интеграция с 1С доступна на тарифах Pro и Exclusive. Обновите тариф.",
+        });
+      }
       const db = getDb();
       const [config] = await db.select()
         .from(onecConfig)
@@ -80,6 +96,13 @@ export const onecRouter = createRouter({
         password: z.string(),
       }))
       .mutation(async ({ input, ctx }) => {
+        const hasAccess = await checkFeatureAccess(ctx.tenant.id, "onecIntegration");
+        if (!hasAccess) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Интеграция с 1С доступна на тарифах Pro и Exclusive. Обновите тариф.",
+          });
+        }
         try {
           const bridge = new OneCBridge({
             url: input.url,

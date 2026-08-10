@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "../queries/connection";
-import { subscriptions } from "@db/schema";
+import { subscriptions, tenants } from "@db/schema";
+import { PLAN_FEATURES, type PlanKey } from "../../contracts/constants";
 
 /**
  * Returns true if the tenant has an active or trialing subscription.
@@ -33,6 +34,26 @@ export async function checkSubscriptionAccess(tenantId: number): Promise<boolean
   }
 
   return false;
+}
+
+/**
+ * Check if a tenant's plan includes a specific feature.
+ * Returns true if the feature is enabled, false otherwise.
+ */
+export async function checkFeatureAccess(
+  tenantId: number,
+  feature: keyof typeof PLAN_FEATURES.trial,
+): Promise<boolean> {
+  const db = getDb();
+  const [tenant] = await db.select({ plan: tenants.plan })
+    .from(tenants)
+    .where(eq(tenants.id, tenantId))
+    .limit(1);
+
+  if (!tenant) return false;
+  const planKey = (tenant.plan || "trial") as PlanKey;
+  const features = PLAN_FEATURES[planKey] ?? PLAN_FEATURES.trial;
+  return features[feature] ?? false;
 }
 
 /**

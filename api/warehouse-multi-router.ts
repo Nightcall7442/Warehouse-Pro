@@ -5,11 +5,19 @@ import { warehouses, warehouseStock, stockTransfers, products } from "@db/schema
 import { eq, and, sql, desc, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { recordStockMovement } from "./services/stock-ledger";
+import { checkFeatureAccess } from "./lib/feature-gating";
 
 export const warehouseMultiRouter = createRouter({
   /** List all warehouses for current tenant */
   list: authedQuery.query(async ({ ctx }) => {
     const db = getDb();
+    const hasAccess = await checkFeatureAccess(ctx.tenant.id, "multiWarehouse");
+    if (!hasAccess) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "Мультисклад доступен на тарифах Pro и Exclusive. Обновите тариф.",
+      });
+    }
     return db.select()
       .from(warehouses)
       .where(eq(warehouses.tenantId, ctx.tenant.id))
@@ -25,6 +33,13 @@ export const warehouseMultiRouter = createRouter({
     }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
+      const hasAccess = await checkFeatureAccess(ctx.tenant.id, "multiWarehouse");
+      if (!hasAccess) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Мультисклад доступен на тарифах Pro и Exclusive. Обновите тариф.",
+        });
+      }
       // If this is the first warehouse for the tenant, make it the default
       const [existing] = await db.select({ id: warehouses.id }).from(warehouses)
         .where(eq(warehouses.tenantId, ctx.tenant.id)).limit(1);
@@ -51,6 +66,13 @@ export const warehouseMultiRouter = createRouter({
     }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
+      const hasAccess = await checkFeatureAccess(ctx.tenant.id, "multiWarehouse");
+      if (!hasAccess) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Мультисклад доступен на тарифах Pro и Exclusive. Обновите тариф.",
+        });
+      }
       const { id, ...data } = input;
       await db.update(warehouses)
         .set(data)
@@ -63,6 +85,13 @@ export const warehouseMultiRouter = createRouter({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
+      const hasAccess = await checkFeatureAccess(ctx.tenant.id, "multiWarehouse");
+      if (!hasAccess) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Мультисклад доступен на тарифах Pro и Exclusive. Обновите тариф.",
+        });
+      }
 
       await db.transaction(async (tx) => {
         // Lock target row inside transaction to prevent race condition
@@ -90,6 +119,13 @@ export const warehouseMultiRouter = createRouter({
     .query(async ({ input, ctx }) => {
       const db       = getDb();
       const tenantId = ctx.tenant.id;
+      const hasAccess = await checkFeatureAccess(tenantId, "multiWarehouse");
+      if (!hasAccess) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Мультисклад доступен на тарифах Pro и Exclusive. Обновите тариф.",
+        });
+      }
       const page     = input?.page ?? 1;
       const pageSize = input?.pageSize ?? 25;
       const offset   = (page - 1) * pageSize;

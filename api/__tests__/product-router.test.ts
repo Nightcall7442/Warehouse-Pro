@@ -16,6 +16,11 @@ vi.mock("../telegram-router", () => ({
 
 vi.mock("../lib/feature-gating", () => ({
   checkSubscriptionAccess: vi.fn(async () => true),
+  checkFeatureAccess: vi.fn(async () => true),
+}));
+
+vi.mock("../lib/plan-limits", () => ({
+  checkPlanLimits: vi.fn(async () => ({ allowed: true, current: 0, limit: null })),
 }));
 
 vi.mock("../lib/sse", () => ({

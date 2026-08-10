@@ -5,6 +5,8 @@ import { tenantBranding } from "@db/schema";
 import { eq } from "drizzle-orm";
 import { cache, CacheKeys, CacheTTL } from "./lib/cache";
 import { sanitizeString, isSafeUrl } from "./lib/sanitize";
+import { checkFeatureAccess } from "./lib/feature-gating";
+import { TRPCError } from "@trpc/server";
 
 function escapeCSS(value: string): string {
   return value
@@ -50,6 +52,29 @@ type BrandingRow = {
 export const tenantBrandingRouter = createRouter({
   /** Get branding for current tenant (cached) */
   get: authedQuery.query(async ({ ctx }) => {
+    const hasAccess = await checkFeatureAccess(ctx.tenant.id, "whiteLabel");
+    if (!hasAccess) {
+      // Return defaults for non-white-label plans
+      return {
+        primaryColor:   "#5b6d8a",
+        secondaryColor: "#4a5c78",
+        accentColor:    "#3b82f6",
+        logoUrl:        null,
+        companyName:    null,
+        appName:        "Warehouse Pro",
+        supportEmail:   null,
+        supportPhone:   null,
+        customDomain:   null,
+        faviconUrl:     null,
+        loginTitle:     null,
+        loginSubtitle:  null,
+        footerText:     null,
+        mobileTheme:    "auto",
+        inn:            null,
+        legalAddress:   null,
+      };
+    }
+
     const cacheKey = CacheKeys.tenantBranding(ctx.tenant.id);
     const cached = cache.get(cacheKey);
     if (cached) return cached;
@@ -124,6 +149,13 @@ export const tenantBrandingRouter = createRouter({
       mobileTheme:    z.enum(["light", "dark", "auto"]).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
+      const hasAccess = await checkFeatureAccess(ctx.tenant.id, "whiteLabel");
+      if (!hasAccess) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Настройка брендинга доступна на тарифе Exclusive. Обновите тариф.",
+        });
+      }
       const db = getDb();
       const tenantId = ctx.tenant.id;
 
@@ -162,6 +194,13 @@ export const tenantBrandingRouter = createRouter({
       dataUrl: z.string().refine((val) => val.startsWith("data:image/") || val.startsWith("http://") || val.startsWith("https://"), "Неверный формат изображения (data URL или HTTP/HTTPS URL)").max(5_000_000, "Файл слишком большой (макс. 4 МБ)"),
     }))
     .mutation(async ({ input, ctx }) => {
+      const hasAccess = await checkFeatureAccess(ctx.tenant.id, "whiteLabel");
+      if (!hasAccess) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Настройка брендинга доступна на тарифе Exclusive. Обновите тариф.",
+        });
+      }
       const db = getDb();
       const tenantId = ctx.tenant.id;
 
