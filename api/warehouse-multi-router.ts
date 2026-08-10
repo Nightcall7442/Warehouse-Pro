@@ -13,10 +13,8 @@ export const warehouseMultiRouter = createRouter({
     const db = getDb();
     const hasAccess = await checkFeatureAccess(ctx.tenant.id, "multiWarehouse");
     if (!hasAccess) {
-      throw new TRPCError({
-        code: "FORBIDDEN",
-        message: "Мультисклад доступен на тарифах Pro и Exclusive. Обновите тариф.",
-      });
+      // Return empty list instead of error — frontend shows empty state
+      return [];
     }
     return db.select()
       .from(warehouses)
@@ -121,10 +119,8 @@ export const warehouseMultiRouter = createRouter({
       const tenantId = ctx.tenant.id;
       const hasAccess = await checkFeatureAccess(tenantId, "multiWarehouse");
       if (!hasAccess) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Мультисклад доступен на тарифах Pro и Exclusive. Обновите тариф.",
-        });
+        // Return empty result instead of error
+        return { data: [], total: 0, page: 1, pageSize: 25, totalPages: 0 };
       }
       const page     = input?.page ?? 1;
       const pageSize = input?.pageSize ?? 25;

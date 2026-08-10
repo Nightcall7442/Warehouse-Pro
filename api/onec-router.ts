@@ -70,10 +70,8 @@ export const onecRouter = createRouter({
     getConfig: adminQuery.query(async ({ ctx }) => {
       const hasAccess = await checkFeatureAccess(ctx.tenant.id, "onecIntegration");
       if (!hasAccess) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Интеграция с 1С доступна на тарифах Pro и Exclusive. Обновите тариф.",
-        });
+        // Return null instead of error — frontend shows "not available" state
+        return null;
       }
       const db = getDb();
       const [config] = await db.select()
