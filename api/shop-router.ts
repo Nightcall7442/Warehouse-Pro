@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createRouter, operatorQuery, supervisorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { shops, users, orders, payments, dailyPlans, territories } from "@db/schema";
+import { shops, users, orders, payments, territories } from "@db/schema";
 import { eq, like, and, sql, desc } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { sanitizeString, sanitizeSearch } from "./lib/sanitize";
@@ -272,6 +272,14 @@ export const shopRouter = createRouter({
     }),
 
   // SECURITY FIX 1.4: Block deletion if shop has linked orders or payments
+  //
+  // Nine tables carry a restrict FK on shops.id (orders, payments,
+  // dailyPlans, returns, visitSchedules, salesTargets, priceListAssignments,
+  // visitReports, debtReminders), and pre-checking each by name is exactly
+  // the kind of list that goes stale the next time someone adds a table that
+  // references a shop. Attempt the hard delete and let MySQL's own FK
+  // constraint be the source of truth — same pattern as product-router.ts's
+  // delete — falling back to soft-delete only on a genuine FK violation.
   delete: operatorQuery
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
@@ -282,26 +290,21 @@ export const shopRouter = createRouter({
         .where(and(eq(shops.id, input.id), eq(shops.tenantId, tenantId))).limit(1);
       if (!existingShop) throw new Error("Магазин не найден");
 
-      const [orderCount] = await db.select({ count: sql<number>`count(*)` })
-        .from(orders).where(and(eq(orders.shopId, input.id), eq(orders.tenantId, tenantId)));
-      if (Number(orderCount.count) > 0) {
-        throw new Error(`Невозможно удалить магазин: связано ${orderCount.count} заказ(ов)`);
+      try {
+        await db.delete(shops)
+          .where(and(eq(shops.id, input.id), eq(shops.tenantId, tenantId)));
+      } catch (err: unknown) {
+        const code = (err as { cause?: { code?: string }; code?: string })?.cause?.code ?? (err as { code?: string })?.code ?? "";
+        const msg = (err as { cause?: { message?: string }; message?: string })?.cause?.message ?? (err as { message?: string })?.message ?? "";
+        if (code === "ER_NO_REFERENCED_ROW_2" || code === "ER_ROW_IS_REFERENCED" || code === "ER_ROW_IS_REFERENCED_2" || msg.includes("foreign key") || msg.includes("a child row")) {
+          await db.update(shops)
+            .set({ status: "inactive" })
+            .where(and(eq(shops.id, input.id), eq(shops.tenantId, tenantId)));
+        } else {
+          throw err;
+        }
       }
 
-      const [paymentCount] = await db.select({ count: sql<number>`count(*)` })
-        .from(payments).where(and(eq(payments.shopId, input.id), eq(payments.tenantId, tenantId)));
-      if (Number(paymentCount.count) > 0) {
-        throw new Error(`Невозможно удалить магазин: связано ${paymentCount.count} платёж(ей)`);
-      }
-
-      const [planCount] = await db.select({ count: sql<number>`count(*)` })
-        .from(dailyPlans).where(and(eq(dailyPlans.shopId, input.id), eq(dailyPlans.tenantId, tenantId)));
-      if (Number(planCount.count) > 0) {
-        throw new Error(`Невозможно удалить магазин: связано ${planCount.count} план(ов) посещений`);
-      }
-
-      await db.delete(shops)
-        .where(and(eq(shops.id, input.id), eq(shops.tenantId, tenantId)));
       cache.invalidatePrefix(`shops:${tenantId}`);
       cache.invalidate(CacheKeys.shopCities(tenantId));
       return { success: true };

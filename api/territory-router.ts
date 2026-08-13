@@ -130,10 +130,24 @@ export const territoryRouter = createRouter({
   delete: supervisorQuery
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      await getDb().update(shops).set({ territoryId: null })
+      const db = getDb();
+      await db.update(shops).set({ territoryId: null })
         .where(and(eq(shops.territoryId, input.id), eq(shops.tenantId, ctx.tenant.id)));
-      await getDb().delete(territories)
-        .where(and(eq(territories.id, input.id), eq(territories.tenantId, ctx.tenant.id)));
+      try {
+        await db.delete(territories)
+          .where(and(eq(territories.id, input.id), eq(territories.tenantId, ctx.tenant.id)));
+      } catch (err: unknown) {
+        // territories has no soft-delete column, so unlike shops/products a
+        // restrict FK (agentTerritories, salesTargets still pointing at it)
+        // can't be papered over — but it should surface as a clear business
+        // rejection, not the raw MySQL 500 this used to throw.
+        const code = (err as { cause?: { code?: string }; code?: string })?.cause?.code ?? (err as { code?: string })?.code ?? "";
+        const msg = (err as { cause?: { message?: string }; message?: string })?.cause?.message ?? (err as { message?: string })?.message ?? "";
+        if (code === "ER_ROW_IS_REFERENCED" || code === "ER_ROW_IS_REFERENCED_2" || msg.includes("foreign key") || msg.includes("a child row")) {
+          throw new Error("Невозможно удалить территорию: за ней ещё закреплены агенты или планы продаж");
+        }
+        throw err;
+      }
       return { success: true };
     }),
 
