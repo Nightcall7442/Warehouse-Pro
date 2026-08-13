@@ -19,6 +19,7 @@ export const NAV_ITEMS: Record<string, Array<{ labelKey: string; path: string; i
   ceo: [
     { labelKey: "nav.dashboard",  path: "/",          icon: "LayoutDashboard" },
     { labelKey: "nav.kpi",        path: "/agent/kpi",  icon: "BarChart3"        },
+    { labelKey: "nav.tracking",   path: "/supervisor", icon: "MapPin"          },
     { labelKey: "nav.reports",    path: "/reports",   icon: "Activity"        },
     { labelKey: "nav.shops",      path: "/shops",     icon: "Store"           },
     { labelKey: "nav.products",   path: "/products",  icon: "Package"         },

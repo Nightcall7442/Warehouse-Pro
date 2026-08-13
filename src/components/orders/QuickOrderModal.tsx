@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { AppModal, modalSectionLabel, modalFieldLabel } from "@/components/ui/AppModal";
 import { PremiumSelect } from "@/components/PremiumSelect";
-import { Plus, Minus, Trash2, Search, Loader2 } from "lucide-react";
+import { Plus, Minus, Trash2, Search, Loader2, Store, Check } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { useInvalidateOrderCaches } from "@/hooks/useOrderCacheSync";
 import { notify } from "@/lib/toast";
@@ -107,10 +107,23 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, onCreat
   const [discount, setDiscount] = useState("0");
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "card" | "transfer" | "debt">("cash");
   const [productSearch, setProductSearch] = useState("");
+  const [shopSearch, setShopSearch] = useState("");
   const invalidateOrderCaches = useInvalidateOrderCaches();
 
   const { data: shopsData } = trpc.shop.list.useQuery({ pageSize: 500 });
   const { data: productsData } = trpc.product.listAll.useQuery({ search: productSearch || undefined });
+
+  const filteredShops = useMemo(() => {
+    const q = shopSearch.trim().toLowerCase();
+    const list = shopsData?.data ?? [];
+    if (!q) return list;
+    return list.filter(s =>
+      s.name?.toLowerCase().includes(q) ||
+      s.ownerName?.toLowerCase().includes(q) ||
+      s.district?.toLowerCase().includes(q) ||
+      s.city?.toLowerCase().includes(q),
+    );
+  }, [shopsData, shopSearch]);
   const createOrder = trpc.order.create.useMutation({
     onSuccess: () => {
       notify.success(t("Заказ создан", "Buyurtma yaratildi"));
@@ -130,6 +143,7 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, onCreat
     setDiscount("0");
     setPaymentMethod("cash");
     setProductSearch("");
+    setShopSearch("");
   };
 
   const close = () => { resetForm(); onOpenChange(false); };
@@ -211,15 +225,54 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, onCreat
         <>
           <div>
             <p className={modalSectionLabel}>{t("Магазин", "Do'kon")}</p>
-            <PremiumSelect
-              value={shopId ? String(shopId) : ""}
-              onChange={v => setShopId(v ? Number(v) : undefined)}
-              options={[
-                { value: "", label: t("Выберите магазин…", "Do'kon tanlang…") },
-                ...(shopsData?.data ?? []).map(s => ({ value: String(s.id), label: s.name })),
-              ]}
-              width="100%"
-            />
+            <div style={{ position: "relative", marginBottom: "8px" }}>
+              <Search size={15} style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", color: "var(--color-text-tertiary)" }} />
+              <input
+                className="neo-input"
+                style={{ paddingLeft: "38px" }}
+                placeholder={t("Поиск магазина по названию, владельцу, району…", "Do'kon, egasi, tuman bo'yicha qidirish…")}
+                value={shopSearch}
+                onChange={e => setShopSearch(e.target.value)}
+              />
+            </div>
+            <div
+              className="overflow-y-auto"
+              style={{
+                maxHeight: 220, borderRadius: "16px",
+                border: "1px solid var(--color-border, #d8d5cd)", padding: "8px",
+              }}
+            >
+              {filteredShops.map((s) => (
+                <button
+                  type="button"
+                  key={s.id}
+                  onClick={() => setShopId(s.id)}
+                  className="w-full flex items-center justify-between gap-3 text-left"
+                  style={{
+                    padding: "10px 12px", borderRadius: "12px", cursor: "pointer", border: "none",
+                    background: shopId === s.id ? "var(--color-primary-subtle)" : "transparent",
+                  }}
+                  onMouseEnter={e => { if (shopId !== s.id) e.currentTarget.style.background = "var(--color-surface-light)"; }}
+                  onMouseLeave={e => { if (shopId !== s.id) e.currentTarget.style.background = "transparent"; }}
+                >
+                  <span className="min-w-0 flex items-center gap-2">
+                    <Store size={14} style={{ color: "var(--color-text-tertiary)", flexShrink: 0 }} />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium truncate" style={{ color: "var(--color-text-primary)" }}>{s.name}</span>
+                      <span className="block text-xs truncate" style={{ color: "var(--color-text-tertiary)" }}>
+                        {[s.ownerName, s.district, s.city].filter(Boolean).join(" · ") || "—"}
+                      </span>
+                    </span>
+                  </span>
+                  {shopId === s.id && <Check size={16} style={{ color: "var(--color-primary)", flexShrink: 0 }} />}
+                </button>
+              ))}
+              {filteredShops.length === 0 && (
+                <p className="text-center text-xs py-8" style={{ color: "var(--color-text-tertiary)" }}>
+                  {t("Ничего не найдено", "Hech narsa topilmadi")}
+                </p>
+              )}
+            </div>
           </div>
 
           <div className="grid grid-cols-[1fr_280px] gap-5 max-md:grid-cols-1">

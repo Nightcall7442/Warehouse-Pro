@@ -965,8 +965,6 @@ function buildTTNInvoice(order: BatchOrderData, company: CompanyInfo, currency: 
 
       <div class="totals-box">
         <table>
-          <tr><td>Сумма без переоценки:</td><td class="right">${total.toLocaleString("ru-RU")} ${currency}</td></tr>
-          <tr><td>Сумма переоценки:</td><td class="right">0 ${currency}</td></tr>
           <tr class="total-row"><td>Сумма с учётом НДС:</td><td class="right">${total.toLocaleString("ru-RU")} ${currency}</td></tr>
         </table>
       </div>
