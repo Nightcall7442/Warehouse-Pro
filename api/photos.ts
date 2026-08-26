@@ -3,6 +3,7 @@ import { eq, and } from "drizzle-orm";
 import { products, shops } from "@db/schema";
 import { getDb } from "./queries/connection";
 import { authenticateRequest } from "./auth";
+import { isAppError } from "@contracts/errors";
 
 /**
  * Photo delivery for entities whose photo is stored in the database as a base64
@@ -37,7 +38,10 @@ async function serve(
     const auth = await authenticateRequest(headers);
     if (!auth.tenant) return c.json({ error: "Unauthorized" }, 401);
     tenantId = auth.tenant.id;
-  } catch {
+  } catch (e) {
+    // Сбой проверки — не то же самое, что негодный токен: 401 здесь означал бы
+    // «перелогиньтесь» из-за заминки базы. См. api/context.ts.
+    if (!isAppError(e)) return c.json({ error: "Не удалось проверить сессию" }, 503);
     return c.json({ error: "Unauthorized" }, 401);
   }
 

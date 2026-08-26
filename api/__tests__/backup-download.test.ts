@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { Errors } from "@contracts/errors";
 
 /**
  * Скачивание резервной копии суперадмином.
@@ -58,13 +59,30 @@ const req = () => app.request("/api/admin/backup/download");
 
 describe("скачивание резервной копии", () => {
   it("постороннему — отказ, и выгрузка даже не запускается", async () => {
-    h.authenticateRequest.mockRejectedValue(new Error("no token"));
+    // Именно так отказывает настоящий authenticateRequest: своим отказом, а не
+    // случайным исключением. Разница теперь значимая — см. следующий тест.
+    h.authenticateRequest.mockRejectedValue(Errors.forbidden("Invalid authentication token."));
 
     const res = await req();
 
     expect(res.status).toBe(401);
     // Важно именно это: mysqldump не должен стартовать до проверки прав,
     // иначе неавторизованный запрос сможет нагружать базу.
+    expect(h.startDump).not.toHaveBeenCalled();
+  });
+
+  it("не смогли проверить сессию — 503, а не «войдите заново»", async () => {
+    // Отказ по токену и сбой проверки — разные вещи. Раньше сюда сходилось
+    // любое исключение, и заминка базы отвечала 401. Для мобильного клиента
+    // 401 значит «сотри сессию», поэтому такая ошибка выбрасывала человека из
+    // аккаунта на ровном месте. Подробнее — в auth-failure-is-not-logout.
+    h.authenticateRequest.mockRejectedValue(
+      Object.assign(new Error("Can't add new command when connection is in closed state"),
+        { code: "PROTOCOL_CONNECTION_LOST" }));
+
+    const res = await req();
+
+    expect(res.status).toBe(503);
     expect(h.startDump).not.toHaveBeenCalled();
   });
 

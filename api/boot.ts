@@ -23,6 +23,7 @@ import { logger } from "./lib/logger";
 import { recordRequest } from "./system-router";
 import { logError } from "./lib/error-log";
 import { safeEqual } from "./lib/safe-compare";
+import { isAppError } from "@contracts/errors";
 
 
 import * as Sentry from "@sentry/node";
@@ -266,7 +267,8 @@ app.get("/api/admin/backup/download", async (c) => {
   let auth;
   try {
     auth = await authenticateRequest(c.req.raw.headers);
-  } catch {
+  } catch (e) {
+    if (!isAppError(e)) return c.json({ error: "Не удалось проверить сессию" }, 503);
     return c.json({ error: "Unauthorized" }, 401);
   }
 
@@ -346,7 +348,8 @@ app.get("/api/events", async (c) => {
     }
     const lastEventId = c.req.header("Last-Event-ID");
     return createSSEResponse(auth.tenant.id, auth.user.id, lastEventId ?? undefined);
-  } catch {
+  } catch (e) {
+    if (!isAppError(e)) return c.json({ error: "Не удалось проверить сессию" }, 503);
     return c.json({ error: "Unauthorized" }, 401);
   }
 });
