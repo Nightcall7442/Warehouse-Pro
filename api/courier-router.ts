@@ -405,9 +405,26 @@ export const courierRouter = createRouter({
           // Full or partial delivery — deduct stock for ALL items
           for (const item of items) {
             const qty = Number(item.quantity);
+            // Товар физически уехал, поэтому current_stock падает на полное
+            // количество — это факт, а не бухгалтерия. Но снять с резерва
+            // больше, чем там лежит, нельзя: снимается LEAST(qty, reserved), а
+            // недостающая часть уходит из available, потому что физически она
+            // пришла оттуда.
+            //
+            // Было `reserved = GREATEST(0, reserved - qty)` без парной правки
+            // available: при просевшем резерве current_stock падал на qty,
+            // reserved замирал на нуле, available не менялся — и инвариант
+            // current_stock = available + reserved расходился ровно на
+            // недостачу. Это тот самый отказ, что описан выше на строке 331.
+            //
+            // available считается ПЕРВЫМ: MySQL вычисляет SET слева направо и
+            // видит уже обновлённые колонки, поэтому reserved обязан стоять
+            // последним, иначе LEAST посчитается от нового значения.
             await tx.execute(sql`
               UPDATE warehouse_stock
-              SET current_stock = current_stock - ${qty}, reserved = GREATEST(0, reserved - ${qty})
+              SET available = available - (${qty} - LEAST(${qty}, reserved)),
+                  current_stock = current_stock - ${qty},
+                  reserved = GREATEST(0, reserved - ${qty})
               WHERE product_id = ${item.productId} AND tenant_id = ${ctx.tenant.id} AND warehouse_id = ${whId}
             `);
             await recordStockMovement(tx, {
@@ -420,9 +437,15 @@ export const courierRouter = createRouter({
           // Full return — release reserved stock (no current_stock change since it was reserved)
           for (const item of items) {
             const qty = Number(item.quantity);
+            // Товар не уезжал, current_stock не меняется — резерв просто
+            // возвращается в свободный остаток. Вернуть можно ровно столько,
+            // сколько там лежало: LEAST(qty, reserved). Прибавляя available
+            // полное qty при просевшем резерве, мы дописывали в свободный
+            // остаток единицы, которых на складе нет.
             await tx.execute(sql`
               UPDATE warehouse_stock
-              SET reserved = GREATEST(0, reserved - ${qty}), available = available + ${qty}
+              SET available = available + LEAST(${qty}, reserved),
+                  reserved = GREATEST(0, reserved - ${qty})
               WHERE product_id = ${item.productId} AND tenant_id = ${ctx.tenant.id} AND warehouse_id = ${whId}
             `);
           }
@@ -457,11 +480,24 @@ export const courierRouter = createRouter({
             if (deliveredQty > 0) {
               // Deduct delivered stock; the returned portion of the reservation
               // goes back to available (goods physically returned to the warehouse).
+              // Уехала только доставленная часть, поэтому current_stock падает
+              // на deliveredQty. Резерв снимается весь, но не больше, чем есть:
+              // LEAST(qty, reserved).
+              //
+              // available выводится из инварианта, а не подбирается: чтобы
+              // current_stock = available + reserved сохранилось, нужно
+              //   available' = available − deliveredQty + LEAST(qty, reserved).
+              // Без перекоса это даёт ровно `+ returnedQty`, как и было
+              // задумано; при просевшем резерве — только то, что вернулось на
+              // самом деле, вместо приписки несуществующих единиц.
+              //
+              // available первым: MySQL вычисляет SET слева направо и видит уже
+              // обновлённые колонки.
               await tx.execute(sql`
                 UPDATE warehouse_stock
-                SET current_stock = current_stock - ${deliveredQty},
-                    reserved = GREATEST(0, reserved - ${qty}),
-                    available = available + ${returnedQty}
+                SET available = available - ${deliveredQty} + LEAST(${qty}, reserved),
+                    current_stock = current_stock - ${deliveredQty},
+                    reserved = GREATEST(0, reserved - ${qty})
                 WHERE product_id = ${item.productId} AND tenant_id = ${ctx.tenant.id} AND warehouse_id = ${whId}
               `);
               // Only the delivered part left the warehouse; the rest never did.
@@ -471,10 +507,13 @@ export const courierRouter = createRouter({
                 notes: `Доставка ${order.orderNumber} (частичный возврат ${returnedQty})`,
               });
             } else {
-              // All returned — just release reservation
+              // Вернули всё — товар не уезжал, current_stock не меняется.
+              // Возвращается ровно то, что лежит в резерве: LEAST(qty, reserved).
+              // available первым — MySQL вычисляет SET слева направо.
               await tx.execute(sql`
                 UPDATE warehouse_stock
-                SET reserved = GREATEST(0, reserved - ${qty}), available = available + ${qty}
+                SET available = available + LEAST(${qty}, reserved),
+                    reserved = GREATEST(0, reserved - ${qty})
                 WHERE product_id = ${item.productId} AND tenant_id = ${ctx.tenant.id} AND warehouse_id = ${whId}
               `);
             }

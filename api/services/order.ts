@@ -578,11 +578,22 @@ async function applyPartialDelivery(
     // to available (matching "open → returned"). Either way `reserved` drops
     // by the full original order quantity.
     if (defaultWh) {
+      // available выводится из инварианта, а не подбирается: чтобы
+      // current_stock = available + reserved сохранилось при снятии резерва не
+      // больше, чем там лежит, нужно
+      //   available' = available − deliveredQty + LEAST(orderedQty, reserved).
+      // Без перекоса это даёт ровно `+ returnedQty`, как и было задумано.
+      //
+      // Прежняя запись прибавляла available полное returnedQty независимо от
+      // того, сколько удалось снять с резерва: при просевшем резерве reserved
+      // замирал на нуле, а свободный остаток получал единицы, которых на складе
+      // нет. available стоит первым — MySQL вычисляет SET слева направо и видит
+      // уже обновлённые колонки.
       await tx.execute(sql`
         UPDATE warehouse_stock
-        SET current_stock = current_stock - ${deliveredQty},
-            reserved = GREATEST(0, reserved - ${orderedQty}),
-            available = available + ${returnedQty}
+        SET available = available - ${deliveredQty} + LEAST(${orderedQty}, reserved),
+            current_stock = current_stock - ${deliveredQty},
+            reserved = GREATEST(0, reserved - ${orderedQty})
         WHERE product_id = ${orderItem.productId} AND tenant_id = ${tenantId} AND warehouse_id = ${defaultWh.id}
       `);
 
@@ -1061,15 +1072,23 @@ export const OrderService = {
             .where(and(eq(warehouseStock.productId, item.productId), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, cancelWhId)))
             .for("update");
         }
+        // Товар не уезжал — current_stock не меняется, резерв возвращается в
+        // свободный остаток. Вернуть можно ровно столько, сколько там лежит:
+        // LEAST(held, reserved). Прежняя запись прибавляла available полное
+        // held независимо от резерва, и при просевшем резерве свободный остаток
+        // получал единицы, которых на складе нет.
+        //
+        // available идёт ПЕРВЫМ: MySQL вычисляет SET слева направо и видит уже
+        // обновлённые колонки, а LEAST нужен от старого резерва.
         await tx.execute(sql`
           UPDATE warehouse_stock
           SET
+            available = CASE ${sql.join(items.map(i =>
+              sql`WHEN product_id = ${i.productId} THEN available + LEAST(${heldQuantity(i, cancelReturned)}, reserved)`
+            ), sql`\n`)} ELSE available END,
             reserved = CASE ${sql.join(items.map(i =>
               sql`WHEN product_id = ${i.productId} THEN GREATEST(0, reserved - ${heldQuantity(i, cancelReturned)})`
-            ), sql`\n`)} ELSE reserved END,
-            available = CASE ${sql.join(items.map(i =>
-              sql`WHEN product_id = ${i.productId} THEN available + ${heldQuantity(i, cancelReturned)}`
-            ), sql`\n`)} ELSE available END
+            ), sql`\n`)} ELSE reserved END
           WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
             AND tenant_id = ${tenantId}
             AND warehouse_id = ${cancelWhId}
@@ -1274,15 +1293,21 @@ export const OrderService = {
               .where(and(eq(warehouseStock.productId, item.productId), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, deleteWhId)))
               .for("update");
           }
+          // Как и при отмене: возвращается только то, что действительно лежит
+          // в резерве, — LEAST(held, reserved). Иначе при просевшем резерве
+          // available прибавлял бы единицы, которых на складе нет, и
+          // current_stock = available + reserved расходилось бы молча.
+          //
+          // available первым — MySQL вычисляет SET слева направо.
           await tx.execute(sql`
             UPDATE warehouse_stock
             SET
+              available = available + LEAST(CASE ${sql.join(items.map(i =>
+                sql`WHEN product_id = ${i.productId} THEN ${heldQuantity(i, deleteReturned)}`
+              ), sql`\n`)} ELSE 0 END, reserved),
               reserved = GREATEST(0, reserved - CASE ${sql.join(items.map(i =>
                 sql`WHEN product_id = ${i.productId} THEN ${heldQuantity(i, deleteReturned)}`
-              ), sql`\n`)} ELSE 0 END),
-              available = available + CASE ${sql.join(items.map(i =>
-                sql`WHEN product_id = ${i.productId} THEN ${heldQuantity(i, deleteReturned)}`
-              ), sql`\n`)} ELSE 0 END
+              ), sql`\n`)} ELSE 0 END)
             WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
               AND tenant_id = ${tenantId}
               AND warehouse_id = ${deleteWhId}

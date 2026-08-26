@@ -429,10 +429,27 @@ export const importRouter = createRouter({
                   // Scope to the same warehouse the INSERT targeted — an unscoped
                   // UPDATE overwrote the product's stock in every warehouse. And
                   // `available` must account for what is already reserved.
+                  // Импорт называет остаток целиком, поэтому current_stock
+                  // присваивается, а не сдвигается. Резерв при этом не может
+                  // превышать названный остаток — зарезервировать больше, чем
+                  // лежит на полке, нельзя, — так что reserved обрезается по
+                  // новому количеству, а available = остаток минус обрезанный
+                  // резерв.
+                  //
+                  // Было `available = GREATEST(0, initialStock - reserved)` при
+                  // нетронутом reserved: если импорт занижал остаток ниже
+                  // резерва, available упирался в ноль, reserved оставался
+                  // прежним, и current_stock = available + reserved переставало
+                  // выполняться — база утверждала, что зарезервировано больше,
+                  // чем есть.
+                  //
+                  // available первым: MySQL вычисляет SET слева направо и видит
+                  // уже обновлённые колонки, а обрезка нужна от старого резерва.
                   await db.execute(sql`
                     UPDATE warehouse_stock
-                    SET current_stock = ${row.initialStock},
-                        available = GREATEST(0, ${row.initialStock} - reserved)
+                    SET available = ${row.initialStock} - LEAST(reserved, ${row.initialStock}),
+                        reserved = LEAST(reserved, ${row.initialStock}),
+                        current_stock = ${row.initialStock}
                     WHERE product_id = ${productId}
                       AND tenant_id = ${tenantId}
                       AND warehouse_id = ${defaultWarehouse.id}
