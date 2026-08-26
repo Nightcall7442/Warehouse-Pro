@@ -144,7 +144,15 @@ export default function App() {
           <Route path="/orders/:id"     element={<OrderDetail />} />
           <Route path="/warehouse"      element={<RoleGuard roles={["ceo","operator"]}><Warehouse /></RoleGuard>} />
           <Route path="/arrivals"       element={<RoleGuard roles={["ceo","operator"]}><Arrivals /></RoleGuard>} />
-          <Route path="/settings"       element={<RoleGuard roles={["ceo","operator"]}><Settings /></RoleGuard>} />
+          {/* Настройки открыты всем: внутри каждый видит только свои разделы
+              (см. SECTIONS в pages/Settings.tsx). Раньше маршрут был закрыт
+              для всех, кроме ceo и operator, а пункт «Настройки» показывался
+              в меню агента, супервайзера, мерчендайзера и курьера — клик по
+              нему молча возвращал на главную. Из-за этого агент не мог сменить
+              себе пароль с сайта вообще никак.
+              Права на сами действия по-прежнему на сервере: settings.update и
+              branding.update — adminQuery, склады — adminQuery. */}
+          <Route path="/settings"       element={<Settings />} />
           <Route path="/settings/billing" element={<RoleGuard roles={["ceo"]}><BillingSettings /></RoleGuard>} />
           <Route path="/billing"        element={<RoleGuard roles={["ceo"]}><BillingPage /></RoleGuard>} />
           <Route path="/barcode"        element={<BarcodePage />} />

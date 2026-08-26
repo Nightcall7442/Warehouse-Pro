@@ -426,14 +426,17 @@
   .dark .neo-card::before {
     background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
   }
-  .neo-card:hover {
+  .neo-card:not(.neo-card-static):hover {
     box-shadow: var(--shadow-md);
     transform: translateY(-2px);
   }
-  .neo-card:active {
+  .neo-card:not(.neo-card-static):active {
     box-shadow: var(--shadow-pressed);
     transform: translateY(0) scale(0.99);
   }
+  /* Статичная карточка — та, по которой не кликают: обёртка, панель, сайдбар.
+     Отзывчивость на наведение обещает нажатие, которого не будет. */
+  .neo-card-static { transition: none; }
 
   /* Pressed/inset card variant */
   .neo-card-pressed {
@@ -498,7 +501,7 @@
   .neo-btn-primary {
     display: inline-flex; align-items: center; justify-content: center; gap: 8px;
     background: linear-gradient(135deg, var(--color-primary), var(--color-primary-hover, #4a5c78));
-    color: #fff;
+    color: var(--color-on-primary, #fff);
     border: none;
     border-radius: 12px;
     padding: 10px 20px;
@@ -517,7 +520,6 @@
     transform: translateY(0) scale(0.98);
   }
   .dark .neo-btn-primary {
-    color: #fff !important;
     box-shadow: 4px 4px 12px rgba(0,0,0,0.4), -2px -2px 6px rgba(255,255,255,0.03);
   }
 
@@ -553,7 +555,7 @@
      NEUMORPHIC INPUTS
      ══════════════════════════════════════════════════════════════════════ */
   .neo-input {
-    background: var(--color-surface, #efedea);
+    background: var(--color-canvas, #e8e6e1);
     border: none;
     border-radius: 16px;
     padding: 13px 18px;
@@ -564,7 +566,7 @@
     transition: all 0.2s ease;
     width: 100%;
     line-height: 1.5;
-    box-shadow: var(--shadow-pressed);
+    box-shadow: var(--shadow-pressed), inset 0 0 0 1px var(--color-border, #d8d5cd);
   }
   .neo-input::placeholder { color: var(--color-text-tertiary, #6b6760); }
   .neo-input:focus {
@@ -1327,8 +1329,9 @@ textarea:focus-visible {
 .dark .btn-ghost:hover { color: var(--color-primary) !important; }
 .dark .btn-secondary { color: var(--color-text-primary) !important; }
 .dark .btn-secondary:hover { color: var(--color-primary) !important; }
-.dark .neo-btn-primary { color: #fff !important; }
-.dark .neo-btn-primary:hover { color: #fff !important; }
+/* Цвет текста здесь берётся из --color-on-primary (см. .neo-btn-primary).
+   Раньше стояло color: #fff !important — на латунном акценте тёмной темы это
+   2.42:1, то есть подпись на главной кнопке читалась хуже подсказки. */
 .dark .dark-mode-header { background: linear-gradient(135deg, #1e293b, #0f172a) !important; }
 /* Neutralise user-agent colours (mainly the browser's blue <a>) so dark mode
    inherits the surrounding text colour instead.

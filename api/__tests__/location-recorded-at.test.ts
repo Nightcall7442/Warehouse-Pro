@@ -16,7 +16,12 @@ import { join } from "node:path";
  * значило бы дать возможность задним числом «оказаться» где угодно.
  */
 
-const SRC = readFileSync(join(process.cwd(), "api", "agent-router.ts"), "utf8");
+// Переводы строк нормализуются. На Windows git выкладывает файлы с CRLF, а
+// разбор ниже вырезает тело функции по последовательности «перевод строки —
+// закрывающая скобка — перевод строки». В CRLF-файле её нет вовсе, поэтому
+// вместо тела функции тест брал весь остаток файла и падал на первом
+// попавшемся throw — при том, что проверяемый код не менялся.
+const SRC = readFileSync(join(process.cwd(), "api", "agent-router.ts"), "utf8").replace(/\r\n/g, "\n");
 
 /** Та же логика, что в sanitizeRecordedAt: тест сверяет границы, а не текст. */
 function accepts(iso: string, now = Date.now()): boolean {

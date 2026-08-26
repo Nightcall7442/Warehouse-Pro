@@ -3,9 +3,37 @@ import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { notify } from "@/lib/toast";
 import { compressImage } from "@/lib/compress-image";
-import { Loader2, Upload, RotateCcw, Eye } from "lucide-react";
+import { Upload, RotateCcw } from "lucide-react";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { colorMix } from "@/lib/color-mix";
+import { readableInk } from "@/lib/contrast";
+import { FieldGroup, Field, FieldRow, SaveBar } from "./ui";
+
+/**
+ * Брендинг: логотип, цвета, тексты.
+ *
+ * ── Почему раздел выглядел хуже остальных ───────────────────────────────────
+ *
+ * Он был собран из трёх карточек .neo-card p-5, вложенных в карточку страницы,
+ * а внутри них лежал ещё один тон — ряды цветов. Четыре уровня поверхности, и
+ * четвёртый по фону совпадал с первым: глубина не читалась вовсе, просто рябь.
+ *
+ * Ряд цвета при этом получал 256 пикселей ширины, из которых 172 занимала
+ * несжимаемая фурнитура — образец, поле hex и отступы. На название и описание
+ * оставалось 84: отсюда и «крошечные образцы», и переносы посреди строки.
+ * Один и тот же hex выводился в строке ДВАЖДЫ — в неизменяемом <code> и в поле
+ * ввода рядом.
+ *
+ * Предпросмотр был зажат в ту же колонку (визитка на пол-экрана) и нарисован
+ * дефолтной тенью Tailwind — в тёмной теме она не видна вовсе, потому что
+ * рассчитана на белый фон.
+ *
+ * Кнопка «Сохранить» красилась градиентом из выбранных цветов с белым текстом:
+ * стоило выбрать светлый основной цвет, и надпись пропадала. Теперь текст
+ * подбирается по яркости фона (lib/contrast.ts), а сама кнопка — обычная
+ * системная: сохранение не должно менять вид в зависимости от настройки,
+ * которую сохраняет.
+ */
 
 const DEFAULTS = {
   primaryColor: "#5b6d8a",
@@ -35,6 +63,7 @@ export function BrandingSettings() {
   const [form, setForm] = useState<typeof DEFAULTS | null>(null);
 
   if (!isLoading && branding && !form) {
+    const b = branding as Record<string, unknown>;
     setForm({
       primaryColor: branding.primaryColor ?? DEFAULTS.primaryColor,
       secondaryColor: branding.secondaryColor ?? DEFAULTS.secondaryColor,
@@ -42,14 +71,14 @@ export function BrandingSettings() {
       companyName: branding.companyName ?? "",
       appName: branding.appName ?? DEFAULTS.appName,
       logoUrl: branding.logoUrl ?? "",
-      faviconUrl: (branding as Record<string, unknown>).faviconUrl as string ?? "",
-      loginTitle: (branding as Record<string, unknown>).loginTitle as string ?? "",
-      loginSubtitle: (branding as Record<string, unknown>).loginSubtitle as string ?? "",
-      footerText: (branding as Record<string, unknown>).footerText as string ?? "",
-      supportEmail: (branding as Record<string, unknown>).supportEmail as string ?? "",
-      supportPhone: (branding as Record<string, unknown>).supportPhone as string ?? "",
-      customDomain: (branding as Record<string, unknown>).customDomain as string ?? "",
-      mobileTheme: ((branding as Record<string, unknown>).mobileTheme as string ?? "auto") as "auto",
+      faviconUrl: (b.faviconUrl as string) ?? "",
+      loginTitle: (b.loginTitle as string) ?? "",
+      loginSubtitle: (b.loginSubtitle as string) ?? "",
+      footerText: (b.footerText as string) ?? "",
+      supportEmail: (b.supportEmail as string) ?? "",
+      supportPhone: (b.supportPhone as string) ?? "",
+      customDomain: (b.customDomain as string) ?? "",
+      mobileTheme: ((b.mobileTheme as string) ?? "auto") as "auto",
     });
   }
 
@@ -77,203 +106,164 @@ export function BrandingSettings() {
 
   const p = form.primaryColor;
   const s = form.secondaryColor;
+  const set = (key: keyof typeof DEFAULTS) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setForm(v => v ? { ...v, [key]: e.target.value } : v);
+
+  const COLORS = [
+    { key: "primaryColor" as const,   label: t("Основной", "Asosiy"),    desc: t("Кнопки, ссылки, активные пункты меню", "Tugmalar, havolalar, faol menyu") },
+    { key: "secondaryColor" as const, label: t("Вторичный", "Ikkinchi"), desc: t("Наведение, градиенты, заголовки", "Hover, gradientlar, sarlavhalar") },
+    { key: "accentColor" as const,    label: t("Акцент", "Aksent"),      desc: t("Уведомления и бейджи", "Bildirishnomalar va belgilar") },
+  ];
 
   return (
-    <div className="space-y-5">
-
-      {/* ════════════════════════════════════════════════════════
-          LOGO + FAVICON
-          ════════════════════════════════════════════════════════ */}
-      <div className="neo-card p-5">
-        <p className="font-label text-[10px] tracking-wider mb-4" style={{ color: "var(--color-text-secondary)" }}>
-          {t("ИДЕНТИЧНОСТЬ БРЕНДА", "BREND IDENTIFIKATSIYASI")}
-        </p>
-        <div className="flex flex-col sm:flex-row gap-6">
-          {/* Logo */}
+    <div>
+      {/* ── Логотип и favicon ─────────────────────────────────────────────── */}
+      <FieldGroup first title={t("Логотип", "Logotip")}>
+        <div className="flex flex-wrap items-start gap-8">
           <div className="flex items-center gap-4">
-            <div
-              className="w-20 h-20 rounded-2xl flex items-center justify-center overflow-hidden cursor-pointer transition-all hover:scale-105"
-              style={{
-                border: `2px dashed ${colorMix(p, 25)}`,
-                background: `linear-gradient(135deg, ${colorMix(p, 3)}, ${colorMix(s, 3)})`,
-              }}
-              onClick={() => logoRef.current?.click()}
-            >
+            <button type="button" onClick={() => logoRef.current?.click()}
+              aria-label={t("Загрузить логотип", "Logotipni yuklash")}
+              className="w-20 h-20 rounded-2xl flex items-center justify-center overflow-hidden"
+              style={{ border: `2px dashed ${colorMix(p, 25)}`, background: colorMix(p, 4) }}>
               {form.logoUrl
-                ? <img src={form.logoUrl} alt="logo" className="w-full h-full object-contain p-1" />
-                : <div className="text-center">
-                    <Upload size={20} style={{ color: p }} className="mx-auto mb-1" />
-                    <span className="text-[9px]" style={{ color: "var(--color-text-tertiary)" }}>Logo</span>
-                  </div>}
-            </div>
+                ? <img src={form.logoUrl} alt="" className="w-full h-full object-contain p-1" />
+                : <Upload size={20} style={{ color: p }} />}
+            </button>
             <div>
-              <button onClick={() => logoRef.current?.click()}
-                className="text-sm font-medium flex items-center gap-2 px-3 py-2 rounded-xl transition-all hover:scale-[1.02]"
-                style={{ background: colorMix(p, 7), color: p }}>
-                <Upload size={14} />{t("Логотип", "Logotip")}
+              <button type="button" onClick={() => logoRef.current?.click()} className="neo-btn">
+                <Upload size={14} />{form.logoUrl ? t("Заменить", "Almashtirish") : t("Логотип", "Logotip")}
               </button>
-              <p className="text-[10px] mt-1.5" style={{ color: "var(--color-text-tertiary)" }}>
-                PNG, JPG · {t("макс. 5 МБ", "maks. 5 MB")}
-              </p>
+              <p className="text-xs text-tertiary mt-1.5">PNG, JPG · {t("до 5 МБ", "5 MB gacha")}</p>
             </div>
             <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={e => handleImage(e, "logoUrl", 5)} />
           </div>
 
-          {/* Divider */}
-          <div className="hidden sm:block w-px" style={{ background: "var(--color-border)" }} />
-
-          {/* Favicon */}
           <div className="flex items-center gap-4">
-            <div
-              className="w-12 h-12 rounded-xl flex items-center justify-center overflow-hidden cursor-pointer transition-all hover:scale-105"
-              style={{ border: `2px dashed ${colorMix(p, 19)}`, background: `var(--color-surface-light)` }}
-              onClick={() => faviconRef.current?.click()}
-            >
+            <button type="button" onClick={() => faviconRef.current?.click()}
+              aria-label={t("Загрузить favicon", "Favicon yuklash")}
+              className="w-12 h-12 rounded-xl flex items-center justify-center overflow-hidden"
+              style={{ border: "2px dashed var(--color-border)", background: "var(--color-surface-light)" }}>
               {form.faviconUrl
-                ? <img src={form.faviconUrl} alt="favicon" className="w-full h-full object-contain p-0.5" />
-                : <Upload size={14} style={{ color: "var(--color-text-tertiary)" }} />}
-            </div>
+                ? <img src={form.faviconUrl} alt="" className="w-full h-full object-contain p-0.5" />
+                : <Upload size={14} className="text-tertiary" />}
+            </button>
             <div>
-              <button onClick={() => faviconRef.current?.click()}
-                className="text-xs font-medium px-3 py-1.5 rounded-lg transition-all hover:scale-[1.02]"
-                style={{ background: "var(--color-surface-light)", color: "var(--color-text-secondary)" }}>
-                <Upload size={12} className="inline mr-1.5" />Favicon
+              <button type="button" onClick={() => faviconRef.current?.click()} className="neo-btn neo-btn-sm">
+                <Upload size={12} />Favicon
               </button>
-              <p className="text-[10px] mt-1" style={{ color: "var(--color-text-tertiary)" }}>ICO, PNG · 32×32</p>
+              <p className="text-xs text-tertiary mt-1.5">ICO, PNG · 32×32</p>
             </div>
             <input ref={faviconRef} type="file" accept="image/*,.ico" className="hidden" onChange={e => handleImage(e, "faviconUrl", 1)} />
           </div>
         </div>
-      </div>
+      </FieldGroup>
 
-      {/* ════════════════════════════════════════════════════════
-          COLORS + LIVE PREVIEW
-          ════════════════════════════════════════════════════════ */}
-      <div className="neo-card p-5">
-        <div className="flex items-center justify-between mb-4">
-          <p className="font-label text-[10px] tracking-wider flex items-center gap-2" style={{ color: "var(--color-text-secondary)" }}>
-            <Eye size={12} />{t("ЦВЕТОВАЯ СХЕМА", "RANG SXEMASI")}
+      {/* ── Цвета ─────────────────────────────────────────────────────────── */}
+      <FieldGroup title={t("Цвета", "Ranglar")}>
+        <div className="flex items-start justify-between gap-4 flex-wrap mb-4 -mt-2">
+          <p className="text-sm text-secondary max-w-prose">
+            {t("Этими цветами приложение показывается всем сотрудникам организации и на экране входа.",
+               "Bu ranglar bilan ilova barcha xodimlarga va kirish ekranida ko'rinadi.")}
           </p>
-          <button onClick={() => setForm(f => f ? { ...f, primaryColor: DEFAULTS.primaryColor, secondaryColor: DEFAULTS.secondaryColor, accentColor: DEFAULTS.accentColor } : f)}
-            className="text-[10px] flex items-center gap-1 px-2 py-1 rounded-md transition-all hover:scale-105"
-            style={{ color: "var(--color-text-tertiary)", background: "var(--color-surface-light)" }}>
-            <RotateCcw size={10} />{t("Сброс", "Tiklash")}
+          <button type="button"
+            onClick={() => setForm(f => f ? { ...f, primaryColor: DEFAULTS.primaryColor, secondaryColor: DEFAULTS.secondaryColor, accentColor: DEFAULTS.accentColor } : f)}
+            className="neo-btn neo-btn-sm">
+            <RotateCcw size={12} />{t("Вернуть стандартные", "Standartga qaytarish")}
           </button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          {/* Color pickers */}
+        <div className="grid gap-5 grid-cols-1 xl:grid-cols-[minmax(320px,1fr)_minmax(260px,340px)]">
           <div className="space-y-3">
-            {[
-              { key: "primaryColor" as const, label: t("Основной", "Asosiy"), desc: t("Кнопки, ссылки, акценты", "Tugmalar, havolalar, aksentlar") },
-              { key: "secondaryColor" as const, label: t("Вторичный", "Ikkinchi"), desc: t("Hover-состояния, заголовки", "Holatlar, sarlavhalar") },
-              { key: "accentColor" as const, label: t("Акцент", "Aksent"), desc: t("Уведомления, бейджи", "Bildirishnomalar, belgilar") },
-            ].map(c => (
-              <div key={c.key} className="flex items-center gap-3 p-3 rounded-xl transition-all hover:scale-[1.01]"
+            {COLORS.map(c => (
+              <div key={c.key} className="flex items-center gap-4 p-3 rounded-xl"
                 style={{ background: "var(--color-surface-light)" }}>
-                <div className="relative">
-                  <input type="color" value={form[c.key]}
-                    onChange={e => setForm(f => f ? { ...f, [c.key]: e.target.value } : f)}
-                    className="w-11 h-11 rounded-xl cursor-pointer border-2 border-white/50 shadow-md" />
-                </div>
+                <input type="color" value={form[c.key]} onChange={set(c.key)}
+                  aria-label={c.label}
+                  className="w-14 h-14 rounded-xl cursor-pointer flex-shrink-0"
+                  style={{ border: "1px solid var(--color-border)" }} />
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold" style={{ color: "var(--color-text-primary)" }}>{c.label}</span>
-                    <code className="text-[10px] px-1.5 py-0.5 rounded font-mono" style={{ background: "var(--color-surface)", color: "var(--color-text-tertiary)" }}>
-                      {form[c.key]}
-                    </code>
-                  </div>
-                  <p className="text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>{c.desc}</p>
+                  <p className="text-sm font-semibold text-primary">{c.label}</p>
+                  <p className="text-xs text-tertiary mt-0.5">{c.desc}</p>
                 </div>
-                <input className="w-20 text-center text-xs font-mono neo-input px-1 py-1.5"
-                  value={form[c.key]} onChange={e => setForm(f => f ? { ...f, [c.key]: e.target.value } : f)} />
+                {/* Один источник значения: раньше hex стоял и здесь, и в
+                    неизменяемом <code> слева — два разных вида одного и того же. */}
+                <input className="neo-input font-data w-28 text-center flex-shrink-0"
+                  aria-label={`${c.label} — HEX`}
+                  value={form[c.key]} onChange={set(c.key)} />
               </div>
             ))}
           </div>
 
-          {/* Live preview card */}
-          <div className="rounded-2xl overflow-hidden shadow-lg" style={{ border: `1px solid ${colorMix(p, 13)}` }}>
-            {/* Header bar */}
+          {/* Предпросмотр */}
+          <div className="rounded-2xl overflow-hidden self-start"
+            style={{ boxShadow: "var(--shadow-raised)", border: `1px solid ${colorMix(p, 13)}` }}>
             <div className="px-4 py-3 flex items-center gap-3" style={{ background: `linear-gradient(135deg, ${p}, ${s})` }}>
               {form.logoUrl
                 ? <img src={form.logoUrl} alt="" className="w-6 h-6 rounded object-contain bg-white/20 p-0.5" />
-                : <div className="w-6 h-6 rounded bg-white/20" />}
-              <span className="text-white text-sm font-semibold truncate">{form.appName || "Warehouse Pro"}</span>
+                : <div className="w-6 h-6 rounded" style={{ background: colorMix(readableInk(p), 25) }} />}
+              <span className="text-sm font-semibold truncate" style={{ color: readableInk(p) }}>
+                {form.appName || "Warehouse Pro"}
+              </span>
             </div>
-            {/* Content */}
             <div className="p-4 space-y-3" style={{ background: "var(--color-surface)" }}>
               <div className="flex gap-2">
                 <div className="flex-1 h-2 rounded-full" style={{ background: colorMix(p, 19) }} />
                 <div className="flex-1 h-2 rounded-full" style={{ background: "var(--color-border)" }} />
               </div>
               <div className="flex gap-3">
-                <button className="flex-1 py-2 rounded-xl text-white text-xs font-semibold shadow-md"
-                  style={{ background: `linear-gradient(135deg, ${p}, ${s})` }}>
+                <button type="button" className="flex-1 h-9 rounded-xl text-xs font-semibold"
+                  style={{ background: `linear-gradient(135deg, ${p}, ${s})`, color: readableInk(p), boxShadow: "var(--shadow-sm)" }}>
                   {t("Создать заказ", "Buyurtma yaratish")}
                 </button>
-                <button className="flex-1 py-2 rounded-xl text-xs font-semibold border"
-                  style={{ borderColor: colorMix(p, 25), color: p, background: colorMix(p, 2) }}>
+                <button type="button" className="flex-1 h-9 rounded-xl text-xs font-semibold"
+                  style={{ border: `1px solid ${colorMix(p, 25)}`, color: p, background: colorMix(p, 4) }}>
                   {t("Отмена", "Bekor qilish")}
                 </button>
               </div>
-              <div className="flex items-center gap-2 mt-1">
-                <div className="w-2 h-2 rounded-full" style={{ background: form.accentColor }} />
-                <span className="text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>
-                  {t("Акцентный цвет", "Aksent rang")} — {form.accentColor}
-                </span>
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: form.accentColor }} />
+                <span className="text-xs text-tertiary">{t("Акцентный цвет", "Aksent rang")}</span>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      </FieldGroup>
 
-      {/* ════════════════════════════════════════════════════════
-          TEXT FIELDS
-          ════════════════════════════════════════════════════════ */}
-      <div className="neo-card p-5">
-        <p className="font-label text-[10px] tracking-wider mb-4" style={{ color: "var(--color-text-secondary)" }}>
-          {t("ТЕКСТЫ И КОНТАКТЫ", "MATNLAR VA KONTAKTLAR")}
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {[
-            { key: "companyName" as const, label: t("Компания", "Kompaniya"), ph: "Acme Corp" },
-            { key: "appName" as const, label: t("Приложение", "Ilova"), ph: "Warehouse Pro" },
-            { key: "loginTitle" as const, label: t("Заголовок логина", "Login sarlavhasi"), ph: t("Добро пожаловать", "Xush kelibsiz") },
-            { key: "loginSubtitle" as const, label: t("Подзаголовок", "Taglavha"), ph: t("Войдите в систему", "Tizimga kiring") },
-            { key: "supportEmail" as const, label: t("Email поддержки", "Qo'llab-quvvatlash email"), ph: "support@company.com" },
-            { key: "supportPhone" as const, label: t("Телефон", "Telefon"), ph: "+998 XX XXX XX XX" },
-          ].map(f => (
-            <div key={f.key}>
-              <label className="font-label text-[10px] tracking-wider block mb-1.5" style={{ color: "var(--color-text-secondary)" }}>
-                {f.label}
-              </label>
-              <input className="neo-input w-full text-sm" value={form[f.key]}
-                onChange={e => setForm(v => v ? { ...v, [f.key]: e.target.value } : v)}
-                placeholder={f.ph} />
-            </div>
-          ))}
+      {/* ── Тексты ────────────────────────────────────────────────────────── */}
+      <FieldGroup title={t("Тексты и контакты", "Matnlar va kontaktlar")}>
+        <FieldRow>
+          <Field label={t("Компания", "Kompaniya")}>
+            <input className="neo-input" value={form.companyName} onChange={set("companyName")} placeholder="Acme Corp" />
+          </Field>
+          <Field label={t("Название приложения", "Ilova nomi")}>
+            <input className="neo-input" value={form.appName} onChange={set("appName")} placeholder="Warehouse Pro" />
+          </Field>
+          <Field label={t("Заголовок на входе", "Kirish sarlavhasi")}>
+            <input className="neo-input" value={form.loginTitle} onChange={set("loginTitle")} placeholder={t("Добро пожаловать", "Xush kelibsiz")} />
+          </Field>
+          <Field label={t("Подзаголовок на входе", "Kirish taglavhasi")}>
+            <input className="neo-input" value={form.loginSubtitle} onChange={set("loginSubtitle")} placeholder={t("Войдите в систему", "Tizimga kiring")} />
+          </Field>
+          <Field label={t("Email поддержки", "Qo'llab-quvvatlash email")}>
+            <input className="neo-input" type="email" value={form.supportEmail} onChange={set("supportEmail")} placeholder="support@company.com" />
+          </Field>
+          <Field label={t("Телефон поддержки", "Qo'llab-quvvatlash telefoni")}>
+            <input className="neo-input font-data" type="tel" value={form.supportPhone} onChange={set("supportPhone")} placeholder="+998 XX XXX XX XX" />
+          </Field>
+        </FieldRow>
+        <div className="mt-4 max-w-md">
+          <Field label={t("Текст в подвале", "Pastki matn")}>
+            <input className="neo-input" value={form.footerText} onChange={set("footerText")} placeholder="© 2026 Company Name" />
+          </Field>
         </div>
-        <div className="mt-4">
-          <label className="font-label text-[10px] tracking-wider block mb-1.5" style={{ color: "var(--color-text-secondary)" }}>
-            {t("Текст в подвале", "Pastki matn")}
-          </label>
-          <input className="neo-input w-full text-sm" value={form.footerText}
-            onChange={e => setForm(v => v ? { ...v, footerText: e.target.value } : v)}
-            placeholder="© 2026 Company Name" />
-        </div>
-      </div>
+      </FieldGroup>
 
-      {/* ════════════════════════════════════════════════════════
-          SAVE
-          ════════════════════════════════════════════════════════ */}
-      <div className="flex justify-end">
-        <button onClick={() => saveMutation.mutate(form)} disabled={saveMutation.isPending}
-          className="neo-btn-primary px-6 py-2.5 flex items-center gap-2 text-sm font-semibold rounded-xl disabled:opacity-40 transition-all hover:scale-[1.02] active:scale-[0.98]"
-          style={{ background: `linear-gradient(135deg, ${p}, ${s})` }}>
-          {saveMutation.isPending && <Loader2 size={14} className="animate-spin" />}
-          {t("Сохранить", "Saqlash")}
-        </button>
-      </div>
+      <SaveBar
+        onSave={() => saveMutation.mutate(form)}
+        isPending={saveMutation.isPending}
+        label={t("Сохранить", "Saqlash")}
+        hint={t("Изменения увидят все сотрудники организации", "O'zgarishlarni tashkilotning barcha xodimlari ko'radi")}
+      />
     </div>
   );
 }

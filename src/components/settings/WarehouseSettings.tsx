@@ -84,8 +84,8 @@ export function WarehouseSettings() {
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-medium text-primary truncate">{wh.name}</p>
                   {wh.isDefault && (
-                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
-                      style={{ background: "color-mix(in srgb, var(--color-primary) 12%, transparent)", color: "var(--color-primary, #5b6d8a)" }}>
+                    <span className="text-[11px] font-semibold px-2 py-0.5 rounded"
+                      style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}>
                       {t("Основной", "Asosiy")}
                     </span>
                   )}
@@ -101,15 +101,17 @@ export function WarehouseSettings() {
                 {!wh.isDefault && (
                   <button onClick={() => setDefault.mutate({ id: wh.id })}
                     disabled={setDefault.isPending}
-                    className="neo-btn py-1.5 px-2 text-xs flex items-center gap-1 disabled:opacity-40"
+                    className="neo-btn w-9 h-9 p-0 disabled:opacity-40"
+                    aria-label={t("Сделать основным складом", "Asosiy ombor qilish")}
                     title={t("Сделать основным", "Asosiy qilish")}>
-                    <Star size={11} />
+                    <Star size={14} />
                   </button>
                 )}
                 <button onClick={() => handleEdit(wh)}
-                  className="neo-btn py-1.5 px-2 text-xs flex items-center gap-1"
+                  className="neo-btn w-9 h-9 p-0"
+                  aria-label={t("Редактировать склад", "Omborxonani tahrirlash")}
                   title={t("Редактировать", "Tahrirlash")}>
-                  <Pencil size={11} />
+                  <Pencil size={14} />
                 </button>
               </div>
             </div>
@@ -128,12 +130,12 @@ export function WarehouseSettings() {
       {/* Add / Edit form */}
       {showForm && (
         <div className="p-4 rounded-lg space-y-3" style={{ background: "var(--color-surface-light, #f6f4f0)", border: "1px solid var(--color-border, #d8d5cd)" }}>
-          <p className="font-label text-[10px] text-secondary tracking-wider">
-            {editId ? t("РЕДАКТИРОВАТЬ СКЛАД", "OMBORXONANI TAHRIRLASH") : t("НОВЫЙ СКЛАД", "YANGI OMBORXONA")}
+          <p className="text-sm font-semibold text-primary">
+            {editId ? t("Редактировать склад", "Omborxonani tahrirlash") : t("Новый склад", "Yangi omborxona")}
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(180px,1fr))]">
             <div>
-              <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">
+              <label className="block text-[13px] font-medium text-secondary mb-1.5">
                 {t("Название", "Nomi")}
               </label>
               <input className="neo-input w-full" value={form.name}
@@ -141,7 +143,7 @@ export function WarehouseSettings() {
                 placeholder={t("Например: Основной склад", "Masalan: Asosiy omborxona")} />
             </div>
             <div>
-              <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">
+              <label className="block text-[13px] font-medium text-secondary mb-1.5">
                 {t("Адрес", "Manzil")}
               </label>
               <input className="neo-input w-full" value={form.address}
@@ -149,7 +151,7 @@ export function WarehouseSettings() {
                 placeholder={t("Улица, дом", "Ko'cha, uy")} />
             </div>
             <div>
-              <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">
+              <label className="block text-[13px] font-medium text-secondary mb-1.5">
                 {t("Город", "Shahar")}
               </label>
               <input className="neo-input w-full" value={form.city}

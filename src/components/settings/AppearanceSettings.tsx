@@ -1,46 +1,60 @@
+import { Sun, Moon } from "lucide-react";
 import { useLang } from "@/i18n";
 import { useTheme } from "@/hooks/useTheme";
+import { FieldGroup, Segmented } from "./ui";
+
+/**
+ * Внешний вид: тема и язык.
+ *
+ * ── Две вещи, которые здесь были сломаны ────────────────────────────────────
+ *
+ * 1. Обе кнопки темы висели на одном и том же toggle. Нажатие на «Светлая»,
+ *    когда светлая уже включена, честно переключало на тёмную — то есть
+ *    кнопка делала ровно обратное тому, что на ней написано. Теперь каждая
+ *    кнопка ставит своё значение.
+ *
+ * 2. Язык обозначался флагами 🇷🇺 и 🇺🇿. Флаг — это страна, а не язык, и на
+ *    Windows флаговые эмодзи вовсе не рисуются: система показывает две буквы,
+ *    RU и UZ. То есть на основной платформе пользователей выбор языка выглядел
+ *    как опечатка. Теперь — названия языков на них самих.
+ */
 
 export function AppearanceSettings() {
-  const { theme, toggle } = useTheme();
+  const { theme, setTheme } = useTheme();
   const { lang, setLang } = useLang();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <p className="font-label text-[10px] text-secondary tracking-wider mb-3">{t("ТЕМА","MAVZU")}</p>
-        <div className="grid grid-cols-2 gap-3 max-w-xs">
-          {[
-            { val: "light", labelRu: "☀️ Светлая", labelUz: "☀️ Yorug'" },
-            { val: "dark",  labelRu: "🌙 Тёмная",  labelUz: "🌙 To'q"  },
-          ].map(opt => (
-            <button key={opt.val} onClick={toggle}
-              className={`py-3 rounded-xl border text-sm font-medium transition-all ${
-                theme === opt.val ? "border-primary bg-primary/10 text-primary" : "border-border-subtle text-secondary hover:border-border-strong"
-              }`}>
-              {lang === "uz" ? opt.labelUz : opt.labelRu}
-            </button>
-          ))}
-        </div>
-      </div>
+    <div>
+      <FieldGroup first title={t("Тема", "Mavzu")}>
+        <Segmented
+          ariaLabel={t("Тема оформления", "Mavzu")}
+          value={theme}
+          onChange={setTheme}
+          options={[
+            { value: "light", label: t("Светлая", "Yorug'"), Icon: Sun },
+            { value: "dark",  label: t("Тёмная",  "To'q"),   Icon: Moon },
+          ]}
+        />
+        <p className="text-xs text-tertiary mt-2">
+          {t("Запоминается в этом браузере.", "Ushbu brauzerda eslab qolinadi.")}
+        </p>
+      </FieldGroup>
 
-      <div style={{ borderTop: "1px solid var(--color-border, #d8d5cd)", paddingTop: 20 }}>
-        <p className="font-label text-[10px] text-secondary tracking-wider mb-3">{t("ЯЗЫК ИНТЕРФЕЙСА","INTERFEYS TILI")}</p>
-        <div className="grid grid-cols-2 gap-3 max-w-xs">
-          {[
-            { val: "ru", label: "🇷🇺 Русский"  },
-            { val: "uz", label: "🇺🇿 O'zbek"   },
-          ].map(l => (
-            <button key={l.val} onClick={() => setLang(l.val as "ru" | "uz")}
-              className={`py-3 rounded-xl border text-sm font-medium transition-all ${
-                lang === l.val ? "border-primary bg-primary/10 text-primary" : "border-border-subtle text-secondary hover:border-border-strong"
-              }`}>
-              {l.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      <FieldGroup title={t("Язык интерфейса", "Interfeys tili")}>
+        <Segmented
+          ariaLabel={t("Язык интерфейса", "Interfeys tili")}
+          value={lang}
+          onChange={setLang}
+          options={[
+            { value: "ru", label: "Русский" },
+            { value: "uz", label: "O'zbek" },
+          ]}
+        />
+        <p className="text-xs text-tertiary mt-2">
+          {t("Меняется сразу, перезагрузка не нужна.", "Darhol o'zgaradi, sahifani yangilash shart emas.")}
+        </p>
+      </FieldGroup>
     </div>
   );
 }

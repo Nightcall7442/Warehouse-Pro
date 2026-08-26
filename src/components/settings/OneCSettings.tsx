@@ -1,7 +1,7 @@
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { notify } from "@/lib/toast";
-import { Loader2, CheckCircle2, XCircle, RefreshCw, AlertTriangle } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, RefreshCw, AlertTriangle, Check, X } from "lucide-react";
 
 export function OneCSettings() {
   const { lang } = useLang();
@@ -30,8 +30,8 @@ export function OneCSettings() {
     <div className="space-y-6">
       {/* Статус соединения */}
       <div>
-        <p className="font-label text-[10px] text-secondary tracking-wider mb-3">
-          {t("СТАТУС СОЕДИНЕНИЯ", "ULANISH HOLATI")}
+        <p className="text-sm font-semibold text-primary mb-3">
+          {t("Состояние соединения", "Ulanish holati")}
         </p>
         <div className="flex items-center gap-3 px-4 py-3 rounded-lg"
           style={{
@@ -62,8 +62,8 @@ export function OneCSettings() {
 
       {/* Настройки подключения */}
       <div>
-        <p className="font-label text-[10px] text-secondary tracking-wider mb-3">
-          {t("НАСТРОЙКИ ПОДКЛЮЧЕНИЯ", "ULANISH SOZLAMALARI")}
+        <p className="text-sm font-semibold text-primary mb-3">
+          {t("Настройки подключения", "Ulanish sozlamalari")}
         </p>
         <div className="space-y-3">
           <div className="p-4 rounded-lg" style={{ background: "var(--color-surface-light, #f6f4f0)" }}>
@@ -97,8 +97,8 @@ ONEC_WEBHOOK_SECRET=your_secret`}
 
       {/* Синхронизация */}
       <div>
-        <p className="font-label text-[10px] text-secondary tracking-wider mb-3">
-          {t("СИНХРОНИЗАЦИЯ", "SINXRONIZATSIYA")}
+        <p className="text-sm font-semibold text-primary mb-3">
+          {t("Синхронизация", "Sinxronizatsiya")}
         </p>
         <div className="space-y-3">
           <div className="flex items-center justify-between p-4 rounded-lg" style={{ background: "var(--color-surface-light, #f6f4f0)" }}>
@@ -121,8 +121,8 @@ ONEC_WEBHOOK_SECRET=your_secret`}
           {status && (
             <div className="grid grid-cols-2 gap-3">
               <div className="p-3 rounded-lg" style={{ background: "var(--color-surface-light, #f6f4f0)" }}>
-                <p className="text-[10px] text-secondary tracking-wider mb-1">
-                  {t("ПОСЛЕДНЯЯ СИНХРОНИЗАЦИЯ", "OXIRGI SINXRONIZATSIYA")}
+                <p className="text-xs text-tertiary mb-1">
+                  {t("Последняя синхронизация", "Oxirgi sinxronizatsiya")}
                 </p>
                 <p className="text-sm font-medium text-primary">
                   {status.lastProductSync
@@ -131,8 +131,8 @@ ONEC_WEBHOOK_SECRET=your_secret`}
                 </p>
               </div>
               <div className="p-3 rounded-lg" style={{ background: "var(--color-surface-light, #f6f4f0)" }}>
-                <p className="text-[10px] text-secondary tracking-wider mb-1">
-                  {t("ОШИБКИ", "XATOLIKLAR")}
+                <p className="text-xs text-tertiary mb-1">
+                  {t("Ошибки", "Xatoliklar")}
                 </p>
                 <p className={`text-sm font-medium ${status.errors > 0 ? "text-danger" : "text-success"}`}>
                   {status.errors ?? 0}
@@ -145,8 +145,8 @@ ONEC_WEBHOOK_SECRET=your_secret`}
 
       {/* Диагностика */}
       <div>
-        <p className="font-label text-[10px] text-secondary tracking-wider mb-3">
-          {t("ДИАГНОСТИКА", "DIAGNOSTIKA")}
+        <p className="text-sm font-semibold text-primary mb-3">
+          {t("Диагностика", "Diagnostika")}
         </p>
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
@@ -160,8 +160,8 @@ ONEC_WEBHOOK_SECRET=your_secret`}
                 <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: "#e85050", boxShadow: "0 0 6px rgba(232,80,80,.5)" }} />
               )}
               <div>
-                <p className="text-[10px] text-secondary tracking-wider mb-0.5">
-                  {t("СОЕДИНЕНИЕ", "ULANISH")}
+                <p className="text-xs text-tertiary mb-0.5">
+                  {t("Соединение", "Ulanish")}
                 </p>
                 <p className={`text-sm font-medium ${health?.healthy ? "text-success" : "text-danger"}`}>
                   {health?.healthy ? t("Активно", "Faol") : t("Неактивно", "Faol emas")}
@@ -169,8 +169,8 @@ ONEC_WEBHOOK_SECRET=your_secret`}
               </div>
             </div>
             <div className="p-3 rounded-lg" style={{ background: "var(--color-surface-light, #f6f4f0)" }}>
-              <p className="text-[10px] text-secondary tracking-wider mb-1">
-                {t("ПОСЛЕДНЯЯ СИНХРОНИЗАЦИЯ", "OXIRGI SINXRONIZATSIYA")}
+              <p className="text-xs text-tertiary mb-1">
+                {t("Последняя синхронизация", "Oxirgi sinxronizatsiya")}
               </p>
               <p className="text-sm font-medium text-primary">
                 {status?.lastProductSync
@@ -208,8 +208,18 @@ ONEC_WEBHOOK_SECRET=your_secret`}
                 </p>
                 {testConn.data.details && (
                   <p className="text-xs text-secondary mt-0.5">
-                    {t("Товары", "Mahsulotlar")}: {testConn.data.details.productsAccessible ? "✓" : "✗"} ·{" "}
-                    {t("Контрагенты", "Kontragentlar")}: {testConn.data.details.companiesAccessible ? "✓" : "✗"}
+                    <span className="inline-flex items-center gap-1 mr-2">
+                      {testConn.data.details.productsAccessible
+                        ? <Check size={13} strokeWidth={3} className="text-success" />
+                        : <X size={13} strokeWidth={3} className="text-danger" />}
+                      {t("Товары", "Mahsulotlar")}
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      {testConn.data.details.companiesAccessible
+                        ? <Check size={13} strokeWidth={3} className="text-success" />
+                        : <X size={13} strokeWidth={3} className="text-danger" />}
+                      {t("Контрагенты", "Kontragentlar")}
+                    </span>
                   </p>
                 )}
                 {"error" in testConn.data && testConn.data.error && (
