@@ -7,7 +7,7 @@ import { makeConditionEvaluator } from "./helpers/fake-conditions";
 
 // ── Mocks ───────────────────────────────────────────────────────────────────
 vi.mock("../queries/connection", () => ({ getDb: () => mockDb }));
-vi.mock("../lib/cache", () => ({ cache: { invalidate: vi.fn(), invalidatePrefix: vi.fn() } }));
+vi.mock("../lib/cache", () => ({ withCache: async (_k: string, _t: number, produce: () => unknown) => produce(), cache: { invalidate: vi.fn(), invalidatePrefix: vi.fn() } }));
 vi.mock("../lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 vi.mock("drizzle-orm", () => ({
   eq:  (col: unknown, val: unknown) => ({ __kind: "eq", col, val }),

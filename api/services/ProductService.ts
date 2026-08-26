@@ -7,7 +7,7 @@ import {
 } from "@db/schema";
 import { eq, like, and, sql, desc } from "drizzle-orm";
 import { sanitizeString, sanitizeSearch } from "../lib/sanitize";
-import { cache, CacheKeys, CacheTTL } from "../lib/cache";
+import { cache, withCache, CacheKeys, CacheTTL } from "../lib/cache";
 
 type DrizzleInstance = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -61,10 +61,8 @@ export const ProductService = {
     const pageSize = filters?.pageSize ?? 25;
     const offset = (page - 1) * pageSize;
 
-    const cacheKey = CacheKeys.productList(tenantId, page, filters?.search, filters?.category);
-    const cached = cache.get(cacheKey);
-    if (cached) return cached;
-
+    const cacheKey = CacheKeys.productList(tenantId, page, pageSize, filters?.search, filters?.category);
+    return withCache(cacheKey, CacheTTL.products, async () => {
     const conditions = [eq(products.tenantId, tenantId)];
     if (filters?.search) conditions.push(like(products.name, `%${sanitizeSearch(filters.search)}%`));
     if (filters?.category) conditions.push(eq(products.category, filters.category));
@@ -103,9 +101,8 @@ export const ProductService = {
       db.select({ count: sql<number>`count(*)` }).from(products).where(where),
     ]);
 
-    const result = { data, total: Number(countResult[0]?.count ?? 0), page, pageSize };
-    cache.set(cacheKey, result, CacheTTL.products);
-    return result;
+    return { data, total: Number(countResult[0]?.count ?? 0), page, pageSize };
+    });
   },
 
   async getById(db: DrizzleInstance, tenantId: number, productId: number) {

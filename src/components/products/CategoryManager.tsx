@@ -13,7 +13,11 @@ interface CategoryManagerProps {
 export function CategoryManager({ lang, onClose }: CategoryManagerProps) {
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const utils = trpc.useContext();
-  const { data: categories = [], isLoading } = trpc.product.categories.useQuery();
+  const { data: rawCategories = [], isLoading } = trpc.product.categories.useQuery();
+  // Колонка products.category допускает NULL, и он приезжает в список как
+  // пустая «категория». Переименовать или удалить её нельзя — нечего, — а
+  // раньше null молча уходил в состояние формы и в мутации.
+  const categories = rawCategories.filter((c): c is string => typeof c === "string" && c.length > 0);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);

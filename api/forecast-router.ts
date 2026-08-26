@@ -4,7 +4,7 @@ import { getDb } from "./queries/connection";
 import { orderItems, orders, products } from "@db/schema";
 import { eq, and, sql, gte, desc , inArray, isNull } from "drizzle-orm";
 import { REVENUE_ORDER_STATUSES } from "./lib/order-status";
-import { cache, CacheTTL } from "./lib/cache";
+import { withCache, CacheTTL } from "./lib/cache";
 import {
   simpleMovingAverage,
   exponentialSmoothing,
@@ -30,9 +30,7 @@ export const forecastRouter = createRouter({
     .query(async ({ input, ctx }) => {
       const tenantId = ctx.tenant.id;
       const cacheKey = `forecast:${tenantId}:${input.productId}:${input.horizon}:${input.method}`;
-      const cached = cache.get(cacheKey);
-      if (cached) return cached;
-
+      return withCache(cacheKey, CacheTTL.kpis, async () => {
       const demand = await getProductDemand(tenantId, input.productId, input.lookbackDays);
       if (demand.length < 7) {
         return { forecast: [], method: "none", message: "Недостаточно данных (мин. 7 дней)" };
@@ -55,9 +53,8 @@ export const forecastRouter = createRouter({
       }
 
       const seasonality = weeklySeasonality(demand);
-      const response = { ...result, seasonality, historicalPoints: demand.length };
-      cache.set(cacheKey, response, CacheTTL.kpis);
-      return response;
+      return { ...result, seasonality, historicalPoints: demand.length };
+      });
     }),
 
   /** Stockout predictions for all products */

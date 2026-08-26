@@ -206,6 +206,48 @@ class UnifiedCache {
 
 export const cache = new UnifiedCache();
 
+/**
+ * Отдать из кэша или посчитать и запомнить.
+ *
+ * ── Зачем понадобилось ──────────────────────────────────────────────────────
+ *
+ * Одиннадцать процедур писали одно и то же:
+ *
+ *     const cached = cache.get(cacheKey);
+ *     if (cached) return cached;
+ *     ...
+ *     cache.set(cacheKey, result, ttl);
+ *     return result;
+ *
+ * `cache.get<T>()` вызван без аргумента типа, выводить его не из чего, и T
+ * становится unknown. Процедура начинает возвращать unknown — а вместе с ней
+ * ломается вывод типов на клиенте: `trpc.branding.get.useQuery().data`
+ * схлопывается в `{}`, и КАЖДОЕ обращение к полю становится ошибкой
+ * компиляции. Отсюда 83 ошибки вида «Property … does not exist on type '{}'»
+ * и ещё 29 «неявный any» следом за ними: 112 из 136 накопленных ошибок растут
+ * из этих одиннадцати строк.
+ *
+ * Здесь T выводится из самой функции-производителя, поэтому называть его руками
+ * не нужно и забыть нельзя.
+ *
+ * ── Побочно исправлено ──────────────────────────────────────────────────────
+ *
+ * Проверка `if (cached)` считала промахом любое ложное значение: закэшированные
+ * ноль, пустая строка или false пересчитывались бы каждый раз. Сравнение с
+ * undefined отличает «нет в кэше» от «в кэше лежит ноль».
+ */
+export async function withCache<T>(
+  key: string,
+  ttlMs: number,
+  produce: () => Promise<T>,
+): Promise<T> {
+  const hit = cache.get<T>(key);
+  if (hit !== undefined) return hit;
+  const value = await produce();
+  cache.set(key, value, ttlMs);
+  return value;
+}
+
 export const CacheKeys = {
   tenantSettings: (tenantId: number) => `settings:${tenantId}`,
   tenantBranding: (tenantId: number) => `branding:${tenantId}`,

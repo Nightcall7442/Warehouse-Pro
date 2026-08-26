@@ -28,6 +28,7 @@ vi.mock("../lib/sse", () => ({
 vi.mock("../lib/cache", () => {
   const store = new Map<string, unknown>();
   return {
+    withCache: async (_k: string, _t: number, produce: () => unknown) => produce(),
     cache: {
       get: (key: string) => store.get(key),
       set: (key: string, val: unknown) => store.set(key, val),

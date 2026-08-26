@@ -8,6 +8,7 @@ import { asTestContext } from "./helpers/test-context";
 // ── Mocks ───────────────────────────────────────────────────────────────────
 vi.mock("../queries/connection", () => ({ getDb: () => mockDb }));
 vi.mock("../lib/cache", () => ({
+  withCache: async (_k: string, _t: number, produce: () => unknown) => produce(),
   cache: { invalidate: vi.fn(), invalidatePrefix: vi.fn(), get: vi.fn(), set: vi.fn() },
   CacheKeys: { shopCities: vi.fn(), shopDistricts: vi.fn() },
   CacheTTL: { shops: 30 },

@@ -24,6 +24,7 @@ vi.mock("../lib/rate-limit", async () => (await import("./helpers/rate-limit-moc
 vi.mock("../lib/sse", () => ({ sseBus: { emit: vi.fn() } }));
 vi.mock("../telegram-router", () => ({ notifyAdmin: vi.fn(async () => {}), tgMessages: { upgradeRequest: vi.fn(() => "mock") } }));
 vi.mock("../lib/cache", () => ({
+  withCache: async (_k: string, _t: number, produce: () => unknown) => produce(),
   cache: { get: () => undefined, set: () => {}, invalidate: () => {}, invalidatePrefix: () => {} },
   CacheKeys: { commissions: (t: number) => `commissions:${t}` },
   CacheTTL: { commissions: 60, kpis: 60 },
@@ -201,7 +202,7 @@ function makeDb() {
     function chain(rs: any[]): any {
       const p: any = Promise.resolve(rs);
       p.limit = (n: number) => chain(rs.slice(0, n));
-      p.orderBy = (...a: any[]) => {
+      p.orderBy = (..._a: any[]) => {
         // rows here are already projected; re-sort by the raw source instead
         const src = rows.filter(() => true);
         void src;

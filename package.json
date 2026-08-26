@@ -10,7 +10,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "start": "NODE_ENV=production node dist/boot.js",
-    "check": "tsc -b",
+    "check": "node scripts/typecheck.mjs",
     "format": "prettier --write .",
     "test": "vitest run --coverage",
     "test:e2e": "npx playwright test --config=e2e/playwright.config.ts",
@@ -21,7 +21,8 @@
     "db:seed": "npx tsx db/seed.ts",
     "db:push:dev-only": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "db:reset": "npx tsx db/clear.ts && npm run db:push:dev-only && npm run db:seed"
+    "db:reset": "npx tsx db/clear.ts && npm run db:push:dev-only && npm run db:seed",
+    "check:raw": "tsc -b"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.965.0",

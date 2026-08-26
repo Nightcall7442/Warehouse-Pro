@@ -58,9 +58,13 @@ export function getDb(): DrizzleInstance {
       ...(remote ? { ssl: { rejectUnauthorized: false } } : {}),
     });
 
-    // Log pool errors for debugging connection issues
-    pool.on("error", (err) => {
-      console.error("[DB Pool Error]", err.message);
+    // Обрыв соединения приходит событием "error" на пуле. mysql2 его в типах
+    // не описывает — декларация знает только "enqueue", — хотя в рантайме
+    // событие есть и ловит именно те падения, ради которых стоит логирование.
+    // Приведение к EventEmitter говорит об этом прямо, вместо того чтобы гасить
+    // ошибку типов приведением самого обработчика.
+    (pool as unknown as import("node:events").EventEmitter).on("error", (err: { message?: string }) => {
+      console.error("[DB Pool Error]", err?.message ?? String(err));
     });
 
     // NOTE: drizzle-orm's generic inference doesn't fully resolve when `schema`

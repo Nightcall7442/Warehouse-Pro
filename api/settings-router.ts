@@ -3,18 +3,15 @@ import { createRouter, adminQuery, authedQuery, publicQuery } from "./middleware
 import { getDb } from "./queries/connection";
 import { settings } from "@db/schema";
 import { eq } from "drizzle-orm";
-import { cache, CacheKeys, CacheTTL } from "./lib/cache";
+import { cache, withCache, CacheKeys, CacheTTL } from "./lib/cache";
 import { sanitizeString, isSafeUrl } from "./lib/sanitize";
 import { decimalOrDefault } from "./lib/zod-decimal";
 
 export const settingsRouter = createRouter({
   get: authedQuery.query(async ({ ctx }) => {
-    const cacheKey = CacheKeys.tenantSettings(ctx.tenant.id);
-    const cached = cache.get(cacheKey);
-    if (cached) return cached;
-
-    const [row] = await getDb().select({
-      id: settings.id, tenantId: settings.tenantId, companyName: settings.companyName,
+    return withCache(CacheKeys.tenantSettings(ctx.tenant.id), CacheTTL.settings, async () => {
+      const [row] = await getDb().select({
+        id: settings.id, tenantId: settings.tenantId, companyName: settings.companyName,
       currency: settings.currency, currencySymbol: settings.currencySymbol,
       symbolPosition: settings.symbolPosition, defaultReorderPoint: settings.defaultReorderPoint,
       lowStockThreshold: settings.lowStockThreshold, companyAddress: settings.companyAddress,
@@ -22,10 +19,9 @@ export const settingsRouter = createRouter({
       companyDirector: settings.companyDirector, companyBank: settings.companyBank,
       companyBankAccount: settings.companyBankAccount, companyMfo: settings.companyMfo,
       logoUrl: settings.logoUrl, createdAt: settings.createdAt, updatedAt: settings.updatedAt,
-    }).from(settings).where(eq(settings.tenantId, ctx.tenant.id)).limit(1);
-    const result = row ?? null;
-    cache.set(cacheKey, result, CacheTTL.settings);
-    return result;
+      }).from(settings).where(eq(settings.tenantId, ctx.tenant.id)).limit(1);
+      return row ?? null;
+    });
   }),
 
   // Branding endpoint — lightweight, cached, public (needed before login)
@@ -36,19 +32,15 @@ export const settingsRouter = createRouter({
 
   // Authenticated branding — returns tenant-specific branding
   brandingAuth: authedQuery.query(async ({ ctx }) => {
-    const cacheKey = CacheKeys.tenantSettings(ctx.tenant.id) + ":branding";
-    const cached = cache.get(cacheKey);
-    if (cached) return cached;
-
-    const [row] = await getDb().select({
-      companyName: settings.companyName,
-      logoUrl: settings.logoUrl,
-      currency: settings.currency,
-      currencySymbol: settings.currencySymbol,
-    }).from(settings).where(eq(settings.tenantId, ctx.tenant.id)).limit(1);
-    const result = row ?? { companyName: "Warehouse Pro", logoUrl: null, currency: "UZS", currencySymbol: "сум" };
-    cache.set(cacheKey, result, CacheTTL.branding);
-    return result;
+    return withCache(CacheKeys.tenantSettings(ctx.tenant.id) + ":branding", CacheTTL.branding, async () => {
+      const [row] = await getDb().select({
+        companyName: settings.companyName,
+        logoUrl: settings.logoUrl,
+        currency: settings.currency,
+        currencySymbol: settings.currencySymbol,
+      }).from(settings).where(eq(settings.tenantId, ctx.tenant.id)).limit(1);
+      return row ?? { companyName: "Warehouse Pro", logoUrl: null, currency: "UZS", currencySymbol: "сум" };
+    });
   }),
 
   update: adminQuery

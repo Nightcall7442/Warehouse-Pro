@@ -5,7 +5,7 @@ import { products, warehouseStock, stockMovements, warehouses } from "@db/schema
 import { eq, like, and, sql, desc } from "drizzle-orm";
 import { sanitizeString, sanitizeSearch } from "./lib/sanitize";
 import { decimalOrDefault } from "./lib/zod-decimal";
-import { cache, CacheKeys, CacheTTL } from "./lib/cache";
+import { cache, withCache, CacheKeys, CacheTTL } from "./lib/cache";
 import { photoRef } from "./lib/photo-url";
 import { ProductService } from "./services/ProductService";
 
@@ -26,9 +26,7 @@ export const productRouter = createRouter({
       const tenantId = ctx.tenant.id;
 
       const cacheKey = `products:${tenantId}:listAll:${input?.search ?? ""}:${input?.category ?? ""}`;
-      const cached = cache.get(cacheKey);
-      if (cached) return cached;
-
+      return withCache(cacheKey, CacheTTL.products, async () => {
       const warehouseId = await getDefaultWarehouseId(db, tenantId);
 
       const conditions = [eq(products.tenantId, tenantId), eq(products.status, "active")];
@@ -68,8 +66,8 @@ export const productRouter = createRouter({
         .orderBy(products.name)
         .limit(10000);
 
-      cache.set(cacheKey, data, CacheTTL.products);
       return data;
+      });
     }),
 
   list: fieldSalesQuery
@@ -97,9 +95,7 @@ export const productRouter = createRouter({
       const cacheKey = CacheKeys.productList(tenantId, page, pageSize, input?.search, input?.category)
         + (input?.includeAll ? ":all" : "")
         + (canSeeCost ? ":cost" : ":nocost");
-      const cached = cache.get(cacheKey);
-      if (cached) return cached;
-
+      return withCache(cacheKey, CacheTTL.products, async () => {
       const conditions = [eq(products.tenantId, tenantId)];
       if (!input?.includeAll) conditions.push(eq(products.status, "active"));
       if (input?.search)   conditions.push(like(products.name, `%${sanitizeSearch(input.search)}%`));
@@ -147,9 +143,8 @@ export const productRouter = createRouter({
         costPrice: canSeeCost ? row.costPrice : undefined,
       }));
 
-      const result = { data: visible, total: Number(countResult[0]?.count ?? 0), page, pageSize };
-      cache.set(cacheKey, result, CacheTTL.products);
-      return result;
+      return { data: visible, total: Number(countResult[0]?.count ?? 0), page, pageSize };
+      });
     }),
 
   getById: fieldSalesQuery

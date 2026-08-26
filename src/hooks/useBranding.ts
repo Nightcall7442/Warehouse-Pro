@@ -21,7 +21,6 @@ export function useBranding() {
 
     const primary = branding.primaryColor ?? "#5b6d8a";
     const secondary = branding.secondaryColor ?? "#4a5c78";
-    const accent = branding.accentColor ?? "#3b82f6";
 
     root.style.setProperty("--color-primary", primary);
     root.style.setProperty("--color-primary-hover", secondary);

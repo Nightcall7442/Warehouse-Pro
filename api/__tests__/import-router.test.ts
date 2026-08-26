@@ -14,6 +14,7 @@ vi.mock("drizzle-orm", () => {
 });
 
 vi.mock("../lib/cache", () => ({
+  withCache: async (_k: string, _t: number, produce: () => unknown) => produce(),
   cache: { get: () => undefined, set: () => {}, invalidate: () => {}, invalidatePrefix: vi.fn() },
   CacheKeys: { dashboardKpis: () => "", commissions: () => "" },
   CacheTTL: { commissions: 60 },

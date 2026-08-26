@@ -1,6 +1,6 @@
 import { notifications, warehouseStock, products, orders, dailyPlans, shops } from "@db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
-import { cache, CacheKeys, CacheTTL } from "../lib/cache";
+import { cache, withCache, CacheKeys, CacheTTL } from "../lib/cache";
 import { sseBus } from "../lib/sse";
 import { DEBT_NOTIFICATION_THRESHOLD } from "../lib/constants";
 import { logger } from "../lib/logger";
@@ -176,9 +176,7 @@ export const NotificationService = {
 
   async getSmartAlerts(db: Db, tenantId: number, userId: number) {
     const cacheKey = CacheKeys.smartAlerts(tenantId, userId);
-    const cached = cache.get(cacheKey);
-    if (cached) return cached;
-
+    return withCache(cacheKey, CacheTTL.alerts, async () => {
     const today = new Date().toISOString().split("T")[0];
     const alerts: Array<{ type: string; title: string; message: string; severity: "info" | "warning" | "danger" }> = [];
 
@@ -253,7 +251,7 @@ export const NotificationService = {
       });
     });
 
-    cache.set(cacheKey, alerts, CacheTTL.alerts);
     return alerts;
+    });
   },
 };

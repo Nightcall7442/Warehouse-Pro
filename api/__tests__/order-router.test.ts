@@ -8,6 +8,7 @@ vi.mock("../queries/connection", () => ({
 vi.mock("../lib/rate-limit", async () => (await import("./helpers/rate-limit-mock")).rateLimitMock());
 
 vi.mock("../lib/cache", () => ({
+  withCache: async (_k: string, _t: number, produce: () => unknown) => produce(),
   cache: { invalidate: vi.fn(), get: vi.fn(), set: vi.fn() },
   CacheKeys: { dashboardKpis: (id: number) => `dashboard:${id}` },
   CacheTTL: { settings: 300 },

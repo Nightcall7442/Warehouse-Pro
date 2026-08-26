@@ -6,7 +6,7 @@ import { eq, like, and, sql, desc } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { sanitizeString, sanitizeSearch } from "./lib/sanitize";
 import { PaymentService } from "./services/payment";
-import { cache, CacheKeys, CacheTTL } from "./lib/cache";
+import { cache, withCache, CacheKeys, CacheTTL } from "./lib/cache";
 import { parseLocationFromUrl } from "./lib/parse-location";
 import { haversineKm } from "./lib/geo";
 import { photoRef } from "./lib/photo-url";
@@ -85,9 +85,7 @@ export const shopRouter = createRouter({
       const sortBy   = input?.sortBy ?? "newest";
 
       const cacheKey = CacheKeys.shopList(tenantId, page, pageSize, input?.search, input?.city, input?.district, input?.agentId, input?.territoryId, input?.onlyDebtors, sortBy);
-      const cached = cache.get(cacheKey);
-      if (cached) return cached;
-
+      return withCache(cacheKey, CacheTTL.shops, async () => {
       const conditions = [eq(shops.tenantId, tenantId)];
       if (input?.search)   conditions.push(like(shops.name, `%${sanitizeSearch(input.search)}%`));
       if (input?.city)     conditions.push(eq(shops.city, input.city));
@@ -127,9 +125,8 @@ export const shopRouter = createRouter({
         db.select({ count: sql<number>`count(*)` }).from(shops).where(where),
       ]);
 
-      const result = { data, total: Number(countResult[0]?.count ?? 0), page, pageSize };
-      cache.set(cacheKey, result, CacheTTL.shops);
-      return result;
+      return { data, total: Number(countResult[0]?.count ?? 0), page, pageSize };
+      });
     }),
 
   getById: supervisorQuery

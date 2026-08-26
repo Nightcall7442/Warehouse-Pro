@@ -301,6 +301,11 @@ export const agentRouter = createRouter({
         notes: dailyPlans.notes, createdAt: dailyPlans.createdAt,
         shopName: shops.name, shopAddress: shops.address, shopDebt: shops.debt,
         shopCity: shops.city, agentName: users.name, shopId: dailyPlans.shopId,
+        // Без agentId экран супервайзера складывал планы ВСЕХ агентов в одну
+        // группу: он группирует по p.agentId, а поле не приезжало, и
+        // `p.agentId ?? 0` давало ноль для каждой строки. Заметить было нечем —
+        // вывод типов на клиенте был сломан и отдавал {} (см. lib/cache.ts).
+        agentId: dailyPlans.agentId,
       })
         .from(dailyPlans)
         .leftJoin(shops, eq(dailyPlans.shopId, shops.id))

@@ -193,22 +193,22 @@ function toDate(value: unknown): Date | null {
 
 export function formatOrdersForExport(orders: Record<string, unknown>[]) {
   return orders.map(o => ({
-    "Заказ №":   o.orderNumber,
+    "Заказ №":   String(o.orderNumber ?? ""),
     "Дата":      toDate(o.createdAt)?.toLocaleDateString("ru-RU") ?? "",
     "Магазин":   String(o.shopName ?? ""),
-    "Территория":o.territoryName ?? "",
+    "Территория":String(o.territoryName ?? ""),
     "Агент":     String(o.agentName ?? ""),
     "Status":    String(o.status ?? ""),
     "Сумма":     Number(o.subtotal ?? 0).toFixed(2),
     "Скидка":    Number(o.discount ?? 0).toFixed(2),
     "Total":     Number(o.total ?? 0).toFixed(2),
-    "Примечания":o.notes ?? "",
+    "Примечания":String(o.notes ?? ""),
   }));
 }
 
 export function formatArrivalsForExport(arrivals: Record<string, unknown>[]) {
   return arrivals.map(a => ({
-    "Приход №":      a.arrivalNumber,
+    "Приход №":      String(a.arrivalNumber ?? ""),
     "Дата":          toDate(a.arrivalDate)?.toLocaleDateString("ru-RU") ?? "",
     "Грузовик":      String(a.truckId ?? ""),
     "Водитель":      String(a.driverName ?? ""),
@@ -246,14 +246,14 @@ export function formatMovementsForExport(movements: Record<string, unknown>[]) {
     "Status":    String(m.type ?? ""),
     "Количество":Number(m.quantity ?? 0).toFixed(2),
     "Ссылка":    m.referenceType ? `${m.referenceType} #${m.referenceId}` : "",
-    "Примечания":m.notes ?? "",
+    "Примечания":String(m.notes ?? ""),
   }));
 }
 
 export function formatAgentsForExport(agents: Record<string, unknown>[], days: number) {
   return agents.map((a, i) => ({
     "№":       i + 1,
-    "Агент":   a.agentName ?? `Agent #${a.agentId}`,
+    "Агент":   String(a.agentName ?? `Agent #${a.agentId}`),
     "Визиты":  Number(a.visits),
     "Заказы":  Number(a.orders),
     "Total":   Number(a.revenue ?? 0).toFixed(2),

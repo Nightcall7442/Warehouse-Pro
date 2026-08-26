@@ -304,7 +304,7 @@ let mockDb: ReturnType<typeof makeMockDb>;
 vi.mock("../queries/connection", () => ({ getDb: () => mockDb }));
 
 const mockCache = { data: new Map<string, unknown>(), get(k: string) { return this.data.get(k); }, set(k: string, v: unknown) { this.data.set(k, v); }, delete(k: string) { this.data.delete(k); }, clear() { this.data.clear(); }, invalidatePrefix(prefix: string) { for (const k of this.data.keys()) { if (k.startsWith(prefix)) this.data.delete(k); } } };
-vi.mock("../lib/cache", () => ({ cache: mockCache, CacheKeys: { smartAlerts: (t: number, u: number) => `sa:${t}:${u}` }, CacheTTL: { shops: 60 } }));
+vi.mock("../lib/cache", () => ({ withCache: async (_k: string, _t: number, produce: () => unknown) => produce(), cache: mockCache, CacheKeys: { smartAlerts: (t: number, u: number) => `sa:${t}:${u}` }, CacheTTL: { shops: 60 } }));
 
 function makeCtx(tenantId: number, userId: number, role = "operator"): any {
   return {

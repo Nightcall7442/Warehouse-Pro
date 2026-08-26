@@ -14,8 +14,12 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm install --legacy-peer-deps
+      # ВАЖНО: не `tsc --noEmit`. Корневой tsconfig.json — solution-файл
+      # ("files": [] плюс references), и для него --noEmit компилирует пустой
+      # набор и выходит с нулём: шаг был зелёным, не проверяя ничего. Ссылки
+      # разворачивает только `tsc -b`, и он вызывается из скрипта с храповиком.
       - name: Type check
-        run: npx tsc --noEmit
+        run: npm run check
       - name: Lint
         run: npm run lint
       - name: Test

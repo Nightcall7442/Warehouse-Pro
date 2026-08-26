@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createRouter, fieldSalesQuery, supervisorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { calculateAgentKpi, calculateAllAgentsKpi, calculateSalary, getAgentList } from "./services/kpi";
-import { cache, CacheTTL } from "./lib/cache";
+import { withCache, CacheTTL } from "./lib/cache";
 import { shops, users } from "@db/schema";
 import { eq, and, sql } from "drizzle-orm";
 
@@ -17,12 +17,8 @@ export const kpiRouter = createRouter({
       const { periodStart, periodEnd } = getPeriod(period);
       const cacheKey = `kpi:agent:${ctx.tenant.id}:${ctx.user.id}:${period}`;
 
-      const cached = cache.get(cacheKey);
-      if (cached) return cached;
-
-      const result = await calculateAgentKpi(db, ctx.user.id, ctx.tenant.id, periodStart, periodEnd);
-      cache.set(cacheKey, result, CacheTTL.kpis);
-      return result;
+      return withCache(cacheKey, CacheTTL.kpis, () =>
+        calculateAgentKpi(db, ctx.user.id, ctx.tenant.id, periodStart, periodEnd));
     }),
 
   supervisorKpi: supervisorQuery
@@ -35,12 +31,8 @@ export const kpiRouter = createRouter({
       const { periodStart, periodEnd } = getPeriod(period);
       const cacheKey = `kpi:supervisor:${ctx.tenant.id}:${period}`;
 
-      const cached = cache.get(cacheKey);
-      if (cached) return cached;
-
-      const result = await calculateAllAgentsKpi(db, ctx.tenant.id, periodStart, periodEnd);
-      cache.set(cacheKey, result, CacheTTL.kpis);
-      return result;
+      return withCache(cacheKey, CacheTTL.kpis, () =>
+        calculateAllAgentsKpi(db, ctx.tenant.id, periodStart, periodEnd));
     }),
 
   agentList: supervisorQuery

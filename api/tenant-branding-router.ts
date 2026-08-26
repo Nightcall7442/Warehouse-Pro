@@ -3,7 +3,7 @@ import { createRouter, authedQuery, adminQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { tenantBranding } from "@db/schema";
 import { eq } from "drizzle-orm";
-import { cache, CacheKeys, CacheTTL } from "./lib/cache";
+import { cache, withCache, CacheKeys, CacheTTL } from "./lib/cache";
 import { sanitizeString, isSafeUrl } from "./lib/sanitize";
 
 function escapeCSS(value: string): string {
@@ -50,35 +50,30 @@ type BrandingRow = {
 export const tenantBrandingRouter = createRouter({
   /** Get branding for current tenant (cached) */
   get: authedQuery.query(async ({ ctx }) => {
-    const cacheKey = CacheKeys.tenantBranding(ctx.tenant.id);
-    const cached = cache.get(cacheKey);
-    if (cached) return cached;
+    return withCache(CacheKeys.tenantBranding(ctx.tenant.id), CacheTTL.branding, async () => {
+      const db = getDb();
+      const [row] = await db.select().from(tenantBranding)
+        .where(eq(tenantBranding.tenantId, ctx.tenant.id)).limit(1);
 
-    const db = getDb();
-    const [row] = await db.select().from(tenantBranding)
-      .where(eq(tenantBranding.tenantId, ctx.tenant.id)).limit(1);
-
-    const result = row ?? {
-      primaryColor:   "#5b6d8a",
-      secondaryColor: "#4a5c78",
-      accentColor:    "#3b82f6",
-      logoUrl:        null,
-      companyName:    null,
-      appName:        "Warehouse Pro",
-      supportEmail:   null,
-      supportPhone:   null,
-      customDomain:   null,
-      faviconUrl:     null,
-      loginTitle:     null,
-      loginSubtitle:  null,
-      footerText:     null,
-      mobileTheme:    "auto",
-      inn:            null,
-      legalAddress:   null,
-    };
-
-    cache.set(cacheKey, result, CacheTTL.branding);
-    return result;
+      return row ?? {
+        primaryColor:   "#5b6d8a",
+        secondaryColor: "#4a5c78",
+        accentColor:    "#3b82f6",
+        logoUrl:        null,
+        companyName:    null,
+        appName:        "Warehouse Pro",
+        supportEmail:   null,
+        supportPhone:   null,
+        customDomain:   null,
+        faviconUrl:     null,
+        loginTitle:     null,
+        loginSubtitle:  null,
+        footerText:     null,
+        mobileTheme:    "auto",
+        inn:            null,
+        legalAddress:   null,
+      };
+    });
   }),
 
   /** Get CSS variables for current tenant branding */
