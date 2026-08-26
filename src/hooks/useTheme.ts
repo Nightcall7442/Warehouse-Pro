@@ -26,6 +26,11 @@ function readInitial(): Theme {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored === "light" || stored === "dark") return stored;
   } catch { /* приватный режим — читать нечего */ }
+  // matchMedia есть не везде: его нет в некоторых встроенных webview и в
+  // тестовой среде. Обращение к нему на верхнем уровне модуля означало бы, что
+  // в такой среде приложение не загрузится вовсе — белый экран вместо темы по
+  // умолчанию.
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return "light";
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
