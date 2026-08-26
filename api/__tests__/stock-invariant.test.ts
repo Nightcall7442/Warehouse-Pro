@@ -109,4 +109,112 @@ describe("current_stock = available + reserved", () => {
     expect(columnsTouched(good)).toHaveLength(2);
     expect(columnsTouched(bad)).toEqual(["current_stock"]);
   });
+
+  /**
+   * Двух колонок мало, если одну ограничивают, а другую нет.
+   *
+   * Так и было в applyStockDelta:
+   *
+   *   SET reserved = GREATEST(0, reserved + d), available = available - d
+   *
+   * Колонки две, проверка выше довольна. Но пока d >= -reserved всё сходится, а
+   * как только ограничение срабатывает — reserved замирает на нуле, а available
+   * прибавляет всю величину d. Остаток становится больше физического, и система
+   * разрешает продать то, чего нет. Строка выглядит правдоподобной, ошибки нет,
+   * заметить нечем.
+   *
+   * Правило: если в SET есть GREATEST или LEAST, ограниченная величина должна
+   * входить и во вторую колонку — то есть встретиться в предложении дважды.
+   */
+  /**
+   * Места, где это ещё не исправлено.
+   *
+   * Список — храповик: он может только сокращаться. Новое выражение с
+   * односторонним ограничением уронит тест сразу, а старые ждут разбора,
+   * потому что правильная парная колонка у каждой операции своя: у отгрузки
+   * одна, у полного возврата другая, у частичного третья. Переписать их
+   * скопом, не разобрав каждую, значит поменять заметный баг на незаметный.
+   *
+   * Тот же приём, что у treatMissingColumnAsMatch в helpers/fake-conditions.ts:
+   * послабление записано явно, его видно при чтении и можно посчитать.
+   *
+   * Что именно ломается: пока ограничение не срабатывает, всё сходится. Как
+   * только срабатывает — ограниченная колонка замирает, парная меняется на
+   * полную величину, и current_stock = available + reserved разъезжается.
+   * Ошибки нет, строка выглядит правдоподобной, всплывает при инвентаризации.
+   * Ровно это описано в комментарии courier-router.ts:331.
+   */
+  const KNOWN_ONE_SIDED_CLAMPS = 8;
+
+  it("одностороннее ограничение не появляется в новых местах", () => {
+    const offenders: string[] = [];
+
+    for (const file of walkTypeScript(API_DIR)) {
+      const source = readFileSync(file, "utf8");
+      const rel = relative(API_DIR, file).split("\\").join("/");
+
+      for (const clause of [...rawUpdateClauses(source), ...builderUpdateClauses(source)]) {
+        const clamps = clause.match(/\b(?:GREATEST|LEAST)\s*\(/gi) ?? [];
+        if (clamps.length === 0) continue;
+        if (columnsTouched(clause).length < 2) continue; // это ловит проверка выше
+        // Ограничение, применённое к одной колонке, обязано быть учтено и во
+        // второй — а значит, встретиться в предложении минимум дважды.
+        if (clamps.length < 2) {
+          offenders.push(`${rel} — ${clause.replace(/\s+/g, " ").trim().slice(0, 110)}`);
+        }
+      }
+    }
+
+    expect(
+      offenders.length,
+      offenders.length <= KNOWN_ONE_SIDED_CLAMPS ? "" :
+        `Появилось новое выражение, где ограничение (GREATEST/LEAST) наложено на\n` +
+        `одну колонку остатка, а парная меняется на неограниченную величину.\n` +
+        `Как только ограничение сработает, current_stock = available + reserved\n` +
+        `разъедется молча. Найдено:\n` +
+        offenders.map(o => `  - ${o}`).join("\n"),
+    ).toBeLessThanOrEqual(KNOWN_ONE_SIDED_CLAMPS);
+
+    // Храповик крутится только в одну сторону: починили — уменьшите число.
+    expect(
+      offenders.length,
+      `Односторонних ограничений стало меньше (${offenders.length} вместо ` +
+      `${KNOWN_ONE_SIDED_CLAMPS}) — уменьшите KNOWN_ONE_SIDED_CLAMPS, чтобы ` +
+      `храповик не дал им вернуться.`,
+    ).toBe(KNOWN_ONE_SIDED_CLAMPS);
+  });
+
+  /**
+   * Порядок присвоений в SET — несущий, а не косметика.
+   *
+   * MySQL вычисляет присвоения слева направо и в правых частях видит уже
+   * ОБНОВЛЁННЫЕ значения предыдущих колонок. Поэтому available, считающий
+   * разницу через reserved, обязан стоять ДО reserved: иначе разница
+   * посчитается от самой себя и выйдет нулём — резерв изменится, а доступный
+   * остаток нет.
+   */
+  it("available считается раньше reserved там, где зависит от него", () => {
+    const offenders: string[] = [];
+
+    for (const file of walkTypeScript(API_DIR)) {
+      const source = readFileSync(file, "utf8");
+      const rel = relative(API_DIR, file).split("\\").join("/");
+
+      for (const clause of rawUpdateClauses(source)) {
+        const availableAt = clause.search(/\bavailable\s*=/i);
+        const reservedAt = clause.search(/\breserved\s*=/i);
+        if (availableAt === -1 || reservedAt === -1) continue;
+
+        // Правая часть available упоминает reserved — значит зависит от него.
+        const availableExpr = clause.slice(availableAt).split("\n")[0];
+        if (!/\breserved\b/i.test(availableExpr)) continue;
+
+        if (availableAt > reservedAt) {
+          offenders.push(`${rel} — available присваивается после reserved, хотя зависит от него`);
+        }
+      }
+    }
+
+    expect(offenders).toEqual([]);
+  });
 });

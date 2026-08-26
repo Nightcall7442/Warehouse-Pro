@@ -283,18 +283,45 @@ async function applyStockDelta(
   if (delta === 0 || mode === "none") return;
 
   if (mode === "reserve") {
-    if (delta > 0) {
-      const [stock] = await tx.select({ available: warehouseStock.available })
-        .from(warehouseStock)
-        .where(and(eq(warehouseStock.productId, productId), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, warehouseId)))
-        .limit(1);
-      if (Number(stock?.available ?? 0) < delta) {
-        throw new Error(`Недостаточно товара на складе (товар ID ${productId}: доступно ${Number(stock?.available ?? 0)}, нужно +${delta})`);
-      }
+    const [stock] = await tx.select({ available: warehouseStock.available })
+      .from(warehouseStock)
+      .where(and(eq(warehouseStock.productId, productId), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, warehouseId)))
+      .limit(1);
+
+    // Нет строки склада — писать некуда, и UPDATE ниже не задел бы ни одной.
+    // При уменьшении позиции это проходило незамеченным: состав заказа менялся,
+    // склад — нет.
+    if (!stock) {
+      throw new Error(`Нет строки склада для товара ID ${productId} на складе ${warehouseId}`);
     }
+    if (delta > 0 && Number(stock.available) < delta) {
+      throw new Error(`Недостаточно товара на складе (товар ID ${productId}: доступно ${Number(stock.available)}, нужно +${delta})`);
+    }
+
+    // Ограничение снизу применяется к ОБЕИМ колонкам, иначе инвариант
+    // current_stock = available + reserved разъезжается молча.
+    //
+    // Было: `reserved = GREATEST(0, reserved + delta), available = available - delta`.
+    // Пока reserved + delta >= 0, всё сходится. Но как только ограничение
+    // срабатывает — а срабатывает оно, когда позицию уменьшают на больше, чем
+    // реально зарезервировано, — reserved останавливается на нуле, а available
+    // прибавляет всю величину delta. Остаток становится больше физического, и
+    // система разрешает продать то, чего нет. Ошибки при этом не будет: строка
+    // выглядит правдоподобной, а инвариант не проверяет никто.
+    //
+    // Считается фактически применённое изменение: GREATEST(0, reserved + delta)
+    // − reserved. В обычном случае это ровно delta, при ограничении — только
+    // то, что действительно было зарезервировано. available двигается на ту же
+    // величину, и равенство сохраняется.
+    //
+    // ПОРЯДОК ПРИСВОЕНИЙ НЕСУЩИЙ. MySQL вычисляет SET слева направо и в правых
+    // частях видит уже ОБНОВЛЁННЫЕ значения предыдущих колонок. Поэтому
+    // available считается первым, пока reserved ещё хранит старое значение;
+    // поменяй их местами — разница посчитается от самой себя и выйдет нулём.
     await tx.execute(sql`
       UPDATE warehouse_stock
-      SET reserved = GREATEST(0, reserved + ${delta}), available = available - ${delta}
+      SET available = available - (GREATEST(0, reserved + ${delta}) - reserved),
+          reserved  = GREATEST(0, reserved + ${delta})
       WHERE product_id = ${productId} AND tenant_id = ${tenantId} AND warehouse_id = ${warehouseId}
     `);
     return;
