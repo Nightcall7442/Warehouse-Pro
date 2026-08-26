@@ -16,7 +16,7 @@ export const territoryRouter = createRouter({
       centerLng: territories.centerLng,
       radiusKm: territories.radiusKm,
       shopCount: sql<number>`count(${shops.id})`,
-      totalDebt: sql<string>`COALESCE(SUM(CAST(${shops.debt} AS DECIMAL)), 0)`,
+      totalDebt: sql<string>`COALESCE(SUM(CAST(${shops.debt} AS DECIMAL(15,2))), 0)`,
     })
       .from(territories)
       .leftJoin(shops, eq(territories.id, shops.territoryId))

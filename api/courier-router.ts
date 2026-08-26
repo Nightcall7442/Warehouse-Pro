@@ -23,7 +23,7 @@ export const courierRouter = createRouter({
         deliveryStatus: orders.deliveryStatus,
         total: orders.total,
         totalWeightKg: sql<string>`COALESCE((
-          SELECT SUM(CAST(oi.quantity AS DECIMAL) * CAST(COALESCE(p.unit_weight, '1') AS DECIMAL))
+          SELECT SUM(CAST(oi.quantity AS DECIMAL(15,3)) * CAST(COALESCE(p.unit_weight, '1') AS DECIMAL(15,3)))
           FROM ${orderItems} oi
           LEFT JOIN ${products} p ON p.id = oi.product_id
           WHERE oi.order_id = ${orders.id}
@@ -53,7 +53,7 @@ export const courierRouter = createRouter({
       deliveryStatus: orders.deliveryStatus,
       total: orders.total,
       totalWeightKg: sql<string>`COALESCE((
-        SELECT SUM(CAST(oi.quantity AS DECIMAL) * CAST(COALESCE(p.unit_weight, '1') AS DECIMAL))
+        SELECT SUM(CAST(oi.quantity AS DECIMAL(15,3)) * CAST(COALESCE(p.unit_weight, '1') AS DECIMAL(15,3)))
         FROM ${orderItems} oi
         LEFT JOIN ${products} p ON p.id = oi.product_id
         WHERE oi.order_id = ${orders.id}

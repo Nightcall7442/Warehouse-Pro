@@ -50,7 +50,7 @@ export const shopRouter = createRouter({
       name: territories.name,
       color: territories.color,
       shopCount: sql<number>`count(${shops.id})`,
-      totalDebt: sql<string>`COALESCE(SUM(CAST(${shops.debt} AS DECIMAL)), 0)`,
+      totalDebt: sql<string>`COALESCE(SUM(CAST(${shops.debt} AS DECIMAL(15,2))), 0)`,
     })
       .from(territories)
       .leftJoin(shops, and(eq(territories.id, shops.territoryId), eq(shops.tenantId, ctx.tenant.id)))
@@ -92,11 +92,11 @@ export const shopRouter = createRouter({
       if (input?.district) conditions.push(eq(shops.district, input.district));
       if (input?.agentId)    conditions.push(eq(shops.agentId, input.agentId));
       if (input?.territoryId) conditions.push(eq(shops.territoryId, input.territoryId));
-      if (input?.onlyDebtors) conditions.push(sql`CAST(${shops.debt} AS DECIMAL) > 0`);
+      if (input?.onlyDebtors) conditions.push(sql`CAST(${shops.debt} AS DECIMAL(15,2)) > 0`);
       const where = and(...conditions);
 
-      const orderBy = sortBy === "debtDesc" ? desc(sql`CAST(${shops.debt} AS DECIMAL)`)
-        : sortBy === "debtAsc" ? sql`CAST(${shops.debt} AS DECIMAL) ASC`
+      const orderBy = sortBy === "debtDesc" ? desc(sql`CAST(${shops.debt} AS DECIMAL(15,2))`)
+        : sortBy === "debtAsc" ? sql`CAST(${shops.debt} AS DECIMAL(15,2)) ASC`
         : desc(shops.createdAt);
 
       const [data, countResult] = await Promise.all([
@@ -428,7 +428,7 @@ export const shopRouter = createRouter({
     })
       .from(shops).leftJoin(users, and(eq(shops.agentId, users.id), eq(users.tenantId, ctx.tenant.id)))
       .where(and(eq(shops.tenantId, ctx.tenant.id), sql`${shops.debt} != 0`))
-      .orderBy(desc(sql`CAST(${shops.debt} AS DECIMAL)`));
+      .orderBy(desc(sql`CAST(${shops.debt} AS DECIMAL(15,2))`));
   }),
 
   /** Delete ALL shops for this tenant */

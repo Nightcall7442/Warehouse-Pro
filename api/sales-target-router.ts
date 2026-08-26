@@ -199,7 +199,7 @@ export const salesTargetRouter = createRouter({
 
         // Revenue + order count
         const [orderStats] = await db.select({
-          total: sql<string>`COALESCE(SUM(CAST(${orders.total} AS DECIMAL(14,2))), 0)`,
+          total: sql<string>`COALESCE(SUM(CAST(${orders.total} AS DECIMAL(15,2))), 0)`,
           count: sql<string>`COUNT(*)`,
         }).from(orders).where(and(...conditions));
 
@@ -290,7 +290,7 @@ export const salesTargetRouter = createRouter({
 
       const [[orderStats], [visitStats]] = await Promise.all([
         db.select({
-          total: sql<string>`COALESCE(SUM(CAST(${orders.total} AS DECIMAL(14,2))), 0)`,
+          total: sql<string>`COALESCE(SUM(CAST(${orders.total} AS DECIMAL(15,2))), 0)`,
           count: sql<string>`COUNT(*)`,
         }).from(orders).where(and(...orderConditions)),
         db.select({

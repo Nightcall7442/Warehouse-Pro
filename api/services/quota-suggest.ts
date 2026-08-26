@@ -51,7 +51,7 @@ export async function suggestQuotas(
   for (const agent of agents) {
     const monthlyRevenue = await db.select({
       month: sql<string>`DATE_FORMAT(${orders.createdAt}, '%Y-%m-01')`,
-      total: sql<string>`COALESCE(SUM(CAST(${orders.total} AS DECIMAL(14,2))), 0)`,
+      total: sql<string>`COALESCE(SUM(CAST(${orders.total} AS DECIMAL(15,2))), 0)`,
     }).from(orders)
       .where(and(
         eq(orders.tenantId, tenantId), isNull(orders.deletedAt),

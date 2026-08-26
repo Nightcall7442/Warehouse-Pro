@@ -130,7 +130,7 @@ export async function calculateAgentKpi(
 
   const [orderStats] = preloadedKpis?.orderCount != null ? [{ count: preloadedKpis.orderCount, revenue: preloadedKpis.revenue }] : await db.select({
     count: sql<number>`count(*)`,
-    revenue: sql<string>`COALESCE(SUM(CAST(total AS DECIMAL(10,2))), 0)`,
+    revenue: sql<string>`COALESCE(SUM(CAST(total AS DECIMAL(15,2))), 0)`,
   }).from(orders)
     .where(and(
       eq(orders.tenantId, tenantId),
@@ -193,7 +193,7 @@ export async function calculateAgentKpi(
   const deliverySuccessRate = deliveryCount > 0 ? Math.round((deliveredCount / deliveryCount) * 100) : 0;
 
   const [cashStats] = preloadedKpis?.cashCollected != null ? [{ total: preloadedKpis.cashCollected }] : await db.select({
-    total: sql<string>`COALESCE(SUM(CAST(amount AS DECIMAL(12,2))), 0)`,
+    total: sql<string>`COALESCE(SUM(CAST(amount AS DECIMAL(15,2))), 0)`,
   }).from(payments)
     .where(and(
       eq(payments.tenantId, tenantId),
@@ -207,7 +207,7 @@ export async function calculateAgentKpi(
 
   const [shopStats] = preloadedKpis?.assignedShops != null ? [{ count: preloadedKpis.assignedShops, totalDebt: preloadedKpis.totalDebt }] : await db.select({
     count: sql<number>`count(*)`,
-    totalDebt: sql<string>`COALESCE(SUM(CAST(debt AS DECIMAL(10,2))), 0)`,
+    totalDebt: sql<string>`COALESCE(SUM(CAST(debt AS DECIMAL(15,2))), 0)`,
   }).from(shops)
     .where(and(
       eq(shops.tenantId, tenantId),
@@ -381,7 +381,7 @@ export async function calculateSalary(
   const commissionRate = Number(commissionRecord?.commissionRate ?? 0);
 
   const [salesStats] = await db.select({
-    salesAmount: sql<string>`COALESCE(SUM(CAST(total AS DECIMAL(10,2))), 0)`,
+    salesAmount: sql<string>`COALESCE(SUM(CAST(total AS DECIMAL(15,2))), 0)`,
   }).from(orders)
     .where(and(
       eq(orders.tenantId, tenantId),
@@ -583,7 +583,7 @@ export async function getAgentList(
     db.select({
       agentId: orders.agentId,
       orderCount: sql<number>`count(*)`,
-      revenue: sql<string>`COALESCE(SUM(CAST(total AS DECIMAL(10,2))), 0)`,
+      revenue: sql<string>`COALESCE(SUM(CAST(total AS DECIMAL(15,2))), 0)`,
     }).from(orders)
       .where(and(
         // Через тот же помощник, что и карточка агента: он несёт и фильтр
@@ -634,7 +634,7 @@ export async function getAgentList(
     // Shop debt per agent
     db.select({
       agentId: shops.agentId,
-      totalDebt: sql<string>`COALESCE(SUM(CAST(${shops.debt} AS DECIMAL)), 0)`,
+      totalDebt: sql<string>`COALESCE(SUM(CAST(${shops.debt} AS DECIMAL(15,2))), 0)`,
     }).from(shops)
       .where(and(
         eq(shops.tenantId, tenantId),

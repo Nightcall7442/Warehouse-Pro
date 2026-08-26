@@ -96,8 +96,8 @@ export const forecastRouter = createRouter({
 
       const rows = await db.select({
         date: sql<string>`DATE(${orders.createdAt})`,
-        quantity: sql<string>`SUM(CAST(${orderItems.quantity} AS DECIMAL))`,
-        revenue: sql<string>`SUM(CAST(${orderItems.subtotal} AS DECIMAL))`,
+        quantity: sql<string>`SUM(CAST(${orderItems.quantity} AS DECIMAL(15,3)))`,
+        revenue: sql<string>`SUM(CAST(${orderItems.subtotal} AS DECIMAL(15,2)))`,
       })
         .from(orderItems)
         .innerJoin(orders, eq(orderItems.orderId, orders.id))
@@ -139,8 +139,8 @@ export const forecastRouter = createRouter({
         productId: orderItems.productId,
         productName: products.name,
         productCode: products.code,
-        totalQty: sql<string>`SUM(CAST(${orderItems.quantity} AS DECIMAL))`,
-        totalRevenue: sql<string>`SUM(CAST(${orderItems.subtotal} AS DECIMAL))`,
+        totalQty: sql<string>`SUM(CAST(${orderItems.quantity} AS DECIMAL(15,3)))`,
+        totalRevenue: sql<string>`SUM(CAST(${orderItems.subtotal} AS DECIMAL(15,2)))`,
         orderCount: sql<number>`COUNT(DISTINCT ${orders.id})`,
       })
         .from(orderItems)
@@ -152,7 +152,7 @@ export const forecastRouter = createRouter({
           gte(orders.createdAt, startDate),
         ))
         .groupBy(orderItems.productId, products.name, products.code)
-        .orderBy(desc(sql`SUM(CAST(${orderItems.quantity} AS DECIMAL))`))
+        .orderBy(desc(sql`SUM(CAST(${orderItems.quantity} AS DECIMAL(15,3)))`))
         .limit(10);
 
       return rows.map(r => ({

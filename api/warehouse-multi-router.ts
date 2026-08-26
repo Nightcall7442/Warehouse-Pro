@@ -123,8 +123,8 @@ export const warehouseMultiRouter = createRouter({
 
       const summaryQuery = sql`
         SELECT COUNT(*) AS totalSKUs,
-               COALESCE(SUM(CAST(COALESCE(ws.current_stock, '0') AS DECIMAL) * CAST(COALESCE(p.unit_weight, '0') AS DECIMAL)), 0) AS totalWeight,
-               COUNT(CASE WHEN CAST(COALESCE(ws.available, '0') AS DECIMAL) < CAST(p.reorder_point AS DECIMAL) THEN 1 END) AS lowStockCount
+               COALESCE(SUM(CAST(COALESCE(ws.current_stock, '0') AS DECIMAL(15,3)) * CAST(COALESCE(p.unit_weight, '0') AS DECIMAL(15,3))), 0) AS totalWeight,
+               COUNT(CASE WHEN CAST(COALESCE(ws.available, '0') AS DECIMAL(15,3)) < CAST(p.reorder_point AS DECIMAL(15,3)) THEN 1 END) AS lowStockCount
         FROM products p
         LEFT JOIN warehouse_stock ws ON ws.product_id = p.id AND ws.tenant_id = p.tenant_id ${warehouseCondition}
         WHERE p.tenant_id = ${tenantId} AND p.status = 'active' ${searchCondition}

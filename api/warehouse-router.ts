@@ -58,7 +58,7 @@ export const warehouseRouter = createRouter({
           .from(warehouseStock).leftJoin(products, eq(warehouseStock.productId, products.id)).where(where),
         db.select({
           totalSKUs:     sql<number>`count(*)`,
-          totalWeight:   sql<string>`COALESCE(SUM(CAST(${warehouseStock.currentStock} AS DECIMAL) * CAST(COALESCE(${products.unitWeight}, '0') AS DECIMAL)), 0)`,
+          totalWeight:   sql<string>`COALESCE(SUM(CAST(${warehouseStock.currentStock} AS DECIMAL(15,3)) * CAST(COALESCE(${products.unitWeight}, '0') AS DECIMAL(15,3))), 0)`,
           lowStockCount: sql<number>`count(CASE WHEN ${warehouseStock.available} < ${products.reorderPoint} THEN 1 END)`,
         }).from(warehouseStock).leftJoin(products, eq(warehouseStock.productId, products.id)).where(where),
       ]);

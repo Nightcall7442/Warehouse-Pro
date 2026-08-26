@@ -195,7 +195,7 @@ export const analyticsRouter = createRouter({
       })
         .from(shops).leftJoin(users, eq(shops.agentId, users.id))
         .where(and(...conditions))
-        .orderBy(desc(sql`CAST(${shops.debt} AS DECIMAL)`));
+        .orderBy(desc(sql`CAST(${shops.debt} AS DECIMAL(15,2))`));
     }),
 
   // ── Agent Efficiency ────────────────────────────────────────────────────────

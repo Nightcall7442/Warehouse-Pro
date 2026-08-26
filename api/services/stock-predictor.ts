@@ -49,7 +49,7 @@ export async function getProductDemand(
 
   const rows = await db.select({
     date: sql<string>`DATE(${orders.createdAt})`,
-    quantity: sql<string>`SUM(CAST(${orderItems.quantity} AS DECIMAL))`,
+    quantity: sql<string>`SUM(CAST(${orderItems.quantity} AS DECIMAL(15,3)))`,
   })
     .from(orderItems)
     .innerJoin(orders, eq(orderItems.orderId, orders.id))
@@ -125,7 +125,7 @@ export async function predictStockouts(
 
     // Get pending arrivals
     const pendingRows = await db.select({
-      total: sql<string>`SUM(CAST(${arrivalItems.quantity} AS DECIMAL))`,
+      total: sql<string>`SUM(CAST(${arrivalItems.quantity} AS DECIMAL(15,3)))`,
     })
       .from(arrivalItems)
       .innerJoin(arrivals, eq(arrivalItems.arrivalId, arrivals.id))

@@ -45,7 +45,7 @@ export const orderRouter = createRouter({
 
       const [result] = await db.select({
         total: sql<number>`count(*)`,
-        totalRevenue: sql<number>`COALESCE(SUM(CAST(${orders.total} AS DECIMAL)), 0)`,
+        totalRevenue: sql<number>`COALESCE(SUM(CAST(${orders.total} AS DECIMAL(15,2))), 0)`,
       }).from(orders)
         .leftJoin(shops, eq(orders.shopId, shops.id))
         .where(and(...conditions));

@@ -208,7 +208,7 @@ export const NotificationService = {
       })
         .from(shops)
         .where(and(eq(shops.tenantId, tenantId), sql`${shops.debt} > ${DEBT_NOTIFICATION_THRESHOLD}`))
-        .orderBy(desc(sql`CAST(${shops.debt} AS DECIMAL)`))
+        .orderBy(desc(sql`CAST(${shops.debt} AS DECIMAL(15,2))`))
         .limit(3),
     ]);
 
