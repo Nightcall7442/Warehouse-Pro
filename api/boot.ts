@@ -355,7 +355,7 @@ app.get("/api/events", async (c) => {
 import * as cookie from "cookie";
 import { Session } from "@contracts/constants";
 import { verifyPassword } from "./auth/password";
-import { findUserByEmailAnyTenant, updateUserLastSignIn } from "./queries/users";
+import { findUsersByEmailAnyTenant, updateUserLastSignIn } from "./queries/users";
 import { findTenantById } from "./queries/tenants";
 import { signSessionToken } from "./auth/session";
 import { checkRateLimit, rateLimitSubject } from "./lib/rate-limit";
@@ -364,7 +364,10 @@ const LOGIN_RATE_LIMIT = { windowMs: 15 * 60 * 1000, limit: 20, namespace: "logi
 
 app.post("/api/login", async (c) => {
   try {
-    const { email, password } = await c.req.json();
+    // tenantId необязателен и нужен только для одного случая: адрес и пароль
+    // совпали сразу в нескольких организациях. Тогда первый запрос отвечает
+    // 409 со списком, а клиент повторяет его с выбранной организацией.
+    const { email, password, tenantId: tenantIdFromBody } = await c.req.json();
     if (!email || !password) return c.json({ error: "Email and password required" }, 400);
 
     // Per account, read after the body so the address is available. Brute force
@@ -377,16 +380,68 @@ app.post("/api/login", async (c) => {
       return c.json({ error: "Too many login attempts. Please try again in 15 minutes." }, 429);
     }
 
-    const user = await findUserByEmailAnyTenant(email);
-    const dummyHash = "pbkdf2$100000$00000000000000000000000000000000$" + "0".repeat(128);
-    const valid = user?.passwordHash
-      ? await verifyPassword(password, user.passwordHash)
-      : await verifyPassword(password, dummyHash).then(() => false);
-
     const GENERIC_AUTH_ERROR = "Неверный email или пароль";
+    const dummyHash = "pbkdf2$100000$00000000000000000000000000000000$" + "0".repeat(128);
 
-    if (!user || !valid) return c.json({ error: GENERIC_AUTH_ERROR }, 401);
-    if (user.status !== "active") return c.json({ error: GENERIC_AUTH_ERROR }, 401);
+    // Один адрес может принадлежать разным организациям — схема это прямо
+    // разрешает (uq_user_email_tenant по паре email + tenant_id). Раньше вход
+    // брал запись с наименьшим id и сверял пароль только с ней, поэтому второй
+    // человек с тем же адресом не мог войти НИКОГДА: его правильный пароль
+    // сверялся с чужим хешем. Сброс пароля не помогал, и со стороны это
+    // выглядело как необъяснимая поломка учётной записи.
+    //
+    // Теперь пароль сверяется со всеми кандидатами. У разных людей пароли
+    // разные, поэтому почти всегда подойдёт ровно один — и вход проходит так
+    // же незаметно, как раньше.
+    const candidates = await findUsersByEmailAnyTenant(email);
+
+    // Ни одной записи — всё равно считаем один хеш. Без этого ответ по
+    // несуществующему адресу приходил бы заметно быстрее, чем по существующему,
+    // и перебором можно было бы узнать, кто здесь зарегистрирован.
+    if (candidates.length === 0) {
+      await verifyPassword(password, dummyHash);
+      return c.json({ error: GENERIC_AUTH_ERROR }, 401);
+    }
+
+    const matched: typeof candidates = [];
+    for (const candidate of candidates) {
+      if (candidate.passwordHash && await verifyPassword(password, candidate.passwordHash)) {
+        matched.push(candidate);
+      }
+    }
+    if (matched.length === 0) return c.json({ error: GENERIC_AUTH_ERROR }, 401);
+
+    // Отключённые записи отсеиваются уже после сверки пароля: ответ на
+    // отключённую запись должен приходить за то же время, что и на живую.
+    // Заодно они не попадают в список организаций ниже — предлагать выбрать
+    // ту, куда всё равно не пустят, незачем.
+    const usable = matched.filter(u => u.status === "active");
+    if (usable.length === 0) return c.json({ error: GENERIC_AUTH_ERROR }, 401);
+
+    // Пароль подошёл к нескольким организациям сразу — то есть человек завёл
+    // один адрес и один пароль в двух местах. Выбрать за него нельзя: любой
+    // выбор молча пустит не туда, а данные там разные.
+    //
+    // Организации называются в ответе, потому что владение паролем к каждой из
+    // них уже доказано — скрывать от человека список его собственных
+    // организаций незачем. Клиент повторяет запрос, добавив tenantId.
+    let user = usable[0];
+    if (usable.length > 1) {
+      const wanted = Number(tenantIdFromBody ?? NaN);
+      const chosen = usable.find(u => u.tenantId === wanted);
+      if (!chosen) {
+        const orgs = await Promise.all(usable.map(async u => {
+          const t = await findTenantById(u.tenantId);
+          return { tenantId: u.tenantId, name: t?.name ?? `Организация #${u.tenantId}` };
+        }));
+        return c.json({
+          error: "Этот адрес используется в нескольких организациях. Выберите нужную.",
+          code: "TENANT_REQUIRED",
+          organizations: orgs,
+        }, 409);
+      }
+      user = chosen;
+    }
 
     const tenant = await findTenantById(user.tenantId);
     if (!tenant || tenant.status !== "active") return c.json({ error: GENERIC_AUTH_ERROR }, 401);

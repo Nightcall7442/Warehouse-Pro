@@ -6,6 +6,8 @@ import { Eye, EyeOff, Loader2, Mail, Lock, AlertCircle } from "lucide-react";
 import { useLang } from "@/i18n";
 import { ROLE_ROUTES } from "@/const";
 
+type Organization = { tenantId: number; name: string };
+
 const F = { display: "'Inter', -apple-system, system-ui, sans-serif", body: "'Inter', -apple-system, system-ui, sans-serif" };
 
 export default function Login() {
@@ -16,6 +18,10 @@ export default function Login() {
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState("");
   const [isPending, setIsPending] = useState(false);
+  // Один адрес может быть заведён в нескольких организациях. Если пароль
+  // подошёл сразу к нескольким, сервер отвечает 409 и называет их — выбрать
+  // за человека нельзя, данные в этих организациях разные.
+  const [orgChoice, setOrgChoice] = useState<{ message: string; organizations: Organization[] } | null>(null);
 
   const { user, isLoading } = useAuth();
   const navigate = useNavigate();
@@ -27,8 +33,7 @@ export default function Login() {
     }
   }, [user, isLoading, navigate]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submit = async (tenantId?: number) => {
     setError("");
     if (!email || !password) { setError(t("auth.login.fillAll")); return; }
 
@@ -38,9 +43,13 @@ export default function Login() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify(tenantId === undefined ? { email, password } : { email, password, tenantId }),
       });
       const data = await res.json();
+      if (res.status === 409 && data.code === "TENANT_REQUIRED") {
+        setOrgChoice({ message: data.error, organizations: data.organizations ?? [] });
+        return;
+      }
       if (!res.ok) throw new Error(data.error || "Login failed");
       window.location.replace("/");
     } catch (err) {
@@ -48,6 +57,11 @@ export default function Login() {
     } finally {
       setIsPending(false);
     }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    void submit();
   };
 
   if (isLoading) return null;
@@ -188,7 +202,7 @@ export default function Login() {
                     }}
                     placeholder="you@company.com"
                     value={email}
-                    onChange={e => setEmail(e.target.value)}
+                    onChange={e => { setEmail(e.target.value); setOrgChoice(null); }}
                     autoComplete="email"
                     disabled={isPending}
                   />
@@ -216,7 +230,7 @@ export default function Login() {
                     }}
                     placeholder="••••••••"
                     value={password}
-                    onChange={e => setPassword(e.target.value)}
+                    onChange={e => { setPassword(e.target.value); setOrgChoice(null); }}
                     autoComplete="current-password"
                     disabled={isPending}
                   />
@@ -246,6 +260,33 @@ export default function Login() {
                   {t("auth.login.forgotPassword")}
                 </Link>
               </div>
+
+              {/* Выбор организации */}
+              {orgChoice && (
+                <div style={{
+                  padding: "12px 14px", borderRadius: 10,
+                  background: "#eef2ff", border: "1px solid #c7d2fe",
+                  display: "flex", flexDirection: "column", gap: 8,
+                }}>
+                  <span style={{ fontSize: "13px", fontWeight: 500, color: "#3730a3" }}>{orgChoice.message}</span>
+                  {orgChoice.organizations.map(org => (
+                    <button
+                      key={org.tenantId}
+                      type="button"
+                      disabled={isPending}
+                      onClick={() => void submit(org.tenantId)}
+                      style={{
+                        padding: "10px 14px", borderRadius: 8, textAlign: "left",
+                        fontSize: "14px", fontWeight: 600, fontFamily: F.body,
+                        background: "#fff", color: "#3730a3", border: "1px solid #c7d2fe",
+                        cursor: isPending ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      {org.name}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {/* Error */}
               {error && (
