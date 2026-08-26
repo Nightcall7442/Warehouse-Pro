@@ -18,7 +18,9 @@ vi.mock("../telegram-router", () => ({
 }));
 
 vi.mock("../lib/feature-gating", () => ({
+  hasSubscriptionAccess: vi.fn(async () => true),
   checkSubscriptionAccess: vi.fn(async () => true),
+  invalidateSubscriptionAccess: vi.fn(),
 }));
 
 vi.mock("../lib/rate-limit", async () => (await import("./helpers/rate-limit-mock")).rateLimitMock());
@@ -36,7 +38,7 @@ import { makeConditionEvaluator } from "./helpers/fake-conditions";
 
 // ── Fake tables ──────────────────────────────────────────────────────────────
 interface FakeUser { id: number; tenantId: number; name: string; email: string; role: string; status: string; }
-interface FakeShop { id: number; tenantId: number; name: string; city: string; address: string; debt: string; status: string; agentId: number | null; }
+interface FakeShop { id: number; tenantId: number; name: string; city: string; address: string; debt: string; status: string; agentId: number | null; idempotencyKey: string | null; }
 interface FakePlan { id: number; tenantId: number; agentId: number; shopId: number; status: string; planDate: Date; notes: string | null; photoUrl: string | null; createdBy: number; }
 interface FakeLocation { id: number; tenantId: number; agentId: number; lat: string; lng: string; accuracy: string | null; batteryLevel: number | null; createdAt: Date; }
 
@@ -55,9 +57,9 @@ function resetTables() {
     { id: 1, tenantId: 1, name: "Supervisor", email: "s@test.com", role: "supervisor", status: "active" },
   ];
   shopsTable = [
-    { id: 1, tenantId: 1, name: "Shop A", city: "Tashkent", address: "123 Main", debt: "0.00", status: "active", agentId: 10 },
-    { id: 2, tenantId: 1, name: "Shop B", city: "Samarkand", address: "456 Side", debt: "100.00", status: "active", agentId: 10 },
-    { id: 3, tenantId: 1, name: "Shop C", city: "Bukhara", address: "789 Blvd", debt: "0.00", status: "active", agentId: 11 },
+    { id: 1, tenantId: 1, name: "Shop A", city: "Tashkent", address: "123 Main", debt: "0.00", status: "active", agentId: 10 , idempotencyKey: null },
+    { id: 2, tenantId: 1, name: "Shop B", city: "Samarkand", address: "456 Side", debt: "100.00", status: "active", agentId: 10 , idempotencyKey: null },
+    { id: 3, tenantId: 1, name: "Shop C", city: "Bukhara", address: "789 Blvd", debt: "0.00", status: "active", agentId: 11 , idempotencyKey: null },
   ];
   plansTable = [
     { id: 1, tenantId: 1, agentId: 10, shopId: 1, status: "planned", planDate: new Date(), notes: null, photoUrl: null, createdBy: 1 },
@@ -186,12 +188,23 @@ function makeMockDb() {
           return Promise.resolve([{ insertId: id }]);
         }
         if (table === "shops") {
+          const key = (vals.idempotencyKey as string) ?? null;
+          // Уникальный индекс uq_shops_idempotency, воспроизведённый в моке.
+          // Без него тест на гонку проверял бы не то: защита от повтора держится
+          // именно на отказе базы, а предварительная проверка её только
+          // дополняет. NULL-ы индекс не считает одинаковыми — как и MySQL.
+          if (key !== null && shopsTable.some(s => s.tenantId === vals.tenantId && s.idempotencyKey === key)) {
+            const dup = new Error("Duplicate entry for key 'uq_shops_idempotency'") as Error & { code?: string };
+            dup.code = "ER_DUP_ENTRY";
+            return Promise.reject(dup);
+          }
           const id = nextShopId++;
           shopsTable.push({
             id, tenantId: vals.tenantId as number, name: String(vals.name ?? ""),
             city: String(vals.city ?? ""), address: String(vals.address ?? ""),
             debt: String(vals.debt ?? "0.00"), status: String(vals.status ?? "active"),
             agentId: (vals.agentId as number) ?? null,
+            idempotencyKey: key,
           });
           return Promise.resolve([{ insertId: id }]);
         }
@@ -441,11 +454,127 @@ describe("agent.createShop", () => {
     const created = shopsTable.find((s) => s.id === 10)!;
     expect(created.name).not.toContain("<script>");
   });
+
+  // Ради этих четырёх проверок и заводился ключ. В боевой базе на момент правки
+  // лежало 114 групп дублей, созданных из приложения одним и тем же агентом с
+  // интервалом от нуля до десяти секунд: связь рвалась после того, как строка
+  // уже закоммитилась, агент видел ошибку и нажимал «Создать» второй раз.
+  const KEY = "11111111-2222-4333-8444-555555555555";
+
+  it("повтор с тем же ключом возвращает тот же магазин и не создаёт второй", async () => {
+    const { agentRouter } = await import("../agent-router");
+    const caller = agentRouter.createCaller(makeCtx(1, 10, "agent"));
+
+    const first = await caller.createShop({ name: "Дўстлик Market", idempotencyKey: KEY });
+    const second = await caller.createShop({ name: "Дўстлик Market", idempotencyKey: KEY });
+
+    expect(second.id).toBe(first.id);
+    expect(second.idempotent).toBe(true);
+    expect(shopsTable.filter((s) => s.name === "Дўстлик Market")).toHaveLength(1);
+  });
+
+  it("гонка двух повторов: отказ уникального индекса отдаёт существующий магазин, а не ошибку", async () => {
+    const { agentRouter } = await import("../agent-router");
+    const caller = agentRouter.createCaller(makeCtx(1, 10, "agent"));
+
+    // Оба запроса стартуют до того, как любой из них успел вставить строку, —
+    // предварительная проверка пропускает обоих, и второго ловит уже база.
+    const [a, b] = await Promise.all([
+      caller.createShop({ name: "Anor market", idempotencyKey: KEY }),
+      caller.createShop({ name: "Anor market", idempotencyKey: KEY }),
+    ]);
+
+    expect(a.id).toBe(b.id);
+    expect(shopsTable.filter((s) => s.idempotencyKey === KEY)).toHaveLength(1);
+  });
+
+  it("разные ключи создают разные магазины", async () => {
+    const { agentRouter } = await import("../agent-router");
+    const caller = agentRouter.createCaller(makeCtx(1, 10, "agent"));
+
+    const a = await caller.createShop({ name: "Bek market", idempotencyKey: KEY });
+    const b = await caller.createShop({ name: "Bek market", idempotencyKey: "99999999-8888-4777-8666-555555555555" });
+
+    expect(b.id).not.toBe(a.id);
+    expect(shopsTable.filter((s) => s.name === "Bek market")).toHaveLength(2);
+  });
+
+  it("тот же ключ в другой организации не мешает: индекс составной", async () => {
+    const { agentRouter } = await import("../agent-router");
+    const first = await agentRouter.createCaller(makeCtx(1, 10, "agent")).createShop({ name: "Globus", idempotencyKey: KEY });
+    const other = await agentRouter.createCaller(makeCtx(2, 10, "agent")).createShop({ name: "Globus", idempotencyKey: KEY });
+
+    expect(other.id).not.toBe(first.id);
+    expect(other.idempotent).toBe(false);
+  });
+
+  it("без ключа поведение прежнее — старые клиенты продолжают работать", async () => {
+    const { agentRouter } = await import("../agent-router");
+    const caller = agentRouter.createCaller(makeCtx(1, 10, "agent"));
+
+    const a = await caller.createShop({ name: "Mango market" });
+    const b = await caller.createShop({ name: "Mango market" });
+
+    expect(b.id).not.toBe(a.id);
+    expect(shopsTable.filter((s) => s.name === "Mango market")).toHaveLength(2);
+  });
+});
+
+// Здесь была утечка: `input.agentId ?? (isPrivileged ? undefined : ctx.user.id)`
+// подставляет своё значение только когда agentId НЕ прислан. Прислали — брали
+// присланное, кем бы ни был спрашивающий. Агент, подставив чужой
+// идентификатор, получал чужой план визитов вместе с полем shopDebt.
+describe("agent.getPlans — чужие планы", () => {
+  it("агент не может запросить планы другого агента", async () => {
+    const { agentRouter } = await import("../agent-router");
+    const caller = agentRouter.createCaller(makeCtx(1, 10, "agent"));
+    await expect(caller.getPlans({ agentId: 11 }))
+      .rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("мерчандайзер тоже не может", async () => {
+    const { agentRouter } = await import("../agent-router");
+    const caller = agentRouter.createCaller(makeCtx(1, 10, "merchandiser"));
+    await expect(caller.getPlans({ agentId: 11 }))
+      .rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("свой собственный agentId прислать можно", async () => {
+    const { agentRouter } = await import("../agent-router");
+    const caller = agentRouter.createCaller(makeCtx(1, 10, "agent"));
+    const rows = await caller.getPlans({ agentId: 10 });
+    expect(rows.every(r => r.shopId !== undefined)).toBe(true);
+  });
+
+  it("без agentId агент по-прежнему получает свои", async () => {
+    const { agentRouter } = await import("../agent-router");
+    const rows = await agentRouter.createCaller(makeCtx(1, 10, "agent")).getPlans({});
+    expect(rows.length).toBeGreaterThan(0);
+  });
+
+  it("супервайзер по-прежнему может смотреть чужие — это его работа", async () => {
+    const { agentRouter } = await import("../agent-router");
+    const rows = await agentRouter.createCaller(makeCtx(1, 1, "supervisor")).getPlans({ agentId: 11 });
+    expect(rows.length).toBeGreaterThan(0);
+  });
+
+  it("отказ приходит и на getOptimizedRoute — там была та же строка", async () => {
+    const { agentRouter } = await import("../agent-router");
+    const caller = agentRouter.createCaller(makeCtx(1, 10, "agent"));
+    await expect(caller.getOptimizedRoute({ agentId: 11, currentLat: 41.3, currentLng: 69.2 }))
+      .rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("курьеру эндпоинт недоступен вовсе — планы визитов не его дело", async () => {
+    const { agentRouter } = await import("../agent-router");
+    const caller = agentRouter.createCaller(makeCtx(1, 10, "courier"));
+    await expect(caller.getPlans({})).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
 });
 
 describe("agent.getOptimizedRoute", () => {
   it("returns plans sorted by distance", async () => {
-    shopsTable.push({ id: 20, tenantId: 1, name: "Far Shop", city: "X", address: "Y", debt: "0", status: "active", agentId: 10 });
+    shopsTable.push({ id: 20, tenantId: 1, name: "Far Shop", city: "X", address: "Y", debt: "0", status: "active", agentId: 10 , idempotencyKey: null });
     plansTable.push({ id: 20, tenantId: 1, agentId: 10, shopId: 20, status: "planned", planDate: new Date(), notes: null, photoUrl: null, createdBy: 1 });
 
     const { agentRouter } = await import("../agent-router");

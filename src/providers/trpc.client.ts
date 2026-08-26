@@ -3,6 +3,7 @@ import { httpBatchLink, httpLink, splitLink } from "@trpc/client";
 import { QueryClient } from "@tanstack/react-query";
 import superjson from "superjson";
 import type { AppRouter } from "../../api/router";
+import { ErrorMessages } from "@contracts/constants";
 
 export const trpc = createTRPCReact<AppRouter>();
 
@@ -50,9 +51,35 @@ export const queryClient = new QueryClient({
   queryCache: undefined, // will be set below
 });
 
+/**
+ * Отказ по подписке — увести на экран оплаты, а не показать ошибку.
+ *
+ * Сервер теперь закрывает работу при истёкшем тарифе, и без этого пользователь
+ * видел бы просто набор непонятных ошибок на каждом экране. Проверка в
+ * Layout.tsx остаётся, но она спрашивает подписку отдельным запросом и потому
+ * узнаёт об истечении с задержкой; здесь же реакция идёт на сам отказ.
+ *
+ * Сравнение по общей строке из contracts/constants — тот же текст, который
+ * сервер кладёт в ошибку.
+ *
+ * Переход жёсткий, через location: этот модуль живёт вне дерева React и
+ * роутера у него нет. Для разовой переброски на экран оплаты полная
+ * перезагрузка допустима — она к тому же сбрасывает кэш запросов, набитый
+ * отказами.
+ */
+const BLOCKED_PATH = "/subscription-blocked";
+
+function redirectIfSubscriptionExpired(message: string): boolean {
+  if (message !== ErrorMessages.subscriptionRequired) return false;
+  if (window.location.pathname === BLOCKED_PATH) return true; // уже там — не зациклиться
+  window.location.assign(BLOCKED_PATH);
+  return true;
+}
+
 // Глобальный обработчик ошибок API — показывает toast для всех необработанных ошибок запросов
 queryClient.getQueryCache().config.onError = (error: Error) => {
   const raw = error?.message || "Ошибка загрузки данных";
+  if (redirectIfSubscriptionExpired(raw)) return;
   const msg = translateClientError(raw);
   // Не дублируем если компонент уже показал свой toast через onError callback
   console.error("[Query error]", msg);
@@ -60,6 +87,7 @@ queryClient.getQueryCache().config.onError = (error: Error) => {
 
 queryClient.getMutationCache().config.onError = (error: Error) => {
   const raw = error?.message || "Ошибка сервера";
+  if (redirectIfSubscriptionExpired(raw)) return;
   const msg = translateClientError(raw);
   console.error("[Mutation error]", msg);
   // Toast показывается в конкретных useMutation({ onError }) — глобальный fallback только логирует

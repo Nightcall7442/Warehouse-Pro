@@ -19,7 +19,7 @@ vi.mock("drizzle-orm", async () => {
 vi.mock("../services/anti-fraud", () => ({
   calculateFraudMetrics: vi.fn(async () => ({ suspiciousVisits: 0, fraudRate: 0, avgVisitDuration: 0 })),
 }));
-vi.mock("../lib/feature-gating", () => ({ checkSubscriptionAccess: vi.fn(async () => true) }));
+vi.mock("../lib/feature-gating", () => ({ hasSubscriptionAccess: vi.fn(async () => true), checkSubscriptionAccess: vi.fn(async () => true), invalidateSubscriptionAccess: vi.fn() }));
 vi.mock("../lib/rate-limit", async () => (await import("./helpers/rate-limit-mock")).rateLimitMock());
 vi.mock("../lib/sse", () => ({ sseBus: { emit: vi.fn() } }));
 vi.mock("../telegram-router", () => ({ notifyAdmin: vi.fn(async () => {}), tgMessages: { upgradeRequest: vi.fn(() => "mock") } }));

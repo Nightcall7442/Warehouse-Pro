@@ -16,6 +16,9 @@ export default defineConfig({
   test: {
     environment: "node",
     include:     ["api/**/*.test.ts", "src/**/*.test.ts", "src/**/*.test.tsx"],
+    // Подписка считается действующей, пока тест не сказал иначе. Почему так —
+    // подробно в самом файле; саму проверку стережёт subscription-gating.test.ts.
+    setupFiles:  ["api/__tests__/setup-subscription.ts"],
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov", "html"],

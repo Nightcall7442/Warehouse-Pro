@@ -22,7 +22,9 @@ vi.mock("../telegram-router", () => ({
 }));
 
 vi.mock("../lib/feature-gating", () => ({
+  hasSubscriptionAccess: vi.fn(async () => true),
   checkSubscriptionAccess: vi.fn(async () => true),
+  invalidateSubscriptionAccess: vi.fn(),
 }));
 
 vi.mock("../lib/sse", () => ({

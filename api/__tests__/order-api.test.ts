@@ -42,7 +42,9 @@ vi.mock("../telegram-router", () => ({
 }));
 
 vi.mock("../lib/feature-gating", () => ({
+  hasSubscriptionAccess: vi.fn(async () => true),
   checkSubscriptionAccess: vi.fn(async () => true),
+  invalidateSubscriptionAccess: vi.fn(),
 }));
 
 import { orders, orderItems, warehouseStock, shops, users, products, warehouses } from "@db/schema";

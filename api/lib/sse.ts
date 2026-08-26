@@ -25,6 +25,21 @@ type SSEListener = {
 
 const REDIS_SSE_CHANNEL = "sse:events";
 
+/**
+ * Адресовано ли событие этому пользователю.
+ *
+ * Событие без userId — общее для организации (новый приход, низкий остаток).
+ * Событие с userId — личное: уведомление курьеру о назначенной доставке,
+ * координаты конкретного агента.
+ *
+ * Правило одно на живую рассылку и на догон истории. Раньше оно существовало
+ * только в рассылке, и догон отдавал всё подряд — то есть дыра открывалась
+ * ровно там, где её никто не искал.
+ */
+function isVisibleTo(event: SSEEvent, userId: number): boolean {
+  return !event.userId || event.userId === userId;
+}
+
 class SSEBus {
   private listeners = new Map<string, Set<SSEListener>>();
   private eventHistory = new Map<string, SSEEvent[]>();
@@ -73,7 +88,7 @@ class SSEBus {
 
     for (const listener of listeners) {
       try {
-        if (event.userId && listener.userId !== event.userId) continue;
+        if (!isVisibleTo(event, listener.userId)) continue;
         listener.controller.enqueue(new TextEncoder().encode(payload));
         listener.lastPing = Date.now();
       } catch {
@@ -152,11 +167,26 @@ class SSEBus {
     }
   }
 
-  getRecentEvents(tenantId: number, since?: number): SSEEvent[] {
+  /**
+   * События организации, которые вправе увидеть этот пользователь.
+   *
+   * `userId` обязателен намеренно. Раньше его здесь не было вовсе, и история
+   * канала отдавалась целиком: живая рассылка честно фильтровала адресные
+   * события (см. dispatchToLocalListeners), а догон после переподключения —
+   * нет. Через sse.recentEvents любой вошедший пользователь получал события
+   * agent.location_updated со всех агентов организации — то есть их GPS,
+   * закрытый в getLocations и getTrail ролью супервайзера, — а заодно
+   * персональные уведомления, адресованные директору.
+   *
+   * Сделать параметр обязательным, а не необязательным с умолчанием, — тот же
+   * приём, что и с калиткой подписки: забыть передать нельзя, компилятор не
+   * пустит. Оба вызывающих места пользователя знают.
+   */
+  getRecentEvents(tenantId: number, userId: number, since?: number): SSEEvent[] {
     const channel = `tenant:${tenantId}`;
     const history = this.eventHistory.get(channel) ?? [];
-    if (!since) return history;
-    return history.filter(e => e.timestamp > since);
+    return history.filter(e =>
+      isVisibleTo(e, userId) && (since === undefined || e.timestamp > since));
   }
 
   getStats(): { channels: number; totalListeners: number } {

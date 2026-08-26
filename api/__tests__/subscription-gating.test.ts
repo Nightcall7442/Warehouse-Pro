@@ -1,17 +1,24 @@
 /**
- * Subscription gating tests.
+ * Проверка подписки.
  *
- * Verifies that the billedQuery middleware correctly blocks access when
- * the tenant's subscription is inactive/expired, and allows access when
- * the subscription is active or within the grace period.
+ * Прежняя версия этого файла проверяла billedQuery и billedAdmin — процедуры,
+ * которые не вызывались ни в одном из 38 роутеров. Тесты были зелёными,
+ * механизм — мёртвым, а организации с истёкшим тарифом продолжали работать:
+ * одна из них оформила заказ через пять дней после окончания оплаты.
+ *
+ * Поэтому теперь проверяется не отдельная процедура, а то, что калитка стоит в
+ * ОСНОВАНИИ: любая процедура, построенная на authedQuery, закрыта по
+ * умолчанию. Именно это свойство и было нарушено, и именно его надо стеречь.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { TrpcContext } from "../context";
 import { asTestContext } from "./helpers/test-context";
 
-const mockCheckSubscriptionAccess = vi.fn();
+const mockHasSubscriptionAccess = vi.fn();
 vi.mock("../lib/feature-gating", () => ({
-  checkSubscriptionAccess: (...args: unknown[]) => mockCheckSubscriptionAccess(...args),
+  hasSubscriptionAccess: (...args: unknown[]) => mockHasSubscriptionAccess(...args),
+  checkSubscriptionAccess: (...args: unknown[]) => mockHasSubscriptionAccess(...args),
+  invalidateSubscriptionAccess: vi.fn(),
 }));
 
 vi.mock("../lib/rate-limit", async () => (await import("./helpers/rate-limit-mock")).rateLimitMock());
@@ -26,47 +33,126 @@ function makeCtx(tenantId: number, userId: number, role = "operator"): TrpcConte
 }
 
 beforeEach(() => {
-  mockCheckSubscriptionAccess.mockReset();
+  mockHasSubscriptionAccess.mockReset();
 });
 
-describe("subscription gating (billedQuery)", () => {
-  it("allows access when subscription is active", async () => {
-    mockCheckSubscriptionAccess.mockResolvedValue(true);
-    const { createRouter, billedQuery } = await import("../middleware");
-    const router = createRouter({ secret: billedQuery.query(() => "ok") });
-    const caller = router.createCaller(makeCtx(1, 1, "ceo"));
-    await expect(caller.secret()).resolves.toBe("ok");
+describe("подписка: калитка в основании authedQuery", () => {
+  it("пускает, когда подписка действует", async () => {
+    mockHasSubscriptionAccess.mockResolvedValue(true);
+    const { createRouter, authedQuery } = await import("../middleware");
+    const router = createRouter({ orders: authedQuery.query(() => "ok") });
+    await expect(router.createCaller(makeCtx(1, 1, "ceo")).orders()).resolves.toBe("ok");
   });
 
-  it("blocks access when subscription is inactive", async () => {
-    mockCheckSubscriptionAccess.mockResolvedValue(false);
-    const { createRouter, billedQuery } = await import("../middleware");
-    const router = createRouter({ secret: billedQuery.query(() => "ok") });
-    const caller = router.createCaller(makeCtx(1, 1, "ceo"));
-    await expect(caller.secret()).rejects.toMatchObject({ code: "FORBIDDEN" });
+  it("не пускает, когда подписка истекла", async () => {
+    mockHasSubscriptionAccess.mockResolvedValue(false);
+    const { createRouter, authedQuery } = await import("../middleware");
+    const router = createRouter({ orders: authedQuery.query(() => "ok") });
+    await expect(router.createCaller(makeCtx(1, 1, "ceo")).orders())
+      .rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
-  it("blocks access when no tenant in context", async () => {
-    const { createRouter, billedQuery } = await import("../middleware");
-    const router = createRouter({ secret: billedQuery.query(() => "ok") });
+  it("спрашивает про ту организацию, что в контексте", async () => {
+    mockHasSubscriptionAccess.mockResolvedValue(true);
+    const { createRouter, authedQuery } = await import("../middleware");
+    const router = createRouter({ orders: authedQuery.query(() => "ok") });
+    await router.createCaller(makeCtx(42, 1, "ceo")).orders();
+    expect(mockHasSubscriptionAccess).toHaveBeenCalledWith(42);
+  });
+});
+
+// Вот это и есть регрессия, которую файл обязан ловить: раньше рабочие
+// процедуры подписку не проверяли вовсе, потому что стояли на невооружённых
+// operatorQuery / fieldSalesQuery / adminQuery.
+describe("подписка распространяется на рабочие процедуры, а не только на выделенные", () => {
+  const cases: Array<[string, string]> = [
+    ["operatorQuery", "operator"],
+    ["adminQuery", "ceo"],
+    ["fieldSalesQuery", "agent"],
+    ["supervisorQuery", "supervisor"],
+    ["courierQuery", "courier"],
+    ["managementQuery", "operator"],
+    ["financeQuery", "ceo"],
+    ["reportsQuery", "operator"],
+  ];
+
+  for (const [procName, role] of cases) {
+    it(`${procName} закрыт при истёкшей подписке`, async () => {
+      mockHasSubscriptionAccess.mockResolvedValue(false);
+      const mw = await import("../middleware");
+      const proc = (mw as unknown as Record<string, typeof mw.authedQuery>)[procName];
+      const router = mw.createRouter({ work: proc.query(() => "ok") });
+      await expect(router.createCaller(makeCtx(1, 1, role)).work())
+        .rejects.toMatchObject({ code: "FORBIDDEN" });
+    });
+  }
+});
+
+describe("исключения: что остаётся доступным без подписки", () => {
+  // Без этих четырёх заблокированная организация не смогла бы ни увидеть свой
+  // тариф, ни заплатить — то есть блокировка стала бы ловушкой без выхода.
+  const open = ["auth", "billing", "stripe", "system"];
+
+  for (const prefix of open) {
+    it(`${prefix}.* открыт при истёкшей подписке`, async () => {
+      mockHasSubscriptionAccess.mockResolvedValue(false);
+      const { createRouter, authedQuery } = await import("../middleware");
+      const router = createRouter({
+        [prefix]: createRouter({ status: authedQuery.query(() => "ok") }),
+      });
+      const caller = router.createCaller(makeCtx(1, 1, "ceo")) as unknown as Record<string, { status: () => Promise<string> }>;
+      await expect(caller[prefix].status()).resolves.toBe("ok");
+    });
+  }
+
+  it("подписку у таких путей вообще не спрашивают — лишний запрос к базе ни к чему", async () => {
+    mockHasSubscriptionAccess.mockResolvedValue(false);
+    const { createRouter, authedQuery } = await import("../middleware");
+    const router = createRouter({ billing: createRouter({ status: authedQuery.query(() => "ok") }) });
+    await router.createCaller(makeCtx(1, 1, "ceo")).billing.status();
+    expect(mockHasSubscriptionAccess).not.toHaveBeenCalled();
+  });
+
+  it("похожее имя не открывает доступ: проверяется префикс с точкой", async () => {
+    mockHasSubscriptionAccess.mockResolvedValue(false);
+    const { createRouter, authedQuery } = await import("../middleware");
+    // «authorized» начинается с «auth», но исключением не является.
+    const router = createRouter({ authorized: createRouter({ list: authedQuery.query(() => "ok") }) });
+    await expect(router.createCaller(makeCtx(1, 1, "ceo")).authorized.list())
+      .rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+});
+
+describe("суперадмин", () => {
+  it("работает при любой подписке — он платформа, а не арендатор", async () => {
+    mockHasSubscriptionAccess.mockResolvedValue(false);
+    const { createRouter, superAdminQuery } = await import("../middleware");
+    const router = createRouter({ platform: superAdminQuery.query(() => "ok") });
+    await expect(router.createCaller(makeCtx(1, 1, "superadmin")).platform()).resolves.toBe("ok");
+  });
+
+  it("и подписку у него не спрашивают вовсе", async () => {
+    mockHasSubscriptionAccess.mockResolvedValue(false);
+    const { createRouter, authedQuery } = await import("../middleware");
+    const router = createRouter({ anything: authedQuery.query(() => "ok") });
+    await router.createCaller(makeCtx(1, 1, "superadmin")).anything();
+    expect(mockHasSubscriptionAccess).not.toHaveBeenCalled();
+  });
+});
+
+describe("порядок проверок", () => {
+  it("роль проверяется тоже: подписка есть, но роль не та", async () => {
+    mockHasSubscriptionAccess.mockResolvedValue(true);
+    const { createRouter, adminQuery } = await import("../middleware");
+    const router = createRouter({ secret: adminQuery.query(() => "ok") });
+    await expect(router.createCaller(makeCtx(1, 1, "agent")).secret())
+      .rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("без организации в контексте — UNAUTHORIZED, а не отказ по подписке", async () => {
+    const { createRouter, authedQuery } = await import("../middleware");
+    const router = createRouter({ secret: authedQuery.query(() => "ok") });
     const caller = router.createCaller(asTestContext({ req: new Request("http://x/"), resHeaders: new Headers() }));
     await expect(caller.secret()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
-  });
-
-  it("blocks access for non-CEO roles (role guard works on top of billing)", async () => {
-    mockCheckSubscriptionAccess.mockResolvedValue(true);
-    const { createRouter, billedAdmin } = await import("../middleware");
-    const router = createRouter({ secret: billedAdmin.query(() => "ok") });
-    const caller = router.createCaller(makeCtx(1, 1, "agent"));
-    await expect(caller.secret()).rejects.toMatchObject({ code: "FORBIDDEN" });
-  });
-
-  it("passes the correct tenantId to checkSubscriptionAccess", async () => {
-    mockCheckSubscriptionAccess.mockResolvedValue(true);
-    const { createRouter, billedQuery } = await import("../middleware");
-    const router = createRouter({ secret: billedQuery.query(() => "ok") });
-    const caller = router.createCaller(makeCtx(42, 1, "ceo"));
-    await caller.secret();
-    expect(mockCheckSubscriptionAccess).toHaveBeenCalledWith(42);
   });
 });

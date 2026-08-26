@@ -14,15 +14,27 @@ const h = vi.hoisted(() => {
     chain.onDuplicateKeyUpdate = () => ({ set: () => Promise.resolve(undefined) });
     return chain;
   };
-  return { txInsertValues: vi.fn(okChain), okChain };
+  // Секрет вебхука теперь принадлежит организации: посредник ищет строку
+  // onec_config по SHA-256 присланного заголовка и берёт tenantId ИЗ НЕЁ.
+  // Поэтому стенду нужен настоящий хеш, а не просто совпадающая строка.
+  const SECRET = "test-secret-123";
+  const SECRET_HASH = require("crypto").createHash("sha256").update(SECRET).digest("hex");
+  return { txInsertValues: vi.fn(okChain), okChain, SECRET, SECRET_HASH };
 });
 
 vi.mock("../../queries/connection", () => {
   const mockDb = {
+    // Одна строка удовлетворяет всем трём запросам вне транзакции: поиску
+    // onec_config по хешу секрета (tenantId, secretHash), поиску склада по
+    // умолчанию (id) и старым проверкам магазина (debt). Разделять их по
+    // таблицам стенду незачем — важно, что организация приходит из найденной
+    // строки, а не из тела запроса.
     select: vi.fn().mockReturnValue({
       from: vi.fn().mockReturnValue({
         where: vi.fn().mockReturnValue({
-          limit: vi.fn().mockResolvedValue([{ debt: "5000" }]),
+          limit: vi.fn().mockResolvedValue([
+            { tenantId: 1, secretHash: h.SECRET_HASH, id: 7, debt: "5000" },
+          ]),
         }),
       }),
     }),

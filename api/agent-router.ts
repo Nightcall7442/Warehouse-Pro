@@ -44,6 +44,47 @@ function sanitizeRecordedAt(value?: string): Date | undefined {
   return at;
 }
 
+/** Роли, которым положено видеть планы всей команды, а не только свои. */
+const PLAN_SUPERVISORS = ["ceo", "supervisor", "superadmin"];
+
+/**
+ * Чьи планы визитов показывать.
+ *
+ * Здесь стояло:
+ *
+ *     const agentId = input?.agentId ?? (isPrivileged ? undefined : ctx.user.id);
+ *
+ * Оператор `??` подставляет своё значение только когда agentId НЕ прислан.
+ * Прислали — берётся присланное, кем бы ни был спрашивающий. То есть агент,
+ * мерчандайзер или курьер, подставив чужой agentId, получал его план визитов
+ * целиком: названия магазинов, адреса, города и поле shops.debt — сумму долга
+ * торговой точки. Идентификаторы идут по порядку, так что за десяток запросов
+ * выгружалась коммерческая карта всей компании.
+ *
+ * Отказ, а не тихая подмена на свой идентификатор. Подмена скрыла бы попытку:
+ * запросивший чужие планы получил бы свои и не понял, что произошло, — а в
+ * журнале не осталось бы и следа. FORBIDDEN называет вещи своими именами.
+ *
+ * Тот же вопрос двумя десятками строк ниже (updatePlanStatus, saveVisitPhoto)
+ * решён верно — через `if (!isPrivileged) conditions.push(...)`. Значит здесь
+ * был недосмотр, а не замысел.
+ */
+function resolvePlanAgentFilter(
+  ctx: { user: { id: number; role: string } },
+  requestedAgentId: number | undefined,
+): number | undefined {
+  if (PLAN_SUPERVISORS.includes(ctx.user.role)) {
+    return requestedAgentId; // undefined — значит вся команда
+  }
+  if (requestedAgentId !== undefined && requestedAgentId !== ctx.user.id) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Можно смотреть только свои планы визитов.",
+    });
+  }
+  return ctx.user.id;
+}
+
 export const agentRouter = createRouter({
   // Supervisor needs a lightweight agent picker for "assign plan to agent" —
   // full CRUD access to users (user.list) is ceo-only, and giving supervisor
@@ -239,13 +280,11 @@ export const agentRouter = createRouter({
         .orderBy(sql`COALESCE(${agentLocations.recordedAt}, ${agentLocations.createdAt})`);
     }),
 
-  getPlans: authedQuery
+  getPlans: fieldSalesQuery
     .input(z.object({ agentId: z.number().optional(), date: z.string().optional() }))
     .query(async ({ input, ctx }) => {
       const dateStr = input?.date ?? new Date().toISOString().split("T")[0];
-      const isPrivileged = ["ceo", "supervisor", "superadmin"].includes(ctx.user.role);
-      // For privileged roles: show all plans if no agentId filter; for agents/merchandisers: own plans only
-      const agentId = input?.agentId ?? (isPrivileged ? undefined : ctx.user.id);
+      const agentId = resolvePlanAgentFilter(ctx, input?.agentId);
 
       const conditions = [
         eq(dailyPlans.tenantId, ctx.tenant.id),
@@ -281,8 +320,7 @@ export const agentRouter = createRouter({
     .query(async ({ input, ctx }) => {
       const db = getDb();
       const dateStr = input.date ?? new Date().toISOString().split("T")[0];
-      const isPrivileged = ["ceo", "supervisor", "superadmin"].includes(ctx.user.role);
-      const agentId = input.agentId ?? (isPrivileged ? undefined : ctx.user.id);
+      const agentId = resolvePlanAgentFilter(ctx, input.agentId);
 
       const conditions = [
         eq(dailyPlans.tenantId, ctx.tenant.id),
@@ -575,10 +613,26 @@ export const agentRouter = createRouter({
       gpsLng:    z.preprocess(v => (v === "" ? undefined : v), z.string().refine(v => { const n = Number(v); return Number.isFinite(n) && n >= -180 && n <= 180; }, "Долгота должна быть от -180 до 180").optional()),
       notes:     z.string().optional(),
       territoryId: z.number().optional(),
+      idempotencyKey: z.string().uuid().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
-      const [result] = await db.insert(shops).values({
+      const tenantId = ctx.tenant.id;
+
+      // Тот же приём, что защищает заказ, и по той же причине. Агент нажимает
+      // «Создать», строка коммитится, ответ не доходит — связь оборвалась, — он
+      // нажимает снова. Без ключа в справочнике появляется второй магазин; с
+      // ключом повтор возвращает тот же id, и агент видит успех вместо
+      // непонятной ошибки.
+      if (input.idempotencyKey) {
+        const [existing] = await db.select({ id: shops.id })
+          .from(shops)
+          .where(and(eq(shops.tenantId, tenantId), eq(shops.idempotencyKey, input.idempotencyKey)))
+          .limit(1);
+        if (existing) return { id: Number(existing.id), idempotent: true };
+      }
+
+      const values = {
         name:      sanitizeString(input.name),
         ownerName: input.ownerName ? sanitizeString(input.ownerName) : undefined,
         phone:     input.phone,
@@ -590,12 +644,31 @@ export const agentRouter = createRouter({
         gpsLng:    input.gpsLng,
         notes:     input.notes ? sanitizeString(input.notes) : undefined,
         territoryId: input.territoryId,
-        tenantId: ctx.tenant.id,
+        tenantId,
         agentId:  ctx.user.id,   // автоматически привязываем к агенту
         debt:     "0.00",
-        status:   "active",
-      });
-      return { id: Number(result.insertId) };
+        status:   "active" as const,
+        idempotencyKey: input.idempotencyKey ?? null,
+      };
+
+      try {
+        const [result] = await db.insert(shops).values(values);
+        return { id: Number(result.insertId), idempotent: false };
+      } catch (err: unknown) {
+        // Проверка выше не закрывает гонку: два ретрая, отправленные почти
+        // одновременно, оба видят пусто и оба вставляют. Второго отклоняет
+        // уникальный индекс — и это не ошибка, а сообщение «магазин уже создан»,
+        // поэтому возвращаем существующий id вместо отказа.
+        const code = (err as { code?: string } | null)?.code;
+        if (input.idempotencyKey && code === "ER_DUP_ENTRY") {
+          const [existing] = await db.select({ id: shops.id })
+            .from(shops)
+            .where(and(eq(shops.tenantId, tenantId), eq(shops.idempotencyKey, input.idempotencyKey)))
+            .limit(1);
+          if (existing) return { id: Number(existing.id), idempotent: true };
+        }
+        throw err;
+      }
     }),
 
   nearbyShops: fieldSalesQuery

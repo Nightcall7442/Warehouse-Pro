@@ -114,6 +114,20 @@ export const shops = mysqlTable("shops", {
   debt:      decimal("debt", { precision: 12, scale: 2 }).default("0.00").notNull(),
   status:    mysqlEnum("status", ["active", "inactive"]).default("active").notNull(),
   notes:     text("notes"),
+  /**
+   * Метка попытки создания, присланная клиентом.
+   *
+   * Магазин создавался голой вставкой, без всякой защиты от повтора — в отличие
+   * от заказа, у которого таких защит три. Агент в поле жмёт «Создать», связь
+   * рвётся до ответа, запись при этом уже закоммичена, он жмёт снова — и в
+   * справочнике два одинаковых магазина. В базе на момент правки таких пар и
+   * троек 114 групп, с интервалами от нуля до десяти секунд.
+   *
+   * Столбец необязательный: у 3163 уже заведённых магазинов ключа нет и взять
+   * его неоткуда, а уникальный индекс в MySQL не считает NULL-ы одинаковыми,
+   * поэтому старые строки не конфликтуют ни между собой, ни с новыми.
+   */
+  idempotencyKey: varchar("idempotency_key", { length: 64 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
 }, (t) => ({
@@ -122,6 +136,7 @@ export const shops = mysqlTable("shops", {
   districtIdx: index("idx_shops_district").on(t.district),
   agentIdx:    index("idx_shops_agent").on(t.agentId),
   tenantStatusIdx: index("idx_shops_tenant_status").on(t.tenantId, t.status),
+  idempotencyUq:   uniqueIndex("uq_shops_idempotency").on(t.tenantId, t.idempotencyKey),
 }));
 
 export type Shop       = typeof shops.$inferSelect;
@@ -281,6 +296,16 @@ export const orderItems = mysqlTable("order_items", {
 }, (t) => ({
   orderIdx: index("idx_order_items_order").on(t.orderId),
   productIdx: index("idx_order_items_product").on(t.productId),
+  /**
+   * Один товар — одна строка в заказе.
+   *
+   * Весь код, двигающий склад по заказу (create, updateStatus, cancel, delete,
+   * restore), собирает один UPDATE с `CASE WHEN product_id = ...`. MySQL берёт
+   * первый совпавший WHEN, поэтому вторая строка с тем же товаром молча не
+   * резервировалась: в заказе 120 единиц, на складе занято 60. Запрет стоит в
+   * базе, а не в одной проверке, чтобы действовать на все пять путей сразу.
+   */
+  orderProductUq: uniqueIndex("uq_order_items_order_product").on(t.orderId, t.productId),
 }));
 
 export type OrderItem       = typeof orderItems.$inferSelect;
@@ -980,10 +1005,25 @@ export const onecConfig = mysqlTable("onec_config", {
   intervalMinutes: int("interval_minutes").default(60),
   lastTestedAt:  timestamp("last_tested_at"),
   lastTestOk:    boolean("last_test_ok"),
+  /**
+   * SHA-256 секрета вебхука этой организации, в hex.
+   *
+   * Вебхук 1С проверялся ОДНИМ секретом на всю платформу, а организацию брал из
+   * тела запроса. Любой, у кого этот секрет есть — а есть он у каждого клиента с
+   * интеграцией и у его подрядчика, — мог прислать чужой tenantId и погасить
+   * долг чужого магазина или переписать чужие остатки. В коде это признавалось
+   * строкой `TODO: Replace global secret with per-tenant webhook secret`.
+   *
+   * Хранится хеш, а не сам секрет: как у ключей публичного API. Поиск идёт по
+   * хешу, и организация берётся из найденной строки — тело запроса перестаёт
+   * быть источником доверия.
+   */
+  webhookSecretHash: varchar("webhook_secret_hash", { length: 64 }),
   createdAt:     timestamp("created_at").defaultNow().notNull(),
   updatedAt:     timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
 }, (t) => ({
   tenantIdx: uniqueIndex("uq_onec_config_tenant").on(t.tenantId),
+  webhookSecretUq: uniqueIndex("uq_onec_webhook_secret").on(t.webhookSecretHash),
 }));
 
 export type OneCConfig       = typeof onecConfig.$inferSelect;

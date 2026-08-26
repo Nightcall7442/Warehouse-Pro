@@ -4,43 +4,70 @@ import { payments, shops, warehouseStock, warehouses, onecConfig } from "@db/sch
 import { eq, and } from "drizzle-orm";
 import { OneCMapper } from "../services/onec-mapper";
 import { logger } from "../lib/logger";
-import { env } from "../lib/env";
+import { createHash } from "crypto";
 import { safeEqual } from "../lib/safe-compare";
 import { recalcShopDebt } from "../services/shop-debt";
 import { recordStockMovement } from "../services/stock-ledger";
 
 const app = new Hono<{ Variables: { validatedBody: Record<string, unknown> } }>();
 
-// ── Auth: global secret + validate tenantId exists and has 1C configured ─────
-// TODO: Replace global secret with per-tenant webhook secret for proper isolation
+// ── Аутентификация: секрет принадлежит организации, а не платформе ───────────
+//
+// Здесь стоял один секрет на всех (ONEC_WEBHOOK_SECRET), а организация бралась
+// из тела запроса и ей верили. Секрет такого рода знает каждый клиент с
+// интеграцией и каждый подрядчик, который её настраивал, — и любой из них мог
+// прислать чужой tenantId, провести платёж по чужому магазину или переписать
+// чужие остатки. Рядом стоял `TODO: Replace global secret with per-tenant
+// webhook secret for proper isolation`.
+//
+// Теперь наоборот: по хешу присланного секрета ищется конфигурация, и
+// организация берётся ИЗ НЕЁ. Тело запроса больше не решает, чьи это данные —
+// подделать чужой tenantId нельзя, не зная её секрета.
 app.use("/*", async (c, next) => {
-  const secret = c.req.header("X-1C-Secret");
-  if (!safeEqual(secret ?? "", env.onecWebhookSecret)) {
+  const presented = c.req.header("X-1C-Secret") ?? "";
+  // Пустой секрет отсекается сразу: иначе он совпал бы с организацией, у
+  // которой секрет ещё не выпущен, если бы хеш пустой строки попал в базу.
+  if (!presented) return c.json({ error: "Unauthorized" }, 401);
+
+  const db = getDb();
+  const presentedHash = createHash("sha256").update(presented).digest("hex");
+
+  const [config] = await db.select({
+    tenantId: onecConfig.tenantId,
+    secretHash: onecConfig.webhookSecretHash,
+  })
+    .from(onecConfig)
+    .where(eq(onecConfig.webhookSecretHash, presentedHash))
+    .limit(1);
+
+  // Неизвестный секрет и выключенная интеграция отвечают одинаково: по ответу
+  // нельзя перебором выяснить, у какой организации вебхук включён.
+  if (!config?.secretHash || !safeEqual(config.secretHash, presentedHash)) {
+    logger.warn("1C webhook: неизвестный секрет");
     return c.json({ error: "Unauthorized" }, 401);
   }
 
+  let body: Record<string, unknown>;
   try {
-    const body = await c.req.json();
-    if (!body?.tenantId) {
-      return c.json({ error: "Missing tenantId" }, 400);
-    }
-    const db = getDb();
-
-    // Validate tenant exists AND has 1C integration configured
-    const [config] = await db.select({ tenantId: onecConfig.tenantId })
-      .from(onecConfig)
-      .where(eq(onecConfig.tenantId, body.tenantId))
-      .limit(1);
-    if (!config) {
-      logger.warn("1C webhook: tenant not found or not configured", { tenantId: body.tenantId });
-      return c.json({ error: "Tenant not configured for 1C integration" }, 403);
-    }
-
-    c.set("validatedBody", body);
+    body = await c.req.json();
   } catch {
     return c.json({ error: "Invalid request" }, 400);
   }
 
+  // tenantId в теле теперь необязателен и ни на что не влияет. Если он всё же
+  // прислан и не совпадает — это либо ошибка настройки на стороне 1С, либо
+  // попытка выдать себя за другую организацию. Оба случая стоят отказа, а не
+  // молчаливого исправления: тихо подменив на правильный, мы записали бы
+  // данные, которых 1С не имела в виду.
+  if (body?.tenantId !== undefined && Number(body.tenantId) !== config.tenantId) {
+    logger.warn("1C webhook: tenantId в теле не совпадает с владельцем секрета", {
+      owner: config.tenantId, claimed: body.tenantId,
+    });
+    return c.json({ error: "tenantId does not match the secret owner" }, 403);
+  }
+
+  // Обработчики ниже читают организацию отсюда, а не из тела.
+  c.set("validatedBody", { ...body, tenantId: config.tenantId });
   return next();
 });
 
@@ -156,25 +183,37 @@ app.post("/stock", async (c) => {
       return c.json({ error: "Product not mapped" }, 400);
     }
 
+    // Склад ищется ДО транзакции, а не внутри неё.
+    //
+    // Внутри стояло `return c.json({ success: false }, 400)` — но это возврат из
+    // колбэка транзакции, его значение просто отбрасывается. Выполнение шло
+    // дальше, и наружу уходило `{ success: true }`: 1С считала остаток
+    // проведённым, хотя склада по умолчанию нет и записать было некуда.
+    const [defaultWarehouse] = await db.select({ id: warehouses.id })
+      .from(warehouses)
+      .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true)))
+      .limit(1);
+
+    if (!defaultWarehouse) {
+      logger.error("No default warehouse found for tenant", { tenantId });
+      return c.json({ success: false, error: "No default warehouse" }, 400);
+    }
+
     await db.transaction(async (tx) => {
+      // Резерв берётся с ТОГО ЖЕ склада, на который пишем. Без фильтра по
+      // складу у организации с несколькими складами сюда попадал чужой резерв,
+      // и available считался от него.
       const [existingStock] = await tx.select({ reserved: warehouseStock.reserved })
         .from(warehouseStock)
-        .where(and(eq(warehouseStock.productId, productId), eq(warehouseStock.tenantId, tenantId)))
+        .where(and(
+          eq(warehouseStock.productId, productId),
+          eq(warehouseStock.tenantId, tenantId),
+          eq(warehouseStock.warehouseId, defaultWarehouse.id),
+        ))
         .limit(1)
         .for("update");
       const reserved = Number(existingStock?.reserved ?? 0);
       const available = parsedQty - reserved;
-
-      // Get default warehouse for tenant
-      const [defaultWarehouse] = await tx.select({ id: warehouses.id })
-        .from(warehouses)
-        .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true)))
-        .limit(1);
-
-      if (!defaultWarehouse) {
-        logger.error("No default warehouse found for tenant", { tenantId });
-        return c.json({ success: false, error: "No default warehouse" }, 400);
-      }
 
       await tx.insert(warehouseStock).values({
         tenantId,

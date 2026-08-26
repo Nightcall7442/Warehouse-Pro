@@ -6,6 +6,13 @@ export const Session = {
 export const ErrorMessages = {
   unauthenticated:  "Authentication required",
   insufficientRole: "Insufficient permissions",
+  /**
+   * Отказ по подписке. Живёт здесь, а не в middleware, потому что по этому
+   * тексту клиенты узнают причину отказа: веб уводит на экран оплаты, мобильное
+   * показывает его агенту. Две копии одной строки разъехались бы при первой же
+   * правке формулировки, и увод на оплату молча перестал бы работать.
+   */
+  subscriptionRequired: "Требуется активная подписка. Обновите тариф в настройках.",
 } as const;
 
 export const Paths = {

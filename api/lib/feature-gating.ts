@@ -1,6 +1,44 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "../queries/connection";
 import { subscriptions } from "@db/schema";
+import { cache } from "./cache";
+
+/**
+ * Насколько долго держим ответ о подписке.
+ *
+ * Минута — намеренно короткий срок, и выбран он не ради экономии запросов, а
+ * чтобы не заводить карту инвалидации. Подписка меняется в пяти местах
+ * (регистрация, вебхук Stripe, портал Stripe, правки суперадмина, крон), и
+ * список этот будет расти. Кеш, который надо сбрасывать вручную, рано или
+ * поздно забудут сбросить — ровно так же, как забыли поставить саму проверку.
+ *
+ * Что стоит минута задержки: организация, у которой подписка истекла минуту
+ * назад, доработает эту минуту; организация, которая только что заплатила,
+ * подождёт до минуты. Оба исхода дешевле, чем пропущенная инвалидация.
+ */
+const ACCESS_TTL_MS = 60_000;
+
+/**
+ * Есть ли у организации право работать — с кешем на минуту.
+ *
+ * Отдельная обёртка, а не кеш внутри самой проверки: сама проверка должна
+ * оставаться честным обращением к базе, чтобы её можно было позвать там, где
+ * нужен точный ответ (например, сразу после оплаты).
+ */
+export async function hasSubscriptionAccess(tenantId: number): Promise<boolean> {
+  const key = `subaccess:${tenantId}`;
+  const cached = cache.get<boolean>(key);
+  if (cached !== undefined) return cached;
+
+  const allowed = await checkSubscriptionAccess(tenantId);
+  cache.set(key, allowed, ACCESS_TTL_MS);
+  return allowed;
+}
+
+/** Сбросить кеш доступа — после оплаты, продления или правки плана. */
+export function invalidateSubscriptionAccess(tenantId: number): void {
+  cache.invalidate(`subaccess:${tenantId}`);
+}
 
 /**
  * Returns true if the tenant has an active or trialing subscription.

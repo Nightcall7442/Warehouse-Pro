@@ -92,6 +92,36 @@ type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
  * completion. An explicit non-default warehouseId is rejected rather than
  * silently reserved in one warehouse and released from another.
  */
+/**
+ * Схлопнуть повторяющиеся товары в одну строку.
+ *
+ * Клиент вправе прислать один товар дважды — так устроены и корзина, и офлайн-
+ * очередь, где строки накапливаются по мере добавления. Ошибкой это не
+ * является, и отказывать незачем: два ряда по 60 значат 120.
+ *
+ * А вот дальше по коду это уже ошибка. Резерв склада собирается одним UPDATE с
+ * `CASE WHEN product_id = ...`, и MySQL берёт первый совпавший WHEN: в
+ * order_items ложилось 120 единиц, а в reserved уходило 60. Проверка достатка
+ * пропускала обе строки, потому что сверяла каждую с одним и тем же available.
+ * Результат — заказ на товар, которого нет, и завышенный остаток, который
+ * следующий заказ тоже продаст.
+ *
+ * Порядок сохраняется по первому появлению товара: агент видит позиции в том
+ * порядке, в каком складывал их в корзину.
+ */
+export function mergeDuplicateItems<T extends { productId: number; quantity: string }>(items: T[]): T[] {
+  const byProduct = new Map<number, T>();
+  for (const item of items) {
+    const seen = byProduct.get(item.productId);
+    if (!seen) {
+      byProduct.set(item.productId, { ...item });
+      continue;
+    }
+    seen.quantity = String(Number(seen.quantity) + Number(item.quantity));
+  }
+  return [...byProduct.values()];
+}
+
 async function resolveOrderWarehouse(tx: Tx, tenantId: number, requested?: number): Promise<number> {
   const [defaultWh] = await tx.select({ id: warehouses.id }).from(warehouses)
     .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true))).limit(1);
@@ -744,6 +774,11 @@ export const OrderService = {
     if (discountPercent < 0) throw new Error("Скидка не может быть отрицательной");
     if (discountPercent > 100) throw new Error("Скидка не может превышать 100%");
 
+    // Повторы товара схлопываются до всего остального: ниже и проверка
+    // достатка, и резерв склада, и вставка строк исходят из того, что товар в
+    // заказе встречается один раз.
+    const items = mergeDuplicateItems(input.items);
+
     // P0-1 FIX: Validate shop belongs to this tenant
     const [shop] = await db.select({ id: shops.id }).from(shops)
       .where(and(eq(shops.id, input.shopId), eq(shops.tenantId, tenantId))).limit(1);
@@ -770,7 +805,7 @@ export const OrderService = {
     try {
       const txResult = await db.transaction(async (tx) => {
       // #FIX1: Look up prices from the database, never trust client
-      const productIds = input.items.map(i => i.productId);
+      const productIds = items.map(i => i.productId);
       const productRows = await tx.select({ id: products.id, unitPrice: products.unitPrice, costPrice: products.costPrice })
         .from(products)
         .where(and(
@@ -786,7 +821,7 @@ export const OrderService = {
       }
 
       // Validate all products exist and are active
-      for (const item of input.items) {
+      for (const item of items) {
         if (!priceMap.has(item.productId)) {
           throw new Error(`Товар #${item.productId} не найден или неактивен`);
         }
@@ -794,7 +829,7 @@ export const OrderService = {
 
       // Calculate subtotal from server-side prices
       let subtotal = 0;
-      for (const item of input.items) {
+      for (const item of items) {
         const unitPrice = Number(priceMap.get(item.productId)!);
         subtotal += unitPrice * Number(item.quantity);
       }
@@ -809,7 +844,7 @@ export const OrderService = {
       // SELECT stock rows with row-level locking to prevent race conditions
       const stockRows = await tx.select().from(warehouseStock)
         .where(and(
-          sql`${warehouseStock.productId} IN (${sql.join(input.items.map(i => sql`${i.productId}`), sql`, `)})`,
+          sql`${warehouseStock.productId} IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})`,
           eq(warehouseStock.tenantId, tenantId),
           eq(warehouseStock.warehouseId, reserveWarehouseId),
         ))
@@ -818,7 +853,7 @@ export const OrderService = {
       const stockMap = new Map<number, typeof stockRows[number]>();
       for (const row of stockRows) stockMap.set(row.productId, row);
 
-      for (const item of input.items) {
+      for (const item of items) {
         const stock = stockMap.get(item.productId);
         const available = Number(stock?.available ?? 0);
         if (available < 0) {
@@ -866,7 +901,7 @@ export const OrderService = {
         }
       }
 
-      await tx.insert(orderItems).values(input.items.map(item => {
+      await tx.insert(orderItems).values(items.map(item => {
         const unitPrice = Number(priceMap.get(item.productId)!);
         return {
           orderId: id, productId: item.productId, quantity: item.quantity,
@@ -876,18 +911,18 @@ export const OrderService = {
         };
       }));
 
-      if (input.items.length > 0) {
+      if (items.length > 0) {
         // P0-2 FIX: Include warehouse_id in UPDATE to prevent cross-warehouse corruption
         await tx.execute(sql`
           UPDATE warehouse_stock
           SET
-            reserved = reserved + CASE ${sql.join(input.items.map(i =>
+            reserved = reserved + CASE ${sql.join(items.map(i =>
               sql`WHEN product_id = ${i.productId} THEN ${Number(i.quantity)}`
             ), sql`\n`)} ELSE 0 END,
-            available = available - CASE ${sql.join(input.items.map(i =>
+            available = available - CASE ${sql.join(items.map(i =>
               sql`WHEN product_id = ${i.productId} THEN ${Number(i.quantity)}`
             ), sql`\n`)} ELSE 0 END
-          WHERE product_id IN (${sql.join(input.items.map(i => sql`${i.productId}`), sql`, `)})
+          WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
             AND tenant_id = ${tenantId}
             AND warehouse_id = ${reserveWarehouseId}
         `);
@@ -1381,6 +1416,27 @@ export const OrderService = {
         const productId = line.productId as number;
         const unitPrice = Number(line.unitPrice ?? 0);
         if (!Number.isFinite(unitPrice) || unitPrice < 0) throw new Error("Цена не может быть отрицательной");
+
+        // Товар, который в заказе уже есть, второй строкой не заводится.
+        //
+        // Второй ряд с тем же product_id ломает всё, что двигает склад по
+        // заказу: и здесь, и в updateStatus, cancel, delete, restore резерв
+        // собирается одним UPDATE с `CASE WHEN product_id = ...`, а MySQL берёт
+        // первый совпавший WHEN — вторая строка молча не резервируется. С
+        // миграции 0043 такую пару отвергает и уникальный индекс, но отказ базы
+        // выглядел бы как непонятная поломка, поэтому причина называется здесь.
+        //
+        // Отказ, а не слияние — сознательно. Слить пришлось бы с учётом того,
+        // что ту же строку мог править другой элемент этого же вызова (по
+        // itemId), и тогда количество считалось бы от устаревшей копии, а сумма
+        // задваивалась. В функции с пятью ветками правильнее назвать конфликт,
+        // чем угадывать намерение: у вызывающего уже есть itemId нужной строки.
+        const already = existingItems.find(i => i.productId === productId);
+        if (already) {
+          throw new Error(
+            `Товар уже есть в заказе — измените количество существующей позиции (itemId ${already.id}), а не добавляйте вторую`,
+          );
+        }
 
         await applyStockDelta(tx, tenantId, whId, productId, line.quantity, mode);
         await tx.insert(orderItems).values({

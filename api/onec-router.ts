@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
+import { createHash, randomBytes } from "crypto";
 import { createRouter, adminQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { oneCSync } from "./services/onec-sync";
@@ -65,9 +67,14 @@ export const onecRouter = createRouter({
         .limit(1);
 
       if (!config) return null;
+      // Хеш секрета наружу не отдаётся. Сам по себе он бесполезен — восстановить
+      // из него секрет нельзя, — но и знать его клиенту незачем; отдаётся только
+      // факт, выпущен секрет или нет, чтобы интерфейс мог это показать.
+      const { webhookSecretHash, ...rest } = config;
       return {
-        ...config,
+        ...rest,
         password: "********",
+        webhookSecretIssued: Boolean(webhookSecretHash),
       };
     }),
 
@@ -210,6 +217,51 @@ export const onecRouter = createRouter({
         };
       }),
   },
+
+  /**
+   * Выпустить секрет вебхука для своей организации.
+   *
+   * Секрет показывается ОДИН раз — в базе лежит только его SHA-256, как у
+   * ключей публичного API. Потерявший его выпускает новый: старый при этом
+   * перестаёт работать сразу, потому что колонка одна.
+   *
+   * Повторный вызов — это и есть ротация. Отдельной кнопки «отозвать» нет
+   * намеренно: пока интеграция настроена, секрет нужен, а выключается вебхук
+   * удалением конфигурации целиком.
+   */
+  issueWebhookSecret: adminQuery.mutation(async ({ ctx }) => {
+    const db = getDb();
+    const [config] = await db.select({ id: onecConfig.id })
+      .from(onecConfig)
+      .where(eq(onecConfig.tenantId, ctx.tenant.id))
+      .limit(1);
+
+    if (!config) {
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: "Сначала сохраните настройки подключения к 1С.",
+      });
+    }
+
+    // 32 случайных байта из криптографического источника. Math.random здесь
+    // недопустим: секрет — единственное, что отделяет чужую организацию от
+    // записи платежей в вашу.
+    const secret = `wh_1c_${randomBytes(32).toString("hex")}`;
+    const secretHash = createHash("sha256").update(secret).digest("hex");
+
+    await db.update(onecConfig)
+      .set({ webhookSecretHash: secretHash })
+      .where(eq(onecConfig.id, config.id));
+
+    logger.info("1C webhook secret issued", { tenantId: ctx.tenant.id });
+
+    // Заголовок, а не тело: 1С шлёт его в X-1C-Secret.
+    return {
+      secret,
+      header: "X-1C-Secret",
+      note: "Сохраните секрет — показывается один раз. Повторный выпуск отключает предыдущий.",
+    };
+  }),
 
   /** Test connection using saved per-tenant config */
   testSavedConnection: adminQuery.mutation(async ({ ctx }) => {

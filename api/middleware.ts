@@ -4,7 +4,7 @@ import superjson from "superjson";
 import type { TrpcContext } from "./context";
 import type { Role } from "@contracts/types";
 import { env } from "./lib/env";
-import { checkSubscriptionAccess } from "./lib/feature-gating";
+import { hasSubscriptionAccess } from "./lib/feature-gating";
 import { checkRateLimit, rateLimitSubject } from "./lib/rate-limit";
 
 // ── Translate ZodError codes into user-friendly Russian messages ─────────────
@@ -230,19 +230,65 @@ const mutationRateLimit = (namespace: string, limit: number, windowMs: number = 
     return next();
   });
 
-// ── Require active subscription ───────────────────────────────────────────────
-export const requireActiveSubscription = t.middleware(async ({ ctx, next }) => {
-  if (!ctx.tenant) {
-    throw new TRPCError({ code: "UNAUTHORIZED", message: ErrorMessages.unauthenticated });
-  }
-  const allowed = await checkSubscriptionAccess(ctx.tenant.id);
-  if (!allowed) {
+// ── Подписка ─────────────────────────────────────────────────────────────────
+/**
+ * Что остаётся доступным организации с истёкшей подпиской.
+ *
+ * Ровно то, без чего нельзя заплатить и выйти: собственный профиль, экраны
+ * тарифа и оплаты. Всё остальное — работа с товаром, заказами, складом,
+ * отчётами — закрыто, потому что это и есть продукт.
+ *
+ * Список по префиксу пути, а не по отдельным процедурам: новая процедура в
+ * billing или stripe должна открываться сама, без правки этого файла. Обратное
+ * направление — новый рабочий роутер — закрывается по умолчанию, и это главное
+ * свойство: забыть закрыть нельзя, можно только забыть открыть, а это заметят
+ * сразу.
+ */
+const SUBSCRIPTION_EXEMPT_PREFIXES = [
+  "auth.",     // me, восстановление пароля
+  "billing.",  // тариф, лимиты, заявка на продление
+  "stripe.",   // оплата и портал
+  "system.",   // платформенные метрики, и так только для суперадмина
+];
+
+function isExemptFromSubscription(path: string): boolean {
+  return SUBSCRIPTION_EXEMPT_PREFIXES.some(p => path.startsWith(p));
+}
+
+/**
+ * Требовать действующую подписку.
+ *
+ * Стоит в основании authedQuery, а не отдельной процедурой сбоку — и это
+ * единственная причина, по которой проверка вообще работает.
+ *
+ * До этой правки существовали billedQuery, billedAdmin, billedOperator и
+ * billedAgent: аккуратно написанные, покрывающие все роли, и не вызванные
+ * НИ РАЗУ ни в одном из 38 роутеров. Проверка подписки была написана,
+ * продумана и мертва, а организации с истёкшим тарифом продолжали работать —
+ * один из них оформил заказ через пять дней после окончания оплаты. В
+ * Layout.tsx рядом с клиентской проверкой стояло признание: «это только
+ * клиентская проверка, её можно обойти, нужна серверная».
+ *
+ * Калитка, которую надо не забыть поставить в двухстах местах, не ставится
+ * никогда. Поэтому здесь она — умолчание, а исключения перечислены поимённо
+ * и их четыре.
+ *
+ * Суперадмин не проверяется вовсе: он платформа, а не арендатор, и запирать
+ * его за подпиской чужой организации бессмысленно — именно он и продлевает.
+ */
+const withSubscriptionGate = t.middleware(async ({ ctx, next, path }) => {
+  if (!ctx.user || !ctx.tenant) return next();          // разберётся requireAuth
+  if (ctx.user.role === "superadmin") return next();
+  if (isExemptFromSubscription(path)) return next();
+
+  if (!(await hasSubscriptionAccess(ctx.tenant.id))) {
     throw new TRPCError({
       code:    "FORBIDDEN",
-      message: "Требуется активная подписка. Обновите тариф в настройках.",
+      // Текст общий с клиентом: по нему веб уводит на экран оплаты.
+      message: ErrorMessages.subscriptionRequired,
     });
   }
-  return next({ ctx });
+  return next();
 });
 
 // ── Base public procedure with correlation ID ─────────────────────────────────
@@ -252,7 +298,7 @@ const basePublic = t.procedure.use(withCorrelationId);
 export const publicQuery = basePublic;
 
 // ── Compose authenticated procedures ──────────────────────────────────────────
-export const authedQuery     = t.procedure.use(withCorrelationId).use(withTenantIsolation).use(withGlobalRateLimit).use(requireAuth);
+export const authedQuery     = t.procedure.use(withCorrelationId).use(withTenantIsolation).use(withGlobalRateLimit).use(requireAuth).use(withSubscriptionGate);
 
 // superAdminQuery — platform-level operations: manage tenants, billing, platform stats.
 // Only superadmin can access these endpoints.
@@ -308,8 +354,8 @@ export const financeQuery    = authedQuery.use(requireRole(["ceo"]));
  */
 export const managementQuery = authedQuery.use(requireRole(["ceo", "operator", "supervisor"]));
 
-// Subscription-gated variants
-export const billedQuery     = authedQuery.use(requireActiveSubscription);
-export const billedAdmin     = adminQuery.use(requireActiveSubscription);
-export const billedOperator  = operatorQuery.use(requireActiveSubscription);
-export const billedAgent     = fieldSalesQuery.use(requireActiveSubscription);
+// Здесь были billedQuery, billedAdmin, billedOperator и billedAgent — те самые
+// четыре процедуры, которых не позвал никто. Они удалены намеренно: теперь
+// подписка проверяется в authedQuery, то есть во всех них сразу, и держать
+// рядом второй, необязательный способ сделать то же самое значит снова
+// предложить его забыть.

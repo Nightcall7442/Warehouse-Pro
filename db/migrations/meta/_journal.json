@@ -295,6 +295,27 @@
       "when": 1786600003000,
       "tag": "0041_agent_locations_recorded_at",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "5",
+      "when": 1786600004000,
+      "tag": "0042_shops_idempotency",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "5",
+      "when": 1786600005000,
+      "tag": "0043_order_items_unique_product",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "5",
+      "when": 1786600006000,
+      "tag": "0044_onec_webhook_secret",
+      "breakpoints": true
     }
   ]
 }

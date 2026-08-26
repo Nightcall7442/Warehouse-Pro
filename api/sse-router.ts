@@ -1,18 +1,24 @@
 import { z } from "zod";
-import { createRouter, authedQuery } from "./middleware";
+import { createRouter, authedQuery, superAdminQuery } from "./middleware";
 import { sseBus } from "./lib/sse";
 
 export const sseRouter = createRouter({
-  /** Get SSE connection stats (admin only) */
-  stats: authedQuery.query(() => {
+  /**
+   * Счётчики живых подключений.
+   *
+   * Комментарий «admin only» тут стоял и раньше, а процедура была открыта
+   * любому вошедшему. Теперь роль соответствует замыслу: это платформенная
+   * телеметрия, арендатору она ни о чём не говорит и знать её незачем.
+   */
+  stats: superAdminQuery.query(() => {
     return sseBus.getStats();
   }),
 
-  /** Get recent events for catch-up after reconnection */
+  /** Догон событий после переподключения — только адресованных этому человеку. */
   recentEvents: authedQuery
     .input(z.object({ since: z.number().optional() }).optional())
     .query(({ input, ctx }) => {
-      return sseBus.getRecentEvents(ctx.tenant.id, input?.since);
+      return sseBus.getRecentEvents(ctx.tenant.id, ctx.user.id, input?.since);
     }),
 });
 
@@ -48,7 +54,7 @@ export function createSSEResponse(
       if (lastEventId) {
         const since = parseInt(lastEventId, 10);
         if (!isNaN(since)) {
-          const missed = sseBus.getRecentEvents(tenantId, since);
+          const missed = sseBus.getRecentEvents(tenantId, userId, since);
           for (const event of missed) {
             const payload = `id: ${event.timestamp}\ndata: ${JSON.stringify(event)}\n\n`;
             controller.enqueue(encoder.encode(payload));

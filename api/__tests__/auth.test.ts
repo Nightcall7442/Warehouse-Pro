@@ -11,6 +11,16 @@
 import { describe, it, expect, vi } from "vitest";
 import { TRPCError } from "@trpc/server";
 
+// Подписка проверяется теперь в самом authedQuery, поэтому её надо задать и
+// тестам про роли: без этого они получают отказ по оплате раньше, чем доходят
+// до проверки роли, и файл перестаёт проверять то, ради чего написан.
+// Отдельный тест ниже переопределяет это на «нет подписки» через doMock.
+vi.mock("../lib/feature-gating", () => ({
+  hasSubscriptionAccess: vi.fn(async () => true),
+  checkSubscriptionAccess: vi.fn(async () => true),
+  invalidateSubscriptionAccess: vi.fn(),
+}));
+
 // ── Mock DB ─────────────────────────────────────────────────────────────────
 const mockDb = {
   select: () => ({
@@ -179,14 +189,16 @@ describe("auth middleware — multi-tenant isolation", () => {
 describe("auth middleware — subscription gating", () => {
   it("blocks access when subscription is not active", async () => {
     vi.doMock("../lib/feature-gating", () => ({
+      hasSubscriptionAccess: vi.fn(async () => false),
       checkSubscriptionAccess: vi.fn(async () => false),
+      invalidateSubscriptionAccess: vi.fn(),
     }));
     vi.resetModules();
 
+    // Отдельной «платной» процедуры больше нет: подписка проверяется в самом
+    // authedQuery. Раньше её надо было навесить вручную — и не навесили нигде.
     const { createRouter, authedQuery } = await import("../middleware");
-    const { requireActiveSubscription } = await import("../middleware");
-    const gatedQuery = authedQuery.use(requireActiveSubscription);
-    const router = createRouter({ gated: gatedQuery.query(() => "premium-data") });
+    const router = createRouter({ gated: authedQuery.query(() => "premium-data") });
     const caller = router.createCaller(makeCtx(1, 10));
     await expect(caller.gated()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
