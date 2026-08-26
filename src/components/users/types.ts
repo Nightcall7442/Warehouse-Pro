@@ -61,7 +61,7 @@ export interface User {
   email: string;
   role: string;
   status: string;
-  lastSignInAt?: string | null;
+  lastSignInAt?: Date | null;
 }
 
 export type Lang = "ru" | "uz";

@@ -2,9 +2,9 @@ import { format } from "date-fns";
 import { F, COLORS, thStyle, tdStyle } from "./styles";
 
 interface Arrival {
-  id: string;
+  id: number;
   arrivalNumber: string;
-  arrivalDate: string | null;
+  arrivalDate: Date | null;
   truckId: string | null;
   fuelCost: number | string;
   tollCost: number | string;

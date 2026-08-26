@@ -3,19 +3,44 @@ import { Package, Camera, X, Loader2 } from "lucide-react";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { CategoryAutocomplete } from "./CategoryAutocomplete";
 import { notify } from "@/lib/toast";
-import { COLORS, SHADOW, F, UNITS } from "./constants";
+import { COLORS, SHADOW, F, UNITS, type Unit } from "./constants";
+
+/**
+ * То, что форма отдаёт наружу.
+ *
+ * Раньше здесь стоял Record<string, unknown>: страница товаров передавала это
+ * прямо в product.create, и проверка типов там падала — из мешка неизвестного
+ * не видно ни обязательных полей, ни того, что unit это перечисление.
+ */
+export type ProductDraft = {
+  code:         string;
+  barcode:      string;
+  name:         string;
+  category:     string;
+  costPrice:    string;
+  unitPrice:    string;
+  unit:         Unit;
+  unitWeight:   string;
+  reorderPoint: string;
+  description:  string;
+  photoUrl?:    string;
+};
 
 export interface ProductFormProps {
-  onSave: (d: Record<string, unknown>) => void;
+  onSave: (d: ProductDraft) => void;
   onCancel: () => void;
   isPending: boolean;
   lang: string;
   categories?: string[];
 }
 
+function isUnit(v: string): v is Unit {
+  return UNITS.some(u => u.value === v);
+}
+
 export function ProductForm({ onSave, onCancel, isPending, lang, categories = [] }: ProductFormProps) {
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
-  const [d, setD] = useState({ code: "", barcode: "", name: "", category: "", costPrice: "", unitPrice: "", unit: "pcs", unitWeight: "", reorderPoint: "10.00", description: "" });
+  const [d, setD] = useState<Omit<ProductDraft, "photoUrl">>({ code: "", barcode: "", name: "", category: "", costPrice: "", unitPrice: "", unit: "pcs", unitWeight: "", reorderPoint: "10.00", description: "" });
   const [photo, setPhoto] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const handlePhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -63,7 +88,7 @@ export function ProductForm({ onSave, onCancel, isPending, lang, categories = []
           <input className="neo-input" placeholder={t("Штрих-код (необязательно)", "Shtrix-kod (ixtiyoriy)")} value={d.barcode} onChange={e => setD({ ...d, barcode: e.target.value })} />
           <input className="neo-input" placeholder={t("Название *", "Nomi *")} value={d.name} onChange={e => setD({ ...d, name: e.target.value })} />
           <CategoryAutocomplete value={d.category} onChange={v => setD({ ...d, category: v })} categories={categories} placeholder={t("Категория", "Kategoriya")} />
-          <PremiumSelect value={d.unit} onChange={v => setD({ ...d, unit: v })}
+          <PremiumSelect value={d.unit} onChange={v => setD({ ...d, unit: isUnit(v) ? v : d.unit })}
             options={UNITS.map(u => ({ value: u.value, label: lang === "uz" ? u.uz : u.ru }))}
             width="100%" />
           <input className="neo-input font-data" placeholder={t("Себестоимость", "Tannarx")} type="number" step="0.01" value={d.costPrice} onChange={e => setD({ ...d, costPrice: e.target.value })} />

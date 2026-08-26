@@ -12,6 +12,9 @@ export const COLORS = {
 };
 export const SHADOW = "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04))";
 
+// as const — чтобы значения были не просто строками, а тем же перечислением,
+// какое ждёт сервер (z.enum в product.create). Без этого форма отдавала
+// unit: string, и вызов create не проходил проверку типов.
 export const UNITS = [
   { value: "kg",   ru: "кг",       uz: "kg" },
   { value: "l",    ru: "литр",     uz: "litr" },
@@ -20,7 +23,11 @@ export const UNITS = [
   { value: "pack", ru: "упаковка", uz: "pachka" },
   { value: "m",     ru: "метр",     uz: "metr" },
   { value: "block", ru: "блок",     uz: "blok" },
-];
+] as const;
+
+/** Единицы, которые принимает сервер. */
+export type Unit = typeof UNITS[number]["value"];
+
 
 export const unitLabel = (u: string | undefined, lang: string) => {
   const e = UNITS.find(x => x.value === u);

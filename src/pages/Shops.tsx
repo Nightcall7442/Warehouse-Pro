@@ -9,6 +9,11 @@ import { ExcelImport } from "@/components/ExcelImport";
 import { useNavigate } from "react-router";
 import { FileDown, Upload, Plus, Trash2 } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
+import type { AppRouter } from "../../api/router";
+import type { inferRouterOutputs } from "@trpc/server";
+
+/** Магазин ровно в том виде, в каком его отдаёт shop.list. */
+type ShopListRow = inferRouterOutputs<AppRouter>["shop"]["list"]["data"][number];
 import {
   ShopForm, ShopStats, ShopFilters, TerritoriesGrid, ShopList, SelectionBar, CityBreadcrumb,
 } from "@/components/shops";
@@ -160,12 +165,16 @@ export default function Shops() {
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <button onClick={async () => {
             // Fetch all shops via pagination
-            const allShops: Record<string, unknown>[] = [];
+            // Магазин берётся тем типом, каким его отдаёт сервер. Приведение к
+            // Record<string, unknown> появилось, когда вывод типов tRPC был
+            // сломан; оно же прятало опечатку в имени поля — колонка в файле
+            // молча выходила пустой.
+            const allShops: ShopListRow[] = [];
             let page = 1;
             while (true) {
               const result = await utils.shop.list.fetch({ page, pageSize: 500 });
               if (!result?.data?.length) break;
-              allShops.push(...result.data as Record<string, unknown>[]);
+              allShops.push(...result.data);
               if (allShops.length >= (result?.total ?? 0)) break;
               page++;
             }
@@ -176,16 +185,15 @@ export default function Shops() {
             // Group by territory
             const grouped = new Map<string, typeof allShops>();
             for (const s of allShops) {
-              const territory = (s as Record<string, unknown>).district as string || (s as Record<string, unknown>).city as string || t("Другие", "Boshqalar");
+              const territory = s.district || s.city || t("Другие", "Boshqalar");
               if (!grouped.has(territory)) grouped.set(territory, []);
               grouped.get(territory)!.push(s);
             }
             // Build rows with consistent columns
-            const rows: Record<string, unknown>[] = [];
+            const rows: Record<string, string | number>[] = [];
             for (const [territory, shops] of Array.from(grouped.entries()).sort(([a], [b]) => a.localeCompare(b, "ru"))) {
               rows.push({ Территория: territory, Название: "", Владелец: "", Телефон: "", Город: "", Район: "", Адрес: "", Агент: "", Долг: "", Статус: "" });
-              for (const s of shops) {
-                const shop = s as Record<string, unknown>;
+              for (const shop of shops) {
                 rows.push({
                   Территория: "",
                   Название: shop.name ?? "",

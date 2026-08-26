@@ -5,7 +5,9 @@ import { Section } from "./Section";
 interface MetricEntry {
   count: number;
   lastValue: number | string;
-  lastTimestamp: number;
+  // Сервер отдаёт Date (api/lib/metrics.ts), и superjson доносит её как Date.
+  // Числом это не было никогда — тип просто врал.
+  lastTimestamp: Date;
 }
 
 interface RealTimeMetricsProps {
