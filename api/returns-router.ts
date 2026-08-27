@@ -166,8 +166,22 @@ export const returnsRouter = createRouter({
             throw new Error(`Товар ID ${item.productId} отсутствует в заказе #${input.orderId}`);
           }
           const alreadyReturned = returnedMap.get(item.productId) ?? 0;
-          if (alreadyReturned + Number(item.quantity) > Number(original.order_items.quantity)) {
-            throw new Error(`Количество возврата превышает остаток для товара ID ${item.productId} (уже возвращено: ${alreadyReturned}, заказано: ${original.order_items.quantity})`);
+          // Вернуть можно только то, что реально доехало до магазина.
+          //
+          // Сравнение шло с ЗАКАЗАННЫМ количеством. Курьер, отдавший 4 из 10 и
+          // отметивший это как частичный возврат, уже вернул 6 единиц на склад
+          // — но order_items.quantity остаётся десяткой, поэтому документ на
+          // все 10 проходил проверку. При проведении те же 6 зачислялись на
+          // склад второй раз, а из долга магазина вычиталась стоимость десяти
+          // при заказе, стоящем как четыре. Инвариант склада при этом
+          // сходится, так что сверка целостности молчала.
+          //
+          // deliveredQuantity пусто у заказов, доставленных без построчного
+          // учёта, — там заказанное и есть отгруженное. Тот же COALESCE стоит
+          // в deliveredQty() и в heldQuantity().
+          const shipped = Number(original.order_items.deliveredQuantity ?? original.order_items.quantity);
+          if (alreadyReturned + Number(item.quantity) > shipped) {
+            throw new Error(`Количество возврата превышает доставленное для товара ID ${item.productId} (уже возвращено: ${alreadyReturned}, доставлено: ${shipped})`);
           }
         }
         // Use original order unit prices, not client-supplied
@@ -265,6 +279,14 @@ export const returnsRouter = createRouter({
           throw new Error(
             `Заказ ${linkedOrder.orderNumber} уже ${label} — товар по нему возвращён на склад целиком. ` +
             `Проведение этого возврата зачислило бы тот же товар второй раз.`);
+        }
+        // Обратная сторона той же ошибки: возврат по заказу, который со склада
+        // ещё не уезжал. Товар в этом случае лежит в резерве, а не у магазина,
+        // и зачисление на склад создало бы единицы из воздуха.
+        if (linkedOrder && !["delivered", "completed"].includes(linkedOrder.status)) {
+          throw new Error(
+            `Заказ ${linkedOrder.orderNumber} ещё не доставлен (статус «${linkedOrder.status}») — ` +
+            `возвращать с него нечего. Если заказ не нужен, его отменяют, а не возвращают.`);
         }
       }
 

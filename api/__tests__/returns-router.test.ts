@@ -39,7 +39,7 @@ import { returns, returnItems, orderItems, shops, users, products, orders, wareh
 type FakeReturn = { id: number; tenantId: number; orderId: number | null; shopId: number; agentId: number; returnNumber: string; reason: string; notes: string | null; status: string; totalAmount: string; createdBy: number; };
 type FakeReturnItem = { id: number; returnId: number; productId: number; quantity: string; unitPrice: string; subtotal: string; reason: string | null; condition: string | null; };
 type FakeOrder = { id: number; tenantId: number; agentId: number; shopId: number; status: string; total: string; };
-type FakeOrderItem = { id: number; orderId: number; productId: number; quantity: string; unitPrice: string; };
+type FakeOrderItem = { id: number; orderId: number; productId: number; quantity: string; unitPrice: string;  deliveredQuantity?: string | null; };
 type FakeStock = { productId: number; tenantId: number; currentStock: string; reserved: string; available: string; };
 type FakeProduct = { id: number; tenantId: number; name: string; unitPrice: string; status: string; };
 type FakeShop = { id: number; tenantId: number; name: string; debt: string; };
@@ -109,7 +109,7 @@ reg(returnItems, "id"); reg(returnItems, "returnId"); reg(returnItems, "productI
 reg(returnItems, "quantity"); reg(returnItems, "unitPrice"); reg(returnItems, "subtotal");
 reg(returnItems, "reason"); reg(returnItems, "condition");
 reg(orderItems, "id"); reg(orderItems, "orderId"); reg(orderItems, "productId");
-reg(orderItems, "quantity"); reg(orderItems, "unitPrice");
+reg(orderItems, "quantity"); reg(orderItems, "unitPrice"); reg(orderItems, "deliveredQuantity");
 reg(orders, "id"); reg(orders, "tenantId"); reg(orders, "status"); reg(orders, "total");
 reg(products, "id"); reg(products, "name"); reg(products, "unitPrice"); reg(products, "tenantId");
 reg(warehouseStock, "productId"); reg(warehouseStock, "tenantId");
@@ -562,7 +562,38 @@ describe("returnsRouter", () => {
       await expect(caller.create({
         orderId: 1, shopId: 1, reason: "damaged",
         items: [{ productId: 1, quantity: 8, unitPrice: 50 }],
-      })).rejects.toThrow("превышает остаток");
+      })).rejects.toThrow("превышает доставленное");
+    });
+
+    it("возврат ограничен ДОСТАВЛЕННЫМ количеством, а не заказанным", async () => {
+      // Курьер отдал 4 из 10, шесть уже вернул на склад отметкой частичного
+      // возврата: delivered_quantity = 4, а quantity остаётся десяткой.
+      // Сверка с quantity пропускала документ на все 10, и те же шесть
+      // единиц зачислялись на склад второй раз, а из долга магазина
+      // вычиталась стоимость десяти при заказе, стоящем как четыре.
+      orderItemsTable[0].deliveredQuantity = "4.00";
+      const caller = returnsRouter.createCaller(buildCtx());
+
+      await expect(caller.create({
+        orderId: 1, shopId: 1, reason: "defect",
+        items: [{ productId: 1, quantity: 6, unitPrice: 50 }],
+      })).rejects.toThrow("превышает доставленное");
+
+      // Ровно доставленное — принимается.
+      await expect(caller.create({
+        orderId: 1, shopId: 1, reason: "defect",
+        items: [{ productId: 1, quantity: 4, unitPrice: 50 }],
+      })).resolves.toBeDefined();
+    });
+
+    it("без отметки частичной доставки ограничение прежнее — по заказанному", async () => {
+      // delivered_quantity пусто у заказов, доставленных без построчного учёта:
+      // там заказанное и есть отгруженное.
+      const caller = returnsRouter.createCaller(buildCtx());
+      await expect(caller.create({
+        orderId: 1, shopId: 1, reason: "defect",
+        items: [{ productId: 1, quantity: 10, unitPrice: 50 }],
+      })).resolves.toBeDefined();
     });
 
     it("uses original order unitPrice instead of client-supplied price", async () => {

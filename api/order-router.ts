@@ -362,7 +362,7 @@ export const orderRouter = createRouter({
       orderIds: z.array(z.number().int().positive()).min(1).max(100),
     }))
     .mutation(async ({ input, ctx }) => {
-      return OrderService.bulkCompleteWithPayment(ctx.db, ctx.tenant.id, ctx.user.id, input.orderIds);
+      return OrderService.bulkCompleteWithPayment(ctx.db, ctx.tenant.id, { id: ctx.user.id, role: ctx.user.role }, input.orderIds);
     }),
 
   // ── Bulk Assign Agent ───────────────────────────────────────────────────────
@@ -538,7 +538,7 @@ export const orderRouter = createRouter({
       notes: z.string().max(500).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      return OrderService.recordPartialPayment(ctx.db, ctx.tenant.id, ctx.user.id, input);
+      return OrderService.recordPartialPayment(ctx.db, ctx.tenant.id, { id: ctx.user.id, role: ctx.user.role }, input);
     }),
 
   // ── Partial Delivery ───────────────────────────────────────────────────────
@@ -553,7 +553,7 @@ export const orderRouter = createRouter({
       photos: z.array(z.string()).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      return OrderService.recordPartialDelivery(ctx.db, ctx.tenant.id, ctx.user.id, input);
+      return OrderService.recordPartialDelivery(ctx.db, ctx.tenant.id, { id: ctx.user.id, role: ctx.user.role }, input);
     }),
 
   // ── Combined Delivery + Payment ────────────────────────────────────────────
@@ -574,7 +574,7 @@ export const orderRouter = createRouter({
       photos: z.array(z.string()).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      return OrderService.recordDeliveryAndPayment(ctx.db, ctx.tenant.id, ctx.user.id, input);
+      return OrderService.recordDeliveryAndPayment(ctx.db, ctx.tenant.id, { id: ctx.user.id, role: ctx.user.role }, input);
     }),
 
   // ── Get Adjustments ────────────────────────────────────────────────────────

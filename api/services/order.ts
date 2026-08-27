@@ -365,10 +365,61 @@ async function applyStockDelta(
  * order status, so a partly-paid delivery still counts toward delivered/revenue
  * KPIs (which filter status IN ('delivered','completed')).
  */
+/**
+ * Кто вправе распоряжаться ЛЮБЫМ заказом организации.
+ *
+ * Тот же список, что у OrderService.cancel — намеренно: две операции одного
+ * веса (отменить заказ и провести по нему деньги) не должны расходиться в
+ * правах. Супервайзер сюда не входит, как и там.
+ */
+const ORDER_SUPERVISORS = ["ceo", "operator", "superadmin"];
+
+/**
+ * Вправе ли эта роль работать с любым заказом организации, а не только со своим.
+ *
+ * Вынесено отдельно и экспортируется, чтобы правило было одно на все операции
+ * с заказом и его можно было проверить тестом напрямую, а не по тексту
+ * исходника.
+ */
+export function canActOnAnyOrder(role: string): boolean {
+  return ORDER_SUPERVISORS.includes(role);
+}
+
+/**
+ * Условие «заказ принадлежит этому человеку», если роль не даёт чужих.
+ *
+ * ── Чего здесь не было ──────────────────────────────────────────────────────
+ *
+ * Три процедуры денежного пути — recordPartialPayment, recordPartialDelivery и
+ * recordDeliveryAndPayment — объявлены на fieldSalesQuery, то есть доступны
+ * агенту, мерчандайзеру и супервайзеру. А выборка заказа фильтровалась только
+ * по id и организации: владелец не проверялся вовсе.
+ *
+ * Значит, любой из них, зная (или перебрав) номер заказа, мог провести чужой
+ * заказ: списать остаток со склада, вписать приём наличных на всю сумму и
+ * обнулить долг магазина — при том, что денег никто не приносил. Обратный ход
+ * ещё хуже: доставка с нулевым количеством по всем позициям обрезает сумму
+ * заказа до нуля и переводит его в «доставлен», после чего заказ уже не
+ * отменить и не доставить — проверка статуса не пустит.
+ *
+ * Для мерчандайзера это вообще новая способность: собственных заказов у него
+ * нет, поэтому любой заказ, который он проводит, — заведомо чужой.
+ *
+ * Условие возвращается массивом, чтобы попасть ВНУТРЬ того же
+ * SELECT ... FOR UPDATE: проверка вне блокировки — это уже другая ошибка.
+ */
+function ownerScope(actor: Actor) {
+  return canActOnAnyOrder(actor.role) ? [] : [eq(orders.agentId, actor.id)];
+}
+
+/** Кто выполняет операцию: идентификатор для записи авторства и роль для прав. */
+type Actor = { id: number; role: string };
+
 async function applyPartialPayment(
-  tx: Tx, tenantId: number, userId: number,
+  tx: Tx, tenantId: number, actor: Actor,
   input: { orderId: number; paidAmount: string; method: "cash" | "card" | "transfer"; debtDueDate?: string; notes?: string },
 ): Promise<void> {
+  const userId = actor.id;
   const paid = Number(input.paidAmount);
   if (paid <= 0) throw new Error("Сумма оплаты должна быть положительной");
 
@@ -381,7 +432,7 @@ async function applyPartialPayment(
     id: orders.id, status: orders.status, total: orders.total,
     shopId: orders.shopId, orderNumber: orders.orderNumber, paymentMethod: orders.paymentMethod,
   }).from(orders)
-    .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt)))
+    .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt), ...ownerScope(actor)))
     .for("update")
     .limit(1);
   if (!order) throw new Error("Заказ не найден");
@@ -471,9 +522,10 @@ async function applyPartialPayment(
  * recordDeliveryAndPayment).
  */
 async function applyPartialDelivery(
-  tx: Tx, tenantId: number, userId: number,
+  tx: Tx, tenantId: number, actor: Actor,
   input: { orderId: number; items: Array<{ itemId: number; deliveredQuantity: number; returnReason?: string }>; photos?: string[] },
 ): Promise<void> {
+  const userId = actor.id;
   if (input.items.length === 0) throw badRequest("Выберите хотя бы один товар");
 
   // Locked for the rest of this function — see the identical comment in
@@ -484,7 +536,7 @@ async function applyPartialDelivery(
     subtotal: orders.subtotal, discount: orders.discount,
     shopId: orders.shopId, orderNumber: orders.orderNumber,
   }).from(orders)
-    .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt)))
+    .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt), ...ownerScope(actor)))
     .for("update")
     .limit(1);
   if (!order) throw new TRPCError({ code: "NOT_FOUND", message: "Заказ не найден" });
@@ -1039,7 +1091,7 @@ export const OrderService = {
 
   async cancel(db: Db, tenantId: number, orderId: number, opts: { userId: number; userRole: string }) {
     await db.transaction(async (tx) => {
-      const isPrivileged = ["ceo", "operator", "superadmin"].includes(opts.userRole);
+      const isPrivileged = canActOnAnyOrder(opts.userRole);
       const conditions = [eq(orders.id, orderId), eq(orders.tenantId, tenantId)];
       // Non-privileged users can only cancel their own orders
       if (!isPrivileged) {
@@ -1401,6 +1453,30 @@ export const OrderService = {
       const whId = await resolveOrderWarehouse(tx, tenantId);
       const existingItems = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
       const existingById = new Map(existingItems.map(i => [i.id, i]));
+
+      // Состав частично доставленного заказа этой функцией не правится.
+      //
+      // Здесь считается только quantity — заказанное. У заказа, по которому
+      // курьер отдал часть и часть вернул, доставленное лежит отдельно, в
+      // delivered_quantity, и оно тут не читается вовсе. Поэтому сохранение —
+      // даже без единой правки, просто «открыл и нажал сохранить», а веб
+      // отправляет все строки целиком — пересчитывало сумму заказа по
+      // ЗАКАЗАННОМУ и возвращало магазину в долг стоимость товара, который он
+      // уже вернул. Попытка исправить это руками, поставив доставленное
+      // количество, зачисляла возвращённые единицы на склад второй раз:
+      // applyStockDelta в режиме consumed трактует уменьшение как возврат.
+      //
+      // Правильный инструмент для такого заказа — документ возврата или
+      // повторная отметка доставки, где доставленное и есть предмет разговора.
+      // Отказ здесь честнее, чем попытка угадать намерение в функции с пятью
+      // ветками: цифры расходятся молча, а разбирать их потом по бумагам.
+      const partiallyDelivered = existingItems.find(i => i.deliveredQuantity !== null);
+      if (partiallyDelivered) {
+        throw new Error(
+          "Заказ уже частично доставлен — состав менять нельзя. " +
+          "Оформите возврат или переотметьте доставку: там учитывается доставленное количество.",
+        );
+      }
 
       // Validate that every new product belongs to this tenant before touching
       // anything — an unknown id must not leave the order half-rewritten.
@@ -1909,7 +1985,7 @@ export const OrderService = {
   // ── Partial Payment ────────────────────────────────────────────────────────
 
   async recordPartialPayment(
-    db: Db, tenantId: number, userId: number,
+    db: Db, tenantId: number, actor: Actor,
     input: {
       orderId: number;
       paidAmount: string;
@@ -1918,7 +1994,7 @@ export const OrderService = {
       notes?: string;
     },
   ) {
-    await db.transaction((tx) => applyPartialPayment(tx, tenantId, userId, input));
+    await db.transaction((tx) => applyPartialPayment(tx, tenantId, actor, input));
     cache.invalidate(CacheKeys.dashboardKpis(tenantId));
     return { success: true };
   },
@@ -1926,14 +2002,14 @@ export const OrderService = {
   // ── Partial Delivery ───────────────────────────────────────────────────────
 
   async recordPartialDelivery(
-    db: Db, tenantId: number, userId: number,
+    db: Db, tenantId: number, actor: Actor,
     input: {
       orderId: number;
       items: Array<{ itemId: number; deliveredQuantity: number; returnReason?: string }>;
       photos?: string[];
     },
   ) {
-    await db.transaction((tx) => applyPartialDelivery(tx, tenantId, userId, input));
+    await db.transaction((tx) => applyPartialDelivery(tx, tenantId, actor, input));
     cache.invalidate(CacheKeys.dashboardKpis(tenantId));
     return { success: true };
   },
@@ -1952,7 +2028,7 @@ export const OrderService = {
    * every order individually. Each order is processed independently so one
    * bad row (already cancelled, zero total, etc.) doesn't block the rest.
    */
-  async bulkCompleteWithPayment(db: Db, tenantId: number, userId: number, orderIds: number[]) {
+  async bulkCompleteWithPayment(db: Db, tenantId: number, actor: Actor, orderIds: number[]) {
     if (orderIds.length === 0) return { updated: 0, failed: [] as Array<{ orderId: number; error: string }> };
     if (orderIds.length > 100) throw new Error("Максимум 100 заказов за раз");
 
@@ -1988,7 +2064,7 @@ export const OrderService = {
           await this.updateStatus(db, tenantId, orderId, "delivered");
         }
         const remaining = total - Number(alreadyPaid);
-        await db.transaction(tx => applyPartialPayment(tx, tenantId, userId, {
+        await db.transaction(tx => applyPartialPayment(tx, tenantId, actor, {
           orderId,
           paidAmount: remaining.toFixed(2),
           method: (order.paymentMethod === "debt" ? "cash" : order.paymentMethod) as "cash" | "card" | "transfer",
@@ -2006,7 +2082,7 @@ export const OrderService = {
   },
 
   async recordDeliveryAndPayment(
-    db: Db, tenantId: number, userId: number,
+    db: Db, tenantId: number, actor: Actor,
     input: {
       orderId: number;
       deliveredItems: Array<{ itemId: number; deliveredQuantity: number; returnReason?: string }>;
@@ -2015,12 +2091,12 @@ export const OrderService = {
     },
   ) {
     await db.transaction(async (tx) => {
-      await applyPartialDelivery(tx, tenantId, userId, {
+      await applyPartialDelivery(tx, tenantId, actor, {
         orderId: input.orderId,
         items: input.deliveredItems,
         photos: input.photos,
       });
-      await applyPartialPayment(tx, tenantId, userId, {
+      await applyPartialPayment(tx, tenantId, actor, {
         orderId: input.orderId,
         paidAmount: input.payment.paidAmount,
         method: input.payment.method,
