@@ -110,3 +110,73 @@ export function shopPinSvg(color: string, animated: boolean): string {
   </g>
 </svg>`;
 }
+
+/* ────────────────────────────────────────────────────────────────────────────
+   Значок группы
+   ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Цвет группы — по худшему магазину внутри.
+ *
+ * Кучка из девяти рассчитывающихся и одного должника окрасится в красный, и
+ * это намеренно: карта нужна, чтобы заметить проблему, а не чтобы усреднить
+ * её до незаметности. Сколько там кого — написано в подсказке к группе.
+ */
+export function worstTier(tiers: Array<string | undefined>): ShopTier {
+  for (const t of TIER_ORDER) {
+    if (tiers.some(x => x === t)) return t;
+  }
+  return "new";
+}
+
+/**
+ * Размер кружка группы — по числу магазинов в ней.
+ *
+ * Не ради красоты: одинаковые кружки заставляли бы вчитываться в число, чтобы
+ * понять, где скопление крупнее. Три ступени, дальше рост не читается.
+ */
+export function clusterSize(count: number): [number, number] {
+  if (count < 10) return [40, 40];
+  if (count < 50) return [48, 48];
+  return [56, 56];
+}
+
+/**
+ * Кружок группы.
+ *
+ * Нарисован из тех же частей, что и булавка — заливка цветом разряда, белая
+ * обводка, тень на земле, — чтобы группа читалась как «несколько таких же
+ * меток», а не как объект чужой природы.
+ *
+ * Число нарисовано внутри той же картинки, а не отдельным слоем поверх неё:
+ * слой у Яндекса — своя вёрстка со своими отступами, и он молча ничего не
+ * показал. В SVG число всегда там, где кружок.
+ */
+export function clusterBadgeSvg(color: string, count: number, w: number, h: number): string {
+  // Больше трёх знаков в кружке не помещается: «1000+» вместо числа.
+  const label = count > 999 ? "999+" : String(count);
+  // Шрифт сжимается по длине числа, чтобы «7» и «128» одинаково стояли внутри.
+  const size = label.length >= 4 ? 11 : label.length === 3 ? 13 : label.length === 2 ? 15 : 17;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 40 40">
+  <circle cx="20" cy="20" r="17" fill="${color}" fill-opacity="0.26"/>
+  <circle cx="20" cy="20" r="13" fill="${color}" stroke="#ffffff" stroke-width="2.5"/>
+  <text x="20" y="20" text-anchor="middle" dominant-baseline="central"
+        font-family="Arial, Helvetica, sans-serif" font-size="${size}" font-weight="700"
+        fill="#ffffff">${label}</text>
+</svg>`;
+}
+
+/**
+ * «2 магазина», а не «2 магазинов».
+ *
+ * Подсказка к группе — единственное место, где число стоит рядом со словом,
+ * и неверное окончание там бросается в глаза сразу.
+ */
+export function shopsWord(n: number): string {
+  const tens = n % 100;
+  if (tens >= 11 && tens <= 14) return "магазинов";
+  const ones = n % 10;
+  if (ones === 1) return "магазин";
+  if (ones >= 2 && ones <= 4) return "магазина";
+  return "магазинов";
+}

@@ -6,6 +6,7 @@ import { Radio, RefreshCw, MapPin, Wifi, WifiOff, Store } from "lucide-react";
 import {
   TIER_COLOR, TIER_LABEL, TIER_ORDER, money, shopPinSvg,
   PIN_SIZE, PIN_ANCHOR, PIN_ANIMATION_LIMIT, type ShopTier,
+  worstTier, clusterSize, clusterBadgeSvg, shopsWord,
 } from "@/lib/shop-tier";
 
 // Yandex Maps API key
@@ -44,7 +45,7 @@ export default function SupervisorTracking() {
     // минут её перечитывать незачем, а карта обновляется каждые 30 секунд.
     staleTime: 5 * 60_000,
   });
-  const shopMarkersRef = useRef<YandexPlacemark[]>([]);
+  const clustererRef = useRef<YandexClusterer | null>(null);
 
   const mapRef     = useRef<YandexMap | null>(null);
   const mapDivRef  = useRef<HTMLDivElement>(null);
@@ -171,17 +172,23 @@ export default function SupervisorTracking() {
     if (!ymaps || !map) return;
 
     ymaps.ready(() => {
-      shopMarkersRef.current.forEach(m => map.geoObjects.remove(m));
-      shopMarkersRef.current = [];
+      if (clustererRef.current) {
+        map.geoObjects.remove(clustererRef.current);
+        clustererRef.current = null;
+      }
       if (!showShops || !shopScores) return;
 
       // Анимация — только пока меток немного: каждая метка отдельная картинка,
       // и её SMIL браузер считает сам.
       const animated = shopScores.length <= PIN_ANIMATION_LIMIT;
+      const placemarks: YandexPlacemark[] = [];
 
       shopScores.forEach((shop) => {
         if (shop.lat == null || shop.lng == null) return;
-        const color = TIER_COLOR[shop.tier as ShopTier] ?? TIER_COLOR.new;
+        // Незнакомый разряд с сервера — как «заказов не было»: серая метка
+        // честнее пустого значка и падения на выборе цвета группы.
+        const tier: ShopTier = shop.tier in TIER_COLOR ? (shop.tier as ShopTier) : "new";
+        const color = TIER_COLOR[tier];
 
         const placemark = new ymaps.Placemark(
           [shop.lat, shop.lng],
@@ -189,12 +196,14 @@ export default function SupervisorTracking() {
             balloonContentHeader: `<b style="font-family:Inter,sans-serif;font-size:14px">${shop.name}</b>`,
             balloonContentBody: `
               <div style="font-family:Inter,sans-serif;font-size:12px;color:#666;padding:4px 0;line-height:1.6">
-                <div><b style="color:${color}">${TIER_LABEL[shop.tier as ShopTier].ru}</b> — ${shop.reason}</div>
+                <div><b style="color:${color}">${TIER_LABEL[tier].ru}</b> — ${shop.reason}</div>
                 <div>Принёс за всё время: <b>${money(shop.ltv)}</b></div>
                 <div>Заказов: ${shop.orderCount}${shop.debt > 0 ? ` · долг ${money(shop.debt)}` : ""}</div>
               </div>
             `,
             hintContent: `${shop.name} — ${money(shop.ltv)}`,
+            // Группа читает разряд у своих меток, чтобы выбрать себе цвет.
+            tier,
           },
           {
             // Булавка со значком лавки, а не круг: круги на этой карте заняты
@@ -212,9 +221,57 @@ export default function SupervisorTracking() {
           }
         );
 
-        map.geoObjects.add(placemark);
-        shopMarkersRef.current.push(placemark);
+        placemarks.push(placemark);
       });
+      if (placemarks.length === 0) return;
+
+      // Магазины в городе стоят вплотную — на соседних улицах, а то и в одном
+      // доме. Поодиночке булавки на них наезжают друг на друга, и вместо карты
+      // выходит куча: не видно ни сколько там точек, ни какая из них какая.
+      // Именно на это и жаловались — «если они ближе, то ошибочно смотрятся».
+      //
+      // Группировщик собирает налезающие метки в один кружок с числом.
+      // Приближение разводит их обратно; клик по кружку приближает карту к
+      // группе, а когда ближе уже некуда — открывает список магазинов в ней.
+      const clusterer = new ymaps.Clusterer({
+        // Сетка крупнее стандартной (64): булавка у нас 48 пикселей шириной,
+        // и при стандартной соседние метки всё равно перекрывались краями.
+        gridSize: 96,
+        // Двух хватает: пара наехавших друг на друга булавок читается уже
+        // так же плохо, как десяток.
+        minClusterSize: 2,
+      });
+
+      // Цвет группы — по худшему магазину внутри. Одна общая группа, а не по
+      // группировщику на разряд: четыре группировщика ставили четыре кружка
+      // в одну точку, и они перекрывали друг друга — та же куча, только
+      // этажом выше.
+      clusterer.createCluster = (center, geoObjects) => {
+        const cluster = ymaps.Clusterer.prototype.createCluster.call(clusterer, center, geoObjects);
+        const tiers = geoObjects.map(o => o.properties.get("tier") as string | undefined);
+        const tier = worstTier(tiers);
+        const [w, h] = clusterSize(geoObjects.length);
+        cluster.options.set({
+          iconLayout: "default#image",
+          iconImageHref: `data:image/svg+xml,${encodeURIComponent(clusterBadgeSvg(TIER_COLOR[tier], geoObjects.length, w, h))}`,
+          iconImageSize: [w, h],
+          iconImageOffset: [-w / 2, -h / 2],
+          zIndex: 100,
+        });
+        // Разбор по разрядам в подсказке: цвет говорит про худший магазин в
+        // группе, а сколько их там всего — только это.
+        const breakdown = TIER_ORDER
+          .map(x => ({ x, n: tiers.filter(y => y === x).length }))
+          .filter(r => r.n > 0)
+          .map(r => `${TIER_LABEL[r.x].ru.toLowerCase()} — ${r.n}`)
+          .join(", ");
+        cluster.properties.set("hintContent", `${geoObjects.length} ${shopsWord(geoObjects.length)}: ${breakdown}`);
+        return cluster;
+      };
+
+      clusterer.add(placemarks);
+      map.geoObjects.add(clusterer);
+      clustererRef.current = clusterer;
     });
   }, [shopScores, showShops]);
 
@@ -410,8 +467,8 @@ declare global {
 
   interface YandexMap {
     geoObjects: {
-      add(object: YandexPlacemark): void;
-      remove(object: YandexPlacemark): void;
+      add(object: YandexPlacemark | YandexClusterer): void;
+      remove(object: YandexPlacemark | YandexClusterer): void;
       /** null while the map holds no geo objects. */
       getBounds(): number[][] | null;
     };
@@ -424,8 +481,27 @@ declare global {
     setCenter(center: number[], zoom?: number): void;
   }
 
+  /** Метка глазами группировщика: он читает у неё только свойства. */
+  interface YandexClusteredObject {
+    properties: { get(key: string): unknown };
+  }
+
+  interface YandexCluster {
+    options: { set(options: Record<string, unknown>): void };
+    properties: { set(key: string, value: unknown): void };
+  }
+
+  interface YandexClusterer {
+    add(objects: YandexPlacemark[]): void;
+    createCluster(center: number[], geoObjects: YandexClusteredObject[]): YandexCluster;
+  }
+
   interface YandexMaps {
     ready(callback: () => void): void;
+    Clusterer: {
+      new (options: { gridSize?: number; minClusterSize?: number }): YandexClusterer;
+      prototype: YandexClusterer;
+    };
     Map: new (element: HTMLElement, options: { center: number[]; zoom: number; controls?: string[] }) => YandexMap;
     Placemark: new (
       geometry: number[],
