@@ -1,0 +1,42 @@
+# Для поисковых роботов.
+#
+# Открыто ровно то, что имеет смысл в выдаче: лендинг, вход и регистрация.
+# Всё остальное — рабочие разделы конкретной компании. Робот туда всё равно
+# не попадёт (за логином), но явный запрет бережёт краулинговый бюджет: без
+# него Google раз за разом ходит по десяткам адресов, получает один и тот же
+# редирект на вход и решает, что сайт состоит из редиректов.
+
+User-agent: *
+
+Disallow: /dashboard
+Disallow: /shops
+Disallow: /products
+Disallow: /orders
+Disallow: /warehouse
+Disallow: /arrivals
+Disallow: /settings
+Disallow: /billing
+Disallow: /barcode
+Disallow: /offline-orders
+Disallow: /notifications
+Disallow: /super-admin
+Disallow: /monitoring
+Disallow: /warehouse-reports
+Disallow: /audit-log
+Disallow: /reports
+Disallow: /analytics
+Disallow: /users
+Disallow: /pnl
+Disallow: /agent
+Disallow: /deliveries
+Disallow: /supervisor
+Disallow: /onboarding
+Disallow: /invite/
+Disallow: /reset-password
+Disallow: /forgot-password
+Disallow: /subscription-blocked
+# Та же страница, что и «/» — дубль в выдаче не нужен.
+Disallow: /landing
+Disallow: /api/
+
+Sitemap: https://www.warehouse-pro.uz/sitemap.xml

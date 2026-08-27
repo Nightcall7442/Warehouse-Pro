@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="ru">
   <head>
     <meta charset="UTF-8" />
     <!-- Mobile-first viewport: prevents zoom on input focus, respects notch -->
@@ -9,7 +9,33 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Warehouse Pro" />
-    <title>Warehouse Pro</title>
+    <!-- ── Как страница выглядит в поиске ──────────────────────────────────
+         Заголовок и описание — это то, что человек читает в выдаче и по чему
+         решает, кликать ли. Раньше здесь стояло просто «Warehouse Pro»: по
+         такому заголовку не понять, что это вообще такое, и Google не за что
+         зацепиться, чтобы показать сайт по запросу «программа для склада».
+
+         Ссылка canonical названа явно и с www — тем адресом, который сейчас
+         действительно отдаёт приложение. Без неё Google сам выбирает
+         «главный» адрес из встреченных вариантов и может выбрать не тот. -->
+    <title>Warehouse Pro — склад, заказы и торговые агенты в одной системе</title>
+    <meta name="description" content="Учёт склада, заказы, торговые агенты и долги магазинов в одной программе. Работает офлайн на телефоне агента, запуск за 10 минут, 14 дней бесплатно. Ташкент, Узбекистан." />
+    <link rel="canonical" href="https://www.warehouse-pro.uz/" />
+
+    <!-- Карточка при отправке ссылки в Telegram, WhatsApp, Facebook. Без неё
+         в переписке появляется голый адрес — по нему никто не переходит. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Warehouse Pro" />
+    <meta property="og:locale" content="ru_RU" />
+    <meta property="og:locale:alternate" content="uz_UZ" />
+    <meta property="og:url" content="https://www.warehouse-pro.uz/" />
+    <meta property="og:title" content="Warehouse Pro — склад, заказы и торговые агенты в одной системе" />
+    <meta property="og:description" content="Учёт склада, заказы, торговые агенты и долги магазинов в одной программе. Работает офлайн, запуск за 10 минут, 14 дней бесплатно." />
+    <meta property="og:image" content="https://www.warehouse-pro.uz/icon-512.png" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Warehouse Pro — склад, заказы и торговые агенты" />
+    <meta name="twitter:description" content="Учёт склада, заказы и торговые агенты в одной программе. 14 дней бесплатно." />
+    <meta name="twitter:image" content="https://www.warehouse-pro.uz/icon-512.png" />
     <link rel="icon" href="/icon-192.png" type="image/png"/>
     <link rel="apple-touch-icon" href="/icon-192.png" />
     <!-- VitePWA injects its own <link rel="manifest"> (manifest.webmanifest,
@@ -23,7 +49,35 @@
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   </head>
   <body>
-    <div id="root"></div>
+    <!-- ── Что видно до того, как загрузится приложение ────────────────────
+         Приложение рисуется скриптом, и до его загрузки в разметке не было
+         ничего, кроме пустого div. Робот Google такую страницу выполняет, но
+         не сразу и не всегда: в Search Console она так и стояла —
+         «просканирована, но пока не проиндексирована».
+
+         Здесь лежит короткая версия первого экрана. Робот видит её сразу,
+         человек на медленной связи — вместо белого поля. Как только скрипт
+         загрузится, React заменит это содержимое настоящим лендингом:
+         createRoot очищает контейнер при первой отрисовке. -->
+    <div id="root">
+      <div style="max-width:640px;margin:0 auto;padding:64px 24px;font-family:'DM Sans',system-ui,sans-serif;color:#1a1a1a">
+        <h1 style="font-size:32px;line-height:1.15;letter-spacing:-0.03em;margin:0 0 16px">
+          Warehouse Pro — склад, заказы и торговые агенты в одной системе
+        </h1>
+        <p style="font-size:16px;line-height:1.6;margin:0 0 12px;color:#4a4a4a">
+          Программа складского учёта для оптовой торговли: остатки на складе, заказы магазинов,
+          маршруты и визиты торговых агентов, долги и оплаты. Мобильное приложение агента
+          работает офлайн и отправляет данные, когда появляется связь.
+        </p>
+        <p style="font-size:16px;line-height:1.6;margin:0 0 24px;color:#4a4a4a">
+          Настройка — 10 минут, первые 14 дней бесплатно и без привязки карты.
+        </p>
+        <p style="font-size:16px;margin:0">
+          <a href="/register" style="color:#1a1a1a">Начать бесплатно</a> ·
+          <a href="/login" style="color:#1a1a1a">Войти</a>
+        </p>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
