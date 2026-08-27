@@ -3,7 +3,10 @@ import { useEffect, useRef, useState } from "react";
 import { useLang } from "@/i18n";
 import { format } from "date-fns";
 import { Radio, RefreshCw, MapPin, Wifi, WifiOff, Store } from "lucide-react";
-import { TIER_COLOR, TIER_LABEL, TIER_ORDER, money, type ShopTier } from "@/lib/shop-tier";
+import {
+  TIER_COLOR, TIER_LABEL, TIER_ORDER, money, shopPinSvg,
+  PIN_SIZE, PIN_ANCHOR, PIN_ANIMATION_LIMIT, type ShopTier,
+} from "@/lib/shop-tier";
 
 // Yandex Maps API key
 const YANDEX_MAPS_API_KEY = import.meta.env.VITE_YANDEX_MAPS_API_KEY || "dd072e98-24e7-4b2e-b328-2989bd981fa5";
@@ -172,6 +175,10 @@ export default function SupervisorTracking() {
       shopMarkersRef.current = [];
       if (!showShops || !shopScores) return;
 
+      // Анимация — только пока меток немного: каждая метка отдельная картинка,
+      // и её SMIL браузер считает сам.
+      const animated = shopScores.length <= PIN_ANIMATION_LIMIT;
+
       shopScores.forEach((shop) => {
         if (shop.lat == null || shop.lng == null) return;
         const color = TIER_COLOR[shop.tier as ShopTier] ?? TIER_COLOR.new;
@@ -190,16 +197,14 @@ export default function SupervisorTracking() {
             hintContent: `${shop.name} — ${money(shop.ltv)}`,
           },
           {
-            // Квадрат со скруглением, а не круг: круги на этой карте уже
-            // заняты агентами, и две роли не должны выглядеть одинаково.
+            // Булавка со значком лавки, а не круг: круги на этой карте заняты
+            // агентами, и две роли не должны выглядеть одинаково.
             iconLayout: "default#imageWithContent",
-            iconImageHref: `data:image/svg+xml,${encodeURIComponent(`
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20">
-                <rect x="2" y="2" width="16" height="16" rx="5" fill="${color}" stroke="white" stroke-width="2"/>
-              </svg>
-            `)}`,
-            iconImageSize: [20, 20],
-            iconImageOffset: [-10, -10],
+            iconImageHref: `data:image/svg+xml,${encodeURIComponent(shopPinSvg(color, animated))}`,
+            iconImageSize: PIN_SIZE,
+            // Привязка к острию: метка стоит на своём адресе, а не парит над
+            // ним центром картинки.
+            iconImageOffset: PIN_ANCHOR,
             balloonPanelMaxMapArea: 0,
             // Ниже меток агентов: люди важнее точек, их метка не должна
             // оказаться под магазином.

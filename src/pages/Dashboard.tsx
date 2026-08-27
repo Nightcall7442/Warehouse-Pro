@@ -345,7 +345,7 @@ export default function Dashboard() {
                       <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
                     ))}
                   </Pie>
-                  <Tooltip content={<PieTooltip />} />
+                  <Tooltip cursor={false} content={<PieTooltip />} />
                 </RePieChart>
               </ResponsiveContainer>
               {/* Center label */}

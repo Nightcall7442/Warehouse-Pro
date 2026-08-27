@@ -64,7 +64,7 @@ export function PerformanceCharts({ chartData }: PerformanceChartsProps) {
               <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
               <XAxis dataKey="time" tick={{ fontSize: 10, fill: COLORS.textTertiary }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
               <YAxis tick={{ fontSize: 10, fill: COLORS.textTertiary }} tickLine={false} axisLine={false} />
-              <Tooltip content={<ChartTooltip />} />
+              <Tooltip cursor={false} content={<ChartTooltip />} />
               <Bar dataKey="errors" name="Ошибки" fill={COLORS.danger} radius={[3, 3, 0, 0]} isAnimationActive={false} />
             </BarChart>
           </ResponsiveContainer>

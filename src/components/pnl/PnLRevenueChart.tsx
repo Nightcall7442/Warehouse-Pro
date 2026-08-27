@@ -82,7 +82,7 @@ export function PnLRevenueChart({
                     : String(v)
               }
             />
-            <Tooltip content={<ChartTooltip fmt={(v) => fmt(v)} />} />
+            <Tooltip cursor={false} content={<ChartTooltip fmt={(v) => fmt(v)} />} />
             <Legend
               iconType="circle"
               iconSize={8}

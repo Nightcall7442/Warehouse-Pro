@@ -244,7 +244,7 @@ export default function WarehouseReports() {
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border, #d8d5cd)" horizontal={false} />
                 <XAxis type="number" tick={{ fontSize: 10, fill: "var(--color-text-tertiary, #6b6760)" }} />
                 <YAxis dataKey="category" type="category" tick={{ fontSize: 11, fill: "var(--color-text-secondary, #5e5b54)" }} width={75} />
-                <Tooltip content={<ChartTooltip />} />
+                <Tooltip cursor={false} content={<ChartTooltip />} />
                 <Bar dataKey="totalValue" name={t("Стоимость", "Qiymat")} fill="var(--color-primary)" radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -260,7 +260,7 @@ export default function WarehouseReports() {
                   <Pie data={pieData} cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={3} dataKey="value">
                     {pieData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                   </Pie>
-                  <Tooltip content={<ChartTooltip />} />
+                  <Tooltip cursor={false} content={<ChartTooltip />} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
