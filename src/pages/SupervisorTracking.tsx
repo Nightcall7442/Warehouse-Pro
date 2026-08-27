@@ -2,7 +2,8 @@ import { trpc } from "@/providers/trpc";
 import { useEffect, useRef, useState } from "react";
 import { useLang } from "@/i18n";
 import { format } from "date-fns";
-import { Radio, RefreshCw, MapPin, Wifi, WifiOff } from "lucide-react";
+import { Radio, RefreshCw, MapPin, Wifi, WifiOff, Store } from "lucide-react";
+import { TIER_COLOR, TIER_LABEL, TIER_ORDER, money, type ShopTier } from "@/lib/shop-tier";
 
 // Yandex Maps API key
 const YANDEX_MAPS_API_KEY = import.meta.env.VITE_YANDEX_MAPS_API_KEY || "dd072e98-24e7-4b2e-b328-2989bd981fa5";
@@ -28,6 +29,20 @@ export default function SupervisorTracking() {
   const { data: locations, isLoading, refetch, dataUpdatedAt } = trpc.agent.getLocations.useQuery(
     undefined, { refetchInterval: 30_000 }
   );
+  // Магазины на той же карте: супервайзер смотрит, где люди, и тут же видит,
+  // к каким точкам они едут и что это за точки. Отдельная карта заставляла бы
+  // держать две картинки в голове.
+  //
+  // Своя тысяча — потолок запроса; больше на карту всё равно не помещается
+  // осмысленно, а на мобильном канале это уже мегабайты.
+  const [showShops, setShowShops] = useState(true);
+  const { data: shopScores } = trpc.shop.scores.useQuery({ limit: 1000 }, {
+    // Оценка меняется от оплат и заказов, то есть медленно: чаще раза в пять
+    // минут её перечитывать незачем, а карта обновляется каждые 30 секунд.
+    staleTime: 5 * 60_000,
+  });
+  const shopMarkersRef = useRef<YandexPlacemark[]>([]);
+
   const mapRef     = useRef<YandexMap | null>(null);
   const mapDivRef  = useRef<HTMLDivElement>(null);
   const markersMapRef = useRef<Map<number, YandexPlacemark>>(new Map());
@@ -143,6 +158,60 @@ export default function SupervisorTracking() {
       }
     });
   }, [locations]);
+
+  // Магазины отдельным эффектом: они меняются раз в пять минут, а метки
+  // агентов — каждые тридцать секунд. В одном эффекте пришлось бы
+  // перерисовывать всё вместе, и карта дёргалась бы на каждом опросе.
+  useEffect(() => {
+    const ymaps = window.ymaps;
+    const map = mapRef.current;
+    if (!ymaps || !map) return;
+
+    ymaps.ready(() => {
+      shopMarkersRef.current.forEach(m => map.geoObjects.remove(m));
+      shopMarkersRef.current = [];
+      if (!showShops || !shopScores) return;
+
+      shopScores.forEach((shop) => {
+        if (shop.lat == null || shop.lng == null) return;
+        const color = TIER_COLOR[shop.tier as ShopTier] ?? TIER_COLOR.new;
+
+        const placemark = new ymaps.Placemark(
+          [shop.lat, shop.lng],
+          {
+            balloonContentHeader: `<b style="font-family:Inter,sans-serif;font-size:14px">${shop.name}</b>`,
+            balloonContentBody: `
+              <div style="font-family:Inter,sans-serif;font-size:12px;color:#666;padding:4px 0;line-height:1.6">
+                <div><b style="color:${color}">${TIER_LABEL[shop.tier as ShopTier].ru}</b> — ${shop.reason}</div>
+                <div>Принёс за всё время: <b>${money(shop.ltv)}</b></div>
+                <div>Заказов: ${shop.orderCount}${shop.debt > 0 ? ` · долг ${money(shop.debt)}` : ""}</div>
+              </div>
+            `,
+            hintContent: `${shop.name} — ${money(shop.ltv)}`,
+          },
+          {
+            // Квадрат со скруглением, а не круг: круги на этой карте уже
+            // заняты агентами, и две роли не должны выглядеть одинаково.
+            iconLayout: "default#imageWithContent",
+            iconImageHref: `data:image/svg+xml,${encodeURIComponent(`
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20">
+                <rect x="2" y="2" width="16" height="16" rx="5" fill="${color}" stroke="white" stroke-width="2"/>
+              </svg>
+            `)}`,
+            iconImageSize: [20, 20],
+            iconImageOffset: [-10, -10],
+            balloonPanelMaxMapArea: 0,
+            // Ниже меток агентов: люди важнее точек, их метка не должна
+            // оказаться под магазином.
+            zIndex: 100,
+          }
+        );
+
+        map.geoObjects.add(placemark);
+        shopMarkersRef.current.push(placemark);
+      });
+    });
+  }, [shopScores, showShops]);
 
   // Focus on agent when selected from list
   useEffect(() => {
@@ -286,6 +355,29 @@ export default function SupervisorTracking() {
 
         {/* Map */}
         <div className="neo-card lg:col-span-2 order-1 lg:order-2" style={{ minHeight: 480, position: "relative" }}>
+          {/* Легенда магазинов.
+              Цвет без подписи — ребус: красная точка на карте может означать
+              что угодно, от долга до отсутствия связи. */}
+          <div className="flex items-center gap-3 flex-wrap px-4 pt-3 pb-1">
+            <button onClick={() => setShowShops(v => !v)}
+              className="neo-btn neo-btn-sm"
+              aria-pressed={showShops}
+              style={showShops ? { color: "var(--color-primary)" } : undefined}>
+              <Store size={13} />
+              {showShops ? t("Магазины на карте", "Xaritada do'konlar") : t("Показать магазины", "Do'konlarni ko'rsatish")}
+            </button>
+            {showShops && TIER_ORDER.map(tier => {
+              const count = shopScores?.filter(sc => sc.tier === tier).length ?? 0;
+              if (count === 0) return null;
+              return (
+                <span key={tier} className="flex items-center gap-1.5 text-xs" style={{ color: "var(--color-text-secondary)" }}>
+                  <span style={{ width: 9, height: 9, borderRadius: 3, background: TIER_COLOR[tier], flexShrink: 0 }} />
+                  {t(TIER_LABEL[tier].ru, TIER_LABEL[tier].uz)}
+                  <b style={{ color: "var(--color-text-primary)" }}>{count}</b>
+                </span>
+              );
+            })}
+          </div>
           {mapError ? (
             <div className="flex flex-col items-center justify-center h-[480px] text-center p-6">
               <MapPin size={32} className="mb-3 opacity-30" style={{ color: "var(--color-text-tertiary)" }} />
@@ -339,6 +431,8 @@ declare global {
         iconImageSize?: number[];
         iconImageOffset?: number[];
         balloonPanelMaxMapArea?: number;
+        /** Метки магазинов уводятся под метки агентов: люди важнее точек. */
+        zIndex?: number;
       },
     ) => YandexPlacemark;
   }

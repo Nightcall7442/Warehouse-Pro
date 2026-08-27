@@ -10,6 +10,7 @@ import { cache, withCache, CacheKeys, CacheTTL } from "./lib/cache";
 import { parseLocationFromUrl } from "./lib/parse-location";
 import { haversineKm } from "./lib/geo";
 import { photoRef } from "./lib/photo-url";
+import { shopScores } from "./services/shop-scoring";
 
 /**
  * Проверить, что чужие идентификаторы в запросе принадлежат этой организации.
@@ -59,6 +60,29 @@ export const shopRouter = createRouter({
       .orderBy(sql`count(${shops.id}) DESC`);
     return rows;
   }),
+
+  /**
+   * Магазины с оценкой: сколько принесли за всю историю и как платят.
+   *
+   * Одна процедура на две задачи, потому что обе спрашивают про один и тот же
+   * список: карта раскрашивает точки по платёжному поведению, отчёт LTV
+   * сортирует их по принесённым деньгам. Считать это двумя запросами значило
+   * бы дважды пройти по всем заказам организации.
+   *
+   * supervisorQuery — как у карты трекинга: цвет магазина строится на его
+   * долге и истории платежей, это не та цифра, которую показывают рядовому
+   * агенту чужого участка.
+   */
+  scores: supervisorQuery
+    .input(z.object({ limit: z.number().int().min(1).max(2000).optional() }).optional())
+    .query(async ({ input, ctx }) => {
+      const limit = input?.limit ?? 500;
+      return withCache(
+        CacheKeys.shopScores(ctx.tenant.id, limit),
+        CacheTTL.shops,
+        () => shopScores(getDb(), ctx.tenant.id, limit),
+      );
+    }),
 
   list: supervisorQuery
     .input(z.object({

@@ -63,6 +63,11 @@ const PAYMENT_LABEL: Record<string, string> = {
 };
 
 
+/** Подписи оценок для выгрузки — в таблице цвет не покажешь. */
+const TIER_LABEL_RU: Record<string, string> = {
+  red: "Долго не платят", yellow: "Есть долг", green: "Рассчитываются", new: "Заказов не было",
+};
+
 const ROLE_LABEL: Record<string, string> = {
   ceo: "Руководитель", operator: "Оператор", supervisor: "Супервайзер",
   agent: "Агент", merchandiser: "Мерчендайзер", courier: "Курьер",
@@ -236,6 +241,39 @@ export const REPORTS: ReportDef[] = [
       })),
     filename: (p) => `shops-directory${suffix(p)}`,
     sheet: { ru: "Магазины", uz: "Do'konlar" },
+  },
+  {
+    id: "shops-ltv",
+    category: "shops",
+    title: { ru: "Ценность магазинов (LTV)", uz: "Do'konlar qiymati (LTV)" },
+    description: {
+      ru: "Сколько каждый магазин принёс за всю историю и как он платит",
+      uz: "Har bir do'kon butun tarix davomida qancha keltirgan va qanday to'laydi",
+    },
+    icon: Coins,
+    roles: ["ceo", "supervisor"],
+    // Период здесь не спрашивается сознательно: вопрос «сколько магазин принёс
+    // за всё время» тем и отличается от выручки за месяц, что границ у него
+    // нет. Отчёт за период уже есть рядом — «Продажи по магазинам».
+    needsPeriod: false,
+    useQuery: (_p, opts) => trpc.shop.scores.useQuery(
+      { limit: EXPORT_LIMIT },
+      { enabled: opts.enabled },
+    ),
+    toRows: (data) => ((data as Array<Record<string, unknown>> | undefined) ?? [])
+      .map(r => ({
+        "Магазин": String(r.name ?? "—"),
+        "Принёс за всю историю": num(r.ltv),
+        "Текущий долг": num(r.debt),
+        "Заказов": num(r.orderCount),
+        "Доля покупок в долг, %": Math.round(num(r.debtShare) * 100),
+        "Дней самому старому долгу": num(r.oldestUnpaidDays),
+        "Оценка": TIER_LABEL_RU[String(r.tier)] ?? String(r.tier),
+        "Почему": String(r.reason ?? ""),
+        "Последний заказ": r.lastOrderAt ? String(r.lastOrderAt).slice(0, 10) : "—",
+      })),
+    filename: () => "shops-ltv",
+    sheet: { ru: "Ценность магазинов", uz: "Do'konlar qiymati" },
   },
   {
     id: "agent-efficiency",

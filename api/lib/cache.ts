@@ -264,6 +264,9 @@ export const CacheKeys = {
   productList: (tenantId: number, page: number, pageSize: number, search?: string, category?: string) =>
     `products:${tenantId}:${page}:${pageSize}:${search ?? ""}:${category ?? ""}`,
   productCategories: (tenantId: number) => `product_cats:${tenantId}`,
+  /** Оценка магазинов: выручка за всю историю и платёжное поведение. */
+  shopScores: (tenantId: number, limit: number) => `shopscores:${tenantId}:${limit}`,
+
   shopList: (tenantId: number, page: number, pageSize: number, search?: string, city?: string, district?: string, agentId?: number, territoryId?: number, onlyDebtors?: boolean, sortBy?: string) =>
     `shops:${tenantId}:${page}:${pageSize}:${search ?? ""}:${city ?? ""}:${district ?? ""}:${agentId ?? ""}:${territoryId ?? ""}:${onlyDebtors ?? ""}:${sortBy ?? ""}`,
   shopCities: (tenantId: number) => `shop_cities:${tenantId}`,
