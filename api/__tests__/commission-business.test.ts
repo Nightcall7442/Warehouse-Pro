@@ -74,6 +74,10 @@ function resetTables() {
   usersTable = [
     { id: 10, tenantId: 1, name: "Agent One", role: "agent" },
     { id: 11, tenantId: 1, name: "Agent Two", role: "agent" },
+    // Сотрудник без строки комиссии за период: setRate должен её завести.
+    // Раньше в стенде его не было вовсе — процедура писала ставку любому
+    // присланному id, в том числе чужому, и тест этого не замечал.
+    { id: 12, tenantId: 1, name: "Agent Four", role: "agent" },
     { id: 20, tenantId: 2, name: "Agent Three", role: "agent" },
   ];
   ordersTable = [
@@ -260,6 +264,16 @@ describe("commission.setRate", () => {
     const caller = commissionRouter.createCaller(buildCtx());
     const result = await caller.setRate({ userId: 10, commissionRate: 8 });
     expect(result.success).toBe(true);
+  });
+
+  it("не заводит ставку чужому сотруднику", async () => {
+    // Оператор организации 1 подставляет id сотрудника организации 2.
+    // Раньше строка ложилась с tenant_id=1 и чужим user_id, а commission.list
+    // потом возвращала имя владельца чужого аккаунта.
+    const { commissionRouter } = await import("../commission-router");
+    const caller = commissionRouter.createCaller(buildCtx());
+    await expect(caller.setRate({ userId: 20, commissionRate: 5 }))
+      .rejects.toThrow("не найден в вашей организации");
   });
 
   it("rejects rate above 100%", async () => {

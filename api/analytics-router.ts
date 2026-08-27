@@ -315,6 +315,16 @@ export const analyticsRouter = createRouter({
           .from(orders)
           .where(and(...orderConds));
 
+        // Себестоимость — по ТОМУ ЖЕ набору заказов, что и выручка выше.
+        //
+        // Здесь набор оставался выписанным руками, и isNull(deletedAt) в нём
+        // не было. Удаление — штатный способ исправить ошибочно проведённый
+        // заказ: оператор удалял delivered-заказ на 9 000 000 с
+        // себестоимостью 6 000 000, выручка периода честно падала на
+        // 9 000 000, а COGS оставался с этими 6 000 000 внутри. Валовая и
+        // чистая прибыль в карточке занижались ровно на себестоимость
+        // удалённого заказа, а месячный график на том же экране считал через
+        // общие условия и показывал другую цифру.
         const cogsRow = await db.select({
           totalCOGS: sql<string>`COALESCE(SUM(${deliveredQty()} * ${orderItems.costPrice}), 0)`,
         })
@@ -322,8 +332,11 @@ export const analyticsRouter = createRouter({
           .leftJoin(products, eq(orderItems.productId, products.id))
           .leftJoin(orders, eq(orderItems.orderId, orders.id))
           .where(and(
-            eq(orders.tenantId, tid),
-            inArray(orders.status, REVENUE_ORDER_STATUSES),
+            // Тот же помощник, что у выручки строкой выше: набор условий
+            // выписывался здесь руками, и фильтр удалённых заказов из него
+            // выпал. Помощник на то и заведён, чтобы такие наборы не
+            // расходились между двумя запросами одного экрана.
+            ...revenueOrderConditions(tid),
             sql`${orders.createdAt} >= ${dateFrom}`,
             sql`${orders.createdAt} <= ${dateTo + " 23:59:59"}`,
           ));

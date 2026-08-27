@@ -1,4 +1,5 @@
 import { spawn } from "child_process";
+import { randomBytes } from "crypto";
 import { gzipSync } from "zlib";
 import { getDb } from "../queries/connection";
 import { logger } from "../lib/logger";
@@ -17,7 +18,20 @@ import { firstRow } from "../lib/db-rows";
  */
 export async function runBackup(): Promise<{ success: boolean; message: string }> {
   const timestamp = new Date().toISOString().split("T")[0];
-  const backupKey = `backups/warehouse-pro-${timestamp}.sql.gz`;
+  // Имя дампа больше не выводится из одной только даты.
+  //
+  // Раньше ключ был ровно `backups/warehouse-pro-<дата>.sql.gz` и лежал в том
+  // же бакете, из которого сервер раздаёт фото товаров и магазинов голым
+  // адресом вида https://<бакет>.s3.<регион>.amazonaws.com/<ключ>. Имя бакета и
+  // регион уходят клиенту в каждом списке товаров, то есть известны любому, кто
+  // хоть раз открыл карточку. Дальше подставить предсказуемый ключ — вопрос
+  // одной строки, а внутри дампа вся база: все арендаторы, users.password_hash,
+  // api_keys.key_hash, телефоны и долги магазинов.
+  //
+  // Случайный суффикс делает адрес неугадываемым даже если политика бакета
+  // по-прежнему пускает читать что угодно; полный ключ пишется в лог, оттуда
+  // его берут при восстановлении.
+  const backupKey = `backups/warehouse-pro-${timestamp}-${randomBytes(12).toString("hex")}.sql.gz`;
 
   // Sanity-check table counts alongside the dump — if the dump silently
   // produced far fewer rows than the live tables have, something's wrong.
@@ -92,6 +106,22 @@ export async function runBackup(): Promise<{ success: boolean; message: string }
 
     const gzipped = gzipSync(dump);
 
+    // Дамп кладётся в отдельный бакет, а не туда, откуда раздаются фото.
+    //
+    // S3_BACKUP_BUCKET — приватный бакет только под резервные копии: у него своя
+    // политика, и «читать может кто угодно», нужное фотографиям, на него не
+    // распространяется. Пока переменная не задана, копия всё же делается — база
+    // без бэкапа опаснее бэкапа в общем бакете, — но в лог уходит
+    // предупреждение, и в общем бакете она лежит под неугадываемым ключом.
+    const backupBucket = (process.env.S3_BACKUP_BUCKET ?? "").trim();
+    const targetBucket = backupBucket || env.s3Bucket;
+    if (!backupBucket) {
+      logger.warn(
+        "Backup: S3_BACKUP_BUCKET is not set — the dump goes into the same bucket that serves public photos",
+        { bucket: env.s3Bucket },
+      );
+    }
+
     const { S3Client, PutObjectCommand } = await import("@aws-sdk/client-s3");
     const s3 = new S3Client({
       region: env.s3Region || "us-east-1",
@@ -101,14 +131,20 @@ export async function runBackup(): Promise<{ success: boolean; message: string }
       },
     });
     await s3.send(new PutObjectCommand({
-      Bucket: env.s3Bucket,
+      Bucket: targetBucket,
       Key: backupKey,
       Body: gzipped,
       ContentType: "application/gzip",
+      // Шифрование на стороне S3: тот, кто получит доступ к самому хранилищу в
+      // обход API (снятый том, чужая реплика), получит нечитаемый файл.
+      // ACL здесь намеренно не передаётся: у бакетов с Object Ownership =
+      // BucketOwnerEnforced любой ACL в запросе — ошибка, и бэкап бы просто
+      // перестал загружаться.
+      ServerSideEncryption: "AES256",
       Metadata: { tableCounts: JSON.stringify(counts) },
     }));
 
-    logger.info("Backup dump uploaded to S3", { key: backupKey, rawBytes: dump.length, gzippedBytes: gzipped.length, counts });
+    logger.info("Backup dump uploaded to S3", { bucket: targetBucket, key: backupKey, rawBytes: dump.length, gzippedBytes: gzipped.length, counts });
     return { success: true, message: `Backup saved: ${backupKey} (${(gzipped.length / 1024 / 1024).toFixed(1)} MB gzipped)` };
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);

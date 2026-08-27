@@ -289,9 +289,19 @@ export const courierRouter = createRouter({
     .input(z.object({
       orderId: z.number().int().positive(),
       result: z.enum(["paid", "partial_paid", "returned", "partial_returned"]),
-      paidAmount: z.string().optional(),        // for paid/partial_paid
+      // Формат тот же, что у cashAmount в markDelivered выше. Раньше поле было
+      // просто z.string(): курьер набирал «50,000» (запятая — привычный
+      // разделитель разрядов), Number("50,000") давал NaN, и дальше
+      // debtAmount = total − NaN = NaN, `paidAmount > 0` — ложь, платёж не
+      // записывался вовсе, а заказ при этом становился delivered и склад
+      // списывался. Долг магазина пересчитывался так, будто денег не приносили.
+      paidAmount: z.string().regex(/^\d+(\.\d{1,2})?$/, "Неверный формат суммы").optional(),
       paymentMethod: z.enum(["cash", "card", "transfer"]).default("cash"),
-      debtDueDate: z.string().optional(),        // for partial_paid
+      // Колонка debt_due_date — DATE. Свободная строка вроде «15.09.2026» или
+      // «15/09/26» превращалась в Invalid Date, драйвер писал NULL в NOT NULL
+      // колонку debt_reminders.due_date и вся транзакция откатывалась: курьер
+      // не мог закрыть доставку вообще и видел непонятную ошибку драйвера.
+      debtDueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Дата в формате ГГГГ-ММ-ДД").optional(),
       returnReason: z.string().max(200).optional(), // for returned/partial_returned
       returnedItems: z.array(z.object({          // for partial_returned
         itemId: z.number(),
@@ -305,6 +315,24 @@ export const courierRouter = createRouter({
         returnedQty: z.number().min(0, "Возвращённое количество не может быть отрицательным"),
       })).optional(),
       notes: z.string().max(500).optional(),
+    }).superRefine((v, ctx) => {
+      // «Частичный возврат» без списка возвращённых позиций — запрос, который
+      // нечем исполнить. Раньше он проходил: ни одна из трёх веток обработки
+      // склада не срабатывала (условие ветки требовало returnedItems), заказ
+      // всё равно становился delivered, долг пересчитывался, а резерв по
+      // заказу оставался в reserved навсегда — освободить его больше некому,
+      // заказ уже завершён. available занижен, current_stock завышен, и
+      // расхождение всплывает только при инвентаризации.
+      //
+      // Экран мобилки список всегда шлёт, поэтому проверка стоит на сервере:
+      // до неё доходит запрос, отправленный мимо экрана.
+      if (v.result === "partial_returned" && !v.returnedItems?.length) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["returnedItems"],
+          message: "Для частичного возврата укажите, что именно вернулось",
+        });
+      }
     }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
@@ -361,7 +389,24 @@ export const courierRouter = createRouter({
 
       // The courier types a bare "YYYY-MM-DD"; parsed at local midnight so the
       // DATE column stores the day he picked whatever the server's timezone is.
-      const debtDueDate = input.debtDueDate ? new Date(`${input.debtDueDate}T00:00:00`) : null;
+      //
+      // Формат уже проверен схемой, но регулярное выражение пропускает
+      // несуществующие дни. «2026-13-45» даёт Invalid Date, и драйвер пишет
+      // NULL в NOT NULL колонку due_date, роняя всю транзакцию завершения
+      // доставки. «2026-02-30» хуже: JS молча переносит его на 2 марта, и
+      // магазин получает срок оплаты, которого курьер не называл. Поэтому дата
+      // собирается по частям и сверяется обратно — день обязан остаться тем же.
+      let debtDueDate: Date | null = null;
+      if (input.debtDueDate) {
+        const [year, month, day] = input.debtDueDate.split("-").map(Number);
+        const parsed = new Date(year, month - 1, day);
+        const sameDay = !Number.isNaN(parsed.getTime())
+          && parsed.getFullYear() === year && parsed.getMonth() === month - 1 && parsed.getDate() === day;
+        if (!sameDay) {
+          throw new Error(`Такой даты не существует: ${input.debtDueDate}. Укажите дату в формате ГГГГ-ММ-ДД`);
+        }
+        debtDueDate = parsed;
+      }
 
       await db.transaction(async (tx) => {
         // Re-read and lock the order inside the transaction, re-checking the
@@ -449,7 +494,16 @@ export const courierRouter = createRouter({
               WHERE product_id = ${item.productId} AND tenant_id = ${ctx.tenant.id} AND warehouse_id = ${whId}
             `);
           }
-        } else if (input.result === "partial_returned" && input.returnedItems) {
+        } else if (input.result === "partial_returned") {
+          // Условие ветки требовало ещё и input.returnedItems, и запрос без
+          // списка просто проваливался мимо всех трёх веток: склад не
+          // трогался, движений не записывалось, а заказ ниже безусловно
+          // становился delivered. Резерв оставался занят навсегда. Схема выше
+          // такой запрос уже не пропускает — эта проверка стоит второй линией,
+          // внутри транзакции, где решение о складе и принимается.
+          if (!input.returnedItems?.length) {
+            throw new Error("Для частичного возврата укажите, что именно вернулось");
+          }
           // Partial return — deduct delivered qty, return undelivered qty
           const returnedMap = new Map(input.returnedItems.map(ri => [ri.itemId, ri.returnedQty]));
           // What's actually owed shrinks with what came back — accumulated
@@ -540,6 +594,18 @@ export const courierRouter = createRouter({
         }
 
         paidAmount = Number(input.paidAmount ?? 0);
+        // Формат уже проверен схемой; здесь — вторая линия на случай, когда
+        // процедуру вызывают в обход схемы, и явная граница по сумме заказа.
+        // Раньше не было ни того ни другого: NaN проходил насквозь, платёж
+        // молча не записывался (paidAmount > 0 — ложь при NaN), а заказ
+        // закрывался как доставленный. Запас 20% — тот же, что в markDelivered:
+        // округление вверх «на сдачу» бывает, оплата вдвое больше заказа — нет.
+        if (!Number.isFinite(paidAmount) || paidAmount < 0) {
+          throw new Error(`Некорректная сумма оплаты: «${input.paidAmount}». Введите число, разделитель — точка`);
+        }
+        if (paidAmount > orderTotal * 1.2) {
+          throw new Error(`Сумма оплаты (${paidAmount}) превышает сумму заказа (${orderTotal})`);
+        }
         debtAmount = orderTotal - paidAmount;
 
         // ── Determine final order status ──

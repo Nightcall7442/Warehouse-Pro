@@ -705,6 +705,37 @@ async function applyPartialDelivery(
   await recalcShopDebt(tx, tenantId, order.shopId);
 }
 
+/**
+ * Дубликат именно по ключу идемпотентности, а не по номеру заказа.
+ *
+ * У orders два уникальных индекса, и оба дают один и тот же код ER_DUP_ENTRY:
+ * uq_order_number_tenant (номер занят — надо взять следующий и повторить) и
+ * uq_orders_idempotency (заказ уже создан — надо вернуть существующий). Имя
+ * индекса драйвер кладёт в sqlMessage: «Duplicate entry '…' for key
+ * 'orders.uq_orders_idempotency'».
+ *
+ * Если имени в сообщении нет (другой драйвер, урезанный текст ошибки),
+ * считаем дубликат коллизией номера: тогда вставка повторится с новым номером
+ * и, если дело всё-таки было в ключе, упрётся в тот же индекс — внешний
+ * обработчик найдёт заказ по ключу и вернёт его. Обратное умолчание хуже: оно
+ * отключает ретрай номера и останавливает офлайн-очередь.
+ *
+ * Именно так она и вставала. Раньше в create эти два случая различались по
+ * наличию input.idempotencyKey: раз ключ передан — значит дубликат по ключу, и
+ * ретрай номера отключался. Агент возвращается в сеть с пятью заказами,
+ * syncAll шлёт их параллельно, все пять считают один и тот же «№150», первая
+ * транзакция коммитится, остальные четыре падают на uq_order_number_tenant.
+ * Ретрай выключен, внешний обработчик по ключу ничего не находит и отдаёт 500,
+ * мобилка помечает записи retryable:false — автосинк их больше не трогает,
+ * пока агент вручную не нажмёт «Повторить» по каждой.
+ */
+export function isIdempotencyDuplicate(err: unknown): boolean {
+  const message = (err as { sqlMessage?: string; message?: string } | null)?.sqlMessage
+    ?? (err as { message?: string } | null)?.message
+    ?? "";
+  return message.includes("uq_orders_idempotency");
+}
+
 export const OrderService = {
   async list(db: Db, tenantId: number, filters: Record<string, unknown>, opts?: { userId: number; userRole: string }) {
     const f = filters as { status?: string; archived?: boolean; agentId?: number; agentIds?: number[]; page?: number; pageSize?: number; search?: string; showDeleted?: boolean; dateFrom?: string; dateTo?: string; paymentMethod?: string };
@@ -801,7 +832,22 @@ export const OrderService = {
     return { data, total: Number(countResult[0]?.count ?? 0), page, pageSize: limit };
   },
 
-  async getById(db: Db, tenantId: number, orderId: number, _opts?: { userId: number; userRole: string }) {
+  async getById(db: Db, tenantId: number, orderId: number, opts?: { userId: number; userRole: string }) {
+    // Роль вызывающего принималась параметром и не использовалась (_opts).
+    // Из-за этого ограничение списка обходилось одним запросом по id: агент или
+    // мерчендайзер перебирал order.getById({id: 1..N}) и по каждому чужому
+    // заказу организации получал сумму, скидку, состав с ценами, имя ведущего
+    // агента и блок shop — телефон, ФИО владельца и текущий долг магазина.
+    // У мерчендайзера своих заказов нет вовсе, поэтому для него это открывало
+    // весь портфель компании.
+    //
+    // Список привилегированных ролей — тот же, что в list выше: карточка и
+    // строка списка показывают один и тот же заказ, и разойдись эти два списка,
+    // заказ было бы видно в одном месте и не видно в другом.
+    const scope = opts && !["ceo", "operator", "supervisor", "superadmin"].includes(opts.userRole)
+      ? [eq(orders.agentId, opts.userId)]
+      : [];
+
     const [order] = await db.select({
       id: orders.id, orderNumber: orders.orderNumber, status: orders.status,
       total: orders.total, subtotal: orders.subtotal, discount: orders.discount,
@@ -810,7 +856,7 @@ export const OrderService = {
       courierId: orders.courierId, deliveryStatus: orders.deliveryStatus,
       deliveredAt: orders.deliveredAt, deletedAt: orders.deletedAt,
       paymentMethod: orders.paymentMethod, invoicePrintedAt: orders.invoicePrintedAt,
-    }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt))).limit(1);
+    }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt), ...scope)).limit(1);
     if (!order) return null;
 
     const [items, [shop], [agent]] = await Promise.all([
@@ -984,8 +1030,10 @@ export const OrderService = {
           // второго — берём следующий и пробуем снова. Дубликат по ключу
           // идемпотентности здесь не наш случай: его разбирает обработчик
           // снаружи транзакции, поэтому такую ошибку пробрасываем как есть.
+          // Раньше случаи различались по наличию ключа, и офлайн-очередь агента
+          // вставала на первой же коллизии номера — см. isIdempotencyDuplicate.
           const code = (err as { code?: string } | null)?.code;
-          const isNumberClash = code === "ER_DUP_ENTRY" && !input.idempotencyKey;
+          const isNumberClash = code === "ER_DUP_ENTRY" && !isIdempotencyDuplicate(err);
           if (!isNumberClash || attempt >= 4) throw err;
           number = `№${Number(number.slice(1)) + 1}`;
         }

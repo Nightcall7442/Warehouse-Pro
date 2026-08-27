@@ -448,61 +448,80 @@ export async function calculateSalary(
 
   if (persist) {
     try {
-      // Строка ИМЕННО за этот период, а не «последняя строка агента».
+      // Проверка и запись — В ОДНОЙ ТРАНЗАКЦИИ, под блокировкой строки.
       //
-      // Раньше запись выбиралась выше — последней по periodStart, без фильтра
-      // периода, — и блок ниже переписывал её под текущий месяц вместе с
-      // periodStart/periodEnd. Первого августа агент (или супервайзер через
-      // salaryReport) открывал экран зарплаты, и июльская строка со статусом
-      // pending и комиссией 2 500 000 превращалась в августовскую с почти
-      // нулевыми числами. История выплат не существовала: строк по агенту
-      // физически не могло быть больше одной. И всё это — от обычного открытия
-      // экрана, без единой мутации.
+      // Это чтение и эта вставка стояли просто подряд, вне транзакции, и
+      // запускались из обычного GET. Супервайзер открывал «Отчёт по зарплате»
+      // ровно тогда, когда агент открывал свой экран зарплаты (или React Query
+      // делал рефетч) — оба запроса не видели строки за текущий месяц и оба её
+      // вставляли. У агента появлялись ДВЕ строки за один период с одинаковыми
+      // суммами; проверки на дубль периода нет нигде, поэтому оператор
+      // одобрял и оплачивал обе, и комиссия уходила агенту дважды.
       //
-      // Вторая половина той же беды: ветка INSERT срабатывала, только когда
-      // записи не было ВООБЩЕ. Как только единственная строка получала статус
-      // approved или paid, внешнее условие переставало пропускать блок, и новые
-      // месяцы не создавались никогда — нормальное завершение первого
-      // расчётного месяца молча выключало учёт комиссий этого агента.
-      const [periodRecord] = await db.select({
-        id: commissions.id,
-        status: commissions.status,
-      }).from(commissions)
-        .where(and(
-          eq(commissions.tenantId, tenantId),
-          eq(commissions.userId, agentId),
-          eq(commissions.periodType, "monthly"),
-          sql`${commissions.periodStart} = ${monthStart}`,
-        ))
-        .limit(1);
+      // SELECT ... FOR UPDATE по (user_id, period_type, period_start) идёт по
+      // idx_commissions_user_period. InnoDB в REPEATABLE READ берёт на этот
+      // диапазон next-key lock, то есть держит и сам промежуток: вторая
+      // транзакция со своим SELECT ... FOR UPDATE ждёт первую и после её
+      // фиксации уже видит созданную строку — и уходит в ветку обновления
+      // сумм вместо второй вставки.
+      await db.transaction(async (tx) => {
+        // Строка ИМЕННО за этот период, а не «последняя строка агента».
+        //
+        // Раньше запись выбиралась выше — последней по periodStart, без фильтра
+        // периода, — и блок ниже переписывал её под текущий месяц вместе с
+        // periodStart/periodEnd. Первого августа агент (или супервайзер через
+        // salaryReport) открывал экран зарплаты, и июльская строка со статусом
+        // pending и комиссией 2 500 000 превращалась в августовскую с почти
+        // нулевыми числами. История выплат не существовала: строк по агенту
+        // физически не могло быть больше одной. И всё это — от обычного открытия
+        // экрана, без единой мутации.
+        //
+        // Вторая половина той же беды: ветка INSERT срабатывала, только когда
+        // записи не было ВООБЩЕ. Как только единственная строка получала статус
+        // approved или paid, внешнее условие переставало пропускать блок, и новые
+        // месяцы не создавались никогда — нормальное завершение первого
+        // расчётного месяца молча выключало учёт комиссий этого агента.
+        const [periodRecord] = await tx.select({
+          id: commissions.id,
+          status: commissions.status,
+        }).from(commissions)
+          .where(and(
+            eq(commissions.tenantId, tenantId),
+            eq(commissions.userId, agentId),
+            eq(commissions.periodType, "monthly"),
+            sql`${commissions.periodStart} = ${monthStart}`,
+          ))
+          .for("update")
+          .limit(1);
 
-      if (!periodRecord) {
-        // Строки за этот период нет — создаём, независимо от того, в каком
-        // состоянии строки за прошлые месяцы.
-        if (commissionRate > 0) {
-          await db.insert(commissions).values({
-            tenantId,
-            userId: agentId,
-            commissionRate: commissionRate.toFixed(2),
-            periodType: "monthly",
-            periodStart: sql`${monthStart}`,
-            periodEnd: sql`${monthEnd}`,
-            salesAmount: salesAmount.toFixed(2),
-            commissionAmount: commissionAmount.toFixed(2),
-          });
+        if (!periodRecord) {
+          // Строки за этот период нет — создаём, независимо от того, в каком
+          // состоянии строки за прошлые месяцы.
+          if (commissionRate > 0) {
+            await tx.insert(commissions).values({
+              tenantId,
+              userId: agentId,
+              commissionRate: commissionRate.toFixed(2),
+              periodType: "monthly",
+              periodStart: sql`${monthStart}`,
+              periodEnd: sql`${monthEnd}`,
+              salesAmount: salesAmount.toFixed(2),
+              commissionAmount: commissionAmount.toFixed(2),
+            });
+          }
+        } else if (periodRecord.status === "pending") {
+          // Черновик за текущий период — обновляем только суммы. Границы периода
+          // не трогаем: строка уже принадлежит этому месяцу, а их перезапись и
+          // была способом угробить предыдущий.
+          await tx.update(commissions)
+            .set({
+              salesAmount: salesAmount.toFixed(2),
+              commissionAmount: commissionAmount.toFixed(2),
+            })
+            .where(and(eq(commissions.id, periodRecord.id), eq(commissions.status, "pending")));
         }
-      } else if (periodRecord.status === "pending") {
-        // Черновик за текущий период — обновляем только суммы. Границы периода
-        // не трогаем: строка уже принадлежит этому месяцу, а их перезапись и
-        // была способом угробить предыдущий.
-        await db.update(commissions)
-          .set({
-            salesAmount: salesAmount.toFixed(2),
-            commissionAmount: commissionAmount.toFixed(2),
-          })
-          .where(and(eq(commissions.id, periodRecord.id), eq(commissions.status, "pending")));
-      }
-      // approved / paid за этот период — финансы уже подписали, не трогаем.
+        // approved / paid за этот период — финансы уже подписали, не трогаем.
+      });
     } catch (e) {
       // Commission persistence is non-critical but should be logged
       logger.warn("Failed to persist commission", { agentId, error: String(e) });

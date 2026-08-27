@@ -4,10 +4,11 @@
  */
 import { Hono } from "hono";
 import { getDb } from "./queries/connection";
-import { apiKeys, products, orders, orderItems, warehouseStock, shops } from "../db/schema";
+import { apiKeys, tenants, products, orders, orderItems, warehouseStock, shops } from "../db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { createHash } from "crypto";
 import { checkRateLimit as sharedCheckRateLimit } from "./lib/rate-limit";
+import { hasSubscriptionAccess } from "./lib/feature-gating";
 
 /** What the API-key middleware below puts on the context for every route. */
 type PublicApiVariables = {
@@ -39,6 +40,40 @@ app.use("*", async (c, next) => {
   // decoration.
   if (!(await sharedCheckRateLimit(keyHash, { windowMs: 60_000, limit: key.rateLimit, namespace: "public-api" }))) {
     return c.json({ error: "Rate limit exceeded", retryAfter: 60 }, 429);
+  }
+
+  // ── Состояние организации, которой принадлежит ключ ────────────────────────
+  //
+  // Ключ проверялся сам по себе: жив, не просрочен, укладывается в лимит. Про
+  // организацию не спрашивали ничего, и поэтому отключить неплательщика было
+  // фактически нельзя. Веб и мобильное приложение закрываются двумя разными
+  // калитками — withSubscriptionGate в tRPC и проверка tenants.status в
+  // authenticateRequest, — а этот вход стоял мимо обеих: подписка кончилась,
+  // суперадмин поставил status='suspended', сотрудники видят экран оплаты, а
+  // GET /api/v1/orders с тем же ключом продолжает бессрочно отдавать заказы,
+  // остатки и магазины.
+  //
+  // Проверка стоит здесь, в общем middleware, а не в каждом маршруте: новый
+  // маршрут ниже закрывается сам, забыть его нельзя.
+  const [tenant] = await db.select({ status: tenants.status, plan: tenants.plan })
+    .from(tenants).where(eq(tenants.id, key.tenantId)).limit(1);
+
+  if (!tenant || tenant.status !== "active") {
+    return c.json({ error: "Organisation is suspended. Contact support." }, 403);
+  }
+
+  // API продаётся как возможность тарифа Exclusive (см. заголовок файла и
+  // список возможностей тарифа на экране оплаты). Ключ при этом выписывается
+  // на любом тарифе, включая trial: apiKey.create тариф не смотрит. Пока это
+  // так, единственное место, где тариф вообще проверяется, — вот это.
+  if (tenant.plan !== "exclusive") {
+    return c.json({ error: "Public API requires the Exclusive plan." }, 403);
+  }
+
+  // 402, а не 403: подписку продлевают, а не выпрашивают права. По коду
+  // интегратор отличает «заплатите» от «вам сюда нельзя» без разбора текста.
+  if (!(await hasSubscriptionAccess(key.tenantId))) {
+    return c.json({ error: "Subscription expired. Renew to continue using the API." }, 402);
   }
 
   // Update last used

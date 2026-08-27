@@ -141,28 +141,63 @@ export class OneCSyncService {
       const order = await db.select({ id: orders.id, status: orders.status, total: orders.total, orderNumber: orders.orderNumber, shopId: orders.shopId, createdAt: orders.createdAt }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId))).limit(1);
       if (!order[0]) throw new Error(`Order ${orderId} not found`);
 
-      const items = await db.select({
-        productId: orderItems.productId,
-        quantity: orderItems.quantity,
-        unitPrice: orderItems.unitPrice,
-        unit: products.unit,
-        unitWeight: products.unitWeight,
-      }).from(orderItems)
-        .leftJoin(products, eq(orderItems.productId, products.id))
-        .where(and(
-          eq(orderItems.orderId, orderId),
-          eq(products.tenantId, tenantId),
-        ));
-      const shopExternalId = await OneCMapper.getExternalId(db, tenantId, "shop", order[0].shopId);
+      // Заказ выгружается в 1С ровно один раз.
+      //
+      // Раньше каждый вызов начинался с createDocument. Достаточно было
+      // postDocument упереться в таймаут — документ в 1С уже создан, но наружу
+      // летела ошибка и статус "failed", — чтобы директор нажал синхронизацию
+      // повторно и в 1С появилась ВТОРАЯ «Реализация товаров и услуг» на тот же
+      // заказ. После проведения обеих дважды списывались остатки и дважды
+      // считалась выручка, причём со стороны Warehouse Pro всё выглядело
+      // нормально: своих следов первый документ здесь не оставлял.
+      //
+      // Теперь идентификатор документа ищется в id_mappings до создания, и при
+      // повторе остаётся только добросить проведение по сохранённому id.
+      let documentId = await OneCMapper.getExternalId(db, tenantId, "order", orderId);
 
-      if (!shopExternalId) {
-        throw new Error(`Shop ${order[0].shopId} not mapped to 1C`);
-      }
+      if (documentId) {
+        logger.info(`Order ${orderId} already has a 1C document, re-posting instead of creating`, {
+          tenantId,
+          documentId,
+        });
+      } else {
+        const items = await db.select({
+          productId: orderItems.productId,
+          quantity: orderItems.quantity,
+          unitPrice: orderItems.unitPrice,
+          unit: products.unit,
+          unitWeight: products.unitWeight,
+        }).from(orderItems)
+          .leftJoin(products, eq(orderItems.productId, products.id))
+          .where(and(
+            eq(orderItems.orderId, orderId),
+            eq(products.tenantId, tenantId),
+          ));
+        const shopExternalId = await OneCMapper.getExternalId(db, tenantId, "shop", order[0].shopId);
 
-      const mappedItems = [];
-      for (const item of items) {
-        const productExternalId = await OneCMapper.getExternalId(db, tenantId, "product", item.productId);
-        if (productExternalId) {
+        if (!shopExternalId) {
+          throw new Error(`Shop ${order[0].shopId} not mapped to 1C`);
+        }
+
+        // Заказ без позиций в 1С не выгружается: пустая «Реализация» проводится
+        // без единой строки и выглядит как успешная синхронизация.
+        if (items.length === 0) {
+          throw new Error(`Заказ ${orderId} не содержит позиций — выгружать в 1С нечего`);
+        }
+
+        const mappedItems = [];
+        for (const item of items) {
+          const productExternalId = await OneCMapper.getExternalId(db, tenantId, "product", item.productId);
+          // Несопоставленный товар раньше молча выпадал из накладной: в заказе
+          // пять позиций, товар заведён руками в Warehouse Pro и ещё не пришёл
+          // из 1С — строки в id_mappings нет, значит и в документе её нет. В 1С
+          // уходила Реализация на четыре позиции и меньшую сумму, проводилась, а
+          // статус синхронизации был "completed" — расхождение с накладной
+          // магазина не всплывало ни у кого. Лучше выгрузка не пройдёт целиком и
+          // это увидят, чем пройдёт наполовину и не увидит никто.
+          if (!productExternalId) {
+            throw new Error(`Товар ${item.productId} не сопоставлен с 1С`);
+          }
           mappedItems.push({
             productExternalId,
             quantity: Number(item.quantity),
@@ -171,22 +206,28 @@ export class OneCSyncService {
             unit: item.unit ?? "pcs",
           });
         }
+
+        const doc = mapOrder1C({
+          id: order[0].id,
+          orderNumber: order[0].orderNumber,
+          createdAt: order[0].createdAt,
+          shopExternalId,
+          items: mappedItems,
+        });
+
+        const result = await bridge.createDocument("Document_РеализацияТоваровИУслуг", doc);
+        documentId = result.id;
+        // Маппинг записывается до проведения, а не после: между созданием и
+        // проведением и рвётся связь в том самом сценарии с таймаутом. Если
+        // сохранять id после postDocument, повтор снова начнётся с создания.
+        await OneCMapper.upsert(db, tenantId, "order", documentId, orderId);
       }
 
-      const doc = mapOrder1C({
-        id: order[0].id,
-        orderNumber: order[0].orderNumber,
-        createdAt: order[0].createdAt,
-        shopExternalId,
-        items: mappedItems,
-      });
-
-      const result = await bridge.createDocument("Document_РеализацияТоваровИУслуг", doc);
-      await bridge.postDocument("Document_РеализацияТоваровИУслуг", result.id);
+      await bridge.postDocument("Document_РеализацияТоваровИУслуг", documentId);
 
       logger.info(`Order ${orderId} synced to 1C`, {
         tenantId,
-        documentId: result.id,
+        documentId,
       });
       await updateSyncStatus(tenantId, "order", "to1c", "completed", 1);
       record1CSync("order", "to1c", Date.now() - startTime, true);

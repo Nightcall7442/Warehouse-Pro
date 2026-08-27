@@ -116,14 +116,62 @@ function translateZodError(zodMsg: string): string {
   return "Проверьте правильность заполнения полей";
 }
 
+// ── Что можно показать человеку, а что обязано остаться «внутренней ошибкой» ──
+//
+// Признаки сбоя, а не разговора с оператором: код драйвера MySQL (ER_DUP_ENTRY),
+// сетевой код (ECONNREFUSED), состояние SQL. Такие сообщения умеют содержать
+// куски запроса и чужие данные — в том числе по-русски, из самих строк базы, —
+// поэтому одной проверки «текст русский» мало.
+const RUNTIME_FAILURE_MARKERS = /\b(ER_[A-Z_]+|E[A-Z]{3,}|PROTOCOL_[A-Z_]+|SQLSTATE|SELECT|INSERT|UPDATE|DELETE|WHERE|undefined|null|NaN)\b/;
+
+/**
+ * Ошибка написана для оператора, а не для разработчика?
+ *
+ * Бизнес-проверки в сервисах бросают обычный `new Error("Недостаточно товара на
+ * складе (доступно: 3, запрошено: 10)")`. tRPC считает любой не-TRPCError
+ * внутренним сбоем, и в проде текст подменялся на «Внутренняя ошибка сервера.
+ * Попробуйте позже.». Агент в поле из-за этого не понимал, что надо уменьшить
+ * количество, и жал повтор — каждая попытка ложилась в error-log как 500.
+ *
+ * Правильное место для такой проверки — сам бросок (TRPCError с кодом
+ * BAD_REQUEST, как в agent-router и order.ts), и он остаётся правильным. Это —
+ * подстраховка для мест, где до сих пор стоит голый throw: показать текст,
+ * который заведомо написан человеку, и не показать ничего остального.
+ *
+ * Пропускается только то, что похоже на заготовленное сообщение: ровно класс
+ * Error (TypeError и RangeError — это ошибки кода), без полей драйвера, одна
+ * короткая строка, по-русски и без технических маркеров. Всё прочее, включая
+ * любую ошибку mysql2 с русским значением внутри, по-прежнему маскируется.
+ */
+function isOperatorFacingError(cause: unknown): boolean {
+  if (!(cause instanceof Error) || cause.constructor !== Error) return false;
+
+  const fields = cause as unknown as Record<string, unknown>;
+  if (fields.code !== undefined || fields.errno !== undefined
+    || fields.sqlState !== undefined || fields.syscall !== undefined) return false;
+
+  const msg = cause.message;
+  if (!msg || msg.length > 200 || /[\n\r]/.test(msg)) return false;
+  if (!/[А-Яа-яЁё]/.test(msg)) return false;
+  return !RUNTIME_FAILURE_MARKERS.test(msg);
+}
+
 const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
   errorFormatter: ({ shape, error }) => {
     const isInternal = error.code === "INTERNAL_SERVER_ERROR";
+    const operatorFacing = isInternal && isOperatorFacingError(error.cause);
     if (isInternal) {
-      console.error(`[tRPC INTERNAL] ${error.message}`, error.cause ?? error);
+      // Разные записи намеренно: по [tRPC BUSINESS] видно места, где бизнес-отказ
+      // всё ещё летит голым throw и его пора заменить на TRPCError, и эти записи
+      // не выглядят падением сервера при разборе логов.
+      if (operatorFacing) {
+        console.warn(`[tRPC BUSINESS] ${error.message}`);
+      } else {
+        console.error(`[tRPC INTERNAL] ${error.message}`, error.cause ?? error);
+      }
     }
-    let message = isInternal && env.isProduction
+    let message = isInternal && env.isProduction && !operatorFacing
       ? "Внутренняя ошибка сервера. Попробуйте позже."
       : shape.message;
 

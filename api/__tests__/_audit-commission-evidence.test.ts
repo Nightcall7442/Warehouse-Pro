@@ -415,7 +415,7 @@ function opCtx(): any {
 }
 
 describe("EVIDENCE: commission-router.calculate", () => {
-  it("G. overwrites a row that is already marked PAID", async () => {
+  it("G. выплаченную строку больше не переписывает", async () => {
     data.commissions = [{
       id: 1, tenantId: 1, userId: 10, commissionRate: "5.00", periodType: "monthly",
       periodStart: "2026-07-01", periodEnd: "2026-07-31",
@@ -427,10 +427,15 @@ describe("EVIDENCE: commission-router.calculate", () => {
     const { commissionRouter } = await import("../commission-router");
     const caller = commissionRouter.createCaller(opCtx());
     const res = await caller.calculate({ periodType: "monthly", periodStart: "2026-07-01", periodEnd: "2026-07-31" });
-    console.log("  updated rows:", res.updated);
-    console.log("  the PAID row is now:", data.commissions[0]);
+    // Так это выглядело до правки: пересчёт переписывал сумму у строки в
+    // статусе paid, и ведомость расходилась с деньгами, которые человеку уже
+    // отдали. Теперь пересчёт трогает только строки в статусе pending, а
+    // approved и paid оставляет как есть — их меняют отдельным решением, а не
+    // побочным эффектом кнопки «пересчитать».
     expect(data.commissions[0].status).toBe("paid");
-    expect(data.commissions[0].commissionAmount).toBe("0.00"); // rewritten under a paid record
+    expect(data.commissions[0].commissionAmount).toBe("2500000.00");
+    expect(data.commissions[0].salesAmount).toBe("50000000.00");
+    expect(res.updated).toBe(0);
   });
 
   it("H. period_end left behind by the salary page truncates the month", async () => {

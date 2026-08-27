@@ -6,7 +6,8 @@ import { agentLocations, dailyPlans, shops, users, agentTerritories, territories
 import { eq, and, sql, desc, gte, lte , inArray } from "drizzle-orm";
 import { REVENUE_ORDER_STATUSES } from "./lib/order-status";
 import { sseBus } from "./lib/sse";
-import { sanitizeString } from "./lib/sanitize";
+import { sanitizeString, sanitizeSearch } from "./lib/sanitize";
+import { cache, withCache, CacheTTL } from "./lib/cache";
 import { verifyVisit } from "./services/anti-fraud";
 import { haversineKm } from "./lib/geo";
 import { onDate } from "./lib/date-range";
@@ -42,6 +43,131 @@ function sanitizeRecordedAt(value?: string): Date | undefined {
   if (at.getTime() > now + CLOCK_SKEW_MS) return undefined;
   if (at.getTime() < now - MAX_BUFFER_AGE_MS) return undefined;
   return at;
+}
+
+/**
+ * Проверить, что территории из запроса принадлежат этой организации.
+ *
+ * territories общая для всей платформы, а territoryId приходит от клиента и
+ * записывался как есть. Супервайзер организации A звал setWorkZones с
+ * диапазоном идентификаторов — строки ложились с его tenant_id и чужими
+ * territory_id, — а затем listWorkZones (или сам агент через myWorkZones)
+ * возвращал name и color этих территорий: перебором выгружалась структура
+ * районов и названия филиалов всех клиентов платформы. Тем же путём чужой
+ * territoryId попадал в магазин через createShop и updateMyShop и всплывал
+ * названием чужой компании в строке заказа.
+ *
+ * Одним запросом на весь список, а не по запросу на территорию: в рабочие зоны
+ * приходят десятки идентификаторов, и цикл с отдельным SELECT сделал бы защиту
+ * самой медленной частью операции — то есть первым кандидатом на удаление при
+ * жалобе на скорость.
+ *
+ * Это половина защиты. Вторая — условие по организации в соединениях на чтении:
+ * в базе уже лежат ссылки, записанные до этой правки. Идентификаторов чужих
+ * территорий в тексте ошибки нет: иначе сообщение само стало бы каналом утечки.
+ */
+async function assertTenantOwnsTerritories(
+  db: ReturnType<typeof getDb>,
+  tenantId: number,
+  territoryIds: number[],
+): Promise<void> {
+  const unique = [...new Set(territoryIds)];
+  if (unique.length === 0) return;
+
+  const found = await db.select({ id: territories.id }).from(territories)
+    .where(and(inArray(territories.id, unique), eq(territories.tenantId, tenantId)));
+
+  if (found.length !== unique.length) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: unique.length === 1
+        ? "Территория не найдена в вашей организации"
+        : "Часть территорий не найдена в вашей организации",
+    });
+  }
+}
+
+/**
+ * Проверить, что сотрудник из запроса принадлежит этой организации.
+ *
+ * Тот же изъян, что и с территориями: agentId приходит от клиента, users общая
+ * для платформы. Без проверки рабочие зоны навешивались на чужого сотрудника —
+ * и он же оказывался в выдаче listWorkZones этой организации.
+ */
+async function assertTenantOwnsUser(
+  db: ReturnType<typeof getDb>,
+  tenantId: number,
+  userId: number,
+): Promise<void> {
+  const [row] = await db.select({ id: users.id }).from(users)
+    .where(and(eq(users.id, userId), eq(users.tenantId, tenantId)))
+    .limit(1);
+  if (!row) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "Сотрудник не найден в вашей организации" });
+  }
+}
+
+/**
+ * Справочник магазинов для пикеров: поиск и окно на сервере.
+ *
+ * Раньше и availableShops, и listAllShops отдавали ВСЕ активные магазины
+ * организации — у крупного клиента это около трёх тысяч строк — без окна и без
+ * кэша. Агент открывал экран создания заказа в поле, на медленном канале ждал
+ * десятки секунд, и после каждой правки любого магазина react-query сбрасывал
+ * ключ и всё повторялось; несколько агентов одновременно давали один и тот же
+ * полный запрос снова и снова.
+ *
+ * Поля необязательные, потому что оба маршрута зовёт мобильное приложение без
+ * аргументов: подпись сохранена, ответ по-прежнему массив.
+ *
+ * Умолчания limit нет намеренно. Молча обрезанный справочник в пикере заказа —
+ * это магазин, для которого агент физически не может оформить заказ, и такую
+ * поломку в поле не с чем связать. Клиент сужает выборку через search, а
+ * повторные запросы снимает кэш ниже.
+ */
+const shopDirectoryInput = z.object({
+  search: z.string().max(255).optional(),
+  limit: z.number().int().min(1).max(5000).optional(),
+  offset: z.number().int().min(0).optional(),
+}).optional();
+
+type ShopDirectoryInput = z.infer<typeof shopDirectoryInput>;
+
+/**
+ * Одна выборка активных магазинов на два маршрута.
+ *
+ * Ключ кэша начинается с `shops:<tenantId>` не случайно: shop-router и
+ * import-router уже сбрасывают весь этот префикс после любой правки магазина,
+ * поэтому справочник инвалидируется вместе с постраничным списком, и заводить
+ * второй, забываемый механизм не пришлось.
+ */
+async function listActiveShops(tenantId: number, input: ShopDirectoryInput) {
+  const search = input?.search?.trim();
+  const cacheKey = `shops:${tenantId}:directory:${search ?? ""}:${input?.limit ?? ""}:${input?.offset ?? ""}`;
+
+  return withCache(cacheKey, CacheTTL.shops, async () => {
+    const conditions = [eq(shops.tenantId, tenantId), eq(shops.status, "active")];
+    if (search) {
+      const pattern = `%${sanitizeSearch(search)}%`;
+      conditions.push(sql`(${shops.name} LIKE ${pattern} OR ${shops.ownerName} LIKE ${pattern} OR ${shops.phone} LIKE ${pattern})`);
+    }
+
+    const query = getDb().select({
+      id: shops.id, name: shops.name, ownerName: shops.ownerName,
+      phone: shops.phone, address: shops.address, city: shops.city,
+      district: shops.district, status: shops.status,
+      photoUrl: photoRef("shop", shops.id, shops.photoUrl, shops.updatedAt),
+      debt: shops.debt, gpsLat: shops.gpsLat, gpsLng: shops.gpsLng,
+    })
+      .from(shops)
+      .where(and(...conditions))
+      // Порядок задан явно: без него limit/offset выбирали бы каждый раз
+      // случайное подмножество, и вторая страница могла повторить первую.
+      .orderBy(shops.name);
+
+    if (input?.limit !== undefined) return query.limit(input.limit).offset(input.offset ?? 0);
+    return query;
+  });
 }
 
 /** Роли, которым положено видеть планы всей команды, а не только свои. */
@@ -138,17 +264,11 @@ export const agentRouter = createRouter({
   }),
 
   // Supervisor: full shop list for the Shops tab (same fields as agent.myShops)
-  listAllShops: supervisorQuery.query(async ({ ctx }) => {
-    return getDb().select({
-      id: shops.id, name: shops.name, ownerName: shops.ownerName,
-      phone: shops.phone, address: shops.address, city: shops.city,
-      district: shops.district, status: shops.status,
-      photoUrl: photoRef("shop", shops.id, shops.photoUrl, shops.updatedAt),
-      debt: shops.debt, gpsLat: shops.gpsLat, gpsLng: shops.gpsLng,
-    })
-      .from(shops)
-      .where(and(eq(shops.tenantId, ctx.tenant.id), eq(shops.status, "active")));
-  }),
+  listAllShops: supervisorQuery
+    .input(shopDirectoryInput)
+    .query(async ({ input, ctx }) => {
+      return listActiveShops(ctx.tenant.id, input);
+    }),
 
   // Agent: list shops assigned to this agent
   myShops: fieldSalesQuery.query(async ({ ctx }) => {
@@ -164,17 +284,11 @@ export const agentRouter = createRouter({
   }),
 
   // All active shops in tenant — for order creation & shop picker
-  availableShops: fieldSalesQuery.query(async ({ ctx }) => {
-    return getDb().select({
-      id: shops.id, name: shops.name, ownerName: shops.ownerName,
-      phone: shops.phone, address: shops.address, city: shops.city,
-      district: shops.district, status: shops.status,
-      photoUrl: photoRef("shop", shops.id, shops.photoUrl, shops.updatedAt),
-      debt: shops.debt, gpsLat: shops.gpsLat, gpsLng: shops.gpsLng,
-    })
-      .from(shops)
-      .where(and(eq(shops.tenantId, ctx.tenant.id), eq(shops.status, "active")));
-  }),
+  availableShops: fieldSalesQuery
+    .input(shopDirectoryInput)
+    .query(async ({ input, ctx }) => {
+      return listActiveShops(ctx.tenant.id, input);
+    }),
 
   saveLocation: fieldSalesQuery
     .input(z.object({
@@ -211,13 +325,32 @@ export const agentRouter = createRouter({
     // Get latest location per agent using a simpler approach
     const db = getDb();
     
+    // Окно в сутки.
+    //
+    // Раньше условия по времени тут не было, и max(id) на агента считался по
+    // всему диапазону индекса tenant_id. За год у клиента с тридцатью агентами
+    // в agent_locations накапливается порядка 2,4 млн строк (точка раз в две
+    // минуты × рабочий день × тридцать агентов), удалять их нечему. Экран
+    // трекинга опрашивает этот маршрут каждые 15 секунд с мобильного и каждые
+    // 30 с веба: два открытых экрана — примерно шесть полных проходов в минуту,
+    // непрерывно.
+    //
+    // Сутки, а не час: агент мог не выходить на связь с вечера, и вчерашняя
+    // точка на карте «где все сейчас» ещё что-то значит. Точка старше суток не
+    // значит уже ничего, зато условие по created_at ложится на существующий
+    // idx_locations_tenant_created и превращает полный проход в короткий срез.
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
     // First get the max IDs per agent
     const maxIds = await db.select({
       agentId: agentLocations.agentId,
       maxId: sql<number>`max(${agentLocations.id})`,
     })
       .from(agentLocations)
-      .where(eq(agentLocations.tenantId, ctx.tenant.id))
+      .where(and(
+        eq(agentLocations.tenantId, ctx.tenant.id),
+        gte(agentLocations.createdAt, since),
+      ))
       .groupBy(agentLocations.agentId);
 
     if (maxIds.length === 0) return [];
@@ -624,6 +757,10 @@ export const agentRouter = createRouter({
       const db = getDb();
       const tenantId = ctx.tenant.id;
 
+      if (input.territoryId != null) {
+        await assertTenantOwnsTerritories(db, tenantId, [input.territoryId]);
+      }
+
       // Тот же приём, что защищает заказ, и по той же причине. Агент нажимает
       // «Создать», строка коммитится, ответ не доходит — связь оборвалась, — он
       // нажимает снова. Без ключа в справочнике появляется второй магазин; с
@@ -658,6 +795,12 @@ export const agentRouter = createRouter({
 
       try {
         const [result] = await db.insert(shops).values(values);
+        // Справочник магазинов теперь отдаётся из кэша с ключом
+        // `shops:<tenantId>:…`; без сброса агент, только что создавший точку,
+        // не нашёл бы её в пикере заказа до истечения TTL — и решил бы, что
+        // магазин не сохранился. Тот же префикс сбрасывают shop-router и
+        // import-router.
+        cache.invalidatePrefix(`shops:${tenantId}`);
         return { id: Number(result.insertId), idempotent: false };
       } catch (err: unknown) {
         // Проверка выше не закрывает гонку: два ретрая, отправленные почти
@@ -738,7 +881,13 @@ export const agentRouter = createRouter({
       territoryId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
+      const db = getDb();
       const { id, ...rest } = input;
+
+      if (rest.territoryId != null) {
+        await assertTenantOwnsTerritories(db, ctx.tenant.id, [rest.territoryId]);
+      }
+
       const sanitized: Record<string, unknown> = { ...rest };
       if (typeof rest.name === "string") sanitized.name = sanitizeString(rest.name);
       if (typeof rest.ownerName === "string") sanitized.ownerName = sanitizeString(rest.ownerName);
@@ -751,8 +900,11 @@ export const agentRouter = createRouter({
       // Skip update if no fields to set
       if (Object.keys(sanitized).length === 0) return { success: true };
 
-      await getDb().update(shops).set(sanitized)
+      await db.update(shops).set(sanitized)
         .where(and(eq(shops.id, id), eq(shops.tenantId, ctx.tenant.id), eq(shops.agentId, ctx.user.id)));
+      // Тот же сброс, что и в createShop: иначе агент видел бы в пикере старое
+      // название своего магазина до истечения TTL.
+      cache.invalidatePrefix(`shops:${ctx.tenant.id}`);
       return { success: true };
     }),
 
@@ -762,6 +914,9 @@ export const agentRouter = createRouter({
     .mutation(async ({ input, ctx }) => {
       await getDb().update(shops).set({ photoUrl: input.dataUrl })
         .where(and(eq(shops.id, input.shopId), eq(shops.tenantId, ctx.tenant.id), eq(shops.agentId, ctx.user.id)));
+      // Ссылка на фото в справочнике несёт метку времени updatedAt — без сброса
+      // кэша агент после загрузки продолжал бы видеть старую картинку.
+      cache.invalidatePrefix(`shops:${ctx.tenant.id}`);
       return { success: true };
     }),
 
@@ -890,7 +1045,15 @@ export const agentRouter = createRouter({
         color: territories.color,
       })
         .from(agentTerritories)
-        .innerJoin(territories, eq(agentTerritories.territoryId, territories.id))
+        // Условие по организации в самом соединении. Строка agent_territories
+        // несёт свой tenant_id, но territory_id в ней мог быть чужим — и тогда
+        // соединение отдавало name и color территории другой компании. Здесь
+        // соединение внутреннее, поэтому такая строка просто выпадает из
+        // выдачи: показать её нечем и показывать нечего.
+        .innerJoin(territories, and(
+          eq(agentTerritories.territoryId, territories.id),
+          eq(territories.tenantId, ctx.tenant.id),
+        ))
         .where(and(
           eq(agentTerritories.agentId, input.agentId),
           eq(agentTerritories.tenantId, ctx.tenant.id),
@@ -906,6 +1069,13 @@ export const agentRouter = createRouter({
     }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
+
+      // Проверки до удаления старых зон: иначе запрос с чужими территориями
+      // сначала стирал у агента реальные рабочие зоны, а потом падал на
+      // вставке — и агент оставался вообще без зон.
+      await assertTenantOwnsUser(db, ctx.tenant.id, input.agentId);
+      await assertTenantOwnsTerritories(db, ctx.tenant.id, input.territoryIds);
+
       // Remove existing
       await db.delete(agentTerritories)
         .where(and(
@@ -933,7 +1103,13 @@ export const agentRouter = createRouter({
       color: territories.color,
     })
       .from(agentTerritories)
-      .innerJoin(territories, eq(agentTerritories.territoryId, territories.id))
+      // То же условие, что и в listWorkZones: сам агент открывал свои рабочие
+      // зоны и получал названия территорий чужой организации, если ему их
+      // успели навесить до появления проверки на записи.
+      .innerJoin(territories, and(
+        eq(agentTerritories.territoryId, territories.id),
+        eq(territories.tenantId, ctx.tenant.id),
+      ))
       .where(and(
         eq(agentTerritories.agentId, ctx.user.id),
         eq(agentTerritories.tenantId, ctx.tenant.id),

@@ -397,11 +397,36 @@ describe("tenant.register", () => {
     expect(result.slug).toMatch(/^acme-\d+$/);
   });
 
-  it("rejects duplicate email", async () => {
+  it("занятый адрес отвечает как успех и организацию не заводит", async () => {
+    // Раньше здесь был отказ «Email already registered» — и по нему любой
+    // желающий, без всякой авторизации, проверял, есть ли у человека аккаунт
+    // на платформе. Прогнав список адресов сотрудников компании-клиента, он
+    // получал готовую цель для фишинга и подбора паролей на /api/login.
+    //
+    // Теперь ответ на занятый адрес неотличим от ответа на свободный, а
+    // владельцу адреса уходит письмо «на этот адрес уже есть аккаунт».
+    // Проверяем именно неотличимость: совпадать должно и то, что вернулось,
+    // и то, что при этом НЕ появилось в базе.
     const { tenantRouter } = await import("../tenant-router");
     const caller = tenantRouter.createCaller(buildCtx({ user: undefined, tenant: undefined }));
-    await expect(caller.register({ orgName: "UniqueCo", name: "Admin", email: "ceo@acme.com", password: "password123" }))
-      .rejects.toThrow(/already registered/i);
+
+    const tenantsBefore = tenantsTable.length;
+    const usersBefore = usersTable.length;
+
+    const taken = await caller.register({
+      orgName: "UniqueCo", name: "Admin", email: "ceo@acme.com", password: "password123",
+    });
+
+    expect(tenantsTable.length, "по занятому адресу создалась организация").toBe(tenantsBefore);
+    expect(usersTable.length, "по занятому адресу создался пользователь").toBe(usersBefore);
+
+    const free = await caller.register({
+      orgName: "UniqueCo", name: "Admin", email: "nobody@acme.com", password: "password123",
+    });
+
+    // Ответы отличаются только slug — он и при успехе разный от заявки к заявке.
+    expect(Object.keys(taken).sort()).toEqual(Object.keys(free).sort());
+    expect(taken.message).toBe(free.message);
   });
 
   it("rejects when rate limit exceeded", async () => {

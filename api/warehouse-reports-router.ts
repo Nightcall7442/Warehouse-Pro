@@ -6,6 +6,7 @@ import {
   orderItems, orders, arrivals, arrivalItems,
 } from "@db/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
+import { revenueOrderConditions } from "./lib/order-status";
 
 export const warehouseReportsRouter = createRouter({
   /** Stock breakdown by product category */
@@ -136,18 +137,44 @@ export const warehouseReportsRouter = createRouter({
       const days = input?.days ?? 30;
       const cutoff = new Date(Date.now() - days * 86400000);
 
+      // Продажи считаются ОДНИМ предварительным агрегатом и приджойниваются
+      // как производная таблица.
+      //
+      // Раньше тот же SUM стоял коррелированным подзапросом дважды — в SELECT
+      // и в ORDER BY, — а ORDER BY выполняется до LIMIT, то есть подзапрос
+      // отрабатывал для КАЖДОЙ строки warehouse_stock, а не для двадцати
+      // возвращаемых. При 3000 товарах на двух складах это 6000 строк × 2
+      // подзапроса, и в каждом — обход idx_order_items_product плюс lookup в
+      // orders по первичному ключу на каждую позицию. На реальной истории
+      // заказов «Отчёты по складу» уходили в таймаут клиента, а сервер
+      // продолжал крутить запрос. Агрегат по товарам считается один раз и
+      // ложится в память целиком: строк в нём не больше, чем товаров.
+      const soldByProduct = db.select({
+        productId: orderItems.productId,
+        sold: sql<string>`SUM(${orderItems.quantity})`.as("sold"),
+      })
+        .from(orderItems)
+        .innerJoin(orders, eq(orderItems.orderId, orders.id))
+        .where(and(
+          ...revenueOrderConditions(tenantId),
+          sql`${orders.createdAt} >= ${cutoff}`,
+        ))
+        .groupBy(orderItems.productId)
+        .as("sold_by_product");
+
       const result = await db.select({
         productId: products.id,
         productName: products.name,
         productCode: products.code,
         unit: products.unit,
         currentStock: warehouseStock.currentStock,
-        soldQty: sql<number>`COALESCE((SELECT SUM(${orderItems.quantity}) FROM ${orderItems} INNER JOIN ${orders} o ON ${orderItems.orderId} = o.id WHERE ${orderItems.productId} = ${products.id} AND o.tenant_id = ${tenantId} AND o.deleted_at IS NULL AND o.status = 'delivered' AND o.created_at >= ${cutoff}), 0)`,
+        soldQty: sql<number>`COALESCE(${soldByProduct.sold}, 0)`,
       })
         .from(warehouseStock)
         .leftJoin(products, eq(warehouseStock.productId, products.id))
+        .leftJoin(soldByProduct, eq(soldByProduct.productId, warehouseStock.productId))
         .where(and(eq(warehouseStock.tenantId, tenantId), sql`${warehouseStock.currentStock} > 0`))
-        .orderBy(desc(sql`COALESCE((SELECT SUM(${orderItems.quantity}) FROM ${orderItems} INNER JOIN ${orders} o ON ${orderItems.orderId} = o.id WHERE ${orderItems.productId} = ${products.id} AND o.tenant_id = ${tenantId} AND o.deleted_at IS NULL AND o.status = 'delivered' AND o.created_at >= ${cutoff}), 0)`))
+        .orderBy(desc(sql`COALESCE(${soldByProduct.sold}, 0)`))
         .limit(20);
 
       return result.map(r => {

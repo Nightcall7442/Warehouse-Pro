@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { eq, and } from "drizzle-orm";
-import { createRouter, authedQuery, adminQuery } from "./middleware";
+import { createRouter, authedQuery, adminQuery, managementQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { users } from "@db/schema";
 import { env } from "./lib/env";
@@ -181,8 +181,24 @@ export const telegramRouter = createRouter({
     return { url, botUsername };
   }),
 
-  /** Daily digest: orders summary, low stock, agent performance */
-  dailyDigest: authedQuery.query(async ({ ctx }) => {
+  /**
+   * Дайджест за день: заказы, выручка, выполнение плана визитов, остатки.
+   *
+   * Раньше стоял на authedQuery — то есть на любом, кто вошёл. Из-за этого
+   * курьер (роль courier не входит ни в fieldSalesQuery, ни в reportsQuery)
+   * одним запросом с токеном мобильного приложения получал по своей
+   * организации дневную выручку в сумах, число заказов и выполненных, процент
+   * выполнения плана визитов и пять названий товаров с точными остатками на
+   * складе. То же самое видел мерчандайзер и рядовой агент — люди, которые
+   * ежедневно ходят по чужим торговым точкам и торгуются о цене.
+   *
+   * Это сводка для руководства и по составу, и по назначению, поэтому здесь
+   * managementQuery (ceo/operator/supervisor) — тот же круг, что читает планы
+   * и цифры команды. Полевым ролям отдельная урезанная версия здесь не
+   * заводится: сегодня её никто не запрашивает, а пустая процедура «на всякий
+   * случай» — ещё одна дверь, которую придётся сторожить.
+   */
+  dailyDigest: managementQuery.query(async ({ ctx }) => {
     const db = getDb();
     const tenantId = ctx.tenant.id;
     const today = new Date().toISOString().split("T")[0];

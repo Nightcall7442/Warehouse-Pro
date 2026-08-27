@@ -4,9 +4,21 @@
 
 import { getDb } from "../queries/connection";
 import { warehouseStock, orderItems, orders, products, arrivals, arrivalItems } from "@db/schema";
-import { eq, and, sql, gte, inArray } from "drizzle-orm";
+import { eq, and, sql, gte, lt, inArray } from "drizzle-orm";
 import { REVENUE_ORDER_STATUSES } from "../lib/order-status";
+import { withCache } from "../lib/cache";
 import type { DemandPoint } from "./forecast-engine";
+
+/**
+ * Сколько живёт готовый прогноз по исчерпанию запасов.
+ *
+ * Прогноз строится на окне в недели, поэтому от минуты к минуте он не меняется,
+ * а вот пересчёт его стоит двух групповых запросов по всей истории заказов
+ * тенанта. Без кэша каждый клик по «Обновить» и каждый рефетч React Query
+ * заводил новую такую цепочку рядом с ещё не закончившейся предыдущей.
+ * Две минуты — тот же порядок, что и у остальных тяжёлых сводок (CacheTTL.kpis).
+ */
+const STOCKOUT_CACHE_TTL_MS = 2 * 60 * 1000;
 
 /** Stockout prediction for a single product */
 export interface StockoutPrediction {
@@ -98,6 +110,17 @@ export async function predictStockouts(
   tenantId: number,
   lookbackDays = 30
 ): Promise<StockoutPrediction[]> {
+  return withCache(
+    `forecast:stockout:${tenantId}:${lookbackDays}`,
+    STOCKOUT_CACHE_TTL_MS,
+    () => computeStockouts(tenantId, lookbackDays),
+  );
+}
+
+async function computeStockouts(
+  tenantId: number,
+  lookbackDays: number
+): Promise<StockoutPrediction[]> {
   const db = getDb();
 
   // Get all products with stock
@@ -115,26 +138,77 @@ export async function predictStockouts(
       eq(products.status, "active"),
     ));
 
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - lookbackDays);
+  // Верхняя граница окна — полночь сегодняшнего дня. Начатый день неполон, и
+  // его частичные продажи занижали бы среднее. Так же считал и прежний код:
+  // getProductDemand достраивал ряд ровно на lookbackDays дней НАЗАД от
+  // startDate, и сегодняшняя дата в этот ряд не попадала — выбранные строки за
+  // сегодня молча выбрасывались при сшивании по дате.
+  const windowEnd = new Date();
+  windowEnd.setHours(0, 0, 0, 0);
+
+  // Спрос и ожидаемые приходы — ДВА групповых запроса на весь тенант вместо
+  // двух запросов на каждую строку склада.
+  //
+  // Раньше цикл ниже звал getProductDemand и запрос по arrival_items для
+  // каждой строки warehouse_stock: 3000 активных товаров на двух складах —
+  // это 6000 строк × 2 последовательных round-trip, 12 000 обращений к MySQL
+  // подряд внутри одного HTTP-вызова. На удалённой базе (RTT 2-5 мс) ответ не
+  // успевал прийти до таймаута клиента, но сервер продолжал крутить цикл до
+  // конца и держал соединение; пользователь жал «Обновить» — и рядом
+  // заводилась вторая такая же цепочка.
+  //
+  // Разбивка по дням тут не нужна: среднедневное потребление — это сумма за
+  // окно, делённая на длину окна, а дни без продаж дают ноль и на сумму не
+  // влияют. Помесячный ряд по одному товару по-прежнему отдаёт
+  // getProductDemand — там он нужен движку прогноза.
+  const demandRows = await db.select({
+    productId: orderItems.productId,
+    quantity: sql<string>`SUM(CAST(${orderItems.quantity} AS DECIMAL(15,3)))`,
+  })
+    .from(orderItems)
+    .innerJoin(orders, eq(orderItems.orderId, orders.id))
+    .where(and(
+      eq(orders.tenantId, tenantId),
+      inArray(orders.status, REVENUE_ORDER_STATUSES),
+      gte(orders.createdAt, startDate),
+      lt(orders.createdAt, windowEnd),
+    ))
+    .groupBy(orderItems.productId);
+
+  const demandTotals = new Map<number, number>();
+  for (const row of demandRows) {
+    demandTotals.set(row.productId, Number(row.quantity));
+  }
+
+  const pendingRows = await db.select({
+    productId: arrivalItems.productId,
+    total: sql<string>`SUM(CAST(${arrivalItems.quantity} AS DECIMAL(15,3)))`,
+  })
+    .from(arrivalItems)
+    .innerJoin(arrivals, eq(arrivalItems.arrivalId, arrivals.id))
+    .where(and(
+      eq(arrivals.tenantId, tenantId),
+      eq(arrivals.status, "pending"),
+    ))
+    .groupBy(arrivalItems.productId);
+
+  const pendingByProduct = new Map<number, number>();
+  for (const row of pendingRows) {
+    pendingByProduct.set(row.productId, Number(row.total));
+  }
+
   const predictions: StockoutPrediction[] = [];
 
   for (const stock of stockRows) {
-    const demand = await getProductDemand(tenantId, stock.productId, lookbackDays);
-    const avg = avgDailyConsumption(demand);
+    // Округление то же, что и в avgDailyConsumption: два знака после запятой.
+    // Делитель — длина окна в днях, а не число дней с продажами, иначе товар,
+    // проданный один раз за месяц, выглядел бы уходящим каждый день.
+    const avg = Math.round(((demandTotals.get(stock.productId) ?? 0) / lookbackDays) * 100) / 100;
     const current = Number(stock.currentStock);
     const reorder = Number(stock.reorderPoint);
-
-    // Get pending arrivals
-    const pendingRows = await db.select({
-      total: sql<string>`SUM(CAST(${arrivalItems.quantity} AS DECIMAL(15,3)))`,
-    })
-      .from(arrivalItems)
-      .innerJoin(arrivals, eq(arrivalItems.arrivalId, arrivals.id))
-      .where(and(
-        eq(arrivals.tenantId, tenantId),
-        eq(arrivalItems.productId, stock.productId),
-        eq(arrivals.status, "pending"),
-      ));
-    const pending = Number(pendingRows[0]?.total ?? 0);
+    const pending = pendingByProduct.get(stock.productId) ?? 0;
 
     const effectiveStock = current + pending;
     const daysUntilStockout = avg > 0 ? Math.floor(effectiveStock / avg) : 999;

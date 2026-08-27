@@ -2,8 +2,49 @@ import { z } from "zod";
 import { createRouter, authedQuery, supervisorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { territories, shops } from "@db/schema";
-import { eq, and, sql, isNull } from "drizzle-orm";
+import { eq, and, sql, isNull, inArray } from "drizzle-orm";
 import { haversineKm } from "./lib/geo";
+
+/**
+ * Сколько идентификаторов кладём в один IN (...).
+ *
+ * Пачка нужна не ради красоты, а ради max_allowed_packet и планировщика:
+ * список на три тысячи чисел — это уже несколько сотен килобайт текста
+ * запроса, и MySQL начинает выбирать полное сканирование вместо индекса.
+ * Тысяча — размер, при котором запрос остаётся коротким, а число обращений к
+ * серверу падает с тысяч до единиц.
+ */
+const SHOP_UPDATE_CHUNK = 1000;
+
+/**
+ * Привязать пачку магазинов к территории.
+ *
+ * Раньше привязка шла по одному UPDATE на магазин. Супервайзер жал «Привязать
+ * по GPS» — и до трёх тысяч последовательных запросов, каждый со своим
+ * round-trip и своим коммитом с fsync и записью в binlog. На удалённом MySQL
+ * (5–15 мс на коммит) это 15–45 секунд под одним HTTP-запросом: клиент
+ * отваливался по таймауту, мутация продолжала идти, а супервайзер, не увидев
+ * результата, жал кнопку второй раз — и поверх первого прохода запускался
+ * второй.
+ *
+ * Расстояние всё равно считается в JS, так что соответствие «территория →
+ * магазины» уже собрано в памяти; остаётся выполнить один UPDATE на пачку.
+ * tenant_id в условии обязателен: идентификаторы пришли из выборки по своей
+ * организации, но условие рядом с IN (...) не даёт этой связи потеряться при
+ * первой же правке запроса.
+ */
+async function assignShopsToTerritory(
+  db: ReturnType<typeof getDb>,
+  tenantId: number,
+  territoryId: number,
+  shopIds: number[],
+): Promise<void> {
+  for (let i = 0; i < shopIds.length; i += SHOP_UPDATE_CHUNK) {
+    const chunk = shopIds.slice(i, i + SHOP_UPDATE_CHUNK);
+    await db.update(shops).set({ territoryId })
+      .where(and(eq(shops.tenantId, tenantId), inArray(shops.id, chunk)));
+  }
+}
 
 export const territoryRouter = createRouter({
   /** List all territories for current tenant */
@@ -19,7 +60,12 @@ export const territoryRouter = createRouter({
       totalDebt: sql<string>`COALESCE(SUM(CAST(${shops.debt} AS DECIMAL(15,2))), 0)`,
     })
       .from(territories)
-      .leftJoin(shops, eq(territories.id, shops.territoryId))
+      // Условие по организации в самом соединении. Без него в счётчик
+      // shopCount и в сумму totalDebt своей территории попадал чужой магазин:
+      // достаточно было, чтобы кто-то из другой организации записал своему
+      // магазину этот territory_id — и владелец территории видел завышенное
+      // число точек и чужой долг в своей сводке.
+      .leftJoin(shops, and(eq(territories.id, shops.territoryId), eq(shops.tenantId, ctx.tenant.id)))
       .where(eq(territories.tenantId, ctx.tenant.id))
       .groupBy(territories.id)
       .orderBy(territories.name);
@@ -49,6 +95,8 @@ export const territoryRouter = createRouter({
 
       // Auto-assign unassigned shops with GPS to this new territory
       if (input.centerLat && input.centerLng) {
+        const centerLat = input.centerLat;
+        const centerLng = input.centerLng;
         const radius = input.radiusKm ?? 10;
         const unassigned = await db.select({
           id: shops.id,
@@ -61,12 +109,11 @@ export const territoryRouter = createRouter({
           sql`${shops.gpsLat} IS NOT NULL AND ${shops.gpsLng} IS NOT NULL`,
         ));
 
-        for (const shop of unassigned) {
-          const dist = haversineKm(Number(shop.gpsLat), Number(shop.gpsLng), input.centerLat, input.centerLng);
-          if (dist <= radius) {
-            await db.update(shops).set({ territoryId }).where(eq(shops.id, shop.id));
-          }
-        }
+        const inRadius = unassigned
+          .filter(shop => haversineKm(Number(shop.gpsLat), Number(shop.gpsLng), centerLat, centerLng) <= radius)
+          .map(shop => Number(shop.id));
+
+        await assignShopsToTerritory(db, ctx.tenant.id, territoryId, inRadius);
       }
 
       return { id: territoryId };
@@ -96,11 +143,16 @@ export const territoryRouter = createRouter({
 
       // Re-assign shops with GPS if geo params changed
       if (rest.centerLat !== undefined || rest.centerLng !== undefined || rest.radiusKm !== undefined) {
+        // tenant_id в условии: без него перечитывались координаты территории
+        // другой организации — сам UPDATE выше её не тронул, но по её центру и
+        // радиусу тут же переразмечались СВОИ магазины.
         const [terr] = await db.select({
           centerLat: territories.centerLat,
           centerLng: territories.centerLng,
           radiusKm: territories.radiusKm,
-        }).from(territories).where(eq(territories.id, id)).limit(1);
+        }).from(territories)
+          .where(and(eq(territories.id, id), eq(territories.tenantId, ctx.tenant.id)))
+          .limit(1);
 
         if (terr?.centerLat && terr?.centerLng) {
           const shopsWithGps = await db.select({
@@ -114,12 +166,13 @@ export const territoryRouter = createRouter({
           ));
 
           const radius = Number(terr.radiusKm ?? 10);
-          for (const shop of shopsWithGps) {
-            const dist = haversineKm(Number(shop.gpsLat), Number(shop.gpsLng), Number(terr.centerLat), Number(terr.centerLng));
-            if (dist <= radius) {
-              await db.update(shops).set({ territoryId: id }).where(eq(shops.id, shop.id));
-            }
-          }
+          const centerLat = Number(terr.centerLat);
+          const centerLng = Number(terr.centerLng);
+          const inRadius = shopsWithGps
+            .filter(shop => haversineKm(Number(shop.gpsLat), Number(shop.gpsLng), centerLat, centerLng) <= radius)
+            .map(shop => Number(shop.id));
+
+          await assignShopsToTerritory(db, ctx.tenant.id, id, inRadius);
         }
       }
 
@@ -195,6 +248,11 @@ export const territoryRouter = createRouter({
           sql`${shops.gpsLat} IS NOT NULL AND ${shops.gpsLng} IS NOT NULL`,
         ));
 
+      // Сначала соответствие «территория → её магазины» целиком в памяти, и
+      // только потом запись. Расстояние и так считается в JS, поэтому цикл
+      // ничего не ждёт от базы — а записей выходит по одной на территорию
+      // вместо одной на магазин.
+      const byTerritory = new Map<number, number[]>();
       let assigned = 0;
       for (const shop of unassigned) {
         const shopLat = Number(shop.gpsLat);
@@ -203,11 +261,17 @@ export const territoryRouter = createRouter({
         for (const terr of terrs) {
           const dist = haversineKm(shopLat, shopLng, Number(terr.centerLat), Number(terr.centerLng));
           if (dist <= Number(terr.radiusKm)) {
-            await db.update(shops).set({ territoryId: terr.id }).where(eq(shops.id, shop.id));
+            const bucket = byTerritory.get(terr.id);
+            if (bucket) bucket.push(Number(shop.id));
+            else byTerritory.set(terr.id, [Number(shop.id)]);
             assigned++;
             break;
           }
         }
+      }
+
+      for (const [territoryId, shopIds] of byTerritory) {
+        await assignShopsToTerritory(db, tenantId, territoryId, shopIds);
       }
 
       return { assigned, total: unassigned.length };

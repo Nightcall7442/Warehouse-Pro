@@ -1,11 +1,22 @@
 import { z } from "zod";
 import { createRouter, fieldSalesQuery, supervisorQuery } from "./middleware";
-import { orders, warehouseStock, users, shops, agentLocations, dailyPlans, orderItems, products } from "@db/schema";
+import { orders, warehouseStock, users, shops, agentLocations, dailyPlans, orderItems } from "@db/schema";
 import { eq, and, sql, desc, isNull , inArray } from "drizzle-orm";
 import { REVENUE_ORDER_STATUSES, deliveredQty } from "./lib/order-status";
 import { subDays } from "date-fns";
 import { cache, CacheKeys, CacheTTL } from "./lib/cache";
 import { onDay, onDate, sinceDay } from "./lib/date-range";
+
+/**
+ * Сколько дней назад смотрит плитка валовой маржи на дашборде.
+ *
+ * 90 дней — достаточно, чтобы процент не прыгал от одного крупного заказа, и
+ * достаточно мало, чтобы запрос упирался в idx_orders_tenant_date, а не в
+ * полную историю тенанта. Накопительная маржа за всё время, если она когда-то
+ * понадобится, — это отдельная процедура со своим длинным TTL, а не плитка,
+ * которая пересчитывается после каждой правки заказа.
+ */
+const MARGIN_WINDOW_DAYS = 90;
 
 type DashboardKpis = {
   todayOrders:  number;
@@ -25,6 +36,16 @@ export const dashboardRouter = createRouter({
 
     const db       = ctx.db;
     const today    = new Date().toISOString().split("T")[0];
+    // Окно валовой маржи. Раньше оба запроса шли по ВСЕЙ истории тенанта:
+    // JOIN order_items × orders без единого ограничения по дате. Кеш kpis
+    // сбрасывается каждой мутацией заказа, а агенты правят заказы весь
+    // рабочий день, поэтому двухминутный TTL почти никогда не доживал до
+    // следующего открытия дашборда — и каждое открытие сканировало сотни
+    // тысяч строк order_items ради одного процента. Плитка на экране
+    // называется просто «ВАЛОВАЯ ПРИБЫЛЬ», без периода, и накопительная
+    // маржа за все годы на ней всё равно ничего не значила: она меняется
+    // на сотые доли и не реагирует на то, что происходит в бизнесе сейчас.
+    const marginFrom = subDays(new Date(), MARGIN_WINDOW_DAYS).toISOString().split("T")[0];
 
     const [todaysOrders, todaysRevenue, activeAgents, totalStock, customerDebt, revenueResult, costResult] = await Promise.all([
       db.select({ count: sql<number>`count(*)` }).from(orders)
@@ -40,7 +61,7 @@ export const dashboardRouter = createRouter({
       db.select({
         totalRevenue: sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'delivered' THEN ${orders.total} ELSE 0 END), 0)`,
       }).from(orders)
-        .where(and(eq(orders.tenantId, tenantId), isNull(orders.deletedAt))),
+        .where(and(eq(orders.tenantId, tenantId), isNull(orders.deletedAt), sinceDay(orders.createdAt, marginFrom))),
       db.select({
         // Себестоимость берётся из строки заказа и по доставленному количеству.
         //
@@ -51,10 +72,15 @@ export const dashboardRouter = createRouter({
         // Количество — доставленное: при частичной доставке выручка
         // уменьшается, и себестоимость обязана уменьшиться вместе с ней.
         totalCost: sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'delivered' THEN ${deliveredQty()} * ${orderItems.costPrice} ELSE 0 END), 0)`,
+        // Окно то же, что и у выручки: числитель и знаменатель одной дроби
+        // обязаны считаться по одному набору заказов, иначе процент — выдумка.
       }).from(orderItems)
         .innerJoin(orders, eq(orders.id, orderItems.orderId))
-        .innerJoin(products, eq(orderItems.productId, products.id))
-        .where(and(eq(orders.tenantId, tenantId), isNull(orders.deletedAt))),
+        // innerJoin(products) отсюда убран: ни одного поля products выражение
+        // не использует, а соединение стоило lookup по первичному ключу на
+        // каждую строку order_items — на сотнях тысяч строк это удваивало
+        // работу запроса, ничего не добавляя к результату.
+        .where(and(eq(orders.tenantId, tenantId), isNull(orders.deletedAt), sinceDay(orders.createdAt, marginFrom))),
     ]);
 
     const totalRev = Number(revenueResult[0]?.totalRevenue ?? 0);
