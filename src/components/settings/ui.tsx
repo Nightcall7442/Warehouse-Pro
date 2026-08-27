@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { cloneElement, isValidElement, useId } from "react";
+import type { ReactElement, ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 
 /**
@@ -39,13 +40,22 @@ export function FieldGroup({ title, children, first = false }: { title?: string;
 /* ── Поле ──────────────────────────────────────────────────────────────────
    Подпись — 13px обычным регистром. Прежние 10px заглавными с разрядкой на
    тёмном фоне давали контраст ниже нормы и читались как служебный шум. */
-export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactElement<{ id?: string; "aria-describedby"?: string }> }) {
+  const id = useId();
+  const hintId = `${id}-hint`;
+
+  // Подпись связывается с полем через htmlFor, а пояснение — через
+  // aria-describedby, и оно намеренно ВНЕ <label>. Иначе доступным именем поля
+  // становится «Телефон Для звонков из заказов»: скринридер зачитывает
+  // пояснение как часть названия при каждом переходе по форме.
   return (
-    <label className="block">
-      <span className="block text-[13px] font-medium text-secondary mb-1.5">{label}</span>
-      {children}
-      {hint && <span className="block text-xs text-tertiary mt-1.5">{hint}</span>}
-    </label>
+    <div>
+      <label htmlFor={id} className="block text-[13px] font-medium text-secondary mb-1.5">{label}</label>
+      {isValidElement(children)
+        ? cloneElement(children, { id, "aria-describedby": hint ? hintId : undefined })
+        : children}
+      {hint && <p id={hintId} className="text-xs text-tertiary mt-1.5">{hint}</p>}
+    </div>
   );
 }
 

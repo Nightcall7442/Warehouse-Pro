@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { notify } from "@/lib/toast";
@@ -6,6 +6,7 @@ import { Loader2, Send, CheckCircle2, XCircle, CalendarDays, ShoppingCart, Packa
 
 export function TelegramSettings() {
   const [chatId, setChatId] = useState("");
+  const chatIdInputId = useId();
   const { lang } = useLang();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const { data: status } = trpc.telegram.myStatus.useQuery();
@@ -63,11 +64,14 @@ export function TelegramSettings() {
             </ol>
           </div>
           <div>
-            <label className="block text-[13px] font-medium text-secondary mb-1.5">
+            {/* Подпись стояла рядом с полем, а не вокруг него, и без htmlFor —
+                связи не было вовсе: скринридер читал безымянный инпут, а клик
+                по подписи не ставил в него курсор. */}
+            <label htmlFor={chatIdInputId} className="block text-[13px] font-medium text-secondary mb-1.5">
               {t("Ваш Telegram chat ID", "Telegram chat ID")}
             </label>
             <div className="flex gap-2">
-              <input className="neo-input flex-1 font-data"
+              <input id={chatIdInputId} className="neo-input flex-1 font-data"
                 placeholder={t("Например: 123456789", "Masalan: 123456789")}
                 value={chatId} onChange={e => setChatId(e.target.value.replace(/\D/g, ""))} />
               <button onClick={() => chatId && save.mutate({ chatId })}

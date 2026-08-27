@@ -136,16 +136,20 @@ export function CompanySettings() {
             <input className="neo-input font-data" type="tel" value={form.companyPhone} onChange={set("companyPhone")} />
           </Field>
           <div>
-            {/* Собственный селект, не <input>, поэтому подпись связывается ролью, а не вложением. */}
-            <p className="text-[13px] font-medium text-secondary mb-1.5" id="currency-label">
+            {/* Здесь не <input>, а собственный компонент, поэтому подпись не
+                оборачивается вокруг него: имя контролу даётся через aria-label.
+                Раньше на подписи висел id="currency-label", на который никто не
+                ссылался, — то есть селект оставался безымянным. */}
+            <p className="text-[13px] font-medium text-secondary mb-1.5">
               {t("Валюта", "Valyuta")}
             </p>
             <PremiumSelect value={form.currency}
+              aria-label={t("Валюта", "Valyuta")}
               onChange={v => setForm({ ...form, currency: v })}
               options={[
-                { value: "UZS", label: "UZS — Узбекский сум" },
-                { value: "USD", label: "USD — Доллар США" },
-                { value: "RUB", label: "RUB — Российский рубль" },
+                { value: "UZS", label: t("UZS — Узбекский сум", "UZS — O'zbek so'mi") },
+                { value: "USD", label: t("USD — Доллар США", "USD — AQSh dollari") },
+                { value: "RUB", label: t("RUB — Российский рубль", "RUB — Rossiya rubli") },
               ]}
               width="100%" />
           </div>

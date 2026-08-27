@@ -150,6 +150,9 @@ export default function App() {
               в меню агента, супервайзера, мерчендайзера и курьера — клик по
               нему молча возвращал на главную. Из-за этого агент не мог сменить
               себе пароль с сайта вообще никак.
+              Оговорка: при истёкшей подписке организации это по-прежнему так —
+              user.changePassword идёт через authedQuery, а тот проверяет
+              подписку (исключения только auth./billing./stripe./system.).
               Права на сами действия по-прежнему на сервере: settings.update и
               branding.update — adminQuery, склады — adminQuery. */}
           <Route path="/settings"       element={<Settings />} />
