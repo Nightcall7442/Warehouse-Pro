@@ -6,7 +6,7 @@ import { Radio, RefreshCw, MapPin, Wifi, WifiOff, Store } from "lucide-react";
 import {
   TIER_COLOR, TIER_LABEL, TIER_ORDER, money, shopPinSvg,
   PIN_SIZE, PIN_ANCHOR, PIN_ANIMATION_LIMIT, type ShopTier,
-  worstTier, clusterSize, clusterBadgeSvg, shopsWord,
+  PIN_FOOTPRINT,
 } from "@/lib/shop-tier";
 
 // Yandex Maps API key
@@ -45,7 +45,24 @@ export default function SupervisorTracking() {
     // минут её перечитывать незачем, а карта обновляется каждые 30 секунд.
     staleTime: 5 * 60_000,
   });
-  const clustererRef = useRef<YandexClusterer | null>(null);
+  /** Метки магазинов вместе с тем, что нужно для их разведения. */
+  const shopMarkersRef = useRef<Array<{
+    pm: YandexPlacemark;
+    coords: number[];
+    visible: boolean;
+  }>>([]);
+  const declutterRef = useRef<(() => void) | null>(null);
+  /** Снять метки магазинов и отписаться от карты. */
+  function clearShopMarkers(map: YandexMap) {
+    if (declutterRef.current) {
+      map.events.remove("boundschange", declutterRef.current);
+      declutterRef.current = null;
+    }
+    shopMarkersRef.current.forEach(m => map.geoObjects.remove(m.pm));
+    shopMarkersRef.current = [];
+  }
+  /** Сколько меток поместилось на экран — в подпись под легендой. */
+  const [shownShops, setShownShops] = useState(0);
 
   const mapRef     = useRef<YandexMap | null>(null);
   const mapDivRef  = useRef<HTMLDivElement>(null);
@@ -148,15 +165,17 @@ export default function SupervisorTracking() {
         coords.push([lat, lng]);
       });
 
-      // Fit bounds
+      // Карта подгоняется под АГЕНТОВ, а не под всё, что на ней лежит.
+      // Раньше границы брались у map.geoObjects, а туда попадают и метки
+      // магазинов: стоило появиться лавке на краю области — и карта отъезжала
+      // так, что людей на ней было не различить.
       if (coords.length > 1) {
-        const bounds = map.geoObjects.getBounds();
-        if (bounds) {
-          map.setBounds(bounds, {
-            checkZoomRange: true,
-            zoomMargin: 40,
-          });
-        }
+        const lats = coords.map(c => c[0]);
+        const lngs = coords.map(c => c[1]);
+        map.setBounds(
+          [[Math.min(...lats), Math.min(...lngs)], [Math.max(...lats), Math.max(...lngs)]],
+          { checkZoomRange: true, zoomMargin: 40 },
+        );
       } else if (coords.length === 1) {
         map.setCenter(coords[0], 14);
       }
@@ -172,21 +191,21 @@ export default function SupervisorTracking() {
     if (!ymaps || !map) return;
 
     ymaps.ready(() => {
-      if (clustererRef.current) {
-        map.geoObjects.remove(clustererRef.current);
-        clustererRef.current = null;
+      clearShopMarkers(map);
+      if (!showShops || !shopScores) {
+        setShownShops(0);
+        return;
       }
-      if (!showShops || !shopScores) return;
 
       // Анимация — только пока меток немного: каждая метка отдельная картинка,
       // и её SMIL браузер считает сам.
       const animated = shopScores.length <= PIN_ANIMATION_LIMIT;
-      const placemarks: YandexPlacemark[] = [];
+      const markers: Array<{ pm: YandexPlacemark; coords: number[]; tier: ShopTier; visible: boolean }> = [];
 
       shopScores.forEach((shop) => {
         if (shop.lat == null || shop.lng == null) return;
         // Незнакомый разряд с сервера — как «заказов не было»: серая метка
-        // честнее пустого значка и падения на выборе цвета группы.
+        // честнее пустого значка и падения на выборе подписи.
         const tier: ShopTier = shop.tier in TIER_COLOR ? (shop.tier as ShopTier) : "new";
         const color = TIER_COLOR[tier];
 
@@ -202,8 +221,6 @@ export default function SupervisorTracking() {
               </div>
             `,
             hintContent: `${shop.name} — ${money(shop.ltv)}`,
-            // Группа читает разряд у своих меток, чтобы выбрать себе цвет.
-            tier,
           },
           {
             // Булавка со значком лавки, а не круг: круги на этой карте заняты
@@ -221,58 +238,103 @@ export default function SupervisorTracking() {
           }
         );
 
-        placemarks.push(placemark);
+        markers.push({ pm: placemark, coords: [shop.lat, shop.lng], tier, visible: true });
       });
-      if (placemarks.length === 0) return;
+      if (markers.length === 0) {
+        setShownShops(0);
+        return;
+      }
 
       // Магазины в городе стоят вплотную — на соседних улицах, а то и в одном
-      // доме. Поодиночке булавки на них наезжают друг на друга, и вместо карты
-      // выходит куча: не видно ни сколько там точек, ни какая из них какая.
-      // Именно на это и жаловались — «если они ближе, то ошибочно смотрятся».
+      // доме. Если рисовать все булавки подряд, они налезают друг на друга, и
+      // вместо карты выходит каша: не разобрать ни где какая, ни сколько их.
       //
-      // Группировщик собирает налезающие метки в один кружок с числом.
-      // Приближение разводит их обратно; клик по кружку приближает карту к
-      // группе, а когда ближе уже некуда — открывает список магазинов в ней.
-      const clusterer = new ymaps.Clusterer({
-        // Сетка крупнее стандартной (64): булавка у нас 48 пикселей шириной,
-        // и при стандартной соседние метки всё равно перекрывались краями.
-        gridSize: 96,
-        // Двух хватает: пара наехавших друг на друга булавок читается уже
-        // так же плохо, как десяток.
-        minClusterSize: 2,
-      });
+      // Поэтому метки разводятся: на каждом масштабе показывается столько,
+      // сколько помещается без наложений, остальные ждут приближения. Ничего
+      // не пропадает насовсем — под легендой написано, сколько сейчас видно.
+      //
+      // Порядок решает, кто останется на экране, когда места мало: сначала
+      // «долго не платят», потом «есть долг» и так далее. Проблемный магазин
+      // не должен быть тем, кого заслонили.
+      markers.sort((a, b) => TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier));
+      markers.forEach(m => map.geoObjects.add(m.pm));
+      shopMarkersRef.current = markers;
 
-      // Цвет группы — по худшему магазину внутри. Одна общая группа, а не по
-      // группировщику на разряд: четыре группировщика ставили четыре кружка
-      // в одну точку, и они перекрывали друг друга — та же куча, только
-      // этажом выше.
-      clusterer.createCluster = (center, geoObjects) => {
-        const cluster = ymaps.Clusterer.prototype.createCluster.call(clusterer, center, geoObjects);
-        const tiers = geoObjects.map(o => o.properties.get("tier") as string | undefined);
-        const tier = worstTier(tiers);
-        const [w, h] = clusterSize(geoObjects.length);
-        cluster.options.set({
-          iconLayout: "default#image",
-          iconImageHref: `data:image/svg+xml,${encodeURIComponent(clusterBadgeSvg(TIER_COLOR[tier], geoObjects.length, w, h))}`,
-          iconImageSize: [w, h],
-          iconImageOffset: [-w / 2, -h / 2],
-          zIndex: 100,
-        });
-        // Разбор по разрядам в подсказке: цвет говорит про худший магазин в
-        // группе, а сколько их там всего — только это.
-        const breakdown = TIER_ORDER
-          .map(x => ({ x, n: tiers.filter(y => y === x).length }))
-          .filter(r => r.n > 0)
-          .map(r => `${TIER_LABEL[r.x].ru.toLowerCase()} — ${r.n}`)
-          .join(", ");
-        cluster.properties.set("hintContent", `${geoObjects.length} ${shopsWord(geoObjects.length)}: ${breakdown}`);
-        return cluster;
+      // Сетка размером с булавку: метка сверяется только с соседними
+      // клетками, а не со всеми уже расставленными. Иначе на тысяче
+      // магазинов каждый сдвиг карты стоил бы полумиллиона сравнений.
+      const CELL = 64;
+
+      const declutter = () => {
+        const projection = map.options.get("projection");
+        const zoom = map.getZoom();
+        const [width, height] = map.container.getSize();
+        const grid = new Map<string, number[][]>();
+        let shown = 0;
+
+        for (const m of markers) {
+          const [x, y] = map.converter.globalToPage(projection.toGlobalPixels(m.coords, zoom));
+          let visible = false;
+
+          // За краем экрана считать наложения незачем — метку всё равно не
+          // видно, а место, которое она заняла бы, нужно тем, кто на виду.
+          if (x >= -80 && y >= -80 && x <= width + 80 && y <= height + 80) {
+            const box = [
+              x - PIN_FOOTPRINT.halfWidth, y - PIN_FOOTPRINT.above,
+              x + PIN_FOOTPRINT.halfWidth, y + PIN_FOOTPRINT.below,
+            ];
+            const cx = Math.floor(x / CELL), cy = Math.floor(y / CELL);
+            let free = true;
+            for (let i = cx - 1; i <= cx + 1 && free; i++) {
+              for (let j = cy - 1; j <= cy + 1 && free; j++) {
+                for (const other of grid.get(`${i}:${j}`) ?? []) {
+                  if (box[0] < other[2] && box[2] > other[0] && box[1] < other[3] && box[3] > other[1]) {
+                    free = false;
+                    break;
+                  }
+                }
+              }
+            }
+            if (free) {
+              visible = true;
+              shown++;
+              for (let i = cx - 1; i <= cx + 1; i++) {
+                for (let j = cy - 1; j <= cy + 1; j++) {
+                  const key = `${i}:${j}`;
+                  const cell = grid.get(key);
+                  if (cell) cell.push(box);
+                  else grid.set(key, [box]);
+                }
+              }
+            }
+          }
+
+          // Трогаем метку, только если её состояние правда меняется: карта
+          // перерисовывает объект на каждый set, и лишние вызовы дёргают её
+          // при обычном перетаскивании.
+          if (visible !== m.visible) {
+            m.visible = visible;
+            m.pm.options.set("visible", visible);
+          }
+        }
+        setShownShops(shown);
       };
 
-      clusterer.add(placemarks);
-      map.geoObjects.add(clusterer);
-      clustererRef.current = clusterer;
+      // Пересчёт после того, как карта остановилась: во время перетаскивания
+      // boundschange приходит на каждый кадр.
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const onBoundsChange = () => {
+        clearTimeout(timer);
+        timer = setTimeout(declutter, 120);
+      };
+      map.events.add("boundschange", onBoundsChange);
+      declutterRef.current = onBoundsChange;
+      declutter();
     });
+
+    // Уход со страницы: карта живёт дольше эффекта, и подписка на неё без
+    // этого пережила бы компонент.
+    return () => clearShopMarkers(map);
   }, [shopScores, showShops]);
 
   // Focus on agent when selected from list
@@ -428,6 +490,14 @@ export default function SupervisorTracking() {
               <Store size={13} />
               {showShops ? t("Магазины на карте", "Xaritada do'konlar") : t("Показать магазины", "Do'konlarni ko'rsatish")}
             </button>
+            {showShops && shopScores && shownShops < shopScores.length && (
+              /* Метки не пропали — просто не поместились. Без этой строки
+                 «показано 70 из 500» выглядело бы как потерянные магазины. */
+              <span className="text-xs" style={{ color: "var(--color-text-tertiary)" }}>
+                {t(`видно ${shownShops} из ${shopScores.length} — приблизьте карту`,
+                   `${shopScores.length} tadan ${shownShops} ta ko'rinadi — xaritani yaqinlashtiring`)}
+              </span>
+            )}
             {showShops && TIER_ORDER.map(tier => {
               const count = shopScores?.filter(sc => sc.tier === tier).length ?? 0;
               if (count === 0) return null;
@@ -463,14 +533,18 @@ export default function SupervisorTracking() {
 declare global {
   interface YandexPlacemark {
     balloon: { open(): void };
+    options: { set(name: string, value: unknown): void };
+  }
+
+  /** Пересчёт координат в пиксели — из него и растёт разведение меток. */
+  interface YandexProjection {
+    toGlobalPixels(coords: number[], zoom: number): number[];
   }
 
   interface YandexMap {
     geoObjects: {
-      add(object: YandexPlacemark | YandexClusterer): void;
-      remove(object: YandexPlacemark | YandexClusterer): void;
-      /** null while the map holds no geo objects. */
-      getBounds(): number[][] | null;
+      add(object: YandexPlacemark): void;
+      remove(object: YandexPlacemark): void;
     };
     controls: {
       get(name: string): {
@@ -479,29 +553,18 @@ declare global {
     };
     setBounds(bounds: number[][], options?: { checkZoomRange?: boolean; zoomMargin?: number }): void;
     setCenter(center: number[], zoom?: number): void;
-  }
-
-  /** Метка глазами группировщика: он читает у неё только свойства. */
-  interface YandexClusteredObject {
-    properties: { get(key: string): unknown };
-  }
-
-  interface YandexCluster {
-    options: { set(options: Record<string, unknown>): void };
-    properties: { set(key: string, value: unknown): void };
-  }
-
-  interface YandexClusterer {
-    add(objects: YandexPlacemark[]): void;
-    createCluster(center: number[], geoObjects: YandexClusteredObject[]): YandexCluster;
+    getZoom(): number;
+    container: { getSize(): number[] };
+    converter: { globalToPage(globalPixels: number[]): number[] };
+    options: { get(name: "projection"): YandexProjection };
+    events: {
+      add(type: string, handler: () => void): void;
+      remove(type: string, handler: () => void): void;
+    };
   }
 
   interface YandexMaps {
     ready(callback: () => void): void;
-    Clusterer: {
-      new (options: { gridSize?: number; minClusterSize?: number }): YandexClusterer;
-      prototype: YandexClusterer;
-    };
     Map: new (element: HTMLElement, options: { center: number[]; zoom: number; controls?: string[] }) => YandexMap;
     Placemark: new (
       geometry: number[],
