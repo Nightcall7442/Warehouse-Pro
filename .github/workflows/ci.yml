@@ -59,3 +59,74 @@ jobs:
         run: npm run test:db
         env:
           TEST_DATABASE_URL: mysql://root:test@127.0.0.1:3306/warehouse_test
+
+  # Сквозные проверки: настоящий браузер, настоящее приложение, настоящая база.
+  #
+  # Прежний набор в CI не запускался вовсе, и это было видно по нему самому:
+  # вход выполнялся под несуществующим в засеве пользователем, ожидался переход
+  # на страницу, куда роль не попадает, а baseURL указывал на порт 3000 — там у
+  # разработчика обычно другое приложение. Тридцать два шага были обёрнуты в
+  # «сделать, если элемент виден», поэтому набор проходил при любом состоянии
+  # кода. Ни разу не выполнявшийся набор ничем не отличается от отсутствующего,
+  # но выглядит как защита.
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: test
+          MYSQL_DATABASE: warehouse_e2e
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -ptest"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      DATABASE_URL: mysql://root:test@127.0.0.1:3306/warehouse_e2e
+      # Имя именно APP_SECRET: в production сервер завершает работу, если его
+      # нет (api/lib/env.ts). Значение одноразовое и живёт только внутри
+      # прогона — базу CI создаёт и выбрасывает вместе с ней.
+      APP_SECRET: e2e-ephemeral-secret-not-used-anywhere-else
+      APP_URL: http://127.0.0.1:3100
+      ALLOWED_ORIGINS: http://127.0.0.1:3100
+      # Ограничитель по умолчанию — 120 запросов в минуту. Сквозные проверки
+      # читают остатки и долги чаще, и упирались бы в него, а не в ошибку.
+      RATE_LIMIT_GLOBAL_MAX: "5000"
+      # NODE_ENV здесь нарочно не задан: с production npm install пропустил бы
+      # dev-зависимости, и не встало бы ни Playwright, ни Vite. Приложению его
+      # ставит скрипт запуска, а Playwright — конфигурация webServer.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm install --legacy-peer-deps
+      - run: npx playwright install --with-deps chromium
+
+      # Схема накатывается миграциями, а не push: приложение при старте
+      # применяет тот же набор само (api/boot.ts). Если схему подготовить
+      # push-ом, сервер попытается накатить миграции поверх и упрётся в уже
+      # существующие таблицы.
+      #
+      # Засев обязателен: сквозные проверки опираются на его магазины, товары
+      # и остатки — пустая база их не даст.
+      - name: Схема и засев
+        run: |
+          npm run db:migrate
+          npm run db:seed
+
+      - name: Сборка
+        run: npm run build
+
+      - name: Прогон
+        run: npm run test:e2e
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-отчёт
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

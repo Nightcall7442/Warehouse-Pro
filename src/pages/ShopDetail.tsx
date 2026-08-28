@@ -1,4 +1,5 @@
 import { useParams, useNavigate, useLocation } from "react-router";
+import { normalizeDecimalInput } from "@/lib/decimal-input";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useRef, useState, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
@@ -86,9 +87,10 @@ function PaymentModal({ shopId, onClose }: { shopId: number; onClose: () => void
           <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">
             {t("СУММА", "SUMMA")}
           </label>
-          <input type="number" step="0.01" min="0"
+          <input data-testid="payment-amount" type="text" inputMode="decimal"
             className="neo-input w-full font-data text-lg"
-            placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} autoFocus />
+            placeholder="0.00" value={amount}
+            onChange={e => setAmount(normalizeDecimalInput(e.target.value))} autoFocus />
         </div>
 
         <div>
@@ -101,6 +103,7 @@ function PaymentModal({ shopId, onClose }: { shopId: number; onClose: () => void
 
         <div className="flex gap-2">
           <button
+            data-testid="payment-submit"
             onClick={() => amount && addPayment.mutate({ shopId, amount, type, notes: notes || undefined, idempotencyKey })}
             disabled={addPayment.isPending || !amount}
             className="neo-btn-primary flex-1 flex items-center justify-center gap-2 disabled:opacity-40">
@@ -326,7 +329,7 @@ export default function ShopDetail() {
               <p className="text-xs mt-1 text-success">{t("Задолженности нет", "Qarz yo'q")}</p>
             )}
           </div>
-          <button onClick={() => setShowPayment(true)} className="neo-btn-primary flex items-center gap-2">
+          <button data-testid="payment-open" onClick={() => setShowPayment(true)} className="neo-btn-primary flex items-center gap-2">
             <Plus size={15} />{t("Добавить платёж", "To'lov qo'shish")}
           </button>
         </div>

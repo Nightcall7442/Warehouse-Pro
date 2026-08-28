@@ -122,6 +122,7 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
         <div style={{ position: "relative", marginBottom: "12px" }}>
           <Search size={14} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "var(--color-text-tertiary)", pointerEvents: "none" }} />
           <input
+            data-testid="product-search"
             ref={searchRef}
             className="neo-input"
             style={{ paddingLeft: "36px", width: "100%" }}
@@ -140,6 +141,7 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
             return (
               <div
                 key={product.id}
+                data-testid={`product-row-${product.id}`}
                 className="neo-card-sm"
                 style={{
                   display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px",
@@ -192,6 +194,7 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
                   /* Quick add: input qty + Enter */
                   <div style={{ display: "flex", alignItems: "center", gap: "4px", flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
                     <input
+                      data-testid={`product-qty-${product.id}`}
                       type="number"
                       min="1"
                       placeholder="1"
@@ -200,7 +203,7 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
                       onKeyDown={(e) => { if (e.key === "Enter") handleQuickAdd(product); }}
                       style={{ width: "44px", height: "44px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface)", textAlign: "center", fontSize: "12px", color: "var(--color-text-primary)", fontFamily: "'DM Sans', sans-serif", outline: "none" }}
                     />
-                    <button onClick={() => handleQuickAdd(product)}
+                    <button data-testid={`product-add-${product.id}`} onClick={() => handleQuickAdd(product)}
                       style={{ width: "44px", height: "44px", borderRadius: "6px", border: "none", background: "var(--color-primary)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--color-on-primary, #ffffff)" }}>
                       <Plus size={16} />
                     </button>

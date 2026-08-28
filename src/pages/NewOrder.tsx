@@ -147,6 +147,7 @@ export default function NewOrder() {
       {/* Sticky CTA */}
       <div className="mt-6" style={{ marginBottom: "calc(60px + env(safe-area-inset-bottom, 0px) + 16px)" }}>
         <button
+          data-testid="order-next"
           onClick={handleNext}
           disabled={!canNext() || createOrder.isPending}
           className="neo-btn-primary w-full py-3.5 text-[15px] disabled:opacity-40"

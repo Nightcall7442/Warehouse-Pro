@@ -190,6 +190,7 @@ export default function Products() {
             <FileDown size={14} /><span className="hidden sm:inline">Excel</span>
           </button>
           <button
+            data-testid="product-new"
             onClick={() => setShowForm(!showForm)}
             className="neo-btn-primary"
             style={{

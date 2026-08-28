@@ -192,6 +192,7 @@ export default function Login() {
                     color: "#9ca3af", pointerEvents: "none",
                   }} />
                   <input
+                    data-testid="login-email"
                     type="email"
                     className="login-input"
                     style={{
@@ -220,6 +221,7 @@ export default function Login() {
                     color: "#9ca3af", pointerEvents: "none",
                   }} />
                   <input
+                    data-testid="login-password"
                     type={showPw ? "text" : "password"}
                     className="login-input"
                     style={{
@@ -302,6 +304,7 @@ export default function Login() {
 
               {/* Submit */}
               <button
+                data-testid="login-submit"
                 type="submit"
                 disabled={isPending}
                 className="submit-btn"

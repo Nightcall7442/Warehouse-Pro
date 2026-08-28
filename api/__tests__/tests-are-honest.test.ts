@@ -68,13 +68,9 @@ const read = (f: string) => fs.readFileSync(f, "utf8").split("\r\n").join("\n");
  * одного expect в конце. Проходят они всегда, в том числе когда страница не
  * открылась вовсе. Список ждёт переписывания e2e и может только сокращаться.
  */
-const NO_ASSERT_DEBT = new Set([
-  "e2e/arrivals.spec.ts :: complete arrival updates stock",
-  "e2e/arrivals.spec.ts :: delete pending arrival",
-  "e2e/orders.spec.ts :: create new order",
-  "e2e/orders.spec.ts :: cancel order",
-  "e2e/products.spec.ts :: filter by category",
-  "e2e/products.spec.ts :: delete product",
+const NO_ASSERT_DEBT = new Set<string>([
+  // Долг погашен: те шесть сценариев были переписаны вместе со всем набором
+  // e2e. Множество оставлено пустым намеренно — добавлять сюда новое нельзя.
 ]);
 
 /** Заголовки тестов файла вместе с телом каждого — до начала следующего. */
@@ -97,7 +93,10 @@ describe("у каждого теста есть хотя бы одно ожид�
     if (rel(file).endsWith("tests-are-honest.test.ts")) continue;
     for (const t of testsOf(read(file))) {
       if (/\.(skip|todo|fails|describe)\b/.test(t.modifier)) continue;
-      if (/\bexpect\s*\(|\bexpectTypeOf\s*\(|\bassert\./.test(t.body)) continue;
+      // expect.poll и expect.soft — такие же ожидания, только из Playwright:
+      // первое перечитывает значение, пока оно не совпадёт, второе не рвёт
+      // тест на первом расхождении. Без них честный сценарий считался пустым.
+      if (/\bexpect\s*[(.]|\bexpectTypeOf\s*\(|\bassert\./.test(t.body)) continue;
       offenders.push(`${rel(file)} :: ${t.title}`);
     }
   }
@@ -198,7 +197,7 @@ describe("проверки на настоящей базе действител
  * проходит и на сломанном приложении: кнопки нет, шаг пропущен, тест зелёный.
  * Число зафиксировано и может только уменьшаться.
  */
-const IS_VISIBLE_BASELINE = 62;
+const IS_VISIBLE_BASELINE = 0;
 
 describe("e2e не прячет шаги за проверкой видимости", () => {
   let count = 0;

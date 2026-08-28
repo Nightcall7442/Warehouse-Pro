@@ -85,22 +85,22 @@ export function ProductForm({ onSave, onCancel, isPending, lang, categories = []
           </div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px", flex: 1 }}>
-          <input className="neo-input" placeholder={t("Код *", "Kod *")} value={d.code} onChange={e => setD({ ...d, code: e.target.value })} />
+          <input data-testid="product-code" className="neo-input" placeholder={t("Код *", "Kod *")} value={d.code} onChange={e => setD({ ...d, code: e.target.value })} />
           <input className="neo-input" placeholder={t("Штрих-код (необязательно)", "Shtrix-kod (ixtiyoriy)")} value={d.barcode} onChange={e => setD({ ...d, barcode: e.target.value })} />
-          <input className="neo-input" placeholder={t("Название *", "Nomi *")} value={d.name} onChange={e => setD({ ...d, name: e.target.value })} />
+          <input data-testid="product-name" className="neo-input" placeholder={t("Название *", "Nomi *")} value={d.name} onChange={e => setD({ ...d, name: e.target.value })} />
           <CategoryAutocomplete value={d.category} onChange={v => setD({ ...d, category: v })} categories={categories} placeholder={t("Категория", "Kategoriya")} />
           <PremiumSelect value={d.unit} onChange={v => setD({ ...d, unit: isUnit(v) ? v : d.unit })}
             options={UNITS.map(u => ({ value: u.value, label: lang === "uz" ? u.uz : u.ru }))}
             width="100%" />
           <DecimalInput className="neo-input font-data" placeholder={t("Себестоимость", "Tannarx")} value={d.costPrice} onValueChange={v => setD({ ...d, costPrice: v })} />
-          <DecimalInput className="neo-input font-data" placeholder={t("Цена продажи *", "Sotish narxi *")} value={d.unitPrice} onValueChange={v => setD({ ...d, unitPrice: v })} />
+          <DecimalInput data-testid="product-price" className="neo-input font-data" placeholder={t("Цена продажи *", "Sotish narxi *")} value={d.unitPrice} onValueChange={v => setD({ ...d, unitPrice: v })} />
           <DecimalInput className="neo-input font-data" placeholder={t("Масса 1 ед. в кг (ящик=8)", "1 dona vazni, kg")} value={d.unitWeight} onValueChange={v => setD({ ...d, unitWeight: v })} />
           <DecimalInput className="neo-input font-data" placeholder={t("Порог дозаказа", "Qayta buyurtma chegarasi")} value={d.reorderPoint} onValueChange={v => setD({ ...d, reorderPoint: v })} />
           <input className="neo-input sm:col-span-2" placeholder={t("Описание", "Tavsif")} value={d.description} onChange={e => setD({ ...d, description: e.target.value })} />
         </div>
       </div>
       <div style={{ display: "flex", gap: "8px", marginTop: "16px" }}>
-        <button onClick={() => d.code && d.name && d.unitPrice && onSave({ ...d, photoUrl: photo ?? undefined })} disabled={isPending}
+        <button data-testid="product-save" onClick={() => d.code && d.name && d.unitPrice && onSave({ ...d, photoUrl: photo ?? undefined })} disabled={isPending}
           className="neo-btn-primary flex-1 sm:flex-none flex items-center justify-center gap-2">
           {isPending && <Loader2 size={14} className="animate-spin" />}{t("Сохранить", "Saqlash")}
         </button>
