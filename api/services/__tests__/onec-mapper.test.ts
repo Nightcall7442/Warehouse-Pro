@@ -94,7 +94,7 @@ function makeMockDb() {
 }
 
 let mockDb: ReturnType<typeof makeMockDb>;
-vi.mock("../queries/connection", () => ({ getDb: () => mockDb }));
+vi.mock("../../queries/connection", () => ({ getDb: () => mockDb }));
 
 beforeEach(() => {
   resetTables();

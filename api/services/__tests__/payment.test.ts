@@ -7,10 +7,15 @@ vi.mock("drizzle-orm", () => ({
   sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ __kind: "sql", strings, values }),
 }));
 
-vi.mock("../lib/sanitize", () => ({
-  sanitizeString: (s: string) => s.replace(/<[^>]*>/g, "").trim(),
-}));
-
+// Очистка ввода (lib/sanitize) НЕ подменяется намеренно.
+//
+// Здесь стояла заглушка с упрощённой заменой тегов, и путь к ней был
+// сломан — vi.mock считает путь от файла теста, а указывал он на
+// api/services/lib/sanitize, которого нет. По случайности так вышло лучше:
+// тесты гоняли настоящую очистку. Заглушка проверяла бы саму себя.
+//
+// Примечания к оплате приходят от человека и попадают в отчёты — пусть их
+// чистит тот же код, что и в продакшене.
 import { payments, shops } from "@db/schema";
 import { makeConditionEvaluator } from "../../__tests__/helpers/fake-conditions";
 
@@ -203,7 +208,7 @@ function makeMockDb() {
 }
 
 let mockDb: ReturnType<typeof makeMockDb>;
-vi.mock("../queries/connection", () => ({ getDb: () => mockDb }));
+vi.mock("../../queries/connection", () => ({ getDb: () => mockDb }));
 
 beforeEach(() => {
   resetTables();
