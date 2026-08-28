@@ -62,7 +62,15 @@ function AddShopModal({ onClose }: { onClose: () => void }) {
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
       style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }}
     >
-      <div className="w-full sm:max-w-md bg-[#ffffff] rounded-t-2xl sm:rounded-2xl shadow-2xl p-5 space-y-4">
+      {/* Фон панели — из темы, а не литералом.
+          Здесь стоял bg-[#ffffff]. Весь текст внутри берёт цвет из токенов, и
+          в тёмной теме это давало почти белый текст на белом: заголовок
+          #ede9e3 на #ffffff — контраст 1.21 при норме 4.5, подпись поля —
+          2.69. Форма читалась только на ощупь.
+          Соседняя модалка (warehouse/AdjustModal) с самого начала красится
+          через var(--color-surface) — здесь теперь так же. */}
+      <div className="w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-2xl p-5 space-y-4"
+        style={{ background: "var(--color-surface, #efedea)" }}>
         {/* Header */}
         <div className="flex items-center justify-between">
           <h2 className="font-display text-lg text-primary">
