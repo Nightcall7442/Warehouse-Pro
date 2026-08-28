@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatChartValue, truncateMiddle } from "@/lib/chart-value";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -41,11 +42,34 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
           <div className="w-2 h-2 rounded-full" style={{ background: p.color }} />
           <span style={{ color: THEME.textSecondary }}>{p.name}:</span>
           <span className="font-semibold" style={{ color: THEME.textPrimary }}>
-            {typeof p.value === "number" ? p.value.toLocaleString("ru") : p.value}
+            {formatChartValue(p.value)}
           </span>
         </div>
       ))}
     </div>
+  );
+}
+
+/**
+ * Подпись категории на оси: одна строка, лишнее — из середины.
+ *
+ * recharts зовёт этот компонент для каждой засечки и передаёт координаты и
+ * само значение. Своя отрисовка нужна ровно ради двух вещей: не переносить
+ * текст на несколько строк и сокращать его по середине.
+ */
+function CategoryTick(props: { x?: number; y?: number; payload?: { value?: string } }) {
+  const { x = 0, y = 0, payload } = props;
+  const text = String(payload?.value ?? "");
+  return (
+    <text
+      x={x - 6}
+      y={y}
+      dy={4}
+      textAnchor="end"
+      style={{ fontSize: 10, fill: "var(--color-text-secondary, #5e5b54)" }}
+    >
+      {truncateMiddle(text, 26)}
+    </text>
   );
 }
 
@@ -240,10 +264,26 @@ export default function WarehouseReports() {
         <ChartPanel title={t("Остатки по категориям", "Kategoriyalar bo'yicha qoldiq")}>
           <div style={{ height: 280 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={byCategory?.slice(0, 8)} layout="vertical" margin={{ left: 80, right: 20 }}>
+              <BarChart data={byCategory?.slice(0, 8)} layout="vertical" margin={{ left: 8, right: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border, #d8d5cd)" horizontal={false} />
                 <XAxis type="number" tick={{ fontSize: 10, fill: "var(--color-text-tertiary, #6b6760)" }} />
-                <YAxis dataKey="category" type="category" tick={{ fontSize: 11, fill: "var(--color-text-secondary, #5e5b54)" }} width={75} />
+                {/* Подписи категорий рисуются своим значком, а не готовым.
+                    При width={75} и шрифте 11 длинное название переносилось на
+                    три строки, строки соседних категорий налезали друг на
+                    друга, и прочитать было нельзя ни одну.
+
+                    Теперь строка одна, ширины больше, а лишнее убирается из
+                    СЕРЕДИНЫ: названия здесь различаются хвостом — «(для
+                    женщин)» и «(для мужчин)», — и обрезка с конца превратила
+                    бы их в две одинаковые подписи. Полное название видно в
+                    подсказке при наведении. */}
+                <YAxis
+                  dataKey="category"
+                  type="category"
+                  width={150}
+                  tickLine={false}
+                  tick={<CategoryTick />}
+                />
                 <Tooltip cursor={false} content={<ChartTooltip />} />
                 <Bar dataKey="totalValue" name={t("Стоимость", "Qiymat")} fill="var(--color-primary)" radius={[0, 4, 4, 0]} />
               </BarChart>

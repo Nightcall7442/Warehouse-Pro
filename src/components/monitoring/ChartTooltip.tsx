@@ -1,4 +1,5 @@
 import { COLORS, F } from "./theme";
+import { formatChartValue } from "@/lib/chart-value";
 
 interface ChartTooltipProps {
   active?: boolean;
@@ -14,13 +15,6 @@ interface ChartTooltipProps {
  * ловила и выводила её как есть: четыре знака после запятой у суммы в сумах и
  * ни одного разделителя разрядов.
  */
-function formatValue(v: number | string | undefined): string {
-  if (v === undefined || v === null) return "—";
-  const n = typeof v === "number" ? v : Number(v);
-  if (!Number.isFinite(n)) return String(v);
-  // Два знака — потолок, а не обязанность: у целых чисел хвост не рисуется.
-  return n.toLocaleString("ru", { maximumFractionDigits: 2 });
-}
 
 export function ChartTooltip({ active, payload, label }: ChartTooltipProps) {
   if (!active || !payload?.length) return null;
@@ -40,7 +34,7 @@ export function ChartTooltip({ active, payload, label }: ChartTooltipProps) {
             <span style={{ fontSize: "12px", color: COLORS.textSecondary }}>{p.name}</span>
           </div>
           <span style={{ fontSize: "13px", fontWeight: 600, color: COLORS.textPrimary, fontFamily: F.display }}>
-            {formatValue(p.value)}
+            {formatChartValue(p.value)}
           </span>
         </div>
       ))}

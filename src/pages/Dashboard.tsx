@@ -1,4 +1,5 @@
 import { memo, useCallback, useMemo, useState } from "react";
+import { formatChartValue } from "@/lib/chart-value";
 import { trpc } from "@/providers/trpc";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useLang } from "@/i18n";
@@ -46,7 +47,10 @@ const ChartTooltip = memo(function ChartTooltip({ active, payload, label, fmt }:
             <span style={{ fontSize: "12px", color: "var(--color-text-secondary, #5e5b54)" }}>{p.name}</span>
           </div>
           <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary, #2b2a28)" }}>
-            {p.dataKey === "revenue" ? fmt(p.value, true) : p.value}
+            {/* Не выручка — тоже число, и приходить оно может строкой из
+                DECIMAL. Печатать «как есть» значит однажды показать
+                «1250.0000» вместо тысячи двухсот пятидесяти. */}
+            {p.dataKey === "revenue" ? fmt(p.value, true) : formatChartValue(p.value)}
           </span>
         </div>
       ))}
