@@ -278,6 +278,15 @@ const BOTTOM_NAV: Record<string, Array<{ ru: string; uz: string; path: string; i
     { ru: "Магазины", uz: "Do'konlar", path: "/agent/shops", icon: "Store" },
     { ru: "Настройки",uz: "Sozlamalar",path: "/settings",    icon: "Settings" },
   ],
+  // Доставщика тут не было вовсе. Панель при этом всё равно рисовалась — с
+  // пустым списком: внизу экрана оставалась глухая полоса в 60 точек, которая
+  // закрывала содержимое и никуда не вела. Пункты те же, что в боковом меню
+  // (src/const.ts), чтобы на телефоне и на большом экране было одно и то же.
+  courier: [
+    { ru: "Доставки",  uz: "Yetkazish",  path: "/deliveries", icon: "Truck", exact: true },
+    { ru: "KPI",       uz: "KPI",        path: "/agent/kpi",  icon: "BarChart3" },
+    { ru: "Настройки", uz: "Sozlamalar", path: "/settings",   icon: "Settings" },
+  ],
 };
 
 const BottomNav = memo(function BottomNav() {
@@ -287,6 +296,11 @@ const BottomNav = memo(function BottomNav() {
   const navigate  = useNavigate();
   const role      = user?.role ?? "agent";
   const items     = BOTTOM_NAV[role] ?? [];
+
+  // Роль без пунктов не получает и полосы. Раньше пустая панель всё равно
+  // занимала низ экрана и перекрывала содержимое — на телефоне это последняя
+  // строка списка, до которой нельзя дотянуться.
+  if (items.length === 0) return null;
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bottom-nav-premium" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>

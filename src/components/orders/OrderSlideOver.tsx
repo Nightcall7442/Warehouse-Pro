@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { normalizeDecimalInput } from "@/lib/decimal-input";
 import { discountMoneyToPct } from "@/lib/order-discount";
 import { createPortal } from "react-dom";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -572,15 +573,15 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
                                   <td style={td}>{line.productName}</td>
                                   <td style={{ ...td, padding: "6px 8px" }}>
                                     <Input
-                                      type="number" min="0" step="any" value={line.quantity}
-                                      onChange={e => updateLine(line.key, { quantity: e.target.value })}
+                                      type="text" inputMode="decimal" value={line.quantity}
+                                      onChange={e => updateLine(line.key, { quantity: normalizeDecimalInput(e.target.value) })}
                                       className="h-8 text-sm text-right"
                                     />
                                   </td>
                                   <td style={{ ...td, padding: "6px 8px" }}>
                                     <Input
-                                      type="number" min="0" step="any" value={line.unitPrice}
-                                      onChange={e => updateLine(line.key, { unitPrice: e.target.value })}
+                                      type="text" inputMode="decimal" value={line.unitPrice}
+                                      onChange={e => updateLine(line.key, { unitPrice: normalizeDecimalInput(e.target.value) })}
                                       className="h-8 text-sm text-right"
                                     />
                                   </td>
@@ -727,7 +728,7 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
                         <div>
                           <label style={{ display: "block", fontFamily: F.body, fontSize: "11px", color: COLORS.textSecondary, marginBottom: "4px" }}>{t("Скидка (%)", "Chegirma (%)")}</label>
-                          <Input type="number" min="0" max="100" value={editDiscount} onChange={e => setEditDiscount(e.target.value)} className="h-8 text-sm" />
+                          <Input type="text" inputMode="decimal" value={editDiscount} onChange={e => setEditDiscount(normalizeDecimalInput(e.target.value))} className="h-8 text-sm" />
                         </div>
                         <div>
                           <label style={{ display: "block", fontFamily: F.body, fontSize: "11px", color: COLORS.textSecondary, marginBottom: "4px" }}>{t("Метод оплаты", "To'lov usuli")}</label>
@@ -889,8 +890,8 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
             <div>
               <label style={{ display: "block", fontFamily: F.body, fontSize: "11px", color: COLORS.textSecondary, marginBottom: "4px" }}>{t("Сумма", "Summa")}</label>
               <Input
-                type="number" min="0" step="any" value={debtAmount} autoFocus
-                onChange={e => setDebtAmount(e.target.value)}
+                type="text" inputMode="decimal" value={debtAmount} autoFocus
+                onChange={e => setDebtAmount(normalizeDecimalInput(e.target.value))}
                 placeholder="0"
                 className="h-9 text-sm"
               />

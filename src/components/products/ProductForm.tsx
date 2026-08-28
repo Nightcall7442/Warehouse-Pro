@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { DecimalInput } from "@/components/ui/DecimalInput";
 import { Package, Camera, X, Loader2 } from "lucide-react";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { CategoryAutocomplete } from "./CategoryAutocomplete";
@@ -91,10 +92,10 @@ export function ProductForm({ onSave, onCancel, isPending, lang, categories = []
           <PremiumSelect value={d.unit} onChange={v => setD({ ...d, unit: isUnit(v) ? v : d.unit })}
             options={UNITS.map(u => ({ value: u.value, label: lang === "uz" ? u.uz : u.ru }))}
             width="100%" />
-          <input className="neo-input font-data" placeholder={t("Себестоимость", "Tannarx")} type="number" step="0.01" value={d.costPrice} onChange={e => setD({ ...d, costPrice: e.target.value })} />
-          <input className="neo-input font-data" placeholder={t("Цена продажи *", "Sotish narxi *")} type="number" step="0.01" value={d.unitPrice} onChange={e => setD({ ...d, unitPrice: e.target.value })} />
-          <input className="neo-input font-data" placeholder={t("Масса 1 ед. в кг (ящик=8)", "1 dona vazni, kg")} type="number" step="0.001" value={d.unitWeight} onChange={e => setD({ ...d, unitWeight: e.target.value })} />
-          <input className="neo-input font-data" placeholder={t("Порог дозаказа", "Qayta buyurtma chegarasi")} type="number" value={d.reorderPoint} onChange={e => setD({ ...d, reorderPoint: e.target.value })} />
+          <DecimalInput className="neo-input font-data" placeholder={t("Себестоимость", "Tannarx")} value={d.costPrice} onValueChange={v => setD({ ...d, costPrice: v })} />
+          <DecimalInput className="neo-input font-data" placeholder={t("Цена продажи *", "Sotish narxi *")} value={d.unitPrice} onValueChange={v => setD({ ...d, unitPrice: v })} />
+          <DecimalInput className="neo-input font-data" placeholder={t("Масса 1 ед. в кг (ящик=8)", "1 dona vazni, kg")} value={d.unitWeight} onValueChange={v => setD({ ...d, unitWeight: v })} />
+          <DecimalInput className="neo-input font-data" placeholder={t("Порог дозаказа", "Qayta buyurtma chegarasi")} value={d.reorderPoint} onValueChange={v => setD({ ...d, reorderPoint: v })} />
           <input className="neo-input sm:col-span-2" placeholder={t("Описание", "Tavsif")} value={d.description} onChange={e => setD({ ...d, description: e.target.value })} />
         </div>
       </div>

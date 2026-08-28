@@ -1,4 +1,5 @@
 import { useParams, useNavigate, useSearchParams } from "react-router";
+import { DecimalInput } from "@/components/ui/DecimalInput";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useRef, useState } from "react";
 import { trpc } from "@/providers/trpc";
@@ -133,18 +134,18 @@ export default function ProductDetail() {
                   onChange={v=>setEditData((d: Record<string, unknown>)=>({...d,unit:v}))}
                   options={Object.keys(UNIT_LABELS).map(u=>({value:u,label:unitLabel(u)}))}
                   width="100%" />
-                <input className="neo-input font-data" placeholder={tr("Себестоимость","Tannarx")}
-                  defaultValue={product.costPrice} type="number" step="0.01"
-                  onChange={e=>setEditData((d: Record<string, unknown>)=>({...d,costPrice:e.target.value}))}/>
-                <input className="neo-input font-data" placeholder={tr("Цена продажи","Sotish narxi")}
-                  defaultValue={product.unitPrice} type="number" step="0.01"
-                  onChange={e=>setEditData((d: Record<string, unknown>)=>({...d,unitPrice:e.target.value}))}/>
-                <input className="neo-input font-data" placeholder={tr("Масса 1 ед. (кг)","1 dona vazni (kg)")}
-                  defaultValue={product.unitWeight} type="number" step="0.001"
-                  onChange={e=>setEditData((d: Record<string, unknown>)=>({...d,unitWeight:e.target.value}))}/>
-                <input className="neo-input font-data" placeholder={tr("Порог дозаказа","Qayta buyurtma chegarasi")}
-                  defaultValue={product.reorderPoint} type="number" step="0.01"
-                  onChange={e=>setEditData((d: Record<string, unknown>)=>({...d,reorderPoint:e.target.value}))}/>
+                <DecimalInput className="neo-input font-data" placeholder={tr("Себестоимость","Tannarx")}
+                  value={String(editData.costPrice ?? product.costPrice ?? "")}
+                  onValueChange={v=>setEditData((d: Record<string, unknown>)=>({...d,costPrice:v}))}/>
+                <DecimalInput className="neo-input font-data" placeholder={tr("Цена продажи","Sotish narxi")}
+                  value={String(editData.unitPrice ?? product.unitPrice ?? "")}
+                  onValueChange={v=>setEditData((d: Record<string, unknown>)=>({...d,unitPrice:v}))}/>
+                <DecimalInput className="neo-input font-data" placeholder={tr("Масса 1 ед. (кг)","1 dona vazni (kg)")}
+                  value={String(editData.unitWeight ?? product.unitWeight ?? "")}
+                  onValueChange={v=>setEditData((d: Record<string, unknown>)=>({...d,unitWeight:v}))}/>
+                <DecimalInput className="neo-input font-data" placeholder={tr("Порог дозаказа","Qayta buyurtma chegarasi")}
+                  value={String(editData.reorderPoint ?? product.reorderPoint ?? "")}
+                  onValueChange={v=>setEditData((d: Record<string, unknown>)=>({...d,reorderPoint:v}))}/>
                 <input className="neo-input col-span-2" placeholder={tr("Описание","Tavsif")}
                   defaultValue={product.description ?? ""}
                   onChange={e=>setEditData((d: Record<string, unknown>)=>({...d,description:e.target.value}))}/>

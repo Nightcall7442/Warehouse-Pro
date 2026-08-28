@@ -1,4 +1,5 @@
 import { useParams, useNavigate } from "react-router";
+import { normalizeDecimalInput } from "@/lib/decimal-input";
 import { discountMoneyToPct } from "@/lib/order-discount";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
@@ -644,7 +645,7 @@ export default function OrderDetail() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-xs text-secondary mb-1 block">{lang === "uz" ? "Chegirma (%)" : "Скидка (%)"}</label>
-                <Input type="number" min="0" max="100" value={editDiscount} onChange={e => setEditDiscount(e.target.value)} className="h-8 text-sm" />
+                <Input type="text" inputMode="decimal" value={editDiscount} onChange={e => setEditDiscount(normalizeDecimalInput(e.target.value))} className="h-8 text-sm" />
               </div>
               <div>
                 <label className="text-xs text-secondary mb-1 block">{lang === "uz" ? "To'lov usuli" : "Метод оплаты"}</label>

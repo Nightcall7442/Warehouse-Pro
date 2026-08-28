@@ -83,8 +83,19 @@ export const ConfirmDialog = memo(function ConfirmDialog({ title, message, confi
             style={{
               padding: "8px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 600,
               fontFamily: "'DM Sans', sans-serif", border: "none", cursor: "pointer",
-              background: danger ? "var(--color-danger)" : "var(--color-primary)",
-              color: "#fff",
+              // Цвет текста берётся из палитры, а не зашивается белым.
+              //
+              // В тёмной теме заливка кнопки — золотая (#c9a227), и белым по
+              // ней получалось 2.42:1 при норме 4.5. Это кнопка подтверждения:
+              // ровно та, на которой человек решает, удалять ли. Токен
+              // --color-on-primary для того и заведён — в тёмной теме он
+              // тёмный, и надпись даёт 7.18:1.
+              //
+              // Для опасного действия взят --color-danger-strong: тот же
+              // красный, притемнённый до значения, на котором белый читается.
+              // 3.22:1 → 5.44:1 в тёмной, 4.15:1 → 5.89:1 в светлой.
+              background: danger ? "var(--color-danger-strong)" : "var(--color-primary)",
+              color: danger ? "#fff" : "var(--color-on-primary, #fff)",
             }}>
             {confirmText}
           </button>

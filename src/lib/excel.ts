@@ -5,6 +5,7 @@
  * цвета статусов, итоговую строку.
  */
 import ExcelJS from "exceljs";
+import { notify } from "@/lib/toast";
 
 type Row = Record<string, string | number | null | undefined>;
 
@@ -44,7 +45,17 @@ export async function exportToExcel(
   sheetName = "Данные",
   reportTitle?: string,
 ) {
-  if (!rows.length) return;
+  // Пустой набор — это отказ, а не успех.
+  //
+  // Раньше здесь стоял тихий выход: кнопка нажата, файла нет, объяснения нет.
+  // Отличить это от сломанной кнопки человек не мог. Сообщение показывается
+  // здесь, а не у вызывающих: выгрузку зовут из девятнадцати мест, и в
+  // большинстве из них это одна строка в обработчике нажатия без разбора
+  // ошибок. Одно место — значит ни одно из девятнадцати не промолчит.
+  if (!rows.length) {
+    notify.info("Нет данных для выгрузки");
+    return;
+  }
 
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet(sheetName);

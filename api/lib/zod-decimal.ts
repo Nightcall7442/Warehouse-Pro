@@ -1,11 +1,47 @@
 import { z } from "zod";
 
+/** Пробелы, которыми разделяют тысячи, включая неразрывный и узкий. */
+const SPACES = /[\s\u00A0\u202F\u2009']/g;
+
 /**
- * Form inputs send "" (not undefined) when a numeric field is left blank, which
- * bypasses Zod's .default() (only triggers on undefined) and lands an empty
- * string in a MySQL DECIMAL column — a 500 under strict SQL mode. Map "" to the
- * intended default before the rest of the chain (.refine/.default/.optional) runs.
+ * Привести пришедшее к записи, понятной колонке DECIMAL.
+ *
+ * Запятая, пробелы между разрядами и лишние пробелы по краям убираются:
+ * «1 250,75» — обычный вид суммы для человека, и приходит он и из веба, и из
+ * мобильного приложения.
+ */
+function canonical(v: string): string {
+  return v.replace(SPACES, "").replace(/,/g, ".");
+}
+
+/** Число ли это в записи, которую примет DECIMAL. */
+function looksNumeric(v: string): boolean {
+  return /^-?(\d+(\.\d*)?|\.\d+)$/.test(v) && Number.isFinite(Number(v));
+}
+
+/**
+ * Десятичное поле формы.
+ *
+ * Формы отправляют "" (а не undefined), когда числовое поле оставили пустым.
+ * .default() на "" не срабатывает — он реагирует только на undefined, — и
+ * пустая строка уходила прямо в колонку DECIMAL: под строгим режимом MySQL это
+ * ошибка 500. Поэтому "" заменяется на значение по умолчанию до остальной
+ * цепочки.
+ *
+ * Всё остальное раньше проходило насквозь без единой проверки. «12,5»
+ * записывалось в DECIMAL как 12: MySQL молча обрезает строку по первому
+ * непонятному знаку. Цена товара уменьшалась в разы, и нигде об этом не
+ * сообщалось — ни ошибки, ни записи в журнале. Теперь запятая понимается как
+ * разделитель, а то, что числом не является, отклоняется с внятным ответом.
  */
 export function decimalOrDefault(defaultValue: string) {
-  return z.preprocess((v) => (v === "" ? defaultValue : v), z.string());
+  return z.preprocess(
+    (v) => {
+      if (typeof v === "number") return Number.isFinite(v) ? String(v) : v;
+      if (typeof v !== "string") return v;
+      const s = canonical(v);
+      return s === "" ? defaultValue : s;
+    },
+    z.string().refine(looksNumeric, "Ожидается число"),
+  );
 }

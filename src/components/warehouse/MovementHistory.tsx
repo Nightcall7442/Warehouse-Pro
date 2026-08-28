@@ -25,13 +25,15 @@ export function MovementHistory({ productId, productName }: { productId: number;
 
       {open && (
         <div className="px-5 pb-4">
-          <div className="flex justify-end mb-3">
-            <button onClick={async () => movements && await exportToExcel(formatMovementsForExport(movements), `movements-${productName}`)}
-              className="text-xs flex items-center gap-1.5 py-1.5 px-3 rounded-lg transition-colors"
-              style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
-              <FileDown size={12} /> Excel
-            </button>
-          </div>
+          {!!movements?.length && (
+            <div className="flex justify-end mb-3">
+              <button onClick={() => exportToExcel(formatMovementsForExport(movements), `movements-${productName}`)}
+                className="text-xs flex items-center gap-1.5 py-1.5 px-3 rounded-lg transition-colors"
+                style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
+                <FileDown size={12} /> Excel
+              </button>
+            </div>
+          )}
           {!movements?.length ? (
             <p className="text-xs py-3" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
               {t("Движений нет", "Harakatlar yo'q")}

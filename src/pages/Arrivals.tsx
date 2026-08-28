@@ -1,4 +1,5 @@
 import { memo, useCallback, useMemo, useState } from "react";
+import { DecimalInput } from "@/components/ui/DecimalInput";
 import { createPortal } from "react-dom";
 import type { inferRouterInputs } from "@trpc/server";
 import type { AppRouter } from "../../api/router";
@@ -185,7 +186,7 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: ArrivalCreate
               ].map(f => (
                 <div key={f.key}>
                   <label className="font-label text-[10px] text-secondary mb-1.5 block">{f.label}</label>
-                  <input type="number" step="0.01" className="neo-input" style={{ textAlign: "right" }} placeholder="0" value={(form as Record<string, unknown>)[f.key] as string} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))} />
+                  <DecimalInput className="neo-input" style={{ textAlign: "right" }} placeholder="0" value={(form as Record<string, unknown>)[f.key] as string} onValueChange={v => setForm(p => ({ ...p, [f.key]: v }))} />
                 </div>
               ))}
             </div>
@@ -215,17 +216,17 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: ArrivalCreate
                     <div>
                       <label className="font-label text-[10px] text-secondary mb-1.5 block">{t("Кол-во", "Miqdor")}</label>
                       <div className="flex items-center gap-2">
-                        <input type="number" className="neo-input" style={{ width: 72, textAlign: "center", padding: "8px 10px" }} placeholder="0" value={item.quantity} onChange={e => updateItem(i, "quantity", e.target.value)} />
+                        <DecimalInput className="neo-input" style={{ width: 72, textAlign: "center", padding: "8px 10px" }} placeholder="0" value={item.quantity} onValueChange={v => updateItem(i, "quantity", v)} />
                         <span className="text-xs text-tertiary">{unitLabel(item.unit)}</span>
                       </div>
                     </div>
                     <div>
                       <label className="font-label text-[10px] text-secondary mb-1.5 block">{t("Себестоимость", "Tannarx")}</label>
-                      <input type="number" step="0.01" className="neo-input" style={{ textAlign: "right", padding: "8px 10px" }} placeholder={t("цена/ед", "narx/dona")} value={item.costPrice} onChange={e => updateItem(i, "costPrice", e.target.value)} />
+                      <DecimalInput className="neo-input" style={{ textAlign: "right", padding: "8px 10px" }} placeholder={t("цена/ед", "narx/dona")} value={item.costPrice} onValueChange={v => updateItem(i, "costPrice", v)} />
                     </div>
                     <div>
                       <label className="font-label text-[10px] text-secondary mb-1.5 block">{t("Цена продажи", "Sotish narxi")}</label>
-                      <input type="number" step="0.01" className="neo-input" style={{ textAlign: "right", padding: "8px 10px" }} placeholder={t("цена/ед", "narx/dona")} value={item.sellingPrice} onChange={e => updateItem(i, "sellingPrice", e.target.value)} />
+                      <DecimalInput className="neo-input" style={{ textAlign: "right", padding: "8px 10px" }} placeholder={t("цена/ед", "narx/dona")} value={item.sellingPrice} onValueChange={v => updateItem(i, "sellingPrice", v)} />
                     </div>
                     <div>
                       <label className="font-label text-[10px] text-secondary mb-1.5 block">{t("Состояние", "Holat")}</label>
