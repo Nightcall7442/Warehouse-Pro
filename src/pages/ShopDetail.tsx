@@ -1,6 +1,6 @@
-import { useParams, useNavigate, useSearchParams } from "react-router";
+import { useParams, useNavigate, useLocation } from "react-router";
 import { useCurrency } from "@/hooks/useCurrency";
-import { useRef, useState, useMemo } from "react";
+import { useRef, useState, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
@@ -121,11 +121,30 @@ export default function ShopDetail() {
   const { fmt }  = useCurrency();
   const { lang } = useLang();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const fromPage   = searchParams.get("fromPage") || "1";
-  const fromSearch = searchParams.get("search") || "";
-  const fromCity   = searchParams.get("city") || "";
-  const fromDistrict = searchParams.get("district") || "";
+  const location = useLocation();
+
+  /**
+   * «Назад» — настоящий шаг назад по истории.
+   *
+   * Здесь собирался адрес списка руками: /shops?fromPage=…&search=…&city=…
+   * &district=…. Четыре значения из девяти, которые список умеет
+   * фильтровать, — и «только с долгом» в них не входило. Отсюда жалоба:
+   * человек выбрал магазины с долгом, зашёл в магазин, нажал назад и попал в
+   * общий список.
+   *
+   * Теперь состояние списка лежит в его собственном адресе (см.
+   * hooks/useUrlState), поэтому переносить нечего: достаточно вернуться на
+   * шаг назад, и список откроется ровно таким, каким был.
+   *
+   * Оговорка про прямой заход: если карточку открыли по ссылке из мессенджера
+   * или обновили страницу, шага назад в нашем приложении нет — уводить
+   * человека из приложения кнопкой «назад» нельзя. React Router помечает
+   * такую первую запись ключом "default"; в этом случае идём в список.
+   */
+  const goBack = useCallback(() => {
+    if (location.key !== "default") navigate(-1);
+    else navigate("/shops");
+  }, [location.key, navigate]);
   const { confirm, dialog } = useConfirm();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
 
@@ -158,7 +177,7 @@ export default function ShopDetail() {
     onError:   (e) => notify.error(e.message),
   });
   const deleteShop = trpc.shop.delete.useMutation({
-    onSuccess: () => { navigate(`/shops?page=${fromPage}${fromSearch ? `&search=${encodeURIComponent(fromSearch)}` : ""}${fromCity ? `&city=${encodeURIComponent(fromCity)}` : ""}${fromDistrict ? `&district=${encodeURIComponent(fromDistrict)}` : ""}`); notify.success(t("Магазин удалён", "Do'kon o'chirildi")); },
+    onSuccess: () => { goBack(); notify.success(t("Магазин удалён", "Do'kon o'chirildi")); },
     onError:   (e) => notify.error(e.message),
   });
 
@@ -192,7 +211,7 @@ export default function ShopDetail() {
 
       {/* Навигация */}
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <button onClick={() => navigate(`/shops?page=${fromPage}${fromSearch ? `&search=${encodeURIComponent(fromSearch)}` : ""}${fromCity ? `&city=${encodeURIComponent(fromCity)}` : ""}${fromDistrict ? `&district=${encodeURIComponent(fromDistrict)}` : ""}`)} className="neo-btn flex items-center gap-2 py-1.5 px-3 text-sm">
+        <button onClick={() => goBack()} className="neo-btn flex items-center gap-2 py-1.5 px-3 text-sm">
           <ArrowLeft size={18} /><span className="text-sm">{t("Магазины", "Do'konlar")}</span>
         </button>
         <div className="flex gap-2">
