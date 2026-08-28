@@ -557,6 +557,10 @@ declare global {
     geoObjects: {
       add(object: YandexPlacemark): void;
       remove(object: YandexPlacemark): void;
+      /** null, пока на карте нет ни одного объекта. Нужен CourierDeliveries:
+          описание карты здесь общее для всех страниц, и убирать из него метод,
+          которым пользуется соседняя, нельзя. */
+      getBounds(): number[][] | null;
     };
     controls: {
       get(name: string): {
