@@ -1,12 +1,20 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
-vi.mock("drizzle-orm", () => ({
-  eq:  (col: unknown, val: unknown) => ({ __kind: "eq", col, val }),
-  and: (...conds: unknown[]) => ({ __kind: "and", conds }),
-  desc: (col: unknown) => ({ __kind: "desc", col }),
-  sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ __kind: "sql", strings, values }),
-}));
+// Операторы drizzle — из общего помощника, а не своим списком.
+//
+// Здесь перечислялись четыре имени: eq, and, desc, sql. Пока роутер обходился
+// ими, всё работало; в день, когда он возьмёт пятое, набор упадёт с текстом
+// «No "…" export is defined on the drizzle-orm mock» — то есть по виду по вине
+// продукта, хотя дыра в стенде. Ровно так однажды и случилось с inArray, разом
+// в одиннадцати тестах kpi.
+//
+// Общий список один на всех, и drizzle-operators.test.ts следит, чтобы он не
+// отставал от того, что импортирует продакшн-код.
+vi.mock("drizzle-orm", async () => {
+  const { drizzleMock } = await import("./helpers/drizzle-mock");
+  return drizzleMock();
+});
 
 vi.mock("../telegram-router", () => ({
   notifyAdmin: vi.fn(async () => {}),
