@@ -21,11 +21,18 @@ ARG VITE_APP_VERSION=""
 ARG SENTRY_AUTH_TOKEN=""
 ARG SENTRY_ORG=""
 ARG SENTRY_PROJECT=""
+# Ключ Яндекс.Карт. Не секрет — он уходит в браузер вместе с бандлом в любом
+# случае, и защищён на стороне Яндекса списком разрешённых доменов. Но раз в
+# коде уже стоит чтение переменной, она должна работать: без этой строки Vite
+# её не видит, подставляется запасное значение из исходника, и сменить ключ
+# без правки кода нельзя.
+ARG VITE_YANDEX_MAPS_API_KEY=""
 ENV VITE_SENTRY_DSN=${VITE_SENTRY_DSN}
 ENV VITE_APP_VERSION=${VITE_APP_VERSION}
 ENV SENTRY_AUTH_TOKEN=${SENTRY_AUTH_TOKEN}
 ENV SENTRY_ORG=${SENTRY_ORG}
 ENV SENTRY_PROJECT=${SENTRY_PROJECT}
+ENV VITE_YANDEX_MAPS_API_KEY=${VITE_YANDEX_MAPS_API_KEY}
 
 ENV NODE_ENV=production
 RUN npm run build
