@@ -12,6 +12,7 @@ import { verifyVisit } from "./services/anti-fraud";
 import { haversineKm } from "./lib/geo";
 import { onDate } from "./lib/date-range";
 import { photoRef } from "./lib/photo-url";
+import { isDuplicateEntry } from "./lib/db-errors";
 
 
 /**
@@ -807,8 +808,9 @@ export const agentRouter = createRouter({
         // одновременно, оба видят пусто и оба вставляют. Второго отклоняет
         // уникальный индекс — и это не ошибка, а сообщение «магазин уже создан»,
         // поэтому возвращаем существующий id вместо отказа.
-        const code = (err as { code?: string } | null)?.code;
-        if (input.idempotencyKey && code === "ER_DUP_ENTRY") {
+        // Читается по всей цепочке cause: ошибку драйвера drizzle заворачивает
+        // в свою, и у обёртки нет ни code, ни sqlMessage.
+        if (input.idempotencyKey && isDuplicateEntry(err)) {
           const [existing] = await db.select({ id: shops.id })
             .from(shops)
             .where(and(eq(shops.tenantId, tenantId), eq(shops.idempotencyKey, input.idempotencyKey)))

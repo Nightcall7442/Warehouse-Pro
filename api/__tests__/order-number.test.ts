@@ -97,9 +97,16 @@ describe("генерация номера в продукте", () => {
   it("столкновение номеров обрабатывается повтором, а не падением", () => {
     // Два заказа, оформленные в одну секунду, посчитают один и тот же номер;
     // уникальный индекс отклонит второго, и он обязан взять следующий.
+    //
+    // Проверка искала здесь буквальное «ER_DUP_ENTRY». Строка уехала в общий
+    // разбор ошибок (lib/db-errors) — и уехала правильно: читать код ошибки с
+    // верхнего уровня нельзя, drizzle заворачивает её в свою, и проверка
+    // давала false всегда. Ищем теперь сам повтор, а не название константы.
     const src = readFileSync(join(process.cwd(), "api", "services", "order.ts"), "utf8");
-    const create = src.slice(src.indexOf("nextOrderNumber(tx, tenantId)"));
-    expect(create.slice(0, 1500)).toMatch(/ER_DUP_ENTRY/);
-    expect(create.slice(0, 1500)).toMatch(/№\$\{Number\(number\.slice\(1\)\) \+ 1\}/);
+    const from = src.indexOf("nextOrderNumber(tx, tenantId)");
+    const create = src.slice(from, from + 1500);
+    expect(create, "распознавание дубликата убрано из ветки повтора").toMatch(/isDuplicateEntry\(err\)/);
+    expect(create, "коллизия номера больше не отличается от дубликата по ключу").toMatch(/isIdempotencyDuplicate\(err\)/);
+    expect(create, "следующий номер не берётся").toMatch(/№\$\{Number\(number\.slice\(1\)\) \+ 1\}/);
   });
 });

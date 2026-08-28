@@ -12,6 +12,7 @@ import { logger } from "../lib/logger";
 
 import { affectedRows } from "../lib/db-rows";
 import { TRPCError } from "@trpc/server";
+import { isDuplicateEntry, isDuplicateOf } from "../lib/db-errors";
 
 /**
  * Ошибка, которую оператор должен увидеть и может исправить сам.
@@ -730,10 +731,10 @@ async function applyPartialDelivery(
  * пока агент вручную не нажмёт «Повторить» по каждой.
  */
 export function isIdempotencyDuplicate(err: unknown): boolean {
-  const message = (err as { sqlMessage?: string; message?: string } | null)?.sqlMessage
-    ?? (err as { message?: string } | null)?.message
-    ?? "";
-  return message.includes("uq_orders_idempotency");
+  // Разбор — общий (lib/db-errors): ошибка приезжает завёрнутой в drizzle, и
+  // читать её надо по всей цепочке cause, а не с верхнего уровня. Пока читали
+  // с верхнего, эта проверка давала false всегда.
+  return isDuplicateOf(err, "uq_orders_idempotency");
 }
 
 export const OrderService = {
@@ -1032,8 +1033,7 @@ export const OrderService = {
           // снаружи транзакции, поэтому такую ошибку пробрасываем как есть.
           // Раньше случаи различались по наличию ключа, и офлайн-очередь агента
           // вставала на первой же коллизии номера — см. isIdempotencyDuplicate.
-          const code = (err as { code?: string } | null)?.code;
-          const isNumberClash = code === "ER_DUP_ENTRY" && !isIdempotencyDuplicate(err);
+          const isNumberClash = isDuplicateEntry(err) && !isIdempotencyDuplicate(err);
           if (!isNumberClash || attempt >= 4) throw err;
           number = `№${Number(number.slice(1)) + 1}`;
         }
@@ -1076,9 +1076,9 @@ export const OrderService = {
       orderTotal = txResult.total;
       orderNumber = txResult.number;
     } catch (err: unknown) {
-      // Handle idempotency key race condition (MySQL error 23000 = duplicate entry)
-      const code = err && typeof err === "object" && "code" in err ? (err as { code?: string }).code : undefined;
-      if (input.idempotencyKey && code === "ER_DUP_ENTRY") {
+      // Гонка по ключу идемпотентности: заказ уже создан параллельным
+      // запросом — находим его и возвращаем как свой.
+      if (input.idempotencyKey && isDuplicateEntry(err)) {
         const [existing] = await db.select({ id: orders.id, orderNumber: orders.orderNumber })
           .from(orders)
           .where(and(eq(orders.tenantId, tenantId), eq(orders.idempotencyKey, input.idempotencyKey)))
