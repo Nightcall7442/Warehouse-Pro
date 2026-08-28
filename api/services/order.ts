@@ -908,6 +908,9 @@ export const OrderService = {
     // money amount below and stored as such (orders.discount stays a money
     // column so revenue/P&L reports that SUM it keep meaning "money discounted").
     const discountPercent = Number(input.discount ?? "0");
+    // Порядок важен: NaN не меньше нуля и не больше ста, поэтому обе проверки
+    // ниже он проходил насквозь — и «abc» превращалось в сумму «NaN».
+    if (!Number.isFinite(discountPercent)) throw new Error("Скидка должна быть числом");
     if (discountPercent < 0) throw new Error("Скидка не может быть отрицательной");
     if (discountPercent > 100) throw new Error("Скидка не может превышать 100%");
 
@@ -1433,6 +1436,9 @@ export const OrderService = {
     // discount is a percentage (0-100), same contract as OrderService.create.
     if (data.discount !== undefined) {
       const pct = Number(data.discount);
+      // NaN не меньше нуля и не больше ста — без этой строки он проходил обе
+      // проверки, и заказ пересчитывался в «NaN».
+      if (!Number.isFinite(pct)) throw new Error("Скидка должна быть числом");
       if (pct < 0) throw new Error("Скидка не может быть отрицательной");
       if (pct > 100) throw new Error("Скидка не может превышать 100%");
     }

@@ -175,7 +175,14 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, onCreat
   };
 
   const subtotal = useMemo(() => cart.reduce((s, i) => s + i.unitPrice * i.quantity, 0), [cart]);
-  const discountAmount = subtotal * (Number(discount) / 100);
+  // Поле скидки стоит вне <form>, поэтому min и max на нём браузер не
+  // применяет: набрать «500» можно, и «Итого к оплате» показывало
+  // отрицательную сумму. Сервер такой заказ отклонит, но человек к тому
+  // моменту уже назвал владельцу магазина цифру с минусом.
+  //
+  // Здесь скидка приводится к разумному: не число — ноль, больше ста — сто.
+  const discountPct = Math.min(100, Math.max(0, Number(discount) || 0));
+  const discountAmount = subtotal * (discountPct / 100);
   const total = subtotal - discountAmount;
 
   const addToCart = (product: { id: number; name: string; code: string; unitPrice: string }) => {
