@@ -18,7 +18,7 @@ export function ShopForm({ onSave, onCancel, isPending, lang, agents, territorie
   const [photo, setPhoto] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const parseGpsFromLink = useCallback((link: string) => {
+  const parseGpsFromLink = useCallback(function parseLink(link: string): void {
     if (!link.trim()) { setParsedGps(null); return; }
     // Try to parse GPS from various URL formats
     try {
@@ -44,7 +44,7 @@ export function ShopForm({ onSave, onCancel, isPending, lang, agents, territorie
       // Telegram share: ?url=<encoded>
       const innerUrl = url.searchParams.get("url");
       if (innerUrl) {
-        parseGpsFromLink(decodeURIComponent(innerUrl));
+        parseLink(decodeURIComponent(innerUrl));
         return;
       }
       // Google Maps @lat,lng in path

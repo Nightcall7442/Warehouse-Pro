@@ -28,7 +28,7 @@ function procedure(name: string): string {
   expect(start, `процедура ${name} не найдена — тест устарел`).toBeGreaterThan(-1);
   const rest = SRC.slice(start + name.length);
   // Следующая процедура верхнего уровня начинается с двух пробелов и имени.
-  const end = rest.search(/\n  [a-zA-Z]+:/);
+  const end = rest.search(/\n {2}[a-zA-Z]+:/);
   return rest.slice(0, end === -1 ? rest.length : end);
 }
 

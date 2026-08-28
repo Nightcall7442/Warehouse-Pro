@@ -24,7 +24,7 @@ import { formatChartValue, truncateMiddle } from "../lib/chart-value";
  * проверок падала с «expected 243 775 609 to be 243 775 609». Приводим к
  * обычному пробелу, чтобы сравнивать смысл, а не невидимый знак.
  */
-const plain = (v: string) => v.replace(/ /g, " ");
+const plain = (v: string) => v.replace(/\u00A0/g, " ");
 
 describe("число в подсказке", () => {
   it("сумма из базы читается человеком", () => {

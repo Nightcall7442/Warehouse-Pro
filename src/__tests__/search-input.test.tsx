@@ -21,6 +21,12 @@ afterEach(() => cleanup());
 /** Родитель, считающий собственные перерисовки. */
 function Page({ onSearch, renders }: { onSearch: (v: string) => void; renders: { count: number } }) {
   const [applied, setApplied] = useState("");
+  // Счётчик перерисовок — предмет самой проверки: жалоба была не на
+  // задержку запроса, а на перерисовку всей страницы заказов на каждую
+  // букву. Тест, смотрящий только на итоговое значение, был бы зелёным и на
+  // сломанном варианте. Считать перерисовки, не трогая ничего в render,
+  // нельзя по определению.
+  // eslint-disable-next-line react-hooks/immutability
   renders.count++;
   const handle = useCallback((v: string) => { setApplied(v); onSearch(v); }, [onSearch]);
   return (

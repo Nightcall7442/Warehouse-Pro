@@ -24,12 +24,12 @@ afterEach(() => cleanup());
 async function mountInvalidateRemount(client: QueryClient) {
   const fetcher = vi.fn(async () => ["магазин 1"]);
 
-  function Список() {
+  function ShopList() {
     const { data } = useQuery({ queryKey: ["магазины"], queryFn: fetcher });
     return <div>{(data ?? []).join(" | ")}</div>;
   }
   const wrap = (
-    <QueryClientProvider client={client}><Список /></QueryClientProvider>
+    <QueryClientProvider client={client}><ShopList /></QueryClientProvider>
   );
 
   const first = render(wrap);

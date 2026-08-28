@@ -87,14 +87,14 @@ describe("проверка подключена к обоим путям зап�
   it("прайс-лист проверяет товар перед добавлением", () => {
     const src = read("price-list-router.ts");
     const proc = src.slice(src.indexOf("upsertItem:"));
-    const body = proc.slice(0, proc.search(/\n  [a-zA-Z]+:/));
+    const body = proc.slice(0, proc.search(/\n {2}[a-zA-Z]+:/));
     expect(body, "upsertItem принимает чужой productId").toContain("assertProductsBelongToTenant");
   });
 
   it("возврат проверяет товары независимо от наличия заказа", () => {
     const src = read("returns-router.ts");
     const proc = src.slice(src.indexOf("create:"));
-    const body = proc.slice(0, proc.search(/\n  [a-zA-Z]+:/));
+    const body = proc.slice(0, proc.search(/\n {2}[a-zA-Z]+:/));
     const guardAt = body.indexOf("assertProductsBelongToTenant");
     const orderBranchAt = body.indexOf("if (input.orderId)");
 

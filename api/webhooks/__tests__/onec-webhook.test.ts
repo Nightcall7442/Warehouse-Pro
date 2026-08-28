@@ -18,6 +18,11 @@ const h = vi.hoisted(() => {
   // onec_config по SHA-256 присланного заголовка и берёт tenantId ИЗ НЕЁ.
   // Поэтому стенду нужен настоящий хеш, а не просто совпадающая строка.
   const SECRET = "test-secret-123";
+  // require, а не импорт: эта строка живёт внутри фабрики vi.mock, а vitest
+  // поднимает такие фабрики ВЫШЕ всех импортов файла. Импортированное имя
+  // здесь ещё не существует — попытка заменить require на импорт роняет
+  // набор с «Cannot access __vi_import_0__ before initialization».
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const SECRET_HASH = require("crypto").createHash("sha256").update(SECRET).digest("hex");
   return { txInsertValues: vi.fn(okChain), okChain, SECRET, SECRET_HASH };
 });

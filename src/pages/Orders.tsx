@@ -75,13 +75,16 @@ export default function Orders() {
   const setSelected = useCallback((fn: Set<number> | ((prev: Set<number>) => Set<number>)) => {
     setSelectedRaw(prev => {
       const next = typeof fn === "function" ? fn(prev) : fn;
-      try { sessionStorage.setItem("order_selection", JSON.stringify([...next])); } catch {}
+      // Хранилище может быть недоступно: приватное окно, запрет на данные
+      // сайта, переполнение. Выделение строк — удобство, а не работа: терять
+      // из-за него сам список нельзя.
+      try { sessionStorage.setItem("order_selection", JSON.stringify([...next])); } catch { /* не сохранилось — не беда */ }
       return next;
     });
   }, []);
   const clearSelection = useCallback(() => {
     setSelectedRaw(new Set());
-    try { sessionStorage.removeItem("order_selection"); } catch {}
+    try { sessionStorage.removeItem("order_selection"); } catch { /* не удалилось — не беда */ }
   }, []);
   const { confirm, dialog } = useConfirm();
   const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);
@@ -833,7 +836,12 @@ export default function Orders() {
               const allOn = ids.length > 0 && ids.every(id => selected.has(id));
               setSelected(prev => {
                 const next = new Set(prev);
-                for (const id of ids) allOn ? next.delete(id) : next.add(id);
+                // Было тернарником в позиции выражения: значение никуда не
+                // шло, а читалось как «вычисляем и выбрасываем».
+                for (const id of ids) {
+                  if (allOn) next.delete(id);
+                  else next.add(id);
+                }
                 return next;
               });
             }}

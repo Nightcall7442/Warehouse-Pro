@@ -11,7 +11,7 @@ function SSEListener() {
   const esRef = useRef<EventSource | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const attachListeners = useCallback((es: EventSource) => {
+  const attachListeners = useCallback(function attach(es: EventSource): void {
     es.addEventListener("notification.new", (e) => {
       try {
         const data = JSON.parse(e.data);
@@ -35,7 +35,7 @@ function SSEListener() {
         if (esRef.current !== null) {
           const newEs = new EventSource("/api/events", { withCredentials: true });
           esRef.current = newEs;
-          attachListeners(newEs);
+          attach(newEs);
         }
       }, 5000);
     };

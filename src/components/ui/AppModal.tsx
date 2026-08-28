@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useId } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
@@ -52,7 +52,12 @@ export const modalFieldLabel = "font-label text-[10px] text-secondary mb-1.5 blo
 export function AppModal({
   open, onClose, title, subtitle, maxWidth = 720, footer, headerActions, children, dirty = false }: AppModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
-  const titleId = useRef(`modal-title-${Math.random().toString(36).slice(2)}`).current;
+  // useId вместо случайного числа в ссылке.
+  //
+  // Прежняя строка делала во время отрисовки сразу две запретных вещи:
+  // звала Math.random и читала .current у ссылки. React 19 даёт для этого
+  // отдельный хук — он и предназначен для связывания подписи с полем.
+  const titleId = useId();
 
   // Свежий onClose держится в ссылке, а не в зависимостях эффекта.
   //

@@ -16,6 +16,11 @@ import { createHash } from "crypto";
 const secretOf = (s: string) => createHash("sha256").update(s).digest("hex");
 
 const h = vi.hoisted(() => {
+  // require, а не импорт: эта строка живёт внутри фабрики vi.mock, а vitest
+  // поднимает такие фабрики ВЫШЕ всех импортов файла. Импортированное имя
+  // здесь ещё не существует — попытка заменить require на импорт роняет
+  // набор с «Cannot access __vi_import_0__ before initialization».
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const hash = (s: string) => require("crypto").createHash("sha256").update(s).digest("hex");
   return {
     // У двух организаций свои секреты. Стенд отдаёт ту строку onec_config,

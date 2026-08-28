@@ -65,6 +65,10 @@ export function mapOrder1C(order: OrderWP) {
 
 export function sanitizeText(input: string): string {
   return input
+    // Управляющие знаки здесь и есть предмет: 1С присылает их в текстовых
+    // полях, и в отчёт они уезжают невидимым мусором, ломая выгрузку в
+    // Excel. Правило линтера общее и про такой случай не знает.
+    // eslint-disable-next-line no-control-regex
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "")
     .normalize("NFC");
 }

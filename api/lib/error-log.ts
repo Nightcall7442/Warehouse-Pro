@@ -4,7 +4,7 @@
  * Writes to error-log.jsonl (append-only JSON Lines) for persistence across restarts.
  */
 
-import { appendFileSync, readFileSync, existsSync, mkdirSync, statSync } from "fs";
+import { appendFileSync, readFileSync, existsSync, mkdirSync, statSync , renameSync } from "fs";
 import { join } from "path";
 
 export interface ErrorEntry {
@@ -69,7 +69,9 @@ export function logError(entry: Omit<ErrorEntry, "id" | "timestamp">): ErrorEntr
         const stats = statSync(LOG_FILE);
         if (stats.size > MAX_LOG_SIZE_BYTES) {
           const rotated = LOG_FILE + "." + Date.now();
-          const { renameSync } = require("fs");
+          // Здесь стоял require ради ленивой загрузки — бессмысленный: весь
+          // остальной fs в этом файле и так импортирован статически строкой
+          // выше. Функция взята оттуда же.
           renameSync(LOG_FILE, rotated);
         }
       }

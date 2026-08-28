@@ -134,7 +134,7 @@ function evalAggSql(def: any, rows: Record<string, unknown>[]): number {
   const s = (def.strings?.join("") ?? "").toLowerCase();
   if (s.includes("count(")) return rows.length;
   if (s.includes("sum(")) {
-    const valMatch = s.match(/sum\(\s*(?:CASE\s+WHEN.*?THEN\s+)?([^\)]+)\)/i);
+    const valMatch = s.match(/sum\(\s*(?:CASE\s+WHEN.*?THEN\s+)?([^)]+)\)/i);
     if (valMatch) {
       const colRef = valMatch[1].trim();
       const colField = colRef.includes(".") ? colRef.split(".").pop()! : colRef;

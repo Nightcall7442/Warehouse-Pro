@@ -609,7 +609,7 @@ export const courierRouter = createRouter({
         debtAmount = orderTotal - paidAmount;
 
         // ── Determine final order status ──
-        let deliveryResult = input.result;
+        const deliveryResult = input.result;
 
         // Only a full return leaves the order undelivered. A partial return or a
         // partial payment still means goods were handed over, so the order is

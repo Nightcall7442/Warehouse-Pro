@@ -164,12 +164,14 @@ const prefersReducedMotion = () =>
 export function Counter({ target, duration = 1200 }: { target: number; duration?: number }) {
   const { ref, seen } = useInView<HTMLSpanElement>(0.4);
   const [value, setValue] = useState(0);
+  // Настройка «уменьшить движение» читается до эффекта.
+  //
+  // Раньше при включённой настройке эффект делал setValue сразу и синхронно:
+  // человек, попросивший систему не двигать картинку, видел кадр с нулём и
+  // скачок числа — то есть ровно то движение, от которого отказался.
+  const reduced = prefersReducedMotion();
   useEffect(() => {
-    if (!seen) return;
-    if (prefersReducedMotion()) {
-      setValue(target);
-      return;
-    }
+    if (!seen || reduced) return;
     let raf = 0;
     const start = performance.now();
     const tick = (now: number) => {
@@ -179,10 +181,10 @@ export function Counter({ target, duration = 1200 }: { target: number; duration?
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [seen, target, duration]);
+  }, [seen, reduced, target, duration]);
   return (
     <span ref={ref} style={MONO}>
-      {value.toLocaleString("ru-RU")}
+      {(seen && reduced ? target : value).toLocaleString("ru-RU")}
     </span>
   );
 }

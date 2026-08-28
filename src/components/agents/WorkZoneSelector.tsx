@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Loader2, MapPin, Check } from "lucide-react";
 import { trpc } from "@/providers/trpc";
@@ -21,11 +21,21 @@ export function WorkZoneSelector({ agentId, agentName, lang, onClose, onSaved }:
   const { data: currentZones = [], isLoading } = trpc.agent.listWorkZones.useQuery({ agentId });
   const [selected, setSelected] = useState<Set<number>>(new Set());
 
-  useEffect(() => {
-    if (currentZones.length > 0) {
-      setSelected(new Set(currentZones.map((z: { id: number }) => z.id)));
-    }
-  }, [currentZones]);
+  // Зоны агента переносятся в состояние во время отрисовки, а не эффектом.
+  //
+  // Эффект здесь ничего не синхронизировал с внешним миром — он копировал
+  // ответ запроса в состояние, и список территорий успевал показаться БЕЗ
+  // галочек. Галочки проставлялись следующим кадром: на медленной сети это
+  // заметное моргание.
+  //
+  // Производным значением состояние не сделать: галочки потом переключает
+  // человек. Поэтому применён приём «запомнить данные предыдущей отрисовки»
+  // из документации React — условная запись, а не эффект.
+  const [syncedZones, setSyncedZones] = useState(currentZones);
+  if (syncedZones !== currentZones && currentZones.length > 0) {
+    setSyncedZones(currentZones);
+    setSelected(new Set(currentZones.map((z: { id: number }) => z.id)));
+  }
 
   const saveMutation = trpc.agent.setWorkZones.useMutation({
     onSuccess: () => {

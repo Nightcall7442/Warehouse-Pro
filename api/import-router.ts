@@ -569,8 +569,9 @@ export const importRouter = createRouter({
           try {
             await db.insert(shops).values(values);
             success += values.length;
-          } catch (err: unknown) {
-            // If batch fails, fall back to individual inserts for this chunk
+          } catch {
+            // Пакетная вставка не удалась — дальше пробуем построчно, и сама
+            // ошибка для этого не нужна: важен только факт неудачи.
             for (const shop of chunk) {
               try {
                 let tid = shop.territoryId;

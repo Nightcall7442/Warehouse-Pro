@@ -15,11 +15,12 @@ const APP_VERSION = process.env.APP_VERSION ?? "2.0.0";
 // ── Request counter (in-memory) ──────────────────────────────────────────────
 let totalRequestCount = 0;
 let totalErrorCount = 0;
-let totalResponseTime = 0;
+// Сумма времени ответов здесь копилась и не читалась никем. Среднее время
+// приходит из скользящего окна (reqStats.avgResponseTime ниже), то есть это
+// был второй счётчик того же, только неиспользуемый. Удалён.
 
 export function recordRequest(responseTimeMs: number, isError: boolean) {
   totalRequestCount++;
-  totalResponseTime += responseTimeMs;
   if (isError) totalErrorCount++;
   recordRequestPoint(responseTimeMs, isError);
 }
