@@ -37,13 +37,23 @@ export default function ProductDetail() {
   const { confirm, dialog } = useConfirm();
   const [editing, setEditing] = useState(false);
   const [editData, setEditData] = useState<Record<string, unknown>>({});
+
+  /**
+   * Выход из правки — с очисткой набранного.
+   *
+   * editData не очищался никогда. Человек правил название, нажимал «Отмена»,
+   * открывал правку снова — в поле стояло исходное название (поле сбрасывалось
+   * само), но в editData лежало старое исправленное. Нажатие «Сохранить»
+   * отправляло то, чего на экране не было.
+   */
+  const stopEditing = () => { setEditing(false); setEditData({}); };
   const fileRef = useRef<HTMLInputElement>(null);
   const utils = trpc.useUtils();
 
   const { data: product, isLoading, isError, refetch } = trpc.product.getById.useQuery({ id: Number(id) }, { enabled: !!id });
 
   const updateProduct = trpc.product.update.useMutation({
-    onSuccess: () => { utils.product.getById.invalidate({id:Number(id)}); setEditing(false); notify.success(tr("Товар обновлён", "Mahsulot yangilandi")); },
+    onSuccess: () => { utils.product.getById.invalidate({id:Number(id)}); stopEditing(); notify.success(tr("Товар обновлён", "Mahsulot yangilandi")); },
     onError:   (e) => notify.error(e.message),
   });
 
@@ -92,7 +102,7 @@ export default function ProductDetail() {
           <ArrowLeft size={18}/><span className="text-sm">{tr("Назад","Orqaga")}</span>
         </button>
         <div className="flex gap-2">
-          <button onClick={()=>setEditing(v=>!v)} className="neo-btn flex items-center gap-2 text-sm py-2"><Edit2 size={14}/>{tr("Изменить","Tahrirlash")}</button>
+          <button onClick={()=>{ if (editing) { stopEditing(); } else { setEditing(true); } }} className="neo-btn flex items-center gap-2 text-sm py-2"><Edit2 size={14}/>{tr("Изменить","Tahrirlash")}</button>
           <button onClick={handleDelete} className="neo-btn text-danger border-danger/30 text-sm py-2">{tr("Удалить","O'chirish")}</button>
         </div>
       </div>
@@ -154,7 +164,7 @@ export default function ProductDetail() {
                     className="neo-btn-primary flex items-center gap-2">
                     {updateProduct.isPending&&<Loader2 size={14} className="animate-spin"/>}{tr("Сохранить","Saqlash")}
                   </button>
-                  <button onClick={()=>setEditing(false)} className="neo-btn">{tr("Отмена","Bekor qilish")}</button>
+                  <button onClick={stopEditing} className="neo-btn">{tr("Отмена","Bekor qilish")}</button>
                 </div>
               </div>
             ) : (
