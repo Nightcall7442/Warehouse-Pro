@@ -1,23 +1,22 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
-vi.mock("drizzle-orm", () => {
-  const sqlFn = Object.assign(
-    (strings: TemplateStringsArray, ...values: unknown[]) => ({ __kind: "sql", strings, values }),
-    {
-      join(chunks: unknown[], _sep?: unknown) { return { __kind: "sql_join", chunks }; },
-      raw(str: string) { return { __kind: "sql_raw", str }; },
-    },
-  );
-  return {
-    eq: (col: unknown, val: unknown) => ({ __kind: "eq", col, val }),
-    and: (...conds: unknown[]) => ({ __kind: "and", conds }),
-    desc: (col: unknown) => ({ __kind: "desc", col }),
-    isNull: (col: unknown) => ({ __kind: "isNull", col }),
-    sql: sqlFn,
-  };
+// Операторы drizzle — из общего помощника.
+//
+// Здесь стоял свой список из пяти имён, и на нём весь путь уведомлений о новом
+// заказе не работал: notifyNewOrder подгружает push-service, тот тянет
+// db/relations.ts, а `relations` в списке не было. Продукт эту ошибку ловит и
+// пишет предупреждение в лог — набор оставался зелёным, а уведомления в нём
+// просто не создавались. Тридцать таких строк в выводе полного прогона шли
+// отсюда.
+//
+// Разметка значений у общего помощника та же (__kind), включая sql.raw и
+// sql.join, которые читает helpers/mock-execute.ts.
+vi.mock("drizzle-orm", async () => {
+  const { drizzleMock } = await import("../../__tests__/helpers/drizzle-mock");
+  return drizzleMock();
 });
 
-import { orders, orderItems, warehouseStock, shops, users, products, warehouses } from "@db/schema";
+import { orders, orderItems, warehouseStock, shops, users, products, warehouses, notifications } from "@db/schema";
 import { createExecuteMock } from "../../__tests__/helpers/mock-execute";
 
 type FakeOrder = {
@@ -36,6 +35,7 @@ type FakeStock = {
 };
 type FakeShop = { id: number; tenantId: number; name: string };
 type FakeUser = { id: number; tenantId: number; name: string };
+type FakeNotification = { id: number; tenantId: number; userId: number; title: string; message: string };
 type FakeProduct = { id: number; tenantId: number; name: string; unitPrice: string; costPrice: string; status: string };
 
 let ordersTable: FakeOrder[] = [];
@@ -44,6 +44,8 @@ let stockTable: FakeStock[] = [];
 let shopsTable: FakeShop[] = [];
 let usersTable: FakeUser[] = [];
 let productsTable: FakeProduct[] = [];
+let notificationsTable: FakeNotification[] = [];
+let nextNotificationId = 1;
 let warehousesTable: { id: number; tenantId: number; name: string; isDefault: boolean; status: string }[] = [];
 let nextOrderId = 1;
 let nextItemId = 1;
@@ -56,7 +58,14 @@ function resetTables() {
     { productId: 2, tenantId: 1, warehouseId: 1, currentStock: "50.00", reserved: "0.00", available: "50.00" },
   ];
   shopsTable = [{ id: 1, tenantId: 1, name: "Shop Alpha" }];
-  usersTable = [{ id: 10, tenantId: 1, name: "Agent One" }];
+  usersTable = [
+    { id: 10, tenantId: 1, name: "Agent One" },
+    { id: 11, tenantId: 1, name: "Operator One" },
+    // Руководитель соседней организации. Про заказы этой он знать не должен.
+    { id: 20, tenantId: 2, name: "Чужой директор" },
+  ];
+  notificationsTable = [];
+  nextNotificationId = 1;
   productsTable = [
     { id: 1, tenantId: 1, name: "Product 1", unitPrice: "100.00", costPrice: "60.00", status: "active" },
     { id: 2, tenantId: 1, name: "Product 2", unitPrice: "200.00", costPrice: "120.00", status: "active" },
@@ -75,6 +84,7 @@ function tableOf(ref: unknown): string {
   if (ref === shops) return "shops";
   if (ref === users) return "users";
   if (ref === products) return "products";
+  if (ref === notifications) return "notifications";
   if (ref === warehouses) return "warehouses";
   return "other";
 }
@@ -83,7 +93,7 @@ function rowsFor(table: string): unknown[] {
   const map: Record<string, unknown[]> = {
     orders: ordersTable, orderItems: orderItemsTable,
     warehouseStock: stockTable, shops: shopsTable, users: usersTable,
-    products: productsTable,
+    products: productsTable, notifications: notificationsTable,
   };
   if (table === "warehouses") return warehousesTable;
   return map[table] ?? [];
@@ -226,6 +236,17 @@ function makeMockDb() {
           });
           return Promise.resolve([{ insertId: id }]);
         }
+        if (table === "notifications") {
+          // Уведомления кладутся пачкой — по одному на получателя.
+          const list = Array.isArray(vals) ? (vals as Record<string, unknown>[]) : [vals as Record<string, unknown>];
+          for (const v of list) {
+            notificationsTable.push({
+              id: nextNotificationId++, tenantId: v.tenantId as number, userId: v.userId as number,
+              title: String(v.title ?? ""), message: String(v.message ?? ""),
+            });
+          }
+          return Promise.resolve([{ insertId: nextNotificationId }]);
+        }
         if (table === "orderItems") {
           const list = Array.isArray(vals) ? (vals as Record<string, unknown>[]) : [vals as Record<string, unknown>];
           for (const v of list) {
@@ -259,7 +280,33 @@ function makeMockDb() {
 }
 
 let mockDb: ReturnType<typeof makeMockDb>;
-vi.mock("../queries/connection", () => ({ getDb: () => mockDb }));
+
+/**
+ * Подмена соединения с базой.
+ *
+ * Путь был "../queries/connection" — и это ничего не подменяло: vi.mock
+ * считает путь от файла теста, то есть от api/services/__tests__, и указывал
+ * он на api/services/queries/connection, которого нет. Мок выглядел защитой
+ * от настоящей базы, но был пустой строкой.
+ *
+ * Набор при этом проходил: сам OrderService соединение не запрашивает, ему
+ * передают db аргументом. А вот push-service запрашивает — и получал
+ * настоящий getDb() с адресом-заглушкой из окружения, отчего путь уведомлений
+ * падал с «TypeError: Invalid URL». Продукт эту ошибку ловит и пишет в лог,
+ * поэтому набор оставался зелёным.
+ *
+ * Ловушка на будущее: появись в OrderService первый вызов getDb(), тест
+ * молча пошёл бы в настоящий слой соединения.
+ */
+vi.mock("../../queries/connection", () => ({ getDb: () => mockDb }));
+
+// Отправка пуш-уведомлений ходит в сеть, к Expo. Модульному тесту заказа там
+// делать нечего — важно, что путь уведомлений отрабатывает целиком, а не что
+// Expo ответил.
+vi.mock("../push-service", () => ({
+  sendPushToUser: vi.fn(async () => {}),
+  sendPushToRole: vi.fn(async () => {}),
+}));
 
 beforeEach(() => {
   resetTables();
@@ -286,6 +333,40 @@ describe("OrderService.create", () => {
     const stock = stockTable.find((s) => s.productId === 1)!;
     expect(stock.reserved).toBe("20.00");
     expect(stock.available).toBe("80.00");
+  });
+
+  /**
+   * Уведомление о новом заказе.
+   *
+   * Раньше этот путь в тестах не выполнялся вовсе: он подгружает push-service,
+   * тот запрашивал соединение с базой, соединение в стенде подменено не было —
+   * и всё падало на «Invalid URL». Продукт эту ошибку ловит и пишет в лог,
+   * поэтому набор оставался зелёным, а уведомления в нём не создавались ни
+   * разу. Тридцать строк «Order notification failed» в полном прогоне шли
+   * отсюда.
+   *
+   * Чего здесь намеренно НЕ проверяется: отбор получателей по роли. В
+   * продакшене это сырой `sql`role IN (…)``, а разборщик стенда такие условия
+   * считает выполненными не глядя. Ожидание про роли прошло бы при любом коде
+   * — то есть было бы ещё одним тестом, который не может упасть.
+   *
+   * Граница организации проверяется по-настоящему: это обычный eq по колонке,
+   * которая в строках стенда есть.
+   */
+  it("уведомляет своих и не трогает соседнюю организацию", async () => {
+    await OrderService.create(mockDb as any, 1, 10, {
+      shopId: 1, items: [{ productId: 1, quantity: "20" }],
+    });
+
+    expect(notificationsTable.length).toBeGreaterThan(0);
+    expect(notificationsTable.every(n => n.tenantId === 1)).toBe(true);
+    expect(notificationsTable.map(n => n.userId)).not.toContain(20);
+
+    // В тексте — номер заказа и магазин: по уведомлению должно быть понятно,
+    // о чём оно, без перехода в карточку.
+    const [first] = notificationsTable;
+    expect(first.title).toMatch(/№\d+/);
+    expect(first.message).toContain("Shop Alpha");
   });
 
   it("rejects when stock is insufficient", async () => {
