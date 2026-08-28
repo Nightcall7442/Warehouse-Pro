@@ -47,6 +47,41 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <!-- Что это за сайт, словами, которые понимает поиск.
+         Разметка schema.org сама по себе позиции не поднимает — она отвечает
+         на вопрос «что это такое»: программа, деловая, для Узбекистана, на
+         русском и узбекском. Без неё Google выводит это из текста наугад.
+         Только проверяемые факты: ни цен, ни оценок, ни отзывов. -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Warehouse Pro",
+        "url": "https://www.warehouse-pro.uz/",
+        "applicationCategory": "BusinessApplication",
+        "operatingSystem": "Web, Android",
+        "inLanguage": [
+          "ru",
+          "uz"
+        ],
+        "description": "Система учёта склада, заказов и доставки для дистрибьюторов Узбекистана: остатки, заказы магазинов, маршруты и визиты торговых агентов, долги и оплаты.",
+        "publisher": {
+          "@type": "Organization",
+          "name": "Warehouse Pro",
+          "url": "https://www.warehouse-pro.uz/",
+          "logo": "https://www.warehouse-pro.uz/icon-512.png",
+          "areaServed": {
+            "@type": "Country",
+            "name": "Узбекистан"
+          },
+          "address": {
+            "@type": "PostalAddress",
+            "addressLocality": "Ташкент",
+            "addressCountry": "UZ"
+          }
+        }
+      }
+    </script>
   </head>
   <body>
     <!-- ── Что видно до того, как загрузится приложение ────────────────────
