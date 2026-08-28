@@ -33,16 +33,13 @@
  */
 import mysql from "mysql2/promise";
 import { drizzle } from "drizzle-orm/mysql2";
-import { migrate } from "drizzle-orm/mysql2/migrator";
+import { execFileSync } from "node:child_process";
 import { sql } from "drizzle-orm";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as schema from "@db/schema";
 
-const MIGRATIONS = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "../../../db/migrations",
-);
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 
 export const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL ?? "";
 export const hasRealDb = TEST_DATABASE_URL.length > 0;
@@ -65,18 +62,40 @@ const TABLES = [
   "stock_movements", "products", "shops", "warehouses", "users", "tenants",
 ];
 
+/**
+ * Схема собирается из db/schema.ts, а НЕ накатом истории миграций.
+ *
+ * Не для скорости. Цепочка миграций репозитория на чистую базу не встаёт
+ * вовсе: 0009 ссылается на warehouse_stock.warehouse_id, а этой колонки в
+ * базовой схеме нет — её добавляет только 0017. Проверил в CI: падает на
+ * 0009. Отдельный workflow test-migrations.yml ровно это и проверяет, и он
+ * красный все 18 своих запусков с 8 августа; в нём даже стоит «временный»
+ * отладочный шаг с припиской, что причина падения теряется «на каждом
+ * запуске».
+ *
+ * Это отдельная беда, и чинится она отдельно — сведением истории к новому
+ * основанию. Смешивать её с проверкой инвариантов нельзя: тогда блокировки и
+ * гонки останутся непроверенными до тех пор, пока кто-нибудь не разберёт
+ * сорок семь файлов миграций. Здесь нужна ПРАВИЛЬНАЯ схема, а не её история.
+ */
+function pushSchema(): void {
+  execFileSync("npx", ["drizzle-kit", "push", "--force"], {
+    cwd: REPO_ROOT,
+    env: { ...process.env, DATABASE_URL: TEST_DATABASE_URL },
+    stdio: "pipe",
+    shell: process.platform === "win32",
+  });
+}
+
 export async function connectRealDb(): Promise<ServiceDb> {
   if (!hasRealDb) throw new Error("TEST_DATABASE_URL не задан");
   if (!db) {
+    pushSchema();
     pool = mysql.createPool({ uri: TEST_DATABASE_URL, connectionLimit: 10, waitForConnections: true });
     // Приведение — то же, что в api/queries/connection.ts: вывод типов drizzle
     // не разворачивается, когда схема передана целиком, хотя в рантайме всё
     // на месте. Названо здесь один раз, а не рассыпано по вызовам.
-    const instance = drizzle(pool, { schema, mode: "default" }) as unknown as TestDb;
-    // Те же миграции, что накатывает приложение при старте. Если схема в
-    // репозитории разъехалась с кодом, это выяснится здесь, а не в проде.
-    await migrate(instance, { migrationsFolder: MIGRATIONS });
-    db = instance;
+    db = drizzle(pool, { schema, mode: "default" }) as unknown as TestDb;
   }
   return db as unknown as ServiceDb;
 }
