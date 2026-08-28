@@ -2,6 +2,7 @@ import { payments, shops } from "@db/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { sanitizeString } from "../lib/sanitize";
 import { recalcShopDebt } from "./shop-debt";
+import { isDuplicateEntry } from "../lib/db-errors";
 
 type DrizzleInstance = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -38,10 +39,15 @@ export interface AddPaymentResult {
   duplicate?: true;
 }
 
-/** MySQL сообщает о нарушении уникального индекса кодом ER_DUP_ENTRY. */
-function isDuplicateKey(e: unknown): boolean {
-  return (e as { code?: string } | null)?.code === "ER_DUP_ENTRY";
-}
+/**
+ * Нарушение уникального индекса.
+ *
+ * Читается по всей цепочке cause: drizzle заворачивает ошибку драйвера, и у
+ * обёртки никакого code нет. Пока читали с верхнего уровня, повторная отправка
+ * оплаты с тем же ключом идемпотентности отдавала пятисотую вместо «уже
+ * записано».
+ */
+const isDuplicateKey = isDuplicateEntry;
 
 export const PaymentService = {
   async addPayment(db: DrizzleInstance, tenantId: number, input: AddPaymentInput): Promise<AddPaymentResult> {

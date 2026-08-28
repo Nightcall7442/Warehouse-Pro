@@ -1,4 +1,5 @@
 import { useParams, useNavigate } from "react-router";
+import { discountMoneyToPct } from "@/lib/order-discount";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -78,6 +79,8 @@ function cleanNum(val: string | number | null | undefined): string {
   return n.toLocaleString("ru-RU", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 
+type PaymentMethod = "cash" | "card" | "transfer" | "debt";
+
 export default function OrderDetail() {
   const { id }      = useParams<{ id: string }>();
   const navigate    = useNavigate();
@@ -89,7 +92,9 @@ export default function OrderDetail() {
   const [editing, setEditing] = useState(false);
   const [editNotes, setEditNotes] = useState("");
   const [editDiscount, setEditDiscount] = useState("0");
-  const [editPaymentMethod, setEditPaymentMethod] = useState<string>("cash");
+  // Тип — тот же набор, что принимает сервер, а не просто string. Пока здесь
+  // стоял string, поле можно было не отправлять и компилятор молчал.
+  const [editPaymentMethod, setEditPaymentMethod] = useState<PaymentMethod>("cash");
 
   // ── Completion flow state ───────────────────────────────────────────────
   const [showCompletion, setShowCompletion] = useState(false);
@@ -168,10 +173,35 @@ export default function OrderDetail() {
     }
   }
 
+  /**
+   * Скидка: в базе она в деньгах, а ручка обновления принимает проценты.
+   *
+   * В поле «Скидка (%)» подставлялось `order.discount` как есть — то есть
+   * сумма в сумах. Дальше одно из двух, и оба плохи:
+   *
+   *   • скидка 5000 сум → в поле «5000» → проверка «от 0 до 100» не пускает,
+   *     и заказ становится нередактируемым ЦЕЛИКОМ: ни примечание, ни способ
+   *     оплаты поменять нельзя, каждое нажатие «Сохранить» даёт красное
+   *     сообщение про скидку, которую никто не трогал;
+   *   • скидка 50 сум → в поле «50» → сохраняется как 50 ПРОЦЕНТОВ, и сервер
+   *     режет заказ вдвое. Молча, с зелёным «Заказ обновлён».
+   *
+   * Второе хуже: это порча денег без единого признака на экране.
+   *
+   * Рядом, в OrderSlideOver, пересчёт сделан правильно — здесь его просто
+   * забыли. Договор ручки описан в services/order.ts:1433.
+   */
+  // Скидка на момент открытия формы: отправляем поле, только если его
+  // изменили. Иначе каждое сохранение гоняло бы сумму через проценты и
+  // обратно, и заказ терял бы копейки на округлении при правке примечания.
+  const [initialDiscountPct, setInitialDiscountPct] = useState(0);
+
   const startEditing = useCallback(() => {
     if (!order) return;
     setEditNotes(order.notes ?? "");
-    setEditDiscount(String(Number(order.discount ?? 0)));
+    const pct = discountMoneyToPct(order);
+    setEditDiscount(String(pct));
+    setInitialDiscountPct(pct);
     setEditPaymentMethod(order.paymentMethod ?? "cash");
     setEditing(true);
   }, [order]);
@@ -179,16 +209,24 @@ export default function OrderDetail() {
   const saveEditing = useCallback(() => {
     if (!order) return;
     const newDiscount = Number(editDiscount);
-    if (newDiscount < 0 || newDiscount > 100) {
+    if (!Number.isFinite(newDiscount) || newDiscount < 0 || newDiscount > 100) {
       notify.error(lang === "uz" ? "Chegirma 0-100 oralig'ida bo'lishi kerak" : "Скидка должна быть от 0 до 100");
       return;
     }
     updateOrder.mutate({
       id: order.id,
       notes: editNotes || undefined,
-      discount: editDiscount !== "0" ? editDiscount : undefined,
+      // Отправляем, только если правда изменили — см. про округление выше.
+      // И отправляем ДАЖЕ НОЛЬ: раньше стояло `!== "0" ? … : undefined`, а
+      // сервер пропускает неопределённое поле мимо. То есть скидку нельзя
+      // было снять: ставишь 0, жмёшь «Сохранить», скидка остаётся прежней.
+      ...(newDiscount !== initialDiscountPct ? { discount: editDiscount } : {}),
+      // Способ оплаты выбирался, но никуда не уходил: в mutate его просто не
+      // клали. Человек менял «Наличные» на «Долг», получал зелёное «Заказ
+      // обновлён» — и оплата оставалась прежней.
+      paymentMethod: editPaymentMethod,
     });
-  }, [order, editNotes, editDiscount, updateOrder, lang]);
+  }, [order, editNotes, editDiscount, editPaymentMethod, initialDiscountPct, updateOrder, lang]);
 
   const buildDocData = (): OrderDocData | null => {
     if (!order) return null;
@@ -610,7 +648,7 @@ export default function OrderDetail() {
               </div>
               <div>
                 <label className="text-xs text-secondary mb-1 block">{lang === "uz" ? "To'lov usuli" : "Метод оплаты"}</label>
-                <Select value={editPaymentMethod} onValueChange={setEditPaymentMethod}>
+                <Select value={editPaymentMethod} onValueChange={v => setEditPaymentMethod(v as PaymentMethod)}>
                   <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {Object.entries(PAYMENT_METHODS).map(([key, pm]) => (

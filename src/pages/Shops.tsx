@@ -23,29 +23,53 @@ import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { COLORS } from "@/components/shops/constants";
 
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useUrlState, urlString, urlMaybeString, urlNumber, urlPage, urlBool, urlEnum } from "@/hooks/useUrlState";
+
+// Наборы допустимых значений объявлены вне компонента: иначе на каждой
+// отрисовке это новый объект, и useCallback внутри хука пересобирался бы
+// без нужды.
+const SORT_CODEC = urlEnum(["newest", "debtDesc", "debtAsc"] as const, "newest");
+const VIEW_CODEC = urlEnum(["territories", "list"] as const, "territories");
 export default function Shops() {
   const { lang } = useLang();
   const { fmt } = useCurrency();
   const navigate = useNavigate();
   const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);
 
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState("");
+  // Состояние списка живёт в адресе, а не в компоненте.
+  //
+  // Пока оно лежало в useState, уход в карточку магазина его стирал:
+  // компонент размонтируется, возврат создаёт его заново с нуля. Отсюда и
+  // жалоба «выбрал магазины с долгом, зашёл в магазин, нажал назад — и я в
+  // общем списке». Ссылка в карточку руками переносила четыре значения из
+  // девяти, про остальные пять забыли — долг был среди них.
+  //
+  // Теперь переносить нечего: адрес и есть состояние, а «назад» — обычный
+  // шаг по истории. Заодно отфильтрованный список можно послать ссылкой.
+  const [page, setPage] = useUrlState("page", 1, urlPage);
+  const [search, setSearch] = useUrlState("search", "", urlString);
   // Поле ввода остаётся мгновенным, а в запрос уходит придержанное
   // значение: иначе каждая буква — это новый ключ запроса, у которого
   // ещё нет данных, и страница успевает смениться скелетоном.
   const debouncedSearch = useDebouncedValue(search);
-  const [city, setCity] = useState<string | undefined>(undefined);
-  const [district, setDistrict] = useState<string | undefined>(undefined);
-  const [agentFilter, setAgentFilter] = useState<string | undefined>(undefined);
-  const [territoryFilter, setTerritoryFilter] = useState<number | undefined>(undefined);
-  const [onlyDebtors, setOnlyDebtors] = useState(false);
-  const [sortBy, setSortBy] = useState<"newest" | "debtDesc" | "debtAsc">("newest");
+  // Город и район — только чтение: на самой странице их никто не выставляет.
+  // Так было и раньше, но незаметно: лежали они в useState, начинались с
+  // undefined, и единственным, кто их трогал, был сброс фильтров — то есть
+  // они не могли стать ничем, кроме undefined, и запрос всегда уходил без
+  // них. Ссылка же в карточку магазина исправно переносила ?city=… — параметр,
+  // который принимающая сторона не читала. Теперь читает: адрес и есть
+  // состояние, и переход «показать магазины этого города» наконец работает.
+  const [city] = useUrlState("city", undefined, urlMaybeString);
+  const [district] = useUrlState("district", undefined, urlMaybeString);
+  const [agentFilter, setAgentFilter] = useUrlState("agent", undefined, urlMaybeString);
+  const [territoryFilter, setTerritoryFilter] = useUrlState("territory", undefined, urlNumber);
+  const [onlyDebtors, setOnlyDebtors] = useUrlState("debtors", false, urlBool);
+  const [sortBy, setSortBy] = useUrlState("sort", "newest", SORT_CODEC);
   const [showForm, setShowForm] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showTerritoryManager, setShowTerritoryManager] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
-  const [viewMode, setViewMode] = useState<"territories" | "list">("territories");
+  const [viewMode, setViewMode] = useUrlState("view", "territories", VIEW_CODEC);
 
   const { data, isLoading, isError, refetch } = trpc.shop.list.useQuery({ page, pageSize: 25, search: debouncedSearch || undefined, city, district, agentId: agentFilter ? Number(agentFilter) : undefined, territoryId: territoryFilter, onlyDebtors: onlyDebtors || undefined, sortBy }, {
     // Прошлый список остаётся на экране, пока грузится новый: без этого
@@ -117,15 +141,15 @@ export default function Shops() {
     }
   };
 
+  // Сброс — это возврат к чистому адресу, а не семь отдельных сбросов.
+  //
+  // Пока фильтры лежали в useState, иначе и не написать. Теперь состояние —
+  // это строка запроса, и «сбросить всё» значит «убрать её целиком»: одна
+  // запись вместо семи, и ни один новый фильтр не забудут сюда дописать.
+  // replace, а не push: сброс уточняет тот же экран, а не уводит на новый.
   const resetFilters = useCallback(async () => {
-    setCity(undefined);
-    setDistrict(undefined);
-    setTerritoryFilter(undefined);
-    setSearch("");
-    setOnlyDebtors(false);
-    setSortBy("newest");
-    setPage(1);
-  }, []);
+    navigate("/shops", { replace: true });
+  }, [navigate]);
 
   if (isError) return <QueryErrorFallback onRetry={refetch} />;
   if (isLoading && !data) {
@@ -303,7 +327,7 @@ export default function Shops() {
               data={data?.data} isLoading={isLoading} lang={lang} fmt={fmt}
               selected={selected} allSelected={allSelected}
               onSelectAll={toggleSelectAll} onToggleSelect={toggleSelect}
-              onNavigate={id => navigate(`/shops/${id}?fromPage=${page}${search ? `&search=${encodeURIComponent(search)}` : ""}${city ? `&city=${encodeURIComponent(city)}` : ""}${district ? `&district=${encodeURIComponent(district)}` : ""}`)}
+              onNavigate={id => navigate(`/shops/${id}`)}
               page={page} setPage={setPage}
               total={data?.total ?? 0} city={city} district={district} t={t}
             />

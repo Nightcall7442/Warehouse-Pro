@@ -7,6 +7,31 @@ import { eq, and, or, desc, sql, isNull, inArray } from "drizzle-orm";
 import { sanitizeString } from "./lib/sanitize";
 import { OPEN_ORDER_STATUSES, CLOSED_ORDER_STATUSES } from "./lib/order-status";
 
+/**
+ * Скидка — процент от суммы заказа, от нуля до ста.
+ *
+ * Стояло `z.union([z.number(), z.string()]).transform(String)` без единой
+ * проверки. Диапазон при этом сторожили обе службы — и создание, и
+ * обновление, — но обе одинаково слепы к тому, что числом не является:
+ *
+ *     Number("abc") = NaN,  NaN < 0 → false,  NaN > 100 → false
+ *
+ * То есть «abc» проходило обе проверки насквозь, дальше subtotal * (NaN/100)
+ * давало NaN, и в денежную колонку уезжало «NaN». Ни осмысленной ошибки
+ * человеку, ни пригодной записи в базе.
+ *
+ * Проверка стоит на границе, а не в службе, чтобы отказ был один и понятный
+ * для всех, кто дёргает ручку: и веб, и мобильное приложение, и обмен с 1С.
+ * Проверки в самих службах остаются — второй рубеж дешевле разбирательства
+ * с испорченными суммами.
+ */
+const discountPercent = z.union([z.number(), z.string()])
+  .transform(String)
+  .refine(v => {
+    const n = Number(v);
+    return Number.isFinite(n) && n >= 0 && n <= 100;
+  }, "Скидка — это процент от 0 до 100");
+
 export const orderRouter = createRouter({
   // ── Server-side KPI stats (all orders, not just current page) ──────────────
   stats: fieldSalesQuery
@@ -230,7 +255,7 @@ export const orderRouter = createRouter({
         quantity:  z.union([z.number(), z.string()]).transform(String).refine(v => Number(v) > 0, "Количество должно быть положительным"),
       })).min(1).max(100),
       notes:          z.string().max(500).optional(),
-      discount:       z.union([z.number(), z.string()]).transform(String).default("0.00"),
+      discount:       discountPercent.default("0.00"),
       paymentMethod:  z.enum(["cash", "card", "transfer", "debt"]).default("cash"),
     }))
     .mutation(async ({ input, ctx }) => {
@@ -272,7 +297,7 @@ export const orderRouter = createRouter({
     .input(z.object({
       id: z.number().int().positive(),
       notes: z.string().max(500).optional(),
-      discount: z.union([z.number(), z.string()]).transform(String).optional(),
+      discount: discountPercent.optional(),
       paymentMethod: z.enum(["cash", "card", "transfer", "debt"]).optional(),
     }))
     .mutation(async ({ input, ctx }) => {

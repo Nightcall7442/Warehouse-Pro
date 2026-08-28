@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { discountMoneyToPct } from "@/lib/order-discount";
 import { createPortal } from "react-dom";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -295,10 +296,10 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
   function startEditing() {
     if (!order) return;
     setEditNotes(order.notes ?? "");
-    // Stored discount is money; the API takes a percentage.
-    const subtotal = Number(order.subtotal ?? 0);
-    const pct = subtotal > 0 ? (Number(order.discount ?? 0) / subtotal) * 100 : 0;
-    setEditDiscount(String(Math.round(pct * 100) / 100));
+    // В базе скидка в деньгах, ручка принимает проценты. Пересчёт общий:
+    // здесь он был верным, а в OrderDetail — нет, и заказы там резались
+    // вдвое. Одна функция на оба места, проверена тестом.
+    setEditDiscount(String(discountMoneyToPct(order)));
     setEditPaymentMethod(order.paymentMethod ?? "cash");
     setEditLines((order.items ?? []).map((i) => ({
       key: `item-${i.id}`,

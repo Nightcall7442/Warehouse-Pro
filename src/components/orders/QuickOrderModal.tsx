@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { AppModal, modalSectionLabel, modalFieldLabel } from "@/components/ui/AppModal";
+import { useConfirm } from "@/components/ConfirmDialog";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { Plus, Minus, Trash2, Search, Loader2, Store, Check } from "lucide-react";
 import { trpc } from "@/providers/trpc";
@@ -146,10 +147,42 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, onCreat
     setShopSearch("");
   };
 
-  const close = () => { resetForm(); onOpenChange(false); };
+  /**
+   * Закрытие с непустой корзиной спрашивает.
+   *
+   * Промах мимо панели и Escape теперь окно не закрывают вовсе (см. dirty в
+   * AppModal), а вот крестик и «Отмена» — действия осознанные, и запрещать
+   * их незачем. Но собранный заказ стоит человеку нескольких минут разговора
+   * с владельцем магазина, поэтому перед тем как его стереть, спрашиваем.
+   */
+  const { confirm, dialog } = useConfirm();
+
+  const close = async () => {
+    if (cart.length > 0) {
+      const ok = await confirm({
+        title: t("Закрыть без сохранения?", "Saqlamasdan yopilsinmi?"),
+        message: t(
+          `В заказе ${cart.length} позиций. Закроете — они пропадут.`,
+          `Buyurtmada ${cart.length} ta pozitsiya. Yopsangiz, ular yo'qoladi.`,
+        ),
+        confirmText: t("Закрыть", "Yopish"),
+        danger: true,
+      });
+      if (!ok) return;
+    }
+    resetForm();
+    onOpenChange(false);
+  };
 
   const subtotal = useMemo(() => cart.reduce((s, i) => s + i.unitPrice * i.quantity, 0), [cart]);
-  const discountAmount = subtotal * (Number(discount) / 100);
+  // Поле скидки стоит вне <form>, поэтому min и max на нём браузер не
+  // применяет: набрать «500» можно, и «Итого к оплате» показывало
+  // отрицательную сумму. Сервер такой заказ отклонит, но человек к тому
+  // моменту уже назвал владельцу магазина цифру с минусом.
+  //
+  // Здесь скидка приводится к разумному: не число — ноль, больше ста — сто.
+  const discountPct = Math.min(100, Math.max(0, Number(discount) || 0));
+  const discountAmount = subtotal * (discountPct / 100);
   const total = subtotal - discountAmount;
 
   const addToCart = (product: { id: number; name: string; code: string; unitPrice: string }) => {
@@ -220,7 +253,11 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, onCreat
         : t("Шаг 2 из 2 · проверка и оплата", "2-qadam 2 dan · tekshirish va to'lov")}
       maxWidth={820}
       footer={footer}
+      // Пока в корзине есть товары, промах мимо панели и Escape окно не
+      // закрывают: один неточный клик стирал собранный заказ целиком.
+      dirty={cart.length > 0}
     >
+      {dialog}
       {step === 1 && (
         <>
           <div>

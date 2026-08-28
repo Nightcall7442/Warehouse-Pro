@@ -20,6 +20,19 @@ import { X } from "lucide-react";
 export interface AppModalProps {
   open: boolean;
   onClose: () => void;
+  /**
+   * В окне есть несохранённая работа.
+   *
+   * Тогда промах мимо панели и Escape перестают его закрывать. Без этого
+   * один неточный клик стирал собранный заказ на двадцать позиций: подложка
+   * звала onClose, а onClose в быстром заказе — это resetForm() плюс
+   * закрытие. Ни подтверждения, ни черновика; двадцать строк, магазин,
+   * скидка и примечание исчезали молча.
+   *
+   * Закрыть по-прежнему можно — крестиком или «Отмена». Это осознанное
+   * действие, и спрашивать подтверждение уместно там, а не здесь.
+   */
+  dirty?: boolean;
   title: string;
   subtitle?: string;
   /** Max content width. Defaults to the 720px the arrival modal uses. */
@@ -37,8 +50,7 @@ export const modalSectionLabel = "font-label text-[10px] tracking-wider uppercas
 export const modalFieldLabel = "font-label text-[10px] text-secondary mb-1.5 block";
 
 export function AppModal({
-  open, onClose, title, subtitle, maxWidth = 720, footer, headerActions, children,
-}: AppModalProps) {
+  open, onClose, title, subtitle, maxWidth = 720, footer, headerActions, children, dirty = false }: AppModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useRef(`modal-title-${Math.random().toString(36).slice(2)}`).current;
 
@@ -65,7 +77,12 @@ export function AppModal({
   useEffect(() => {
     if (!open) return;
     const previouslyFocused = document.activeElement as HTMLElement | null;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onCloseRef.current(); };
+    const onKey = (e: KeyboardEvent) => {
+      // Escape закрывает пустое окно и не трогает то, в котором уже работают.
+      // Клавиша стоит рядом с цифрами и «1» на верхнем ряду — промахиваются
+      // по ней чаще, чем кажется.
+      if (e.key === "Escape" && !dirty) onCloseRef.current();
+    };
     document.addEventListener("keydown", onKey);
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -75,7 +92,11 @@ export function AppModal({
       document.body.style.overflow = prevOverflow;
       previouslyFocused?.focus?.();
     };
-  }, [open]);
+    // dirty в зависимостях: слушатель пересоздаётся, когда в окне появляется
+    // работа. Читать свежее значение через ссылку было бы дешевле, но в этом
+    // файле такое чтение во время отрисовки уже помечено линтером как ошибка —
+    // добавлять к ней ещё одну ради экономии на подписке незачем.
+  }, [open, dirty]);
 
   if (!open) return null;
 
@@ -101,8 +122,11 @@ export function AppModal({
       */}
       <div
         className="pointer-events-auto"
+        // Имя для проверок: искать затемнение по строке инлайнового стиля
+        // хрупко — браузер переписывает rgba(0,0,0,.75) по-своему.
+        data-modal-overlay
         style={{ position: "fixed", inset: 0, zIndex: 9999, backgroundColor: "rgba(0,0,0,0.75)" }}
-        onClick={onClose}
+        onClick={() => { if (!dirty) onClose(); }}
       />
       <div className="pointer-events-auto fixed inset-0 z-[10000] flex items-center justify-center p-4">
         <div

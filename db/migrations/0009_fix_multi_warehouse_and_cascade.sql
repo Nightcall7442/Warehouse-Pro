@@ -6,10 +6,24 @@
 -- 4. id_mappings and sync_status now have FK to tenants
 -- 5. warehouses.status and api_keys.status changed to enum
 
--- Step 1: Drop old unique index and create new one
-ALTER TABLE warehouse_stock DROP INDEX uq_stock_product_tenant;
---> statement-breakpoint
+-- Step 1: сначала СОЗДАЁМ новый индекс, потом удаляем старый.
+--
+-- Обратный порядок (как было здесь изначально) на чистой базе падает:
+--
+--   ER_DROP_INDEX_FK (1553): Cannot drop index 'uq_stock_product_tenant':
+--   needed in a foreign key constraint
+--
+-- У product_id есть внешний ключ на products.id, а uq_stock_product_tenant —
+-- единственный индекс, который его покрывает. MySQL не даёт снять последнюю
+-- опору внешнего ключа. Новый индекс начинается с того же product_id, поэтому
+-- после его создания старый снимается свободно.
+--
+-- Ту же поломку позже обошли в миграции 0029 — но до неё цепочка на чистой
+-- базе просто не доходила: она умирала здесь. Продакшн жив потому, что его
+-- схема собиралась постепенно, а не накатом с нуля.
 ALTER TABLE warehouse_stock ADD UNIQUE INDEX uq_stock_product_warehouse (product_id, warehouse_id, tenant_id);
+--> statement-breakpoint
+ALTER TABLE warehouse_stock DROP INDEX uq_stock_product_tenant;
 --> statement-breakpoint
 -- Step 2: Make warehouse_id NOT NULL (set to default warehouse first)
 -- First, ensure default warehouse exists for all tenants
