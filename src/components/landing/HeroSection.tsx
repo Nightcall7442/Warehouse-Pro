@@ -1,7 +1,8 @@
 import { useNavigate } from "react-router";
 import { useTranslate } from "@/i18n";
 import { ArrowRight, ArrowDown, Check, Send } from "lucide-react";
-import { LX, MONO, BtnInk, BtnGhost, Stamp, tgLink } from "./landing-shared";
+import { BtnInk, BtnGhost, Stamp } from "./landing-shared";
+import { LX, MONO, tgLink } from "./landing-tokens";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    HERO — первая страница реестра.

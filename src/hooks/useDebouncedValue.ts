@@ -18,16 +18,24 @@ import { useEffect, useState } from "react";
 export function useDebouncedValue<T>(value: T, delayMs = 300): T {
   const [debounced, setDebounced] = useState(value);
 
+  // Ждать нечего, когда поле очистили: человек, стерший запрос, хочет полный
+  // список сразу, а не через треть секунды.
+  //
+  // Сброс сделан условной записью при отрисовке, а не в эффекте. Эффект
+  // выполняется уже после кадра, поэтому очистка поля давала лишний проход:
+  // сначала список, отфильтрованный стёртым запросом, и только следующим
+  // кадром — полный. Это тот самый приём с данными предыдущей отрисовки из
+  // документации React.
+  const cleared = value === "" || value === null || value === undefined;
+  if (cleared && debounced !== value) {
+    setDebounced(value);
+  }
+
   useEffect(() => {
-    // Nothing to wait for when the value is cleared — a person who wipes the
-    // box wants the full list back immediately, not a third of a second later.
-    if (value === "" || value === null || value === undefined) {
-      setDebounced(value);
-      return;
-    }
+    if (cleared) return;
     const id = setTimeout(() => setDebounced(value), delayMs);
     return () => clearTimeout(id);
-  }, [value, delayMs]);
+  }, [value, delayMs, cleared]);
 
   return debounced;
 }

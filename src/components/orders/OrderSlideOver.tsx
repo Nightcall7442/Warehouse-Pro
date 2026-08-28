@@ -28,7 +28,8 @@ import { OrderComments } from "./OrderComments";
 import { CompletionFlowModal } from "./CompletionFlowModal";
 import { useInvalidateOrderCaches } from "@/hooks/useOrderCacheSync";
 import type { CompletionData, CompletionMode } from "./CompletionFlowModal";
-import { F, COLORS, STATUS, PAYMENT, StatusBadge, InfoCard, PillButton } from "./theme";
+import { StatusBadge, InfoCard, PillButton } from "./theme";
+import { F, COLORS, STATUS, PAYMENT } from "./theme-tokens";
 import { colorMix } from "@/lib/color-mix";
 
 interface Props {

@@ -1,5 +1,5 @@
 import { useTranslate } from "@/i18n";
-import { LX, MONO } from "./landing-shared";
+import { LX, MONO } from "./landing-tokens";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    АРХИВНАЯ ПОЛОСА — фотографии, вклеенные в реестр.

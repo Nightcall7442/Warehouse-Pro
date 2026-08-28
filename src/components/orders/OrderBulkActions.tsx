@@ -3,7 +3,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { Printer, Package, FileDown, X, AlertTriangle, CheckSquare, MoreHorizontal, Banknote } from "lucide-react";
 import { useTranslate } from "@/i18n";
-import { STATUS } from "./theme";
+import { STATUS } from "./theme-tokens";
 
 interface Props {
   selectedCount: number;

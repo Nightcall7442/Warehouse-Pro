@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useTranslate } from "@/i18n";
-import { LX, MONO, SectionHead } from "./landing-shared";
+import { SectionHead } from "./landing-shared";
+import { LX, MONO } from "./landing-tokens";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    06 / Отзывы — подписанные записи реестра.

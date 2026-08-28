@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { LX } from "./landing-shared";
+import { LX } from "./landing-tokens";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Карта-подложка для моков GPS.

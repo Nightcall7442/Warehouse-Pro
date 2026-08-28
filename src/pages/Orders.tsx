@@ -36,7 +36,8 @@ import { OrderAgentGroups } from "@/components/orders/OrderAgentGroups";
 import { QuickOrderModal } from "@/components/orders/QuickOrderModal";
 import { CompletionFlowModal } from "@/components/orders/CompletionFlowModal";
 import type { CompletionData, CompletionMode } from "@/components/orders/CompletionFlowModal";
-import { F, COLORS, SHADOW, OPEN_STATUSES, PAYMENT, STATUS, KpiCard, StatusBadge } from "@/components/orders/theme";
+import { KpiCard, StatusBadge } from "@/components/orders/theme";
+import { F, COLORS, SHADOW, OPEN_STATUSES, PAYMENT, STATUS } from "@/components/orders/theme-tokens";
 import { colorMix } from "@/lib/color-mix";
 
 import { SearchInput } from "@/components/SearchInput";

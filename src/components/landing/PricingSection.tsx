@@ -2,7 +2,8 @@ import { useMemo } from "react";
 import { useNavigate } from "react-router";
 import { useTranslate } from "@/i18n";
 import { Check } from "lucide-react";
-import { cn, LX, MONO, SectionHead, Stamp, BtnInk, BtnGhost, tgLink } from "./landing-shared";
+import { SectionHead, Stamp, BtnInk, BtnGhost } from "./landing-shared";
+import { cn, LX, MONO, tgLink } from "./landing-tokens";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    07 / Тарифы.

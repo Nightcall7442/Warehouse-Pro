@@ -3,17 +3,8 @@ import { useNavigate } from "react-router";
 import { useTranslate } from "@/i18n";
 import { ArrowRight, Send } from "lucide-react";
 
-import {
-  LX,
-  MONO,
-  LandingStyles,
-  Counter,
-  Accordion,
-  SectionHead,
-  BtnInk,
-  BtnGhost,
-  tgLink,
-} from "@/components/landing/landing-shared";
+import { LandingStyles, Counter, Accordion, SectionHead, BtnInk, BtnGhost } from "@/components/landing/landing-shared";
+import { LX, MONO, tgLink } from "@/components/landing/landing-tokens";
 import LandingHeader from "@/components/landing/LandingHeader";
 import HeroSection from "@/components/landing/HeroSection";
 import PhotoStrip, { CTA_PHOTO } from "@/components/landing/PhotoStrip";

@@ -43,12 +43,18 @@ export function LoadingListModal({ open, onOpenChange, orderIds, onDone }: Props
     }
   };
 
-  // Generate immediately with the fixed defaults when the modal opens.
+  // Запрос уходит сразу при открытии окна, с настройками по умолчанию.
+  //
+  // Сброс прошлого результата и сам запрос выполняются внутри асинхронной
+  // функции, а не в теле эффекта: синхронный setState в эффекте заставляет
+  // React сделать лишний проход отрисовки сразу после открытия. Порядок
+  // действий тот же, что и раньше.
   useEffect(() => {
-    if (open && orderIds.length > 0) {
+    if (!open || orderIds.length === 0) return;
+    void (async () => {
       setResult(null);
-      handleGenerate();
-    }
+      await handleGenerate();
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, orderIds.join(",")]);
 

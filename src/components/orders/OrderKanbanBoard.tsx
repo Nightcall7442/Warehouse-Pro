@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { GripVertical, Store, User, MapPin } from "lucide-react";
 import { useTranslate } from "@/i18n";
-import { F, COLORS, PAYMENT } from "./theme";
+import { F, COLORS, PAYMENT } from "./theme-tokens";
 import { colorMix } from "@/lib/color-mix";
 
 interface OrderCard {

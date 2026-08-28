@@ -3,7 +3,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { X, Calendar, Bookmark, Save } from "lucide-react";
 import { useTranslate } from "@/i18n";
-import { F, COLORS } from "./theme";
+import { F, COLORS } from "./theme-tokens";
 import { colorMix } from "@/lib/color-mix";
 
 export interface ActiveFilters {

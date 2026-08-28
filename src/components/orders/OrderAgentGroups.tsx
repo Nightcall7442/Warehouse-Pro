@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ChevronRight, User, AlertCircle, CheckSquare, Square, Package } from "lucide-react";
-import { F, COLORS, SHADOW, STATUS, PAYMENT } from "./theme";
+import { F, COLORS, SHADOW, STATUS, PAYMENT } from "./theme-tokens";
 import { colorMix } from "@/lib/color-mix";
 
 export interface AgentSummaryRow {

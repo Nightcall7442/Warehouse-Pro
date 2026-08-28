@@ -5,7 +5,7 @@ import { MessageSquare, Send, Reply } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { useTranslate } from "@/i18n";
-import { F, COLORS } from "./theme";
+import { F, COLORS } from "./theme-tokens";
 
 interface CommentNode {
   id: number;

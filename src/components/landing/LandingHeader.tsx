@@ -2,7 +2,7 @@ import { useNavigate } from "react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslate, useLang } from "@/i18n";
 import { Menu, X, Send, Phone } from "lucide-react";
-import { cn, LX, MONO, CONTACT, tgLink } from "./landing-shared";
+import { cn, LX, MONO, CONTACT, tgLink } from "./landing-tokens";
 
 /** Переключатель языка: посетитель-узбек не должен искать его в приложении. */
 function LangSwitch({ className }: { className?: string }) {

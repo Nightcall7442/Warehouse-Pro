@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useTranslate } from "@/i18n";
 import { MapPin, WifiOff, Check } from "lucide-react";
-import { LX, MONO } from "./landing-shared";
+import { LX, MONO } from "./landing-tokens";
 import CityMap from "./CityMap";
 
 /* ═══════════════════════════════════════════════════════════════════════════

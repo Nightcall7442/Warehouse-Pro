@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   Package, CreditCard, RotateCcw, CheckCircle, AlertTriangle,
   Banknote, Repeat,
@@ -116,8 +116,18 @@ export function CompletionFlowModal({
    */
   const itemsKey = items.map(item => item.id).join(",");
 
-  // Reset state when modal opens
-  useEffect(() => {
+  // Сброс полей, когда окно открывают — и когда в нём оказывается другой
+  // заказ.
+  //
+  // Условная запись при отрисовке вместо эффекта: эффект выполняется после
+  // кадра, поэтому открытое окно успевало показать поля предыдущего заказа —
+  // отмеченные возвраты и введённую сумму — и только потом очищалось.
+  // Условие сравнения собрано из тех же величин, от которых зависел эффект,
+  // так что сброс происходит в тот же момент, что и раньше.
+  const resetKey = open ? itemsKey : null;
+  const [lastResetKey, setLastResetKey] = useState<string | null>(resetKey);
+  if (lastResetKey !== resetKey) {
+    setLastResetKey(resetKey);
     if (open) {
       setItemStates(items.map(item => ({
         itemId: item.id,
@@ -135,10 +145,7 @@ export function CompletionFlowModal({
       setNotes("");
       setError(null);
     }
-    // items намеренно не в зависимостях — см. itemsKey выше. Массив приходит
-    // новым при каждом рендере родителя, и сброс срабатывал бы посреди ввода.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, itemsKey]);
+  }
 
   const totalReturned = itemStates.reduce((s, it) => s + it.returnedQty, 0);
   const totalKept = itemStates.reduce((s, it) => s + (it.orderedQty - it.returnedQty), 0);

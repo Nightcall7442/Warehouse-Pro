@@ -1,4 +1,4 @@
-import { useEffect, useRef, useId } from "react";
+import { useEffect, useRef, useId, useEffectEvent } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
@@ -73,8 +73,7 @@ export function AppModal({
   //
   // Ссылка решает это без требований к вызывающей стороне: обработчик всегда
   // берётся последний, а эффект зависит только от того, открыто ли окно.
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  const requestClose = useEffectEvent(() => onClose());
 
   // Escape to close, and hold the page still behind the overlay. Without the
   // scroll lock the page underneath scrolls when the cursor leaves the panel,
@@ -86,7 +85,7 @@ export function AppModal({
       // Escape закрывает пустое окно и не трогает то, в котором уже работают.
       // Клавиша стоит рядом с цифрами и «1» на верхнем ряду — промахиваются
       // по ней чаще, чем кажется.
-      if (e.key === "Escape" && !dirty) onCloseRef.current();
+      if (e.key === "Escape" && !dirty) requestClose();
     };
     document.addEventListener("keydown", onKey);
     const prevOverflow = document.body.style.overflow;
