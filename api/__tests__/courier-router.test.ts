@@ -395,19 +395,72 @@ describe("courier.markFailed", () => {
   });
 });
 
+/**
+ * Список доставок.
+ *
+ * Здесь стояло `expect(Array.isArray(result)).toBe(true)` — и больше ничего.
+ * Упасть такая проверка не могла: стенд всегда отдаёт массив. Верни запрос
+ * чужие заказы, пустоту или весь список организации целиком — тест остался бы
+ * зелёным, и весь смысл этой ручки (курьер видит СВОИ доставки) держался бы
+ * ни на чём.
+ *
+ * Теперь сверяются сами строки.
+ *
+ * Чего здесь намеренно нет: проверки на deliveryStatus для курьера. В
+ * продакшене это сырой `sql`…IN ('assigned','out_for_delivery')``, а стенд
+ * такие условия считает выполненными не глядя. Написать про них ожидание
+ * значило бы проверить стенд, а не продукт, — то есть завести здесь второй
+ * тест, который не может упасть.
+ */
+function idsOf(rows: unknown): number[] {
+  return (rows as Array<{ id: number }>).map(r => r.id).sort((a, b) => a - b);
+}
+
+/** Заказ соседней организации: тот же курьер, тот же статус, чужой tenantId. */
+function addForeignTenantOrder() {
+  ordersTable.push({
+    id: 4, tenantId: 2, orderNumber: "ORD-004", status: "processing",
+    deliveryStatus: "assigned", total: "700.00", shopId: 1,
+    courierId: 100, agentId: 10, deliveredAt: null, createdAt: new Date(),
+  });
+}
+
 describe("courier.listMyDeliveries", () => {
-  it("returns assigned deliveries for courier role", async () => {
+  it("курьер видит свои доставки и не видит чужие", async () => {
     const { courierRouter } = await import("../courier-router");
     const caller = courierRouter.createCaller(makeCtx(1, 100, "courier"));
-    const result = await caller.listMyDeliveries() as any;
-    // Should return orders assigned to this courier
-    expect(Array.isArray(result)).toBe(true);
+
+    // Заказ 2 назначен никому — курьеру он не принадлежит.
+    expect(idsOf(await caller.listMyDeliveries())).toEqual([1, 3]);
   });
 
-  it("returns all assigned deliveries for operator role", async () => {
+  it("оператор видит назначенные доставки организации", async () => {
     const { courierRouter } = await import("../courier-router");
     const caller = courierRouter.createCaller(makeCtx(1, 1, "operator"));
-    const result = await caller.listMyDeliveries() as any;
-    expect(Array.isArray(result)).toBe(true);
+
+    // Только «назначен»: заказ 3 уже в пути, заказ 2 не назначен вовсе.
+    expect(idsOf(await caller.listMyDeliveries())).toEqual([1]);
+  });
+
+  it("заказ соседней организации не приходит ни курьеру, ни оператору", async () => {
+    addForeignTenantOrder();
+    const { courierRouter } = await import("../courier-router");
+
+    const courier  = courierRouter.createCaller(makeCtx(1, 100, "courier"));
+    const operator = courierRouter.createCaller(makeCtx(1, 1, "operator"));
+
+    // Строка 4 подобрана так, чтобы пройти ВСЕ остальные условия запроса:
+    // тот же курьер, статус «назначен». Отсечь её может только граница
+    // организации — если её уберут, упадёт ровно этот тест.
+    expect(idsOf(await courier.listMyDeliveries())).not.toContain(4);
+    expect(idsOf(await operator.listMyDeliveries())).not.toContain(4);
+  });
+
+  it("курьер соседней организации не видит наши доставки", async () => {
+    addForeignTenantOrder();
+    const { courierRouter } = await import("../courier-router");
+    const foreign = courierRouter.createCaller(makeCtx(2, 100, "courier"));
+
+    expect(idsOf(await foreign.listMyDeliveries())).toEqual([4]);
   });
 });

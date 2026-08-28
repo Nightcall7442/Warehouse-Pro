@@ -1,18 +1,36 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /**
- * Tenant isolation tests.
+ * Охрана входа: кого пускают к процедуре и с какой ролью.
  *
- * These tests mock the DB and verify that every router query injects
- * the correct tenantId — a missing filter would be caught here before
- * it ever reaches a real database.
+ * ── Почему файл переименован ────────────────────────────────────────────────
  *
- * Pattern: build a minimal tRPC caller with a fake ctx, call the procedure,
- * inspect what SQL conditions were passed to the mocked getDb().
+ * Он назывался tenant-isolation и обещал в шапке проверять, что «каждый запрос
+ * роутера подставляет нужный tenantId». Не проверял: ни один роутер здесь не
+ * вызывался, а заглушки select/insert/update, ради которых всё затевалось, ни
+ * разу не участвовали в ожиданиях. Убери кто-нибудь границу организации из
+ * любого запроса — этот файл остался бы зелёным.
+ *
+ * Хуже: два теста в разделе «tenant context» строили два объекта и сверяли их
+ * между собой — `ctx1.tenant.id` равен единице, потому что единицу туда и
+ * положили строкой выше. Такое не падает никогда и создаёт ощущение
+ * покрытия там, где его нет.
+ *
+ * Что осталось — то, что файл действительно делает и делал хорошо: поднимает
+ * настоящие процедуры на настоящих охранниках из middleware и проверяет, кого
+ * они пускают. Отсюда и новое имя.
+ *
+ * Где на самом деле проверяется изоляция организаций:
+ *   • courier-router.test.ts — заказ соседней организации не приходит в список;
+ *   • shop-cross-tenant-refs.test.ts — соединения и записи по границе;
+ *   • product-refs-cross-tenant.test.ts — чужой товар не принимается;
+ *   • login-multi-tenant.test.ts — вход с одним адресом в разных организациях.
  */
 import { describe, it, expect, vi } from "vitest";
 import { TRPCError } from "@trpc/server";
 
-// ── Shared mock state ────────────────────────────────────────────────────────
+// ── Заглушка базы ───────────────────────────────────────────────────────────
+// Нужна не ради ожиданий, а потому что охранник по дороге к процедуре
+// заглядывает в базу. Ни один тест в неё не смотрит — и не должен.
 const mockSelect   = vi.fn();
 const mockInsert   = vi.fn();
 const mockUpdate   = vi.fn();
@@ -59,30 +77,6 @@ describe("auth middleware", () => {
     const router = createRouter({ secret: adminQuery.query(() => "admin-data") });
     const caller = router.createCaller(makeCtx(1, 1, "agent")); // agent, not ceo
     await expect(caller.secret()).rejects.toMatchObject({ code: "FORBIDDEN" });
-  });
-});
-
-// ── Tenant context isolation ─────────────────────────────────────────────────
-describe("tenant context", () => {
-  it("ctx.tenant.id matches the user tenantId from JWT", async () => {
-    // Two separate contexts with different tenantIds
-    const ctx1 = makeCtx(1, 10, "ceo");
-    const ctx2 = makeCtx(2, 20, "ceo");
-
-    expect(ctx1.tenant.id).toBe(1);
-    expect(ctx2.tenant.id).toBe(2);
-    expect(ctx1.user.tenantId).toBe(ctx1.tenant.id);
-    expect(ctx2.user.tenantId).toBe(ctx2.tenant.id);
-  });
-
-  it("two tenants share same email address in different orgs", () => {
-    // Email uniqueness is per-tenant — same email can exist in two orgs
-    const ctx1 = makeCtx(1, 1, "agent");
-    const ctx2 = makeCtx(2, 2, "agent");
-    // Both users happen to have the same email — allowed by schema
-    const user1 = { ...ctx1.user, email: "shared@example.com" };
-    const user2 = { ...ctx2.user, email: "shared@example.com" };
-    expect(user1.tenantId).not.toBe(user2.tenantId); // but different tenants
   });
 });
 
