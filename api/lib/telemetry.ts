@@ -1,6 +1,6 @@
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
-import { trace, type Tracer } from "@opentelemetry/api";
+import { trace, diag, DiagConsoleLogger, DiagLogLevel, type Tracer } from "@opentelemetry/api";
 import { env } from "./env";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -43,6 +43,16 @@ let sdk: NodeSDK | null = null;
 
 export function initTelemetry() {
   if (!env.otelExporterUrl) return;
+
+  /**
+   * Неудачную отправку трасс надо видеть.
+   *
+   * Без этого вывода OpenTelemetry молчит: приёмник недоступен, адрес указан
+   * с ошибкой, порт не тот — а в журнале ничего, и «трассировка настроена»
+   * выглядит правдой ровно до того мига, когда в Jaeger решают посмотреть.
+   * Уровень WARN, а не DEBUG: обычная работа остаётся тихой.
+   */
+  diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.WARN);
 
   sdk = new NodeSDK({
     serviceName: "warehouse-pro",
