@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync, globSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { join, relative } from "node:path";
 import { colorMix } from "@/lib/color-mix";
 
 /**
@@ -15,11 +16,28 @@ import { colorMix } from "@/lib/color-mix";
  * The failure mode is invisible, so a test is the only thing that catches it.
  * Use colorMix() instead — it works with hex, rgb() and var() alike.
  */
+/**
+ * Все .ts и .tsx под каталогом.
+ *
+ * Вместо globSync из node:fs: он появился в Node 22, а приложение собирается
+ * на node:20-alpine. Локально (Node 24) проверка проходила, в CI падала с
+ * «globSync is not a function» — то есть не выполнялась ни разу.
+ */
+function sourceFiles(dir: string, out: string[] = []): string[] {
+  for (const name of readdirSync(dir)) {
+    if (name === "node_modules") continue;
+    const full = join(dir, name);
+    if (statSync(full).isDirectory()) sourceFiles(full, out);
+    else if (/.tsx?$/.test(name)) out.push(relative(process.cwd(), full).split("\\").join("/"));
+  }
+  return out;
+}
+
 const HEX_ALPHA_CONCAT = /\$\{[^}]+\}[0-9a-fA-F]{2}\b/;
 
 describe("colour tints", () => {
   it("never appends a hex alpha pair to an interpolated colour", () => {
-    const files = globSync("src/**/*.{ts,tsx}", { cwd: process.cwd() })
+    const files = sourceFiles("src")
       // This file and the helper both *document* the banned pattern.
       .filter(f => !f.includes("no-hex-alpha-concat") && !f.includes("color-mix"));
 
