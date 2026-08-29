@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { hasSqlite } from "./sqlite-engine";
+import "./sqlite-engine"; // требует Node 22.5+ и объясняет, если его нет
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -131,9 +131,7 @@ async function runCase(seed: number) {
   return results;
 }
 
-// node:sqlite есть с Node 22.5; на Node 20 набор пропускается громко —
-// см. sqlite-engine.ts.
-describe.skipIf(!hasSqlite)("пересчёт долга: новая форма считает то же, что и прежняя", () => {
+describe("пересчёт долга: новая форма считает то же, что и прежняя", () => {
   it("совпадает на 200 случайных наборах данных", async () => {
     let compared = 0;
     for (let seed = 1; seed <= 200; seed++) {

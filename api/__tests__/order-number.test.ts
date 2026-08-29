@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { hasSqlite } from "./sqlite-engine";
+import "./sqlite-engine"; // требует Node 22.5+ и объясняет, если его нет
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -39,9 +39,7 @@ function nextNumber(run: (sql: string) => Row[], tenantId: number): string {
   return `№${Math.max(Number(row.total), Number(row.maxNumbered)) + 1}`;
 }
 
-// node:sqlite есть с Node 22.5; на Node 20 набор пропускается громко —
-// см. sqlite-engine.ts.
-describe.skipIf(!hasSqlite)("следующий номер заказа", () => {
+describe("следующий номер заказа", () => {
   it("продолжает счёт от существующих заказов, а не начинается с №1", async () => {
     await withDb(run => {
       // 148 старых заказов со случайными номерами — как в живой базе.

@@ -19,9 +19,13 @@ import { colorMix } from "@/lib/color-mix";
 /**
  * Все .ts и .tsx под каталогом.
  *
- * Вместо globSync из node:fs: он появился в Node 22, а приложение собирается
- * на node:20-alpine. Локально (Node 24) проверка проходила, в CI падала с
- * «globSync is not a function» — то есть не выполнялась ни разу.
+ * Вместо globSync из node:fs: он появился в Node 22, а приложение тогда
+ * собиралось на node:20-alpine. Локально (Node 24) проверка проходила, в CI
+ * падала с «globSync is not a function» — то есть не выполнялась ни разу.
+ *
+ * Проект с тех пор поднят до Node 22, и globSync снова доступен. Обход
+ * оставлен нарочно: он не зависит от версии вовсе, а эта проверка — сторож,
+ * которому самому ломаться от смены окружения незачем.
  */
 function sourceFiles(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
