@@ -1,15 +1,51 @@
+# Развёртывание своими силами.
+#
+# ── Что здесь важно знать до запуска ─────────────────────────────────────────
+#
+# Раньше в этом файле стояли готовые пароли (`warehouse` и для root, и для
+# пользователя), а порт базы публиковался как "3306:3306" — то есть на все
+# адреса машины. Кто поднимал это на сервере с белым адресом, открывал свою
+# базу целиком: пароль лежал в общедоступном репозитории. Строка подключения
+# при этом была записана значением, а не подстановкой, поэтому сменить пароль
+# через .env было нельзя — правка молча не действовала.
+#
+# Теперь пароли обязательны и берутся из окружения: без них compose не
+# запустится и скажет, чего именно не хватает. Порт базы виден только с самой
+# машины.
+#
+# ── Что сделать перед первым запуском ────────────────────────────────────────
+#
+#   cp .env.example .env
+#
+# и вписать в .env три значения, каждое — случайное:
+#
+#   APP_SECRET=            openssl rand -base64 48
+#   MYSQL_PASSWORD=        openssl rand -base64 24
+#   MYSQL_ROOT_PASSWORD=   openssl rand -base64 24
+#
+# Пароль приложения (MYSQL_PASSWORD) и пароль root — разные. Root нужен только
+# самой базе для обслуживания; приложение под ним не ходит.
+
 services:
   web:
     build: .
     ports:
-      - "3000:3000"
+      # Приложение открыто наружу — это его работа. В рабочей среде поставьте
+      # перед ним обратный прокси с TLS: само оно отвечает по http.
+      - "${WEB_PORT:-3000}:3000"
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=mysql://warehouse:warehouse@mysql:3306/warehouse_pro
-      - APP_SECRET=${APP_SECRET:?Set APP_SECRET in .env}
-      - APP_URL=http://localhost:3000
-      - ALLOWED_ORIGINS=http://localhost:3000
+      # Строка подключения собирается из той же переменной, что задаёт пароль
+      # базы. Пароль живёт в одном месте, и его нельзя сменить наполовину.
+      - DATABASE_URL=mysql://warehouse:${MYSQL_PASSWORD:?Задайте MYSQL_PASSWORD в .env}@mysql:3306/warehouse_pro
+      - APP_SECRET=${APP_SECRET:?Задайте APP_SECRET в .env}
+      # По умолчанию — локальный запуск. Для настоящего развёртывания впишите
+      # свой адрес: иначе ссылки в письмах и проверка источника запросов будут
+      # указывать на localhost.
+      - APP_URL=${APP_URL:-http://localhost:3000}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000}
       - PORT=3000
+      - REDIS_URL=${REDIS_URL:-}
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
       - STRIPE_BASIC_PRICE_ID=${STRIPE_BASIC_PRICE_ID:-}
@@ -22,6 +58,7 @@ services:
       - CRON_SECRET=${CRON_SECRET:-}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
       - TELEGRAM_ADMIN_CHAT_ID=${TELEGRAM_ADMIN_CHAT_ID:-}
+      - PROMETHEUS_METRICS_TOKEN=${PROMETHEUS_METRICS_TOKEN:-}
       - S3_BUCKET=${S3_BUCKET:-}
       - S3_REGION=${S3_REGION:-}
       - S3_ACCESS_KEY=${S3_ACCESS_KEY:-}
@@ -34,12 +71,22 @@ services:
   mysql:
     image: mysql:8
     environment:
-      - MYSQL_ROOT_PASSWORD=warehouse
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:?Задайте MYSQL_ROOT_PASSWORD в .env}
       - MYSQL_DATABASE=warehouse_pro
       - MYSQL_USER=warehouse
-      - MYSQL_PASSWORD=warehouse
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:?Задайте MYSQL_PASSWORD в .env}
+    # Порт привязан к 127.0.0.1: база доступна только с самой машины.
+    #
+    # Приложение ходит в неё не через него, а по внутренней сети compose (по
+    # имени `mysql`). Публикация нужна лишь для того, чтобы вы могли
+    # подключиться к базе с этой же машины — обозревателем или клиентом mysql.
+    # Короткая запись "3306:3306" без адреса открывает базу на все адреса
+    # машины, включая внешний.
+    #
+    # Если подключаться к базе снаружи контейнера не нужно — уберите весь
+    # раздел ports целиком.
     ports:
-      - "3306:3306"
+      - "127.0.0.1:3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
