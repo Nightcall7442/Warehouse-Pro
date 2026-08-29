@@ -1,0 +1,400 @@
+{
+  "id": null,
+  "uid": "warehouse-pro-main",
+  "title": "Warehouse Pro",
+  "tags": ["warehouse-pro"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "ds",
+        "label": "Источник данных",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {},
+        "hide": 0
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Обслуживание запросов",
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 1 },
+      "collapsed": false
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Запросов в секунду",
+      "datasource": { "type": "prometheus", "uid": "${ds}" },
+      "gridPos": { "x": 0, "y": 1, "w": 6, "h": 5 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "decimals": 2,
+          "color": { "mode": "fixed", "fixedColor": "text" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "graphMode": "area",
+        "colorMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(http_requests_total[5m]))",
+          "legendFormat": "всего"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Доля ошибок",
+      "description": "Пятисотые в процентах от всех запросов. Не путать с «ошибок в секунду»: важна именно доля — сотня ошибок при миллионе запросов и сотня при тысяче означают разное.",
+      "datasource": { "type": "prometheus", "uid": "${ds}" },
+      "gridPos": { "x": 6, "y": 1, "w": 6, "h": 5 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 2,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "graphMode": "area",
+        "colorMode": "value",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(http_request_errors_total[5m])) / clamp_min(sum(rate(http_requests_total[5m])), 0.0001) * 100",
+          "legendFormat": "5xx"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Запросов в работе",
+      "datasource": { "type": "prometheus", "uid": "${ds}" },
+      "gridPos": { "x": 12, "y": 1, "w": 6, "h": 5 },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "decimals": 0 },
+        "overrides": []
+      },
+      "options": {
+        "graphMode": "area",
+        "colorMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "targets": [
+        { "refId": "A", "expr": "sum(http_requests_active)", "legendFormat": "сейчас" }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Время с запуска",
+      "datasource": { "type": "prometheus", "uid": "${ds}" },
+      "gridPos": { "x": 18, "y": 1, "w": 6, "h": 5 },
+      "fieldConfig": {
+        "defaults": { "unit": "s", "decimals": 0 },
+        "overrides": []
+      },
+      "options": {
+        "graphMode": "none",
+        "colorMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "time() - min(process_start_time_seconds)",
+          "legendFormat": "аптайм"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Время ответа",
+      "description": "Медиана и хвосты. p99 — это тот самый один запрос из ста, по которому человек и судит, что «программа тормозит».",
+      "datasource": { "type": "prometheus", "uid": "${ds}" },
+      "gridPos": { "x": 0, "y": 6, "w": 12, "h": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 5, "showPoints": "never" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(http_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "p50"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "p95"
+        },
+        {
+          "refId": "C",
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(http_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "p99"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Запросы по ответу сервера",
+      "datasource": { "type": "prometheus", "uid": "${ds}" },
+      "gridPos": { "x": 12, "y": 6, "w": 12, "h": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": { "drawStyle": "line", "lineWidth": 1, "fillOpacity": 20, "stacking": { "mode": "normal" }, "showPoints": "never" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (status) (rate(http_requests_total[5m]))",
+          "legendFormat": "{{status}}"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "table",
+      "title": "Самые медленные ручки (p95)",
+      "description": "Разбивка по шаблону маршрута, а не по адресу: /api/photos/:id, а не тысяча отдельных строк с разными номерами.",
+      "datasource": { "type": "prometheus", "uid": "${ds}" },
+      "gridPos": { "x": 0, "y": 14, "w": 12, "h": 8 },
+      "fieldConfig": {
+        "defaults": { "unit": "s", "decimals": 3 },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [{ "displayName": "Value", "desc": true }]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(10, histogram_quantile(0.95, sum by (le, path, method) (rate(http_request_duration_seconds_bucket[5m]))))",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true },
+            "renameByName": { "path": "Маршрут", "method": "Метод", "Value": "p95, с" }
+          }
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "table",
+      "title": "Где сыплются ошибки",
+      "datasource": { "type": "prometheus", "uid": "${ds}" },
+      "gridPos": { "x": 12, "y": 14, "w": 12, "h": 8 },
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "decimals": 4 },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [{ "displayName": "Value", "desc": true }]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(10, sum by (path, method, status) (rate(http_request_errors_total[5m])))",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true },
+            "renameByName": { "path": "Маршрут", "method": "Метод", "status": "Ответ", "Value": "Ошибок/с" }
+          }
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "row",
+      "title": "Состояние процесса",
+      "gridPos": { "x": 0, "y": 22, "w": 24, "h": 1 },
+      "collapsed": false
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Память",
+      "description": "nodejs_heap_size_used_bytes — сколько занято объектами в куче; process_resident_memory_bytes — сколько процесс держит у операционной системы. Расхождение между ними нормально.",
+      "datasource": { "type": "prometheus", "uid": "${ds}" },
+      "gridPos": { "x": 0, "y": 23, "w": 8, "h": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        { "refId": "A", "expr": "nodejs_heap_size_used_bytes", "legendFormat": "куча занято" },
+        { "refId": "B", "expr": "nodejs_heap_size_total_bytes", "legendFormat": "куча выделено" },
+        { "refId": "C", "expr": "process_resident_memory_bytes", "legendFormat": "процесс всего" }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Процессор",
+      "datasource": { "type": "prometheus", "uid": "${ds}" },
+      "gridPos": { "x": 8, "y": 23, "w": 8, "h": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(process_cpu_seconds_total[5m]) * 100",
+          "legendFormat": "загрузка"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Задержка цикла событий",
+      "description": "Главный показатель здоровья Node. Растёт — значит что-то долго считается в основном потоке и держит все остальные запросы. Обычно это видно раньше, чем вырастет время ответа.",
+      "datasource": { "type": "prometheus", "uid": "${ds}" },
+      "gridPos": { "x": 16, "y": 23, "w": 8, "h": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 0.05 },
+              { "color": "red", "value": 0.2 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        { "refId": "A", "expr": "nodejs_eventloop_lag_p50_seconds", "legendFormat": "p50" },
+        { "refId": "B", "expr": "nodejs_eventloop_lag_p99_seconds", "legendFormat": "p99" }
+      ]
+    },
+    {
+      "id": 14,
+      "type": "timeseries",
+      "title": "Сборка мусора",
+      "datasource": { "type": "prometheus", "uid": "${ds}" },
+      "gridPos": { "x": 0, "y": 31, "w": 12, "h": 7 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "showPoints": "never" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (kind) (rate(nodejs_gc_duration_seconds_sum[5m]))",
+          "legendFormat": "{{kind}}"
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "type": "timeseries",
+      "title": "Открытые дескрипторы и запросы",
+      "description": "Ровный рост без спада — обычно утечка: соединения или таймеры, которые никто не закрывает.",
+      "datasource": { "type": "prometheus", "uid": "${ds}" },
+      "gridPos": { "x": 12, "y": 31, "w": 12, "h": 7 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 0, "showPoints": "never" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        { "refId": "A", "expr": "nodejs_active_handles_total", "legendFormat": "дескрипторы" },
+        { "refId": "B", "expr": "nodejs_active_requests_total", "legendFormat": "запросы" }
+      ]
+    }
+  ]
+}
