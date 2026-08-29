@@ -4,87 +4,104 @@ import { LX } from "./landing-tokens";
 /* ═══════════════════════════════════════════════════════════════════════════
    Карта-подложка для моков GPS.
 
-   ── Что было не так ────────────────────────────────────────────────────────
+   ── Две попытки до этой, и чем они плохи ───────────────────────────────────
 
-   Улицы рисовались волнистыми кривыми Безье поверх пустого фона, парки —
-   эллипсами. Города так не выглядят ни на одной карте: кварталы прямоугольны,
-   улицы прямые, а на плитке читаются именно КВАРТАЛЫ, разделённые
-   промежутками, а не линии поверх пустоты. Вдобавок фон #e7e4dc и улицы
-   #f6f4ef отличались меньше чем на 5% светлоты — в мелком масштабе всё
-   сливалось в бежевое пятно.
+   Сначала улицы рисовались волнистыми кривыми поверх пустоты — города так не
+   выглядят нигде.
 
-   ── Как сделано ────────────────────────────────────────────────────────────
+   Потом кварталы стали заливкой, а улицы — зазорами между ними. Направление
+   верное, исполнение никуда не годилось по двум причинам, и обе видно на
+   снимке. Первая: тона были ПЕРЕВЁРНУТЫ — улицы (#e2dfd6) темнее кварталов
+   (#f4f2ed). На любой настоящей карте наоборот: дороги белые, земля тёплая
+   серая. Тёмная сетка поверх светлых прямоугольников читается как таблица.
+   Вторая: кварталы были огромные, их влезало пять на четыре. Карта узнаётся
+   плотностью — редкая сетка выглядит чертежом.
 
-   Кварталы — заливка, улицы — зазоры между ними. Способ перевёрнутый, и
-   именно он даёт узнаваемость: глаз читает город по застройке. Сетка слегка
-   неровная (кварталы разной ширины), но всегда прямая; два проспекта режут её
-   по диагонали; река — лента постоянной ширины; сквер — квартал, залитый
-   зеленью, а не эллипс в пустоте.
+   ── Как устроено сейчас ────────────────────────────────────────────────────
 
-   Геометрия детерминирована (LCG с фиксированным зерном): карта не мигает
-   при перерисовках и одинакова у всех.
+   Порядок слоёв взят у обычной светлой карты:
+
+     земля → вода → зелень → застройка → улицы → проспекты → метки
+
+   Дороги — белые линии ПОВЕРХ земли, с тонкой тёмной обводкой: именно обводка
+   даёт дорогам форму на светлом фоне. Улиц много и они тонкие, проспектов
+   несколько и они широкие — эта разница в толщине и читается как город.
+
+   Геометрия детерминирована (LCG с фиксированным зерном): карта не мигает при
+   перерисовках и одинакова у всех.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 const W = 200;
 const H = 120;
 
-/** Тона подложки. Разведены по светлоте заметно сильнее прежнего. */
+/** Палитра светлой карты: земля тёплая, дороги белые, вода голубая. */
 const TONE = {
-  street: "#e2dfd6", // зазоры между кварталами — то, что читается как проезды
-  block: "#f4f2ed", // застройка
-  blockAlt: "#eceae3", // часть кварталов темнее: иначе поле выглядит браком печати
-  park: "#dae2d0",
-  water: "#ccd8df",
-  avenue: "#fcfbf8",
+  land: "#ece7df",
+  building: "#e0d9cf",
+  water: "#a9cbdd",
+  park: "#c9ddb6",
+  road: "#ffffff",
+  casing: "rgba(96,88,76,0.18)",
 };
-
-type Block = { x: number; y: number; w: number; h: number; park: boolean };
 
 function makeCity() {
   // Простейший LCG: Math.random дал бы новый город на каждую перерисовку.
   let s = 421;
   const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
 
-  /** Границы кварталов по оси: шаг разный, но линии всегда прямые. */
-  const edges = (limit: number, min: number, max: number) => {
-    const out = [0];
-    while (out[out.length - 1] < limit) out.push(out[out.length - 1] + min + rnd() * (max - min));
-    out[out.length - 1] = limit;
+  /** Линии сетки: шаг разный, но улицы всегда прямые. */
+  const lines = (limit: number, min: number, max: number) => {
+    const out: number[] = [];
+    let v = min * 0.5;
+    while (v < limit) {
+      out.push(v);
+      v += min + rnd() * (max - min);
+    }
     return out;
   };
-  const xs = edges(W, 16, 30);
-  const ys = edges(H, 14, 24);
+  // Плотно: около шестнадцати улиц по горизонтали и десяти по вертикали.
+  const vx = lines(W, 10, 15);
+  const hy = lines(H, 9, 13);
 
-  const GAP = 2.4; // ширина улицы
+  /** Кварталы между соседними улицами — под застройку и зелень. */
+  const cells: { x: number; y: number; w: number; h: number }[] = [];
+  for (let i = 0; i < vx.length - 1; i++) {
+    for (let j = 0; j < hy.length - 1; j++) {
+      cells.push({ x: vx[i], y: hy[j], w: vx[i + 1] - vx[i], h: hy[j + 1] - hy[j] });
+    }
+  }
 
-  const blocks: Block[] = [];
-  for (let i = 0; i < xs.length - 1; i++) {
-    for (let j = 0; j < ys.length - 1; j++) {
-      const w = xs[i + 1] - xs[i] - GAP;
-      const h = ys[j + 1] - ys[j] - GAP;
-      if (w <= 1 || h <= 1) continue;
-      blocks.push({
-        x: xs[i] + GAP / 2,
-        y: ys[j] + GAP / 2,
-        w,
-        h,
-        // Немного скверов — но кварталами, на своих местах в сетке.
-        park: rnd() < 0.09,
+  // Зелень: несколько кварталов целиком.
+  const parks = cells.filter(() => rnd() < 0.06);
+
+  // Застройка: мелкие пятна внутри кварталов. Именно они дают карте фактуру —
+  // без них поле выглядит пустой сеткой.
+  const buildings: { x: number; y: number; w: number; h: number }[] = [];
+  for (const c of cells) {
+    if (rnd() < 0.35) continue;
+    const n = 1 + Math.floor(rnd() * 3);
+    for (let k = 0; k < n; k++) {
+      const bw = c.w * (0.24 + rnd() * 0.34);
+      const bh = c.h * (0.24 + rnd() * 0.34);
+      buildings.push({
+        x: c.x + 1.4 + rnd() * Math.max(0.1, c.w - bw - 2.8),
+        y: c.y + 1.2 + rnd() * Math.max(0.1, c.h - bh - 2.4),
+        w: bw,
+        h: bh,
       });
     }
   }
 
-  // Проспекты: прямые, под небольшим углом к сетке — как всюду, где город
-  // рос вдоль дорог, а не по линейке.
+  // Проспекты: прямые, под небольшим углом к сетке.
   const avenues = [
-    `M -6,${H * 0.74} L ${W + 6},${H * 0.16}`,
-    `M ${W * 0.18},-6 L ${W * 0.56},${H + 6}`,
+    `M -8,${H * 0.7} L ${W + 8},${H * 0.26}`,
+    `M ${W * 0.22},-8 L ${W * 0.54},${H + 8}`,
   ];
 
   // Река: спокойная дуга постоянной ширины.
-  const river = `M ${W * 0.62},-8 C ${W * 0.52},${H * 0.3} ${W * 0.78},${H * 0.6} ${W * 0.94},${H + 8}`;
+  const river = `M ${W * 0.64},-10 C ${W * 0.54},${H * 0.32} ${W * 0.8},${H * 0.6} ${W * 0.95},${H + 10}`;
 
-  return { blocks, avenues, river };
+  return { vx, hy, parks, buildings, avenues, river };
 }
 
 export type MapPinSpec = { x: number; y: number; tone: string; pulse?: boolean };
@@ -109,34 +126,43 @@ export default function CityMap({
   return (
     <div className={className} style={{ position: "absolute", inset: 0 }}>
       <svg width="100%" height="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid slice">
-        {/* Улицы — это фон. Кварталы кладутся поверх, зазоры между ними и
-            читаются как проезды. */}
-        <rect width={W} height={H} fill={TONE.street} />
+        {/* 1. Земля */}
+        <rect width={W} height={H} fill={TONE.land} />
 
-        {city.blocks.map((b, i) => (
-          <rect
-            key={i}
-            x={b.x}
-            y={b.y}
-            width={b.w}
-            height={b.h}
-            rx="0.8"
-            fill={b.park ? TONE.park : i % 3 === 0 ? TONE.blockAlt : TONE.block}
-          />
+        {/* 2. Вода */}
+        <path d={city.river} stroke={TONE.water} strokeWidth="8" fill="none" strokeLinecap="round" />
+
+        {/* 3. Зелень — целыми кварталами */}
+        {city.parks.map((p, i) => (
+          <rect key={`p${i}`} x={p.x} y={p.y} width={p.w} height={p.h} fill={TONE.park} />
         ))}
 
-        {/* Река — ПОВЕРХ кварталов.
-            Под ними её не было видно совсем: застройка перекрывала ленту
-            целиком, и на карте оставался лишь голубой обрезок у нижнего края. */}
-        <path d={city.river} stroke={TONE.water} strokeWidth="7.5" fill="none" strokeLinecap="round" />
-        <path d={city.river} stroke="rgba(120,150,165,0.28)" strokeWidth="8.5" fill="none" strokeLinecap="round" opacity="0.5" />
+        {/* 4. Застройка — мелкие пятна, дающие карте фактуру */}
+        {city.buildings.map((b, i) => (
+          <rect key={`b${i}`} x={b.x} y={b.y} width={b.w} height={b.h} rx="0.4" fill={TONE.building} opacity="0.75" />
+        ))}
 
-        {/* Проспекты поверх кварталов: широкая дорога режет застройку. */}
+        {/* 5. Улицы. Сначала обводка — на светлой земле именно она даёт дороге
+               форму, — потом белая заливка поверх. */}
+        {city.vx.map((x, i) => (
+          <line key={`vc${i}`} x1={x} y1={0} x2={x} y2={H} stroke={TONE.casing} strokeWidth="2.2" />
+        ))}
+        {city.hy.map((y, i) => (
+          <line key={`hc${i}`} x1={0} y1={y} x2={W} y2={y} stroke={TONE.casing} strokeWidth="2.2" />
+        ))}
+        {city.vx.map((x, i) => (
+          <line key={`v${i}`} x1={x} y1={0} x2={x} y2={H} stroke={TONE.road} strokeWidth="1.5" />
+        ))}
+        {city.hy.map((y, i) => (
+          <line key={`h${i}`} x1={0} y1={y} x2={W} y2={y} stroke={TONE.road} strokeWidth="1.5" />
+        ))}
+
+        {/* 6. Проспекты — та же пара слоёв, но заметно шире */}
         {city.avenues.map((d, i) => (
-          <path key={`a${i}`} d={d} stroke={TONE.street} strokeWidth="6.4" fill="none" />
+          <path key={`ac${i}`} d={d} stroke={TONE.casing} strokeWidth="4.2" fill="none" />
         ))}
         {city.avenues.map((d, i) => (
-          <path key={`b${i}`} d={d} stroke={TONE.avenue} strokeWidth="3.6" fill="none" />
+          <path key={`a${i}`} d={d} stroke={TONE.road} strokeWidth="3" fill="none" />
         ))}
       </svg>
 
@@ -152,7 +178,7 @@ export default function CityMap({
             fill="none"
             strokeLinecap="round"
             strokeLinejoin="round"
-            opacity="0.85"
+            opacity="0.9"
           />
         </svg>
       )}

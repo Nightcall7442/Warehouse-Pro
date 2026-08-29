@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { colorMix } from "@/lib/color-mix";
 import { APP, appCard } from "./app-skin";
 import { useTranslate } from "@/i18n";
 import { MapPin, WifiOff, Check } from "lucide-react";
@@ -21,14 +22,14 @@ import CityMap from "./CityMap";
 function Kpi({ label, value, sub, subColor }: { label: string; value: string; sub?: string; subColor?: string }) {
   return (
     <div style={appCard(16)}>
-      <div className="text-[9.5px] uppercase mb-2" style={{ ...MONO, color: APP.textTertiary, letterSpacing: "0.14em" }}>
+      <div className="text-[9.5px] uppercase mb-2" style={{ ...APP.label, color: APP.textTertiary }}>
         {label}
       </div>
-      <div className="text-[19px] font-bold" style={{ ...MONO, color: APP.textPrimary }}>
+      <div className="text-[19px] font-bold" style={{ ...APP.num, color: APP.textPrimary }}>
         {value}
       </div>
       {sub && (
-        <div className="text-[10.5px] mt-1" style={{ ...MONO, color: subColor ?? APP.textTertiary }}>
+        <div className="text-[10.5px] mt-1" style={{ ...APP.num, color: subColor ?? APP.textTertiary }}>
           {sub}
         </div>
       )}
@@ -48,20 +49,24 @@ function OverviewTab() {
       </div>
       <div style={appCard(16)}>
         <div className="flex items-center justify-between mb-3">
-          <span className="text-[9.5px] uppercase" style={{ ...MONO, color: APP.textTertiary, letterSpacing: "0.14em" }}>
+          <span className="text-[9.5px] uppercase" style={{ ...APP.label, color: APP.textTertiary }}>
             {tr("Продажи, 7 дней", "Sotuvlar, 7 kun")}
           </span>
-          <span className="inline-flex items-center gap-1.5 text-[10.5px]" style={{ ...MONO, color: APP.success }}>
+          <span className="inline-flex items-center gap-1.5 text-[10.5px]" style={{ ...APP.num, color: APP.success }}>
             <Check size={11} strokeWidth={3} />
             {tr("Выгружено в 1С", "1C ga yuklandi")}
           </span>
         </div>
-        <div className="flex items-end gap-2 h-20">
+        <div className="flex items-end gap-3 h-24" style={{ borderBottom: `1.5px solid ${colorMix(APP.textTertiary, 22)}` }}>
           {bars.map((h, i) => (
             <div
               key={i}
-              className="flex-1 rounded-t-[3px]"
-              style={{ height: `${h}%`, background: i === bars.length - 1 ? APP.primary : "rgba(72,66,55,0.18)" }}
+              className="flex-1 rounded-t-[4px]"
+              style={{
+                height: `${h}%`,
+                background: APP.primary,
+                opacity: 0.3 + (i / (bars.length - 1)) * 0.7,
+              }}
             />
           ))}
         </div>
@@ -104,21 +109,21 @@ function OrdersTab() {
           className="grid grid-cols-[1fr_auto] sm:grid-cols-[64px_1fr_96px_88px] md:grid-cols-[76px_1fr_120px_110px] gap-x-3 gap-y-1 px-4 py-3 items-center"
           style={{ borderBottom: `1px solid ${APP.border}` }}
         >
-          <span className="hidden sm:block text-[11px]" style={{ ...MONO, color: APP.textTertiary }}>{r.n}</span>
+          <span className="hidden sm:block text-[11px]" style={{ ...APP.num, color: APP.textTertiary }}>{r.n}</span>
           <span className="min-w-0">
             <span className="block text-[12.5px] font-medium truncate" style={{ color: APP.textPrimary }}>{r.shop}</span>
-            <span className="block text-[10.5px] truncate" style={{ ...MONO, color: APP.textTertiary }}>
+            <span className="block text-[10.5px] truncate" style={{ ...APP.num, color: APP.textTertiary }}>
               <span className="sm:hidden">{r.n} · </span>{r.area}
             </span>
           </span>
-          <span className="text-[12px] text-right whitespace-nowrap" style={{ ...MONO, color: APP.textPrimary }}>
+          <span className="text-[12px] text-right whitespace-nowrap" style={{ ...APP.num, color: APP.textPrimary }}>
             <span className="block sm:hidden text-[10.5px]" style={{ color: r.tone }}>{r.s}</span>
             {r.sum}
           </span>
           <span className="hidden sm:block text-[10.5px] truncate" style={{ ...MONO, color: r.tone }}>{r.s}</span>
         </div>
       ))}
-      <div className="px-4 py-2.5 text-[10.5px]" style={{ ...MONO, color: APP.textTertiary }}>
+      <div className="px-4 py-2.5 text-[10.5px]" style={{ ...APP.num, color: APP.textTertiary }}>
         {tr("142 заказа сегодня · показаны последние", "Bugun 142 buyurtma · oxirgilari ko'rsatilgan")}
       </div>
     </div>
@@ -151,7 +156,7 @@ function MapTab() {
         style={{ background: APP.surfaceLight, border: `1px solid ${APP.border}` }}
       >
         <MapPin size={13} style={{ color: APP.primary }} />
-        <span className="text-[11.5px] min-w-0 truncate" style={{ ...MONO, color: APP.textPrimary }}>
+        <span className="text-[11.5px] min-w-0 truncate" style={{ ...APP.num, color: APP.textPrimary }}>
           {tr("Санжар · Юнусабад · 14/18 точек · 12 мин назад", "Sanjar · Yunusobod · 14/18 nuqta · 12 daqiqa oldin")}
         </span>
       </div>
@@ -175,14 +180,14 @@ function MobileTab() {
             style={{ background: "rgba(176,90,68,0.12)", borderBottom: `1px solid ${APP.border}` }}
           >
             <WifiOff size={11} style={{ color: APP.danger, flexShrink: 0 }} />
-            <span className="text-[9px] whitespace-nowrap" style={{ ...MONO, color: APP.textPrimary }}>
+            <span className="text-[9px] whitespace-nowrap" style={{ ...APP.num, color: APP.textPrimary }}>
               {tr("Оффлайн · 3 в очереди", "Oflayn · navbatda 3")}
             </span>
           </div>
           <div className="p-2.5 space-y-2">
             {orders.map(o => (
               <div key={o.n} className="rounded-md px-2.5 py-2" style={{ border: `1px solid ${APP.border}` }}>
-                <div className="flex justify-between text-[9px]" style={{ ...MONO, color: APP.textTertiary }}>
+                <div className="flex justify-between text-[9px]" style={{ ...APP.num, color: APP.textTertiary }}>
                   <span>{o.n}</span>
                   <span>{o.sum}</span>
                 </div>
@@ -290,7 +295,7 @@ export default function ProductWindow() {
             aria-labelledby={`wp-tab-${tab}`}
             tabIndex={0}
             className="p-4 md:p-6 outline-none"
-            style={{ background: APP.surface }}
+            style={{ background: APP.canvas }}
           >
             {tab === 0 && <OverviewTab />}
             {tab === 1 && <OrdersTab />}
