@@ -11,6 +11,7 @@ import { format } from "date-fns";
 import { ArrowLeft, Package, Edit2, TrendingUp, TrendingDown, ArrowUpDown, Loader2, Camera } from "lucide-react";
 import { exportToExcel, formatMovementsForExport } from "@/lib/excel";
 import { PremiumSelect } from "@/components/PremiumSelect";
+import { CategoryAutocomplete } from "@/components/products/CategoryAutocomplete";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { formatQty } from "@/lib/format";
 
@@ -51,6 +52,8 @@ export default function ProductDetail() {
   const utils = trpc.useUtils();
 
   const { data: product, isLoading, isError, refetch } = trpc.product.getById.useQuery({ id: Number(id) }, { enabled: !!id });
+  // Список уже заведённых категорий — для подсказки в правке.
+  const { data: categories } = trpc.product.categories.useQuery();
 
   const updateProduct = trpc.product.update.useMutation({
     onSuccess: () => { utils.product.getById.invalidate({id:Number(id)}); stopEditing(); notify.success(tr("Товар обновлён", "Mahsulot yangilandi")); },
@@ -135,12 +138,17 @@ export default function ProductDetail() {
           <div className="flex-1">
             {editing ? (
               <div className="grid grid-cols-2 gap-3">
-                {([["code","Код"],["name","Название"],["category","Категория"]] as const).map(([k,p])=>(
+                {([["code","Код"],["name","Название"]] as const).map(([k,p])=>(
                   <input key={k} className="neo-input" placeholder={p}
                     defaultValue={product[k] ?? ""}
                     onChange={e=>setEditData((d: Record<string, unknown>)=>({...d,[k]:e.target.value}))}/>
                 ))}
-                <PremiumSelect value={product.unit ?? "pcs"}
+                <CategoryAutocomplete
+                  value={String(editData.category ?? product.category ?? "")}
+                  onChange={v=>setEditData((d: Record<string, unknown>)=>({...d,category:v}))}
+                  categories={(categories ?? []).map(c=>String(c))}
+                  placeholder={tr("Категория","Kategoriya")} />
+                <PremiumSelect value={String(editData.unit ?? product.unit ?? "pcs")}
                   onChange={v=>setEditData((d: Record<string, unknown>)=>({...d,unit:v}))}
                   options={Object.keys(UNIT_LABELS).map(u=>({value:u,label:unitLabel(u)}))}
                   width="100%" />

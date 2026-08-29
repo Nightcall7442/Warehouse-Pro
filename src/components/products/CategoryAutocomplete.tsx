@@ -1,6 +1,11 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Plus } from "lucide-react";
+
+const ROW = 34;
+const PANEL_PADDING = 8;
+const GAP = 4;
+const MAX_PANEL = 240;
 
 interface CategoryAutocompleteProps {
   value: string;
@@ -11,11 +16,20 @@ interface CategoryAutocompleteProps {
 
 export function CategoryAutocomplete({ value, onChange, categories, placeholder = "Категория" }: CategoryAutocompleteProps) {
   const [open, setOpen] = useState(false);
+  /**
+   * Печатал ли человек в поле.
+   *
+   * В правке товара поле уже заполнено, и без этого признака нажатие на
+   * стрелку показывало ровно одну строку — ту самую категорию, что уже
+   * стоит. Остальные приходилось откапывать, стирая текст вручную, то есть
+   * выбрать другую категорию было нельзя.
+   */
+  const [typed, setTyped] = useState(false);
   const [query, setQuery] = useState(value);
   const ref = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 });
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0, maxHeight: MAX_PANEL });
 
   // eslint-disable-next-line react-hooks/set-state-in-effect -- sync local state when parent value changes (form reset)
   useEffect(() => { setQuery(value); }, [value]);
@@ -30,22 +44,57 @@ export function CategoryAutocomplete({ value, onChange, categories, placeholder 
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  useEffect(() => {
-    if (open && inputRef.current) {
-      const rect = inputRef.current.getBoundingClientRect();
-      setDropdownPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
-    }
-  }, [open]);
-
-  const filtered = query
+  const filtered = query && typed
     ? categories.filter(c => c.toLowerCase().includes(query.toLowerCase()))
     : categories;
 
   const exactMatch = categories.some(c => c.toLowerCase() === query.toLowerCase());
+  // Строк в списке: найденные + строка «использовать своё» + «нет категорий».
+  const rows = filtered.length + (query && typed && !exactMatch ? 1 : 0) + (filtered.length === 0 && !query ? 1 : 0);
+
+  /**
+   * Список рисуется поверх страницы (position: fixed), поэтому его положение
+   * приходится пересчитывать всякий раз, когда поле сдвинулось.
+   *
+   * Раньше замер делался только в миг открытия и всегда вниз. Из-за этого
+   * список уезжал за нижний край экрана, если форма стояла низко на странице, —
+   * а стоит она тем ниже, чем длиннее список товаров. Отсюда и жалоба, что
+   * «категорию не выбрать»: выбирать было нечего, список просто не помещался.
+   */
+  const place = useCallback(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const wanted = Math.min(MAX_PANEL, rows * ROW + PANEL_PADDING);
+    const below = window.innerHeight - r.bottom - GAP - 8;
+    const above = r.top - GAP - 8;
+    // Вверх — когда снизу список не помещается, а сверху места больше.
+    const flip = below < wanted && above > below;
+    setDropdownPos({
+      top: flip ? Math.max(8, r.top - GAP - Math.min(wanted, above)) : r.bottom + GAP,
+      left: r.left,
+      width: r.width,
+      maxHeight: Math.max(ROW + PANEL_PADDING, Math.min(wanted, flip ? above : below)),
+    });
+  }, [rows]);
+
+  useEffect(() => {
+    if (!open) return;
+    place();
+    // capture — чтобы считалась прокрутка любого родителя, не только окна.
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    return () => {
+      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("resize", place);
+    };
+  }, [open, place]);
+
 
   const handleSelect = (val: string) => {
     onChange(val);
     setQuery(val);
+    setTyped(false);
     setOpen(false);
   };
 
@@ -58,15 +107,16 @@ export function CategoryAutocomplete({ value, onChange, categories, placeholder 
           style={{ width: "100%", paddingRight: "32px" }}
           placeholder={placeholder}
           value={query}
-          onFocus={() => setOpen(true)}
+          onFocus={() => { setTyped(false); setOpen(true); }}
           onChange={e => {
+            setTyped(true);
             setQuery(e.target.value);
             onChange(e.target.value);
             setOpen(true);
           }}
         />
         <button
-          onClick={() => setOpen(v => !v)}
+          onClick={() => { setTyped(false); setOpen(v => !v); }}
           style={{
             position: "absolute", right: "8px", top: "50%", transform: "translateY(-50%)",
             background: "none", border: "none", cursor: "pointer", padding: "2px",
@@ -86,7 +136,7 @@ export function CategoryAutocomplete({ value, onChange, categories, placeholder 
           background: "var(--color-surface, #efedea)", borderRadius: "12px",
           boxShadow: "0 4px 12px rgba(0,0,0,.08), 0 1px 3px rgba(0,0,0,.04)",
           border: "1px solid var(--color-border, #d8d5cd)",
-          maxHeight: "240px", overflowY: "auto", padding: "4px",
+          maxHeight: dropdownPos.maxHeight, overflowY: "auto", padding: "4px",
         }}>
           {filtered.map(cat => (
             <button
@@ -108,7 +158,7 @@ export function CategoryAutocomplete({ value, onChange, categories, placeholder 
             </button>
           ))}
 
-          {query && !exactMatch && (
+          {query && typed && !exactMatch && (
             <button
               onClick={() => handleSelect(query)}
               style={{
