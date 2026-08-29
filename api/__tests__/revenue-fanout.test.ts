@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { hasSqlite } from "./sqlite-engine";
 
 /**
  * Завышение выручки размножением строк при джойне — арифметика, а не особенность
@@ -30,7 +31,9 @@ async function withDb(fn: (run: (sql: string) => Row[]) => void) {
   try { fn(run); } finally { db.close(); }
 }
 
-describe("выручка не завышается размножением строк при джойне", () => {
+// node:sqlite есть с Node 22.5; на Node 20 набор пропускается громко —
+// см. sqlite-engine.ts.
+describe.skipIf(!hasSqlite)("выручка не завышается размножением строк при джойне", () => {
   it("отчёт по агентам: визиты не умножают деньги", async () => {
     await withDb(run => {
       // Агент с 22 отмеченными визитами и 5 заказами — случай из разбора.
