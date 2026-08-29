@@ -78,4 +78,8 @@ export const env = {
 
   // Sentry
   sentryDsn:           optional("SENTRY_DSN"),
+
+  // Prometheus metrics (/metrics endpoint)
+  prometheusEnabled:   optional("PROMETHEUS_ENABLED", "true") !== "false",
+  prometheusMetricsToken: optional("PROMETHEUS_METRICS_TOKEN"),
 } as const;
