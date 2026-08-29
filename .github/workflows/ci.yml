@@ -20,14 +20,17 @@ jobs:
       # ("files": [] плюс references), и для него --noEmit компилирует пустой
       # набор и выходит с нулём: шаг был зелёным, не проверяя ничего. Ссылки
       # разворачивает только `tsc -b`, и он вызывается из скрипта с храповиком.
+      # Каждый шаг через обёртку: логи Actions видны только после входа, а
+      # пометки — всем. Без этого упавший прогон снаружи выглядит как
+      # «exit code 1» без единой подробности.
       - name: Type check
-        run: npm run check
+        run: bash scripts/ci-run.sh "Типы" npm run check
       - name: Lint
-        run: npm run lint
+        run: bash scripts/ci-run.sh "Линтер" npm run lint
       - name: Test
-        run: npm test
+        run: bash scripts/ci-run.sh "Тесты" npm test
       - name: Build
-        run: npm run build
+        run: bash scripts/ci-run.sh "Сборка" npm run build
 
   # Проверки, которым нужна настоящая MySQL: гонки, блокировки, уникальные
   # индексы. На заглушке они непроверяемы — её разборщик условий считает сырой
@@ -56,7 +59,7 @@ jobs:
           cache: npm
       - run: npm install --legacy-peer-deps
       - name: Tests against a real MySQL
-        run: npm run test:db
+        run: bash scripts/ci-run.sh "Проверки с базой" npm run test:db
         env:
           TEST_DATABASE_URL: mysql://root:test@127.0.0.1:3306/warehouse_test
 
@@ -118,15 +121,15 @@ jobs:
       # чинилось бы ценой невозможности запустить другое.
       - name: Схема и засев
         run: |
-          npx drizzle-kit push --force
-          node scripts/e2e-baseline-journal.mjs
-          npm run db:seed
+          bash scripts/ci-run.sh "Схема" npx drizzle-kit push --force
+          bash scripts/ci-run.sh "Журнал миграций" node scripts/e2e-baseline-journal.mjs
+          bash scripts/ci-run.sh "Засев" npm run db:seed
 
       - name: Сборка
-        run: npm run build
+        run: bash scripts/ci-run.sh "Сборка" npm run build
 
       - name: Прогон
-        run: npm run test:e2e
+        run: bash scripts/ci-run.sh "Сквозные проверки" npm run test:e2e
 
       - uses: actions/upload-artifact@v4
         if: failure()
