@@ -47,7 +47,10 @@ export default defineConfig({
         reuseExistingServer: false,
         timeout: 120_000,
         env: { PORT: "3100", NODE_ENV: "production" },
-        stdout: "pipe",
+        // Обычные записи сервера о запросах не выводятся: их сотни, они
+        // перемешиваются с отчётом и топят сообщение об ошибке — при разборе
+        // упавшего прогона видно только их. Ошибки сервера остаются.
+        stdout: "ignore",
         stderr: "pipe",
       },
   projects: [{ name: "chromium", use: { browserName: "chromium" } }],
