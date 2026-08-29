@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { colorMix } from "@/lib/color-mix";
 import { APP, appCard } from "./app-skin";
 import { useTranslate } from "@/i18n";
-import { MapPin, WifiOff, Check } from "lucide-react";
+import { WifiOff, Check } from "lucide-react";
 import { LX, MONO } from "./landing-tokens";
 import CityMap from "./CityMap";
 
@@ -132,34 +132,79 @@ function OrdersTab() {
 
 function MapTab() {
   const tr = useTranslate();
+
+  /** Карточка поверх карты. Тень сильнее, чем у карточек в панели: она должна
+      подниматься над подложкой, а не лежать на ней. */
+  const floating: React.CSSProperties = {
+    background: APP.surface,
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.7)",
+    boxShadow: "0 10px 24px rgba(60,54,46,0.18), 0 2px 6px rgba(60,54,46,0.10)",
+    padding: "10px 13px",
+  };
+  const cap: React.CSSProperties = {
+    ...APP.label,
+    fontSize: 9,
+    textTransform: "uppercase",
+    color: APP.textTertiary,
+    display: "block",
+    marginBottom: 3,
+  };
+
   return (
-    <div className="relative overflow-hidden h-[240px]" style={{ ...appCard(0), borderRadius: 18 }}>
+    <div className="relative overflow-hidden h-[280px]" style={{ ...appCard(0), borderRadius: 18 }}>
       <CityMap
         pins={[
-          { x: 24, y: 26, tone: APP.success },
-          { x: 43, y: 38, tone: APP.success },
-          { x: 58, y: 24, tone: APP.primary, pulse: true },
-          { x: 72, y: 52, tone: APP.success },
-          { x: 38, y: 64, tone: APP.textTertiary },
-          { x: 84, y: 34, tone: APP.success },
+          { x: 22, y: 30, tone: APP.success },
+          { x: 40, y: 42, tone: APP.success },
+          { x: 56, y: 27, tone: APP.primary, pulse: true },
+          { x: 70, y: 56, tone: APP.success },
+          { x: 36, y: 68, tone: APP.danger },
+          { x: 85, y: 38, tone: APP.success },
         ]}
         route={[
-          [24, 26],
-          [43, 38],
-          [58, 24],
-          [72, 52],
-          [84, 34],
+          [22, 30],
+          [40, 42],
+          [56, 27],
+          [70, 56],
+          [85, 38],
         ]}
       />
-      <div
-        className="absolute bottom-3 left-3 right-3 rounded-lg px-3.5 py-2.5 flex items-center gap-2.5"
-        style={{ background: APP.surfaceLight, border: `1px solid ${APP.border}` }}
-      >
-        <MapPin size={13} style={{ color: APP.primary }} />
-        <span className="text-[11.5px] min-w-0 truncate" style={{ ...APP.num, color: APP.textPrimary }}>
-          {tr("Санжар · Юнусабад · 14/18 точек · 12 мин назад", "Sanjar · Yunusobod · 14/18 nuqta · 12 daqiqa oldin")}
+
+      {/* Кто в поле и сколько прошёл */}
+      <div className="absolute top-3 left-3 max-w-[62%]" style={floating}>
+        <span style={cap}>{tr("Агент в поле", "Dalada agent")}</span>
+        <span className="block text-[13px] font-semibold" style={{ ...APP.num, color: APP.textPrimary }}>
+          {tr("Санжар · Юнусабад", "Sanjar · Yunusobod")}
+        </span>
+        <span className="block text-[11.5px] mt-0.5" style={{ ...APP.num, color: APP.success }}>
+          {tr("14 из 18 точек · 12 мин назад", "18 dan 14 nuqta · 12 daqiqa oldin")}
         </span>
       </div>
+
+      {/* То, ради чего на карту и смотрят: точка, где были, но заказа нет */}
+      <div className="absolute bottom-3 right-3 max-w-[64%]" style={floating}>
+        <span style={cap}>{tr("Визит без заказа", "Buyurtmasiz tashrif")}</span>
+        <span className="block text-[13px] font-semibold" style={{ ...APP.num, color: APP.textPrimary }}>
+          {tr("Mega Do'kon · Чиланзар", "Mega Do'kon · Chilonzor")}
+        </span>
+        <span className="block text-[11.5px] mt-0.5" style={{ ...APP.num, color: APP.danger }}>
+          {tr("Был в точке, заказ не оформлен", "Nuqtada bo'ldi, buyurtma yo'q")}
+        </span>
+      </div>
+
+      {/* Честная подпись: это демо-данные, а не чей-то настоящий день. */}
+      <span
+        className="absolute top-3 right-3 text-[9.5px] px-2 py-1 rounded-full"
+        style={{
+          ...APP.label,
+          background: "rgba(255,255,255,0.86)",
+          color: APP.textTertiary,
+          border: `1px solid ${APP.border}`,
+        }}
+      >
+        {tr("демо-данные", "demo ma'lumot")}
+      </span>
     </div>
   );
 }
