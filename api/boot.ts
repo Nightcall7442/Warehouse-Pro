@@ -62,30 +62,37 @@ app.use("*", compress());
 // duration is as close as possible to what a client actually observed.
 if (env.prometheusEnabled) {
   app.use("*", async (c, next) => {
-    // The raw path (e.g. /api/photos/abc123) would blow up cardinality with
-    // one time series per id. routePath gives the matched route pattern
-    // instead (e.g. /api/photos/:id); it falls back to the raw path only for
-    // requests that didn't match a registered route (404s).
-    const path = c.req.routePath ?? c.req.path;
     const method = c.req.method;
-
     httpRequestsActive.inc();
-    const endTimer = httpRequestDurationSeconds.startTimer({ method, path });
+    const endTimer = httpRequestDurationSeconds.startTimer();
+
     try {
       await next();
-    } catch (err) {
-      const status = c.res?.status ?? 500;
-      httpRequestErrorsTotal.inc({ method, path, status: String(status) });
-      endTimer({ status: String(status) });
-      httpRequestsTotal.inc({ method, path, status: String(status) });
+    } finally {
+      /**
+       * Шаблон маршрута известен только ПОСЛЕ next().
+       *
+       * До вызова c.req.routePath отдаёт шаблон самого промежуточного слоя,
+       * то есть "/*" — и это правда для любого запроса, а не только для
+       * непойманных. Пока ярлык брался до next(), все запросы приложения
+       * слипались в одну строку path="/*": в Grafana выходил один график на
+       * всё приложение, и увидеть, какая именно ручка тормозит или сыплет
+       * ошибками, было нельзя — то есть разбивки, ради которой всё это и
+       * заводилось, не существовало.
+       *
+       * Запасного варианта c.req.path здесь намеренно нет. Сырой путь развёл
+       * бы по отдельной временной строке каждый запрос: /wp-admin, /.env и
+       * прочее, чем сканеры перебирают публичный сайт. Непойманные запросы
+       * остаются под общим "/*" — их объём виден, а память не растёт.
+       */
+      const path = c.req.routePath ?? "/*";
+      const status = String(c.res?.status ?? 500);
+
+      endTimer({ method, path, status });
+      httpRequestsTotal.inc({ method, path, status });
+      if (Number(status) >= 500) httpRequestErrorsTotal.inc({ method, path, status });
       httpRequestsActive.dec();
-      throw err;
     }
-    const status = c.res.status;
-    endTimer({ status: String(status) });
-    httpRequestsTotal.inc({ method, path, status: String(status) });
-    if (status >= 500) httpRequestErrorsTotal.inc({ method, path, status: String(status) });
-    httpRequestsActive.dec();
   });
 }
 
@@ -619,6 +626,20 @@ app.post("/api/logout-all", async (c) => {
 // Prometheus that Railway's networking already keeps off the public internet.
 app.get("/metrics", async (c) => {
   if (!env.prometheusEnabled) {
+    return c.json({ error: "Not Found" }, 404);
+  }
+  /**
+   * Без ключа в рабочей среде ручка не открывается вовсе.
+   *
+   * Приложение отвечает на публичном домене, а не во внутренней сети: всё,
+   * что здесь отдаётся, был бы доступно любому желающему — перечень
+   * маршрутов, объёмы трафика по каждому, доли ошибок, время ответа, память,
+   * задержка цикла событий и версия Node. Это и разведка для нападающего, и
+   * сведения о делах компании.
+   *
+   * Отвечаем 404, а не 401: существование ручки тоже не стоит подтверждать.
+   */
+  if (env.isProduction && !env.prometheusMetricsToken) {
     return c.json({ error: "Not Found" }, 404);
   }
   if (env.prometheusMetricsToken) {
