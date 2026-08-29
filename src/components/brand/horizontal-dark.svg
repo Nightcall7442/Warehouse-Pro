@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 440 100" role="img" aria-label="Warehouse Pro">
+  <defs>
+    <linearGradient id="wpDownD" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#14b8a6"/>
+      <stop offset="1" stop-color="#0d9488"/>
+    </linearGradient>
+    <linearGradient id="wpUpD" x1="0" y1="1" x2="0.35" y2="0">
+      <stop offset="0" stop-color="#2dd4bf"/>
+      <stop offset="1" stop-color="#5eead4"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(6,10) scale(0.8)">
+    <polygon points="2,24 18,24 38,80 22,80" fill="url(#wpDownD)"/>
+    <polygon points="22,80 38,80 58,42 42,42" fill="url(#wpUpD)"/>
+    <polygon points="42,42 58,42 78,80 62,80" fill="url(#wpDownD)"/>
+    <polygon points="62,80 78,80 98,24 82,24" fill="url(#wpUpD)"/>
+    <circle cx="90" cy="12" r="5.5" fill="#fbbf24"/>
+  </g>
+  <text x="102" y="64" font-family="'DM Sans', 'Inter', system-ui, sans-serif" font-weight="700" font-size="40" letter-spacing="-0.5" fill="#f0ece6">Warehouse <tspan fill="#2dd4bf">Pro</tspan></text>
+</svg>

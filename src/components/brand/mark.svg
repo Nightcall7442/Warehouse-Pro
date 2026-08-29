@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="Warehouse Pro">
+  <defs>
+    <linearGradient id="wpDown" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#0d9488"/>
+      <stop offset="1" stop-color="#0f766e"/>
+    </linearGradient>
+    <linearGradient id="wpUp" x1="0" y1="1" x2="0.35" y2="0">
+      <stop offset="0" stop-color="#14b8a6"/>
+      <stop offset="1" stop-color="#2dd4bf"/>
+    </linearGradient>
+  </defs>
+  <!-- W: folded ribbon — cardboard / stock chart / route -->
+  <polygon points="2,24 18,24 38,80 22,80" fill="url(#wpDown)"/>
+  <polygon points="22,80 38,80 58,42 42,42" fill="url(#wpUp)"/>
+  <polygon points="42,42 58,42 78,80 62,80" fill="url(#wpDown)"/>
+  <polygon points="62,80 78,80 98,24 82,24" fill="url(#wpUp)"/>
+  <!-- GPS / arrival point -->
+  <circle cx="90" cy="12" r="5.5" fill="#d97706"/>
+</svg>

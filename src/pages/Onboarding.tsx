@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { LogoMark } from "@/components/brand/Logo";
 import { useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
@@ -249,9 +250,7 @@ export default function Onboarding() {
 
         {/* Лого */}
         <div className="flex items-center gap-2.5 mb-10">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "var(--color-primary)" }}>
-            <Warehouse size={16} color="#fff" />
-          </div>
+          <LogoMark size={32} decorative />
           <span className="font-display text-sm text-primary">Warehouse Pro</span>
         </div>
 

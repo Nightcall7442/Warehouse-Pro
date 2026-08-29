@@ -1,4 +1,5 @@
 import { memo, useState, useEffect, useCallback } from "react";
+import { LogoMark } from "@/components/brand/Logo";
 import { useLocation, useNavigate } from "react-router";
 import { useAuth } from "@/hooks/useAuth";
 import { useNotifications } from "@/hooks/useNotifications";
@@ -78,9 +79,7 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
     <div className="flex flex-col h-full sidebar-collapse-transition" style={{ background: "var(--color-surface, #efedea)" }}>
       {/* Logo */}
       <div className="flex items-center px-5 gap-3" style={{ height: "64px" }}>
-        <div className="w-10 h-10 rounded-[14px] flex items-center justify-center flex-shrink-0" style={{ background: "linear-gradient(135deg, var(--color-primary), var(--color-primary-hover, #4a5c78))", boxShadow: "var(--shadow-sm)" }}>
-          <Warehouse size={18} color="#fff" />
-        </div>
+        <LogoMark size={36} className="flex-shrink-0" decorative />
         <span style={{ fontSize: "16px", fontWeight: 700, color: "var(--color-text-primary, #2b2a28)", letterSpacing: "-0.02em" }}>Warehouse Pro</span>
         {onClose && (
           <button onClick={onClose} className="ml-auto md:hidden neo-btn-icon" style={{ width: "36px", height: "36px" }}>

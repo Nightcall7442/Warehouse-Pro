@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { LogoMark } from "@/components/brand/Logo";
 import { useNavigate, Link } from "react-router";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -93,15 +94,7 @@ export default function Login() {
 
         {/* Logo */}
         <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 14, zIndex: 1 }}>
-          <div style={{
-            width: 40, height: 40, borderRadius: 10,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            background: "#4f46e5",
-          }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
-            </svg>
-          </div>
+          <LogoMark size={36} decorative />
           <span style={{ fontFamily: F.display, fontSize: "18px", fontWeight: 700, letterSpacing: "-0.01em" }}>
             Warehouse Pro
           </span>
@@ -140,20 +133,12 @@ export default function Login() {
         {/* Mobile header */}
         <div style={{
           position: "absolute", top: 0, left: 0, right: 0, height: 4,
-          background: "#4f46e5",
+          background: "#0d9488",
         }} className="login-mobile-bar" />
 
         {/* Mobile logo */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 40, zIndex: 1 }} className="login-mobile-logo">
-          <div style={{
-            width: 36, height: 36, borderRadius: 9,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            background: "#4f46e5",
-          }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
-            </svg>
-          </div>
+          <LogoMark size={36} decorative />
           <span style={{ fontFamily: F.display, fontSize: "17px", fontWeight: 700, color: "#111827", letterSpacing: "-0.01em" }}>
             Warehouse Pro
           </span>
@@ -257,7 +242,7 @@ export default function Login() {
                 <Link
                   to="/forgot-password"
                   className="forgot-link"
-                  style={{ fontSize: "13px", color: "#4f46e5", textDecoration: "none", fontWeight: 500 }}
+                  style={{ fontSize: "13px", color: "#0d9488", textDecoration: "none", fontWeight: 500 }}
                 >
                   {t("auth.login.forgotPassword")}
                 </Link>
@@ -312,7 +297,7 @@ export default function Login() {
                   width: "100%", padding: "12px 24px", borderRadius: 10,
                   fontSize: "14px", fontWeight: 600, fontFamily: F.body,
                   border: "none", cursor: isPending ? "not-allowed" : "pointer",
-                  background: "#4f46e5", color: "#fff",
+                  background: "#0d9488", color: "#fff",
                   opacity: isPending ? 0.7 : 1,
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                   transition: "background 0.15s, transform 0.1s",
@@ -332,7 +317,7 @@ export default function Login() {
                 <Link
                   to="/register"
                   className="register-link"
-                  style={{ fontWeight: 600, color: "#4f46e5", textDecoration: "none", marginLeft: 4 }}
+                  style={{ fontWeight: 600, color: "#0d9488", textDecoration: "none", marginLeft: 4 }}
                 >
                   {t("auth.login.createAccount")}
                 </Link>
@@ -350,13 +335,13 @@ export default function Login() {
           transition: border-color 0.15s, box-shadow 0.15s;
         }
         .login-input:focus {
-          border-color: #4f46e5 !important;
+          border-color: #0d9488 !important;
           box-shadow: 0 0 0 3px rgba(79,70,229,0.1) !important;
         }
         .pw-toggle-btn:hover { color: #6b7280 !important; }
-        .forgot-link:hover { color: #4338ca !important; }
-        .register-link:hover { color: #4338ca !important; }
-        .submit-btn:not(:disabled):hover { background: #4338ca !important; }
+        .forgot-link:hover { color: #0f766e !important; }
+        .register-link:hover { color: #0f766e !important; }
+        .submit-btn:not(:disabled):hover { background: #0f766e !important; }
         .submit-btn:not(:disabled):active { transform: scale(0.98); }
         @media (min-width: 1024px) {
           .login-left { display: flex !important; }

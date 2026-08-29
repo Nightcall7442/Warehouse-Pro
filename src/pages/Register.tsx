@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { LogoMark } from "@/components/brand/Logo";
 import { useNavigate, Link } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
@@ -89,11 +90,7 @@ export default function Register() {
           style={{ background: "radial-gradient(circle, color-mix(in srgb, #34c473 12%, transparent), transparent 70%)" }} />
 
         <div className="relative flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "var(--color-primary)" }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
-            </svg>
-          </div>
+          <LogoMark size={34} decorative />
           <span className="font-display text-base text-primary">Warehouse Pro</span>
         </div>
 
@@ -135,11 +132,7 @@ export default function Register() {
       {/* ── Form ── */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-12 animate-fade-up">
         <div className="lg:hidden flex items-center gap-2.5 mb-8">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "var(--color-primary)" }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
-            </svg>
-          </div>
+          <LogoMark size={34} decorative />
           <span className="font-display text-sm text-primary">Warehouse Pro</span>
         </div>
 

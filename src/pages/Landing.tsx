@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { LogoMark } from "@/components/brand/Logo";
 import LeadForm from "@/components/landing/LeadForm";
 import { useNavigate } from "react-router";
 import { useTranslate } from "@/i18n";
@@ -204,13 +205,8 @@ function Footer() {
       <div className="max-w-[1240px] mx-auto px-6">
         <div className="flex flex-col md:flex-row md:items-start justify-between gap-8">
           <div className="max-w-xs">
-            <div className="flex items-center gap-3 mb-4">
-              <span
-                className="w-8 h-8 rounded-[7px] flex items-center justify-center text-[12px]"
-                style={{ ...MONO, border: `1.5px solid ${LX.ink}`, color: LX.ink }}
-              >
-                WP
-              </span>
+            <div className="flex items-center gap-2.5 mb-4">
+              <LogoMark size={28} decorative />
               <span className="font-bold text-[14px]" style={{ color: LX.ink }}>Warehouse Pro</span>
             </div>
             <p className="text-[13px] leading-relaxed" style={{ color: LX.inkSoft }}>

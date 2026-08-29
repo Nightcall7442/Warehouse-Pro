@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router";
+import { LogoMark } from "@/components/brand/Logo";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslate, useLang } from "@/i18n";
 import { Menu, X, Send, Phone } from "lucide-react";
@@ -67,14 +68,8 @@ export default function LandingHeader() {
       }}
     >
       <div className="max-w-[1240px] mx-auto px-6 h-16 flex items-center justify-between gap-4">
-        {/* Штамп-логотип: моно-литеры в рамке, как оттиск нумератора */}
-        <a href="#top" className="flex items-center gap-3 shrink-0">
-          <span
-            className="w-9 h-9 rounded-[8px] flex items-center justify-center text-[13px] font-medium"
-            style={{ ...MONO, border: `1.5px solid ${LX.ink}`, color: LX.ink }}
-          >
-            WP
-          </span>
+        <a href="#top" className="flex items-center gap-2.5 shrink-0">
+          <LogoMark size={30} decorative />
           <span className="font-bold tracking-tight text-[15px]" style={{ color: LX.ink }}>
             Warehouse Pro
           </span>

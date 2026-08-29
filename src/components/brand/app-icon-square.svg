@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Warehouse Pro">
+  <defs>
+    <linearGradient id="wpBgSq" x1="0" y1="0" x2="0.6" y2="1">
+      <stop offset="0" stop-color="#0d9488"/>
+      <stop offset="1" stop-color="#0f5e57"/>
+    </linearGradient>
+    <linearGradient id="wpDownSq" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#bdf5ec"/>
+    </linearGradient>
+    <linearGradient id="wpUpSq" x1="0" y1="1" x2="0.35" y2="0">
+      <stop offset="0" stop-color="#8ceadd"/>
+      <stop offset="1" stop-color="#d9fbf5"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#wpBgSq)"/>
+  <g transform="translate(56,88) scale(4.0)">
+    <polygon points="2,24 18,24 38,80 22,80" fill="url(#wpDownSq)"/>
+    <polygon points="22,80 38,80 58,42 42,42" fill="url(#wpUpSq)"/>
+    <polygon points="42,42 58,42 78,80 62,80" fill="url(#wpDownSq)"/>
+    <polygon points="62,80 78,80 98,24 82,24" fill="url(#wpUpSq)"/>
+    <circle cx="90" cy="12" r="5.5" fill="#fbbf24"/>
+  </g>
+</svg>

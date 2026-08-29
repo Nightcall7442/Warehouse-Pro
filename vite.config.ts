@@ -32,19 +32,32 @@ export default defineConfig({
     }),
     VitePWA({
       registerType:         "autoUpdate",
-      includeAssets:        ["icon-192.png", "icon-512.png", "offline.html"],
+      includeAssets:        ["icon-192.png", "icon-512.png", "icon-maskable-512.png", "favicon.ico", "offline.html"],
       manifest: {
         name:             "Warehouse Pro",
         short_name:       "WH Pro",
         description:      "Multi-tenant warehouse management",
-        theme_color:      "#0f1117",
-        background_color: "#0f1117",
+        /* Цвет строки состояния и заставки при запуске с домашнего экрана.
+            Были #0f1117 — тёмно-синий, которого нет ни в приложении, ни в
+            знаке. Взяты цвета самого значка: заставка и иконка совпадают. */
+        theme_color:      "#0d9488",
+        background_color: "#0f5e57",
         display:          "standalone",
         orientation:      "portrait-primary",
         start_url:        "/",
+        /*
+         * «any» и «maskable» — разные картинки, а не одна с двумя ярлыками.
+         *
+         * Раньше оба значка объявлялись как "any maskable". Маскируемый значок
+         * Android обрезает по своей форме — кругом, скруглённым квадратом,
+         * каплей, — и рисунок обязан помещаться в 80% поля. У обычного знака
+         * лента идёт почти к краям, поэтому при обрезке у него срезало углы
+         * буквы. Для маски теперь свой файл, где знак уменьшен и отступ есть.
+         */
         icons: [
-          { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any maskable" },
-          { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any maskable" },
+          { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+          { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+          { src: "/icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
         ],
         shortcuts: [
           { name: "New Order",  url: "/orders/new",  description: "Create a new order" },

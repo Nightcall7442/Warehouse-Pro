@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Warehouse Pro">
+  <defs>
+    <linearGradient id="wpBgMk" x1="0" y1="0" x2="0.6" y2="1">
+      <stop offset="0" stop-color="#0d9488"/>
+      <stop offset="1" stop-color="#0f5e57"/>
+    </linearGradient>
+    <linearGradient id="wpDownMk" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#bdf5ec"/>
+    </linearGradient>
+    <linearGradient id="wpUpMk" x1="0" y1="1" x2="0.35" y2="0">
+      <stop offset="0" stop-color="#8ceadd"/>
+      <stop offset="1" stop-color="#d9fbf5"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#wpBgMk)"/>
+  <!-- Mark kept inside the 80% safe zone for Android adaptive-icon masks -->
+  <g transform="translate(96,116) scale(3.2)">
+    <polygon points="2,24 18,24 38,80 22,80" fill="url(#wpDownMk)"/>
+    <polygon points="22,80 38,80 58,42 42,42" fill="url(#wpUpMk)"/>
+    <polygon points="42,42 58,42 78,80 62,80" fill="url(#wpDownMk)"/>
+    <polygon points="62,80 78,80 98,24 82,24" fill="url(#wpUpMk)"/>
+    <circle cx="90" cy="12" r="5.5" fill="#fbbf24"/>
+  </g>
+</svg>
