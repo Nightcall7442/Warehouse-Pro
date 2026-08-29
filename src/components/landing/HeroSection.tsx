@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router";
+import LeadForm from "./LeadForm";
 import { useTranslate } from "@/i18n";
 import { ArrowRight, ArrowDown, Check, Send } from "lucide-react";
 import { BtnInk, BtnGhost, Stamp } from "./landing-shared";
@@ -106,6 +107,16 @@ export default function HeroSection() {
               {tr("Написать в Telegram", "Telegramda yozish")}
             </BtnGhost>
           )}
+        </div>
+
+        {/* Второй путь: позвонить, а не регистрироваться.
+            До этого его не было вовсе — ни формы, ни телефона, ни телеграма. */}
+        <div className="lx-enter lx-enter-2 mt-7 max-w-2xl">
+          <p className="text-[13px] mb-2.5" style={{ color: LX.inkFaint }}>
+            {tr("Не хотите разбираться сами? Оставьте номер — перезвоним и покажем на ваших данных.",
+                "O'zingiz tushunishni xohlamaysizmi? Raqamingizni qoldiring — qo'ng'iroq qilamiz.")}
+          </p>
+          <LeadForm compact source="hero" />
         </div>
 
         {/* Оттиск в потоке — под кнопками, чтобы не давить на H1 */}

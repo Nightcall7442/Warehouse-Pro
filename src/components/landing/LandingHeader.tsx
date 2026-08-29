@@ -53,7 +53,6 @@ export default function LandingHeader() {
       { label: tr("Продукт", "Mahsulot"), href: "#features" },
       { label: tr("Как работает", "Qanday ishlaydi"), href: "#how" },
       { label: tr("Роли", "Rollar"), href: "#roles" },
-      { label: tr("Отзывы", "Sharhlar"), href: "#testimonials" },
       { label: tr("Цены", "Narxlar"), href: "#pricing" },
     ],
     [tr],

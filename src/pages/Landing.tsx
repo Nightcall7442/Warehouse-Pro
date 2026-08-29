@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import LeadForm from "@/components/landing/LeadForm";
 import { useNavigate } from "react-router";
 import { useTranslate } from "@/i18n";
 import { ArrowRight, Send } from "lucide-react";
@@ -10,7 +11,6 @@ import HeroSection from "@/components/landing/HeroSection";
 import PhotoStrip, { CTA_PHOTO } from "@/components/landing/PhotoStrip";
 import ProductWindow from "@/components/landing/ProductWindow";
 import FeaturesSection from "@/components/landing/FeaturesSection";
-import TestimonialsSection from "@/components/landing/TestimonialsSection";
 import PricingSection from "@/components/landing/PricingSection";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -172,6 +172,18 @@ function CtaSection() {
             </BtnGhost>
           )}
         </div>
+
+        {/* Второй путь для тех, кто регистрироваться сам не станет. */}
+        <div
+          className="mt-12 mx-auto max-w-lg text-left pt-10"
+          style={{ borderTop: `1px solid ${LX.ruleOnInk}` }}
+        >
+          <p className="text-[13px] mb-3 text-center" style={{ color: LX.softOnInk }}>
+            {tr("Или оставьте номер — перезвоним и разберём ваш случай.",
+                "Yoki raqamingizni qoldiring — qo'ng'iroq qilib, holatingizni ko'rib chiqamiz.")}
+          </p>
+          <LeadForm onInk source="cta" />
+        </div>
       </div>
     </section>
   );
@@ -295,7 +307,6 @@ export default function Landing() {
       <div className="lx-rails max-w-[1240px] mx-auto">
         <FactsStrip />
         <FeaturesSection />
-        <TestimonialsSection />
         <PricingSection />
         <FaqSection />
       </div>

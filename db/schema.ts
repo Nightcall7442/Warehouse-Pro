@@ -1151,3 +1151,37 @@ export const orderAdjustments = mysqlTable("order_adjustments", {
 
 export type OrderAdjustment       = typeof orderAdjustments.$inferSelect;
 export type InsertOrderAdjustment = typeof orderAdjustments.$inferInsert;
+
+// ============================================
+// LEADS — заявки с лендинга
+// ============================================
+//
+// Отдельно от tenants: заявку оставляет тот, у кого организации ещё нет.
+// Поэтому нет tenantId и нет внешних ключей — это вход в воронку, а не
+// часть учёта.
+//
+// Заявка ХРАНИТСЯ, а уже потом отправляется уведомление. Форма, которая
+// только шлёт сообщение в телеграм, теряет обращение молча, когда бот
+// отключён или токен просрочен: человек видит «спасибо», а не доходит
+// никуда. Здесь наоборот — уведомление может не уйти, запись останется.
+export const leads = mysqlTable("leads", {
+  id:        serial("id").primaryKey(),
+  name:      varchar("name", { length: 120 }).notNull(),
+  company:   varchar("company", { length: 200 }),
+  phone:     varchar("phone", { length: 32 }).notNull(),
+  comment:   text("comment"),
+  // Откуда пришёл: раздел лендинга, с которого отправили форму.
+  source:    varchar("source", { length: 64 }),
+  // Ушло ли уведомление. false означает «заявка есть, но её не увидели» —
+  // по этому полю их можно найти и разобрать вручную.
+  notified:  boolean("notified").default(false).notNull(),
+  // Обработана ли: чтобы список заявок не приходилось вести в голове.
+  handledAt: timestamp("handled_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  createdIdx:  index("idx_leads_created").on(t.createdAt),
+  notifiedIdx: index("idx_leads_notified").on(t.notified),
+}));
+
+export type Lead       = typeof leads.$inferSelect;
+export type InsertLead = typeof leads.$inferInsert;

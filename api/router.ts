@@ -28,6 +28,7 @@ import { warehouseReportsRouter } from "./warehouse-reports-router";
 import { warehouseMultiRouter } from "./warehouse-multi-router";
 import { apiKeyRouter } from "./api-key-router";
 import { uploadRouter } from "./upload-router";
+import { leadRouter } from "./lead-router";
 import { territoryRouter } from "./territory-router";
 import { salesTargetRouter } from "./sales-target-router";
 import { commissionRouter } from "./commission-router";
@@ -52,6 +53,7 @@ export const appRouter = createRouter({
   analytics:    analyticsRouter,
   agent:        agentRouter,
   user:         userRouter,
+  lead:         leadRouter,
   notification: notificationRouter,
   settings:     settingsRouter,
   billing:      billingRouter,
