@@ -182,17 +182,22 @@ test.describe("товар", () => {
     // нулевой. Ни ошибки, ни записи в журнале.
     await login(page, "ceo");
 
-    const code = `E2E-${Date.now()}`;
+    const stamp = Date.now();
+    const code = `E2E-${stamp}`;
+    // Название уникально, потому что искать придётся по нему: product.list
+    // ищет по названию товара, а не по коду (like на products.name).
+    const name = `Проверка запятой ${stamp}`;
+
     await page.goto("/products");
     await page.getByTestId("product-new").click();
     await page.getByTestId("product-code").fill(code);
-    await page.getByTestId("product-name").fill("Проверка запятой");
+    await page.getByTestId("product-name").fill(name);
     await page.getByTestId("product-price").fill("1234,50");
     await page.getByTestId("product-save").click();
 
     const price = await expectEventually(async () => {
-      const res = await trpcQuery<{ data: { code: string; unitPrice: string }[] }>(
-        page, "product.list", { page: 1, pageSize: 50, search: code },
+      const res = await trpcQuery<{ data: { code: string; name: string; unitPrice: string }[] }>(
+        page, "product.list", { page: 1, pageSize: 50, search: name },
       );
       const row = res.data.find(p => p.code === code);
       return row ? num(row.unitPrice) : null;
