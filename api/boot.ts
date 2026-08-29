@@ -1,3 +1,12 @@
+/**
+ * Трассировка. До этой правки initTelemetry не вызывался нигде: модуль был
+ * написан и мёртв, задавать OTEL_EXPORTER_OTLP_ENDPOINT можно было сколько
+ * угодно. Почему промежутки ставятся руками, а не автоматической подменой,
+ * подробно разобрано в api/lib/telemetry.ts.
+ */
+import { initTelemetry, shutdownTelemetry, isTracingEnabled, getTracer } from "./lib/telemetry";
+initTelemetry();
+
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { compress } from "hono/compress";
@@ -92,6 +101,35 @@ if (env.prometheusEnabled) {
       httpRequestsTotal.inc({ method, path, status });
       if (Number(status) >= 500) httpRequestErrorsTotal.inc({ method, path, status });
       httpRequestsActive.dec();
+    }
+  });
+}
+
+// ── Трассировка запроса ──────────────────────────────────────────────────────
+// Один промежуток на запрос. Имя и атрибуты проставляются ПОСЛЕ next() по той
+// же причине, что и ярлыки метрик: до вызова c.req.routePath отдаёт шаблон
+// самого слоя ("/*"), а не маршрута, который в итоге отработал.
+if (isTracingEnabled()) {
+  app.use("*", async (c, next) => {
+    const span = getTracer().startSpan("http");
+    try {
+      await next();
+    } catch (err) {
+      span.recordException(err instanceof Error ? err : new Error(String(err)));
+      throw err;
+    } finally {
+      const path = c.req.routePath ?? "/*";
+      const status = c.res?.status ?? 500;
+      span.updateName(`${c.req.method} ${path}`);
+      span.setAttributes({
+        "http.request.method": c.req.method,
+        "http.route": path,
+        "http.response.status_code": status,
+        // По нему та же история находится в журнале Loki: трассировка
+        // показывает, ЧТО было медленным, журнал — почему.
+        "app.correlation_id": c.res?.headers.get("x-correlation-id") ?? "",
+      });
+      span.end();
     }
   });
 }
@@ -1007,6 +1045,16 @@ if (env.isProduction) {
     server.close(() => {
       logger.info("HTTP server closed");
     });
+    // Дослать остаток журнала и закрыть трассировку до ухода процесса: иначе
+    // теряются ровно те записи, ради которых в журнал и лезут после падения.
+    try {
+      const { shutdownLoki } = await import("./lib/loki");
+      await shutdownLoki();
+      await shutdownTelemetry();
+    } catch (e) {
+      logger.error("Error flushing observability", { error: String(e) });
+    }
+
     // Close DB connections
     try {
       const { getDb } = await import("./queries/connection");

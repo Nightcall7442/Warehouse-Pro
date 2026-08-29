@@ -1,4 +1,5 @@
 import { nanoid } from "nanoid";
+import { queueForLoki } from "./loki";
 import { AsyncLocalStorage } from "node:async_hooks";
 
 type Level = "debug" | "info" | "warn" | "error";
@@ -59,6 +60,10 @@ function emit(level: Level, message: string, meta?: Record<string, unknown>) {
   } else {
     process.stdout.write(line + "\n");
   }
+  // Вдобавок к потоку вывода, а не вместо него: журнал Railway остаётся
+  // рабочим, даже если Loki не задан или недоступен. Здесь только вставка в
+  // очередь — отправка идёт своим чередом, отдельно от обработки запроса.
+  queueForLoki(level, line);
 }
 
 export const logger = {

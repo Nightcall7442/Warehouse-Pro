@@ -76,6 +76,10 @@ export const env = {
   // OpenTelemetry
   otelExporterUrl:     optional("OTEL_EXPORTER_OTLP_ENDPOINT"),
 
+  // Loki — журнал уходит туда вдобавок к stdout, а не вместо него
+  lokiUrl:             optional("LOKI_URL"),
+  lokiBasicAuth:       optional("LOKI_BASIC_AUTH"),
+
   // Sentry
   sentryDsn:           optional("SENTRY_DSN"),
 
