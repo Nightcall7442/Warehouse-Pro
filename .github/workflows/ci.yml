@@ -131,6 +131,26 @@ jobs:
       - name: Прогон
         run: bash scripts/ci-run.sh "Сквозные проверки" npm run test:e2e
 
+      # Playwright кладёт разбор каждого падения отдельным файлом. Он короткий
+      # и содержит именно то, чего не хватает в общем выводе: что ожидали, что
+      # получили и на каком шаге. Печатается пометкой, потому что логи Actions
+      # видны только после входа.
+      - name: Разбор падений
+        if: failure()
+        run: |
+          for f in test-results/*/error-context.md; do
+            [ -e "$f" ] || continue
+            echo "----- $f"
+            head -c 1500 "$f"
+            echo
+          done > /tmp/ctx.txt 2>&1 || true
+          if [ -s /tmp/ctx.txt ]; then
+            cat /tmp/ctx.txt
+            bash scripts/ci-run.sh "Разбор падений" bash -c "cat /tmp/ctx.txt; exit 1" || true
+          else
+            echo "разборов не найдено"
+          fi
+
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
