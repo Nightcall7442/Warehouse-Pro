@@ -24,6 +24,14 @@ import { recordRequest } from "./system-router";
 import { logError } from "./lib/error-log";
 import { safeEqual } from "./lib/safe-compare";
 import { isAppError } from "@contracts/errors";
+import {
+  getMetricsText,
+  prometheusContentType,
+  httpRequestsTotal,
+  httpRequestDurationSeconds,
+  httpRequestsActive,
+  httpRequestErrorsTotal,
+} from "./prometheus-metrics";
 
 
 import * as Sentry from "@sentry/node";
@@ -47,6 +55,39 @@ const app = new Hono<{ Bindings: HttpBindings }>();
 // tRPC JSON alike. text/event-stream is excluded by the middleware itself, so
 // the SSE endpoint keeps streaming uncompressed.
 app.use("*", compress());
+
+// ── Prometheus metrics collection ────────────────────────────────────────────
+// Wraps every request so /metrics reflects the whole app, including requests
+// that later throw. Kept close to the outermost middleware so the measured
+// duration is as close as possible to what a client actually observed.
+if (env.prometheusEnabled) {
+  app.use("*", async (c, next) => {
+    // The raw path (e.g. /api/photos/abc123) would blow up cardinality with
+    // one time series per id. routePath gives the matched route pattern
+    // instead (e.g. /api/photos/:id); it falls back to the raw path only for
+    // requests that didn't match a registered route (404s).
+    const path = c.req.routePath ?? c.req.path;
+    const method = c.req.method;
+
+    httpRequestsActive.inc();
+    const endTimer = httpRequestDurationSeconds.startTimer({ method, path });
+    try {
+      await next();
+    } catch (err) {
+      const status = c.res?.status ?? 500;
+      httpRequestErrorsTotal.inc({ method, path, status: String(status) });
+      endTimer({ status: String(status) });
+      httpRequestsTotal.inc({ method, path, status: String(status) });
+      httpRequestsActive.dec();
+      throw err;
+    }
+    const status = c.res.status;
+    endTimer({ status: String(status) });
+    httpRequestsTotal.inc({ method, path, status: String(status) });
+    if (status >= 500) httpRequestErrorsTotal.inc({ method, path, status: String(status) });
+    httpRequestsActive.dec();
+  });
+}
 
 // ── Sentry error handler + Telegram notification ─────────────────────────────
 app.use("*", async (c, next) => {
@@ -568,6 +609,28 @@ app.post("/api/logout-all", async (c) => {
     console.error("[LOGOUT-ALL ERROR]", e);
     return c.json({ error: "Logout failed" }, 500);
   }
+});
+
+// ── Prometheus scrape endpoint ───────────────────────────────────────────────
+// Public by design — Prometheus scrapers don't carry session cookies or CSRF
+// tokens. PROMETHEUS_METRICS_TOKEN is optional extra protection: when set, the
+// scraper must send it as a Bearer token or ?token= query param. Left unset by
+// default so the endpoint keeps working out of the box against an internal
+// Prometheus that Railway's networking already keeps off the public internet.
+app.get("/metrics", async (c) => {
+  if (!env.prometheusEnabled) {
+    return c.json({ error: "Not Found" }, 404);
+  }
+  if (env.prometheusMetricsToken) {
+    const authHeader = c.req.header("authorization");
+    const bearer = authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : undefined;
+    const provided = bearer ?? c.req.query("token");
+    if (!provided || !safeEqual(provided, env.prometheusMetricsToken)) {
+      return c.json({ error: "Unauthorized" }, 401);
+    }
+  }
+  const metrics = await getMetricsText();
+  return c.text(metrics, 200, { "Content-Type": prometheusContentType });
 });
 
 // ── tRPC handler ─────────────────────────────────────────────────────────────
