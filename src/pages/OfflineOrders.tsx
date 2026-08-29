@@ -46,13 +46,14 @@ export default function OfflineOrders() {
   }, []);
 
   const loadPending = useCallback(async () => {
+    if (!user) { setPending([]); return; }
     try {
-      const orders = await getPendingOrders();
+      const orders = await getPendingOrders(user.id);
       setPending(orders);
     } catch {
       notify.error("Не удалось загрузить локальные заказы");
     }
-  }, []);
+  }, [user]);
 
   const syncAll = useCallback(async () => {
     if (!online || pending.length === 0 || syncing) return;

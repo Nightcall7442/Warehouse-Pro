@@ -70,7 +70,13 @@ export default function NewOrder() {
     };
 
     if (!navigator.onLine) {
-      savePendingOrder({ ...payload, shopName, paymentMethod })
+      if (!user) {
+        notify.error(t("Сессия не найдена — войдите заново", "Sessiya topilmadi — qayta kiring"));
+        return;
+      }
+      // Владелец записи. Без него запись увидит и отправит следующий, кто
+      // войдёт на этом же компьютере, — а сервер поставит агентом его.
+      savePendingOrder({ ...payload, shopName, paymentMethod }, user.id)
         .then(() => {
           notify.success(t("Заказ сохранён офлайн", "Buyurtma oflayn saqlandi"));
           const role = user?.role;

@@ -3,26 +3,30 @@ import { useNavigate } from "react-router";
 import { useLang } from "@/i18n";
 import { WifiOff, RefreshCw } from "lucide-react";
 import { getPendingOrders } from "@/pages/OfflineOrders.helpers";
+import { useAuth } from "@/hooks/useAuth";
 
 export function OfflineQueueBadge() {
   const [count, setCount] = useState(0);
   const [online, setOnline] = useState(navigator.onLine);
   const navigate = useNavigate();
   const { lang } = useLang();
+  const { user } = useAuth();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
 
   // Load pending count
   useEffect(() => {
+    // Без пользователя очередь не читается вовсе: записи помечены владельцем.
+    if (!user) return;
     const load = async () => {
       try {
-        const orders = await getPendingOrders();
+        const orders = await getPendingOrders(user.id);
         setCount(orders.length);
       } catch { /* ignore */ }
     };
     load();
     const interval = setInterval(load, 5000); // Poll every 5s
     return () => clearInterval(interval);
-  }, []);
+  }, [user]);
 
   // Listen for online/offline
   useEffect(() => {
@@ -37,7 +41,10 @@ export function OfflineQueueBadge() {
   }, []);
 
   // Don't show if no pending orders and online
-  if (count === 0 && online) return null;
+  // Пока пользователь не определён, показывать нечего: чужую очередь мы не
+  // читаем, а своя ещё не загружена.
+  const shown = user ? count : 0;
+  if (shown === 0 && online) return null;
 
   return (
     <button
@@ -54,7 +61,7 @@ export function OfflineQueueBadge() {
       }}
     >
       {online ? <RefreshCw size={12} /> : <WifiOff size={12} />}
-      <span>{count}</span>
+      <span>{shown}</span>
       <span style={{ fontSize: "10px", opacity: 0.8 }}>
         {online ? t("ожидает", "kutilmoqda") : t("офлайн", "oflayn")}
       </span>
