@@ -225,7 +225,22 @@ const withTenantIsolation = t.middleware(async ({ ctx, next }) => {
 });
 
 // ── Global rate limiter ──────────────────────────────────────────────────────
-const GLOBAL_RATE_LIMIT = { windowMs: 60 * 1000, limit: 120, namespace: "global" };
+/**
+ * Общий ограничитель запросов — из настроек, а не из числа в коде.
+ *
+ * RATE_LIMIT_GLOBAL_MAX и RATE_LIMIT_WINDOW_MS объявлены в lib/env.ts и
+ * описаны в .env.example, но не читались НИГДЕ: здесь стояли 120 и 60000
+ * прямо в коде. То есть рычаг был, а действия не оказывал — поднять предел
+ * во время наплыва было нечем, и понять, почему настройка не работает,
+ * тоже нечем: ошибки нет, просто ничего не меняется.
+ *
+ * Значения по умолчанию те же, поэтому в бою ничего не меняется.
+ */
+const GLOBAL_RATE_LIMIT = {
+  windowMs:  env.rateLimitWindowMs,
+  limit:     env.rateLimitGlobalMax,
+  namespace: "global",
+};
 
 const withGlobalRateLimit = t.middleware(async ({ ctx, next }) => {
   // Per user, not per IP: createContext has already resolved ctx.user from the
