@@ -10,6 +10,7 @@ import LandingHeader from "@/components/landing/LandingHeader";
 import HeroSection from "@/components/landing/HeroSection";
 import PhotoStrip, { CTA_PHOTO } from "@/components/landing/PhotoStrip";
 import ProductWindow from "@/components/landing/ProductWindow";
+import LossSection from "@/components/landing/LossSection";
 import FeaturesSection from "@/components/landing/FeaturesSection";
 import PricingSection from "@/components/landing/PricingSection";
 
@@ -306,6 +307,7 @@ export default function Landing() {
       <ProductWindow />
       <div className="lx-rails max-w-[1240px] mx-auto">
         <FactsStrip />
+        <LossSection />
         <FeaturesSection />
         <PricingSection />
         <FaqSection />

@@ -13,7 +13,7 @@ import CityMap from "./CityMap";
    и после чернильного окна продукта вторая сетка 3×2 читалась бы шаблоном.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* ── 02 / Как работает: день с Warehouse Pro ─────────────────────────────── */
+/* ── 03 / Как работает: день с Warehouse Pro ─────────────────────────────── */
 function DaySection() {
   const tr = useTranslate();
   const steps = useMemo(
@@ -54,7 +54,7 @@ function DaySection() {
       <div className="max-w-[1240px] mx-auto px-6">
         <SectionHead
           id="how"
-          index="02"
+          index="03"
           label={tr("Как работает", "Qanday ishlaydi")}
           title={tr("Один день с Warehouse Pro", "Warehouse Pro bilan bir kun")}
         />
@@ -90,7 +90,7 @@ function DaySection() {
   );
 }
 
-/* ── 03 / Возможности: строки реестра ────────────────────────────────────── */
+/* ── 04 / Возможности: строки реестра ────────────────────────────────────── */
 function LedgerSection() {
   const tr = useTranslate();
   const rows = useMemo(
@@ -144,7 +144,7 @@ function LedgerSection() {
       <div className="max-w-[1240px] mx-auto px-6">
         <SectionHead
           id="features"
-          index="03"
+          index="04"
           label={tr("Возможности", "Imkoniyatlar")}
           title={tr("Реестр возможностей", "Imkoniyatlar reyestri")}
           lead={tr(
@@ -182,7 +182,7 @@ function LedgerSection() {
   );
 }
 
-/* ── 04 / GPS-сплит ──────────────────────────────────────────────────────── */
+/* ── 05 / GPS-сплит ──────────────────────────────────────────────────────── */
 function GpsSection() {
   const tr = useTranslate();
   const agents = [
@@ -196,7 +196,7 @@ function GpsSection() {
         <div>
           <SectionHead
             id="map"
-            index="04"
+            index="05"
             label={tr("Контроль", "Nazorat")}
             title={tr("Вы видите поле, не выходя из кабинета", "Dalani kabinetdan chiqmasdan ko'rasiz")}
           />
@@ -255,7 +255,7 @@ function GpsSection() {
   );
 }
 
-/* ── 05 / Роли ───────────────────────────────────────────────────────────── */
+/* ── 06 / Роли ───────────────────────────────────────────────────────────── */
 function RolesSection() {
   const tr = useTranslate();
   const roles = useMemo(
@@ -274,7 +274,7 @@ function RolesSection() {
       <div className="max-w-[1240px] mx-auto px-6">
         <SectionHead
           id="roles"
-          index="05"
+          index="06"
           label={tr("Роли", "Rollar")}
           title={tr("Каждый видит только своё", "Har kim faqat o'zinikini ko'radi")}
           lead={tr(
