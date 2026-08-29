@@ -36,7 +36,16 @@
     <meta name="twitter:title" content="Warehouse Pro — склад, заказы и торговые агенты" />
     <meta name="twitter:description" content="Учёт склада, заказы и торговые агенты в одной программе. 14 дней бесплатно." />
     <meta name="twitter:image" content="https://www.warehouse-pro.uz/icon-512.png" />
-    <link rel="icon" href="/icon-192.png" type="image/png"/>
+    <!-- Значок в выдаче поиска.
+         /favicon.ico отдавал 404: тег rel="icon" был, а прямого запроса по
+         корневому адресу — а его делают и поисковики, и браузеры — никто не
+         обслуживал. Файл собран из icon-192.png тем же изображением.
+         sizes="any" на ICO означает «подойдёт для любого размера»: браузер
+         предпочтёт PNG нужного размера, а тот, кто спрашивает просто значок,
+         получит ICO. -->
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" href="/icon-192.png" type="image/png" sizes="192x192" />
+    <link rel="icon" href="/icon-512.png" type="image/png" sizes="512x512" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
     <!-- VitePWA injects its own <link rel="manifest"> (manifest.webmanifest,
          generated from vite.config.ts) at build time. A hand-authored one
