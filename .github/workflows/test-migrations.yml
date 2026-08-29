@@ -36,7 +36,13 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm install --legacy-peer-deps
+      # Именно `npm ci`, а не `npm install`: образ в Dockerfile ставит зависимости
+      # строгим `npm ci`, который падает при расхождении package.json и файла
+      # блокировки. Пока здесь стоял терпимый `npm install`, сборка оставалась
+      # зелёной, а выкладка падала — ровно так и случилось с prom-client:
+      # зависимость добавили в package.json, файл блокировки не обновили.
+      # Флаг legacy-peer-deps объявлен в .npmrc, но здесь оставлен явно.
+      - run: npm ci --legacy-peer-deps
 
       # TEMPORARY diagnostic step: drizzle-kit's CLI spinner has been
       # swallowing the actual failure reason on every run so far. This calls

@@ -23,12 +23,6 @@ import { LangProvider } from "@/i18n";
 Element.prototype.scrollIntoView = () => {};
 afterEach(cleanup);
 
-const PRODUCT = {
-  id: 7, code: "A-100", name: "Печенье", category: "Кондитерские",
-  unit: "block", unitPrice: "12000.00", costPrice: "9000.00",
-  unitWeight: "8.000", reorderPoint: "10.00", description: "", photoUrl: null,
-};
-
 const trpcStub = vi.hoisted(() => {
   const query = (data: unknown) => () => ({ data, isLoading: false, isError: false, refetch: vi.fn() });
   const mutation = () => ({ mutate: vi.fn(), isPending: false });

@@ -15,7 +15,13 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm install --legacy-peer-deps
+      # Именно `npm ci`, а не `npm install`: образ в Dockerfile ставит зависимости
+      # строгим `npm ci`, который падает при расхождении package.json и файла
+      # блокировки. Пока здесь стоял терпимый `npm install`, сборка оставалась
+      # зелёной, а выкладка падала — ровно так и случилось с prom-client:
+      # зависимость добавили в package.json, файл блокировки не обновили.
+      # Флаг legacy-peer-deps объявлен в .npmrc, но здесь оставлен явно.
+      - run: npm ci --legacy-peer-deps
       # ВАЖНО: не `tsc --noEmit`. Корневой tsconfig.json — solution-файл
       # ("files": [] плюс references), и для него --noEmit компилирует пустой
       # набор и выходит с нулём: шаг был зелёным, не проверяя ничего. Ссылки
@@ -57,7 +63,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm install --legacy-peer-deps
+      - run: npm ci --legacy-peer-deps
       - name: Tests against a real MySQL
         run: bash scripts/ci-run.sh "Проверки с базой" npm run test:db
         env:
@@ -104,7 +110,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm install --legacy-peer-deps
+      - run: npm ci --legacy-peer-deps
       - run: npx playwright install --with-deps chromium
 
       # Схема ставится тем же способом, что и для проверок с настоящей базой
