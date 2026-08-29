@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import type { Page } from "@playwright/test";
-import { login, trpcQuery, num, SEED } from "./harness";
+import { login, trpcQuery, trpcStatus, num, SEED } from "./harness";
 
 /**
  * Сквозные проверки денежных путей.
@@ -60,8 +60,12 @@ test.describe("вход", () => {
 
     // И сервер тоже отказывает: перенаправление в браузере само по себе ничего
     // не защищает — данные отдаёт сервер, а не адресная строка.
-    const res = await page.request.get("/api/trpc/order.list");
-    expect(res.status(), "сервер отдаёт заказы без входа").toBeGreaterThanOrEqual(400);
+    //
+    // Запрос идёт из страницы, а не отдельным клиентом Playwright: тот не шлёт
+    // Secure-куку по http и получил бы 401 при любом состоянии сессии — тогда
+    // проверка проходила бы, ничего не проверяя.
+    expect(await trpcStatus(page, "order.list"), "сервер отдаёт заказы без входа")
+      .toBeGreaterThanOrEqual(400);
   });
 
   test("неверный пароль не создаёт сессию", async ({ page }) => {
@@ -71,8 +75,8 @@ test.describe("вход", () => {
     await page.getByTestId("login-submit").click();
 
     await expect(page).toHaveURL(/\/login/);
-    const res = await page.request.get("/api/trpc/user.me");
-    expect(res.status(), "сессия выдана при неверном пароле").toBeGreaterThanOrEqual(400);
+    expect(await trpcStatus(page, "user.me"), "сессия выдана при неверном пароле")
+      .toBeGreaterThanOrEqual(400);
   });
 });
 

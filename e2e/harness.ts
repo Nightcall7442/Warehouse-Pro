@@ -1,4 +1,4 @@
-import type { Page, APIRequestContext } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import { expect } from "@playwright/test";
 
 /**
@@ -11,9 +11,9 @@ import { expect } from "@playwright/test";
  * не спишется. Поэтому «что получилось» читается из того же источника, из
  * которого потом посчитают зарплату и остатки.
  *
- * Вход в приложении по cookie, а page.request работает в контексте страницы —
- * значит запросы отсюда идут уже от вошедшего человека, без отдельной
- * авторизации.
+ * Вход в приложении по cookie, и запросы к API выполняются ИЗ СТРАНИЦЫ —
+ * подробности ниже, у функции call. Коротко: отдельный клиент Playwright
+ * Secure-куку по http не шлёт, поэтому получал бы 401 всегда.
  */
 
 /** Учётные записи из db/seed.ts. Это засев, а не чьи-то настоящие данные. */
@@ -62,29 +62,68 @@ function unwrap(body: unknown, path: string): unknown {
   return r.result.data?.json;
 }
 
+/**
+ * Запрос выполняется ИЗ СТРАНИЦЫ, а не клиентом Playwright.
+ *
+ * page.request — отдельный клиент на стороне Node, и правило Secure он
+ * соблюдает буквально: такую куку он шлёт только по https. Сессионная кука
+ * приложения ставится с Secure (api/lib/cookies.ts, в production), а проверки
+ * ходят по http на 127.0.0.1 — поэтому каждый запрос оттуда получал 401, хотя
+ * в браузере человек был вошедшим. Браузер тут отличается от клиента: Chromium
+ * считает 127.0.0.1 доверенным источником и Secure-куку принимает.
+ *
+ * fetch внутри страницы идёт ровно тем же путём, что и запросы приложения:
+ * тот же источник, та же кука, те же заголовки. Это и вернее по сути —
+ * проверяется то, что доступно приложению, а не отдельному клиенту.
+ */
+async function call(
+  page: Page,
+  url: string,
+  init?: { method: "POST"; body: string },
+): Promise<{ ok: boolean; status: number; text: string }> {
+  return page.evaluate(
+    async ({ url, init }) => {
+      const res = await fetch(url, {
+        method: init?.method ?? "GET",
+        credentials: "same-origin",
+        headers: init ? { "content-type": "application/json" } : undefined,
+        body: init?.body,
+      });
+      return { ok: res.ok, status: res.status, text: await res.text() };
+    },
+    { url, init },
+  );
+}
+
+function parse(res: { ok: boolean; status: number; text: string }, path: string): unknown {
+  let body: unknown = {};
+  try {
+    body = JSON.parse(res.text);
+  } catch {
+    throw new Error(`${path}: ответ не JSON (HTTP ${res.status}) ${res.text.slice(0, 200)}`);
+  }
+  if (!res.ok) throw new Error(`${path}: HTTP ${res.status} ${JSON.stringify(body).slice(0, 200)}`);
+  return unwrap(body, path);
+}
+
 /** Прочитать что-нибудь у сервера от имени вошедшего. */
-export async function trpcQuery<T = unknown>(
-  page: Page | { request: APIRequestContext },
-  path: string,
-  input?: unknown,
-): Promise<T> {
+export async function trpcQuery<T = unknown>(page: Page, path: string, input?: unknown): Promise<T> {
   const qs = input === undefined ? "" : `?input=${encodeURIComponent(JSON.stringify({ json: input }))}`;
-  const res = await page.request.get(`/api/trpc/${path}${qs}`);
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok()) throw new Error(`${path}: HTTP ${res.status()} ${JSON.stringify(body).slice(0, 200)}`);
-  return unwrap(body, path) as T;
+  return parse(await call(page, `/api/trpc/${path}${qs}`), path) as T;
 }
 
 /** Изменить что-нибудь у сервера от имени вошедшего (для подготовки данных). */
-export async function trpcMutate<T = unknown>(
-  page: Page | { request: APIRequestContext },
-  path: string,
-  input: unknown,
-): Promise<T> {
-  const res = await page.request.post(`/api/trpc/${path}`, { data: { json: input } });
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok()) throw new Error(`${path}: HTTP ${res.status()} ${JSON.stringify(body).slice(0, 200)}`);
-  return unwrap(body, path) as T;
+export async function trpcMutate<T = unknown>(page: Page, path: string, input: unknown): Promise<T> {
+  const res = await call(page, `/api/trpc/${path}`, {
+    method: "POST",
+    body: JSON.stringify({ json: input }),
+  });
+  return parse(res, path) as T;
+}
+
+/** Ответ сервера без разбора — когда важен сам код, а не содержимое. */
+export async function trpcStatus(page: Page, path: string): Promise<number> {
+  return (await call(page, `/api/trpc/${path}`)).status;
 }
 
 /**
