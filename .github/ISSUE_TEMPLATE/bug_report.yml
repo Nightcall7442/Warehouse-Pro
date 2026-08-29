@@ -1,0 +1,60 @@
+name: Ошибка
+description: Что-то работает не так, как должно
+labels: ["ошибка"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Нашли уязвимость? Не заводите задачу здесь — напишите по адресу
+        из [SECURITY.md](../blob/main/SECURITY.md).
+
+  - type: textarea
+    id: what
+    attributes:
+      label: Что происходит
+      description: Что вы увидели на экране и чего ожидали вместо этого.
+      placeholder: |
+        Выбираю единицу «кг», поле продолжает показывать «блок».
+        Ожидал, что поле покажет выбранное.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Как повторить
+      placeholder: |
+        1. Открыть карточку товара
+        2. Нажать «Изменить»
+        3. Выбрать «кг» в поле единицы
+    validations:
+      required: true
+
+  - type: dropdown
+    id: where
+    attributes:
+      label: Где
+      options:
+        - Браузер
+        - Мобильное приложение
+        - Сервер / обмен данными
+        - Не знаю
+    validations:
+      required: true
+
+  - type: input
+    id: role
+    attributes:
+      label: Под какой ролью
+      placeholder: директор, оператор, агент, курьер…
+
+  - type: input
+    id: tenant
+    attributes:
+      label: Компания
+      description: Помогает понять, зависит ли ошибка от данных конкретной компании.
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Снимки экрана, ошибки из консоли

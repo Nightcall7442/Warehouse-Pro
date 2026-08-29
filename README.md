@@ -1,235 +1,287 @@
-# Warehouse Pro — Multi-Tenant WMS
+<div align="center">
 
-Full-stack TypeScript warehouse management system with multi-tenancy, role-based access control, and real-time capabilities. Updated 2026-07-07.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-horizontal-dark.svg">
+  <img src="docs/assets/logo-horizontal.svg" alt="Warehouse Pro" width="320">
+</picture>
 
----
+**Система управления дистрибуцией для оптовой торговли**
 
-## Features
+Склад, полевые агенты, магазины и деньги — в одном контуре, на телефоне и в браузере.
 
-- **Multi-Tenant Architecture** — Complete data isolation between organizations
-- **Role-Based Access Control** — SuperAdmin, CEO, Operator, Supervisor, Agent, Merchandiser, Courier
-- **Order Management** — Create, track, and fulfill orders with stock deduction
-- **Product Catalog** — Products with barcode support, categories, and stock tracking
-- **Shop Management** — Manage retail points with GPS coordinates and debt tracking
-- **Warehouse Stock** — Real-time inventory with adjustments, dead stock detection, and reorder suggestions
-- **Arrivals** — Track truck arrivals with driver info and expense tracking
-- **Agent GPS Tracking** — Real-time field agent location monitoring with trail history
-- **Daily Plans** — Assign and track shop visit plans for field agents
-- **Analytics & Reports** — Sales by shop, top products, agent performance, COGS, debt reports
-- **Real-Time Events** — Server-Sent Events for live dashboard updates
-- **Billing** — Subscription management with Basic, Pro, and Exclusive plans
-- **CSV Import** — Bulk import products and shops from CSV files
-- **Telegram Integration** — Notifications and admin alerts via Telegram bot
-- **White-Label Branding** — Per-tenant logo, colors, and company info
+[![CI](https://github.com/Nightcall7442/Warehouse-Pro/actions/workflows/ci.yml/badge.svg)](https://github.com/Nightcall7442/Warehouse-Pro/actions/workflows/ci.yml)
+[![Миграции](https://github.com/Nightcall7442/Warehouse-Pro/actions/workflows/test-migrations.yml/badge.svg)](https://github.com/Nightcall7442/Warehouse-Pro/actions/workflows/test-migrations.yml)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178c6)
+![Node](https://img.shields.io/badge/Node-%E2%89%A522.5-5fa04e)
+
+</div>
 
 ---
 
-## Tech Stack
+## Какую задачу решает
 
-| Layer | Technology |
-|-------|------------|
-| Frontend | React 19, Vite 7, React Router v7, Tailwind CSS, Radix UI |
-| Backend | Hono 4, tRPC 11, Drizzle ORM 0.45 |
-| Database | MySQL 8 |
-| Auth | JWT (jose), PBKDF2 passwords, httpOnly cookies |
-| State | TanStack Query, tRPC React Query |
-| Build | Vite, esbuild, TypeScript 5.9 |
-| Testing | Vitest (unit) |
-| Deploy | Docker, Railway |
+Оптовый дистрибутор теряет деньги в четырёх местах, и ни одно из них не видно в бухгалтерии:
+
+| Где течёт | Что происходит на самом деле |
+|---|---|
+| **Агент в поле** | Заказ записан в тетрадь, вечером перенесён в таблицу с ошибкой. Остаток на складе агент не знает и обещает то, чего нет |
+| **Долги магазинов** | Кто сколько должен, помнит человек. Уходит человек — уходит и долг |
+| **Остатки** | Резерв под заказ и свободный остаток — одно и то же число. Один товар продан дважды |
+| **Возвраты** | Просрочка возвращается без документа и оседает убытком, которого никто не считал |
+
+Warehouse Pro закрывает контур: агент оформляет заказ на телефоне у полки и видит настоящий свободный остаток; резерв ставится в тот же миг; долг магазина пересчитывается из заказов и платежей, а не ведётся руками; движение каждой единицы товара остаётся в журнале.
+
+**Работает без связи.** Агент в подвале магазина оформляет заказ, приложение кладёт его в очередь и отправляет, когда связь вернётся. Повторная отправка не создаёт дубль — у каждого заказа свой ключ идемпотентности.
 
 ---
 
-## Quick Start
+## Что внутри
 
-### 1. Clone and install
+**Продажи и поле**
+
+- Заказы с резервированием остатка в момент создания, частичной доставкой и возвратом
+- Мобильное приложение агента: каталог, корзина, скидки, способ оплаты, работа без связи
+- GPS-слежение за агентами и курьерами, история маршрута
+- Дневные планы посещений, территории, нормы продаж
+- Мерчандайзинг: отчёты о визитах с фотофиксацией
+
+**Склад**
+
+- Раздельный учёт: общий остаток, резерв под заказы, свободный остаток
+- Несколько складов, приход товара с учётом расходов на доставку
+- Журнал движений: у каждого изменения остатка есть причина и автор
+- Поиск неликвида, точка дозаказа, предсказание нехватки
+
+**Деньги**
+
+- Долг магазина пересчитывается из заказов, платежей и возвратов
+- Себестоимость и валовая прибыль по заказу, товару и агенту
+- Прайс-листы по категориям магазинов
+- Подписки и оплата через Stripe
+
+**Платформа**
+
+- Мультиарендность: у каждой компании свои данные, изоляция на уровне каждого запроса
+- Семь ролей с разными правами
+- Два языка интерфейса: русский и узбекский
+- Оформление под клиента: логотип, цвета, реквизиты
+- Обмен с «1С:Предприятие» через OData
+- Уведомления в Telegram, живое обновление экранов через SSE
+
+---
+
+## Архитектура
+
+```mermaid
+flowchart TB
+    subgraph Клиенты
+        W["Браузер<br/>React 19 + Vite"]
+        M["Телефон агента<br/>React Native / Expo"]
+    end
+
+    subgraph Server["Сервер — один процесс Node 22"]
+        H["Hono + tRPC"]
+        MW["Промежуточный слой:<br/>арендатор → лимит → вход → роль"]
+        S["Службы:<br/>заказы, склад, долги, KPI"]
+    end
+
+    DB[("MySQL 8<br/>45 таблиц")]
+    EXT["1С · Telegram · Stripe"]
+
+    W -->|tRPC| H
+    M -->|tRPC| H
+    H --> MW
+    MW --> S
+    S --> DB
+    S <--> EXT
+```
+
+**Изоляция арендаторов.** В каждой таблице есть `tenant_id`, и запрос проходит через слой, который подставляет его до того, как до данных доберётся бизнес-логика. Забыть фильтр в отдельно взятом запросе нельзя — он ставится не в запросе.
+
+**Порядок проверок.** `Идентификатор запроса → Арендатор → Общий лимит → Вход → Подписка → Роль → Обработчик`. Роль проверяется до обработчика, а не внутри него, поэтому новая ручка не может случайно оказаться открытой.
+
+**Деньги считает сервер.** Приложение показывает свою сумму, но к оплате идёт та, что посчитал сервер по своим ценам на момент отправки.
+
+---
+
+## Технологии
+
+| Слой | Что используется |
+|---|---|
+| Веб | React 19, Vite 7, React Router 7, Tailwind CSS, Radix UI |
+| Мобильное | React Native, Expo Router, TanStack Query |
+| Сервер | Hono 4, tRPC 11, Drizzle ORM |
+| База | MySQL 8 |
+| Вход | JWT (jose), пароли PBKDF2, куки httpOnly |
+| Сборка | Vite, esbuild, TypeScript 5.9 |
+| Проверки | Vitest, Playwright |
+| Развёртывание | Docker, Railway |
+
+---
+
+## Быстрый старт
+
+Нужен **Node ≥ 22.5** и **MySQL 8**.
 
 ```bash
 git clone https://github.com/Nightcall7442/Warehouse-Pro.git
-cd Warehouse-Pro
-cp .env.example .env
+```
+
+```bash
 npm install --legacy-peer-deps
 ```
 
-> `--legacy-peer-deps` is needed because `vite-plugin-pwa@0.20` hasn't been updated for Vite 7 yet.
+> `--legacy-peer-deps` нужен, пока `vite-plugin-pwa` не обновлён под Vite 7.
 
-### 2. Configure environment
-
-Edit `.env` and set your **MySQL DATABASE_URL**:
+Скопируйте образец окружения:
 
 ```bash
-DATABASE_URL=mysql://root:PASSWORD@HOST:PORT/railway
-APP_SECRET=your-secret-key-here
+cp .env.example .env
 ```
 
-Generate a secure secret:
+Впишите в `.env` строку подключения к базе и ключ подписи:
+
+```
+DATABASE_URL=mysql://root:ПАРОЛЬ@127.0.0.1:3306/warehouse_pro
+APP_SECRET=<вывод команды ниже>
+```
+
+Ключ подписи возьмите случайный — не придумывайте его руками:
+
 ```bash
 openssl rand -base64 48
 ```
 
-### 3. Push schema to database
+Разверните схему, засейте демонстрационные данные и запустите:
 
 ```bash
-npm run db:push
+npm run db:migrate && npm run db:seed && npm run dev
 ```
 
-### 4. Seed demo data
+Откройте <http://localhost:3000>.
 
-```bash
-npm run db:seed
-```
+### Учётные записи после засева
 
-### 5. Start development server
+| Почта | Пароль | Роль |
+|---|---|---|
+| `superadmin@system.local` | `superadmin123` | Владелец платформы |
+| `ceo@demo-uz.uz` | `password123` | Директор компании |
+| `operator1@demo-uz.uz` | `password123` | Оператор |
+| `agent-tashkent@demo-uz.uz` | `password123` | Агент |
 
-```bash
-npm run dev
-```
-
-Open http://localhost:3000
+Это данные локального засева для разработки. Ни один из этих паролей не должен существовать в рабочей среде.
 
 ---
 
-## Demo Credentials
-
-After seeding:
-
-| Email | Password | Role |
-|-------|----------|------|
-| `superadmin@system.local` | `superadmin123` | Super Admin |
-| `ceo@acme.warehouse` | `password123` | CEO (Tenant 1) |
-| `operator@acme.warehouse` | `password123` | Operator |
-| `agent1@acme.warehouse` | `password123` | Agent |
-
----
-
-## Environment Variables
-
-### Required
-
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `DATABASE_URL` | MySQL connection string | `mysql://root:pass@host:3306/railway` |
-| `APP_SECRET` | JWT signing secret (48 bytes base64) | `openssl rand -base64 48` |
-
-### Optional
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `APP_URL` | `http://localhost:3000` | Public application URL |
-| `ALLOWED_ORIGINS` | `http://localhost:3000` | Comma-separated CORS origins |
-| `STRIPE_SECRET_KEY` | — | Stripe API key |
-| `STRIPE_WEBHOOK_SECRET` | — | Stripe webhook secret |
-| `STRIPE_BASIC_PRICE_ID` | — | Stripe Price ID for Basic |
-| `STRIPE_PRO_PRICE_ID` | — | Stripe Price ID for Pro |
-| `STRIPE_EXCLUSIVE_PRICE_ID` | — | Stripe Price ID for Exclusive |
-| `TELEGRAM_BOT_TOKEN` | — | Telegram bot token |
-| `TELEGRAM_ADMIN_CHAT_ID` | — | Telegram admin chat ID |
-
-See `.env.example` for the full list.
-
----
-
-## Development Commands
+## Команды
 
 ```bash
-# Development
-npm run dev              # Start Vite dev server with HMR
-npm run build            # Production build (Vite + esbuild)
-npm run start            # Start production server
+npm run dev          # разработка с горячей перезагрузкой
+npm run build        # сборка (Vite + esbuild)
+npm start            # запуск собранного
+```
 
-# Code Quality
-npm run lint             # Run ESLint
-npm run check            # TypeScript type checking
+```bash
+npm run check        # проверка типов
+npm run lint         # линтер
+npm test             # проверки с подсчётом покрытия
+npm run test:db      # проверки против настоящей MySQL
+npm run test:e2e     # сквозные проверки (Playwright)
+```
 
-# Testing
-npm run test             # Run unit tests (Vitest)
-
-# Database
-npm run db:push          # Push schema to database
-npm run db:seed          # Seed demo data (idempotent)
-npm run db:reset         # Clear + re-push + re-seed
+```bash
+npm run db:migrate   # применить миграции
+npm run db:seed      # засеять демонстрационные данные (повторяемо)
+npm run db:studio    # обозреватель базы
 ```
 
 ---
 
-## Project Structure
+## Проверки
+
+| Что | Сколько |
+|---|---|
+| Проверок | 1559 в 135 файлах |
+| Покрытие | 46,9% строк (порог в сборке — 46,5%) |
+| Миграций | 46, все в журнале |
+| Таблиц | 45 |
+| Роутеров tRPC | 40 |
+| Страниц веб-интерфейса | 42 |
+
+Сборка CI состоит из трёх работ:
+
+1. **Основная** — типы, линтер, проверки, сборка.
+2. **С базой** — часть проверок гоняется против настоящей MySQL 8, а не заглушки.
+3. **Сквозная** — Playwright поднимает собранное приложение, входит настоящим пользователем и проверяет по числам, что заказ увеличивает резерв и уменьшает свободный остаток, а платёж уменьшает долг магазина.
+
+Отдельная работа разворачивает **все 46 миграций на пустой базе** — чтобы новое окружение поднималось с нуля, а не только то, что уже работает.
+
+---
+
+## Структура
 
 ```
-web/
-├── api/                    # Hono backend + tRPC routers
-│   ├── auth/               # JWT session management
-│   ├── lib/                # Shared utilities (cache, env, logger, etc.)
-│   ├── services/           # Business logic layer
-│   ├── webhooks/           # External webhook handlers (Stripe, 1C)
-│   ├── cron/               # Scheduled tasks
-│   ├── __tests__/          # API unit tests (27 files, 310 tests)
-│   ├── *-router.ts         # tRPC route handlers (20+ routers)
-│   ├── boot.ts             # Server entry point
-│   ├── context.ts          # tRPC context
-│   └── middleware.ts       # Auth, role, rate-limit middleware
+├── api/                 сервер: Hono + tRPC
+│   ├── services/        бизнес-логика (заказы, склад, долги, KPI)
+│   ├── lib/             общее: журнал, кэш, окружение, проверки
+│   ├── webhooks/        входящие от Stripe и 1С
+│   ├── cron/            задачи по расписанию
+│   ├── *-router.ts      40 роутеров
+│   ├── middleware.ts    арендатор, вход, роли, лимиты
+│   └── boot.ts          точка входа
 ├── db/
-│   ├── schema.ts           # Drizzle table definitions (19 tables)
-│   ├── relations.ts        # Drizzle relation definitions
-│   └── seed.ts             # Demo data (idempotent)
-├── src/                    # React frontend
-│   ├── components/         # Shared UI components
-│   ├── hooks/              # Custom React hooks
-│   ├── i18n/               # Internationalization (ru/uz)
-│   └── pages/              # Page components (36 pages)
-├── contracts/              # Shared types between frontend & backend
-├── Dockerfile              # Multi-stage production build
-├── docker-compose.yml      # Docker Compose (app + MySQL)
-├── vite.config.ts          # Vite build configuration
-├── vitest.config.ts        # Unit test configuration
-├── .env.example            # Environment variable template
-└── package.json
+│   ├── schema.ts        45 таблиц (Drizzle)
+│   ├── migrations/      46 миграций
+│   └── seed.ts          демонстрационные данные
+├── src/                 веб-интерфейс (React)
+│   ├── pages/           42 страницы
+│   ├── components/      общие части интерфейса
+│   └── i18n/            русский и узбекский
+├── e2e/                 сквозные проверки (Playwright)
+├── contracts/           общие типы сервера и интерфейса
+├── docs/                архитектура, развёртывание
+└── Dockerfile
 ```
 
 ---
 
-## Architecture
+## Роли
 
-### Multi-Tenancy
-
-Every database table includes a `tenant_id` column. All queries filter by the authenticated user's tenant, ensuring complete data isolation.
-
-### Middleware Stack
-
-```
-Request → Correlation ID → Tenant Isolation → Global Rate Limit → Auth → Role Guard → Handler
-```
-
-### Role Hierarchy
-
-| Role | Access |
-|------|--------|
-| `superadmin` | All tenants, platform management |
-| `ceo` | Full tenant access, user management, billing |
-| `operator` | Orders, products, shops, stock, arrivals |
-| `supervisor` | Agent tracking, daily plans, reports |
-| `agent` | Own shops, own orders, GPS tracking |
-| `merchandiser` | Visit reports, photo capture |
-| `courier` | Deliveries, GPS tracking |
+| Роль | Что доступно |
+|---|---|
+| `superadmin` | Все компании, управление платформой |
+| `ceo` | Своя компания целиком, сотрудники, оплата |
+| `operator` | Заказы, товары, магазины, склад, приход |
+| `supervisor` | Агенты, планы посещений, отчёты |
+| `agent` | Свои магазины и заказы, GPS |
+| `merchandiser` | Отчёты о визитах, фотофиксация |
+| `courier` | Доставки, GPS |
 
 ---
 
-## Production Deployment
+## Развёртывание
 
-### Railway
+**Railway.** Сервис собирается и выкладывается сам при отправке в `main`. Миграции применяются при запуске образа.
 
-1. Connect GitHub repo `Nightcall7442/Warehouse-Pro` in Railway dashboard
-2. Service auto-deploys on push to `main`
-3. Set environment variables in Railway dashboard
-4. Configure domain: `www.warehouse-pro.uz` → CNAME to Railway
-
-### Docker
+**Docker.**
 
 ```bash
 docker compose up -d
 ```
 
+Подробнее — в [docs/deployment.md](docs/deployment.md).
+
 ---
 
-## License
+## Документация
 
-Private — All rights reserved.
+- [Архитектура](docs/architecture.md) — изоляция арендаторов, деньги, склад
+- [Развёртывание](docs/deployment.md) — окружение, миграции, наблюдение
+- [Участие в разработке](CONTRIBUTING.md) — как устроена работа с кодом
+- [Безопасность](SECURITY.md) — как сообщить об уязвимости
 
+---
+
+## Лицензия
+
+Проприетарная, все права защищены. См. [LICENSE](LICENSE).

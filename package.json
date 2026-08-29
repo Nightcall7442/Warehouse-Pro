@@ -1,7 +1,9 @@
 {
   "name": "warehouse-pro",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "Система управления дистрибуцией для оптовой торговли: склад, полевые агенты, магазины и расчёты в одном контуре.",
+  "license": "UNLICENSED",
   "engines": {
     "node": ">=22.5.0"
   },

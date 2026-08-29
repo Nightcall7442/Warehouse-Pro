@@ -1,0 +1,36 @@
+name: Предложение
+description: Чего не хватает в работе
+labels: ["предложение"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Какую задачу это решает
+      description: >
+        Опишите не решение, а затруднение. «Нужна кнопка выгрузки» — это уже
+        ответ; полезнее знать, что именно приходится делать руками и как часто.
+      placeholder: |
+        Каждое утро оператор сверяет остатки с накладной поставщика вручную,
+        по 40 позиций. Уходит около часа, ошибки замечаем через неделю.
+    validations:
+      required: true
+
+  - type: textarea
+    id: who
+    attributes:
+      label: Кого это касается
+      placeholder: Операторы склада, все компании. Примерно 3 раза в неделю.
+    validations:
+      required: true
+
+  - type: textarea
+    id: now
+    attributes:
+      label: Как обходитесь сейчас
+      description: Если обхода нет — так и напишите.
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: Как это могло бы выглядеть
+      description: Необязательно.

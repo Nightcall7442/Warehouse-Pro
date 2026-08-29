@@ -101,7 +101,7 @@ jobs:
       # (e.g. a missing journal/snapshot file) rather than re-exercising every
       # statement's idempotency — that was verified manually against a
       # database seeded to look like production's untracked history (see
-      # AUDIT_2026-08-01.md) rather than in this CI job, since faking
+      # docs/audit-2026-08-01.md) rather than in this CI job, since faking
       # "schema already matches but migrations were never tracked" reliably
       # here would need scripting drizzle's internal tracking-table format.
       - name: Re-run migrate (should be a fast no-op)
