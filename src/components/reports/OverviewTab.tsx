@@ -4,11 +4,11 @@ import {
   ResponsiveContainer, Legend,
 } from "recharts";
 import type { inferRouterOutputs } from "@trpc/server";
-import { Users, MapPin, ClipboardList, TrendingUp, Activity } from "lucide-react";
+import { Users, MapPin, ClipboardList, TrendingUp, Activity, Package, Store, Award } from "lucide-react";
 import { ProgressRing } from "@/components/ProgressRing";
 import { F, COLORS } from "./report-constants";
 import { KpiCard } from "./ReportKpiCards";
-import { ChartPanel, GlassPanel, PlanCompletion } from "./ReportCharts";
+import { ChartPanel, GlassPanel, PlanCompletion, TopList } from "./ReportCharts";
 import type { AppRouter } from "../../../api/router";
 
 type PlanRow = inferRouterOutputs<AppRouter>["reports"]["getPlanCompletion"][number];
@@ -25,13 +25,17 @@ interface OverviewTabProps {
   summaryLoading: boolean;
   chart: { date: string; visits: number; orders: number }[] | undefined;
   plans: PlanRow[] | undefined;
+  /** Уже готовые ряды со страницы: она грузит их для соседних вкладок. */
+  topProducts: { productName: string; productCode?: string; totalQty: number; totalRevenue: number }[] | undefined;
+  topShops: { name: string; revenue: number }[] | undefined;
+  topAgents: { agentId: number; agentName: string | null; visits: number; orders: number; revenue: number }[] | undefined;
   days: number;
   fmt: (v: string | number, short?: boolean) => string;
   t: (ru: string, uz: string) => string;
 }
 
 export const OverviewTab = memo(function OverviewTab({
-  summary, summaryLoading, chart, plans, days, fmt, t,
+  summary, summaryLoading, chart, plans, topProducts, topShops, topAgents, days, fmt, t,
 }: OverviewTabProps) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
@@ -49,9 +53,13 @@ export const OverviewTab = memo(function OverviewTab({
         </div>
       )}
 
+      {/* Три колонки, график занимает две.
+          Раньше оба блока стояли по одной, и правая треть пустовала всегда —
+          не «пока нечего показать», а при любых данных. */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Chart */}
-        <ChartPanel title={t("Визиты и заказы", "Tashriflar va buyurtmalar")}>
+        <div className="lg:col-span-2">
+          <ChartPanel title={t("Визиты и заказы", "Tashriflar va buyurtmalar")}>
           <ResponsiveContainer width="100%" height={260}>
             <LineChart data={chart ?? []}>
               <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
@@ -63,7 +71,8 @@ export const OverviewTab = memo(function OverviewTab({
               <Line type="monotone" dataKey="orders" stroke="var(--color-success)" strokeWidth={2.5} dot={false} name={t("Заказы", "Buyurtmalar")} />
             </LineChart>
           </ResponsiveContainer>
-        </ChartPanel>
+          </ChartPanel>
+        </div>
 
         {/* Plan completion */}
         <GlassPanel>
@@ -91,6 +100,72 @@ export const OverviewTab = memo(function OverviewTab({
           <PlanCompletion data={plans ?? []} t={t} />
         </GlassPanel>
       </div>
+
+      {/* Три сводки за выбранный период.
+          Данные страница уже загружает для соседних вкладок, так что сеть тут
+          не тратится вовсе — просто перестают простаивать нижние две трети
+          экрана, а частые вопросы («кто продал больше», «что берут», «какой
+          магазин кормит») получают ответ без переключения вкладок.
+          Пятёрка, а не весь список: за подробностями есть свои вкладки. */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <TopPanel icon={<Package size={16} />} title={`${t("Топ товаров", "Top mahsulotlar")} · ${days}${t("д", "k")}`}>
+          <TopList
+            t={t}
+            emptyRu="За период продаж не было" emptyUz="Davr uchun sotuv bo'lmagan"
+            items={(topProducts ?? []).slice(0, 5).map((p, i) => ({
+              key: p.productCode ?? p.productName ?? i,
+              name: p.productName || "—",
+              value: p.totalRevenue,
+              valueLabel: fmt(p.totalRevenue, true),
+              hint: `${fmt(p.totalQty)} ${t("шт", "dona")}`,
+            }))}
+          />
+        </TopPanel>
+
+        <TopPanel icon={<Store size={16} />} title={`${t("Топ магазинов", "Top do'konlar")} · ${days}${t("д", "k")}`}>
+          <TopList
+            t={t}
+            emptyRu="За период продаж не было" emptyUz="Davr uchun sotuv bo'lmagan"
+            items={(topShops ?? []).slice(0, 5).map((s, i) => ({
+              key: s.name ?? i,
+              name: s.name || "—",
+              value: s.revenue,
+              valueLabel: fmt(s.revenue, true),
+            }))}
+          />
+        </TopPanel>
+
+        <TopPanel icon={<Award size={16} />} title={`${t("Лучшие агенты", "Eng yaxshi agentlar")} · ${days}${t("д", "k")}`}>
+          <TopList
+            t={t}
+            emptyRu="Пока нет данных по агентам" emptyUz="Agentlar bo'yicha ma'lumot yo'q"
+            items={(topAgents ?? []).slice(0, 5).map((a, i) => ({
+              key: a.agentId ?? i,
+              name: a.agentName || "—",
+              value: a.revenue,
+              valueLabel: fmt(a.revenue, true),
+              hint: `${a.orders} ${t("заказов", "buyurtma")} · ${a.visits} ${t("визитов", "tashrif")}`,
+            }))}
+          />
+        </TopPanel>
+      </div>
     </div>
   );
 });
+
+/** Заголовок со значком плюс содержимое — та же рамка, что у «Плана сегодня». */
+function TopPanel({ icon, title, children }: {
+  icon: React.ReactNode; title: string; children: React.ReactNode;
+}) {
+  return (
+    <GlassPanel>
+      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
+        <span style={{ color: COLORS.primaryText, display: "flex" }}>{icon}</span>
+        <h2 style={{ fontFamily: F.display, fontSize: "15px", fontWeight: 600, color: COLORS.textPrimary, margin: 0 }}>
+          {title}
+        </h2>
+      </div>
+      {children}
+    </GlassPanel>
+  );
+}

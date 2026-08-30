@@ -1,6 +1,102 @@
 import { memo } from "react";
 import { F, COLORS, SHADOW } from "./report-constants";
 
+export interface TopListItem {
+  key: string | number;
+  name: string;
+  /** Числом — для длины полосы; полоса считается от наибольшего в списке. */
+  value: number;
+  /** Готовая подпись: деньги форматируются вызывающим, он знает валюту. */
+  valueLabel: string;
+  /** Вторая строка под названием: код товара, число заказов и подобное. */
+  hint?: string;
+}
+
+/**
+ * Короткий список «первая пятёрка» с полосой доли.
+ *
+ * ── Зачем понадобился ───────────────────────────────────────────────────────
+ *
+ * На вкладке «Обзор» стояли график и план дня, и всё. Сетка при этом была на
+ * три колонки, а занято было две: треть экрана пустовала всегда, а ниже шла
+ * пустота во всю ширину. Смотреть на цифры приходилось, переключаясь по
+ * вкладкам, хотя данные для короткой сводки страница и так уже загружает.
+ *
+ * ── Почему полоса, а не круговая диаграмма ──────────────────────────────────
+ *
+ * Здесь важно «кто первый и насколько оторвался», а такое сравнение по длине
+ * читается точнее, чем по углу сектора. К тому же круговая теряет смысл на
+ * пяти позициях из сотни: сумма долей ничего не значит, если показано не всё.
+ *
+ * Полоса декоративная: точное значение написано цифрами рядом. Поэтому она
+ * помечена aria-hidden и не мешает читалке.
+ */
+export const TopList = memo(function TopList({ items, t, emptyRu, emptyUz }: {
+  items: TopListItem[];
+  t: (ru: string, uz: string) => string;
+  emptyRu: string;
+  emptyUz: string;
+}) {
+  if (!items.length) return (
+    <p style={{ color: COLORS.textSecondary, fontSize: "13px", textAlign: "center", padding: "24px 0" }}>
+      {t(emptyRu, emptyUz)}
+    </p>
+  );
+
+  // От наибольшего, а не от суммы: показана верхушка, а не всё целое.
+  // Единица в знаменателе — на случай, когда все значения нулевые.
+  const max = Math.max(...items.map(i => i.value), 1);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+      {items.map((item, i) => (
+        <div key={item.key}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: "8px", marginBottom: "6px" }}>
+            <span style={{
+              fontFamily: F.body, fontSize: "11px", fontWeight: 700,
+              color: COLORS.textTertiary, minWidth: "14px",
+            }}>
+              {i + 1}
+            </span>
+            <span style={{
+              flex: 1, minWidth: 0, fontSize: "13px", fontWeight: 500,
+              color: COLORS.textPrimary,
+              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            }} title={item.name}>
+              {item.name}
+            </span>
+            <span style={{
+              fontSize: "13px", fontWeight: 600, color: COLORS.textPrimary,
+              // Цифры в колонку: без этого разряды пляшут от строки к строке.
+              fontVariantNumeric: "tabular-nums",
+            }}>
+              {item.valueLabel}
+            </span>
+          </div>
+          <div aria-hidden style={{
+            height: "4px", borderRadius: "2px", background: COLORS.surfaceLight,
+            marginLeft: "22px", overflow: "hidden",
+          }}>
+            <div style={{
+              width: `${Math.max(2, (item.value / max) * 100)}%`,
+              height: "100%", borderRadius: "2px",
+              background: "var(--color-primary)",
+            }} />
+          </div>
+          {item.hint && (
+            <p style={{
+              fontSize: "11px", color: COLORS.textTertiary,
+              margin: "4px 0 0 22px",
+            }}>
+              {item.hint}
+            </p>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+});
+
 export const ChartPanel = memo(function ChartPanel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div style={{

@@ -62,6 +62,19 @@ export default function Reports() {
   }));
   const agentRows = agents?.map(a => ({ ...a, revenue: Number(a.revenue) }));
 
+  // Пятёрки для «Обзора». Порядок задаётся здесь, а не во вкладке: сортировка —
+  // про данные, вкладка занимается показом. Копия перед sort() не лишняя: он
+  // правит массив на месте, а те же ряды уходят и в другие вкладки, где
+  // порядок свой.
+  const topProductsOverview = topProductRows?.slice().sort((a, b) => b.totalRevenue - a.totalRevenue);
+  // Имя магазина берётся целиком, а не обрезанное до 14 знаков, как в
+  // shopChartData: та обрезка нужна подписи под столбиком диаграммы, а в списке
+  // строка укладывается сама, многоточием, и подсказка показывает полное.
+  const topShopsOverview = byShop
+    ?.map(s => ({ name: s.shopName ?? "—", revenue: Number(s.revenue) }))
+    .sort((a, b) => b.revenue - a.revenue);
+  const topAgentsOverview = agentRows?.slice().sort((a, b) => b.revenue - a.revenue);
+
   const TABS = [
     { key: "overview" as const, ru: "Обзор", uz: "Umumiy", icon: <LayoutDashboard size={16} /> },
     { key: "sales" as const, ru: "Продажи", uz: "Sotuvlar", icon: <ShoppingCart size={16} /> },
@@ -274,6 +287,9 @@ export default function Reports() {
           summaryLoading={summaryLoading}
           chart={chart}
           plans={plans}
+          topProducts={topProductsOverview}
+          topShops={topShopsOverview}
+          topAgents={topAgentsOverview}
           days={days}
           fmt={fmt}
           t={t}
