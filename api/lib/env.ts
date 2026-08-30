@@ -1,5 +1,31 @@
 import "dotenv/config";
+import { randomBytes } from "node:crypto";
 
+/**
+ * Обязательная переменная окружения.
+ *
+ * ── Почему запасное значение случайное ─────────────────────────────────────
+ *
+ * Раньше оно было постоянным: `dev-insecure-app-secret`. Строка лежит в
+ * общедоступном репозитории, а именно ею подписывается сессионный ключ на
+ * тридцать дней. Кто её знает, тот кует действительную сессию для любого
+ * пользователя — достаточно подобрать его номер.
+ *
+ * От рабочей среды защищает выход из процесса ниже, а NODE_ENV=production
+ * зашит и в образ, и в docker-compose, и в команду запуска. Но эта защита —
+ * одно совпадение строки. Приложение, поднятое ВНЕ образа (скажем, node
+ * dist/boot.js под systemd на голом сервере), получает NODE_ENV пустым, и
+ * если APP_SECRET там тоже забыли — подпись сессий идёт общеизвестным
+ * ключом, и предупреждение об этом мелькает один раз при старте.
+ *
+ * Случайное значение убирает саму возможность: общеизвестного ключа больше
+ * не существует. Плата — при перезапуске без APP_SECRET все сессии
+ * разработчика становятся недействительны. Это не помеха, а подсказка
+ * задать переменную: и README, и .env.example об этом просят.
+ *
+ * Приставка dev-insecure сохранена: по ней значение узнаётся в журнале и в
+ * защитных проверках вроде mailer.ts.
+ */
 function required(name: string): string {
   const value = process.env[name];
   if (!value) {
@@ -7,8 +33,11 @@ function required(name: string): string {
       console.error(`[FATAL] Missing required environment variable: ${name}`);
       process.exit(1);
     }
-    console.warn(`[WARN] Missing env var ${name} — using insecure default (dev only)`);
-    return `dev-insecure-${name.toLowerCase().replace(/_/g, "-")}`;
+    console.warn(
+      `[WARN] Нет переменной ${name} — взято случайное значение на этот запуск. ` +
+      "Сессии не переживут перезапуск; задайте переменную в .env.",
+    );
+    return `dev-insecure-${name.toLowerCase().replace(/_/g, "-")}-${randomBytes(24).toString("base64url")}`;
   }
   return value;
 }
