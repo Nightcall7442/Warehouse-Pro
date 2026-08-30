@@ -27,6 +27,14 @@ export const SAFE_IMAGE_TYPES = new Set([
   "image/webp",
   "image/gif",
   "image/avif",
+  // Что снимают настоящие устройства. У формы магазина стоит accept="image/*",
+  // и файл читается как есть, без пережатия: с айфона приходит heic, со
+  // сканера tiff. Отвергать их значило бы сломать загрузку фотографий ради
+  // защиты от того, чего в них нет — сценариев. Опасен здесь ровно SVG.
+  "image/heic",
+  "image/heif",
+  "image/bmp",
+  "image/tiff",
 ]);
 
 const DATA_PREFIX_RE = /^data:([^;,]+);base64,/;

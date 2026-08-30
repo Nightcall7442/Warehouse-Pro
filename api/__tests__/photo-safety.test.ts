@@ -25,6 +25,10 @@ describe("Что принимается в поле фотографии", () =>
     expect(isSafePhotoValue("data:image/png;base64,iVBORw0KGgo=")).toBe(true);
     expect(isSafePhotoValue("data:image/jpeg;base64,/9j/4AAQ")).toBe(true);
     expect(isSafePhotoValue("data:image/webp;base64,UklGRg==")).toBe(true);
+    // С айфона приходит heic, со сканера tiff — у формы магазина стоит
+    // accept="image/*", и файл читается как есть, без пережатия.
+    expect(isSafePhotoValue("data:image/heic;base64,AAAAFGZ0eXA=")).toBe(true);
+    expect(isSafePhotoValue("data:image/tiff;base64,SUkqAA==")).toBe(true);
   });
 
   it("SVG не проходит", () => {
