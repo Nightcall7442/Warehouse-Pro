@@ -1,0 +1,59 @@
+# Настройка AlertManager: куда и как слать тревоги.
+#
+# ── Почему этот файл вообще нужен ────────────────────────────────────────────
+#
+# Служба развёрнута из образа prom/alertmanager без репозитория, и у неё была
+# задана переменная ALERTMANAGER_CONFIG — но стоковый образ такую переменную не
+# читает. AlertManager работал с настройкой по умолчанию, которая никуда не
+# шлёт: процесс жив, тревог никто не получает. Ровно та же ловушка, что была у
+# Prometheus с PROMETHEUS_CONFIG_B64.
+#
+# Поэтому настройка пишется командой запуска. Этот файл — читаемый исходник;
+# однострочник порождается из него скриптом scripts/build-alertmanager-command.mjs.
+#
+# ── Что нужно задать в переменных службы AlertManager ────────────────────────
+#
+#   TELEGRAM_BOT_TOKEN      — токен бота
+#   TELEGRAM_ALERT_CHAT_ID  — числовой идентификатор чата (у групп он со знаком минус)
+#
+# Чат лучше завести отдельный, не тот, куда приложение шлёт обычные
+# уведомления: тревога, потерявшаяся среди сообщений о заказах, бесполезна.
+
+route:
+  receiver: telegram
+
+  # Группировка по имени тревоги: одна авария не должна превращаться в двадцать
+  # сообщений подряд.
+  group_by: ["alertname"]
+
+  # Полминуты на то, чтобы собрать вместе всё, что сломалось разом.
+  group_wait: 30s
+
+  # Если к уже отправленной тревоге добавилось новое — сообщить не раньше чем
+  # через пять минут.
+  group_interval: 5m
+
+  # Повторять напоминание о неустранённой тревоге раз в четыре часа. Чаще —
+  # начнут отключать звук; реже — забудут.
+  repeat_interval: 4h
+
+receivers:
+  - name: telegram
+    telegram_configs:
+      - bot_token: $TELEGRAM_BOT_TOKEN
+        chat_id: $TELEGRAM_ALERT_CHAT_ID
+        parse_mode: HTML
+        send_resolved: true
+        message: |-
+          {{ if eq .Status "firing" }}🔴 <b>{{ .CommonAnnotations.summary }}</b>{{ else }}✅ <b>Всё в порядке: {{ .CommonAnnotations.summary }}</b>{{ end }}
+
+          {{ .CommonAnnotations.description }}
+
+          {{ if eq .Status "firing" }}Началось: {{ (index .Alerts 0).StartsAt.Format "15:04 02.01" }}{{ else }}Прошло: {{ (index .Alerts 0).EndsAt.Format "15:04 02.01" }}{{ end }}
+
+# Гасить предупреждения, когда рядом горит что-то критичное: если приложение
+# не отвечает, сообщать заодно о медленных ответах незачем — причина одна.
+inhibit_rules:
+  - source_matchers: ["severity = critical"]
+    target_matchers: ["severity = warning"]
+    equal: ["alertname"]

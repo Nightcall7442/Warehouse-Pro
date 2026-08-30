@@ -1,0 +1,43 @@
+# Настройка Prometheus.
+#
+# Читаемый исходник. Однострочник для команды запуска в Railway порождается
+# отсюда скриптом scripts/build-observability-commands.mjs — руками его писать
+# не нужно и опасно: именно так эта служба однажды и легла (настройки писались
+# через `echo "…\n…"`, а echo эти \n не разворачивает, и весь файл ложился одной
+# строкой).
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+# Куда слать сработавшие тревоги. Адрес внутренний: службы Railway видят друг
+# друга по имени, наружу это не выходит.
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager.railway.internal:9093
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+scrape_configs:
+  # Сам Prometheus: без этого не видно, если он начнёт задыхаться.
+  - job_name: prometheus
+    static_configs:
+      - targets:
+          - localhost:9090
+
+  # Приложение. Адрес публичный, а не внутренний, — так проще и надёжнее:
+  # внутренняя сеть Railway работает по IPv6, и там легко получить тишину
+  # вместо ошибки. Ключ защищает ручку: без него она отвечает 401.
+  - job_name: warehouse-pro
+    scheme: https
+    metrics_path: /metrics
+    authorization:
+      type: Bearer
+      credentials: $PROMETHEUS_METRICS_TOKEN
+    static_configs:
+      - targets:
+          - www.warehouse-pro.uz
+    scrape_interval: 15s
