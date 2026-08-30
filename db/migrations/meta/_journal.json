@@ -323,6 +323,13 @@
       "when": 1788002421013,
       "tag": "0045_leads",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "5",
+      "when": 1788126028007,
+      "tag": "0046_stock_unique_and_kpi_indexes",
+      "breakpoints": true
     }
   ]
 }
