@@ -19,7 +19,10 @@ export const billingRouter = createRouter({
     if (!tenant) throw new TRPCError({ code: "NOT_FOUND" });
 
     const planKey = tenant.plan as PlanKey;
-    const plan      = PLANS[planKey] ?? PLANS.basic;
+    // Запасной вариант — самый скромный, а не самый дешёвый платный. Сюда
+    // попадают только фирмы с тарифом, которого в наборе нет; выдать такой
+    // лимиты Pro значило бы раздавать их по недосмотру.
+    const plan      = PLANS[planKey] ?? PLANS.trial;
     const now       = new Date();
     const trialEnds = tenant.trialEndsAt;
     const planEnds  = tenant.planExpiresAt;
@@ -78,7 +81,7 @@ export const billingRouter = createRouter({
 
   /** Request upgrade — creates a pending request for super-admin to process */
   requestUpgrade: adminQuery
-    .input(z.object({ plan: z.enum(["basic", "pro", "exclusive"]) }))
+    .input(z.object({ plan: z.enum(["pro", "exclusive"]) }))
     .mutation(async ({ input, ctx }) => {
       // In production: integrate with payment gateway (Payme, Click, Uzum Pay)
       // For now: mark tenant as pending upgrade and notify admin via Telegram

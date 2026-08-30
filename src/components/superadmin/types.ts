@@ -51,7 +51,6 @@ export function planStatus(t: TenantRow): { label: string; color: string } {
 
 export const PLAN_COLORS: Record<string, { fg: string; bg: string }> = {
   trial:     { fg: "#94a3b8",    bg: "rgba(148,163,184,0.12)" },
-  basic:     { fg: "#60a5fa",    bg: "rgba(96,165,250,0.12)" },
   pro:       { fg: "var(--color-success)",    bg: "rgba(74,222,128,0.12)" },
   exclusive: { fg: "#a78bfa",    bg: "rgba(167,139,250,0.12)" },
 };

@@ -11,7 +11,7 @@ interface CreateTenantModalProps {
   onCreated: () => void;
 }
 
-type Plan = "trial" | "basic" | "pro" | "exclusive";
+type Plan = "trial" | "pro" | "exclusive";
 
 export function CreateTenantModal({ onClose, onCreated }: CreateTenantModalProps) {
   const [form, setForm] = useState({ orgName: "", ownerName: "", ownerEmail: "", ownerPassword: "", plan: "trial" as Plan, trialDays: 14 });
@@ -43,7 +43,7 @@ export function CreateTenantModal({ onClose, onCreated }: CreateTenantModalProps
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
             <div>
               <label style={{ fontFamily: F.body, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: COLORS.textTertiary, display: "block", marginBottom: "6px" }}>Тариф</label>
-              <PremiumSelect value={form.plan} onChange={v => setForm(p => ({ ...p, plan: v as Plan }))} options={[{ value: "trial", label: "Trial" }, { value: "basic", label: "Basic" }, { value: "pro", label: "Pro" }, { value: "exclusive", label: "Exclusive" }]} width="100%" />
+              <PremiumSelect value={form.plan} onChange={v => setForm(p => ({ ...p, plan: v as Plan }))} options={[{ value: "trial", label: "Trial" }, { value: "pro", label: "Pro" }, { value: "exclusive", label: "Exclusive" }]} width="100%" />
             </div>
             <Input label="Trial дней" type="number" min="0" max="365" value={String(form.trialDays)} onChange={e => setForm(p => ({ ...p, trialDays: Number(e.target.value) }))} />
           </div>

@@ -78,12 +78,12 @@ function resetTables() {
       id: 1,
       slug: "test-co",
       name: "Test Co",
-      plan: "basic",
+      plan: "pro",
       status: "active",
       trialEndsAt: new Date(Date.now() + 7 * 86_400_000),
       planExpiresAt: null,
-      maxUsers: 5,
-      maxProducts: 50,
+      maxUsers: 20,
+      maxProducts: 100,
       maxOrdersMonth: null,
       ownerEmail: "owner@test.com",
       ownerPhone: "+998901234567",
@@ -218,7 +218,7 @@ function makeCtx(tenantId: number, userId: number, role = "operator"): any {
     req: new Request("http://localhost/"),
     resHeaders: new Headers(),
     user: { id: userId, tenantId, role, status: "active" as const, name: "Test User", email: "t@t.com", passwordHash: "x", avatar: null, phone: null, createdAt: new Date(), updatedAt: new Date(), lastSignInAt: new Date() },
-    tenant: { id: tenantId, slug: "test-co", name: "Test Co", plan: "basic" as const, status: "active" as const, ownerPhone: "+998901234567", ownerEmail: "owner@test.com", createdAt: new Date(), updatedAt: new Date() },
+    tenant: { id: tenantId, slug: "test-co", name: "Test Co", plan: "pro" as const, status: "active" as const, ownerPhone: "+998901234567", ownerEmail: "owner@test.com", createdAt: new Date(), updatedAt: new Date() },
     db: null as unknown,
   };
 }
@@ -229,15 +229,15 @@ beforeEach(() => {
 });
 
 describe("billing.status", () => {
-  it("returns correct plan info for a basic tenant", async () => {
+  it("returns correct plan info for a pro tenant", async () => {
     const { billingRouter } = await import("../billing-router");
     const caller = billingRouter.createCaller(makeCtx(1, 10));
     const result = await caller.status();
 
-    expect(result.plan).toBe("basic");
-    expect(result.planName).toBe("Basic");
-    expect(result.planNameUz).toBe("Basic");
-    expect(result.price).toBe(299000);
+    expect(result.plan).toBe("pro");
+    expect(result.planName).toBe("Pro");
+    expect(result.planNameUz).toBe("Pro");
+    expect(result.price).toBe(599000);
   });
 
   it("returns trialActive: true when trialEndsAt is in the future", async () => {
@@ -253,7 +253,7 @@ describe("billing.status", () => {
   });
 
   it("returns planActive: true when planExpiresAt is in the future", async () => {
-    tenantsTable[0].plan = "basic";
+    tenantsTable[0].plan = "pro";
     tenantsTable[0].trialEndsAt = null;
     tenantsTable[0].planExpiresAt = new Date(Date.now() + 30 * 86_400_000);
 
@@ -265,7 +265,7 @@ describe("billing.status", () => {
     expect(result.trialActive).toBeFalsy();
   });
 
-  it("returns isExpired: true when both dates are past and plan is not basic", async () => {
+  it("returns isExpired: true when both dates are past and plan is not trial", async () => {
     tenantsTable[0].plan = "pro";
     tenantsTable[0].trialEndsAt = new Date("2020-01-01");
     tenantsTable[0].planExpiresAt = new Date("2020-01-01");
@@ -279,8 +279,8 @@ describe("billing.status", () => {
     expect(result.planActive).toBeFalsy();
   });
 
-  it("returns isExpired: true when plan is basic and both dates are past", async () => {
-    tenantsTable[0].plan = "basic";
+  it("returns isExpired: true when plan is pro and both dates are past", async () => {
+    tenantsTable[0].plan = "pro";
     tenantsTable[0].trialEndsAt = new Date("2020-01-01");
     tenantsTable[0].planExpiresAt = new Date("2020-01-01");
 
@@ -303,7 +303,7 @@ describe("billing.status", () => {
   });
 
   it("calculates correct daysLeft for active paid plan", async () => {
-    tenantsTable[0].plan = "basic";
+    tenantsTable[0].plan = "pro";
     tenantsTable[0].trialEndsAt = null;
     tenantsTable[0].planExpiresAt = new Date(Date.now() + 20 * 86_400_000);
 
@@ -315,7 +315,7 @@ describe("billing.status", () => {
   });
 
   it("returns daysLeft: 0 when expired", async () => {
-    tenantsTable[0].plan = "basic";
+    tenantsTable[0].plan = "pro";
     tenantsTable[0].trialEndsAt = new Date("2020-01-01");
     tenantsTable[0].planExpiresAt = new Date("2020-01-01");
 
@@ -364,8 +364,8 @@ describe("billing.status", () => {
     const caller = billingRouter.createCaller(makeCtx(1, 10));
     const result = await caller.status();
 
-    expect(result.limits.maxUsers).toBe(5);
-    expect(result.limits.maxProducts).toBe(50);
+    expect(result.limits.maxUsers).toBe(20);
+    expect(result.limits.maxProducts).toBe(100);
     expect(result.limits.maxOrdersMonth).toBeNull();
   });
 
@@ -374,8 +374,8 @@ describe("billing.status", () => {
     const caller = billingRouter.createCaller(makeCtx(1, 10));
     const result = await caller.status();
 
-    expect(result.plans).toHaveLength(3);
-    expect(result.plans.map((p: { key: string }) => p.key)).toEqual(["basic", "pro", "exclusive"]);
+    expect(result.plans).toHaveLength(2);
+    expect(result.plans.map((p: { key: string }) => p.key)).toEqual(["pro", "exclusive"]);
   });
 
   it("returns trialEndsAt and planExpiresAt from tenant", async () => {
@@ -393,15 +393,15 @@ describe("billing.status", () => {
 });
 
 describe("billing.requestUpgrade", () => {
-  it("returns success with correct message for basic plan", async () => {
+  it("returns success with correct message for pro plan", async () => {
     const { billingRouter } = await import("../billing-router");
     const caller = billingRouter.createCaller(makeCtx(1, 10, "ceo"));
-    const result = await caller.requestUpgrade({ plan: "basic" });
+    const result = await caller.requestUpgrade({ plan: "pro" });
 
     expect(result.success).toBe(true);
-    expect(result.plan).toBe("basic");
-    expect(result.price).toBe(299000);
-    expect(result.message).toContain("Basic");
+    expect(result.plan).toBe("pro");
+    expect(result.price).toBe(599000);
+    expect(result.message).toContain("Pro");
   });
 
   it("returns success with correct message for pro plan", async () => {
@@ -420,7 +420,7 @@ describe("billing.requestUpgrade", () => {
 
     const { billingRouter } = await import("../billing-router");
     const caller = billingRouter.createCaller(makeCtx(1, 10, "ceo"));
-    await caller.requestUpgrade({ plan: "basic" });
+    await caller.requestUpgrade({ plan: "pro" });
 
     expect(tenantsTable[0].updatedAt).not.toEqual(before);
     expect(tenantsTable[0].updatedAt).toBeInstanceOf(Date);
@@ -430,11 +430,11 @@ describe("billing.requestUpgrade", () => {
     const { billingRouter } = await import("../billing-router");
     const { notifyAdmin, tgMessages } = await import("../telegram-router");
     const caller = billingRouter.createCaller(makeCtx(1, 10, "ceo"));
-    await caller.requestUpgrade({ plan: "basic" });
+    await caller.requestUpgrade({ plan: "pro" });
 
     expect(tgMessages.upgradeRequest).toHaveBeenCalledWith(
       "Test Co",
-      "Basic",
+      "Pro",
       expect.any(String),
       "+998901234567",
     );
@@ -445,14 +445,14 @@ describe("billing.requestUpgrade", () => {
     const { billingRouter } = await import("../billing-router");
     const caller = billingRouter.createCaller(makeCtx(1, 10, "operator"));
 
-    await expect(caller.requestUpgrade({ plan: "basic" })).rejects.toThrow();
+    await expect(caller.requestUpgrade({ plan: "pro" })).rejects.toThrow();
   });
 
   it("rejects non-admin roles (agent)", async () => {
     const { billingRouter } = await import("../billing-router");
     const caller = billingRouter.createCaller(makeCtx(1, 10, "agent"));
 
-    await expect(caller.requestUpgrade({ plan: "basic" })).rejects.toThrow();
+    await expect(caller.requestUpgrade({ plan: "pro" })).rejects.toThrow();
   });
 
   it("accepts ceo role", async () => {
@@ -465,12 +465,12 @@ describe("billing.requestUpgrade", () => {
 });
 
 describe("billing.status — usage limits", () => {
-  it("returns basic plan limits from PLANS constant", async () => {
+  it("returns pro plan limits from PLANS constant", async () => {
     const { billingRouter } = await import("../billing-router");
     const caller = billingRouter.createCaller(makeCtx(1, 10));
     const result = await caller.status();
-    expect(result.limits.maxUsers).toBe(5);
-    expect(result.limits.maxProducts).toBe(50);
+    expect(result.limits.maxUsers).toBe(20);
+    expect(result.limits.maxProducts).toBe(100);
     expect(result.limits.maxOrdersMonth).toBeNull();
   });
 
@@ -519,16 +519,29 @@ describe("billing.status — plan comparison", () => {
     expect(result.price).toBe(1_299_000);
   });
 
-  it("pro plan has higher limits than basic", async () => {
+  // Лестница тарифов не должна переворачиваться: следующая ступень не может
+  // давать меньше предыдущей. Сравнивались basic и pro; с уходом basic платных
+  // ступеней осталось две, и та же проверка ставится на них.
+  it("exclusive plan has higher limits than pro", async () => {
     tenantsTable[0].plan = "pro";
 
     const { billingRouter } = await import("../billing-router");
     const caller = billingRouter.createCaller(makeCtx(1, 10));
     const result = await caller.status();
-    const basicPlan = result.plans.find(p => p.key === "basic");
     const proPlan = result.plans.find(p => p.key === "pro");
-    if (!basicPlan || !proPlan) throw new Error("status() must offer both basic and pro");
+    const exclusivePlan = result.plans.find(p => p.key === "exclusive");
+    if (!proPlan || !exclusivePlan) throw new Error("status() must offer both pro and exclusive");
     // A null cap is "unlimited", which outranks any number.
-    expect(proPlan.maxUsers ?? Infinity).toBeGreaterThanOrEqual(basicPlan.maxUsers ?? Infinity);
+    expect(exclusivePlan.maxUsers ?? Infinity).toBeGreaterThanOrEqual(proPlan.maxUsers ?? Infinity);
+  });
+
+  it("убранный тариф basic больше не предлагается", async () => {
+    tenantsTable[0].plan = "pro";
+
+    const { billingRouter } = await import("../billing-router");
+    const caller = billingRouter.createCaller(makeCtx(1, 10));
+    const result = await caller.status();
+
+    expect(result.plans.map(p => p.key)).not.toContain("basic");
   });
 });

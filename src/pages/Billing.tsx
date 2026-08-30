@@ -125,7 +125,7 @@ export default function BillingPage() {
               planName={planName}
               t={t}
               isPending={upgrade.isPending}
-              onSelect={(key) => upgrade.mutate({ plan: key as "basic" | "pro" | "exclusive" })}
+              onSelect={(key) => upgrade.mutate({ plan: key as "pro" | "exclusive" })}
             />
           ))}
         </div>

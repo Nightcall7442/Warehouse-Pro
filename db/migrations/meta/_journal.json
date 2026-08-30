@@ -330,6 +330,13 @@
       "when": 1788126028007,
       "tag": "0046_stock_unique_and_kpi_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "5",
+      "when": 1788127688115,
+      "tag": "0047_drop_basic_plan",
+      "breakpoints": true
     }
   ]
 }

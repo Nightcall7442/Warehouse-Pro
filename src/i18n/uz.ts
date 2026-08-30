@@ -256,7 +256,6 @@ export const uz = {
     title:       "Obuna",
     plan:        "Tarif",
     trial:       "Sinov muddati",
-    basic:       "Asosiy",
     pro:         "Professional",
     perMonth:    "/ oy",
     daysLeft:    "kun qoldi",
