@@ -1020,7 +1020,30 @@ if (env.isProduction) {
   try {
     const { migrate } = await import("drizzle-orm/mysql2/migrator");
     const { getDb } = await import("./queries/connection");
-    await migrate(getDb(), { migrationsFolder: "./db/migrations" });
+    const { withMigrationLock } = await import("./lib/migration-lock");
+    const db = getDb();
+
+    /**
+     * Миграции применяются под общим замком.
+     *
+     * Пока реплика одна, он ничего не меняет. Со второй начинается гонка: при
+     * выкладке обе стартуют разом, обе читают одно состояние журнала миграций
+     * и обе принимаются за один и тот же DDL. Проигравшая получает «Table
+     * already exists», а это здесь означает немедленный выход — и правильно
+     * означает, но выходит она из-за соседа, а не из-за поломки.
+     *
+     * Платформа её перезапустит, и со второй попытки миграции уже применены.
+     * Однако каждая такая выкладка тратит попытки из отведённого числа
+     * перезапусков, а при неудачном стечении их не остаётся вовсе.
+     *
+     * Замок живёт в самой базе (GET_LOCK), а не в Redis: он обязан быть там
+     * же, где данные, которые защищает. Redis необязателен и может быть общим
+     * для нескольких сред.
+     */
+    await withMigrationLock(db.$client as never, async () => {
+      await migrate(db, { migrationsFolder: "./db/migrations" });
+    });
+
     logger.info("database migrations up to date");
     await reportSkippedMigrations();
   } catch (e) {
