@@ -4,6 +4,7 @@ import { products, shops } from "@db/schema";
 import { getDb } from "./queries/connection";
 import { authenticateRequest } from "./auth";
 import { isAppError } from "@contracts/errors";
+import { SAFE_IMAGE_TYPES } from "./lib/photo-value";
 
 /**
  * Photo delivery for entities whose photo is stored in the database as a base64
@@ -18,6 +19,53 @@ const photos = new Hono();
 
 const DATA_URL_RE = /^data:(image\/[\w.+-]+);base64,([\s\S]+)$/;
 const CACHE_HEADER = "private, max-age=604800, immutable";
+
+/**
+ * Типы, которые можно отдавать как изображение.
+ *
+ * Тип брался прямо из сохранённой строки данных, а выражение выше пропускает
+ * что угодно вида image/*, включая image/svg+xml. SVG — документ со
+ * сценариями: открытый по прямой ссылке с нашего домена, он выполняет их в
+ * нашем происхождении, со всеми куками. Внутри тега img он безопасен, но
+ * ссылку на фотографию можно открыть и отдельной вкладкой.
+ *
+ * Список белый, а не чёрный: новый опасный тип не должен проходить сам собой.
+ */
+// Список живёт в api/lib/photo-value.ts — он же проверяет вход.
+
+/**
+ * Куда позволено переадресовывать.
+ *
+ * Фотография, уже лежащая в хранилище, отдавалась переадресацией на
+ * сохранённый адрес — любой. А само поле пишется без проверки формата: в
+ * правке магазина оно ограничено только длиной. То есть ручка вида
+ * /api/photos/product/123 на нашем домене уводила посетителя куда угодно.
+ * Такую ссылку удобно вставлять в письма: она начинается с настоящего адреса
+ * системы, и человек ей верит.
+ *
+ * Разрешён единственный хост — тот, куда выкладываем сами. Не настроено
+ * хранилище — переадресации нет вовсе.
+ */
+function allowedRedirectHost(): string | null {
+  const bucket = process.env.S3_BUCKET;
+  if (!bucket) return null;
+  const region = process.env.S3_REGION || "us-east-1";
+  return bucket + ".s3." + region + ".amazonaws.com";
+}
+
+export function isAllowedPhotoTarget(raw: string): boolean {
+  const host = allowedRedirectHost();
+  if (!host) return false;
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return false;
+  }
+  // Только https и только наш хост. Сравнение точное: ни evil-bucket.s3...,
+  // ни bucket.s3.amazonaws.com.evil.com пройти не должны.
+  return url.protocol === "https:" && url.hostname === host;
+}
 
 async function serve(
   c: Context,
@@ -63,15 +111,27 @@ async function serve(
   if (!photoUrl) return c.json({ error: "Not Found" }, 404);
 
   // Already hosted elsewhere (S3) — send the client straight there.
-  if (!photoUrl.startsWith("data:")) return c.redirect(photoUrl, 302);
+  if (!photoUrl.startsWith("data:")) {
+    if (!isAllowedPhotoTarget(photoUrl)) return c.json({ error: "Not Found" }, 404);
+    return c.redirect(photoUrl, 302);
+  }
 
   const match = DATA_URL_RE.exec(photoUrl);
   if (!match) return c.json({ error: "Not Found" }, 404);
 
   const body = Buffer.from(match[2].replace(/\s/g, ""), "base64");
+  const contentType = match[1].toLowerCase();
+  if (!SAFE_IMAGE_TYPES.has(contentType)) return c.json({ error: "Not Found" }, 404);
+
   return c.body(body, 200, {
-    "Content-Type":  match[1],
+    "Content-Type":  contentType,
     "Cache-Control": CACHE_HEADER,
+    // Браузер не должен угадывать тип по содержимому: без этого он способен
+    // счесть разметкой то, что мы объявили картинкой.
+    "X-Content-Type-Options": "nosniff",
+    // Ответ ничего не подгружает и ничего не выполняет, даже если внутрь
+    // однажды попадёт не то, что мы думаем.
+    "Content-Security-Policy": "default-src 'none'; sandbox",
   });
 }
 

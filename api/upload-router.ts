@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isSafePhotoValue, PHOTO_VALUE_ERROR } from "./lib/photo-value";
 import { createRouter, authedQuery } from "./middleware";
 import { env } from "./lib/env";
 
@@ -31,7 +32,7 @@ export const uploadRouter = createRouter({
    *  Falls back to returning the dataUrl directly if S3 is not configured. */
   file: authedQuery
     .input(z.object({
-      dataUrl: z.string().refine((val) => val.startsWith("data:image/") || val.startsWith("http://") || val.startsWith("https://"), "Неверный формат изображения (data URL или HTTP/HTTPS URL)").max(5_000_000, "Макс. 4 МБ"),
+      dataUrl: z.string().refine(isSafePhotoValue, PHOTO_VALUE_ERROR).max(5_000_000, "Макс. 4 МБ"),
       folder: z.enum(["products", "shops", "avatars", "visits"]).default("products"),
     }))
     .mutation(async ({ input, ctx }) => {

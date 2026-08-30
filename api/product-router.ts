@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isSafePhotoValue, PHOTO_VALUE_ERROR } from "./lib/photo-value";
 import { createRouter, operatorQuery, fieldSalesQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { products, warehouseStock, stockMovements, warehouses } from "@db/schema";
@@ -408,7 +409,11 @@ export const productRouter = createRouter({
   uploadPhoto: operatorQuery
     .input(z.object({
       productId: z.number(),
-      dataUrl: z.string().refine((val) => val.startsWith("data:image/") || val.startsWith("http://") || val.startsWith("https://"), "Неверный формат изображения (data URL или HTTP/HTTPS URL)").max(5_000_000, "Файл слишком большой (макс. 4 МБ)"),
+      // Прежняя проверка пропускала любой подтип data:image/ (в том числе
+      // svg+xml) и обычный http.
+      dataUrl: z.string()
+        .max(5_000_000, "Файл слишком большой (макс. 4 МБ)")
+        .refine(isSafePhotoValue, PHOTO_VALUE_ERROR),
     }))
     .mutation(async ({ input, ctx }) => {
       try {

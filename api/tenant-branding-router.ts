@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isSafePhotoValue, PHOTO_VALUE_ERROR } from "./lib/photo-value";
 import { createRouter, authedQuery, adminQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { tenantBranding } from "@db/schema";
@@ -154,7 +155,7 @@ export const tenantBrandingRouter = createRouter({
   /** Upload logo (stores as data URL or S3 URL) */
   uploadLogo: adminQuery
     .input(z.object({
-      dataUrl: z.string().refine((val) => val.startsWith("data:image/") || val.startsWith("http://") || val.startsWith("https://"), "Неверный формат изображения (data URL или HTTP/HTTPS URL)").max(5_000_000, "Файл слишком большой (макс. 4 МБ)"),
+      dataUrl: z.string().refine(isSafePhotoValue, PHOTO_VALUE_ERROR).max(5_000_000, "Файл слишком большой (макс. 4 МБ)"),
     }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();

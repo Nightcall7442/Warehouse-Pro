@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isSafePhotoValue, PHOTO_VALUE_ERROR } from "./lib/photo-value";
 import { createRouter, operatorQuery, supervisorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { shops, users, orders, payments, territories } from "@db/schema";
@@ -190,7 +191,7 @@ export const shopRouter = createRouter({
       address:  z.string().optional(),
       city:     z.string().optional(),
       district: z.string().optional(),
-      photoUrl: z.string().max(2_800_000, "Файл слишком большой (макс. 2 МБ)").optional(),
+      photoUrl: z.string().max(2_800_000, "Файл слишком большой (макс. 2 МБ)").refine(isSafePhotoValue, PHOTO_VALUE_ERROR).optional(),
       gpsLat:   z.preprocess(v => (v === "" ? undefined : v), z.string().optional()),
       gpsLng:   z.preprocess(v => (v === "" ? undefined : v), z.string().optional()),
       telegramLink: z.string().optional(),
@@ -262,7 +263,7 @@ export const shopRouter = createRouter({
       address:  z.string().optional(),
       city:     z.string().optional(),
       district: z.string().optional(),
-      photoUrl: z.string().max(2_800_000, "Файл слишком большой (макс. 2 МБ)").nullable().optional(),
+      photoUrl: z.string().max(2_800_000, "Файл слишком большой (макс. 2 МБ)").refine(isSafePhotoValue, PHOTO_VALUE_ERROR).nullable().optional(),
       gpsLat:   z.preprocess(v => (v === "" ? undefined : v), z.string().optional()),
       gpsLng:   z.preprocess(v => (v === "" ? undefined : v), z.string().optional()),
       agentId:  z.number().optional(),
@@ -353,7 +354,7 @@ export const shopRouter = createRouter({
   uploadPhoto: operatorQuery
     .input(z.object({
       shopId:  z.number(),
-      dataUrl: z.string().refine((val) => val.startsWith("data:image/") || val.startsWith("http://") || val.startsWith("https://"), "Неверный формат изображения (data URL или HTTP/HTTPS URL)").max(5_000_000, "Файл слишком большой (макс. 4 МБ)"),
+      dataUrl: z.string().refine(isSafePhotoValue, PHOTO_VALUE_ERROR).max(5_000_000, "Файл слишком большой (макс. 4 МБ)"),
     }))
     .mutation(async ({ input, ctx }) => {
       const { env } = await import("./lib/env");

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isSafePhotoValue, PHOTO_VALUE_ERROR } from "./lib/photo-value";
 import { TRPCError } from "@trpc/server";
 import { createRouter, fieldSalesQuery, merchVisitQuery, supervisorQuery, authedQuery } from "./middleware";
 import { getDb } from "./queries/connection";
@@ -574,7 +575,15 @@ export const agentRouter = createRouter({
 
   // ── Visit Photo Proof ───────────────────────────────────────────────────────
   saveVisitPhoto: merchVisitQuery
-    .input(z.object({ planId: z.number(), photoUrl: z.string().url().or(z.string().startsWith("data:image/")).refine(v => v.length <= 5_000_000, "Файл слишком большой (макс. 5 МБ)"), notes: z.string().optional() }))
+    // Как и загрузка фото магазина, эта ручка открыта роли агента, а
+    // принимала любой адрес и любой подтип data:image/.
+    .input(z.object({
+      planId: z.number(),
+      photoUrl: z.string()
+        .refine(v => v.length <= 5_000_000, "Файл слишком большой (макс. 5 МБ)")
+        .refine(isSafePhotoValue, PHOTO_VALUE_ERROR),
+      notes: z.string().optional(),
+    }))
     .mutation(async ({ input, ctx }) => {
       const isPrivileged = ["ceo", "supervisor", "superadmin"].includes(ctx.user.role);
       const conditions = [
@@ -912,7 +921,14 @@ export const agentRouter = createRouter({
 
   // Мобильное приложение: агент загружает фото ТОЛЬКО своего магазина
   uploadMyShopPhoto: fieldSalesQuery
-    .input(z.object({ shopId: z.number(), dataUrl: z.string().url().or(z.string().startsWith("data:image/")).refine(v => v.length <= 2_800_000, "Файл слишком большой (макс. 2 МБ)") }))
+    // Раньше здесь стояло z.string().url() — то есть ЛЮБОЙ адрес, и любой
+    // подтип data:image/, включая svg+xml. Ручка открыта роли агента.
+    .input(z.object({
+      shopId: z.number(),
+      dataUrl: z.string()
+        .refine(v => v.length <= 2_800_000, "Файл слишком большой (макс. 2 МБ)")
+        .refine(isSafePhotoValue, PHOTO_VALUE_ERROR),
+    }))
     .mutation(async ({ input, ctx }) => {
       await getDb().update(shops).set({ photoUrl: input.dataUrl })
         .where(and(eq(shops.id, input.shopId), eq(shops.tenantId, ctx.tenant.id), eq(shops.agentId, ctx.user.id)));
