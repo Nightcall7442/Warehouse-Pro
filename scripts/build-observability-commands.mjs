@@ -66,6 +66,7 @@ function prepare(name) {
 const prometheus = prepare("prometheus.yml");
 const alerts = prepare("alerts.yml");
 const alertmanager = prepare("alertmanager.yml");
+const loki = prepare("loki.yml");
 
 const promCommand =
   `sh -c 'printf "%b" "${prometheus}" > /etc/prometheus/prometheus.yml && ` +
@@ -77,6 +78,19 @@ const amCommand =
   `sh -c 'printf "%b" "${alertmanager}" > /etc/alertmanager/alertmanager.yml && ` +
   `exec /bin/alertmanager --config.file=/etc/alertmanager/alertmanager.yml ` +
   `--storage.path=/alertmanager --web.listen-address=:9093'`;
+
+const lokiCommand =
+  `sh -c 'printf "%b" "${loki}" > /etc/loki/loki.yml && ` +
+  `exec /usr/bin/loki -config.file=/etc/loki/loki.yml'`;
+
+console.log("─".repeat(78));
+console.log("loki-railway → Settings → Deploy → Custom Start Command");
+console.log(`(${lokiCommand.length} знаков)`);
+console.log("ВАЖНО: сперва переключить Source на образ grafana/loki:latest");
+console.log("       и добавить переменную RAILWAY_RUN_UID=0 — иначе том не запишется");
+console.log("─".repeat(78));
+console.log(lokiCommand);
+console.log();
 
 console.log("─".repeat(78));
 console.log("Prometheus-KmLc → Settings → Deploy → Custom Start Command");
