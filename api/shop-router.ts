@@ -147,10 +147,40 @@ export const shopRouter = createRouter({
           .limit(pageSize)
           .offset(offset)
           .orderBy(orderBy),
-        db.select({ count: sql<number>`count(*)` }).from(shops).where(where),
+        // Сводка считается здесь, а не на клиенте.
+        //
+        // Карточки наверху страницы («активные», «с долгом», «общий долг»)
+        // складывались из data — то есть из ОДНОЙ страницы в 25 магазинов, при
+        // том что «всего магазинов» рядом показывало настоящее число с сервера.
+        // Получалась карточка, которая уверенно называет сумму долга по всей
+        // сети, а на деле сложила первые двадцать пять строк: чем дальше
+        // листаешь, тем другие числа. Незаметно ровно до того момента, когда по
+        // ним примут решение.
+        //
+        // Отдельного запроса это не стоит: те же условия, тот же проход, что и
+        // у count(*), просто с тремя дополнительными столбцами.
+        db.select({
+          count:       sql<number>`count(*)`,
+          activeCount: sql<number>`SUM(CASE WHEN ${shops.status} = 'active' THEN 1 ELSE 0 END)`,
+          debtCount:   sql<number>`SUM(CASE WHEN CAST(${shops.debt} AS DECIMAL(15,2)) > 0 THEN 1 ELSE 0 END)`,
+          totalDebt:   sql<string>`COALESCE(SUM(CAST(${shops.debt} AS DECIMAL(15,2))), 0)`,
+        }).from(shops).where(where),
       ]);
 
-      return { data, total: Number(countResult[0]?.count ?? 0), page, pageSize };
+      const итоги = countResult[0];
+      return {
+        data,
+        total: Number(итоги?.count ?? 0),
+        // Number() обязателен: MySQL отдаёт SUM по DECIMAL строкой, и без
+        // приведения «общий долг» сложился бы склейкой строк.
+        totals: {
+          activeCount: Number(итоги?.activeCount ?? 0),
+          debtCount:   Number(итоги?.debtCount ?? 0),
+          totalDebt:   Number(итоги?.totalDebt ?? 0),
+        },
+        page,
+        pageSize,
+      };
       });
     }),
 

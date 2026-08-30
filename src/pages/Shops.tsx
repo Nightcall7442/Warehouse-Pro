@@ -97,14 +97,16 @@ export default function Shops() {
   });
   const { confirm, dialog } = useConfirm();
 
-  const kpiStats = useMemo<ShopKpiStats>(() => {
-    const shops = data?.data ?? [];
-    const total = data?.total ?? 0;
-    const activeCount = shops.filter((s) => s.status === "active").length;
-    const debtCount = shops.filter((s) => Number(s.debt ?? 0) > 0).length;
-    const totalDebt = shops.reduce((sum: number, s) => sum + Number(s.debt ?? 0), 0);
-    return { total, activeCount, debtCount, totalDebt };
-  }, [data]);
+  // Всё четыре числа приходят с сервера и считаются по всем магазинам, какие
+  // попали под фильтры, — а не по видимой странице. Раньше «всего» было
+  // серверным, а три остальных складывались из data, то есть из 25 строк: долг
+  // по сети выходил долгом первой страницы и менялся при листании.
+  const kpiStats = useMemo<ShopKpiStats>(() => ({
+    total:       data?.total ?? 0,
+    activeCount: data?.totals?.activeCount ?? 0,
+    debtCount:   data?.totals?.debtCount ?? 0,
+    totalDebt:   data?.totals?.totalDebt ?? 0,
+  }), [data]);
 
   const allVisibleIds = useMemo(() => (data?.data ?? []).map((s) => s.id as number), [data]);
   const allSelected = allVisibleIds.length > 0 && allVisibleIds.every(id => selected.has(id));

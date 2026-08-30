@@ -56,6 +56,10 @@ export function ShopFilters({ lang, search, setSearch, viewMode, setViewMode, ag
 
       <button
         onClick={() => { setOnlyDebtors(!onlyDebtors); setPage(1); }}
+        // Это переключатель, а не действие. Без aria-pressed читалка объявляет
+        // его одинаково во включённом и выключенном виде, и на слух фильтр
+        // неотличим от обычной кнопки.
+        aria-pressed={onlyDebtors}
         style={{
           display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
           fontSize: "13px", fontWeight: 600, borderRadius: "10px", cursor: "pointer",
