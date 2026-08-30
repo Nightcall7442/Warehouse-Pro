@@ -50,7 +50,7 @@ export function ShopFilters({ lang, search, setSearch, viewMode, setViewMode, ag
       </div>
       {viewMode === "list" && agents.length > 0 && (
         <PremiumSelect value={agentFilter ?? ""} onChange={v => { setAgentFilter(v || undefined); setPage(1); }}
-          options={[{ value: "", label: t("Все агенты", "Barcha agentlar"), ...(agents ?? []).map((a: { id: number; name: string }) => ({ value: String(a.id), label: a.name })) }]}
+                    options={[{ value: "", label: t("Все агенты", "Barcha agentlar") }, ...(agents ?? []).map((a: { id: number; name: string }) => ({ value: String(a.id), label: a.name }))]}
           width="180px" />
       )}
 
