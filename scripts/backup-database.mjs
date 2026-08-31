@@ -33,7 +33,7 @@
 
 import { spawn } from "node:child_process";
 import { createReadStream, createWriteStream } from "node:fs";
-import { mkdir, readdir, rm, stat } from "node:fs/promises";
+import { mkdir, readdir, rm, stat, appendFile } from "node:fs/promises";
 import { createGzip } from "node:zlib";
 import { pipeline } from "node:stream/promises";
 import { homedir } from "node:os";
@@ -136,6 +136,8 @@ if (беды.length) {
   console.error("\nДамп не прошёл проверку:");
   беды.forEach(б => console.error(`  • ${б}`));
   console.error("Файл оставлен для разбора:", сырой);
+  await appendFile(join(каталог, "backup.log"), `${new Date().toISOString()}  СБОЙ  ${беды.join("; ")}
+`, "utf8").catch(() => {});
   process.exit(1);
 }
 
@@ -166,3 +168,15 @@ console.log(`  ${мб(размер)} МБ → ${мб(сжатыйРазмер)} 
 console.log(`  копий в каталоге: ${Math.min(все.length, хранить)}, удалено старых: ${лишние.length}`);
 console.log(`\nВосстановление:`);
 console.log(`  gzip -dc "${сжатый}" | mysql <строка-подключения>`);
+
+// Строка в журнал рядом с копиями.
+//
+// По расписанию скрипт выполняется без окна, и весь вывод выше уходит в
+// никуда. Журнал — единственное место, где потом видно, снималась копия или
+// молча не снималась. Пишется он здесь, а не в обёртке: обёртка у разных
+// способов запуска разная, а скрипт один.
+await appendFile(
+  join(каталог, "backup.log"),
+  `${new Date().toISOString()}  ok  ${мб(сжатыйРазмер)} МБ  таблиц ${таблиц}  ${сжатый}\n`,
+  "utf8",
+).catch(() => {});
