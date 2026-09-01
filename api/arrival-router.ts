@@ -6,6 +6,7 @@ import { sanitizeString } from "./lib/sanitize";
 import { decimalOrDefault } from "./lib/zod-decimal";
 import { sseBus } from "./lib/sse";
 import { recordStockMovement } from "./services/stock-ledger";
+import { arrivalSupplyColumns } from "./supplier-router";
 
 type ArrivalItemRow = {
   id:           number;
@@ -44,11 +45,27 @@ export const arrivalRouter = createRouter({
           fuelCost: arrivals.fuelCost, tollCost: arrivals.tollCost, otherCost: arrivals.otherCost,
           totalExpense: arrivals.totalExpense, arrivalDate: arrivals.arrivalDate,
           arrivalTime: arrivals.arrivalTime, createdAt: arrivals.createdAt,
+          ...arrivalSupplyColumns,
         }).from(arrivals).where(where).limit(pageSize).offset(offset).orderBy(desc(arrivals.createdAt)),
         db.select({ count: sql<number>`count(*)` }).from(arrivals).where(where),
       ]);
 
-      return { data, total: Number(countResult[0]?.count ?? 0), page, pageSize };
+      // Приход без поставщика — обычное дело, и подзапросы вернут по нему
+      // NULL. Здесь это превращается в null и 0, чтобы клиенту не приходилось
+      // отличать «поставщика нет» от «сумма не посчиталась».
+      const withMoney = data.map(a => {
+        const supplyAmount = a.supplyAmount == null ? null : Number(a.supplyAmount);
+        const supplyPaid   = a.supplyAmount == null ? null : Number(a.supplyPaid ?? 0);
+        return {
+          ...a,
+          goodsTotal:   Number(a.goodsTotal ?? 0),
+          supplyAmount,
+          supplyPaid,
+          supplyDebt:   supplyAmount == null ? null : Math.round((supplyAmount - (supplyPaid ?? 0)) * 100) / 100,
+        };
+      });
+
+      return { data: withMoney, total: Number(countResult[0]?.count ?? 0), page, pageSize };
     }),
 
   getById: operatorQuery

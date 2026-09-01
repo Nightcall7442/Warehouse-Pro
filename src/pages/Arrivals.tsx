@@ -17,9 +17,14 @@ import { PremiumSelect } from "@/components/PremiumSelect";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { formatQty } from "@/lib/format";
+import { CounterpartiesSection } from "@/components/counterparties";
+import { useUrlState, urlEnum } from "@/hooks/useUrlState";
 import { colorMix } from "@/lib/color-mix";
 
 type ArrivalCreateInput = inferRouterInputs<AppRouter>["arrival"]["create"];
+
+/** Вкладка живёт в адресе: ссылку на раздел долгов можно переслать. */
+const TAB_CODEC = urlEnum(["arrivals", "counterparties"] as const, "arrivals");
 
 const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
 const COLORS = {
@@ -713,6 +718,7 @@ export default function Arrivals() {
   const [status, setStatus] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [detailId, setDetailId] = useState<number | null>(null);
+  const [tab, setTab] = useUrlState("tab", "arrivals" as const, TAB_CODEC);
   const { fmt } = useCurrency();
   const { lang } = useLang();
   const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);
@@ -740,8 +746,13 @@ export default function Arrivals() {
     const total = arrivals.length;
     const totalExpenses = arrivals.reduce((s, a) => s + Number(a.totalExpense ?? 0), 0);
     const completed = arrivals.filter((a) => a.status === "completed").length;
-    const pending = arrivals.filter((a) => a.status === "pending").length;
-    return { total, totalExpenses, completed, pending };
+    // Долг считается только по суммовым поставкам: складывать их с
+    // долларовыми в одно число нельзя, а долларовые встречаются редко и
+    // видны в разделе контрагентов отдельной строкой.
+    const supplierDebt = arrivals
+      .filter((a) => a.supplyCurrency === "UZS")
+      .reduce((s, a) => s + Number(a.supplyDebt ?? 0), 0);
+    return { total, totalExpenses, completed, supplierDebt };
   }, [arrivals]);
 
   const thStyle: React.CSSProperties = {
@@ -784,10 +795,13 @@ export default function Arrivals() {
             {t("Приходы", "Kelishlar")}
           </h1>
           <p style={{ fontSize: "13px", color: COLORS.textSecondary, margin: "4px 0 0" }}>
-            {t("Поступление товаров на склад", "Omborga mahsulot kelishi")}
+            {tab === "counterparties"
+              ? t("Расчёты с поставщиками и задолженность", "Yetkazib beruvchilar bilan hisob-kitob va qarzdorlik")
+              : t("Поступление товаров на склад", "Omborga mahsulot kelishi")}
           </p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          {tab === "arrivals" && <>
           <button onClick={async () => all?.data && await exportToExcel(formatArrivalsForExport(all.data), "arrivals")} style={{
             display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
             fontSize: "13px", fontWeight: 500, fontFamily: F.body, borderRadius: "10px",
@@ -801,9 +815,43 @@ export default function Arrivals() {
           }}>
             <Plus size={15} /> {t("Новый приход", "Yangi kelish")}
           </button>
+          </>}
         </div>
       </div>
 
+      {/* Вкладки раздела.
+          Долг перед заводом рождается в момент прихода товара и гасится
+          оттуда же — поэтому расчёты с контрагентами живут здесь же, соседней
+          вкладкой, а не отдельным пунктом меню, между которыми оператору
+          пришлось бы ходить. */}
+      <div style={{ display: "flex", gap: "4px", borderBottom: `1px solid ${COLORS.border}` }}>
+        {([
+          { key: "arrivals" as const,       label: t("Приходы", "Kelishlar") },
+          { key: "counterparties" as const, label: t("Контрагенты и долги", "Kontragentlar va qarzlar") },
+        ]).map(x => (
+          <button
+            key={x.key}
+            data-testid={`arrivals-tab-${x.key}`}
+            onClick={() => setTab(x.key)}
+            style={{
+              padding: "12px 18px", border: "none", background: "none", cursor: "pointer",
+              fontFamily: F.body, fontSize: "14px",
+              fontWeight: tab === x.key ? 700 : 500,
+              color: tab === x.key ? COLORS.primaryText : COLORS.textSecondary,
+              borderBottom: `2px solid ${tab === x.key ? "var(--color-primary)" : "transparent"}`,
+              marginBottom: "-1px",
+            }}
+          >
+            {x.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Раздел монтируется только когда выбран: пока открыты приходы, ни один
+          его запрос не уходит на сервер. */}
+      {tab === "counterparties" && <CounterpartiesSection />}
+
+      {tab === "arrivals" && <>
       {/* KPI Cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
         <KpiCard
@@ -831,8 +879,8 @@ export default function Arrivals() {
           delay={0.1}
         />
         <KpiCard
-          label={t("ОЖИДАНИЕ", "KUTILMOQDA")}
-          value={String(kpis.pending)}
+          label={t("ДОЛГ ПОСТАВЩИКАМ", "YETKAZUVCHILARGA QARZ")}
+          value={fmt(kpis.supplierDebt)}
           delta={null}
           icon={<Clock size={20} color="#fff" />}
           gradient="linear-gradient(135deg, #e07b39, #e07b39)"
@@ -860,23 +908,39 @@ export default function Arrivals() {
         <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
           <thead>
             <tr>
-              {[t("ПРИХОД", "KELISH"), t("ДАТА", "SANA"), t("МАШИНА", "MASHINA"), t("ВОДИТЕЛЬ", "HAYDOVCHI"), t("РАСХОДЫ", "XARAJAT"), t("СТАТУС", "HOLAT")].map(h => (
+              {[t("ПРИХОД", "KELISH"), t("ДАТА", "SANA"), t("ПОСТАВЩИК", "YETKAZUVCHI"), t("СУММА", "SUMMA"), t("ОПЛАЧЕНО", "TO'LANGAN"), t("ОСТАТОК", "QOLDIQ"), t("СТАТУС", "HOLAT")].map(h => (
                 <th key={h} style={thStyle}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {isLoading ? Array.from({ length: 5 }).map((_, i) => (
-              <tr key={i}><td colSpan={6} style={{ padding: "16px" }}><div style={{ height: 16, background: COLORS.surfaceLight, borderRadius: 8, width: "60%" }} /></td></tr>
+              <tr key={i}><td colSpan={7} style={{ padding: "16px" }}><div style={{ height: 16, background: COLORS.surfaceLight, borderRadius: 8, width: "60%" }} /></td></tr>
             )) : arrivals.length === 0 ? (
-              <tr><td colSpan={6} style={{ textAlign: "center", padding: "48px 16px", color: COLORS.textTertiary, fontSize: "14px" }}>{t("Нет приходов", "Kelishlar yo'q")}</td></tr>
+              <tr><td colSpan={7} style={{ textAlign: "center", padding: "48px 16px", color: COLORS.textTertiary, fontSize: "14px" }}>{t("Нет приходов", "Kelishlar yo'q")}</td></tr>
             ) : arrivals.map((a) => (
               <tr key={a.id} style={{ transition: "background 0.15s", cursor: "pointer" }} onClick={() => setDetailId(a.id)} onMouseEnter={e => (e.currentTarget.style.background = "color-mix(in srgb, var(--color-primary) 2%, transparent)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
                 <td style={{ ...tdStyle, fontWeight: 500 }}>{a.arrivalNumber}</td>
                 <td style={{ ...tdStyle, color: COLORS.textSecondary }}>{a.arrivalDate ? format(new Date(a.arrivalDate), "dd.MM.yyyy") : "—"}</td>
-                <td style={{ ...tdStyle, color: COLORS.textSecondary }}>{a.truckId ?? "—"}</td>
-                <td style={{ ...tdStyle, color: COLORS.textSecondary }}>{a.driverName ?? "—"}</td>
-                <td style={{ ...tdStyle, fontWeight: 600 }}>{fmt(a.totalExpense ?? 0)}</td>
+                <td style={{ ...tdStyle, color: COLORS.textSecondary }}>
+                  {a.supplierName ?? "—"}
+                  {a.truckId && <div style={{ fontSize: "11px", color: COLORS.textTertiary }}>{a.truckId}</div>}
+                </td>
+                <td style={{ ...tdStyle, fontWeight: 600, whiteSpace: "nowrap" }}>
+                  {a.supplyAmount == null
+                    ? <span style={{ color: COLORS.textTertiary, fontWeight: 400 }}>—</span>
+                    : `${Number(a.supplyAmount).toLocaleString("ru-RU")} ${a.supplyCurrency}`}
+                </td>
+                <td style={{ ...tdStyle, whiteSpace: "nowrap", color: "var(--color-success-text)" }}>
+                  {a.supplyPaid == null
+                    ? <span style={{ color: COLORS.textTertiary }}>—</span>
+                    : `${Number(a.supplyPaid).toLocaleString("ru-RU")} ${a.supplyCurrency}`}
+                </td>
+                <td style={{ ...tdStyle, whiteSpace: "nowrap", fontWeight: 700, color: Number(a.supplyDebt ?? 0) > 0 ? COLORS.danger : COLORS.textTertiary }}>
+                  {a.supplyDebt == null
+                    ? <span style={{ fontWeight: 400 }}>—</span>
+                    : `${Number(a.supplyDebt).toLocaleString("ru-RU")} ${a.supplyCurrency}`}
+                </td>
                 <td style={{ borderBottom: `1px solid ${COLORS.border}` }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <StatusBadge status={a.status ?? "pending"} lang={lang as "ru" | "uz"} />
@@ -909,6 +973,8 @@ export default function Arrivals() {
           </div>
         </div>
       )}
+
+      </>}
 
       {/* Detail Modal */}
       {detailId && <ArrivalDetail arrivalId={detailId} onClose={() => setDetailId(null)} />}
