@@ -272,8 +272,8 @@ export function printUzWaybill(data: OrderDocData) {
             <th>Наименование товара</th>
             <th style="width:8%">Ед.изм.</th>
             <th style="width:10%">Кол-во</th>
-            <th style="width:14%">Цена (${data.currency})</th>
-            <th style="width:16%">Сумма (${data.currency})</th>
+            <th style="width:14%">Цена (${escapeHtml(data.currency)})</th>
+            <th style="width:16%">Сумма (${escapeHtml(data.currency)})</th>
           </tr>
         </thead>
         <tbody>
@@ -282,16 +282,16 @@ export function printUzWaybill(data: OrderDocData) {
             <td colspan="3" class="right bold">ИТОГО:</td>
             <td class="center bold">${cleanNum(data.items.reduce((s,i) => s+i.qty, 0))}</td>
             <td></td>
-            <td class="right bold">${data.subtotal.toLocaleString("ru-RU")} ${data.currency}</td>
+            <td class="right bold">${data.subtotal.toLocaleString("ru-RU")} ${escapeHtml(data.currency)}</td>
           </tr>
           ${data.discount && data.discount > 0 ? `
           <tr>
             <td colspan="5" class="right">Скидка:</td>
-            <td class="right">−${data.discount.toLocaleString("ru-RU")} ${data.currency}</td>
+            <td class="right">−${data.discount.toLocaleString("ru-RU")} ${escapeHtml(data.currency)}</td>
           </tr>` : ""}
           <tr>
             <td colspan="5" class="right bold">К ОПЛАТЕ:</td>
-            <td class="right bold">${data.total.toLocaleString("ru-RU")} ${data.currency}</td>
+            <td class="right bold">${data.total.toLocaleString("ru-RU")} ${escapeHtml(data.currency)}</td>
           </tr>
         </tbody>
       </table>
@@ -389,10 +389,10 @@ export function printArrivalReceipt(data: ArrivalDocData) {
     ${data.expenses?.total ? `
     <h3 style="margin-top:12px">Транспортные расходы</h3>
     <table style="width:300px">
-      <tr><td>Топливо</td><td class="right">${(data.expenses.fuel ?? 0).toLocaleString("ru-RU")} ${data.currency}</td></tr>
-      <tr><td>Дорожные расходы</td><td class="right">${(data.expenses.toll ?? 0).toLocaleString("ru-RU")} ${data.currency}</td></tr>
-      <tr><td>Прочие расходы</td><td class="right">${(data.expenses.other ?? 0).toLocaleString("ru-RU")} ${data.currency}</td></tr>
-      <tr class="bold"><td><b>ИТОГО расходы</b></td><td class="right bold">${data.expenses.total.toLocaleString("ru-RU")} ${data.currency}</td></tr>
+      <tr><td>Топливо</td><td class="right">${(data.expenses.fuel ?? 0).toLocaleString("ru-RU")} ${escapeHtml(data.currency)}</td></tr>
+      <tr><td>Дорожные расходы</td><td class="right">${(data.expenses.toll ?? 0).toLocaleString("ru-RU")} ${escapeHtml(data.currency)}</td></tr>
+      <tr><td>Прочие расходы</td><td class="right">${(data.expenses.other ?? 0).toLocaleString("ru-RU")} ${escapeHtml(data.currency)}</td></tr>
+      <tr class="bold"><td><b>ИТОГО расходы</b></td><td class="right bold">${data.expenses.total.toLocaleString("ru-RU")} ${escapeHtml(data.currency)}</td></tr>
     </table>` : ""}
 
     ${data.notes ? `<p style="margin-top:8px;font-size:10pt"><b>Примечание:</b> ${escapeHtml(data.notes)}</p>` : ""}
@@ -449,7 +449,7 @@ export function printTorg12(data: OrderDocData) {
       <tr>
         <td style="width:40%">
           <b>Организация:</b> ${escapeHtml(data.seller.name)}<br>
-          <b>ИНН/КПП:</b> ${data.seller.inn ?? "_______________"}<br>
+          <b>ИНН/КПП:</b> ${escapeHtml(data.seller.inn) || "_______________"}<br>
           <b>Адрес:</b> ${escapeHtml(data.seller.address ?? "")}
         </td>
         <td style="width:30%;vertical-align:bottom">
@@ -653,8 +653,8 @@ export function printInvoice(data: OrderDocData) {
           <th style="text-align:left;padding:8px 10px;font-size:8pt;text-transform:uppercase;letter-spacing:1px;color:#64748b;font-weight:600;border-bottom:2px solid #e2e8f0">Наименование</th>
           <th style="width:7%;text-align:center;padding:8px 6px;font-size:8pt;text-transform:uppercase;letter-spacing:1px;color:#64748b;font-weight:600;border-bottom:2px solid #e2e8f0">Ед.</th>
           <th style="width:10%;text-align:right;padding:8px 10px;font-size:8pt;text-transform:uppercase;letter-spacing:1px;color:#64748b;font-weight:600;border-bottom:2px solid #e2e8f0">Кол-во</th>
-          <th style="width:14%;text-align:right;padding:8px 10px;font-size:8pt;text-transform:uppercase;letter-spacing:1px;color:#64748b;font-weight:600;border-bottom:2px solid #e2e8f0">Цена (${data.currency})</th>
-          <th style="width:16%;text-align:right;padding:8px 10px;font-size:8pt;text-transform:uppercase;letter-spacing:1px;color:#64748b;font-weight:600;border-bottom:2px solid #e2e8f0">Сумма (${data.currency})</th>
+          <th style="width:14%;text-align:right;padding:8px 10px;font-size:8pt;text-transform:uppercase;letter-spacing:1px;color:#64748b;font-weight:600;border-bottom:2px solid #e2e8f0">Цена (${escapeHtml(data.currency)})</th>
+          <th style="width:16%;text-align:right;padding:8px 10px;font-size:8pt;text-transform:uppercase;letter-spacing:1px;color:#64748b;font-weight:600;border-bottom:2px solid #e2e8f0">Сумма (${escapeHtml(data.currency)})</th>
         </tr>
       </thead>
       <tbody>
@@ -668,11 +668,11 @@ export function printInvoice(data: OrderDocData) {
         <table style="font-size:9.5pt">
           <tr>
             <td style="padding:6px 0;color:#64748b">Итого</td>
-            <td style="padding:6px 0;text-align:right;font-variant-numeric:tabular-nums">${data.subtotal.toLocaleString("ru-RU")} ${data.currency}</td>
+            <td style="padding:6px 0;text-align:right;font-variant-numeric:tabular-nums">${data.subtotal.toLocaleString("ru-RU")} ${escapeHtml(data.currency)}</td>
           </tr>
           ${data.discount && data.discount > 0 ? `<tr>
             <td style="padding:6px 0;color:#64748b">Скидка</td>
-            <td style="padding:6px 0;text-align:right;color:#16a34a;font-weight:600;font-variant-numeric:tabular-nums">−${data.discount.toLocaleString("ru-RU")} ${data.currency}</td>
+            <td style="padding:6px 0;text-align:right;color:#16a34a;font-weight:600;font-variant-numeric:tabular-nums">−${data.discount.toLocaleString("ru-RU")} ${escapeHtml(data.currency)}</td>
           </tr>` : ""}
           <tr>
             <td style="padding:6px 0;color:#64748b">НДС</td>
@@ -683,7 +683,7 @@ export function printInvoice(data: OrderDocData) {
           </tr>
           <tr>
             <td style="padding:8px 0;font-size:11pt;font-weight:700;color:#0f172a">К ОПЛАТЕ</td>
-            <td style="padding:8px 0;text-align:right;font-size:13pt;font-weight:800;color:#0f172a;font-variant-numeric:tabular-nums">${data.total.toLocaleString("ru-RU")} ${data.currency}</td>
+            <td style="padding:8px 0;text-align:right;font-size:13pt;font-weight:800;color:#0f172a;font-variant-numeric:tabular-nums">${data.total.toLocaleString("ru-RU")} ${escapeHtml(data.currency)}</td>
           </tr>
         </table>
       </div>
@@ -804,14 +804,14 @@ function buildDebtBlock(order: BatchOrderData, currency: string): string {
   // Compact: one-line debt info + small payment summary
   const lastPayment = order.paymentHistory[0];
   const paymentLine = lastPayment
-    ? `Последний платёж: ${new Date(lastPayment.createdAt).toLocaleDateString("ru-RU")} ${Number(lastPayment.amount).toLocaleString("ru-RU")} ${currency}`
+    ? `Последний платёж: ${new Date(lastPayment.createdAt).toLocaleDateString("ru-RU")} ${Number(lastPayment.amount).toLocaleString("ru-RU")} ${escapeHtml(currency)}`
     : "Нет платежей за 30 дней";
 
   return `
     <div style="margin:4px 0;padding:4px 8px;border:1px solid ${colorMix(color, 25)};background:${colorMix(color, 3)};font-size:8pt">
-      <b style="color:${color}">Долг: ${debt.toLocaleString("ru-RU")} ${currency}</b>
+      <b style="color:${color}">Долг: ${debt.toLocaleString("ru-RU")} ${escapeHtml(currency)}</b>
       <span style="color:${color};margin-left:6px;font-size:7pt">${label}</span>
-      ${debt > 0 && Number(order.total) > 0 ? `<span style="margin-left:8px">К оплате: <b>${recommended.toLocaleString("ru-RU")} ${currency}</b></span>` : ""}
+      ${debt > 0 && Number(order.total) > 0 ? `<span style="margin-left:8px">К оплате: <b>${recommended.toLocaleString("ru-RU")} ${escapeHtml(currency)}</b></span>` : ""}
       <span style="margin-left:8px;color:#666">${paymentLine}</span>
     </div>`;
 }
@@ -884,9 +884,9 @@ function buildSingleInvoice(order: BatchOrderData, opts: BatchPrintOptions, comp
       <div class="totals-box">
         <table>
           <tr><td>Итого позиций:</td><td class="right">${(order.items ?? []).length}</td></tr>
-          <tr><td>Сумма:</td><td class="right">${Number(order.subtotal).toLocaleString("ru-RU")} ${currency}</td></tr>
-          ${Number(order.discount) > 0 ? `<tr><td>Скидка:</td><td class="right" style="color:#16a34a">−${Number(order.discount).toLocaleString("ru-RU")} ${currency}</td></tr>` : ""}
-          <tr class="total-row"><td>ИТОГО:</td><td class="right">${Number(order.total).toLocaleString("ru-RU")} ${currency}</td></tr>
+          <tr><td>Сумма:</td><td class="right">${Number(order.subtotal).toLocaleString("ru-RU")} ${escapeHtml(currency)}</td></tr>
+          ${Number(order.discount) > 0 ? `<tr><td>Скидка:</td><td class="right" style="color:#16a34a">−${Number(order.discount).toLocaleString("ru-RU")} ${escapeHtml(currency)}</td></tr>` : ""}
+          <tr class="total-row"><td>ИТОГО:</td><td class="right">${Number(order.total).toLocaleString("ru-RU")} ${escapeHtml(currency)}</td></tr>
         </table>
       </div>
 
@@ -965,7 +965,7 @@ function buildTTNInvoice(order: BatchOrderData, company: CompanyInfo, currency: 
 
       <div class="totals-box">
         <table>
-          <tr class="total-row"><td>Сумма с учётом НДС:</td><td class="right">${total.toLocaleString("ru-RU")} ${currency}</td></tr>
+          <tr class="total-row"><td>Сумма с учётом НДС:</td><td class="right">${total.toLocaleString("ru-RU")} ${escapeHtml(currency)}</td></tr>
         </table>
       </div>
 
@@ -1058,12 +1058,12 @@ function buildLoadingListAggregated(data: LoadingListData, currency: string): st
   }
   const agentLines = [...agentMap.entries()]
     .sort((a, b) => b[1].total - a[1].total)
-    .map(([name, { count, total }]) => `<div>• ${escapeHtml(name)} — ${count} заказ(ов) — ${total.toLocaleString("ru-RU")} ${currency}</div>`)
+    .map(([name, { count, total }]) => `<div>• ${escapeHtml(name)} — ${count} заказ(ов) — ${total.toLocaleString("ru-RU")} ${escapeHtml(currency)}</div>`)
     .join("");
 
   // Territory
   const territories = [...new Set(data.orders.map(o => o.territoryName).filter(Boolean))];
-  const territoryLine = territories.length > 0 ? `<div>Территория: <b>${territories.join(", ")}</b></div>` : "";
+  const territoryLine = territories.length > 0 ? `<div>Территория: <b>${escapeHtml(territories.join(", "))}</b></div>` : "";
 
   const totalSum = data.orders.reduce((s, o) => s + Number(o.total), 0);
 
@@ -1078,7 +1078,7 @@ function buildLoadingListAggregated(data: LoadingListData, currency: string): st
         <td>Заказов: <b>${data.totalOrders}</b></td>
         <td>Позиций: <b>${data.totalItems}</b></td>
         <td>Общий вес: <b>${cleanNum(data.totalWeight)} кг</b></td>
-        <td>Сумма: <b>${totalSum.toLocaleString("ru-RU")} ${currency}</b></td>
+        <td>Сумма: <b>${totalSum.toLocaleString("ru-RU")} ${escapeHtml(currency)}</b></td>
       </tr>
       ${territoryLine ? `<tr><td colspan="5">${territoryLine}</td></tr>` : ""}
     </table>
@@ -1125,7 +1125,7 @@ function buildLoadingListByOrder(data: LoadingListData, currency: string): strin
         <table class="no-border" style="margin-bottom:4px">
           <tr>
             <td style="font-size:11pt;font-weight:700">ЗАКАЗ № ${escapeHtml(order.orderNumber)}</td>
-            <td style="text-align:right;font-size:11pt;font-weight:700">${Number(order.total).toLocaleString("ru-RU")} ${currency}</td>
+            <td style="text-align:right;font-size:11pt;font-weight:700">${Number(order.total).toLocaleString("ru-RU")} ${escapeHtml(currency)}</td>
           </tr>
           <tr>
             <td style="font-size:9pt">→ ${escapeHtml(order.shopName ?? "Магазин")} | Агент: ${escapeHtml(order.agentName ?? "—")}</td>
@@ -1133,7 +1133,7 @@ function buildLoadingListByOrder(data: LoadingListData, currency: string): strin
           </tr>
           <tr>
             <td style="font-size:8pt;color:#666">${escapeHtml(order.shopAddress ?? "")} ${order.shopCity ? `, ${escapeHtml(order.shopCity)}` : ""} ${order.shopPhone ? `| Тел: ${escapeHtml(order.shopPhone)}` : ""}</td>
-            <td style="text-align:right">${debt > 0 ? `<span style="color:${debtColor};font-weight:600;font-size:8pt">Долг: ${debt.toLocaleString("ru-RU")} ${currency}</span>` : ""}</td>
+            <td style="text-align:right">${debt > 0 ? `<span style="color:${debtColor};font-weight:600;font-size:8pt">Долг: ${debt.toLocaleString("ru-RU")} ${escapeHtml(currency)}</span>` : ""}</td>
           </tr>
         </table>
         <table>
@@ -1279,7 +1279,7 @@ function buildLoadingListByRoute(data: LoadingListData, currency: string): strin
         <tr>
           <td colspan="3" class="right bold">Итого:</td>
           ${totalCells}
-          <td class="right bold">${(grandCash + grandDebt).toLocaleString("ru-RU")} ${currency}</td>
+          <td class="right bold">${(grandCash + grandDebt).toLocaleString("ru-RU")} ${escapeHtml(currency)}</td>
         </tr>
       </tbody>
     </table>

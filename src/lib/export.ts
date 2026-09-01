@@ -249,7 +249,7 @@ export function buildPDFHtml(data: ReportData) {
   html += `<div class="section"><h2>Остатки по категориям</h2>
     <table><thead><tr><th>Категория</th><th class="right">Товаров</th><th class="right">Единиц</th><th class="right">Себестоимость</th><th class="right">Розница</th><th class="right">Низкие</th></tr></thead><tbody>`;
   for (const c of data.byCategory) {
-    html += `<tr><td>${c.category}</td><td class="right">${c.totalProducts}</td><td class="right">${fmt(Number(c.totalUnits))}</td><td class="right">${fmt(Number(c.totalValue))}</td><td class="right">${fmt(Number(c.totalRetail))}</td><td class="right">${c.lowStockCount}</td></tr>`;
+    html += `<tr><td>${escapeHtml(c.category)}</td><td class="right">${c.totalProducts}</td><td class="right">${fmt(Number(c.totalUnits))}</td><td class="right">${fmt(Number(c.totalValue))}</td><td class="right">${fmt(Number(c.totalRetail))}</td><td class="right">${c.lowStockCount}</td></tr>`;
   }
   html += `</tbody></table></div>`;
 
@@ -257,7 +257,7 @@ export function buildPDFHtml(data: ReportData) {
   html += `<div class="section"><h2>Топ товаров по стоимости</h2>
     <table><thead><tr><th>Товар</th><th>Код</th><th class="right">Остаток</th><th class="right">Стоимость</th><th class="right">Маржа</th></tr></thead><tbody>`;
   for (const p of data.topByValue.slice(0, 10)) {
-    html += `<tr><td>${p.productName}</td><td>${p.productCode}</td><td class="right">${fmt(Number(p.currentStock))} ${p.unit}</td><td class="right">${fmt(Number(p.costValue))}</td><td class="right">${fmt(Number(p.margin))}</td></tr>`;
+    html += `<tr><td>${escapeHtml(p.productName)}</td><td>${escapeHtml(p.productCode)}</td><td class="right">${fmt(Number(p.currentStock))} ${escapeHtml(p.unit)}</td><td class="right">${fmt(Number(p.costValue))}</td><td class="right">${fmt(Number(p.margin))}</td></tr>`;
   }
   html += `</tbody></table></div>`;
 
@@ -265,7 +265,7 @@ export function buildPDFHtml(data: ReportData) {
   html += `<div class="section"><h2>Оборачиваемость (за ${data.days} дней)</h2>
     <table><thead><tr><th>Товар</th><th class="right">Остаток</th><th class="right">Продано</th><th class="right">Коэфф.</th><th class="right">Дней до продажи</th></tr></thead><tbody>`;
   for (const p of data.turnover.slice(0, 10)) {
-    html += `<tr><td>${p.productName}</td><td class="right">${fmt(Number(p.currentStock))}</td><td class="right">${fmt(Number(p.soldQty))}</td><td class="right bold">${p.turnoverRate}x</td><td class="right">${p.daysToSell < 999 ? p.daysToSell : "—"}</td></tr>`;
+    html += `<tr><td>${escapeHtml(p.productName)}</td><td class="right">${fmt(Number(p.currentStock))}</td><td class="right">${fmt(Number(p.soldQty))}</td><td class="right bold">${p.turnoverRate}x</td><td class="right">${p.daysToSell < 999 ? p.daysToSell : "—"}</td></tr>`;
   }
   html += `</tbody></table></div>`;
 
