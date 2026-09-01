@@ -344,6 +344,13 @@
       "when": 1788208886783,
       "tag": "0048_onec_tenant_foreign_keys",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "5",
+      "when": 1788260118734,
+      "tag": "0049_restore_basic_plan",
+      "breakpoints": true
     }
   ]
 }
