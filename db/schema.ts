@@ -272,6 +272,21 @@ export const orders = mysqlTable("orders", {
     // revenueOrderConditions), и без этого индекса они с ростом числа заказов
     // будут отбрасывать удалённые уже после чтения строк.
     tenantDeletedIdx:  index("idx_orders_tenant_deleted").on(t.tenantId, t.deletedAt),
+
+    // ── Ниже: индексы, которые есть на боевой базе с прежних миграций, но в
+    // модели объявлены не были. Объявлены здесь 01.09.2026, когда историю
+    // миграций свернули в один baseline: baseline собирается ИЗ ЭТОГО ФАЙЛА,
+    // и всё, чего тут нет, на новой установке просто не появилось бы. Имена
+    // взяты те же, что в базе, — иначе следующая генерация выдала бы пару
+    // DROP + CREATE на ровном месте.
+    //
+    // Курьерская выдача за период и разбор доставок по курьеру.
+    courierDateIdx:    index("idx_orders_courier_date").on(t.tenantId, t.courierId, t.createdAt),
+    // Отдельно от tenantDeletedIdx: сюда попадают запросы, отбирающие
+    // удалённые без привязки к фирме (чистки, сверки).
+    deletedAtIdx:      index("idx_orders_deleted_at").on(t.deletedAt),
+    // Разрез выручки по способу оплаты — наличные против перечисления.
+    paymentMethodIdx:  index("idx_orders_payment_method").on(t.tenantId, t.paymentMethod),
   }));
 
 export type Order       = typeof orders.$inferSelect;
@@ -330,6 +345,8 @@ export const returns = mysqlTable("returns", {
   updatedAt:    timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
 }, (t) => ({
   tenantIdx: index("idx_returns_tenant").on(t.tenantId),
+  // Возвраты по агенту за период — см. пояснение у orders выше.
+  agentDateIdx: index("idx_returns_agent_date").on(t.tenantId, t.agentId, t.createdAt),
   orderIdx: index("idx_returns_order").on(t.orderId),
   shopIdx: index("idx_returns_shop").on(t.shopId),
   statusIdx: index("idx_returns_status").on(t.status),
@@ -1035,6 +1052,8 @@ export const visitReports = mysqlTable("visit_reports", {
   tenantShop: index("idx_vr_tenant_shop").on(t.tenantId, t.shopId),
   tenantPlan: index("idx_vr_tenant_plan").on(t.tenantId, t.planId),
   tenantUser: index("idx_vr_tenant_user").on(t.tenantId, t.userId),
+  // Отчёты сотрудника за период — см. пояснение у orders выше.
+  userDate:   index("idx_visit_reports_user_date").on(t.tenantId, t.userId, t.createdAt),
 }));
 
 export type VisitReport       = typeof visitReports.$inferSelect;

@@ -37,8 +37,12 @@ const files = fs.readdirSync(DIR).filter(f => f.endsWith(".sql")).sort();
 
 describe("миграции: пустых запросов быть не должно", () => {
   it("в каталоге вообще есть миграции", () => {
-    // Иначе тест ниже пройдёт на пустом списке и не будет значить ничего.
-    expect(files.length).toBeGreaterThan(40);
+    // Иначе проверка ниже пройдёт на пустом списке и не будет значить ничего.
+    // Порог именно «хотя бы одна»: 01.09.2026 историю из 51 файла свернули в
+    // один baseline (db/migrations-archive), и прежний порог «больше сорока»
+    // сломался бы на верном состоянии.
+    expect(files.length).toBeGreaterThan(0);
+    expect(files).toContain("0000_baseline.sql");
   });
 
   it.each(files)("%s", (file) => {

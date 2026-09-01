@@ -22,36 +22,26 @@ import { join } from "node:path";
 
 const MIGRATIONS = join(process.cwd(), "db", "migrations");
 
-/** Индексы, известные как неописанные. Список может только сокращаться. */
-const KNOWN_UNDECLARED = new Set([
-  "idx_agent_locations_agent_date",
-  "idx_at_agent",
-  "idx_at_tenant",
-  "idx_at_territory",
-  "idx_locations_agent_created",
-  "idx_movements_tenant_product_created",
-  "idx_order_items_order_product",
-  "idx_orders_courier_date",
-  "idx_orders_deleted_at",
-  "idx_orders_payment_method",
-  "idx_orders_tenant_payment_created",
-  "idx_orders_tenant_status_date",
-  "idx_plans_agent_date",
-  "idx_products_tenant_category_status",
-  "idx_returns_agent_date",
-  "idx_sales_targets_shop",
-  "idx_shops_tenant_agent_status",
-  "idx_shops_territory",
-  "idx_stock_product_warehouse_tenant",
-  "idx_sync_status_entity",
-  "idx_sync_status_tenant",
-  "idx_visit_reports_user_date",
-  // В базе индекс называется так, а schema.ts объявляет
-  // uq_stock_product_warehouse_tenant — при генерации это выйдет парой
-  // DROP + CREATE, причём DROP упадёт: от индекса зависит внешний ключ по
-  // product_id.
-  "uq_stock_product_warehouse",
-]);
+/**
+ * Индексы, известные как неописанные в schema.ts.
+ *
+ * Пуст с 01.09.2026, и это не «список забыли почистить». Историю миграций
+ * свернули в один baseline, собранный drizzle-kit ИЗ db/schema.ts, — значит
+ * индекса, которого нет в модели, в миграциях взяться неоткуда, и расхождение
+ * закрыто по построению.
+ *
+ * Двадцать три записи, стоявшие здесь раньше, разошлись надвое. Пять
+ * (idx_orders_courier_date, idx_orders_deleted_at, idx_orders_payment_method,
+ * idx_returns_agent_date, idx_visit_reports_user_date) объявлены в schema.ts
+ * теми же именами: без этого baseline не создал бы их на новой установке, и
+ * та молча осталась бы без индексов, которые на бою есть. Остальные исчезли
+ * вместе со старыми файлами — они либо дублировали объявленные под другими
+ * именами, либо описывали объекты, которых в модели нет.
+ *
+ * Проверка остаётся в силе: стоит написать миграцию руками и создать в ней
+ * индекс мимо модели — она это увидит.
+ */
+const KNOWN_UNDECLARED = new Set<string>([]);
 
 /**
  * Слова, которые выглядят как имя индекса, но им не являются.
@@ -82,7 +72,14 @@ function indexesInMigrations(): Set<string> {
 
 describe("расхождение индексов между базой и schema.ts", () => {
   const schema = readFileSync(join(process.cwd(), "db", "schema.ts"), "utf8");
-  const undeclared = [...indexesInMigrations()].filter(name => !schema.includes(`"${name}"`)).sort();
+  // Кавычки в schema.ts встречаются и двойные, и одинарные:
+  // index("idx_orders_tenant") рядом с index('idx_sync_status_tenant').
+  // Проверка только по двойным считала одинарные необъявленными — так
+  // idx_sync_status_tenant и idx_sync_status_entity попали в список
+  // известного расхождения, хотя описаны были всегда. Ложное срабатывание
+  // прикрыли записью в списке вместо того, чтобы починить разбор.
+  const declared = (name: string) => schema.includes(`"${name}"`) || schema.includes(`'${name}'`);
+  const undeclared = [...indexesInMigrations()].filter(name => !declared(name)).sort();
 
   it("новых неописанных индексов не появилось", () => {
     const fresh = undeclared.filter(n => !KNOWN_UNDECLARED.has(n));
@@ -105,6 +102,9 @@ describe("расхождение индексов между базой и schem
 
   it("список не пустеет молча", () => {
     // Страховка от «зелёного ни на чём»: если разбор миграций сломается и
+    // вернёт пустое множество, обе проверки выше пройдут вхолостую.
+    // Порог держится и на одном файле: baseline создаёт всю схему разом, и
+    // индексов в нём больше двух сотен. Если разбор миграций сломается и
     // вернёт пустое множество, обе проверки выше пройдут вхолостую.
     expect(indexesInMigrations().size).toBeGreaterThan(50);
   });
