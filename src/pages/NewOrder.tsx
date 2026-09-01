@@ -6,7 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useNavigate, useSearchParams } from "react-router";
 import { useLang } from "@/i18n";
-import { Loader2, WifiOff, ShoppingCart } from "lucide-react";
+import { Loader2, WifiOff, ShoppingCart, ChevronUp } from "lucide-react";
 import { savePendingOrder } from "./OfflineOrders.helpers";
 import { Steps, ShopSelector, ProductSelector, OrderReview } from "@/components/orders";
 import type { OrderItem, PaymentMethod } from "@/components/orders";
@@ -31,6 +31,15 @@ export default function NewOrder() {
   const [discount, setDiscount] = useState("0");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [idempotencyKey] = useState(() => crypto.randomUUID());
+  // Открыта ли панель корзины. Признак нужен только на мобильном, но живёт
+  // здесь: кнопка-итог стоит в нижней строке этой страницы, а сама панель —
+  // внутри ProductSelector, и общий родитель у них только этот.
+  const [cartOpen, setCartOpen] = useState(false);
+
+  // Смена шага всегда закрывает корзину. Иначе, уйдя с открытой панелью на
+  // «Итог» и вернувшись назад, пользователь получил бы её снова раскрытой
+  // поверх каталога — состояние пережило бы размонтирование панели.
+  const goToStep = (next: number) => { setCartOpen(false); setStep(next); };
 
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const LABELS = lang === "uz" ? LABELS_UZ : LABELS_RU;
@@ -57,7 +66,7 @@ export default function NewOrder() {
   };
 
   const handleNext = () => {
-    if (step < 3) { setStep(s => s + 1); return; }
+    if (step < 3) { goToStep(step + 1); return; }
 
     const payload = {
       shopId,
@@ -125,7 +134,7 @@ export default function NewOrder() {
           статичное «Заказы». */}
       <div className="flex items-center gap-3 mb-6">
         <button
-          onClick={() => step > 1 ? setStep(s => s - 1) : navigate(-1)}
+          onClick={() => step > 1 ? goToStep(step - 1) : navigate(-1)}
           className="w-9 h-9 flex items-center justify-center rounded-lg border btn-ghost flex-shrink-0"
           style={{ borderColor: "var(--color-border, #d8d5cd)" }}
         >
@@ -164,7 +173,7 @@ export default function NewOrder() {
             onSelect={(id, name) => { setShopId(id); setShopName(name); }}
           />
         )}
-        {step === 2 && <ProductSelector items={items} onChange={setItems}/>}
+        {step === 2 && <ProductSelector items={items} onChange={setItems} cartOpen={cartOpen} onCartOpenChange={setCartOpen}/>}
         {step === 3 && (
           <OrderReview
             shopName={shopName}
@@ -192,8 +201,23 @@ export default function NewOrder() {
           потоке: там уже есть отдельная колонка корзины сбоку (sticky
           .order-cart-panel), плавающая панель внизу была бы лишней. */}
       <div className="order-action-bar">
+        {/* Итог — кнопка, а не подпись.
+            Показать сумму было полдела: корзина всё равно оставалась внизу
+            страницы, под всем каталогом, и чтобы поправить в ней количество
+            или убрать позицию, приходилось листать двести строк туда и
+            столько же обратно. Теперь это открывает корзину панелью снизу,
+            не сдвигая каталог. На десктопе кнопка скрыта (правило
+            order-action-bar-summary в index.css): там корзина и так стоит
+            отдельной колонкой справа и никуда не девается. */}
         {step === 2 && validItems.length > 0 && (
-          <div className="order-action-bar-summary">
+          <button
+            type="button"
+            data-testid="open-cart"
+            aria-expanded={cartOpen}
+            aria-label={t("Открыть корзину", "Savatni ochish")}
+            onClick={() => setCartOpen(true)}
+            className="order-action-bar-summary"
+          >
             <ShoppingCart size={15} style={{ flexShrink: 0, color: "var(--color-text-tertiary, #6b6760)" }} />
             <span style={{ fontSize: "13px", color: "var(--color-text-secondary, #5e5b54)" }}>
               {validItems.length} {t("тов.", "dona")}
@@ -201,7 +225,8 @@ export default function NewOrder() {
             <span style={{ fontSize: "14px", fontWeight: 700, color: "var(--color-text-primary, #2b2a28)" }}>
               {fmt(cartSubtotal.toFixed(2))}
             </span>
-          </div>
+            <ChevronUp size={14} style={{ flexShrink: 0, color: "var(--color-text-tertiary, #6b6760)" }} />
+          </button>
         )}
         <button
           data-testid="order-next"

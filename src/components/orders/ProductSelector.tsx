@@ -1,8 +1,9 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useCurrency } from "@/hooks/useCurrency";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
-import { Package, Search, ShoppingCart, Plus, Minus, Trash2, ChevronUp, ChevronDown } from "lucide-react";
+import { Package, Search, ShoppingCart, Plus, Minus, Trash2, ChevronUp, ChevronDown, X } from "lucide-react";
 import { unitLabel } from "./types";
 import type { OrderItem } from "./types";
 import { formatQty } from "@/lib/format";
@@ -14,9 +15,15 @@ type CatalogProduct = inferRouterOutputs<AppRouter>["product"]["listAll"][number
 interface ProductSelectorProps {
   items: OrderItem[];
   onChange: (items: OrderItem[]) => void;
+  /** Открыта ли корзина. Признак только для мобильного: там корзина —
+   *  выдвижная панель снизу, а не колонка сбоку, и открывает её кнопка-итог
+   *  в нижней строке экрана «Новый заказ». Состояние живёт там же, в
+   *  NewOrder, потому что кнопка и панель — в разных поддеревьях. */
+  cartOpen?: boolean;
+  onCartOpenChange?: (open: boolean) => void;
 }
 
-export function ProductSelector({ items, onChange }: ProductSelectorProps) {
+export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenChange }: ProductSelectorProps) {
   const { fmt } = useCurrency();
   const { lang } = useLang();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
@@ -105,6 +112,170 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
   const validItems = items.filter(i => i.productId > 0);
   const totalWeightKg = validItems.reduce((s, i) => s + Number(i.quantity) * (i.unitWeight || 1), 0);
   const subtotal = validItems.reduce((s, i) => s + Number(i.unitPrice) * Number(i.quantity), 0);
+
+  // Пока панель корзины открыта, страница под ней стоит на месте, а Escape
+  // её закрывает. overscroll-behavior: contain в стилях удерживает только
+  // жест, дотянувший список корзины до края; без замка на body фон под
+  // панелью всё равно уезжает вместе с пальцем.
+  useEffect(() => {
+    if (!cartOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onCartOpenChange?.(false); };
+    document.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [cartOpen, onCartOpenChange]);
+
+  /* Содержимое корзины. Одна разметка на два места вывода: боковая колонка
+     на десктопе и выдвижная панель снизу на мобильном. Отличие ровно одно —
+     крестик, который нужен только панели. */
+  const renderCart = (inSheet: boolean) => (
+    <>
+      <div className="flex items-center justify-between mb-4 order-cart-head">
+        <h3 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600, color: "var(--color-text-primary)", margin: 0 }}>
+          {t("Корзина", "Savat")} ({validItems.length})
+        </h3>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          {validItems.length > 0 && (
+            <button onClick={() => onChange([])} style={{
+              fontSize: "11px", color: "var(--color-danger-text)", background: "none",
+              border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", fontWeight: 500,
+            }}>
+              {t("Очистить", "Tozalash")}
+            </button>
+          )}
+          {inSheet && (
+            <button
+              type="button"
+              data-testid="cart-sheet-close"
+              aria-label={t("Закрыть", "Yopish")}
+              onClick={() => onCartOpenChange?.(false)}
+              style={{
+                width: "36px", height: "36px", borderRadius: "10px", flexShrink: 0,
+                border: "1px solid var(--color-border)", background: "var(--color-surface)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                cursor: "pointer", color: "var(--color-text-secondary)",
+              }}
+            >
+              <X size={18} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {validItems.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "40px 0", color: "var(--color-text-tertiary)" }}>
+          <ShoppingCart size={32} style={{ margin: "0 auto 8px", opacity: 0.3 }} />
+          <p style={{ fontSize: "13px" }}>{t("Корзина пуста", "Savat bo'sh")}</p>
+          <p style={{ fontSize: "11px", marginTop: "4px" }}>{t("Введите количество и нажмите +", "Miqdorni kiriting va + bosing")}</p>
+        </div>
+      ) : (
+        <>
+          {/* Раньше вся строка — название, шаг количества (3×44px), сумма,
+              стрелки порядка, корзина — стояла в один ряд. На узком экране
+              это тот же зажим, что был у строки каталога: имени оставалось
+              места меньше, чем самим кнопкам управления им. Теперь имя с
+              ценой и сумма строки — наверху во всю ширину, управление —
+              отдельной строкой ниже, где ему не тесно.
+
+              maxHeight: 320px, overflowY: auto тоже убраны — по той же
+              причине, что и у списка каталога: своя прокрутка внутри
+              карточки поверх прокрутки страницы путает, где заканчивается
+              список, а не сама страница. У выдвижной панели прокрутка своя
+              и уместная: панель сама и есть окно поверх страницы. */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "16px", touchAction: "manipulation" }}>
+            {validItems.map((item) => (
+              <div key={item.productId} style={{
+                display: "flex", flexDirection: "column", gap: "6px", padding: "10px",
+                borderRadius: "8px", background: "var(--color-surface-light)",
+              }}>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: "12px", fontWeight: 500, color: "var(--color-text-primary)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {item.productName}
+                    </p>
+                    <p style={{ fontSize: "10px", color: "var(--color-text-secondary)", margin: "1px 0 0" }}>
+                      {fmt(item.unitPrice)}/{unitLabel(item.unit, lang)}
+                    </p>
+                  </div>
+                  <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--color-text-primary)", flexShrink: 0 }}>
+                    {fmt((Number(item.unitPrice) * Number(item.quantity)).toFixed(2))}
+                  </span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "3px" }}>
+                    <button onClick={() => updateQuantity(item.productId, -1)} style={{
+                      width: "44px", height: "44px", borderRadius: "6px", border: "1px solid var(--color-border)",
+                      background: "var(--color-surface)", display: "flex", alignItems: "center", justifyContent: "center",
+                      cursor: "pointer", fontSize: "14px", color: "var(--color-text-secondary)",
+                    }}>−</button>
+                    <input
+                      type="number"
+                      min="0"
+                      value={item.quantity}
+                      onChange={(e) => setQuantityDirect(item.productId, e.target.value)}
+                      style={{ width: "52px", height: "44px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface)", textAlign: "center", fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary)", fontFamily: "'DM Sans', sans-serif", outline: "none" }}
+                    />
+                    <button onClick={() => updateQuantity(item.productId, 1)} style={{
+                      width: "44px", height: "44px", borderRadius: "6px", border: "1px solid var(--color-border)",
+                      background: "var(--color-surface)", display: "flex", alignItems: "center", justifyContent: "center",
+                      cursor: "pointer", fontSize: "14px", color: "var(--color-text-secondary)",
+                    }}>+</button>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "3px", flexShrink: 0 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "1px" }}>
+                      <button onClick={() => moveItem(item.productId, -1)} style={{
+                        width: "24px", height: "21px", borderRadius: "4px 4px 0 0", border: "1px solid var(--color-border)",
+                        background: "var(--color-surface)", display: "flex", alignItems: "center", justifyContent: "center",
+                        cursor: "pointer", color: "var(--color-text-tertiary)",
+                      }}>
+                        <ChevronUp size={12} />
+                      </button>
+                      <button onClick={() => moveItem(item.productId, 1)} style={{
+                        width: "24px", height: "21px", borderRadius: "0 0 4px 4px", border: "1px solid var(--color-border)",
+                        background: "var(--color-surface)", display: "flex", alignItems: "center", justifyContent: "center",
+                        cursor: "pointer", color: "var(--color-text-tertiary)",
+                      }}>
+                        <ChevronDown size={12} />
+                      </button>
+                    </div>
+                    <button onClick={() => removeItem(item.productId)} style={{
+                      width: "44px", height: "44px", borderRadius: "6px", border: "none",
+                      background: "none", display: "flex", alignItems: "center", justifyContent: "center",
+                      cursor: "pointer", color: "var(--color-text-tertiary)",
+                    }}>
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Totals */}
+          <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: "12px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
+              <span style={{ fontSize: "13px", color: "var(--color-text-secondary)" }}>{t("Подитого", "Jami")}</span>
+              <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--color-text-primary)" }}>{fmt(subtotal.toFixed(2))}</span>
+            </div>
+            {totalWeightKg > 0 && (
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
+                <span style={{ fontSize: "13px", color: "var(--color-text-secondary)" }}>{t("Вес", "Og'irlik")}</span>
+                <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--color-text-primary)" }}>{formatQty(totalWeightKg)} кг</span>
+              </div>
+            )}
+            <div style={{ display: "flex", justifyContent: "space-between", paddingTop: "8px", borderTop: "1px solid var(--color-border)" }}>
+              <span style={{ fontSize: "15px", fontWeight: 700, color: "var(--color-text-primary)" }}>{t("ИТОГО", "JAMI")}</span>
+              <span style={{ fontSize: "15px", fontWeight: 700, color: "var(--color-primary-text)" }}>{fmt(subtotal.toFixed(2))}</span>
+            </div>
+          </div>
+        </>
+      )}
+    </>
+  );
 
   return (
     <div className="animate-fade-up order-grid">
@@ -266,134 +437,54 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
         </div>
       </div>
 
-      {/* Cart.
-          position/top переехали в класс order-cart-panel (index.css): sticky
-          нужен только на десктопе, где корзина — боковая колонка грида. На
-          мобильном она безусловно прилипала под мобильной шапкой (z-40) и
-          пряталась под ней при прокрутке верхними ~36 пикселями. */}
+      {/* Корзина на десктопе — вторая колонка грида, рядом со списком.
+          На мобильном этот блок скрыт совсем (order-cart-panel в index.css),
+          и вот почему: в одну колонку он оказывался следующим блоком ПОД
+          каталогом, то есть под двумя сотнями строк. Чтобы поправить в нём
+          количество или убрать позицию, приходилось пролистать весь каталог
+          вниз, а потом столько же обратно. Вместо этого на мобильном корзина
+          открывается панелью снизу — кнопкой-итогом, которая видна всегда. */}
       <div className="neo-card order-cart-panel" style={{ padding: "20px" }}>
-        <div className="flex items-center justify-between mb-4">
-          <h3 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600, color: "var(--color-text-primary)", margin: 0 }}>
-            {t("Корзина", "Savat")} ({validItems.length})
-          </h3>
-          {validItems.length > 0 && (
-            <button onClick={() => onChange([])} style={{
-              fontSize: "11px", color: "var(--color-danger-text)", background: "none",
-              border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", fontWeight: 500,
-            }}>
-              {t("Очистить", "Tozalash")}
-            </button>
-          )}
-        </div>
-
-        {validItems.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "40px 0", color: "var(--color-text-tertiary)" }}>
-            <ShoppingCart size={32} style={{ margin: "0 auto 8px", opacity: 0.3 }} />
-            <p style={{ fontSize: "13px" }}>{t("Корзина пуста", "Savat bo'sh")}</p>
-            <p style={{ fontSize: "11px", marginTop: "4px" }}>{t("Введите количество и нажмите +", "Miqdorni kiriting va + bosing")}</p>
-          </div>
-        ) : (
-          <>
-            {/* Раньше вся строка — название, шаг количества (3×44px), сумма,
-                стрелки порядка, корзина — стояла в один ряд. На узком экране
-                это тот же зажим, что был у строки каталога: имени оставалось
-                места меньше, чем самим кнопкам управления им. Теперь имя с
-                ценой и сумма строки — наверху во всю ширину, управление —
-                отдельной строкой ниже, где ему не тесно.
-
-                maxHeight: 320px, overflowY: auto тоже убраны — по той же
-                причине, что и у списка каталога: своя прокрутка внутри
-                карточки поверх прокрутки страницы путает, где заканчивается
-                список, а не сама страница. */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "16px", touchAction: "manipulation" }}>
-              {validItems.map((item) => (
-                <div key={item.productId} style={{
-                  display: "flex", flexDirection: "column", gap: "6px", padding: "10px",
-                  borderRadius: "8px", background: "var(--color-surface-light)",
-                }}>
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontSize: "12px", fontWeight: 500, color: "var(--color-text-primary)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {item.productName}
-                      </p>
-                      <p style={{ fontSize: "10px", color: "var(--color-text-secondary)", margin: "1px 0 0" }}>
-                        {fmt(item.unitPrice)}/{unitLabel(item.unit, lang)}
-                      </p>
-                    </div>
-                    <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--color-text-primary)", flexShrink: 0 }}>
-                      {fmt((Number(item.unitPrice) * Number(item.quantity)).toFixed(2))}
-                    </span>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "3px" }}>
-                      <button onClick={() => updateQuantity(item.productId, -1)} style={{
-                        width: "44px", height: "44px", borderRadius: "6px", border: "1px solid var(--color-border)",
-                        background: "var(--color-surface)", display: "flex", alignItems: "center", justifyContent: "center",
-                        cursor: "pointer", fontSize: "14px", color: "var(--color-text-secondary)",
-                      }}>−</button>
-                      <input
-                        type="number"
-                        min="0"
-                        value={item.quantity}
-                        onChange={(e) => setQuantityDirect(item.productId, e.target.value)}
-                        style={{ width: "52px", height: "44px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface)", textAlign: "center", fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary)", fontFamily: "'DM Sans', sans-serif", outline: "none" }}
-                      />
-                      <button onClick={() => updateQuantity(item.productId, 1)} style={{
-                        width: "44px", height: "44px", borderRadius: "6px", border: "1px solid var(--color-border)",
-                        background: "var(--color-surface)", display: "flex", alignItems: "center", justifyContent: "center",
-                        cursor: "pointer", fontSize: "14px", color: "var(--color-text-secondary)",
-                      }}>+</button>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "3px", flexShrink: 0 }}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "1px" }}>
-                        <button onClick={() => moveItem(item.productId, -1)} style={{
-                          width: "24px", height: "21px", borderRadius: "4px 4px 0 0", border: "1px solid var(--color-border)",
-                          background: "var(--color-surface)", display: "flex", alignItems: "center", justifyContent: "center",
-                          cursor: "pointer", color: "var(--color-text-tertiary)",
-                        }}>
-                          <ChevronUp size={12} />
-                        </button>
-                        <button onClick={() => moveItem(item.productId, 1)} style={{
-                          width: "24px", height: "21px", borderRadius: "0 0 4px 4px", border: "1px solid var(--color-border)",
-                          background: "var(--color-surface)", display: "flex", alignItems: "center", justifyContent: "center",
-                          cursor: "pointer", color: "var(--color-text-tertiary)",
-                        }}>
-                          <ChevronDown size={12} />
-                        </button>
-                      </div>
-                      <button onClick={() => removeItem(item.productId)} style={{
-                        width: "44px", height: "44px", borderRadius: "6px", border: "none",
-                        background: "none", display: "flex", alignItems: "center", justifyContent: "center",
-                        cursor: "pointer", color: "var(--color-text-tertiary)",
-                      }}>
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Totals */}
-            <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: "12px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
-                <span style={{ fontSize: "13px", color: "var(--color-text-secondary)" }}>{t("Подитого", "Jami")}</span>
-                <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--color-text-primary)" }}>{fmt(subtotal.toFixed(2))}</span>
-              </div>
-              {totalWeightKg > 0 && (
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
-                  <span style={{ fontSize: "13px", color: "var(--color-text-secondary)" }}>{t("Вес", "Og'irlik")}</span>
-                  <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--color-text-primary)" }}>{formatQty(totalWeightKg)} кг</span>
-                </div>
-              )}
-              <div style={{ display: "flex", justifyContent: "space-between", paddingTop: "8px", borderTop: "1px solid var(--color-border)" }}>
-                <span style={{ fontSize: "15px", fontWeight: 700, color: "var(--color-text-primary)" }}>{t("ИТОГО", "JAMI")}</span>
-                <span style={{ fontSize: "15px", fontWeight: 700, color: "var(--color-primary-text)" }}>{fmt(subtotal.toFixed(2))}</span>
-              </div>
-            </div>
-          </>
-        )}
+        {renderCart(false)}
       </div>
+
+      {/* Корзина на мобильном — выдвижная панель снизу.
+
+          Через портал в body, а не просто fixed-блоком на месте. Родитель
+          здесь — .animate-fade-up, а это animation: fadeUp .3s ease forwards,
+          и последний кадр у неё transform: translateY(0). Режим forwards
+          оставляет этот кадр применённым навсегда, а любой transform, кроме
+          none, делает элемент точкой отсчёта для position: fixed внутри.
+          Панель отсчитывала бы «низ экрана» от низа списка товаров — то есть
+          уезжала бы на несколько экранов вниз. AppModal рисуется порталом по
+          той же причине.
+
+          Сама себя панель не закрывает: признак живёт в NewOrder, там же он
+          и сбрасывается при переходе на другой шаг мастера. */}
+      {cartOpen && createPortal(
+        <>
+          <div
+            className="order-cart-backdrop"
+            data-testid="cart-sheet-backdrop"
+            onClick={() => onCartOpenChange?.(false)}
+          />
+          {/* neo-card-static обязателен: без него .neo-card:active жмёт карточку
+              до scale(0.99), а :active достаётся и предку нажатой кнопки —
+              панель дёргалась бы и отлипала от нижнего края экрана при каждом
+              касании «+» внутри неё. */}
+          <div
+            className="neo-card neo-card-static order-cart-sheet"
+            role="dialog"
+            aria-modal="true"
+            aria-label={t("Корзина", "Savat")}
+            data-testid="cart-sheet"
+          >
+            <div className="order-cart-sheet-grabber" />
+            {renderCart(true)}
+          </div>
+        </>,
+        document.body,
+      )}
     </div>
   );
 }

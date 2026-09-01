@@ -762,12 +762,106 @@
      панели — заголовок «Корзина (N)» и кнопка «Очистить» — заезжали ПОД
      шапку: та выше по слоям и рисуется поверх. */
   .order-cart-panel {
-    position: static;
+    display: none;
   }
   @media (min-width: 768px) {
     .order-cart-panel {
+      display: block;
       position: sticky;
       top: 20px;
+    }
+  }
+
+  /* Корзина на мобильном — выдвижная панель снизу.
+
+     В одну колонку корзина оказывалась следующим блоком под каталогом, то
+     есть под двумя сотнями строк товара. Посмотреть набранное или поправить
+     количество означало пролистать весь каталог вниз и столько же обратно;
+     при большом каталоге это и есть «листать до корзины очень тяжело».
+     Панель открывается кнопкой-итогом из нижней строки, которая видна при
+     любой прокрутке, и ложится поверх страницы, ничего не сдвигая.
+
+     z-index выше нижней навигации и бокового меню (40 и 50 в Layout.tsx) —
+     панель обязана их накрыть, иначе вкладки торчат поверх итогов. И
+     заметно ниже AppModal (9999): окно подтверждения заказа должно
+     перекрывать корзину, а не наоборот.
+
+     max-height, а не фиксированная высота: в корзине бывает и одна позиция,
+     и три десятка. Своя прокрутка внутри здесь уместна — панель и есть окно
+     поверх страницы, её край виден, и упереться в невидимую границу, как в
+     прежнем вложенном скролле каталога, негде. */
+  .order-cart-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    background: rgba(0, 0, 0, 0.45);
+    animation: sheetFade 0.15s ease;
+  }
+  .order-cart-sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 61;
+    max-height: 82vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border-radius: 20px 20px 0 0;
+    /* Снизу — отступ под панель жестов iPhone: под самой панелью ничего
+       нет, она стоит вплотную к краю экрана. */
+    padding: 0 16px calc(16px + env(safe-area-inset-bottom, 0px));
+    animation: sheetUp 0.22s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  /* Шапка корзины стоит на месте, пока список под ней прокручивается.
+     Иначе крестик и «Очистить» уезжают вверх на первом же движении пальца,
+     и закрыть панель остаётся только промахом мимо неё. Правило только для
+     панели: в боковой колонке на десктопе своей прокрутки нет, липнуть там
+     не к чему.
+
+     Отрицательные поля растягивают шапку на боковые отступы панели — без
+     них строки списка просвечивают по краям, проезжая под ней. Отступ mb-4
+     из разметки гасится здесь же: полем он оставил бы под шапкой прозрачную
+     полосу в 16px, сквозь которую видно уезжающий список. */
+  .order-cart-sheet .order-cart-head {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    margin: 0 -16px;
+    padding: 0 16px 12px;
+    background: var(--color-surface, #efedea);
+  }
+
+  /* Полоска-ухватка: показывает, что панель временная и её закрывают. */
+  .order-cart-sheet-grabber {
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    /* Верхний отступ панели держит ухватка, а не сама панель: липкая
+       шапка прилипает к краю прокрутки, и любой отступ панели сверху
+       остался бы полосой, сквозь которую видно уезжающий под шапку список. */
+    margin: 8px auto 12px;
+    background: var(--color-border, #d8d5cd);
+  }
+  @keyframes sheetUp {
+    from { transform: translateY(100%); }
+    to   { transform: translateY(0); }
+  }
+  @keyframes sheetFade {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .order-cart-sheet,
+    .order-cart-backdrop {
+      animation: none;
+    }
+  }
+  /* На десктопе панель не открывается вовсе — кнопки-итога там нет. Правило
+     на случай, если окно растянули с уже открытой панелью. */
+  @media (min-width: 768px) {
+    .order-cart-backdrop,
+    .order-cart-sheet {
+      display: none;
     }
   }
 
@@ -797,12 +891,24 @@
     border-top: 1px solid var(--color-border, #d8d5cd);
     box-shadow: 0 -4px 16px rgba(0,0,0,0.08);
   }
+  /* Это <button>, открывающая корзину, поэтому здесь же снимается всё, что
+     браузер даёт кнопке по умолчанию: своя рамка, фон, шрифт и выравнивание
+     по центру. min-height — тот самый минимум в 44px под касание, что и у
+     остальных кнопок проекта. */
   .order-action-bar-summary {
     display: flex;
     align-items: center;
     gap: 6px;
     flex: 1;
     min-width: 0;
+    min-height: 44px;
+    padding: 0;
+    margin: 0;
+    background: none;
+    border: none;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
   }
   .order-action-bar-button {
     flex-shrink: 0;
