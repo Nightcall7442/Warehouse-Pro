@@ -25,7 +25,7 @@ vi.mock("../lib/sse", () => ({
   sseBus: { emit: vi.fn() },
 }));
 
-import { arrivals, arrivalItems, warehouses, warehouseStock, stockMovements, products } from "@db/schema";
+import { arrivals, arrivalItems, warehouses, warehouseStock, stockMovements, products, suppliers, supplies } from "@db/schema";
 import { makeConditionEvaluator } from "./helpers/fake-conditions";
 
 // ── Fake tables ──────────────────────────────────────────────────────────────
@@ -35,6 +35,8 @@ interface FakeWarehouse { id: number; tenantId: number; name: string; isDefault:
 interface FakeStock { id: number; productId: number; tenantId: number; warehouseId: number; currentStock: string; reserved: string; available: string; }
 interface FakeStockMovement { id: number; tenantId: number; productId: number; type: string; quantity: string; referenceType: string | null; referenceId: number | null; notes: string | null; createdAt: Date; }
 interface FakeProduct { id: number; tenantId: number; }
+interface FakeSupplier { id: number; tenantId: number; name: string; }
+interface FakeSupply { id: number; tenantId: number; supplierId: number; arrivalId: number | null; supplyNumber: string; amount: string; currency: string; rateToUzs: string | null; supplyDate: Date; dueDate: Date | null; createdBy: number | null; }
 
 let arrivalsTable: FakeArrival[] = [];
 let arrivalItemsTable: FakeArrivalItem[] = [];
@@ -42,7 +44,11 @@ let warehousesTable: FakeWarehouse[] = [];
 let stockTable: FakeStock[] = [];
 let movementsTable: FakeStockMovement[] = [];
 let productsTable: FakeProduct[] = [];
+let suppliersTable: FakeSupplier[] = [];
+let suppliesTable: FakeSupply[] = [];
 let nextArrivalId = 10;
+let nextSupplierId = 10;
+let nextSupplyId = 10;
 let nextItemId = 10;
 let nextStockId = 10;
 let nextMovementId = 1;
@@ -68,10 +74,17 @@ function resetTables() {
     { id: 1, tenantId: 1 },
     { id: 2, tenantId: 1 },
   ];
+  suppliersTable = [
+    { id: 1, tenantId: 1, name: "Завод Ташкент" },
+    { id: 2, tenantId: 2, name: "Чужой завод" },
+  ];
+  suppliesTable = [];
   nextArrivalId = 10;
   nextItemId = 10;
   nextStockId = 10;
   nextMovementId = 1;
+  nextSupplierId = 10;
+  nextSupplyId = 10;
 }
 
 function tableOf(ref: unknown): string {
@@ -81,12 +94,16 @@ function tableOf(ref: unknown): string {
   if (ref === warehouseStock) return "warehouseStock";
   if (ref === stockMovements) return "stockMovements";
   if (ref === products) return "products";
+  if (ref === suppliers) return "suppliers";
+  if (ref === supplies) return "supplies";
   return "other";
 }
 
 function rowsFor(table: string): Record<string, unknown>[] {
   if (table === "arrivals") return arrivalsTable as unknown as Record<string, unknown>[];
   if (table === "arrivalItems") return arrivalItemsTable as unknown as Record<string, unknown>[];
+  if (table === "suppliers") return suppliersTable as unknown as Record<string, unknown>[];
+  if (table === "supplies") return suppliesTable as unknown as Record<string, unknown>[];
   if (table === "warehouses") return warehousesTable as unknown as Record<string, unknown>[];
   if (table === "warehouseStock") return stockTable as unknown as Record<string, unknown>[];
   if (table === "stockMovements") return movementsTable as unknown as Record<string, unknown>[];
@@ -101,6 +118,8 @@ for (const [field, col] of Object.entries(warehouses)) columnToFieldName.set(col
 for (const [field, col] of Object.entries(warehouseStock)) columnToFieldName.set(col, field);
 for (const [field, col] of Object.entries(stockMovements)) columnToFieldName.set(col, field);
 for (const [field, col] of Object.entries(products)) columnToFieldName.set(col, field);
+for (const [field, col] of Object.entries(suppliers)) columnToFieldName.set(col, field);
+for (const [field, col] of Object.entries(supplies)) columnToFieldName.set(col, field);
 
 /**
  * Разбор условий отдан общему строгому разборщику.
@@ -183,6 +202,35 @@ function makeMockDb() {
             quantity: String(vals.quantity ?? "0"), costPrice: String(vals.costPrice ?? "0.00"),
             sellingPrice: String(vals.sellingPrice ?? "0.00"), condition: (vals.condition as string) ?? null,
             notes: (vals.notes as string) ?? null,
+          });
+          return Promise.resolve([{ insertId: id }]);
+        }
+        if (table === "suppliers") {
+          // uq_supplier_name_tenant: то же самое имя у той же организации —
+          // ошибка базы, а не тихая вторая запись. Роутер её ловит и отвечает
+          // понятным текстом; без этой имитации ветка catch осталась бы
+          // непроверенной.
+          if (suppliersTable.some(x => x.tenantId === vals.tenantId && x.name === vals.name)) {
+            throw new Error("Duplicate entry 'x' for key 'uq_supplier_name_tenant'");
+          }
+          const id = nextSupplierId++;
+          suppliersTable.push({
+            id, tenantId: vals.tenantId as number, name: vals.name as string,
+          });
+          return Promise.resolve([{ insertId: id }]);
+        }
+        if (table === "supplies") {
+          const id = nextSupplyId++;
+          suppliesTable.push({
+            id, tenantId: vals.tenantId as number, supplierId: vals.supplierId as number,
+            arrivalId: (vals.arrivalId as number) ?? null,
+            supplyNumber: vals.supplyNumber as string,
+            amount: String(vals.amount ?? "0.00"),
+            currency: (vals.currency as string) ?? "UZS",
+            rateToUzs: vals.rateToUzs != null ? String(vals.rateToUzs) : null,
+            supplyDate: (vals.supplyDate as Date) ?? new Date(),
+            dueDate: (vals.dueDate as Date) ?? null,
+            createdBy: (vals.createdBy as number) ?? null,
           });
           return Promise.resolve([{ insertId: id }]);
         }
@@ -614,5 +662,118 @@ describe("arrival.delete — edge cases", () => {
     const caller = arrivalRouter.createCaller(makeCtx(1, 10));
     await caller.delete({ id: 1 });
     expect(arrivalsTable.find((a) => a.id === 2)).toBeDefined();
+  });
+});
+
+describe("arrival.create — привязанная поставка (долг поставщику)", () => {
+  it("не создаёт поставку, когда supplier не передан", async () => {
+    const { arrivalRouter } = await import("../arrival-router");
+    const caller = arrivalRouter.createCaller(makeCtx(1, 1));
+    await caller.create({ arrivalDate: "2025-02-01" });
+    expect(suppliesTable).toHaveLength(0);
+  });
+
+  it("создаёт поставку у существующего поставщика вместе с приходом", async () => {
+    const { arrivalRouter } = await import("../arrival-router");
+    const caller = arrivalRouter.createCaller(makeCtx(1, 1));
+    const result = await caller.create({
+      arrivalDate: "2025-02-01",
+      supplier: { supplierId: 1, amount: "100000", currency: "UZS", dueDate: "2025-03-01" },
+    });
+
+    const supply = suppliesTable.find((s) => s.arrivalId === result.id);
+    expect(supply).toBeDefined();
+    expect(supply!.supplierId).toBe(1);
+    expect(supply!.tenantId).toBe(1);
+    expect(supply!.amount).toBe("100000");
+    expect(supply!.currency).toBe("UZS");
+    // Поставка — тот же документ, что и приход, оформленный одной формой:
+    // дата поставки равна дате прихода, а не сегодняшней дате сервера.
+    expect(supply!.supplyDate).toEqual(new Date("2025-02-01"));
+    expect(supply!.dueDate).toEqual(new Date("2025-03-01"));
+    // Номер поставки — тот же случайный хвост, что у номера прихода, под
+    // своим префиксом: это подчёркивает, что документ один.
+    expect(supply!.supplyNumber).toBe(`SUP-${result.arrivalNumber.slice(4)}`);
+  });
+
+  it("заводит нового поставщика по имени, когда supplierId не передан", async () => {
+    const { arrivalRouter } = await import("../arrival-router");
+    const caller = arrivalRouter.createCaller(makeCtx(1, 1));
+    const before = suppliersTable.length;
+    const result = await caller.create({
+      arrivalDate: "2025-02-01",
+      supplier: { newSupplierName: "  Новый Завод  ", amount: "50000", currency: "UZS" },
+    });
+
+    expect(suppliersTable).toHaveLength(before + 1);
+    const created = suppliersTable[suppliersTable.length - 1];
+    expect(created.tenantId).toBe(1);
+    expect(created.name).toBe("Новый Завод"); // sanitizeString обрезает пробелы
+
+    const supply = suppliesTable.find((s) => s.arrivalId === result.id);
+    expect(supply!.supplierId).toBe(created.id);
+  });
+
+  it("отклоняет долларовую поставку без курса", async () => {
+    const { arrivalRouter } = await import("../arrival-router");
+    const caller = arrivalRouter.createCaller(makeCtx(1, 1));
+    await expect(caller.create({
+      arrivalDate: "2025-02-01",
+      supplier: { supplierId: 1, amount: "1000", currency: "USD" },
+    })).rejects.toThrow(/курс/i);
+    expect(suppliesTable).toHaveLength(0);
+  });
+
+  it("принимает долларовую поставку с указанным курсом", async () => {
+    const { arrivalRouter } = await import("../arrival-router");
+    const caller = arrivalRouter.createCaller(makeCtx(1, 1));
+    const result = await caller.create({
+      arrivalDate: "2025-02-01",
+      supplier: { supplierId: 1, amount: "1000", currency: "USD", rateToUzs: "12800" },
+    });
+    const supply = suppliesTable.find((s) => s.arrivalId === result.id);
+    expect(supply!.currency).toBe("USD");
+    expect(supply!.rateToUzs).toBe("12800");
+  });
+
+  it("не подставит поставщика чужой организации", async () => {
+    const { arrivalRouter } = await import("../arrival-router");
+    const caller = arrivalRouter.createCaller(makeCtx(1, 1));
+    // id 2 в затравке принадлежит tenantId 2, а не 1.
+    await expect(caller.create({
+      arrivalDate: "2025-02-01",
+      supplier: { supplierId: 2, amount: "1000", currency: "UZS" },
+    })).rejects.toThrow(/не найден/i);
+    expect(suppliesTable).toHaveLength(0);
+  });
+
+  it("отклоняет второго поставщика с уже занятым именем", async () => {
+    const { arrivalRouter } = await import("../arrival-router");
+    const caller = arrivalRouter.createCaller(makeCtx(1, 1));
+    await expect(caller.create({
+      arrivalDate: "2025-02-01",
+      // "Завод Ташкент" у tenantId 1 уже есть в затравке.
+      supplier: { newSupplierName: "Завод Ташкент", amount: "1000", currency: "UZS" },
+    })).rejects.toThrow(/уже заведён/i);
+  });
+
+  it("требует ровно один способ назвать поставщика — оба сразу отклоняются", async () => {
+    const { arrivalRouter } = await import("../arrival-router");
+    const caller = arrivalRouter.createCaller(makeCtx(1, 1));
+    await expect(caller.create({
+      arrivalDate: "2025-02-01",
+      supplier: { supplierId: 1, newSupplierName: "Ещё один", amount: "1000", currency: "UZS" },
+    })).rejects.toThrow();
+    expect(suppliesTable).toHaveLength(0);
+  });
+
+  it("требует ровно один способ назвать поставщика — ни одного тоже отклоняется", async () => {
+    const { arrivalRouter } = await import("../arrival-router");
+    const caller = arrivalRouter.createCaller(makeCtx(1, 1));
+    await expect(caller.create({
+      arrivalDate: "2025-02-01",
+      supplier: { amount: "1000", currency: "UZS" },
+    })).rejects.toThrow();
+    expect(suppliesTable).toHaveLength(0);
   });
 });

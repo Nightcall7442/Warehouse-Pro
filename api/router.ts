@@ -6,6 +6,7 @@ import { productRouter }      from "./product-router";
 import { orderRouter }        from "./order-router";
 import { warehouseRouter }    from "./warehouse-router";
 import { arrivalRouter }      from "./arrival-router";
+import { supplierRouter }     from "./supplier-router";
 import { analyticsRouter }    from "./analytics-router";
 import { agentRouter }        from "./agent-router";
 import { userRouter }         from "./user-router";
@@ -50,6 +51,7 @@ export const appRouter = createRouter({
   order:        orderRouter,
   warehouse:    warehouseRouter,
   arrival:      arrivalRouter,
+  supplier:     supplierRouter,
   analytics:    analyticsRouter,
   agent:        agentRouter,
   user:         userRouter,

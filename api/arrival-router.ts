@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { createRouter, operatorQuery } from "./middleware";
-import { arrivals, arrivalItems, products, warehouses } from "@db/schema";
+import { arrivals, arrivalItems, products, warehouses, suppliers, supplies } from "@db/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { sanitizeString } from "./lib/sanitize";
 import { decimalOrDefault } from "./lib/zod-decimal";
@@ -101,6 +101,22 @@ export const arrivalRouter = createRouter({
       otherCost:   decimalOrDefault("0.00").default("0.00"),
       notes:       z.string().optional(),
       items:       z.array(z.object({ productId: z.number(), quantity: z.string().refine(v => Number(v) > 0, "Количество должно быть положительным"), costPrice: decimalOrDefault("0.00").optional(), sellingPrice: decimalOrDefault("0.00").optional(), condition: z.string().optional(), warehouseId: z.number().optional() })).optional(),
+      // Долг перед поставщиком, привязанный к этому приходу. Опционален
+      // целиком: обычный приход без учёта задолженности не заполняет это
+      // поле вовсе. Ровно один способ назвать поставщика — supplierId ИЛИ
+      // newSupplierName, — проверяется ниже в .refine, потому что zod не
+      // выражает «одно из двух» на уровне схемы полей объекта.
+      supplier: z.object({
+        supplierId:      z.number().optional(),
+        newSupplierName: z.string().min(1).max(255).optional(),
+        amount:          decimalOrDefault("0.00").refine(v => Number(v) > 0, "Сумма поставки должна быть положительной"),
+        currency:        z.enum(["UZS", "USD"]).default("UZS"),
+        rateToUzs:       decimalOrDefault("0.00").optional(),
+        dueDate:         z.string().optional(),
+      }).refine(
+        s => (s.supplierId != null) !== (s.newSupplierName != null && s.newSupplierName !== ""),
+        "Выберите поставщика из списка либо укажите название нового — не оба сразу и не ни одного",
+      ).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const db       = ctx.db;
@@ -127,6 +143,21 @@ export const arrivalRouter = createRouter({
         }
       }
 
+      if (input.supplier) {
+        // Курс обязателен для долларовой поставки: без него закупку нельзя
+        // показать в сумах ни в одном отчёте, а вспомнить его через полгода
+        // невозможно.
+        if (input.supplier.currency === "USD" && !(Number(input.supplier.rateToUzs) > 0)) {
+          throw new Error("Для поставки в долларах укажите курс на день сделки");
+        }
+        if (input.supplier.supplierId) {
+          const [own] = await db.select({ id: suppliers.id }).from(suppliers)
+            .where(and(eq(suppliers.id, input.supplier.supplierId), eq(suppliers.tenantId, tenantId)))
+            .limit(1);
+          if (!own) throw new Error("Поставщик не найден");
+        }
+      }
+
       return db.transaction(async (tx) => {
         const [result] = await tx.insert(arrivals).values({
           tenantId, arrivalNumber,
@@ -143,6 +174,45 @@ export const arrivalRouter = createRouter({
         });
 
         const arrivalId = Number(result.insertId);
+
+        if (input.supplier) {
+          let supplierId = input.supplier.supplierId;
+          if (!supplierId) {
+            // Тот же уникальный индекс (имя, организация), что и у
+            // supplier.create — тут он не мешает, а подстраховывает: до
+            // этого момента дважды кликнуть «Сохранить» на форме прихода с
+            // новым поставщиком означало бы завести его дважды.
+            try {
+              const [newSupplier] = await tx.insert(suppliers).values({
+                tenantId,
+                name: sanitizeString(input.supplier.newSupplierName!),
+              });
+              supplierId = Number(newSupplier.insertId);
+            } catch (e) {
+              if (e instanceof Error && /Duplicate entry/i.test(e.message)) {
+                throw new Error("Поставщик с таким названием уже заведён — выберите его из списка");
+              }
+              throw e;
+            }
+          }
+
+          // Номер поставки — тот же случайный хвост, что у номера прихода,
+          // под своим префиксом: они физически один документ, оформленный
+          // одной формой, и совместный номер это подчёркивает, а не просто
+          // экономит вызов crypto.randomUUID().
+          await tx.insert(supplies).values({
+            tenantId,
+            supplierId,
+            arrivalId,
+            supplyNumber: `SUP-${raw.slice(0, 12).toUpperCase()}`,
+            amount:       input.supplier.amount,
+            currency:     input.supplier.currency,
+            rateToUzs:    input.supplier.currency === "USD" ? input.supplier.rateToUzs : undefined,
+            supplyDate:   new Date(input.arrivalDate),
+            dueDate:      input.supplier.dueDate ? new Date(input.supplier.dueDate) : undefined,
+            createdBy:    ctx.user.id,
+          });
+        }
 
         if (input.items && input.items.length > 0) {
           for (const item of input.items) {

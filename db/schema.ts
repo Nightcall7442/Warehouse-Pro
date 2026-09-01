@@ -506,6 +506,120 @@ export type ArrivalItem       = typeof arrivalItems.$inferSelect;
 export type InsertArrivalItem = typeof arrivalItems.$inferInsert;
 
 // ============================================
+// SUPPLIERS — контрагенты, у которых закупается товар
+// ============================================
+//
+// Зеркало долга магазина. shops.debt считает, сколько должны НАМ; здесь
+// обратная сторона — сколько должны МЫ поставщику. До этих трёх таблиц
+// поставщик в системе не был описан вовсе: приход (arrivals) фиксирует
+// разгрузку машины — кто привёз, во сколько обошлась дорога, — но не то, у
+// кого товар куплен и сколько за него причитается.
+//
+// Поставка (supplies) — отдельная сущность от прихода, не его колонка:
+// разгрузка машины и обязательство перед поставщиком — разные события,
+// которые не всегда совпадают один к одному. arrivalId необязателен и может
+// быть NULL: поставка заводится вместе с приходом (обычный случай), но
+// бывает и без него — предоплата за ещё не приехавший товар, или несколько
+// приходов по одному счёту. Экран «Приход» создаёт оба сразу одной формой.
+//
+// Долг НЕ хранится полем, а вычисляется запросом: сумма поставки минус
+// сумма платежей по ней. У shops.debt ровно эта ловушка уже случалась —
+// поле живёт своей жизнью и рано или поздно расходится с фактическими
+// платежами. У поставки разойтись нечему: расходится не с чем.
+
+export const suppliers = mysqlTable("suppliers", {
+  id:          serial("id").primaryKey(),
+  tenantId:    bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  name:        varchar("name", { length: 255 }).notNull(),
+  contactName: varchar("contact_name", { length: 255 }),
+  phone:       varchar("phone", { length: 32 }),
+  inn:         varchar("inn", { length: 32 }),
+  address:     varchar("address", { length: 500 }),
+  notes:       text("notes"),
+  status:      mysqlEnum("status", ["active", "inactive"]).default("active").notNull(),
+  createdAt:   timestamp("created_at").defaultNow().notNull(),
+  updatedAt:   timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
+}, (t) => ({
+  nameUnique: unique("uq_supplier_name_tenant").on(t.name, t.tenantId),
+  tenantIdx:       index("idx_suppliers_tenant").on(t.tenantId),
+  tenantStatusIdx: index("idx_suppliers_tenant_status").on(t.tenantId, t.status),
+}));
+
+export type Supplier       = typeof suppliers.$inferSelect;
+export type InsertSupplier = typeof suppliers.$inferInsert;
+
+// ============================================
+// SUPPLIES — поставки: что и на какую сумму должны поставщику
+// ============================================
+//
+// Часть товара ввозная, счёт бывает долларовым. Должны мы тогда именно
+// доллары, а не сумму по вчерашнему курсу, поэтому сумма поставки и долг по
+// ней живут в валюте счёта (currency), а не пересчитываются в сумы. rateToUzs
+// хранится вместе с поставкой для отчётности — сколько сумов это примерно
+// составляло на дату поставки, — но на сам долг не влияет: долг остаётся в
+// исходной валюте до последнего платежа.
+export const supplies = mysqlTable("supplies", {
+  id:           serial("id").primaryKey(),
+  tenantId:     bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  supplierId:   bigint("supplier_id", { mode: "number", unsigned: true }).notNull().references(() => suppliers.id, { onDelete: "restrict" }),
+  arrivalId:    bigint("arrival_id", { mode: "number", unsigned: true }).references(() => arrivals.id, { onDelete: "set null" }),
+  supplyNumber: varchar("supply_number", { length: 50 }).notNull(),
+  amount:       decimal("amount", { precision: 15, scale: 2 }).notNull(),
+  currency:     mysqlEnum("currency", ["UZS", "USD"]).default("UZS").notNull(),
+  rateToUzs:    decimal("rate_to_uzs", { precision: 12, scale: 4 }),
+  supplyDate:   date("supply_date").notNull(),
+  dueDate:      date("due_date"),
+  notes:        text("notes"),
+  createdBy:    bigint("created_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),
+  createdAt:    timestamp("created_at").defaultNow().notNull(),
+  updatedAt:    timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
+}, (t) => ({
+  numberUnique: unique("uq_supply_number_tenant").on(t.supplyNumber, t.tenantId),
+  tenantIdx:              index("idx_supplies_tenant").on(t.tenantId),
+  tenantSupplierDateIdx:  index("idx_supplies_tenant_supplier_date").on(t.tenantId, t.supplierId, t.supplyDate),
+  tenantDueIdx:           index("idx_supplies_tenant_due").on(t.tenantId, t.dueDate),
+}));
+
+export type Supply       = typeof supplies.$inferSelect;
+export type InsertSupply = typeof supplies.$inferInsert;
+
+// ============================================
+// SUPPLIER PAYMENTS — платежи поставщику по конкретной поставке
+// ============================================
+//
+// amount — в валюте поставки, тем же полем и тем же смыслом, что и её долг:
+// платить можно только в валюте, в которой считается остаток. paidUzs и
+// rateToUzs — сколько сумов реально ушло из кассы и по какому курсу; это для
+// отчётности, на остаток долга не влияет.
+export const supplierPayments = mysqlTable("supplier_payments", {
+  id:             serial("id").primaryKey(),
+  tenantId:       bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  supplierId:     bigint("supplier_id", { mode: "number", unsigned: true }).notNull().references(() => suppliers.id, { onDelete: "restrict" }),
+  supplyId:       bigint("supply_id", { mode: "number", unsigned: true }).notNull().references(() => supplies.id, { onDelete: "restrict" }),
+  amount:         decimal("amount", { precision: 15, scale: 2 }).notNull(),
+  paidUzs:        decimal("paid_uzs", { precision: 15, scale: 2 }),
+  rateToUzs:      decimal("rate_to_uzs", { precision: 12, scale: 4 }),
+  paymentMethod:  mysqlEnum("payment_method", ["cash", "card", "transfer"]).default("transfer").notNull(),
+  paidAt:         timestamp("paid_at").defaultNow().notNull(),
+  notes:          text("notes"),
+  createdBy:      bigint("created_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),
+  // Двойная отправка одного и того же платежа — сеть отвалилась после ответа,
+  // клиент повторил запрос — задвоила бы списание долга. idempotencyKey с
+  // уникальностью на (idempotencyKey, tenantId) делает повтор безопасным:
+  // тот же ключ второй раз просто не пройдёт вставку.
+  idempotencyKey: varchar("idempotency_key", { length: 64 }),
+  createdAt:      timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  idemUnique: unique("uq_supplier_payment_idem").on(t.idempotencyKey, t.tenantId),
+  tenantIdx:         index("idx_supplier_payments_tenant").on(t.tenantId),
+  supplyIdx:         index("idx_supplier_payments_supply").on(t.supplyId),
+  tenantSupplierIdx: index("idx_supplier_payments_tenant_supplier").on(t.tenantId, t.supplierId, t.paidAt),
+}));
+
+export type SupplierPayment       = typeof supplierPayments.$inferSelect;
+export type InsertSupplierPayment = typeof supplierPayments.$inferInsert;
+
+// ============================================
 // PAYMENTS
 // ============================================
 export const payments = mysqlTable("payments", {

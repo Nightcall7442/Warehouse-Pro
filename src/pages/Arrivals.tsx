@@ -101,12 +101,34 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: ArrivalCreate
   const { fmt } = useCurrency();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const { data: products, isLoading: productsLoading } = trpc.product.list.useQuery({ page: 1, pageSize: 10000, includeAll: true });
+  const { data: supplierList } = trpc.supplier.list.useQuery(undefined);
 
   const [form, setForm] = useState({
     truckId: "", driverName: "", driverPhone: "",
     arrivalDate: new Date().toISOString().split("T")[0],
     fuelCost: "0", tollCost: "0", otherCost: "0", notes: "",
   });
+
+  // Поставщик и долг за этот приход — необязательная часть формы.
+  //
+  // "none" — обычный приход, как было всегда: ни поставщик, ни сумма долга
+  // никуда не отправляются. "existing" — выбран поставщик из списка.
+  // "new" — заведён новым названием прямо здесь: отдельной страницы для
+  // поставщиков нет, и заводить нового посреди оформления прихода — самый
+  // частый случай, не исключение.
+  const [supplierMode, setSupplierMode] = useState<"none" | "existing" | "new">("none");
+  const [supplierId, setSupplierId] = useState(0);
+  const [newSupplierName, setNewSupplierName] = useState("");
+  const [supplyAmount, setSupplyAmount] = useState("");
+  const [supplyCurrency, setSupplyCurrency] = useState<"UZS" | "USD">("UZS");
+  const [supplyRate, setSupplyRate] = useState("");
+  const [supplyDueDate, setSupplyDueDate] = useState("");
+
+  const supplierValid =
+    supplierMode === "none" ||
+    ((supplierMode === "existing" ? supplierId > 0 : newSupplierName.trim().length > 0)
+      && Number(supplyAmount) > 0
+      && (supplyCurrency === "UZS" || Number(supplyRate) > 0));
   const [items, setItems] = useState<{ productId: number; quantity: string; costPrice: string; sellingPrice: string; condition: string; unit: string; unitWeight: number }[]>([
     { productId: 0, quantity: "", costPrice: "", sellingPrice: "", condition: "Хорошее", unit: "pcs", unitWeight: 0 },
   ]);
@@ -196,6 +218,64 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: ArrivalCreate
             </div>
           </div>
 
+          {/* Поставщик и долг.
+              Ровно то место, где рождается обязательство перед поставщиком:
+              машина разгрузилась, и в этот момент известно, кто привёз товар
+              и сколько за него причитается. Раньше приход фиксировал разгрузку
+              машины, но не того, у кого товар куплен, — долг заводу нигде не
+              появлялся, пока кто-то не вспоминал о нём сам. */}
+          <div>
+            <p className={sectionLabel}>{t("Поставщик и долг", "Yetkazib beruvchi va qarz")}</p>
+            <PremiumSelect
+              value={supplierMode === "none" ? "0" : supplierMode === "new" ? "new" : String(supplierId)}
+              onChange={v => {
+                if (v === "0") { setSupplierMode("none"); setSupplierId(0); }
+                else if (v === "new") { setSupplierMode("new"); setSupplierId(0); }
+                else { setSupplierMode("existing"); setSupplierId(Number(v)); }
+              }}
+              options={[
+                { value: "0", label: t("Без поставщика", "Yetkazib beruvchisiz") },
+                ...(supplierList ?? []).map(sp => ({ value: String(sp.id), label: sp.name })),
+                { value: "new", label: t("+ Новый поставщик…", "+ Yangi yetkazib beruvchi…") },
+              ]}
+              width="100%"
+            />
+
+            {supplierMode !== "none" && (
+              <div className="space-y-3 mt-3">
+                {supplierMode === "new" && (
+                  <input
+                    className="neo-input"
+                    placeholder={t("Название поставщика", "Yetkazib beruvchi nomi")}
+                    value={newSupplierName}
+                    onChange={e => setNewSupplierName(e.target.value)}
+                  />
+                )}
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="font-label text-[10px] text-secondary mb-1.5 block">{t("Сумма долга", "Qarz summasi")}</label>
+                    <DecimalInput className="neo-input" style={{ textAlign: "right" }} placeholder="0" value={supplyAmount} onValueChange={setSupplyAmount} />
+                  </div>
+                  <div>
+                    <label className="font-label text-[10px] text-secondary mb-1.5 block">{t("Валюта", "Valyuta")}</label>
+                    <PremiumSelect value={supplyCurrency} onChange={v => setSupplyCurrency(v as "UZS" | "USD")}
+                      options={[{ value: "UZS", label: "UZS" }, { value: "USD", label: "USD" }]} width="100%" />
+                  </div>
+                  <div>
+                    <label className="font-label text-[10px] text-secondary mb-1.5 block">{t("Срок оплаты", "To'lov muddati")}</label>
+                    <input type="date" className="neo-input" value={supplyDueDate} onChange={e => setSupplyDueDate(e.target.value)} />
+                  </div>
+                </div>
+                {supplyCurrency === "USD" && (
+                  <div>
+                    <label className="font-label text-[10px] text-secondary mb-1.5 block">{t("Курс на день сделки, сум за $1", "Bitim kunidagi kurs, 1$ uchun so'm")}</label>
+                    <DecimalInput className="neo-input" style={{ textAlign: "right" }} placeholder="0" value={supplyRate} onValueChange={setSupplyRate} />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Products */}
           <div>
             <div className="flex items-center justify-between mb-3">
@@ -256,10 +336,21 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: ArrivalCreate
 
           {/* Actions */}
           <div className="flex gap-3 pt-2">
-            <button onClick={() => form.arrivalDate && onSave({ ...form, items: items.filter(i => i.productId > 0 && Number(i.quantity) > 0).map(i => ({ productId: i.productId, quantity: i.quantity, costPrice: i.costPrice, sellingPrice: i.sellingPrice, condition: i.condition })) })}
-              disabled={isPending || !form.arrivalDate}
+            <button onClick={() => form.arrivalDate && supplierValid && onSave({
+                ...form,
+                items: items.filter(i => i.productId > 0 && Number(i.quantity) > 0).map(i => ({ productId: i.productId, quantity: i.quantity, costPrice: i.costPrice, sellingPrice: i.sellingPrice, condition: i.condition })),
+                supplier: supplierMode === "none" ? undefined : {
+                  supplierId:      supplierMode === "existing" ? supplierId : undefined,
+                  newSupplierName: supplierMode === "new" ? newSupplierName.trim() : undefined,
+                  amount:          supplyAmount,
+                  currency:        supplyCurrency,
+                  rateToUzs:       supplyCurrency === "USD" ? supplyRate : undefined,
+                  dueDate:         supplyDueDate || undefined,
+                },
+              })}
+              disabled={isPending || !form.arrivalDate || !supplierValid}
               className="neo-btn-primary flex-1 h-12 text-sm flex items-center justify-center gap-2"
-              style={{ opacity: isPending || !form.arrivalDate ? 0.5 : 1 }}>
+              style={{ opacity: isPending || !form.arrivalDate || !supplierValid ? 0.5 : 1 }}>
               {isPending && <Loader2 size={15} className="animate-spin" />}
               {t("Сохранить", "Saqlash")}
             </button>
@@ -272,6 +363,144 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: ArrivalCreate
     </div>
     </>,
     document.body
+  );
+}
+
+// ── Supplier Debt Section ────────────────────────────────────────────────────
+//
+// Показывается внутри карточки прихода, если к нему привязана поставка
+// (arrival.create принимал поле supplier). Для приходов без поставщика —
+// подавляющее большинство существующих — не рендерит ничего: возврат null
+// ниже по компоненту.
+function SupplierDebtSection({ arrivalId }: { arrivalId: number }) {
+  // useCurrency() не используется: у долга поставщику своя валюта (может
+  // быть долларовой), а не валюта организации, которую отдаёт fmt().
+  const { lang } = useLang();
+  const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);
+  const utils = trpc.useUtils();
+  const { data: supply, isLoading } = trpc.supplier.getSupplyByArrival.useQuery({ arrivalId });
+
+  const [showPayForm, setShowPayForm] = useState(false);
+  const [payAmount, setPayAmount] = useState("");
+  const [payMethod, setPayMethod] = useState<"cash" | "card" | "transfer">("transfer");
+  const [payNotes, setPayNotes] = useState("");
+  // Пересоздаётся после каждого платежа: тот же ключ на втором платеже подряд
+  // отвечал бы «уже записан» вместо того, чтобы записать новый.
+  const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
+
+  const payMutation = trpc.supplier.pay.useMutation({
+    onSuccess: () => {
+      utils.supplier.getSupplyByArrival.invalidate({ arrivalId });
+      utils.supplier.list.invalidate();
+      setShowPayForm(false);
+      setPayAmount("");
+      setPayNotes("");
+      setIdempotencyKey(crypto.randomUUID());
+      notify.success(t("Платёж записан", "To'lov yozildi"));
+    },
+    onError: (e) => notify.error(e.message),
+  });
+
+  const paymentMethodLabels: Record<string, { ru: string; uz: string }> = {
+    cash: { ru: "Наличные", uz: "Naqd" },
+    card: { ru: "Карта", uz: "Karta" },
+    transfer: { ru: "Перевод", uz: "O'tkazma" },
+  };
+
+  if (isLoading) return null;
+  if (!supply) return null;
+
+  const currencyFmt = (n: number) => `${n.toLocaleString("ru-RU")} ${supply.currency}`;
+  const hasDebt = supply.debt > 0.005;
+
+  return (
+    <div style={{ marginTop: "20px" }}>
+      <p style={{ fontSize: "12px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-text-tertiary)", marginBottom: "12px" }}>
+        {t("Долг поставщику", "Yetkazib beruvchiga qarz")}
+      </p>
+      <div style={{ padding: "16px", borderRadius: "12px", background: "var(--color-surface-light)" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+          <div>
+            <p style={{ fontSize: "14px", fontWeight: 600, color: "var(--color-text-primary)", margin: 0 }}>{supply.supplierName}</p>
+            <p style={{ fontSize: "11px", color: "var(--color-text-tertiary)", margin: "2px 0 0" }}>{supply.supplyNumber}</p>
+          </div>
+          {supply.overdue && (
+            <span style={{ fontSize: "11px", fontWeight: 600, padding: "4px 10px", borderRadius: "8px", background: "color-mix(in srgb, var(--color-danger) 10%, transparent)", color: "var(--color-danger-text)" }}>
+              {t("Просрочено", "Muddati o'tgan")}
+            </span>
+          )}
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px", marginBottom: hasDebt || showPayForm ? "12px" : 0 }}>
+          <div>
+            <p style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", color: "var(--color-text-tertiary)", marginBottom: "4px" }}>{t("Сумма", "Summa")}</p>
+            <p style={{ fontSize: "14px", fontWeight: 600, color: "var(--color-text-primary)", margin: 0 }}>{currencyFmt(supply.amount)}</p>
+          </div>
+          <div>
+            <p style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", color: "var(--color-text-tertiary)", marginBottom: "4px" }}>{t("Оплачено", "To'landi")}</p>
+            <p style={{ fontSize: "14px", fontWeight: 600, color: "var(--color-success-text, #16a34a)", margin: 0 }}>{currencyFmt(supply.paid)}</p>
+          </div>
+          <div>
+            <p style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", color: "var(--color-text-tertiary)", marginBottom: "4px" }}>{t("Остаток", "Qoldiq")}</p>
+            <p style={{ fontSize: "14px", fontWeight: 700, color: hasDebt ? "var(--color-danger-text)" : "var(--color-text-primary)", margin: 0 }}>{currencyFmt(supply.debt)}</p>
+          </div>
+        </div>
+
+        {supply.payments.length > 0 && (
+          <div style={{ marginBottom: hasDebt || showPayForm ? "12px" : 0 }}>
+            {supply.payments.map((p) => (
+              <div key={p.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderTop: "1px solid var(--color-border)", fontSize: "12px" }}>
+                <span style={{ color: "var(--color-text-secondary)" }}>
+                  {format(new Date(p.paidAt), "dd.MM.yyyy")} · {paymentMethodLabels[p.paymentMethod]?.[lang as "ru" | "uz"] ?? p.paymentMethod}
+                </span>
+                <span style={{ fontWeight: 600, color: "var(--color-text-primary)" }}>{currencyFmt(Number(p.amount))}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {hasDebt && !showPayForm && (
+          <button onClick={() => { setPayAmount(supply.debt.toFixed(2)); setShowPayForm(true); }} className="neo-btn-primary neo-btn-sm">
+            {t("Записать платёж", "To'lov yozish")}
+          </button>
+        )}
+
+        {hasDebt && showPayForm && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="font-label text-[10px] text-secondary mb-1.5 block">{t("Сумма", "Summa")} ({supply.currency})</label>
+                <DecimalInput className="neo-input" style={{ textAlign: "right" }} value={payAmount} onValueChange={setPayAmount} />
+              </div>
+              <div>
+                <label className="font-label text-[10px] text-secondary mb-1.5 block">{t("Способ", "Usul")}</label>
+                <PremiumSelect value={payMethod} onChange={v => setPayMethod(v as "cash" | "card" | "transfer")}
+                  options={[
+                    { value: "cash", label: paymentMethodLabels.cash[lang as "ru" | "uz"] },
+                    { value: "card", label: paymentMethodLabels.card[lang as "ru" | "uz"] },
+                    { value: "transfer", label: paymentMethodLabels.transfer[lang as "ru" | "uz"] },
+                  ]} width="100%" />
+              </div>
+            </div>
+            <input className="neo-input" placeholder={t("Примечание (необязательно)", "Izoh (ixtiyoriy)")} value={payNotes} onChange={e => setPayNotes(e.target.value)} />
+            <div className="flex gap-2">
+              <button
+                onClick={() => Number(payAmount) > 0 && payMutation.mutate({
+                  supplyId: supply.id, amount: payAmount, paymentMethod: payMethod,
+                  notes: payNotes || undefined, idempotencyKey,
+                })}
+                disabled={payMutation.isPending || !(Number(payAmount) > 0)}
+                className="neo-btn-primary neo-btn-sm flex-1"
+                style={{ opacity: payMutation.isPending || !(Number(payAmount) > 0) ? 0.5 : 1 }}
+              >
+                {payMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : t("Сохранить", "Saqlash")}
+              </button>
+              <button onClick={() => setShowPayForm(false)} className="neo-btn neo-btn-sm flex-1">{t("Отмена", "Bekor qilish")}</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -459,6 +688,9 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
               </div>
             </div>
           )}
+
+          {/* Supplier debt */}
+          <SupplierDebtSection arrivalId={arrivalId} />
 
           {/* Notes */}
           {detail.notes && (
