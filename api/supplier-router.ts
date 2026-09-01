@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { createRouter, operatorQuery } from "./middleware";
-import { suppliers, supplies, supplierPayments, arrivals, users } from "@db/schema";
+import { suppliers, supplies, supplierPayments, users } from "@db/schema";
 import { eq, and, sql, desc, like } from "drizzle-orm";
 import { sanitizeString, sanitizeSearch } from "./lib/sanitize";
 import { decimalOrDefault } from "./lib/zod-decimal";
@@ -53,11 +53,24 @@ async function assertOwnSupplier(db: Db, tenantId: number, supplierId: number) {
  *
  * Поставка без единого платежа должна остаться в выборке с полным долгом, а
  * не выпасть из неё, как случилось бы при INNER JOIN по платежам.
+ *
+ * ── Почему имена таблиц написаны руками ──────────────────────────────────────
+ *
+ * Ссылка на внешнюю таблицу здесь — литерал \`supplies\`.\`id\`, а не
+ * ${supplies.id}. В списке выборки (в отличие от WHERE) drizzle печатает
+ * колонку БЕЗ имени таблицы — просто \`id\`. Внутри подзапроса своё \`id\` есть
+ * и у supplier_payments, и MySQL разрешает неуточнённое имя в пользу
+ * внутренней таблицы: условие тихо превращается в
+ * \`supplier_payments.supply_id = supplier_payments.id\` и считает не то.
+ *
+ * Ошибки при этом нет — есть неверное число в графе «оплачено». В списке
+ * приходов та же причина проявилась честнее (ER_NON_UNIQ_ERROR, «Column 'id'
+ * in where clause is ambiguous»), и это единственная причина, по которой её
+ * вообще заметили.
  */
 const paidSubquery = sql<string>`COALESCE((
-  SELECT SUM(${supplierPayments.amount})
-  FROM ${supplierPayments}
-  WHERE ${supplierPayments.supplyId} = ${supplies.id}
+  SELECT SUM(p.amount) FROM supplier_payments p
+  WHERE p.supply_id = \`supplies\`.\`id\`
 ), 0)`;
 
 /** Долг контрагента в одной валюте: сумма непогашенных остатков по поставкам. */
@@ -66,7 +79,7 @@ const debtIn = (currency: "UZS" | "USD") => sql<string>`COALESCE((
     SELECT SUM(p.amount) FROM supplier_payments p WHERE p.supply_id = s.id
   ), 0))
   FROM supplies s
-  WHERE s.supplier_id = ${suppliers.id} AND s.currency = ${currency}
+  WHERE s.supplier_id = \`suppliers\`.\`id\` AND s.currency = ${currency}
 ), 0)`;
 
 /**
@@ -79,7 +92,7 @@ const debtIn = (currency: "UZS" | "USD") => sql<string>`COALESCE((
  */
 const overdueCount = sql<number>`(
   SELECT COUNT(*) FROM supplies s
-  WHERE s.supplier_id = ${suppliers.id}
+  WHERE s.supplier_id = \`suppliers\`.\`id\`
     AND s.due_date IS NOT NULL
     AND s.due_date < CURDATE()
     AND s.amount > COALESCE((
@@ -176,9 +189,9 @@ export const supplierRouter = createRouter({
         debtUzs:       debtIn("UZS"),
         debtUsd:       debtIn("USD"),
         overdueCount,
-        suppliesCount: sql<number>`(SELECT COUNT(*) FROM supplies s WHERE s.supplier_id = ${suppliers.id})`,
+        suppliesCount: sql<number>`(SELECT COUNT(*) FROM supplies s WHERE s.supplier_id = \`suppliers\`.\`id\`)`,
         lastPaymentAt: sql<string | null>`(
-          SELECT MAX(p.paid_at) FROM supplier_payments p WHERE p.supplier_id = ${suppliers.id}
+          SELECT MAX(p.paid_at) FROM supplier_payments p WHERE p.supplier_id = \`suppliers\`.\`id\`
         )`,
       })
         .from(suppliers)
@@ -310,7 +323,7 @@ export const supplierRouter = createRouter({
         notes:         supplies.notes,
         paid:          paidSubquery,
         arrivalNumber: sql<string | null>`(
-          SELECT a.arrival_number FROM arrivals a WHERE a.id = ${supplies.arrivalId}
+          SELECT a.arrival_number FROM arrivals a WHERE a.id = \`supplies\`.\`arrival_id\`
         )`,
       })
         .from(supplies)
@@ -560,7 +573,7 @@ export const supplierRouter = createRouter({
         currency:      supplies.currency,
         supplyDate:    supplies.supplyDate,
         arrivalNumber: sql<string | null>`(
-          SELECT a.arrival_number FROM arrivals a WHERE a.id = ${supplies.arrivalId}
+          SELECT a.arrival_number FROM arrivals a WHERE a.id = \`supplies\`.\`arrival_id\`
         )`,
       })
         .from(supplies)
@@ -653,23 +666,24 @@ export const supplierRouter = createRouter({
  */
 export const arrivalSupplyColumns = {
   supplyAmount: sql<string | null>`(
-    SELECT s.amount FROM supplies s WHERE s.arrival_id = ${arrivals.id} LIMIT 1
+    SELECT s.amount FROM supplies s WHERE s.arrival_id = \`arrivals\`.\`id\` LIMIT 1
   )`,
   supplyCurrency: sql<string | null>`(
-    SELECT s.currency FROM supplies s WHERE s.arrival_id = ${arrivals.id} LIMIT 1
+    SELECT s.currency FROM supplies s WHERE s.arrival_id = \`arrivals\`.\`id\` LIMIT 1
   )`,
   supplyPaid: sql<string | null>`(
     SELECT COALESCE(SUM(p.amount), 0) FROM supplier_payments p
     JOIN supplies s ON s.id = p.supply_id
-    WHERE s.arrival_id = ${arrivals.id}
+    WHERE s.arrival_id = \`arrivals\`.\`id\`
   )`,
   supplierName: sql<string | null>`(
     SELECT sup.name FROM supplies s
     JOIN suppliers sup ON sup.id = s.supplier_id
-    WHERE s.arrival_id = ${arrivals.id} LIMIT 1
+    WHERE s.arrival_id = \`arrivals\`.\`id\` LIMIT 1
   )`,
   /** Сумма товаров прихода — Σ(количество × себестоимость). */
   goodsTotal: sql<string>`COALESCE((
-    SELECT SUM(ai.quantity * ai.cost_price) FROM arrival_items ai WHERE ai.arrival_id = ${arrivals.id}
+    SELECT SUM(ai.quantity * ai.cost_price) FROM arrival_items ai
+    WHERE ai.arrival_id = \`arrivals\`.\`id\`
   ), 0)`,
 };
