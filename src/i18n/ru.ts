@@ -27,6 +27,8 @@ export const ru = {
     monitoring:  "Мониторинг",
     notifications: "Уведомления",
     deliveries:  "Доставки",
+    barcode:     "Сканер",
+    myOrders:    "Мои заказы",
   },
   // Common
   common: {

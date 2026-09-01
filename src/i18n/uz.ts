@@ -26,6 +26,8 @@ export const uz = {
     monitoring:  "Monitoring",
     notifications: "Bildirishnomalar",
     deliveries:  "Yetkazishlar",
+    barcode:     "Skaner",
+    myOrders:    "Mening buyurtmalarim",
   },
   common: {
     save:        "Saqlash",

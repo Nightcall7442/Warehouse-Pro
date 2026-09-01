@@ -44,11 +44,17 @@ export const NAV_ITEMS: Record<string, Array<{ labelKey: string; path: string; i
     { labelKey: "nav.warehouse",  path: "/warehouse", icon: "Warehouse"       },
     { labelKey: "nav.settings",   path: "/settings",  icon: "Settings"        },
   ],
+  // Боковое меню держит полный набор, нижняя панель — только шесть самых
+  // ходовых (BOTTOM_NAV в Layout.tsx). Поэтому здесь есть и то, что из панели
+  // убрали: KPI и сканер. Иначе агент терял бы к ним доступ совсем.
   agent: [
     { labelKey: "nav.agent",      path: "/agent",          icon: "LayoutDashboard" },
     { labelKey: "nav.kpi",        path: "/agent/kpi",      icon: "BarChart3"       },
     { labelKey: "nav.myShops",    path: "/agent/shops",    icon: "Store"           },
+    { labelKey: "nav.products",   path: "/products",       icon: "Package"         },
     { labelKey: "nav.newOrder",   path: "/orders/new",     icon: "PlusCircle"      },
+    { labelKey: "nav.myOrders",   path: "/orders",         icon: "ClipboardList"   },
+    { labelKey: "nav.barcode",    path: "/barcode",        icon: "Scan"            },
     { labelKey: "nav.gps",        path: "/agent/gps",      icon: "MapPin"          },
     { labelKey: "nav.settings",   path: "/settings",       icon: "Settings"        },
   ],
