@@ -182,10 +182,19 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
                   </div>
                 </div>
 
-                {/* Строка 2: количество, прижато вправо под значком. */}
-                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                {/* Строка 2: количество — всегда одна и та же сетка справа.
+                    grid из трёх колонок 44/52/44, а не flex: у товара в
+                    корзине элементов три (−, поле, +), а у ещё не
+                    добавленного — два (поле, +). На flex они прижимались
+                    вправо каждый по-своему, и в списке, где соседние строки
+                    в разном состоянии, кнопки «+» стояли на разной высоте и
+                    на разном отступе от края — именно эта рассинхронность и
+                    читается как «неровно». Сетка фиксирует колонки, поэтому
+                    поле ввода и «+» стоят на одном месте в любой строке;
+                    у не добавленного товара первая колонка просто пустая. */}
+                <div style={{ display: "grid", gridTemplateColumns: "44px 52px 44px", gap: "4px", justifyContent: "end", alignItems: "center" }}>
                   {inCart ? (
-                    <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                    <>
                       <button onClick={(e) => { e.stopPropagation(); updateQuantity(product.id, -1); }}
                         style={{ width: "44px", height: "44px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--color-text-secondary)" }}>
                         <Minus size={16} />
@@ -202,25 +211,29 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
                         style={{ width: "44px", height: "44px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--color-text-secondary)" }}>
                         <Plus size={16} />
                       </button>
-                    </div>
+                    </>
                   ) : (
-                    /* Quick add: input qty + Enter */
-                    <div style={{ display: "flex", alignItems: "center", gap: "4px" }} onClick={(e) => e.stopPropagation()}>
+                    /* Quick add: input qty + Enter. Первая колонка пустая —
+                       кнопки «−» тут нет, но место под неё держится, чтобы
+                       поле и «+» не съезжали относительно соседних строк. */
+                    <>
+                      <span />
                       <input
                         data-testid={`product-qty-${product.id}`}
                         type="number"
                         min="1"
                         placeholder="1"
                         value={inputVal}
+                        onClick={(e) => e.stopPropagation()}
                         onChange={(e) => setQuickQty(prev => ({ ...prev, [product.id]: e.target.value }))}
                         onKeyDown={(e) => { if (e.key === "Enter") handleQuickAdd(product); }}
                         style={{ width: "52px", height: "44px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface)", textAlign: "center", fontSize: "12px", color: "var(--color-text-primary)", fontFamily: "'DM Sans', sans-serif", outline: "none" }}
                       />
-                      <button data-testid={`product-add-${product.id}`} onClick={() => handleQuickAdd(product)}
+                      <button data-testid={`product-add-${product.id}`} onClick={(e) => { e.stopPropagation(); handleQuickAdd(product); }}
                         style={{ width: "44px", height: "44px", borderRadius: "6px", border: "none", background: "var(--color-primary)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--color-on-primary, #ffffff)" }}>
                         <Plus size={16} />
                       </button>
-                    </div>
+                    </>
                   )}
                 </div>
               </div>

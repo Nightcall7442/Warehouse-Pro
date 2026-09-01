@@ -1185,3 +1185,126 @@ export const leads = mysqlTable("leads", {
 
 export type Lead       = typeof leads.$inferSelect;
 export type InsertLead = typeof leads.$inferInsert;
+
+// ============================================
+// КОНТРАГЕНТЫ: ПОСТАВЩИКИ, ПОСТАВКИ, ПЛАТЕЖИ ИМ
+// ============================================
+//
+// Зеркало того, что уже есть для магазинов. Там считается, сколько должны НАМ:
+// у магазина поле debt, платежи в таблице payments. Здесь — сколько должны МЫ:
+// завод привёз товар на сумму, оплатили часть, остаток висит долгом.
+//
+// До этого поставщика в системе не было вовсе. Приходы (arrivals) описывают
+// доставку — грузовик, водителя, топливо, — но не того, у кого товар куплен и
+// сколько за него причитается. Деньги, уходящие из фирмы, нигде не считались.
+//
+// ── Почему поставка отдельно от прихода ──────────────────────────────────────
+//
+// Приход — это разгрузка машины. Поставка — обязательство перед заводом. Одно с
+// другим не совпадает: одна машина может привезти товар двух поставщиков, а
+// один договор — приезжать тремя рейсами. Связь между ними необязательная:
+// поставку можно завести и без прихода, если товар ещё в пути.
+//
+// ── Про валюту ───────────────────────────────────────────────────────────────
+//
+// Часть товара ввозная, и завод выставляет счёт в долларах. Долг в таком случае
+// долларовый: должны мы именно тысячу долларов, а не сумму по вчерашнему курсу.
+// Поэтому у поставки своя валюта, и платёж уменьшает долг В ЭТОЙ ЖЕ валюте.
+//
+// Курс хранится отдельно и только для отчётности — чтобы можно было сказать,
+// во сколько сумов обошлась закупка на день сделки. Пересчитывать по нему долг
+// нельзя: курс меняется, а обязательство нет.
+
+export const suppliers = mysqlTable("suppliers", {
+  id:        serial("id").primaryKey(),
+  tenantId:  bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  name:      varchar("name", { length: 255 }).notNull(),
+  contactName: varchar("contact_name", { length: 255 }),
+  phone:     varchar("phone", { length: 32 }),
+  inn:       varchar("inn", { length: 32 }),
+  address:   varchar("address", { length: 500 }),
+  notes:     text("notes"),
+  status:    mysqlEnum("status", ["active", "inactive"]).default("active").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
+}, (t) => ({
+  // Два поставщика с одним именем у одной фирмы — почти наверняка опечатка при
+  // заведении, и долги разъедутся по двум карточкам незаметно.
+  namePerTenant: uniqueIndex("uq_supplier_name_tenant").on(t.name, t.tenantId),
+  tenantIdx:     index("idx_suppliers_tenant").on(t.tenantId),
+  tenantStatusIdx: index("idx_suppliers_tenant_status").on(t.tenantId, t.status),
+}));
+
+export type Supplier       = typeof suppliers.$inferSelect;
+export type InsertSupplier = typeof suppliers.$inferInsert;
+
+/** Обязательство перед поставщиком: привезли товар на сумму, её надо закрыть. */
+export const supplies = mysqlTable("supplies", {
+  id:          serial("id").primaryKey(),
+  tenantId:    bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  supplierId:  bigint("supplier_id", { mode: "number", unsigned: true }).notNull().references(() => suppliers.id, { onDelete: "restrict" }),
+  // Необязательная связь с разгрузкой: товар может быть ещё в пути.
+  arrivalId:   bigint("arrival_id", { mode: "number", unsigned: true }).references(() => arrivals.id, { onDelete: "set null" }),
+  supplyNumber: varchar("supply_number", { length: 50 }).notNull(),
+  // Сумма и валюта обязательства. Долг живёт именно в этой валюте.
+  amount:      decimal("amount", { precision: 15, scale: 2 }).notNull(),
+  currency:    mysqlEnum("currency", ["UZS", "USD"]).default("UZS").notNull(),
+  // Курс на день сделки — только чтобы показать закупку в сумах в отчётах.
+  // Долг по нему НЕ пересчитывается.
+  rateToUzs:   decimal("rate_to_uzs", { precision: 12, scale: 4 }),
+  supplyDate:  date("supply_date").notNull(),
+  dueDate:     date("due_date"),
+  notes:       text("notes"),
+  createdBy:   bigint("created_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),
+  createdAt:   timestamp("created_at").defaultNow().notNull(),
+  updatedAt:   timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
+}, (t) => ({
+  numPerTenant:    uniqueIndex("uq_supply_number_tenant").on(t.supplyNumber, t.tenantId),
+  tenantIdx:       index("idx_supplies_tenant").on(t.tenantId),
+  // Под главный вопрос экрана: что мы должны этому поставщику и с каких дат.
+  tenantSupplierDateIdx: index("idx_supplies_tenant_supplier_date").on(t.tenantId, t.supplierId, t.supplyDate),
+  // Под список просроченных.
+  tenantDueIdx:    index("idx_supplies_tenant_due").on(t.tenantId, t.dueDate),
+}));
+
+export type Supply       = typeof supplies.$inferSelect;
+export type InsertSupply = typeof supplies.$inferInsert;
+
+/**
+ * Платёж поставщику по конкретной поставке.
+ *
+ * Привязка к поставке, а не к общему сальдо, — осознанный выбор владельца:
+ * иначе на вопрос «за какую партию мы ещё должны» ответить нечем, а именно он
+ * и возникает при споре с заводом.
+ *
+ * amount указывается в валюте ПОСТАВКИ и уменьшает долг ровно на себя. Сколько
+ * сумов при этом реально ушло из кассы, пишется отдельно в paidUzs — это разные
+ * величины, когда счёт долларовый, и путать их нельзя.
+ */
+export const supplierPayments = mysqlTable("supplier_payments", {
+  id:         serial("id").primaryKey(),
+  tenantId:   bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  supplierId: bigint("supplier_id", { mode: "number", unsigned: true }).notNull().references(() => suppliers.id, { onDelete: "restrict" }),
+  supplyId:   bigint("supply_id", { mode: "number", unsigned: true }).notNull().references(() => supplies.id, { onDelete: "restrict" }),
+  amount:     decimal("amount", { precision: 15, scale: 2 }).notNull(),
+  // Сколько сумов ушло на самом деле и по какому курсу — для кассы и отчётов.
+  paidUzs:    decimal("paid_uzs", { precision: 15, scale: 2 }),
+  rateToUzs:  decimal("rate_to_uzs", { precision: 12, scale: 4 }),
+  paymentMethod: mysqlEnum("payment_method", ["cash", "card", "transfer"]).default("transfer").notNull(),
+  paidAt:     timestamp("paid_at").defaultNow().notNull(),
+  notes:      text("notes"),
+  createdBy:  bigint("created_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),
+  // Повторная отправка той же формы не должна списать деньги дважды. Тот же
+  // приём, что у платежей магазинов: ключ попытки, а не надежда на аккуратность.
+  idempotencyKey: varchar("idempotency_key", { length: 64 }),
+  createdAt:  timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  keyPerTenant:  uniqueIndex("uq_supplier_payment_idem").on(t.idempotencyKey, t.tenantId),
+  tenantIdx:     index("idx_supplier_payments_tenant").on(t.tenantId),
+  // Под пересчёт долга по поставке — самый частый запрос этого раздела.
+  supplyIdx:     index("idx_supplier_payments_supply").on(t.supplyId),
+  tenantSupplierIdx: index("idx_supplier_payments_tenant_supplier").on(t.tenantId, t.supplierId, t.paidAt),
+}));
+
+export type SupplierPayment       = typeof supplierPayments.$inferSelect;
+export type InsertSupplierPayment = typeof supplierPayments.$inferInsert;

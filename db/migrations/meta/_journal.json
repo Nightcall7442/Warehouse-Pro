@@ -351,6 +351,13 @@
       "when": 1788260118734,
       "tag": "0049_restore_basic_plan",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "5",
+      "when": 1788260200000,
+      "tag": "0050_suppliers_and_supplier_debt",
+      "breakpoints": true
     }
   ]
 }
