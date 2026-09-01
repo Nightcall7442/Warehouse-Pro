@@ -77,8 +77,21 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
 
   return (
     <div className="flex flex-col h-full sidebar-collapse-transition" style={{ background: "var(--color-surface, #efedea)" }}>
-      {/* Logo */}
-      <div className="flex items-center px-5 gap-3" style={{ height: "64px" }}>
+      {/* Logo.
+
+          Тот же приём, что у MobileHeader выше: высота растёт на
+          safe-area-inset-top вместо паддинга поверх жёсткой высоты. Этот блок
+          используется дважды — в мобильном выдвижном меню, где панель стоит
+          от самого верха экрана (fixed inset-0), и в неподвижной боковой
+          панели на десктопе, у которой сверху и так есть отступ 16px. На
+          десктопе inset-top всегда 0, так что там ничего не меняется; правка
+          нужна только мобильному меню, где без неё крестик закрытия в
+          установленном PWA утыкается под вырез или Dynamic Island — тапнуть
+          по нему получается не с первого раза. */}
+      <div
+        className="flex items-center px-5 gap-3"
+        style={{ height: "calc(64px + env(safe-area-inset-top, 0px))", paddingTop: "env(safe-area-inset-top, 0px)" }}
+      >
         <LogoMark size={36} className="flex-shrink-0" decorative />
         <span style={{ fontSize: "16px", fontWeight: 700, color: "var(--color-text-primary, #2b2a28)", letterSpacing: "-0.02em" }}>Warehouse Pro</span>
         {onClose && (
@@ -197,8 +210,25 @@ const MobileHeader = memo(function MobileHeader({ onMenuClick, unreadCount }: { 
   const meta     = usePageMeta();
   const hasParent = !!meta.parent;
 
+  /*
+   * Высота растёт на safe-area-inset-top, а не просто получает padding-top:
+   * с жёсткой высотой (box-sizing: border-box из preflight) паддинг сверху
+   * отъедал бы место у иконок, а на iPhone с вырезом или Dynamic Island
+   * (inset доходит до 59px) содержимое сплющилось бы почти в ноль. Тот же
+   * приём, что и у отступа под нижнюю навигацию несколькими строками ниже
+   * (calc(60px+env(safe-area-inset-bottom,0px))) — только сверху.
+   *
+   * Без этого шапка пряталась под часами и вырезом iPhone, но только в
+   * установленном PWA (display: standalone): apple-mobile-web-app-status-bar-style
+   * стоит black-translucent, а это режим, где страница рисуется ПОД строкой
+   * состояния. В обычной вкладке Safari браузер сам добавляет свою полосу
+   * сверху, и бага не видно — отсюда путаница «в браузере нормально, в
+   * установленном приложении криво». Агентов бьёт сильнее прочих ролей:
+   * именно их подталкивают ставить приложение на экран ради офлайн-режима
+   * (см. InstallPrompt.tsx), то есть именно они чаще всего в standalone.
+   */
   return (
-    <header className="md:hidden h-[56px] flex items-center px-2 sticky top-0 z-40 gap-1 mobile-header-premium">
+    <header className="md:hidden flex items-center px-2 sticky top-0 z-40 gap-1 mobile-header-premium h-[calc(56px+env(safe-area-inset-top,0px))] pt-[env(safe-area-inset-top,0px)]">
       {hasParent ? (
         <button onClick={() => navigate(meta.parentPath!)} className="btn-ghost p-2 flex items-center gap-1">
           <ChevronLeft size={20} />
