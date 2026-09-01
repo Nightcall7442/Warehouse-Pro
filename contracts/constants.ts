@@ -33,13 +33,15 @@ export const PLANS = {
     maxOrdersMonth: 50,
     durationDays:   14,
   },
-  // Тариф Basic убран при ребрендинге: платных ступеней осталось две — Pro и
-  // Exclusive. Ни одной фирмы на нём не было, проверено по базе перед
-  // удалением, поэтому переносить оказалось некого.
-  //
-  // Trial оставлен намеренно. Это не витринный тариф, а начальное состояние
-  // фирмы после регистрации, и на нём живут действующие фирмы; убрать его
-  // значило бы закрыть вход новым.
+  basic: {
+    name:           "Basic",
+    nameUz:         "Basic",
+    nameRu:         "Basic",
+    maxUsers:       5,
+    maxProducts:    50,
+    maxOrdersMonth: null as number | null,
+    durationDays:   30,
+  },
   pro: {
     name:           "Pro",
     nameUz:         "Pro",
@@ -65,6 +67,7 @@ export type PlanKey = keyof typeof PLANS;
 /** UZS prices — used by billing-router for local payment providers (Payme, Click, Uzum Pay) */
 export const PLAN_PRICES_UZS: Record<PlanKey, number> = {
   trial:     0,
+  basic:     299_000,
   pro:       599_000,
   exclusive: 1_299_000,
 };

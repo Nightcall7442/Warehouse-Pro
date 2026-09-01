@@ -268,6 +268,7 @@ export const ru = {
     title:       "Подписка",
     plan:        "Тариф",
     trial:       "Пробный период",
+    basic:       "Базовый",
     pro:         "Профессиональный",
     perMonth:    "/ месяц",
     daysLeft:    "дн. осталось",

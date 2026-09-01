@@ -10,12 +10,9 @@ import { env } from "../lib/env";
 import { logger } from "../lib/logger";
 
 /** Stripe sets this in checkout metadata; anything else is not a plan we sell. */
-type PaidPlan = "pro" | "exclusive";
+type PaidPlan = "basic" | "pro" | "exclusive";
 function toPaidPlan(value: string | undefined): PaidPlan {
-  // Запасным был Basic — самый дешёвый платный, то есть безобидный при осечке.
-  // Теперь дешёвый платный это Pro, он и становится запасным. Выдавать по
-  // невнятным данным Exclusive нельзя: это безлимит по чужой цене.
-  return value === "exclusive" ? "exclusive" : "pro";
+  return value === "pro" || value === "exclusive" ? value : "basic";
 }
 
 // Generic over the env so the caller's bindings (node-server's HttpBindings)
@@ -92,8 +89,9 @@ export function registerStripeWebhook<E extends Env>(app: Hono<E>) {
             tenantId = Number(sub.metadata?.tenantId);
             if (!tenantId) break;
             const priceId = sub.items?.data?.[0]?.price?.id;
-            let plan: PaidPlan = "pro";
-            if (priceId === env.stripeExclusivePriceId) plan = "exclusive";
+            let plan: "basic" | "pro" | "exclusive" = "basic";
+            if (priceId === env.stripeProPriceId) plan = "pro";
+            else if (priceId === env.stripeExclusivePriceId) plan = "exclusive";
             const [existingSub] = await tx.select({ id: subscriptions.id }).from(subscriptions).where(eq(subscriptions.tenantId, tenantId)).limit(1);
             const subData = {
               plan, status: sub.status as "active" | "past_due" | "canceled" | "trialing" | "incomplete",

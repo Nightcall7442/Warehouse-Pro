@@ -23,20 +23,27 @@ export default function PricingSection() {
 
   const plans = useMemo(
     () => [
-      // Тарифов на витрине два. Pro стал начальной ступенью, поэтому его состав
-      // больше не может ссылаться на Basic словами «всё из…»: читателю не от
-      // чего отталкиваться, и перечислять приходится целиком. По той же причине
-      // из описания убрана нижняя граница «5–20 сотрудников» — команда из трёх
-      // человек теперь приходит сюда, и отсекать её текстом нельзя.
+      {
+        name: "Basic",
+        price: "299 000",
+        fit: tr("Команда до 5 человек, один склад", "5 kishigacha jamoa, bitta ombor"),
+        anchor: tr("≈ 10 000 сум в день", "kuniga ≈ 10 000 so'm"),
+        features: [
+          tr("Склад, заказы, доставка", "Ombor, buyurtmalar, yetkazish"),
+          tr("До 5 пользователей", "5 tagacha foydalanuvchi"),
+          tr("Мобильное приложение с офлайн-режимом", "Oflayn rejimli mobil ilova"),
+          tr("Базовые отчёты", "Asosiy hisobotlar"),
+          tr("Поддержка по email", "Email orqali yordam"),
+        ],
+        hl: false,
+      },
       {
         name: "Pro",
         price: "599 000",
-        fit: tr("До 20 сотрудников, агенты в поле", "20 tagacha xodim, daladagi agentlar"),
+        fit: tr("5–20 сотрудников, агенты в поле", "5–20 xodim, daladagi agentlar"),
         anchor: tr("≈ 20 000 сум в день — меньше одной недостачи", "kuniga ≈ 20 000 so'm — bitta kamomaddan arzon"),
         features: [
-          tr("Склад, заказы, доставка", "Ombor, buyurtmalar, yetkazish"),
-          tr("До 20 пользователей", "20 tagacha foydalanuvchi"),
-          tr("Мобильное приложение с офлайн-режимом", "Oflayn rejimli mobil ilova"),
+          tr("Всё из Basic, до 20 пользователей", "Basic'dagi hammasi, 20 tagacha foydalanuvchi"),
           tr("GPS-контроль агентов и курьеров", "Agentlar va kuryerlar GPS nazorati"),
           tr("Двусторонний обмен с 1С", "1C bilan ikki tomonlama almashinuv"),
           tr("Полная аналитика: прибыль, KPI, долги", "To'liq tahlil: foyda, KPI, qarzlar"),

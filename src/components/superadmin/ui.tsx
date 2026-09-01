@@ -5,7 +5,7 @@ import { F, COLORS, PLAN_COLORS, STATUS_COLORS } from "./types";
 
 // ── Badge components ────────────────────────────────────────────────────────
 export function PlanBadge({ plan }: { plan: string }) {
-  const c = PLAN_COLORS[plan] ?? PLAN_COLORS.trial;
+  const c = PLAN_COLORS[plan] ?? PLAN_COLORS.basic;
   return (
     <span style={{ display: "inline-flex", alignItems: "center", padding: "3px 10px", borderRadius: "20px", fontSize: "10px", fontWeight: 700, fontFamily: F.body, color: c.fg, background: c.bg, letterSpacing: "0.04em" }}>
       {plan.toUpperCase()}

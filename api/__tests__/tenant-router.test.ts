@@ -572,7 +572,7 @@ describe("tenant.create (superAdmin)", () => {
   it("sets planExpiresAt for non-trial plans", async () => {
     const { tenantRouter } = await import("../tenant-router");
     const caller = tenantRouter.createCaller(superAdminCtx());
-    await caller.create({ orgName: "PaidCo", ownerName: "Boss", ownerEmail: "boss@paid.com", ownerPassword: "password123", plan: "pro" });
+    await caller.create({ orgName: "PaidCo", ownerName: "Boss", ownerEmail: "boss@paid.com", ownerPassword: "password123", plan: "basic" });
     const t = tenantsTable.find(t => t.slug === "paidco");
     expect(t?.planExpiresAt).toBeDefined();
   });

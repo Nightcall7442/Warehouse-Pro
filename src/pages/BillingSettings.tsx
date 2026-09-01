@@ -10,10 +10,8 @@ import { PLAN_PRICES_UZS } from '../../contracts/constants';
 
 const PLAN_FEATURES: Record<string, string[]> = {
   trial:     ["3 пользователя", "20 товаров", "50 заказов/мес", "Базовый склад", "14 дней бесплатно"],
-  // «Складской учёт» перенесён сюда из убранного Basic: Pro стал начальной
-  // ступенью, и складская часть больше нигде не названа — без этой строки
-  // выходит, что главного в системе тариф не включает.
-  pro:       ["20 пользователей", "100 товаров", "Складской учёт", "Полная аналитика", "GPS-трекинг", "Интеграция с 1С", "Приоритетная поддержка"],
+  basic:     ["5 пользователей", "50 товаров", "Базовая аналитика", "Складской учёт", "Email-поддержка"],
+  pro:       ["20 пользователей", "100 товаров", "Полная аналитика", "GPS-трекинг", "Интеграция с 1С", "Приоритетная поддержка"],
   exclusive: ["Безлимит пользователей", "Безлимит товаров", "API доступ", "White-label", "Выделенный сервер", "24/7 поддержка"],
 };
 
@@ -112,10 +110,9 @@ export default function BillingSettings() {
       {/* Plans */}
       <div>
         <h2 className="font-label text-secondary tracking-wider text-xs mb-4">ТАРИФЫ</h2>
-        {/* Две колонки, а не три: тарифов осталось два, и в сетке на три
-            карточки последняя треть оставалась пустой. */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[
+            { key: "basic",     name: "Basic",     price: `${PLAN_PRICES_UZS.basic.toLocaleString('ru-RU')} сум/мес`,  highlight: false },
             { key: "pro",       name: "Pro",       price: `${PLAN_PRICES_UZS.pro.toLocaleString('ru-RU')} сум/мес`,  highlight: true  },
             { key: "exclusive", name: "Exclusive", price: `${PLAN_PRICES_UZS.exclusive.toLocaleString('ru-RU')} сум/мес`, highlight: false },
           ].map(plan => {
@@ -147,7 +144,7 @@ export default function BillingSettings() {
                   </div>
                 ) : (
                   <button
-                    onClick={() => checkout.mutate({ plan: plan.key as "pro" | "exclusive" })}
+                    onClick={() => checkout.mutate({ plan: plan.key as "basic" | "pro" | "exclusive" })}
                     disabled={checkout.isPending}
                     className="neo-btn-primary w-full flex items-center justify-center gap-2 py-2 text-sm"
                   >

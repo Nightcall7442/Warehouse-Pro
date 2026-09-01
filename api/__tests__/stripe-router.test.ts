@@ -175,7 +175,7 @@ vi.mock("../lib/stripe", () => ({
   getStripe: () => mockStripe,
   PLANS: {
     trial: { name: "Trial", price: 0, priceId: null },
-    exclusive: { name: "Exclusive", price: 129900, priceId: "price_exclusive_789" },
+    basic: { name: "Basic", price: 9900, priceId: "price_basic_123" },
     pro: { name: "Pro", price: 24900, priceId: "price_pro_456" },
   },
 }));
@@ -356,11 +356,11 @@ describe("stripe.getPlans", () => {
     expect(trial!.price).toBe(0);
     expect(trial!.priceId).toBeNull();
 
-    const exclusive = result.find((p: Record<string, unknown>) => p.key === "exclusive");
-    expect(exclusive).toBeDefined();
-    expect(exclusive!.name).toBe("Exclusive");
-    expect(exclusive!.price).toBe(129900);
-    expect(exclusive!.priceId).toBe("price_exclusive_789");
+    const basic = result.find((p: Record<string, unknown>) => p.key === "basic");
+    expect(basic).toBeDefined();
+    expect(basic!.name).toBe("Basic");
+    expect(basic!.price).toBe(9900);
+    expect(basic!.priceId).toBe("price_basic_123");
 
     const pro = result.find((p: Record<string, unknown>) => p.key === "pro");
     expect(pro).toBeDefined();
@@ -374,7 +374,7 @@ describe("stripe.createCheckoutSession", () => {
   it("throws if plan has no priceId (trial plan)", async () => {
     const { stripeRouter } = await import("../stripe-router");
     const caller = stripeRouter.createCaller(makeCtx(1, 10, "ceo"));
-    await expect(caller.createCheckoutSession({ plan: "pro" })).resolves.toBeDefined();
+    await expect(caller.createCheckoutSession({ plan: "basic" as never })).resolves.toBeDefined();
 
     mockStripe.checkout.sessions.create.mockClear();
     mockGetOrCreateSubscription = vi.fn(async () => ({
@@ -386,7 +386,7 @@ describe("stripe.createCheckoutSession", () => {
     vi.mocked((await import("../lib/stripe")).PLANS).trial.priceId = null;
 
     const callerTrial = stripeRouter.createCaller(makeCtx(1, 10, "ceo"));
-    await expect(callerTrial.createCheckoutSession({ plan: "pro" })).resolves.toBeDefined();
+    await expect(callerTrial.createCheckoutSession({ plan: "basic" })).resolves.toBeDefined();
   });
 
   it("creates Stripe customer when none exists", async () => {
@@ -394,7 +394,7 @@ describe("stripe.createCheckoutSession", () => {
 
     const { stripeRouter } = await import("../stripe-router");
     const caller = stripeRouter.createCaller(makeCtx(1, 10, "ceo"));
-    const result = await caller.createCheckoutSession({ plan: "pro" });
+    const result = await caller.createCheckoutSession({ plan: "basic" });
 
     expect(mockStripe.customers.create).toHaveBeenCalledWith({
       email: "t@t.com",
@@ -442,7 +442,7 @@ describe("stripe.createCheckoutSession", () => {
 
     const { stripeRouter } = await import("../stripe-router");
     const caller = stripeRouter.createCaller(makeCtx(1, 10, "ceo"));
-    await caller.createCheckoutSession({ plan: "pro" });
+    await caller.createCheckoutSession({ plan: "basic" });
 
     const callArgs = (mockStripe.checkout.sessions.create.mock.calls as any)[0]?.[0];
     expect(callArgs!.subscription_data.trial_end).toBe(Math.floor(trialEndsAt.getTime() / 1000));
@@ -455,7 +455,7 @@ describe("stripe.createCheckoutSession", () => {
 
     const { stripeRouter } = await import("../stripe-router");
     const caller = stripeRouter.createCaller(makeCtx(1, 10, "ceo"));
-    await caller.createCheckoutSession({ plan: "pro" });
+    await caller.createCheckoutSession({ plan: "basic" });
 
     const callArgs = (mockStripe.checkout.sessions.create.mock.calls as any)[0]?.[0];
     expect(callArgs!.subscription_data.trial_end).toBeUndefined();
@@ -464,7 +464,7 @@ describe("stripe.createCheckoutSession", () => {
   it("requires admin role (rejects operator)", async () => {
     const { stripeRouter } = await import("../stripe-router");
     const caller = stripeRouter.createCaller(makeCtx(1, 10, "operator"));
-    await expect(caller.createCheckoutSession({ plan: "pro" })).rejects.toThrow();
+    await expect(caller.createCheckoutSession({ plan: "basic" })).rejects.toThrow();
   });
 });
 
