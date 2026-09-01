@@ -17,6 +17,11 @@ COPY .env.example .env
 # Build-time env vars — Vite inlines these at bundle time.
 # Railway: set these in Project → Settings → Variables (they're passed to docker build).
 ARG VITE_SENTRY_DSN=""
+# Отпечаток коммита Railway подставляет в сборку сам. Он же становится
+# версией: по ней Sentry подбирает карты кода к минифицированному стеку, и
+# по ней же видно, какая именно выкладка сломалась. Задавать VITE_APP_VERSION
+# руками больше не нужно — но если задать, она победит.
+ARG RAILWAY_GIT_COMMIT_SHA=""
 ARG VITE_APP_VERSION=""
 ARG SENTRY_AUTH_TOKEN=""
 ARG SENTRY_ORG=""
@@ -28,7 +33,10 @@ ARG SENTRY_PROJECT=""
 # без правки кода нельзя.
 ARG VITE_YANDEX_MAPS_API_KEY=""
 ENV VITE_SENTRY_DSN=${VITE_SENTRY_DSN}
-ENV VITE_APP_VERSION=${VITE_APP_VERSION}
+ENV VITE_APP_VERSION=${VITE_APP_VERSION:-${RAILWAY_GIT_COMMIT_SHA}}
+# Той же версией помечаются карты кода при загрузке в Sentry и серверные
+# ошибки: все трое обязаны совпасть, иначе стек останется нечитаемым.
+ENV SENTRY_RELEASE=${VITE_APP_VERSION:-${RAILWAY_GIT_COMMIT_SHA}}
 ENV SENTRY_AUTH_TOKEN=${SENTRY_AUTH_TOKEN}
 ENV SENTRY_ORG=${SENTRY_ORG}
 ENV SENTRY_PROJECT=${SENTRY_PROJECT}

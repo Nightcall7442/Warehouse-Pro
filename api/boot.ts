@@ -53,7 +53,10 @@ Sentry.init({
   environment: env.isProduction ? "production" : "development",
   tracesSampleRate: env.isProduction ? 0.2 : 1.0,
   debug: !env.isProduction,
-  release: APP_VERSION,
+  // Не APP_VERSION: та зашита в код числом «1.0.0» и одинакова во всех
+  // выкладках — по ней нельзя сказать, какая из них сломалась. Здесь
+  // отпечаток коммита, тот же, что у браузерной части.
+  release: env.sentryRelease || APP_VERSION,
   sendDefaultPii: false,
 });
 
@@ -160,7 +163,10 @@ app.use("*", async (c, next) => {
       scope.setTag("error_type", err instanceof Error ? err.constructor.name : "Unknown");
 
       if (authUser) {
-        scope.setUser({ id: String(authUser.id), username: authUser.email });
+        // Без почты: рядом объявлено sendDefaultPii: false, и отправлять её
+        // вопреки этому нельзя. Идентификатора и организации достаточно —
+        // человек находится по ним в своей же базе.
+        scope.setUser({ id: String(authUser.id) });
         scope.setContext("tenant", authTenant ?? null);
       }
 

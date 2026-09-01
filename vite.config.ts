@@ -25,6 +25,12 @@ export default defineConfig({
       org: process.env.SENTRY_ORG || "nightcall",
       project: process.env.SENTRY_PROJECT || "warehouse-pro",
       authToken: process.env.SENTRY_AUTH_TOKEN,
+      // Версия задаётся ЯВНО и той же, что уходит в браузер (VITE_APP_VERSION
+      // в src/sentry.ts). Сам плагин пытается угадать её из git, а внутри
+      // образа Docker каталога .git нет — карты загрузились бы под чужой
+      // версией и к ошибке не подошли бы. Молча: стек остаётся
+      // минифицированным, и понять почему — неоткуда.
+      release: { name: process.env.VITE_APP_VERSION || process.env.SENTRY_RELEASE || "dev" },
       sourcemaps: {
         assets: "./dist/**",
         ignore: ["node_modules"],

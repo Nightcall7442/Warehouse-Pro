@@ -111,6 +111,10 @@ export const env = {
 
   // Sentry
   sentryDsn:           optional("SENTRY_DSN"),
+  // Версия выкладки. Та же, что у браузерной части и у карт кода: иначе
+  // ошибки сервера и браузера лягут в Sentry под разными релизами, и связать
+  // одно с другим будет нечем.
+  sentryRelease:       optional("SENTRY_RELEASE") || optional("RAILWAY_GIT_COMMIT_SHA"),
 
   // Prometheus metrics (/metrics endpoint)
   prometheusEnabled:   optional("PROMETHEUS_ENABLED", "true") !== "false",

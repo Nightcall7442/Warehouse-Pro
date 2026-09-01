@@ -2,7 +2,7 @@ import { trpc } from "@/providers/trpc";
 import { useCallback, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router";
 import { LOGIN_PATH } from "@/const";
-import * as Sentry from "@sentry/react";
+import { setSentryUser } from "@/sentry";
 
 declare global {
   interface Window { __LOGGING_OUT?: boolean }
@@ -61,14 +61,17 @@ export function useAuth(options?: UseAuthOptions) {
     retry: false,
   });
 
-  // Set Sentry user context when user data loads
+  // Кто наткнулся на ошибку — через setSentryUser, а не тут же руками.
+  // Здесь стояла почта пользователя, при том что рядом в sentry.ts объявлено
+  // sendDefaultPii: false. Одно противоречило другому, и почта уезжала
+  // третьей стороне вопреки заявленному. Идентификатора и организации
+  // достаточно: человека по ним находят в своей же базе.
   useEffect(() => {
     if (user) {
-      Sentry.setUser({ id: String(user.id), username: user.email });
-      Sentry.setContext("tenant", { id: user.tenantId, role: user.role });
+      setSentryUser({ id: user.id, tenantId: user.tenantId, role: user.role });
       setSessionHint(true);
     } else if (!isLoading) {
-      Sentry.setUser(null);
+      setSentryUser(null);
       setSessionHint(false);
     }
   }, [user, isLoading]);
