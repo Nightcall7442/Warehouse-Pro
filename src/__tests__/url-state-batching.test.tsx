@@ -28,7 +28,11 @@ afterEach(cleanup);
 
 const ВИД = urlEnum(["territories", "list"] as const, "territories");
 
-function Стенд() {
+// Имя латиницей, в отличие от остальных в этом файле: правило
+// react-hooks/rules-of-hooks опознаёт компонент по ЛАТИНСКОЙ заглавной букве
+// и с кириллическим «Стенд» считало все вызовы хуков нарушением — шесть
+// ошибок линтера, из-за которых CI был красным.
+function Harness() {
   const [territory, setTerritory] = useUrlState("territory", undefined, urlNumber);
   const [view, setView] = useUrlState("view", "territories", ВИД);
   const [search, setSearch] = useUrlState("search", "", urlString);
@@ -57,7 +61,7 @@ function Стенд() {
 }
 
 function поднять(адрес = "/shops") {
-  return render(<MemoryRouter initialEntries={[адрес]}><Стенд /></MemoryRouter>);
+  return render(<MemoryRouter initialEntries={[адрес]}><Harness /></MemoryRouter>);
 }
 
 describe("useUrlState: несколько записей в одном такте", () => {
