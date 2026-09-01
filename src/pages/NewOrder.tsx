@@ -97,7 +97,25 @@ export default function NewOrder() {
 
   return (
     <div className="max-w-lg mx-auto">
-      {/* Header */}
+      {/* Header.
+          Заголовок скрыт на мобильном (hidden md:block), кнопка назад и
+          остальное — нет.
+
+          У Layout.tsx своя шапка, но только на мобильном (MobileHeader,
+          md:hidden) — на десктопе заголовка страницы вообще нет ни у кого,
+          кроме самой страницы. Здесь стоял один и тот же текст «Новый заказ»
+          дважды подряд: сверху из глобальной шапки, сразу под ней — этот же
+          заголовок ещё раз. На маленьком экране, где каждый пиксель уходит
+          под список товаров, это была просто повторяющаяся строка без
+          смысла.
+
+          Кнопка «назад» — не то же самое, что кнопка глобальной шапки, и
+          убирать её нельзя: она возвращает на предыдущий шаг мастера
+          (Steps — чисто декоративный компонент, кликов по кружкам нет), а
+          кнопка в глобальной шапке всегда ведёт на /orders, теряя выбранный
+          магазин и уже набранную корзину. Название магазина — тоже
+          самостоятельная информация, глобальная шапка показывает только
+          статичное «Заказы». */}
       <div className="flex items-center gap-3 mb-6">
         <button
           onClick={() => step > 1 ? setStep(s => s - 1) : navigate(-1)}
@@ -109,7 +127,7 @@ export default function NewOrder() {
           </svg>
         </button>
         <div>
-          <h1 className="font-display text-xl font-bold text-primary tracking-tight">
+          <h1 className="hidden md:block font-display text-xl font-bold text-primary tracking-tight">
             {t("Новый заказ", "Yangi buyurtma")}
           </h1>
           {shopName && step > 1 && (
