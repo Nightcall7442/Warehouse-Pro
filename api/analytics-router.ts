@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createRouter, reportsQuery, financeQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { orders, orderItems, products, shops, users, dailyPlans, arrivals, agentTerritories } from "@db/schema";
-import { eq, and, sql, desc , inArray } from "drizzle-orm";
+import { eq, and, sql, desc , inArray, isNull } from "drizzle-orm";
 import { REVENUE_ORDER_STATUSES, revenueOrderConditions, revenuePeriodConditions, deliveredQty } from "./lib/order-status";
 import { MS_PER_DAY } from "./lib/constants";
 
@@ -168,7 +168,7 @@ export const analyticsRouter = createRouter({
         orderCount: sql<number>`count(*)`,
       })
         .from(orders)
-        .where(and(eq(orders.tenantId, ctx.tenant.id), eq(orders.shopId, input.shopId), inArray(orders.status, REVENUE_ORDER_STATUSES), sql`${orders.createdAt} >= ${cutoff}`))
+        .where(and(eq(orders.tenantId, ctx.tenant.id), eq(orders.shopId, input.shopId), inArray(orders.status, REVENUE_ORDER_STATUSES), isNull(orders.deletedAt), sql`${orders.createdAt} >= ${cutoff}`))
         .groupBy(sql`DATE(${orders.createdAt})`).orderBy(sql`DATE(${orders.createdAt})`);
     }),
 
@@ -597,7 +597,7 @@ export const analyticsRouter = createRouter({
         .from(orders)
         .where(and(
           eq(orders.tenantId, tid),
-          inArray(orders.status, REVENUE_ORDER_STATUSES),
+          inArray(orders.status, REVENUE_ORDER_STATUSES), isNull(orders.deletedAt),
           sql`${orders.createdAt} >= ${input.from}`,
           sql`${orders.createdAt} <= ${input.to + " 23:59:59"}`,
         ))

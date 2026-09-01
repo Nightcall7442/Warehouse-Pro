@@ -4,8 +4,8 @@
 
 import { getDb } from "../queries/connection";
 import { warehouseStock, orderItems, orders, products, arrivals, arrivalItems } from "@db/schema";
-import { eq, and, sql, gte, lt, inArray } from "drizzle-orm";
-import { REVENUE_ORDER_STATUSES } from "../lib/order-status";
+import { eq, and, sql, gte, lt } from "drizzle-orm";
+import { revenueOrderConditions } from "../lib/order-status";
 import { withCache } from "../lib/cache";
 import type { DemandPoint } from "./forecast-engine";
 
@@ -66,9 +66,12 @@ export async function getProductDemand(
     .from(orderItems)
     .innerJoin(orders, eq(orderItems.orderId, orders.id))
     .where(and(
-      eq(orders.tenantId, tenantId),
+      // Через общий набор условий, а не руками. Он и заведён потому, что при
+      // переписывании вручную терялся фильтр удалённых заказов — здесь он был
+      // потерян ровно так же: удалённый заказ считался спросом и завышал
+      // среднедневное потребление.
+      ...revenueOrderConditions(tenantId),
       eq(orderItems.productId, productId),
-      inArray(orders.status, REVENUE_ORDER_STATUSES),
       gte(orders.createdAt, startDate),
     ))
     .groupBy(sql`DATE(${orders.createdAt})`)
@@ -170,8 +173,9 @@ async function computeStockouts(
     .from(orderItems)
     .innerJoin(orders, eq(orderItems.orderId, orders.id))
     .where(and(
-      eq(orders.tenantId, tenantId),
-      inArray(orders.status, REVENUE_ORDER_STATUSES),
+      // Тот же общий набор: организация, выручковые статусы и — главное —
+      // отсечение удалённых заказов.
+      ...revenueOrderConditions(tenantId),
       gte(orders.createdAt, startDate),
       lt(orders.createdAt, windowEnd),
     ))
