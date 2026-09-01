@@ -215,8 +215,12 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
         </div>
       </div>
 
-      {/* Cart */}
-      <div className="neo-card" style={{ padding: "20px", position: "sticky", top: "20px" }}>
+      {/* Cart.
+          position/top переехали в класс order-cart-panel (index.css): sticky
+          нужен только на десктопе, где корзина — боковая колонка грида. На
+          мобильном она безусловно прилипала под мобильной шапкой (z-40) и
+          пряталась под ней при прокрутке верхними ~36 пикселями. */}
+      <div className="neo-card order-cart-panel" style={{ padding: "20px" }}>
         <div className="flex items-center justify-between mb-4">
           <h3 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600, color: "var(--color-text-primary)", margin: 0 }}>
             {t("Корзина", "Savat")} ({validItems.length})
