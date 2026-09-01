@@ -11,9 +11,13 @@ export interface ProductListProps {
   onDelete: (id: number, name: string) => void;
   selected: Set<number>;
   onToggleSelect: (id: number) => void;
+  /** Может ли смотрящий менять каталог. Без права строки рисуются без кнопки
+   *  удаления и без флажка выбора — выбирать становится не для чего. По
+   *  умолчанию true, чтобы существующие вызовы не меняли поведения. */
+  canEdit?: boolean;
 }
 
-export function ProductList({ products, isLoading, lang, fmt, onProductClick, onDelete, selected, onToggleSelect }: ProductListProps) {
+export function ProductList({ products, isLoading, lang, fmt, onProductClick, onDelete, selected, onToggleSelect, canEdit = true }: ProductListProps) {
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
 
   return (
@@ -39,9 +43,9 @@ export function ProductList({ products, isLoading, lang, fmt, onProductClick, on
         products.map((p) => (
           <ProductCard key={p.id as number} p={p} lang={lang} fmt={fmt}
             onClick={() => onProductClick(p)}
-            onDelete={(id) => onDelete(id, String(p.name))}
+            onDelete={canEdit ? (id) => onDelete(id, String(p.name)) : undefined}
             selected={selected.has(p.id as number)}
-            onToggleSelect={() => onToggleSelect(p.id as number)}
+            onToggleSelect={canEdit ? () => onToggleSelect(p.id as number) : undefined}
           />
         ))
       )}

@@ -287,10 +287,16 @@ const BOTTOM_NAV: Record<string, Array<{ ru: string; uz: string; path: string; i
     { ru: "Приходы",  uz: "Kirimlar",  path: "/arrivals",  icon: "Truck" },
     { ru: "Склад",    uz: "Ombor",     path: "/warehouse", icon: "Warehouse" },
   ],
+  // Панель агента повторяет мобильное приложение: там у него Главная,
+  // Магазины, Каталог, Заказы, Профиль (app/(tabs)/_layout.tsx в репозитории
+  // Warehouse-Pro-Mobile). «Каталога» в вебе не было ни в панели, ни в боковом
+  // меню — агент мог посмотреть цены и остатки только начав оформлять заказ,
+  // на втором шаге мастера. KPI убран по просьбе владельца; экран остаётся
+  // доступен по адресу /agent/kpi и по ссылке из бокового меню.
   agent: [
     { ru: "День",     uz: "Kun",       path: "/agent",          icon: "LayoutDashboard", exact: true },
-    { ru: "KPI",      uz: "KPI",       path: "/agent/kpi",      icon: "BarChart3" },
     { ru: "Магазины", uz: "Do'konlar", path: "/agent/shops",    icon: "Store" },
+    { ru: "Каталог",  uz: "Katalog",   path: "/products",       icon: "Package" },
     { ru: "Заказ",    uz: "Buyurtma",  path: "/orders/new",     icon: "PlusCircle" },
     { ru: "Сканер",   uz: "Skaner",    path: "/barcode",        icon: "Scan" },
     { ru: "Офлайн",   uz: "Oflayn",    path: "/offline-orders", icon: "WifiOff" },

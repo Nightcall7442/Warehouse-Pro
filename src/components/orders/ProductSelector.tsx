@@ -164,12 +164,36 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
                     почти сразу после первого слова. Количество переехало
                     строкой ниже — здесь ему делить ширину не с кем. */}
                 <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  {/* Фотография товара, если она есть.
+                      photoUrl приходит из product.listAll готовым адресом
+                      (api/lib/photo-url.ts: либо ссылка на /api/photos/…, либо
+                      внешний адрес как есть) — здесь его достаточно подставить.
+                      Раньше на этом месте всегда рисовался значок-коробка, и
+                      каталог выглядел одинаково серым, хотя фото у товаров
+                      есть — в мобильном приложении они показываются.
+
+                      Не ProductPhoto из components/products: тот компонент
+                      предназначен для правки — клик по нему открывает выбор
+                      файла и грузит снимок через product.uploadPhoto, а это
+                      право оператора. Агенту в каталоге нужен только просмотр.
+
+                      loading="lazy" обязателен: в списке две сотни строк, и без
+                      него браузер полез бы за всеми снимками сразу. */}
                   <div style={{
-                    width: "32px", height: "32px", borderRadius: "8px", display: "flex",
-                    alignItems: "center", justifyContent: "center", flexShrink: 0,
+                    width: "40px", height: "40px", borderRadius: "8px", display: "flex",
+                    alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden",
                     background: inCart ? "var(--color-primary-subtle)" : "var(--color-surface-light)",
                   }}>
-                    <Package size={15} style={{ color: inCart ? "var(--color-primary-text)" : "var(--color-text-tertiary)" }} />
+                    {product.photoUrl ? (
+                      <img
+                        src={product.photoUrl as string}
+                        alt=""
+                        loading="lazy"
+                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                      />
+                    ) : (
+                      <Package size={16} style={{ color: inCart ? "var(--color-primary-text)" : "var(--color-text-tertiary)" }} />
+                    )}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{ fontWeight: 500, fontSize: "13px", color: "var(--color-text-primary)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>

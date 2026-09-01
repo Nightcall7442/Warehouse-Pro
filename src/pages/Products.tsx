@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { keepPreviousData } from "@tanstack/react-query";
 import { useCurrency } from "@/hooks/useCurrency";
+import { useAuth } from "@/hooks/useAuth";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { notify } from "@/lib/toast";
@@ -27,6 +28,25 @@ export default function Products() {
   }, [setSearchParams]);
   const { fmt } = useCurrency();
   const { lang } = useLang();
+  const { user } = useAuth();
+
+  /**
+   * Право менять каталог, а не только смотреть его.
+   *
+   * Читать список позволяет product.list (fieldSalesQuery — туда входит и
+   * агент), а вот create, delete, bulkDelete и clearAll заведены на
+   * operatorQuery: только ceo и operator. Проверок роли на странице не было
+   * вовсе, и все кнопки правки рисовались всем подряд. Пока агент сюда не
+   * заходил, это не всплывало; теперь у него в нижней панели появился
+   * «Каталог», и без этой проверки он получил бы «Добавить», «Очистить всё» и
+   * «Удалить», которые отвечают отказом по правам.
+   *
+   * Список ролей повторяет operatorQuery в api/middleware.ts. Дублирование
+   * намеренное и безопасное: сервер остаётся источником правды и отклонит
+   * запрос в любом случае, здесь лишь прячется то, что всё равно не сработает.
+   */
+  const canEdit = user?.role === "ceo" || user?.role === "operator";
+
   const [search, setSearch] = useState("");
   // Поле ввода остаётся мгновенным, а в запрос уходит придержанное
   // значение: иначе каждая буква — это новый ключ запроса, у которого
@@ -139,9 +159,14 @@ export default function Products() {
             {t("Товары", "Mahsulotlar")}
           </h1>
           <p style={{ fontSize: "13px", color: COLORS.textSecondary, margin: "4px 0 0" }}>
-            {t("Управление каталогом товаров", "Mahsulotlar katalogini boshqarish")}
+            {canEdit
+              ? t("Управление каталогом товаров", "Mahsulotlar katalogini boshqarish")
+              : t("Каталог товаров: цены и остатки", "Mahsulotlar katalogi: narxlar va qoldiqlar")}
           </p>
         </div>
+        {/* Кнопки правки — только тем, кому сервер это позволит. Агент
+            открывает ту же страницу как каталог: смотрит цены и остатки. */}
+        {canEdit && (
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <button
             onClick={() => setShowImport(v => !v)}
@@ -200,6 +225,7 @@ export default function Products() {
             <Plus size={14} /><span className="hidden sm:inline">{t("Добавить", "Qo'shish")}</span>
           </button>
         </div>
+        )}
       </div>
 
       {/* Import Section */}
@@ -261,7 +287,7 @@ export default function Products() {
 
       {/* Selection bar */}
       <div key="selection-bar">
-      {selected.size > 0 && (
+      {canEdit && selected.size > 0 && (
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
           padding: "12px 20px", borderRadius: "14px",
@@ -290,8 +316,8 @@ export default function Products() {
 
       </div>
 
-      {/* Select all */}
-      {data && data.data.length > 0 && (
+      {/* Select all — выделение нужно только ради массового удаления. */}
+      {canEdit && data && data.data.length > 0 && (
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <button onClick={toggleSelectAll}
             style={{ background: "none", border: "none", cursor: "pointer", padding: "4px", display: "flex", alignItems: "center", gap: "6px" }}>
@@ -314,6 +340,7 @@ export default function Products() {
         onDelete={(id, name) => handleDelete(id, name)}
         selected={selected}
         onToggleSelect={toggleSelect}
+        canEdit={canEdit}
       />
 
       {/* Pagination */}
