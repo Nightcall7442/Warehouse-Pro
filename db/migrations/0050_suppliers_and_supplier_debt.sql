@@ -342,4 +342,3 @@ PREPARE add_idx_suppay_tenant_supplier FROM @ddl;
 EXECUTE add_idx_suppay_tenant_supplier;
 --> statement-breakpoint
 DEALLOCATE PREPARE add_idx_suppay_tenant_supplier;
---> statement-breakpoint
