@@ -7,6 +7,7 @@ import { decimalOrDefault } from "./lib/zod-decimal";
 import { sseBus } from "./lib/sse";
 import { recordStockMovement } from "./services/stock-ledger";
 import { arrivalSupplyColumns } from "./supplier-router";
+import { isDuplicateOf } from "./lib/db-errors";
 
 type ArrivalItemRow = {
   id:           number;
@@ -206,7 +207,9 @@ export const arrivalRouter = createRouter({
               });
               supplierId = Number(newSupplier.insertId);
             } catch (e) {
-              if (e instanceof Error && /Duplicate entry/i.test(e.message)) {
+              // Через isDuplicateOf: drizzle прячет ошибку драйвера в cause,
+              // и проверка по тексту e.message не срабатывала никогда.
+              if (isDuplicateOf(e, "uq_supplier_name_tenant")) {
                 throw new Error("Поставщик с таким названием уже заведён — выберите его из списка");
               }
               throw e;

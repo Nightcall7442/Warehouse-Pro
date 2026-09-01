@@ -125,9 +125,16 @@ function chainable(rows: Record<string, unknown>[]) {
   const p = Promise.resolve(rows) as Promise<Record<string, unknown>[]> & {
     limit?: (n: number) => ReturnType<typeof chainable>;
     orderBy?: (..._a: unknown[]) => ReturnType<typeof chainable>;
+    for?: (..._a: unknown[]) => ReturnType<typeof chainable>;
   };
   p.limit = (n: number) => chainable(rows.slice(0, n));
   p.orderBy = () => chainable(rows);
+  // .for("update") здесь СКВОЗНОЙ: настоящая блокировка строки в стенде
+  // невоспроизводима, параллельных сделок тут нет. Значит гонку двух платежей
+  // этим набором проверить нельзя — она проверяется в
+  // api/__tests__/real-db/supplier-debt.test.ts на настоящей MySQL. Здесь
+  // метод есть только затем, чтобы цепочка вызовов не оборвалась.
+  p.for = () => chainable(rows);
   return p;
 }
 

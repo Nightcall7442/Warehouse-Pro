@@ -29,7 +29,7 @@
     "db:studio": "drizzle-kit studio",
     "db:reset": "npx tsx db/clear.ts && npm run db:push:dev-only && npm run db:seed",
     "check:raw": "tsc -b",
-    "test:db": "vitest run api/__tests__/real-db --coverage=false"
+    "test:db": "vitest run api/__tests__/real-db --coverage=false --no-file-parallelism"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.965.0",

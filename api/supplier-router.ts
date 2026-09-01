@@ -5,6 +5,7 @@ import { eq, and, sql, desc, like } from "drizzle-orm";
 import { sanitizeString, sanitizeSearch } from "./lib/sanitize";
 import { decimalOrDefault } from "./lib/zod-decimal";
 import { logger } from "./lib/logger";
+import { isDuplicateOf } from "./lib/db-errors";
 import type { getDb } from "./queries/connection";
 
 type Db = ReturnType<typeof getDb>;
@@ -243,9 +244,11 @@ export const supplierRouter = createRouter({
         });
         return { id: Number(result.insertId) };
       } catch (e) {
-        // Уникальный индекс на (имя, организация). Сообщение вместо кода
-        // ошибки базы: заводящий контрагента не должен разбирать ER_DUP_ENTRY.
-        if (e instanceof Error && /Duplicate entry/i.test(e.message)) {
+        // Через isDuplicateOf, а не проверкой текста ошибки: drizzle
+        // заворачивает ошибку драйвера в свою, и «Duplicate entry» лежит не в
+        // e.message, а в e.cause. Наивная проверка давала false ВСЕГДА —
+        // поймано первым же прогоном real-db, см. api/lib/db-errors.ts.
+        if (isDuplicateOf(e, "uq_supplier_name_tenant")) {
           throw new Error("Контрагент с таким названием уже заведён");
         }
         throw e;
@@ -272,7 +275,7 @@ export const supplierRouter = createRouter({
           .set({ ...patch, updatedAt: new Date() })
           .where(and(eq(suppliers.id, id), eq(suppliers.tenantId, ctx.tenant.id)));
       } catch (e) {
-        if (e instanceof Error && /Duplicate entry/i.test(e.message)) {
+        if (isDuplicateOf(e, "uq_supplier_name_tenant")) {
           throw new Error("Контрагент с таким названием уже заведён");
         }
         throw e;
@@ -467,8 +470,14 @@ export const supplierRouter = createRouter({
       const tenantId = ctx.tenant.id;
       const amount   = Number(input.amount);
 
-      // Всё в одной сделке: между проверкой остатка и записью платежа не
-      // должно быть окна, в которое пролезет второй такой же платёж.
+      // Одной сделки МАЛО. Она изолирует, но не запирает: два платежа,
+      // пришедшие разом, оба читали остаток 300 000 000, оба проходили
+      // проверку и оба записывались — долг уходил в минус. Поймано прогоном
+      // real-db, на заглушке транзакция сквозная и гонки там нет вовсе.
+      //
+      // FOR UPDATE запирает строку поставки: второй платёж ждёт на этой
+      // строке, пока первый не завершится, и читает остаток уже с учётом
+      // его записи.
       return await db.transaction(async (tx) => {
         const [supply] = await tx.select({
           id:         supplies.id,
@@ -479,7 +488,8 @@ export const supplierRouter = createRouter({
         })
           .from(supplies)
           .where(and(eq(supplies.id, input.supplyId), eq(supplies.tenantId, tenantId)))
-          .limit(1);
+          .limit(1)
+          .for("update");
 
         if (!supply) throw new Error("Поставка не найдена");
 
@@ -515,7 +525,10 @@ export const supplierRouter = createRouter({
         } catch (e) {
           // Повтор той же попытки — не ошибка пользователя, а сорванная
           // связь. Отвечаем как на успех: деньги уже записаны один раз.
-          if (e instanceof Error && /Duplicate entry/i.test(e.message)) {
+          //
+          // Именно этот индекс, а не «любой дубликат»: нарушение другого
+          // означало бы иную беду, и молча выдавать за успех её нельзя.
+          if (isDuplicateOf(e, "uq_supplier_payment_idem")) {
             const [already] = await tx.select({ id: supplierPayments.id })
               .from(supplierPayments)
               .where(and(

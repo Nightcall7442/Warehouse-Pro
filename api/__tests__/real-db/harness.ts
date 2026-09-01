@@ -27,6 +27,12 @@
  *       -e MYSQL_ROOT_PASSWORD=test -e MYSQL_DATABASE=warehouse_test mysql:8
  *     TEST_DATABASE_URL=mysql://root:test@127.0.0.1:3307/warehouse_test npm run test:db
  *
+ * Файлы этого набора идут ПОСЛЕДОВАТЕЛЬНО (--no-file-parallelism в
+ * package.json). База у них одна на всех, и truncateAll() одного файла вытер
+ * бы данные другого прямо посреди его теста; а на старте оба разом полезли бы
+ * накатывать миграции. Поймано ровно так: второй файл в наборе — и прогон
+ * развалился.
+ *
  * Без переменной набор пропускается — с громкой строкой в выводе, а не молча.
  * Молчаливый пропуск неотличим от прохождения, и через месяц никто не
  * помнит, что эти тесты вообще есть.
@@ -60,26 +66,26 @@ let db: TestDb | null = null;
 const TABLES = [
   "order_items", "orders", "payments", "notifications", "warehouse_stock",
   "stock_movements", "products", "shops", "warehouses", "users", "tenants",
+  // Расчёты с контрагентами: платежи, поставки, сами контрагенты, приходы.
+  "supplier_payments", "supplies", "suppliers", "arrival_items", "arrivals",
 ];
 
 /**
- * Схема собирается из db/schema.ts, а НЕ накатом истории миграций.
+ * Схема ставится ТЕМИ ЖЕ миграциями, что накатывает приложение при старте.
  *
- * Не для скорости. Цепочка миграций репозитория на чистую базу не встаёт
- * вовсе: 0009 ссылается на warehouse_stock.warehouse_id, а этой колонки в
- * базовой схеме нет — её добавляет только 0017. Проверил в CI: падает на
- * 0009. Отдельный workflow test-migrations.yml ровно это и проверяет, и он
- * красный все 18 своих запусков с 8 августа; в нём даже стоит «временный»
- * отладочный шаг с припиской, что причина падения теряется «на каждом
- * запуске».
+ * Раньше здесь стоял `drizzle-kit push` — сборка схемы прямо из db/schema.ts
+ * мимо миграций. Не от хорошей жизни: цепочка из 51 файла на чистую базу не
+ * вставала вовсе (0009 ссылалась на колонку, которую добавляет 0012), и
+ * отдельный workflow test-migrations был красным всё время своего
+ * существования.
  *
- * Это отдельная беда, и чинится она отдельно — сведением истории к новому
- * основанию. Смешивать её с проверкой инвариантов нельзя: тогда блокировки и
- * гонки останутся непроверенными до тех пор, пока кто-нибудь не разберёт
- * сорок семь файлов миграций. Здесь нужна ПРАВИЛЬНАЯ схема, а не её история.
+ * 1 сентября 2026 историю свернули в один baseline, собранный из
+ * db/schema.ts, и накат с нуля заработал. Теперь стенд идёт тем же путём, что
+ * и продакшен: если миграция сломается, эти тесты упадут вместе с ней, а не
+ * продолжат работать на схеме, собранной в обход.
  */
-function pushSchema(): void {
-  execFileSync("npx", ["drizzle-kit", "push", "--force"], {
+function applyMigrations(): void {
+  execFileSync("npx", ["drizzle-kit", "migrate"], {
     cwd: REPO_ROOT,
     env: { ...process.env, DATABASE_URL: TEST_DATABASE_URL },
     stdio: "pipe",
@@ -90,7 +96,7 @@ function pushSchema(): void {
 export async function connectRealDb(): Promise<ServiceDb> {
   if (!hasRealDb) throw new Error("TEST_DATABASE_URL не задан");
   if (!db) {
-    pushSchema();
+    applyMigrations();
     pool = mysql.createPool({ uri: TEST_DATABASE_URL, connectionLimit: 10, waitForConnections: true });
     // Приведение — то же, что в api/queries/connection.ts: вывод типов drizzle
     // не разворачивается, когда схема передана целиком, хотя в рантайме всё
