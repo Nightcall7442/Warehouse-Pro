@@ -79,18 +79,9 @@ const amCommand =
   `exec /bin/alertmanager --config.file=/etc/alertmanager/alertmanager.yml ` +
   `--storage.path=/alertmanager --web.listen-address=:9093'`;
 
-/**
- * Каталог создаётся заранее, а двоичный файл ищется по PATH.
- *
- * Первая попытка писала сразу в /etc/loki и звала /usr/bin/loki — контейнер
- * не выдал ни строки и упал мгновенно. Так выглядит и отсутствующий каталог,
- * и двоичный файл не по тому пути, а какой из двух случаев — снаружи не
- * различить. `mkdir -p` и обращение по имени закрывают оба, ничего не ломая
- * там, где путь и так верный.
- */
 const lokiCommand =
-  `sh -c 'mkdir -p /etc/loki && printf "%b" "${loki}" > /etc/loki/loki.yml && ` +
-  `exec loki -config.file=/etc/loki/loki.yml'`;
+  `sh -c 'printf "%b" "${loki}" > /etc/loki/loki.yml && ` +
+  `exec /usr/bin/loki -config.file=/etc/loki/loki.yml'`;
 
 console.log("─".repeat(78));
 console.log("loki-railway → Settings → Deploy → Custom Start Command");
