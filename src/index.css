@@ -771,6 +771,79 @@
     }
   }
 
+  /* Панель «итог корзины + Продолжить» внизу экрана «Новый заказ».
+     На мобильном без нижней панели кнопку подтверждения на шаге «Товары»
+     можно было нажать только долистав весь каталог до конца — при
+     двухстах товарах в списке до неё попросту не долистывались. Здесь она
+     fixed прямо над нижней навигацией: видна всегда, независимо от
+     прокрутки каталога выше.
+
+     bottom считается от той же пары чисел, что и у BottomNav в Layout.tsx
+     (60px + safe-area-inset-bottom) — панель садится вплотную сверху на
+     неё, а не поверх. z-index между обычным контентом и мобильной шапкой
+     (z-40): не должна перекрывать шапку, но обязана быть выше списка
+     товаров под собой. */
+  .order-action-bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    background: var(--color-surface, #efedea);
+    border-top: 1px solid var(--color-border, #d8d5cd);
+    box-shadow: 0 -4px 16px rgba(0,0,0,0.08);
+  }
+  .order-action-bar-summary {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+  }
+  .order-action-bar-button {
+    flex-shrink: 0;
+    width: auto;
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+  /* Пока панель fixed, страница не знает, что снизу появилось ~76px чужого
+     содержимого, и последняя строка каталога пряталась бы под ней. База
+     Layout.tsx уже резервирует 60px+safe-area под саму нижнюю навигацию
+     (Layout.tsx, <main>) — здесь добавляется ровно высота этой панели
+     сверх того. */
+  .order-page-content {
+    padding-bottom: 76px;
+  }
+  @media (min-width: 768px) {
+    .order-action-bar {
+      position: static;
+      left: auto;
+      right: auto;
+      bottom: auto;
+      z-index: auto;
+      padding: 0;
+      margin-top: 24px;
+      background: none;
+      border-top: none;
+      box-shadow: none;
+    }
+    .order-action-bar-summary {
+      display: none;
+    }
+    .order-action-bar-button {
+      width: 100%;
+      padding-left: 0;
+      padding-right: 0;
+    }
+    .order-page-content {
+      padding-bottom: 0;
+    }
+  }
+
   /* ══════════════════════════════════════════════════════════════════════
      DASHBOARD RESPONSIVE GRIDS
      ══════════════════════════════════════════════════════════════════════ */

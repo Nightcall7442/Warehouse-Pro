@@ -3,9 +3,10 @@ import { trpc } from "@/providers/trpc";
 import { useInvalidateOrderCaches } from "@/hooks/useOrderCacheSync";
 import { notify } from "@/lib/toast";
 import { useAuth } from "@/hooks/useAuth";
+import { useCurrency } from "@/hooks/useCurrency";
 import { useNavigate, useSearchParams } from "react-router";
 import { useLang } from "@/i18n";
-import { Loader2, WifiOff } from "lucide-react";
+import { Loader2, WifiOff, ShoppingCart } from "lucide-react";
 import { savePendingOrder } from "./OfflineOrders.helpers";
 import { Steps, ShopSelector, ProductSelector, OrderReview } from "@/components/orders";
 import type { OrderItem, PaymentMethod } from "@/components/orders";
@@ -17,6 +18,7 @@ const LABELS_UZ = ["Do'kon", "Mahsulotlar", "Xulosa"];
 export default function NewOrder() {
   const { user }       = useAuth();
   const { lang }       = useLang();
+  const { fmt }        = useCurrency();
   const navigate       = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -95,6 +97,11 @@ export default function NewOrder() {
 
   const isOffline = typeof navigator !== "undefined" && !navigator.onLine;
 
+  // Для панели снизу на шаге «Товары»: сколько позиций и на какую сумму,
+  // чтобы корзину было видно, не прокручивая список до конца.
+  const validItems = items.filter(i => i.productId > 0 && Number(i.quantity) > 0);
+  const cartSubtotal = validItems.reduce((s, i) => s + Number(i.unitPrice) * Number(i.quantity), 0);
+
   return (
     <div className="max-w-lg mx-auto">
       {/* Header.
@@ -145,8 +152,12 @@ export default function NewOrder() {
 
       <Steps current={step} labels={LABELS}/>
 
-      {/* Content */}
-      <div className="min-h-[320px]">
+      {/* Content.
+          order-page-content резервирует место под панель снизу только на
+          мобильном — там она fixed и вываливается из потока. На десктопе
+          класс ничего не делает (см. index.css): кнопка там в обычном
+          потоке, как и раньше. */}
+      <div className="min-h-[320px] order-page-content">
         {step === 1 && (
           <ShopSelector
             shopId={shopId}
@@ -168,13 +179,35 @@ export default function NewOrder() {
         )}
       </div>
 
-      {/* Sticky CTA */}
-      <div className="mt-6" style={{ marginBottom: "calc(60px + env(safe-area-inset-bottom, 0px) + 16px)" }}>
+      {/* Панель снизу: итог корзины + кнопка.
+          Раньше кнопка стояла обычным блоком в конце страницы — чтобы её
+          нажать на шаге «Товары», нужно было долистать весь каталог до
+          конца. При двухстах товарах в списке это и значило «очень
+          неудобно»: ни сумму заказа не видно по пути, ни до кнопки не
+          дотянуться, не прокрутив всё целиком.
+
+          order-action-bar (index.css) на мобильном — fixed-панель прямо
+          над нижней навигацией, видна всегда, независимо от прокрутки
+          каталога. На десктопе превращается обратно в обычный блок в
+          потоке: там уже есть отдельная колонка корзины сбоку (sticky
+          .order-cart-panel), плавающая панель внизу была бы лишней. */}
+      <div className="order-action-bar">
+        {step === 2 && validItems.length > 0 && (
+          <div className="order-action-bar-summary">
+            <ShoppingCart size={15} style={{ flexShrink: 0, color: "var(--color-text-tertiary, #6b6760)" }} />
+            <span style={{ fontSize: "13px", color: "var(--color-text-secondary, #5e5b54)" }}>
+              {validItems.length} {t("тов.", "dona")}
+            </span>
+            <span style={{ fontSize: "14px", fontWeight: 700, color: "var(--color-text-primary, #2b2a28)" }}>
+              {fmt(cartSubtotal.toFixed(2))}
+            </span>
+          </div>
+        )}
         <button
           data-testid="order-next"
           onClick={handleNext}
           disabled={!canNext() || createOrder.isPending}
-          className="neo-btn-primary w-full py-3.5 text-[15px] disabled:opacity-40"
+          className="neo-btn-primary order-action-bar-button py-3.5 text-[15px] disabled:opacity-40"
         >
           {createOrder.isPending
             ? <><Loader2 size={16} className="animate-spin inline mr-2"/>

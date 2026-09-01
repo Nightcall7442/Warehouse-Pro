@@ -132,8 +132,15 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
           />
         </div>
 
-        {/* Product list */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "520px", overflowY: "auto", touchAction: "manipulation" }}>
+        {/* Product list.
+            Раньше здесь стоял maxHeight: 520px, overflowY: auto — отдельная
+            прокрутка внутри карточки, поверх обычной прокрутки страницы. При
+            двухстах товарах в списке это давало вложенный скролл: пролистав
+            520 пикселей до упора, пользователь упирался в невидимую
+            границу, а не в конец списка, и должен был сообразить прокрутить
+            уже саму страницу, чтобы список продолжился. Список теперь течёт
+            в общей прокрутке страницы, как и всё остальное на ней. */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px", touchAction: "manipulation" }}>
           {filtered.map((product) => {
             const inCart = items.find(i => i.productId === product.id);
             const lowStock = Number(product.available ?? 0) < 10;
@@ -144,71 +151,78 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
                 data-testid={`product-row-${product.id}`}
                 className="neo-card-sm"
                 style={{
-                  display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px",
+                  display: "flex", flexDirection: "column", gap: "8px", padding: "10px 12px",
                   cursor: "pointer", transition: "all 0.15s",
                   borderLeft: inCart ? "3px solid var(--color-primary)" : "3px solid transparent",
                 }}
                 onClick={() => !inCart && addToCart(product)}
               >
-                {/* Product icon */}
-                <div style={{
-                  width: "36px", height: "36px", borderRadius: "8px", display: "flex",
-                  alignItems: "center", justifyContent: "center", flexShrink: 0,
-                  background: inCart ? "var(--color-primary-subtle)" : "var(--color-surface-light)",
-                }}>
-                  <Package size={16} style={{ color: inCart ? "var(--color-primary-text)" : "var(--color-text-tertiary)" }} />
+                {/* Строка 1: значок, название, цена — во всю ширину карточки.
+                    Раньше эта строка делила место с блоком количества, и на
+                    длинных названиях (в этом каталоге они бывают за 40
+                    знаков) колонка названия сжималась до ~150px и обрезалась
+                    почти сразу после первого слова. Количество переехало
+                    строкой ниже — здесь ему делить ширину не с кем. */}
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <div style={{
+                    width: "32px", height: "32px", borderRadius: "8px", display: "flex",
+                    alignItems: "center", justifyContent: "center", flexShrink: 0,
+                    background: inCart ? "var(--color-primary-subtle)" : "var(--color-surface-light)",
+                  }}>
+                    <Package size={15} style={{ color: inCart ? "var(--color-primary-text)" : "var(--color-text-tertiary)" }} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontWeight: 500, fontSize: "13px", color: "var(--color-text-primary)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {product.name}
+                    </p>
+                    <p style={{ fontSize: "11px", color: "var(--color-text-secondary)", margin: "2px 0 0" }}>
+                      {fmt(product.unitPrice)}/{unitLabel(product.unit, lang)}
+                      {lowStock && <span style={{ color: "var(--color-warning-text)", marginLeft: "6px" }}>⚠ {t("мало", "kam")}</span>}
+                    </p>
+                  </div>
                 </div>
 
-                {/* Product info */}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontWeight: 500, fontSize: "13px", color: "var(--color-text-primary)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {product.name}
-                  </p>
-                  <p style={{ fontSize: "11px", color: "var(--color-text-secondary)", margin: "2px 0 0" }}>
-                    {fmt(product.unitPrice)}/{unitLabel(product.unit, lang)}
-                    {lowStock && <span style={{ color: "var(--color-warning-text)", marginLeft: "6px" }}>⚠ {t("мало", "kam")}</span>}
-                  </p>
+                {/* Строка 2: количество, прижато вправо под значком. */}
+                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  {inCart ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                      <button onClick={(e) => { e.stopPropagation(); updateQuantity(product.id, -1); }}
+                        style={{ width: "44px", height: "44px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--color-text-secondary)" }}>
+                        <Minus size={16} />
+                      </button>
+                      <input
+                        type="number"
+                        min="0"
+                        value={inCart.quantity}
+                        onChange={(e) => { e.stopPropagation(); setQuantityDirect(product.id, e.target.value); }}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ width: "52px", height: "44px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface)", textAlign: "center", fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary)", fontFamily: "'DM Sans', sans-serif", outline: "none" }}
+                      />
+                      <button onClick={(e) => { e.stopPropagation(); updateQuantity(product.id, 1); }}
+                        style={{ width: "44px", height: "44px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--color-text-secondary)" }}>
+                        <Plus size={16} />
+                      </button>
+                    </div>
+                  ) : (
+                    /* Quick add: input qty + Enter */
+                    <div style={{ display: "flex", alignItems: "center", gap: "4px" }} onClick={(e) => e.stopPropagation()}>
+                      <input
+                        data-testid={`product-qty-${product.id}`}
+                        type="number"
+                        min="1"
+                        placeholder="1"
+                        value={inputVal}
+                        onChange={(e) => setQuickQty(prev => ({ ...prev, [product.id]: e.target.value }))}
+                        onKeyDown={(e) => { if (e.key === "Enter") handleQuickAdd(product); }}
+                        style={{ width: "52px", height: "44px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface)", textAlign: "center", fontSize: "12px", color: "var(--color-text-primary)", fontFamily: "'DM Sans', sans-serif", outline: "none" }}
+                      />
+                      <button data-testid={`product-add-${product.id}`} onClick={() => handleQuickAdd(product)}
+                        style={{ width: "44px", height: "44px", borderRadius: "6px", border: "none", background: "var(--color-primary)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--color-on-primary, #ffffff)" }}>
+                        <Plus size={16} />
+                      </button>
+                    </div>
+                  )}
                 </div>
-
-                {/* Quantity controls */}
-                {inCart ? (
-                  <div style={{ display: "flex", alignItems: "center", gap: "4px", flexShrink: 0 }}>
-                    <button onClick={(e) => { e.stopPropagation(); updateQuantity(product.id, -1); }}
-                      style={{ width: "44px", height: "44px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--color-text-secondary)" }}>
-                      <Minus size={16} />
-                    </button>
-                    <input
-                      type="number"
-                      min="0"
-                      value={inCart.quantity}
-                      onChange={(e) => { e.stopPropagation(); setQuantityDirect(product.id, e.target.value); }}
-                      onClick={(e) => e.stopPropagation()}
-                      style={{ width: "44px", height: "44px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface)", textAlign: "center", fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary)", fontFamily: "'DM Sans', sans-serif", outline: "none" }}
-                    />
-                    <button onClick={(e) => { e.stopPropagation(); updateQuantity(product.id, 1); }}
-                      style={{ width: "44px", height: "44px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--color-text-secondary)" }}>
-                      <Plus size={16} />
-                    </button>
-                  </div>
-                ) : (
-                  /* Quick add: input qty + Enter */
-                  <div style={{ display: "flex", alignItems: "center", gap: "4px", flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
-                    <input
-                      data-testid={`product-qty-${product.id}`}
-                      type="number"
-                      min="1"
-                      placeholder="1"
-                      value={inputVal}
-                      onChange={(e) => setQuickQty(prev => ({ ...prev, [product.id]: e.target.value }))}
-                      onKeyDown={(e) => { if (e.key === "Enter") handleQuickAdd(product); }}
-                      style={{ width: "44px", height: "44px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface)", textAlign: "center", fontSize: "12px", color: "var(--color-text-primary)", fontFamily: "'DM Sans', sans-serif", outline: "none" }}
-                    />
-                    <button data-testid={`product-add-${product.id}`} onClick={() => handleQuickAdd(product)}
-                      style={{ width: "44px", height: "44px", borderRadius: "6px", border: "none", background: "var(--color-primary)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--color-on-primary, #ffffff)" }}>
-                      <Plus size={16} />
-                    </button>
-                  </div>
-                )}
               </div>
             );
           })}
@@ -243,65 +257,82 @@ export function ProductSelector({ items, onChange }: ProductSelectorProps) {
           </div>
         ) : (
           <>
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "16px", maxHeight: "320px", overflowY: "auto", touchAction: "manipulation" }}>
+            {/* Раньше вся строка — название, шаг количества (3×44px), сумма,
+                стрелки порядка, корзина — стояла в один ряд. На узком экране
+                это тот же зажим, что был у строки каталога: имени оставалось
+                места меньше, чем самим кнопкам управления им. Теперь имя с
+                ценой и сумма строки — наверху во всю ширину, управление —
+                отдельной строкой ниже, где ему не тесно.
+
+                maxHeight: 320px, overflowY: auto тоже убраны — по той же
+                причине, что и у списка каталога: своя прокрутка внутри
+                карточки поверх прокрутки страницы путает, где заканчивается
+                список, а не сама страница. */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "16px", touchAction: "manipulation" }}>
               {validItems.map((item) => (
                 <div key={item.productId} style={{
-                  display: "flex", alignItems: "center", gap: "8px", padding: "8px 10px",
+                  display: "flex", flexDirection: "column", gap: "6px", padding: "10px",
                   borderRadius: "8px", background: "var(--color-surface-light)",
                 }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: "12px", fontWeight: 500, color: "var(--color-text-primary)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {item.productName}
-                    </p>
-                    <p style={{ fontSize: "10px", color: "var(--color-text-secondary)", margin: "1px 0 0" }}>
-                      {fmt(item.unitPrice)}/{unitLabel(item.unit, lang)}
-                    </p>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: "12px", fontWeight: 500, color: "var(--color-text-primary)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {item.productName}
+                      </p>
+                      <p style={{ fontSize: "10px", color: "var(--color-text-secondary)", margin: "1px 0 0" }}>
+                        {fmt(item.unitPrice)}/{unitLabel(item.unit, lang)}
+                      </p>
+                    </div>
+                    <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--color-text-primary)", flexShrink: 0 }}>
+                      {fmt((Number(item.unitPrice) * Number(item.quantity)).toFixed(2))}
+                    </span>
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "3px" }}>
-                    <button onClick={() => updateQuantity(item.productId, -1)} style={{
-                      width: "44px", height: "44px", borderRadius: "6px", border: "1px solid var(--color-border)",
-                      background: "var(--color-surface)", display: "flex", alignItems: "center", justifyContent: "center",
-                      cursor: "pointer", fontSize: "14px", color: "var(--color-text-secondary)",
-                    }}>−</button>
-                    <input
-                      type="number"
-                      min="0"
-                      value={item.quantity}
-                      onChange={(e) => setQuantityDirect(item.productId, e.target.value)}
-                      style={{ width: "44px", height: "44px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface)", textAlign: "center", fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary)", fontFamily: "'DM Sans', sans-serif", outline: "none" }}
-                    />
-                    <button onClick={() => updateQuantity(item.productId, 1)} style={{
-                      width: "44px", height: "44px", borderRadius: "6px", border: "1px solid var(--color-border)",
-                      background: "var(--color-surface)", display: "flex", alignItems: "center", justifyContent: "center",
-                      cursor: "pointer", fontSize: "14px", color: "var(--color-text-secondary)",
-                    }}>+</button>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "3px" }}>
+                      <button onClick={() => updateQuantity(item.productId, -1)} style={{
+                        width: "44px", height: "44px", borderRadius: "6px", border: "1px solid var(--color-border)",
+                        background: "var(--color-surface)", display: "flex", alignItems: "center", justifyContent: "center",
+                        cursor: "pointer", fontSize: "14px", color: "var(--color-text-secondary)",
+                      }}>−</button>
+                      <input
+                        type="number"
+                        min="0"
+                        value={item.quantity}
+                        onChange={(e) => setQuantityDirect(item.productId, e.target.value)}
+                        style={{ width: "52px", height: "44px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface)", textAlign: "center", fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary)", fontFamily: "'DM Sans', sans-serif", outline: "none" }}
+                      />
+                      <button onClick={() => updateQuantity(item.productId, 1)} style={{
+                        width: "44px", height: "44px", borderRadius: "6px", border: "1px solid var(--color-border)",
+                        background: "var(--color-surface)", display: "flex", alignItems: "center", justifyContent: "center",
+                        cursor: "pointer", fontSize: "14px", color: "var(--color-text-secondary)",
+                      }}>+</button>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "3px", flexShrink: 0 }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "1px" }}>
+                        <button onClick={() => moveItem(item.productId, -1)} style={{
+                          width: "24px", height: "21px", borderRadius: "4px 4px 0 0", border: "1px solid var(--color-border)",
+                          background: "var(--color-surface)", display: "flex", alignItems: "center", justifyContent: "center",
+                          cursor: "pointer", color: "var(--color-text-tertiary)",
+                        }}>
+                          <ChevronUp size={12} />
+                        </button>
+                        <button onClick={() => moveItem(item.productId, 1)} style={{
+                          width: "24px", height: "21px", borderRadius: "0 0 4px 4px", border: "1px solid var(--color-border)",
+                          background: "var(--color-surface)", display: "flex", alignItems: "center", justifyContent: "center",
+                          cursor: "pointer", color: "var(--color-text-tertiary)",
+                        }}>
+                          <ChevronDown size={12} />
+                        </button>
+                      </div>
+                      <button onClick={() => removeItem(item.productId)} style={{
+                        width: "44px", height: "44px", borderRadius: "6px", border: "none",
+                        background: "none", display: "flex", alignItems: "center", justifyContent: "center",
+                        cursor: "pointer", color: "var(--color-text-tertiary)",
+                      }}>
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </div>
-                  <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--color-text-primary)", minWidth: "55px", textAlign: "right" }}>
-                    {fmt((Number(item.unitPrice) * Number(item.quantity)).toFixed(2))}
-                  </span>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "1px", flexShrink: 0 }}>
-                    <button onClick={() => moveItem(item.productId, -1)} style={{
-                      width: "24px", height: "22px", borderRadius: "4px 4px 0 0", border: "1px solid var(--color-border)",
-                      background: "var(--color-surface)", display: "flex", alignItems: "center", justifyContent: "center",
-                      cursor: "pointer", color: "var(--color-text-tertiary)",
-                    }}>
-                      <ChevronUp size={12} />
-                    </button>
-                    <button onClick={() => moveItem(item.productId, 1)} style={{
-                      width: "24px", height: "22px", borderRadius: "0 0 4px 4px", border: "1px solid var(--color-border)",
-                      background: "var(--color-surface)", display: "flex", alignItems: "center", justifyContent: "center",
-                      cursor: "pointer", color: "var(--color-text-tertiary)",
-                    }}>
-                      <ChevronDown size={12} />
-                    </button>
-                  </div>
-                  <button onClick={() => removeItem(item.productId)} style={{
-                    width: "44px", height: "44px", borderRadius: "6px", border: "none",
-                    background: "none", display: "flex", alignItems: "center", justifyContent: "center",
-                    cursor: "pointer", color: "var(--color-text-tertiary)", flexShrink: 0,
-                  }}>
-                    <Trash2 size={14} />
-                  </button>
                 </div>
               ))}
             </div>
