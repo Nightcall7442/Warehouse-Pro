@@ -26,7 +26,29 @@ interface ExpoPushResponse<T extends ExpoPushTicket | ExpoPushTicket[]> {
   data?: T;
 }
 
-async function sendExpoPush(token: string, message: PushMessage): Promise<boolean> {
+/**
+ * Чем закончилась отправка одного сообщения.
+ *
+ * Раньше здесь был boolean, и он смешивал два совершенно разных исхода:
+ * «устройства больше нет» и «мы не дозвонились до Expo». Оба давали false, а
+ * вызывающий на false стирал токен из базы — то есть обрыв связи или авария у
+ * Expo насовсем отключали живого человека от уведомлений. Вернуть их он мог
+ * только повторным входом в мобильном приложении, и никто ему об этом не
+ * сообщал.
+ *
+ * Цена ошибки здесь несимметрична: оставить мёртвый токен — мелочь, Expo
+ * отобьёт его при следующей попытке. Стереть живой — тихо выключить агента из
+ * работы. Поэтому исходов три, а удаление привязано ровно к одному.
+ */
+type PushOutcome =
+  /** Ушло. */
+  | "delivered"
+  /** Expo говорит, что приложения на этом устройстве больше нет. */
+  | "gone"
+  /** Не дошло, но про устройство это ничего не говорит. */
+  | "failed";
+
+async function sendExpoPush(token: string, message: PushMessage): Promise<PushOutcome> {
   try {
     const response = await fetch(EXPO_PUSH_URL, {
       method: "POST",
@@ -45,15 +67,14 @@ async function sendExpoPush(token: string, message: PushMessage): Promise<boolea
     const result = await response.json() as ExpoPushResponse<ExpoPushTicket>;
     if (result.data?.status === "error") {
       console.warn("[Push] Expo push error:", result.data.message);
-      // If device not registered, remove the token
-      if (result.data.message?.includes("DeviceNotRegistered")) {
-        return false; // Signal to remove token
-      }
+      return result.data.message?.includes("DeviceNotRegistered") ? "gone" : "failed";
     }
-    return true;
+    return "delivered";
   } catch (e) {
+    // Сюда попадают и обрыв сети, и страница-заглушка вместо JSON при аварии
+    // на стороне Expo. Ни то, ни другое не про устройство.
     console.warn("[Push] Failed to send push:", e);
-    return false;
+    return "failed";
   }
 }
 
@@ -66,9 +87,10 @@ export async function sendPushToUser(userId: number, message: PushMessage): Prom
 
   if (!user?.pushToken) return;
 
-  const success = await sendExpoPush(user.pushToken, message);
-  if (!success) {
-    // Token invalid, remove it
+  // Токен убирается ТОЛЬКО когда Expo прямо сказал, что устройства нет.
+  // Пакетная отправка ниже устроена так же — там условие всегда было верным,
+  // расходилась с ней только эта ветка.
+  if (await sendExpoPush(user.pushToken, message) === "gone") {
     await db.update(users)
       .set({ pushToken: null })
       .where(eq(users.id, userId));

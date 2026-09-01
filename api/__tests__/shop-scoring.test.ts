@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { classify } from "../services/shop-scoring";
+import { classify, shopScores } from "../services/shop-scoring";
 
 /**
  * Цвет магазина на карте.
@@ -84,5 +84,77 @@ describe("подсказка объясняет цвет цифрами", () => 
 
   it("у магазина без заказов сказано именно это", () => {
     expect(classify({ ...base, orderCount: 0 }).reason).toContain("не было");
+  });
+});
+
+/**
+ * Сборка строки из ответа базы.
+ *
+ * Границы classify выше проверены поштучно, но между запросом и цветом есть
+ * ещё один слой: приведение типов и три производных числа. Он не покрывался
+ * ничем, а ошибиться в нём легко — все значения приезжают из MySQL строками.
+ */
+describe("сборка строки магазина из ответа базы", () => {
+  /** Поддельная база: отдаёт ровно то, что вернул бы запрос. */
+  function dbWith(rows: Array<Record<string, unknown>>) {
+    // mysql2 отвечает парой [строки, метаданные] — сервис разбирает именно её.
+    return { execute: () => Promise.resolve([rows, []]) } as unknown as Parameters<typeof shopScores>[0];
+  }
+
+  const row = (over: Record<string, unknown> = {}) => ({
+    shop_id: "1", name: "Альфа", lat: "41.30000000", lng: "69.20000000",
+    debt: "0.00", revenue: "0.00", returned: "0.00",
+    order_count: "0", debt_orders: "0", oldest_unpaid_days: "0",
+    last_order_at: null,
+    ...over,
+  });
+
+  it("доля долговых заказов считается от их числа, а не берётся из базы", async () => {
+    const [s] = await shopScores(dbWith([row({
+      order_count: "10", debt_orders: "7", debt: "50000.00", oldest_unpaid_days: "20",
+    })]), 1);
+
+    expect(s.debtShare).toBeCloseTo(0.7);
+    // 7 из 10 в долг и 20 дней без оплаты — по правилу привычки это красный.
+    expect(s.tier).toBe("red");
+  });
+
+  it("возврат больше выручки не превращается в отрицательное «принёс денег»", async () => {
+    // Бывает у магазина, вернувшего заказ прошлого периода. Минус в этой
+    // графе на карте не значит ничего и только сбивает.
+    const [s] = await shopScores(dbWith([row({ revenue: "100000.00", returned: "300000.00", order_count: "3" })]), 1);
+    expect(s.ltv).toBe(0);
+  });
+
+  it("выручка считается за вычетом возвратов", async () => {
+    const [s] = await shopScores(dbWith([row({ revenue: "1000000.00", returned: "250000.00", order_count: "5" })]), 1);
+    expect(s.ltv).toBe(750_000);
+  });
+
+  it("магазин без координат отдаёт null, а не ноль", async () => {
+    // Ноль — это точка в Гвинейском заливе. Карта обязана такой магазин
+    // пропустить, а не поставить метку в океане.
+    const [s] = await shopScores(dbWith([row({ lat: null, lng: null })]), 1);
+    expect(s.lat).toBeNull();
+    expect(s.lng).toBeNull();
+  });
+
+  it("числа приходят числами, хотя база отдаёт их строками", async () => {
+    const [s] = await shopScores(dbWith([row({ debt: "50000.00", order_count: "4", oldest_unpaid_days: "12" })]), 1);
+    expect(s.debt).toBe(50_000);
+    expect(s.orderCount).toBe(4);
+    expect(s.oldestUnpaidDays).toBe(12);
+    expect(typeof s.shopId).toBe("number");
+  });
+
+  it("у магазина без заказов доля долга ноль, а не деление на ноль", async () => {
+    const [s] = await shopScores(dbWith([row()]), 1);
+    expect(s.debtShare).toBe(0);
+    expect(Number.isNaN(s.debtShare)).toBe(false);
+    expect(s.tier).toBe("new");
+  });
+
+  it("пустая выборка даёт пустой список, а не падение", async () => {
+    expect(await shopScores(dbWith([]), 1)).toEqual([]);
   });
 });
