@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
+import { animate, utils } from "animejs";
 import { LX } from "./landing-tokens";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -123,8 +124,81 @@ export default function CityMap({
   // slice-ом, и путь в её системе координат уезжал бы от пинов.
   const routeD = route?.map(([x, y], i) => `${i === 0 ? "M" : "L"} ${x},${y}`).join(" ");
 
+  const box = useRef<HTMLDivElement>(null);
+
+  /**
+   * Город прочерчивается, потом по нему проходит маршрут.
+   *
+   * Порядок не случаен: сначала проступает сетка улиц, и только когда ей есть
+   * по чему идти — тянется латунная линия рейса. Дойдя до конца, она
+   * распадается на пунктир, и он бежит дальше без остановки: машина в пути,
+   * а не картинка маршрута.
+   *
+   * Длина пути берётся у самого элемента (getTotalLength), а не считается по
+   * точкам: маршрут задаётся в процентах контейнера и растягивается вместе с
+   * ним, поэтому его настоящая длина известна только браузеру.
+   */
+  useEffect(() => {
+    const root = box.current;
+    if (!root) return;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+
+    const roads = Array.from(root.querySelectorAll<SVGElement>("[data-road]"));
+    const path = root.querySelector<SVGPathElement>("[data-route]");
+    if (roads.length === 0 && !path) return;
+
+    // Прячем ИЗ сценария: не выполнится — карта просто останется на месте.
+    utils.set(roads, { opacity: 0 });
+    let len = 0;
+    if (path) {
+      len = path.getTotalLength();
+      utils.set(path, { opacity: 0 });
+    }
+
+    let crawl: { revert?: () => void } | null = null;
+    const io = new IntersectionObserver(([e]) => {
+      if (!e.isIntersecting) return;
+      io.disconnect();
+
+      animate(roads, {
+        opacity: [0, 1],
+        duration: 620,
+        delay: (_t?: unknown, i?: number) => (i ?? 0) * 7,
+        ease: "outQuad",
+      });
+
+      if (path && len > 0) {
+        path.style.strokeDasharray = String(len);
+        path.style.strokeDashoffset = String(len);
+        utils.set(path, { opacity: 0.9 });
+        animate(path, {
+          strokeDashoffset: [len, 0],
+          duration: 1500,
+          delay: 420,
+          ease: "inOutQuad",
+          onComplete: () => {
+            // Сплошная линия распадается на пунктир, и он бежит по маршруту.
+            path.style.strokeDasharray = "5 4";
+            crawl = animate(path, {
+              strokeDashoffset: [0, -9],
+              duration: 900,
+              ease: "linear",
+              loop: true,
+            }) as unknown as { revert?: () => void };
+          },
+        });
+      }
+    }, { threshold: 0.2 });
+
+    io.observe(root);
+    return () => {
+      io.disconnect();
+      crawl?.revert?.();
+    };
+  }, [routeD]);
+
   return (
-    <div className={className} style={{ position: "absolute", inset: 0 }}>
+    <div ref={box} className={className} style={{ position: "absolute", inset: 0 }}>
       <svg width="100%" height="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid slice">
         {/* 1. Земля */}
         <rect width={W} height={H} fill={TONE.land} />
@@ -145,24 +219,24 @@ export default function CityMap({
         {/* 5. Улицы. Сначала обводка — на светлой земле именно она даёт дороге
                форму, — потом белая заливка поверх. */}
         {city.vx.map((x, i) => (
-          <line key={`vc${i}`} x1={x} y1={0} x2={x} y2={H} stroke={TONE.casing} strokeWidth="2.2" />
+          <line data-road="" key={`vc${i}`} x1={x} y1={0} x2={x} y2={H} stroke={TONE.casing} strokeWidth="2.2" />
         ))}
         {city.hy.map((y, i) => (
-          <line key={`hc${i}`} x1={0} y1={y} x2={W} y2={y} stroke={TONE.casing} strokeWidth="2.2" />
+          <line data-road="" key={`hc${i}`} x1={0} y1={y} x2={W} y2={y} stroke={TONE.casing} strokeWidth="2.2" />
         ))}
         {city.vx.map((x, i) => (
-          <line key={`v${i}`} x1={x} y1={0} x2={x} y2={H} stroke={TONE.road} strokeWidth="1.5" />
+          <line data-road="" key={`v${i}`} x1={x} y1={0} x2={x} y2={H} stroke={TONE.road} strokeWidth="1.5" />
         ))}
         {city.hy.map((y, i) => (
-          <line key={`h${i}`} x1={0} y1={y} x2={W} y2={y} stroke={TONE.road} strokeWidth="1.5" />
+          <line data-road="" key={`h${i}`} x1={0} y1={y} x2={W} y2={y} stroke={TONE.road} strokeWidth="1.5" />
         ))}
 
         {/* 6. Проспекты — та же пара слоёв, но заметно шире */}
         {city.avenues.map((d, i) => (
-          <path key={`ac${i}`} d={d} stroke={TONE.casing} strokeWidth="4.2" fill="none" />
+          <path data-road="" key={`ac${i}`} d={d} stroke={TONE.casing} strokeWidth="4.2" fill="none" />
         ))}
         {city.avenues.map((d, i) => (
-          <path key={`a${i}`} d={d} stroke={TONE.road} strokeWidth="3" fill="none" />
+          <path data-road="" key={`a${i}`} d={d} stroke={TONE.road} strokeWidth="3" fill="none" />
         ))}
       </svg>
 
@@ -170,6 +244,7 @@ export default function CityMap({
       {routeD && (
         <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0">
           <path
+            data-route=""
             d={routeD}
             stroke={LX.brass}
             strokeWidth="2"

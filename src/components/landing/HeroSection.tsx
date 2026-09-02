@@ -27,7 +27,8 @@ export default function HeroSection() {
       <div className="max-w-[1240px] mx-auto px-6">
         {/* Шапка бланка */}
         <div
-          className="lx-enter flex flex-wrap items-center gap-x-3 gap-y-1 text-[10.5px] md:text-[11px] uppercase mb-8 md:mb-10"
+          data-hero-step="0"
+          className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10.5px] md:text-[11px] uppercase mb-8 md:mb-10"
           style={{ ...MONO, color: LX.brassText, letterSpacing: "0.2em" }}
         >
           <span>{tr("Складская книга", "Ombor daftari")}</span>
@@ -47,7 +48,8 @@ export default function HeroSection() {
             место оттиску печати.
           */}
           <h1
-            className="lx-enter lx-enter-1 font-extrabold max-w-[15ch] lg:max-w-[19ch]"
+            data-hero-title=""
+            className="font-extrabold max-w-[15ch] lg:max-w-[19ch]"
             style={{
               fontSize: "clamp(2.4rem, 6.2vw, 5.2rem)",
               letterSpacing: "-0.04em",
@@ -83,7 +85,8 @@ export default function HeroSection() {
         </div>
 
         <p
-          className="lx-enter lx-enter-2 mt-7 md:mt-9 max-w-xl text-[16px] md:text-[17px] leading-relaxed"
+          data-hero-step="1"
+          className="mt-7 md:mt-9 max-w-xl text-[16px] md:text-[17px] leading-relaxed"
           style={{ color: LX.inkSoft }}
         >
           {tr(
@@ -92,7 +95,8 @@ export default function HeroSection() {
           )}
         </p>
 
-        <div className="lx-enter lx-enter-2 mt-9 flex flex-wrap items-center gap-3">
+        <div data-hero-step="2"
+          className="mt-9 flex flex-wrap items-center gap-3">
           <BtnInk onClick={() => navigate("/register")}>
             {tr("Начать бесплатно", "Bepul boshlash")}
             <ArrowRight size={15} />
@@ -111,7 +115,8 @@ export default function HeroSection() {
 
         {/* Второй путь: позвонить, а не регистрироваться.
             До этого его не было вовсе — ни формы, ни телефона, ни телеграма. */}
-        <div className="lx-enter lx-enter-2 mt-7 max-w-2xl">
+        <div data-hero-step="3"
+          className="mt-7 max-w-2xl">
           <p className="text-[13px] mb-2.5" style={{ color: LX.inkFaint }}>
             {tr("Не хотите разбираться сами? Оставьте номер — перезвоним и покажем на ваших данных.",
                 "O'zingiz tushunishni xohlamaysizmi? Raqamingizni qoldiring — qo'ng'iroq qilamiz.")}
@@ -134,7 +139,8 @@ export default function HeroSection() {
         </div>
 
         <div
-          className="lx-enter lx-enter-3 mt-10 md:mt-12 pt-6 flex flex-wrap gap-x-8 gap-y-3"
+          data-hero-step="4"
+          className="mt-10 md:mt-12 pt-6 flex flex-wrap gap-x-8 gap-y-3"
           style={{ borderTop: `1px solid ${LX.rule}` }}
         >
           {[

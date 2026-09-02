@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { LogoMark } from "@/components/brand/Logo";
 import LeadForm from "@/components/landing/LeadForm";
 import { useNavigate } from "react-router";
@@ -8,6 +8,8 @@ import { ArrowRight, Send } from "lucide-react";
 import { LandingStyles, Counter, Accordion, SectionHead, BtnInk, BtnGhost } from "@/components/landing/landing-shared";
 import { LX, MONO, tgLink } from "@/components/landing/landing-tokens";
 import LandingHeader from "@/components/landing/LandingHeader";
+import TallyField from "@/components/landing/TallyField";
+import { startLandingMotion } from "@/lib/landing-motion";
 import HeroSection from "@/components/landing/HeroSection";
 import PhotoStrip, { CTA_PHOTO } from "@/components/landing/PhotoStrip";
 import ProductWindow from "@/components/landing/ProductWindow";
@@ -288,8 +290,16 @@ function MobileCtaBar() {
 }
 
 export default function Landing() {
+  const root = useRef<HTMLDivElement>(null);
+
+  // Движение включается один раз на всю страницу: сценарий сам находит, что
+  // оживлять, по атрибутам в разметке. Уборка обязательна — наблюдатели
+  // пересечений и повтор дыхания иначе переживут уход со страницы.
+  useEffect(() => startLandingMotion(root.current), []);
+
   return (
     <div
+      ref={root}
       id="top"
       className="lx-root min-h-screen overflow-x-clip pb-16 md:pb-0"
       style={{ background: LX.paper, color: LX.ink, fontFamily: "'DM Sans', system-ui, sans-serif" }}
@@ -298,6 +308,7 @@ export default function Landing() {
       <LandingHeader />
       <div className="lx-rails max-w-[1240px] mx-auto">
         <HeroSection />
+        <TallyField />
         <PhotoStrip />
       </div>
       <ProductWindow />

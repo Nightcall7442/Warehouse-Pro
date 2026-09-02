@@ -46,7 +46,7 @@ export default function PhotoStrip() {
       <div className="max-w-[1240px] mx-auto px-6">
         <div className="grid sm:grid-cols-3 gap-5">
           {shots.map(s => (
-            <figure key={s.code}>
+            <figure key={s.code} data-reveal="shot">
               <div
                 className="relative rounded-xl overflow-hidden"
                 style={{ border: `1px solid ${LX.ruleStrong}`, background: LX.ink }}

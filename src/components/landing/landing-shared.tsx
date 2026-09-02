@@ -298,7 +298,7 @@ export function SectionHead({
   id?: string;
 }) {
   return (
-    <div id={id} className="scroll-mt-24">
+    <div id={id} data-reveal="head" className="scroll-mt-24">
       <div className="flex items-center gap-4 mb-8">
         <span
           className="text-[11px] uppercase shrink-0"
