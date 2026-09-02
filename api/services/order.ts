@@ -2204,6 +2204,117 @@ export const OrderService = {
     return { updated, failed };
   },
 
+  /**
+   * Позиции нескольких заказов сразу — для окна массового завершения.
+   *
+   * Список заказов их не содержит: он отдаёт шапки, и подтягивать позиции по
+   * одной означало бы полсотни запросов подряд на открытие окна. Здесь один
+   * запрос на все выбранные заказы.
+   *
+   * Правило видимости то же, что у getById: кто не видит чужие заказы, тот
+   * получает только свои. Иначе окно стало бы обходным путём к чужим данным.
+   */
+  async getManyForCompletion(db: Db, tenantId: number, orderIds: number[], opts?: { userId: number; userRole: string }) {
+    if (orderIds.length === 0) return [];
+
+    const scope = opts && !canSeeAnyOrder(opts.userRole) ? [eq(orders.agentId, opts.userId)] : [];
+    const heads = await db.select({
+      id: orders.id, orderNumber: orders.orderNumber, status: orders.status,
+      total: orders.total, subtotal: orders.subtotal, discount: orders.discount,
+      shopId: orders.shopId, shopName: shops.name, paymentMethod: orders.paymentMethod,
+    }).from(orders)
+      .leftJoin(shops, eq(orders.shopId, shops.id))
+      .where(and(eq(orders.tenantId, tenantId), inArray(orders.id, orderIds), isNull(orders.deletedAt), ...scope));
+
+    if (heads.length === 0) return [];
+
+    const lines = await db.select({
+      id: orderItems.id, orderId: orderItems.orderId, productId: orderItems.productId,
+      quantity: orderItems.quantity, unitPrice: orderItems.unitPrice, subtotal: orderItems.subtotal,
+      deliveredQuantity: orderItems.deliveredQuantity,
+      productName: products.name, productCode: products.code, unit: products.unit,
+    }).from(orderItems)
+      .innerJoin(products, eq(orderItems.productId, products.id))
+      .where(inArray(orderItems.orderId, heads.map(h => h.id)));
+
+    // Сколько уже принято по каждому заказу: окно показывает остаток, а не
+    // полную сумму, иначе повторное завершение предложит взять деньги дважды.
+    const paidRows = await db.select({
+      orderId: payments.orderId,
+      paid: sql<string>`COALESCE(SUM(CAST(${payments.amount} AS DECIMAL(15,2))), 0)`,
+    }).from(payments)
+      .where(and(eq(payments.tenantId, tenantId), eq(payments.type, "payment"), inArray(payments.orderId, heads.map(h => h.id))))
+      .groupBy(payments.orderId);
+    const paidByOrder = new Map(paidRows.map(r => [r.orderId, Number(r.paid)]));
+
+    return heads.map(h => ({
+      ...h,
+      alreadyPaid: (paidByOrder.get(h.id) ?? 0).toFixed(2),
+      items: lines.filter(l => l.orderId === h.id),
+    }));
+  },
+
+  /**
+   * Завершить несколько заказов, у каждого — своя оплата и свой возврат.
+   *
+   * Массовые действия до этого умели только крайности: «оплачено полностью»
+   * или «не оплачено вовсе». Середины — магазин отдал часть денег, часть
+   * товара вернул — не было, а именно так чаще всего и происходит. Из-за
+   * этого пачку приходилось разбирать по одному заказу.
+   *
+   * Каждый заказ проводится в СВОЕЙ транзакции: сбой на одном не должен
+   * отменять уже записанные деньги по остальным. Что не прошло — возвращается
+   * списком с причиной, чтобы человек видел, к чему вернуться, а не гадал,
+   * какая часть пачки применилась.
+   */
+  async bulkCompleteDetailed(
+    db: Db, tenantId: number, actor: Actor,
+    entries: Array<{
+      orderId: number;
+      deliveredItems: Array<{ itemId: number; deliveredQuantity: number; returnReason?: string }>;
+      paidAmount: string;
+      paymentMethod: "cash" | "card" | "transfer";
+      notes?: string;
+    }>,
+  ) {
+    let updated = 0;
+    const failed: Array<{ orderId: number; error: string }> = [];
+
+    for (const entry of entries) {
+      try {
+        const paid = Number(entry.paidAmount);
+        if (!Number.isFinite(paid) || paid < 0) throw new Error("Неверная сумма оплаты");
+
+        await db.transaction(async (tx) => {
+          await applyPartialDelivery(tx, tenantId, actor, {
+            orderId: entry.orderId,
+            items: entry.deliveredItems,
+          });
+          // Ноль — законный случай: товар отдан, деньги не принесли, вся
+          // сумма уходит в долг. applyPartialPayment такую оплату не
+          // принимает и не должен: нулевая строка в платежах ничего не
+          // значит. Долг при этом уже пересчитан внутри applyPartialDelivery.
+          if (paid > 0) {
+            await applyPartialPayment(tx, tenantId, actor, {
+              orderId: entry.orderId,
+              paidAmount: entry.paidAmount,
+              method: entry.paymentMethod,
+              notes: entry.notes,
+            });
+          }
+        });
+        updated++;
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        logger.warn("Bulk detailed completion failed for order", { orderId: entry.orderId, error: message });
+        failed.push({ orderId: entry.orderId, error: message });
+      }
+    }
+
+    cache.invalidate(CacheKeys.dashboardKpis(tenantId));
+    return { updated, failed };
+  },
+
   async recordDeliveryAndPayment(
     db: Db, tenantId: number, actor: Actor,
     input: {

@@ -390,6 +390,34 @@ export const orderRouter = createRouter({
       return OrderService.bulkCompleteWithPayment(ctx.db, ctx.tenant.id, { id: ctx.user.id, role: ctx.user.role }, input.orderIds);
     }),
 
+  // ── Позиции нескольких заказов: для окна массового завершения ──────────────
+  getManyForCompletion: fieldSalesQuery
+    .input(z.object({ orderIds: z.array(z.number().int().positive()).min(1).max(50) }))
+    .query(async ({ input, ctx }) => {
+      return OrderService.getManyForCompletion(ctx.db, ctx.tenant.id, input.orderIds,
+        { userId: ctx.user.id, userRole: ctx.user.role });
+    }),
+
+  // ── Массовое завершение: у каждого заказа своя оплата и свой возврат ───────
+  bulkCompleteDetailed: operatorQuery
+    .input(z.object({
+      entries: z.array(z.object({
+        orderId: z.number().int().positive(),
+        deliveredItems: z.array(z.object({
+          itemId: z.number().int().positive(),
+          deliveredQuantity: z.number().min(0),
+          returnReason: z.string().max(100).optional(),
+        })).min(1),
+        paidAmount: z.string().refine(v => Number.isFinite(Number(v)) && Number(v) >= 0, "Сумма не может быть отрицательной"),
+        paymentMethod: z.enum(["cash", "card", "transfer"]).default("cash"),
+        notes: z.string().max(500).optional(),
+      })).min(1).max(50),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      return OrderService.bulkCompleteDetailed(ctx.db, ctx.tenant.id,
+        { id: ctx.user.id, role: ctx.user.role }, input.entries);
+    }),
+
   // ── Bulk Assign Agent ───────────────────────────────────────────────────────
   bulkAssignAgent: operatorQuery
     .input(z.object({

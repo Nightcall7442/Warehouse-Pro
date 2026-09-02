@@ -35,6 +35,8 @@ import { OrderKanbanBoard } from "@/components/orders/OrderKanbanBoard";
 import { OrderAgentGroups } from "@/components/orders/OrderAgentGroups";
 import { QuickOrderModal } from "@/components/orders/QuickOrderModal";
 import { CompletionFlowModal } from "@/components/orders/CompletionFlowModal";
+import { BulkCompletionModal } from "@/components/orders/BulkCompletionModal";
+import type { BulkEntry } from "@/components/orders/BulkCompletionModal";
 import type { CompletionData, CompletionMode } from "@/components/orders/CompletionFlowModal";
 import { KpiCard, StatusBadge } from "@/components/orders/theme";
 import { F, COLORS, SHADOW, OPEN_STATUSES, PAYMENT, STATUS } from "@/components/orders/theme-tokens";
@@ -135,21 +137,6 @@ export default function Orders() {
     },
     onError: (e) => notify.error(e.message),
   });
-  const bulkCompleteWithPayment = trpc.order.bulkCompleteWithPayment.useMutation({
-    onSuccess: (r) => {
-      invalidateOrderCaches();
-      clearSelection();
-      if (r.failed.length === 0) {
-        notify.success(t(`Выполнено и оплачено: ${r.updated}`, `Bajarildi va to'landi: ${r.updated}`));
-      } else {
-        notify.error(t(
-          `Готово: ${r.updated}, не удалось: ${r.failed.length} (${r.failed.map(f => `#${f.orderId}: ${f.error}`).join("; ")})`,
-          `Tayyor: ${r.updated}, muvaffaqiyatsiz: ${r.failed.length} (${r.failed.map(f => `#${f.orderId}: ${f.error}`).join("; ")})`,
-        ));
-      }
-    },
-    onError: (e) => notify.error(e.message),
-  });
   const bulkAssignAgent = trpc.order.bulkAssignAgent.useMutation({
     onSuccess: (r) => { invalidateOrderCaches(); clearSelection(); notify.success(t(`Назначено: ${r.updated}`, `Tayinlandi: ${r.updated}`)); },
     onError: (e) => notify.error(e.message),
@@ -237,6 +224,35 @@ export default function Orders() {
   const updateStatus = trpc.order.updateStatus.useMutation({
     onSuccess: () => { invalidateOrderCaches(); notify.success("Заказ обновлён"); },
     onError:   (e) => notify.error(e.message),
+  });
+
+  // ── Массовое завершение: своя оплата и свой возврат по каждому заказу ──
+  const [showBulkCompletion, setShowBulkCompletion] = useState(false);
+
+  const bulkCompletionIds = useMemo(() => Array.from(selected), [selected]);
+  const { data: bulkCompletionOrders, isLoading: bulkCompletionLoading } =
+    trpc.order.getManyForCompletion.useQuery(
+      { orderIds: bulkCompletionIds },
+      { enabled: showBulkCompletion && bulkCompletionIds.length > 0 },
+    );
+
+  const bulkCompleteDetailed = trpc.order.bulkCompleteDetailed.useMutation({
+    onSuccess: (r) => {
+      invalidateOrderCaches();
+      clearSelection();
+      setShowBulkCompletion(false);
+      if (r.failed.length === 0) {
+        notify.success(t(`Записано заказов: ${r.updated}`, `Yozildi: ${r.updated} ta`));
+      } else {
+        // Что не прошло — называем поимённо: остальное уже записано, и человек
+        // должен видеть, к чему вернуться, а не гадать, какая часть пачки легла.
+        notify.error(t(
+          `Записано: ${r.updated}, не удалось: ${r.failed.length} (${r.failed.map(f => `#${f.orderId}: ${f.error}`).join("; ")})`,
+          `Yozildi: ${r.updated}, muvaffaqiyatsiz: ${r.failed.length} (${r.failed.map(f => `#${f.orderId}: ${f.error}`).join("; ")})`,
+        ));
+      }
+    },
+    onError: (e) => notify.error(e.message),
   });
 
   // ── Completion flow for status changes ─────────────────────────────────
@@ -1093,21 +1109,14 @@ export default function Orders() {
         });
         if (ok) bulkUpdateStatus.mutate({ orderIds: ids, status: "delivered" });
       }}
-      onCompleteWithPayment={async () => {
-        const ids = Array.from(selected);
-        const allResult = await refetchAllOrders();
-        const selectedRows = (allResult.data?.data ?? []).filter((o: { id: number }) => selected.has(o.id));
-        const total = selectedRows.reduce((s: number, o: { total: string }) => s + Number(o.total), 0);
-
-        const ok = await confirm({
-          title: t(`Выполнить с оплатой ${ids.length} заказ(ов)?`, `${ids.length} ta buyurtma to'lov bilan bajarilsinmi?`),
-          message: t(
-            `Заказы получат статус «Доставлен», товар спишется со склада, и для каждого будет записана оплата на полную сумму — всего ${fmt(total)}. Используйте только если деньги уже получены.`,
-            `Buyurtmalar «Yetkazildi» holatini oladi, tovar omboridan yechiladi, va har biri uchun to'liq summa bo'yicha to'lov yoziladi — jami ${fmt(total)}. Faqat pul allaqachon olingan bo'lsa ishlating.`,
-          ),
-          confirmText: t("Выполнить с оплатой", "To'lov bilan bajarish"),
-        });
-        if (ok) bulkCompleteWithPayment.mutate({ orderIds: ids });
+      onCompleteWithPayment={() => {
+        // Раньше здесь было подтверждение, после которого КАЖДЫЙ заказ
+        // записывался оплаченным на полную сумму. Частичной оплаты и
+        // частичного возврата пачкой не было вовсе, хотя именно так чаще
+        // всего и происходит: часть денег принесли, часть товара вернули.
+        // Теперь открывается таблица, где сумма правится по каждому заказу,
+        // а итог виден до нажатия.
+        setShowBulkCompletion(true);
       }}
       onAssignAgent={(agentId) => {
         const ids = Array.from(selected);
@@ -1154,6 +1163,18 @@ export default function Orders() {
     />
 
     {dialog}
+
+    {/* ── Массовое завершение с таблицей ── */}
+    {showBulkCompletion && !bulkCompletionLoading && (
+      <BulkCompletionModal
+        open={showBulkCompletion}
+        onClose={() => setShowBulkCompletion(false)}
+        orders={bulkCompletionOrders ?? []}
+        currency={symbol}
+        saving={bulkCompleteDetailed.isPending}
+        onSave={(entries: BulkEntry[]) => bulkCompleteDetailed.mutate({ entries })}
+      />
+    )}
 
     {/* ── Completion Flow Modal ── */}
     {completionOrderData && (
