@@ -449,7 +449,7 @@ describe("OrderService.cancel", () => {
 
     await expect(
       OrderService.cancel(mockDb as any, 1, 1, { userId: 99, userRole: "agent" }),
-    ).rejects.toThrow(/Заказ не найден/);
+    ).rejects.toThrow(/оформил другой сотрудник/);
   });
 });
 

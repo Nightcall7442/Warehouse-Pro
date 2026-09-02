@@ -359,7 +359,7 @@ describe("order.cancel — stock release", () => {
 
     await ownerCaller.create({ shopId: 1, items: [{ productId: 1, quantity: 10}] });
 
-    await expect(intruderCaller.cancel({ id: 1 })).rejects.toThrow(/Заказ не найден/);
+    await expect(intruderCaller.cancel({ id: 1 })).rejects.toThrow(/оформил другой сотрудник/);
   });
 });
 

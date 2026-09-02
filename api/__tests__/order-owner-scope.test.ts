@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { canActOnAnyOrder } from "../services/order";
+import { canSeeAnyOrder, canSettleAnyOrder, canCancelAnyOrder } from "../services/order";
 
 /**
  * Чужой заказ провести нельзя.
@@ -31,26 +31,105 @@ import { canActOnAnyOrder } from "../services/order";
 const SRC = readFileSync(join(process.cwd(), "api", "services", "order.ts"), "utf8").replace(/\r\n/g, "\n");
 const ROUTER = readFileSync(join(process.cwd(), "api", "order-router.ts"), "utf8").replace(/\r\n/g, "\n");
 
-describe("кто вправе трогать любой заказ", () => {
-  it("операции по заказу доступны руководителю, оператору и суперадмину", () => {
-    expect(canActOnAnyOrder("ceo")).toBe(true);
-    expect(canActOnAnyOrder("operator")).toBe(true);
-    expect(canActOnAnyOrder("superadmin")).toBe(true);
+const FIELD_ROLES = ["agent", "merchandiser", "courier", "finance"];
+const ALL_ROLES = ["ceo", "operator", "supervisor", "superadmin", ...FIELD_ROLES, "новая_роль", ""];
+
+describe("кто что может с чужим заказом", () => {
+  it("руководитель, оператор, суперадмин — всё", () => {
+    for (const role of ["ceo", "operator", "superadmin"]) {
+      expect(canSeeAnyOrder(role), role).toBe(true);
+      expect(canSettleAnyOrder(role), role).toBe(true);
+      expect(canCancelAnyOrder(role), role).toBe(true);
+    }
+  });
+
+  it("супервайзер только смотрит", () => {
+    // Решение владельца, принятое явно: супервайзер следит за работой, но
+    // деньги и склад по чужим заказам не двигает.
+    expect(canSeeAnyOrder("supervisor")).toBe(true);
+    expect(canSettleAnyOrder("supervisor")).toBe(false);
+    expect(canCancelAnyOrder("supervisor")).toBe(false);
   });
 
   it("полевым ролям — только свои заказы", () => {
-    // Супервайзер здесь намеренно вместе с агентом: то же правило, что в
-    // cancel. Разъедься эти списки — и «отменить» с «провести оплату»
-    // разошлись бы в правах, хотя по весу это одна и та же операция.
-    for (const role of ["agent", "merchandiser", "supervisor", "courier", "finance"]) {
-      expect(canActOnAnyOrder(role), `роль ${role} не должна получать чужие заказы`).toBe(false);
+    for (const role of FIELD_ROLES) {
+      expect(canSeeAnyOrder(role), `роль ${role} не должна видеть чужие заказы`).toBe(false);
+      expect(canSettleAnyOrder(role), `роль ${role} не должна проводить чужие заказы`).toBe(false);
+      expect(canCancelAnyOrder(role), `роль ${role} не должна отменять чужие заказы`).toBe(false);
     }
   });
 
   it("неизвестная роль не получает прав по умолчанию", () => {
-    expect(canActOnAnyOrder("")).toBe(false);
-    expect(canActOnAnyOrder("новая_роль")).toBe(false);
+    for (const role of ["", "новая_роль"]) {
+      expect(canSeeAnyOrder(role)).toBe(false);
+      expect(canSettleAnyOrder(role)).toBe(false);
+      expect(canCancelAnyOrder(role)).toBe(false);
+    }
   });
+});
+
+describe("если права расходятся — отказ обязан назвать причину", () => {
+  /**
+   * Роль, которая ВИДИТ заказ, но не может его провести, — это ловушка:
+   * человек открывает заказ, вводит сумму и получает отказ. Сама ловушка
+   * допустима и здесь намеренная. Недопустимо другое — отказ, который не
+   * объясняет себя.
+   *
+   * Так и было: «Заказ не найден» отвечали и на «нет такого», и на «чужой»,
+   * потому что условие владельца стоит внутри выборки. Супервайзер видел заказ
+   * на экране, читал «не найден» и шёл искать поломку в данных. Разбор занял
+   * несколько дней, а в боевой базе за это время не записалось ни одной
+   * частичной оплаты.
+   */
+  it("ловушка действительно есть — иначе проверки ниже пусты", () => {
+    const trapped = ALL_ROLES.filter(r => canSeeAnyOrder(r) && !canSettleAnyOrder(r));
+    expect(trapped, "если список опустел, проверки ниже больше ничего не стерегут").toEqual(["supervisor"]);
+  });
+
+  it("отказ по владельцу идёт через orderAccessError везде, где есть ownerScope", () => {
+    for (const fn of ["applyPartialPayment", "applyPartialDelivery"]) {
+      const at = SRC.indexOf(`async function ${fn}(`);
+      expect(at, `${fn} не найдена`).toBeGreaterThan(-1);
+      const body = SRC.slice(at, at + 4000);
+      expect(body, `${fn}: отказ не объясняет причину`).toContain("orderAccessError");
+      expect(body, `${fn}: остался молчаливый отказ`).not.toContain('new Error("Заказ не найден")');
+    }
+  });
+
+  it("orderAccessError различает «нет такого» и «чужой»", () => {
+    const at = SRC.indexOf("async function orderAccessError(");
+    expect(at, "orderAccessError не найдена").toBeGreaterThan(-1);
+    // Тело именно этой функции: до первой закрывающей скобки в начале
+    // строки. Окно «плюс N символов» захватывало соседнюю функцию, и проверка
+    // «нет голого Error» падала на её тексте.
+    const body = SRC.slice(at).split(/^}/m)[0];
+    // Чужой — FORBIDDEN с объяснением; отсутствующий — NOT_FOUND.
+    expect(body).toContain('code: "FORBIDDEN"');
+    expect(body).toContain('code: "NOT_FOUND"');
+    expect(body).toContain("оформил другой сотрудник");
+    // Именно TRPCError: голый Error прод подменяет на «Внутренняя ошибка
+    // сервера», и объяснение до человека не доходит.
+    expect(body).not.toContain("new Error(");
+  });
+});
+
+describe("менять и удалять заказ супервайзер не может", () => {
+  /**
+   * Это держится не правилами выше, а уровнем процедуры: operatorQuery — это
+   * ceo и operator. Проверка читает роутер, чтобы правило не уехало молча.
+   */
+  const GUARDED = [
+    "update", "updateItems", "updateStatus", "delete", "restore",
+    "bulkUpdateStatus", "bulkCompleteWithPayment", "bulkAssignAgent", "bulkAssignCourier",
+  ];
+
+  for (const proc of GUARDED) {
+    it(`${proc} — только оператор и руководитель`, () => {
+      const at = ROUTER.indexOf(`\n  ${proc}: `);
+      expect(at, `процедура ${proc} не найдена`).toBeGreaterThan(-1);
+      expect(ROUTER.slice(at, at + 60), `${proc} открыта шире, чем operatorQuery`).toContain("operatorQuery");
+    });
+  }
 });
 
 /**

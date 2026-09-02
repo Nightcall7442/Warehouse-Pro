@@ -367,23 +367,63 @@ async function applyStockDelta(
  * KPIs (which filter status IN ('delivered','completed')).
  */
 /**
- * Кто вправе распоряжаться ЛЮБЫМ заказом организации.
+ * Права на чужой заказ. Три правила, намеренно рядом.
  *
- * Тот же список, что у OrderService.cancel — намеренно: две операции одного
- * веса (отменить заказ и провести по нему деньги) не должны расходиться в
- * правах. Супервайзер сюда не входит, как и там.
+ * ── Почему рядом ────────────────────────────────────────────────────────────
+ *
+ * «Кого пускать в список» лежало безымянным массивом внутри OrderService.list
+ * и getById, а «кому можно провести заказ» — отдельной константой сотней строк
+ * выше. Списки разошлись на супервайзера, и никто этого не заметил, потому что
+ * увидеть расхождение можно было, только держа оба места перед глазами.
+ *
+ * Обошлось это дорого. Супервайзер видел все заказы, открывал окно завершения —
+ * сумма показывалась верно, ЧТЕНИЕ ему разрешено, — вводил оплату и получал
+ * «Заказ не найден» про заказ, который был у него перед глазами. Со стороны это
+ * читается как поломка данных, и искать шли не там. В боевой базе с 28 августа
+ * 2026 не записалось ни одной частичной оплаты.
+ *
+ * Расхождение сохранено — так решил владелец, — но теперь оно НАМЕРЕННОЕ и
+ * видно с одного экрана. И отказ объясняет причину: см. orderAccessError ниже.
  */
-const ORDER_SUPERVISORS = ["ceo", "operator", "superadmin"];
+
+/** Кто видит ЛЮБОЙ заказ организации: список, карточка, окно завершения. */
+const ORDER_VIEWERS = ["ceo", "operator", "supervisor", "superadmin"];
 
 /**
- * Вправе ли эта роль работать с любым заказом организации, а не только со своим.
+ * Кто вправе ПРОВЕСТИ любой заказ: принять оплату, оформить доставку.
  *
- * Вынесено отдельно и экспортируется, чтобы правило было одно на все операции
- * с заказом и его можно было проверить тестом напрямую, а не по тексту
- * исходника.
+ * Уже, чем ORDER_VIEWERS: супервайзера здесь нет. Он смотрит за работой, но
+ * деньги и склад по чужим заказам не двигает — это делают оператор,
+ * руководитель или сам автор заказа.
+ *
+ * Разница с видимостью не случайна, поэтому отказ обязан её ОБЪЯСНЯТЬ: человек
+ * видит заказ на экране, и молчаливое «не найден» отправляет его искать
+ * несуществующую поломку.
  */
-export function canActOnAnyOrder(role: string): boolean {
-  return ORDER_SUPERVISORS.includes(role);
+const ORDER_SETTLERS = ["ceo", "operator", "superadmin"];
+
+/**
+ * Кто вправе ОТМЕНИТЬ любой заказ.
+ *
+ * Тот же список, что у проводки: отменить заказ и провести по нему деньги —
+ * операции одного веса. Правка состава и удаление закрыты ещё жёстче, на уровне
+ * процедур (operatorQuery в api/order-router.ts).
+ */
+const ORDER_CANCELLERS = ORDER_SETTLERS;
+
+/** Видит ли эта роль чужие заказы. */
+export function canSeeAnyOrder(role: string): boolean {
+  return ORDER_VIEWERS.includes(role);
+}
+
+/** Может ли эта роль провести чужой заказ — оплата и доставка. */
+export function canSettleAnyOrder(role: string): boolean {
+  return ORDER_SETTLERS.includes(role);
+}
+
+/** Может ли эта роль отменить чужой заказ. */
+export function canCancelAnyOrder(role: string): boolean {
+  return ORDER_CANCELLERS.includes(role);
 }
 
 /**
@@ -409,8 +449,35 @@ export function canActOnAnyOrder(role: string): boolean {
  * Условие возвращается массивом, чтобы попасть ВНУТРЬ того же
  * SELECT ... FOR UPDATE: проверка вне блокировки — это уже другая ошибка.
  */
+/**
+ * Почему заказ не дался: его нет — или он чужой.
+ *
+ * Раньше оба случая отвечали «Заказ не найден», потому что условие владельца
+ * стоит ВНУТРИ выборки: не свой заказ просто не возвращается. Для человека,
+ * который видит этот заказ в списке и держит его открытым на экране, такой
+ * ответ не значит ничего — искать он идёт в данные, а дело в правах. Именно так
+ * потерялось несколько дней на разборе жалобы тенанта.
+ *
+ * Ответ — TRPCError, а не голый Error: в проде errorFormatter подменяет текст
+ * любой INTERNAL-ошибки на «Внутренняя ошибка сервера», и объяснение до
+ * человека не доходит (api/middleware.ts).
+ */
+async function orderAccessError(
+  tx: Tx, tenantId: number, orderId: number, action = "Провести",
+): Promise<TRPCError> {
+  const [exists] = await tx.select({ id: orders.id }).from(orders)
+    .where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt)))
+    .limit(1);
+  return exists
+    ? new TRPCError({
+        code: "FORBIDDEN",
+        message: `Этот заказ оформил другой сотрудник. ${action} его может автор заказа, оператор или руководитель.`,
+      })
+    : new TRPCError({ code: "NOT_FOUND", message: "Заказ не найден" });
+}
+
 function ownerScope(actor: Actor) {
-  return canActOnAnyOrder(actor.role) ? [] : [eq(orders.agentId, actor.id)];
+  return canSettleAnyOrder(actor.role) ? [] : [eq(orders.agentId, actor.id)];
 }
 
 /** Кто выполняет операцию: идентификатор для записи авторства и роль для прав. */
@@ -436,7 +503,7 @@ async function applyPartialPayment(
     .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt), ...ownerScope(actor)))
     .for("update")
     .limit(1);
-  if (!order) throw new Error("Заказ не найден");
+  if (!order) throw await orderAccessError(tx, tenantId, input.orderId);
   // A cancelled/returned order has already given its stock and any charge
   // back; a stray or retried payment call must not resurrect it as delivered.
   if (order.status === "cancelled" || order.status === "returned") {
@@ -540,7 +607,7 @@ async function applyPartialDelivery(
     .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt), ...ownerScope(actor)))
     .for("update")
     .limit(1);
-  if (!order) throw new TRPCError({ code: "NOT_FOUND", message: "Заказ не найден" });
+  if (!order) throw await orderAccessError(tx, tenantId, input.orderId);
   // A cancelled/returned order already released its stock; recording a
   // delivery against it here would consume stock a second time for goods
   // that were already given back.
@@ -780,7 +847,7 @@ export const OrderService = {
     // there would cancel that out and leave deleted orders in neither tab.
     if (!f.showDeleted && f.archived !== true) conditions.push(isNull(orders.deletedAt));
     // P0-14 FIX: Non-privileged users see only their own orders
-    if (opts && !["ceo", "operator", "supervisor", "superadmin"].includes(opts.userRole)) {
+    if (opts && !canSeeAnyOrder(opts.userRole)) {
       conditions.push(eq(orders.agentId, opts.userId));
     }
 
@@ -845,7 +912,7 @@ export const OrderService = {
     // Список привилегированных ролей — тот же, что в list выше: карточка и
     // строка списка показывают один и тот же заказ, и разойдись эти два списка,
     // заказ было бы видно в одном месте и не видно в другом.
-    const scope = opts && !["ceo", "operator", "supervisor", "superadmin"].includes(opts.userRole)
+    const scope = opts && !canSeeAnyOrder(opts.userRole)
       ? [eq(orders.agentId, opts.userId)]
       : [];
 
@@ -1142,7 +1209,7 @@ export const OrderService = {
 
   async cancel(db: Db, tenantId: number, orderId: number, opts: { userId: number; userRole: string }) {
     await db.transaction(async (tx) => {
-      const isPrivileged = canActOnAnyOrder(opts.userRole);
+      const isPrivileged = canCancelAnyOrder(opts.userRole);
       const conditions = [eq(orders.id, orderId), eq(orders.tenantId, tenantId)];
       // Non-privileged users can only cancel their own orders
       if (!isPrivileged) {
@@ -1158,7 +1225,9 @@ export const OrderService = {
         id: orders.id, status: orders.status, shopId: orders.shopId,
         total: orders.total, paymentMethod: orders.paymentMethod,
       }).from(orders).where(and(...conditions)).for("update").limit(1);
-      if (!order) throw new Error("Заказ не найден");
+      // «Заказ не найден» значило и «нет такого», и «чужой». Права не
+      // меняются — меняется объяснение.
+      if (!order) throw await orderAccessError(tx, tenantId, orderId, "Отменить");
       if (order.status !== "new") throw new Error("Можно отменить только новые заказы");
 
       const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));

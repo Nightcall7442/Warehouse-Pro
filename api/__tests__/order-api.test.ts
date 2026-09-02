@@ -518,7 +518,7 @@ describe("order.cancel — PATCH /api/orders/:id/cancel", () => {
     await ownerCaller.create({ shopId: 1, items: [{ productId: 1, quantity: 5}] });
 
     const intruderCaller = orderRouter.createCaller({ ...makeCtx(1, 11), db: mockDb });
-    await expect(intruderCaller.cancel({ id: 1 })).rejects.toThrow(/Заказ не найден/);
+    await expect(intruderCaller.cancel({ id: 1 })).rejects.toThrow(/оформил другой сотрудник/);
   });
 
   it("returns error for non-existent order", async () => {
