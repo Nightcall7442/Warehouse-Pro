@@ -284,43 +284,58 @@ export function BtnGhost({
    Моно-индекс + рубрика, волосяная линия дотягивается до правого рельса.
    Номера строк здесь мотивированы: это разлиновка журнала, а не
    декоративные «01/02/03». */
+/* ── Заголовок главы ────────────────────────────────────────────────────────
+   Раньше каждая глава начиналась одинаково: горизонтальная строка
+   «04 / Возможности ————», под ней H2 в одном общем clamp и лид. Восемь раз
+   подряд — и главы неразличимы.
+
+   Теперь два кегля вместо одного: глава на тёмной полосе кричит 56-м, глава на
+   бумаге говорит 34-м. Рубрика уходит в левое поле листа регистром A — плотным
+   моно 11px с трекингом 0.08em, а не разрежённым 0.22em: настоящие бланковые
+   подписи набираются плотно, разрядка и была тем журнальным тиком, из-за
+   которого все главы звучали одним голосом. */
 export function SectionHead({
   index,
   label,
   title,
   lead,
   id,
+  tone = "paper",
 }: {
   index: string;
   label: string;
   title: ReactNode;
   lead?: string;
   id?: string;
+  /** dark — глава на ночной полосе: кегль 56, бумага на тёмном. */
+  tone?: "paper" | "dark";
 }) {
+  const dark = tone === "dark";
   return (
     <div id={id} data-reveal="head" className="scroll-mt-24">
-      <div className="flex items-center gap-4 mb-8">
-        <span
-          className="text-[11px] uppercase shrink-0"
-          style={{ ...MONO, color: LX.brassText, letterSpacing: "0.22em" }}
-        >
-          {index} / {label}
-        </span>
-        <span aria-hidden="true" className="h-px flex-1" style={{ background: LX.rule }} />
+      <div
+        className="mb-6 text-[11px] uppercase"
+        style={{ ...MONO, fontWeight: 500, letterSpacing: "0.08em", lineHeight: 1.9, color: dark ? LX.brassOnNight : LX.brassText }}
+      >
+        {index} · {label}
       </div>
       <h2
-        className="font-bold max-w-2xl"
+        className={dark ? "font-extrabold" : "font-bold"}
         style={{
-          fontSize: "clamp(1.9rem, 3.6vw, 2.9rem)",
-          letterSpacing: "-0.03em",
-          lineHeight: 1.08,
-          color: LX.ink,
+          fontSize: dark ? "clamp(2.125rem, 4.2vw, 3.5rem)" : "clamp(1.625rem, 2.6vw, 2.125rem)",
+          letterSpacing: dark ? "-0.035em" : "-0.025em",
+          lineHeight: dark ? 1.02 : 1.1,
+          maxWidth: dark ? "16ch" : "26ch",
+          color: dark ? LX.paperOnInk : LX.ink,
         }}
       >
         {title}
       </h2>
       {lead && (
-        <p className="mt-4 max-w-xl text-[15.5px] leading-relaxed" style={{ color: LX.inkSoft }}>
+        <p
+          className="mt-5 text-[18px] md:text-[20px]"
+          style={{ lineHeight: 1.5, maxWidth: "62ch", fontWeight: 500, color: dark ? LX.softOnInk : LX.inkSoft }}
+        >
           {lead}
         </p>
       )}

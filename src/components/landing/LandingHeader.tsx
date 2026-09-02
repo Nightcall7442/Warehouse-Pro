@@ -69,7 +69,7 @@ export default function LandingHeader() {
     >
       <div className="max-w-[1240px] mx-auto px-6 h-16 flex items-center justify-between gap-4">
         <a href="#top" className="flex items-center gap-2.5 shrink-0">
-          <LogoMark size={30} decorative />
+          <span data-fold="" className="inline-flex"><LogoMark size={30} decorative /></span>
           <span className="font-bold tracking-tight text-[15px]" style={{ color: LX.ink }}>
             Warehouse Pro
           </span>

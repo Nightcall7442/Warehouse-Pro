@@ -30,13 +30,15 @@ import { LX, MONO } from "./landing-tokens";
 type Props = {
   /** Короткий вид: только имя и телефон, в одну строку. */
   compact?: boolean;
+  /** Поля в столбик даже в compact — для узкого первого экрана на телефоне. */
+  stack?: boolean;
   /** Тёмный фон (нижний блок) — иначе бумажный. */
   onInk?: boolean;
   /** Откуда пришла заявка: попадает в запись, чтобы видеть, что работает. */
   source: string;
 };
 
-export default function LeadForm({ compact = false, onInk = false, source }: Props) {
+export default function LeadForm({ compact = false, onInk = false, stack = false, source }: Props) {
   const tr = useTranslate();
   const uid = useId();
   const [name, setName] = useState("");
@@ -106,8 +108,8 @@ export default function LeadForm({ compact = false, onInk = false, source }: Pro
 
   return (
     <form onSubmit={submit} className="w-full">
-      <div className={compact ? "flex flex-col sm:flex-row gap-2.5" : "flex flex-col gap-2.5"}>
-        <div className={compact ? "sm:w-[34%]" : ""}>
+      <div className={compact && !stack ? "flex flex-col sm:flex-row gap-2.5" : "flex flex-col gap-2.5"}>
+        <div className={compact && !stack ? "sm:w-[34%]" : ""}>
           <label htmlFor={`${uid}-name`} className="sr-only">{tr("Имя", "Ism")}</label>
           <input
             id={`${uid}-name`}
@@ -169,15 +171,17 @@ export default function LeadForm({ compact = false, onInk = false, source }: Pro
           data-testid="lead-submit"
           disabled={!ready || create.isPending}
           className="inline-flex items-center justify-center gap-2 font-semibold"
+          // Пока поля пусты, кнопка — контурная, а не притушенная серым: серая
+          // читалась как сломанная, и это был первый экран страницы.
           style={{
-            background: onInk ? LX.paperOnInk : LX.ink,
-            color: onInk ? LX.ink : LX.paperOnInk,
+            background: !ready && !create.isPending ? "transparent" : onInk ? LX.paperOnInk : LX.ink,
+            color: !ready && !create.isPending ? text : onInk ? LX.ink : LX.paperOnInk,
             borderRadius: 8,
             padding: "12px 22px",
             fontSize: 15,
-            border: "none",
+            border: !ready && !create.isPending ? `1px solid ${line}` : "1px solid transparent",
             cursor: !ready || create.isPending ? "not-allowed" : "pointer",
-            opacity: !ready || create.isPending ? 0.45 : 1,
+            opacity: create.isPending ? 0.6 : 1,
             whiteSpace: "nowrap",
           }}
         >

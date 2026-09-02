@@ -96,7 +96,7 @@ function OrdersTab() {
       */}
       <div
         className="hidden sm:grid grid-cols-[64px_1fr_96px_88px] md:grid-cols-[76px_1fr_120px_110px] gap-3 px-4 py-2.5 text-[9.5px] uppercase"
-        style={{ ...MONO, color: APP.textTertiary, letterSpacing: "0.12em", borderBottom: `1px solid ${APP.border}` }}
+        style={{ ...MONO, color: APP.textTertiary, letterSpacing: "0.08em", borderBottom: `1px solid ${APP.border}` }}
       >
         <span>№</span>
         <span>{tr("Магазин", "Do'kon")}</span>
@@ -268,8 +268,9 @@ export default function ProductWindow() {
     tr("Мобильное", "Mobil"),
   ];
   return (
-    <section id="product" className="lx-ink scroll-mt-16" style={{ background: LX.ink }}>
-      <div className="max-w-[1240px] mx-auto px-6 py-16 md:py-20">
+    <section id="product" className="lx-ink scroll-mt-16" style={{ background: LX.night }}>
+      <div className="max-w-[1240px] mx-auto px-6 pb-16 md:pb-24">
+      <div className="rounded-lg p-6 md:p-8" style={{ background: LX.ink }}>
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-10">
           <h2
             className="font-bold"
@@ -277,7 +278,7 @@ export default function ProductWindow() {
           >
             {tr("Один экран вместо пяти тетрадей", "Beshta daftar o'rniga bitta ekran")}
           </h2>
-          <span className="text-[11px] uppercase" style={{ ...MONO, color: LX.softOnInk, letterSpacing: "0.18em" }}>
+          <span className="text-[11px] uppercase" style={{ ...MONO, color: LX.softOnInk, letterSpacing: "0.08em" }}>
             {tr("Интерфейс без прикрас", "Interfeys bo'yoqsiz")}
           </span>
         </div>
@@ -348,6 +349,7 @@ export default function ProductWindow() {
             {tab === 3 && <MobileTab />}
           </div>
         </div>
+      </div>
       </div>
     </section>
   );

@@ -126,10 +126,10 @@ export default function TallyField() {
   }, []);
 
   return (
-    <div className="mt-16 md:mt-24 pt-8" style={{ borderTop: `1px solid ${LX.rule}` }} aria-hidden="true">
+    <div className="pt-8 pb-10" style={{ borderTop: `1px solid ${LX.rule}` }} aria-hidden="true">
       <div
-        className="flex items-baseline justify-between mb-5 text-[10px] uppercase"
-        style={{ ...MONO, color: LX.inkFaint, letterSpacing: "0.24em" }}
+        className="max-w-[1240px] mx-auto px-6 flex items-baseline justify-between mb-5 text-[11px] uppercase"
+        style={{ ...MONO, fontWeight: 500, color: LX.inkFaint, letterSpacing: "0.08em" }}
       >
         <span>{COLS} × {ROWS} — занятость ячеек</span>
         <span className="hidden sm:inline">обновляется на глазах</span>
@@ -156,8 +156,8 @@ export default function TallyField() {
         ))}
       </svg>
       <div
-        className="flex flex-wrap gap-x-7 gap-y-1 mt-5 text-[10px] uppercase"
-        style={{ ...MONO, color: LX.inkFaint, letterSpacing: "0.2em" }}
+        className="max-w-[1240px] mx-auto px-6 flex flex-wrap gap-x-7 gap-y-1 mt-5 text-[13px] font-medium"
+        style={{ color: LX.inkSoft }}
       >
         <Key tone={TONE.taken} label="занято" />
         <Key tone={TONE.held} label="резерв" />

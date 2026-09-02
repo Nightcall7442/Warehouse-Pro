@@ -84,9 +84,19 @@ export default function LossSection() {
   );
 
   return (
-    <section className="py-16 md:py-24">
+    <section id="loss" className="py-20 md:py-28 scroll-mt-16" style={{ background: LX.night }}>
+      <div className="max-w-[1240px] mx-auto px-6 lg:pl-[136px]">
+      {/* Одна цифра на всю тёмную главу — из боевой базы, не выдумана. */}
+      <div data-reveal="loss-figure" className="mb-10 md:mb-14">
+        <div className="text-[56px] md:text-[72px] leading-none" style={{ ...MONO, letterSpacing: "-0.02em", color: LX.brassOnNight }}>
+          <span data-count="200000">200 000</span>
+        </div>
+        <p className="mt-3 text-[13px] font-medium max-w-md" style={{ color: LX.softOnInk }}>
+          {tr("сум по одному заказу, которые остались бы незаписанными без сверки. Боевая база, заказ №981.", "so'm — bitta buyurtma bo'yicha, solishtiruvsiz yozilmay qolardi. Jonli baza, №981 buyurtma.")}
+        </p>
+      </div>
       <SectionHead
-        id="loss"
+        tone="dark"
         index="02"
         label={tr("Где теряются деньги", "Pul qayerda yo'qoladi")}
         title={tr("Учёт нужен не ради порядка", "Hisob tartib uchun emas")}
@@ -98,16 +108,16 @@ export default function LossSection() {
 
       {/* Двумя колонками: четыре пункта в ряд ужимаются до нечитаемых полосок,
           а в столбик уходят вниз экрана и теряют сопоставление между собой. */}
-      <div className="grid md:grid-cols-2 gap-px" style={{ background: LX.rule }}>
+      <div className="grid md:grid-cols-2 gap-px mt-12" style={{ background: LX.ruleOnInk }}>
         {items.map((it, i) => (
-          <div key={i} className="p-6 md:p-8" style={{ background: LX.paper }}>
+          <div key={i} data-reveal="loss" className="p-6 md:p-8" style={{ background: LX.ink }}>
             <div className="flex items-baseline gap-3 mb-3">
-              <span className="text-[11px]" style={{ ...MONO, color: LX.brassText, letterSpacing: "0.18em" }}>
+              <span className="text-[11px]" style={{ ...MONO, fontWeight: 500, color: LX.brassOnNight, letterSpacing: "0.08em" }}>
                 {String(i + 1).padStart(2, "0")}
               </span>
               <span
                 className="text-[10.5px] uppercase"
-                style={{ ...MONO, color: LX.inkFaint, letterSpacing: "0.16em" }}
+                style={{ ...MONO, fontWeight: 500, color: LX.faintOnInk, letterSpacing: "0.08em" }}
               >
                 {it.who}
               </span>
@@ -115,28 +125,29 @@ export default function LossSection() {
 
             <h3
               className="font-bold mb-3"
-              style={{ fontSize: "clamp(1.05rem, 1.6vw, 1.3rem)", letterSpacing: "-0.02em", color: LX.ink }}
+              style={{ fontSize: "clamp(1.05rem, 1.6vw, 1.3rem)", letterSpacing: "-0.02em", color: LX.paperOnInk }}
             >
               {it.title}
             </h3>
 
-            <p className="text-[14.5px] leading-relaxed" style={{ color: LX.inkSoft }}>
+            <p className="text-[15px] leading-relaxed" style={{ color: LX.softOnInk }}>
               {it.body}
             </p>
 
-            <div className="mt-5 pt-4" style={{ borderTop: `1px solid ${LX.rule}` }}>
+            <div className="mt-5 pt-4" style={{ borderTop: `1px solid ${LX.ruleOnInk}` }}>
               <span
-                className="block text-[9.5px] uppercase mb-1.5"
-                style={{ ...MONO, color: LX.inkFaint, letterSpacing: "0.16em" }}
+                className="block text-[13px] font-medium mb-1.5"
+                style={{ color: LX.faintOnInk }}
               >
                 {tr("В системе это видно как", "Tizimda bu shunday ko'rinadi")}
               </span>
-              <span className="block text-[13.5px]" style={{ color: LX.ink }}>
+              <span className="block text-[14px]" style={{ color: LX.paperOnInk }}>
                 {it.where}
               </span>
             </div>
           </div>
         ))}
+      </div>
       </div>
     </section>
   );

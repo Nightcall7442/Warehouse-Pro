@@ -5,7 +5,7 @@ import { useNavigate } from "react-router";
 import { useTranslate } from "@/i18n";
 import { ArrowRight, Send } from "lucide-react";
 
-import { LandingStyles, Counter, Accordion, SectionHead, BtnInk, BtnGhost } from "@/components/landing/landing-shared";
+import { LandingStyles, Accordion, SectionHead, BtnInk, BtnGhost } from "@/components/landing/landing-shared";
 import { LX, MONO, tgLink } from "@/components/landing/landing-tokens";
 import LandingHeader from "@/components/landing/LandingHeader";
 import TallyField from "@/components/landing/TallyField";
@@ -32,34 +32,28 @@ import PricingSection from "@/components/landing/PricingSection";
    проверить в продукте за 14 бесплатных дней. */
 function FactsStrip() {
   const tr = useTranslate();
-  const facts = [
-    {
-      big: <><Counter target={40} />+</>,
-      label: tr("дистрибьюторов ведут учёт в системе", "distribyutor tizimda hisob yuritadi"),
-    },
-    { big: "1С", label: tr("двусторонний обмен: товары, заказы, контрагенты", "ikki tomonlama almashinuv: tovar, buyurtma, kontragent") },
-    { big: <span style={MONO}>24/7</span>, label: tr("офлайн-режим: заказы не теряются без связи", "oflayn rejim: aloqasiz buyurtma yo'qolmaydi") },
-    { big: <span style={MONO}>14</span>, label: tr("дней бесплатно — карта не привязывается", "kun bepul — karta bog'lanmaydi") },
+  /*
+    Ни одного выдуманного числа. Прежнее «40+ дистрибьюторов» было ложью —
+    организаций в базе тринадцать. Теперь каждая цифра берётся из боевой
+    базы (2 сентября 2026) или из тарифа и подписана так, чтобы её можно
+    было проверить.
+  */
+  const facts: Array<{ value: number; suffix?: string; label: string }> = [
+    { value: 13, label: tr("компаний ведут учёт в системе", "kompaniya tizimda hisob yuritadi") },
+    { value: 3358, label: tr("торговых точек в базе", "bazadagi savdo nuqtalari") },
+    { value: 1121, label: tr("заказов проведено за последние 30 дней", "so'nggi 30 kunda o'tkazilgan buyurtmalar") },
+    { value: 14, label: tr("дней бесплатно — карта не привязывается", "kun bepul — karta bog'lanmaydi") },
   ];
   return (
-    <section style={{ borderBottom: `1px solid ${LX.rule}` }}>
+    <section style={{ background: LX.verso, borderTop: `1px solid ${LX.ruleStrong}`, borderBottom: `1px solid ${LX.ruleStrong}` }}>
       <div className="max-w-[1240px] mx-auto px-6">
-        {/*
-          Разделители через зазор сетки, а не border-left по индексу: на
-          двухколоночном мобильном третья ячейка открывает второй ряд и
-          получала линию у самого края, ни от чего не отделяя.
-        */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-px" style={{ background: LX.rule }}>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-px" style={{ background: LX.ruleStrong }}>
           {facts.map((f, i) => (
-            <div
-              key={i}
-              className="py-8 md:py-10 px-4 md:px-8"
-              style={{ background: LX.paper }}
-            >
-              <div className="font-bold" style={{ fontSize: "clamp(2rem, 3.4vw, 3rem)", letterSpacing: "-0.02em", color: LX.ink }}>
-                {f.big}
+            <div key={i} data-reveal="fact" className="py-8 md:py-10 px-4 md:px-8" style={{ background: LX.verso }}>
+              <div className="text-[32px] md:text-[40px] leading-none" style={{ ...MONO, letterSpacing: "-0.02em", color: LX.ink }}>
+                <span data-count={f.value}>{f.value.toLocaleString("ru-RU")}</span>{f.suffix ?? ""}
               </div>
-              <p className="mt-2 text-[12.5px] leading-snug max-w-[220px]" style={{ color: LX.inkSoft }}>
+              <p className="mt-3 text-[13px] leading-snug max-w-[220px] font-medium" style={{ color: LX.inkSoft }}>
                 {f.label}
               </p>
             </div>
@@ -124,13 +118,15 @@ function FaqSection() {
   );
   return (
     <section className="py-16 md:py-24" style={{ borderTop: `1px solid ${LX.rule}` }}>
-      <div className="max-w-[1240px] mx-auto px-6 grid lg:grid-cols-[380px_1fr] gap-10 lg:gap-16">
+      <div className="max-w-[1240px] mx-auto px-6 lg:pl-[136px]">
+        <div className="max-w-[880px]">
         <SectionHead
-          index="08"
+          index="07"
           label="FAQ"
           title={tr("Вопросы, которые задают до покупки", "Sotib olishdan oldin beriladigan savollar")}
         />
-        <Accordion items={items} />
+        <div className="mt-10"><Accordion items={items} /></div>
+        </div>
       </div>
     </section>
   );
@@ -142,7 +138,7 @@ function CtaSection() {
   const tr = useTranslate();
   const tg = tgLink(tr("Здравствуйте! Хочу подключить Warehouse Pro.", "Assalomu alaykum! Warehouse Pro'ni ulamoqchiman."));
   return (
-    <section className="lx-ink relative overflow-hidden" style={{ background: LX.ink }}>
+    <section className="lx-ink relative overflow-hidden" style={{ background: LX.night, borderTop: `1px solid ${LX.brassOnNight}` }}>
       <img
         src={CTA_PHOTO}
         alt=""
@@ -151,20 +147,21 @@ function CtaSection() {
         className="absolute inset-0 w-full h-full object-cover"
         style={{ opacity: 0.16, filter: "grayscale(0.6) sepia(0.3)" }}
       />
-      <div className="relative max-w-[1240px] mx-auto px-6 py-20 md:py-28 text-center">
-        <p className="text-[11px] uppercase mb-6" style={{ ...MONO, color: LX.softOnInk, letterSpacing: "0.22em" }}>
-          {tr("Последняя строка реестра", "Reyestrning oxirgi qatori")}
+      <div className="relative max-w-[1240px] mx-auto px-6 py-20 md:py-28 lg:pl-[136px]">
+        <p data-reveal="cta" className="text-[11px] uppercase mb-6" style={{ ...MONO, fontWeight: 500, color: LX.brassOnNight, letterSpacing: "0.08em" }}>
+          08 · {tr("Последняя строка реестра", "Reyestrning oxirgi qatori")}
         </p>
         <h2
-          className="font-extrabold mx-auto max-w-3xl"
+          data-reveal="cta"
+          className="font-extrabold max-w-3xl"
           style={{ fontSize: "clamp(2.1rem, 4.6vw, 3.6rem)", letterSpacing: "-0.035em", lineHeight: 1.05, color: LX.paperOnInk }}
         >
           {tr("Наведите порядок на складе за 14 дней", "14 kunda omboringizni tartibga keltiring")}
         </h2>
-        <p className="mt-5 text-[15px] max-w-md mx-auto" style={{ color: LX.softOnInk }}>
+        <p data-reveal="cta" className="mt-5 text-[18px] max-w-md" style={{ color: LX.softOnInk }}>
           {tr("Бесплатно, без привязки карты. Настройка — 10 минут.", "Bepul, karta bog'lamasdan. Sozlash — 10 daqiqa.")}
         </p>
-        <div className="mt-9 flex flex-wrap justify-center items-center gap-3">
+        <div data-reveal="cta" className="mt-9 flex flex-wrap items-center gap-3">
           <BtnInk onPaper={false} onClick={() => navigate("/register")}>
             {tr("Начать бесплатно", "Bepul boshlash")}
             <ArrowRight size={15} />
@@ -179,10 +176,11 @@ function CtaSection() {
 
         {/* Второй путь для тех, кто регистрироваться сам не станет. */}
         <div
-          className="mt-12 mx-auto max-w-lg text-left pt-10"
-          style={{ borderTop: `1px solid ${LX.ruleOnInk}` }}
+          data-reveal="cta"
+          className="mt-12 max-w-lg text-left rounded-lg p-6 md:p-8"
+          style={{ background: LX.ink, border: `1px solid ${LX.ruleOnInk}` }}
         >
-          <p className="text-[13px] mb-3 text-center" style={{ color: LX.softOnInk }}>
+          <p className="text-[13px] mb-3" style={{ color: LX.softOnInk }}>
             {tr("Или оставьте номер — перезвоним и разберём ваш случай.",
                 "Yoki raqamingizni qoldiring — qo'ng'iroq qilib, holatingizni ko'rib chiqamiz.")}
           </p>
@@ -306,19 +304,22 @@ export default function Landing() {
     >
       <LandingStyles />
       <LandingHeader />
-      <div className="lx-rails max-w-[1240px] mx-auto">
-        <HeroSection />
-        <TallyField />
-        <PhotoStrip />
-      </div>
+      {/*
+        Такты страницы: светло → светло во всю ширину (поле ячеек) → НОЧЬ с
+        чернильной панелью внутри (потери + окно продукта) → оборот (факты,
+        ведомость) → светло (день, GPS) → фото во всю ширину → светло (тарифы)
+        → светло-узко (FAQ) → НОЧЬ (замок). Тёмных зон две, третий регистр
+        взят бумагой, а не краской.
+      */}
+      <HeroSection />
+      <TallyField />
+      <LossSection />
       <ProductWindow />
-      <div className="lx-rails max-w-[1240px] mx-auto">
-        <FactsStrip />
-        <LossSection />
-        <FeaturesSection />
-        <PricingSection />
-        <FaqSection />
-      </div>
+      <FactsStrip />
+      <FeaturesSection />
+      <PhotoStrip />
+      <PricingSection />
+      <FaqSection />
       <CtaSection />
       <Footer />
       <MobileCtaBar />
