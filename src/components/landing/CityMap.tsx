@@ -151,7 +151,10 @@ export default function CityMap({
     utils.set(roads, { opacity: 0 });
     let len = 0;
     if (path) {
-      len = path.getTotalLength();
+      // getTotalLength есть во всех браузерах, но не во всех средах: в jsdom
+      // его нет вовсе. Без проверки исключение вылетает ИЗ эффекта и роняет
+      // весь слой движения карты, а не только прочерчивание маршрута.
+      len = typeof path.getTotalLength === "function" ? path.getTotalLength() : 0;
       utils.set(path, { opacity: 0 });
     }
 

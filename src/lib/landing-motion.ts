@@ -49,7 +49,14 @@ const RISE = 20;
 type Cleanup = () => void;
 
 /** Один наблюдатель на группу: элемент входит — обработчик вызывается один раз. */
-function once(nodes: Element[], onEnter: (el: Element) => void, rootMargin = "0px 0px -10% 0px", threshold = 0.01): Cleanup {
+function once(
+  nodes: Element[],
+  // Наблюдатель отдаётся обработчику: волна снимает с наблюдения ВСЮ группу
+  // разом, а не только вошедший элемент.
+  onEnter: (el: Element, io: IntersectionObserver) => void,
+  rootMargin = "0px 0px -10% 0px",
+  threshold = 0.01,
+): Cleanup {
   if (nodes.length === 0) return () => {};
   const seen = new WeakSet<Element>();
   const io = new IntersectionObserver((entries) => {
@@ -57,7 +64,7 @@ function once(nodes: Element[], onEnter: (el: Element) => void, rootMargin = "0p
       if (!e.isIntersecting || seen.has(e.target)) continue;
       seen.add(e.target);
       io.unobserve(e.target);
-      onEnter(e.target);
+      onEnter(e.target, io);
     }
   }, { threshold, rootMargin });
   for (const n of nodes) io.observe(n);
@@ -77,9 +84,11 @@ function revealOnScroll(root: HTMLElement): Cleanup {
   utils.set(nodes, { opacity: 0, translateY: RISE });
 
   const done = new WeakSet<Element>();
-  return once(nodes, (el) => {
+  return once(nodes, (el, io) => {
+    // Вся группа выходит разом, поэтому и с наблюдения снимается разом:
+    // иначе соседи остаются висеть на наблюдателе до конца сеанса.
     const group = (groups.get(el.parentElement ?? root) ?? [el as HTMLElement]).filter(g => !done.has(g));
-    for (const g of group) done.add(g);
+    for (const g of group) { done.add(g); io.unobserve(g); }
     if (group.length === 0) return;
     animate(group, {
       opacity: [0, 1],
@@ -100,7 +109,8 @@ function revealOnScroll(root: HTMLElement): Cleanup {
 function countUp(root: HTMLElement): Cleanup {
   const nodes = Array.from(root.querySelectorAll<HTMLElement>("[data-count]"));
   if (nodes.length === 0) return () => {};
-  const fmt = (n: number) => Math.round(n).toLocaleString("ru-RU").replace(/ /g, " ");
+  const fmt = (n: number) =>
+    Math.round(n).toLocaleString("ru-RU").replace(/[\u00a0\u202f]/g, " ");
   for (const n of nodes) n.textContent = fmt(0);
   return once(nodes, (el) => {
     const target = Number((el as HTMLElement).dataset.count ?? 0);

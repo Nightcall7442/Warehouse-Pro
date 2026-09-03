@@ -75,7 +75,7 @@ export default function PricingSection() {
       <div className="max-w-[1240px] mx-auto px-6">
         <SectionHead
           id="pricing"
-          index="07"
+          index="06"
           label={tr("Тарифы", "Tariflar")}
           title={tr("Цена написана на ценнике", "Narx yorlig'ida yozilgan")}
           lead={tr(

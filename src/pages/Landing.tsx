@@ -121,6 +121,7 @@ function FaqSection() {
       <div className="max-w-[1240px] mx-auto px-6 lg:pl-[136px]">
         <div className="max-w-[880px]">
         <SectionHead
+          id="faq"
           index="07"
           label="FAQ"
           title={tr("Вопросы, которые задают до покупки", "Sotib olishdan oldin beriladigan savollar")}
