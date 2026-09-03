@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import type { Page } from "@playwright/test";
-import { login, trpcQuery, trpcStatus, num, SEED } from "./harness";
+import { login, trpcQuery, trpcMutate, trpcStatus, num, SEED } from "./harness";
 
 /**
  * Сквозные проверки денежных путей.
@@ -49,6 +49,53 @@ async function pickShop(page: Page): Promise<Shop> {
   const shop = res.data[0];
   if (!shop) throw new Error("в засеве нет ни одного магазина");
   return shop;
+}
+
+/**
+ * Деньги — целыми копейками.
+ *
+ * Долг приходит строкой из DECIMAL, а разность двух таких чисел в плавающей
+ * точке даёт 9718.099999999999 там, где сервер отдаёт 9718.10. Точное
+ * равенство на деньгах в JS сравнивать нельзя — только целыми.
+ */
+const cents = (v: string | number) => Math.round(num(v) * 100);
+
+const debtCents = async (page: Page, shopId: number) =>
+  cents((await trpcQuery<Shop>(page, "shop.getById", { id: shopId })).debt);
+
+/** Платёж так, как его вносит человек: через экран магазина. */
+async function payOnScreen(page: Page, shopId: number, typed: string) {
+  await page.goto(`/shops/${shopId}`);
+  await page.getByTestId("payment-open").click();
+  await page.getByTestId("payment-amount").fill(typed);
+  const submit = page.getByTestId("payment-submit");
+  await expect(submit, `кнопка недоступна при сумме «${typed}»`).toBeEnabled();
+  await submit.click();
+}
+
+/**
+ * Завести магазину долг и вернуть его величину — производную, а не из засева.
+ *
+ * ── Почему долг заводится, а не берётся готовым ──────────────────────────────
+ *
+ * Засев проставляет shops.debt руками («850000.00») и отдельно создаёт восемь
+ * десятков случайных заказов и полтора десятка оплат — между собой эти числа
+ * не связаны. А recalcShopDebt выводит долг ИЗ заказов и оплат, и на засеянных
+ * данных получает ноль: заказы там наличными и не доставлены, а оплаты долг
+ * уменьшают.
+ *
+ * Первый же платёж вызывает пересчёт и подменяет рукописное число производным.
+ * Проверка, читавшая «до» из засева и «после» из пересчёта, вычитала одно из
+ * другого — величины разные, и сходилось это лишь по удаче раскладки. Отсюда
+ * и 59718.1 вместо круглого, и ожидание отрицательного долга.
+ *
+ * Запись «новый долг» (type: "debt" без заказа) — штатный способ начислить
+ * долг, и пересчёт её прибавляет. Так проверка перестаёт зависеть от
+ * случайностей засева и проверяет ровно то, что заявляет.
+ */
+async function giveDebt(page: Page, shopId: number, amount: string): Promise<number> {
+  await trpcMutate(page, "shop.addPayment", { shopId, amount, type: "debt" });
+  return debtCents(page, shopId);
 }
 
 /* ── Доступ ────────────────────────────────────────────────────────────────── */
@@ -141,16 +188,14 @@ test.describe("платёж", () => {
     await login(page, "ceo");
 
     const shop = await pickShop(page);
-    const AMOUNT = 50_000;
-    const before = num((await trpcQuery<Shop>(page, "shop.getById", { id: shop.id })).debt);
+    const before = await giveDebt(page, shop.id, "500000.00");
+    const AMOUNT = 50_000_00;
+    expect(before, "долг не начислился — платить нечего").toBeGreaterThanOrEqual(AMOUNT);
 
-    await page.goto(`/shops/${shop.id}`);
-    await page.getByTestId("payment-open").click();
-    await page.getByTestId("payment-amount").fill(String(AMOUNT));
-    await page.getByTestId("payment-submit").click();
+    await payOnScreen(page, shop.id, String(AMOUNT / 100));
 
-    const debtNow = async () => num((await trpcQuery<Shop>(page, "shop.getById", { id: shop.id })).debt);
-    await expect.poll(debtNow, { timeout: 15_000, message: "долг не изменился после платежа" })
+    await expect
+      .poll(() => debtCents(page, shop.id), { timeout: 15_000, message: "долг не изменился после платежа" })
       .toBe(before - AMOUNT);
   });
 
@@ -161,19 +206,14 @@ test.describe("платёж", () => {
     await login(page, "ceo");
 
     const shop = await pickShop(page);
-    const before = num((await trpcQuery<Shop>(page, "shop.getById", { id: shop.id })).debt);
+    const before = await giveDebt(page, shop.id, "500000.00");
+    expect(before, "долг не начислился — запятую проверять не на чем").toBeGreaterThanOrEqual(1234_50);
 
-    await page.goto(`/shops/${shop.id}`);
-    await page.getByTestId("payment-open").click();
-    await page.getByTestId("payment-amount").fill("1234,50");
+    await payOnScreen(page, shop.id, "1234,50");
 
-    const submit = page.getByTestId("payment-submit");
-    await expect(submit, "поле снова теряет сумму с запятой — кнопка недоступна").toBeEnabled();
-    await submit.click();
-
-    const debtNow = async () => num((await trpcQuery<Shop>(page, "shop.getById", { id: shop.id })).debt);
-    await expect.poll(debtNow, { timeout: 15_000, message: "платёж с запятой не дошёл или дошёл не полностью" })
-      .toBe(before - 1234.5);
+    await expect
+      .poll(() => debtCents(page, shop.id), { timeout: 15_000, message: "платёж с запятой не дошёл или дошёл не полностью" })
+      .toBe(before - 1234_50);
   });
 });
 
