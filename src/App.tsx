@@ -66,6 +66,7 @@ function PageLoader() {
 
 import { memo } from "react";
 import { useBranding } from "@/hooks/useBranding";
+import { useKeyboardInset } from "@/hooks/useKeyboardInset";
 
 const RoleGuard = memo(function RoleGuard({ children, roles }: { children: React.ReactNode; roles: string[] }) {
   const { user, isLoading } = useAuth();
@@ -76,6 +77,8 @@ const RoleGuard = memo(function RoleGuard({ children, roles }: { children: React
 
 function AppLayout() {
   useBranding();
+  // Клавиатура: поднять панели и показать поле, в котором пишут.
+  useKeyboardInset();
   return <Layout><ErrorBoundary pageName="Страница"><Outlet /></ErrorBoundary></Layout>;
 }
 

@@ -79,3 +79,30 @@ export const NAV_ITEMS: Record<string, Array<{ labelKey: string; path: string; i
     { labelKey: "nav.settings",   path: "/settings",    icon: "Settings"        },
   ],
 };
+
+/**
+ * Какой пункт навигации подсветить: тот, чей путь совпал ДЛИННЕЕ прочих.
+ *
+ * Раньше каждый пункт решал за себя — «мой путь или всё, что под ним». У
+ * агента внизу два соседних пункта, «Заказ» (/orders/new) и «Мои заказы»
+ * (/orders), и на экране нового заказа под это правило подходили оба: горели
+ * вместе, две одинаковых подсветки рядом, обе со словом «заказ». После
+ * разбивки мастера на страницы (/orders/new/items, /orders/new/review) «Мои
+ * заказы» светились подряд все три шага.
+ *
+ * Длиннейшее совпадение закрывает это раз и навсегда: пункт-потомок сам
+ * перебивает родителя, и будущим пунктам отдельных пометок не понадобится.
+ */
+export function pickActivePath(
+  items: { path: string; exact?: boolean }[],
+  pathname: string,
+): string | undefined {
+  let best: string | undefined;
+  for (const item of items) {
+    const hit = item.exact
+      ? pathname === item.path
+      : pathname === item.path || pathname.startsWith(item.path + "/");
+    if (hit && (best === undefined || item.path.length > best.length)) best = item.path;
+  }
+  return best;
+}

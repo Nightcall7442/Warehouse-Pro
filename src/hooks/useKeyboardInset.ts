@@ -1,0 +1,114 @@
+import { useEffect } from "react";
+
+/**
+ * Экранная клавиатура: подвинуть панели и показать поле, в котором пишут.
+ *
+ * ── Что происходило ────────────────────────────────────────────────────────
+ *
+ * Жалоба владельца: «когда клавиатура открывается, страница не приближается».
+ * Воспроизводится точно: на экране «Новый заказ» ставишь курсор в поиск
+ * магазинов — и поле уезжает под клавиатуру. Курсор в нём, набирать можно, а
+ * что набрал — не видно.
+ *
+ * Причин две, и обе про то, что приложение о клавиатуре не знало вовсе:
+ * visualViewport не упоминался в коде ни разу.
+ *
+ * 1. Браузер не прокручивает страницу к полю сам. На настольном экране это
+ *    незаметно, потому что видимая область не меняется; на телефоне
+ *    клавиатура забирает у неё половину.
+ *
+ * 2. Нижние панели прижаты к краю ЭКРАНА, а не к краю видимой области.
+ *    Клавиатура их накрывает, и вместе с ними — 60 точек панели навигации
+ *    плюс строку с кнопкой «Продолжить», которые в оставшейся половине
+ *    экрана нужнее всего.
+ *
+ * ── Как решается ───────────────────────────────────────────────────────────
+ *
+ * visualViewport сообщает, сколько экрана занято клавиатурой. Число кладётся
+ * в переменную --keyboard-inset, панели поднимаются на неё, а на время
+ * набора корневому элементу ставится класс keyboard-open — по нему стили
+ * убирают нижнюю навигацию: пока человек печатает, она не нужна, а место
+ * нужно.
+ *
+ * Поле прокручивается в середину видимой области после появления клавиатуры.
+ * Задержка не «на всякий случай»: iOS присылает событие resize уже ПОСЛЕ
+ * анимации, и прокрутка без ожидания считает старую высоту.
+ */
+export function useKeyboardInset() {
+  useEffect(() => {
+    const vv = window.visualViewport;
+    // Нет visualViewport — старый браузер или тестовая среда. Ничего не
+    // делаем: без него верных чисел взять неоткуда, а гадать хуже, чем
+    // оставить как было.
+    if (!vv) return;
+
+    const root = document.documentElement;
+
+    /**
+     * Показать поле, в котором пишут, посередине оставшейся области.
+     *
+     * Считаем сдвиг вручную, а не через scrollIntoView({block:"center"}):
+     * тот центрирует по высоте ЭКРАНА и про клавиатуру не знает. Проверено на
+     * окне 375×400 с клавиатурой в 180 точек — поле встало на 175…225 при
+     * свободных 220, то есть ровно по центру экрана и краем под клавиатурой.
+     */
+    const revealFocused = () => {
+      const el = document.activeElement;
+      if (!(el instanceof HTMLElement)) return;
+      if (!/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
+      const box = el.getBoundingClientRect();
+      // Свободная полоса — от верха видимой области до её низа; середина её,
+      // а не экрана, и есть цель.
+      const target = vv.offsetTop + vv.height / 2;
+      const shift = (box.top + box.bottom) / 2 - target;
+      // Порог, чтобы не дёргать страницу на пару точек при каждом событии.
+      if (Math.abs(shift) > 8) window.scrollBy({ top: shift, behavior: "smooth" });
+    };
+
+    const apply = () => {
+      // Сколько экрана съедено снизу. offsetTop учитывает случай, когда
+      // страница сама сдвинута вверх (iOS так делает при фокусе у края).
+      const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      root.style.setProperty("--keyboard-inset", `${Math.round(inset)}px`);
+      // Порог, а не «больше нуля»: адресная строка Safari при прокрутке тоже
+      // меняет высоту видимой области на несколько десятков точек, и без
+      // порога навигация мигала бы при каждом движении пальца.
+      const open = inset > 120;
+      const wasOpen = root.classList.contains("keyboard-open");
+      root.classList.toggle("keyboard-open", open);
+      /*
+        Прокрутка именно здесь, а не только по фокусу.
+
+        Порядок событий на телефоне такой: палец коснулся поля → focusin →
+        клавиатура выезжает → и только потом resize видимой области. Прокрутка
+        по одному focusin считала высоту ДО клавиатуры и оставляла поле под
+        ней: проверено — поле «в области» по числам, а на экране за краем.
+      */
+      if (open && !wasOpen) revealFocused();
+    };
+
+    const onFocusIn = (e: FocusEvent) => {
+      const el = e.target;
+      if (!(el instanceof HTMLElement)) return;
+      if (!/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
+      // Запасной ход для случая, когда клавиатура уже открыта и человек
+      // переходит из поля в поле: высота не меняется, resize не приходит.
+      window.setTimeout(() => {
+        if (document.activeElement === el) revealFocused();
+      }, 320);
+    };
+
+    vv.addEventListener("resize", apply);
+    vv.addEventListener("scroll", apply);
+    document.addEventListener("focusin", onFocusIn);
+    apply();
+
+    return () => {
+      vv.removeEventListener("resize", apply);
+      vv.removeEventListener("scroll", apply);
+      document.removeEventListener("focusin", onFocusIn);
+      root.style.removeProperty("--keyboard-inset");
+      root.classList.remove("keyboard-open");
+    };
+  }, []);
+}

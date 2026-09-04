@@ -1229,17 +1229,36 @@
   /* ══════════════════════════════════════════════════════════════════════
      ANIMATIONS
      ══════════════════════════════════════════════════════════════════════ */
+  /*
+     Последний кадр — «none», а не «translateY(0)». Разница невидимая, но
+     решающая.
+
+     Все три анимации ниже стоят с forwards, то есть последний кадр остаётся
+     применённым навсегда. Пока там был translateY(0), элемент до конца жизни
+     держал transform — а любой transform, кроме none, делает элемент точкой
+     отсчёта для position: fixed внутри себя.
+
+     Обёртка страницы в Layout.tsx как раз .animate-fade-up. Поэтому «низ
+     экрана» для всего, что внутри, означал низ этой обёртки: панель с кнопкой
+     «Продолжить» вставала посреди экрана, а под ней до нижней навигации
+     оставалась мёртвая полоса. Корзина и модальные окна обходили это порталом
+     в body — теперь обход нужен только тем, кому важно всплыть над чужими
+     слоями, а не самой позиции.
+
+     На «none» интерполяция идёт как на единичную матрицу, так что выглядит
+     всё ровно так же.
+  */
   @keyframes fadeUp {
     from { opacity: 0; transform: translateY(8px); }
-    to   { opacity: 1; transform: translateY(0); }
+    to   { opacity: 1; transform: none; }
   }
   @keyframes slideUp {
     from { opacity: 0; transform: translateY(20px); }
-    to   { opacity: 1; transform: translateY(0); }
+    to   { opacity: 1; transform: none; }
   }
   @keyframes scaleIn {
     from { opacity: 0; transform: scale(0.95); }
-    to   { opacity: 1; transform: scale(1); }
+    to   { opacity: 1; transform: none; }
   }
   @keyframes shimmer {
     0%   { background-position: -200% 0; }
@@ -1247,7 +1266,7 @@
   }
   @keyframes countUp {
     from { opacity: 0; transform: translateY(8px); }
-    to { opacity: 1; transform: translateY(0); }
+    to { opacity: 1; transform: none; }
   }
   @keyframes spin {
     from { transform: rotate(0deg); }
@@ -1262,7 +1281,13 @@
     50% { transform: translateY(-6px); }
   }
 
-  .animate-fade-up { animation: fadeUp .3s ease forwards; }
+  /* Без forwards — заливка держала бы transform, а он делает элемент точкой
+     отсчёта для position: fixed внутри. Подробности в tailwind.config.js, там
+     живёт одноимённое правило, которое сейчас и побеждает в каскаде; здесь то
+     же самое, чтобы смена порядка ничего не вернула.
+     У .stagger-children ниже forwards остаётся: там базовая opacity 0, и без
+     заливки содержимое просто исчезло бы после анимации. */
+  .animate-fade-up { animation: fadeUp .3s ease; }
   .animate-slide-up { animation: slideUp .4s cubic-bezier(.16,1,.3,1) forwards; }
   .animate-scale-in { animation: scaleIn .3s ease forwards; }
 
@@ -1591,4 +1616,23 @@ textarea:focus-visible {
   .no-print { display: none !important; }
   body { background: white !important; color: black !important; }
   .neo-card, .kpi-hero, .neo-card-sm, .glass-panel { box-shadow: none !important; border: 1px solid #ddd !important; }
+}
+
+/* ── Экранная клавиатура ──────────────────────────────────────────────────
+   --keyboard-inset ставит src/hooks/useKeyboardInset.ts: сколько экрана
+   занято клавиатурой. Панели прижаты к краю ЭКРАНА, поэтому без поправки
+   клавиатура их накрывает — вместе с кнопкой «Продолжить».
+   Нижняя навигация на время набора убирается совсем: пока человек печатает,
+   переходить он никуда не собирается, а 60 точек в половине экрана дороги. */
+.keyboard-open .bottom-nav-premium {
+  display: none;
+}
+
+.order-action-bar {
+  bottom: calc(60px + env(safe-area-inset-bottom, 0px) + var(--keyboard-inset, 0px));
+}
+
+.keyboard-open .order-action-bar {
+  /* Навигации под панелью больше нет — её 60 точек вычитаются. */
+  bottom: var(--keyboard-inset, 0px);
 }

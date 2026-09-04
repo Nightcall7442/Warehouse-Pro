@@ -1,9 +1,9 @@
-import { memo, useState, useEffect, useCallback } from "react";
+import { memo, useState, useEffect, useCallback, useMemo } from "react";
 import { LogoMark } from "@/components/brand/Logo";
 import { useLocation, useNavigate } from "react-router";
 import { useAuth } from "@/hooks/useAuth";
 import { useNotifications } from "@/hooks/useNotifications";
-import { NAV_ITEMS } from "@/const";
+import { NAV_ITEMS, pickActivePath } from "@/const";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { TrialBanner } from "@/components/TrialBanner";
 import { OfflineQueueBadge } from "@/components/OfflineQueueBadge";
@@ -335,13 +335,32 @@ const BOTTOM_NAV: Record<string, Array<{ ru: string; uz: string; path: string; i
   ],
 };
 
+// Одна и та же пустая ссылка на все отрисовки: «?? []» каждый раз создавал бы
+// новый массив, и useMemo ниже пересчитывался бы вхолостую при каждом рендере.
+const NO_ITEMS: (typeof BOTTOM_NAV)[string] = [];
+
 const BottomNav = memo(function BottomNav() {
   const { user }  = useAuth();
   const { lang }  = useLang();
   const location  = useLocation();
   const navigate  = useNavigate();
   const role      = user?.role ?? "agent";
-  const items     = BOTTOM_NAV[role] ?? [];
+  const items     = BOTTOM_NAV[role] ?? NO_ITEMS;
+
+  /*
+    Горит ровно один пункт — тот, чей путь совпал ДЛИННЕЕ прочих.
+
+    Раньше каждый пункт решал за себя: «мой путь или всё, что под ним». У
+    агента внизу два соседних пункта — «Заказ» (/orders/new) и «Мои заказы»
+    (/orders) — и на экране нового заказа под это правило подходили оба:
+    горели вместе, две одинаковых подсветки рядом, обе со словом «заказ».
+    После разбивки мастера на страницы (/orders/new/items, /orders/new/review)
+    «Мои заказы» светились подряд все три шага.
+
+    Длиннейшее совпадение закрывает это раз и навсегда: пункт-потомок сам
+    перебивает родителя, и будущим пунктам отдельных пометок не понадобится.
+  */
+  const activePath = useMemo(() => pickActivePath(items, location.pathname), [items, location.pathname]);
 
   // Роль без пунктов не получает и полосы. Раньше пустая панель всё равно
   // занимала низ экрана и перекрывала содержимое — на телефоне это последняя
@@ -353,9 +372,7 @@ const BottomNav = memo(function BottomNav() {
       <div className="flex h-[60px]">
         {items.map(item => {
           const Icon     = iconMap[item.icon];
-          const isActive = item.exact
-            ? location.pathname === item.path
-            : location.pathname === item.path || location.pathname.startsWith(item.path + "/");
+          const isActive = item.path === activePath;
           return (
             <button
               key={item.path}
