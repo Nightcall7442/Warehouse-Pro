@@ -46,7 +46,10 @@
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="icon" href="/icon-192.png" type="image/png" sizes="192x192" />
     <link rel="icon" href="/icon-512.png" type="image/png" sizes="512x512" />
-    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <!-- Родной размер Apple — 180. Раньше сюда вёл icon-192, и iOS его
+         пересжимала. Отдельный файл ещё и лежит по адресу, который часть
+         версий iOS пробует напрямую, не заглядывая в разметку. -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <!-- VitePWA injects its own <link rel="manifest"> (manifest.webmanifest,
          generated from vite.config.ts) at build time. A hand-authored one
          used to sit here too, pointing at a hand-maintained public/manifest.json

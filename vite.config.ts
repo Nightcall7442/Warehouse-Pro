@@ -38,11 +38,20 @@ export default defineConfig({
     }),
     VitePWA({
       registerType:         "autoUpdate",
-      includeAssets:        ["icon-192.png", "icon-512.png", "icon-maskable-512.png", "favicon.ico", "offline.html"],
+      includeAssets:        ["icon-192.png", "icon-512.png", "icon-maskable-512.png", "favicon.ico", "apple-touch-icon.png", "offline.html"],
       manifest: {
         name:             "Warehouse Pro",
         short_name:       "WH Pro",
-        description:      "Multi-tenant warehouse management",
+        // Описание и подписи ярлыков видит человек — в окне установки и в
+        // меню значка на телефоне. Тут было «Multi-tenant warehouse
+        // management»: внутренний термин, да ещё по-английски, при том что
+        // в приложении нет ни одного английского экрана.
+        description:      "Склад, заказы, доставка и долги магазинов в одной программе",
+        lang:             "ru",
+        // Опознаётся установленное приложение по id, а не по start_url.
+        // Без него смена стартового адреса выглядит как новое приложение,
+        // и рядом с установленным появляется второе.
+        id:               "/",
         /* Цвет строки состояния и заставки при запуске с домашнего экрана.
             Были #0f1117 — тёмно-синий, которого нет ни в приложении, ни в
             знаке. Взяты цвета самого значка: заставка и иконка совпадают. */
@@ -66,9 +75,9 @@ export default defineConfig({
           { src: "/icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
         ],
         shortcuts: [
-          { name: "New Order",  url: "/orders/new",  description: "Create a new order" },
-          { name: "My Plans",   url: "/agent/plans", description: "View daily plans"   },
-          { name: "GPS",        url: "/agent/gps",   description: "Share location"     },
+          { name: "Новый заказ", url: "/orders/new",  description: "Собрать заказ для магазина" },
+          { name: "План на день", url: "/agent/plans", description: "Точки, которые нужно объехать" },
+          { name: "Отметить GPS", url: "/agent/gps",   description: "Отправить своё местоположение" },
         ],
       },
       workbox: {
