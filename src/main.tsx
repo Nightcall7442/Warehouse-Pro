@@ -8,24 +8,34 @@ import { WarehouseProvider } from "@/providers/WarehouseContext"
 import { Toaster } from "@/components/ui/sonner"
 import { LangProvider } from "@/i18n"
 import { InstallPrompt } from "@/components/InstallPrompt"
-import { notify } from "@/lib/toast"
+import { notify, shouldTellUser } from "@/lib/toast"
 import App from './App.tsx'
 import { RadixPointerEventsGuard } from "@/components/RadixPointerEventsGuard"
 
-// Sentry captures errors via globalHandlers integration
-// These handlers show toast notifications to the user
+/*
+  Необработанные ошибки: человеку — одна фраза, подробности — в журнал.
+
+  Здесь в тост уходил САМ текст ошибки: notify.error(`Ошибка: ${msg}`). Агент
+  в магазине видел английский текст уровня стека — например «Failed to
+  register a ServiceWorker for scope ('...') with script ('...'): An unknown
+  error occurred when fetching the script». Понять по нему нечего, сделать —
+  тем более, а занимает он половину экрана.
+
+  Теперь наружу идёт одна человеческая фраза, а текст уходит в консоль и в
+  Sentry — он ловит эти же события своей интеграцией globalHandlers.
+  Решение, говорить ли вообще, живёт в shouldTellUser (lib/toast.ts).
+*/
+function report(msg: string) {
+  console.error("[необработанная ошибка]", msg);
+  if (shouldTellUser(msg)) notify.error("Что-то пошло не так. Попробуйте ещё раз.");
+}
+
 window.onerror = (message) => {
-  const msg = typeof message === "string" ? message : "Неизвестная ошибка";
-  if (msg.includes("workbox") || msg.includes("non-precached-url") || msg.includes("createHandlerBoundToURL") || msg.includes("Loading chunk")) return;
-  notify.error(`Ошибка: ${msg}`);
+  report(typeof message === "string" ? message : String(message));
 };
 
 window.addEventListener("unhandledrejection", (event) => {
-  const msg = event.reason?.message || String(event.reason) || "Необработанная ошибка";
-  if (msg.includes("workbox") || msg.includes("non-precached-url") || msg.includes("net::ERR") || msg.includes("createHandlerBoundToURL")) return;
-  // Only filter network-level tRPC errors; let server errors through
-  if (msg.includes("TRPCClientError") && !msg.includes("500") && !msg.includes("INTERNAL_SERVER_ERROR")) return;
-  notify.error(`Ошибка: ${msg}`);
+  report(event.reason?.message || String(event.reason));
 });
 
 createRoot(document.getElementById('root')!).render(

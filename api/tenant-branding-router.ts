@@ -56,10 +56,25 @@ export const tenantBrandingRouter = createRouter({
       const [row] = await db.select().from(tenantBranding)
         .where(eq(tenantBranding.tenantId, ctx.tenant.id)).limit(1);
 
+      /*
+        Не выбрал цвет — значит, цвета нет. Не подставляем.
+
+        Здесь возвращались «#5b6d8a» и «#4a5c78» — цвета СВЕТЛОЙ темы. Клиент
+        (useBranding) принимал их за выбор арендатора и вписывал прямо в
+        <html>, а inline-стиль перебивает любое правило таблицы, включая блок
+        .dark. Латунный акцент тёмной темы не видел никто, кроме тех, кто
+        задал свой цвет вручную: в базе таких записей всего несколько, у
+        остальных арендаторов тёмная тема весь год светилась сине-серым.
+
+        Пустое значение клиент понимает правильно: снимает переменные и
+        отдаёт выбор таблице, а у неё цвет объявлен и для светлой темы, и для
+        тёмной. Экран настроек показывает свои DEFAULTS, так что выбирать
+        по-прежнему есть из чего.
+      */
       return row ?? {
-        primaryColor:   "#5b6d8a",
-        secondaryColor: "#4a5c78",
-        accentColor:    "#3b82f6",
+        primaryColor:   null,
+        secondaryColor: null,
+        accentColor:    null,
         logoUrl:        null,
         companyName:    null,
         appName:        "Warehouse Pro",
