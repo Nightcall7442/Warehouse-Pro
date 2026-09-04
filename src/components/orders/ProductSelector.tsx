@@ -311,7 +311,21 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
             границу, а не в конец списка, и должен был сообразить прокрутить
             уже саму страницу, чтобы список продолжился. Список теперь течёт
             в общей прокрутке страницы, как и всё остальное на ней. */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "6px", touchAction: "manipulation" }}>
+        {/* Сетка карточек, а не список строк.
+            Фотографии есть у 440 активных товаров из 487, но показывались
+            квадратиком 40×40 в строке — разглядеть по нему бакалею нельзя,
+            и агент всё равно читал название вроде «Сок 0,2 ябл.». В
+            мобильном приложении карточки с крупным снимком, и веб от него
+            отставал.
+            auto-fill вместо жёсткого числа колонок: на телефоне помещается
+            две, на широком экране — сколько влезет, при том что каталог
+            здесь делит ширину с колонкой корзины. */}
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(148px, 1fr))",
+          gap: "10px",
+          touchAction: "manipulation",
+        }}>
           {filtered.map((product) => {
             const inCart = items.find(i => i.productId === product.id);
             const lowStock = Number(product.available ?? 0) < 10;
@@ -322,9 +336,11 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
                 data-testid={`product-row-${product.id}`}
                 className="neo-card-sm"
                 style={{
-                  display: "flex", flexDirection: "column", gap: "8px", padding: "10px 12px",
+                  display: "flex", flexDirection: "column", gap: "8px", padding: "8px",
                   cursor: "pointer", transition: "all 0.15s",
-                  borderLeft: inCart ? "3px solid var(--color-primary)" : "3px solid transparent",
+                  // Полоска слева уступила место рамке: у карточки в сетке
+                  // выделять надо всю её, а не один край.
+                  border: inCart ? "2px solid var(--color-primary)" : "2px solid transparent",
                 }}
                 onClick={() => !inCart && addToCart(product)}
               >
@@ -334,7 +350,7 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
                     знаков) колонка названия сжималась до ~150px и обрезалась
                     почти сразу после первого слова. Количество переехало
                     строкой ниже — здесь ему делить ширину не с кем. */}
-                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                   {/* Фотография товара, если она есть.
                       photoUrl приходит из product.listAll готовым адресом
                       (api/lib/photo-url.ts: либо ссылка на /api/photos/…, либо
@@ -351,8 +367,8 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
                       loading="lazy" обязателен: в списке две сотни строк, и без
                       него браузер полез бы за всеми снимками сразу. */}
                   <div style={{
-                    width: "40px", height: "40px", borderRadius: "8px", display: "flex",
-                    alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden",
+                    width: "100%", aspectRatio: "1", borderRadius: "10px", display: "flex",
+                    alignItems: "center", justifyContent: "center", overflow: "hidden",
                     background: inCart ? "var(--color-primary-subtle)" : "var(--color-surface-light)",
                   }}>
                     {product.photoUrl ? (
@@ -363,11 +379,11 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
                         style={{ width: "100%", height: "100%", objectFit: "cover" }}
                       />
                     ) : (
-                      <Package size={16} style={{ color: inCart ? "var(--color-primary-text)" : "var(--color-text-tertiary)" }} />
+                      <Package size={28} style={{ color: inCart ? "var(--color-primary-text)" : "var(--color-text-tertiary)" }} />
                     )}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontWeight: 500, fontSize: "13px", color: "var(--color-text-primary)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <p style={{ fontWeight: 500, fontSize: "13px", color: "var(--color-text-primary)", margin: 0, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", minHeight: "34px", lineHeight: "17px" }}>
                       {product.name}
                     </p>
                     <p style={{ fontSize: "11px", color: "var(--color-text-secondary)", margin: "2px 0 0" }}>
@@ -387,7 +403,7 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
                     читается как «неровно». Сетка фиксирует колонки, поэтому
                     поле ввода и «+» стоят на одном месте в любой строке;
                     у не добавленного товара первая колонка просто пустая. */}
-                <div style={{ display: "grid", gridTemplateColumns: "44px 52px 44px", gap: "4px", justifyContent: "end", alignItems: "center" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "44px 1fr 44px", gap: "4px", alignItems: "center" }}>
                   {inCart ? (
                     <>
                       <button onClick={(e) => { e.stopPropagation(); updateQuantity(product.id, -1); }}

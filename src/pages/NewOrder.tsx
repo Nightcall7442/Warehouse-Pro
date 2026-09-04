@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { trpc } from "@/providers/trpc";
 import { useInvalidateOrderCaches } from "@/hooks/useOrderCacheSync";
 import { notify } from "@/lib/toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useCurrency } from "@/hooks/useCurrency";
-import { useNavigate, useSearchParams } from "react-router";
+import { useNavigate, useSearchParams, useLocation, Outlet, useOutletContext } from "react-router";
 import { useLang } from "@/i18n";
 import { Loader2, WifiOff, ShoppingCart, ChevronUp } from "lucide-react";
 import { savePendingOrder } from "./OfflineOrders.helpers";
@@ -15,15 +15,93 @@ import { EMPTY_ITEM } from "@/components/orders";
 const LABELS_RU = ["Магазин", "Товары", "Итог"];
 const LABELS_UZ = ["Do'kon", "Mahsulotlar", "Xulosa"];
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   НОВЫЙ ЗАКАЗ — три шага, три адреса.
+
+   Шаг хранился в useState, а «назад» была нарисованной кнопкой в шапке.
+   Системная «назад» — кнопка браузера, жест от края на телефоне, аппаратная
+   клавиша на Android — про шаги не знала и уводила со страницы целиком,
+   унося выбранный магазин и набранную корзину. Обновление страницы делало то
+   же самое.
+
+   Теперь у каждого шага свой адрес: /orders/new, /orders/new/items,
+   /orders/new/review. Состояние живёт здесь, в общем родителе, и переходы
+   между шагами его не рушат — этот компонент не размонтируется.
+
+   ── Что при обновлении страницы ───────────────────────────────────────────
+
+   Состояние всё же в памяти: перезагрузка на шаге товаров оставила бы пустой
+   заказ с непонятным экраном. Поэтому шаг, которому не хватает данных,
+   возвращает на первый — молча и сразу, вместо показа пустоты.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/** Всё, что шаги читают у родителя. */
+interface OrderWizard {
+  shopId: number;
+  shopName: string;
+  setShop: (id: number, name: string) => void;
+  items: OrderItem[];
+  setItems: (items: OrderItem[]) => void;
+  notes: string;
+  setNotes: (v: string) => void;
+  discount: string;
+  setDiscount: (v: string) => void;
+  paymentMethod: PaymentMethod;
+  setPaymentMethod: (v: PaymentMethod) => void;
+  cartOpen: boolean;
+  setCartOpen: (v: boolean) => void;
+}
+
+const useWizard = () => useOutletContext<OrderWizard>();
+
+/** Шаг 1 — магазин. */
+export function NewOrderShopStep() {
+  const w = useWizard();
+  return <ShopSelector shopId={w.shopId} onSelect={w.setShop} />;
+}
+
+/** Шаг 2 — товары. */
+export function NewOrderItemsStep() {
+  const w = useWizard();
+  return (
+    <ProductSelector
+      items={w.items}
+      onChange={w.setItems}
+      cartOpen={w.cartOpen}
+      onCartOpenChange={w.setCartOpen}
+    />
+  );
+}
+
+/** Шаг 3 — итог. */
+export function NewOrderReviewStep() {
+  const w = useWizard();
+  return (
+    <OrderReview
+      shopName={w.shopName}
+      items={w.items}
+      notes={w.notes}
+      onNotesChange={w.setNotes}
+      discount={w.discount}
+      onDiscountChange={w.setDiscount}
+      paymentMethod={w.paymentMethod}
+      onPaymentMethodChange={w.setPaymentMethod}
+    />
+  );
+}
+
+/** Адреса шагов по порядку: индекс массива + 1 = номер шага. */
+const STEP_PATHS = ["/orders/new", "/orders/new/items", "/orders/new/review"] as const;
+
 export default function NewOrder() {
   const { user }       = useAuth();
   const { lang }       = useLang();
   const { fmt }        = useCurrency();
   const navigate       = useNavigate();
+  const location       = useLocation();
   const [searchParams] = useSearchParams();
 
   const initialShopId = Number(searchParams.get("shopId") ?? 0);
-  const [step,     setStep]     = useState(initialShopId > 0 ? 2 : 1);
   const [shopId,   setShopId]   = useState(initialShopId);
   const [shopName, setShopName] = useState("");
   const [items,    setItems]    = useState<OrderItem[]>([{ ...EMPTY_ITEM }]);
@@ -36,10 +114,42 @@ export default function NewOrder() {
   // внутри ProductSelector, и общий родитель у них только этот.
   const [cartOpen, setCartOpen] = useState(false);
 
-  // Смена шага всегда закрывает корзину. Иначе, уйдя с открытой панелью на
-  // «Итог» и вернувшись назад, пользователь получил бы её снова раскрытой
-  // поверх каталога — состояние пережило бы размонтирование панели.
-  const goToStep = (next: number) => { setCartOpen(false); setStep(next); };
+  // Шаг — из адреса, а не из состояния. Единственный источник истины.
+  const step = location.pathname.startsWith("/orders/new/review") ? 3
+             : location.pathname.startsWith("/orders/new/items")  ? 2
+             : 1;
+
+  const goToStep = (next: number) => {
+    // Смена шага всегда закрывает корзину. Иначе, уйдя с открытой панелью на
+    // «Итог» и вернувшись назад, пользователь получил бы её снова раскрытой
+    // поверх каталога — состояние пережило бы размонтирование панели.
+    setCartOpen(false);
+    navigate(STEP_PATHS[next - 1]);
+  };
+
+  /*
+    Заход сразу на внутренний шаг — по ссылке или после обновления страницы.
+
+    Состояние в памяти, и перезагрузка на /orders/new/items оставила бы
+    выбранный магазин пустым: экран без товаров, кнопка «Продолжить» гаснет,
+    и почему — неоткуда узнать. Возвращаем на первый шаг, заменяя запись в
+    истории: «назад» тогда уводит туда, откуда человек пришёл, а не в
+    только что покинутый тупик.
+  */
+  useEffect(() => {
+    if (step > 1 && shopId === 0) navigate(STEP_PATHS[0], { replace: true });
+  }, [step, shopId, navigate]);
+
+  /*
+    Приход с готовым магазином — из карточки магазина: /orders/new?shopId=5.
+    Прежде это ставило шаг 2 начальным значением состояния; теперь шаг — это
+    адрес, поэтому переход делается явно, тоже с заменой записи в истории.
+  */
+  useEffect(() => {
+    if (initialShopId > 0 && step === 1) navigate(STEP_PATHS[1], { replace: true });
+    // Только на первый показ: дальше человек ходит по шагам сам.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialShopId]);
 
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const LABELS = lang === "uz" ? LABELS_UZ : LABELS_RU;
@@ -111,6 +221,16 @@ export default function NewOrder() {
   const validItems = items.filter(i => i.productId > 0 && Number(i.quantity) > 0);
   const cartSubtotal = validItems.reduce((s, i) => s + Number(i.unitPrice) * Number(i.quantity), 0);
 
+  const wizard: OrderWizard = {
+    shopId, shopName,
+    setShop: (id, name) => { setShopId(id); setShopName(name); },
+    items, setItems,
+    notes, setNotes,
+    discount, setDiscount,
+    paymentMethod, setPaymentMethod,
+    cartOpen, setCartOpen,
+  };
+
   return (
     <div className="max-w-lg mx-auto">
       {/* Header.
@@ -125,18 +245,16 @@ export default function NewOrder() {
           под список товаров, это была просто повторяющаяся строка без
           смысла.
 
-          Кнопка «назад» — не то же самое, что кнопка глобальной шапки, и
-          убирать её нельзя: она возвращает на предыдущий шаг мастера
-          (Steps — чисто декоративный компонент, кликов по кружкам нет), а
-          кнопка в глобальной шапке всегда ведёт на /orders, теряя выбранный
-          магазин и уже набранную корзину. Название магазина — тоже
-          самостоятельная информация, глобальная шапка показывает только
-          статичное «Заказы». */}
+          Кнопка «назад» осталась, но теперь делает то же, что системная:
+          отдаёт шаг назад по истории. Раньше она вычитала единицу из
+          состояния, а системная «назад» уводила со страницы целиком — две
+          кнопки с одной стрелкой вели себя по-разному. */}
       <div className="flex items-center gap-3 mb-6">
         <button
-          onClick={() => step > 1 ? goToStep(step - 1) : navigate(-1)}
+          onClick={() => navigate(-1)}
           className="w-9 h-9 flex items-center justify-center rounded-lg border btn-ghost flex-shrink-0"
           style={{ borderColor: "var(--color-border, #d8d5cd)" }}
+          aria-label={t("Назад", "Orqaga")}
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
             <path d="M10 3L5 8l5 5"/>
@@ -167,25 +285,7 @@ export default function NewOrder() {
           класс ничего не делает (см. index.css): кнопка там в обычном
           потоке, как и раньше. */}
       <div className="min-h-[320px] order-page-content">
-        {step === 1 && (
-          <ShopSelector
-            shopId={shopId}
-            onSelect={(id, name) => { setShopId(id); setShopName(name); }}
-          />
-        )}
-        {step === 2 && <ProductSelector items={items} onChange={setItems} cartOpen={cartOpen} onCartOpenChange={setCartOpen}/>}
-        {step === 3 && (
-          <OrderReview
-            shopName={shopName}
-            items={items}
-            notes={notes}
-            onNotesChange={setNotes}
-            discount={discount}
-            onDiscountChange={setDiscount}
-            paymentMethod={paymentMethod}
-            onPaymentMethodChange={setPaymentMethod}
-          />
-        )}
+        <Outlet context={wizard} />
       </div>
 
       {/* Панель снизу: итог корзины + кнопка.

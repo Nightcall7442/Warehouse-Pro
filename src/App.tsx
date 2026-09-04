@@ -23,7 +23,13 @@ const ShopDetail           = lazyWithRecovery(() => import("./pages/ShopDetail")
 const Products             = lazyWithRecovery(() => import("./pages/Products"));
 const ProductDetail        = lazyWithRecovery(() => import("./pages/ProductDetail"));
 const Orders               = lazyWithRecovery(() => import("./pages/Orders"));
+const Catalog              = lazyWithRecovery(() => import("./pages/Catalog"));
 const NewOrder             = lazyWithRecovery(() => import("./pages/NewOrder"));
+// Шаги — из того же модуля: они читают состояние родителя и отдельной
+// загрузки не требуют.
+const NewOrderShopStep     = lazyWithRecovery(() => import("./pages/NewOrder").then(m => ({ default: m.NewOrderShopStep })));
+const NewOrderItemsStep    = lazyWithRecovery(() => import("./pages/NewOrder").then(m => ({ default: m.NewOrderItemsStep })));
+const NewOrderReviewStep   = lazyWithRecovery(() => import("./pages/NewOrder").then(m => ({ default: m.NewOrderReviewStep })));
 const OrderDetail          = lazyWithRecovery(() => import("./pages/OrderDetail"));
 const Warehouse            = lazyWithRecovery(() => import("./pages/Warehouse"));
 const Arrivals             = lazyWithRecovery(() => import("./pages/Arrivals"));
@@ -138,9 +144,24 @@ export default function App() {
           <Route path="/shops"          element={<Shops />} />
           <Route path="/shops/:id"      element={<ShopDetail />} />
           <Route path="/products"       element={<Products />} />
+          {/* Каталог агента — витрина с фотографиями. Пункт «Каталог» в нижней
+              панели вёл на /products: админскую страницу с плитками
+              статистики и списком строк, где название сжато ценой. */}
+          <Route path="/catalog"        element={<Catalog />} />
           <Route path="/products/:id"   element={<ProductDetail />} />
           <Route path="/orders"         element={<Orders />} />
-          <Route path="/orders/new"     element={<NewOrder />} />
+          {/* Шаги заказа — настоящие адреса, а не состояние одной страницы.
+              Раньше шаг хранился в useState, и системная «назад» (кнопка
+              браузера, жест на телефоне) выкидывала из заказа целиком:
+              терялся и выбранный магазин, и набранная корзина. Обновление
+              страницы делало то же самое.
+              Состояние живёт в NewOrder — он общий родитель трёх шагов и при
+              переходе между ними не размонтируется. */}
+          <Route path="/orders/new" element={<NewOrder />}>
+            <Route index          element={<NewOrderShopStep />} />
+            <Route path="items"   element={<NewOrderItemsStep />} />
+            <Route path="review"  element={<NewOrderReviewStep />} />
+          </Route>
           <Route path="/orders/:id"     element={<OrderDetail />} />
           <Route path="/warehouse"      element={<RoleGuard roles={["ceo","operator"]}><Warehouse /></RoleGuard>} />
           <Route path="/arrivals"       element={<RoleGuard roles={["ceo","operator"]}><Arrivals /></RoleGuard>} />

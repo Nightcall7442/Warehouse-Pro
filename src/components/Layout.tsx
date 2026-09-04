@@ -33,6 +33,7 @@ const PAGE_META: Record<string, { title: string; parent?: string; parentPath?: s
   "/reports":           { title: "Отчёты" },
   "/shops":             { title: "Магазины" },
   "/products":          { title: "Товары" },
+  "/catalog":           { title: "Каталог" },
   "/orders":            { title: "Заказы" },
   "/orders/new":        { title: "Новый заказ", parent: "Заказы", parentPath: "/orders" },
   "/warehouse":         { title: "Склад" },
@@ -306,7 +307,7 @@ const BOTTOM_NAV: Record<string, Array<{ ru: string; uz: string; path: string; i
   agent: [
     { ru: "День",       uz: "Kun",        path: "/agent",          icon: "LayoutDashboard", exact: true },
     { ru: "Магазины",   uz: "Do'konlar",  path: "/agent/shops",    icon: "Store" },
-    { ru: "Каталог",    uz: "Katalog",    path: "/products",       icon: "Package" },
+    { ru: "Каталог",    uz: "Katalog",    path: "/catalog",        icon: "Package" },
     { ru: "Заказ",      uz: "Buyurtma",   path: "/orders/new",     icon: "PlusCircle" },
     { ru: "Мои заказы", uz: "Buyurtmalar", path: "/orders",        icon: "ClipboardList" },
     { ru: "Офлайн",     uz: "Oflayn",     path: "/offline-orders", icon: "WifiOff" },

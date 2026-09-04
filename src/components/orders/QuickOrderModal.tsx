@@ -21,6 +21,15 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   preselectedShopId?: number;
+  /**
+   * Товар, с которого начинается заказ.
+   *
+   * Каталог агента (pages/Catalog.tsx) открывает это окно уже с выбранным
+   * товаром и количеством: человек нашёл товар и нажал «Заказать» — искать
+   * его второй раз в списке этого окна незачем. Своего создания заказа у
+   * каталога нет намеренно: дорога одна, и проверки на ней те же.
+   */
+  initialItem?: CartItem;
   onCreated?: () => void;
 }
 
@@ -98,12 +107,12 @@ function QtyInput({ value, onChange, label }: {
   );
 }
 
-export function QuickOrderModal({ open, onOpenChange, preselectedShopId, onCreated }: Props) {
+export function QuickOrderModal({ open, onOpenChange, preselectedShopId, initialItem, onCreated }: Props) {
   const t = useTranslate();
 
   const [step, setStep] = useState(1);
   const [shopId, setShopId] = useState<number | undefined>(preselectedShopId);
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const [cart, setCart] = useState<CartItem[]>(initialItem ? [initialItem] : []);
   const [notes, setNotes] = useState("");
   const [discount, setDiscount] = useState("0");
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "card" | "transfer" | "debt">("cash");

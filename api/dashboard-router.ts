@@ -144,7 +144,13 @@ export const dashboardRouter = createRouter({
     const [agentOrders, assignedShops] = await Promise.all([
       db.select({ count: sql<number>`count(*)`, total: sql<string>`COALESCE(SUM(${orders.total}), 0)` })
         .from(orders).where(and(eq(orders.tenantId, tenantId), eq(orders.agentId, userId), onDay(orders.createdAt, today), isNull(orders.deletedAt))),
-      db.select({ count: sql<number>`count(*)` }).from(shops)
+      // Долг берётся тем же запросом, что и число магазинов: агенту он нужен
+      // на первом экране — это то, за чем он и едет, — а лишнего обращения к
+      // базе это не стоит.
+      db.select({
+        count: sql<number>`count(*)`,
+        debt:  sql<string>`COALESCE(SUM(${shops.debt}), 0)`,
+      }).from(shops)
         .where(and(eq(shops.tenantId, tenantId), eq(shops.agentId, userId))),
     ]);
 
@@ -152,6 +158,7 @@ export const dashboardRouter = createRouter({
       todayOrders:   Number(agentOrders[0]?.count ?? 0),
       todayRevenue:  Number(agentOrders[0]?.total ?? 0),
       assignedShops: Number(assignedShops[0]?.count ?? 0),
+      shopsDebt:     Number(assignedShops[0]?.debt ?? 0),
     };
   }),
 

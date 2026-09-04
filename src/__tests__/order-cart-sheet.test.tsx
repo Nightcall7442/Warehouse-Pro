@@ -150,17 +150,38 @@ describe("корзина: кнопка-итог на экране «Новый �
   });
 
   it("панель получает состояние и обработчик", () => {
-    expect(src).toMatch(/<ProductSelector[^>]*cartOpen=\{cartOpen\}/);
-    expect(src).toMatch(/<ProductSelector[^>]*onCartOpenChange=\{setCartOpen\}/);
+    // Шаги стали отдельными адресами, и признак корзины доезжает до панели
+    // через контекст родителя, а не прямым пропсом со страницы.
+    expect(src).toMatch(/<ProductSelector[\s\S]*?cartOpen=\{w\.cartOpen\}/);
+    expect(src).toMatch(/<ProductSelector[\s\S]*?onCartOpenChange=\{w\.setCartOpen\}/);
   });
 
   it("смена шага закрывает корзину", () => {
     // Иначе, уйдя с открытой панелью на «Итог» и вернувшись назад, человек
     // получит её снова раскрытой поверх каталога: панель размонтируется
     // вместе с шагом, а признак переживает размонтирование.
-    expect(src).toMatch(/const goToStep = \(next: number\) => \{ setCartOpen\(false\); setStep\(next\); \};/);
+    expect(src).toMatch(/setCartOpen\(false\);\s*\n\s*navigate\(STEP_PATHS\[next - 1\]\)/);
     expect(src).toMatch(/goToStep\(step \+ 1\)/);
-    expect(src).toMatch(/goToStep\(step - 1\)/);
-    expect(src).not.toMatch(/setStep\(s => s [+-] 1\)/);
+  });
+
+  it("шаг берётся из адреса, а не из состояния", () => {
+    /*
+      Шаг хранился в useState, и системная «назад» — кнопка браузера, жест от
+      края на телефоне, аппаратная клавиша на Android — про него не знала:
+      уводила со страницы целиком, унося магазин и набранную корзину.
+      Обновление страницы делало то же самое.
+
+      Теперь у каждого шага свой адрес, а нарисованная стрелка в шапке ведёт
+      себя как системная — отдаёт шаг назад по истории.
+    */
+    expect(src).not.toMatch(/setStep\(/);
+    expect(src).toMatch(/const step = location\.pathname/);
+    expect(src).toMatch(/onClick=\{\(\) => navigate\(-1\)\}/);
+  });
+
+  it("заход на внутренний шаг без магазина возвращает на первый", () => {
+    // Состояние живёт в памяти: перезагрузка на /orders/new/items оставила бы
+    // пустой заказ — экран без товаров и погасшую кнопку без объяснения.
+    expect(src).toMatch(/if \(step > 1 && shopId === 0\) navigate\(STEP_PATHS\[0\], \{ replace: true \}\)/);
   });
 });

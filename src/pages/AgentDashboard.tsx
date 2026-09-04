@@ -10,6 +10,7 @@ import {
   ClipboardList, Store, PlusCircle,
   CheckCircle2, Clock, Calendar, MapPin,
   ChevronRight, AlertCircle, Navigation,
+  Wallet,
 } from "lucide-react";
 import { ProgressRing } from "@/components/ProgressRing";
 import { KpiIcon } from "@/components/KpiIcon";
@@ -211,6 +212,19 @@ export default function AgentDashboard() {
           value={kpis?.assignedShops ?? 0}
           icon={Store}
           color="purple"
+        />
+        {/* Четвёртая карточка — долг закреплённых магазинов.
+            Карточек было три, а сетка на телефоне двухколоночная: нижняя
+            правая клетка стояла пустой. Заполнено не ради симметрии: долг —
+            это то, за чем агент и едет, и до сих пор его приходилось искать
+            по карточкам магазинов поодиночке.
+            Считается тем же запросом, что и число магазинов (SUM по тем же
+            строкам), лишнего обращения к базе не добавилось. */}
+        <AgentKpi
+          label={t("ДОЛГ МАГАЗИНОВ", "DO'KONLAR QARZI")}
+          value={fmt(kpis?.shopsDebt ?? 0, true)}
+          icon={Wallet}
+          color={Number(kpis?.shopsDebt ?? 0) > 0 ? "red" : "green"}
         />
       </div>
 
