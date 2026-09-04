@@ -3,7 +3,7 @@ import { LogoMark } from "@/components/brand/Logo";
 import { useLocation, useNavigate } from "react-router";
 import { useAuth } from "@/hooks/useAuth";
 import { useNotifications } from "@/hooks/useNotifications";
-import { NAV_ITEMS, pickActivePath } from "@/const";
+import { NAV_ITEMS, pickActivePath, pageKey } from "@/const";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { TrialBanner } from "@/components/TrialBanner";
 import { OfflineQueueBadge } from "@/components/OfflineQueueBadge";
@@ -468,7 +468,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       </aside>
 
       <main className="md:ml-[280px] min-h-screen">
-        <div key={location.pathname} className="p-5 md:p-6 pb-[calc(60px+env(safe-area-inset-bottom,0px))] md:pb-6 animate-fade-up">
+        <div key={pageKey(location.pathname)} className="p-5 md:p-6 pb-[calc(60px+env(safe-area-inset-bottom,0px))] md:pb-6 animate-fade-up">
           {children}
         </div>
       </main>
