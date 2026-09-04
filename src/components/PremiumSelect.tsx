@@ -42,13 +42,16 @@ const PANEL_PADDING = 8;
 const GAP = 6;
 const MAX_PANEL = 280;
 
+/** Один пустой список на модуль: новый `[]` на каждый рендер ронял мемоизацию isPicked. */
+const NO_VALUES: string[] = [];
+
 export function PremiumSelect(props: PremiumSelectProps) {
   const {
     options, placeholder = "Выберите...", width, disabled,
     "aria-label": ariaLabel,
   } = props;
   const multiple = props.multiple === true;
-  const selectedValues = multiple ? props.value : [];
+  const selectedValues = multiple ? props.value : NO_VALUES;
   const value = multiple ? "" : props.value;
 
   const [open, setOpen] = useState(false);

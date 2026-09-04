@@ -1,6 +1,6 @@
 import { trpc } from "@/providers/trpc";
 import { useEffect, useRef, useState } from "react";
-import { useLang } from "@/i18n";
+import { useLang, useTranslate } from "@/i18n";
 import { format } from "date-fns";
 import { Radio, RefreshCw, MapPin, Wifi, WifiOff, Store } from "lucide-react";
 import {
@@ -40,7 +40,7 @@ function isOnline(createdAt: string | Date | null | undefined): boolean {
 
 export default function SupervisorTracking() {
   const { lang } = useLang();
-  const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
+  const t = useTranslate();
 
   const { data: locations, isLoading, refetch, dataUpdatedAt } = trpc.agent.getLocations.useQuery(
     undefined, { refetchInterval: 30_000 }
@@ -192,7 +192,7 @@ export default function SupervisorTracking() {
         map.setCenter(coords[0], 14);
       }
     });
-  }, [locations]);
+  }, [locations, t]);
 
   // Магазины отдельным эффектом: они меняются раз в пять минут, а метки
   // агентов — каждые тридцать секунд. В одном эффекте пришлось бы
@@ -349,11 +349,18 @@ export default function SupervisorTracking() {
     return () => clearShopMarkers(map);
   }, [shopScores, showShops]);
 
-  // Focus on agent when selected from list
+  // Центрирование на выбранном агенте — только при смене выбора. Метки
+  // приходят каждые тридцать секунд; зависи эффект от них, карта
+  // возвращалась бы к агенту на каждом опросе, пока человек её двигает.
+  // Поэтому свежие координаты читаются через ref, а не из зависимостей.
+  const locationsRef = useRef(locations);
+  useEffect(() => { locationsRef.current = locations; }, [locations]);
+
   useEffect(() => {
     const map = mapRef.current;
-    if (!selected || !map || !locations) return;
-    const loc = locations.find((l) => l.agentId === selected);
+    const locs = locationsRef.current;
+    if (!selected || !map || !locs) return;
+    const loc = locs.find((l) => l.agentId === selected);
     if (loc && Number(loc.lat) && Number(loc.lng)) {
       map.setCenter([Number(loc.lat), Number(loc.lng)], 15);
       // Open balloon

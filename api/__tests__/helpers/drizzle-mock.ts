@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * A complete stand-in for the operators the api imports from `drizzle-orm`.
  *

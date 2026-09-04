@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { trpc } from "@/providers/trpc";
 import { useLang, type Lang } from "@/i18n";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -77,7 +77,7 @@ export default function AgentKpi() {
     { enabled: isSupervisor && selectedAgentId !== null },
   );
 
-  const allKpi = agentList ?? [];
+  const allKpi = useMemo(() => agentList ?? [], [agentList]);
   const isLoading = isSupervisor ? listLoading : myLoading;
 
   const handleExport = useCallback(async () => {

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * AUDIT EVIDENCE ONLY — not a product test. Demonstrates the numbers that
  * calculateSalary() actually writes. Delete after the audit.

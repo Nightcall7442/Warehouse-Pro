@@ -741,7 +741,7 @@ export default function Arrivals() {
     onError: (e) => notify.error(e.message),
   });
 
-  const arrivals = data?.data ?? [];
+  const arrivals = useMemo(() => data?.data ?? [], [data]);
   const kpis = useMemo(() => {
     const total = arrivals.length;
     const totalExpenses = arrivals.reduce((s, a) => s + Number(a.totalExpense ?? 0), 0);

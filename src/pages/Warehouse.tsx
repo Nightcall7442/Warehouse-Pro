@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { trpc } from "@/providers/trpc";
 import { useWarehouse } from "@/providers/WarehouseContext";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useLang } from "@/i18n";
+import { useLang, useTranslate } from "@/i18n";
 import { format } from "date-fns";
 import {
   AlertTriangle, Package, FileDown, Trash2,
@@ -52,7 +52,7 @@ export default function Warehouse() {
   const { fmt } = useCurrency();
   const { lang } = useLang();
   const isMobile = useIsMobile();
-  const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
+  const t = useTranslate();
   const { confirm, dialog } = useConfirm();
   const { selectedId: warehouseId } = useWarehouse();
 

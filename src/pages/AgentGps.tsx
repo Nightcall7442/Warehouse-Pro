@@ -1,14 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { trpc } from "@/providers/trpc";
-import { useLang } from "@/i18n";
+import { useTranslate } from "@/i18n";
 import { MapPin, Radio, CheckCircle2, AlertCircle, Loader2, RefreshCw, Navigation } from "lucide-react";
 import { format } from "date-fns";
 
 type GpsState = "idle" | "locating" | "success" | "error";
 
 export default function AgentGps() {
-  const { lang } = useLang();
-  const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
+  const t = useTranslate();
 
   const [state,     setState]     = useState<GpsState>("idle");
   const [coords,    setCoords]    = useState<{ lat: number; lng: number; accuracy: number } | null>(null);

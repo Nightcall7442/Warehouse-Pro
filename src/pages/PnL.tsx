@@ -96,7 +96,7 @@ export default function PnL() {
 
   const current = data?.current;
   const deltas = data?.deltas;
-  const trend = data?.trend ?? [];
+  const trend = useMemo(() => data?.trend ?? [], [data]);
 
   const chartData = useMemo(() => {
     return trend.map((r) => ({

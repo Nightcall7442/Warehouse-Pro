@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { TrpcContext } from "../context";
 import { asTestContext } from "./helpers/test-context";

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Склад и деньги: находки аудита, направление «склад-и-деньги».
  *

@@ -18,7 +18,7 @@ import { describe, it, expect, vi } from "vitest";
  * доходят. Одной первой половины мало — ей удовлетворяет `return null`.
  */
 
-const captured = vi.hoisted(() => ({ options: null as any })); // eslint-disable-line @typescript-eslint/no-explicit-any
+const captured = vi.hoisted(() => ({ options: null as any }));
 
 vi.mock("@sentry/react", () => ({
   init: (options: unknown) => { captured.options = options; },
@@ -32,7 +32,6 @@ await import("@/sentry");
 
 /** Событие в том виде, в каком его отдаёт Sentry в beforeSend. */
 const event = (message: string) => ({ exception: { values: [{ value: message }] } });
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const passes = (message: string) => captured.options.beforeSend(event(message) as any) !== null;
 
 describe("Sentry: что отсеивается", () => {

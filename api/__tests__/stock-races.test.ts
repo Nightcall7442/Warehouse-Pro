@@ -16,7 +16,7 @@
  * раза он и сработал.
  *
  * Разбор обеих: docs/audit-category-1-findings.md.
- *//* eslint-disable @typescript-eslint/no-explicit-any */
+ */
 /**
  * Известные гонки, ещё не исправленные.
  *

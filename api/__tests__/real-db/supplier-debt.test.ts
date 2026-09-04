@@ -40,7 +40,6 @@ import {
 } from "./harness";
 
 /** Контекст tRPC поверх настоящей базы. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function ctxFor(db: ServiceDb, tenantId: number, userId: number): any {
   return {
     req: new Request("http://localhost/"),
@@ -76,7 +75,6 @@ describe.skipIf(!hasRealDb)(
     await truncateAll();
     s = await seed("10.000");
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const d = db as any;
 
     const [sup] = await d.insert(schema.suppliers).values({
@@ -149,7 +147,6 @@ describe.skipIf(!hasRealDb)(
     // Тот же ответ, посчитанный независимо — обычной группировкой вместо
     // коррелирующих подзапросов. Расхождение здесь означает, что подзапрос
     // соотносится не с той строкой.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const raw = await (db as any).execute(sql`
       SELECT s.amount - COALESCE(SUM(p.amount), 0) AS debt
       FROM supplies s LEFT JOIN supplier_payments p ON p.supply_id = s.id
@@ -162,7 +159,6 @@ describe.skipIf(!hasRealDb)(
     // Самая коварная форма ошибки корреляции: подзапрос берёт ВСЕ платежи
     // контрагента вместо платежей своей поставки. С одной поставкой такое
     // неотличимо от верного ответа — поэтому здесь их две.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const d = db as any;
     await d.insert(schema.supplies).values({
       tenantId: s.tenantId, supplierId, arrivalId: null,
@@ -207,7 +203,6 @@ describe.skipIf(!hasRealDb)(
   it("приход без поставщика отдаёт пустые деньги, а не нули", async () => {
     // Разница существенная: 0 значит «должны ноль», null — «поставщика нет».
     // Спутать их — показать долг там, где его не заводили.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const d = db as any;
     const [plain] = await d.insert(schema.arrivals).values({
       tenantId: s.tenantId, arrivalNumber: "ARR-TEST-0002",

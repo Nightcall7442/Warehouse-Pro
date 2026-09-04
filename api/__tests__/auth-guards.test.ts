@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Охрана входа: кого пускают к процедуре и с какой ролью.
  *

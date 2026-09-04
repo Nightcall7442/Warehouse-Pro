@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Отчёты и скорость — проверки по находкам аудита.
  *

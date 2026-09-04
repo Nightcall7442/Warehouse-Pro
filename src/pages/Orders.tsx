@@ -342,14 +342,12 @@ export default function Orders() {
     onError:   (e) => notify.error(e.message),
   });
 
-  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const handleExport = useCallback(async () => {
     const result = await refetchAllOrders();
     if (!result.data?.data) return;
     await exportToExcel(formatOrdersForExport(result.data.data), `orders-${dateFrom}-${dateTo}`, "Заказы", `Заказы ${dateFrom} — ${dateTo}`);
   }, [refetchAllOrders, dateFrom, dateTo]);
 
-  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const handleExportPDF = useCallback(async () => {
     const result = await refetchAllOrders();
     if (!result.data?.data) return;
@@ -375,7 +373,7 @@ export default function Orders() {
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
-  }, []);
+  }, [setSelected]);
 
   const toggleSelectAll = useCallback(() => {
     setSelected(prev => {
@@ -389,7 +387,7 @@ export default function Orders() {
       }
       return next;
     });
-  }, [allSelected, allVisibleIds]);
+  }, [allSelected, allVisibleIds, setSelected]);
 
   const handleExportSelected = useCallback(async () => {
     const result = await refetchAllOrders();

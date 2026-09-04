@@ -81,7 +81,7 @@ export function useNotifications() {
         eventSourceRef.current = null;
       }
     };
-  }, []);
+  }, [connect]);
 
   return { connected, unreadCount };
 }
