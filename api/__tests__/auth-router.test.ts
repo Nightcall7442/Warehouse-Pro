@@ -34,15 +34,6 @@ vi.mock("../lib/feature-gating", () => ({
   invalidateSubscriptionAccess: vi.fn(),
 }));
 
-vi.mock("../lib/cookies", () => ({
-  getSessionCookieOptions: vi.fn(() => ({
-    httpOnly: true,
-    path: "/",
-    sameSite: "lax",
-    secure: false,
-  })),
-}));
-
 // ── Mock auth modules ─────────────────────────────────────────────────────
 vi.mock("../auth/session", () => ({
   signSessionToken: vi.fn(async ({ userId }: { userId: number }) => `token-${userId}`),

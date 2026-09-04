@@ -71,7 +71,6 @@ describe("physical stock changes are recorded", () => {
    * create empty rows or move reservations, which are not movements.
    */
   const EXEMPT = new Set([
-    "services/ImportService.ts",  // inserts stock rows at 0.00
     "services/onec-sync.ts",      // inserts stock rows at 0.00
     "services/ProductService.ts", // inserts stock rows at 0.00
     "product-router.ts",          // deletes/restores rows wholesale on product delete

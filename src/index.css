@@ -1508,7 +1508,6 @@ textarea:focus-visible {
 .dark .recharts-bar-rectangle {
   filter: drop-shadow(1px 1px 3px rgba(0,0,0,0.2));
 }
-.dark .leaflet-container { background: #0b0c10 !important; }
 .dark .progress-ring-label { color: var(--color-text-primary); }
 
 /* ── Light mode text visibility fix ──────────────────────────────────────────── */

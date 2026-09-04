@@ -1,4 +1,4 @@
-import { nanoid } from "nanoid";
+import { randomUUID } from "node:crypto";
 import { queueForLoki } from "./loki";
 import { AsyncLocalStorage } from "node:async_hooks";
 
@@ -74,7 +74,7 @@ export const logger = {
 };
 
 export function createRequestId(): string {
-  return nanoid(12);
+  return randomUUID().replace(/-/g, "").slice(0, 12);
 }
 
 export function runWithLogContext(ctx: LogContext, fn: () => Promise<unknown>): Promise<unknown> {
