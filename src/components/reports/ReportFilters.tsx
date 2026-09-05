@@ -45,13 +45,19 @@ function Select({ label, value, options, onChange, style }: {
 function AgentFilter({ value, onChange, t, style }: {
   value?: number; onChange: (v?: number) => void; t: (ru: string, uz: string) => string; style: React.CSSProperties;
 }) {
-  const { data } = trpc.user.list.useQuery({ role: "agent", page: 1, pageSize: 200 });
+  /*
+    agent.listAgents, а не user.list: полный список пользователей открыт
+    только руководителю, и у оператора, супервайзера и мерчендайзера этот
+    фильтр приходил отказом — выпадающий список оставался пустым, и отобрать
+    отчёт по агенту они не могли.
+  */
+  const { data } = trpc.agent.listAgents.useQuery();
   return (
     <Select
       label={t("Все агенты", "Barcha agentlar")}
       value={value ? String(value) : ""}
       onChange={v => onChange(v ? Number(v) : undefined)}
-      options={(data?.data ?? []).map(u => ({ value: String(u.id), label: u.name }))}
+      options={(data ?? []).map(u => ({ value: String(u.id), label: u.name }))}
       style={style}
     />
   );

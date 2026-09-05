@@ -412,6 +412,15 @@ function SupervisorView({ kpi, selectedKpi, selectedSalary, detailLoading, onSel
   t: (r: string, u: string) => string;
   lang: Lang;
 }) {
+  const { data: viewer } = trpc.auth.me.useQuery();
+  /*
+    Ставки комиссии ставит тот, кому их разрешает сервер: commission.setRate —
+    руководитель и оператор, а список агентов внутри (user.list) и вовсе
+    только руководитель. Супервайзер на этот экран заходит по праву — команду
+    он и должен видеть, — но настроить оплату не может.
+  */
+  const canConfigureSalary = viewer?.role === "ceo" || viewer?.role === "operator";
+
   const [showSalaryConfig, setShowSalaryConfig] = useState(false);
   const [territoryFilter, setTerritoryFilter] = useState<string>("all");
   const { data: territories } = trpc.territory.list.useQuery();
@@ -473,14 +482,24 @@ function SupervisorView({ kpi, selectedKpi, selectedSalary, detailLoading, onSel
           <h3 style={{ fontFamily: F.display, fontSize: "14px", fontWeight: 600, color: COLORS.textPrimary }}>
             {t("Дашборд агентов", "Agentlar dashboard")}
           </h3>
+          {/*
+            Только тем, кто может её сохранить.
+
+            Внутри — user.list (ceo) и commission.setRate (ceo, оператор).
+            Супервайзер видел кнопку, открывал пустой список агентов и
+            получал отказ на любую ставку: обещание, которого экран
+            выполнить не может.
+          */}
+          {canConfigureSalary && (
           <button onClick={() => setShowSalaryConfig(!showSalaryConfig)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
             style={{ background: showSalaryConfig ? "color-mix(in srgb, var(--color-primary) 10%, transparent)" : "var(--color-surface-light)", color: showSalaryConfig ? "var(--color-primary)" : COLORS.textSecondary }}>
             <Settings size={14} /> {t("Настройка ЗП", "Oylik sozlash")}
           </button>
+          )}
         </div>
 
-        {showSalaryConfig && <div className="p-4 border-b" style={{ borderColor: "var(--color-border)" }}><SalaryConfig t={t} /></div>}
+        {canConfigureSalary && showSalaryConfig && <div className="p-4 border-b" style={{ borderColor: "var(--color-border)" }}><SalaryConfig t={t} /></div>}
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm">

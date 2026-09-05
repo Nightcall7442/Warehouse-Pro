@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { isSafePhotoValue, PHOTO_VALUE_ERROR } from "./lib/photo-value";
 import { TRPCError } from "@trpc/server";
-import { createRouter, fieldSalesQuery, merchVisitQuery, supervisorQuery, authedQuery } from "./middleware";
+import { createRouter, fieldSalesQuery, merchVisitQuery, supervisorQuery, authedQuery, reportsQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { agentLocations, dailyPlans, shops, users, agentTerritories, territories } from "@db/schema";
 import { eq, and, sql, desc, gte, lte , inArray, isNull } from "drizzle-orm";
@@ -214,10 +214,17 @@ function resolvePlanAgentFilter(
 }
 
 export const agentRouter = createRouter({
-  // Supervisor needs a lightweight agent picker for "assign plan to agent" —
-  // full CRUD access to users (user.list) is ceo-only, and giving supervisor
-  // that would be over-broad just to populate a dropdown.
-  listAgents: supervisorQuery.query(async ({ ctx }) => {
+  /*
+    Лёгкий список агентов для выпадающих списков: имя и номер, больше ничего.
+
+    Полный user.list — ceo-only, и это правильно: там почта, роли и статусы.
+    Но фильтр «по агенту» на «Отчётах» звал именно его, а страницу открывают
+    ещё оператор, супервайзер и мерчендайзер — у всех троих список приходил
+    отказом, то есть фильтр молча оставался пустым.
+
+    Отсюда reportsQuery: ровно те роли, которым открыт экран отчётов.
+  */
+  listAgents: reportsQuery.query(async ({ ctx }) => {
     return getDb().select({ id: users.id, name: users.name })
       .from(users)
       .where(and(eq(users.tenantId, ctx.tenant.id), eq(users.role, "agent"), eq(users.status, "active")))
