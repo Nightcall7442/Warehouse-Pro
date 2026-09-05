@@ -8,6 +8,7 @@ import { useNavigate, useSearchParams, useLocation, Outlet, useOutletContext } f
 import { useLang } from "@/i18n";
 import { Loader2, WifiOff, ShoppingCart, ChevronUp } from "lucide-react";
 import { savePendingOrder } from "./OfflineOrders.helpers";
+import { saveDraft, loadDraft, clearDraft, draftHasWork } from "./NewOrder.draft";
 import { Steps, ShopSelector, ProductSelector, OrderReview } from "@/components/orders";
 import type { OrderItem, PaymentMethod } from "@/components/orders";
 import { EMPTY_ITEM } from "@/components/orders";
@@ -154,10 +155,63 @@ export default function NewOrder() {
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const LABELS = lang === "uz" ? LABELS_UZ : LABELS_RU;
 
+  /*
+    Черновик: восстановить набранное при возвращении.
+
+    На шаге «Товары» между кнопкой «Продолжить» и вкладками внизу всего 10
+    точек. Промах пальцем по «Каталогу» или «Моим заказам» — и весь набранный
+    заказ исчезал: возврат на «Заказ» открывал пустой первый шаг, ни вопроса
+    «уйти?», ни следа набранного. То же делала перезагрузка страницы.
+
+    Приход с готовым магазином из карточки (?shopId=5) черновик не трогает:
+    человек только что назвал магазин явно, и подменять его прошлым набором
+    нельзя.
+  */
+  useEffect(() => {
+    if (!user || initialShopId > 0) return;
+    const draft = loadDraft(user.id);
+    if (!draft || !draftHasWork(draft)) return;
+    /*
+      Правило про setState в эффекте здесь снимается осознанно, а не по
+      недосмотру.
+
+      Начальным значением состояния черновик подставить нельзя: он привязан к
+      владельцу, а личность приходит ответом сервера (auth.me, кука httpOnly),
+      то есть на первом показе её ещё нет. Это ровно тот случай, который само
+      правило и разрешает — приход данных из внешнего источника; отличие лишь
+      в том, что источник отвечает один раз, и подписка выродилась в эффект.
+    */
+    /* eslint-disable react-hooks/set-state-in-effect */
+    setShopId(draft.shopId);
+    setShopName(draft.shopName);
+    setItems(draft.items);
+    setNotes(draft.notes);
+    setDiscount(draft.discount);
+    setPaymentMethod(draft.paymentMethod);
+    /* eslint-enable react-hooks/set-state-in-effect */
+    notify.info(t("Продолжаем набранный заказ", "Boshlangan buyurtma tiklandi"));
+    // Только на первый показ: дальше правит человек, и перезаписывать его
+    // ввод сохранённым — худшее, что можно сделать.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  // Сохраняем на каждое изменение. Запись крошечная и уходит в память
+  // браузера, отдельно откладывать её незачем.
+  useEffect(() => {
+    if (!user) return;
+    const draft = { shopId, shopName, items, notes, discount, paymentMethod };
+    if (draftHasWork(draft)) saveDraft(user.id, draft);
+    else clearDraft(user.id);
+  }, [user, shopId, shopName, items, notes, discount, paymentMethod]);
+
+
   const invalidateOrderCaches = useInvalidateOrderCaches();
   const createOrder = trpc.order.create.useMutation({
     onSuccess: () => {
       invalidateOrderCaches();
+      // Заказ ушёл — черновику конец. Иначе следующий заход на «Заказ»
+      // предложил бы продолжить только что отправленный.
+      if (user) clearDraft(user.id);
       notify.success(t("Заказ создан!", "Buyurtma yaratildi!"));
       const role = user?.role;
       if (role === "ceo" || role === "operator" || role === "superadmin") {
@@ -199,6 +253,8 @@ export default function NewOrder() {
       // войдёт на этом же компьютере, — а сервер поставит агентом его.
       savePendingOrder({ ...payload, shopName, paymentMethod }, user.id)
         .then(() => {
+          // Заказ лёг в очередь — он больше не черновик.
+          clearDraft(user.id);
           notify.success(t("Заказ сохранён офлайн", "Buyurtma oflayn saqlandi"));
           const role = user?.role;
           if (role === "ceo" || role === "operator" || role === "superadmin") {
