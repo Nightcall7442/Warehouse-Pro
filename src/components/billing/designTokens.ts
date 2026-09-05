@@ -41,9 +41,14 @@ export const GRADIENTS = {
 };
 
 export const ANIMATIONS = {
-  fadeIn: "@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }",
-  slideUp: "@keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }",
+  // Кадры заканчиваются на none, а не на translateY(0): смысл тот же, а
+  // свойство не тянет за собой лишнего. Заливку (forwards) эти анимации не
+  // используют — она держала бы transform и ломала position: fixed внутри.
+  fadeIn: "@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }",
+  slideUp: "@keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }",
   pulse: "@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }",
+  // Единственная, что оставлена с заливкой: она держит ШИРИНУ, а не
+  // transform, — ловушки для position: fixed из этого не выходит.
   progressFill: "@keyframes progressFill { from { width: 0; } }",
   glowPulse: "@keyframes glowPulse { 0%, 100% { box-shadow: var(--shadow-sm); } 50% { box-shadow: var(--shadow-md); } }",
 };

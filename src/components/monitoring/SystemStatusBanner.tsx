@@ -25,7 +25,7 @@ export function SystemStatusBanner({ server, database, timestamp }: SystemStatus
       padding: "16px", borderRadius: "16px", display: "flex", alignItems: "center", gap: "12px",
       background: serverOk && dbOk ? "rgba(74,222,128,.08)" : "rgba(251,191,36,.08)",
       border: `1px solid ${serverOk && dbOk ? "rgba(74,222,128,.15)" : "rgba(251,191,36,.15)"}`,
-      boxShadow: SHADOW, animation: "slideUp 0.5s ease forwards",
+      boxShadow: SHADOW, animation: "slideUp 0.5s ease",
     }}>
       {serverOk && dbOk ? <CheckCircle2 size={20} style={{ color: COLORS.success }} /> : <AlertTriangle size={20} style={{ color: COLORS.warning }} />}
       <div style={{ flex: 1 }}>

@@ -10,7 +10,7 @@ export function PaymentMethodsCard({ t }: PaymentMethodsCardProps) {
     <div className="neo-card" style={{
       padding: "24px",
       marginTop: "32px",
-      animation: "slideUp 1s ease forwards",
+      animation: "slideUp 1s ease",
     }}>
       <div style={{
         display: "flex",

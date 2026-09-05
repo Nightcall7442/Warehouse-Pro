@@ -52,7 +52,7 @@ export function ProductForm({ onSave, onCancel, isPending, lang, categories = []
   return (
     <div style={{
       background: COLORS.surface, borderRadius: "24px", padding: "24px",
-      boxShadow: SHADOW, animation: "slideUp 0.5s ease forwards",
+      boxShadow: SHADOW, animation: "slideUp 0.5s ease",
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
         <h2 style={{ fontFamily: F.display, fontSize: "16px", fontWeight: 600, color: COLORS.textPrimary, margin: 0 }}>

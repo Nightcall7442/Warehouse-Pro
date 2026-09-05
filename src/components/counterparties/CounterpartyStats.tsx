@@ -15,7 +15,7 @@ function DebtCard({ label, uzs, usd, icon, gradient, delay, danger }: {
   return (
     <div className="kpi-hero" style={{
       borderRadius: "24px", padding: "24px", position: "relative", overflow: "hidden",
-      animation: `slideUp ${0.5 + delay}s ease forwards`,
+      animation: `slideUp ${0.5 + delay}s ease`,
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
         <span style={{ fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: COLORS.textTertiary }}>
@@ -46,7 +46,7 @@ function CountCard({ label, value, hint, icon, gradient, delay }: {
   return (
     <div className="kpi-hero" style={{
       borderRadius: "24px", padding: "24px", position: "relative", overflow: "hidden",
-      animation: `slideUp ${0.5 + delay}s ease forwards`,
+      animation: `slideUp ${0.5 + delay}s ease`,
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
         <span style={{ fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: COLORS.textTertiary }}>

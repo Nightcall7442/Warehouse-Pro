@@ -42,7 +42,7 @@ export function SubscriptionPlanCard({
         flexDirection: "column",
         gap: "16px",
         transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-        animation: `slideUp ${0.8 + index * 0.1}s ease forwards`,
+        animation: `slideUp ${0.8 + index * 0.1}s ease`,
         cursor: "default",
         overflow: "visible",
       }}

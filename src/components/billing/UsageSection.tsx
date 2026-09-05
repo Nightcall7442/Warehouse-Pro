@@ -25,7 +25,7 @@ export function UsageSection({ usage, limits, t }: UsageSectionProps) {
     <div className="neo-card" style={{
       padding: "28px",
       marginBottom: "32px",
-      animation: "slideUp 0.8s ease forwards",
+      animation: "slideUp 0.8s ease",
     }}>
       <p style={{
         fontSize: "12px",

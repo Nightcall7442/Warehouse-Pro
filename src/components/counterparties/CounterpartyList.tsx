@@ -43,7 +43,7 @@ export function CounterpartyList({ rows, lang, onOpen }: {
   };
 
   return (
-    <div style={{ background: COLORS.surface, borderRadius: "24px", boxShadow: SHADOW, overflow: "hidden", animation: "slideUp 0.5s ease forwards" }}>
+    <div style={{ background: COLORS.surface, borderRadius: "24px", boxShadow: SHADOW, overflow: "hidden", animation: "slideUp 0.5s ease" }}>
       {/* Таблица уезжает вбок на узком экране в своём контейнере, а не тянет
           за собой всю страницу: шесть денежных колонок в 375px не помещаются
           и сжимать их до нечитаемости хуже, чем прокрутить. */}

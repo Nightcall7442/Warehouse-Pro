@@ -12,7 +12,7 @@ export function Section({ title, icon: Icon, children, actions, delay = 0 }: Sec
   return (
     <div style={{
       background: COLORS.surface, borderRadius: "24px", overflow: "hidden",
-      boxShadow: SHADOW, animation: `slideUp ${0.5 + delay}s ease forwards`,
+      boxShadow: SHADOW, animation: `slideUp ${0.5 + delay}s ease`,
     }}>
       <div style={{
         padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between",

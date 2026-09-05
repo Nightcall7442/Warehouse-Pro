@@ -66,7 +66,7 @@ export const ShopCard = memo(function ShopCard({ s, onClick, selected, onToggleS
       background: COLORS.surface, borderRadius: "24px", padding: "20px",
       boxShadow: SHADOW, display: "flex", alignItems: "center", gap: "16px",
       cursor: "pointer", transition: "transform 0.2s, box-shadow 0.2s",
-      animation: `slideUp ${0.4 + delay}s ease forwards`,
+      animation: `slideUp ${0.4 + delay}s ease`,
       border: selected ? `2px solid ${COLORS.primary}` : "2px solid transparent",
     }}
     onClick={onClick}

@@ -74,6 +74,34 @@ describe("анимация обёртки не ломает position: fixed", ()
     }
   });
 
+  it("инлайновые анимации в компонентах тоже без заливки", () => {
+    /*
+      Правила в CSS — половина дела: тридцать с лишним карточек, таблиц и
+      скелетонов задавали animation прямо в style с тем же forwards. Любая из
+      них становилась точкой отсчёта для position: fixed внутри.
+
+      Исключения названы поимённо, а не по признаку: progressFill держит
+      ШИРИНУ полосы — без заливки она схлопнулась бы, а transform не трогает;
+      lx-stamp (печать на лендинге) без заливки исчезла бы в конце — её базовый
+      класс держит opacity 0, а свой rotate у неё и так есть.
+    */
+    const KEEPS_FILL = new Set(["progressFill", "lx-stamp"]);
+    const offenders: string[] = [];
+    const walk = (dir: string) => {
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, e.name);
+        if (e.isDirectory()) { if (e.name !== "__tests__") walk(p); continue; }
+        if (!/\.tsx?$/.test(e.name)) continue;
+        const src = fs.readFileSync(p, "utf8");
+        for (const m of src.matchAll(/animation:\s*["'`]?\s*([A-Za-z][\w-]*)[^"'`;\n]*?\b(forwards|both)\b/g)) {
+          if (!KEEPS_FILL.has(m[1])) offenders.push(`${path.relative(process.cwd(), p)}: ${m[1]} … ${m[2]}`);
+        }
+      }
+    };
+    walk(path.resolve(process.cwd(), "src"));
+    expect(offenders, `заливка вернулась в компоненты:\n${offenders.join("\n")}`).toEqual([]);
+  });
+
   it("обёртка страницы всё ещё помечена этим классом", () => {
     // Если класс с <main> уберут, беда исчезнет сама и тест станет лишним —
     // пусть тогда упадёт и заставит перечитать эту заметку.

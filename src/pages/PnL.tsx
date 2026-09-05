@@ -455,7 +455,7 @@ export default function PnL() {
                 height: "140px",
                 borderRadius: "20px",
                 background: COLORS.surfaceLight,
-                animation: `slideUp ${0.4 + i * 0.05}s ease forwards`,
+                animation: `slideUp ${0.4 + i * 0.05}s ease`,
               }}
             />
           ))}

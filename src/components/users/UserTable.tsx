@@ -46,7 +46,7 @@ export function UserTable({ users, isLoading, page, total, lang, onResetPassword
                 ? Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i}>
                       <td colSpan={6} style={{ padding: "14px 16px" }}>
-                        <div style={{ height: "16px", borderRadius: "6px", background: COLORS.surfaceLight, animation: `slideUp ${0.4 + i * 0.05}s ease forwards` }} />
+                        <div style={{ height: "16px", borderRadius: "6px", background: COLORS.surfaceLight, animation: `slideUp ${0.4 + i * 0.05}s ease` }} />
                       </td>
                     </tr>
                   ))

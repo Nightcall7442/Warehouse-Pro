@@ -26,7 +26,7 @@ export function ProductList({ products, isLoading, lang, fmt, onProductClick, on
         Array.from({ length: 5 }).map((_, i) => (
           <div key={i} style={{
             height: "120px", borderRadius: "16px",
-            background: COLORS.surfaceLight, animation: `slideUp ${0.4 + i * 0.05}s ease forwards`,
+            background: COLORS.surfaceLight, animation: `slideUp ${0.4 + i * 0.05}s ease`,
           }} />
         ))
       ) : products.length === 0 ? (

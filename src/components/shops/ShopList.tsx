@@ -17,7 +17,7 @@ export function ShopList({ data, isLoading, lang, fmt, selectable = true, select
     <>
       {/* Loading skeletons */}
       {isLoading ? Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} style={{ height: "96px", borderRadius: "24px", background: COLORS.surfaceLight, animation: `slideUp ${0.4 + i * 0.05}s ease forwards` }} />
+        <div key={i} style={{ height: "96px", borderRadius: "24px", background: COLORS.surfaceLight, animation: `slideUp ${0.4 + i * 0.05}s ease` }} />
       )) : (
         <>
           {/* Select all */}

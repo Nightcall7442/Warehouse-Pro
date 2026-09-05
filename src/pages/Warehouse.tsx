@@ -552,7 +552,7 @@ export default function Warehouse() {
                 const borderColor = isUrgent ? "rgba(232,80,80,0.15)" : isWarning ? "rgba(251,191,36,0.15)" : "var(--color-border, #d8d5cd)";
                 const badgeColor = isUrgent ? "var(--color-danger)" : isWarning ? "var(--color-warning)" : "var(--color-primary)";
                 return (
-                  <div key={item.productId} className="rounded-2xl p-4" style={{ background: bgColor, boxShadow: `inset 0 0 0 1px ${borderColor}`, animation: `slideUp ${0.3 + i * 0.05}s ease forwards` }}>
+                  <div key={item.productId} className="rounded-2xl p-4" style={{ background: bgColor, boxShadow: `inset 0 0 0 1px ${borderColor}`, animation: `slideUp ${0.3 + i * 0.05}s ease` }}>
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
                         <Clock size={14} color={badgeColor} />
@@ -663,7 +663,7 @@ export default function Warehouse() {
                 const isWarning = daysLeft <= 7;
                 const badgeColor = isUrgent ? "var(--color-danger)" : isWarning ? "var(--color-warning)" : "var(--color-primary)";
                 return (
-                  <div key={item.productId} className="rounded-2xl overflow-hidden" style={{ animation: `slideUp ${0.3 + i * 0.05}s ease forwards` }}>
+                  <div key={item.productId} className="rounded-2xl overflow-hidden" style={{ animation: `slideUp ${0.3 + i * 0.05}s ease` }}>
                     <div className="flex">
                       <div className="w-1.5 flex-shrink-0" style={{ background: badgeColor }} />
                       <div className="flex-1 p-4">

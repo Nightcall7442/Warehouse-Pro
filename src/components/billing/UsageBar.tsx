@@ -17,7 +17,7 @@ export function UsageBar({ used, max, label, icon: Icon }: UsageBarProps) {
   return (
     <div style={{
       marginBottom: "20px",
-      animation: "fadeIn 0.5s ease forwards",
+      animation: "fadeIn 0.5s ease",
     }}>
       <div style={{
         display: "flex",

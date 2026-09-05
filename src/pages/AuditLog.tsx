@@ -51,7 +51,7 @@ function KpiCard({ label, value, delta, icon, gradient, delay }: {
     <div className="kpi-hero" style={{
       borderRadius: "24px", padding: "24px",
       position: "relative", overflow: "hidden",
-      animation: `slideUp ${0.5 + delay}s ease forwards`,
+      animation: `slideUp ${0.5 + delay}s ease`,
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
         <span style={{ fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: COLORS.textTertiary }}>
@@ -243,7 +243,7 @@ export default function AuditLog() {
           {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} style={{
               height: "72px", borderRadius: "24px", background: COLORS.surfaceLight,
-              animation: `slideUp ${0.4 + i * 0.05}s ease forwards`,
+              animation: `slideUp ${0.4 + i * 0.05}s ease`,
             }} />
           ))}
         </div>
@@ -273,7 +273,7 @@ export default function AuditLog() {
                 key={entry.id}
                 style={{
                   borderBottom: isLast ? "none" : `1px solid ${COLORS.border}`,
-                  animation: `slideUp ${0.4 + i * 0.03}s ease forwards`,
+                  animation: `slideUp ${0.4 + i * 0.03}s ease`,
                 }}
               >
                 <div

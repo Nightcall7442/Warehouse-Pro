@@ -924,7 +924,7 @@ function OperatorOrders() {
         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
           {isLoading
             ? Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} style={{ height: "88px", borderRadius: "16px", background: COLORS.surfaceLight, animation: `slideUp ${0.4 + i * 0.05}s ease forwards` }} />
+                <div key={i} style={{ height: "88px", borderRadius: "16px", background: COLORS.surfaceLight, animation: `slideUp ${0.4 + i * 0.05}s ease` }} />
               ))
             : data?.data.length === 0
             ? <p style={{ textAlign: "center", color: COLORS.textSecondary, padding: "56px 0", fontSize: "13px", fontFamily: F.body }}>{t("Нет заказов", "Buyurtma yo'q")}</p>
@@ -936,7 +936,7 @@ function OperatorOrders() {
                     style={{
                       background: COLORS.surface, borderRadius: "16px", overflow: "hidden",
                       cursor: "pointer", boxShadow: SHADOW, transition: "transform 0.15s",
-                      animation: `slideUp ${0.4 + 0.02}s ease forwards`,
+                      animation: `slideUp ${0.4 + 0.02}s ease`,
                     }}
                     onClick={() => navigate(`/orders/${o.id}`)}
                   >
@@ -1026,7 +1026,7 @@ function OperatorOrders() {
                 ? Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i} style={{ borderBottom: `1px solid ${COLORS.border}` }}>
                       <td colSpan={cols.columns.length + 1} style={{ padding: "16px" }}>
-                        <div style={{ height: "16px", borderRadius: "6px", background: COLORS.surfaceLight, animation: `slideUp ${0.4 + i * 0.05}s ease forwards` }} />
+                        <div style={{ height: "16px", borderRadius: "6px", background: COLORS.surfaceLight, animation: `slideUp ${0.4 + i * 0.05}s ease` }} />
                       </td>
                     </tr>
                   ))

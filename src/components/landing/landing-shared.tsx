@@ -43,7 +43,10 @@ export function LandingStyles() {
         from { opacity: 0; transform: translateY(14px); }
         to   { opacity: 1; transform: none; }
       }
-      .lx-enter { animation: lx-enter .55s ease-out both; }
+      /* backwards, а не both: заливка «вперёд» держала бы transform, а он
+         делает элемент точкой отсчёта для position: fixed внутри. Нужна
+         здесь только половина «назад» — спрятать блок до его задержки. */
+      .lx-enter { animation: lx-enter .55s ease-out backwards; }
       .lx-enter-1 { animation-delay: .05s; }
       .lx-enter-2 { animation-delay: .14s; }
       .lx-enter-3 { animation-delay: .23s; }
@@ -53,6 +56,10 @@ export function LandingStyles() {
         100% { opacity: 1; transform: scale(1) rotate(var(--lx-rot, -5deg)); }
       }
       .lx-stamp-hidden { opacity: 0; transform: rotate(var(--lx-rot, -5deg)); }
+      /* Печати both нужен целиком: её базовый класс .lx-stamp-hidden держит
+         opacity 0, и без заливки «вперёд» она исчезла бы в конце. Ловушки
+         тут нет — у элемента и так свой rotate, а внутри печати ничего
+         не позиционируется. */
       .lx-stamp-in { animation: lx-stamp .5s cubic-bezier(.2,.9,.3,1.2) both; }
       @media (prefers-reduced-motion: reduce) {
         .lx-enter, .lx-stamp-in { animation: none; }

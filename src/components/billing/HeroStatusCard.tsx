@@ -26,7 +26,7 @@ export function HeroStatusCard({
         padding: "28px",
         background: isExpired ? GRADIENTS.heroExpired : GRADIENTS.hero,
         marginBottom: "24px",
-        animation: "slideUp 0.7s ease forwards",
+        animation: "slideUp 0.7s ease",
       }}
     >
       {/* Ambient glow */}

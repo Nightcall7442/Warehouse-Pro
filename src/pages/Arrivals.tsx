@@ -50,7 +50,7 @@ function KpiCard({ label, value, delta, icon, gradient, delay }: {
     <div className="kpi-hero" style={{
       borderRadius: "24px", padding: "24px",
       position: "relative", overflow: "hidden",
-      animation: `slideUp ${0.5 + delay}s ease forwards`,
+      animation: `slideUp ${0.5 + delay}s ease`,
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
         <span style={{ fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: COLORS.textTertiary }}>
@@ -778,7 +778,7 @@ export default function Arrivals() {
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
           {[0, 1, 2, 3].map(i => (
-            <div key={i} style={{ height: "140px", borderRadius: "24px", background: COLORS.surfaceLight, animation: `slideUp ${0.4 + i * 0.05}s ease forwards` }} />
+            <div key={i} style={{ height: "140px", borderRadius: "24px", background: COLORS.surfaceLight, animation: `slideUp ${0.4 + i * 0.05}s ease` }} />
           ))}
         </div>
       </div>
@@ -918,7 +918,7 @@ export default function Arrivals() {
         min-width у самой таблицы: без него колонки сжимаются в нечитаемые
         полоски, и прокрутка теряет смысл — честнее оставить её шире экрана.
       */}
-      <div style={{ background: COLORS.surface, borderRadius: "24px", boxShadow: SHADOW, overflowX: "auto", overflowY: "hidden", WebkitOverflowScrolling: "touch", animation: "slideUp 0.5s ease forwards" }}>
+      <div style={{ background: COLORS.surface, borderRadius: "24px", boxShadow: SHADOW, overflowX: "auto", overflowY: "hidden", WebkitOverflowScrolling: "touch", animation: "slideUp 0.5s ease" }}>
         <table style={{ width: "100%", minWidth: "760px", borderCollapse: "separate", borderSpacing: 0 }}>
           <thead>
             <tr>

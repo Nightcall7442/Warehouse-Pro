@@ -64,7 +64,7 @@ export default function BillingPage() {
       {/* ── Page Header ──────────────────────────────────────────────────── */}
       <div style={{
         marginBottom: "32px",
-        animation: "fadeIn 0.6s ease forwards",
+        animation: "fadeIn 0.6s ease",
       }}>
         <h1 style={{
           fontSize: "28px",

@@ -173,7 +173,7 @@ export default function Monitoring() {
       {selectedErrorId && <ErrorDetailModal errorId={selectedErrorId} onClose={() => setSelectedErrorId(null)} />}
 
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", animation: "slideUp 0.4s ease forwards" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", animation: "slideUp 0.4s ease" }}>
         <div>
           <h1 style={{ fontFamily: F.display, fontSize: "24px", fontWeight: 700, color: COLORS.textPrimary, letterSpacing: "-0.02em" }}>Мониторинг системы</h1>
           <p style={{ fontSize: "13px", marginTop: "4px", color: COLORS.textSecondary, fontFamily: F.body }}>
