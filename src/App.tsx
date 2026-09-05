@@ -6,6 +6,7 @@ import Layout from "@/components/Layout";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { lazyWithRecovery } from "@/lib/stale-app-recovery";
 import { CommandPalette } from "@/components/CommandPalette";
+import { NoAccess } from "@/components/NoAccess";
 import Login                from "./pages/Login";
 import Register             from "./pages/Register";
 import Landing              from "./pages/Landing";
@@ -71,10 +72,23 @@ import { useBranding } from "@/hooks/useBranding";
 import { useKeyboardInset } from "@/hooks/useKeyboardInset";
 import { useOfflineSync } from "@/hooks/useOfflineSync";
 
+/**
+ * Раздел не для всех.
+ *
+ * Не вошёл — на вход; вошёл, но роль другая — экран с объяснением. Раньше
+ * оба случая молча уводили на «/», и человек, пришедший по ссылке из
+ * сообщения или по закладке, видел не отказ, а как будто поломку.
+ *
+ * Это не защита: права проверяет сервер, у каждой процедуры requireRole.
+ * Здесь — про то, чтобы не звать роль туда, где ей ответят отказом: без
+ * этого страница успевала отправить десятки запросов и показать
+ * «не удалось загрузить» с кнопкой «Повторить», которая повторяла отказ.
+ */
 const RoleGuard = memo(function RoleGuard({ children, roles }: { children: React.ReactNode; roles: string[] }) {
   const { user, isLoading } = useAuth();
   if (isLoading) return null;
-  if (!user || !roles.includes(user.role)) return <Navigate to="/" replace />;
+  if (!user) return <Navigate to="/" replace />;
+  if (!roles.includes(user.role)) return <NoAccess />;
   return <>{children}</>;
 });
 
@@ -150,22 +164,32 @@ export default function App() {
         <Route path="/reset-password"     element={<ResetPassword />} />
         <Route path="/invite/:token"      element={<AcceptInvite />} />
         <Route path="/subscription-blocked" element={<SubscriptionBlocked />} />
-        <Route path="/onboarding" element={<Onboarding />} />
+        {/* Первый запуск организации: заводит склад, товары и приглашает
+            людей — всё это ceo и оператор. */}
+        <Route path="/onboarding" element={<RoleGuard roles={["ceo","operator"]}><Onboarding /></RoleGuard>} />
         <Route path="/landing"            element={<Landing />} />
         <Route path="/"                   element={<RootGate />} />
 
         <Route element={<AppLayout />}>
           {/* Common */}
-          <Route path="/dashboard"      element={<Dashboard />} />
-          <Route path="/shops"          element={<Shops />} />
-          <Route path="/shops/:id"      element={<ShopDetail />} />
-          <Route path="/products"       element={<Products />} />
+          {/* Главная руководителя. Все четыре её запроса — supervisorQuery,
+              то есть ceo и супервайзер; оператора Home уводит на «Заказы»
+              (src/pages/Home.tsx), у остальных свои главные. */}
+          <Route path="/dashboard"      element={<RoleGuard roles={["ceo","supervisor"]}><Dashboard /></RoleGuard>} />
+          {/* Магазины — managementQuery: ceo, оператор, супервайзер. У агента
+              и мерчендайзера свой список, /agent/shops. */}
+          <Route path="/shops"          element={<RoleGuard roles={["ceo","operator","supervisor"]}><Shops /></RoleGuard>} />
+          <Route path="/shops/:id"      element={<RoleGuard roles={["ceo","operator","supervisor"]}><ShopDetail /></RoleGuard>} />
+          {/* Товары, каталог и заказы — fieldSalesQuery: все, кроме курьера.
+              Ему сервер отвечает отказом на product.list и order.list, и
+              страница успевала выдать до сорока таких заявок. */}
+          <Route path="/products"       element={<RoleGuard roles={["ceo","operator","supervisor","agent","merchandiser"]}><Products /></RoleGuard>} />
           {/* Каталог агента — витрина с фотографиями. Пункт «Каталог» в нижней
               панели вёл на /products: админскую страницу с плитками
               статистики и списком строк, где название сжато ценой. */}
-          <Route path="/catalog"        element={<Catalog />} />
-          <Route path="/products/:id"   element={<ProductDetail />} />
-          <Route path="/orders"         element={<Orders />} />
+          <Route path="/catalog"        element={<RoleGuard roles={["ceo","operator","supervisor","agent","merchandiser"]}><Catalog /></RoleGuard>} />
+          <Route path="/products/:id"   element={<RoleGuard roles={["ceo","operator","supervisor","agent","merchandiser"]}><ProductDetail /></RoleGuard>} />
+          <Route path="/orders"         element={<RoleGuard roles={["ceo","operator","supervisor","agent","merchandiser"]}><Orders /></RoleGuard>} />
           {/* Шаги заказа — настоящие адреса, а не состояние одной страницы.
               Раньше шаг хранился в useState, и системная «назад» (кнопка
               браузера, жест на телефоне) выкидывала из заказа целиком:
@@ -173,12 +197,12 @@ export default function App() {
               страницы делало то же самое.
               Состояние живёт в NewOrder — он общий родитель трёх шагов и при
               переходе между ними не размонтируется. */}
-          <Route path="/orders/new" element={<NewOrder />}>
+          <Route path="/orders/new" element={<RoleGuard roles={["ceo","operator","supervisor","agent","merchandiser"]}><NewOrder /></RoleGuard>}>
             <Route index          element={<NewOrderShopStep />} />
             <Route path="items"   element={<NewOrderItemsStep />} />
             <Route path="review"  element={<NewOrderReviewStep />} />
           </Route>
-          <Route path="/orders/:id"     element={<OrderDetail />} />
+          <Route path="/orders/:id"     element={<RoleGuard roles={["ceo","operator","supervisor","agent","merchandiser"]}><OrderDetail /></RoleGuard>} />
           <Route path="/warehouse"      element={<RoleGuard roles={["ceo","operator"]}><Warehouse /></RoleGuard>} />
           <Route path="/arrivals"       element={<RoleGuard roles={["ceo","operator"]}><Arrivals /></RoleGuard>} />
           {/* Настройки открыты всем: внутри каждый видит только свои разделы
@@ -195,8 +219,8 @@ export default function App() {
           <Route path="/settings"       element={<Settings />} />
           <Route path="/settings/billing" element={<RoleGuard roles={["ceo"]}><BillingSettings /></RoleGuard>} />
           <Route path="/billing"        element={<RoleGuard roles={["ceo"]}><BillingPage /></RoleGuard>} />
-          <Route path="/barcode"        element={<BarcodePage />} />
-          <Route path="/offline-orders" element={<OfflineOrders />} />
+          <Route path="/barcode"        element={<RoleGuard roles={["ceo","operator","supervisor","agent","merchandiser"]}><BarcodePage /></RoleGuard>} />
+          <Route path="/offline-orders" element={<RoleGuard roles={["ceo","operator","supervisor","agent","merchandiser"]}><OfflineOrders /></RoleGuard>} />
           <Route path="/notifications"  element={<Notifications />} />
 
           {/* SuperAdmin only */}

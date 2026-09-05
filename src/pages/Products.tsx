@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { keepPreviousData } from "@tanstack/react-query";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useAuth } from "@/hooks/useAuth";
+import { canOperate } from "@/lib/permissions";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { notify } from "@/lib/toast";
@@ -45,7 +46,7 @@ export default function Products() {
    * намеренное и безопасное: сервер остаётся источником правды и отклонит
    * запрос в любом случае, здесь лишь прячется то, что всё равно не сработает.
    */
-  const canEdit = user?.role === "ceo" || user?.role === "operator";
+  const canEdit = canOperate(user?.role);
 
   const [search, setSearch] = useState("");
   // Поле ввода остаётся мгновенным, а в запрос уходит придержанное

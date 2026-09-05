@@ -3,10 +3,14 @@ import { useNavigate } from "react-router";
 import { useLang } from "@/i18n";
 import { useCurrency } from "@/hooks/useCurrency";
 import { trpc } from "@/providers/trpc";
+import { useAuth } from "@/hooks/useAuth";
 import {
   Search, ShoppingCart, Package, Store, Users, FileText,
   BarChart3, Settings, Truck, ArrowRight,
 } from "lucide-react";
+
+/** Товары, каталог и заказы — fieldSalesQuery: все, кроме курьера. */
+const FIELD_ROLES = ["ceo", "operator", "supervisor", "agent", "merchandiser"];
 
 interface CommandItem {
   id: string;
@@ -16,6 +20,12 @@ interface CommandItem {
   path?: string;
   action?: () => void;
   category: "nav" | "action" | "search";
+  /**
+   * Кому пункт показывать. Совпадает с RoleGuard того же маршрута в
+   * App.tsx — иначе палитра предлагает раздел, который тут же ответит
+   * «не для вашей роли». Совпадение проверяется тестом.
+   */
+  roles?: string[];
 }
 
 export function CommandPalette() {
@@ -52,19 +62,24 @@ export function CommandPalette() {
 
   const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);
 
+  // Роль решает, что показывать: палитра — второй вход в те же разделы, и
+  // предлагать закрытые значит вести в «не для вашей роли».
+  const { user } = useAuth();
+  const role = user?.role;
+
   // Navigation items
-  const navItems: CommandItem[] = useMemo(() => [
-    { id: "dashboard", label: "Главная", labelUz: "Bosh sahifa", icon: <BarChart3 size={16} />, path: "/dashboard", category: "nav" },
-    { id: "orders", label: "Заказы", labelUz: "Buyurtmalar", icon: <ShoppingCart size={16} />, path: "/orders", category: "nav" },
-    { id: "new-order", label: "Новый заказ", labelUz: "Yangi buyurtma", icon: <ArrowRight size={16} />, path: "/orders/new", category: "action" },
-    { id: "products", label: "Товары", labelUz: "Mahsulotlar", icon: <Package size={16} />, path: "/products", category: "nav" },
-    { id: "shops", label: "Магазины", labelUz: "Do'konlar", icon: <Store size={16} />, path: "/shops", category: "nav" },
-    { id: "warehouse", label: "Склад", labelUz: "Ombor", icon: <Package size={16} />, path: "/warehouse", category: "nav" },
-    { id: "deliveries", label: "Доставки", labelUz: "Yetkazishlar", icon: <Truck size={16} />, path: "/deliveries", category: "nav" },
-    { id: "reports", label: "Отчёты", labelUz: "Hisobotlar", icon: <FileText size={16} />, path: "/reports", category: "nav" },
-    { id: "users", label: "Пользователи", labelUz: "Foydalanuvchilar", icon: <Users size={16} />, path: "/users", category: "nav" },
+  const navItems: CommandItem[] = useMemo(() => ([
+    { id: "dashboard", label: "Главная", labelUz: "Bosh sahifa", icon: <BarChart3 size={16} />, path: "/dashboard", category: "nav", roles: ["ceo", "supervisor"] },
+    { id: "orders", label: "Заказы", labelUz: "Buyurtmalar", icon: <ShoppingCart size={16} />, path: "/orders", category: "nav", roles: FIELD_ROLES },
+    { id: "new-order", label: "Новый заказ", labelUz: "Yangi buyurtma", icon: <ArrowRight size={16} />, path: "/orders/new", category: "action", roles: FIELD_ROLES },
+    { id: "products", label: "Товары", labelUz: "Mahsulotlar", icon: <Package size={16} />, path: "/products", category: "nav", roles: FIELD_ROLES },
+    { id: "shops", label: "Магазины", labelUz: "Do'konlar", icon: <Store size={16} />, path: "/shops", category: "nav", roles: ["ceo", "operator", "supervisor"] },
+    { id: "warehouse", label: "Склад", labelUz: "Ombor", icon: <Package size={16} />, path: "/warehouse", category: "nav", roles: ["ceo", "operator"] },
+    { id: "deliveries", label: "Доставки", labelUz: "Yetkazishlar", icon: <Truck size={16} />, path: "/deliveries", category: "nav", roles: ["ceo", "operator", "courier"] },
+    { id: "reports", label: "Отчёты", labelUz: "Hisobotlar", icon: <FileText size={16} />, path: "/reports", category: "nav", roles: ["ceo", "operator", "supervisor", "merchandiser"] },
+    { id: "users", label: "Пользователи", labelUz: "Foydalanuvchilar", icon: <Users size={16} />, path: "/users", category: "nav", roles: ["ceo"] },
     { id: "settings", label: "Настройки", labelUz: "Sozlamalar", icon: <Settings size={16} />, path: "/settings", category: "nav" },
-  ], []);
+  ] as CommandItem[]).filter(item => !item.roles || (role !== undefined && item.roles.includes(role))), [role]);
 
   // Filter items based on query
   const filteredItems = useMemo(() => {

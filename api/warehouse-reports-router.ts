@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, operatorQuery, supervisorQuery } from "./middleware";
+import { createRouter, operatorQuery, supervisorQuery, managementQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import {
   warehouseStock, products, stockMovements,
@@ -10,7 +10,15 @@ import { revenueOrderConditions } from "./lib/order-status";
 
 export const warehouseReportsRouter = createRouter({
   /** Stock breakdown by product category */
-  stockByCategory: supervisorQuery.query(async ({ ctx }) => {
+  /*
+    managementQuery, а не supervisorQuery.
+
+    Страница «Отчёты по складу» открыта ceo и оператору (RoleGuard в
+    App.tsx), а два её блока из пяти стояли на supervisorQuery — это ceo и
+    СУПЕРВАЙЗЕР. То есть оператор открывал свой отчёт и видел два пустых
+    блока с отказом, хотя остальные три (operatorQuery) грузились.
+  */
+  stockByCategory: managementQuery.query(async ({ ctx }) => {
     const db = getDb();
     const tenantId = ctx.tenant.id;
 
@@ -32,7 +40,7 @@ export const warehouseReportsRouter = createRouter({
   }),
 
   /** Stock movement trends — daily in/out for last N days */
-  movementTrends: supervisorQuery
+  movementTrends: managementQuery
     .input(z.object({ days: z.number().default(30) }).optional())
     .query(async ({ input, ctx }) => {
       const db = getDb();
