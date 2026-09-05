@@ -156,9 +156,27 @@ export const kpiRouter = createRouter({
       const period = input?.period ?? "month";
       const { periodStart, periodEnd } = getPeriod(period);
 
-      const agentsList = await db.select({ id: users.id, name: users.name })
+      /*
+        Все, кому платят, а не только агенты.
+
+        Здесь стояло role = "agent", и отчёт по зарплатам показывал лишь их.
+        Директору платить приходится всей команде: у оператора и супервайзера
+        зарплата выходит фиксированной сама собой (комиссия считается
+        процентом от заказов, которые человек ОФОРМИЛ, а они их не
+        оформляют), у курьера — так же. Не показывать их означало бы, что
+        фонд оплаты на экране не сходится с тем, что уходит из кассы.
+
+        Суперадминистратор исключён: он сотрудник платформы, а не этой
+        организации, и в её фонде ему делать нечего.
+      */
+      const agentsList = await db.select({ id: users.id, name: users.name, role: users.role })
         .from(users)
-        .where(and(eq(users.tenantId, ctx.tenant.id), eq(users.role, "agent"), eq(users.status, "active")));
+        .where(and(
+          eq(users.tenantId, ctx.tenant.id),
+          eq(users.status, "active"),
+          sql`${users.role} <> 'superadmin'`,
+        ))
+        .orderBy(users.name);
 
       const kpis = await calculateAllAgentsKpi(db, ctx.tenant.id, periodStart, periodEnd);
 
@@ -167,7 +185,9 @@ export const kpiRouter = createRouter({
       const salaries = await Promise.all(
         agentsList.map(agent =>
           calculateSalary(db, agent.id, ctx.tenant.id, periodStart, periodEnd, kpiMap.get(agent.id), period === "month")
-            .then(salary => { salary.agentName = agent.name; return salary; })
+            // Роль нужна экрану: она объясняет, почему у одного вся выплата —
+            // оклад, а у другого больше половины набежало комиссией.
+            .then(salary => ({ ...salary, agentName: agent.name, role: agent.role }))
         )
       );
 

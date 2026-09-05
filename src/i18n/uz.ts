@@ -20,6 +20,7 @@ export const uz = {
     logout:      "Chiqish",
     reports:     "Hisobotlar",
     pnl:         "P&L",
+    salaries:    "Ish haqi",
     billing:     "To'lov",
     gps:         "GPS",
     superAdmin:  "Super Admin",

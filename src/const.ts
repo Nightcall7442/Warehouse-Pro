@@ -29,6 +29,7 @@ export const NAV_ITEMS: Record<string, Array<{ labelKey: string; path: string; i
     { labelKey: "nav.warehouseReports", path: "/warehouse-reports", icon: "BarChart3" },
     { labelKey: "nav.auditLog",   path: "/audit-log",  icon: "Shield"       },
     { labelKey: "nav.pnl",        path: "/pnl",       icon: "TrendingUp"      },
+    { labelKey: "nav.salaries",   path: "/salaries",  icon: "Wallet"          },
     { labelKey: "nav.users",      path: "/users",     icon: "Users"           },
     { labelKey: "nav.billing",    path: "/billing",   icon: "CreditCard"      },
     { labelKey: "nav.settings",   path: "/settings",  icon: "Settings"        },

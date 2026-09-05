@@ -21,6 +21,7 @@ export const ru = {
     logout:      "Выйти",
     reports:     "Отчёты",
     pnl:         "P&L",
+    salaries:    "Зарплаты",
     billing:     "Биллинг",
     gps:         "GPS",
     superAdmin:  "Super Admin",

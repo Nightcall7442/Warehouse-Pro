@@ -49,6 +49,7 @@ const BillingPage          = lazyWithRecovery(() => import("./pages/Billing"));
 const BillingSettings      = lazyWithRecovery(() => import("./pages/BillingSettings"));
 const SuperAdmin           = lazyWithRecovery(() => import("./pages/SuperAdmin"));
 const PnL                  = lazyWithRecovery(() => import("./pages/PnL"));
+const Salaries             = lazyWithRecovery(() => import("./pages/Salaries"));
 const BarcodePage          = lazyWithRecovery(() => import("./pages/Barcode"));
 const OfflineOrders        = lazyWithRecovery(() => import("./pages/OfflineOrders"));
 const Notifications        = lazyWithRecovery(() => import("./pages/Notifications"));
@@ -213,6 +214,11 @@ export default function App() {
           <Route path="/analytics"   element={<Navigate to="/reports" replace />} />
           {/* Margin and profit are the owner's numbers, not the back office's. */}
           <Route path="/pnl"         element={<RoleGuard roles={["ceo"]}><PnL /></RoleGuard>} />
+          {/* Зарплаты — деньги сотрудников, поэтому только руководителю.
+              Сам расчёт (kpi.salaryReport) допускает и супервайзера, но
+              открывать ему фонд оплаты — отдельное решение, а не побочный
+              эффект новой страницы. */}
+          <Route path="/salaries"    element={<RoleGuard roles={["ceo"]}><Salaries /></RoleGuard>} />
 
           {/* Agent */}
           <Route path="/agent"         element={<RoleGuard roles={["ceo","agent","merchandiser"]}><AgentDashboard /></RoleGuard>} />

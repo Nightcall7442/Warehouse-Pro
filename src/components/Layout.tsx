@@ -15,7 +15,7 @@ import {
   LayoutDashboard, Store, Package, ClipboardList, Truck,
   Warehouse, BarChart3, Users, Settings, PlusCircle, MapPin,
   Calendar, LogOut, X, Moon, Sun, WifiOff, Scan, Activity,
-  TrendingUp, CreditCard, ChevronLeft, Bell, Zap,
+  TrendingUp, CreditCard, ChevronLeft, Bell, Zap, Wallet,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { PremiumSelect } from "@/components/PremiumSelect";
@@ -23,7 +23,7 @@ import { PremiumSelect } from "@/components/PremiumSelect";
 const iconMap: Record<string, LucideIcon> = {
   LayoutDashboard, Store, Package, ClipboardList, Truck,
   Warehouse, BarChart3, Users, Settings, PlusCircle, MapPin,
-  Calendar, WifiOff, Scan, Activity, TrendingUp, CreditCard, Zap,
+  Calendar, WifiOff, Scan, Activity, TrendingUp, CreditCard, Zap, Wallet,
 };
 
 const PAGE_META: Record<string, { title: string; parent?: string; parentPath?: string }> = {
@@ -41,6 +41,7 @@ const PAGE_META: Record<string, { title: string; parent?: string; parentPath?: s
   "/audit-log":         { title: "Аудит-лог" },
   "/arrivals":          { title: "Приходы" },
   "/pnl":               { title: "P&L" },
+  "/salaries":          { title: "Зарплаты" },
   "/users":             { title: "Пользователи" },
   "/billing":           { title: "Биллинг" },
   "/settings":          { title: "Настройки" },
