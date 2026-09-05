@@ -9,6 +9,8 @@ import { useTranslate } from "@/i18n";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { format } from "date-fns";
 import { ArrowLeft, Package, Edit2, TrendingUp, TrendingDown, ArrowUpDown, Loader2, Camera } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { canOperate } from "@/lib/permissions";
 import { exportToExcel, formatMovementsForExport } from "@/lib/excel";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { CategoryAutocomplete } from "@/components/products/CategoryAutocomplete";
@@ -36,6 +38,14 @@ export default function ProductDetail() {
   const fromSearch       = searchParams.get("search") || "";
   const fromCategory     = searchParams.get("category") || "";
   const { confirm, dialog } = useConfirm();
+  /*
+    Правка, удаление и фото — operatorQuery. Страницу открывают и агент с
+    мерчендайзером: для них это карточка товара — цена, остаток, вес, — и
+    три кнопки, которые сервер им не даст, здесь только мешают.
+  */
+  const { user } = useAuth();
+  const canEdit = canOperate(user?.role);
+
   const [editing, setEditing] = useState(false);
   const [editData, setEditData] = useState<Record<string, unknown>>({});
 
@@ -104,10 +114,12 @@ export default function ProductDetail() {
         <button onClick={()=>navigate(`/products?page=${fromPage}${fromSearch ? `&search=${encodeURIComponent(fromSearch)}` : ""}${fromCategory ? `&category=${encodeURIComponent(fromCategory)}` : ""}`)} className="neo-btn flex items-center gap-2 py-1.5 px-3 text-sm">
           <ArrowLeft size={18}/><span className="text-sm">{tr("Назад","Orqaga")}</span>
         </button>
+        {canEdit && (
         <div className="flex gap-2">
           <button onClick={()=>{ if (editing) { stopEditing(); } else { setEditing(true); } }} className="neo-btn flex items-center gap-2 text-sm py-2"><Edit2 size={14}/>{tr("Изменить","Tahrirlash")}</button>
           <button onClick={handleDelete} className="neo-btn text-danger border-danger/30 text-sm py-2">{tr("Удалить","O'chirish")}</button>
         </div>
+        )}
       </div>
 
       {/* Info card */}
@@ -117,10 +129,10 @@ export default function ProductDetail() {
           <div className="flex-shrink-0">
             <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handlePhotoUpload} />
             <div
-              className="w-20 h-20 rounded-xl overflow-hidden flex items-center justify-center cursor-pointer relative group border border-border-subtle"
+              className={`w-20 h-20 rounded-xl overflow-hidden flex items-center justify-center relative group border border-border-subtle ${canEdit ? "cursor-pointer" : ""}`}
               style={{ background: "color-mix(in srgb, var(--color-primary) 8%, transparent)" }}
-              onClick={() => fileRef.current?.click()}
-              title={tr("Нажмите чтобы загрузить фото","Rasm yuklash uchun bosing")}
+              onClick={canEdit ? () => fileRef.current?.click() : undefined}
+              title={canEdit ? tr("Нажмите чтобы загрузить фото","Rasm yuklash uchun bosing") : undefined}
             >
               {uploadPhoto.isPending ? (
                 <Loader2 size={28} className="text-primary animate-spin" />
@@ -129,10 +141,12 @@ export default function ProductDetail() {
               ) : (
                 <Package size={28} className="text-primary" />
               )}
+              {canEdit && (
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 rounded-xl">
                 <Camera size={18} color="#fff" />
                 <span className="text-white text-[10px] font-medium">{tr("Загрузить","Yuklash")}</span>
               </div>
+              )}
             </div>
           </div>
           <div className="flex-1">

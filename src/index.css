@@ -1246,23 +1246,24 @@
      ANIMATIONS
      ══════════════════════════════════════════════════════════════════════ */
   /*
-     Последний кадр — «none», а не «translateY(0)». Разница невидимая, но
-     решающая.
+     Ни одна анимация здесь не заливает результат (forwards).
 
-     Все три анимации ниже стоят с forwards, то есть последний кадр остаётся
-     применённым навсегда. Пока там был translateY(0), элемент до конца жизни
-     держал transform — а любой transform, кроме none, делает элемент точкой
-     отсчёта для position: fixed внутри себя.
+     Любой transform, кроме none, делает элемент точкой отсчёта для
+     position: fixed внутри себя, а заливка держит transform до конца жизни
+     элемента. Обёртка страницы в Layout.tsx — .animate-fade-up, и из-за
+     этого «низ экрана» для всего её содержимого означал низ обёртки: панель
+     с кнопкой «Продолжить» вставала посреди экрана, а под ней до нижней
+     навигации оставалась мёртвая полоса.
 
-     Обёртка страницы в Layout.tsx как раз .animate-fade-up. Поэтому «низ
-     экрана» для всего, что внутри, означал низ этой обёртки: панель с кнопкой
-     «Продолжить» вставала посреди экрана, а под ней до нижней навигации
-     оставалась мёртвая полоса. Корзина и модальные окна обходили это порталом
-     в body — теперь обход нужен только тем, кому важно всплыть над чужими
-     слоями, а не самой позиции.
+     Написать в последнем кадре «transform: none» НЕ помогает, и не
+     упоминать transform в последнем кадре — тоже: заливка в обоих случаях
+     оставляет свойство анимированным, и computed остаётся
+     matrix(1, 0, 0, 1, 0, 0). Проверено в браузере 06.09.2026 на всех трёх
+     вариантах; чистый transform: none даёт только отказ от forwards.
 
-     На «none» интерполяция идёт как на единичную матрицу, так что выглядит
-     всё ровно так же.
+     Кадры всё равно заканчиваются на «none», а не на «translateY(0)»: на
+     none интерполяция идёт как на единичную матрицу, выглядит так же, и
+     свойство не тянет за собой лишнего смысла.
   */
   @keyframes fadeUp {
     from { opacity: 0; transform: translateY(8px); }
@@ -1301,16 +1302,31 @@
      отсчёта для position: fixed внутри. Подробности в tailwind.config.js, там
      живёт одноимённое правило, которое сейчас и побеждает в каскаде; здесь то
      же самое, чтобы смена порядка ничего не вернула.
-     У .stagger-children ниже forwards остаётся: там базовая opacity 0, и без
-     заливки содержимое просто исчезло бы после анимации. */
+     У .stagger-children ниже вместо заливки стоит backwards — см. пояснение
+     там же. */
   /* Цель для пальца: 44 точки — нижняя граница, на которой попадают надёжно.
      В точках, а не в rem: базовый размер здесь 14px, и h-11 дал бы 38.5.
      См. пояснение у html { font-size } выше. */
   .tap { min-height: 44px; min-width: 44px; }
 
+  /*
+    Ни одна из трёх не заливает результат.
+
+    fade-up вылечили раньше, а slide-up и scale-in остались с forwards — та
+    же ловушка, только в других местах: карточки, таблицы и всплывающие
+    окна. Пока анимация с forwards держит transform, элемент до конца жизни
+    остаётся точкой отсчёта для position: fixed внутри себя.
+
+    Проверено в браузере (06.09.2026): с forwards computed остаётся
+    matrix(1, 0, 0, 1, 0, 0) и в случае «transform: none» в последнем кадре,
+    и когда transform в последнем кадре не упомянут вовсе. Помогает только
+    отказ от заливки — у всех трёх конечное состояние и так совпадает с
+    собственным стилем элемента (opacity 1, transform none), так что видимой
+    разницы нет.
+  */
   .animate-fade-up { animation: fadeUp .3s ease; }
-  .animate-slide-up { animation: slideUp .4s cubic-bezier(.16,1,.3,1) forwards; }
-  .animate-scale-in { animation: scaleIn .3s ease forwards; }
+  .animate-slide-up { animation: slideUp .4s cubic-bezier(.16,1,.3,1); }
+  .animate-scale-in { animation: scaleIn .3s ease; }
 
   @keyframes slideIn {
     from { transform: translateX(-100%); }
@@ -1319,14 +1335,26 @@
   .animate-slide-in {
     animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   }
-  .animate-count-up { animation: countUp 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards; }
+  .animate-count-up { animation: countUp 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94); }
   .animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
   .animate-float { animation: float 3s ease-in-out infinite; }
 
-  /* Stagger children */
+  /*
+    Stagger children — backwards вместо «opacity: 0 + forwards».
+
+    Заливка тут была нужна не сама по себе, а чтобы дети не мигнули до
+    своей задержки: базовая opacity 0 и forwards, который удерживал
+    результат. Побочно это оставляло transform, то есть ту же ловушку для
+    position: fixed — а в staggered-списках лежат карточки, внутри которых
+    со временем заводится что угодно.
+
+    backwards закрывает ровно первую половину: до старта элемент показан
+    первым кадром (opacity 0), после конца — своим собственным стилем
+    (opacity 1, transform none). Проверено в браузере: во время задержки
+    opacity 0, после анимации transform none.
+  */
   .stagger-children > * {
-    opacity: 0;
-    animation: fadeUp .4s ease forwards;
+    animation: fadeUp .4s ease backwards;
   }
   .stagger-children > *:nth-child(1) { animation-delay: 0s; }
   .stagger-children > *:nth-child(2) { animation-delay: 0.06s; }

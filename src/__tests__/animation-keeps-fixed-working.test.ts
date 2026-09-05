@@ -45,6 +45,35 @@ describe("анимация обёртки не ломает position: fixed", ()
     expect(fadeUpRule(read("src/index.css")), "forwards вернулся в index.css").not.toContain("forwards");
   });
 
+  it("ни одна анимация-утилита не заливает результат", () => {
+    /*
+      Правило шире одного класса: forwards держит transform у ЛЮБОЙ анимации,
+      а живут они в карточках, таблицах и всплывающих окнах — то есть ровно
+      там, где потом заводится position: fixed. Так и осталось у slide-up,
+      scale-in, count-up и slide-in после того, как fade-up вылечили.
+
+      Проверено в браузере 06.09.2026: с forwards computed остаётся
+      matrix(1, 0, 0, 1, 0, 0) и когда в последнем кадре «transform: none», и
+      когда transform там не упомянут вовсе. Помогает только отказ от заливки;
+      где она нужна ради opacity (stagger-children), её заменяет backwards —
+      он показывает первый кадр ДО старта и ничего не держит после конца.
+    */
+    const css = read("src/index.css");
+    const cssRules = css.split("\n").filter(l => /^\s*\.(animate-[\w-]+|stagger-children\b)/.test(l) || /^\s*animation:\s/.test(l));
+    expect(cssRules.length, "правила анимаций не нашлись").toBeGreaterThan(5);
+    for (const rule of cssRules) {
+      expect(rule, `заливка вернулась: ${rule.trim()}`).not.toMatch(/\bforwards\b/);
+    }
+
+    const tw = read("tailwind.config.js");
+    const at = tw.indexOf("animation: {");
+    expect(at, "список анимаций Tailwind не найден").toBeGreaterThan(0);
+    const list = tw.slice(at, tw.indexOf("},", at));
+    for (const line of list.split("\n").filter(l => /^\s*"[\w-]+":\s*"/.test(l))) {
+      expect(line, `заливка вернулась в Tailwind: ${line.trim()}`).not.toMatch(/\bforwards\b/);
+    }
+  });
+
   it("обёртка страницы всё ещё помечена этим классом", () => {
     // Если класс с <main> уберут, беда исчезнет сама и тест станет лишним —
     // пусть тогда упадёт и заставит перечитать эту заметку.

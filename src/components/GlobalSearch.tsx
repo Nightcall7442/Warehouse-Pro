@@ -1,8 +1,10 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { Search, Store, Package, ClipboardList, X } from "lucide-react";
 import { useTranslate } from "@/i18n";
+import { useAuth } from "@/hooks/useAuth";
+import { canOperate, canSupervise } from "@/lib/permissions";
 
 export function GlobalSearch() {
   const tr = useTranslate();
@@ -10,6 +12,8 @@ export function GlobalSearch() {
   const [query, setQuery] = useState("");
   const inputRef          = useRef<HTMLInputElement>(null);
   const navigate          = useNavigate();
+  const { user }          = useAuth();
+  const role              = user?.role;
 
   // Cmd+K / Ctrl+K to open
   useEffect(() => {
@@ -32,13 +36,43 @@ export function GlobalSearch() {
     }
   }, [open]);
 
-  const { data: shops    } = trpc.shop.list.useQuery(    { search: query, pageSize: 5 }, { enabled: query.length > 1 });
-  const { data: products } = trpc.product.list.useQuery( { search: query, pageSize: 5 }, { enabled: query.length > 1 });
-  const { data: orders   } = trpc.order.list.useQuery(   { search: query, pageSize: 5 }, { enabled: query.length > 1 });
+  /*
+    Ищем только там, куда роль пускают.
 
-  const hasResults = (shops?.data?.length ?? 0) + (products?.data?.length ?? 0) + (orders?.data?.length ?? 0) > 0;
+    Все три запроса шли за всех: shop.list — managementQuery, поэтому у
+    агента и мерчендайзера раздел «Магазины» в поиске молча оставался
+    пустым (а отказ уходил на каждый набранный запрос); товары и заказы —
+    fieldSalesQuery, то есть у курьера пустым было всё окно.
+
+    У полевых свой список магазинов — те, что закреплены за ними; его и
+    отбираем по строке поиска на месте: он невелик и уже загружен.
+  */
+  const isFieldAgent = role === "agent" || role === "merchandiser";
+  const seesAllShops = canOperate(role) || canSupervise(role);
+  const seesCatalog  = role !== "courier";
+  const searching    = query.length > 1;
+
+  const { data: allShops } = trpc.shop.list.useQuery(    { search: query, pageSize: 5 }, { enabled: searching && seesAllShops });
+  const { data: myShops  } = trpc.agent.myShops.useQuery(undefined,                      { enabled: searching && isFieldAgent });
+  const { data: products } = trpc.product.list.useQuery( { search: query, pageSize: 5 }, { enabled: searching && seesCatalog });
+  const { data: orders   } = trpc.order.list.useQuery(   { search: query, pageSize: 5 }, { enabled: searching && seesCatalog });
+
+  const shopRows = useMemo(() => {
+    if (seesAllShops) return allShops?.data ?? [];
+    const q = query.trim().toLowerCase();
+    return (myShops ?? []).filter(s => s.name.toLowerCase().includes(q)).slice(0, 5);
+  }, [seesAllShops, allShops, myShops, query]);
+
+  const hasResults = shopRows.length + (products?.data?.length ?? 0) + (orders?.data?.length ?? 0) > 0;
 
   const go = (path: string) => { navigate(path); setOpen(false); };
+
+  /*
+    Курьеру искать нечего: ни товары, ни заказы, ни магазины ему не
+    отдадут — у него свой список доставок. Пустое окно «ничего не найдено»
+    на любой запрос хуже отсутствующей кнопки: оно врёт, что не нашлось.
+  */
+  if (!seesAllShops && !seesCatalog && !isFieldAgent) return null;
 
   if (!open) return (
     <button
@@ -88,11 +122,14 @@ export function GlobalSearch() {
             </div>
           ) : (
             <>
-              {(shops?.data?.length ?? 0) > 0 && (
+              {shopRows.length > 0 && (
                 <div>
                   <p style={{ padding: "8px 16px", fontSize: "10px", fontWeight: 600, color: "var(--color-text-tertiary, #6b6760)", textTransform: "uppercase", letterSpacing: "0.08em", background: "var(--color-surface-light, #f6f4f0)" }}>{tr("МАГАЗИНЫ","DO'KONLAR")}</p>
-                  {shops!.data.map((s) => (
-                    <button key={s.id} onClick={() => go(`/shops/${s.id}`)}
+                  {/* Карточка точки — экран офиса, полевому она закрыта. По
+                      его магазину открывается то, зачем он его и искал: новый
+                      заказ на эту точку. */}
+                  {shopRows.map((s) => (
+                    <button key={s.id} onClick={() => go(isFieldAgent ? `/orders/new?shopId=${s.id}` : `/shops/${s.id}`)}
                       className="search-result-item"
                       style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", borderBottom: "1px solid var(--color-border, #d8d5cd)", textAlign: "left", border: "none", cursor: "pointer", borderBottomLeftRadius: "8px", borderBottomRightRadius: "8px" }}>
                       <Store size={16} style={{ color: "var(--color-primary-text)", flexShrink: 0 }}/>

@@ -3,6 +3,8 @@ import { Package, Camera, Loader2 } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { compressImage } from "@/lib/compress-image";
+import { useAuth } from "@/hooks/useAuth";
+import { canOperate } from "@/lib/permissions";
 
 export interface ProductPhotoProps {
   productId: number;
@@ -10,7 +12,16 @@ export interface ProductPhotoProps {
   size?: "sm" | "md" | "lg";
 }
 
+/**
+ * Фото товара. Меняет его тот, кто ведёт каталог.
+ *
+ * product.uploadPhoto — operatorQuery, а карточка стоит в общем списке
+ * товаров, куда ходят и агент с мерчендайзером: они выбирали файл, ждали
+ * сжатие и получали отказ.
+ */
 export function ProductPhoto({ productId, photoUrl, size = "md" }: ProductPhotoProps) {
+  const { user } = useAuth();
+  const canEdit = canOperate(user?.role);
   const fileRef = useRef<HTMLInputElement>(null);
   const utils = trpc.useUtils();
   const upload = trpc.product.uploadPhoto.useMutation({
@@ -30,15 +41,17 @@ export function ProductPhoto({ productId, photoUrl, size = "md" }: ProductPhotoP
   };
   return (
     <div className="relative group" onClick={e => e.stopPropagation()}>
-      <div className={`${dim} rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0 cursor-pointer border border-border-subtle`}
+      <div className={`${dim} rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0 border border-border-subtle ${canEdit ? "cursor-pointer" : ""}`}
         style={{ background: "color-mix(in srgb, var(--color-primary) 8%, transparent)" }}
-        onClick={() => fileRef.current?.click()}>
+        onClick={canEdit ? () => fileRef.current?.click() : undefined}>
         {upload.isPending ? <Loader2 size={iconSize} className="text-primary animate-spin" />
           : photoUrl ? <img src={photoUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
           : <Package size={iconSize} className="text-primary" />}
+        {canEdit && (
         <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl">
           <Camera size={iconSize - 4} color="#fff" />
         </div>
+        )}
       </div>
       <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleFile} />
     </div>

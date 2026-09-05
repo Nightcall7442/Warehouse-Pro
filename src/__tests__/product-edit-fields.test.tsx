@@ -38,6 +38,10 @@ const trpcStub = vi.hoisted(() => {
       delete: { useMutation: mutation },
       uploadPhoto: { useMutation: mutation },
     },
+    // Роль решает, показывать ли «Изменить»: правка товара — operatorQuery,
+    // и полевым эти кнопки не рисуют вовсе (src/__tests__/field-roles.test.ts).
+    // Здесь проверяется сама форма, поэтому смотрим её глазами оператора.
+    auth: { me: { useQuery: query({ id: 1, name: "Оператор", role: "operator" }) } },
     useUtils: () => ({ product: { getById: { invalidate: vi.fn() } } }),
   };
 });
