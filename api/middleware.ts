@@ -386,6 +386,23 @@ export const merchVisitQuery = authedQuery
 // Legacy alias — kept for backward compatibility, prefer fieldSalesQuery/merchVisitQuery
 export const agentQuery = fieldSalesQuery;
 
+/*
+  Свой собственный KPI — включая курьера.
+
+  fieldSalesQuery курьера не пускает, и правильно: за ним магазины, товары и
+  заказы, которых курьеру не надо. Но у него в нижней панели есть «KPI», и
+  маршрут его туда пускает — а обе процедуры страницы отвечали отказом. То
+  есть пункт меню всегда вёл в «не удалось загрузить», и «Повторить»
+  повторяло тот же отказ: запрос отклонён не сбоем, а правами.
+
+  Считать курьеру есть что: расчёт KPI уже берёт доставки по orders.courier_id
+  и собранные деньги по payments.created_by — это его собственные числа.
+  Процедуры на этом виде обязаны отдавать данные ТОЛЬКО вызывающего: ничего
+  чужого он тут увидеть не должен.
+*/
+export const selfKpiQuery = authedQuery
+  .use(requireRole(["ceo", "operator", "agent", "supervisor", "merchandiser", "courier"]));
+
 export const supervisorQuery = authedQuery.use(requireRole(["ceo", "supervisor"])).use(mutationRateLimit("supervisor", 120));
 export const merchQuery      = authedQuery.use(requireRole(["ceo", "supervisor", "merchandiser"]));
 export const courierQuery    = authedQuery.use(requireRole(["ceo", "operator", "courier"])).use(mutationRateLimit("courier", 200));

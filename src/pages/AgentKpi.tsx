@@ -5,7 +5,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { notify } from "@/lib/toast";
 import { COLORS, F } from "@/components/products/constants";
 import { exportToExcel } from "@/lib/excel";
-import { Settings, Loader2, FileDown, Target, ShoppingCart, DollarSign, Users, Package, Star, MapPin, AlertTriangle } from "lucide-react";
+import { Settings, Loader2, FileDown, Target, ShoppingCart, DollarSign, Users, Package, Star, MapPin, AlertTriangle , Truck } from "lucide-react";
 import { ProgressRing } from "@/components/ProgressRing";
 import { RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer } from "recharts";
 import { PremiumSelect } from "@/components/PremiumSelect";
@@ -62,10 +62,41 @@ export default function AgentKpi() {
   const { data: user } = trpc.auth.me.useQuery();
 
   const isSupervisor = user?.role === "ceo" || user?.role === "operator" || user?.role === "supervisor";
+  /*
+    Курьер видит свой экран, а не агентский.
+
+    Раньше он попадал в ветку «не начальник», и страница запрашивала ему
+    агентский KPI и зарплату. Оба запроса курьеру отвечали отказом, и пункт
+    «KPI» в его панели всегда вёл в «не удалось загрузить».
+
+    Пустить его в агентский вид было бы не лучше: там визиты, заказы,
+    средний чек, возвраты и магазины — у курьера всего этого нет, он увидел
+    бы экран нулей. Считать ему есть что своё: доставки и собранные деньги,
+    и то и другое расчёт уже берёт по нему самому.
+
+    Зарплату курьеру не показываем вовсе: она считается по заказам, которые
+    человек ОФОРМИЛ, а курьер их не оформляет — вышел бы ноль, выданный за
+    настоящую цифру.
+  */
+  const isCourier = user?.role === "courier";
+  /*
+    Оператор приравнен к директору — решение владельца.
+
+    По правам он теперь видит то же, что руководитель: список агентов и
+    разбор по каждому. А своя зарплата у него фиксированная: комиссия
+    считается процентом от заказов, которые человек ОФОРМИЛ, а оператор их
+    не оформляет — и комиссия, и премия выходят нулём сами собой. Значит его
+    итог равен окладу, который заведён ему в плановой сумме.
+
+    Показать оклад нужно отдельно: страница считает оператора начальником, и
+    в этой ветке своя зарплата не запрашивалась вовсе — он не видел её ни
+    здесь, ни где-либо ещё.
+  */
+  const isOperator = user?.role === "operator";
 
   const { data: myKpi, isLoading: myLoading } = trpc.kpi.agentKpi.useQuery({ period }, { enabled: !isSupervisor });
   const { data: agentList, isLoading: listLoading } = trpc.kpi.agentList.useQuery({ period }, { enabled: isSupervisor });
-  const { data: mySalary } = trpc.kpi.salary.useQuery({ period }, { enabled: !isSupervisor });
+  const { data: mySalary } = trpc.kpi.salary.useQuery({ period }, { enabled: (!isSupervisor && !isCourier) || isOperator });
 
   const [selectedAgentId, setSelectedAgentId] = useState<number | null>(null);
   const { data: selectedKpi, isLoading: detailLoading } = trpc.kpi.agentDetail.useQuery(
@@ -96,7 +127,7 @@ export default function AgentKpi() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 style={{ fontFamily: F.display, fontSize: "24px", fontWeight: 700, color: COLORS.textPrimary, letterSpacing: "-0.02em" }}>
-            {isSupervisor ? t("KPI Агентов", "Agentlar KPI") : t("KPI Агента", "Agent KPI")}
+            {isSupervisor ? t("KPI Агентов", "Agentlar KPI") : isCourier ? t("Мои доставки", "Yetkazishlarim") : t("KPI Агента", "Agent KPI")}
           </h1>
           <p style={{ fontSize: "13px", color: COLORS.textSecondary, marginTop: "4px" }}>
             {isSupervisor ? `${allKpi?.length ?? 0} ${t("агентов", "agentlar")}` : myKpi?.agentName}
@@ -122,7 +153,27 @@ export default function AgentKpi() {
           <div className="w-8 h-8 rounded-full border-3 border-[var(--color-border)] border-t-[var(--color-primary)] animate-spin" />
         </div>
       ) : isSupervisor ? (
-        <SupervisorView kpi={allKpi} selectedKpi={selectedKpi ?? null} selectedSalary={selectedSalary} detailLoading={detailLoading} onSelect={setSelectedAgentId} selectedAgentId={selectedAgentId} fmt={fmt} t={t} lang={lang} />
+        <>
+          {/* Оклад оператора. Показываем, только когда он заведён: карточка
+              с нулём выдавала бы за настоящую цифру то, что просто не
+              заполнено, — а заводится оклад плановой суммой по сотруднику. */}
+          {isOperator && mySalary && mySalary.totalSalary > 0 && (
+            <div className="neo-card" style={{ padding: "16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+              <div>
+                <p style={{ margin: 0, fontSize: "11px", letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--color-text-tertiary)" }}>
+                  {t("Мой оклад", "Mening maoshim")}
+                </p>
+                <p style={{ margin: "2px 0 0", fontSize: "13px", color: "var(--color-text-tertiary)" }}>{mySalary.period}</p>
+              </div>
+              <p data-testid="operator-salary" style={{ margin: 0, fontSize: "22px", fontWeight: 700, color: "var(--color-primary-text)", fontVariantNumeric: "tabular-nums" }}>
+                {fmt(mySalary.totalSalary)}
+              </p>
+            </div>
+          )}
+          <SupervisorView kpi={allKpi} selectedKpi={selectedKpi ?? null} selectedSalary={selectedSalary} detailLoading={detailLoading} onSelect={setSelectedAgentId} selectedAgentId={selectedAgentId} fmt={fmt} t={t} lang={lang} />
+      </>
+      ) : isCourier ? (
+        myKpi ? <CourierView kpi={myKpi} fmt={fmt} t={t} /> : null
       ) : myKpi ? (
         <AgentView kpi={myKpi} salary={mySalary} fmt={fmt} t={t} lang={lang} />
       ) : null}
@@ -132,6 +183,64 @@ export default function AgentKpi() {
 
 // ── Agent View ────────────────────────────────────────────────────────────────
 
+/**
+ * Экран курьера: только то, что он действительно делает.
+ *
+ * Все четыре числа расчёт уже считает по самому курьеру — доставки по
+ * orders.courier_id, деньги по payments.created_by. Ничего нового считать не
+ * понадобилось, нужно было лишь пустить его к своим же числам.
+ */
+function CourierView({ kpi, fmt, t }: {
+  kpi: { deliveryCount: number; deliveredCount: number; failedCount: number; deliverySuccessRate: number; cashCollected: number };
+  fmt: (v: number | string) => string;
+  t: (ru: string, uz: string) => string;
+}) {
+  const rate = kpi.deliverySuccessRate;
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <KpiHero
+          label={t("Доставлено", "Yetkazildi")}
+          value={String(kpi.deliveredCount)}
+          sub={`${t("из", "dan")} ${kpi.deliveryCount}`}
+          color="var(--color-success-text)"
+          progress={kpi.deliveryCount > 0 ? kpi.deliveredCount / kpi.deliveryCount : 0}
+          icon={<Truck size={20} color="var(--color-success-text)" />}
+        />
+        <KpiHero
+          label={t("Доля успешных", "Muvaffaqiyat")}
+          value={`${rate}%`}
+          color={rate >= 90 ? "var(--color-success-text)" : rate >= 70 ? "var(--color-warning-text)" : "var(--color-danger-text)"}
+          progress={rate / 100}
+          icon={<Target size={20} color={rate >= 90 ? "var(--color-success-text)" : "var(--color-warning-text)"} />}
+        />
+        <KpiHero
+          label={t("Сорвано", "Bajarilmadi")}
+          value={String(kpi.failedCount)}
+          color={kpi.failedCount > 0 ? "var(--color-danger-text)" : "var(--color-text-tertiary)"}
+          progress={kpi.deliveryCount > 0 ? kpi.failedCount / kpi.deliveryCount : 0}
+          icon={<AlertTriangle size={20} color={kpi.failedCount > 0 ? "var(--color-danger-text)" : "var(--color-text-tertiary)"} />}
+        />
+        <KpiHero
+          label={t("Собрано денег", "Yig'ilgan pul")}
+          value={fmt(kpi.cashCollected)}
+          color="var(--color-primary-text)"
+          progress={Math.min(1, kpi.cashCollected / 10_000_000)}
+          icon={<DollarSign size={20} color="var(--color-primary-text)" />}
+        />
+      </div>
+
+      {/* Пустой период не оставляем немым: ноль доставок — это либо выходной,
+          либо им ещё не назначали, и человек должен понимать, что не сломалось. */}
+      {kpi.deliveryCount === 0 && (
+        <div className="neo-card" style={{ padding: "24px", textAlign: "center", color: "var(--color-text-tertiary)" }}>
+          <Truck size={32} style={{ margin: "0 auto 10px", display: "block" }} />
+          <p style={{ margin: 0 }}>{t("За этот период доставок не было", "Bu davrda yetkazish bo'lmagan")}</p>
+        </div>
+      )}
+    </div>
+  );
+}
 function AgentView({ kpi, salary, fmt, t, lang }: { kpi: KpiData; salary?: SalaryData; fmt: (v: number) => string; t: (r: string, u: string) => string; lang: Lang }) {
   const grade = GRADES[kpi.kpiGrade] ?? GRADES.F;
   return (

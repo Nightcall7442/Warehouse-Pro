@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, fieldSalesQuery, supervisorQuery } from "./middleware";
+import { createRouter, fieldSalesQuery, supervisorQuery, selfKpiQuery, managementQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { calculateAgentKpi, calculateAllAgentsKpi, calculateSalary, getAgentList } from "./services/kpi";
 import { withCache, CacheTTL } from "./lib/cache";
@@ -7,7 +7,15 @@ import { shops, users } from "@db/schema";
 import { eq, and, sql } from "drizzle-orm";
 
 export const kpiRouter = createRouter({
-  agentKpi: fieldSalesQuery
+  /*
+    selfKpiQuery, а не fieldSalesQuery: сюда добавлен курьер.
+
+    Запрос отдаёт только собственные числа вызывающего — ctx.user.id ниже, —
+    поэтому расширение никому не открывает чужого. Курьеру считаются его
+    доставки (orders.courier_id) и собранные им деньги (payments.created_by);
+    визиты и заказы у него выходят нулями, и страница их ему не показывает.
+  */
+  agentKpi: selfKpiQuery
     .input(z.object({
       period: z.enum(["week", "month", "quarter"]).default("month"),
     }).optional())
@@ -35,7 +43,16 @@ export const kpiRouter = createRouter({
         calculateAllAgentsKpi(db, ctx.tenant.id, periodStart, periodEnd));
     }),
 
-  agentList: supervisorQuery
+  /*
+    managementQuery, а не supervisorQuery: сюда добавлен оператор.
+
+    Решение владельца: оператора считать наравне с директором. И раньше
+    страница KPI уже считала его начальником — запрашивала список агентов и
+    их разбор, — а сервер эти запросы отклонял. Пункт «KPI» в его нижней
+    панели всегда вёл в «не удалось загрузить», и «Повторить» повторяло тот
+    же отказ: заявка отклонена не сбоем, а правами.
+  */
+  agentList: managementQuery
     .input(z.object({
       period: z.enum(["week", "month", "quarter"]).default("month"),
     }).optional())
@@ -47,7 +64,8 @@ export const kpiRouter = createRouter({
       return getAgentList(db, ctx.tenant.id, periodStart, periodEnd);
     }),
 
-  agentDetail: supervisorQuery
+  // Тот же набор ролей, что и у списка выше.
+  agentDetail: managementQuery
     .input(z.object({
       agentId: z.number().int().positive(),
       period: z.enum(["week", "month", "quarter"]).default("month"),
@@ -59,7 +77,8 @@ export const kpiRouter = createRouter({
       return calculateAgentKpi(db, input.agentId, ctx.tenant.id, periodStart, periodEnd);
     }),
 
-  territoryKpi: supervisorQuery
+  // Тот же набор ролей, что и у списка выше.
+  territoryKpi: managementQuery
     .input(z.object({
       territoryId: z.number().int().positive(),
       period: z.enum(["week", "month", "quarter"]).default("month"),
