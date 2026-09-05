@@ -89,7 +89,7 @@ export function BarcodeScanner({ onScan, onClose, label = "Scan barcode" }: Prop
   }, [stopCamera]);
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm app-modal-shell">
       <div className="relative w-full max-w-sm bg-surface rounded-xl overflow-hidden shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border-custom">

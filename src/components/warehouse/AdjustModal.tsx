@@ -29,7 +29,7 @@ export const AdjustModal = memo(function AdjustModal({ productId, productName, c
   const previewWeightKg = unitWeight > 0 ? formatQty(numQty * unitWeight) : null;
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center app-modal-shell"
       style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(12px)" }}>
       <div className="w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl p-6 space-y-5 animate-fade-up"
         style={{ background: "var(--color-surface, #efedea)", boxShadow: "0 -25px 60px -15px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.05) inset" }}>

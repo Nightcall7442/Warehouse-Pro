@@ -132,7 +132,7 @@ export function AppModal({
         style={{ position: "fixed", inset: 0, zIndex: 9999, backgroundColor: "rgba(0,0,0,0.75)" }}
         onClick={() => { if (!dirty) onClose(); }}
       />
-      <div className="pointer-events-auto fixed inset-0 z-[10000] flex items-center justify-center p-4">
+      <div className="pointer-events-auto fixed inset-0 z-[10000] flex items-center justify-center p-4 app-modal-shell">
         <div
           ref={panelRef}
           role="dialog"
@@ -142,7 +142,10 @@ export function AppModal({
           className="relative w-full neo-card animate-scale-in flex flex-col outline-none"
           style={{
             maxWidth: typeof maxWidth === "number" ? `${maxWidth}px` : maxWidth,
-            maxHeight: "90vh",
+            // Не выше оставшейся от клавиатуры полосы: 90vh считается от
+            // полного экрана, и с открытой клавиатурой панель была бы выше
+            // места, которое ей осталось.
+            maxHeight: "min(90vh, calc(100vh - var(--keyboard-inset, 0px) - 32px))",
             borderRadius: "24px",
             padding: 0,
             boxShadow: "0 25px 80px -12px rgba(0,0,0,0.35)",

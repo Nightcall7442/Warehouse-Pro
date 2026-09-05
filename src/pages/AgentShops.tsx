@@ -60,7 +60,7 @@ function AddShopModal({ onClose }: { onClose: () => void }) {
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center app-modal-shell"
       style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }}
     >
       {/* Фон панели — из темы, а не литералом.
@@ -70,8 +70,18 @@ function AddShopModal({ onClose }: { onClose: () => void }) {
           2.69. Форма читалась только на ощупь.
           Соседняя модалка (warehouse/AdjustModal) с самого начала красится
           через var(--color-surface) — здесь теперь так же. */}
+      {/* Панель прокручивается и не выше оставшегося места.
+          Восемь полей, кнопка GPS и заметки на 375×812 не помещались, а
+          прокрутки не было: до «Сохранить» нельзя было добраться вовсе.
+          Высота считается с оглядкой на клавиатуру — та открывается сразу,
+          курсором в первом поле, и прятала кнопки в тот же миг. */}
       <div className="w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-2xl p-5 space-y-4"
-        style={{ background: "var(--color-surface, #efedea)" }}>
+        style={{
+          background: "var(--color-surface, #efedea)",
+          maxHeight: "min(90vh, calc(100vh - var(--keyboard-inset, 0px) - 24px))",
+          overflowY: "auto",
+          overscrollBehavior: "contain",
+        }}>
         {/* Header */}
         <div className="flex items-center justify-between">
           <h2 className="font-display text-lg text-primary">

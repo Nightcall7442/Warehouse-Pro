@@ -42,7 +42,7 @@ export function OneCSetupWizard({ onClose }: { onClose: () => void }) {
   const currentStep = steps.findIndex(s => s.key === step);
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center app-modal-shell"
       style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(12px)" }}>
       <div className="w-full sm:max-w-xl rounded-t-3xl sm:rounded-3xl overflow-hidden animate-fade-up"
         style={{ background: "var(--color-surface)", boxShadow: "0 -25px 60px -15px rgba(0,0,0,0.3)" }}>
