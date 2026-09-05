@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
+import { useAuth } from "@/hooks/useAuth";
+import { canOperate } from "@/lib/permissions";
 
 const STATUS_COLORS: Record<string, string> = {
   new: "var(--color-primary)", processing: "var(--color-warning)", completed: "var(--color-success)", cancelled: "var(--color-danger)",
@@ -158,7 +160,14 @@ export default function ShopDetail() {
   const utils = trpc.useUtils();
 
   const { data: shop, isLoading, isLoadingError, refetch } = trpc.shop.getById.useQuery({ id: Number(id) }, { enabled: !!id });
-  const { data: usersData } = trpc.user.list.useQuery({ page: 1, pageSize: 100 });
+  // Правка, платежи и фото — operatorQuery. Супервайзер карточку смотрит:
+    // долг, историю платежей, заказы точки.
+  const { user } = useAuth();
+  const canEdit = canOperate(user?.role);
+
+  // Список агентов нужен только форме правки, и полный user.list открыт
+  // одному руководителю — поэтому спрашиваем его лишь у тех, кто правит.
+  const { data: usersData } = trpc.user.list.useQuery({ page: 1, pageSize: 100 }, { enabled: canEdit });
   const agents = useMemo(() => (usersData?.data ?? []).filter((u: { role: string }) => u.role === "agent"), [usersData?.data]);
 
   const uploadPhoto = trpc.shop.uploadPhoto.useMutation({
@@ -217,6 +226,7 @@ export default function ShopDetail() {
         <button onClick={() => goBack()} className="neo-btn flex items-center gap-2 py-1.5 px-3 text-sm">
           <ArrowLeft size={18} /><span className="text-sm">{t("Магазины", "Do'konlar")}</span>
         </button>
+        {canEdit && (
         <div className="flex gap-2">
           <button onClick={() => setEditing(v => !v)} className="neo-btn flex items-center gap-1.5 text-sm py-2">
             <Edit2 size={13} />{t("Изменить", "O'zgartirish")}
@@ -225,6 +235,7 @@ export default function ShopDetail() {
             <Trash2 size={13} />
           </button>
         </div>
+        )}
       </div>
 
       {/* Карточка магазина */}
@@ -277,16 +288,19 @@ export default function ShopDetail() {
           <div className="flex items-start gap-4">
             {/* Photo with upload */}
             <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload}/>
-            <div className="relative group flex-shrink-0 cursor-pointer" onClick={() => fileRef.current?.click()}>
+            <div className={`relative group flex-shrink-0 ${canEdit ? "cursor-pointer" : ""}`}
+                 onClick={canEdit ? () => fileRef.current?.click() : undefined}>
               <div className="w-20 h-20 rounded-xl overflow-hidden flex items-center justify-center border border-border-subtle"
                 style={{ background: "color-mix(in srgb, var(--color-primary) 10%, transparent)" }}>
                 {uploadPhoto.isPending ? <Loader2 size={28} className="text-primary animate-spin"/>
                   : shop.photoUrl ? <img src={shop.photoUrl} alt={shop.name} className="w-full h-full object-cover"/>
                   : <Store size={28} className="text-primary"/>}
               </div>
+              {canEdit && (
               <div className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 rounded-xl">
                 <Camera size={18} color="#fff"/><span className="text-white text-[9px]">{t("Фото","Rasm")}</span>
               </div>
+              )}
             </div>
             <div className="flex-1 min-w-0">
               <h1 className="font-display text-xl font-bold text-primary tracking-tight">{shop.name}</h1>
@@ -329,9 +343,13 @@ export default function ShopDetail() {
               <p className="text-xs mt-1 text-success">{t("Задолженности нет", "Qarz yo'q")}</p>
             )}
           </div>
+          {/* shop.addPayment — operatorQuery. Долг супервайзер видит, но
+              деньги в кассу принимает не он. */}
+          {canEdit && (
           <button data-testid="payment-open" onClick={() => setShowPayment(true)} className="neo-btn-primary flex items-center gap-2">
             <Plus size={15} />{t("Добавить платёж", "To'lov qo'shish")}
           </button>
+          )}
         </div>
 
         {/* История платежей */}

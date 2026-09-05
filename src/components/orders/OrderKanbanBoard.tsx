@@ -37,7 +37,11 @@ const COLUMNS: Column[] = [
 interface Props {
   orders: OrderCard[];
   onOrderClick: (orderId: number) => void;
-  onStatusChange: (orderId: number, newStatus: string) => void;
+  /**
+   * Перетаскивание меняет статус, а order.updateStatus — operatorQuery.
+   * Без обработчика доска остаётся доской: смотреть можно, двигать нечем.
+   */
+  onStatusChange?: (orderId: number, newStatus: string) => void;
   currency?: string;
 }
 
@@ -79,7 +83,7 @@ export function OrderKanbanBoard({ orders, onOrderClick, onStatusChange, currenc
     const order = orders.find(o => o.id === orderId);
     if (!order || col.statuses.includes(order.status)) return;
 
-    onStatusChange(orderId, col.statuses[0]);
+    onStatusChange?.(orderId, col.statuses[0]);
   }, [orders, onStatusChange]);
 
   return (
@@ -121,7 +125,7 @@ export function OrderKanbanBoard({ orders, onOrderClick, onStatusChange, currenc
                   return (
                     <div
                       key={order.id}
-                      draggable
+                      draggable={!!onStatusChange}
                       onDragStart={(e) => handleDragStart(e, order.id)}
                       onDragEnd={() => setDraggingId(null)}
                       onClick={() => onOrderClick(order.id)}

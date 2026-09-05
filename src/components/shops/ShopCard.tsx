@@ -4,10 +4,22 @@ import { notify } from "@/lib/toast";
 import { compressImage } from "@/lib/compress-image";
 import { Store, MapPin, Phone, Camera, Loader2, AlertCircle, ChevronRight, CheckSquare, Square } from "lucide-react";
 import { F, COLORS, SHADOW } from "./constants";
+import { useAuth } from "@/hooks/useAuth";
+import { canOperate } from "@/lib/permissions";
 
 export interface ShopCardData { id: number; name: string; ownerName: string | null; phone: string | null; city: string | null; district: string | null; status: string; debt: string | null; photoUrl: string | null; agentName: string | null; }
 
+/**
+ * Фото точки. Меняет его тот, кто ведёт магазины.
+ *
+ * shop.uploadPhoto — operatorQuery, а карточка встречается в общем списке:
+ * супервайзер нажимал на фото, выбирал файл и получал отказ уже после
+ * загрузки. Роль спрашиваем прямо здесь: компонент один, а мест, откуда его
+ * рисуют, будет больше.
+ */
 export function ShopPhoto({ shopId, photoUrl, size = "md" }: { shopId: number; photoUrl?: string | null; size?: "sm" | "md" | "lg" }) {
+  const { user } = useAuth();
+  const canEdit = canOperate(user?.role);
   const fileRef = useRef<HTMLInputElement>(null);
   const utils = trpc.useUtils();
   const upload = trpc.shop.uploadPhoto.useMutation({
@@ -27,14 +39,16 @@ export function ShopPhoto({ shopId, photoUrl, size = "md" }: { shopId: number; p
   };
   return (
     <div className="relative group" onClick={e => e.stopPropagation()}>
-      <div className={`${dim} rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0 cursor-pointer border border-border-subtle`}
-        style={{ background: "color-mix(in srgb, var(--color-primary) 8%, transparent)" }} onClick={() => fileRef.current?.click()}>
+      <div className={`${dim} rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0 border border-border-subtle ${canEdit ? "cursor-pointer" : ""}`}
+        style={{ background: "color-mix(in srgb, var(--color-primary) 8%, transparent)" }} onClick={canEdit ? () => fileRef.current?.click() : undefined}>
         {upload.isPending ? <Loader2 size={iconSize} className="text-primary animate-spin" />
           : photoUrl ? <img src={photoUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
           : <Store size={iconSize} className="text-primary" />}
+        {canEdit && (
         <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl">
           <Camera size={iconSize - 4} color="#fff" />
         </div>
+        )}
       </div>
       <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
     </div>

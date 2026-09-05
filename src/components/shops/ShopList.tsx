@@ -3,9 +3,11 @@ import { ShopCard } from "./ShopCard";
 import type { ShopCardData } from "./ShopCard";
 import { COLORS } from "./constants";
 
-export function ShopList({ data, isLoading, lang, fmt, selected, allSelected, onSelectAll, onToggleSelect, onNavigate, page, setPage, total, t }: {
+export function ShopList({ data, isLoading, lang, fmt, selectable = true, selected, allSelected, onSelectAll, onToggleSelect, onNavigate, page, setPage, total, t }: {
   data: ShopCardData[] | undefined; isLoading: boolean; lang: string;
   fmt: (v: number | string | null | undefined, opts?: { decimals?: number }) => string;
+  /** Выделение нужно только для удаления пачкой — у кого его нет, тому и галочки ни к чему. */
+  selectable?: boolean;
   selected: Set<number>; allSelected: boolean; onSelectAll: () => void; onToggleSelect: (id: number) => void;
   onNavigate: (id: number) => void;
   page: number; setPage: (v: number | ((p: number) => number)) => void;
@@ -19,7 +21,7 @@ export function ShopList({ data, isLoading, lang, fmt, selected, allSelected, on
       )) : (
         <>
           {/* Select all */}
-          {data && data.length > 0 && (
+          {selectable && data && data.length > 0 && (
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <button onClick={onSelectAll}
                 style={{ background: "none", border: "none", cursor: "pointer", padding: "4px", display: "flex", alignItems: "center", gap: "6px" }}>
@@ -39,7 +41,7 @@ export function ShopList({ data, isLoading, lang, fmt, selected, allSelected, on
               : data?.map((s, i) => <ShopCard key={s.id} s={s} lang={lang} fmt={fmt} delay={i * 0.03}
                 onClick={() => onNavigate(s.id)}
                 selected={selected.has(s.id)}
-                onToggleSelect={() => onToggleSelect(s.id)}
+                onToggleSelect={selectable ? () => onToggleSelect(s.id) : undefined}
               />)}
           </div>
 

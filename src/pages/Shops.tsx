@@ -9,6 +9,8 @@ import { ExcelImport } from "@/components/ExcelImport";
 import { useNavigate } from "react-router";
 import { FileDown, Upload, Plus, Trash2 } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { useAuth } from "@/hooks/useAuth";
+import { canOperate } from "@/lib/permissions";
 import type { AppRouter } from "../../api/router";
 import type { inferRouterOutputs } from "@trpc/server";
 
@@ -79,8 +81,18 @@ export default function Shops() {
   });
   const { data: territories } = trpc.shop.territories.useQuery();
   const { data: realTerritories } = trpc.territory.list.useQuery();
-  const { data: usersData } = trpc.user.list.useQuery({ page: 1, pageSize: 100 });
-  const agents = useMemo(() => (usersData?.data ?? []).filter((u: { role: string }) => u.role === "agent"), [usersData?.data]);
+  /*
+    agent.listAgents, а не user.list: полный список пользователей открыт
+    только руководителю, и фильтр «по агенту» у супервайзера с оператором
+    молча оставался пустым.
+  */
+  const { data: agentList } = trpc.agent.listAgents.useQuery();
+  const agents = useMemo(() => agentList ?? [], [agentList]);
+
+  // Заводить, править и удалять точки — дело оператора; супервайзер их
+  // смотрит. Сервер думает так же (shop.create и соседи — operatorQuery).
+  const { user } = useAuth();
+  const canEdit = canOperate(user?.role);
   const utils = trpc.useUtils();
 
   const createMutation = trpc.shop.create.useMutation({
@@ -245,6 +257,7 @@ export default function Shops() {
             }}>
             <FileDown size={14} /> Excel
           </button>
+          {canEdit && (<>
           <button onClick={() => setShowImport(v => !v)} style={{
             display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
             fontSize: "13px", fontWeight: 500, borderRadius: "10px",
@@ -272,6 +285,9 @@ export default function Shops() {
           <button onClick={() => setShowForm(!showForm)} className="neo-btn-primary flex items-center gap-2">
             <Plus size={16} /><span className="hidden sm:inline">{t("Добавить", "Qo'shish")}</span>
           </button>
+          </>)}
+          {/* Территории супервайзеру открыты: territory.create и соседи —
+              supervisorQuery, это его работа. */}
           <button onClick={() => setShowTerritoryManager(true)} style={{
             display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px", fontSize: "13px", fontWeight: 500, borderRadius: "10px",
             border: `1px solid ${COLORS.border}`, cursor: "pointer", background: COLORS.surface, color: COLORS.textSecondary,
@@ -282,11 +298,11 @@ export default function Shops() {
       </div>
 
       <div key="shop-form">
-        {showForm && <ShopForm isPending={createMutation.isPending} lang={lang} agents={agents} territories={realTerritories ?? []} onSave={d => createMutation.mutate(d)} onCancel={() => setShowForm(false)} />}
+        {canEdit && showForm && <ShopForm isPending={createMutation.isPending} lang={lang} agents={agents} territories={realTerritories ?? []} onSave={d => createMutation.mutate(d)} onCancel={() => setShowForm(false)} />}
       </div>
 
       <div key="shop-import">
-        {showImport && <ExcelImport type="shops" onDone={() => { setShowImport(false); utils.shop.list.invalidate(); }} onCancel={() => setShowImport(false)} />}
+        {canEdit && showImport && <ExcelImport type="shops" onDone={() => { setShowImport(false); utils.shop.list.invalidate(); }} onCancel={() => setShowImport(false)} />}
       </div>
 
       <ShopStats stats={kpiStats} lang={lang} fmt={fmt} />
@@ -321,12 +337,13 @@ export default function Shops() {
               <CityBreadcrumb city={city} district={district} total={data?.total ?? 0} lang={lang} />
             )}
 
-            {selected.size > 0 && (
+            {canEdit && selected.size > 0 && (
               <SelectionBar count={selected.size} lang={lang} onReset={() => setSelected(new Set())} onBulkDelete={handleBulkDelete} isDeleting={deleteMutation.isPending} />
             )}
 
             <ShopList
               data={data?.data} isLoading={isLoading} lang={lang} fmt={fmt}
+              selectable={canEdit}
               selected={selected} allSelected={allSelected}
               onSelectAll={toggleSelectAll} onToggleSelect={toggleSelect}
               onNavigate={id => navigate(`/shops/${id}`)}

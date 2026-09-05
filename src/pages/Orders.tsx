@@ -166,8 +166,11 @@ function OperatorOrders() {
     onSuccess: (r) => { invalidateOrderCaches(); clearSelection(); notify.success(t(`Курьер назначен: ${r.updated}`, `Kuryer tayinlandi: ${r.updated}`)); },
     onError: (e) => notify.error(e.message),
   });
-  const { data: agentsData } = trpc.user.list.useQuery({ role: "agent", pageSize: 200 });
-  const { data: couriersData } = trpc.user.list.useQuery({ role: "courier", pageSize: 100 });
+  // Оба списка нужны только панели массовых действий, а user.list открыт
+  // одному руководителю: у супервайзера эти два запроса уходили в отказ на
+  // каждом открытии страницы.
+  const { data: agentsData } = trpc.user.list.useQuery({ role: "agent", pageSize: 200 }, { enabled: isOperatorOrCeo });
+  const { data: couriersData } = trpc.user.list.useQuery({ role: "courier", pageSize: 100 }, { enabled: isOperatorOrCeo });
 
   // Apply chip filters to date range
   const effectiveDateFrom = useMemo(() => {
@@ -597,6 +600,12 @@ function OperatorOrders() {
     }
 
     if (OPEN_STATUSES.includes(o.status)) {
+      /*
+        «В работу» и «Выполнен» меняют статус, а order.updateStatus —
+        operatorQuery. Супервайзер видел обе кнопки и получал отказ: первая
+        сразу, вторая — уже после заполнения окна приёмки.
+      */
+      if (!isOperatorOrCeo) return null;
       return (
         <div style={{ display: "flex", gap: "6px" }}>
           {o.status === "new" && (
@@ -903,7 +912,9 @@ function OperatorOrders() {
             paymentMethod: o.paymentMethod ?? "cash",
           }))}
           onOrderClick={setSlideOverOrderId}
-          onStatusChange={(orderId, newStatus) => handleStatusChange(orderId, newStatus)}
+          // Доску супервайзер смотрит, но карточки не двигает: смена статуса
+          // — operatorQuery, и перетаскивание кончалось бы отказом.
+          onStatusChange={isOperatorOrCeo ? (orderId, newStatus) => handleStatusChange(orderId, newStatus) : undefined}
           currency={symbol}
         />
       )}
@@ -985,6 +996,10 @@ function OperatorOrders() {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: COLORS.surfaceLight }}>
+                {/* Выделение нужно только для массовых действий, а они все
+                    operatorQuery. Тому, у кого панели нет, галочки только
+                    обещают то, чего не будет. */}
+                {isOperatorOrCeo && (
                 <th style={{ width: "40px", padding: "12px 8px 12px 16px", textAlign: "center" }}>
                   <button onClick={toggleSelectAll} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
                     {allSelected
@@ -993,6 +1008,7 @@ function OperatorOrders() {
                     }
                   </button>
                 </th>
+                )}
                 {cols.columns.map(c => (
                   <th key={c.id} style={{
                     textAlign: c.align === "right" ? "right" : "left", padding: "12px 16px",
@@ -1029,6 +1045,7 @@ function OperatorOrders() {
                       onMouseLeave={e => (e.currentTarget.style.background = o.deletedAt ? colorMix(COLORS.danger, 3) : "transparent")}
                       onClick={() => setSlideOverOrderId(o.id as number)}
                     >
+                      {isOperatorOrCeo && (
                       <td style={{ padding: "14px 8px 14px 16px", textAlign: "center" }} onClick={e => e.stopPropagation()}>
                         <button onClick={() => toggleSelect(o.id as number)}
                           style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -1038,6 +1055,7 @@ function OperatorOrders() {
                           }
                         </button>
                       </td>
+                      )}
                       {cols.columns.map(c => (
                         <td
                           key={c.id}
@@ -1087,6 +1105,9 @@ function OperatorOrders() {
       )}
     </div>
     {/* ── Bulk Actions Bar ── */}
+    {/* Все действия панели — operatorQuery: массовая смена статуса,
+        назначение агента и курьера, накладные, лист загрузки. */}
+    {isOperatorOrCeo && (
     <OrderBulkActions
       selectedCount={selected.size}
       onClearSelection={() => clearSelection()}
@@ -1149,6 +1170,7 @@ function OperatorOrders() {
       agents={agentsData?.data?.map(a => ({ id: a.id, name: a.name }))}
       couriers={couriersData?.data?.map(c => ({ id: c.id, name: c.name }))}
     />
+    )}
 
     {/* ── Invoice Print Modal ── */}
     <InvoicePrintModal

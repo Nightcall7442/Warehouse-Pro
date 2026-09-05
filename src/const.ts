@@ -59,10 +59,23 @@ export const NAV_ITEMS: Record<string, Array<{ labelKey: string; path: string; i
     { labelKey: "nav.gps",        path: "/agent/gps",      icon: "MapPin"          },
     { labelKey: "nav.settings",   path: "/settings",       icon: "Settings"        },
   ],
+  /*
+    Магазины и заказы супервайзеру открыты на чтение — сервер их ему отдаёт
+    (shop.list — managementQuery, order.list — fieldSalesQuery), а в
+    мобильном приложении «Магазины» у него и так есть вкладкой. В вебе
+    пунктов не было: чтобы посмотреть точку своего агента или его заказ,
+    приходилось знать адрес страницы наизусть.
+
+    Кнопки, которых сервер ему не даст — создание, правка, удаление,
+    импорт, массовые действия, — на самих страницах спрятаны (canOperate в
+    src/lib/permissions.ts).
+  */
   supervisor: [
     { labelKey: "nav.kpi",        path: "/agent/kpi",       icon: "BarChart3"     },
     { labelKey: "nav.tracking",   path: "/supervisor",       icon: "MapPin"     },
     { labelKey: "nav.plans",      path: "/supervisor/plans", icon: "Calendar"   },
+    { labelKey: "nav.shops",      path: "/shops",            icon: "Store"      },
+    { labelKey: "nav.orders",     path: "/orders",           icon: "ClipboardList" },
     { labelKey: "nav.reports",    path: "/reports",          icon: "Activity"  },
     { labelKey: "nav.settings",   path: "/settings",         icon: "Settings"   },
   ],

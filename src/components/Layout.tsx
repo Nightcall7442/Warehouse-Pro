@@ -314,12 +314,15 @@ const BOTTOM_NAV: Record<string, Array<{ ru: string; uz: string; path: string; i
     { ru: "Мои заказы", uz: "Buyurtmalar", path: "/orders",        icon: "ClipboardList" },
     { ru: "Офлайн",     uz: "Oflayn",     path: "/offline-orders", icon: "WifiOff" },
   ],
+  // Настройки уехали в боковое меню, как у руководителя: внизу шесть мест, и
+  // магазины с заказами нужны в работе чаще, чем смена языка.
   supervisor: [
     { ru: "KPI",       uz: "KPI",       path: "/agent/kpi",       icon: "BarChart3" },
     { ru: "Карта",     uz: "Xarita",    path: "/supervisor",       icon: "MapPin", exact: true },
     { ru: "Планы",     uz: "Rejalar",   path: "/supervisor/plans", icon: "Calendar" },
+    { ru: "Магазины",  uz: "Do'konlar", path: "/shops",            icon: "Store" },
+    { ru: "Заказы",    uz: "Buyurtma",  path: "/orders",           icon: "ClipboardList" },
     { ru: "Отчёты",    uz: "Hisobot",   path: "/reports",          icon: "BarChart3" },
-    { ru: "Настройки", uz: "Sozlamalar",path: "/settings",         icon: "Settings" },
   ],
   merchandiser: [
     { ru: "День",     uz: "Kun",       path: "/agent",       icon: "LayoutDashboard", exact: true },
