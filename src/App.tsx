@@ -40,6 +40,7 @@ const AgentShops           = lazyWithRecovery(() => import("./pages/AgentShops")
 const AgentPlans           = lazyWithRecovery(() => import("./pages/AgentPlans"));
 const AgentGps             = lazyWithRecovery(() => import("./pages/AgentGps"));
 const AgentKpi             = lazyWithRecovery(() => import("./pages/AgentKpi"));
+const AgentDebts           = lazyWithRecovery(() => import("./pages/AgentDebts"));
 const CourierDeliveries    = lazyWithRecovery(() => import("./pages/CourierDeliveries"));
 const SupervisorTracking   = lazyWithRecovery(() => import("./pages/SupervisorTracking"));
 const SupervisorPlans      = lazyWithRecovery(() => import("./pages/SupervisorPlans"));
@@ -220,6 +221,9 @@ export default function App() {
           <Route path="/agent/visit/:id" element={<RoleGuard roles={["ceo","agent","merchandiser"]}><MerchandiserVisit /></RoleGuard>} />
           <Route path="/agent/gps"     element={<RoleGuard roles={["ceo","agent"]}><AgentGps /></RoleGuard>} />
           <Route path="/agent/kpi"     element={<RoleGuard roles={["ceo","agent","merchandiser","operator","supervisor","courier"]}><AgentKpi /></RoleGuard>} />
+          {/* Долги по СВОИМ заказам. Роли те же, что у «Дня»: собирает долг
+              тот, кто его создал. */}
+          <Route path="/agent/debts"   element={<RoleGuard roles={["ceo","agent","merchandiser"]}><AgentDebts /></RoleGuard>} />
 
           {/* Courier */}
           <Route path="/deliveries"    element={<RoleGuard roles={["ceo","operator","courier"]}><CourierDeliveries /></RoleGuard>} />

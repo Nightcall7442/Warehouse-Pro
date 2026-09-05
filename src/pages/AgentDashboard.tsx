@@ -30,13 +30,22 @@ const PLAN_STATUS: Record<string, {
 };
 
 // ── KPI карточка ──────────────────────────────────────────────────────────────
-function AgentKpi({ label, value, icon: Icon, color = "indigo" }: {
+/*
+  Карточка сводки. С onTo становится кнопкой и ведёт на свой разбор.
+
+  Долг — единственная цифра здесь, за которой стоит действие: агент едет его
+  собирать. Раньше карточка была просто числом, а список долгов лежал в
+  отчёте, куда агента не пускают, — то есть увидеть сумму он мог, а понять,
+  из чего она сложилась и к кому ехать, нет.
+*/
+function AgentKpi({ label, value, icon: Icon, color = "indigo", onTo }: {
   label: string; value: string | number;
   icon: LucideIcon;
   color?: KpiColor;
+  onTo?: () => void;
 }) {
-  return (
-    <div className="kpi-hero stagger-children flex flex-col gap-3 hover-lift">
+  const body = (
+    <>
       <KpiIcon icon={Icon} color={color} />
       <div>
         <p className="font-data text-2xl font-bold leading-none text-primary">
@@ -46,6 +55,25 @@ function AgentKpi({ label, value, icon: Icon, color = "indigo" }: {
           {label}
         </p>
       </div>
+    </>
+  );
+
+  if (onTo) {
+    return (
+      <button
+        type="button"
+        onClick={onTo}
+        className="kpi-hero stagger-children flex flex-col gap-3 hover-lift text-left"
+        style={{ width: "100%" }}
+      >
+        {body}
+      </button>
+    );
+  }
+
+  return (
+    <div className="kpi-hero stagger-children flex flex-col gap-3 hover-lift">
+      {body}
     </div>
   );
 }
@@ -225,6 +253,7 @@ export default function AgentDashboard() {
           value={fmt(kpis?.shopsDebt ?? 0, true)}
           icon={Wallet}
           color={Number(kpis?.shopsDebt ?? 0) > 0 ? "red" : "green"}
+          onTo={() => navigate("/agent/debts")}
         />
       </div>
 

@@ -483,6 +483,89 @@ function ownerScope(actor: Actor) {
 /** Кто выполняет операцию: идентификатор для записи авторства и роль для прав. */
 type Actor = { id: number; role: string };
 
+/*
+  След от того, кто уменьшил долг магазина.
+
+  Долг гасится двумя путями: записали оплату или отменили долговый заказ.
+  Оба пути открыты полевому агенту, и оба уменьшают то, что магазин должен, —
+  а деньги при этом на руках у агента. Ни один из них раньше не оставлял
+  следа: оплаты в журнал действий не писались вовсе, отмена — тем более, и
+  офис узнавал об изменении долга только если сам заходил и сравнивал цифры.
+
+  Теперь остаётся и запись в журнале, и уведомление операторам с
+  руководителем. Запись — чтобы можно было спросить потом, уведомление —
+  чтобы заметили сразу. Ни то, ни другое агент удалить не может: процедур
+  удаления оплат и записей журнала в системе нет.
+
+  Оба действия делаются «мимо» основной сделки и не должны её ронять: не
+  записалось уведомление — заказ всё равно оформлен, деньги всё равно
+  учтены. Поэтому ошибки здесь только логируются.
+*/
+async function traceDebtChange(
+  db: Db,
+  tenantId: number,
+  actor: Actor,
+  entry: {
+    action: "order.payment_recorded" | "order.cancelled";
+    orderId: number;
+    orderNumber: string;
+    shopId: number;
+    shopName: string;
+    amount: number;
+    remaining?: number;
+    method?: string;
+  },
+): Promise<void> {
+  const { recordAudit } = await import("./audit-log");
+  await recordAudit(db, {
+    tenantId,
+    actorId: actor.id,
+    action: entry.action,
+    targetType: "order",
+    targetId: entry.orderId,
+    meta: {
+      orderNumber: entry.orderNumber,
+      shopId: entry.shopId,
+      shopName: entry.shopName,
+      amount: entry.amount,
+      remaining: entry.remaining,
+      method: entry.method,
+      actorRole: actor.role,
+    },
+  });
+
+  /*
+    Уведомляем только о том, что сделал ПОЛЕВОЙ сотрудник. Оператор и
+    руководитель и так сидят в этой системе — слать им уведомление о
+    собственном действии значит приучить не читать уведомления вовсе.
+  */
+  if (canSettleAnyOrder(actor.role)) return;
+
+  try {
+    const office = await db.select({ id: users.id }).from(users)
+      .where(and(eq(users.tenantId, tenantId), sql`${users.role} IN ('ceo', 'operator')`, eq(users.status, "active")));
+    if (office.length === 0) return;
+
+    const money = entry.amount.toLocaleString("ru");
+    const title = entry.action === "order.payment_recorded"
+      ? `Агент собрал долг: ${money} сум`
+      : `Агент отменил долговый заказ ${entry.orderNumber}`;
+    const message = entry.action === "order.payment_recorded"
+      ? `${entry.shopName} · заказ ${entry.orderNumber}` + (entry.remaining != null ? ` · остаток ${entry.remaining.toLocaleString("ru")} сум` : "")
+      : `${entry.shopName} · долг ${money} сум списан отменой`;
+
+    await db.insert(notifications).values(office.map(o => ({
+      tenantId,
+      userId: o.id,
+      type: "order" as const,
+      title,
+      message,
+      link: `/orders/${entry.orderId}`,
+    })));
+  } catch (err) {
+    logger.error("Не удалось уведомить офис об изменении долга", { orderId: entry.orderId, error: String(err) });
+  }
+}
 async function applyPartialPayment(
   tx: Tx, tenantId: number, actor: Actor,
   input: { orderId: number; paidAmount: string; method: "cash" | "card" | "transfer"; debtDueDate?: string; notes?: string },
@@ -1224,6 +1307,16 @@ export const OrderService = {
   },
 
   async cancel(db: Db, tenantId: number, orderId: number, opts: { userId: number; userRole: string }) {
+    /*
+      Заполняется внутри транзакции, читается после её успеха: писать след
+      изнутри нельзя — откат отменил бы и его, а запись о несостоявшемся
+      списании хуже её отсутствия.
+
+      Держатель, а не простая переменная: анализ потока не видит присваивания
+      внутри замыкания транзакции и считает переменную по-прежнему пустой, а
+      поля внутри ветки — недоступными.
+    */
+    const cancelled: { debt: { total: number; shopId: number } | null } = { debt: null };
     await db.transaction(async (tx) => {
       const isPrivileged = canCancelAnyOrder(opts.userRole);
       const conditions = [eq(orders.id, orderId), eq(orders.tenantId, tenantId)];
@@ -1284,9 +1377,41 @@ export const OrderService = {
       }
       await tx.update(orders).set({ status: "cancelled" }).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), eq(orders.status, "new")));
       await settleShopDebt(tx, tenantId, order.shopId);
+
+      /*
+        Отмена долгового заказа — это списание долга, а не мелочь.
+
+        Долговый заказ должен деньгами с момента оформления, ещё до отгрузки
+        (services/shop-debt.ts). Значит агент может взять с магазина наличные
+        и вместо оплаты отменить заказ: долг исчезнет, деньги останутся на
+        руках, а в системе не будет ни строки. Отмена не писалась ни в
+        журнал, ни в уведомления — узнать об этом было неоткуда.
+
+        Обычную отмену (заказ ещё не в долг) это не трогает: там нечего
+        списывать, и шуметь незачем.
+      */
+      if (order.paymentMethod === "debt") {
+        cancelled.debt = { total: Number(order.total ?? 0), shopId: order.shopId };
+      }
     });
 
     cache.invalidate(CacheKeys.dashboardKpis(Number(tenantId)));
+
+    const debtTrace = cancelled.debt;
+    if (debtTrace) {
+      const [shop] = await db.select({ name: shops.name }).from(shops)
+        .where(and(eq(shops.id, debtTrace.shopId), eq(shops.tenantId, tenantId))).limit(1);
+      const [row] = await db.select({ orderNumber: orders.orderNumber }).from(orders)
+        .where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId))).limit(1);
+      await traceDebtChange(db, tenantId, { id: opts.userId, role: opts.userRole }, {
+        action: "order.cancelled",
+        orderId,
+        orderNumber: String(row?.orderNumber ?? orderId),
+        shopId: debtTrace.shopId,
+        shopName: String(shop?.name ?? "Магазин"),
+        amount: debtTrace.total,
+      });
+    }
 
     return { success: true };
   },
@@ -2135,6 +2260,43 @@ export const OrderService = {
   ) {
     await db.transaction((tx) => applyPartialPayment(tx, tenantId, actor, input));
     cache.invalidate(CacheKeys.dashboardKpis(tenantId));
+
+    /*
+      След оставляем ПОСЛЕ успешной сделки, а не внутри неё: откат унёс бы
+      запись вместе с оплатой, а запись о неслучившемся платеже хуже, чем её
+      отсутствие. Сама оплата уже неудаляема — процедуры удаления платежей в
+      системе нет.
+    */
+    try {
+      const [info] = await db.select({
+        orderNumber: orders.orderNumber,
+        shopId: orders.shopId,
+        shopName: shops.name,
+        total: orders.total,
+      }).from(orders)
+        .leftJoin(shops, eq(shops.id, orders.shopId))
+        .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, tenantId))).limit(1);
+
+      const [sum] = await db.select({
+        paid: sql`COALESCE(SUM(CAST(${payments.amount} AS DECIMAL(15,2))), 0)`,
+      }).from(payments)
+        .where(and(eq(payments.orderId, input.orderId), eq(payments.tenantId, tenantId), eq(payments.type, "payment")));
+
+      const remaining = Math.max(0, Number(info?.total ?? 0) - Number(sum?.paid ?? 0));
+      await traceDebtChange(db, tenantId, actor, {
+        action: "order.payment_recorded",
+        orderId: input.orderId,
+        orderNumber: String(info?.orderNumber ?? input.orderId),
+        shopId: Number(info?.shopId ?? 0),
+        shopName: String(info?.shopName ?? "Магазин"),
+        amount: Number(input.paidAmount),
+        remaining,
+        method: input.method,
+      });
+    } catch (err) {
+      logger.error("Не удалось записать след оплаты", { orderId: input.orderId, error: String(err) });
+    }
+
     return { success: true };
   },
 

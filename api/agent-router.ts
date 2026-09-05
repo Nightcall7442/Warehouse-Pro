@@ -301,6 +301,79 @@ export const agentRouter = createRouter({
   }),
 
   // All active shops in tenant — for order creation & shop picker
+  /*
+    Долги, которые агент создал сам.
+
+    Долговый заказ — это обещание магазина заплатить позже, и собирать его
+    едет тот же агент. Места, где он видел бы свой список, в приложении не
+    было: долг показывался только сводной цифрой на «Дне» и полностью — в
+    отчёте, куда агента не пускают.
+
+    Что считается долгом — ровно то же, что и в расчёте долга магазина
+    (services/shop-debt.ts), иначе суммы у агента и у офиса разошлись бы:
+
+      • отменённые и возвращённые заказы не должны ничего;
+      • заказ «в долг» должен с момента оформления — в этом его смысл;
+      • остальные — только когда товар уехал, то есть со статуса delivered;
+      • из суммы вычитается оплаченное ИМЕННО по этому заказу.
+
+    Выборка сужена до своих заказов: orders.agent_id = вызывающий. Чужие
+    долги агенту не видны, даже в том же магазине.
+  */
+  myDebts: fieldSalesQuery.query(async ({ ctx }) => {
+    const db = getDb();
+    const rows = await db.execute(sql`
+      SELECT
+        o.id                AS orderId,
+        o.order_number      AS orderNumber,
+        o.payment_method    AS paymentMethod,
+        o.status            AS status,
+        o.created_at        AS createdAt,
+        s.id                AS shopId,
+        s.name              AS shopName,
+        s.phone             AS shopPhone,
+        s.address           AS shopAddress,
+        CAST(o.total AS DECIMAL(15,2)) AS total,
+        COALESCE(p.paid, 0)            AS paid,
+        GREATEST(0, CAST(o.total AS DECIMAL(15,2)) - COALESCE(p.paid, 0)) AS remaining
+      FROM orders o
+      JOIN shops s ON s.id = o.shop_id AND s.tenant_id = o.tenant_id
+      LEFT JOIN (
+        SELECT order_id, SUM(CAST(amount AS DECIMAL(15,2))) AS paid
+        FROM payments
+        WHERE tenant_id = ${ctx.tenant.id} AND type = 'payment' AND order_id IS NOT NULL
+        GROUP BY order_id
+      ) p ON p.order_id = o.id
+      WHERE o.tenant_id = ${ctx.tenant.id}
+        AND o.agent_id  = ${ctx.user.id}
+        AND o.deleted_at IS NULL
+        AND o.status NOT IN ('cancelled', 'returned')
+        AND (o.payment_method = 'debt' OR o.status = 'delivered')
+        AND CAST(o.total AS DECIMAL(15,2)) - COALESCE(p.paid, 0) > 0
+      ORDER BY o.created_at ASC
+      LIMIT 500
+    `);
+
+    // Драйвер отдаёт [строки, описание полей]; нужен только первый элемент.
+    // Драйвер отдаёт [строки, описание полей]; нужен только первый элемент.
+    // Через unknown: типы драйвера описывают и результат INSERT, который с
+    // массивом строк не пересекается, и прямое приведение он не пропускает.
+    const list = (Array.isArray(rows) ? rows[0] : rows) as unknown as Array<Record<string, unknown>>;
+    return list.map(r => ({
+      orderId:       Number(r.orderId),
+      orderNumber:   String(r.orderNumber ?? ""),
+      paymentMethod: String(r.paymentMethod ?? "cash"),
+      status:        String(r.status ?? ""),
+      createdAt:     r.createdAt as Date,
+      shopId:        Number(r.shopId),
+      shopName:      String(r.shopName ?? ""),
+      shopPhone:     r.shopPhone == null ? null : String(r.shopPhone),
+      shopAddress:   r.shopAddress == null ? null : String(r.shopAddress),
+      total:         String(r.total ?? "0"),
+      paid:          String(r.paid ?? "0"),
+      remaining:     String(r.remaining ?? "0"),
+    }));
+  }),
   availableShops: fieldSalesQuery
     .input(shopDirectoryInput)
     .query(async ({ input, ctx }) => {
