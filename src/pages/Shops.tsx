@@ -71,7 +71,7 @@ export default function Shops() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [viewMode, setViewMode] = useUrlState("view", "territories", VIEW_CODEC);
 
-  const { data, isLoading, isError, refetch } = trpc.shop.list.useQuery({ page, pageSize: 25, search: debouncedSearch || undefined, city, district, agentId: agentFilter ? Number(agentFilter) : undefined, territoryId: territoryFilter, onlyDebtors: onlyDebtors || undefined, sortBy }, {
+  const { data, isLoading, isLoadingError, refetch } = trpc.shop.list.useQuery({ page, pageSize: 25, search: debouncedSearch || undefined, city, district, agentId: agentFilter ? Number(agentFilter) : undefined, territoryId: territoryFilter, onlyDebtors: onlyDebtors || undefined, sortBy }, {
     // Прошлый список остаётся на экране, пока грузится новый: без этого
     // смена запроса обнуляет data, и страница падает в скелетон на каждый
     // ввод — именно это и выглядело как перезагрузка.
@@ -153,7 +153,7 @@ export default function Shops() {
     navigate("/shops", { replace: true });
   }, [navigate]);
 
-  if (isError) return <QueryErrorFallback onRetry={refetch} />;
+  if (isLoadingError) return <QueryErrorFallback onRetry={refetch} />;
   if (isLoading && !data) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>

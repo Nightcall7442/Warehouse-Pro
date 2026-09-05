@@ -105,7 +105,7 @@ export default function OrderDetail() {
   const isOperatorOrCeo = user?.role === "ceo" || user?.role === "operator";
   const { confirm, dialog } = useConfirm();
 
-  const { data: order, isLoading, isError, refetch } = trpc.order.getById.useQuery(
+  const { data: order, isLoading, isLoadingError, refetch } = trpc.order.getById.useQuery(
     { id: Number(id) }, { enabled: !!id }
   );
 
@@ -314,7 +314,7 @@ export default function OrderDetail() {
     if (ok) updateStatus.mutate({ id: order.id, status: newStatus as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" });
   };
 
-  if (isError) return <QueryErrorFallback onRetry={refetch} />;
+  if (isLoadingError) return <QueryErrorFallback onRetry={refetch} />;
   if (isLoading) return (
     <div className="space-y-4 max-w-4xl mx-auto">
       <div className="h-8 w-48 bg-surface-light animate-pulse rounded"/>

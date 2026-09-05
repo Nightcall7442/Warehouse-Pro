@@ -55,7 +55,7 @@ export function CompanySettings() {
   const { lang } = useLang();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const logoRef = useRef<HTMLInputElement>(null);
-  const { data: settings, isLoading, isError, refetch } = trpc.settings.get.useQuery();
+  const { data: settings, isLoading, isLoadingError, refetch } = trpc.settings.get.useQuery();
   const utils = trpc.useUtils();
   const [form, setForm] = useState<CompanyForm | null>(null);
 
@@ -87,7 +87,7 @@ export function CompanySettings() {
     } catch { notify.error(t("Не удалось обработать изображение", "Rasmni qayta ishlab bo'lmadi")); }
   };
 
-  if (isError) return <QueryErrorFallback onRetry={refetch} />;
+  if (isLoadingError) return <QueryErrorFallback onRetry={refetch} />;
   if (isLoading || !form) return <div className="h-40 bg-surface-light animate-pulse rounded-2xl" />;
 
   const set = (key: keyof CompanyForm) => (e: React.ChangeEvent<HTMLInputElement>) =>

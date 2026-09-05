@@ -51,7 +51,7 @@ export default function ProductDetail() {
   const fileRef = useRef<HTMLInputElement>(null);
   const utils = trpc.useUtils();
 
-  const { data: product, isLoading, isError, refetch } = trpc.product.getById.useQuery({ id: Number(id) }, { enabled: !!id });
+  const { data: product, isLoading, isLoadingError, refetch } = trpc.product.getById.useQuery({ id: Number(id) }, { enabled: !!id });
   // Список уже заведённых категорий — для подсказки в правке.
   const { data: categories } = trpc.product.categories.useQuery();
 
@@ -86,7 +86,7 @@ export default function ProductDetail() {
     if (ok) deleteProduct.mutate({ id: Number(id) });
   };
 
-  if (isError) return <QueryErrorFallback onRetry={refetch} />;
+  if (isLoadingError) return <QueryErrorFallback onRetry={refetch} />;
   if (isLoading) return <div className="h-64 bg-surface-light animate-pulse rounded"/>;
   if (!product) return <div className="text-center py-20 text-secondary">{tr("Товар не найден","Mahsulot topilmadi")}</div>;
 

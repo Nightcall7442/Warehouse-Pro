@@ -71,11 +71,33 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
   }, [items, onChange]);
 
   const setQuantityDirect = useCallback((productId: number, value: string) => {
-    const num = parseFloat(value);
-    if (isNaN(num) || num < 0) return;
     const next = [...items];
     const itemIdx = next.findIndex(i => i.productId === productId);
     if (itemIdx === -1) return;
+
+    /*
+      Пустое поле — это разрешённое промежуточное состояние, а не ошибка.
+
+      Раньше на пустой строке parseFloat давал NaN, и функция выходила, не
+      трогая состояние. Поле управляемое (value={item.quantity}), поэтому
+      React возвращал в разметку прежнее число: агент жал стирание, а цифра
+      не удалялась. Чтобы поменять 3 на 12, приходилось целиться курсором и
+      дописывать вокруг старой цифры.
+
+      Хранить пусто безопасно: строка с неположительным количеством и так
+      отсеивается везде, где считается заказ, — и в проверке перехода на
+      следующий шаг, и в итоговой сумме, и в том, что уходит на сервер
+      (NewOrder.tsx, строки 174, 186, 221). Позиция просто не поедет в заказ,
+      пока в ней не появится число, а «Продолжить» останется погашенной.
+    */
+    if (value === "") {
+      next[itemIdx] = { ...next[itemIdx], quantity: "" };
+      onChange(next);
+      return;
+    }
+
+    const num = parseFloat(value);
+    if (isNaN(num) || num < 0) return;
     if (num === 0) {
       next.splice(itemIdx, 1);
     } else {
@@ -342,7 +364,21 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
                   // выделять надо всю её, а не один край.
                   border: inCart ? "2px solid var(--color-primary)" : "2px solid transparent",
                 }}
-                onClick={() => !inCart && addToCart(product)}
+                /*
+                  Тап по карточке кладёт то, что НАБРАНО, а не одну штуку.
+
+                  Раньше сюда шёл addToCart(product) без количества, то есть
+                  всегда 1, и следом набранное в поле стиралось. Агент вбивал
+                  «12», гасил клавиатуру тапом по этой же карточке — и в
+                  корзину уходила одна штука. Заметить подмену можно было
+                  только открыв корзину, а магазин получал одну пачку вместо
+                  двенадцати.
+                */
+                onClick={() => {
+                  if (inCart) return;
+                  const typed = parseFloat(quickQty[product.id as number] ?? "");
+                  addToCart(product, isNaN(typed) || typed <= 0 ? undefined : typed);
+                }}
               >
                 {/* Строка 1: значок, название, цена — во всю ширину карточки.
                     Раньше эта строка делила место с блоком количества, и на

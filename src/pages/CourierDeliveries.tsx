@@ -36,7 +36,7 @@ export default function CourierDeliveries() {
   const [cashInput, setCashInput] = useState<Record<number, string>>({});
   const invalidateOrderCaches = useInvalidateOrderCaches();
 
-  const { data: deliveries, isLoading, isError, refetch } = trpc.courier.listMyDeliveries.useQuery(undefined);
+  const { data: deliveries, isLoading, isLoadingError, refetch } = trpc.courier.listMyDeliveries.useQuery(undefined);
 
   const markOutForDelivery = trpc.courier.markOutForDelivery.useMutation({
     onSuccess: () => {
@@ -67,7 +67,7 @@ export default function CourierDeliveries() {
     onError: (e) => notify.error(e.message),
   });
 
-  if (isError) return <QueryErrorFallback onRetry={refetch} />;
+  if (isLoadingError) return <QueryErrorFallback onRetry={refetch} />;
   if (isLoading) {
     return (
       <div className="max-w-3xl mx-auto space-y-4 p-4">

@@ -70,7 +70,7 @@ export default function Warehouse() {
   const [showLowStock, setShowLowStock] = useState(false);
 
 
-  const { data, isLoading, isError, refetch } = trpc.warehouseMulti.getStock.useQuery({ warehouseId: warehouseId ?? undefined, search: debouncedSearch || undefined, pageSize: 10000 }, {
+  const { data, isLoading, isLoadingError, refetch } = trpc.warehouseMulti.getStock.useQuery({ warehouseId: warehouseId ?? undefined, search: debouncedSearch || undefined, pageSize: 10000 }, {
     // Прошлый список остаётся на экране, пока грузится новый: без этого
     // смена запроса обнуляет data, и страница падает в скелетон на каждый
     // ввод — именно это и выглядело как перезагрузка.
@@ -167,7 +167,7 @@ export default function Warehouse() {
     { key: "reorder" as const, label: t("Дозаказ", "Qayta buyurtma"), count: reorderSuggestions?.length ?? 0 },
   ], [summary, deadStockItems, reorderSuggestions, t]);
 
-  if (isError) return <QueryErrorFallback onRetry={refetch} />;
+  if (isLoadingError) return <QueryErrorFallback onRetry={refetch} />;
 
   return (
     <>

@@ -77,7 +77,7 @@ export default function PnL() {
     }
   }, [range, customFrom, customTo]);
 
-  const { data, isLoading, isError, refetch } = trpc.analytics.pnl.useQuery({
+  const { data, isLoading, isLoadingError, refetch } = trpc.analytics.pnl.useQuery({
     from,
     to,
     compareWithPrev: true,
@@ -410,7 +410,7 @@ export default function PnL() {
     exportToPDF(`P&L Отчёт: ${from} — ${to}`, html);
   };
 
-  if (isError) return <QueryErrorFallback onRetry={refetch} />;
+  if (isLoadingError) return <QueryErrorFallback onRetry={refetch} />;
   if (isLoading) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>

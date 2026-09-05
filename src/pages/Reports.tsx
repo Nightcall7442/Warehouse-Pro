@@ -29,7 +29,7 @@ export default function Reports() {
   const [apDateFrom, setApDateFrom] = useState(from);
   const [apDateTo, setApDateTo] = useState(to);
 
-  const { data: summary, isLoading: summaryLoading, isError, refetch } = trpc.reports.getDashboardSummary.useQuery();
+  const { data: summary, isLoading: summaryLoading, isLoadingError, refetch } = trpc.reports.getDashboardSummary.useQuery();
   const { data: chart } = trpc.reports.getVisitChart.useQuery({ days });
   const { data: plans } = trpc.reports.getPlanCompletion.useQuery();
   const { data: byShop } = trpc.analytics.salesByShop.useQuery({ dateFrom: from, dateTo: to });
@@ -212,7 +212,7 @@ export default function Reports() {
     exportToPDF(`${t("Сводный отчёт", "Yig'ma hisobot")} — ${format(new Date(), "dd.MM.yyyy")}`, html);
   };
 
-  if (isError) return <QueryErrorFallback onRetry={refetch} />;
+  if (isLoadingError) return <QueryErrorFallback onRetry={refetch} />;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>

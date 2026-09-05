@@ -724,7 +724,7 @@ export default function Arrivals() {
   const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);
   const { confirm, dialog } = useConfirm();
 
-  const { data, isLoading, isError, refetch } = trpc.arrival.list.useQuery({ page, pageSize: 25, status: (status || undefined) as "pending" | "unloading" | "completed" | undefined });
+  const { data, isLoading, isLoadingError, refetch } = trpc.arrival.list.useQuery({ page, pageSize: 25, status: (status || undefined) as "pending" | "unloading" | "completed" | undefined });
   const { data: all } = trpc.arrival.list.useQuery({ page: 1, pageSize: 500 });
   const utils = trpc.useUtils();
 
@@ -765,7 +765,7 @@ export default function Arrivals() {
     fontSize: "13px", fontFamily: F.body, color: COLORS.textPrimary,
   };
 
-  if (isError) return <QueryErrorFallback onRetry={refetch} />;
+  if (isLoadingError) return <QueryErrorFallback onRetry={refetch} />;
   if (isLoading) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>

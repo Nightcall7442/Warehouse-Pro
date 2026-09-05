@@ -157,7 +157,7 @@ export default function ShopDetail() {
   const fileRef = useRef<HTMLInputElement>(null);
   const utils = trpc.useUtils();
 
-  const { data: shop, isLoading, isError, refetch } = trpc.shop.getById.useQuery({ id: Number(id) }, { enabled: !!id });
+  const { data: shop, isLoading, isLoadingError, refetch } = trpc.shop.getById.useQuery({ id: Number(id) }, { enabled: !!id });
   const { data: usersData } = trpc.user.list.useQuery({ page: 1, pageSize: 100 });
   const agents = useMemo(() => (usersData?.data ?? []).filter((u: { role: string }) => u.role === "agent"), [usersData?.data]);
 
@@ -193,7 +193,7 @@ export default function ShopDetail() {
     if (ok) deleteShop.mutate({ id: Number(id) });
   };
 
-  if (isError) return <QueryErrorFallback onRetry={refetch} />;
+  if (isLoadingError) return <QueryErrorFallback onRetry={refetch} />;
   if (isLoading) return (
     <div className="space-y-4">
       <div className="h-8 w-48 bg-surface-light animate-pulse rounded" />

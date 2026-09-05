@@ -58,7 +58,7 @@ export function BrandingSettings() {
   const logoRef = useRef<HTMLInputElement>(null);
   const faviconRef = useRef<HTMLInputElement>(null);
 
-  const { data: branding, isLoading, isError, refetch } = trpc.branding.get.useQuery();
+  const { data: branding, isLoading, isLoadingError, refetch } = trpc.branding.get.useQuery();
   const utils = trpc.useUtils();
   const [form, setForm] = useState<typeof DEFAULTS | null>(null);
 
@@ -101,7 +101,7 @@ export function BrandingSettings() {
     } catch { notify.error(t("Ошибка обработки", "Qayta ishlash xatosi")); }
   };
 
-  if (isError) return <QueryErrorFallback onRetry={refetch} />;
+  if (isLoadingError) return <QueryErrorFallback onRetry={refetch} />;
   if (isLoading || !form) return <div className="h-48 bg-surface-light animate-pulse rounded-2xl" />;
 
   const p = form.primaryColor;

@@ -130,7 +130,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);
 
-  const { data: kpis, isLoading, isError, refetch } = trpc.dashboard.kpis.useQuery();
+  const { data: kpis, isLoading, isLoadingError, refetch } = trpc.dashboard.kpis.useQuery();
   const { data: trends } = trpc.dashboard.trends.useQuery({ range });
   const { data: statusData } = trpc.dashboard.statusBreakdown.useQuery();
   const { data: activity } = trpc.dashboard.activity.useQuery();
@@ -160,7 +160,7 @@ export default function Dashboard() {
   const miniBarRevenue = useMemo(() => revenueTrend.slice(-7), [revenueTrend]);
   const miniBarOrders = useMemo(() => ordersTrend.slice(-7), [ordersTrend]);
 
-  if (isError) return <QueryErrorFallback onRetry={refetch} />;
+  if (isLoadingError) return <QueryErrorFallback onRetry={refetch} />;
   if (isLoading || !kpis) return (
     <div className="stagger-children" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       <div style={{ height: "28px", width: "240px", borderRadius: "12px", background: "var(--color-surface-light)" }} />

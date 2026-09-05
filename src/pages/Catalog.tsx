@@ -193,7 +193,7 @@ export default function Catalog() {
   const [opened, setOpened] = useState<CatalogProduct | null>(null);
   const [quickOrder, setQuickOrder] = useState<{ product: CatalogProduct; qty: number } | null>(null);
 
-  const { data, isLoading, isError, refetch } = trpc.product.listAll.useQuery(undefined);
+  const { data, isLoading, isLoadingError, refetch } = trpc.product.listAll.useQuery(undefined);
   // `data ?? []` прямо в зависимостях давал бы новый пустой массив на каждый
   // рендер, и оба useMemo ниже пересчитывались бы вхолостую.
   const products = useMemo(() => (data ?? []) as unknown as CatalogProduct[], [data]);
@@ -212,7 +212,24 @@ export default function Catalog() {
     );
   }, [products, search, category]);
 
-  if (isError) return <QueryErrorFallback onRetry={refetch} />;
+  /*
+    Экран ошибки — только когда показывать нечего.
+
+    Проверка стояла на одном isError, без оглядки на данные. А react-query
+    при неудачном ОБНОВЛЕНИИ ставит статус «error», не трогая уже полученные
+    данные: товары, цены и остатки в этот момент целиком лежат в памяти
+    телефона. Агент открывал каталог, уходил в заказ, возвращался внутри
+    магазина со слабой связью — и вместо сетки товаров получал красный
+    треугольник. Кнопка «Повторить» повторяла тот же отказ.
+
+    Сойтись этому легко: у клиента retry: false, staleTime 30 секунд и
+    обновление при возврате на вкладку — то есть любое возвращение позже
+    полуминуты запускает перезапрос, и первая же неудача выносила экран.
+
+    Теперь неудачное обновление ничего не отнимает: агент дальше работает с
+    тем, что уже загружено, ровно как в магазине без связи.
+  */
+  if (isLoadingError) return <QueryErrorFallback onRetry={refetch} />;
 
   return (
     <div className="space-y-3">

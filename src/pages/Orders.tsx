@@ -184,7 +184,7 @@ function OperatorOrders() {
   const effectiveStatus = chipFilters.status ?? status;
   const effectivePaymentMethod = chipFilters.paymentMethod;
 
-  const { data, isLoading, isError, refetch } = trpc.order.list.useQuery({
+  const { data, isLoading, isLoadingError, refetch } = trpc.order.list.useQuery({
     page, pageSize: 25,
     search: debouncedSearch || undefined,
     status: (effectiveStatus || undefined) as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" | undefined,
@@ -630,7 +630,7 @@ function OperatorOrders() {
     return deletable && isOperatorOrCeo ? deleteButton(o.id) : null;
   };
 
-  if (isError) return <QueryErrorFallback onRetry={refetch} />;
+  if (isLoadingError) return <QueryErrorFallback onRetry={refetch} />;
 
   return (
     <>

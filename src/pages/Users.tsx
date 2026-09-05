@@ -262,7 +262,7 @@ export default function Users() {
   const { lang } = useLang();
   const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
 
-  const { data, isLoading, isError, refetch } = trpc.user.list.useQuery({
+  const { data, isLoading, isLoadingError, refetch } = trpc.user.list.useQuery({
     page, pageSize: 25,
     search: debouncedSearch || undefined,
     role: isRole(role) ? role : undefined,
@@ -308,7 +308,7 @@ export default function Users() {
     };
   }, [data]);
 
-  if (isError) return <QueryErrorFallback onRetry={refetch} />;
+  if (isLoadingError) return <QueryErrorFallback onRetry={refetch} />;
 
   return (
     <>
