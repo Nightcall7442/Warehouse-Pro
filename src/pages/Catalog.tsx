@@ -9,6 +9,7 @@ import { formatQty } from "@/lib/format";
 import { unitLabel } from "@/components/orders/types";
 import { useLang } from "@/i18n";
 import { createPortal } from "react-dom";
+import { useOfflineCopy } from "@/hooks/useOfflineCopy";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    КАТАЛОГ АГЕНТА — то, чем он пользуется у прилавка.
@@ -242,7 +243,13 @@ export default function Catalog() {
   const { data, isLoading, isLoadingError, refetch } = trpc.product.listAll.useQuery(undefined);
   // `data ?? []` прямо в зависимостях давал бы новый пустой массив на каждый
   // рендер, и оба useMemo ниже пересчитывались бы вхолостую.
-  const products = useMemo(() => (data ?? []) as unknown as CatalogProduct[], [data]);
+  // Без связи — отложенная копия: агент в подсобке должен видеть каталог,
+  // а не пустой экран. Что копия устарела, сказано ниже прямо на экране.
+  const { data: catalogData, fromCopy, savedAt } = useOfflineCopy<CatalogProduct[]>(
+    "catalog",
+    data as unknown as CatalogProduct[] | undefined,
+  );
+  const products = useMemo(() => catalogData ?? [], [catalogData]);
 
   const categories = useMemo(() => {
     const set = new Set<string>();
@@ -275,10 +282,26 @@ export default function Catalog() {
     Теперь неудачное обновление ничего не отнимает: агент дальше работает с
     тем, что уже загружено, ровно как в магазине без связи.
   */
-  if (isLoadingError) return <QueryErrorFallback onRetry={refetch} />;
+  // Копия спасает и здесь: запрос не удался, но каталог с прошлого раза
+  // лежит на устройстве — работать можно.
+  if (isLoadingError && products.length === 0) return <QueryErrorFallback onRetry={refetch} />;
 
   return (
     <div className="space-y-3">
+      {/* Копия с устройства — говорим об этом. По остаткам агент
+          разговаривает с магазином, и выдавать вчерашнее за сегодняшнее
+          молча нельзя. */}
+      {fromCopy && (
+        <div data-testid="catalog-offline-copy" style={{
+          padding: "10px 12px", borderRadius: "12px", fontSize: "13px",
+          background: "var(--color-warning-subtle, rgba(220,170,60,.14))",
+          color: "var(--color-warning-text)",
+        }}>
+          {tr("Нет связи. Каталог с устройства", "Aloqa yo'q. Katalog qurilmadan")}
+          {savedAt ? " · " + new Date(savedAt).toLocaleString("ru-RU") : ""}
+        </div>
+      )}
+
       {/* Поиск — первым делом, без плиток статистики над ним. */}
       <div className="relative">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--color-text-tertiary)" }} />

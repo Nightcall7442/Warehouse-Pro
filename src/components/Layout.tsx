@@ -1,7 +1,7 @@
 import { memo, useState, useEffect, useCallback, useMemo } from "react";
 import { LogoMark } from "@/components/brand/Logo";
 import { useLocation, useNavigate } from "react-router";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth, hadSession } from "@/hooks/useAuth";
 import { useNotifications } from "@/hooks/useNotifications";
 import { NAV_ITEMS, pickActivePath, pageKey } from "@/const";
 import { GlobalSearch } from "@/components/GlobalSearch";
@@ -430,8 +430,22 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     staleTime: 5 * 60 * 1000,
   });
 
+  /*
+    Нет связи — это не «войдите заново».
+
+    auth.me при обрыве связи не отвечает, пользователь остаётся пустым, и экран
+    уводил на форму входа. Агент открывал приложение в подсобке без сигнала и
+    упирался в логин, который без связи всё равно не пройти: ни заказ
+    дописать, ни очередь неотправленного посмотреть. А на устройстве у него и
+    каталог, и магазины, и сами эти заказы.
+
+    hadSession() говорит, что в этом браузере кто-то входил. Прав он не даёт и
+    ничего не удостоверяет — любая настоящая проверка по-прежнему на сервере, —
+    но отличить «сессия кончилась» от «пропала связь» его хватает.
+  */
   useEffect(() => {
     if (isLoading || window.__LOGGING_OUT) return;
+    if (!navigator.onLine && hadSession()) return;
     if (!user && location.pathname !== "/login") {
       navigate("/login", { replace: true });
     }

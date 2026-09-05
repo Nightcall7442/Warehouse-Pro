@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router";
 import { LOGIN_PATH } from "@/const";
 import { setSentryUser } from "@/sentry";
+import { clearOfflineCopies, setSessionOwner } from "@/lib/offline-copy";
 
 declare global {
   interface Window { __LOGGING_OUT?: boolean }
@@ -70,6 +71,10 @@ export function useAuth(options?: UseAuthOptions) {
     if (user) {
       setSentryUser({ id: user.id, tenantId: user.tenantId, role: user.role });
       setSessionHint(true);
+      // Кто сейчас за устройством — нужно копиям справочников: они хранятся по
+      // владельцу, а сами из useAuth читать его не могут (это утянуло бы
+      // роутер и запрос auth.me в обычные компоненты вроде каталога).
+      setSessionOwner(user.id);
     } else if (!isLoading) {
       setSentryUser(null);
       setSessionHint(false);
@@ -84,6 +89,16 @@ export function useAuth(options?: UseAuthOptions) {
       // Ошибка сервера — всё равно редиректим на /login
     }
     setSessionHint(false);
+    setSessionOwner(null);
+    /*
+      Справочники, отложенные на устройство, уходят вместе с сессией: на складе
+      телефон и компьютер бывают общими.
+
+      Именно в выходе, а не в эффекте выше. В эффекте это стирало бы копии
+      всякий раз, когда пользователь оказался пуст, — а пуст он и при обрыве
+      связи, то есть ровно тогда, когда копии единственное, что осталось.
+    */
+    clearOfflineCopies();
     // Жёсткий редирект на /login — полная перезагрузка страницы
     window.location.replace(LOGIN_PATH);
   }, []);

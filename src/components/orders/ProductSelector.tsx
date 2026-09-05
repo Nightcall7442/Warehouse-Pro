@@ -7,6 +7,7 @@ import { Package, Search, ShoppingCart, Plus, Minus, Trash2, ChevronUp, ChevronD
 import { unitLabel } from "./types";
 import type { OrderItem } from "./types";
 import { formatQty } from "@/lib/format";
+import { useOfflineCopy } from "@/hooks/useOfflineCopy";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../api/router";
 
@@ -32,7 +33,11 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
   const [quickQty, setQuickQty] = useState<Record<number, string>>({});
   const searchRef = useRef<HTMLInputElement>(null);
 
-  const filtered = (products ?? []).filter((p) =>
+  // Без связи — отложенная копия каталога: иначе офлайн-заказ не из чего
+  // собрать, а ради этого вкладка «Офлайн» и заведена.
+  const { data: catalog, fromCopy } = useOfflineCopy<CatalogProduct[]>("catalog", products);
+
+  const filtered = (catalog ?? []).filter((p) =>
     !search || p.name?.toLowerCase().includes(search.toLowerCase()) || (p.code ?? "").toLowerCase().includes(search.toLowerCase())
   );
 
@@ -308,7 +313,15 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
           <p className="font-label text-[10px] text-secondary tracking-wider">
             {t("КАТАЛОГ ТОВАРОВ", "MAHSULOTLAR KATALOGI")}
           </p>
-          <span className="text-xs text-tertiary">{filtered.length} {t("товаров", "mahsulot")}</span>
+          <span className="text-xs text-tertiary">
+            {filtered.length} {t("товаров", "mahsulot")}
+            {/* Остатки из копии могли устареть — предупреждаем прямо тут. */}
+            {fromCopy && (
+              <span data-testid="selector-offline-copy" style={{ color: "var(--color-warning-text)", marginLeft: "6px" }}>
+                · {t("с устройства", "qurilmadan")}
+              </span>
+            )}
+          </span>
         </div>
 
         {/* Search */}
@@ -363,7 +376,7 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
           </div>
         )}
 
-        {isLoadingError && (
+        {isLoadingError && !catalog?.length && (
           <div className="neo-card-static" style={{ padding: "24px", textAlign: "center" }}>
             <p style={{ margin: "0 0 12px", color: "var(--color-text-secondary)" }}>
               {t("Не удалось загрузить каталог", "Katalogni yuklab bo'lmadi")}

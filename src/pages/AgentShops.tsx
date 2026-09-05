@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { useAuth } from "@/hooks/useAuth";
+import { useOfflineCopy } from "@/hooks/useOfflineCopy";
 
 // ── Форма добавления магазина агентом ─────────────────────────────────────────
 function AddShopModal({ onClose }: { onClose: () => void }) {
@@ -230,7 +231,10 @@ export default function AgentShops() {
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
 
   const { user }                  = useAuth();
-  const { data: shops, isLoading, isLoadingError, refetch } = trpc.agent.myShops.useQuery();
+  const { data: liveShops, isLoading, isLoadingError, refetch } = trpc.agent.myShops.useQuery();
+  // Без связи — отложенная копия: без списка магазинов заказ не начать,
+  // магазин выбирается первым шагом мастера.
+  const { data: shops, fromCopy } = useOfflineCopy<typeof liveShops>("shops", liveShops);
   const navigate                   = useNavigate();
 
   /*
@@ -256,7 +260,9 @@ export default function AgentShops() {
       return mine(a) - mine(b) || (a.name ?? "").localeCompare(b.name ?? "", "ru");
     });
 
-  if (isLoadingError) return <QueryErrorFallback onRetry={refetch} />;
+  // Копия спасает и здесь: запрос не удался, но магазины с прошлого раза
+  // на устройстве есть.
+  if (isLoadingError && !shops?.length) return <QueryErrorFallback onRetry={refetch} />;
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -280,6 +286,13 @@ export default function AgentShops() {
           </h1>
           <p className="text-secondary text-sm mt-0.5">
             {shops?.length ?? 0} {t("магазинов", "ta do'kon")}
+            {/* Список из отложенной копии — говорим об этом: магазин мог
+                появиться или закрыться, пока связи не было. */}
+            {fromCopy && (
+              <span data-testid="shops-offline-copy" style={{ color: "var(--color-warning-text)", marginLeft: "6px" }}>
+                · {t("с устройства", "qurilmadan")}
+              </span>
+            )}
           </p>
         </div>
         <button
