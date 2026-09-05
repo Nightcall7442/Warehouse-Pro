@@ -303,7 +303,7 @@ describe("order.create — stock reservation", () => {
     const caller = orderRouter.createCaller(makeCtx(1, 10, "agent"));
     await expect(
       caller.create({ shopId: 1, items: [{ productId: 2, quantity: 50}] })
-    ).rejects.toThrow(/Недостаточно товара/);
+    ).rejects.toThrow(/на складе \d+, а в заказе \d+/);
 
     const stock = stockTable.find(s => s.productId === 2)!;
     expect(stock.reserved).toBe("0.00");
@@ -485,7 +485,7 @@ describe("order.create — multi-product reservation", () => {
         { productId: 1, quantity: 5},
         { productId: 2, quantity: 50},
       ],
-    })).rejects.toThrow(/Недостаточно товара/);
+    })).rejects.toThrow(/на складе \d+, а в заказе \d+/);
 
     expect(stockTable.find(s => s.productId === 1)!.reserved).toBe("0.00");
     expect(stockTable.find(s => s.productId === 2)!.reserved).toBe("0.00");

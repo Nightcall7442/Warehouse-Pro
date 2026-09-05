@@ -156,30 +156,76 @@ function ProductSheet({ product, onClose, onOrder }: {
           </div>
         </div>
 
-        {/* Счётчик: кнопки 44 точки — нижняя граница уверенного попадания. */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "18px", marginBottom: "16px" }}>
-          <button type="button" aria-label={tr("Меньше", "Kamroq")} onClick={() => setQty(q => Math.max(1, q - 1))}
-            className="neo-btn" style={{ width: 44, height: 44, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Minus size={18} />
-          </button>
-          <span data-testid="catalog-qty" style={{ minWidth: 56, textAlign: "center", fontSize: "28px", fontWeight: 700, color: "var(--color-text-primary)" }}>
-            {qty}
-          </span>
-          <button type="button" aria-label={tr("Больше", "Ko'proq")} onClick={() => setQty(q => q + 1)}
-            className="neo-btn" style={{ width: 44, height: 44, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Plus size={18} />
-          </button>
-        </div>
+        {/* Счётчик: кнопки 44 точки — нижняя граница уверенного попадания.
+            У кончившегося товара его нет вовсе: нажимать в нём нечего, а
+            ниже вместо кнопки «Заказать» стоит предупреждение. */}
+        {stock > 0 && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "18px", marginBottom: "16px" }}>
+            <button type="button" aria-label={tr("Меньше", "Kamroq")} onClick={() => setQty(q => Math.max(1, q - 1))}
+              className="neo-btn" style={{ width: 44, height: 44, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Minus size={18} />
+            </button>
+            <span data-testid="catalog-qty" style={{ minWidth: 56, textAlign: "center", fontSize: "28px", fontWeight: 700, color: "var(--color-text-primary)" }}>
+              {qty}
+            </span>
+            <button type="button" aria-label={tr("Больше", "Ko'proq")} onClick={() => setQty(q => q + 1)}
+              className="neo-btn" style={{ width: 44, height: 44, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Plus size={18} />
+            </button>
+          </div>
+        )}
 
-        <button
-          type="button"
-          data-testid="catalog-order"
-          onClick={() => onOrder(qty)}
-          className="neo-btn-primary"
-          style={{ width: "100%", padding: "14px", fontSize: "15px", fontWeight: 600 }}
-        >
-          {tr("Заказать", "Buyurtma berish")}
-        </button>
+        {/*
+          Товара нет — говорим об этом здесь, а не после разговора.
+
+          Кнопка была активна при нулевом остатке, и заказ уходил на сервер.
+          Сервер его отклоняет: остаток резервируется при СОЗДАНИИ заказа, и
+          при нехватке приходит отказ. То есть агент договаривался с
+          владельцем магазина, обещал привезти — и только потом узнавал, что
+          товара нет. Стоял он при этом уже у прилавка.
+
+          Остаток тут — со склада по умолчанию, и заказ списывается оттуда же
+          (resolveOrderWarehouse в api/services/order.ts). Число, которое
+          видит агент, и число, по которому решает сервер, — одно и то же.
+        */}
+        {stock <= 0 ? (
+          <div
+            data-testid="catalog-out-of-stock"
+            style={{
+              padding: "14px", borderRadius: "12px", textAlign: "center",
+              background: "var(--color-danger-subtle, rgba(220,80,80,.12))",
+            }}
+          >
+            <p style={{ margin: 0, fontWeight: 600, color: "var(--color-danger-text)" }}>
+              {tr("Товар закончился", "Mahsulot tugadi")}
+            </p>
+            <p style={{ margin: "4px 0 0", fontSize: "13px", color: "var(--color-text-tertiary)" }}>
+              {tr("На складе его нет — заказ не примут", "Omborda yo'q — buyurtma qabul qilinmaydi")}
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* Просят больше, чем есть: заказ отклонят целиком, а не урежут. */}
+            {qty > stock && (
+              <p
+                data-testid="catalog-not-enough"
+                style={{ margin: "0 0 10px", fontSize: "13px", color: "var(--color-danger-text)", textAlign: "center" }}
+              >
+                {tr(`На складе только ${formatQty(product.available)}`, `Omborda faqat ${formatQty(product.available)}`)}
+              </p>
+            )}
+            <button
+              type="button"
+              data-testid="catalog-order"
+              onClick={() => onOrder(qty)}
+              disabled={qty > stock}
+              className="neo-btn-primary"
+              style={{ width: "100%", padding: "14px", fontSize: "15px", fontWeight: 600, opacity: qty > stock ? 0.4 : 1 }}
+            >
+              {tr("Заказать", "Buyurtma berish")}
+            </button>
+          </>
+        )}
       </div>
     </div>,
     document.body,

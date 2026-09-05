@@ -1013,7 +1013,7 @@ export const OrderService = {
       const txResult = await db.transaction(async (tx) => {
       // #FIX1: Look up prices from the database, never trust client
       const productIds = items.map(i => i.productId);
-      const productRows = await tx.select({ id: products.id, unitPrice: products.unitPrice, costPrice: products.costPrice })
+      const productRows = await tx.select({ id: products.id, name: products.name, unitPrice: products.unitPrice, costPrice: products.costPrice })
         .from(products)
         .where(and(
           sql`${products.id} IN (${sql.join(productIds.map(id => sql`${id}`), sql`, `)})`,
@@ -1022,9 +1022,12 @@ export const OrderService = {
         ));
       const priceMap = new Map<number, string>();
       const costMap = new Map<number, string>();
+      // Имена — чтобы отказ по остатку называл товар, а не номер строки в базе.
+      const nameMap = new Map<number, string>();
       for (const p of productRows) {
         priceMap.set(p.id, p.unitPrice);
         costMap.set(p.id, p.costPrice);
+        nameMap.set(p.id, p.name);
       }
 
       // Validate all products exist and are active
@@ -1060,14 +1063,27 @@ export const OrderService = {
       const stockMap = new Map<number, typeof stockRows[number]>();
       for (const row of stockRows) stockMap.set(row.productId, row);
 
+      /*
+        Отказ называет товар по имени.
+
+        Здесь стояло «Недостаточно товара на складе (доступно: 0, запрошено:
+        2)» — без единого признака, о каком товаре речь. Агент стоит у
+        прилавка с корзиной из десяти позиций и не знает, какую убрать.
+        Соседняя проверка называла товар номером строки в базе — «товар ID
+        417», — что для человека ничем не лучше.
+
+        Имена берём из тех же товаров, что уже загружены выше для цен:
+        лишнего запроса не нужно.
+      */
       for (const item of items) {
         const stock = stockMap.get(item.productId);
         const available = Number(stock?.available ?? 0);
+        const name = nameMap.get(item.productId) ?? `товар #${item.productId}`;
         if (available < 0) {
-          throw new Error(`Некорректный остаток товара на складе (доступно: ${available}). Обратитесь к администратору.`);
+          throw new Error(`Некорректный остаток на складе: «${name}» (доступно: ${available}). Обратитесь к администратору.`);
         }
         if (available < Number(item.quantity)) {
-          throw new Error(`Недостаточно товара на складе (доступно: ${available}, запрошено: ${item.quantity})`);
+          throw new Error(`«${name}»: на складе ${available}, а в заказе ${item.quantity}`);
         }
       }
 

@@ -342,7 +342,7 @@ describe("stock reservation — order creation", () => {
     const caller = orderRouter.createCaller({ ...makeCtx(1, 10, "agent"), db: mockDb });
     await expect(
       caller.create({ shopId: 1, items: [{ productId: 2, quantity: 50}] })
-    ).rejects.toThrow(/Недостаточно товара/);
+    ).rejects.toThrow(/на складе \d+, а в заказе \d+/);
 
     const stock = stockTable.find(s => s.productId === 2)!;
     expect(stock.reserved).toBe("0.00");
@@ -354,7 +354,7 @@ describe("stock reservation — order creation", () => {
     const caller = orderRouter.createCaller({ ...makeCtx(1, 10, "agent"), db: mockDb });
     await expect(
       caller.create({ shopId: 1, items: [{ productId: 3, quantity: 1}] })
-    ).rejects.toThrow(/Недостаточно товара/);
+    ).rejects.toThrow(/на складе \d+, а в заказе \d+/);
   });
 
   it("reserves stock for multiple items in one order", async () => {

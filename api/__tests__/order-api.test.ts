@@ -304,7 +304,7 @@ describe("order.create — POST /api/orders", () => {
     const caller = orderRouter.createCaller({ ...makeCtx(1, 10), db: mockDb });
     await expect(
       caller.create({ shopId: 1, items: [{ productId: 2, quantity: 50}] })
-    ).rejects.toThrow(/Недостаточно товара/);
+    ).rejects.toThrow(/на складе \d+, а в заказе \d+/);
     expect(ordersTable).toHaveLength(0);
   });
 

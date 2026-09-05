@@ -374,7 +374,7 @@ describe("OrderService.create", () => {
       OrderService.create(mockDb as any, 1, 10, {
         shopId: 1, items: [{ productId: 1, quantity: "200"}],
       }),
-    ).rejects.toThrow(/Недостаточно товара/);
+    ).rejects.toThrow(/на складе \d+, а в заказе \d+/);
 
     expect(ordersTable).toHaveLength(0);
     expect(stockTable.find((s) => s.productId === 1)!.reserved).toBe("0.00");

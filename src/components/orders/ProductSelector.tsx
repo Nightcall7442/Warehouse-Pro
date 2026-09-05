@@ -393,7 +393,22 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
         }}>
           {filtered.map((product) => {
             const inCart = items.find(i => i.productId === product.id);
-            const lowStock = Number(product.available ?? 0) < 10;
+            const stock = Number(product.available ?? 0);
+            const lowStock = stock < 10;
+            /*
+              Товара нет — в корзину он не идёт.
+
+              Остаток резервируется при СОЗДАНИИ заказа, и при нехватке сервер
+              отклоняет весь заказ целиком. То есть агент набирал корзину,
+              договаривался с владельцем магазина, обещал привезти — и только
+              на «Оформить» узнавал, что товара нет. Стоял он при этом уже у
+              прилавка, а отказ приходил на весь заказ, а не на одну строку.
+
+              Остаток здесь — со склада по умолчанию, и списывается заказ
+              оттуда же (resolveOrderWarehouse в api/services/order.ts): число
+              на экране и число, по которому решает сервер, — одно и то же.
+            */
+            const out = stock <= 0;
             const inputVal = quickQty[product.id] || "";
             return (
               <div
@@ -402,7 +417,8 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
                 className="neo-card-sm"
                 style={{
                   display: "flex", flexDirection: "column", gap: "8px", padding: "8px",
-                  cursor: "pointer", transition: "all 0.15s",
+                  cursor: out ? "not-allowed" : "pointer", transition: "all 0.15s",
+                  opacity: out ? 0.55 : 1,
                   // Полоска слева уступила место рамке: у карточки в сетке
                   // выделять надо всю её, а не один край.
                   border: inCart ? "2px solid var(--color-primary)" : "2px solid transparent",
@@ -418,7 +434,7 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
                   двенадцати.
                 */
                 onClick={() => {
-                  if (inCart) return;
+                  if (inCart || out) return;
                   const typed = parseFloat(quickQty[product.id as number] ?? "");
                   addToCart(product, isNaN(typed) || typed <= 0 ? undefined : typed);
                 }}
@@ -467,7 +483,9 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
                     </p>
                     <p style={{ fontSize: "11px", color: "var(--color-text-secondary)", margin: "2px 0 0" }}>
                       {fmt(product.unitPrice)}/{unitLabel(product.unit, lang)}
-                      {lowStock && <span style={{ color: "var(--color-warning-text)", marginLeft: "6px" }}>⚠ {t("мало", "kam")}</span>}
+                      {out
+                        ? <span data-testid={`product-out-${product.id}`} style={{ color: "var(--color-danger-text)", marginLeft: "6px", fontWeight: 600 }}>{t("товар закончился", "mahsulot tugadi")}</span>
+                        : lowStock && <span style={{ color: "var(--color-warning-text)", marginLeft: "6px" }}>⚠ {t("осталось", "qoldi")} {formatQty(product.available)}</span>}
                     </p>
                   </div>
                 </div>
