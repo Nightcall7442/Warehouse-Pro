@@ -27,7 +27,7 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
   const { fmt } = useCurrency();
   const { lang } = useLang();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
-  const { data: products } = trpc.product.listAll.useQuery(undefined);
+  const { data: products, isLoading, isLoadingError, refetch } = trpc.product.listAll.useQuery(undefined);
   const [search, setSearch] = useState("");
   const [quickQty, setQuickQty] = useState<Record<number, string>>({});
   const searchRef = useRef<HTMLInputElement>(null);
@@ -342,6 +342,49 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
             auto-fill вместо жёсткого числа колонок: на телефоне помещается
             две, на широком экране — сколько влезет, при том что каталог
             здесь делит ширину с колонкой корзины. */}
+        {/*
+          Пока грузится и если не загрузилось — говорим об этом.
+
+          Раньше у запроса брались только данные: на плохой связи агент видел
+          «КАТАЛОГ ТОВАРОВ · 0 товаров», поиск и под ним пустоту. Грузится,
+          сломалось или товаров правда нет — понять было неоткуда, и повторить
+          нечем. Офлайн так и оставался навсегда, а значит и офлайновый заказ
+          собрать было не из чего.
+
+          isLoadingError, а не isError: сорванное ОБНОВЛЕНИЕ при уже
+          загруженном каталоге ничего отнимать не должно — агент продолжает
+          набирать заказ по тому, что в памяти.
+        */}
+        {isLoading && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(148px, 1fr))", gap: "10px" }}>
+            {[0, 1, 2, 3].map(i => (
+              <div key={i} className="animate-pulse" style={{ height: "196px", borderRadius: "12px", background: "var(--color-surface-light)" }} />
+            ))}
+          </div>
+        )}
+
+        {isLoadingError && (
+          <div className="neo-card-static" style={{ padding: "24px", textAlign: "center" }}>
+            <p style={{ margin: "0 0 12px", color: "var(--color-text-secondary)" }}>
+              {t("Не удалось загрузить каталог", "Katalogni yuklab bo'lmadi")}
+            </p>
+            <button onClick={() => refetch()} className="neo-btn-primary tap" style={{ padding: "0 24px", borderRadius: "12px" }}>
+              {t("Повторить", "Qayta urinish")}
+            </button>
+          </div>
+        )}
+
+        {!isLoading && !isLoadingError && filtered.length === 0 && (
+          <div style={{ padding: "32px 16px", textAlign: "center", color: "var(--color-text-tertiary)" }}>
+            <Package size={32} style={{ margin: "0 auto 10px", display: "block" }} />
+            <p style={{ margin: 0 }}>
+              {search
+                ? t("Ничего не нашлось", "Hech narsa topilmadi")
+                : t("Каталог пуст", "Katalog bo'sh")}
+            </p>
+          </div>
+        )}
+
         <div style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fill, minmax(148px, 1fr))",

@@ -138,7 +138,16 @@ export function ShopSelector({ shopId, onSelect }: ShopSelectorProps) {
           </p>
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "420px", overflowY: "auto", paddingBottom: "4px" }}>
+        /* Список течёт в общей прокрутке страницы.
+           Здесь стояло maxHeight: 420px, overflowY: auto — отдельная
+           прокрутка поверх прокрутки страницы. На 375×812 это упирало список
+           в невидимую границу посреди экрана: палец докручивал его до конца,
+           дальше ничего, и надо было сообразить провести пальцем по другому
+           месту, чтобы поехала уже сама страница. При десятке магазинов агент
+           решал, что список кончился.
+           Ровно этот приём уже признали ловушкой и убрали из каталога товаров
+           (ProductSelector), а на первом шаге мастера он остался. */
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px", paddingBottom: "4px" }}>
           {filtered?.map((shop) => (
             <button
               key={shop.id}
