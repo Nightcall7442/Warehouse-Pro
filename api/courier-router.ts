@@ -8,6 +8,7 @@ import { logger } from "./lib/logger";
 import { sendPushToUser } from "./services/push-service";
 import { sanitizeString } from "./lib/sanitize";
 import { recalcShopDebt } from "./services/shop-debt";
+import { productLabel } from "./services/order";
 import { recordStockMovement } from "./services/stock-ledger";
 
 export const courierRouter = createRouter({
@@ -524,7 +525,7 @@ export const courierRouter = createRouter({
             // сохраняется молча. Зеркало проверки из services/order.ts:304.
             if (returnedQty > qty) {
               throw new Error(
-                `Возвращено больше, чем в заказе: ${returnedQty} из ${qty} (позиция #${item.id})`,
+                `Возвращено больше, чем в заказе: «${await productLabel(tx, ctx.tenant.id, Number(item.productId))}» — ${returnedQty} из ${qty}`,
               );
             }
 

@@ -547,7 +547,7 @@ describe("returnsRouter", () => {
         shopId: 1,
         reason: "defect",
         items: [{ productId: 1, quantity: 999, unitPrice: 50 }],
-      })).rejects.toThrow("превышает");
+      })).rejects.toThrow(/«.+»: возвращают больше, чем доставили/);
     });
 
     it("throws when cumulative returns exceed original order quantity", async () => {
@@ -561,7 +561,7 @@ describe("returnsRouter", () => {
       await expect(caller.create({
         orderId: 1, shopId: 1, reason: "damaged",
         items: [{ productId: 1, quantity: 8, unitPrice: 50 }],
-      })).rejects.toThrow("превышает доставленное");
+      })).rejects.toThrow(/«.+»: возвращают больше, чем доставили/);
     });
 
     it("возврат ограничен ДОСТАВЛЕННЫМ количеством, а не заказанным", async () => {
@@ -576,7 +576,7 @@ describe("returnsRouter", () => {
       await expect(caller.create({
         orderId: 1, shopId: 1, reason: "defect",
         items: [{ productId: 1, quantity: 6, unitPrice: 50 }],
-      })).rejects.toThrow("превышает доставленное");
+      })).rejects.toThrow(/«.+»: возвращают больше, чем доставили/);
 
       // Ровно доставленное — принимается.
       await expect(caller.create({

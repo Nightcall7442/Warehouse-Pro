@@ -282,7 +282,7 @@ function stockModeFor(status: string): "reserve" | "consumed" | "none" {
  *
  * Запрос уходит только на пути отказа, то есть в редком случае.
  */
-async function productNames(tx: Tx, tenantId: number, productIds: number[]): Promise<Map<number, string>> {
+async function productNames(tx: Tx | Db, tenantId: number, productIds: number[]): Promise<Map<number, string>> {
   const map = new Map<number, string>();
   if (productIds.length === 0) return map;
   try {
@@ -299,7 +299,7 @@ async function productNames(tx: Tx, tenantId: number, productIds: number[]): Pro
 }
 
 /** Имя товара, а если его не нашли — хотя бы номер. */
-async function productLabel(tx: Tx, tenantId: number, productId: number): Promise<string> {
+export async function productLabel(tx: Tx | Db, tenantId: number, productId: number): Promise<string> {
   return (await productNames(tx, tenantId, [productId])).get(productId) ?? `#${productId}`;
 }
 
@@ -532,6 +532,27 @@ async function orderAccessError(
         message: `Этот заказ оформил другой сотрудник. ${action} его может автор заказа, оператор или руководитель.`,
       })
     : new TRPCError({ code: "NOT_FOUND", message: "Заказ не найден" });
+}
+
+/**
+ * От чьего имени смотрят заказы.
+ *
+ * Раньше это был необязательный opts: не передал — выборка не сужается.
+ * Поведение удобное (внутренние вызовы им и пользуются), но забыть его на
+ * пути от человека значит молча отдать чужие заказы, и компилятор об этом
+ * не скажет ни слова — что и случилось с четырьмя процедурами вокруг
+ * карточки заказа.
+ *
+ * Теперь довод обязателен, а «изнутри системы» называется словом. Смысл
+ * прежний: SYSTEM_VIEW не сужает ничего, ровно как отсутствующий opts.
+ */
+export const SYSTEM_VIEW = "system-internal" as const;
+export type OrderViewer = { userId: number; userRole: string } | typeof SYSTEM_VIEW;
+
+/** Сужение выборки для зрителя: у системы и начальства — никакого. */
+function viewerScope(viewer: OrderViewer) {
+  if (viewer === SYSTEM_VIEW) return [];
+  return canSeeAnyOrder(viewer.userRole) ? [] : [eq(orders.agentId, viewer.userId)];
 }
 
 function ownerScope(actor: Actor) {
@@ -808,7 +829,7 @@ async function applyPartialDelivery(
     // pass (deliveredQuantity was set). Re-running would return the same stock
     // to the warehouse and shave the same amount off shop debt a second time.
     if (orderItem.deliveredQuantity !== null) {
-      throw badRequest(`Позиция заказа #${item.itemId} уже обработана как частичная доставка`);
+      throw badRequest(`«${await productLabel(tx, tenantId, orderItem.productId)}» уже проведён частичной доставкой по этому заказу`);
     }
 
     const orderedQty = Number(orderItem.quantity);
@@ -946,7 +967,14 @@ export function isIdempotencyDuplicate(err: unknown): boolean {
 }
 
 export const OrderService = {
-  async list(db: Db, tenantId: number, filters: Record<string, unknown>, opts?: { userId: number; userRole: string }) {
+  /*
+    opts обязателен, а не необязателен.
+
+    Внутри он решает главное — сужать ли выборку до своих заказов, — и пока
+    его можно было не передать, забыть его означало молча открыть чужое. Со
+    звёздочкой это ловил бы только тест; без неё не собирается сборка.
+  */
+  async list(db: Db, tenantId: number, filters: Record<string, unknown>, viewer: OrderViewer) {
     const f = filters as { status?: string; archived?: boolean; agentId?: number; agentIds?: number[]; page?: number; pageSize?: number; search?: string; showDeleted?: boolean; dateFrom?: string; dateTo?: string; paymentMethod?: string };
     const page = f.page ?? 1;
     const limit = f.pageSize ?? 25;
@@ -988,9 +1016,7 @@ export const OrderService = {
     // there would cancel that out and leave deleted orders in neither tab.
     if (!f.showDeleted && f.archived !== true) conditions.push(isNull(orders.deletedAt));
     // P0-14 FIX: Non-privileged users see only their own orders
-    if (opts && !canSeeAnyOrder(opts.userRole)) {
-      conditions.push(eq(orders.agentId, opts.userId));
-    }
+    conditions.push(...viewerScope(viewer));
 
     // users is already joined for the agent; the courier is the same table
     // again and needs its own alias or the two collapse into one another.
@@ -1041,7 +1067,14 @@ export const OrderService = {
     return { data, total: Number(countResult[0]?.count ?? 0), page, pageSize: limit };
   },
 
-  async getById(db: Db, tenantId: number, orderId: number, opts?: { userId: number; userRole: string }) {
+  /*
+    opts обязателен, а не необязателен.
+
+    Внутри он решает главное — сужать ли выборку до своих заказов, — и пока
+    его можно было не передать, забыть его означало молча открыть чужое. Со
+    звёздочкой это ловил бы только тест; без неё не собирается сборка.
+  */
+  async getById(db: Db, tenantId: number, orderId: number, viewer: OrderViewer) {
     // Роль вызывающего принималась параметром и не использовалась (_opts).
     // Из-за этого ограничение списка обходилось одним запросом по id: агент или
     // мерчендайзер перебирал order.getById({id: 1..N}) и по каждому чужому
@@ -1053,9 +1086,7 @@ export const OrderService = {
     // Список привилегированных ролей — тот же, что в list выше: карточка и
     // строка списка показывают один и тот же заказ, и разойдись эти два списка,
     // заказ было бы видно в одном месте и не видно в другом.
-    const scope = opts && !canSeeAnyOrder(opts.userRole)
-      ? [eq(orders.agentId, opts.userId)]
-      : [];
+    const scope = viewerScope(viewer);
 
     const [order] = await db.select({
       id: orders.id, orderNumber: orders.orderNumber, status: orders.status,
@@ -1885,7 +1916,7 @@ export const OrderService = {
         const already = existingItems.find(i => i.productId === productId);
         if (already) {
           throw new Error(
-            `Товар уже есть в заказе — измените количество существующей позиции (itemId ${already.id}), а не добавляйте вторую`,
+            `«${await productLabel(tx, tenantId, productId)}» уже есть в заказе — измените количество существующей позиции, а не добавляйте вторую`,
           );
         }
 
@@ -2451,10 +2482,17 @@ export const OrderService = {
    * Правило видимости то же, что у getById: кто не видит чужие заказы, тот
    * получает только свои. Иначе окно стало бы обходным путём к чужим данным.
    */
-  async getManyForCompletion(db: Db, tenantId: number, orderIds: number[], opts?: { userId: number; userRole: string }) {
+  /*
+    opts обязателен, а не необязателен.
+
+    Внутри он решает главное — сужать ли выборку до своих заказов, — и пока
+    его можно было не передать, забыть его означало молча открыть чужое. Со
+    звёздочкой это ловил бы только тест; без неё не собирается сборка.
+  */
+  async getManyForCompletion(db: Db, tenantId: number, orderIds: number[], viewer: OrderViewer) {
     if (orderIds.length === 0) return [];
 
-    const scope = opts && !canSeeAnyOrder(opts.userRole) ? [eq(orders.agentId, opts.userId)] : [];
+    const scope = viewerScope(viewer);
     const heads = await db.select({
       id: orders.id, orderNumber: orders.orderNumber, status: orders.status,
       total: orders.total, subtotal: orders.subtotal, discount: orders.discount,

@@ -7,6 +7,7 @@ import { eq, and, desc, sql, ne } from "drizzle-orm";
 import { cache, CacheKeys } from "./lib/cache";
 import { sanitizeString } from "./lib/sanitize";
 import { recalcShopDebt } from "./services/shop-debt";
+import { productLabel } from "./services/order";
 import { recordStockMovement } from "./services/stock-ledger";
 
 import { affectedRows } from "./lib/db-rows";
@@ -163,7 +164,7 @@ export const returnsRouter = createRouter({
         for (const item of input.items) {
           const original = orderItemsData.find(o => o.order_items.productId === item.productId);
           if (!original) {
-            throw new Error(`Товар ID ${item.productId} отсутствует в заказе #${input.orderId}`);
+            throw new Error(`«${await productLabel(db, ctx.tenant.id, item.productId)}» нет в этом заказе — вернуть его по нему нельзя`);
           }
           const alreadyReturned = returnedMap.get(item.productId) ?? 0;
           // Вернуть можно только то, что реально доехало до магазина.
@@ -181,7 +182,7 @@ export const returnsRouter = createRouter({
           // в deliveredQty() и в heldQuantity().
           const shipped = Number(original.order_items.deliveredQuantity ?? original.order_items.quantity);
           if (alreadyReturned + Number(item.quantity) > shipped) {
-            throw new Error(`Количество возврата превышает доставленное для товара ID ${item.productId} (уже возвращено: ${alreadyReturned}, доставлено: ${shipped})`);
+            throw new Error(`«${await productLabel(db, ctx.tenant.id, item.productId)}»: возвращают больше, чем доставили — уже возвращено ${alreadyReturned} из ${shipped}`);
           }
         }
         // Use original order unit prices, not client-supplied

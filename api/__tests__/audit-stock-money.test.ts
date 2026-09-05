@@ -272,9 +272,15 @@ describe("order.getById: чужой заказ не отдаётся полев�
     }
   });
 
-  it("без opts (внутренний вызов) поведение прежнее — заказ отдаётся", async () => {
-    const { OrderService } = await import("../services/order");
-    expect((await OrderService.getById(mockDb, 1, 2))?.id).toBe(2);
+  it("внутренний вызов называет себя словом — и видит всё, как раньше", async () => {
+    /*
+      Раньше это выражалось отсутствием довода: не передал opts — выборка не
+      сужается. Удобно и незаметно, а незаметность тут и опасна: забытый
+      актор на пути от человека молча открывал чужие заказы. Теперь у случая
+      есть имя, и поведение у него прежнее.
+    */
+    const { OrderService, SYSTEM_VIEW } = await import("../services/order");
+    expect((await OrderService.getById(mockDb, 1, 2, SYSTEM_VIEW))?.id).toBe(2);
   });
 });
 
