@@ -96,6 +96,19 @@ const KPI_WEIGHTS = {
   debtCollection: 0.10,
 };
 
+/**
+ * Во сколько обходится балл каждый процент подозрительных визитов.
+ *
+ * Один множитель на карточку и на список: пока он стоял числом только в
+ * карточке, список считал балл вообще без штрафа.
+ */
+/** Дата в виде YYYY-MM-DD — как её хранят DATE-колонки. */
+function ymd(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+const FRAUD_PENALTY_WEIGHT = 0.3;
+
 const GRADE_THRESHOLDS = [
   { min: 90, grade: "A" as const },
   { min: 75, grade: "B" as const },
@@ -256,32 +269,49 @@ export async function calculateAgentKpi(
 
   const fraudMetrics = await calculateFraudMetrics(db, agentId, tenantId, periodStart, periodEnd);
 
+  /*
+    Цель — месячная и та, что действовала в показанном периоде.
+
+    Здесь стоял просто «первый попавшийся план этого человека»: без отбора
+    по типу периода, без порядка, limit 1. В salesTargets лежат планы
+    дневные, недельные и месячные за все месяцы, поэтому кольцо «Цель» на
+    экране KPI могло показывать выручку за месяц против ДНЕВНОГО плана —
+    или против плана позапрошлого месяца. Проценты выходили любые.
+
+    Правило то же, что у оклада в calculateSalary: последний месячный план,
+    начавшийся не позже конца показанного периода.
+  */
   const [targetRecord] = preloadedKpis?.targetRevenue != null ? [{ targetAmount: preloadedKpis.targetRevenue }] : await db.select({
     targetAmount: sql<string>`COALESCE(target_amount, '0')`,
   }).from(salesTargets)
     .where(and(
       eq(salesTargets.tenantId, tenantId),
       eq(salesTargets.userId, agentId),
+      eq(salesTargets.periodType, "monthly"),
+      untilDate(salesTargets.periodStart, ymd(periodEnd)),
     ))
+    .orderBy(desc(salesTargets.periodStart))
     .limit(1);
 
   const targetRevenue = Number(targetRecord?.targetAmount ?? 0);
   const targetProgress = targetRevenue > 0 ? Math.min(100, Math.round((revenue / targetRevenue) * 100)) : 0;
 
-  const fraudPenalty = fraudMetrics.fraudRate * 0.3;
-  const kpiScore = Math.max(0, calculateCompositeScore({
+  const kpiScore = kpiScoreOf({
     visitCompletion: visitCompletionRate,
     revenue,
     conversion: orderCount > 0 && totalPlans > 0 ? Math.round((orderCount / totalPlans) * 100) : 0,
     returnRate: 100 - returnRate,
     debtCollection: debtCollectionRate,
-  }) - fraudPenalty);
+  }, fraudMetrics.fraudRate);
 
   const kpiGrade = getGrade(kpiScore);
 
+  // Фильтр по организации обязателен и здесь: без него чужой agentId
+  // возвращал ИМЯ сотрудника другого тенанта (числа-то приходили нулями —
+  // их запросы организацию проверяют).
   const [agent] = preloadedKpis?.agentName != null ? [{ name: preloadedKpis.agentName }] : await db.select({ name: sql<string>`name` })
     .from(users)
-    .where(eq(users.id, agentId))
+    .where(and(eq(users.id, agentId), eq(users.tenantId, tenantId)))
     .limit(1);
 
   const periodLabel = `${periodStart.toISOString().slice(0, 10)} — ${periodEnd.toISOString().slice(0, 10)}`;
@@ -582,6 +612,27 @@ function calculateCompositeScore(metrics: {
   return Math.round(Math.max(0, Math.min(100, score)));
 }
 
+/**
+ * Балл агента: состав минус штраф за подозрительные визиты.
+ *
+ * Одна функция на оба экрана. Пока штраф стоял только в карточке, список
+ * агентов показывал тому же человеку другой балл — и объяснить эту разницу
+ * было нечем: обе цифры назывались «Балл».
+ *
+ * Долю фрода экраны оценивают по-разному (карточка разбирает каждый визит,
+ * список смотрит только на наличие GPS-следов), и это осознанно: полный
+ * разбор на список — сотни запросов. Но ФОРМУЛА одна.
+ */
+export function kpiScoreOf(metrics: {
+  visitCompletion: number;
+  revenue: number;
+  conversion: number;
+  returnRate: number;
+  debtCollection: number;
+}, fraudRate: number): number {
+  return Math.max(0, calculateCompositeScore(metrics) - fraudRate * FRAUD_PENALTY_WEIGHT);
+}
+
 function getGrade(score: number): "A" | "B" | "C" | "D" | "F" {
   for (const t of GRADE_THRESHOLDS) {
     if (score >= t.min) return t.grade;
@@ -612,7 +663,7 @@ export async function getAgentList(
 
   const agentIds = agents.map(a => a.agentId);
 
-  const [orderRows, planRows, returnRows, fraudRows, shopDebtRows] = await Promise.all([
+  const [orderRows, planRows, returnRows, fraudRows, shopDebtRows, returnedMoneyRows] = await Promise.all([
     db.select({
       agentId: orders.agentId,
       orderCount: sql<number>`count(*)`,
@@ -674,6 +725,27 @@ export async function getAgentList(
         eq(shops.status, "active"),
         inArray(shops.agentId, agentIds),
       )).groupBy(shops.agentId),
+
+    /*
+      Завершённые возвраты — их вычитает карточка агента, а список нет.
+
+      Из-за этого один и тот же человек в списке продавал больше, чем в
+      своей карточке, и балл KPI считался с этой завышенной выручки. Тот же
+      класс беды, что уже ловили с мягко удалёнными заказами.
+    */
+    db.select({
+      agentId: orders.agentId,
+      returned: sql<string>`COALESCE(SUM(${returns.totalAmount}), 0)`,
+    }).from(returns)
+      .innerJoin(orders, eq(returns.orderId, orders.id))
+      .where(and(
+        eq(returns.tenantId, tenantId),
+        eq(returns.status, "completed"),
+        isNull(orders.deletedAt),
+        gte(orders.createdAt, periodStart),
+        lte(orders.createdAt, periodEnd),
+        inArray(orders.agentId, agentIds),
+      )).groupBy(orders.agentId),
   ]);
 
   const orderMap = new Map(orderRows.map(r => [r.agentId, r]));
@@ -681,6 +753,7 @@ export async function getAgentList(
   const returnMap = new Map(returnRows.map(r => [r.agentId, r]));
   const gpsMap = new Map(fraudRows.map(r => [r.agentId, r]));
   const debtMap = new Map(shopDebtRows.map(r => [r.agentId, r]));
+  const returnedMoneyMap = new Map(returnedMoneyRows.map(r => [r.agentId, r]));
 
   return agents.map((agent) => {
     const orders = orderMap.get(agent.agentId);
@@ -689,7 +762,8 @@ export async function getAgentList(
     const gps = gpsMap.get(agent.agentId);
 
     const orderCount = Number(orders?.orderCount ?? 0);
-    const revenue = Number(orders?.revenue ?? 0);
+    // За вычетом возвращённого — ровно как в карточке агента.
+    const revenue = Math.max(0, Number(orders?.revenue ?? 0) - Number(returnedMoneyMap.get(agent.agentId)?.returned ?? 0));
     const totalPlans = Number(plans?.totalPlans ?? 0);
     const visitedPlans = Number(plans?.visitedPlans ?? 0);
     const returnCount = Number(rets?.returnCount ?? 0);
@@ -705,13 +779,24 @@ export async function getAgentList(
     const suspiciousVisits = gpsPings === 0 && visitedPlans > 0 ? visitedPlans : 0;
     const fraudRate = visitedPlans > 0 ? Math.round((suspiciousVisits / visitedPlans) * 100) : 0;
 
-    const kpiScore = calculateCompositeScore({
+    /*
+      Штраф за фрод — как в карточке: там балл считается тем же составом
+      минус fraudRate × 0.3, и без штрафа список показывал один балл, а
+      карточка того же человека — другой.
+
+      Сама доля фрода здесь оценивается грубее: карточка разбирает каждый
+      визит (расстояние до точки, дубли, время фото), а список — только по
+      наличию GPS-следов за период, иначе на каждое открытие уходили бы
+      сотни запросов. Поэтому числа сходятся не всегда, но считаются одной
+      формулой из того, что показано рядом.
+    */
+    const kpiScore = kpiScoreOf({
       visitCompletion: visitCompletionRate,
       revenue,
       conversion,
       returnRate: 100 - returnRate, // invert: higher is better
       debtCollection,
-    });
+    }, fraudRate);
 
     return {
       agentId: agent.agentId,
