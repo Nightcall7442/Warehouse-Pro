@@ -273,6 +273,20 @@ export const agentRouter = createRouter({
     }),
 
   // Agent: list shops assigned to this agent
+  /*
+    Все действующие магазины арендатора, а не только закреплённые за агентом.
+
+    Здесь стояло ещё и `shops.agentId = ctx.user.id`. Закрепление магазинов —
+    дело необязательное: у большинства арендаторов его просто не делали, и
+    агент открывал «Магазины» на пустом экране, при том что магазины в
+    организации есть и он их обслуживает. Заказ на такой магазин оформить
+    можно (выбор в мастере идёт через availableShops — там фильтра по агенту
+    нет и не было), а найти его в своём разделе — нельзя.
+
+    Закрепление не пропало: agentId возвращается, и страница ставит свои
+    магазины первыми. Кто за кого отвечает — по-прежнему видно, просто это
+    больше не условие видимости.
+  */
   myShops: fieldSalesQuery.query(async ({ ctx }) => {
     return getDb().select({
       id: shops.id, name: shops.name, ownerName: shops.ownerName,
@@ -280,9 +294,10 @@ export const agentRouter = createRouter({
       district: shops.district, status: shops.status,
       photoUrl: photoRef("shop", shops.id, shops.photoUrl, shops.updatedAt),
       debt: shops.debt, gpsLat: shops.gpsLat, gpsLng: shops.gpsLng,
+      agentId: shops.agentId,
     })
       .from(shops)
-      .where(and(eq(shops.tenantId, ctx.tenant.id), eq(shops.status, "active"), eq(shops.agentId, ctx.user.id)));
+      .where(and(eq(shops.tenantId, ctx.tenant.id), eq(shops.status, "active")));
   }),
 
   // All active shops in tenant — for order creation & shop picker

@@ -609,6 +609,40 @@ describe("agent.myShops", () => {
     const result = await caller.myShops() as any;
     expect(result.length).toBeGreaterThanOrEqual(1);
   });
+
+  /*
+    Магазины арендатора, а не только закреплённые за агентом.
+
+    Здесь стояло ещё и `shops.agentId = ctx.user.id`. Закрепление —
+    необязательное: у большинства арендаторов его не делали, и агент открывал
+    «Магазины» на пустом экране, при том что магазины в организации есть и он
+    их обслуживает. Заказ на такой магазин оформить было можно, а найти в
+    своём разделе — нельзя.
+  */
+  it("не прячет магазины, не закреплённые за этим агентом", async () => {
+    const { agentRouter } = await import("../agent-router");
+    // Два разных агента одного арендатора видят один и тот же список.
+    const первый = await agentRouter.createCaller(makeCtx(1, 10, "agent")).myShops() as any[];
+    const второй = await agentRouter.createCaller(makeCtx(1, 11, "agent")).myShops() as any[];
+    expect(второй.map(s => s.id).sort()).toEqual(первый.map(s => s.id).sort());
+    expect(первый.length).toBeGreaterThan(0);
+  });
+
+  it("закрепление всё ещё видно — по нему строится порядок на экране", async () => {
+    const { agentRouter } = await import("../agent-router");
+    const result = await agentRouter.createCaller(makeCtx(1, 10, "agent")).myShops() as any[];
+    // Без agentId страница не отличит свои магазины от чужих и не поставит
+    // их первыми.
+    expect(result[0]).toHaveProperty("agentId");
+  });
+
+  it("чужой арендатор в список не попадает", async () => {
+    const { agentRouter } = await import("../agent-router");
+    const свои = await agentRouter.createCaller(makeCtx(1, 10, "agent")).myShops() as any[];
+    const чужие = await agentRouter.createCaller(makeCtx(2, 10, "agent")).myShops() as any[];
+    const пересечение = свои.filter(s => чужие.some(o => o.id === s.id));
+    expect(пересечение, "магазины утекли между организациями").toEqual([]);
+  });
 });
 
 describe("agent.listShopsForPlan", () => {

@@ -10,6 +10,7 @@ import {
   Search, X, Loader2, Plus,
 } from "lucide-react";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
+import { useAuth } from "@/hooks/useAuth";
 
 // ── Форма добавления магазина агентом ─────────────────────────────────────────
 function AddShopModal({ onClose }: { onClose: () => void }) {
@@ -218,14 +219,32 @@ export default function AgentShops() {
   const { lang }                  = useLang();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
 
+  const { user }                  = useAuth();
   const { data: shops, isLoading, isLoadingError, refetch } = trpc.agent.myShops.useQuery();
   const navigate                   = useNavigate();
 
-  const filtered = shops?.filter(s =>
-    !search ||
-    s.name?.toLowerCase().includes(search.toLowerCase()) ||
-    s.ownerName?.toLowerCase().includes(search.toLowerCase())
-  );
+  /*
+    Свои магазины — первыми, остальные ниже.
+
+    Раньше сюда приходили только закреплённые за агентом. Закрепление у
+    большинства арендаторов не делали вовсе, и экран открывался пустым при
+    том, что магазины в организации есть и агент их обслуживает. Теперь
+    приходят все действующие, а закрепление превратилось из условия
+    видимости в порядок: за свои агент отвечает, их и надо видеть сверху.
+  */
+  const filtered = shops
+    ?.filter(s =>
+      !search ||
+      s.name?.toLowerCase().includes(search.toLowerCase()) ||
+      s.ownerName?.toLowerCase().includes(search.toLowerCase())
+    )
+    .slice()
+    .sort((a, b) => {
+      const mine = (s: typeof a) => (s.agentId === user?.id ? 0 : 1);
+      // При равенстве — по имени, чтобы порядок не плясал между обновлениями:
+      // сервер отдаёт строки без ORDER BY.
+      return mine(a) - mine(b) || (a.name ?? "").localeCompare(b.name ?? "", "ru");
+    });
 
   if (isLoadingError) return <QueryErrorFallback onRetry={refetch} />;
   if (isLoading) {
@@ -247,7 +266,7 @@ export default function AgentShops() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-display text-2xl font-bold text-primary tracking-tight">
-            {t("Мои магазины", "Mening do'konlarim")}
+            {t("Магазины", "Do'konlar")}
           </h1>
           <p className="text-secondary text-sm mt-0.5">
             {shops?.length ?? 0} {t("магазинов", "ta do'kon")}

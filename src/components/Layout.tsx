@@ -45,7 +45,7 @@ const PAGE_META: Record<string, { title: string; parent?: string; parentPath?: s
   "/billing":           { title: "Биллинг" },
   "/settings":          { title: "Настройки" },
   "/agent":             { title: "Мой день" },
-  "/agent/shops":       { title: "Мои магазины" },
+  "/agent/shops":       { title: "Магазины" },
   "/agent/gps":         { title: "GPS", parent: "Мой день", parentPath: "/agent" },
   "/agent/plans":       { title: "Визиты" },
   "/deliveries":        { title: "Доставки" },

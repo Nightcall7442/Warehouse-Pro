@@ -13,7 +13,7 @@ export const uz = {
     users:       "Foydalanuvchilar",
     settings:    "Sozlamalar",
     agent:       "Mening kunim",
-    myShops:     "Mening do'konlarim",
+    myShops:     "Do'konlar",
     newOrder:    "Yangi buyurtma",
     plans:       "Tashrif rejasi",
     tracking:    "Kuzatuv",

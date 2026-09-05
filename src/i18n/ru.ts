@@ -14,7 +14,7 @@ export const ru = {
     users:       "Пользователи",
     settings:    "Настройки",
     agent:       "Мой день",
-    myShops:     "Мои магазины",
+    myShops:     "Магазины",
     newOrder:    "Новый заказ",
     plans:       "План визитов",
     tracking:    "Слежение",
