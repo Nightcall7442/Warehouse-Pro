@@ -36,3 +36,15 @@ export function sinceDay(col: AnyMySqlColumn, day: string): SQL {
 export function onDate(col: AnyMySqlColumn, day: string): SQL {
   return sql`${col} = ${day}`;
 }
+
+/**
+ * Equivalent of `DATE(col) <= day` for a DATE column.
+ *
+ * Used for effective-dated settings — the salary and commission rate that
+ * were in force during the period being viewed, rather than whatever is set
+ * today. DATE() around the column would work but block the index, same as
+ * above.
+ */
+export function untilDate(col: AnyMySqlColumn, day: string): SQL {
+  return sql`${col} <= ${day}`;
+}

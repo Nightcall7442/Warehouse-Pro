@@ -2,11 +2,13 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { createRouter, fieldSalesQuery, supervisorQuery, selfKpiQuery, managementQuery, financeQuery, adminQuery } from "./middleware";
 import { getDb } from "./queries/connection";
+import { getPeriod } from "./lib/period";
+import { onDate } from "./lib/date-range";
 import { calculateAgentKpi, calculateAllAgentsKpi, calculateSalary, getAgentList } from "./services/kpi";
-import { withCache, CacheTTL } from "./lib/cache";
+import { withCache, CacheTTL, cache, CacheKeys } from "./lib/cache";
 import { recordAudit } from "./services/audit-log";
 import { getClientIp } from "./lib/rate-limit";
-import { salaryPayouts, shops, users } from "@db/schema";
+import { commissions, salaryPayouts, salesTargets, shops, users } from "@db/schema";
 import { alias } from "drizzle-orm/mysql-core";
 import { eq, and, sql, gte, lte, desc } from "drizzle-orm";
 
@@ -154,11 +156,14 @@ export const kpiRouter = createRouter({
   salaryReport: supervisorQuery
     .input(z.object({
       period: z.enum(["week", "month", "quarter"]).default("month"),
+      // Сколько периодов назад: 0 — текущий, 1 — прошлый. Двух лет назад
+      // хватает; дальше это уже не зарплата, а архив.
+      offset: z.number().int().min(0).max(36).default(0),
     }).optional())
     .query(async ({ input, ctx }) => {
       const db = getDb();
       const period = input?.period ?? "month";
-      const { periodStart, periodEnd } = getPeriod(period);
+      const { periodStart, periodEnd } = getPeriod(period, input?.offset ?? 0);
 
       /*
         Все, кому платят, а не только агенты.
@@ -215,10 +220,11 @@ export const kpiRouter = createRouter({
   payouts: financeQuery
     .input(z.object({
       period: z.enum(["week", "month", "quarter"]).default("month"),
+      offset: z.number().int().min(0).max(36).default(0),
     }).optional())
     .query(async ({ input, ctx }) => {
       const db = getDb();
-      const { periodStart, periodEnd } = getPeriod(input?.period ?? "month");
+      const { periodStart, periodEnd } = getPeriod(input?.period ?? "month", input?.offset ?? 0);
       // Второе имя той же таблицы: получатель и выдавший — оба сотрудники.
       const payer = alias(users, "payer");
 
@@ -299,21 +305,117 @@ export const kpiRouter = createRouter({
 
       return { id: Number(result.insertId) };
     }),
+
+  /*
+    Задать оклад и ставку комиссии.
+
+    Оклад лежит в salesTargets, ставка — в commissions, и задать их можно
+    было только на других экранах: на зарплатах человек с пустым окладом
+    показывался строкой «оклад не задан», а куда идти дальше, экран не
+    говорил. Здесь обе величины ставятся там же, где их видно.
+
+    Обе — с ТЕКУЩЕГО месяца, даже если открыт прошлый: задним числом
+    менять закрытый период значит переписывать то, по чему уже заплатили.
+  */
+  setSalary: adminQuery
+    .input(z.object({
+      userId: z.number().int().positive(),
+      baseSalary: z.number().min(0).max(1e12),
+      commissionRate: z.number().min(0).max(100).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+
+      const [person] = await db.select({ id: users.id, name: users.name })
+        .from(users)
+        .where(and(
+          eq(users.id, input.userId),
+          eq(users.tenantId, ctx.tenant.id),
+          sql`${users.role} <> 'superadmin'`,
+        ))
+        .limit(1);
+      if (!person) throw new TRPCError({ code: "NOT_FOUND", message: "Сотрудник не найден в вашей организации" });
+
+      const now = new Date();
+      // Колонки period_start/period_end — DATE. Драйверу отдаём строку:
+      // Date он развернул бы в часовом поясе сервера и мог сдвинуть день.
+      const monthStart = ymd(new Date(now.getFullYear(), now.getMonth(), 1));
+      const monthEnd   = ymd(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+
+      const [existingTarget] = await db.select({ id: salesTargets.id })
+        .from(salesTargets)
+        .where(and(
+          eq(salesTargets.tenantId, ctx.tenant.id),
+          eq(salesTargets.userId, person.id),
+          eq(salesTargets.periodType, "monthly"),
+          onDate(salesTargets.periodStart, monthStart),
+        ))
+        .limit(1);
+
+      if (existingTarget) {
+        await db.update(salesTargets)
+          .set({ targetAmount: input.baseSalary.toFixed(2) })
+          .where(eq(salesTargets.id, existingTarget.id));
+      } else {
+        await db.insert(salesTargets).values({
+          tenantId:     ctx.tenant.id,
+          userId:       person.id,
+          periodType:   "monthly",
+          periodStart:  sql`${monthStart}`,
+          periodEnd:    sql`${monthEnd}`,
+          targetAmount: input.baseSalary.toFixed(2),
+        });
+      }
+
+      if (input.commissionRate != null) {
+        const [existingRate] = await db.select({ id: commissions.id })
+          .from(commissions)
+          .where(and(
+            eq(commissions.tenantId, ctx.tenant.id),
+            eq(commissions.userId, person.id),
+            eq(commissions.periodType, "monthly"),
+            onDate(commissions.periodStart, monthStart),
+          ))
+          .limit(1);
+
+        if (existingRate) {
+          await db.update(commissions)
+            .set({ commissionRate: input.commissionRate.toFixed(2) })
+            .where(eq(commissions.id, existingRate.id));
+        } else {
+          await db.insert(commissions).values({
+            tenantId:       ctx.tenant.id,
+            userId:         person.id,
+            commissionRate: input.commissionRate.toFixed(2),
+            periodType:     "monthly",
+            periodStart:    sql`${monthStart}`,
+            periodEnd:      sql`${monthEnd}`,
+            salesAmount:      "0.00",
+            commissionAmount: "0.00",
+          });
+        }
+      }
+
+      cache.invalidate(CacheKeys.salesTargets(ctx.tenant.id));
+      cache.invalidate(CacheKeys.commissions(ctx.tenant.id));
+
+      await recordAudit(db, {
+        tenantId:   ctx.tenant.id,
+        actorId:    ctx.user.id,
+        actorName:  ctx.user.name,
+        action:     "salary.rate_set",
+        targetType: "user",
+        targetId:   person.id,
+        meta:       { baseSalary: input.baseSalary, commissionRate: input.commissionRate ?? null, userName: person.name },
+        ip:         getClientIp(ctx.req) ?? undefined,
+      });
+
+      return { success: true };
+    }),
 });
 
-function getPeriod(period: string): { periodStart: Date; periodEnd: Date } {
-  const now = new Date();
-  const periodEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-
-  let periodStart: Date;
-  if (period === "week") {
-    periodStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
-  } else if (period === "quarter") {
-    const quarter = Math.floor(now.getMonth() / 3);
-    periodStart = new Date(now.getFullYear(), quarter * 3, 1);
-  } else {
-    periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  }
-
-  return { periodStart, periodEnd };
+/** Дата в виде YYYY-MM-DD по местному времени — как её хранят DATE-колонки. */
+function ymd(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
+

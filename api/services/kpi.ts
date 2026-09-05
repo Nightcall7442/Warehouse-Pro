@@ -3,6 +3,7 @@ import { REVENUE_ORDER_STATUSES, revenueOrderConditions } from "../lib/order-sta
 import { orders, dailyPlans, returns, shops, salesTargets, commissions, agentLocations, visitReports, users, payments } from "@db/schema";
 import { calculateFraudMetrics } from "./anti-fraud";
 import { logger } from "../lib/logger";
+import { untilDate } from "../lib/date-range";
 
 type DrizzleInstance = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -367,6 +368,15 @@ export async function calculateSalary(
   // служила и целью для записи расчёта — из-за чего расчёт августа переписывал
   // июльскую строку. Цель для записи теперь ищется отдельно, по конкретному
   // периоду (см. блок persist ниже).
+  /*
+    Ставка, действовавшая В ЭТОМ периоде, а не самая свежая вообще.
+
+    Без ограничения по дате поднятая сегодня ставка задним числом делала
+    дороже все закрытые месяцы: август пересчитывался по сентябрьской
+    ставке и переставал сходиться с тем, что по нему уже выплатили.
+  */
+  const effectiveOn = `${periodEnd.getFullYear()}-${String(periodEnd.getMonth() + 1).padStart(2, "0")}-${String(periodEnd.getDate()).padStart(2, "0")}`;
+
   const [commissionRecord] = await db.select({
     commissionRate: sql<string>`commission_rate`,
   }).from(commissions)
@@ -374,6 +384,7 @@ export async function calculateSalary(
       eq(commissions.tenantId, tenantId),
       eq(commissions.userId, agentId),
       eq(commissions.periodType, "monthly"),
+      untilDate(commissions.periodStart, effectiveOn),
     ))
     .orderBy(desc(commissions.periodStart))
     .limit(1);
@@ -418,6 +429,9 @@ export async function calculateSalary(
       eq(salesTargets.tenantId, tenantId),
       eq(salesTargets.userId, agentId),
       eq(salesTargets.periodType, "monthly"),
+      // Тот же расчёт, что и у ставки: оклад берётся тот, что действовал
+      // в показанном месяце.
+      untilDate(salesTargets.periodStart, effectiveOn),
     ))
     .orderBy(desc(salesTargets.periodStart))
     .limit(1);

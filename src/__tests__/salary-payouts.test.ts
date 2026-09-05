@@ -7,8 +7,8 @@ import path from "node:path";
  *
  * Экран зарплат считал НАЧИСЛЕННОЕ — сколько человеку причитается за период.
  * Выдачи система не знала вовсе: учёт вёлся на стороне, и спор «мне за март не
- * платили» разрешать было нечем. Ни у одной суммы не было даты, и не было
- * того, кто её выдал.
+ * платили» разрешать было нечем. Ни у одной суммы не было даты, номера и того,
+ * кто её выдал.
  *
  * Аванс — та же выдача, отличается лишь тем, что происходит до конца периода:
  * остаток к выплате он уменьшает ровно так же. Поэтому это вид записи, а не
@@ -18,9 +18,25 @@ import path from "node:path";
 const read = (p: string) => fs.readFileSync(path.resolve(process.cwd(), p), "utf8");
 const SCHEMA = read("db/schema.ts");
 const KPI = read("api/kpi-router.ts");
+const KPI_SERVICE = read("api/services/kpi.ts");
 const PAGE = read("src/pages/Salaries.tsx");
 
-const proc = (name: string, next: string) => KPI.slice(KPI.indexOf(name), KPI.indexOf(next));
+/*
+  Срез одной процедуры — с проверкой, что оба маркера нашлись.
+
+  Без неё промах маркера даёт indexOf === -1, срез разворачивается почти на
+  весь файл, и проверки вроде «сверяет организацию» проходят вхолостую на
+  чужом коде. Один раз так и вышло: маркер содержал \n, а файл — CRLF.
+*/
+const proc = (name: string, next: string) => {
+  const from = KPI.indexOf(name);
+  const to = KPI.indexOf(next);
+  expect(from, `не найдено: ${name}`).toBeGreaterThan(0);
+  expect(to, `не найдено: ${next}`).toBeGreaterThan(from);
+  return KPI.slice(from, to);
+};
+const RECORD_PAYOUT = proc("recordPayout: adminQuery", "setSalary: adminQuery");
+const SET_SALARY = proc("setSalary: adminQuery", "/** Дата в виде");
 
 describe("запись о выдаче", () => {
   it("хранит кому, сколько, когда и от кого", () => {
@@ -50,6 +66,7 @@ describe("кто может выдавать", () => {
     // чужие оклады должно быть отдельным решением, а не побочным эффектом.
     expect(KPI).toContain("payouts: financeQuery");
     expect(KPI).toContain("recordPayout: adminQuery");
+    expect(KPI).toContain("setSalary: adminQuery");
   });
 
   it("получатель проверяется по организации", () => {
@@ -57,9 +74,10 @@ describe("кто может выдавать", () => {
       Внешний ключ этого не ловит: users общая на все организации, и без
       проверки руководитель одной мог бы записать выдачу человеку из другой.
     */
-    const body = proc("recordPayout: adminQuery", "      return { id: Number(result.insertId) };");
-    expect(body, "получателя не сверяют с организацией").toContain("eq(users.tenantId, ctx.tenant.id)");
-    expect(body, "чужой сотрудник проходит молча").toContain("Сотрудник не найден в вашей организации");
+    for (const [name, body] of [["выдача", RECORD_PAYOUT], ["оклад", SET_SALARY]] as const) {
+      expect(body, `${name}: получателя не сверяют с организацией`).toContain("eq(users.tenantId, ctx.tenant.id)");
+      expect(body, `${name}: чужой сотрудник проходит молча`).toContain("Сотрудник не найден в вашей организации");
+    }
   });
 
   it("список сужен организацией и периодом", () => {
@@ -72,11 +90,15 @@ describe("кто может выдавать", () => {
 
 describe("след выдачи", () => {
   it("каждая выдача пишется в журнал", () => {
-    const body = proc("recordPayout: adminQuery", "      return { id: Number(result.insertId) };");
     // Не просто «слово встречается»: вызов должен стоять отдельной строкой на
     // общем пути, а не под условием, которое его иногда пропускает.
-    expect(body, "выдача проходит без следа").toMatch(/\n {6}await recordAudit\(db, \{/);
-    expect(body, "аванс и выплата неразличимы в журнале").toContain('"salary.advance"');
+    expect(RECORD_PAYOUT, "выдача проходит без следа").toMatch(/\n {6}await recordAudit\(db, \{/);
+    expect(RECORD_PAYOUT, "аванс и выплата неразличимы в журнале").toContain('"salary.advance"');
+  });
+
+  it("смена оклада тоже", () => {
+    // Оклад — тоже деньги: кто и когда его поднял, должно быть видно.
+    expect(SET_SALARY).toMatch(/\n {6}await recordAudit\(db, \{/);
   });
 
   it("изменить или удалить выдачу нечем", () => {
@@ -94,6 +116,27 @@ describe("след выдачи", () => {
   });
 });
 
+describe("оклад", () => {
+  it("ставится с текущего месяца, а не в открытый на экране период", () => {
+    /*
+      Экран умеет листать назад. Если бы оклад записывался в показанный
+      период, правка в августе переписала бы то, по чему уже выплатили.
+    */
+    expect(SET_SALARY).toContain("const monthStart = ymd(new Date(now.getFullYear(), now.getMonth(), 1));");
+    expect(SET_SALARY, "месяц ищется не по началу периода").toContain("onDate(salesTargets.periodStart, monthStart)");
+  });
+
+  it("расчёт берёт оклад и ставку, действовавшие в показанном периоде", () => {
+    /*
+      Без ограничения по дате поднятая сегодня ставка задним числом делала
+      дороже все закрытые месяцы, и август переставал сходиться с тем, что по
+      нему выплатили.
+    */
+    expect(KPI_SERVICE).toContain("untilDate(commissions.periodStart, effectiveOn)");
+    expect(KPI_SERVICE).toContain("untilDate(salesTargets.periodStart, effectiveOn)");
+  });
+});
+
 describe("экран зарплат", () => {
   it("показывает начисленное, выданное и остаток", () => {
     // Одного фонда мало: директор смотрит сюда, чтобы понять, кому ещё
@@ -101,12 +144,13 @@ describe("экран зарплат", () => {
     expect(PAGE).toContain("ФОНД ОПЛАТЫ");
     expect(PAGE).toContain("ВЫПЛАЧЕНО");
     expect(PAGE).toContain("К ВЫПЛАТЕ");
+    expect(PAGE).toContain("АВАНСЫ");
   });
 
   it("остаток считается по каждому и не уходит в минус в фонде", () => {
     // Переплата одному не закрывает долг перед другим: вычесть её из общего
     // числа значило бы показать меньше, чем предстоит раздать.
-    const at = PAGE.indexOf("const due = rows.reduce(");
+    const at = PAGE.indexOf("const due = allRows.reduce(");
     expect(at, "остаток по фонду не считается").toBeGreaterThan(0);
     expect(PAGE.slice(at, at + 260)).toContain("Math.max(0,");
   });
@@ -116,10 +160,54 @@ describe("экран зарплат", () => {
     expect(PAGE).toContain("Аванс");
   });
 
+  it("закрытый месяц можно открыть", () => {
+    // Зарплату за сентябрь выдают в октябре: без листания назад экран
+    // показывал бы только незакрытый текущий месяц.
+    expect(PAGE, "нет шага назад по периодам").toContain("setOffset(o => o + 1)");
+    expect(PAGE, "вперёд дальше текущего периода уходить нельзя").toContain("setOffset(o => Math.max(0, o - 1))");
+    // Оба запроса — и начисления, и выплаты. Если сдвиг уйдёт только в один,
+    // экран покажет август рядом с сентябрьскими выплатами.
+    const asked = PAGE.match(/\{ period, offset \}/g) ?? [];
+    expect(asked.length, "сдвиг уходит не во все запросы периода").toBeGreaterThanOrEqual(2);
+  });
+
+  it("у выплаты есть номер и её детали открываются", () => {
+    // «Нет номера — нет разговора»: спор о выплате начинается с того, что её
+    // надо назвать и открыть.
+    expect(PAGE).toContain("const payoutNo =");
+    expect(PAGE).toContain("padStart(6");
+    expect(PAGE, "детали выплаты не открываются").toContain("<PayoutDetail");
+    expect(PAGE, "ордер нельзя распечатать").toContain("printElement(id,");
+  });
+
+  it("шапка и подписи ордера прячутся классом, а не инлайновым стилем", () => {
+    /*
+      Печать копирует innerHTML в отдельное окно со своей таблицей стилей.
+      Инлайновый display:none уехал бы вместе с разметкой, и на бумаге не было
+      бы ни заголовка, ни строк для подписей — то есть ордер перестал бы быть
+      документом, оставшись выпиской.
+    */
+    const body = PAGE.slice(PAGE.indexOf("function PayoutDetail"));
+    expect(body).toContain('className="signature-block hidden"');
+    expect(body, "печатная часть спрятана инлайново").not.toMatch(/signature-block[^\n]*display: "none"/);
+  });
+
+  it("оклад задаётся здесь же", () => {
+    // Раньше пустой оклад показывался строкой «оклад не задан», а куда идти
+    // дальше, экран не говорил.
+    expect(PAGE).toContain("оклад не задан");
+    expect(PAGE).toContain("trpc.kpi.setSalary.useMutation");
+    expect(PAGE).toContain("<SalaryModal");
+  });
+
   it("история выдач видна на карточке человека", () => {
     // Вопрос «когда отдали» возникает ровно там, где стоит сумма, — уводить
     // за ним на отдельный экран незачем.
     expect(PAGE).toContain("paid.entries.map");
-    expect(PAGE, "в истории не видно даты").toContain('format(asDate(p.paidAt)');
+    expect(PAGE, "в истории не видно даты").toContain("format(asDate(p.paidAt)");
+  });
+
+  it("ведомость выгружается", () => {
+    expect(PAGE).toContain("exportToExcel(");
   });
 });
