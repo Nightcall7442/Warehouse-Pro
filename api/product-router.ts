@@ -10,6 +10,18 @@ import { cache, withCache, CacheKeys, CacheTTL } from "./lib/cache";
 import { photoRef } from "./lib/photo-url";
 import { ProductService } from "./services/ProductService";
 
+/*
+  Склад по умолчанию — единственный источник остатков для продаж.
+
+  Решение владельца, зафиксировано осознанно: продают всегда с основного
+  склада, остальные нужны для хранения и перемещений. Заказ это правило
+  соблюдает жёстко — resolveOrderWarehouse (api/services/order.ts) отвергает
+  даже явную попытку указать другой склад. Каталог обязан показывать остаток
+  ТОГО ЖЕ склада, иначе агент увидит одно число, а сервер решит по другому.
+
+  Сумму по всем складам показывать нельзя ровно поэтому: агент увидел бы 100,
+  а заказ отклонился, потому что на основном ноль.
+*/
 async function getDefaultWarehouseId(db: ReturnType<typeof getDb>, tenantId: number): Promise<number | null> {
   const [wh] = await db.select({ id: warehouses.id })
     .from(warehouses)
@@ -35,9 +47,23 @@ export const productRouter = createRouter({
       if (input?.category) conditions.push(eq(products.category, input?.category));
       const where = and(...conditions);
 
-      const stockJoinCond = warehouseId
-        ? and(eq(products.id, warehouseStock.productId), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, warehouseId))
-        : and(eq(products.id, warehouseStock.productId), eq(warehouseStock.tenantId, tenantId));
+      /*
+        Без склада по умолчанию остатков не показываем вовсе.
+
+        Запасная ветка соединяла строки склада по одному только товару, без
+        оглядки на склад. У арендатора с двумя складами это давало ДВЕ строки
+        на товар — товары в каталоге двоились, — и остаток брался с того
+        склада, который подвернулся первым.
+
+        Показывать при этом нечего: заказ без склада по умолчанию всё равно
+        не оформить, resolveOrderWarehouse отвергает его сразу. Пустой
+        остаток честнее выдуманного: товар просто покажется кончившимся.
+      */
+      const stockJoinCond = and(
+        eq(products.id, warehouseStock.productId),
+        eq(warehouseStock.tenantId, tenantId),
+        eq(warehouseStock.warehouseId, warehouseId ?? 0),
+      );
 
       // costPrice is deliberately absent. This is the feed the mobile app pulls
       // on every order screen, and fieldSalesQuery admits agents and
@@ -103,9 +129,23 @@ export const productRouter = createRouter({
       if (input?.category) conditions.push(eq(products.category, input?.category));
       const where = and(...conditions);
 
-      const stockJoinCond = warehouseId
-        ? and(eq(products.id, warehouseStock.productId), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, warehouseId))
-        : and(eq(products.id, warehouseStock.productId), eq(warehouseStock.tenantId, tenantId));
+      /*
+        Без склада по умолчанию остатков не показываем вовсе.
+
+        Запасная ветка соединяла строки склада по одному только товару, без
+        оглядки на склад. У арендатора с двумя складами это давало ДВЕ строки
+        на товар — товары в каталоге двоились, — и остаток брался с того
+        склада, который подвернулся первым.
+
+        Показывать при этом нечего: заказ без склада по умолчанию всё равно
+        не оформить, resolveOrderWarehouse отвергает его сразу. Пустой
+        остаток честнее выдуманного: товар просто покажется кончившимся.
+      */
+      const stockJoinCond = and(
+        eq(products.id, warehouseStock.productId),
+        eq(warehouseStock.tenantId, tenantId),
+        eq(warehouseStock.warehouseId, warehouseId ?? 0),
+      );
 
       const [data, countResult] = await Promise.all([
         db.select({
@@ -167,9 +207,14 @@ export const productRouter = createRouter({
 
       if (!product) return null;
 
-      const stockWhere = warehouseId
-        ? and(eq(warehouseStock.productId, product.id), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, warehouseId))
-        : and(eq(warehouseStock.productId, product.id), eq(warehouseStock.tenantId, tenantId));
+      // Тот же склад, что и в каталоге, и тот же, с которого спишется заказ.
+      // Без склада по умолчанию остатка не показываем: заказ всё равно не
+      // оформить, а число с чужого склада только запутает.
+      const stockWhere = and(
+        eq(warehouseStock.productId, product.id),
+        eq(warehouseStock.tenantId, tenantId),
+        eq(warehouseStock.warehouseId, warehouseId ?? 0),
+      );
 
       const [stockResult, movements] = await Promise.all([
         db.select({
@@ -313,6 +358,12 @@ export const productRouter = createRouter({
         .where(and(eq(products.id, input.id), eq(products.tenantId, tenantId))).limit(1);
       if (!existingProduct) throw new Error("Товар не найден");
 
+      /*
+        Удаление — единственное место, где обход ВСЕХ складов уместен, и
+        поэтому запасная ветка здесь остаётся. Строки склада держат товар
+        внешним ключом: не убрав их отовсюду, товар не удалить вовсе.
+        Показ остатков устроен иначе — там только склад по умолчанию.
+      */
       const deleteStockWhere = warehouseId
         ? and(eq(warehouseStock.productId, input.id), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, warehouseId))
         : and(eq(warehouseStock.productId, input.id), eq(warehouseStock.tenantId, tenantId));
