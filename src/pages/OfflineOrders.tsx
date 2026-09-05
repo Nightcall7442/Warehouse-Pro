@@ -2,14 +2,16 @@
  * Offline Orders — agent can create orders without internet.
  * Orders are saved to IndexedDB and synced when connection is restored.
  */
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useLang } from "@/i18n";
 import { notify } from "@/lib/toast";
 import { WifiOff, Wifi, Clock, CheckCircle2, Loader2, Trash2, RefreshCw } from "lucide-react";
-import { getPendingOrders, deletePendingOrder } from "./OfflineOrders.helpers";
+import { deletePendingOrder, clearPendingFailure } from "./OfflineOrders.helpers";
+import { useOfflineSync } from "@/hooks/useOfflineSync";
+import { useConfirm } from "@/components/ConfirmDialog";
 import { useInvalidateOrderCaches } from "@/hooks/useOrderCacheSync";
 import type { PaymentMethod } from "@/components/orders";
 
@@ -21,91 +23,80 @@ function toPaymentMethod(value: unknown): PaymentMethod {
 
 // ── Component ────────────────────────────────────────────────────────────────
 export default function OfflineOrders() {
-  const { user }        = useAuth();
-  const { fmt }         = useCurrency();
-  const { lang }        = useLang();
-  const [online, setOnline]   = useState(navigator.onLine);
-  const [pending, setPending] = useState<Record<string, unknown>[]>([]);
-  const [syncing, setSyncing] = useState(false);
+  const { user }  = useAuth();
+  const { fmt }   = useCurrency();
+  const { lang }  = useLang();
+  const { confirm, dialog } = useConfirm();
   const invalidateOrderCaches = useInvalidateOrderCaches();
 
+  /*
+    Отправка живёт в общем хуке, а не здесь.
+
+    Раньше она работала, только пока этот экран открыт: агент оформлял заказы
+    в подсобке, выходил на улицу со связью, шёл по приложению дальше — а
+    очередь стояла нетронутой, пока он сам не догадается сюда заглянуть.
+    Теперь тот же хук включён в оболочке приложения, и связь появилась —
+    заказы ушли, на каком бы экране человек ни был.
+  */
+  const { online, pending, syncing, syncAll, reload } = useOfflineSync();
+  // onSuccess обязателен: заказ ушёл — списки и сводки должны это увидеть.
   const createOrder = trpc.order.create.useMutation({
     onSuccess: () => invalidateOrderCaches(),
   });
 
-  // Listen for online/offline
-  useEffect(() => {
-    const goOnline  = () => { setOnline(true);  };
-    const goOffline = () => { setOnline(false); notify.info("Офлайн режим — заказы сохраняются локально"); };
-    window.addEventListener("online",  goOnline);
-    window.addEventListener("offline", goOffline);
-    return () => {
-      window.removeEventListener("online",  goOnline);
-      window.removeEventListener("offline", goOffline);
-    };
-  }, []);
+  /*
+    Удаление спрашивает.
 
-  const loadPending = useCallback(async () => {
-    if (!user) { setPending([]); return; }
-    try {
-      const orders = await getPendingOrders(user.id);
-      setPending(orders);
-    } catch {
-      notify.error("Не удалось загрузить локальные заказы");
-    }
-  }, [user]);
-
-  const syncAll = useCallback(async () => {
-    if (!online || pending.length === 0 || syncing) return;
-    setSyncing(true);
-
-    let synced = 0;
-    let failed = 0;
-
-    for (const order of pending) {
-      try {
-        await createOrder.mutateAsync({
-          shopId:   order.shopId as number,
-          agentId:  (order.agentId as number) ?? user?.id ?? 0,
-          items:    order.items as Array<{ productId: number; quantity: string | number }>,
-          notes:    order.notes as string | undefined,
-          discount: order.discount as string | number | undefined,
-          paymentMethod: toPaymentMethod(order.paymentMethod),
-          idempotencyKey: (order.idempotencyKey as string) || crypto.randomUUID(),
-        });
-                            await deletePendingOrder(order.localId as number);
-        synced++;
-      } catch {
-        failed++;
-      }
-    }
-
-    setSyncing(false);
-    await loadPending();
-
-    if (synced > 0) notify.success(`${synced} заказов синхронизировано`);
-    if (failed > 0) notify.error(`${failed} заказов не удалось синхронизировать`);
-  }, [online, pending, syncing, createOrder, user, loadPending]);
-
-  // Load pending orders on mount
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadPending();
-  }, [loadPending]);
-
-  // Auto-sync when coming online
-  useEffect(() => {
-    if (online && pending.length > 0) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      syncAll();
-    }
-  }, [online, pending.length, syncAll]);
-
-  const deleteLocal = async (localId: number) => {
+    Это единственная копия заказа: на сервер он не ушёл, больше его нигде
+    нет. Кнопка была 24 точки в поперечнике и стояла в трёх с половиной
+    точках от «Отправить» — промах пальцем стирал работу агента без единого
+    вопроса и без возможности вернуть.
+  */
+  const deleteLocal = async (localId: number, shopName: string) => {
+    const ok = await confirm({
+      title: lang === "uz" ? "Buyurtmani o'chirish?" : "Удалить заказ?",
+      message: lang === "uz"
+        ? shopName + " uchun buyurtma serverga yuborilmagan. O'chirilsa, uni tiklab bo'lmaydi."
+        : "Заказ для «" + shopName + "» не отправлен на сервер. После удаления его не восстановить.",
+      confirmText: lang === "uz" ? "O'chirish" : "Удалить",
+      danger: true,
+    });
+    if (!ok) return;
     await deletePendingOrder(localId);
-    await loadPending();
+    await reload();
   };
 
+  const [sendingId, setSendingId] = useState<number | null>(null);
+
+  /** Отправить один заказ по кнопке. */
+  const sendOne = async (order: Record<string, unknown>) => {
+    setSendingId(order.localId as number);
+    try {
+      await createOrder.mutateAsync({
+        shopId:   order.shopId as number,
+        agentId:  (order.agentId as number) ?? user?.id ?? 0,
+        items:    order.items as Array<{ productId: number; quantity: string | number }>,
+        notes:    order.notes as string | undefined,
+        discount: order.discount as string | number | undefined,
+        paymentMethod: toPaymentMethod(order.paymentMethod),
+        idempotencyKey: (order.idempotencyKey as string) || crypto.randomUUID(),
+      });
+      await deletePendingOrder(order.localId as number);
+      notify.success(lang === "uz" ? "Buyurtma yuborildi" : "Заказ отправлен");
+    } catch (e: unknown) {
+      notify.error(e instanceof Error ? e.message : "Не удалось отправить");
+    } finally {
+      setSendingId(null);
+      await reload();
+    }
+  };
+
+  /** Снять отметку об отказе и попробовать снова. */
+  const retryFailed = async (localId: number) => {
+    await clearPendingFailure(localId);
+    await reload();
+    await syncAll();
+  };
   return (
     <div className="space-y-5 max-w-lg mx-auto">
       {/* Status bar */}
@@ -169,9 +160,9 @@ export default function OfflineOrders() {
       ) : (
         <div className="space-y-3">
           {pending.map(order => {
-            const total = (order.items as Array<{ unitPrice: string | number; quantity: string | number }>)?.reduce(
-              (s: number, i) => s + Number(i.unitPrice) * Number(i.quantity), 0
-            ) ?? 0;
+            // Сумма берётся из самой записи: в позициях лежат только productId и
+            // quantity, цены там нет, и счёт по ним давал «не число сум».
+            const total = Number(order.total ?? 0);
             return (
               <div key={order.localId as number} className="neo-card p-4 border-l-2 border-warning">
                 <div className="flex items-start justify-between gap-2">
@@ -188,38 +179,47 @@ export default function OfflineOrders() {
                     <p className="text-xs text-secondary">
                       {(order.items as Array<unknown>)?.length ?? 0} {lang === "uz" ? "ta mahsulot" : "товаров"} · {fmt(total)}
                     </p>
+                    {/* Причина отказа — человеку на глаза.
+                        Заказ, отвергнутый сервером по существу (товар удалили,
+                        магазин закрыли), раньше молча оставался в очереди и
+                        пересылался снова при каждом заходе, всегда с тем же
+                        концом. Агент видел «N заказов не удалось» и не мог
+                        ничего сделать. */}
+                    {typeof order.lastError === "string" && (
+                      <div className="mt-2 rounded-lg p-2 text-xs" style={{ background: "var(--color-danger-subtle, rgba(220,80,80,.12))" }}>
+                        <p className="text-danger" style={{ margin: 0 }}>{String(order.lastError)}</p>
+                        <button
+                          onClick={() => retryFailed(order.localId as number)}
+                          className="tap mt-1 underline"
+                          style={{ color: "var(--color-primary-text)" }}
+                        >
+                          {lang === "uz" ? "Yana yuborish" : "Отправить ещё раз"}
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  <div className="flex gap-1 flex-shrink-0">
-                    {online && (
+                  {/* Кнопки в 44 точки и с зазором в 8.
+                      Было: «Отправить» высотой в строку текста и рядом,
+                      в трёх с половиной точках, значок корзины 24 точки.
+                      Промах по корзине стирал единственную копию заказа. */}
+                  <div className="flex gap-2 flex-shrink-0">
+                    {online && !order.lastError && (
                       <button
-                        onClick={async () => {
-                          try {
-                            await createOrder.mutateAsync({
-                              shopId:   order.shopId as number,
-                              agentId:  (order.agentId as number) ?? user?.id ?? 0,
-                              items:    order.items as Array<{ productId: number; quantity: string | number }>,
-                              notes:    order.notes as string | undefined,
-                              discount: order.discount as string | number | undefined,
-                              paymentMethod: toPaymentMethod(order.paymentMethod),
-                              idempotencyKey: (order.idempotencyKey as string) || crypto.randomUUID(),
-                            });
-        await deletePendingOrder(order.localId as number);
-                            await loadPending();
-                            notify.success(lang === "uz" ? "Buyurtma yuborildi" : "Заказ отправлен");
-                          } catch (e: unknown) {
-                            notify.error(e instanceof Error ? e.message : "Unknown error");
-                          }
-                        }}
-                        className="neo-btn-primary py-1 px-2 text-xs"
+                        onClick={() => sendOne(order)}
+                        disabled={sendingId === order.localId}
+                        className="neo-btn-primary tap px-4 text-xs disabled:opacity-40"
                       >
-                        {lang === "uz" ? "Yuborish" : "Отправить"}
+                        {sendingId === order.localId
+                          ? <Loader2 size={14} className="animate-spin" />
+                          : (lang === "uz" ? "Yuborish" : "Отправить")}
                       </button>
                     )}
                     <button
-                      onClick={() => deleteLocal(order.localId as number)}
-                      className="neo-btn p-1.5 text-danger border-danger/30"
+                      onClick={() => deleteLocal(order.localId as number, String(order.shopName ?? "—"))}
+                      aria-label={lang === "uz" ? "O'chirish" : "Удалить"}
+                      className="neo-btn tap text-danger border-danger/30 flex items-center justify-center"
                     >
-                      <Trash2 size={14}/>
+                      <Trash2 size={16}/>
                     </button>
                   </div>
                 </div>
@@ -238,7 +238,8 @@ export default function OfflineOrders() {
             ? "Internet bo'lmasa yangi buyurtma yaratganingizda u avtomatik qurilmaga saqlanadi. Internet paydo bo'lganda avtomatik yuboriladi."
             : "При создании заказа без интернета он автоматически сохраняется на устройстве. При восстановлении связи — автоматически отправляется на сервер."}
         </p>
-      </div>
+      </div>
+      {dialog}
     </div>
   );
 }

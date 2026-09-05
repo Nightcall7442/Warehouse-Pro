@@ -67,6 +67,7 @@ function PageLoader() {
 import { memo } from "react";
 import { useBranding } from "@/hooks/useBranding";
 import { useKeyboardInset } from "@/hooks/useKeyboardInset";
+import { useOfflineSync } from "@/hooks/useOfflineSync";
 
 const RoleGuard = memo(function RoleGuard({ children, roles }: { children: React.ReactNode; roles: string[] }) {
   const { user, isLoading } = useAuth();
@@ -79,6 +80,16 @@ function AppLayout() {
   useBranding();
   // Клавиатура: поднять панели и показать поле, в котором пишут.
   useKeyboardInset();
+  /*
+    Отправка заказов, сохранённых без связи.
+
+    Раньше она жила в экране «Офлайн» и работала, только пока он открыт: агент
+    оформлял заказы в подсобке, выходил на улицу со связью, шёл по приложению
+    дальше — а очередь стояла нетронутой, пока он сам не догадается туда
+    заглянуть. Здесь она включена на всё приложение: связь появилась — заказы
+    ушли, на каком бы экране человек ни был.
+  */
+  useOfflineSync();
   return <Layout><ErrorBoundary pageName="Страница"><Outlet /></ErrorBoundary></Layout>;
 }
 

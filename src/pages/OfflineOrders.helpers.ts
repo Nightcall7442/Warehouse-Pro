@@ -86,3 +86,71 @@ export async function deletePendingOrder(localId: number): Promise<void> {
     req.onerror   = () => reject(req.error);
   });
 }
+
+/**
+ * Отметить, что отправка не удалась.
+ *
+ * Заказ, который сервер отвергает по существу (товар удалили, магазин закрыли,
+ * количество не проходит проверку), раньше просто оставался в очереди. Каждый
+ * заход на экран и каждое переключение связи пытались отправить его снова —
+ * и снова получали тот же отказ. Очередь при этом не двигалась, а причина
+ * нигде не показывалась: агент видел «N заказов не удалось синхронизировать»
+ * и ничего не мог с этим сделать.
+ *
+ * Отметка нужна, чтобы такой заказ перестал крутиться сам и попал человеку на
+ * глаза: вот причина, вот кнопка «Отправить ещё раз», вот «Удалить».
+ */
+/**
+ * Записать неудачную попытку отправки.
+ *
+ * Возвращает true, если попыток набралось столько, что заказ пора показать
+ * человеку и перестать пересылать его самому.
+ *
+ * Считаем попытки, а не разбираем код ответа: сервер отдаёт 500 и на деловой
+ * отказ тоже — «Магазин не найден в вашей организации» приходит именно так,
+ * проверено. Отличить по коду «сервер занят» от «заказ негоден» нельзя, а
+ * счётчик работает в обоих случаях: занятый сервер за три попытки успеет
+ * освободиться, негодный заказ — нет.
+ */
+export async function recordPendingFailure(localId: number, reason: string, maxAttempts = 3): Promise<boolean> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx    = db.transaction(STORE, "readwrite");
+    const store = tx.objectStore(STORE);
+    const get   = store.get(localId);
+    get.onsuccess = () => {
+      const row = get.result as (Record<string, unknown> | undefined);
+      // Запись могли удалить, пока шла отправка. Тогда отмечать нечего.
+      if (!row) { resolve(false); return; }
+      const attempts = Number(row.attempts ?? 0) + 1;
+      const giveUp   = attempts >= maxAttempts;
+      const next: Record<string, unknown> = { ...row, attempts, lastAttemptAt: new Date().toISOString() };
+      if (giveUp) { next.lastError = reason; next.failedAt = new Date().toISOString(); }
+      const put = store.put(next);
+      put.onsuccess = () => resolve(giveUp);
+      put.onerror   = () => reject(put.error);
+    };
+    get.onerror = () => reject(get.error);
+  });
+}
+
+/** Снять отметку об отказе — заказ снова в общей очереди. */
+export async function clearPendingFailure(localId: number): Promise<void> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx    = db.transaction(STORE, "readwrite");
+    const store = tx.objectStore(STORE);
+    const get   = store.get(localId);
+    get.onsuccess = () => {
+      const row = get.result as (Record<string, unknown> | undefined);
+      if (!row) { resolve(); return; }
+      // Счётчик тоже сбрасываем: человек решил попробовать заново, и три
+      // прошлые неудачи не должны съесть эту попытку.
+      const { lastError: _l, failedAt: _f, attempts: _a, lastAttemptAt: _t, ...rest } = row;
+      const put = store.put(rest);
+      put.onsuccess = () => resolve();
+      put.onerror   = () => reject(put.error);
+    };
+    get.onerror = () => reject(get.error);
+  });
+}

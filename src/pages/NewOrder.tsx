@@ -251,7 +251,20 @@ export default function NewOrder() {
       }
       // Владелец записи. Без него запись увидит и отправит следующий, кто
       // войдёт на этом же компьютере, — а сервер поставит агентом его.
-      savePendingOrder({ ...payload, shopName, paymentMethod }, user.id)
+      /*
+        Сумму кладём отдельным полем.
+
+        В payload.items у позиции только productId и quantity — столько и надо
+        серверу. Экран «Офлайн» считал по ним сумму как unitPrice × quantity и
+        получал «не число сум» у КАЖДОГО сохранённого заказа: цены в записи
+        нет. Агент не видел, на сколько заказ, — а это первое, что он хочет
+        знать про то, что ещё не ушло.
+      */
+      const offlineTotal = items
+        .filter(i => i.productId > 0 && Number(i.quantity) > 0)
+        .reduce((sum, i) => sum + Number(i.unitPrice) * Number(i.quantity), 0);
+
+      savePendingOrder({ ...payload, shopName, paymentMethod, total: offlineTotal }, user.id)
         .then(() => {
           // Заказ лёг в очередь — он больше не черновик.
           clearDraft(user.id);
