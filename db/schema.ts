@@ -846,6 +846,41 @@ export type Commission       = typeof commissions.$inferSelect;
 export type InsertCommission = typeof commissions.$inferInsert;
 
 // ============================================
+// SALARY PAYOUTS — что человеку отдали на руки
+// ============================================
+//
+// Начисление и выплата — разные события, и до этой таблицы в системе было
+// только первое. kpi.salaryReport считает, сколько человеку причитается за
+// период, но кому и когда деньги отдали, не знал никто: этот учёт вёлся
+// вне программы, а значит спор «мне не платили» разрешать было нечем.
+//
+// Аванс — та же выдача денег, отличается лишь тем, что происходит до конца
+// периода, поэтому это вид записи (kind), а не отдельная таблица: остаток к
+// выплате он уменьшает ровно так же.
+//
+// Записи только добавляются. Изменять и удалять их нечем намеренно: на этом
+// держится вся ценность журнала — ошибочную выдачу гасят встречной записью,
+// а не подчисткой. По той же причине здесь хранится createdBy: у каждой
+// суммы есть тот, кто её выдал.
+export const salaryPayouts = mysqlTable("salary_payouts", {
+  id:           serial("id").primaryKey(),
+  tenantId:     bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  userId:       bigint("user_id", { mode: "number", unsigned: true }).notNull().references(() => users.id, { onDelete: "restrict" }),
+  kind:         mysqlEnum("kind", ["payout", "advance"]).default("payout").notNull(),
+  amount:       decimal("amount", { precision: 14, scale: 2 }).notNull(),
+  paidAt:       timestamp("paid_at").defaultNow().notNull(),
+  note:         varchar("note", { length: 255 }),
+  createdBy:    bigint("created_by", { mode: "number", unsigned: true }).notNull().references(() => users.id, { onDelete: "restrict" }),
+  createdAt:    timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  tenantIdx: index("idx_salary_payouts_tenant").on(t.tenantId, t.paidAt),
+  userIdx:   index("idx_salary_payouts_user").on(t.userId, t.paidAt),
+}));
+
+export type SalaryPayout       = typeof salaryPayouts.$inferSelect;
+export type InsertSalaryPayout = typeof salaryPayouts.$inferInsert;
+
+// ============================================
 // NOTIFICATIONS
 // ============================================
 export const notifications = mysqlTable("notifications", {

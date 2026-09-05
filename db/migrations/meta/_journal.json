@@ -8,6 +8,13 @@
       "when": 1782062632383,
       "tag": "0000_baseline",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1788625711245,
+      "tag": "0001_salary_payouts",
+      "breakpoints": true
     }
   ]
 }

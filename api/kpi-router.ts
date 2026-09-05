@@ -1,10 +1,14 @@
 import { z } from "zod";
-import { createRouter, fieldSalesQuery, supervisorQuery, selfKpiQuery, managementQuery } from "./middleware";
+import { TRPCError } from "@trpc/server";
+import { createRouter, fieldSalesQuery, supervisorQuery, selfKpiQuery, managementQuery, financeQuery, adminQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { calculateAgentKpi, calculateAllAgentsKpi, calculateSalary, getAgentList } from "./services/kpi";
 import { withCache, CacheTTL } from "./lib/cache";
-import { shops, users } from "@db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { recordAudit } from "./services/audit-log";
+import { getClientIp } from "./lib/rate-limit";
+import { salaryPayouts, shops, users } from "@db/schema";
+import { alias } from "drizzle-orm/mysql-core";
+import { eq, and, sql, gte, lte, desc } from "drizzle-orm";
 
 export const kpiRouter = createRouter({
   /*
@@ -192,6 +196,108 @@ export const kpiRouter = createRouter({
       );
 
       return salaries;
+    }),
+
+  /*
+    Выплаты: кому и когда деньги отдали.
+
+    salaryReport выше считает НАЧИСЛЕННОЕ — сколько человеку причитается за
+    период. Отданное на руки он не знает и знать не может: это отдельное
+    событие, которого в системе не было вовсе. Учёт вёлся на стороне, и спор
+    «мне за март не платили» разрешать было нечем.
+
+    Аванс от выплаты отличается только тем, что выдан до конца периода;
+    остаток к выдаче он уменьшает так же, поэтому это вид записи, а не
+    отдельная сущность.
+
+    Только руководителю: это деньги всей команды.
+  */
+  payouts: financeQuery
+    .input(z.object({
+      period: z.enum(["week", "month", "quarter"]).default("month"),
+    }).optional())
+    .query(async ({ input, ctx }) => {
+      const db = getDb();
+      const { periodStart, periodEnd } = getPeriod(input?.period ?? "month");
+      // Второе имя той же таблицы: получатель и выдавший — оба сотрудники.
+      const payer = alias(users, "payer");
+
+      return db.select({
+        id:         salaryPayouts.id,
+        userId:     salaryPayouts.userId,
+        userName:   users.name,
+        kind:       salaryPayouts.kind,
+        amount:     salaryPayouts.amount,
+        paidAt:     salaryPayouts.paidAt,
+        note:       salaryPayouts.note,
+        paidByName: payer.name,
+      })
+        .from(salaryPayouts)
+        .innerJoin(users, eq(salaryPayouts.userId, users.id))
+        .leftJoin(payer, eq(salaryPayouts.createdBy, payer.id))
+        .where(and(
+          eq(salaryPayouts.tenantId, ctx.tenant.id),
+          gte(salaryPayouts.paidAt, periodStart),
+          lte(salaryPayouts.paidAt, periodEnd),
+        ))
+        .orderBy(desc(salaryPayouts.paidAt));
+    }),
+
+  /*
+    Записать выдачу. Запись только добавляется: ни изменения, ни удаления
+    здесь нет намеренно — на этом держится ценность журнала. Ошибочную
+    выдачу гасят встречной записью с отрицательной суммой и пояснением, а не
+    подчисткой задним числом.
+  */
+  recordPayout: adminQuery
+    .input(z.object({
+      userId: z.number().int().positive(),
+      // Строкой, как и остальные деньги в проекте: число с плавающей точкой
+      // по дороге теряет копейки, а decimal(14,2) их хранит.
+      amount: z.string().refine(v => Number.isFinite(Number(v)) && Number(v) !== 0, "Сумма должна быть числом"),
+      kind: z.enum(["payout", "advance"]).default("payout"),
+      note: z.string().max(255).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+
+      /*
+        Получатель — сотрудник ЭТОЙ организации. Внешний ключ этого не
+        проверяет: таблица users общая на все организации, и без проверки
+        руководитель одной мог бы записать выдачу человеку из другой.
+      */
+      const [person] = await db.select({ id: users.id, name: users.name })
+        .from(users)
+        .where(and(
+          eq(users.id, input.userId),
+          eq(users.tenantId, ctx.tenant.id),
+          sql`${users.role} <> 'superadmin'`,
+        ))
+        .limit(1);
+      if (!person) throw new TRPCError({ code: "NOT_FOUND", message: "Сотрудник не найден в вашей организации" });
+
+      const [result] = await db.insert(salaryPayouts).values({
+        tenantId:  ctx.tenant.id,
+        userId:    person.id,
+        kind:      input.kind,
+        amount:    input.amount,
+        note:      input.note?.trim() || null,
+        createdBy: ctx.user.id,
+      });
+
+      // След на случай спора: кто выдал, кому, сколько и когда.
+      await recordAudit(db, {
+        tenantId:   ctx.tenant.id,
+        actorId:    ctx.user.id,
+        actorName:  ctx.user.name,
+        action:     input.kind === "advance" ? "salary.advance" : "salary.payout",
+        targetType: "user",
+        targetId:   person.id,
+        meta:       { amount: input.amount, userName: person.name, note: input.note ?? null },
+        ip:         getClientIp(ctx.req) ?? undefined,
+      });
+
+      return { id: Number(result.insertId) };
     }),
 });
 
