@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { createRouter, operatorQuery } from "./middleware";
-import { arrivals, arrivalItems, products, warehouses, suppliers, supplies } from "@db/schema";
+import { arrivals, arrivalItems, products, warehouses, suppliers, supplies, supplierPayments } from "@db/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { sanitizeString } from "./lib/sanitize";
 import { decimalOrDefault } from "./lib/zod-decimal";
@@ -118,7 +118,7 @@ export const arrivalRouter = createRouter({
       tollCost:    decimalOrDefault("0.00").default("0.00"),
       otherCost:   decimalOrDefault("0.00").default("0.00"),
       notes:       z.string().optional(),
-      items:       z.array(z.object({ productId: z.number(), quantity: z.string().refine(v => Number(v) > 0, "Количество должно быть положительным"), costPrice: decimalOrDefault("0.00").optional(), sellingPrice: decimalOrDefault("0.00").optional(), condition: z.string().optional(), warehouseId: z.number().optional() })).optional(),
+      items:       z.array(z.object({ productId: z.number(), quantity: z.string().refine(v => Number(v) > 0, "Количество должно быть положительным"), costPrice: decimalOrDefault("0.00").optional(), sellingPrice: decimalOrDefault("0.00").optional(), condition: z.string().optional() })).optional(),
       // Долг перед поставщиком, привязанный к этому приходу. Опционален
       // целиком: обычный приход без учёта задолженности не заполняет это
       // поле вовсе. Ровно один способ назвать поставщика — supplierId ИЛИ
@@ -323,13 +323,13 @@ export const arrivalRouter = createRouter({
 
           // Use sql template (not Drizzle select) to avoid selecting non-existent columns
           const itemsResult = await tx.execute(
-            sql`SELECT ai.id, ai.arrival_id AS arrivalId, ai.product_id AS productId, ai.quantity, ai.condition, ai.notes FROM arrival_items ai WHERE ai.arrival_id = ${id}`
+            sql`SELECT ai.id, ai.arrival_id AS arrivalId, ai.product_id AS productId, ai.quantity, ai.condition, ai.notes, ai.cost_price AS costPrice, ai.selling_price AS sellingPrice FROM arrival_items ai WHERE ai.arrival_id = ${id}`
           );
           const rows = (itemsResult as unknown[][])[0];
           const rawItems = Array.isArray(rows) ? rows : [];
           // The columns are AS-aliased to camelCase above, so this cast is safe —
           // unlike the `unknown` the raw sql.execute() result carries by default.
-          const items = rawItems as Array<{ id: number; arrivalId: number; productId: number; quantity: string; condition: string; notes: string | null }>;
+          const items = rawItems as Array<{ id: number; arrivalId: number; productId: number; quantity: string; condition: string; notes: string | null; costPrice: string | null; sellingPrice: string | null }>;
           const badItem = items.find(it => it.productId == null);
           if (badItem) throw new Error(`Позиция прихода #${badItem.id} не привязана к товару`);
 
@@ -383,6 +383,30 @@ export const arrivalRouter = createRouter({
               reason: "arrival", referenceId: id,
               notes: `Приход ${arrivalNumber}`,
             });
+
+            /*
+              Цены товара — из прихода.
+
+              Форма прихода подставляет себестоимость и цену продажи ИЗ
+              КАРТОЧКИ ТОВАРА и даёт их поправить: оператор, меняя цифру,
+              уверен, что записывает новую закупку и новую цену. А
+              записывалось это только в строку прихода — карточка товара
+              оставалась с прежними числами, и следующий заказ снимал
+              себестоимость по-старому (order_items хранит её слепком на
+              момент заказа, и весь расчёт прибыли идёт от него).
+
+              Переносим только то, что оператор действительно заполнил:
+              ноль и пустое поле — это «не трогать», а не «обнулить».
+            */
+            const newCost = Number(item.costPrice ?? 0);
+            const newPrice = Number(item.sellingPrice ?? 0);
+            if (newCost > 0 || newPrice > 0) {
+              const pricePatch: { costPrice?: string; unitPrice?: string; updatedAt: Date } = { updatedAt: new Date() };
+              if (newCost > 0) pricePatch.costPrice = newCost.toFixed(2);
+              if (newPrice > 0) pricePatch.unitPrice = newPrice.toFixed(2);
+              await tx.update(products).set(pricePatch)
+                .where(and(eq(products.id, item.productId), eq(products.tenantId, tenantId)));
+            }
           }
 
           // Update arrival status. Guarded on status != 'completed' as a second,
@@ -450,9 +474,39 @@ export const arrivalRouter = createRouter({
       if (!arrival) throw new Error("Приход не найден");
       if (arrival.status === "completed") throw new Error("Нельзя удалить завершённый приход");
 
+      /*
+        Поставка, заведённая той же формой, удаляется вместе с приходом.
+
+        Внешний ключ у supplies.arrival_id — ON DELETE SET NULL, поэтому
+        удаление ошибочно заведённого прихода оставляло долг перед
+        поставщиком жить дальше: без ссылки на документ, которым он
+        появился, и без всякого следа на экране приходов. Найти его потом
+        можно было только в списке поставок, гадая, откуда он взялся.
+
+        Если по поставке уже платили — не удаляем ничего и говорим прямо:
+        оплата это движение денег, и стирать её заодно с черновиком
+        прихода нельзя.
+      */
+      const [linkedSupply] = await db.select({ id: supplies.id, supplyNumber: supplies.supplyNumber })
+        .from(supplies)
+        .where(and(eq(supplies.arrivalId, input.id), eq(supplies.tenantId, tenantId)))
+        .limit(1);
+
+      if (linkedSupply) {
+        const [paid] = await db.select({ count: sql<number>`count(*)` })
+          .from(supplierPayments)
+          .where(and(eq(supplierPayments.supplyId, linkedSupply.id), eq(supplierPayments.tenantId, tenantId)));
+        if (Number(paid?.count ?? 0) > 0) {
+          throw new Error(`По поставке ${linkedSupply.supplyNumber} уже проходили оплаты — сначала разберитесь с ней в разделе поставщиков`);
+        }
+      }
+
       await db.transaction(async (tx) => {
         // Delete items first (FK) — use sql template for safe parameterization
         await tx.execute(sql`DELETE FROM arrival_items WHERE arrival_id = ${input.id}`);
+        if (linkedSupply) {
+          await tx.delete(supplies).where(and(eq(supplies.id, linkedSupply.id), eq(supplies.tenantId, tenantId)));
+        }
         await tx.delete(arrivals).where(and(eq(arrivals.id, input.id), eq(arrivals.tenantId, tenantId)));
       });
 

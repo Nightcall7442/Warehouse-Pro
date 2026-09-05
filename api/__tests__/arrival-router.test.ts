@@ -24,7 +24,7 @@ vi.mock("../lib/sse", () => ({
   sseBus: { emit: vi.fn() },
 }));
 
-import { arrivals, arrivalItems, warehouses, warehouseStock, stockMovements, products, suppliers, supplies } from "@db/schema";
+import { arrivals, arrivalItems, warehouses, warehouseStock, stockMovements, products, suppliers, supplies, supplierPayments } from "@db/schema";
 import { makeConditionEvaluator } from "./helpers/fake-conditions";
 
 // ── Fake tables ──────────────────────────────────────────────────────────────
@@ -33,8 +33,9 @@ type FakeArrivalItem = { id: number; arrivalId: number; productId: number; quant
 interface FakeWarehouse { id: number; tenantId: number; name: string; isDefault: boolean; status: string; }
 interface FakeStock { id: number; productId: number; tenantId: number; warehouseId: number; currentStock: string; reserved: string; available: string; }
 interface FakeStockMovement { id: number; tenantId: number; productId: number; type: string; quantity: string; referenceType: string | null; referenceId: number | null; notes: string | null; createdAt: Date; }
-interface FakeProduct { id: number; tenantId: number; }
+interface FakeProduct { id: number; tenantId: number; costPrice: string; unitPrice: string; }
 interface FakeSupplier { id: number; tenantId: number; name: string; }
+interface FakeSupplierPayment { id: number; tenantId: number; supplyId: number; amount: string; }
 interface FakeSupply { id: number; tenantId: number; supplierId: number; arrivalId: number | null; supplyNumber: string; amount: string; currency: string; rateToUzs: string | null; supplyDate: Date; dueDate: Date | null; createdBy: number | null; }
 
 let arrivalsTable: FakeArrival[] = [];
@@ -45,6 +46,7 @@ let movementsTable: FakeStockMovement[] = [];
 let productsTable: FakeProduct[] = [];
 let suppliersTable: FakeSupplier[] = [];
 let suppliesTable: FakeSupply[] = [];
+let supplierPaymentsTable: FakeSupplierPayment[] = [];
 let nextArrivalId = 10;
 let nextSupplierId = 10;
 let nextSupplyId = 10;
@@ -70,14 +72,15 @@ function resetTables() {
   ];
   movementsTable = [];
   productsTable = [
-    { id: 1, tenantId: 1 },
-    { id: 2, tenantId: 1 },
+    { id: 1, tenantId: 1, costPrice: "10.00", unitPrice: "20.00" },
+    { id: 2, tenantId: 1, costPrice: "10.00", unitPrice: "20.00" },
   ];
   suppliersTable = [
     { id: 1, tenantId: 1, name: "Завод Ташкент" },
     { id: 2, tenantId: 2, name: "Чужой завод" },
   ];
   suppliesTable = [];
+  supplierPaymentsTable = [];
   nextArrivalId = 10;
   nextItemId = 10;
   nextStockId = 10;
@@ -95,6 +98,7 @@ function tableOf(ref: unknown): string {
   if (ref === products) return "products";
   if (ref === suppliers) return "suppliers";
   if (ref === supplies) return "supplies";
+  if (ref === supplierPayments) return "supplierPayments";
   return "other";
 }
 
@@ -103,6 +107,7 @@ function rowsFor(table: string): Record<string, unknown>[] {
   if (table === "arrivalItems") return arrivalItemsTable as unknown as Record<string, unknown>[];
   if (table === "suppliers") return suppliersTable as unknown as Record<string, unknown>[];
   if (table === "supplies") return suppliesTable as unknown as Record<string, unknown>[];
+  if (table === "supplierPayments") return supplierPaymentsTable as unknown as Record<string, unknown>[];
   if (table === "warehouses") return warehousesTable as unknown as Record<string, unknown>[];
   if (table === "warehouseStock") return stockTable as unknown as Record<string, unknown>[];
   if (table === "stockMovements") return movementsTable as unknown as Record<string, unknown>[];
@@ -272,6 +277,9 @@ function makeMockDb() {
         }
         if (table === "arrivals") {
           arrivalsTable = arrivalsTable.filter((r) => !evalCond(r, cond));
+        }
+        if (table === "supplies") {
+          suppliesTable = suppliesTable.filter((r) => !evalCond(r, cond));
         }
         return Promise.resolve();
       },
@@ -774,5 +782,129 @@ describe("arrival.create — привязанная поставка (долг �
       supplier: { amount: "1000", currency: "UZS" },
     })).rejects.toThrow();
     expect(suppliesTable).toHaveLength(0);
+  });
+});
+
+/**
+ * Приход — это ещё и цены.
+ *
+ * Форма прихода подставляет себестоимость и цену продажи ИЗ КАРТОЧКИ ТОВАРА и
+ * даёт их поправить: оператор, меняя цифру, уверен, что записывает новую
+ * закупку и новую цену. А записывалось это только в строку прихода — карточка
+ * товара оставалась с прежними числами. Следующий заказ снимал себестоимость
+ * по-старому (order_items хранит её слепком на момент заказа, и весь расчёт
+ * прибыли идёт от этого слепка), то есть маржа считалась от закупки, которой
+ * уже нет.
+ */
+describe("приход обновляет цены товара", () => {
+  it("завершение переносит себестоимость и цену продажи в товар", async () => {
+    const { arrivalRouter } = await import("../arrival-router");
+    const caller = arrivalRouter.createCaller(makeCtx(1, 1));
+
+    // Приход №1 в затравке: товар 1 по 50/80, товар 2 по 25/45.
+    await caller.update({ id: 1, status: "completed" });
+
+    const p1 = productsTable.find(p => p.id === 1)!;
+    const p2 = productsTable.find(p => p.id === 2)!;
+    expect(p1.costPrice).toBe("50.00");
+    expect(p1.unitPrice).toBe("80.00");
+    expect(p2.costPrice).toBe("25.00");
+    expect(p2.unitPrice).toBe("45.00");
+  });
+
+  it("незаполненная цена ничего не затирает", async () => {
+    /*
+      Ноль и пустое поле означают «не трогать». Иначе приход, где оператор
+      заполнил только количество, обнулил бы товару цену — и продавать его
+      стали бы за ноль.
+    */
+    arrivalItemsTable = [
+      { id: 90, arrivalId: 1, productId: 1, quantity: "10", costPrice: "0.00", sellingPrice: "0.00", condition: "good", notes: null },
+    ];
+    const { arrivalRouter } = await import("../arrival-router");
+    await arrivalRouter.createCaller(makeCtx(1, 1)).update({ id: 1, status: "completed" });
+
+    const p1 = productsTable.find(p => p.id === 1)!;
+    expect(p1.costPrice).toBe("10.00");
+    expect(p1.unitPrice).toBe("20.00");
+  });
+
+  it("заполненная цена меняет своё, пустая рядом — нет", async () => {
+    /*
+      Смешанный случай, ради которого проверка и стоит по каждому полю
+      отдельно: оператор уточнил закупку и не тронул цену продажи.
+    */
+    arrivalItemsTable = [
+      // Товар 1: уточнили закупку, цену продажи не трогали.
+      { id: 91, arrivalId: 1, productId: 1, quantity: "10", costPrice: "55.00", sellingPrice: "0.00", condition: "good", notes: null },
+      // Товар 2: наоборот — новая цена продажи, закупка прежняя.
+      { id: 92, arrivalId: 1, productId: 2, quantity: "10", costPrice: "0.00", sellingPrice: "99.00", condition: "good", notes: null },
+    ];
+    const { arrivalRouter } = await import("../arrival-router");
+    await arrivalRouter.createCaller(makeCtx(1, 1)).update({ id: 1, status: "completed" });
+
+    const p1 = productsTable.find(p => p.id === 1)!;
+    expect(p1.costPrice).toBe("55.00");
+    expect(p1.unitPrice, "пустая цена продажи затёрла товарную").toBe("20.00");
+
+    const p2 = productsTable.find(p => p.id === 2)!;
+    expect(p2.unitPrice).toBe("99.00");
+    expect(p2.costPrice, "пустая себестоимость затёрла товарную").toBe("10.00");
+  });
+  it("остатки по-прежнему приходуются", async () => {
+    // Правка цен не должна была тронуть главное действие прихода.
+    const { arrivalRouter } = await import("../arrival-router");
+    await arrivalRouter.createCaller(makeCtx(1, 1)).update({ id: 1, status: "completed" });
+    const stock = stockTable.find(s => s.productId === 1 && s.warehouseId === 1)!;
+    expect(Number(stock.currentStock)).toBe(200); // было 100, пришло 100
+  });
+});
+
+/**
+ * Удаление прихода вместе с его поставкой.
+ *
+ * Внешний ключ supplies.arrival_id — ON DELETE SET NULL, поэтому удаление
+ * ошибочно заведённого прихода оставляло долг перед поставщиком жить дальше:
+ * без ссылки на документ, которым он появился, и без следа на экране приходов.
+ */
+describe("удаление прихода и долг поставщику", () => {
+  it("удаляет поставку, заведённую тем же приходом", async () => {
+    const { arrivalRouter } = await import("../arrival-router");
+    const caller = arrivalRouter.createCaller(makeCtx(1, 1));
+
+    const created = await caller.create({
+      arrivalDate: "2025-02-01",
+      supplier: { supplierId: 1, amount: "1000000", currency: "UZS" },
+    });
+    expect(suppliesTable).toHaveLength(1);
+
+    await caller.delete({ id: created.id });
+
+    expect(suppliesTable, "долг остался жить без прихода").toHaveLength(0);
+    expect(arrivalsTable.some(a => a.id === created.id)).toBe(false);
+  });
+
+  it("не удаляет ничего, если по поставке уже платили", async () => {
+    // Оплата — движение денег; стирать её заодно с черновиком прихода нельзя.
+    const { arrivalRouter } = await import("../arrival-router");
+    const caller = arrivalRouter.createCaller(makeCtx(1, 1));
+
+    const created = await caller.create({
+      arrivalDate: "2025-02-01",
+      supplier: { supplierId: 1, amount: "1000000", currency: "UZS" },
+    });
+    supplierPaymentsTable.push({ id: 1, tenantId: 1, supplyId: suppliesTable[0].id, amount: "500000" });
+
+    await expect(caller.delete({ id: created.id })).rejects.toThrow(/оплаты/i);
+    expect(suppliesTable).toHaveLength(1);
+    expect(arrivalsTable.some(a => a.id === created.id), "приход удалился, а поставка осталась").toBe(true);
+  });
+
+  it("приход без поставки удаляется как раньше", async () => {
+    const { arrivalRouter } = await import("../arrival-router");
+    const caller = arrivalRouter.createCaller(makeCtx(1, 1));
+    const created = await caller.create({ arrivalDate: "2025-02-01" });
+    await caller.delete({ id: created.id });
+    expect(arrivalsTable.some(a => a.id === created.id)).toBe(false);
   });
 });
