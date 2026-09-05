@@ -668,8 +668,9 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
           {detail.items && detail.items.length > 0 && (
             <div>
               <p style={{ fontSize: "12px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-text-tertiary)", marginBottom: "12px" }}>{t("Товары", "Mahsulotlar")} ({detail.items.length})</p>
-              <div style={{ borderRadius: "12px", overflow: "hidden", border: "1px solid var(--color-border)" }}>
-                <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
+              {/* Та же беда, что у таблицы выше: обрезалось вместо прокрутки. */}
+              <div style={{ borderRadius: "12px", overflowX: "auto", overflowY: "hidden", WebkitOverflowScrolling: "touch", border: "1px solid var(--color-border)" }}>
+                <table style={{ width: "100%", minWidth: "520px", borderCollapse: "separate", borderSpacing: 0 }}>
                   <thead>
                     <tr>
                       {[t("Товар", "Mahsulot"), t("Код", "Kod"), t("Кол-во", "Miqdor"), t("Себест.", "Tannarx"), t("Продажа", "Sotish"), t("Состояние", "Holat")].map(h => (
@@ -904,8 +905,21 @@ export default function Arrivals() {
       </div>
 
       {/* Table */}
-      <div style={{ background: COLORS.surface, borderRadius: "24px", boxShadow: SHADOW, overflow: "hidden", animation: "slideUp 0.5s ease forwards" }}>
-        <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
+      {/*
+        Таблица прокручивается вбок, а не обрезается.
+
+        Здесь стояло overflow: hidden — оно нужно ради скруглённых углов, но
+        заодно отрезало всё, что не влезло. В таблице семь колонок, и у трёх
+        запрещён перенос (номер прихода, оплачено, остаток), так что на
+        экране 375 точек она заведомо шире. Оператор и руководитель с
+        телефона не видели «ОСТАТОК» и «СТАТУС» вовсе — и добраться до них
+        не могли ничем: обрезанное не прокручивается.
+
+        min-width у самой таблицы: без него колонки сжимаются в нечитаемые
+        полоски, и прокрутка теряет смысл — честнее оставить её шире экрана.
+      */}
+      <div style={{ background: COLORS.surface, borderRadius: "24px", boxShadow: SHADOW, overflowX: "auto", overflowY: "hidden", WebkitOverflowScrolling: "touch", animation: "slideUp 0.5s ease forwards" }}>
+        <table style={{ width: "100%", minWidth: "760px", borderCollapse: "separate", borderSpacing: 0 }}>
           <thead>
             <tr>
               {[t("ПРИХОД", "KELISH"), t("ДАТА", "SANA"), t("ПОСТАВЩИК", "YETKAZUVCHI"), t("СУММА", "SUMMA"), t("ОПЛАЧЕНО", "TO'LANGAN"), t("ОСТАТОК", "QOLDIQ"), t("СТАТУС", "HOLAT")].map(h => (

@@ -169,13 +169,31 @@ describe("card roles match endpoint permissions", () => {
   const registrySource = readFileSync(resolve(__dirname, "report-registry.ts"), "utf8");
   const api = (f: string) => readFileSync(resolve(__dirname, "../../../api", f), "utf8");
 
-  const MIDDLEWARE_ROLES: Record<string, string[]> = {
-    financeQuery:    ["ceo"],
-    adminQuery:      ["ceo"],
-    operatorQuery:   ["ceo", "operator"],
-    supervisorQuery: ["ceo", "supervisor"],
-    reportsQuery:    ["ceo", "operator", "supervisor", "merchandiser"],
-  };
+  /*
+    Роли читаются из самого middleware.ts, а не переписываются сюда руками.
+
+    Здесь лежал список из пяти видов процедур, скопированный по памяти. Он и
+    отстал: как только у магазинов появился managementQuery, проверка упала не
+    на настоящем расхождении ролей, а на том, что не знает такого вида —
+    «unknown middleware managementQuery». Проверка, которую надо править вслед
+    за кодом, рано или поздно начинает врать; пусть лучше читает источник.
+  */
+  const MIDDLEWARE_ROLES: Record<string, string[]> = (() => {
+    const src = api("middleware.ts");
+    const map: Record<string, string[]> = {};
+    for (const m of src.matchAll(/export const (\w+)\s*=\s*authedQuery[\s\S]{0,160}?requireRole\(\[([^\]]+)\]\)/g)) {
+      map[m[1]] = m[2].split(",").map(r => r.trim().replace(/"/g, ""));
+    }
+    return map;
+  })();
+
+  it("роли видов процедур вычитались из middleware", () => {
+    // Иначе проверки ниже стерегли бы пустоту: у каждой карточки «неизвестный
+    // вид», и падало бы всё подряд либо не падало ничего.
+    expect(Object.keys(MIDDLEWARE_ROLES).length, "не разобрали ни одного вида процедуры").toBeGreaterThan(4);
+    expect(MIDDLEWARE_ROLES.financeQuery).toEqual(["ceo"]);
+    expect(MIDDLEWARE_ROLES.supervisorQuery).toEqual(["ceo", "supervisor"]);
+  });
 
   /** Which middleware guards `router.procedure`. */
   function guardOf(router: string, procedure: string): string {

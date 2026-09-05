@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { isSafePhotoValue, PHOTO_VALUE_ERROR } from "./lib/photo-value";
-import { createRouter, operatorQuery, supervisorQuery } from "./middleware";
+import { createRouter, operatorQuery, supervisorQuery, managementQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { shops, users, orders, payments, territories } from "@db/schema";
 import { eq, like, and, sql, desc } from "drizzle-orm";
@@ -46,7 +46,8 @@ async function assertTenantOwnsRefs(
 
 
 export const shopRouter = createRouter({
-  territories: supervisorQuery.query(async ({ ctx }) => {
+  // Территории нужны фильтру на самом списке магазинов.
+  territories: managementQuery.query(async ({ ctx }) => {
     const rows = await getDb().select({
       id: territories.id,
       name: territories.name,
@@ -85,7 +86,23 @@ export const shopRouter = createRouter({
       );
     }),
 
-  list: supervisorQuery
+  /*
+    Чтение магазинов доступно и оператору.
+
+    Здесь стоял supervisorQuery — только руководитель и супервайзер. При этом
+    ниже в этом же файле оператор МОЖЕТ создать магазин (create), изменить его
+    (update) и внести оплату (addPayment): всё это operatorQuery. Открыть
+    список он не мог — то есть правил и платил вслепую.
+
+    На экране это выглядело так: у оператора «Магазины» стоят и в нижней
+    панели, и в боковом меню, он туда нажимает и получает «не удалось
+    загрузить», а «Повторить» повторяет тот же отказ — запрос отклонён не
+    сбоем, а правами. Ровно та же беда, что была у оператора на главной.
+
+    managementQuery добавляет к прежнему набору ровно оператора и ничего
+    больше. Новых возможностей это ему не даёт: писать он и так мог.
+  */
+  list: managementQuery
     .input(z.object({
       page:     z.number().default(1),
       // Capped at 500 for a paginated screen, but an export has to be able to
@@ -184,7 +201,8 @@ export const shopRouter = createRouter({
       });
     }),
 
-  getById: supervisorQuery
+  // Чтение карточки — по тому же правилу, что и список выше.
+  getById: managementQuery
     .input(z.object({ id: z.number() }))
     .query(async ({ input, ctx }) => {
       const db       = getDb();
