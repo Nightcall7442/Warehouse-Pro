@@ -30,7 +30,6 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const { data: products, isLoading, isLoadingError, refetch } = trpc.product.listAll.useQuery(undefined);
   const [search, setSearch] = useState("");
-  const [quickQty, setQuickQty] = useState<Record<number, string>>({});
   const searchRef = useRef<HTMLInputElement>(null);
 
   // Без связи — отложенная копия каталога: иначе офлайн-заказ не из чего
@@ -59,7 +58,6 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
         unitWeight: Number(product.unitWeight ?? 0),
       }]);
     }
-    setQuickQty(prev => ({ ...prev, [product.id]: "" }));
   }, [items, onChange]);
 
   const updateQuantity = useCallback((productId: number, delta: number) => {
@@ -128,13 +126,6 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
     [next[fromIdx], next[toIdx]] = [next[toIdx], next[fromIdx]];
     onChange(next);
   }, [items, onChange]);
-
-  const handleQuickAdd = useCallback((product: CatalogProduct) => {
-    const qty = parseFloat(quickQty[product.id] || "1");
-    if (isNaN(qty) || qty <= 0) return;
-    addToCart(product, qty);
-    searchRef.current?.focus();
-  }, [quickQty, addToCart]);
 
   const validItems = items.filter(i => i.productId > 0);
   const totalWeightKg = validItems.reduce((s, i) => s + Number(i.quantity) * (i.unitWeight || 1), 0);
@@ -422,7 +413,6 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
               на экране и число, по которому решает сервер, — одно и то же.
             */
             const out = stock <= 0;
-            const inputVal = quickQty[product.id] || "";
             return (
               <div
                 key={product.id}
@@ -447,9 +437,10 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
                   двенадцати.
                 */
                 onClick={() => {
+                  // Набирать на карточке больше нечего: одна штука за тап,
+                  // дальше «+» или корзина.
                   if (inCart || out) return;
-                  const typed = parseFloat(quickQty[product.id as number] ?? "");
-                  addToCart(product, isNaN(typed) || typed <= 0 ? undefined : typed);
+                  addToCart(product);
                 }}
               >
                 {/* Строка 1: значок, название, цена — во всю ширину карточки.
@@ -513,45 +504,61 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
                     читается как «неровно». Сетка фиксирует колонки, поэтому
                     поле ввода и «+» стоят на одном месте в любой строке;
                     у не добавленного товара первая колонка просто пустая. */}
+                {/*
+                  На карточке — только кнопки, ни одного поля ввода.
+
+                  Владелец: «если нажать на плюс, автоматически открывается
+                  клава, чтобы писать; сделай, чтобы клава не открывалась —
+                  только плюс товар, а задать по сколько только в корзине».
+
+                  Клавиатуру открывали две вещи. Первая: после добавления код
+                  ставил курсор обратно в поиск (searchRef.focus), и телефон
+                  на это выкидывал клавиатуру на пол-экрана — при том что
+                  агент просто набирает товары один за другим и печатать не
+                  собирался. Вторая: само поле количества на карточке, тап по
+                  которому открывал её же.
+
+                  Теперь количество на карточке меняется только кнопками, а
+                  точное число набирается в корзине, где для этого есть место
+                  и где видно весь заказ целиком.
+
+                  Сетка 44/52/44 остаётся: у товара в корзине элементов три
+                  (−, число, +), у ещё не добавленного — один («+»), и без
+                  фиксированных колонок «плюсы» соседних карточек вставали бы
+                  на разной высоте и на разном отступе от края.
+                */}
                 <div style={{ display: "grid", gridTemplateColumns: "44px 1fr 44px", gap: "4px", alignItems: "center" }}>
                   {inCart ? (
                     <>
-                      <button onClick={(e) => { e.stopPropagation(); updateQuantity(product.id, -1); }}
+                      <button
+                        aria-label={t("Меньше", "Kamroq")}
+                        onClick={(e) => { e.stopPropagation(); updateQuantity(product.id, -1); }}
                         style={{ width: "44px", height: "44px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--color-text-secondary)" }}>
                         <Minus size={16} />
                       </button>
-                      <input
-                        type="number"
-                        min="0"
-                        value={inCart.quantity}
-                        onChange={(e) => { e.stopPropagation(); setQuantityDirect(product.id, e.target.value); }}
-                        onClick={(e) => e.stopPropagation()}
-                        style={{ width: "52px", height: "44px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface)", textAlign: "center", fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary)", fontFamily: "'DM Sans', sans-serif", outline: "none" }}
-                      />
-                      <button onClick={(e) => { e.stopPropagation(); updateQuantity(product.id, 1); }}
+                      {/* Число, а не поле: тап по нему больше ничего не открывает. */}
+                      <span
+                        data-testid={`product-qty-${product.id}`}
+                        style={{ height: "44px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "15px", fontWeight: 700, color: "var(--color-text-primary)", fontVariantNumeric: "tabular-nums" }}>
+                        {formatQty(inCart.quantity)}
+                      </span>
+                      <button
+                        aria-label={t("Больше", "Ko'proq")}
+                        onClick={(e) => { e.stopPropagation(); updateQuantity(product.id, 1); }}
                         style={{ width: "44px", height: "44px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--color-text-secondary)" }}>
                         <Plus size={16} />
                       </button>
                     </>
                   ) : (
-                    /* Quick add: input qty + Enter. Первая колонка пустая —
-                       кнопки «−» тут нет, но место под неё держится, чтобы
-                       поле и «+» не съезжали относительно соседних строк. */
                     <>
                       <span />
-                      <input
-                        data-testid={`product-qty-${product.id}`}
-                        type="number"
-                        min="1"
-                        placeholder="1"
-                        value={inputVal}
-                        onClick={(e) => e.stopPropagation()}
-                        onChange={(e) => setQuickQty(prev => ({ ...prev, [product.id]: e.target.value }))}
-                        onKeyDown={(e) => { if (e.key === "Enter") handleQuickAdd(product); }}
-                        style={{ width: "52px", height: "44px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface)", textAlign: "center", fontSize: "12px", color: "var(--color-text-primary)", fontFamily: "'DM Sans', sans-serif", outline: "none" }}
-                      />
-                      <button data-testid={`product-add-${product.id}`} onClick={(e) => { e.stopPropagation(); handleQuickAdd(product); }}
-                        style={{ width: "44px", height: "44px", borderRadius: "6px", border: "none", background: "var(--color-primary)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--color-on-primary, #ffffff)" }}>
+                      <span />
+                      <button
+                        data-testid={`product-add-${product.id}`}
+                        aria-label={t("Добавить", "Qo'shish")}
+                        disabled={out}
+                        onClick={(e) => { e.stopPropagation(); if (!out) addToCart(product); }}
+                        style={{ width: "44px", height: "44px", borderRadius: "6px", border: "none", background: "var(--color-primary)", display: "flex", alignItems: "center", justifyContent: "center", cursor: out ? "not-allowed" : "pointer", opacity: out ? 0.4 : 1, color: "var(--color-on-primary, #ffffff)" }}>
                         <Plus size={16} />
                       </button>
                     </>

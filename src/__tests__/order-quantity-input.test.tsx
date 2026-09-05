@@ -96,19 +96,38 @@ describe("количество в заказе", () => {
     expect(next[0].quantity).toBe("12");
   });
 
-  it("тап по карточке кладёт набранное количество, а не одну штуку", () => {
-    const onChange = renderSelector([]);
+  it("на карточке нет полей ввода — клавиатуре открываться не от чего", () => {
+    /*
+      Решение владельца, снято с живого телефона: «если нажать на плюс,
+      автоматически открывается клава, чтобы писать; сделай, чтобы клава не
+      открывалась — только плюс товар, а задать по сколько только в корзине».
 
-    // Набираем в поле карточки, затем жмём саму карточку — так агент гасит
-    // клавиатуру, и именно на этом пути терялось набранное.
-    const quick = screen.getByTestId("product-qty-1") as HTMLInputElement;
-    fireEvent.change(quick, { target: { value: "12" } });
-    fireEvent.click(screen.getByTestId("product-row-1"));
+      Раньше на карточке стояло поле количества, и тап по нему выкидывал
+      клавиатуру на пол-экрана. Теперь число на карточке меняется только
+      кнопками, а набирается в корзине.
+    */
+    renderSelector([]);
+    const card = screen.getByTestId("product-row-1");
+    expect(card.querySelectorAll("input"), "на карточке снова появилось поле ввода").toHaveLength(0);
 
-    expect(onChange).toHaveBeenCalled();
-    const next = onChange.mock.calls.at(-1)![0] as Item[];
-    expect(next).toHaveLength(1);
-    expect(next[0].quantity, "в корзину ушла одна штука вместо набранных 12").toBe("12");
+    // И у добавленного товара тоже: там теперь просто число.
+    cleanup();
+    renderSelector(inCart("3"));
+    const inCartCard = screen.getByTestId("product-row-1");
+    expect(inCartCard.querySelectorAll("input")).toHaveLength(0);
+    expect(inCartCard.textContent).toContain("3");
+  });
+
+  it("добавление не возвращает курсор в поиск", () => {
+    /*
+      Именно этот возврат и открывал клавиатуру: после «+» код ставил курсор
+      обратно в строку поиска, а телефон на фокус выкидывает клавиатуру. Агент
+      при этом просто набирает товары один за другим и печатать не собирался.
+    */
+    renderSelector([]);
+    const search = screen.getByTestId("product-search");
+    fireEvent.click(screen.getByTestId("product-add-1"));
+    expect(document.activeElement, "курсор снова уводят в поиск").not.toBe(search);
   });
 
   it("тап по карточке без набранного кладёт одну штуку", () => {
