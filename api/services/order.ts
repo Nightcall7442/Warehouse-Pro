@@ -273,6 +273,37 @@ function stockModeFor(status: string): "reserve" | "consumed" | "none" {
 }
 
 /**
+ * Имена товаров для отказа — вместо номеров строк в базе.
+ *
+ * «Недостаточно товара на складе: 417, 902» кладовщику не говорит ничего:
+ * номер товара не написан ни на коробке, ни в накладной, и, чтобы понять,
+ * чего не хватило, приходилось лезть в базу. Оформление заказа имена уже
+ * называло — остальные четыре отказа остались с номерами.
+ *
+ * Запрос уходит только на пути отказа, то есть в редком случае.
+ */
+async function productNames(tx: Tx, tenantId: number, productIds: number[]): Promise<Map<number, string>> {
+  const map = new Map<number, string>();
+  if (productIds.length === 0) return map;
+  try {
+    const rows = await tx.select({ id: products.id, name: products.name }).from(products)
+      .where(and(
+        sql`${products.id} IN (${sql.join(productIds.map(id => sql`${id}`), sql`, `)})`,
+        eq(products.tenantId, tenantId),
+      ));
+    for (const r of rows) map.set(r.id, r.name);
+  } catch {
+    /* имя — украшение сообщения, из-за него отказ не должен превратиться в сбой */
+  }
+  return map;
+}
+
+/** Имя товара, а если его не нашли — хотя бы номер. */
+async function productLabel(tx: Tx, tenantId: number, productId: number): Promise<string> {
+  return (await productNames(tx, tenantId, [productId])).get(productId) ?? `#${productId}`;
+}
+
+/**
  * Moves warehouse stock to match a change of `delta` units on an order line,
  * according to what that order's status already did to stock. Positive delta
  * means the order now wants more units than before.
@@ -293,10 +324,10 @@ async function applyStockDelta(
     // При уменьшении позиции это проходило незамеченным: состав заказа менялся,
     // склад — нет.
     if (!stock) {
-      throw new Error(`Нет строки склада для товара ID ${productId} на складе ${warehouseId}`);
+      throw new Error(`Товар «${await productLabel(tx, tenantId, productId)}» ещё не заводился на этом складе`);
     }
     if (delta > 0 && Number(stock.available) < delta) {
-      throw new Error(`Недостаточно товара на складе (товар ID ${productId}: доступно ${Number(stock.available)}, нужно +${delta})`);
+      throw new Error(`Недостаточно товара: «${await productLabel(tx, tenantId, productId)}» — доступно ${Number(stock.available)}, нужно ещё ${delta}`);
     }
 
     // Ограничение снизу применяется к ОБЕИМ колонкам, иначе инвариант
@@ -335,7 +366,7 @@ async function applyStockDelta(
       .where(and(eq(warehouseStock.productId, productId), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, warehouseId)))
       .limit(1);
     if (Number(stock?.currentStock ?? 0) < delta) {
-      throw new Error(`Недостаточно товара на складе (товар ID ${productId}: остаток ${Number(stock?.currentStock ?? 0)}, нужно +${delta})`);
+      throw new Error(`Недостаточно товара: «${await productLabel(tx, tenantId, productId)}» — остаток ${Number(stock?.currentStock ?? 0)}, нужно ещё ${delta}`);
     }
   }
   // The units are leaving (or coming back to) the warehouse outright: this
@@ -462,6 +493,33 @@ export function canCancelAnyOrder(role: string): boolean {
  * любой INTERNAL-ошибки на «Внутренняя ошибка сервера», и объяснение до
  * человека не доходит (api/middleware.ts).
  */
+/**
+ * Заказ виден этому человеку?
+ *
+ * Список и карточка заказа сужаются до своих через ownerScope, а всё, что
+ * висит на заказе сбоку — оплаты, правки состава, комментарии, — читалось
+ * по одному номеру заказа кем угодно из полевых. То есть агент, подставив
+ * чужой номер, видел платежи по чужому магазину и мог оставить там
+ * комментарий.
+ *
+ * Бросает то же самое, что и остальные пути: «оформил другой сотрудник»
+ * либо «не найден», не выдавая существование чужого заказа больше, чем
+ * нужно.
+ */
+export async function assertOrderVisible(
+  db: Db, tenantId: number, orderId: number, actor: Actor, action = "Открыть",
+): Promise<void> {
+  const [own] = await db.select({ id: orders.id }).from(orders)
+    .where(and(
+      eq(orders.id, orderId),
+      eq(orders.tenantId, tenantId),
+      isNull(orders.deletedAt),
+      ...ownerScope(actor),
+    ))
+    .limit(1);
+  if (!own) throw await orderAccessError(db as unknown as Tx, tenantId, orderId, action);
+}
+
 async function orderAccessError(
   tx: Tx, tenantId: number, orderId: number, action = "Провести",
 ): Promise<TRPCError> {
@@ -1502,7 +1560,8 @@ export const OrderService = {
             || (d.available < 0 && Number(row.available) + d.available * qty < 0);
         });
         if (short.length > 0) {
-          throw new Error(`Недостаточно товара на складе: ${short.map(i => `${i.productId}`).join(", ")}`);
+          const names = await productNames(tx, tenantId, short.map(i => i.productId));
+          throw new Error(`Недостаточно товара на складе: ${short.map(i => `«${names.get(i.productId) ?? `#${i.productId}`}»`).join(", ")}`);
         }
 
         // Each delta is −1, 0 or +1 per unit, so the sign travels inside the
@@ -1935,7 +1994,7 @@ export const OrderService = {
           const row = stockRows.find(r => Number(r.productId) === item.productId);
           const available = Number(row?.available ?? 0);
           if (available < qty) {
-            throw new Error(`Недостаточно товара на складе для восстановления (товар ID ${item.productId}: доступно ${available}, нужно ${qty})`);
+            throw new Error(`Не восстановить заказ: «${await productLabel(tx, tenantId, item.productId)}» — доступно ${available}, нужно ${qty}`);
           }
           await tx.execute(sql`
             UPDATE warehouse_stock

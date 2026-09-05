@@ -179,3 +179,81 @@ describe("состав частично доставленного заказа 
     expect(body).toContain("частично доставлен");
   });
 });
+
+/**
+ * То, что висит на заказе сбоку, — тоже заказ.
+ *
+ * Список и карточка сужаются до своих через ownerScope, а оплаты, правки
+ * состава и переписка читались по одному номеру заказа кем угодно из полевых:
+ * агент, подставив чужой номер, видел платежи по чужому магазину — суммы, даты
+ * и кто принимал, — и мог оставить там комментарий.
+ *
+ * Перебор номеров тут ничего не стоит: они идут подряд.
+ */
+describe("подчинённые данные заказа сужены до своих", () => {
+  const SIDE_PROCEDURES = ["getAdjustments", "getOrderPayments", "listComments", "addComment"];
+
+  /*
+    Тело ОДНОЙ процедуры: от её объявления до следующего.
+
+    Срез «до ближайшего `}),`» этого не даёт — процедуры лежат подряд, и в
+    хвост попадает соседняя вместе со своей проверкой. Тогда снятая защита
+    находится у соседа, и тест молча проходит: ровно это и случилось на
+    первом прогоне мутаций.
+  */
+  const procBody = (proc: string): string => {
+    const at = ROUTER.indexOf(`\n  ${proc}: `);
+    expect(at, `процедура ${proc} не найдена`).toBeGreaterThan(-1);
+    const rest = ROUTER.slice(at + 3);
+    const next = rest.search(/\n {2}\w+: (fieldSalesQuery|operatorQuery|adminQuery|authedQuery)/);
+    return next > 0 ? rest.slice(0, next) : rest;
+  };
+
+  for (const proc of SIDE_PROCEDURES) {
+    it(`${proc} проверяет, что заказ вообще виден этому человеку`, () => {
+      const body = procBody(proc);
+      expect(body, `${proc}: чужой заказ читается по одному номеру`).toContain("assertOrderVisible(");
+      // Роль обязана дойти до проверки — иначе она пропустит кого угодно.
+      expect(body, `${proc}: проверка вызвана без роли`).toContain("role: ctx.user.role");
+    });
+  }
+
+  it("сама проверка сужает выборку тем же ownerScope", () => {
+    // Не своим правилом рядом, а тем же самым: два правила разъезжаются.
+    const at = SRC.indexOf("export async function assertOrderVisible(");
+    expect(at, "assertOrderVisible не найдена").toBeGreaterThan(-1);
+    const body = SRC.slice(at, SRC.indexOf("\n}", at));
+    expect(body).toContain("...ownerScope(actor)");
+    expect(body, "мягко удалённый заказ проходит проверку").toContain("isNull(orders.deletedAt)");
+    expect(body, "отказ отличается от прочих путей").toContain("orderAccessError");
+  });
+});
+
+/**
+ * Отказ по остаткам должен называть товар.
+ *
+ * «Недостаточно товара на складе: 417, 902» кладовщику не говорит ничего:
+ * номера товара нет ни на коробке, ни в накладной. Оформление заказа имена уже
+ * называло — остальные четыре отказа остались с номерами.
+ */
+describe("отказы по остаткам называют товар", () => {
+  it("ни одно сообщение не печатает номер товара вместо названия", () => {
+    /*
+      Отказ виноват, если называет нехватку и НЕ спрашивает имя товара:
+      номер остаётся только запасным вариантом внутри самого помощника.
+    */
+    const offenders = SRC.split("\n").filter(l =>
+      /throw new Error\(`(Недостаточно товара|Нет строки склада|Не восстановить)/.test(l)
+      && !/productLabel\(|names\.get\(/.test(l)
+    );
+    expect(offenders, `остались отказы с номером товара:\n${offenders.join("\n")}`).toEqual([]);
+  });
+
+  it("имена берутся одним помощником, а не собираются на месте", () => {
+    expect(SRC).toContain("async function productNames(");
+    expect(SRC).toContain("async function productLabel(");
+    // Помощник не должен ронять отказ, если имя не прочиталось.
+    const at = SRC.indexOf("async function productNames(");
+    expect(SRC.slice(at, SRC.indexOf("\n}", at))).toContain("catch");
+  });
+});

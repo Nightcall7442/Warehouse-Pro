@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { createRouter, operatorQuery, fieldSalesQuery } from "./middleware";
-import { OrderService } from "./services/order";
+import { OrderService, assertOrderVisible } from "./services/order";
 import { getDb } from "./queries/connection";
 import { savedFilters, orderComments, shops, payments, users, orders } from "@db/schema";
 import { eq, and, or, desc, sql, isNull, inArray } from "drizzle-orm";
@@ -538,6 +538,8 @@ export const orderRouter = createRouter({
       parentId: z.number().int().positive().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
+      // И писать в чужой заказ тоже.
+      await assertOrderVisible(ctx.db, ctx.tenant.id, input.orderId, { id: ctx.user.id, role: ctx.user.role }, "Комментировать");
       const db = getDb();
       const [result] = await db.insert(orderComments).values({
         tenantId: ctx.tenant.id,
@@ -552,6 +554,8 @@ export const orderRouter = createRouter({
   listComments: fieldSalesQuery
     .input(z.object({ orderId: z.number().int().positive() }))
     .query(async ({ input, ctx }) => {
+      // Переписка по заказу — часть заказа: чужую читать нечего.
+      await assertOrderVisible(ctx.db, ctx.tenant.id, input.orderId, { id: ctx.user.id, role: ctx.user.role });
       const db = getDb();
       const comments = await db.select({
         id: orderComments.id,
@@ -634,6 +638,9 @@ export const orderRouter = createRouter({
   getAdjustments: fieldSalesQuery
     .input(z.object({ orderId: z.number().int().positive() }))
     .query(async ({ input, ctx }) => {
+      // Правки состава — часть карточки заказа, и видны они тем же, кому
+      // видна сама карточка.
+      await assertOrderVisible(ctx.db, ctx.tenant.id, input.orderId, { id: ctx.user.id, role: ctx.user.role });
       return OrderService.getAdjustments(ctx.db, ctx.tenant.id, input.orderId);
     }),
 
@@ -641,6 +648,8 @@ export const orderRouter = createRouter({
   getOrderPayments: fieldSalesQuery
     .input(z.object({ orderId: z.number().int().positive() }))
     .query(async ({ input, ctx }) => {
+      // Платежи по чужому заказу — это деньги чужого магазина.
+      await assertOrderVisible(ctx.db, ctx.tenant.id, input.orderId, { id: ctx.user.id, role: ctx.user.role });
       return OrderService.getOrderPayments(ctx.db, ctx.tenant.id, input.orderId);
     }),
 });
