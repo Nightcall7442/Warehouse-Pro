@@ -8,6 +8,7 @@ import { notify } from "@/lib/toast";
 import { useNavigate, useSearchParams } from "react-router";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/hooks/useAuth";
+import AgentOrders from "@/pages/AgentOrders";
 import {
   Plus, FileDown, ChevronRight, Store, User,
   ShoppingCart, Clock, CheckCircle2, XCircle, DollarSign,
@@ -43,7 +44,27 @@ import { F, COLORS, SHADOW, OPEN_STATUSES, PAYMENT, STATUS } from "@/components/
 import { colorMix } from "@/lib/color-mix";
 
 import { SearchInput } from "@/components/SearchInput";
+/*
+  Агенту — свой экран, всем остальным — этот.
+
+  Страница ниже писалась для оператора и руководителя: выгрузки в Excel и PDF,
+  диапазон дат, плитки со сводкой, массовые действия, смена статуса. Агент
+  попадал сюда же, и на телефоне это выглядело так: два поля выбора дат,
+  «Excel», «PDF», а под ними столбик плиток «ВСЕГО 0», «НОВЫЕ 0»,
+  «В ОБРАБОТКЕ 0»... При нуле заказов страница занимала 1762 точки — полтора
+  экрана нулей до первого заказа. Ничем из этого агент не пользуется:
+  выгрузки делает офис, а сводка по своим заказам есть на «Дне».
+
+  Разделено обёрткой, а не условиями внутри: у страницы больше десятка
+  запросов, и агент грузил бы их все ради списка из пяти строк.
+*/
 export default function Orders() {
+  const { user } = useAuth();
+  if (user?.role === "agent" || user?.role === "merchandiser") return <AgentOrders />;
+  return <OperatorOrders />;
+}
+
+function OperatorOrders() {
   const [page, setPage]     = useState(1);
   const { fmt, symbol }     = useCurrency();
   const { lang }            = useLang();

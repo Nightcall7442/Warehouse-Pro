@@ -339,7 +339,7 @@ export default function AgentShops() {
                 <div className="flex gap-2 mt-3">
                   <button
                     onClick={() => navigate(`/orders/new?shopId=${shop.id}`)}
-                    className="neo-btn-primary flex-1 py-2 text-xs flex items-center justify-center gap-1.5"
+                    className="neo-btn-primary tap flex-1 text-xs flex items-center justify-center gap-1.5"
                   >
                     <PlusCircle size={13} />
                     {t("Новый заказ", "Yangi buyurtma")}
