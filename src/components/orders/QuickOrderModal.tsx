@@ -7,6 +7,7 @@ import { trpc } from "@/providers/trpc";
 import { useInvalidateOrderCaches } from "@/hooks/useOrderCacheSync";
 import { notify } from "@/lib/toast";
 import { useTranslate } from "@/i18n";
+import { useAuth } from "@/hooks/useAuth";
 import { colorMix } from "@/lib/color-mix";
 
 interface CartItem {
@@ -120,12 +121,34 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, initial
   const [shopSearch, setShopSearch] = useState("");
   const invalidateOrderCaches = useInvalidateOrderCaches();
 
-  const { data: shopsData } = trpc.shop.list.useQuery({ pageSize: 500 });
+  /*
+    Магазины агенту приходят другим запросом.
+
+    Здесь стоял один shop.list, а он для руководителя, оператора и
+    супервайзера — агента не пускает. Из-за этого окно быстрого заказа,
+    которое открывается из каталога кнопкой «Заказать», показывало агенту
+    ПУСТОЙ список магазинов: выбрать некого, заказ не оформить. А каталог —
+    это ровно тот путь, которым агент и заказывает, стоя у прилавка.
+
+    Так же устроен первый шаг мастера (ShopSelector): агенту — agent.myShops,
+    остальным — shop.list. Здесь эту развилку просто забыли.
+  */
+  const { user } = useAuth();
+  const isFieldAgent = user?.role === "agent" || user?.role === "merchandiser";
+
+  const { data: myShops } = trpc.agent.myShops.useQuery(undefined, { enabled: open && isFieldAgent });
+  const { data: allShops } = trpc.shop.list.useQuery({ pageSize: 500 }, { enabled: open && !isFieldAgent });
+
+  // Один список на оба случая: ниже по нему и ищут, и достают имя магазина.
+  const shops = useMemo(
+    () => (isFieldAgent ? myShops ?? [] : allShops?.data ?? []),
+    [isFieldAgent, myShops, allShops],
+  );
   const { data: productsData } = trpc.product.listAll.useQuery({ search: productSearch || undefined });
 
   const filteredShops = useMemo(() => {
     const q = shopSearch.trim().toLowerCase();
-    const list = shopsData?.data ?? [];
+    const list = shops;
     if (!q) return list;
     return list.filter(s =>
       s.name?.toLowerCase().includes(q) ||
@@ -133,7 +156,7 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, initial
       s.district?.toLowerCase().includes(q) ||
       s.city?.toLowerCase().includes(q),
     );
-  }, [shopsData, shopSearch]);
+  }, [shops, shopSearch]);
   const createOrder = trpc.order.create.useMutation({
     onSuccess: () => {
       notify.success(t("Заказ создан", "Buyurtma yaratildi"));
@@ -219,7 +242,7 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, initial
     });
   };
 
-  const shopName = shopsData?.data?.find(s => s.id === shopId)?.name;
+  const shopName = shops.find(s => s.id === shopId)?.name;
 
   const footer = step === 1 ? (
     <>
