@@ -1,4 +1,5 @@
 import ExcelJS from "exceljs";
+import { unitShort } from "./units";
 
 /**
  * Export data to Excel (.xlsx) file.
@@ -165,7 +166,7 @@ export function buildExcelSheets(data: ReportData) {
       name: p.productName,
       code: p.productCode,
       stock: p.currentStock,
-      unit: p.unit,
+      unit: unitShort(p.unit),
       costValue: p.costValue,
       retailValue: p.retailValue,
       margin: p.margin,
@@ -257,7 +258,7 @@ export function buildPDFHtml(data: ReportData) {
   html += `<div class="section"><h2>Топ товаров по стоимости</h2>
     <table><thead><tr><th>Товар</th><th>Код</th><th class="right">Остаток</th><th class="right">Стоимость</th><th class="right">Маржа</th></tr></thead><tbody>`;
   for (const p of data.topByValue.slice(0, 10)) {
-    html += `<tr><td>${escapeHtml(p.productName)}</td><td>${escapeHtml(p.productCode)}</td><td class="right">${fmt(Number(p.currentStock))} ${escapeHtml(p.unit)}</td><td class="right">${fmt(Number(p.costValue))}</td><td class="right">${fmt(Number(p.margin))}</td></tr>`;
+    html += `<tr><td>${escapeHtml(p.productName)}</td><td>${escapeHtml(p.productCode)}</td><td class="right">${fmt(Number(p.currentStock))} ${escapeHtml(unitShort(p.unit))}</td><td class="right">${fmt(Number(p.costValue))}</td><td class="right">${fmt(Number(p.margin))}</td></tr>`;
   }
   html += `</tbody></table></div>`;
 

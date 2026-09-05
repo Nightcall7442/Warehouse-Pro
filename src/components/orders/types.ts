@@ -19,20 +19,12 @@ export const PAYMENT_METHODS: Record<PaymentMethod, { ru: string; uz: string; ic
   card:     { ru: "Карта",       uz: "Plastik karta", icon: CreditCard,    color: "#9b59b6" },
 };
 
-export const UNIT_LABELS: Record<string, { ru: string; uz: string; short: string }> = {
-  kg:   { ru: "кг",      uz: "kg",   short: "кг" },
-  l:    { ru: "литр",    uz: "litr", short: "л" },
-  pcs:  { ru: "шт",      uz: "dona", short: "шт" },
-  box:  { ru: "ящ",      uz: "quti", short: "ящ" },
-  pack: { ru: "упак",    uz: "pach", short: "упак" },
-  m:    { ru: "метр",    uz: "metr", short: "м" },
-  block: { ru: "блок",   uz: "blok", short: "бл" },
-};
-
-export function unitLabel(unit: string | undefined, lang: "ru" | "uz"): string {
-  const e = UNIT_LABELS[unit ?? "pcs"];
-  return e ? (lang === "uz" ? e.uz : e.ru) : (unit ?? "шт");
-}
+/*
+  Рядом с числом нужна короткая подпись: «12 шт», а не «12 штук».
+  Сам список — общий, в src/lib/units.ts.
+*/
+export { UNIT_LABELS } from "@/lib/units";
+export { unitShort as unitLabel } from "@/lib/units";
 
 export const EMPTY_ITEM: OrderItem = {
   productId: 0, quantity: "", unitPrice: "",

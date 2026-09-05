@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import { Package, Store, Wallet, CreditCard, Award, Users, Boxes, Truck, TrendingUp, Coins, MapPin, ArrowLeftRight } from "lucide-react";
 import { trpc } from "@/providers/trpc";
+import { unitShort } from "@/lib/units";
 
 /**
  * Every report the hub can produce, described rather than coded.
@@ -345,7 +346,7 @@ export const REPORTS: ReportDef[] = [
         "Остаток": num(r.currentStock),
         "В резерве": num(r.reserved),
         "Доступно": num(r.available),
-        "Ед.": String(r.unit ?? "—"),
+        "Ед.": unitShort(r.unit as string | null | undefined),
         "Цена": num(r.unitPrice),
       })),
     filename: (p) => `stock-balances${suffix(p)}`,

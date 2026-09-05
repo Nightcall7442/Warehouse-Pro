@@ -12,24 +12,6 @@ export const COLORS = {
 };
 export const SHADOW = "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04))";
 
-// as const — чтобы значения были не просто строками, а тем же перечислением,
-// какое ждёт сервер (z.enum в product.create). Без этого форма отдавала
-// unit: string, и вызов create не проходил проверку типов.
-export const UNITS = [
-  { value: "kg",   ru: "кг",       uz: "kg" },
-  { value: "l",    ru: "литр",     uz: "litr" },
-  { value: "pcs",  ru: "штук",     uz: "dona" },
-  { value: "box",  ru: "ящик",     uz: "quti" },
-  { value: "pack", ru: "упаковка", uz: "pachka" },
-  { value: "m",     ru: "метр",     uz: "metr" },
-  { value: "block", ru: "блок",     uz: "blok" },
-] as const;
-
-/** Единицы, которые принимает сервер. */
-export type Unit = typeof UNITS[number]["value"];
-
-
-export const unitLabel = (u: string | undefined, lang: string) => {
-  const e = UNITS.find(x => x.value === u);
-  return e ? (lang === "uz" ? e.uz : e.ru) : (u ?? "шт");
-};
+// Единицы живут одним списком в src/lib/units.ts: раньше их было восемь
+// разных, и `box` в половине назывался «блок» — тем же словом, что и `block`.
+export { UNITS, unitLabel, type Unit } from "@/lib/units";

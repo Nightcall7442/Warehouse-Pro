@@ -5,7 +5,7 @@ import { useRef, useState } from "react";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { compressImage } from "@/lib/compress-image";
-import { useTranslate } from "@/i18n";
+import { useTranslate, useLang } from "@/i18n";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { format } from "date-fns";
 import { ArrowLeft, Package, Edit2, TrendingUp, TrendingDown, ArrowUpDown, Loader2, Camera } from "lucide-react";
@@ -16,11 +16,8 @@ import { PremiumSelect } from "@/components/PremiumSelect";
 import { CategoryAutocomplete } from "@/components/products/CategoryAutocomplete";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { formatQty } from "@/lib/format";
+import { UNITS, unitShort } from "@/lib/units";
 
-const UNIT_LABELS: Record<string,[string,string]> = {
-  kg:   ["кг","kg"], l: ["л","l"], pcs: ["шт","dona"],
-  box:  ["ящ","quti"], pack: ["упак","pachka"], m: ["м","m"], block: ["бл","blok"],
-};
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
   in:         <TrendingUp  size={13} className="text-success"/>,
@@ -32,6 +29,7 @@ export default function ProductDetail() {
   const { id }           = useParams<{id:string}>();
   const { fmt } = useCurrency();
   const tr = useTranslate();
+  const { lang } = useLang();
   const navigate         = useNavigate();
   const [searchParams]   = useSearchParams();
   const fromPage         = searchParams.get("fromPage") || "1";
@@ -104,7 +102,8 @@ export default function ProductDetail() {
   const movements  = (product.movements ?? []);
   const low        = stock && Number(stock.available) < Number(product.reorderPoint);
 
-  const unitLabel = (u?:string) => { const e = UNIT_LABELS[u||"pcs"]; return e ? tr(e[0],e[1]) : (u||""); };
+  // Короткая подпись рядом с числом: «12 шт», а не «12 штук».
+  const unitLabel = (u?: string) => unitShort(u, lang);
   const totalWeightKg = stock ? (Number(stock.currentStock) * Number(product.unitWeight||0)) : 0;
 
   return (
@@ -164,7 +163,7 @@ export default function ProductDetail() {
                   placeholder={tr("Категория","Kategoriya")} />
                 <PremiumSelect value={String(editData.unit ?? product.unit ?? "pcs")}
                   onChange={v=>setEditData((d: Record<string, unknown>)=>({...d,unit:v}))}
-                  options={Object.keys(UNIT_LABELS).map(u=>({value:u,label:unitLabel(u)}))}
+                  options={UNITS.map(u => ({ value: u.value, label: lang === "uz" ? u.uz : u.ru }))}
                   width="100%" />
                 <DecimalInput className="neo-input font-data" placeholder={tr("Себестоимость","Tannarx")}
                   value={String(editData.costPrice ?? product.costPrice ?? "")}

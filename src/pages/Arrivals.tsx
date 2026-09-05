@@ -77,8 +77,7 @@ function KpiCard({ label, value, delta, icon, gradient, delay }: {
   );
 }
 
-const UNIT_LABELS: Record<string, string> = { kg: "кг", l: "л", pcs: "шт", box: "ящ", pack: "упак", m: "м", block: "бл" };
-function unitLabel(unit: string | undefined): string { return UNIT_LABELS[unit ?? "pcs"] ?? "шт"; }
+import { unitShort as unitLabel } from "@/lib/units";
 
 const STATUS: Record<string, { ru: string; uz: string; color: string }> = {
   pending:   { ru: "Ожидает", uz: "Kutilmoqda", color: "var(--color-warning-text)" },

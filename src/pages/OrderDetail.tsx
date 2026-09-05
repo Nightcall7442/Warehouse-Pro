@@ -20,6 +20,7 @@ import type { OrderDocData, CompanyInfo } from "@/lib/documents";
 import { notify } from "@/lib/toast";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
+import { unitShort } from "@/lib/units";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -53,15 +54,6 @@ const STATUS_LABELS: Record<string, { ru: string; uz: string }> = {
   returned:             { ru: "Возврат",            uz: "Qaytarildi" },
 };
 
-const UNIT_LABELS: Record<string, { ru: string; uz: string }> = {
-  kg:   { ru: "кг",   uz: "kg" },
-  l:    { ru: "л",    uz: "l" },
-  pcs:  { ru: "шт",   uz: "dona" },
-  box:  { ru: "блок",  uz: "blok" },
-  pack: { ru: "упак",  uz: "upk" },
-  m:    { ru: "м",    uz: "m" },
-  block:{ ru: "блок",  uz: "blok" },
-};
 
 const PAYMENT_METHODS: Record<string, { ru: string; uz: string; color: string }> = {
   cash:     { ru: "Наличные",     uz: "Naqd",       color: "var(--color-success-text)" },
@@ -256,7 +248,7 @@ export default function OrderDetail() {
       items:    (order.items ?? []).map((i) => ({
         name:  i.productName ?? "",
         code:  i.productCode ?? "",
-        unit:  UNIT_LABELS[i.unit ?? "pcs"]?.ru ?? "шт",
+        unit:  unitShort(i.unit),
         qty:   Number(i.deliveredQuantity ?? i.quantity),
         price: Number(i.unitPrice),
         total: Number(i.subtotal),
@@ -280,7 +272,7 @@ export default function OrderDetail() {
   const handleExport = async () => {
     if (!order) return;
     const rows = (order.items ?? []).map((i) => {
-      const ul = UNIT_LABELS[i.unit ?? "pcs"] ?? { ru: "шт", uz: "dona" };
+      const ul = { ru: unitShort(i.unit, "ru"), uz: unitShort(i.unit, "uz") };
       return {
         [lang === "uz" ? "Buyurtma" : "Заказ"]:    order.orderNumber,
         [lang === "uz" ? "Do'kon" : "Магазин"]:     order.shop?.name ?? "",
@@ -543,8 +535,7 @@ export default function OrderDetail() {
                   <th className="text-right px-3 py-2 font-h3 text-secondary text-xs">
                     {(() => {
                       const firstUnit = order.items?.[0]?.unit;
-                      const ul = firstUnit ? UNIT_LABELS[firstUnit] : null;
-                      return ul ? (lang === "uz" ? ul.uz : ul.ru).toUpperCase() : (lang === "uz" ? "MIQDOR" : "КОЛ-ВО");
+                      return firstUnit ? unitShort(firstUnit, lang).toUpperCase() : (lang === "uz" ? "MIQDOR" : "КОЛ-ВО");
                     })()}
                   </th>
                   <th className="text-right px-3 py-2 font-h3 text-secondary text-xs">
@@ -557,8 +548,7 @@ export default function OrderDetail() {
               </thead>
               <tbody>
                 {order.items?.map((item, i) => {
-                  const ul = UNIT_LABELS[item.unit ?? "pcs"] ?? { ru: "шт", uz: "dona" };
-                  const unitLabel = lang === "uz" ? ul.uz : ul.ru;
+                  const unitLabel = unitShort(item.unit, lang);
                   const hasPartial = item.deliveredQuantity != null && Number(item.deliveredQuantity) < Number(item.quantity);
                   return (
                     <tr key={item.id ?? i} className="border-b border-border-subtle hover:bg-muted/20 transition-colors">

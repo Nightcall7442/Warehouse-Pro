@@ -9,15 +9,9 @@ export const MOVE_TYPE: Record<string, { icon: LucideIcon; labelRu: string; labe
   adjustment: { icon: ArrowUpDown,  labelRu: "Корректировка", labelUz: "Tuzatish",   color: "var(--color-warning-text)", sign: "±" },
 };
 
-export const UNIT_LABELS: Record<string, [string, string]> = {
-  kg: ["кг", "kg"], l: ["л", "l"], pcs: ["шт", "dona"],
-  box: ["ящ", "quti"], pack: ["упак", "pachka"], m: ["м", "m"], block: ["бл", "blok"],
-};
-
-export function unitLabel(unit: string | undefined, lang: "ru" | "uz"): string {
-  const e = UNIT_LABELS[unit ?? "pcs"];
-  return e ? (lang === "uz" ? e[1] : e[0]) : (unit ?? "шт");
-}
+// Общий список единиц — src/lib/units.ts.
+export { UNIT_LABELS } from "@/lib/units";
+export { unitShort as unitLabel } from "@/lib/units";
 
 /** Convert stock quantity to kg using unitWeight. If unitWeight=0, assume already in kg */
 export function toKg(stock: number | string, unitWeight: number | string | null): number {

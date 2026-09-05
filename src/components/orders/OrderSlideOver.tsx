@@ -16,6 +16,7 @@ import {
 import { trpc } from "@/providers/trpc";
 import { useTranslate, useLang } from "@/i18n";
 import { useAuth } from "@/hooks/useAuth";
+import { unitShort } from "@/lib/units";
 import { useCurrency } from "@/hooks/useCurrency";
 import { notify } from "@/lib/toast";
 import { useConfirm } from "@/components/ConfirmDialog";
@@ -50,9 +51,6 @@ interface EditLine {
   unitPrice: string;
 }
 
-const UNIT_LABELS_MAP: Record<string, string> = {
-  kg: "кг", l: "л", pcs: "шт", box: "блок", pack: "упак", m: "м", block: "блок",
-};
 
 function DebtBlock({ debt, orderTotal, currency }: { debt: string; orderTotal: string; currency: string }) {
   const t = useTranslate();
@@ -196,7 +194,7 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
       items:    (order.items ?? []).map((i) => ({
         name:  i.productName ?? "",
         code:  i.productCode ?? "",
-        unit:  UNIT_LABELS_MAP[i.unit ?? "pcs"] ?? "шт",
+        unit:  unitShort(i.unit),
         qty:   Number(i.deliveredQuantity ?? i.quantity),
         price: Number(i.unitPrice),
         total: Number(i.subtotal),
@@ -638,7 +636,7 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
                         </thead>
                         <tbody>
                           {(order.items ?? []).map((item, i) => {
-                            const unit = UNIT_LABELS_MAP[item.unit ?? "pcs"] ?? "шт";
+                            const unit = unitShort(item.unit);
                             const hasPartial = item.deliveredQuantity != null && Number(item.deliveredQuantity) < Number(item.quantity);
                             return (
                               <tr key={item.id}>

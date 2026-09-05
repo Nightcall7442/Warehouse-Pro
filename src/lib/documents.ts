@@ -16,12 +16,9 @@ function escapeHtml(str: string | null | undefined): string {
 }
 
 /** Translate unit codes to Russian labels */
-const UNIT_RU: Record<string, string> = {
-  kg: "кг", l: "л", pcs: "шт", box: "блок", pack: "упак", m: "м", block: "блок",
-};
-function unitLabel(unit: string | null | undefined): string {
-  return UNIT_RU[unit ?? "pcs"] ?? "шт";
-}
+// Подписи единиц — общие, из src/lib/units.ts. Здесь была своя таблица, и
+// в ней `box` печатался «блоком»: в накладной ящик от блока не отличить.
+import { unitShort as unitLabel } from "./units";
 
 /** Format number without trailing zeros: 70.00 → 70, 60.00 → 60, 12.50 → 12.5 */
 function cleanNum(val: string | number | null | undefined): string {
@@ -231,7 +228,7 @@ export function printUzWaybill(data: OrderDocData) {
     <tr>
       <td class="center">${i + 1}</td>
       <td>${escapeHtml(item.name)}${item.code ? ` (${escapeHtml(item.code)})` : ""}</td>
-      <td class="center">${item.unit ?? "кг"}</td>
+      <td class="center">${unitLabel(item.unit)}</td>
       <td class="center">${cleanNum(item.qty)}</td>
       <td class="right">${item.price.toLocaleString("ru-RU")}</td>
       <td class="right">${item.total.toLocaleString("ru-RU")}</td>
@@ -337,7 +334,7 @@ export function printArrivalReceipt(data: ArrivalDocData) {
     <tr>
       <td class="center">${i + 1}</td>
       <td>${escapeHtml(item.name)}${item.code ? ` (${escapeHtml(item.code)})` : ""}</td>
-      <td class="center">${item.unit ?? "кг"}</td>
+      <td class="center">${unitLabel(item.unit)}</td>
       <td class="center">${cleanNum(item.qty)}</td>
       <td class="center">${(item as Record<string, unknown>).condition ?? "Хорошее"}</td>
     </tr>`).join("");
@@ -429,7 +426,7 @@ export function printTorg12(data: OrderDocData) {
       <td></td>
       <td>${escapeHtml(item.name)}</td>
       <td class="center">${escapeHtml(item.code ?? "")}</td>
-      <td class="center">${item.unit ?? "кг"}</td>
+      <td class="center">${unitLabel(item.unit)}</td>
       <td class="center">796</td>
       <td class="center">${cleanNum(item.qty)}</td>
       <td class="center">${cleanNum(item.qty)}</td>
@@ -567,7 +564,7 @@ export function printInvoice(data: OrderDocData) {
     <tr>
       <td style="text-align:center;padding:8px 6px;color:#64748b;font-size:9pt">${i + 1}</td>
       <td style="padding:8px 10px">${escapeHtml(item.name)}${item.code ? `<br><span style="font-size:8pt;color:#94a3b8">Арт: ${escapeHtml(item.code)}</span>` : ""}</td>
-      <td style="text-align:center;padding:8px 6px;color:#64748b">${item.unit ?? "кг"}</td>
+      <td style="text-align:center;padding:8px 6px;color:#64748b">${unitLabel(item.unit)}</td>
       <td style="text-align:right;padding:8px 10px;font-variant-numeric:tabular-nums">${cleanNum(item.qty)}</td>
       <td style="text-align:right;padding:8px 10px;color:#64748b;font-variant-numeric:tabular-nums">${item.price.toLocaleString("ru-RU")}</td>
       <td style="text-align:right;padding:8px 10px;font-weight:600;font-variant-numeric:tabular-nums">${item.total.toLocaleString("ru-RU")}</td>

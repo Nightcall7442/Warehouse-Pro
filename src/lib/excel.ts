@@ -6,6 +6,7 @@
  */
 import ExcelJS from "exceljs";
 import { notify } from "@/lib/toast";
+import { unitShort } from "@/lib/units";
 
 type Row = Record<string, string | number | null | undefined>;
 
@@ -238,7 +239,7 @@ export function formatWarehouseForExport(stock: Record<string, unknown>[]) {
     "Товар":         String(s.productName ?? ""),
     "Код":           String(s.productCode ?? ""),
     "Категория":     String(s.category ?? ""),
-    "Единица":       String(s.unit ?? ""),
+    "Единица":       unitShort(s.unit as string | null | undefined),
     "Цена продажи":  Number(s.unitPrice ?? 0).toFixed(2),
     "Себестоимость": Number(s.costPrice ?? 0).toFixed(2),
     "Всего":         Number(s.currentStock ?? 0).toFixed(2),
@@ -292,7 +293,7 @@ export function formatProductsForExport(products: Record<string, unknown>[]) {
     "Штрихкод":    String(p.barcode ?? ""),
     "Название":    String(p.name ?? ""),
     "Категория":   String(p.category ?? ""),
-    "Ед.":         String(p.unit ?? ""),
+    "Ед.":         unitShort(p.unit as string | null | undefined),
     "Вес (кг)":    Number(p.unitWeight ?? 0).toFixed(3),
     "Себестоимость": Number(p.costPrice ?? 0).toFixed(2),
     "Цена":        Number(p.unitPrice ?? 0).toFixed(2),
@@ -317,7 +318,7 @@ export function formatStockValuationForExport(stock: Record<string, unknown>[]) 
   return stock.map(s => ({
     "Товар":         String(s.productName ?? ""),
     "Код":           String(s.productCode ?? ""),
-    "Единица":       String(s.unit ?? ""),
+    "Единица":       unitShort(s.unit as string | null | undefined),
     "Остаток":       Number(s.currentStock ?? 0).toFixed(2),
     "Себестоимость": Number(s.costPrice ?? 0).toFixed(2),
     "Цена продажи":  Number(s.unitPrice ?? 0).toFixed(2),
@@ -331,7 +332,7 @@ export function formatDeadStockForExport(items: Record<string, unknown>[]) {
     "Товар":         String(s.productName ?? ""),
     "Код":           String(s.productCode ?? ""),
     "Категория":     String(s.category ?? ""),
-    "Единица":       String(s.unit ?? ""),
+    "Единица":       unitShort(s.unit as string | null | undefined),
     "Остаток":       Number(s.currentStock ?? 0).toFixed(2),
     "Себестоимость": Number(s.costPrice ?? 0).toFixed(2),
     "Цена продажи":  Number(s.unitPrice ?? 0).toFixed(2),
@@ -345,7 +346,7 @@ export function formatReorderForExport(items: Record<string, unknown>[]) {
   return items.map(s => ({
     "Товар":         String(s.productName ?? ""),
     "Код":           String(s.productCode ?? ""),
-    "Единица":       String(s.unit ?? ""),
+    "Единица":       unitShort(s.unit as string | null | undefined),
     "Остаток":       Number(s.currentStock ?? 0).toFixed(2),
     "Порог":         Number(s.reorderPoint ?? 0).toFixed(2),
     "Продажи/день":  Number(s.avgDailySales ?? 0).toFixed(1),

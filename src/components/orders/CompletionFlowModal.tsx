@@ -47,15 +47,7 @@ export interface CompletionData {
   notes?: string;
 }
 
-const UNIT_LABELS: Record<string, { ru: string; uz: string }> = {
-  kg: { ru: "кг", uz: "kg" },
-  l: { ru: "л", uz: "l" },
-  pcs: { ru: "шт", uz: "dona" },
-  box: { ru: "блок", uz: "blok" },
-  pack: { ru: "упак", uz: "upk" },
-  m: { ru: "м", uz: "m" },
-  block: { ru: "блок", uz: "blok" },
-};
+import { unitShort } from "@/lib/units";
 
 const PM_OPTIONS = [
   { value: "cash" as const, label: { ru: "Наличные", uz: "Naqd" }, icon: Banknote },
@@ -275,7 +267,7 @@ export function CompletionFlowModal({
           </p>
           <div className="flex flex-col gap-2.5">
             {itemStates.map((it, idx) => {
-              const unitLabel = UNIT_LABELS[it.unit ?? "pcs"]?.[lang] ?? "шт";
+              const unitLabel = unitShort(it.unit, lang);
               const kept = it.orderedQty - it.returnedQty;
               return (
                 <div
