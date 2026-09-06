@@ -5,6 +5,8 @@
  * цвета статусов, итоговую строку.
  */
 import ExcelJS from "exceljs";
+import { movementKind, movementDocument, movementNote } from "@/lib/stock-movement-text";
+import { formatQty } from "@/lib/format";
 import { notify } from "@/lib/toast";
 import { unitShort } from "@/lib/units";
 import { cssVar } from "@/lib/css-var";
@@ -57,7 +59,7 @@ const CURRENCY_COLS = new Set(["Total", "Subtotal", "Discount", "Revenue",
   "Fuel Cost", "Toll Cost", "Other Cost", "Total Expense", "Unit Price",
   "Available", "Reserved", "Total Stock", "Reorder Point", "Amount"]);
 
-const STATUS_COLS = new Set(["Status", "Low Stock"]);
+const STATUS_COLS = new Set(["Status", "Low Stock", "Вид"]);
 
 export async function exportToExcel(
   rows: Row[],
@@ -270,14 +272,26 @@ export function formatWarehouseForExport(stock: Record<string, unknown>[]) {
   }));
 }
 
-export function formatMovementsForExport(movements: Record<string, unknown>[]) {
+/**
+ * История движений одного товара — для файла.
+ *
+ * Здесь печаталось то же, что и на экране, и так же неразборчиво: колонка
+ * называлась «Status» по-английски и содержала «out», ссылка выходила как
+ * «manual_adjustment #null», примечание — «Заказ: new → delivered».
+ * Владелец открыл файл и сказал: нечитаемый. Разбор теперь общий с экраном
+ * (lib/stock-movement-text) — разойтись им негде.
+ *
+ * Колонки «Товар» не стало: обе выгрузки этой истории идут по ОДНОМУ
+ * товару, и его имя стоит в заголовке отчёта. Повторять его в каждой
+ * строке значит занимать самое широкое место ничем.
+ */
+export function formatMovementsForExport(movements: Record<string, unknown>[], lang = "ru") {
   return movements.map(m => ({
-    "Дата":      toDate(m.createdAt)?.toLocaleDateString("ru-RU") ?? "",
-    "Товар":     String(m.productName ?? ""),
-    "Status":    String(m.type ?? ""),
-    "Количество":Number(m.quantity ?? 0).toFixed(2),
-    "Ссылка":    m.referenceType ? `${m.referenceType} #${m.referenceId}` : "",
-    "Примечания":String(m.notes ?? ""),
+    "Дата":       toDate(m.createdAt)?.toLocaleDateString("ru-RU") ?? "",
+    "Вид":        movementKind(m.type as string, lang),
+    "Количество": formatQty(m.quantity as number),
+    "Документ":   movementDocument(m.referenceType as string, m.referenceId as number, lang),
+    "Примечание": movementNote(m.notes as string, lang),
   }));
 }
 

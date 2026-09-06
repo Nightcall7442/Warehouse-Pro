@@ -1,4 +1,5 @@
 import { useParams, useNavigate, useSearchParams } from "react-router";
+import { movementKind, movementDocument, movementNote } from "@/lib/stock-movement-text";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useRef, useState } from "react";
@@ -248,9 +249,9 @@ export default function ProductDetail() {
         <div className="px-4 pt-4 pb-2 border-b border-border-subtle flex items-center justify-between">
           <span className="font-label text-primary tracking-wider text-xs">{tr("ИСТОРИЯ ДВИЖЕНИЙ","HARAKATLAR TARIXI")}</span>
           {movements.length>0 && (
-            // The exporter's «Товар» column reads productName off each row, and
-            // one product's own history carries none — it is this page's product.
-            <button onClick={()=>exportToExcel(formatMovementsForExport(movements.map(m=>({...m,productName:product.name}))),`movements-${product.name}`)}
+            // Имя товара уходит ЗАГОЛОВКОМ файла, а не колонкой: история одного
+            // товара, и повторять его название в каждой строке незачем.
+            <button onClick={()=>exportToExcel(formatMovementsForExport(movements,lang),`movements-${product.name}`,undefined,tr(`История движений: ${product.name}`,`Harakatlar tarixi: ${product.name}`))}
               className="neo-btn py-1 px-3 text-xs">{tr("Экспорт","Eksport")}</button>
           )}
         </div>
@@ -268,12 +269,12 @@ export default function ProductDetail() {
               {movements.map(m=>(
                 <tr key={m.id} className="border-b border-border-subtle">
                   <td className="px-4 py-2 text-xs text-secondary">{m.createdAt?format(new Date(m.createdAt),"dd/MM/yy HH:mm"):""}</td>
-                  <td className="px-4 py-2"><div className="flex items-center gap-1">{TYPE_ICONS[m.type]}<span className={`text-xs ${m.type==="in"?"text-success":m.type==="out"?"text-danger":"text-warning"}`}>{m.type.toUpperCase()}</span></div></td>
+                  <td className="px-4 py-2"><div className="flex items-center gap-1">{TYPE_ICONS[m.type]}<span className={`text-xs ${m.type==="in"?"text-success":m.type==="out"?"text-danger":"text-warning"}`}>{movementKind(m.type,lang)}</span></div></td>
                   <td className={`px-4 py-2 font-data text-sm ${m.type==="in"?"text-success":m.type==="out"?"text-danger":"text-warning"}`}>
                     {m.type==="in"?"+":m.type==="out"?"−":"±"}{formatQty(m.quantity)} {unitLabel(product.unit)}
                   </td>
-                  <td className="px-4 py-2 text-xs text-secondary">{m.referenceType?`${m.referenceType} #${m.referenceId}`:"—"}</td>
-                  <td className="px-4 py-2 text-xs text-secondary">{m.notes??"—"}</td>
+                  <td className="px-4 py-2 text-xs text-secondary">{movementDocument(m.referenceType,m.referenceId,lang)}</td>
+                  <td className="px-4 py-2 text-xs text-secondary">{movementNote(m.notes,lang)}</td>
                 </tr>
               ))}
             </tbody>

@@ -81,15 +81,49 @@ describe("склад в отчёте", () => {
 });
 
 describe("движения товара в отчёте", () => {
-  it("движение без ссылки не даёт «undefined #undefined»", () => {
-    // Ручная корректировка приходит без ссылки на документ.
-    const [row] = formatMovementsForExport([{ productName: "Кетчуп", quantity: "5" }]);
-    expect(row["Ссылка"]).toBe("");
+  /*
+    Владелец открыл выгруженный файл и назвал его нечитаемым. В нём стояло:
+
+        Status: out    Ссылка: manual_adjustment #null
+        Примечания: Заказ: new → delivered
+
+    «null» — это отсутствие номера документа, вылезшее в файл; остальное —
+    внутренние слова, которых нет ни на одной бумаге. Проверка держит
+    обратное: в файл выходит то, что человек может прочитать.
+  */
+  it("движение без документа не печатает «null»", () => {
+    // Ручная правка счёта — событие без своего документа, номера у неё нет.
+    const [row] = formatMovementsForExport([{ referenceType: "manual_adjustment", referenceId: null, type: "out", quantity: "5" }]);
+    expect(row["Документ"]).toBe("Ручная правка");
+    expect(JSON.stringify(row)).not.toContain("null");
   });
 
-  it("ссылка на документ собирается целиком", () => {
-    const [row] = formatMovementsForExport([{ referenceType: "order", referenceId: 42 }]);
-    expect(row["Ссылка"]).toBe("order #42");
+  it("документ называется словом и номером", () => {
+    const [row] = formatMovementsForExport([{ referenceType: "order_delivery", referenceId: 1342 }]);
+    expect(row["Документ"]).toBe("Доставка заказа №1342");
+  });
+
+  it("вид движения по-русски, а не «out»", () => {
+    const [out] = formatMovementsForExport([{ type: "out" }]);
+    const [inn] = formatMovementsForExport([{ type: "in" }]);
+    expect(out["Вид"]).toBe("Расход");
+    expect(inn["Вид"]).toBe("Приход");
+  });
+
+  it("состояния заказа в примечании названы словами", () => {
+    const [row] = formatMovementsForExport([{ notes: "Заказ: new → delivered" }]);
+    expect(row["Примечание"]).toBe("Заказ: Новый → Доставлен");
+  });
+
+  it("количество без хвостовых нулей", () => {
+    // «1.00» вместо «1» в файле склада читается как небрежность.
+    const [row] = formatMovementsForExport([{ quantity: "1.00" }]);
+    expect(row["Количество"]).toBe("1");
+  });
+
+  it("имя товара в строках не повторяется: оно в заголовке файла", () => {
+    const [row] = formatMovementsForExport([{ productName: "Кетчуп" }]);
+    expect(Object.keys(row)).not.toContain("Товар");
   });
 });
 
