@@ -6,6 +6,9 @@ import { eq } from "drizzle-orm";
 import { cache, withCache, CacheKeys, CacheTTL } from "./lib/cache";
 import { sanitizeString } from "./lib/sanitize";
 import { isSafePhotoValue, PHOTO_VALUE_ERROR } from "./lib/photo-value";
+// Пределы длины — там же, где объяснено, откуда они взялись: это ёмкость
+// столбца, а не пожелание к качеству. Клиент жмёт под те же числа.
+import { LOGO_MAX_CHARS, FAVICON_MAX_CHARS } from "./lib/image-limits";
 
 /*
   Брендинг — то, КАК приложение выглядит: знак, цвета, название, тексты входа.
@@ -33,16 +36,6 @@ const optionalColor = z.preprocess(
   z.string().regex(/^#[0-9a-fA-F]{6}$/, "Цвет задаётся в виде #rrggbb").nullable().optional(),
 );
 
-/*
-  Картинка приходит строкой data:image/…;base64,… и ложится в столбец типа
-  TEXT — это 65 535 байт. Прежний предел для значка был 500 символов: любое
-  изображение больше пикселя не проходило, и вместе с ним отклонялся ВЕСЬ
-  запрос — цвета и логотип в том числе. Клиент сжимает под эти пределы
-  (compressImage с maxChars), здесь стоит та же граница на случай, если
-  запрос придёт мимо формы.
-*/
-export const LOGO_MAX_CHARS    = 60_000;
-export const FAVICON_MAX_CHARS = 30_000;
 
 const optionalImage = (max: number, what: string) =>
   z.preprocess(

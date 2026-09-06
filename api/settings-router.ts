@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { cache, withCache, CacheKeys, CacheTTL } from "./lib/cache";
 import { sanitizeString, isSafeUrl } from "./lib/sanitize";
 import { decimalOrDefault } from "./lib/zod-decimal";
+import { LOGO_MAX_CHARS } from "./lib/image-limits";
 
 export const settingsRouter = createRouter({
   get: authedQuery.query(async ({ ctx }) => {
@@ -68,7 +69,14 @@ export const settingsRouter = createRouter({
       companyBank:         z.string().nullable().optional(),
       companyBankAccount:  z.string().nullable().optional(),
       companyMfo:          z.string().nullable().optional(),
-      logoUrl:             z.string().optional().nullable(),
+      /*
+        Предел — не пожелание, а ёмкость столбца: logo_url объявлен как TEXT,
+        это 65 535 байт. Строка длиннее не записывалась, и MySQL отклонял ВЕСЬ
+        запрос — арендатор терял и название, и адрес, и банковские реквизиты,
+        получая безымянное «Внутренняя ошибка сервера». Теперь отказ приходит
+        словами и до похода в базу.
+      */
+      logoUrl:             z.string().max(LOGO_MAX_CHARS, "Логотип: изображение слишком большое, выберите файл поменьше").optional().nullable(),
     }))
     .mutation(async ({ input, ctx }) => {
       const db       = getDb();

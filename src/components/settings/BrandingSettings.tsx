@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { notify } from "@/lib/toast";
-import { compressImage } from "@/lib/compress-image";
+import { compressImage, LOGO_LIMITS, FAVICON_LIMITS } from "@/lib/compress-image";
 import { Upload, RotateCcw } from "lucide-react";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { colorMix } from "@/lib/color-mix";
@@ -99,10 +99,10 @@ export function BrandingSettings() {
     цветами. Второй довод за малый размер: бренд приезжает с каждой
     загрузкой приложения, и лишние полмегабайта платит каждый сотрудник.
   */
-  const IMAGE_LIMITS = {
-    logoUrl:    { maxDimension: 400, maxChars: 60_000 },
-    faviconUrl: { maxDimension: 64,  maxChars: 30_000 },
-  };
+  // Те же пределы, что и во вкладке «Компания»: столбец один и тот же по
+  // устройству, и знать про него два окна по-разному уже стоило нам
+  // несохранённых реквизитов.
+  const IMAGE_LIMITS = { logoUrl: LOGO_LIMITS, faviconUrl: FAVICON_LIMITS };
 
   const handleImage = async (e: React.ChangeEvent<HTMLInputElement>, field: "logoUrl" | "faviconUrl", maxMb: number) => {
     const file = e.target.files?.[0];

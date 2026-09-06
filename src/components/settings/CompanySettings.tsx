@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { notify } from "@/lib/toast";
-import { compressImage } from "@/lib/compress-image";
+import { compressImage, LOGO_LIMITS } from "@/lib/compress-image";
 import { Upload } from "lucide-react";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
@@ -82,7 +82,10 @@ export function CompanySettings() {
       return;
     }
     try {
-      const compressed = await compressImage(file);
+      // Предел обязателен: столбец settings.logo_url типа TEXT — 65 535 байт,
+      // и без него сюда уходила строка впятеро длиннее. MySQL отклонял весь
+      // запрос, и вместе с логотипом не сохранялись реквизиты организации.
+      const compressed = await compressImage(file, LOGO_LIMITS);
       setForm(f => f ? { ...f, logoUrl: compressed } : f);
     } catch { notify.error(t("Не удалось обработать изображение", "Rasmni qayta ishlab bo'lmadi")); }
   };
