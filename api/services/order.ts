@@ -4,6 +4,7 @@ import { orders, orderItems, warehouseStock, shops, users, products, notificatio
 import { recalcShopDebt } from "./shop-debt";
 import { OPEN_ORDER_STATUSES, CLOSED_ORDER_STATUSES, holdsStock, deductsStock } from "../lib/order-status";
 import { recordStockMovement } from "./stock-ledger";
+import { isReopen, assertReopenable, clearDeliveryTrace } from "./order-reopen";
 
 /** Second reference to `users` for courier joins alongside the agent join. */
 const couriers = alias(users, "couriers");
@@ -1511,6 +1512,7 @@ export const OrderService = {
         id: orders.id, status: orders.status, shopId: orders.shopId,
         agentId: orders.agentId, total: orders.total, subtotal: orders.subtotal,
         deliveryStatus: orders.deliveryStatus, paymentMethod: orders.paymentMethod,
+        orderNumber: orders.orderNumber,
       }).from(orders)
         // Soft-deleted orders already gave their stock back; moving them through
         // the lifecycle again would double-count it. Locked so two concurrent
@@ -1526,6 +1528,16 @@ export const OrderService = {
       // Nothing to do when the status is unchanged — and re-applying the stock
       // move would double-count it.
       if (order.status === newStatus) return { success: true };
+
+      /*
+        Возврат закрытого заказа в работу — не просто ещё одно направление.
+        Заказ начинает вторую жизнь с накопленным грузом первой, а понятия
+        «круг» у него нет. Два случая посчитать нельзя в принципе (проведённый
+        возврат и частичная доставка), и они отсекаются здесь, до единой
+        записи — см. services/order-reopen.ts, там же и объяснение почему.
+      */
+      const reopening = isReopen(order.status, newStatus);
+      if (reopening) await assertReopenable(tx, tenantId, orderId, order.orderNumber);
 
       // Any status may follow any other. Operators legitimately correct
       // mistakes both ways ("delivered by accident" → back to new), and the
@@ -1560,11 +1572,33 @@ export const OrderService = {
       // (e.g. correcting "delivered" back to "cancelled") fabricates stock for
       // units that were never there.
       const effectiveQty = (i: (typeof items)[number]) => heldQuantity(i, returnedByProduct);
-      // The courier flow already moved the stock for this delivery; replaying
-      // the same move here would deduct it a second time.
-      const courierAlreadySettled = order.deliveryStatus === "delivered" && deductsStock(newStatus);
 
-      if (items.length > 0 && !courierAlreadySettled && (d.current || d.reserved || d.available)) {
+      /*
+        Здесь стоял отказ от складской правки, когда delivery_status уже был
+        'delivered': считалось, что курьер провёл склад сам и повторять нечего.
+        Верного случая у этого условия не оказалось ни одного.
+
+        Поле delivery_status ставится в 'delivered' ровно в двух местах
+        (courier-router markDelivered и completeDelivery), и ОБА пишут его
+        одной строкой со статусом заказа. Значит:
+
+          • статус стал 'delivered' — сюда мы просто не дойдём, выше стоит
+            выход по равенству статусов;
+          • статус стал 'returned' (курьер привёз товар обратно) — а эта ветка
+            current_stock НЕ трогала, она лишь снимала резерв. Поправка
+            'returned' → 'delivered' обязана списать товар, и ровно её условие
+            и глушило;
+          • статус откатили в работу и проводят заново — delivery_status от
+            первой жизни оставался 'delivered' навсегда, и списания не
+            происходило вовсе: товар уезжал, current_stock не падал.
+
+        В последнем случае инвариант current = available + reserved при этом
+        сходился, поэтому ни одна сверка целостности расхождения не видела.
+
+        От двойного проведения защищает не это поле, а сравнение статусов:
+        ранний выход выше и условие eq(status, order.status) в UPDATE ниже.
+      */
+      if (items.length > 0 && (d.current || d.reserved || d.available)) {
         const whId = await resolveOrderWarehouse(tx, tenantId);
 
         // Lock every affected row in one query before reading or writing.
@@ -1634,6 +1668,14 @@ export const OrderService = {
       if ((statusUpdateResult as { affectedRows?: number }).affectedRows !== 1) {
         throw new Error("Статус заказа уже был изменён другим действием");
       }
+
+      /*
+        Следы первой доставки стираются ПОСЛЕ складской правки: она считается
+        по delivered_quantity, и обнулить его раньше значило бы вернуть на
+        склад не то количество, которое заказ на самом деле держал.
+      */
+      if (reopening) await clearDeliveryTrace(tx, tenantId, orderId);
+
       await settleShopDebt(tx, tenantId, order.shopId);
     });
 

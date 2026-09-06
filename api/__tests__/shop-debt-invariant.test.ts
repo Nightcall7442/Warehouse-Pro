@@ -1,3 +1,4 @@
+import { deriveShopDebt } from "./helpers/shop-debt-recalc";
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
@@ -115,14 +116,50 @@ describe("the two return routes cannot credit the same goods twice", () => {
    * a shop whose only order this is, which is what let it go unnoticed.
    */
 
-  it("recalcShopDebt ignores return documents whose order is already written off", () => {
+  it("возврат вычитается ровно при том же условии, при котором заказ начисляет", () => {
     const helper = readFileSync(join(API_DIR, DEBT_HELPER.split("/").join(sep)), "utf8");
-    // The returns subtraction must be conditional on the linked order still
-    // counting — otherwise its value is deducted on top of an order that
-    // already contributed zero.
     const returnsClause = helper.slice(helper.indexOf("FROM returns"));
-    expect(returnsClause).toMatch(/NOT\s+EXISTS/i);
-    expect(returnsClause).toMatch(/status\s+IN\s*\(\s*'cancelled'\s*,\s*'returned'\s*\)/i);
+
+    /*
+      Проверка держит СМЫСЛ, а не форму записи.
+
+      Стояло «NOT EXISTS … status IN ('cancelled','returned')» — то есть
+      «вычитай, если заказ не списан». Этого мало: заказ перестаёт быть
+      должным и другими способами. Его удаляют (deleted_at), или он выходит
+      из 'delivered' обратно в работу — а не-долговой заказ в работе не должен
+      ничего. В обоих случаях его вклад в начисление равен нулю, а возврат
+      продолжал вычитаться: те же деньги списывались дважды.
+
+      Поэтому требуется не конкретное написание, а совпадение с условием
+      начисления: живой заказ, не отменённый и не возвращённый, и при этом
+      либо долговой, либо уже доставленный. Разойдись эти два условия снова —
+      падает здесь.
+    */
+    expect(returnsClause).toMatch(/o3\.deleted_at\s+IS\s+NULL/i);
+    expect(returnsClause).toMatch(/status\s+NOT\s+IN\s*\(\s*'cancelled'\s*,\s*'returned'\s*\)/i);
+    expect(returnsClause).toMatch(/payment_method\s*=\s*'debt'\s+OR\s+o3\.status\s*=\s*'delivered'/i);
+  });
+
+  it("оплата не исчезает вместе с заказом, который перестал быть должным", () => {
+    const helper = readFileSync(join(API_DIR, DEBT_HELPER.split("/").join(sep)), "utf8");
+
+    /*
+      Платёж по заказу вычитается ИЗНУТРИ слагаемого этого заказа. Но заказ
+      входит в сумму, только пока он должен: отменённый, возвращённый и просто
+      ещё не доставленный не-долговой заказ дают ноль — и платёж по ним
+      исчезал вместе с ними, как будто денег не приносили.
+
+      Магазин внёс 100 из 300, заказ отменили: обязательство ушло правильно,
+      а сотня растворилась. Заплатив, магазин получил право на эти деньги, и
+      право не зависит от того, чем кончился заказ.
+
+      Удалённые заказы в это слагаемое не входят намеренно: удаление — способ
+      исправить ошибку ВВОДА, заказа не было вовсе, значит не было и оплаты.
+    */
+    const paidOnNonOwing = helper.slice(helper.indexOf("JOIN orders o2"));
+    expect(paidOnNonOwing).not.toBe("");
+    expect(paidOnNonOwing).toMatch(/o2\.deleted_at\s+IS\s+NULL/i);
+    expect(paidOnNonOwing).toMatch(/NOT\s*\(/i);
   });
 
   it("updateStatus sizes its stock delta net of units already returned by document", () => {
@@ -166,5 +203,73 @@ describe("the two return routes cannot credit the same goods twice", () => {
     // the document must not run at all.
     expect(source).toMatch(/linkedOrder/);
     expect(source).toMatch(/уже.*(отменён|возвращён)|зачислило бы тот же товар/);
+  });
+});
+
+/*
+  Двойник расчёта долга измеряется сам.
+
+  Проверки выше сканируют боевой SQL: убедиться, что он выполняет верное
+  правило, здесь нечем — заглушки его не исполняют. А наборы жизненного цикла
+  меряют долг ПО ДВОЙНИКУ (helpers/shop-debt-recalc), и пока двойник считает
+  иначе, они принимают за верное то, чего в проде не происходит. Так и было:
+  у возврата в двойнике не было поля orderId вовсе, то есть вычитался каждый
+  проведённый возврат, включая те, чей заказ давно списан.
+
+  Ниже — те же правила, что в боевом запросе, но выраженные числами.
+*/
+describe("двойник расчёта долга держит те же правила, что боевой запрос", () => {
+  const T = 1, SHOP = 1;
+  const base = (over: Partial<Parameters<typeof deriveShopDebt>[2]> = {}) =>
+    ({ orders: [], payments: [], returns: [], ...over });
+
+  it("оплата отменённого заказа остаётся деньгами магазина", () => {
+    const debt = deriveShopDebt(T, SHOP, base({
+      orders: [
+        { id: 1, tenantId: T, shopId: SHOP, status: "cancelled", total: "300", paymentMethod: "cash" },
+        { id: 2, tenantId: T, shopId: SHOP, status: "new", total: "500", paymentMethod: "debt" },
+      ],
+      payments: [{ tenantId: T, shopId: SHOP, orderId: 1, type: "payment", amount: "100" }],
+    }));
+    expect(debt).toBe("400.00");
+  });
+
+  it("оплата удалённого заказа кредитом не становится", () => {
+    // Удаление значит «этого не было», включая деньги.
+    const debt = deriveShopDebt(T, SHOP, base({
+      orders: [
+        { id: 1, tenantId: T, shopId: SHOP, status: "delivered", total: "300", paymentMethod: "cash", deletedAt: new Date() },
+        { id: 2, tenantId: T, shopId: SHOP, status: "new", total: "500", paymentMethod: "debt" },
+      ],
+      payments: [{ tenantId: T, shopId: SHOP, orderId: 1, type: "payment", amount: "100" }],
+    }));
+    expect(debt).toBe("500.00");
+  });
+
+  it("возврат по списанному заказу второй раз долг не уменьшает", () => {
+    const debt = deriveShopDebt(T, SHOP, base({
+      orders: [
+        { id: 1, tenantId: T, shopId: SHOP, status: "cancelled", total: "300", paymentMethod: "cash" },
+        { id: 2, tenantId: T, shopId: SHOP, status: "new", total: "500", paymentMethod: "debt" },
+      ],
+      returns: [{ tenantId: T, shopId: SHOP, orderId: 1, status: "completed", totalAmount: "300" }],
+    }));
+    expect(debt).toBe("500.00");
+  });
+
+  it("возврат по живому доставленному заказу долг уменьшает", () => {
+    const debt = deriveShopDebt(T, SHOP, base({
+      orders: [{ id: 1, tenantId: T, shopId: SHOP, status: "delivered", total: "300", paymentMethod: "cash" }],
+      returns: [{ tenantId: T, shopId: SHOP, orderId: 1, status: "completed", totalAmount: "120" }],
+    }));
+    expect(debt).toBe("180.00");
+  });
+
+  it("возврат без заказа вычитается всегда", () => {
+    const debt = deriveShopDebt(T, SHOP, base({
+      orders: [{ id: 1, tenantId: T, shopId: SHOP, status: "new", total: "500", paymentMethod: "debt" }],
+      returns: [{ tenantId: T, shopId: SHOP, orderId: null, status: "completed", totalAmount: "200" }],
+    }));
+    expect(debt).toBe("300.00");
   });
 });

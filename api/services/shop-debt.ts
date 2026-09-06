@@ -83,6 +83,34 @@ export async function recalcShopDebt(tx: Tx, tenantId: number, shopId: number): 
         SELECT SUM(CAST(amount AS DECIMAL(15,2))) FROM payments
         WHERE shop_id = s.id AND tenant_id = s.tenant_id AND type = 'payment' AND order_id IS NULL
       ), 0)
+      /*
+        Оплата заказа, который БОЛЬШЕ НИЧЕГО НЕ ДОЛЖЕН.
+
+        Выше платёж вычитается изнутри слагаемого своего заказа. Но заказ
+        попадает в ту сумму, только пока он должен: отменённый, возвращённый и
+        просто ещё не доставленный не-долговой заказ дают ноль — и платёж по
+        ним исчезает вместе с ними, как будто денег не приносили.
+
+        Так деньги и пропадали. Магазин внёс 100 из 300, заказ отменили —
+        обязательство ушло правильно, а сотня растворилась: она не вычлась
+        нигде. Заплатив, магазин получил право на эти деньги, и право не
+        зависит от того, чем кончился заказ.
+
+        Удалённые заказы сюда не входят намеренно. Удаление — штатный способ
+        исправить ошибку ВВОДА: заказа не было вовсе, значит не было и оплаты
+        по нему. Засчитать её значило бы выдать магазину придуманный кредит.
+      */
+      - COALESCE((
+        SELECT SUM(CAST(p2.amount AS DECIMAL(15,2)))
+        FROM payments p2
+        JOIN orders o2 ON o2.id = p2.order_id
+        WHERE p2.shop_id = s.id AND p2.tenant_id = s.tenant_id AND p2.type = 'payment'
+          AND o2.deleted_at IS NULL
+          AND NOT (
+            o2.status NOT IN ('cancelled', 'returned')
+            AND (o2.payment_method = 'debt' OR o2.status = 'delivered')
+          )
+      ), 0)
       -- Returned goods are no longer owed for.
       --
       -- Skipped when the return's own order is already cancelled or returned,
@@ -95,14 +123,30 @@ export async function recalcShopDebt(tx: Tx, tenantId: number, shopId: number): 
       -- Returns against a still-delivered order (the partial case: shop kept
       -- some, handed the rest back) do subtract, which is the whole point of
       -- the document.
+      -- Условие здесь обязано быть ТЕМ ЖЕ, что у начисления выше, а не похожим.
+      --
+      -- Стояло «заказ не отменён и не возвращён». Этого мало: заказ перестаёт
+      -- быть должным и другими способами — его удаляют, или он выходит из
+      -- 'delivered' обратно в работу (а не-долговой заказ в работе не должен
+      -- ничего). Во всех этих случаях его вклад выше равен нулю, а возврат
+      -- продолжал вычитаться — то есть те же деньги списывались дважды.
+      --
+      -- Нижняя граница по нулю это прятала у магазина с единственным заказом,
+      -- но у магазина с другими открытыми заказами излишек съедал чужой долг.
+      --
+      -- Возврат без заказа (r.order_id IS NULL) вычитается всегда: ему нечему
+      -- соответствовать, это отдельное обязательство.
       - COALESCE((
         SELECT SUM(CAST(r.total_amount AS DECIMAL(15,2))) FROM returns r
         WHERE r.shop_id = s.id AND r.tenant_id = s.tenant_id AND r.status = 'completed'
           AND (
             r.order_id IS NULL
-            OR NOT EXISTS (
+            OR EXISTS (
               SELECT 1 FROM orders o3
-              WHERE o3.id = r.order_id AND o3.status IN ('cancelled', 'returned')
+              WHERE o3.id = r.order_id
+                AND o3.deleted_at IS NULL
+                AND o3.status NOT IN ('cancelled', 'returned')
+                AND (o3.payment_method = 'debt' OR o3.status = 'delivered')
             )
           )
       ), 0)

@@ -82,7 +82,17 @@ export const reportsRouter = createRouter({
           revenue: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
         })
           .from(orders)
-          .where(and(eq(orders.tenantId, tenantId), isNull(orders.deletedAt), gte(orders.createdAt, since)))
+          // Тот же фильтр, что и у плитки «Заказов» рядом на экране: там
+          // считаются только доставленные. Здесь его не было, и линия графика
+          // шла выше плитки ровно на отменённые и возвращённые заказы —
+          // человек видел два разных числа об одном периоде и не мог знать,
+          // какому верить.
+          .where(and(
+            eq(orders.tenantId, tenantId),
+            isNull(orders.deletedAt),
+            inArray(orders.status, REVENUE_ORDER_STATUSES),
+            gte(orders.createdAt, since),
+          ))
           .groupBy(sql`DATE(${orders.createdAt})`)
           .orderBy(sql`DATE(${orders.createdAt})`),
       ]);
@@ -146,6 +156,12 @@ export const reportsRouter = createRouter({
         .where(and(
           eq(orders.tenantId, tenantId),
           isNull(orders.deletedAt),
+          // Выручкой считается только состоявшаяся продажа. Без этого условия
+          // отменённый и возвращённый заказы шли в деньги агента наравне с
+          // доставленными — и вкладка «Агенты» расходилась с вкладкой
+          // «Продажи», которая считает по REVENUE_ORDER_STATUSES, ровно на
+          // сумму отменённых. Две цифры об одном и том же на одной странице.
+          inArray(orders.status, REVENUE_ORDER_STATUSES),
           gte(orders.createdAt, since),
           inArray(orders.agentId, visitRows.map(r => r.agentId)),
         ))

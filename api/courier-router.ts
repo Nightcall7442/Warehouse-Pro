@@ -215,9 +215,31 @@ export const courierRouter = createRouter({
         // Now safely deduct stock — verify each deduction
         for (const item of items) {
           const qty = Number(item.quantity);
+          /*
+            Та же арифметика, что в completeDelivery ниже, и по той же причине.
+
+            Стояло `reserved = reserved - qty` без нижней границы и без парной
+            правки available. Пока резерв цел, разницы нет; но резерв может
+            быть уже снят — заказ возвращали в работу, правили состав, или
+            другой путь его освободил. Тогда reserved уходил в МИНУС, а
+            available оставался нетронутым, и инвариант
+            current_stock = available + reserved расходился: свободный остаток
+            становился больше физического, и система разрешала продать товар,
+            которого на складе нет.
+
+            Товар уехал, поэтому current_stock падает на полное количество —
+            это факт. С резерва снимается ровно то, что там лежало, а
+            недостающая часть уходит из available: физически она пришла оттуда.
+
+            available считается ПЕРВЫМ: MySQL вычисляет SET слева направо и
+            видит уже обновлённые колонки, поэтому reserved обязан стоять
+            последним, иначе LEAST посчитается от нового значения.
+          */
           const [result] = await tx.execute(sql`
             UPDATE warehouse_stock
-            SET current_stock = current_stock - ${qty}, reserved = reserved - ${qty}
+            SET available = available - (${qty} - LEAST(${qty}, reserved)),
+                current_stock = current_stock - ${qty},
+                reserved = GREATEST(0, reserved - ${qty})
             WHERE product_id = ${item.productId} AND tenant_id = ${ctx.tenant.id} AND warehouse_id = ${whId}
           `);
           // If no rows affected, stock row doesn't exist — log warning but continue
@@ -723,8 +745,18 @@ export const courierRouter = createRouter({
         )).limit(1);
       if (!order) throw new Error("Заказ не найден или не назначен на вас");
 
-      if (order.status === "delivered" || order.status === "cancelled") {
-        throw new Error("Заказ уже завершён или отменён — повторное действие невозможно");
+      /*
+        'returned' входит в список наравне с остальными двумя.
+
+        Его тут не было, а у completeDelivery — есть. Заказ, по которому курьер
+        уже отчитался возвратом, попадал сюда и получал status='new' прямым
+        UPDATE-ом, минуя складскую разницу: при возврате резерв был снят, а
+        новый статус его снова подразумевает — заказ оказывался в работе, не
+        держа на складе ничего. Следующая доставка списывала товар, который за
+        ним не числился.
+      */
+      if (order.status === "delivered" || order.status === "cancelled" || order.status === "returned") {
+        throw new Error("Заказ уже завершён, отменён или возвращён — повторное действие невозможно");
       }
 
       const safeReason = input.reason ? sanitizeString(input.reason) : "";

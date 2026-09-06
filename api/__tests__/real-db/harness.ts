@@ -68,6 +68,10 @@ const TABLES = [
   "stock_movements", "products", "shops", "warehouses", "users", "tenants",
   // Расчёты с контрагентами: платежи, поставки, сами контрагенты, приходы.
   "supplier_payments", "supplies", "suppliers", "arrival_items", "arrivals",
+  // Возвраты и правки заказа. Их тут не было, и первый же набор, который их
+  // заведёт, оставил бы строки следующему: долг магазина считается в том
+  // числе по возвратам, и чужой возврат тихо изменил бы чужой ответ.
+  "return_items", "returns", "order_adjustments",
 ];
 
 /**

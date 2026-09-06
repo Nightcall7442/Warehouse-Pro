@@ -37,6 +37,13 @@ export interface DebtReturn {
   shopId: number;
   status: string;
   totalAmount: string | number;
+  /**
+   * Заказ, по которому оформлен возврат. Раньше поля здесь не было вовсе, и
+   * двойник вычитал КАЖДЫЙ проведённый возврат — тогда как боевой запрос уже
+   * тогда пропускал возвраты по списанным заказам. Наборы, мерившие долг по
+   * двойнику, принимали за верное то, чего в проде не происходит.
+   */
+  orderId?: number | null;
 }
 
 export interface DebtTables {
@@ -55,30 +62,64 @@ export function deriveShopDebt(tenantId: number, shopId: number, t: DebtTables):
   const mine = <T extends { tenantId: number; shopId: number }>(rows: T[]) =>
     rows.filter(r => r.tenantId === tenantId && r.shopId === shopId);
 
+  const live = mine(t.orders).filter(o => !o.deletedAt);
+
+  /*
+    «Этот заказ сейчас что-то должен» — ОДНИМ определением на все три места,
+    где оно нужно: начисление, оплата и возврат. В боевом запросе это одно и
+    то же условие, повторённое трижды; здесь оно названо один раз, чтобы
+    разойтись было негде — именно расхождение похожих условий и было бедой.
+  */
+  const owesNow = (o: DebtOrder) =>
+    !o.deletedAt
+    && o.status !== "cancelled" && o.status !== "returned"
+    && (o.paymentMethod === "debt" || o.status === "delivered");
+
+  const byId = new Map(live.map(o => [o.id, o]));
+
   // Obligations arising from this shop's orders.
-  const fromOrders = mine(t.orders)
-    .filter(o => !o.deletedAt)
-    .reduce((sum, o) => {
-      if (o.status === "cancelled" || o.status === "returned") return sum;
-      const owes = o.paymentMethod === "debt" || o.status === "delivered";
-      if (!owes) return sum;
-      const paid = payments
-        .filter(p => p.type === "payment" && p.orderId === o.id)
-        .reduce((s, p) => s + num(p.amount), 0);
-      return sum + Math.max(0, num(o.total) - paid);
-    }, 0);
+  const fromOrders = live.reduce((sum, o) => {
+    if (!owesNow(o)) return sum;
+    const paid = payments
+      .filter(p => p.type === "payment" && p.orderId === o.id)
+      .reduce((s, p) => s + num(p.amount), 0);
+    return sum + Math.max(0, num(o.total) - paid);
+  }, 0);
 
   // Entries recorded against the shop rather than any one order.
   const shopLevel = mine(payments).filter(p => p.orderId == null);
   const manualDebt = shopLevel.filter(p => p.type === "debt").reduce((s, p) => s + num(p.amount), 0);
   const manualPaid = shopLevel.filter(p => p.type === "payment").reduce((s, p) => s + num(p.amount), 0);
 
-  // Returned goods are no longer owed for.
+  /*
+    Оплата заказа, который больше ничего не должен. Выше она вычтена изнутри
+    слагаемого своего заказа — но только пока заказ в это слагаемое входит.
+    Отменили заказ, по которому магазин внёс сотню, — обязательство ушло
+    верно, а сотня исчезала. Удалённые заказы сюда не входят: удаление значит
+    «этого не было», включая деньги.
+  */
+  const paidOnNonOwing = mine(payments)
+    .filter(p => p.type === "payment" && p.orderId != null)
+    .filter(p => {
+      const o = byId.get(p.orderId as number);
+      return o !== undefined && !owesNow(o);
+    })
+    .reduce((s, p) => s + num(p.amount), 0);
+
+  // Returned goods are no longer owed for — но только если сам заказ ещё
+  // числится за магазином. Иначе те же деньги списываются дважды: один раз
+  // тем, что заказ выпал из начисления, второй — документом возврата.
   const returned = mine(returns)
     .filter(r => r.status === "completed")
+    .filter(r => {
+      // Возврат без заказа вычитается всегда: ему нечему соответствовать.
+      if (r.orderId == null) return true;
+      const o = byId.get(r.orderId);
+      return o !== undefined && owesNow(o);
+    })
     .reduce((s, r) => s + num(r.totalAmount), 0);
 
-  return Math.max(0, fromOrders + manualDebt - manualPaid - returned).toFixed(2);
+  return Math.max(0, fromOrders + manualDebt - manualPaid - paidOnNonOwing - returned).toFixed(2);
 }
 
 /**

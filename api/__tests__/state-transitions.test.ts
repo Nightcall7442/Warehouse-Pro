@@ -34,17 +34,39 @@ vi.mock("../telegram-router", () => ({
   tgMessages: { newOrder: vi.fn(() => "mock message") },
 }));
 
-import { orders, orderItems, warehouseStock, products, warehouses, shops } from "@db/schema";
+import { orders, orderItems, warehouseStock, products, warehouses, shops, returns } from "@db/schema";
 import { createExecuteMock } from "./helpers/mock-execute";
 import { makeConditionEvaluator } from "./helpers/fake-conditions";
 
-interface FakeOrder { id: number; tenantId: number; agentId: number; shopId: number; status: string; }
-interface FakeOrderItem { id: number; orderId: number; productId: number; quantity: string; }
+/*
+  orderNumber, deliveryStatus, deliveredAt и courierId появились здесь не для
+  полноты. Пока строка заказа их не несла, стенд не мог выразить состояние,
+  в котором система теряла товар: заказ, уже прошедший через курьера
+  (delivery_status = 'delivered'), и проводимый вторично. Проверка на этот
+  случай не просто отсутствовала — её нечем было написать.
+*/
+interface FakeOrder {
+  id: number; tenantId: number; agentId: number; shopId: number; status: string;
+  orderNumber: string;
+  deliveryStatus: string;
+  deliveredAt: Date | null;
+  courierId: number | null;
+  invoicePrintedAt: Date | null;
+  deliveryResult: string | null;
+  deliveryNotes: string | null;
+}
+interface FakeOrderItem {
+  id: number; orderId: number; productId: number; quantity: string;
+  deliveredQuantity: string | null;
+  returnReason: string | null;
+}
+interface FakeReturn { id: number; tenantId: number; shopId: number; orderId: number | null; status: string; totalAmount: string; }
 interface FakeStock { productId: number; tenantId: number; warehouseId: number; currentStock: string; reserved: string; available: string; }
 
 let ordersTable: FakeOrder[] = [];
 let orderItemsTable: FakeOrderItem[] = [];
 let stockTable: FakeStock[] = [];
+let returnsTable: FakeReturn[] = [];
 let productsTable: { id: number; tenantId: number; name: string; unitPrice: string; status: string; costPrice?: string }[] = [];
 let warehousesTable: { id: number; tenantId: number; name: string; isDefault: boolean; status: string }[] = [];
 let shopsTable: { id: number; tenantId: number; name: string }[] = [];
@@ -54,6 +76,7 @@ let nextItemId = 1;
 function resetTables() {
   ordersTable = [];
   orderItemsTable = [];
+  returnsTable = [];
   stockTable = [
     { productId: 1, tenantId: 1, warehouseId: 1, currentStock: "100.00", reserved: "0.00", available: "100.00" },
   ];
@@ -71,13 +94,14 @@ function resetTables() {
   nextItemId = 1;
 }
 
-function tableOf(ref: unknown): "orders" | "orderItems" | "warehouseStock" | "products" | "warehouses" | "shops" | "other" {
+function tableOf(ref: unknown): "orders" | "orderItems" | "warehouseStock" | "products" | "warehouses" | "shops" | "returns" | "other" {
   if (ref === orders) return "orders";
   if (ref === orderItems) return "orderItems";
   if (ref === warehouseStock) return "warehouseStock";
   if (ref === products) return "products";
   if (ref === warehouses) return "warehouses";
   if (ref === shops) return "shops";
+  if (ref === returns) return "returns";
   return "other";
 }
 
@@ -88,6 +112,7 @@ function rowsFor(table: ReturnType<typeof tableOf>): unknown[] {
   if (table === "products") return productsTable;
   if (table === "warehouses") return warehousesTable;
   if (table === "shops") return shopsTable;
+  if (table === "returns") return returnsTable;
   return [];
 }
 
@@ -98,6 +123,7 @@ for (const [field, col] of Object.entries(warehouseStock)) columnToFieldName.set
 for (const [field, col] of Object.entries(products)) columnToFieldName.set(col, field);
 for (const [field, col] of Object.entries(warehouses)) columnToFieldName.set(col, field);
 for (const [field, col] of Object.entries(shops)) columnToFieldName.set(col, field);
+for (const [field, col] of Object.entries(returns)) columnToFieldName.set(col, field);
 
 /**
  * Разбор условий отдан общему строгому разборщику.
@@ -180,12 +206,24 @@ function makeMockDb() {
         const table = tableOf(ref);
         if (table === "orders") {
           const id = nextOrderId++;
-          ordersTable.push({ id, tenantId: vals.tenantId as number, agentId: vals.agentId as number, shopId: vals.shopId as number, status: vals.status as string });
+          ordersTable.push({
+            id, tenantId: vals.tenantId as number, agentId: vals.agentId as number,
+            shopId: vals.shopId as number, status: vals.status as string,
+            orderNumber: (vals.orderNumber as string) ?? `№${id}`,
+            // Умолчания те же, что в схеме: заказ рождается без курьера.
+            deliveryStatus: (vals.deliveryStatus as string) ?? "not_assigned",
+            deliveredAt: null, courierId: null, invoicePrintedAt: null,
+            deliveryResult: null, deliveryNotes: null,
+          });
           return Promise.resolve([{ insertId: id }]);
         }
         if (table === "orderItems") {
           const list = Array.isArray(vals) ? vals : [vals];
-          for (const v of list) orderItemsTable.push({ id: nextItemId++, orderId: v.orderId as number, productId: v.productId as number, quantity: String(v.quantity) });
+          for (const v of list) orderItemsTable.push({
+            id: nextItemId++, orderId: v.orderId as number, productId: v.productId as number,
+            quantity: String(v.quantity),
+            deliveredQuantity: null, returnReason: null,
+          });
           return Promise.resolve([{ insertId: nextItemId }]);
         }
         return Promise.resolve([{ insertId: 1 }]);
@@ -343,5 +381,164 @@ describe("status corrections in any direction", () => {
     expect(ordersTable[0].status).toBe("cancelled");
     expect(Number(stockTable[0].currentStock)).toBe(beforeOrder);
     expect(Number(stockTable[0].reserved)).toBe(0);
+  });
+});
+
+/*
+  ── Вторая жизнь заказа ──────────────────────────────────────────────────────
+
+  Оператор возвращает закрытый заказ в работу и проводит его заново. Владелец
+  предупредил об этом прямо: «если с архива сделать заказа новым и
+  перерабатывать, то ошибки будут очень много». Разбор подтвердил: ошибок
+  оказалось четырнадцать подтверждённых, и самая тяжёлая — молчаливая.
+
+  Проверки ниже написаны так, чтобы падать на прежнем коде. Каждая названа
+  тем, что теряется, а не тем, какой вызов делается.
+*/
+describe("вторая жизнь заказа", () => {
+  const callers = async () => {
+    const { orderRouter } = await import("../order-router");
+    return {
+      agent: orderRouter.createCaller(makeCtx(1, 10, "agent")),
+      op:    orderRouter.createCaller(makeCtx(1, 1, "operator")),
+    };
+  };
+
+  it("повторная доставка списывает товар, а не делает вид, что уже списала", async () => {
+    /*
+      Главная проверка. Заказ прошёл через курьера, поэтому delivery_status
+      остался 'delivered' навсегда — сбрасывать его было некому. Прежний код
+      считал по этому полю, что склад уже тронут, и пропускал списание
+      ЦЕЛИКОМ: товар уезжал второй раз, current_stock не падал.
+
+      Расхождение было молчаливым: инвариант current = available + reserved
+      при этом сходился, и ни одна сверка целостности его не видела.
+    */
+    const { agent, op } = await callers();
+    await createOrder(agent);            // 10 шт: current 100, reserved 10, available 90
+    ordersTable[0].deliveryStatus = "delivered";
+
+    await op.updateStatus({ id: 1, status: "delivered" });
+    const afterFirst = { ...stockTable[0] };
+    expect(Number(afterFirst.currentStock)).toBe(90);
+
+    await op.updateStatus({ id: 1, status: "new" });      // откат: товар вернулся
+    expect(Number(stockTable[0].currentStock)).toBe(100);
+
+    await op.updateStatus({ id: 1, status: "delivered" }); // и уехал снова
+    expect(Number(stockTable[0].currentStock)).toBe(90);
+    expect(Number(stockTable[0].available)).toBe(90);
+    expect(Number(stockTable[0].reserved)).toBe(0);
+  });
+
+  it("поправка «возвращён» → «доставлен» списывает товар со склада", async () => {
+    /*
+      Второй случай той же причины, и он не требует ни архива, ни отката —
+      одно движение выпадающего списка. Курьер отчитался возвратом: товар не
+      уезжал, снят только резерв, а delivery_status всё равно стал
+      'delivered'. Оператор поправляет статус на «доставлен» — и прежний код
+      списания не делал. Товар уезжал, склад его не терял.
+    */
+    const { agent, op } = await callers();
+    await createOrder(agent);
+    ordersTable[0].status = "returned";
+    ordersTable[0].deliveryStatus = "delivered";
+    // Возврат курьера вернул резерв в свободный остаток, current не тронул.
+    stockTable[0] = { ...stockTable[0], reserved: "0.00", available: "100.00", currentStock: "100.00" };
+
+    await op.updateStatus({ id: 1, status: "delivered" });
+
+    expect(Number(stockTable[0].currentStock)).toBe(90);
+    expect(Number(stockTable[0].available)).toBe(90);
+  });
+
+  it("следы первой доставки стираются, иначе вторая жизнь выдаётся за продолжение первой", async () => {
+    const { agent, op } = await callers();
+    await createOrder(agent);
+    await op.updateStatus({ id: 1, status: "delivered" });
+    Object.assign(ordersTable[0], {
+      deliveryStatus: "delivered", deliveredAt: new Date(), courierId: 7,
+      invoicePrintedAt: new Date(), deliveryResult: "paid",
+    });
+
+    await op.updateStatus({ id: 1, status: "new" });
+
+    const o = ordersTable[0];
+    expect(o.deliveryStatus).toBe("not_assigned");
+    expect(o.deliveredAt).toBeNull();
+    expect(o.courierId).toBeNull();       // заказ поедет заново, возможно с другим
+    expect(o.deliveryResult).toBeNull();
+    expect(o.invoicePrintedAt).toBeNull(); // накладную печатают заново
+    expect(orderItemsTable[0].deliveredQuantity).toBeNull();
+  });
+
+  it("заказ с проведённым возвратом в работу не возвращается", async () => {
+    /*
+      Посчитать этот случай нельзя в принципе: возврат привязан к заказу
+      навсегда и вычитается при каждом пересчёте. Второе проведение засчитало
+      бы те же единицы дважды — сначала документом, потом откатом статуса.
+    */
+    const { agent, op } = await callers();
+    await createOrder(agent);
+    await op.updateStatus({ id: 1, status: "delivered" });
+    returnsTable.push({ id: 1, tenantId: 1, shopId: 1, orderId: 1, status: "completed", totalAmount: "400.00" });
+
+    await expect(op.updateStatus({ id: 1, status: "new" })).rejects.toThrow(/возврат/i);
+    expect(ordersTable[0].status).toBe("delivered");
+  });
+
+  it("незавершённый возврат возвращению в работу не мешает", async () => {
+    // Отказ вызывает только ПРОВЕДЁННЫЙ возврат: он уже подвинул товар и долг.
+    // Заявка на рассмотрении не подвинула ничего.
+    const { agent, op } = await callers();
+    await createOrder(agent);
+    await op.updateStatus({ id: 1, status: "delivered" });
+    returnsTable.push({ id: 1, tenantId: 1, shopId: 1, orderId: 1, status: "pending", totalAmount: "400.00" });
+
+    await op.updateStatus({ id: 1, status: "new" });
+    expect(ordersTable[0].status).toBe("new");
+  });
+
+  it("частично доставленный заказ в работу не возвращается", async () => {
+    /*
+      Резерв под ним снят не на всё количество: недовезённый остаток вернулся
+      в свободный остаток ещё при доставке. Строка заказа говорит «десять», а
+      держит шесть — вернув такой заказ в работу, следующая доставка увела бы
+      резерв в минус.
+    */
+    const { agent, op } = await callers();
+    await createOrder(agent);
+    await op.updateStatus({ id: 1, status: "delivered" });
+    orderItemsTable[0].deliveredQuantity = "6.00";   // заказано 10, довезено 6
+
+    await expect(op.updateStatus({ id: 1, status: "new" })).rejects.toThrow(/частично/i);
+    expect(ordersTable[0].status).toBe("delivered");
+  });
+
+  it("полная доставка через окно завершения возвращению в работу не мешает", async () => {
+    // Окно завершения проставляет delivered_quantity и при ПОЛНОЙ доставке.
+    // Отказывать по одному факту «поле заполнено» значило бы запретить откат
+    // почти всем доставленным заказам — резерв под ними снимался целиком.
+    const { agent, op } = await callers();
+    await createOrder(agent);
+    await op.updateStatus({ id: 1, status: "delivered" });
+    orderItemsTable[0].deliveredQuantity = "10.00";  // заказано 10, довезено 10
+
+    await op.updateStatus({ id: 1, status: "new" });
+    expect(ordersTable[0].status).toBe("new");
+  });
+
+  it("отмена доставленного заказа второй жизнью не считается и полей не трогает", async () => {
+    // delivered → cancelled идёт назад по смыслу, но заказ остаётся закрытым:
+    // второй жизни не начинает, и стирать ему нечего.
+    const { agent, op } = await callers();
+    await createOrder(agent);
+    await op.updateStatus({ id: 1, status: "delivered" });
+    ordersTable[0].deliveryStatus = "delivered";
+
+    await op.updateStatus({ id: 1, status: "cancelled" });
+
+    expect(ordersTable[0].status).toBe("cancelled");
+    expect(ordersTable[0].deliveryStatus).toBe("delivered");
   });
 });
