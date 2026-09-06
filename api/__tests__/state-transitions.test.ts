@@ -542,3 +542,56 @@ describe("вторая жизнь заказа", () => {
     expect(ordersTable[0].deliveryStatus).toBe("delivered");
   });
 });
+
+/*
+  ── Склад отказывает, а не портит ────────────────────────────────────────────
+
+  Проверка достатка знала два счётчика из трёх, а правка писала все три.
+*/
+describe("смена статуса не портит склад молча", () => {
+  const callers = async () => {
+    const { orderRouter } = await import("../order-router");
+    return {
+      agent: orderRouter.createCaller(makeCtx(1, 10, "agent")),
+      op:    orderRouter.createCaller(makeCtx(1, 1, "operator")),
+    };
+  };
+
+  it("резерв не уводится в минус", async () => {
+    /*
+      Резерв под заказом может оказаться меньше ожидаемого: его снял другой
+      путь. Прежде проверялись только current_stock и available, а резерву
+      писалось `reserved + delta` без нижней границы — и он уходил в минус.
+
+      Это не «немного неточно»: отрицательный резерв молча аннулирует резерв
+      ЧУЖИХ открытых заказов, и их товар становится доступен к продаже.
+      Инвариант current = available + reserved при этом продолжает сходиться,
+      поэтому ни одна сверка целостности такого не видит.
+    */
+    const { agent, op } = await callers();
+    await createOrder(agent);                       // резерв 10
+    stockTable[0].reserved = "4.00";                // ...а на складе осталось 4
+
+    await expect(op.updateStatus({ id: 1, status: "cancelled" }))
+      .rejects.toThrow(/Недостаточно товара/);
+
+    expect(Number(stockTable[0].reserved), "резерв ушёл в минус").toBeGreaterThanOrEqual(0);
+    expect(ordersTable[0].status).toBe("new");
+  });
+
+  it("товар без карточки остатка получает отказ, а не пропадает", async () => {
+    /*
+      UPDATE идёт по `WHERE product_id IN (…)` и несуществующую строку не
+      задевает, а запись в журнал писалась всё равно: журнал сообщал о приходе
+      товара на склад, который об этом не знает, и единицы просто исчезали.
+    */
+    const { agent, op } = await callers();
+    await createOrder(agent);
+    await op.updateStatus({ id: 1, status: "delivered" });
+    stockTable.length = 0;                          // карточку остатка удалили
+
+    await expect(op.updateStatus({ id: 1, status: "new" }))
+      .rejects.toThrow(/карточки остатка/);
+    expect(ordersTable[0].status).toBe("delivered");
+  });
+});

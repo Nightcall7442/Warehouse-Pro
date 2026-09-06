@@ -6,6 +6,7 @@ import {
   CLOSED_ORDER_STATUSES,
   REVENUE_ORDER_STATUSES,
   ORDER_STATUS_LABELS,
+  orderStillOwes,
 } from "../lib/order-status";
 
 /**
@@ -98,5 +99,43 @@ describe("у каждого статуса есть человеческое и�
   it("имён не больше, чем статусов", () => {
     // Лишний ключ — след статуса, которого больше нет, вроде «completed».
     expect(Object.keys(ORDER_STATUS_LABELS).sort()).toEqual([...SCHEMA_STATUSES].sort());
+  });
+});
+
+describe("«заказ ещё должен» — одно определение на всю систему", () => {
+  /*
+    Это условие живёт трижды в SQL (начисление, оплата, возврат — за их
+    совпадением следит shop-debt-invariant.test.ts) и до сих пор переписывалось
+    руками везде, где выражается кодом: в рассылке напоминаний, в двойнике
+    расчёта долга. Каждый раз чуть иначе, и каждый раз это стоило денег:
+    возврат по списанному заказу вычитался дважды, а напоминание о погашенном
+    долге приходило директору ежедневно.
+  */
+  const order = (over: Partial<Parameters<typeof orderStillOwes>[0]> = {}) =>
+    ({ status: "delivered", paymentMethod: "cash", deletedAt: null, ...over });
+
+  it("доставленный заказ должен", () => {
+    expect(orderStillOwes(order())).toBe(true);
+  });
+
+  it("долговой заказ должен с момента оформления, ещё до отгрузки", () => {
+    expect(orderStillOwes(order({ status: "new", paymentMethod: "debt" }))).toBe(true);
+  });
+
+  it("не-долговой заказ в работе не должен ничего", () => {
+    // Товар ещё на складе, в резерве — магазину его не отдавали.
+    expect(orderStillOwes(order({ status: "new", paymentMethod: "cash" }))).toBe(false);
+    expect(orderStillOwes(order({ status: "shipped", paymentMethod: "cash" }))).toBe(false);
+  });
+
+  it("отменённый и возвращённый не должны, даже долговые", () => {
+    expect(orderStillOwes(order({ status: "cancelled", paymentMethod: "debt" }))).toBe(false);
+    expect(orderStillOwes(order({ status: "returned", paymentMethod: "debt" }))).toBe(false);
+  });
+
+  it("удалённый не должен ничего, каким бы ни был статус", () => {
+    // Удаление — способ исправить ошибку ВВОДА: заказа не было вовсе.
+    expect(orderStillOwes(order({ deletedAt: new Date() }))).toBe(false);
+    expect(orderStillOwes(order({ status: "new", paymentMethod: "debt", deletedAt: new Date() }))).toBe(false);
   });
 });

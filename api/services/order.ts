@@ -1625,6 +1625,9 @@ export const OrderService = {
           productId: warehouseStock.productId,
           currentStock: warehouseStock.currentStock,
           available: warehouseStock.available,
+          // Резерв читается наравне с остальными двумя: без него он не
+          // участвовал в проверке достатка и уходил в минус — см. ниже.
+          reserved: warehouseStock.reserved,
         })
           .from(warehouseStock)
           .where(and(
@@ -1634,18 +1637,51 @@ export const OrderService = {
           ))
           .for("update");
 
-        // Refuse the move if it would drive any counter below zero, rather than
-        // writing it and unwinding afterwards.
+        /*
+          Отказ вместо записи, которую потом пришлось бы разбирать.
+
+          Проверялись current_stock и available, а РЕЗЕРВ — нет, хотя правка
+          ниже пишет ему `reserved + delta` без нижней границы. Резерв под
+          заказом может оказаться меньше ожидаемого: его мог снять другой путь.
+          Тогда он уходил в минус — а это не «немного неточно»: отрицательный
+          резерв молча аннулирует резерв ЧУЖИХ открытых заказов, и их товар
+          становится доступен к продаже. Инвариант current = available +
+          reserved при этом продолжает сходиться, поэтому ни одна сверка
+          целостности такого не видит.
+        */
         const short = items.filter(i => {
           const row = stockRows.find(r => Number(r.productId) === i.productId);
-          if (!row) return d.current < 0 || d.available < 0;
+          if (!row) return false;
           const qty = effectiveQty(i);
           return (d.current < 0 && Number(row.currentStock) + d.current * qty < 0)
-            || (d.available < 0 && Number(row.available) + d.available * qty < 0);
+            || (d.available < 0 && Number(row.available) + d.available * qty < 0)
+            || (d.reserved < 0 && Number(row.reserved) + d.reserved * qty < 0);
         });
         if (short.length > 0) {
           const names = await productNames(tx, tenantId, short.map(i => i.productId));
           throw new Error(`Недостаточно товара на складе: ${short.map(i => `«${names.get(i.productId) ?? `#${i.productId}`}»`).join(", ")}`);
+        }
+
+        /*
+          Товар без карточки остатка на этом складе.
+
+          Раньше он молча проваливался мимо: UPDATE ниже идёт по
+          `WHERE product_id IN (…)` и несуществующую строку не задевает, а
+          запись в журнал движений писалась всё равно. То есть журнал сообщал
+          о приходе товара на склад, который об этом не знает, — и при откате
+          заказа его единицы просто исчезали.
+
+          Отказ, а не тихий пропуск: посчитать движение верно нельзя ни так,
+          ни эдак, а потеря товара молча хуже понятного отказа. Оператору
+          сказано, что делать.
+        */
+        const missing = items.filter(i => !stockRows.some(r => Number(r.productId) === i.productId));
+        if (missing.length > 0) {
+          const names = await productNames(tx, tenantId, missing.map(i => i.productId));
+          throw new Error(
+            `Нет карточки остатка на складе: ${missing.map(i => `«${names.get(i.productId) ?? `#${i.productId}`}»`).join(", ")}. ` +
+            `Заведите остаток по этому товару — иначе движение по заказу учесть негде.`,
+          );
         }
 
         // Each delta is −1, 0 or +1 per unit, so the sign travels inside the

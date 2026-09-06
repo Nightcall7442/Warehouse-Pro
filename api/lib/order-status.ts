@@ -140,6 +140,32 @@ export function deliveredQty() {
   return sql`COALESCE(${orderItems.deliveredQuantity}, ${orderItems.quantity})`;
 }
 
+/**
+ * Числится ли этот заказ за магазином ПРЯМО СЕЙЧАС.
+ *
+ * Одно определение на все места, где условие выражается не запросом, а кодом.
+ * В SQL оно повторяется трижды внутри services/shop-debt.ts (начисление,
+ * оплата, возврат), и за их совпадением следит shop-debt-invariant.test.ts; а
+ * на стороне JavaScript его переписывали руками уже в четвёртый раз — в
+ * рассылке напоминаний, в двойнике расчёта долга и дальше. Каждый раз чуть
+ * иначе, и каждый раз это стоило денег: возврат по списанному заказу
+ * вычитался дважды, напоминание о погашенном долге приходило директору
+ * ежедневно.
+ *
+ * Правило: заказ должен, если он жив, не отменён и не возвращён, и при этом
+ * либо оформлен в долг (тогда обязательство возникает сразу), либо уже
+ * доставлен (товар у магазина).
+ */
+export function orderStillOwes(order: {
+  status: string;
+  paymentMethod?: string | null;
+  deletedAt?: Date | string | null;
+}): boolean {
+  if (order.deletedAt) return false;
+  if (order.status === "cancelled" || order.status === "returned") return false;
+  return order.paymentMethod === "debt" || order.status === "delivered";
+}
+
 /** Заказы арендатора без учёта статуса, но по-прежнему без удалённых. */
 export function liveOrderConditions(tenantId: number): SQL[] {
   return [

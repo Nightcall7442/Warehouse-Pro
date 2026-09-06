@@ -13,6 +13,7 @@
  * `api/services/shop-debt.ts` — `shop-debt-invariant.test.ts` guards the
  * production side; this is what the lifecycle tests measure against.
  */
+import { orderStillOwes } from "../../lib/order-status";
 
 export interface DebtOrder {
   id: number;
@@ -70,10 +71,7 @@ export function deriveShopDebt(tenantId: number, shopId: number, t: DebtTables):
     то же условие, повторённое трижды; здесь оно названо один раз, чтобы
     разойтись было негде — именно расхождение похожих условий и было бедой.
   */
-  const owesNow = (o: DebtOrder) =>
-    !o.deletedAt
-    && o.status !== "cancelled" && o.status !== "returned"
-    && (o.paymentMethod === "debt" || o.status === "delivered");
+  const owesNow = (o: DebtOrder) => orderStillOwes(o);
 
   const byId = new Map(live.map(o => [o.id, o]));
 
