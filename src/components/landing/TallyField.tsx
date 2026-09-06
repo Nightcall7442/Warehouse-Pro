@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useTranslate } from "@/i18n";
 import { animate, utils } from "animejs";
 import { LX, MONO } from "./landing-tokens";
 
@@ -70,6 +71,7 @@ const W = COLS * CELL_W;
 const H = ROWS * CELL_H;
 
 export default function TallyField() {
+  const tr = useTranslate();
   const ref = useRef<SVGSVGElement>(null);
 
   useEffect(() => {
@@ -131,8 +133,8 @@ export default function TallyField() {
         className="max-w-[1240px] mx-auto px-6 flex items-baseline justify-between mb-5 text-[11px] uppercase"
         style={{ ...MONO, fontWeight: 500, color: LX.inkFaint, letterSpacing: "0.08em" }}
       >
-        <span>{COLS} × {ROWS} — занятость ячеек</span>
-        <span className="hidden sm:inline">обновляется на глазах</span>
+        <span>{COLS} × {ROWS} — {tr("занятость ячеек", "katakchalar bandligi")}</span>
+        <span className="hidden sm:inline">{tr("обновляется на глазах", "ko'z oldingizda yangilanadi")}</span>
       </div>
       <svg
         ref={ref}
@@ -159,9 +161,9 @@ export default function TallyField() {
         className="max-w-[1240px] mx-auto px-6 flex flex-wrap gap-x-7 gap-y-1 mt-5 text-[13px] font-medium"
         style={{ color: LX.inkSoft }}
       >
-        <Key tone={TONE.taken} label="занято" />
-        <Key tone={TONE.held} label="резерв" />
-        <Key tone={TONE.free} label="свободно" />
+        <Key tone={TONE.taken} label={tr("занято", "band")} />
+        <Key tone={TONE.held} label={tr("резерв", "zaxira")} />
+        <Key tone={TONE.free} label={tr("свободно", "bo'sh")} />
       </div>
     </div>
   );

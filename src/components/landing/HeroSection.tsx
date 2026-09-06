@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router";
 import LeadForm from "./LeadForm";
-import { useTranslate } from "@/i18n";
+import { useTranslate, useLang } from "@/i18n";
 import { ArrowRight, ArrowDown } from "lucide-react";
 import { BtnInk, Stamp } from "./landing-shared";
 import { LX, MONO } from "./landing-tokens";
@@ -44,6 +44,7 @@ const TONE = {
 export default function HeroSection() {
   const navigate = useNavigate();
   const tr = useTranslate();
+  const { lang } = useLang();
 
   const rows: Array<{ t: string; title: string; note: string; value: string; tone: keyof typeof TONE }> = [
     { t: "07:30", title: tr("Рейс собран", "Reys yig'ildi"), note: tr("18 точек, маршрут в телефоне агента", "18 nuqta, marshrut agent telefonida"), value: "18", tone: "neutral" },
@@ -123,7 +124,26 @@ export default function HeroSection() {
 
           {/* Тело */}
           <div className="lg:pl-10 lg:pr-8 lg:border-l" style={{ borderColor: LX.rule }}>
+            {/*
+              key по языку — не украшение.
+
+              Заголовок разбирается на слова библиотекой движения
+              (lib/landing-motion, splitText), и она ПЕРЕПИСЫВАЕТ разметку:
+              текстовые узлы заменяются на span-ы со своими стилями. После
+              этого содержимым владеет не React.
+
+              При переключении РУ/UZ React обновлял то, что помнил, а
+              половина узлов была уже подменена — и заголовок оставался
+              наполовину русским: «Учёт склада / и доставки / uzilishlarsiz
+              / между отделами». Ровно это владелец и прислал снимком.
+
+              key заставляет React выбросить старый узел целиком и собрать
+              новый — с правильным текстом и без чужих span-ов. Появление
+              по словам при этом не повторяется, и это правильно: человек
+              переключил язык, а не открыл страницу заново.
+            */}
             <h1
+              key={lang}
               data-hero-title=""
               className="font-extrabold"
               style={{ fontSize: "clamp(2.75rem, 5.4vw, 5.25rem)", letterSpacing: "-0.045em", lineHeight: 0.96, color: LX.ink, maxWidth: "12ch" }}

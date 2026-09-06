@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslate } from "@/i18n";
 import { Download, X, Share } from "lucide-react";
 import { useAppBrand } from "@/hooks/useAppBrand";
 
@@ -26,6 +27,7 @@ function isStandalone(): boolean {
 }
 
 export function InstallPrompt() {
+  const tr                      = useTranslate();
   const { name: appName }       = useAppBrand();
   const [prompt, setPrompt]     = useState<BeforeInstallPromptEvent | null>(null);
   const [visible, setVisible]   = useState(false);
@@ -95,17 +97,23 @@ export function InstallPrompt() {
           </div>
           <div className="flex-1">
             <p style={{ fontWeight: 600, fontSize: "14px", color: "var(--color-text-primary)", margin: 0 }}>
-              {isIos ? "Добавить на экран" : `Установить ${appName}`}
+              {isIos ? tr("Добавить на экран", "Ekranga qo'shish") : tr(`Установить ${appName}`, `${appName}ni o'rnatish`)}
             </p>
             {isIos ? (
               <div style={{ fontSize: "12px", color: "var(--color-text-secondary)", marginTop: "6px", lineHeight: 1.5 }}>
-                <p style={{ margin: "0 0 4px" }}>1. Нажмите <strong>Поделиться</strong> ↗ внизу</p>
-                <p style={{ margin: "0 0 4px" }}>2. Выберите <strong>На экран Домой</strong></p>
-                <p style={{ margin: 0 }}>3. Нажмите <strong>Добавить</strong></p>
+                <p style={{ margin: "0 0 4px" }}>
+                  1. {tr("Нажмите", "Bosing")} <strong>{tr("Поделиться", "Ulashish")}</strong> ↗ {tr("внизу", "pastda")}
+                </p>
+                <p style={{ margin: "0 0 4px" }}>
+                  2. {tr("Выберите", "Tanlang")} <strong>{tr("На экран Домой", "Bosh ekranga")}</strong>
+                </p>
+                <p style={{ margin: 0 }}>
+                  3. {tr("Нажмите", "Bosing")} <strong>{tr("Добавить", "Qo'shish")}</strong>
+                </p>
               </div>
             ) : (
               <p style={{ fontSize: "12px", color: "var(--color-text-secondary)", margin: "4px 0 0" }}>
-                Работает офлайн, быстрый доступ с экрана
+                {tr("Работает офлайн, быстрый доступ с экрана", "Oflayn ishlaydi, ekrandan tez kirish")}
               </p>
             )}
           </div>
@@ -115,7 +123,7 @@ export function InstallPrompt() {
         </div>
         {!isIos && (
           <div className="flex gap-2 mt-3">
-            <button onClick={install} className="flex-1 py-2 text-sm" style={{ borderRadius: "10px", border: "none", background: "var(--color-primary)", color: "var(--color-on-primary, #ffffff)", fontWeight: 600, cursor: "pointer" }}>Установить</button>
+            <button onClick={install} className="flex-1 py-2 text-sm" style={{ borderRadius: "10px", border: "none", background: "var(--color-primary)", color: "var(--color-on-primary, #ffffff)", fontWeight: 600, cursor: "pointer" }}>{tr("Установить", "O'rnatish")}</button>
             <button onClick={dismiss} className="flex-1 py-2 text-sm" style={{ borderRadius: "10px", border: "1px solid var(--color-border)", background: "var(--color-surface)", color: "var(--color-text-secondary)", cursor: "pointer" }}>Не сейчас</button>
           </div>
         )}
