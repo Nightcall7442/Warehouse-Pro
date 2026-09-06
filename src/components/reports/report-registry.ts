@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import { Package, Store, Wallet, CreditCard, Award, Users, Boxes, Truck, TrendingUp, Coins, MapPin, ArrowLeftRight } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { unitShort } from "@/lib/units";
+import { movementKind, movementDocument, movementNote } from "@/lib/stock-movement-text";
 
 /**
  * Every report the hub can produce, described rather than coded.
@@ -85,9 +86,26 @@ const PLAN_STATUS_LABEL: Record<string, string> = {
   planned: "Запланирован", visited: "Посещён", skipped: "Пропущен",
 };
 
-const MOVEMENT_LABEL: Record<string, string> = {
-  in: "Приход", out: "Расход", adjustment: "Корректировка",
+/**
+ * Состояния записей так, как они называются на бумаге.
+ *
+ * В файл уходило значение колонки как есть: «active», «pending», «unloading».
+ * Это ровно та же болезнь, из-за которой владелец назвал нечитаемой выгрузку
+ * движений товара («Status: out», «manual_adjustment #null»), только в трёх
+ * других отчётах — по магазинам, по сотрудникам и по приходам. Внутреннее
+ * слово из базы в файле, который уходит наружу, читать некому.
+ */
+const ACTIVE_STATUS_LABEL: Record<string, string> = {
+  active: "Работает", inactive: "Не работает", suspended: "Приостановлен",
 };
+
+const ARRIVAL_STATUS_LABEL: Record<string, string> = {
+  pending: "Ожидает", unloading: "Разгружается", completed: "Принят",
+};
+
+/** Значение по словарю, а неизвестное — как есть: молчать о нём хуже, чем показать код. */
+const labelled = (map: Record<string, string>, v: unknown) =>
+  v === null || v === undefined || v === "" ? "—" : (map[String(v)] ?? String(v));
 
 /** Date with the time, for logs where the hour is the point. */
 function formatDateTime(v: unknown): string {
@@ -238,7 +256,7 @@ export const REPORTS: ReportDef[] = [
         "Адрес": String(r.address ?? "—"),
         "Агент": String(r.agentName ?? "—"),
         "Долг": num(r.debt),
-        "Статус": String(r.status ?? "—"),
+        "Статус": labelled(ACTIVE_STATUS_LABEL, r.status),
       })),
     filename: (p) => `shops-directory${suffix(p)}`,
     sheet: { ru: "Магазины", uz: "Do'konlar" },
@@ -269,7 +287,10 @@ export const REPORTS: ReportDef[] = [
         "Заказов": num(r.orderCount),
         "Доля покупок в долг, %": Math.round(num(r.debtShare) * 100),
         "Дней самому старому долгу": num(r.oldestUnpaidDays),
-        "Оценка": TIER_LABEL_RU[String(r.tier)] ?? String(r.tier),
+        // Запасное значение было `String(r.tier)`, и у магазина без оценки в
+        // файл уходило слово «undefined» — то же самое «#null», только в
+        // другой колонке.
+        "Оценка": labelled(TIER_LABEL_RU, r.tier),
         "Почему": String(r.reason ?? ""),
         "Последний заказ": r.lastOrderAt ? String(r.lastOrderAt).slice(0, 10) : "—",
       })),
@@ -290,14 +311,18 @@ export const REPORTS: ReportDef[] = [
       { days: daysBetween(p.from, p.to), territoryId: p.territoryId },
       { enabled: opts.enabled },
     ),
+    // Колонки названы тем, что в них лежит. agentEfficiency присоединяет
+    // daily_plans БЕЗ фильтра статуса, то есть считает запланированные визиты,
+    // а не состоявшиеся; «Визиты» в шапке обещали второе. Конверсия там же —
+    // доля плановых визитов, из которых вышел заказ.
     toRows: (data) => (data as Array<{ agentName: string | null; visits: number; orders: number; revenue: string; avgOrderValue: string; conversionRate: string }>)
       .map(r => ({
         "Агент": r.agentName ?? "—",
-        "Визиты": num(r.visits),
+        "Визитов по плану": num(r.visits),
         "Заказы": num(r.orders),
         "Выручка": num(r.revenue),
         "Средний чек": num(r.avgOrderValue),
-        "Конверсия, %": num(r.conversionRate),
+        "Заказов на визит, %": num(r.conversionRate),
       })),
     filename: (p) => `agent-efficiency-${p.from}_${p.to}${suffix(p)}`,
     sheet: { ru: "Эффективность агентов", uz: "Agentlar samaradorligi" },
@@ -370,7 +395,7 @@ export const REPORTS: ReportDef[] = [
         "Дата": formatDate(r.arrivalDate),
         "Машина": String(r.truckId ?? "—"),
         "Водитель": String(r.driverName ?? "—"),
-        "Статус": String(r.status ?? "—"),
+        "Статус": labelled(ARRIVAL_STATUS_LABEL, r.status),
         "Топливо": num(r.fuelCost),
         "Пошлины": num(r.tollCost),
         "Прочее": num(r.otherCost),
@@ -456,7 +481,7 @@ export const REPORTS: ReportDef[] = [
         "Email": String(r.email ?? "—"),
         "Телефон": String(r.phone ?? "—"),
         "Роль": ROLE_LABEL[String(r.role)] ?? String(r.role ?? "—"),
-        "Статус": String(r.status ?? "—"),
+        "Статус": labelled(ACTIVE_STATUS_LABEL, r.status),
         "Последний вход": formatDate(r.lastSignInAt),
       })),
     filename: () => "staff",
@@ -503,16 +528,34 @@ export const REPORTS: ReportDef[] = [
       { dateFrom: p.from, dateTo: p.to, limit: EXPORT_LIMIT },
       { enabled: opts.enabled },
     ),
+    /*
+      Разбор — тот же, что на экране товара и в остальных выгрузках:
+      lib/stock-movement-text.ts.
+
+      Здесь стояла своя копия: собственный словарь типов, а «Основание»,
+      «Документ» и «Примечание» печатались значениями из базы как есть. То
+      есть в файл уходило ровно то, из-за чего владелец назвал выгрузку
+      движений нечитаемой, — «manual_adjustment», «#null» в номере документа
+      и «Заказ: new → delivered» в примечании. Правку тогда сделали в
+      ProductDetail и в formatMovementsForExport, а эта третья копия осталась
+      незамеченной: разбор потому и вынесен в одно место, что копий было три.
+
+      «Основание» и «Документ» слиты в одну колонку: у ручной правки номера
+      документа нет и быть не может, и отдельная колонка под него всегда
+      стояла с прочерком.
+    */
     toRows: (data) => (data as Array<Record<string, unknown>>)
       .map(r => ({
         "Дата": formatDateTime(r.createdAt),
         "Товар": String(r.productName ?? "—"),
         "Код": String(r.productCode ?? "—"),
-        "Тип": MOVEMENT_LABEL[String(r.type)] ?? String(r.type ?? "—"),
+        "Вид": movementKind(r.type as string | null | undefined),
         "Количество": num(r.quantity),
-        "Основание": String(r.referenceType ?? "—"),
-        "Документ": r.referenceId ? num(r.referenceId) : "—",
-        "Примечание": String(r.notes ?? ""),
+        "Документ": movementDocument(
+          r.referenceType as string | null | undefined,
+          r.referenceId as number | null | undefined,
+        ),
+        "Примечание": movementNote(r.notes as string | null | undefined),
       })),
     filename: (p) => `stock-movements-${p.from}_${p.to}`,
     sheet: { ru: "Движения склада", uz: "Ombor harakatlari" },
@@ -535,4 +578,31 @@ export const CATEGORY_ORDER: ReportCategory[] = [
 
 export function visibleReports(role: string | undefined): ReportDef[] {
   return REPORTS.filter(r => !r.roles || (role !== undefined && r.roles.includes(role)));
+}
+
+/**
+ * Какие колонки будут в файле.
+ *
+ * ── Зачем ───────────────────────────────────────────────────────────────────
+ *
+ * Каталог показывал название, одну строку описания и кнопку «Excel». Чем
+ * «Продажи по товарам» отличаются от «Себестоимости по товарам», из карточки
+ * не следовало, и выяснялось это только скачиванием: две тяжёлые выгрузки,
+ * чтобы понять, какая из них нужна.
+ *
+ * ── Почему не поле в записи реестра ─────────────────────────────────────────
+ *
+ * Список колонок пришлось бы держать рядом с toRows и вручную за ним следить —
+ * пятнадцать пар, которые обязательно разойдутся. Здесь заголовки берутся из
+ * самого toRows: одна пустая строка нужного вида, и ключи получившейся строки
+ * и есть шапка файла. Разойтись с файлом такой список не может по устройству.
+ *
+ * Часть отчётов принимает не массив, а обёртку ({ data } у списков с
+ * постраничностью, { trend } у P&L). Отсюда две попытки: первая пустая —
+ * значит запись ждёт обёртку.
+ */
+export function reportColumns(def: ReportDef): string[] {
+  const asList = def.toRows([{}]);
+  const rows = asList.length ? asList : def.toRows({ data: [{}], trend: [{}] });
+  return rows.length ? Object.keys(rows[0]) : [];
 }

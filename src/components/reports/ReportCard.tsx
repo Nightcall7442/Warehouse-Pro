@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { FileDown, Loader2 } from "lucide-react";
 import { format, subDays } from "date-fns";
 import { exportToExcel } from "@/lib/excel";
 import { notify } from "@/lib/toast";
 import { F, COLORS, SHADOW } from "./report-constants";
-import type { ReportDef, ReportParams } from "./report-registry";
+import { reportColumns, type ReportDef, type ReportParams } from "./report-registry";
 import { ReportFilter } from "./ReportFilters";
 
 const today = () => format(new Date(), "yyyy-MM-dd");
@@ -32,6 +32,9 @@ export function ReportCard({ def, t, lang }: {
   const params: ReportParams = { from, to, ...filters };
   const query = def.useQuery(params, { enabled: false });
   const Icon = def.icon;
+  // Разбор шапки — чистая работа над записью реестра, а не над данными:
+  // считается один раз на карточку и не зависит ни от дат, ни от фильтров.
+  const columns = useMemo(() => reportColumns(def), [def]);
 
   const handleExport = async () => {
     setBusy(true);
@@ -89,6 +92,23 @@ export function ReportCard({ def, t, lang }: {
         </div>
       </div>
 
+      {/* Что окажется в файле.
+          Названия и одной строки описания не хватало, чтобы отличить
+          «Продажи по товарам» от «Себестоимости по товарам»: выяснялось это
+          скачиванием обеих. Шапка берётся из того же toRows, что строит файл,
+          поэтому обещание здесь и содержимое файла разойтись не могут. */}
+      {columns.length > 0 && (
+        <div style={{ fontFamily: F.body, fontSize: "11px", color: COLORS.textTertiary, lineHeight: 1.5 }}>
+          <span style={{ fontWeight: 600 }}>{t("В файле", "Faylda")}: </span>
+          {columns.join(" · ")}
+          {!def.needsPeriod && (
+            // Отсутствие полей даты выглядело как недоделка. Оно осмысленно:
+            // остаток и справочник — это «на сейчас», периода у них нет.
+            <span> · {t("на сейчас, без периода", "hozirgi holat, davrsiz")}</span>
+          )}
+        </div>
+      )}
+
       {def.needsPeriod && (
         <div style={{ display: "flex", gap: "8px" }}>
           <input type="date" value={from} max={to} onChange={e => setFrom(e.target.value)}
@@ -113,12 +133,18 @@ export function ReportCard({ def, t, lang }: {
         type="button"
         onClick={handleExport}
         disabled={busy || query.isFetching}
+        // Заливка фирменным цветом с надписью «#fff» поверх — ровно тот приём,
+        // из-за которого у арендатора со светлым цветом кнопка выходила белым
+        // по белому. Цвет надписи задан темой (--color-on-primary), и в
+        // .neo-btn-primary он уже учтён.
+        //
+        // Высота: 13px в кнопке с отступом 10px давала 37 точек. Поля дат
+        // рядом уже дотянуты до 44, а кнопка под ними оставалась мельче — и
+        // это единственное, по чему в карточке вообще нажимают.
+        className="neo-btn-primary tap"
         style={{
-          display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
-          marginTop: "auto", padding: "10px 14px", borderRadius: "10px", border: "none",
-          background: COLORS.primary, color: "#fff", cursor: busy ? "wait" : "pointer",
-          fontFamily: F.body, fontSize: "13px", fontWeight: 600,
-          opacity: busy || query.isFetching ? 0.7 : 1,
+          width: "100%", marginTop: "auto", padding: "0 14px",
+          cursor: busy || query.isFetching ? "wait" : "pointer",
         }}
       >
         {busy || query.isFetching
