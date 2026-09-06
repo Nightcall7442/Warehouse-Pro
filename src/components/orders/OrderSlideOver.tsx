@@ -419,7 +419,7 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
   return (
     <>
     <Sheet open={open} onOpenChange={(v) => { if (!showCompletion) onOpenChange(v); }}>
-      <SheetContent className="w-[600px] sm:max-w-[600px] p-0 flex flex-col">
+      <SheetContent className="w-full sm:w-[600px] sm:max-w-[600px] p-0 flex flex-col">
         {/* Brass gradient header — the same band every other screen's dialog
             uses, so the panel reads as part of the app rather than a bolt-on.
             The total lives here alone; it used to be repeated immediately

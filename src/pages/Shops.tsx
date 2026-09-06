@@ -200,7 +200,7 @@ export default function Shops() {
             {t("Управление точками продаж", "Savdo nuqtalarini boshqarish")}
           </p>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
           <button onClick={async () => {
             // Fetch all shops via pagination
             // Магазин берётся тем типом, каким его отдаёт сервер. Приведение к

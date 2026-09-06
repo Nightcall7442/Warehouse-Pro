@@ -9,6 +9,7 @@ import { useLang } from "@/i18n";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
 import { useNavigate } from "react-router";
 import { printElement } from "@/lib/print";
+import { unitShort } from "@/lib/units";
 import { Scan, Package, Plus, Printer, Search, AlertTriangle } from "lucide-react";
 
 function LabelSheet({ products }: { products: Array<{ name: string; code: string; price: string; currency: string }> }) {
@@ -141,9 +142,9 @@ export default function BarcodePage() {
                     <p className="font-medium text-primary text-sm truncate">{p.name}</p>
                     <div className="flex items-center gap-3 mt-0.5">
                       <span className="font-data text-xs text-secondary">{p.code}</span>
-                      <span className="font-data text-sm text-primary">{fmt(p.unitPrice)}/кг</span>
+                      <span className="font-data text-sm text-primary">{fmt(p.unitPrice)}/{unitShort(p.unit, lang)}</span>
                       <span className={`text-xs font-data ${Number(p.available ?? 0) < Number(p.reorderPoint ?? 0) ? "text-danger" : "text-success"}`}>
-                        {Number(p.available ?? 0).toFixed(0)} кг
+                        {Number(p.available ?? 0).toFixed(0)} {unitShort(p.unit, lang)}
                       </span>
                     </div>
                   </div>

@@ -158,9 +158,14 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
         </h3>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           {validItems.length > 0 && (
+            /* Слово «Очистить» стояло вплотную к крестику панели и занимало
+               11 пикселей высоты. Промах по нему стирает набранный заказ
+               целиком — у такой кнопки должно быть своё поле, а не общая
+               с соседом полоска. */
             <button onClick={() => onChange([])} style={{
               fontSize: "11px", color: "var(--color-danger-text)", background: "none",
               border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", fontWeight: 500,
+              minHeight: "36px", padding: "0 8px", borderRadius: "8px",
             }}>
               {t("Очистить", "Tozalash")}
             </button>
@@ -244,16 +249,19 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
                     }}>+</button>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: "3px", flexShrink: 0 }}>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "1px" }}>
+                    <div style={{ display: "flex", flexDirection: "column" }}>
+                      {/* 32×22 на стрелку: строка ровно 44 пикселя высотой, и
+                          пара занимает её целиком. Прежние 24×21 давали
+                          мишень вчетверо меньше соседней корзины. */}
                       <button onClick={() => moveItem(item.productId, -1)} style={{
-                        width: "24px", height: "21px", borderRadius: "4px 4px 0 0", border: "1px solid var(--color-border)",
+                        width: "32px", height: "22px", borderRadius: "4px 4px 0 0", border: "1px solid var(--color-border)",
                         background: "var(--color-surface)", display: "flex", alignItems: "center", justifyContent: "center",
                         cursor: "pointer", color: "var(--color-text-tertiary)",
                       }}>
                         <ChevronUp size={12} />
                       </button>
                       <button onClick={() => moveItem(item.productId, 1)} style={{
-                        width: "24px", height: "21px", borderRadius: "0 0 4px 4px", border: "1px solid var(--color-border)",
+                        width: "32px", height: "22px", borderRadius: "0 0 4px 4px", border: "1px solid var(--color-border)",
                         background: "var(--color-surface)", display: "flex", alignItems: "center", justifyContent: "center",
                         cursor: "pointer", color: "var(--color-text-tertiary)",
                       }}>

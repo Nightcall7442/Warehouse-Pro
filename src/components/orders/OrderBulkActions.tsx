@@ -38,7 +38,7 @@ export function OrderBulkActions({
     // `left-1/2` leaves a fixed element only half the viewport to size itself
     // against, so without `w-max` the shrink-to-fit width collapses and the row
     // wraps into three lines on a desktop that has room for one.
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-4 w-max max-w-[calc(100vw-2rem)]">
+    <div className="order-bulk-actions-bar fixed left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-4 w-max max-w-[calc(100vw-2rem)]">
       <div
         className="neo-card flex items-center gap-3 flex-wrap justify-center"
         style={{ padding: "12px 20px", borderRadius: "20px", boxShadow: "0 25px 80px -12px rgba(0,0,0,0.35)" }}
@@ -80,33 +80,42 @@ export function OrderBulkActions({
               {t("Выполнить с оплатой", "To'lov bilan bajarish")}
             </button>
 
-            <button type="button" onClick={onComplete} className="neo-btn h-10">
-              <CheckSquare size={16} />
-              {t("Выполнить", "Bajarish")}
-            </button>
+            {/* На телефоне в один ряд помещаются только счётчик, главная
+                кнопка и «ещё» — иначе шесть-семь элементов с flex-wrap
+                сваливаются в панель высотой в пол-экрана. Остальное уходит
+                в тот же Popover (см. ниже), sm:contents возвращает их в
+                общий ряд на десктопе как было. */}
+            <div className="hidden sm:contents">
+              <button type="button" onClick={onComplete} className="neo-btn h-10">
+                <CheckSquare size={16} />
+                {t("Выполнить", "Bajarish")}
+              </button>
 
-            <button type="button" onClick={onPrintInvoices} className="neo-btn h-10">
-              <Printer size={16} />
-              {t("Накладные", "Nakladlar")}
-            </button>
+              <button type="button" onClick={onPrintInvoices} className="neo-btn h-10">
+                <Printer size={16} />
+                {t("Накладные", "Nakladlar")}
+              </button>
 
-            <button type="button" onClick={onCreateLoadingList} className="neo-btn h-10">
-              <Package size={16} />
-              {t("Загруз. лист", "Yuklash varaqi")}
-            </button>
+              <button type="button" onClick={onCreateLoadingList} className="neo-btn h-10">
+                <Package size={16} />
+                {t("Загруз. лист", "Yuklash varaqi")}
+              </button>
 
-            <PremiumSelect
-              value=""
-              onChange={v => { if (v) onChangeStatus(v); }}
-              aria-label={t("Изменить статус", "Holatni o'zgartirish")}
-              options={[
-                { value: "", label: t("Изменить статус", "Holatni o'zgartirish") },
-                ...validStatusTransitions.map(s => ({ value: s, label: t(STATUS[s]?.ru ?? s, STATUS[s]?.uz ?? s) })),
-              ]}
-              width="180px"
-            />
+              <PremiumSelect
+                value=""
+                onChange={v => { if (v) onChangeStatus(v); }}
+                aria-label={t("Изменить статус", "Holatni o'zgartirish")}
+                options={[
+                  { value: "", label: t("Изменить статус", "Holatni o'zgartirish") },
+                  ...validStatusTransitions.map(s => ({ value: s, label: t(STATUS[s]?.ru ?? s, STATUS[s]?.uz ?? s) })),
+                ]}
+                width="180px"
+              />
+            </div>
 
-            {/* Overflow — assignment and export, used less often than the four above */}
+            {/* Overflow — on desktop just assignment/export (used less often
+                than the row above); on mobile it also carries everything
+                hidden by sm:contents above, so nothing is unreachable. */}
             <Popover open={moreOpen} onOpenChange={setMoreOpen}>
               <PopoverTrigger asChild>
                 <button
@@ -127,6 +136,34 @@ export function OrderBulkActions({
                 <span className="font-label text-[10px] tracking-wider uppercase" style={{ color: "var(--color-text-tertiary)" }}>
                   {t("Ещё", "Yana")}
                 </span>
+
+                <div className="sm:hidden flex flex-col gap-2">
+                  <button type="button" onClick={() => { onComplete(); setMoreOpen(false); }} className="neo-btn w-full h-10">
+                    <CheckSquare size={16} />
+                    {t("Выполнить", "Bajarish")}
+                  </button>
+
+                  <button type="button" onClick={() => { onPrintInvoices(); setMoreOpen(false); }} className="neo-btn w-full h-10">
+                    <Printer size={16} />
+                    {t("Накладные", "Nakladlar")}
+                  </button>
+
+                  <button type="button" onClick={() => { onCreateLoadingList(); setMoreOpen(false); }} className="neo-btn w-full h-10">
+                    <Package size={16} />
+                    {t("Загруз. лист", "Yuklash varaqi")}
+                  </button>
+
+                  <PremiumSelect
+                    value=""
+                    onChange={v => { if (v) { onChangeStatus(v); setMoreOpen(false); } }}
+                    aria-label={t("Изменить статус", "Holatni o'zgartirish")}
+                    options={[
+                      { value: "", label: t("Изменить статус", "Holatni o'zgartirish") },
+                      ...validStatusTransitions.map(s => ({ value: s, label: t(STATUS[s]?.ru ?? s, STATUS[s]?.uz ?? s) })),
+                    ]}
+                    width="100%"
+                  />
+                </div>
 
                 {agents && agents.length > 0 && (
                   <PremiumSelect

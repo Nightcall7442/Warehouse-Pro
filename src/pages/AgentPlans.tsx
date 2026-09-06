@@ -66,7 +66,7 @@ export default function AgentPlans() {
       <div className="flex items-center gap-3">
         <button
           onClick={() => setDate(d => subDays(d, 1))}
-          className="w-10 h-10 flex items-center justify-center rounded-xl border transition-colors hover:bg-surface-light"
+          className="tap flex items-center justify-center rounded-xl border transition-colors hover:bg-surface-light"
           style={{ borderColor: "var(--color-border, #d8d5cd)" }}
         >
           <ChevronLeft size={18} />
@@ -81,7 +81,7 @@ export default function AgentPlans() {
         </div>
         <button
           onClick={() => setDate(d => addDays(d, 1))}
-          className="w-10 h-10 flex items-center justify-center rounded-xl border transition-colors hover:bg-surface-light"
+          className="tap flex items-center justify-center rounded-xl border transition-colors hover:bg-surface-light"
           style={{ borderColor: "var(--color-border, #d8d5cd)" }}
         >
           <ChevronRight size={18} />
@@ -206,7 +206,7 @@ export default function AgentPlans() {
                               <>
                                 <button
                                   onClick={() => navigate(`/agent/visit/${plan.id}?shopId=${plan.shopId ?? ""}&shopName=${encodeURIComponent(plan.shopName ?? "")}`)}
-                                  className="neo-btn-primary flex-1 py-2 text-xs flex items-center justify-center gap-1.5"
+                                  className="neo-btn-primary tap flex-1 text-xs flex items-center justify-center gap-1.5"
                                 >
                                   <ClipboardList size={13} />
                                   {t("Отчёт о визите", "Tashrif hisoboti")}
@@ -224,7 +224,7 @@ export default function AgentPlans() {
                                 <button
                                   onClick={() => update.mutate({ planId: plan.id, status: "visited" })}
                                   disabled={update.isPending}
-                                  className="neo-btn-primary flex-1 py-2 text-xs flex items-center justify-center gap-1.5"
+                                  className="neo-btn-primary tap flex-1 text-xs flex items-center justify-center gap-1.5"
                                 >
                                   <CheckCircle2 size={13} />
                                   {t("Отметить", "Belgilash")}

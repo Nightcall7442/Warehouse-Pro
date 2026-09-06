@@ -3,6 +3,7 @@ import { useInvalidateOrderCaches } from "@/hooks/useOrderCacheSync";
 import { useLang, useTranslate } from "@/i18n";
 import { useAuth } from "@/hooks/useAuth";
 import { useCurrency } from "@/hooks/useCurrency";
+import { cssVar } from "@/lib/css-var";
 import { useState, useRef, useEffect, useMemo } from "react";
 import { Truck, MapPin, CheckCircle2, Package, ArrowRight } from "lucide-react";
 import { notify } from "@/lib/toast";
@@ -242,7 +243,12 @@ function MapView({ deliveries }: { deliveries: Delivery[] | undefined }) {
       mapRef.current = map;
 
       mapMarkers.forEach((m) => {
-        const color = m.status === "out_for_delivery" ? "var(--color-warning-text)" : m.status === "delivered" ? "var(--color-success-text)" : "var(--color-primary-text)";
+        // Цвет читается из темы значением, а не переменной: SVG ниже уходит в
+        // data:-адрес, отдельным документом, и var(--…) там не разбирается —
+        // метка выходила чёрной независимо от состояния доставки.
+        const color = m.status === "out_for_delivery" ? cssVar("--color-warning-text", "#7a5810")
+          : m.status === "delivered" ? cssVar("--color-success-text", "#157a45")
+          : cssVar("--color-primary-text", "#53637d");
         const placemark = new ymaps.Placemark(
           [m.lat, m.lng],
           {
@@ -329,7 +335,7 @@ function DeliveryCard({
   isPending: boolean;
 }) {
   return (
-    <div className="neo-card" style={{ padding: "16px", borderLeft: "4px solid var(--color-warning)" }}>
+    <div className="neo-card space-y-3" style={{ padding: "16px", borderLeft: "4px solid var(--color-warning)" }}>
       <div className="flex items-start justify-between">
         <div>
           <p className="font-semibold">{order.orderNumber}</p>
@@ -389,7 +395,7 @@ function DeliveryCard({
       </button>
       <button
         onClick={onFail}
-        className="w-full neo-btn flex items-center justify-center gap-2 text-sm mt-2 text-danger border-danger/30 hover:bg-danger/10"
+        className="w-full neo-btn flex items-center justify-center gap-2 text-sm text-danger border-danger/30 hover:bg-danger/10"
       >
         {t("Не доставлено", "Yetkazilmadi")}
       </button>

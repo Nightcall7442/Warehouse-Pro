@@ -324,7 +324,7 @@ function AgentView({ kpi, salary, fmt, t, lang }: { kpi: KpiData; salary?: Salar
           <h3 style={{ fontFamily: F.display, fontSize: "14px", fontWeight: 600, color: "var(--color-danger-text)", marginBottom: "14px" }}>
             {t("⚠ Подозрительная активность", "⚠ Shubhali faoliyat")}
           </h3>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <StatCard label={t("Подозр. визитов", "Shubhali tashrif")} value={String(kpi.suspiciousVisits)} />
             <StatCard label={t("Уровень фрода", "Daraja")} value={`${kpi.fraudRate}%`} />
             <StatCard label={t("Ср. время визита", "O'rtacha vaqt")} value={`${kpi.avgVisitDuration} мин`} />
@@ -336,7 +336,7 @@ function AgentView({ kpi, salary, fmt, t, lang }: { kpi: KpiData; salary?: Salar
       {salary && <SalarySection salary={salary} fmt={fmt} t={t} />}
 
       {/* Visits + GPS + Reports */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <StatCard label={t("Всего визитов", "Jami tashrif")} value={String(kpi.totalPlans)} sub={`${kpi.visitedPlans} ${t("посещено", "tashrif")}`} />
         <StatCard label={t("GPS пингов", "GPS ping")} value={String(kpi.gpsPings)} sub={kpi.isOnline ? t("Онлайн", "Onlayn") : t("Оффлайн", "Oflayn")} />
         <StatCard label={t("Фотоотчёты", "Foto hisobot")} value={String(kpi.visitReportCount)} sub={kpi.lastReportTime ? "✓" : "—"} />
@@ -347,7 +347,7 @@ function AgentView({ kpi, salary, fmt, t, lang }: { kpi: KpiData; salary?: Salar
           <h3 style={{ fontFamily: F.display, fontSize: "14px", fontWeight: 600, color: COLORS.textPrimary, marginBottom: "14px" }}>
             {t("Доставки", "Yetkazish")}
           </h3>
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             <StatCard label={t("Всего", "Jami")} value={String(kpi.deliveryCount)} />
             <StatCard label={t("Доставлено", "Yetkazilgan")} value={String(kpi.deliveredCount)} />
             <StatCard label={t("Ошибки", "Xato")} value={String(kpi.failedCount)} />

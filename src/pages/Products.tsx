@@ -7,7 +7,7 @@ import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { notify } from "@/lib/toast";
 import { useNavigate, useSearchParams } from "react-router";
-import { Plus, Upload, FileDown, Box, Tag, AlertTriangle, BarChart3, Trash2, CheckSquare, Square } from "lucide-react";
+import { Plus, Upload, FileDown, Box, Tag, AlertTriangle, Trash2, CheckSquare, Square } from "lucide-react";
 import { ExcelImport } from "@/components/ExcelImport";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { exportToExcel, formatProductsForExport } from "@/lib/excel";
@@ -264,14 +264,6 @@ export default function Products() {
           icon={<AlertTriangle size={20} color="#fff" />}
           gradient="linear-gradient(135deg, #fb923c, #f97316)"
           delay={0.1}
-        />
-        <KpiCard
-          label={t("СЕССИЯ", "SEANS")}
-          value={`p.${page}`}
-          delta={null}
-          icon={<BarChart3 size={20} color="#fff" />}
-          gradient="linear-gradient(135deg, #a78bfa, var(--color-primary))"
-          delay={0.15}
         />
       </div>
 

@@ -257,6 +257,7 @@ export default function ProductDetail() {
         {movements.length===0 ? (
           <p className="px-4 py-8 text-center text-secondary text-sm">{tr("Движений пока нет","Hozircha harakatlar yo'q")}</p>
         ) : (
+          <div style={{ overflowX: "auto" }}>
           <table className="w-full text-sm">
             <thead><tr className="bg-surface-light">
               {[tr("Дата","Sana"),tr("Тип","Turi"),tr("Кол-во","Miqdor"),tr("Документ","Hujjat"),tr("Заметки","Izoh")].map(h=>(
@@ -277,6 +278,7 @@ export default function ProductDetail() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>

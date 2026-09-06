@@ -8,7 +8,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { useLang } from "@/i18n";
 import { format } from "date-fns";
 import {
-  Plus, X, Search, FileDown, Loader2, Printer,
+  Plus, X, FileDown, Loader2, Printer,
   ArrowUpRight, ArrowDownRight, Minus, Truck, Package, CheckCircle2, Clock,
 } from "lucide-react";
 import { exportToExcel, formatArrivalsForExport } from "@/lib/excel";
@@ -186,11 +186,11 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: ArrivalCreate
           </div>
         </div>
 
-        <div className="p-8 space-y-7">
+        <div className="p-4 sm:p-8 space-y-7">
           {/* Truck data */}
           <div>
             <p className={sectionLabel}>{t("Данные машины", "Mashina ma'lumotlari")}</p>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <input className="neo-input" placeholder={t("Номер машины", "Mashina raqami")} value={form.truckId} onChange={e => setForm(p => ({ ...p, truckId: e.target.value }))} />
               <input className="neo-input" placeholder={t("Имя водителя", "Haydovchi ismi")} value={form.driverName} onChange={e => setForm(p => ({ ...p, driverName: e.target.value }))} />
               <input className="neo-input" placeholder={t("Телефон", "Telefon")} value={form.driverPhone} onChange={e => setForm(p => ({ ...p, driverPhone: e.target.value }))} />
@@ -200,7 +200,7 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: ArrivalCreate
           {/* Date & expenses */}
           <div>
             <p className={sectionLabel}>{t("Дата и расходы", "Sana va xarajatlar")}</p>
-            <div className="grid grid-cols-4 gap-3 mb-3">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-3">
               <div>
                 <label className="font-label text-[10px] text-secondary mb-1.5 block">{t("Дата", "Sana")}</label>
                 <input type="date" className="neo-input" value={form.arrivalDate} onChange={e => setForm(p => ({ ...p, arrivalDate: e.target.value }))} />
@@ -255,7 +255,7 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: ArrivalCreate
                     onChange={e => setNewSupplierName(e.target.value)}
                   />
                 )}
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="font-label text-[10px] text-secondary mb-1.5 block">{t("Сумма долга", "Qarz summasi")}</label>
                     <DecimalInput className="neo-input" style={{ textAlign: "right" }} placeholder="0" value={supplyAmount} onValueChange={setSupplyAmount} />
@@ -296,7 +296,7 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: ArrivalCreate
                     options={[{ value: "0", label: productsLoading ? t("Загрузка товаров...", "Mahsulotlar yuklanmoqda...") : t("Выберите товар…", "Mahsulot tanlang…") },
                       ...(products?.data ?? []).map((p) => ({ value: String(p.id), label: `${p.name} · ${fmt(p.unitPrice)}/${unitLabel(p.unit)}` }))]}
                     width="100%" />
-                  <div className="grid grid-cols-5 gap-3 items-end">
+                  <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 items-end">
                     <div>
                       <label className="font-label text-[10px] text-secondary mb-1.5 block">{t("Кол-во", "Miqdor")}</label>
                       <div className="flex items-center gap-2">
@@ -714,7 +714,6 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
 // ── Main Page ────────────────────────────────────────────────────────────────
 export default function Arrivals() {
   const [page, setPage] = useState(1);
-  const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [detailId, setDetailId] = useState<number | null>(null);
@@ -890,14 +889,6 @@ export default function Arrivals() {
 
       {/* Filters */}
       <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-        <div style={{ position: "relative", flex: 1, minWidth: 180 }}>
-          <Search size={15} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: COLORS.textTertiary }} />
-          <input style={{
-            padding: "10px 14px 10px 36px", borderRadius: "12px", fontSize: "13px",
-            background: COLORS.surfaceLight, border: "none", color: COLORS.textPrimary,
-            outline: "none", width: "100%", fontFamily: F.body,
-          }} placeholder={t("Поиск приходов…", "Kelishlarni qidirish…")} value={search} onChange={e => setSearch(e.target.value)} />
-        </div>
         <PremiumSelect value={status} onChange={v => { setStatus(v); setPage(1); }}
           options={[{ value: "", label: t("Все статусы", "Barcha holatlar") }, { value: "pending", label: t("Ожидает", "Kutilmoqda") }, { value: "unloading", label: t("Разгрузка", "Tushirilmoqda") }, { value: "completed", label: t("Завершён", "Yakunlandi") }]}
           width="180px" />

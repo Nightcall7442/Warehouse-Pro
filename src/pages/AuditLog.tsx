@@ -218,22 +218,6 @@ export default function AuditLog() {
             gradient="var(--color-primary)"
             delay={0}
           />
-          <KpiCard
-            label={t("СТРАНИЦА", "SAHIFA")}
-            value={`${page + 1} / ${totalPages}`}
-            icon={<Filter size={20} color="#fff" />}
-            gradient="linear-gradient(135deg, #10B981, #059669)"
-            delay={0.05}
-          />
-          {data.data && (
-            <KpiCard
-              label={t("НА ЭТОЙ СТРАНИЦE", "SHU SAHIFADA")}
-              value={String(data.data.length)}
-              icon={<Package size={20} color="#fff" />}
-              gradient="linear-gradient(135deg, #fb923c, #f97316)"
-              delay={0.1}
-            />
-          )}
         </div>
       )}
 

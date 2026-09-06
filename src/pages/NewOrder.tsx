@@ -321,7 +321,7 @@ export default function NewOrder() {
       <div className="flex items-center gap-3 mb-6">
         <button
           onClick={() => navigate(-1)}
-          className="w-9 h-9 flex items-center justify-center rounded-lg border btn-ghost flex-shrink-0"
+          className="tap flex items-center justify-center rounded-lg border btn-ghost flex-shrink-0"
           style={{ borderColor: "var(--color-border, #d8d5cd)" }}
           aria-label={t("Назад", "Orqaga")}
         >

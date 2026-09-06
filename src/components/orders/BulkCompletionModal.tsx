@@ -271,7 +271,7 @@ export function BulkCompletionModal({ open, onClose, orders, currency, saving, o
                   max={maxPay}
                   value={paid[order.id] ?? ""}
                   onChange={e => setPaid(p => ({ ...p, [order.id]: e.target.value }))}
-                  className="h-8 w-28 text-[13px] font-data shrink-0"
+                  className="tap h-8 w-28 text-[13px] font-data shrink-0"
                 />
 
                 <span
@@ -308,7 +308,7 @@ export function BulkCompletionModal({ open, onClose, orders, currency, saving, o
                           placeholder={t("вернули", "qaytarildi")}
                           value={ret[line.id] ?? ""}
                           onChange={e => setReturnedQty(order.id, line.id, Number(e.target.value) || 0, ordered)}
-                          className="h-7 w-20 text-[12px] font-data"
+                          className="tap h-7 w-20 text-[12px] font-data"
                         />
                       </div>
                     );

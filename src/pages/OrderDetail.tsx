@@ -30,19 +30,10 @@ import type { CompletionData, CompletionMode } from "@/components/orders/Complet
 import { useCompletionFlow } from "@/hooks/useCompletionFlow";
 import { useInvalidateOrderCaches } from "@/hooks/useOrderCacheSync";
 import { colorMix } from "@/lib/color-mix";
+import { StatusBadge } from "@/components/orders/theme";
 
 /** Statuses where the goods have not been handed over yet — these can still be completed. */
 const OPEN_STATUSES = ["new", "processing", "shipped", "pending"];
-
-const STATUS_STYLES: Record<string, string> = {
-  new:                  "bg-info/15 text-info border-info/30",
-  processing:           "bg-warning/15 text-warning border-warning/30",
-  shipped:              "bg-purple-100 text-purple-700 border-purple-300",
-  pending:              "bg-orange-100 text-orange-700 border-orange-300",
-  delivered:            "bg-success/15 text-success border-success/30",
-  cancelled:            "bg-danger/15 text-danger border-danger/30",
-  returned:             "bg-red-100 text-red-700 border-red-300",
-};
 
 const STATUS_LABELS: Record<string, { ru: string; uz: string }> = {
   new:                  { ru: "Новый",              uz: "Yangi" },
@@ -389,9 +380,7 @@ export default function OrderDetail() {
                 </SelectContent>
               </Select>
             ) : (
-              <span className={`badge ${STATUS_STYLES[order.status]}`}>
-                {STATUS_LABELS[order.status]?.[lang] ?? order.status}
-              </span>
+              <StatusBadge status={order.status} lang={lang} />
             )}
 
             {/* Payment badge */}
@@ -410,11 +399,7 @@ export default function OrderDetail() {
             })()}
 
             {editing && (
-              <button onClick={() => setEditing(false)} style={{
-                padding: "6px 12px", fontSize: "12px", fontWeight: 500,
-                borderRadius: "10px", border: "1px solid #e0e0e0", cursor: "pointer",
-                background: "#fff", color: "#6a7290",
-              }}>
+              <button onClick={() => setEditing(false)} className="neo-btn tap">
                 {lang === "uz" ? "Bekor" : "Отмена"}
               </button>
             )}
@@ -434,15 +419,7 @@ export default function OrderDetail() {
               {OPEN_STATUSES.includes(order.status) && (
                 <button
                   onClick={() => handleStatusChange("delivered")}
-                  style={{
-                    display: "flex", alignItems: "center", gap: "8px",
-                    padding: "10px 24px", fontSize: "14px", fontWeight: 700,
-                    fontFamily: "'DM Sans', sans-serif",
-                    borderRadius: "14px", border: "none", cursor: "pointer",
-                    background: "linear-gradient(135deg, var(--color-success), #28a862)",
-                    color: "#fff",
-                    boxShadow: "0 4px 12px rgba(52,196,115,0.25)",
-                  }}
+                  className="neo-btn-primary tap"
                 >
                   <CheckCircle2 size={16} />
                   {lang === "uz" ? "Buyurtmani yakunlash" : "Завершить заказ"}
@@ -451,16 +428,10 @@ export default function OrderDetail() {
               <button
                 onClick={editing ? saveEditing : startEditing}
                 disabled={editing && updateOrder.isPending}
-                style={{
-                  display: "flex", alignItems: "center", gap: "8px",
-                  padding: "10px 24px", fontSize: "14px", fontWeight: 700,
-                  fontFamily: "'DM Sans', sans-serif",
-                  borderRadius: "14px", border: "none", cursor: "pointer",
-                  background: editing ? "var(--color-success)" : "linear-gradient(135deg, var(--color-primary), var(--color-primary-hover))",
-                  color: "#fff",
-                  boxShadow: "0 4px 12px rgba(91,109,138,0.25)",
-                  opacity: editing && updateOrder.isPending ? 0.7 : 1,
-                }}
+                /* Вторая по важности, а не вторая одинаковая: рядом стоит
+                   «Завершить заказ» — действие необратимое. Две кнопки одного
+                   вида подряд стирают между ними разницу. */
+                className="neo-btn tap"
               >
                 <Edit3 size={16} />
                 {editing ? (lang === "uz" ? "Saqlash" : "Сохранить изменения") : (lang === "uz" ? "Tahrirlash" : "Изменить заказ")}
@@ -521,7 +492,10 @@ export default function OrderDetail() {
           <h3 className="font-label text-secondary text-xs tracking-wider mb-3 flex items-center gap-1">
             <Package size={13}/> {lang === "uz" ? "MAHSULOTLAR" : "ТОВАРЫ"} ({order.items?.length ?? 0})
           </h3>
-          <div className="border rounded-lg overflow-hidden">
+          {/* Desktop — table, scrolled horizontally rather than clipped so
+              narrow-but-not-phone widths don't silently lose the right
+              columns (overflow-x: auto, not overflow: hidden). */}
+          <div className="hidden lg:block border rounded-lg" style={{ overflowX: "auto" }}>
             <table className="w-full">
               <thead>
                 <tr className="bg-surface-light">
@@ -582,6 +556,48 @@ export default function OrderDetail() {
                 })}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile — same positions as cards, per row instead of columns
+              that would otherwise be cut off on a phone. */}
+          <div className="lg:hidden space-y-2">
+            {order.items?.map((item, i) => {
+              const unitLabel = unitShort(item.unit, lang);
+              const hasPartial = item.deliveredQuantity != null && Number(item.deliveredQuantity) < Number(item.quantity);
+              return (
+                <div key={item.id ?? i} className="neo-card-sm" style={{ padding: "12px" }}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm text-primary font-medium">{item.productName ?? "—"}</p>
+                      <p className="text-xs text-secondary font-data mt-0.5">{item.productCode ?? "—"}</p>
+                    </div>
+                    <span className="text-xs text-secondary shrink-0">№{i + 1}</span>
+                  </div>
+                  {hasPartial && (
+                    <div className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                      <AlertTriangle size={10}/>
+                      {lang === "uz" ? "Qisman yetkazildi" : "Частичная доставка"}
+                      {item.returnReason && ` — ${item.returnReason}`}
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between mt-2 text-sm border-t border-border-subtle pt-2">
+                    <span className="text-secondary">
+                      {hasPartial ? (
+                        <>
+                          <span className="line-through text-muted-foreground">{cleanNum(item.quantity)}</span>{" "}
+                          <span className="text-amber-600 font-medium">{cleanNum(item.deliveredQuantity)}</span>{" "}
+                        </>
+                      ) : (
+                        <>{cleanNum(item.quantity)} </>
+                      )}
+                      <span className="text-xs text-muted-foreground">{unitLabel}</span>
+                      {" × "}{cleanNum(item.unitPrice)}
+                    </span>
+                    <span className="font-data font-medium text-primary">{cleanNum(item.subtotal)}</span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 

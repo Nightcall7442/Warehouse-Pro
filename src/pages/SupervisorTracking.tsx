@@ -1,6 +1,7 @@
 import { trpc } from "@/providers/trpc";
 import { useEffect, useRef, useState } from "react";
 import { useLang, useTranslate } from "@/i18n";
+import { cssVar } from "@/lib/css-var";
 import { format } from "date-fns";
 import { Radio, RefreshCw, MapPin, Wifi, WifiOff, Store } from "lucide-react";
 import {
@@ -138,7 +139,10 @@ export default function SupervisorTracking() {
         if (!lat || !lng) return;
 
         const online = isOnline(loc.createdAt);
-        const color = online ? "var(--color-success-text)" : "var(--color-text-tertiary, #6b6760)";
+        // Значением, а не переменной: метка рисуется в data:-адресе, где
+        // var(--…) не работает и кружок выходит чёрным — в сети агент или нет,
+        // на карте выглядело одинаково.
+        const color = online ? cssVar("--color-success-text", "#157a45") : cssVar("--color-text-tertiary", "#6b6760");
         const initial = (loc.agentName ?? "A")[0].toUpperCase();
 
         const placemark = new ymaps.Placemark(

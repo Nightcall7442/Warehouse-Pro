@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { createPortal } from "react-dom";
 import { useCurrency } from "@/hooks/useCurrency";
 import { trpc } from "@/providers/trpc";
 import { useNavigate } from "react-router";
@@ -7,11 +6,12 @@ import { notify } from "@/lib/toast";
 import { useLang } from "@/i18n";
 import {
   Store, Phone, MapPin, AlertCircle, PlusCircle,
-  Search, X, Loader2, Plus,
+  Search, Loader2, Plus,
 } from "lucide-react";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { useAuth } from "@/hooks/useAuth";
 import { useOfflineCopy } from "@/hooks/useOfflineCopy";
+import { AppModal, modalFieldLabel } from "@/components/ui/AppModal";
 
 // ── Форма добавления магазина агентом ─────────────────────────────────────────
 function AddShopModal({ onClose }: { onClose: () => void }) {
@@ -59,166 +59,143 @@ function AddShopModal({ onClose }: { onClose: () => void }) {
     });
   };
 
-  return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center app-modal-shell"
-      style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }}
-    >
-      {/* Фон панели — из темы, а не литералом.
-          Здесь стоял bg-[#ffffff]. Весь текст внутри берёт цвет из токенов, и
-          в тёмной теме это давало почти белый текст на белом: заголовок
-          #ede9e3 на #ffffff — контраст 1.21 при норме 4.5, подпись поля —
-          2.69. Форма читалась только на ощупь.
-          Соседняя модалка (warehouse/AdjustModal) с самого начала красится
-          через var(--color-surface) — здесь теперь так же. */}
-      {/* Панель прокручивается и не выше оставшегося места.
-          Восемь полей, кнопка GPS и заметки на 375×812 не помещались, а
-          прокрутки не было: до «Сохранить» нельзя было добраться вовсе.
-          Высота считается с оглядкой на клавиатуру — та открывается сразу,
-          курсором в первом поле, и прятала кнопки в тот же миг. */}
-      <div className="w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-2xl p-5 space-y-4"
-        style={{
-          background: "var(--color-surface, #efedea)",
-          maxHeight: "min(90vh, calc(100vh - var(--keyboard-inset, 0px) - 24px))",
-          overflowY: "auto",
-          overscrollBehavior: "contain",
-        }}>
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <h2 className="font-display text-lg text-primary">
-            {t("Новый магазин", "Yangi do'kon")}
-          </h2>
-          <button onClick={onClose} className="btn-ghost p-1.5">
-            <X size={18} />
-          </button>
-        </div>
+  // Окно с работой не закрывается промахом мимо панели: восемь полей и GPS
+  // стирались одним неточным касанием.
+  const dirty = Object.values(form).some(v => v.trim() !== "") || gpsCoords !== null;
 
-        {/* Fields */}
-        <div className="space-y-3">
-          <div>
-            <label className="font-label text-secondary text-xs block mb-1">
-              {t("НАЗВАНИЕ *", "NOMI *")}
-            </label>
-            <input
-              className="neo-input"
-              placeholder={t("Название магазина", "Do'kon nomi")}
-              value={form.name}
-              onChange={e => setForm({ ...form, name: e.target.value })}
-              autoFocus
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="font-label text-secondary text-xs block mb-1">
-                {t("ВЛАДЕЛЕЦ", "EGASI")}
-              </label>
-              <input
-                className="neo-input"
-                placeholder={t("Имя владельца", "Egasi ismi")}
-                value={form.ownerName}
-                onChange={e => setForm({ ...form, ownerName: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="font-label text-secondary text-xs block mb-1">
-                {t("ТЕЛЕФОН", "TELEFON")}
-              </label>
-              <input
-                className="neo-input"
-                placeholder="+998 ..."
-                type="tel"
-                value={form.phone}
-                onChange={e => setForm({ ...form, phone: e.target.value })}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="font-label text-secondary text-xs block mb-1">
-              {t("АДРЕС", "MANZIL")}
-            </label>
-            <input
-              className="neo-input"
-              placeholder={t("Улица, дом", "Ko'cha, uy")}
-              value={form.address}
-              onChange={e => setForm({ ...form, address: e.target.value })}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="font-label text-secondary text-xs block mb-1">
-                {t("ГОРОД", "SHAHAR")}
-              </label>
-              <input
-                className="neo-input"
-                placeholder={t("Город", "Shahar")}
-                value={form.city}
-                onChange={e => setForm({ ...form, city: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="font-label text-secondary text-xs block mb-1">
-                {t("РАЙОН", "TUMAN")}
-              </label>
-              <input
-                className="neo-input"
-                placeholder={t("Район", "Tuman")}
-                value={form.district}
-                onChange={e => setForm({ ...form, district: e.target.value })}
-              />
-            </div>
-          </div>
-
-          {/* GPS */}
-          <div>
-            <button
-              type="button"
-              onClick={captureGps}
-              disabled={gpsLoading}
-              className="neo-btn w-full flex items-center justify-center gap-2 text-sm py-2.5"
-            >
-              {gpsLoading
-                ? <Loader2 size={15} className="animate-spin" />
-                : <MapPin size={15} className={gpsCoords ? "text-success" : ""} />}
-              {gpsCoords
-                ? t(`GPS: ${gpsCoords.lat}, ${gpsCoords.lng}`, `GPS: ${gpsCoords.lat}, ${gpsCoords.lng}`)
-                : t("Определить GPS", "GPS aniqlash")}
-            </button>
-          </div>
-
-          <div>
-            <label className="font-label text-secondary text-xs block mb-1">
-              {t("ЗАМЕТКИ", "ESLATMALAR")}
-            </label>
-            <textarea
-              className="neo-input resize-none"
-              rows={2}
-              placeholder={t("Дополнительная информация", "Qo'shimcha ma'lumot")}
-              value={form.notes}
-              onChange={e => setForm({ ...form, notes: e.target.value })}
-            />
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div className="flex gap-2">
+  return (
+    <AppModal
+      open
+      onClose={onClose}
+      dirty={dirty}
+      title={t("Новый магазин", "Yangi do'kon")}
+      subtitle={t("Появится в вашем списке сразу", "Ro'yxatingizda darhol ko'rinadi")}
+      maxWidth={560}
+      footer={
+        <>
           <button
             onClick={handleSave}
             disabled={createMutation.isPending || !form.name.trim()}
-            className="neo-btn-primary flex-1 flex items-center justify-center gap-2 disabled:opacity-40"
+            className="neo-btn-primary tap flex-1 flex items-center justify-center gap-2 disabled:opacity-40"
           >
             {createMutation.isPending && <Loader2 size={14} className="animate-spin" />}
             {t("Добавить магазин", "Do'kon qo'shish")}
           </button>
-          <button onClick={onClose} className="neo-btn px-4">
+          <button onClick={onClose} className="neo-btn tap px-4">
             {t("Отмена", "Bekor")}
           </button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        <div>
+          <label className={modalFieldLabel}>
+            {t("НАЗВАНИЕ *", "NOMI *")}
+          </label>
+          <input
+            className="neo-input"
+            placeholder={t("Название магазина", "Do'kon nomi")}
+            value={form.name}
+            onChange={e => setForm({ ...form, name: e.target.value })}
+            autoFocus
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={modalFieldLabel}>
+              {t("ВЛАДЕЛЕЦ", "EGASI")}
+            </label>
+            <input
+              className="neo-input"
+              placeholder={t("Имя владельца", "Egasi ismi")}
+              value={form.ownerName}
+              onChange={e => setForm({ ...form, ownerName: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className={modalFieldLabel}>
+              {t("ТЕЛЕФОН", "TELEFON")}
+            </label>
+            <input
+              className="neo-input"
+              placeholder="+998 ..."
+              type="tel"
+              value={form.phone}
+              onChange={e => setForm({ ...form, phone: e.target.value })}
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className={modalFieldLabel}>
+            {t("АДРЕС", "MANZIL")}
+          </label>
+          <input
+            className="neo-input"
+            placeholder={t("Улица, дом", "Ko'cha, uy")}
+            value={form.address}
+            onChange={e => setForm({ ...form, address: e.target.value })}
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={modalFieldLabel}>
+              {t("ГОРОД", "SHAHAR")}
+            </label>
+            <input
+              className="neo-input"
+              placeholder={t("Город", "Shahar")}
+              value={form.city}
+              onChange={e => setForm({ ...form, city: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className={modalFieldLabel}>
+              {t("РАЙОН", "TUMAN")}
+            </label>
+            <input
+              className="neo-input"
+              placeholder={t("Район", "Tuman")}
+              value={form.district}
+              onChange={e => setForm({ ...form, district: e.target.value })}
+            />
+          </div>
+        </div>
+
+        {/* GPS */}
+        <div>
+          <button
+            type="button"
+            onClick={captureGps}
+            disabled={gpsLoading}
+            className="neo-btn w-full flex items-center justify-center gap-2 text-sm py-2.5"
+          >
+            {gpsLoading
+              ? <Loader2 size={15} className="animate-spin" />
+              : <MapPin size={15} className={gpsCoords ? "text-success" : ""} />}
+            {gpsCoords
+              ? t(`GPS: ${gpsCoords.lat}, ${gpsCoords.lng}`, `GPS: ${gpsCoords.lat}, ${gpsCoords.lng}`)
+              : t("Определить GPS", "GPS aniqlash")}
+          </button>
+        </div>
+
+        <div>
+          <label className={modalFieldLabel}>
+            {t("ЗАМЕТКИ", "ESLATMALAR")}
+          </label>
+          <textarea
+            className="neo-input resize-none"
+            rows={2}
+            placeholder={t("Дополнительная информация", "Qo'shimcha ma'lumot")}
+            value={form.notes}
+            onChange={e => setForm({ ...form, notes: e.target.value })}
+          />
         </div>
       </div>
-    </div>,
-    document.body
+
+    </AppModal>
   );
 }
 

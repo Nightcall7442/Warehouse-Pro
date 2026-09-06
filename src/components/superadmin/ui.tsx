@@ -1,7 +1,7 @@
 import React from "react";
-import { createPortal } from "react-dom";
 import type { LucideIcon } from "lucide-react";
 import { F, COLORS, PLAN_COLORS, STATUS_COLORS } from "./types";
+import { AppModal } from "@/components/ui/AppModal";
 
 // ── Badge components ────────────────────────────────────────────────────────
 export function PlanBadge({ plan }: { plan: string }) {
@@ -60,15 +60,25 @@ export function Section({ title, icon: Icon, children }: {
 }
 
 // ── Modal ───────────────────────────────────────────────────────────────────
-export function Modal({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
-  return createPortal(
-    <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }} onClick={onClose}>
-      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }} />
-      <div style={{ position: "relative", width: "100%", maxWidth: "480px", background: COLORS.surface, borderRadius: "16px", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.15)", overflow: "hidden" }} onClick={e => e.stopPropagation()}>
-        {children}
-      </div>
-    </div>,
-    document.body
+/**
+ * Окно суперадмина — общий шелл приложения, а не свой.
+ *
+ * Здесь стояла голая подложка с панелью: ни Escape, ни возврата фокуса, ни
+ * замка прокрутки, ни поправки на клавиатуру. Заголовок каждое окно рисовало
+ * само, и два окна выглядели по-разному. AppModal всё это уже умеет.
+ */
+export function Modal({ onClose, title, subtitle, footer, maxWidth = 480, children }: {
+  onClose: () => void;
+  title: string;
+  subtitle?: string;
+  footer?: React.ReactNode;
+  maxWidth?: number;
+  children: React.ReactNode;
+}) {
+  return (
+    <AppModal open onClose={onClose} title={title} subtitle={subtitle} footer={footer} maxWidth={maxWidth}>
+      {children}
+    </AppModal>
   );
 }
 

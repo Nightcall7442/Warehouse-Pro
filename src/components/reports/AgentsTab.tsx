@@ -67,7 +67,7 @@ const AgentPodium = memo(function AgentPodium({ agents, fmt }: { agents: unknown
       }}>
         🏆 Рейтинг агентов
       </h2>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px" }}>
+      <div className="grid grid-cols-1 lg:grid-cols-3" style={{ gap: "16px" }}>
         {top3.map((a, i) => {
           const agent = a as Record<string, unknown>;
           return (

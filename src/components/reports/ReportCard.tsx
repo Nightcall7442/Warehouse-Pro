@@ -57,8 +57,10 @@ export function ReportCard({ def, t, lang }: {
     }
   };
 
+  // 44px — не украшение: базовый шрифт приложения 14px, и поле с отступом
+  // 8px выходило 33px высотой. Пальцем по такому выбирают дату с третьего раза.
   const field: React.CSSProperties = {
-    padding: "8px 10px", borderRadius: "8px", border: `1px solid ${COLORS.border}`,
+    padding: "8px 10px", minHeight: "44px", borderRadius: "8px", border: `1px solid ${COLORS.border}`,
     background: COLORS.surfaceLight, color: COLORS.textPrimary,
     fontFamily: F.body, fontSize: "13px", outline: "none", width: "100%",
   };

@@ -118,7 +118,7 @@ export default function AgentOrders() {
       </div>
 
       {isError && (
-        <div className="rounded-2xl p-5 text-center space-y-3" style={{ background: "var(--color-surface-raised, #262320)" }}>
+        <div className="neo-card-sm text-center space-y-3">
           <p style={{ color: "var(--color-text-secondary)" }}>
             {t("Не удалось загрузить заказы", "Buyurtmalarni yuklab bo'lmadi")}
           </p>
@@ -131,7 +131,7 @@ export default function AgentOrders() {
       {isLoading && (
         <div className="space-y-3">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="rounded-2xl h-[76px] animate-pulse" style={{ background: "var(--color-surface-raised, #262320)" }} />
+            <div key={i} className="neo-card-sm h-[76px] animate-pulse" />
           ))}
         </div>
       )}
@@ -139,7 +139,7 @@ export default function AgentOrders() {
       {!isLoading && !isError && days.length === 0 && (
         // Пустой экран не оставляем немым: агент должен понять, что всё в
         // порядке, и куда идти дальше.
-        <div className="rounded-2xl p-8 text-center space-y-4" style={{ background: "var(--color-surface-raised, #262320)" }}>
+        <div className="neo-card-sm p-8 text-center space-y-4">
           <ClipboardList size={40} style={{ color: "var(--color-text-tertiary)" }} className="mx-auto" />
           <div className="space-y-1">
             <p className="font-medium" style={{ color: "var(--color-text-primary)" }}>
@@ -170,8 +170,7 @@ export default function AgentOrders() {
               <button
                 key={o.id}
                 onClick={() => navigate(`/orders/${o.id}`)}
-                className="w-full text-left rounded-2xl p-4 flex items-center gap-3 transition-transform active:scale-[.99]"
-                style={{ background: "var(--color-surface-raised, #262320)" }}
+                className="neo-card-sm w-full text-left p-4 flex items-center gap-3 transition-transform active:scale-[.99]"
               >
                 <div className="flex-1 min-w-0 space-y-1">
                   <div className="flex items-center gap-2">

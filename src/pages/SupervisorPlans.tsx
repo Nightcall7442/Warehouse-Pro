@@ -340,14 +340,14 @@ export default function SupervisorPlans() {
                               <button
                                 onClick={() => updatePlan.mutate({ planId: plan.id, status: "visited" })}
                                 disabled={updatePlan.isPending}
-                                className="neo-btn-primary py-1 px-2 text-xs flex items-center gap-1"
+                                className="neo-btn-primary tap px-3 text-xs flex items-center justify-center gap-1"
                               >
                                 <CheckCircle2 size={10} />
                               </button>
                               <button
                                 onClick={() => updatePlan.mutate({ planId: plan.id, status: "skipped" })}
                                 disabled={updatePlan.isPending}
-                                className="neo-btn py-1 px-2 text-xs flex items-center gap-1"
+                                className="neo-btn tap px-3 text-xs flex items-center justify-center gap-1"
                               >
                                 <Clock size={10} />
                               </button>

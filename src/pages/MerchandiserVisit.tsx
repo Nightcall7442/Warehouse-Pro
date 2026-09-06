@@ -166,16 +166,18 @@ export default function MerchandiserVisit() {
             style={{ width: `${completionPct}%` }}
           />
         </div>
-        <div className="space-y-2 max-h-96 overflow-y-auto">
+        {/* Без своей прокрутки: страница и так прокручивается, а вложенная
+            область на телефоне ловит палец и не пускает дальше по экрану. */}
+        <div className="space-y-2">
           {checklist.map(item => (
-            <div key={item.productId} className="flex items-center gap-3 p-2 rounded-lg hover:bg-surface-light">
+            <div key={item.productId} className="flex flex-wrap items-center gap-3 p-2 rounded-lg hover:bg-surface-light">
               <button
                 onClick={() => toggleChecklist(item.productId)}
-                className={`flex-shrink-0 ${item.present ? "text-success" : "text-secondary"}`}
+                className={`tap flex items-center justify-center flex-shrink-0 ${item.present ? "text-success" : "text-secondary"}`}
               >
                 {item.present ? <CheckCircle2 size={20} /> : <Circle size={20} />}
               </button>
-              <span className={`flex-1 text-sm ${item.present ? "" : "text-secondary"}`}>
+              <span className={`flex-1 min-w-[140px] text-sm ${item.present ? "" : "text-secondary"}`}>
                 {item.productName}
               </span>
               <input
@@ -183,14 +185,14 @@ export default function MerchandiserVisit() {
                 placeholder={t("Цена", "Narxi")}
                 value={item.price ?? ""}
                 onChange={(e) => updateChecklistPrice(item.productId, e.target.value)}
-                className="w-20 text-xs px-2 py-1 neo-input"
+                className="neo-input tap flex-1 sm:flex-none sm:w-24 px-2"
               />
               <input
                 type="text"
                 placeholder={t("Акция", "Aksiya")}
                 value={item.promoNote ?? ""}
                 onChange={(e) => updateChecklistPromo(item.productId, e.target.value)}
-                className="w-24 text-xs px-2 py-1 neo-input"
+                className="neo-input tap flex-1 sm:flex-none sm:w-28 px-2"
               />
             </div>
           ))}

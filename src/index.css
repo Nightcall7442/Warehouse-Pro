@@ -932,6 +932,20 @@
     padding-left: 24px;
     padding-right: 24px;
   }
+  /* Панель массовых действий над списком заказов (OrderBulkActions) — тот же
+     плавающий фиксированный низ, что и .order-action-bar выше, и та же беда:
+     Tailwind-класс bottom-6 (24px) сажал панель поверх нижней навигации на
+     телефоне. На десктопе (BottomNav скрыт с 768px, см. Layout.tsx) низ
+     экрана свободен — там достаточно исходных 24px. */
+  .order-bulk-actions-bar {
+    bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+  }
+  @media (min-width: 768px) {
+    .order-bulk-actions-bar {
+      bottom: 24px;
+    }
+  }
+
   /* Пока панель fixed, страница не знает, что снизу появилось ~76px чужого
      содержимого, и последняя строка каталога пряталась бы под ней. База
      Layout.tsx уже резервирует 60px+safe-area под саму нижнюю навигацию

@@ -81,7 +81,7 @@ function ProductCard({ product, onOpen }: { product: CatalogProduct; onOpen: () 
       </p>
 
       <p style={{ margin: 0, fontSize: "11px", color: out ? "var(--color-danger-text)" : "var(--color-text-tertiary)" }}>
-        {out ? "Нет в наличии" : `${formatQty(product.available)} ${unitLabel(product.unit ?? undefined, lang)}`}
+        {out ? (lang === "uz" ? "Mahsulot tugadi" : "Нет в наличии") : `${formatQty(product.available)} ${unitLabel(product.unit ?? undefined, lang)}`}
       </p>
     </button>
   );

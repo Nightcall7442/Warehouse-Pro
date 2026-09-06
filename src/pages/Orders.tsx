@@ -942,6 +942,21 @@ function OperatorOrders() {
                   >
                     <div style={{ display: "flex" }}>
                       <div style={{ width: "4px", flexShrink: 0, borderRadius: "16px 0 0 16px", background: s.dot }} />
+                      {isOperatorOrCeo && (
+                        <div
+                          className="tap"
+                          style={{ display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+                          onClick={e => e.stopPropagation()}
+                        >
+                          <button onClick={() => toggleSelect(o.id as number)}
+                            style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            {selected.has(o.id as number)
+                              ? <CheckSquare size={18} style={{ color: COLORS.primaryText }} />
+                              : <Square size={18} style={{ color: COLORS.textTertiary }} />
+                            }
+                          </button>
+                        </div>
+                      )}
                       <div style={{ flex: 1, padding: "14px 16px" }}>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
                           <span style={{ fontFamily: F.display, fontSize: "14px", fontWeight: 600, color: COLORS.textPrimary }}>

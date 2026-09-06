@@ -74,8 +74,8 @@ const PieTooltip = memo(function PieTooltip({ active, payload }: { active?: bool
 });
 
 /* ── Circular KPI Card ───────────────────────────────────────────────────── */
-function CircularKpiCard({ label, value, subValue, color, icon, delay, onClick }: {
-  label: string; value: string; subValue?: string; color: string; icon: React.ReactNode; delay: number; onClick?: () => void;
+function CircularKpiCard({ label, value, subValue, icon, delay, onClick }: {
+  label: string; value: string; subValue?: string; icon: React.ReactNode; delay: number; onClick?: () => void;
 }) {
   return (
     <div className="kpi-hero stagger-children" style={{ cursor: onClick ? "pointer" : "default", animationDelay: `${delay}s` }} onClick={onClick}>
@@ -88,18 +88,16 @@ function CircularKpiCard({ label, value, subValue, color, icon, delay, onClick }
             <p style={{ fontSize: "12px", color: "var(--color-text-secondary, #5e5b54)", marginTop: "4px" }}>{subValue}</p>
           )}
         </div>
-        <div className="neo-progress-ring" style={{ width: "72px", height: "72px", flexShrink: 0 }}>
-          <svg width="64" height="64" viewBox="0 0 64 64" style={{ transform: "rotate(-90deg)" }}>
-            <circle cx="32" cy="32" r="26" fill="none" stroke="var(--color-border, #d8d5cd)" strokeWidth="5" />
-            <circle cx="32" cy="32" r="26" fill="none" stroke={color} strokeWidth="5" strokeLinecap="round"
-              strokeDasharray={2 * Math.PI * 26}
-              strokeDashoffset={2 * Math.PI * 26 * 0.3}
-              style={{ transition: "stroke-dashoffset 0.6s cubic-bezier(0.16,1,0.3,1)" }}
-            />
-          </svg>
-          <div style={{ position: "absolute", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            {icon}
-          </div>
+        {/*
+          Здесь стояло кольцо прогресса, заполненное ровно на 70%: доля была
+          вбита числом (strokeDashoffset … * 0.3) и от значения не зависела
+          никак. Показатель тут — сумма долга, у неё нет знаменателя, из
+          которого получилась бы доля, поэтому кольцо не считало ничего, а
+          выглядело как посчитанное. Осталась плитка со значком — так же, как
+          у соседней «Валовой прибыли».
+        */}
+        <div className="kpi-tile" style={{ flexShrink: 0 }}>
+          {icon}
         </div>
       </div>
     </div>
@@ -235,7 +233,6 @@ export default function Dashboard() {
         <CircularKpiCard
           label={t("ДОЛГ КЛИЕНТОВ", "MIJZOZLAR QARZI")}
           value={fmt(kpis.customerDebt ?? 0, true)}
-          color="var(--color-warning-text)"
           icon={<Activity size={18} color="var(--color-warning-text)" />}
           delay={0.1}
           onClick={() => navigate("/reports")}

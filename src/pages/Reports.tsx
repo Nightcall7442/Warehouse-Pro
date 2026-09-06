@@ -260,6 +260,9 @@ export default function Reports() {
       </div>
 
       {/* Tabs */}
+      {/* Лента прокручивается вбок, а не вылезает за экран: пяти вкладок на
+          телефоне в ряд не помещается, а страница ездить вбок не должна. */}
+      <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", margin: "0 -4px", padding: "0 4px" }}>
       <div style={{ display: "inline-flex", background: COLORS.surfaceLight, borderRadius: "14px", padding: "4px", gap: "4px", alignSelf: "flex-start" }}>
         {TABS.map(tb => (
           <button key={tb.key} onClick={() => setTab(tb.key)} style={{
@@ -274,6 +277,7 @@ export default function Reports() {
             {t(tb.ru, tb.uz)}
           </button>
         ))}
+      </div>
       </div>
 
       {/* Tab content */}
