@@ -64,12 +64,15 @@ export function ChartTooltip({ active, payload, label, fmt }: ChartTooltipProps)
               {p.name}
             </span>
           </div>
+          {/* Суммы в подсказке стоят столбиком друг под другом — табличные
+              цифры, иначе разряды у соседних строк не совпадают. */}
           <span
             style={{
               fontSize: "13px",
               fontWeight: 600,
               color: COLORS.textPrimary,
               fontFamily: F.display,
+              fontVariantNumeric: "tabular-nums",
             }}
           >
             {fmt(p.value)}

@@ -3,15 +3,17 @@ import { trpc } from "@/providers/trpc";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useLang } from "@/i18n";
 import { exportToPDF } from "@/lib/export";
+import { notify } from "@/lib/toast";
+import { cssVar } from "@/lib/css-var";
+import { readableInk } from "@/lib/contrast";
 import { subDays, format, subMonths, startOfYear } from "date-fns";
-import { PAYMENT_LABELS } from "@/components/pnl/styles";
+import { paymentLabel } from "@/components/pnl/styles";
 import {
   PnLPeriodSelector,
+  PnLHeadline,
   PnLSummaryCards,
-  PnLMarginRings,
   DateInput,
   PnLPaymentBreakdown,
-  PnLPeriodComparison,
   PnLRevenueChart,
   PnLExpenseBreakdown,
   PnLTransportExpenses,
@@ -25,7 +27,26 @@ const COLORS = {
   surfaceLight: "var(--color-surface-light, #f6f4f0)",
   textTertiary: "var(--color-text-tertiary, #6b6760)",
 };
-const SHADOW = "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04))";
+
+/** Дата из «2026-08-14» в «14.08.2026» — для шапок отчётов. */
+const human = (iso: string) => iso.split("-").reverse().join(".");
+
+/**
+ * Цвет шапки в выгрузке — арендатора, а не системы.
+ *
+ * В листах стояло FF4F46E5 — индиго, которого нет ни в палитре приложения, ни
+ * у арендатора. Файл уходит наружу, и цвет в нём должен быть тот же, что на
+ * экране. Тот же приём уже применён в lib/excel.ts; здесь он повторён, потому
+ * что тамошний помощник не вынесен наружу.
+ *
+ * ExcelJS хранит цвет как AARRGGBB и переменных темы не понимает — литерал
+ * здесь неизбежен, поэтому значение читается из темы в момент выгрузки.
+ */
+function brandHex(): string {
+  const hex = cssVar("--color-primary", "").trim();
+  return /^#[0-9a-fA-F]{6}$/.test(hex) ? hex : "#5b6d8a";
+}
+const argb = (hex: string) => "FF" + hex.replace("#", "").toUpperCase();
 
 export default function PnL() {
   const [range, setRange] = useState<Range>("30d");
@@ -116,6 +137,11 @@ export default function PnL() {
   };
 
   const handleExportExcel = async () => {
+    if (!current) {
+      notify.info(t("Нет данных для выгрузки", "Yuklab olishga ma'lumot yo'q"));
+      return;
+    }
+
     const ExcelJS = (await import("exceljs")).default;
     const wb = new ExcelJS.Workbook();
     // Свойства файла видит всякий, кто его откроет: автором стоит
@@ -123,341 +149,402 @@ export default function PnL() {
     wb.creator = seller.name || "";
     wb.created = new Date();
 
-    const num = (v: unknown) => Number(v ?? 0);
-    const fmtMoney = (n: number) => n.toLocaleString("ru-RU");
+    const brand = brandHex();
+    const headFill = argb(brand);
+    const headInk = argb(readableInk(brand));
+    const gridLine = { style: "thin" as const, color: { argb: "FFD9D9D9" } };
+    const box = { top: gridLine, bottom: gridLine, left: gridLine, right: gridLine };
 
-    // ── Sheet 1: Сводка P&L ──────────────────────────────────────────────
-    const ws1 = wb.addWorksheet("Сводка P&L", { properties: { defaultColWidth: 22 } });
+    type Sheet = ReturnType<typeof wb.addWorksheet>;
 
-    // Title
-    ws1.mergeCells("A1:C1");
-    const titleCell = ws1.getCell("A1");
-    titleCell.value = `P&L Отчёт: ${from} — ${to}`;
-    titleCell.font = { bold: true, size: 16, color: { argb: "FF1E293B" } };
-    titleCell.alignment = { horizontal: "left" };
+    /*
+      Шапка листа — одним местом на все четыре листа.
 
-    ws1.mergeCells("A2:C2");
-    ws1.getCell("A2").value = `Сформирован: ${new Date().toLocaleDateString("ru-RU", { day: "2-digit", month: "long", year: "numeric" })}`;
-    ws1.getCell("A2").font = { size: 10, color: { argb: "FF64748B" } };
-
-    ws1.addRow([]);
-
-    // Header
-    const h1 = ws1.addRow(["Показатель", "Сумма", "Маржа %"]);
-    h1.eachCell(c => {
-      c.font = { bold: true, size: 11, color: { argb: "FFFFFFFF" } };
-      c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E293B" } };
-      c.border = { bottom: { style: "medium", color: { argb: "FF1E293B" } } };
-      c.alignment = { horizontal: "center", vertical: "middle" };
-    });
-    h1.height = 28;
-
-    const addRow = (label: string, value: number, margin?: number, bold?: boolean, highlight?: string) => {
-      const row = ws1.addRow([label, fmtMoney(value), margin != null ? `${margin.toFixed(1)}%` : ""]);
-      row.getCell(2).numFmt = "#,##0";
-      row.getCell(2).alignment = { horizontal: "right" };
-      row.getCell(3).alignment = { horizontal: "right" };
-      if (bold) row.eachCell(c => { c.font = { bold: true, size: 11 }; });
-      if (highlight) row.getCell(2).font = { bold: true, color: { argb: highlight } };
-      row.eachCell(c => { c.border = {
-        top: { style: "thin", color: { argb: "FFE2E8F0" } },
-        bottom: { style: "thin", color: { argb: "FFE2E8F0" } },
-        left: { style: "thin", color: { argb: "FFE2E8F0" } },
-        right: { style: "thin", color: { argb: "FFE2E8F0" } },
-      }; });
+      Надпись на заливке бралась белым. Фирменный цвет задаёт арендатор, и он
+      бывает светлым: на латунном #c9a227 белым по светлому — 1.9:1, заголовки
+      колонок пропадали. readableInk выбирает чернила по яркости заливки, тем
+      же правилом, что и на экране.
+    */
+    const addHead = (ws: Sheet, titles: string[]) => {
+      const row = ws.addRow(titles);
+      row.eachCell((c) => {
+        c.font = { bold: true, size: 11, color: { argb: headInk } };
+        c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: headFill } };
+        c.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+        c.border = box;
+      });
+      row.height = 26;
       return row;
     };
 
-    addRow("Выручка", num(current?.revenue), undefined, true);
-    addRow("Скидки", num(current?.discount));
-    addRow("Себестоимость (COGS)", num(current?.cogs));
-    addRow("Валовая прибыль", num(current?.grossProfit), num(current?.grossMarginPct), true, "FF16A34A");
+    const addTitle = (ws: Sheet, title: string, subtitle: string, span: number) => {
+      ws.mergeCells(1, 1, 1, span);
+      const t1 = ws.getCell("A1");
+      t1.value = title;
+      t1.font = { bold: true, size: 14 };
+      ws.mergeCells(2, 1, 2, span);
+      const t2 = ws.getCell("A2");
+      t2.value = subtitle;
+      t2.font = { size: 10, color: { argb: "FF6B6760" } };
+      ws.addRow([]);
+    };
 
-    ws1.addRow([]);
-    addRow("Расходы на доставку", num(current?.operatingExpenses));
-    addRow("Чистая прибыль", num(current?.netProfit), num(current?.netMarginPct), true, num(current?.netProfit) >= 0 ? "FF16A34A" : "FFDC2626");
+    /*
+      Ширина колонки — по самому длинному значению в ней.
 
-    ws1.addRow([]);
-    addRow("Заказов", num(current?.orderCount));
-
-    ws1.getColumn(1).width = 30;
-    ws1.getColumn(2).width = 22;
-    ws1.getColumn(3).width = 14;
-
-    // ── Sheet 2: По товарам ──────────────────────────────────────────────
-    if (cogsByProduct.data && cogsByProduct.data.length > 0) {
-      const ws2 = wb.addWorksheet("По товарам");
-
-      ws2.mergeCells("A1:F1");
-      ws2.getCell("A1").value = "Разбивка по товарам";
-      ws2.getCell("A1").font = { bold: true, size: 14, color: { argb: "FF1E293B" } };
-
-      ws2.addRow([]);
-      const h2 = ws2.addRow(["Товар", "Объём", "Выручка", "Себестоимость", "Прибыль", "Маржа %"]);
-      h2.eachCell(c => {
-        c.font = { bold: true, size: 10, color: { argb: "FFFFFFFF" } };
-        c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4F46E5" } };
-        c.alignment = { horizontal: "center", vertical: "middle" };
-        c.border = { bottom: { style: "medium", color: { argb: "FF4F46E5" } } };
-      });
-      h2.height = 26;
-
-      let totalRev = 0, totalCost = 0;
-      cogsByProduct.data.forEach((p, i) => {
-        const rev = Number(p.totalRevenue ?? 0);
-        const cost = Number(p.totalCost ?? 0);
-        const profit = rev - cost;
-        const margin = rev > 0 ? (profit / rev) * 100 : 0;
-        totalRev += rev; totalCost += cost;
-        const row = ws2.addRow([p.productName, Number(p.totalQty ?? 0), rev, cost, profit, `${margin.toFixed(1)}%`]);
-        row.getCell(2).numFmt = "#,##0";
-        [3, 4, 5].forEach(c => row.getCell(c).numFmt = "#,##0");
-        row.getCell(6).alignment = { horizontal: "right" };
-        const bg = i % 2 === 0 ? "FFF8FAFC" : "FFFFFFFF";
-        row.eachCell(c => {
-          c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bg } };
-          c.border = {
-            top: { style: "thin", color: { argb: "FFD1D5DB" } },
-            bottom: { style: "thin", color: { argb: "FFD1D5DB" } },
-            left: { style: "thin", color: { argb: "FFD1D5DB" } },
-            right: { style: "thin", color: { argb: "FFD1D5DB" } },
-          };
+      Ширины были расставлены руками (22, 18, 14…), и длинные названия товаров
+      обрезались, а короткие колонки занимали половину листа пустотой.
+    */
+    const autoWidth = (ws: Sheet, headerRow: number) => {
+      ws.columns.forEach((col, i) => {
+        let max = 8;
+        ws.eachRow((row, n) => {
+          if (n < headerRow) return;
+          const v = row.getCell(i + 1).value;
+          const len =
+            typeof v === "number"
+              ? Math.round(v).toLocaleString("ru-RU").length
+              : String(v ?? "").length;
+          if (len > max) max = len;
         });
+        col.width = Math.min(max + 4, 42);
       });
+    };
 
-      // Totals
-      ws2.addRow([]);
-      const totalRow = ws2.addRow(["ИТОГО", "", totalRev, totalCost, totalRev - totalCost, totalRev > 0 ? `${((totalRev - totalCost) / totalRev * 100).toFixed(1)}%` : "0%"]);
-      totalRow.eachCell(c => {
-        c.font = { bold: true, size: 11 };
-        c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE0E7FF" } };
-        c.border = { top: { style: "medium", color: { argb: "FF4F46E5" } } };
+    const zebra = (row: ReturnType<Sheet["addRow"]>, index: number) => {
+      row.eachCell((c) => {
+        c.border = box;
+        c.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: index % 2 === 0 ? "FFF7F6F4" : "FFFFFFFF" },
+        };
       });
-      [3, 4, 5].forEach(c => totalRow.getCell(c).numFmt = "#,##0");
+    };
 
-      ws2.getColumn(1).width = 35;
-      ws2.getColumn(2).width = 12;
-      ws2.getColumn(3).width = 18;
-      ws2.getColumn(4).width = 18;
-      ws2.getColumn(5).width = 18;
-      ws2.getColumn(6).width = 12;
-    }
+    const MONEY = "#,##0";
+    const SHARE = "0.0%";
 
-    // ── Sheet 3: По методам оплаты ───────────────────────────────────────
-    if (paymentBreakdown.data && paymentBreakdown.data.length > 0) {
-      const ws3 = wb.addWorksheet("По методам оплаты");
+    // ── Лист 1: Сводка ────────────────────────────────────────────────────
+    const ws1 = wb.addWorksheet("Сводка");
+    addTitle(
+      ws1,
+      `Доходы и расходы: ${human(from)} — ${human(to)}`,
+      `Сформирован: ${new Date().toLocaleDateString("ru-RU", { day: "2-digit", month: "long", year: "numeric" })}`,
+      3
+    );
+    const head1 = addHead(ws1, ["Показатель", "Сумма", "Доля от выручки"]);
 
-      ws3.mergeCells("A1:F1");
-      ws3.getCell("A1").value = "Выручка по методам оплаты";
-      ws3.getCell("A1").font = { bold: true, size: 14, color: { argb: "FF1E293B" } };
+    const revenue = current.revenue;
+    /*
+      Суммы уходили в файл СТРОКАМИ: `fmtMoney(value)` возвращал «5 520 500», а
+      формат «#,##0» вешался поверх текста и ничего не менял. Excel такую
+      ячейку не складывает, не сортирует и подсвечивает уголком «число как
+      текст» — владелец не мог даже выделить колонку и увидеть сумму внизу
+      окна. Числа теперь числа, а вид им задаёт numFmt.
 
-      ws3.addRow([]);
-      const h3 = ws3.addRow(["Метод оплаты", "Выручка", "Себестоимость", "Прибыль", "Маржа %", "Заказов"]);
-      h3.eachCell(c => {
-        c.font = { bold: true, size: 10, color: { argb: "FFFFFFFF" } };
-        c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4F46E5" } };
-        c.alignment = { horizontal: "center", vertical: "middle" };
-      });
-      h3.height = 26;
+      Доля тоже число: 0,235 с форматом «0.0%», а не текст «23.5%».
+    */
+    const summary: Array<[string, number, number | null, boolean]> = [
+      ["Выручка", revenue, revenue > 0 ? 1 : null, true],
+      ["Скидки", current.discount, revenue > 0 ? current.discount / revenue : null, false],
+      ["Себестоимость (COGS)", current.cogs, revenue > 0 ? current.cogs / revenue : null, false],
+      ["Валовая прибыль", current.grossProfit, current.grossMarginPct / 100, true],
+      ["Расходы на доставку", current.operatingExpenses, revenue > 0 ? current.operatingExpenses / revenue : null, false],
+      ["Чистая прибыль", current.netProfit, current.netMarginPct / 100, true],
+      ["Заказов, шт.", current.orderCount, null, false],
+    ];
+    summary.forEach(([label, value, share, bold], i) => {
+      const row = ws1.addRow([label, value, share]);
+      row.getCell(2).numFmt = label === "Заказов, шт." ? "#,##0" : MONEY;
+      row.getCell(3).numFmt = SHARE;
+      zebra(row, i);
+      if (bold) row.eachCell((c) => { c.font = { bold: true }; });
+    });
+    autoWidth(ws1, head1.number);
 
-      paymentBreakdown.data.forEach((row, i) => {
-        const label = PAYMENT_LABELS[row.paymentMethod]?.ru ?? row.paymentMethod;
-        const r = ws3.addRow([label, num(row.revenue), num(row.cogs ?? 0), num(row.grossProfit ?? 0), `${num(row.grossMarginPct ?? 0).toFixed(1)}%`, row.orderCount ?? 0]);
-        [2, 3, 4].forEach(c => r.getCell(c).numFmt = "#,##0");
-        const bg = i % 2 === 0 ? "FFF8FAFC" : "FFFFFFFF";
-        r.eachCell(c => {
-          c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bg } };
-          c.border = {
-            top: { style: "thin", color: { argb: "FFD1D5DB" } },
-            bottom: { style: "thin", color: { argb: "FFD1D5DB" } },
-            left: { style: "thin", color: { argb: "FFD1D5DB" } },
-            right: { style: "thin", color: { argb: "FFD1D5DB" } },
-          };
-        });
-      });
+    // ── Лист 2: Сравнение периодов ────────────────────────────────────────
+    if (data?.previous && data.prevPeriod) {
+      const ws2 = wb.addWorksheet("Сравнение периодов");
+      addTitle(
+        ws2,
+        "Сравнение с предыдущим периодом",
+        `Текущий: ${human(from)} — ${human(to)} · прошлый: ${human(data.prevPeriod.from)} — ${human(data.prevPeriod.to)}`,
+        4
+      );
+      const head2 = addHead(ws2, ["Показатель", "Текущий период", "Прошлый период", "Изменение"]);
 
-      ws3.getColumn(1).width = 22;
-      ws3.getColumn(2).width = 18;
-      ws3.getColumn(3).width = 18;
-      ws3.getColumn(4).width = 18;
-      ws3.getColumn(5).width = 12;
-      ws3.getColumn(6).width = 12;
-    }
+      /*
+        Изменение пересчитывалось прямо здесь: `prev > 0 ? (curr-prev)/prev : 0`.
+        Сервер считает его иначе — от модуля прошлого значения, — и при убытке в
+        прошлом периоде (prev < 0) здешняя ветка отдавала «0.0%». На экране
+        стояло одно число, в файле по тем же данным другое. Берём готовое.
 
-    // ── Sheet 4: Сравнение периодов ──────────────────────────────────────
-    if (data?.previous) {
-      const ws4 = wb.addWorksheet("Сравнение периодов");
-
-      ws4.mergeCells("A1:D1");
-      ws4.getCell("A1").value = "Сравнение с предыдущим периодом";
-      ws4.getCell("A1").font = { bold: true, size: 14, color: { argb: "FF1E293B" } };
-
-      ws4.addRow([]);
-      const h4 = ws4.addRow(["Показатель", "Текущий", "Прошлый", "Изменение"]);
-      h4.eachCell(c => {
-        c.font = { bold: true, size: 10, color: { argb: "FFFFFFFF" } };
-        c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4F46E5" } };
-        c.alignment = { horizontal: "center", vertical: "middle" };
-      });
-      h4.height = 26;
-
-      const comparisons: Array<[string, number, number]> = [
-        ["Выручка", num(current?.revenue), num(data.previous.revenue)],
-        ["COGS", num(current?.cogs), num(data.previous.cogs)],
-        ["Валовая прибыль", num(current?.grossProfit), num(data.previous.grossProfit)],
-        ["Чистая прибыль", num(current?.netProfit), num(data.previous.netProfit)],
+        Рост — не всегда хорошо: у себестоимости и расходов он красный. Зелёная
+        строка «Себестоимость +38%» поздравляла с утечкой денег.
+      */
+      const comparisons: Array<[string, number, number, number | null | undefined, boolean]> = [
+        ["Выручка", current.revenue, data.previous.revenue, deltas?.revenue, true],
+        ["Себестоимость (COGS)", current.cogs, data.previous.cogs, deltas?.cogs, false],
+        ["Валовая прибыль", current.grossProfit, data.previous.grossProfit, deltas?.grossProfit, true],
+        ["Расходы на доставку", current.operatingExpenses, data.previous.operatingExpenses, deltas?.operatingExpenses, false],
+        ["Чистая прибыль", current.netProfit, data.previous.netProfit, deltas?.netProfit, true],
       ];
-      comparisons.forEach(([label, curr, prev], i) => {
-        const delta = prev > 0 ? ((curr - prev) / prev * 100) : 0;
-        const r = ws4.addRow([label, curr, prev, `${delta >= 0 ? "+" : ""}${delta.toFixed(1)}%`]);
-        [2, 3].forEach(c => r.getCell(c).numFmt = "#,##0");
-        r.getCell(4).alignment = { horizontal: "right" };
-        r.getCell(4).font = { color: { argb: delta >= 0 ? "FF16A34A" : "FFDC2626" } };
-        const bg = i % 2 === 0 ? "FFF8FAFC" : "FFFFFFFF";
-        r.eachCell(c => {
-          c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bg } };
-          c.border = {
-            top: { style: "thin", color: { argb: "FFD1D5DB" } },
-            bottom: { style: "thin", color: { argb: "FFD1D5DB" } },
-            left: { style: "thin", color: { argb: "FFD1D5DB" } },
-            right: { style: "thin", color: { argb: "FFD1D5DB" } },
-          };
-        });
+      comparisons.forEach(([label, curr, prev, delta, higherIsBetter], i) => {
+        const row = ws2.addRow([label, curr, prev, delta == null ? "нет данных" : delta / 100]);
+        row.getCell(2).numFmt = MONEY;
+        row.getCell(3).numFmt = MONEY;
+        zebra(row, i);
+        if (delta != null) {
+          row.getCell(4).numFmt = "+0.0%;−0.0%";
+          const good = delta === 0 ? null : delta > 0 === higherIsBetter;
+          if (good !== null) {
+            row.getCell(4).font = { bold: true, color: { argb: good ? "FF157A45" : "FFA32D2D" } };
+          }
+        }
       });
-
-      ws4.getColumn(1).width = 22;
-      ws4.getColumn(2).width = 18;
-      ws4.getColumn(3).width = 18;
-      ws4.getColumn(4).width = 14;
+      autoWidth(ws2, head2.number);
     }
 
-    // Download
+    // ── Лист 3: По товарам ────────────────────────────────────────────────
+    if (cogsByProduct.data && cogsByProduct.data.length > 0) {
+      const ws3 = wb.addWorksheet("По товарам");
+      addTitle(
+        ws3,
+        "На чём заработали",
+        "До 20 товаров с наибольшей выручкой. Выручка здесь считается по цене отгрузки, без скидок по заказу, — с выручкой на листе «Сводка» она не совпадает.",
+        6
+      );
+      const head3 = addHead(ws3, ["Товар", "Объём", "Выручка", "Себестоимость", "Прибыль", "Маржа"]);
+
+      const products = cogsByProduct.data
+        .map((p) => {
+          const rev = Number(p.totalRevenue ?? 0);
+          const cost = Number(p.totalCost ?? 0);
+          return {
+            // Товар мог быть удалён — LEFT JOIN отдаёт по нему null, и в файле
+            // оставалась пустая ячейка.
+            name: p.productName ?? "Без названия",
+            qty: Number(p.totalQty ?? 0),
+            rev,
+            cost,
+            profit: rev - cost,
+            margin: rev > 0 ? (rev - cost) / rev : 0,
+          };
+        })
+        .sort((a, b) => b.profit - a.profit);
+
+      products.forEach((p, i) => {
+        const row = ws3.addRow([p.name, p.qty, p.rev, p.cost, p.profit, p.margin]);
+        [2, 3, 4, 5].forEach((c) => (row.getCell(c).numFmt = MONEY));
+        row.getCell(6).numFmt = SHARE;
+        zebra(row, i);
+      });
+
+      /*
+        Итоговая строка называлась «ИТОГО» — и это была неправда: сервер отдаёт
+        двадцать лучших товаров, а не все. Директор пытался свести её с выручкой
+        со «Сводки» и не сводил. Строка теперь говорит, по чему именно итог.
+      */
+      const totalRev = products.reduce((s, p) => s + p.rev, 0);
+      const totalCost = products.reduce((s, p) => s + p.cost, 0);
+      const totals = ws3.addRow([
+        `Итого по ${products.length} показанным товарам`,
+        products.reduce((s, p) => s + p.qty, 0),
+        totalRev,
+        totalCost,
+        totalRev - totalCost,
+        totalRev > 0 ? (totalRev - totalCost) / totalRev : 0,
+      ]);
+      [2, 3, 4, 5].forEach((c) => (totals.getCell(c).numFmt = MONEY));
+      totals.getCell(6).numFmt = SHARE;
+      totals.eachCell((c) => {
+        c.font = { bold: true };
+        c.border = { ...box, top: { style: "medium", color: { argb: headFill } } };
+      });
+      autoWidth(ws3, head3.number);
+    }
+
+    // ── Лист 4: По способам оплаты ────────────────────────────────────────
+    if (paymentBreakdown.data && paymentBreakdown.data.length > 0) {
+      const ws4 = wb.addWorksheet("По способам оплаты");
+      addTitle(ws4, "Чем платят", `Период: ${human(from)} — ${human(to)}`, 6);
+      const head4 = addHead(ws4, [
+        "Способ оплаты",
+        "Выручка",
+        "Себестоимость",
+        "Прибыль",
+        "Маржа",
+        "Заказов",
+      ]);
+
+      const methods = [...paymentBreakdown.data].sort((a, b) => b.revenue - a.revenue);
+      methods.forEach((m, i) => {
+        // Запасным значением стоял сам код способа оплаты, и в файл владельцу
+        // уходило «unknown» — внутреннее слово базы в отчёте для директора.
+        const row = ws4.addRow([
+          paymentLabel(m.paymentMethod, "ru"),
+          m.revenue,
+          m.cogs ?? 0,
+          m.grossProfit ?? 0,
+          (m.grossMarginPct ?? 0) / 100,
+          m.orderCount ?? 0,
+        ]);
+        [2, 3, 4].forEach((c) => (row.getCell(c).numFmt = MONEY));
+        row.getCell(5).numFmt = SHARE;
+        zebra(row, i);
+      });
+
+      const sum = (pick: (m: (typeof methods)[number]) => number) =>
+        methods.reduce((s, m) => s + pick(m), 0);
+      const revAll = sum((m) => m.revenue);
+      const totals = ws4.addRow([
+        "ИТОГО",
+        revAll,
+        sum((m) => m.cogs ?? 0),
+        sum((m) => m.grossProfit ?? 0),
+        revAll > 0 ? sum((m) => m.grossProfit ?? 0) / revAll : 0,
+        sum((m) => m.orderCount ?? 0),
+      ]);
+      [2, 3, 4].forEach((c) => (totals.getCell(c).numFmt = MONEY));
+      totals.getCell(5).numFmt = SHARE;
+      totals.eachCell((c) => {
+        c.font = { bold: true };
+        c.border = { ...box, top: { style: "medium", color: { argb: headFill } } };
+      });
+      autoWidth(ws4, head4.number);
+    }
+
     const buffer = await wb.xlsx.writeBuffer();
-    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `PnL-${from}-${to}.xlsx`;
+    a.download = `Доходы-и-расходы-${from}-${to}.xlsx`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
   const handleExportPDF = async () => {
     const fmtNum = (n: number) => n.toLocaleString("ru");
+    const pct = (n: number) => `${n.toFixed(1)}%`;
     let html = "";
 
-    // KPIs
     html += `<div class="kpi-grid">
       <div class="kpi"><div class="kpi-label">Выручка</div><div class="kpi-value">${fmtNum(current?.revenue ?? 0)} сум</div></div>
-      <div class="kpi"><div class="kpi-label">COGS</div><div class="kpi-value">${fmtNum(current?.cogs ?? 0)} сум</div></div>
+      <div class="kpi"><div class="kpi-label">Себестоимость</div><div class="kpi-value">${fmtNum(current?.cogs ?? 0)} сум</div></div>
       <div class="kpi"><div class="kpi-label">Валовая прибыль</div><div class="kpi-value">${fmtNum(current?.grossProfit ?? 0)} сум</div></div>
       <div class="kpi"><div class="kpi-label">Чистая прибыль</div><div class="kpi-value">${fmtNum(current?.netProfit ?? 0)} сум</div></div>
     </div>`;
 
-    // Summary table
-    html += `<div class="section"><h2>Сводка P&L</h2>
+    html += `<div class="section"><h2>Сводка</h2>
       <table><thead><tr><th>Показатель</th><th class="right">Значение</th></tr></thead><tbody>
-      <tr><td>Период</td><td class="right">${from} — ${to}</td></tr>
+      <tr><td>Период</td><td class="right">${human(from)} — ${human(to)}</td></tr>
       <tr><td>Выручка</td><td class="right bold">${fmtNum(current?.revenue ?? 0)} сум</td></tr>
       <tr><td>Скидки</td><td class="right">${fmtNum(current?.discount ?? 0)} сум</td></tr>
       <tr><td>Себестоимость (COGS)</td><td class="right">${fmtNum(current?.cogs ?? 0)} сум</td></tr>
       <tr><td>Валовая прибыль</td><td class="right bold">${fmtNum(current?.grossProfit ?? 0)} сум</td></tr>
-      <tr><td>Валовая маржа</td><td class="right">${(current?.grossMarginPct ?? 0).toFixed(1)}%</td></tr>
+      <tr><td>Валовая маржа</td><td class="right">${pct(current?.grossMarginPct ?? 0)}</td></tr>
       <tr><td>Расходы на доставку</td><td class="right">${fmtNum(current?.operatingExpenses ?? 0)} сум</td></tr>
       <tr class="total"><td>Чистая прибыль</td><td class="right">${fmtNum(current?.netProfit ?? 0)} сум</td></tr>
-      <tr><td>Чистая маржа</td><td class="right">${(current?.netMarginPct ?? 0).toFixed(1)}%</td></tr>
+      <tr><td>Чистая маржа</td><td class="right">${pct(current?.netMarginPct ?? 0)}</td></tr>
       <tr><td>Заказов</td><td class="right">${current?.orderCount ?? 0}</td></tr>
       </tbody></table></div>`;
 
-    // Previous period comparison
-    if (data?.previous) {
-      html += `<div class="section"><h2>Сравнение с прошлым периодом</h2>
+    if (data?.previous && data.prevPeriod) {
+      html += `<div class="section"><h2>Сравнение с прошлым периодом (${human(data.prevPeriod.from)} — ${human(data.prevPeriod.to)})</h2>
         <table><thead><tr><th>Показатель</th><th class="right">Текущий</th><th class="right">Прошлый</th><th class="right">Изменение</th></tr></thead><tbody>`;
-      const rows: Array<[string, number, number]> = [
-        ["Выручка", current?.revenue ?? 0, data.previous.revenue],
-        ["COGS", current?.cogs ?? 0, data.previous.cogs],
-        ["Валовая прибыль", current?.grossProfit ?? 0, data.previous.grossProfit],
-        ["Чистая прибыль", current?.netProfit ?? 0, data.previous.netProfit],
+      // Изменение берётся с сервера — тем же числом, что стоит на экране.
+      const rows: Array<[string, number, number, number | null | undefined]> = [
+        ["Выручка", current?.revenue ?? 0, data.previous.revenue, deltas?.revenue],
+        ["Себестоимость (COGS)", current?.cogs ?? 0, data.previous.cogs, deltas?.cogs],
+        ["Валовая прибыль", current?.grossProfit ?? 0, data.previous.grossProfit, deltas?.grossProfit],
+        ["Расходы на доставку", current?.operatingExpenses ?? 0, data.previous.operatingExpenses, deltas?.operatingExpenses],
+        ["Чистая прибыль", current?.netProfit ?? 0, data.previous.netProfit, deltas?.netProfit],
       ];
-      for (const [label, curr, prev] of rows) {
-        const delta = prev > 0 ? ((curr - prev) / prev * 100).toFixed(1) : "—";
-        html += `<tr><td>${label}</td><td class="right">${fmtNum(curr)}</td><td class="right">${fmtNum(prev)}</td><td class="right">${delta}%</td></tr>`;
+      for (const [label, curr, prev, delta] of rows) {
+        const change = delta == null ? "—" : `${delta >= 0 ? "+" : "−"}${Math.abs(delta).toFixed(1)}%`;
+        html += `<tr><td>${label}</td><td class="right">${fmtNum(curr)}</td><td class="right">${fmtNum(prev)}</td><td class="right">${change}</td></tr>`;
       }
       html += `</tbody></table></div>`;
     }
 
-    // Products breakdown
     if (cogsByProduct.data && cogsByProduct.data.length > 0) {
-      html += `<div class="section"><h2>Разбивка по товарам</h2>
+      html += `<div class="section"><h2>На чём заработали</h2>
         <table><thead><tr><th>Товар</th><th class="right">Объём</th><th class="right">Выручка</th><th class="right">Себестоимость</th><th class="right">Прибыль</th><th class="right">Маржа</th></tr></thead><tbody>`;
-      for (const p of cogsByProduct.data) {
-        const rev = Number(p.totalRevenue);
-        const cost = Number(p.totalCost);
-        const profit = rev - cost;
-        const margin = rev > 0 ? (profit / rev * 100).toFixed(1) : "0";
-        html += `<tr><td>${p.productName}</td><td class="right">${Number(p.totalQty).toFixed(0)}</td><td class="right">${fmtNum(rev)}</td><td class="right">${fmtNum(cost)}</td><td class="right bold">${fmtNum(profit)}</td><td class="right">${margin}%</td></tr>`;
+      const products = cogsByProduct.data
+        .map((p) => {
+          const rev = Number(p.totalRevenue);
+          const cost = Number(p.totalCost);
+          return { name: p.productName ?? "Без названия", qty: Number(p.totalQty), rev, cost, profit: rev - cost };
+        })
+        .sort((a, b) => b.profit - a.profit);
+      for (const p of products) {
+        const margin = p.rev > 0 ? pct((p.profit / p.rev) * 100) : "—";
+        html += `<tr><td>${p.name}</td><td class="right">${p.qty.toFixed(0)}</td><td class="right">${fmtNum(p.rev)}</td><td class="right">${fmtNum(p.cost)}</td><td class="right bold">${fmtNum(p.profit)}</td><td class="right">${margin}</td></tr>`;
       }
       html += `</tbody></table></div>`;
     }
 
-    // Payment methods
     if (paymentBreakdown.data && paymentBreakdown.data.length > 0) {
-      html += `<div class="section"><h2>По методам оплаты</h2>
-        <table><thead><tr><th>Метод</th><th class="right">Выручка</th><th class="right">COGS</th><th class="right">Прибыль</th><th class="right">Маржа</th><th class="right">Заказов</th></tr></thead><tbody>`;
-      for (const row of paymentBreakdown.data) {
-        const label = PAYMENT_LABELS[row.paymentMethod]?.ru ?? row.paymentMethod;
-        html += `<tr><td>${label}</td><td class="right">${fmtNum(row.revenue)}</td><td class="right">${fmtNum(row.cogs ?? 0)}</td><td class="right bold">${fmtNum(row.grossProfit ?? 0)}</td><td class="right">${(row.grossMarginPct ?? 0).toFixed(1)}%</td><td class="right">${row.orderCount}</td></tr>`;
+      html += `<div class="section"><h2>Чем платят</h2>
+        <table><thead><tr><th>Способ оплаты</th><th class="right">Выручка</th><th class="right">Себестоимость</th><th class="right">Прибыль</th><th class="right">Маржа</th><th class="right">Заказов</th></tr></thead><tbody>`;
+      for (const row of [...paymentBreakdown.data].sort((a, b) => b.revenue - a.revenue)) {
+        html += `<tr><td>${paymentLabel(row.paymentMethod, "ru")}</td><td class="right">${fmtNum(row.revenue)}</td><td class="right">${fmtNum(row.cogs ?? 0)}</td><td class="right bold">${fmtNum(row.grossProfit ?? 0)}</td><td class="right">${pct(row.grossMarginPct ?? 0)}</td><td class="right">${row.orderCount}</td></tr>`;
       }
       html += `</tbody></table></div>`;
     }
 
-    exportToPDF(`P&L Отчёт: ${from} — ${to}`, html);
+    exportToPDF(`Доходы и расходы: ${human(from)} — ${human(to)}`, html);
   };
 
   if (isLoadingError) return <QueryErrorFallback onRetry={refetch} />;
   if (isLoading) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+        <div>
+          <div
+            style={{
+              height: "28px",
+              width: "240px",
+              borderRadius: "8px",
+              background: COLORS.surfaceLight,
+              marginBottom: "8px",
+            }}
+          />
+          <div
+            style={{
+              height: "16px",
+              width: "180px",
+              borderRadius: "6px",
+              background: COLORS.surfaceLight,
+            }}
+          />
+        </div>
+        {/* Заглушка повторяет настоящую раскладку — крупная карточка с итогом
+            и четыре плитки под ней, — чтобы страница не прыгала при загрузке. */}
         <div
           style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
+            height: "220px",
+            borderRadius: "24px",
+            background: COLORS.surfaceLight,
           }}
-        >
-          <div>
-            <div
-              style={{
-                height: "28px",
-                width: "240px",
-                borderRadius: "8px",
-                background: COLORS.surfaceLight,
-                marginBottom: "8px",
-              }}
-            />
-            <div
-              style={{
-                height: "16px",
-                width: "300px",
-                borderRadius: "6px",
-                background: COLORS.surfaceLight,
-              }}
-            />
-          </div>
-        </div>
+        />
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
             gap: "16px",
           }}
         >
-          {[0, 1, 2, 3, 4].map((i) => (
+          {[0, 1, 2, 3].map((i) => (
             <div
               key={i}
               style={{
-                height: "140px",
-                borderRadius: "20px",
+                height: "150px",
+                borderRadius: "24px",
                 background: COLORS.surfaceLight,
                 animation: `slideUp ${0.4 + i * 0.05}s ease`,
               }}
@@ -470,7 +557,6 @@ export default function PnL() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-      {/* Header + Period Selector */}
       <PnLPeriodSelector
         range={range}
         onRangeChange={handleRangeChange}
@@ -482,30 +568,18 @@ export default function PnL() {
         lang={lang}
       />
 
-      {/* Custom Date Range */}
       {showCustom && (
         <div
+          className="neo-card-sm"
           style={{
-            background: COLORS.surface,
-            borderRadius: "16px",
-            padding: "16px 20px",
-            boxShadow: SHADOW,
             display: "flex",
             alignItems: "flex-end",
             gap: "16px",
             flexWrap: "wrap",
           }}
         >
-          <DateInput
-            value={customFrom}
-            onChange={setCustomFrom}
-            label={t("От", "Dan")}
-          />
-          <DateInput
-            value={customTo}
-            onChange={setCustomTo}
-            label={t("До", "Gacha")}
-          />
+          <DateInput value={customFrom} onChange={setCustomFrom} label={t("От", "Dan")} />
+          <DateInput value={customTo} onChange={setCustomTo} label={t("До", "Gacha")} />
           <div
             style={{
               fontSize: "12px",
@@ -519,45 +593,57 @@ export default function PnL() {
         </div>
       )}
 
-      {/* KPI Cards */}
-      <PnLSummaryCards current={current} deltas={deltas} fmt={fmt} t={t} />
-
-      {/* Margin Rings + Stats */}
-      <PnLMarginRings current={current} deltas={deltas} lang={lang} />
-
-      {/* Payment Method Breakdown */}
-      <PnLPaymentBreakdown
-        paymentBreakdown={paymentBreakdown.data}
-        paymentTrend={paymentTrend.data}
+      {/* Ответ страницы: заработали или нет, лучше или хуже, куда ушло. */}
+      <PnLHeadline
+        current={current}
+        previous={data?.previous}
+        deltas={deltas}
+        prevPeriod={data?.prevPeriod}
         fmt={fmt}
         t={t}
         lang={lang}
       />
 
-      {/* Period Comparison */}
-      {data?.previous && (
-        <PnLPeriodComparison
-          current={current}
-          previous={data.previous}
-          deltas={deltas}
-          fmt={fmt}
-          t={t}
-        />
-      )}
+      <PnLSummaryCards
+        current={current}
+        previous={data?.previous}
+        deltas={deltas}
+        fmt={fmt}
+        t={t}
+      />
 
-      {/* Monthly Trend Chart */}
       <PnLRevenueChart chartData={chartData} fmt={fmt} t={t} lang={lang} />
 
-      {/* Products with COGS */}
       <PnLExpenseBreakdown
         cogsByProduct={cogsByProduct.data}
+        // Отказ запроса и пустой период — разные вещи: раздел получал только
+        // data и оба случая показывал как «нет данных».
+        error={cogsByProduct.isLoadingError}
+        onRetry={() => void cogsByProduct.refetch()}
         fmt={fmt}
         lang={lang}
       />
 
-      {/* Transport Expenses */}
+      <PnLPaymentBreakdown
+        paymentBreakdown={paymentBreakdown.data}
+        paymentTrend={paymentTrend.data}
+        error={paymentBreakdown.isLoadingError}
+        trendError={paymentTrend.isLoadingError}
+        onRetry={() => {
+          void paymentBreakdown.refetch();
+          void paymentTrend.refetch();
+        }}
+        fmt={fmt}
+        t={t}
+        lang={lang}
+      />
+
       <PnLTransportExpenses
         arrivals={arrivals.data?.data}
+        from={from}
+        to={to}
+        error={arrivals.isLoadingError}
+        onRetry={() => void arrivals.refetch()}
         fmt={fmt}
         lang={lang}
       />

@@ -24,6 +24,8 @@ interface PnLPeriodSelectorProps {
   lang: Lang;
 }
 
+const human = (iso: string) => iso.split("-").reverse().join(".");
+
 export function PnLPeriodSelector({
   range,
   onRangeChange,
@@ -40,7 +42,7 @@ export function PnLPeriodSelector({
     <div
       style={{
         display: "flex",
-        alignItems: "center",
+        alignItems: "flex-end",
         justifyContent: "space-between",
         flexWrap: "wrap",
         gap: "12px",
@@ -59,30 +61,16 @@ export function PnLPeriodSelector({
         >
           {t("Доходы и расходы", "Foyda va zarar")}
         </h1>
-        <p
-          style={{
-            fontSize: "13px",
-            color: COLORS.textSecondary,
-            margin: "4px 0 0",
-          }}
-        >
-          {t(
-            "Реальная себестоимость и маржинальность",
-            "Haqiqiy COGS va marjalar"
-          )}
-          <span
-            style={{
-              marginLeft: "8px",
-              fontSize: "12px",
-              color: COLORS.textTertiary,
-            }}
-          >
-            {from} — {to}
-          </span>
+        <p style={{ fontSize: "13px", color: COLORS.textSecondary, margin: "4px 0 0" }}>
+          {/* Даты стояли машинным «2026-08-14»: шапка отчёта, который печатают
+              и показывают, читается человеком. */}
+          {human(from)} — {human(to)}
         </p>
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
         <div
+          role="group"
+          aria-label={t("Период", "Davr")}
           style={{
             display: "inline-flex",
             background: COLORS.surfaceLight,
@@ -94,65 +82,37 @@ export function PnLPeriodSelector({
           {ranges.map((r) => (
             <button
               key={r}
+              type="button"
+              className="tap"
+              // Выбранный период читался только цветом фона. Программе чтения с
+              // экрана и клавиатуре нужно сказать словами, какая кнопка нажата.
+              aria-pressed={range === r}
               onClick={() => onRangeChange(r)}
               style={{
-                padding: "8px 12px",
-                fontSize: "11px",
+                padding: "0 14px",
+                fontSize: "12px",
                 fontWeight: 600,
                 fontFamily: F.body,
                 borderRadius: "10px",
                 border: "none",
                 cursor: "pointer",
-                transition: "all 0.2s",
+                transition: "background 0.2s, color 0.2s",
                 background: range === r ? COLORS.surface : "transparent",
-                color:
-                  range === r ? COLORS.textPrimary : COLORS.textSecondary,
-                boxShadow:
-                  range === r
-                    ? "0 1px 3px rgba(0,0,0,0.08)"
-                    : "none",
+                color: range === r ? COLORS.textPrimary : COLORS.textSecondary,
+                boxShadow: range === r ? "var(--shadow-xs)" : "none",
               }}
             >
               {RANGES[r][lang]}
             </button>
           ))}
         </div>
-        <button
-          onClick={onExportExcel}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "6px",
-            padding: "8px 14px",
-            fontSize: "13px",
-            fontWeight: 500,
-            fontFamily: F.body,
-            borderRadius: "10px",
-            border: `1px solid ${COLORS.border}`,
-            cursor: "pointer",
-            background: COLORS.surface,
-            color: COLORS.textSecondary,
-          }}
-        >
+        {/* Кнопки были собраны из инлайновых стилей заново — при том, что в
+            index.css для них есть .neo-btn: на этой странице они выглядели
+            плоскими рядом с такими же кнопками на соседних экранах. */}
+        <button type="button" className="neo-btn neo-btn-sm tap" onClick={onExportExcel}>
           <FileSpreadsheet size={14} /> Excel
         </button>
-        <button
-          onClick={onExportPDF}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "6px",
-            padding: "8px 14px",
-            fontSize: "13px",
-            fontWeight: 500,
-            fontFamily: F.body,
-            borderRadius: "10px",
-            border: `1px solid ${COLORS.border}`,
-            cursor: "pointer",
-            background: COLORS.surface,
-            color: COLORS.textSecondary,
-          }}
-        >
+        <button type="button" className="neo-btn neo-btn-sm tap" onClick={onExportPDF}>
           <FileDown size={14} /> PDF
         </button>
       </div>

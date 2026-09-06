@@ -1,36 +1,44 @@
-import { TrendingUp, DollarSign, Truck, Package, ShoppingCart } from "lucide-react";
+import { Coins, Package, Truck, Wallet } from "lucide-react";
 import { KpiCard } from "./KpiCard";
 
+interface Totals {
+  revenue?: number;
+  cogs?: number;
+  grossProfit?: number;
+  operatingExpenses?: number;
+  netProfit?: number;
+}
+
 interface PnLSummaryCardsProps {
-  current: {
-    revenue?: number;
-    cogs?: number;
-    grossProfit?: number;
-    operatingExpenses?: number;
-    netProfit?: number;
-  } | undefined;
-  deltas: {
-    revenue?: number | null;
-    cogs?: number | null;
-    grossProfit?: number | null;
-    operatingExpenses?: number | null;
-    netProfit?: number | null;
-  } | undefined;
+  current: Totals | undefined;
+  previous: Totals | null | undefined;
+  deltas:
+    | {
+        revenue?: number | null;
+        cogs?: number | null;
+        grossProfit?: number | null;
+        operatingExpenses?: number | null;
+      }
+    | undefined;
   fmt: (value: number) => string;
   t: (ru: string, uz: string) => string;
 }
 
-export function PnLSummaryCards({
-  current,
-  deltas,
-  fmt,
-  t,
-}: PnLSummaryCardsProps) {
+/**
+ * Четыре слагаемых периода. Чистая прибыль отсюда ушла наверх, в заголовок:
+ * пять одинаковых карточек в ряд не давали понять, какая из них ответ, и
+ * директор читал их слева направо, как таблицу. Ответ на странице один, и
+ * набран он крупно.
+ */
+export function PnLSummaryCards({ current, previous, deltas, fmt, t }: PnLSummaryCardsProps) {
+  const prevOf = (pick: (p: Totals) => number | undefined) =>
+    previous ? fmt(pick(previous) ?? 0) : null;
+
   return (
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+        gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
         gap: "16px",
       }}
     >
@@ -38,49 +46,47 @@ export function PnLSummaryCards({
         label={t("ВЫРУЧКА", "TUSHUM")}
         value={fmt(current?.revenue ?? 0)}
         delta={deltas?.revenue ?? null}
-        icon={<TrendingUp size={20} color="#fff" />}
-        gradient="linear-gradient(135deg, var(--kpi-green), var(--kpi-green))"
-        delay={0}
+        prev={prevOf((p) => p.revenue)}
+        icon={<Coins size={19} />}
+        accent="var(--kpi-blue)"
+        higherIsBetter
+        noBaseLabel={t("нет прошлого периода", "oldingi davr yo'q")}
+        prevLabel={t("было", "edi")}
       />
       <KpiCard
         label={t("СЕБЕСТОИМОСТЬ", "TANNARX")}
         value={fmt(current?.cogs ?? 0)}
         delta={deltas?.cogs ?? null}
-        icon={<Package size={20} color="#fff" />}
-        gradient="linear-gradient(135deg, var(--kpi-orange), var(--kpi-orange))"
-        delay={0.05}
+        prev={prevOf((p) => p.cogs)}
+        icon={<Package size={19} />}
+        accent="var(--kpi-orange)"
+        higherIsBetter={false}
+        noBaseLabel={t("нет прошлого периода", "oldingi davr yo'q")}
+        prevLabel={t("было", "edi")}
       />
       <KpiCard
         label={t("ВАЛОВАЯ ПРИБЫЛЬ", "YALPI FOYDA")}
         value={fmt(current?.grossProfit ?? 0)}
         delta={deltas?.grossProfit ?? null}
-        icon={<DollarSign size={20} color="#fff" />}
-        gradient={
-          (current?.grossProfit ?? 0) >= 0
-            ? "linear-gradient(135deg, var(--kpi-indigo), var(--kpi-indigo))"
-            : "linear-gradient(135deg, var(--kpi-red), var(--kpi-red))"
-        }
-        delay={0.1}
+        prev={prevOf((p) => p.grossProfit)}
+        icon={<Wallet size={19} />}
+        // Прибыль — состояние, поэтому оттенок смысловой, а не фирменный:
+        // на жёлтом или салатовом фирменном цвете убыток выглядел бы удачей.
+        accent={(current?.grossProfit ?? 0) >= 0 ? "var(--color-success)" : "var(--color-danger)"}
+        higherIsBetter
+        noBaseLabel={t("нет прошлого периода", "oldingi davr yo'q")}
+        prevLabel={t("было", "edi")}
       />
       <KpiCard
-        label={t("РАСХОДЫ ДОСТАВКА", "YETKAZISH XARAJAT")}
+        label={t("РАСХОДЫ НА ДОСТАВКУ", "YETKAZISH XARAJATI")}
         value={fmt(current?.operatingExpenses ?? 0)}
         delta={deltas?.operatingExpenses ?? null}
-        icon={<Truck size={20} color="#fff" />}
-        gradient="linear-gradient(135deg, var(--kpi-red), var(--kpi-red))"
-        delay={0.15}
-      />
-      <KpiCard
-        label={t("ЧИСТАЯ ПРИБЫЛЬ", "TOZA FOYDA")}
-        value={fmt(current?.netProfit ?? 0)}
-        delta={deltas?.netProfit ?? null}
-        icon={<ShoppingCart size={20} color="#fff" />}
-        gradient={
-          (current?.netProfit ?? 0) >= 0
-            ? "linear-gradient(135deg, var(--kpi-teal), var(--kpi-teal))"
-            : "linear-gradient(135deg, var(--kpi-red), var(--kpi-red))"
-        }
-        delay={0.2}
+        prev={prevOf((p) => p.operatingExpenses)}
+        icon={<Truck size={19} />}
+        accent="var(--kpi-amber)"
+        higherIsBetter={false}
+        noBaseLabel={t("нет прошлого периода", "oldingi davr yo'q")}
+        prevLabel={t("было", "edi")}
       />
     </div>
   );
