@@ -5,6 +5,7 @@ import { orders, orderItems, products, shops, users, dailyPlans, arrivals, agent
 import { eq, and, sql, desc , inArray, isNull } from "drizzle-orm";
 import { REVENUE_ORDER_STATUSES, revenueOrderConditions, revenuePeriodConditions, deliveredQty } from "./lib/order-status";
 import { MS_PER_DAY } from "./lib/constants";
+import { returnsInPeriod, totalReturned, groupReturned, type ReturnRow } from "./services/revenue-returns";
 
 export const analyticsRouter = createRouter({
   salesByShop: reportsQuery
@@ -353,10 +354,24 @@ export const analyticsRouter = createRouter({
             sql`${arrivals.arrivalDate} <= ${dateTo}`,
           ));
 
-        const revenue = Number(revRow[0]?.totalRevenue ?? 0);
+        /*
+          Проведённые возвраты уменьшают и выручку, и себестоимость.
+
+          Слова «возврат» в этом расчёте не было вовсе: товар возвращался на
+          склад, долг магазина падал, а прибыль оставалась такой, будто
+          продажа состоялась целиком. У организации с регулярными возвратами
+          она была завышена ровно на их сумму — и узнать об этом было
+          неоткуда.
+
+          Себестоимость вычитается вместе с выручкой: вернуть первое, забыв
+          второе, значит показать убыток там, где его нет.
+        */
+        const returned = totalReturned(await returnsInPeriod(db, tid, dateFrom, dateTo));
+
+        const revenue = Number(revRow[0]?.totalRevenue ?? 0) - returned.amount;
         const discount = Number(revRow[0]?.totalDiscount ?? 0);
         const orderCount = Number(revRow[0]?.orderCount ?? 0);
-        const cogs = Number(cogsRow[0]?.totalCOGS ?? 0);
+        const cogs = Number(cogsRow[0]?.totalCOGS ?? 0) - returned.cost;
         const operatingExpenses = Number(expenseRow[0]?.totalExpenses ?? 0);
         const arrivalCount = Number(expenseRow[0]?.arrivalCount ?? 0);
         const grossProfit = revenue - cogs;
@@ -420,10 +435,27 @@ export const analyticsRouter = createRouter({
       const cogsByMonth: Record<string, string> = {};
       for (const r of monthlyCogs) cogsByMonth[r.month] = r.cogs;
 
-      const monthlyRows = monthlyRevenue.map(r => ({
-        ...r,
-        cogs: cogsByMonth[r.month] ?? "0",
-      }));
+      /*
+        Возвраты вычитаются и здесь — тем же помощником, что и в карточке
+        прибыли выше. Посчитай график иначе, и на одном экране снова окажутся
+        два несогласных числа: карточка «заработали за период» и линия под
+        ней. Так уже было с удалёнными заказами, и правило с тех пор одно —
+        определение выручки живёт в одном месте.
+
+        Возврат ложится в месяц, когда он ПРОВЕДЁН, а не когда продали: иначе
+        закрытый месяц менялся бы задним числом при каждом возврате.
+      */
+      const returnsByMonth = groupReturned(
+        await returnsInPeriod(db, tid, from, to), (r: ReturnRow) => r.month);
+
+      const monthlyRows = monthlyRevenue.map(r => {
+        const back = returnsByMonth.get(r.month);
+        return {
+          ...r,
+          revenue: String(Number(r.revenue) - (back?.amount ?? 0)),
+          cogs: String(Number(cogsByMonth[r.month] ?? "0") - (back?.cost ?? 0)),
+        };
+      });
 
       const monthlyExpenses = await db.select({
         month: sql<string>`DATE_FORMAT(${arrivals.arrivalDate}, '%Y-%m')`,
@@ -521,11 +553,21 @@ export const analyticsRouter = createRouter({
         .where(and(...periodConditions))
         .groupBy(orders.paymentMethod);
 
+      // И здесь тот же вычет: карточка «чем платят» стоит на том же экране,
+      // что и прибыль за период, и сумма её долей обязана сходиться с ней.
+      const returnsByMethod = groupReturned(
+        await returnsInPeriod(db, tid, input.from, input.to),
+        (r: ReturnRow) => r.paymentMethod);
+
       const cogsByMethod = new Map(cogsRows.map(r => [r.paymentMethod, r.cogs]));
-      const rows = revenueRows.map(r => ({
-        ...r,
-        cogs: cogsByMethod.get(r.paymentMethod) ?? "0",
-      }));
+      const rows = revenueRows.map(r => {
+        const back = returnsByMethod.get(r.paymentMethod ?? "unknown");
+        return {
+          ...r,
+          revenue: String(Number(r.revenue) - (back?.amount ?? 0)),
+          cogs: String(Number(cogsByMethod.get(r.paymentMethod) ?? "0") - (back?.cost ?? 0)),
+        };
+      });
 
       return rows.map(r => {
         const revenue = Number(r.revenue);
