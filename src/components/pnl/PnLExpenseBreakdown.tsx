@@ -1,5 +1,5 @@
 import { F, COLORS, thStyle, tdStyle, numeric, marginTone } from "./styles";
-import { SectionNotice } from "./SectionNotice";
+import { SectionNotice } from "@/components/SectionNotice";
 
 // SUM()/COALESCE() come back from MySQL as decimal strings, and the product
 // name is null-able through the LEFT JOIN — see analytics.cogsByProduct.

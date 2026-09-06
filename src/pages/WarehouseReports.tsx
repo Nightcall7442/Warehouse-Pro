@@ -15,8 +15,23 @@ import {
 } from "recharts";
 import { exportToExcel, exportToPDF, buildExcelSheets, buildPDFHtml, type ReportData } from "@/lib/export";
 import { PremiumSelect } from "@/components/PremiumSelect";
+import { SectionNotice } from "@/components/SectionNotice";
+import { CHART_PALETTE } from "@/lib/chartTheme";
+import { unitShort } from "@/lib/units";
 
-const COLORS = ["var(--color-primary)", "#c7c9f8", "#c7c9f8", "#c7c9f8", "var(--color-primary-subtle)", "var(--color-primary-subtle)", "var(--color-success)", "var(--color-warning)"];
+/*
+  Цвета долей берутся из общей палитры, а не собираются здесь.
+
+  Стоял местный список из восьми значений, в котором «#c7c9f8» повторялось ТРИ
+  раза подряд, а «--color-primary-subtle» — дважды. Круговая диаграмма делит
+  склад по категориям, и три доли из восьми выходили одного цвета, ещё две —
+  другого одинакового: единственное, ради чего эта диаграмма нужна, она и не
+  делала. Плюс сам «#c7c9f8» — литерал, в тёмной теме он не меняется.
+
+  CHART_PALETTE (lib/chartTheme) — десять опознавательных оттенков, объявленных
+  в обеих темах и уже используемых на других экранах.
+*/
+const COLORS = CHART_PALETTE;
 
 const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
 const THEME = {
@@ -123,24 +138,62 @@ function ChartPanel({ title, children, delay: _delay = 0 }: { title: string; chi
   );
 }
 
+/**
+ * Что показать в панели: данные, пустоту или отказ.
+ *
+ * Разделы этой страницы отличали только «есть данные» от «нет данных», а
+ * `query.data` равен undefined в обоих случаях — и когда за период нечего
+ * показать, и когда запрос упал. Человек читал «Нет данных за период» и делал
+ * из этого вывод о складе, тогда как сервер просто не ответил.
+ */
+function PanelBody({ error, empty, onRetry, errorText, emptyText, children }: {
+  error: boolean; empty: boolean; onRetry: () => void;
+  errorText: string; emptyText: string; children: React.ReactNode;
+}) {
+  if (error) return <SectionNotice kind="error" message={errorText} onRetry={onRetry} />;
+  if (empty) return <SectionNotice kind="empty" message={emptyText} />;
+  return <>{children}</>;
+}
+
 export default function WarehouseReports() {
   const { lang } = useLang();
   const { fmt } = useCurrency();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const [days, setDays] = useState(30);
 
-  const { data: byCategory, isLoading: catLoading } = trpc.warehouseReports.stockByCategory.useQuery();
-  const { data: trends, isLoading: trendsLoading } = trpc.warehouseReports.movementTrends.useQuery({ days });
-  const { data: topByValue, isLoading: topLoading } = trpc.warehouseReports.topByValue.useQuery({ limit: 10 });
-  const { data: arrivalData, isLoading: arrivalLoading } = trpc.warehouseReports.arrivalCosts.useQuery({ days });
-  const { data: turnoverData, isLoading: turnoverLoading } = trpc.warehouseReports.turnover.useQuery({ days });
+  /*
+    Отказ каждого запроса разбирается отдельно.
 
-  const isLoading = catLoading || trendsLoading || topLoading || arrivalLoading || turnoverLoading;
+    Здесь не проверялся НИ ОДИН из пяти. Упавший запрос отдаёт undefined, и
+    итоги ниже считались от него: сумма по пустому массиву — ноль. Человек
+    видел «Общая стоимость 0 сум» и «Низкие остатки 0» — то есть страница
+    уверенно сообщала, что склад пуст и всё в порядке, тогда как сервер просто
+    не ответил. Это не оформление, это неверный ответ на вопрос, ради которого
+    страницу открыли.
+
+    isLoadingError, а не isError: при обновлении уже показанных данных
+    (переключили период) отказ не должен стирать то, что человек читает, —
+    домашнее правило, закреплённое в refetch-error-keeps-data.test.ts.
+  */
+  const cat      = trpc.warehouseReports.stockByCategory.useQuery();
+  const trendsQ  = trpc.warehouseReports.movementTrends.useQuery({ days });
+  const topQ     = trpc.warehouseReports.topByValue.useQuery({ limit: 10 });
+  const arrivalQ = trpc.warehouseReports.arrivalCosts.useQuery({ days });
+  const turnQ    = trpc.warehouseReports.turnover.useQuery({ days });
+
+  const byCategory   = cat.data;
+  const trends       = trendsQ.data;
+  const topByValue   = topQ.data;
+  const arrivalData  = arrivalQ.data;
+  const turnoverData = turnQ.data;
+
+  // Выгрузки собирают все пять источников, поэтому кнопки ждут их все.
+  const isLoading = cat.isLoading || trendsQ.isLoading || topQ.isLoading || arrivalQ.isLoading || turnQ.isLoading;
 
   // Summary stats
   const totalValue = byCategory?.reduce((s, c) => s + Number(c.totalValue ?? 0), 0) ?? 0;
   const totalRetail = byCategory?.reduce((s, c) => s + Number(c.totalRetail ?? 0), 0) ?? 0;
-  const totalUnits = byCategory?.reduce((s, c) => s + Number(c.totalUnits ?? 0), 0) ?? 0;
+  const totalProducts = byCategory?.reduce((s, c) => s + Number(c.totalProducts ?? 0), 0) ?? 0;
   const lowStockTotal = byCategory?.reduce((s, c) => s + Number(c.lowStockCount ?? 0), 0) ?? 0;
   const margin = totalRetail - totalValue;
 
@@ -150,7 +203,14 @@ export default function WarehouseReports() {
     value: Number(c.totalValue ?? 0),
   })).filter(d => d.value > 0) ?? [];
 
-  if (isLoading) {
+  /*
+    Скелет ждёт только тот запрос, из которого собраны плитки наверху.
+
+    Раньше он ждал ИЛИ по всем пяти: страница оставалась серой, пока не
+    ответит самый медленный, — а «оборачиваемость» за девяносто дней считается
+    заметно дольше остальных. Разделы ниже показывают своё состояние сами.
+  */
+  if (cat.isLoading) {
     return (
       <div className="space-y-4">
         <div className="h-8 w-48 bg-surface-light animate-pulse rounded" />
@@ -249,19 +309,50 @@ export default function WarehouseReports() {
         </div>
       </div>
 
-      {/* Summary KPIs */}
+      {/*
+        Плитки строятся из одного запроса — если он не ответил, показывать
+        вместо них нули нельзя: «Общая стоимость 0» читается как «склад пуст»,
+        а не как «сервер молчит».
+      */}
+      {cat.isLoadingError ? (
+        <div className="neo-card-sm">
+          <SectionNotice
+            kind="error"
+            message={t("Не удалось загрузить остатки по категориям", "Kategoriyalar bo'yicha qoldiqni yuklab bo'lmadi")}
+            onRetry={() => cat.refetch()}
+            retryLabel={t("Повторить", "Qayta urinish")}
+          />
+        </div>
+      ) : (
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <KpiCard label={t("Общая стоимость", "Umumiy qiymat")} value={fmt(totalValue)} icon={<Package size={20} color="#fff" />} gradient="linear-gradient(135deg, var(--kpi-indigo), var(--kpi-indigo))" delay={0} />
         <KpiCard label={t("Розничная", "Chakana")} value={fmt(totalRetail)} icon={<TrendingUp size={20} color="#fff" />} gradient="linear-gradient(135deg, var(--kpi-green), var(--kpi-green))" delay={0.1} />
         <KpiCard label={t("Маржа", "Marja")} value={fmt(margin)} delta={totalValue > 0 ? (margin / totalValue) * 100 : null} icon={<ArrowUpRight size={20} color="#fff" />} gradient={margin >= 0 ? "linear-gradient(135deg, var(--kpi-green), var(--kpi-green))" : "linear-gradient(135deg, var(--kpi-red), var(--kpi-red))"} delay={0.2} />
-        <KpiCard label={t("Единицы", "Birliklar")} value={totalUnits.toLocaleString("ru")} icon={<Layers size={20} color="#fff" />} gradient="linear-gradient(135deg, var(--kpi-amber), var(--kpi-amber))" delay={0.3} />
+        {/*
+          Здесь стояли «Единицы» — сумма totalUnits по всем категориям. Склад
+          хранит штуки, ящики, литры и килограммы, и складывать их в одно число
+          нельзя: «12 480» не значит ничего и ни на один вопрос не отвечает.
+
+          Наименования складываются законно: это счёт карточек товара, и он
+          отвечает на понятное «сколько у меня позиций». Разбивка по единицам
+          осталась там, где она осмысленна, — в таблицах по товарам.
+        */}
+        <KpiCard label={t("Наименований", "Nomlar")} value={totalProducts.toLocaleString("ru")} icon={<Layers size={20} color="#fff" />} gradient="linear-gradient(135deg, var(--kpi-amber), var(--kpi-amber))" delay={0.3} />
         <KpiCard label={t("Низкие остатки", "Kam qoldiq")} value={String(lowStockTotal)} icon={<AlertTriangle size={20} color="#fff" />} gradient={lowStockTotal > 0 ? "linear-gradient(135deg, var(--kpi-red), var(--kpi-red))" : "linear-gradient(135deg, var(--kpi-green), var(--kpi-green))"} delay={0.4} />
       </div>
+      )}
 
       {/* Charts Row 1 */}
       <div className="grid lg:grid-cols-2 gap-4">
         {/* Stock by category bar chart */}
         <ChartPanel title={t("Остатки по категориям", "Kategoriyalar bo'yicha qoldiq")}>
+          <PanelBody
+            error={cat.isLoadingError}
+            empty={!byCategory?.length}
+            onRetry={() => cat.refetch()}
+            errorText={t("Не удалось загрузить остатки", "Qoldiqni yuklab bo'lmadi")}
+            emptyText={t("Категорий с остатком нет", "Qoldiqli kategoriyalar yo'q")}
+          >
           <div style={{ height: 280 }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={byCategory?.slice(0, 8)} layout="vertical" margin={{ left: 8, right: 20 }}>
@@ -289,10 +380,18 @@ export default function WarehouseReports() {
               </BarChart>
             </ResponsiveContainer>
           </div>
+          </PanelBody>
         </ChartPanel>
 
         {/* Category pie chart */}
         <ChartPanel title={t("Доля категорий", "Kategoriya ulushi")}>
+          <PanelBody
+            error={cat.isLoadingError}
+            empty={pieData.length === 0}
+            onRetry={() => cat.refetch()}
+            errorText={t("Не удалось загрузить остатки", "Qoldiqni yuklab bo'lmadi")}
+            emptyText={t("Нечего делить: остатков со стоимостью нет", "Bo'lish uchun qoldiq yo'q")}
+          >
           <div className="flex items-center gap-6">
             <div style={{ width: 200, height: 200, flexShrink: 0 }}>
               <ResponsiveContainer width="100%" height="100%">
@@ -318,11 +417,19 @@ export default function WarehouseReports() {
               ))}
             </div>
           </div>
+          </PanelBody>
         </ChartPanel>
       </div>
 
       {/* Movement trends */}
       <ChartPanel title={`${t("Движение товаров", "Mahsulot harakati")} — ${t(`за ${days} дней`, `${days} kun ichida`)}`}>
+        <PanelBody
+          error={trendsQ.isLoadingError}
+          empty={!trends?.length}
+          onRetry={() => trendsQ.refetch()}
+          errorText={t("Не удалось загрузить движение товаров", "Mahsulot harakatini yuklab bo'lmadi")}
+          emptyText={t("За период движений не было", "Davr ichida harakat bo'lmagan")}
+        >
         <div style={{ height: 280 }}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={trends} margin={{ left: 0, right: 10 }}>
@@ -336,6 +443,7 @@ export default function WarehouseReports() {
             </LineChart>
           </ResponsiveContainer>
         </div>
+        </PanelBody>
       </ChartPanel>
 
       {/* Charts Row 2 */}
@@ -381,14 +489,26 @@ export default function WarehouseReports() {
               </div>
             </div>
           ) : (
-            <p className="text-xs text-center py-8" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
-              {t("Нет данных за период", "Davr uchun ma'lumot yo'q")}
-            </p>
+            <SectionNotice
+              kind={arrivalQ.isLoadingError ? "error" : "empty"}
+              message={arrivalQ.isLoadingError
+                ? t("Не удалось загрузить расходы на доставку", "Yetkazish xarajatlarini yuklab bo'lmadi")
+                : t("За период приходов не было", "Davr ichida kirim bo'lmagan")}
+              onRetry={() => arrivalQ.refetch()}
+              retryLabel={t("Повторить", "Qayta urinish")}
+            />
           )}
         </ChartPanel>
 
         {/* Top products by value */}
         <ChartPanel title={t("Топ товаров по стоимости", "Qiymat bo'yicha TOP mahsulotlar")}>
+          <PanelBody
+            error={topQ.isLoadingError}
+            empty={!topByValue?.length}
+            onRetry={() => topQ.refetch()}
+            errorText={t("Не удалось загрузить топ товаров", "TOP mahsulotlarni yuklab bo'lmadi")}
+            emptyText={t("Товаров с остатком нет", "Qoldiqli mahsulot yo'q")}
+          >
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
@@ -408,7 +528,7 @@ export default function WarehouseReports() {
                       <div className="font-medium" style={{ color: "var(--color-text-primary, #2b2a28)" }}>{p.productName ?? "—"}</div>
                       <div style={{ color: "var(--color-text-tertiary, #6b6760)" }}>{p.productCode ?? ""}</div>
                     </td>
-                    <td className="py-2 text-right font-data">{Number(p.currentStock ?? 0).toLocaleString("ru")} {p.unit}</td>
+                    <td className="py-2 text-right font-data">{Number(p.currentStock ?? 0).toLocaleString("ru")} {unitShort(p.unit, lang)}</td>
                     <td className="py-2 text-right font-data font-semibold">{fmt(Number(p.costValue ?? 0))}</td>
                     <td className="py-2 text-right font-data" style={{ color: Number(p.margin ?? 0) >= 0 ? "var(--color-success-text)" : "var(--color-danger-text)" }}>
                       {fmt(Number(p.margin ?? 0))}
@@ -418,11 +538,19 @@ export default function WarehouseReports() {
               </tbody>
             </table>
           </div>
+          </PanelBody>
         </ChartPanel>
       </div>
 
       {/* Turnover */}
       <ChartPanel title={`${t("Оборачиваемость", "Aylanma")} — ${t(`за ${days} дней`, `${days} kun ichida`)}`}>
+        <PanelBody
+          error={turnQ.isLoadingError}
+          empty={!turnoverData?.length}
+          onRetry={() => turnQ.refetch()}
+          errorText={t("Не удалось загрузить оборачиваемость", "Aylanmani yuklab bo'lmadi")}
+          emptyText={t("За период продаж не было", "Davr ichida sotuv bo'lmagan")}
+        >
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
@@ -456,6 +584,7 @@ export default function WarehouseReports() {
             </tbody>
           </table>
         </div>
+        </PanelBody>
       </ChartPanel>
     </div>
   );

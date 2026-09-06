@@ -13,7 +13,7 @@ import {
 } from "recharts";
 import { F, COLORS, monthLabel } from "./styles";
 import { ChartTooltip } from "./ChartTooltip";
-import { SectionNotice } from "./SectionNotice";
+import { SectionNotice } from "@/components/SectionNotice";
 
 interface TrendDataPoint {
   month: string;

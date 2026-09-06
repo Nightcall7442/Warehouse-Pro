@@ -4,8 +4,9 @@ import { Download, Printer, Loader2 } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { printLoadingList, type LoadingListData } from "@/lib/documents";
-import { useTranslate } from "@/i18n";
+import { useTranslate, useLang } from "@/i18n";
 import { formatQty } from "@/lib/format";
+import { unitShort } from "@/lib/units";
 import { useSellerCompany } from "@/hooks/useSellerCompany";
 
 interface Props {
@@ -22,6 +23,9 @@ const LIST_OPTIONS = { includeBarcodes: true, includeWeight: true, includeTotalW
 
 export function LoadingListModal({ open, onOpenChange, orderIds, onDone }: Props) {
   const t = useTranslate();
+  // Погрузочный лист читает кладовщик: единица должна быть словом, а не
+  // кодом из базы. Здесь печаталось «12 pcs».
+  const { lang } = useLang();
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<LoadingListData | null>(null);
   const [listFormat, setListFormat] = useState<"aggregated" | "byRoute">("aggregated");
@@ -140,7 +144,7 @@ export function LoadingListModal({ open, onOpenChange, orderIds, onDone }: Props
                 >
                   <span style={{ color: "var(--color-text-primary)" }}>{item.productName}</span>
                   <span className="font-semibold tabular-nums font-data" style={{ color: "var(--color-text-primary)" }}>
-                    {formatQty(item.totalQty)} {item.unit}
+                    {formatQty(item.totalQty)} {unitShort(item.unit, lang)}
                   </span>
                 </div>
               ))}

@@ -1,6 +1,6 @@
 import { format } from "date-fns";
 import { F, COLORS, thStyle, tdStyle, numeric } from "./styles";
-import { SectionNotice } from "./SectionNotice";
+import { SectionNotice } from "@/components/SectionNotice";
 
 interface Arrival {
   id: number;

@@ -21,7 +21,7 @@ import {
   PAYMENT_ORDER,
 } from "./styles";
 import { ChartTooltip } from "./ChartTooltip";
-import { SectionNotice } from "./SectionNotice";
+import { SectionNotice } from "@/components/SectionNotice";
 import type { Lang } from "@/i18n";
 
 interface PaymentBreakdownRow {
