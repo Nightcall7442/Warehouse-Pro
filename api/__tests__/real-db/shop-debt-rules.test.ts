@@ -67,6 +67,11 @@ describeIf("правила долга магазина на настоящей �
   async function completedReturn(orderId: number | null, amount: string) {
     await db.insert(schema.returns).values({
       tenantId: s.tenantId, shopId: s.shopId, orderId,
+      // Номер возврата обязателен и умолчания не имеет: без него вставка
+      // падает с «Field 'return_number' doesn't have a default value».
+      // Заглушки этого не показывают — они не знают ограничений столбцов, и
+      // ошибка нашлась только на настоящей MySQL, в CI.
+      returnNumber: `В-${Math.random().toString(36).slice(2, 8)}`,
       status: "completed", totalAmount: amount,
     } as never);
   }
