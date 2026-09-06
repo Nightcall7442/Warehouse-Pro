@@ -5,6 +5,8 @@ import { format } from "date-fns";
 import { trpc } from "@/providers/trpc";
 import { exportToExcel, formatMovementsForExport } from "@/lib/excel";
 import { MOVE_TYPE } from "./warehouse-utils";
+import { movementDocument, movementNote } from "@/lib/stock-movement-text";
+import { unitShort } from "@/lib/units";
 import { formatQty } from "@/lib/format";
 import { colorMix } from "@/lib/color-mix";
 
@@ -27,7 +29,12 @@ export function MovementHistory({ productId, productName }: { productId: number;
         <div className="px-5 pb-4">
           {!!movements?.length && (
             <div className="flex justify-end mb-3">
-              <button onClick={() => exportToExcel(formatMovementsForExport(movements), `movements-${productName}`)}
+              <button onClick={() => exportToExcel(
+                  formatMovementsForExport(movements, lang),
+                  `movements-${productName}`,
+                  undefined,
+                  t(`История движений: ${productName}`, `Harakatlar tarixi: ${productName}`),
+                )}
                 className="text-xs flex items-center gap-1.5 py-1.5 px-3 rounded-lg transition-colors"
                 style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
                 <FileDown size={12} /> Excel
@@ -43,6 +50,8 @@ export function MovementHistory({ productId, productName }: { productId: number;
               {movements.map(m => {
                 const mt = MOVE_TYPE[m.type] ?? MOVE_TYPE.adjustment;
                 const Icon = mt.icon;
+                const doc = movementDocument(m.referenceType, m.referenceId, lang);
+                const note = movementNote(m.notes, lang);
                 return (
                   <div key={m.id} className="flex items-start gap-3 py-3 px-4 rounded-xl"
                     style={{ background: "var(--color-surface-light, #f6f4f0)", boxShadow: "0 1px 2px rgba(0,0,0,.04)" }}>
@@ -60,15 +69,35 @@ export function MovementHistory({ productId, productName }: { productId: number;
                         </span>
                       </div>
                       <div className="flex items-center justify-between gap-2 mt-1">
+                        {/*
+                          Единица берётся у товара, а не подписывается
+                          килограммами. Здесь стояло «кг» прямо в разметке — и
+                          движение на пять ящиков читалось как «5 кг». Соседние
+                          места на этой же странице (карточка остатка,
+                          корректировка) при этом честно переводят в килограммы
+                          через вес единицы, так что экран противоречил сам
+                          себе.
+                        */}
                         <span className="text-base font-bold" style={{ color: mt.color, fontFamily: "'DM Sans', sans-serif" }}>
-                          {mt.sign}{formatQty(m.quantity)} кг
+                          {mt.sign}{formatQty(m.quantity)} {unitShort(m.unit, lang)}
                         </span>
-                        {m.notes && <span className="text-xs truncate" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>{m.notes}</span>}
+                        {note && <span className="text-xs truncate" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>{note}</span>}
                       </div>
-                      {m.referenceType && (
+                      {/*
+                        Документ называется словами. Здесь тип ссылки и её
+                        номер подставлялись как есть, и человек видел
+                        «manual_adjustment #null» — внутреннее слово и номер,
+                        которого у ручной правки нет вовсе.
+
+                        Разбор общий (lib/stock-movement-text): им уже пользуются
+                        карточка товара, выгрузка в Excel и реестр отчётов. Эта
+                        страница осталась ПЯТОЙ копией того же места и одна
+                        продолжала показывать код.
+                      */}
+                      {doc && (
                         <span className="text-[10px] mt-0.5 inline-block px-2 py-0.5 rounded"
                           style={{ background: "var(--color-surface, #efedea)", color: "var(--color-text-tertiary, #6b6760)" }}>
-                          {m.referenceType} #{m.referenceId}
+                          {doc}
                         </span>
                       )}
                     </div>

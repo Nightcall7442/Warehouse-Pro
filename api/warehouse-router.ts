@@ -73,6 +73,10 @@ export const warehouseRouter = createRouter({
         id: stockMovements.id, type: stockMovements.type, quantity: stockMovements.quantity,
         referenceType: stockMovements.referenceType, referenceId: stockMovements.referenceId,
         notes: stockMovements.notes, createdAt: stockMovements.createdAt, productName: products.name,
+        // Единица нужна экрану: без неё история движений подписывала любое
+        // количество килограммами — и штуки, и ящики, и литры. Соединение с
+        // товаром здесь уже есть, поле стоит ничего.
+        unit: products.unit,
       })
         .from(stockMovements)
         .leftJoin(products, eq(stockMovements.productId, products.id))
