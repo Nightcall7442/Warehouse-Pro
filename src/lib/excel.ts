@@ -7,8 +7,27 @@
 import ExcelJS from "exceljs";
 import { notify } from "@/lib/toast";
 import { unitShort } from "@/lib/units";
+import { cssVar } from "@/lib/css-var";
 
 type Row = Record<string, string | number | null | undefined>;
+
+/**
+ * Цвет шапки выгрузки — арендатора, а не системы.
+ *
+ * Здесь стояло FF4F46E5 — индиго, которого нет ни в палитре приложения, ни
+ * у арендатора. Файл уходит наружу: в нём цвет должен быть тот же, что на
+ * экране. Берём его оттуда же, откуда берёт вся страница, — из переменной
+ * темы, которую useBranding проставляет по настройкам арендатора.
+ *
+ * ExcelJS ждёт AARRGGBB, тема даёт #rrggbb. Всё, что не похоже на
+ * шестизначный цвет (например color-mix или пустая строка), заменяется
+ * запасным: файл не должен падать из-за оформления.
+ */
+function headerArgb(): string {
+  const fallback = "FF4F46E5";
+  const hex = cssVar("--color-primary", "").trim();
+  return /^#[0-9a-fA-F]{6}$/.test(hex) ? "FF" + hex.slice(1).toUpperCase() : fallback;
+}
 
 // The formatters below take Record<string, unknown> and read fields off it, so
 // `row.someField ?? ""` types as {} rather than as a string, and {} is not a
@@ -86,7 +105,7 @@ export async function exportToExcel(
   const headerRow = ws.addRow(headers);
   headerRow.eachCell((cell) => {
     cell.font = { bold: true, size: 11, color: { argb: "FFFFFFFF" } };
-    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4F46E5" } };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: headerArgb() } };
     cell.border = {
       top: { style: "thin", color: { argb: "FFCBD5E1" } },
       bottom: { style: "thin", color: { argb: "FFCBD5E1" } },

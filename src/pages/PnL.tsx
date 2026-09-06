@@ -18,6 +18,7 @@ import {
 } from "@/components/pnl";
 import type { Range } from "@/components/pnl";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
+import { useSellerCompany } from "@/hooks/useSellerCompany";
 
 const COLORS = {
   surface: "var(--color-surface, #efedea)",
@@ -77,6 +78,7 @@ export default function PnL() {
     }
   }, [range, customFrom, customTo]);
 
+  const { company: seller } = useSellerCompany();
   const { data, isLoading, isLoadingError, refetch } = trpc.analytics.pnl.useQuery({
     from,
     to,
@@ -116,7 +118,9 @@ export default function PnL() {
   const handleExportExcel = async () => {
     const ExcelJS = (await import("exceljs")).default;
     const wb = new ExcelJS.Workbook();
-    wb.creator = "Warehouse Pro";
+    // Свойства файла видит всякий, кто его откроет: автором стоит
+    // организация, выгрузившая отчёт, а не поставщик системы.
+    wb.creator = seller.name || "";
     wb.created = new Date();
 
     const num = (v: unknown) => Number(v ?? 0);

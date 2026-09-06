@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { LogoMark } from "@/components/brand/Logo";
+import { AppBrand } from "@/components/brand/AppBrand";
 import { useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
@@ -250,8 +250,7 @@ export default function Onboarding() {
 
         {/* Лого */}
         <div className="flex items-center gap-2.5 mb-10">
-          <LogoMark size={32} decorative />
-          <span className="font-display text-sm text-primary">Warehouse Pro</span>
+          <AppBrand size={32} />
         </div>
 
         {step <= 3 && <ProgressBar current={step} />}

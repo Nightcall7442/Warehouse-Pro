@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { LogoMark } from "@/components/brand/Logo";
+import { AppBrand } from "@/components/brand/AppBrand";
+import { recallBrand } from "@/lib/remembered-brand";
 import { useNavigate, Link } from "react-router";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -33,6 +34,17 @@ export default function Login() {
       navigate(dest, { replace: true });
     }
   }, [user, isLoading, navigate]);
+
+  /*
+    Вывеска на входе — та, что устройство видело в прошлый раз.
+
+    Экран входа один на всех: почта может числиться в нескольких
+    организациях, и тенант выбирается уже ПОСЛЕ пароля. До этого сервер не
+    знает, чей бренд показывать, поэтому сотрудник арендатора каждый день
+    начинал день с вывески поставщика системы. Память устройства это
+    закрывает; оговорки — в lib/remembered-brand.ts.
+  */
+  const brand = recallBrand();
 
   const submit = async (tenantId?: number) => {
     setError("");
@@ -94,10 +106,7 @@ export default function Login() {
 
         {/* Logo */}
         <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 14, zIndex: 1 }}>
-          <LogoMark size={36} decorative />
-          <span style={{ fontFamily: F.display, fontSize: "18px", fontWeight: 700, letterSpacing: "-0.01em" }}>
-            Warehouse Pro
-          </span>
+          <AppBrand size={36} onDark signedIn={false} color="#fff" />
         </div>
 
         {/* Hero content */}
@@ -106,16 +115,16 @@ export default function Login() {
             fontFamily: F.display, fontSize: "42px", fontWeight: 800,
             lineHeight: 1.08, letterSpacing: "-0.035em", margin: "0 0 24px", whiteSpace: "pre-line",
           }}>
-            {t("auth.login.title")}
+            {brand?.loginTitle?.trim() || t("auth.login.title")}
           </h1>
           <p style={{ fontSize: "16px", color: "#9ca3af", lineHeight: 1.6, margin: 0 }}>
-            {t("auth.login.subtitle")}
+            {brand?.loginSubtitle?.trim() || t("auth.login.subtitle")}
           </p>
         </div>
 
         {/* Footer */}
         <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "12px", color: "#4b5563", zIndex: 1 }}>
-          <span>© 2025 Warehouse Pro</span>
+          <span>{brand?.footerText?.trim() || `© ${new Date().getFullYear()} Warehouse Pro`}</span>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e" }} />
             <span>v2.5.0</span>
@@ -138,10 +147,7 @@ export default function Login() {
 
         {/* Mobile logo */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 40, zIndex: 1 }} className="login-mobile-logo">
-          <LogoMark size={36} decorative />
-          <span style={{ fontFamily: F.display, fontSize: "17px", fontWeight: 700, color: "#111827", letterSpacing: "-0.01em" }}>
-            Warehouse Pro
-          </span>
+          <AppBrand size={36} signedIn={false} color="#111827" />
         </div>
 
         {/* Form card */}

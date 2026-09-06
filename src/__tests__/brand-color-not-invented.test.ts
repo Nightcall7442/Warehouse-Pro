@@ -32,10 +32,21 @@ describe("акцент арендатора", () => {
       записей с настоящим цветом единицы — всем остальным арендаторам светлый
       акцент навязывался поверх тёмной темы.
     */
+    /*
+      Правило, а не разметка: раньше здесь искалась строка «return row ?? {»,
+      и стоило ветку «записи нет» назвать иначе — проверка резала пустой кусок
+      и промолчала бы о любой подстановке. Теперь ищется сама подстановка:
+      шестизначного цвета в роутере быть не должно нигде.
+    */
     const router = read("api/tenant-branding-router.ts");
-    const fallback = router.slice(router.indexOf("return row ?? {"), router.indexOf("appName:", router.indexOf("return row ?? {")));
-    expect(fallback, "сервер снова подставляет цвет").toContain("primaryColor:   null");
-    expect(fallback).toContain("secondaryColor: null");
+    const code = router.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    const literals = [...code.matchAll(/#[0-9a-fA-F]{6}/g)].map(m => m[0]);
+    expect(literals, `сервер снова подставляет цвет: ${literals.join(", ")}`).toEqual([]);
+
+    // И «ничего не настроено» отдаётся пустыми значениями, а не отсутствием полей.
+    const nothing = code.slice(code.indexOf("const NOTHING_SET"), code.indexOf("};", code.indexOf("const NOTHING_SET")));
+    expect(nothing, "ветки «цвет не выбран» не стало").toContain("primaryColor:   null");
+    expect(nothing).toContain("secondaryColor: null");
   });
 
   it("в хуке нет запасного цвета — иначе он перебьёт тему", () => {
@@ -43,7 +54,9 @@ describe("акцент арендатора", () => {
     const effect = hook.slice(hook.indexOf("const primary = branding.primaryColor"));
     expect(effect, "вернулась подстановка цвета").not.toMatch(/primaryColor\s*\?\?\s*["']#/);
     // И снятие обязательно: без него убранный в настройках цвет висел бы до
-    // перезагрузки страницы.
-    expect(effect, "нет снятия переменных").toContain("removeProperty");
+    // перезагрузки страницы. Чем именно снимают — инлайновым removeProperty
+    // или удалением вставленной таблицы — дело хука; важно, что у ветки
+    // «цвета нет» есть что делать.
+    expect(effect, "нет снятия бренда").toMatch(/removeProperty|.remove()/);
   });
 });

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Download, X, Share } from "lucide-react";
+import { useAppBrand } from "@/hooks/useAppBrand";
 
 const DISMISS_KEY = "pwa_prompt_dismissed_until";
 const iOSDismissKey = "pwa_ios_prompt_dismissed";
@@ -25,6 +26,7 @@ function isStandalone(): boolean {
 }
 
 export function InstallPrompt() {
+  const { name: appName }       = useAppBrand();
   const [prompt, setPrompt]     = useState<BeforeInstallPromptEvent | null>(null);
   const [visible, setVisible]   = useState(false);
   const [isIos, setIsIos]       = useState(false);
@@ -93,7 +95,7 @@ export function InstallPrompt() {
           </div>
           <div className="flex-1">
             <p style={{ fontWeight: 600, fontSize: "14px", color: "var(--color-text-primary)", margin: 0 }}>
-              {isIos ? "Добавить на экран" : "Установить Warehouse Pro"}
+              {isIos ? "Добавить на экран" : `Установить ${appName}`}
             </p>
             {isIos ? (
               <div style={{ fontSize: "12px", color: "var(--color-text-secondary)", marginTop: "6px", lineHeight: 1.5 }}>

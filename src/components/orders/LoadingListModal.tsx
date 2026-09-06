@@ -6,6 +6,7 @@ import { notify } from "@/lib/toast";
 import { printLoadingList, type LoadingListData } from "@/lib/documents";
 import { useTranslate } from "@/i18n";
 import { formatQty } from "@/lib/format";
+import { useSellerCompany } from "@/hooks/useSellerCompany";
 
 interface Props {
   open: boolean;
@@ -26,6 +27,7 @@ export function LoadingListModal({ open, onOpenChange, orderIds, onDone }: Props
   const [listFormat, setListFormat] = useState<"aggregated" | "byRoute">("aggregated");
 
   const createMutation = trpc.order.createLoadingList.useMutation();
+  const { company: seller, currency } = useSellerCompany();
 
   const handleGenerate = async () => {
     setLoading(true);
@@ -60,7 +62,7 @@ export function LoadingListModal({ open, onOpenChange, orderIds, onDone }: Props
 
   const handlePrint = () => {
     if (!result) return;
-    printLoadingList(result, listFormat);
+    printLoadingList({ ...result, companyName: seller.name || undefined }, listFormat, currency);
     onDone();
     onOpenChange(false);
   };

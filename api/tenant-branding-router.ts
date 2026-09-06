@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { isSafePhotoValue, PHOTO_VALUE_ERROR } from "./lib/photo-value";
 import { createRouter, authedQuery, adminQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { tenantBranding } from "@db/schema";
@@ -7,54 +6,113 @@ import { eq } from "drizzle-orm";
 import { cache, withCache, CacheKeys, CacheTTL } from "./lib/cache";
 import { sanitizeString, isSafeUrl } from "./lib/sanitize";
 
-function escapeCSS(value: string): string {
-  return value
-    .replace(/\\/g, "\\\\")
-    .replace(/'/g, "\\'")
-    .replace(/"/g, '\\"')
-    .replace(/[;{}()]/g, "");
-}
+/*
+  Брендинг — то, КАК приложение выглядит: знак, цвета, название, тексты входа.
 
-function generateCSSVariables(branding: {
-  primaryColor: string | null;
-  secondaryColor: string | null;
-  accentColor: string | null;
-  logoUrl: string | null;
-  companyName: string | null;
-  appName: string | null;
-}): string {
-  const primary   = branding.primaryColor ?? "#5b6d8a";
-  const secondary = branding.secondaryColor ?? "#4a5c78";
-  const accent    = branding.accentColor ?? "#3b82f6";
-  const logoUrl   = escapeCSS(branding.logoUrl ?? "");
-  const company   = escapeCSS(branding.companyName ?? "Warehouse Pro");
-  const app       = escapeCSS(branding.appName ?? "Warehouse Pro");
-  return `:root {
-  --brand-primary: ${primary};
-  --brand-secondary: ${secondary};
-  --brand-accent: ${accent};
-  --brand-logo-url: url('${logoUrl}');
-  --brand-company: '${company}';
-  --brand-app: '${app}';
- }`;
-}
+  Реквизиты организации — имя на накладной, ИНН, адрес, банк, директор —
+  живут в таблице settings и правятся в разделе «Компания». Здесь их нет
+  намеренно: одно и то же имя в двух местах расходится в тот же день, когда
+  его заполнили дважды. Столбцы company_name, inn и legal_address остались в
+  таблице от прежнего замысла и не читаются и не пишутся — трогать боевую
+  базу ради их удаления не стоит.
 
-type BrandingRow = {
-  primaryColor: string | null;
-  secondaryColor: string | null;
-  accentColor: string | null;
-  logoUrl: string | null;
-  companyName: string | null;
-  appName: string | null;
+  Столбец custom_domain тоже не заполняется: разбора домена в запрос нет
+  нигде (арендатор определяется по токену), и предлагать поле, которое ни на
+  что не влияет, — обман. Появится разбор домена — появится и поле.
+*/
+
+/** Пустое поле формы означает «не задано», а не строку нулевой длины. */
+const blank = (v: unknown) => (typeof v === "string" && v.trim() === "" ? null : v);
+
+const optionalText = (max: number, what: string) =>
+  z.preprocess(blank, z.string().max(max, `${what}: слишком длинно, максимум ${max} символов`).nullable().optional());
+
+const optionalColor = z.preprocess(
+  blank,
+  z.string().regex(/^#[0-9a-fA-F]{6}$/, "Цвет задаётся в виде #rrggbb").nullable().optional(),
+);
+
+/*
+  Картинка приходит строкой data:image/…;base64,… и ложится в столбец типа
+  TEXT — это 65 535 байт. Прежний предел для значка был 500 символов: любое
+  изображение больше пикселя не проходило, и вместе с ним отклонялся ВЕСЬ
+  запрос — цвета и логотип в том числе. Клиент сжимает под эти пределы
+  (compressImage с maxChars), здесь стоит та же граница на случай, если
+  запрос придёт мимо формы.
+*/
+export const LOGO_MAX_CHARS    = 60_000;
+export const FAVICON_MAX_CHARS = 30_000;
+
+const optionalImage = (max: number, what: string) =>
+  z.preprocess(
+    blank,
+    z.string()
+      .max(max, `${what}: изображение слишком большое, выберите файл поменьше`)
+      .refine(isSafeUrl, `${what}: недопустимый адрес изображения`)
+      .nullable()
+      .optional(),
+  );
+
+/**
+ * Что арендатор вправе задать.
+ *
+ * Список один и тот же для проверки и для записи: раньше схема принимала
+ * четырнадцать полей, а запись собиралась руками из восьми — шесть значений
+ * (значок, заголовок и подзаголовок входа, текст подвала, домен, тема
+ * мобильного) молча пропадали, и арендатор получал зелёное «Брендинг
+ * сохранён» на пустоту. Теперь запись строится по ключам этой схемы, и
+ * забыть новое поле нельзя.
+ */
+const brandingInput = z.object({
+  logoUrl:        optionalImage(LOGO_MAX_CHARS, "Логотип"),
+  faviconUrl:     optionalImage(FAVICON_MAX_CHARS, "Значок вкладки"),
+  primaryColor:   optionalColor,
+  secondaryColor: optionalColor,
+  appName:        optionalText(255, "Название приложения"),
+  supportEmail:   z.preprocess(blank, z.string().email("Почта поддержки указана неверно").max(320).nullable().optional()),
+  supportPhone:   optionalText(50, "Телефон поддержки"),
+  loginTitle:     optionalText(100, "Заголовок на входе"),
+  loginSubtitle:  optionalText(255, "Подзаголовок на входе"),
+  footerText:     optionalText(500, "Текст в подвале"),
+  mobileTheme:    z.enum(["light", "dark", "auto"]).optional(),
+});
+
+/**
+ * Имена полей — одним списком, из схемы.
+ *
+ * И запись, и проверка берут его отсюда: разойтись им негде.
+ */
+export const brandingInputShape = Object.keys(brandingInput.shape);
+
+/** Поля, набранные человеком: у них снимается разметка и лишние пробелы. */
+const TYPED_FIELDS = new Set([
+  "appName", "supportPhone", "loginTitle", "loginSubtitle", "footerText",
+]);
+
+/** То, что видит клиент, когда арендатор ничего не настраивал. */
+const NOTHING_SET = {
+  primaryColor:   null,
+  secondaryColor: null,
+  logoUrl:        null,
+  faviconUrl:     null,
+  appName:        null,
+  supportEmail:   null,
+  supportPhone:   null,
+  loginTitle:     null,
+  loginSubtitle:  null,
+  footerText:     null,
+  mobileTheme:    "auto" as const,
 };
 
 export const tenantBrandingRouter = createRouter({
-  /** Get branding for current tenant (cached) */
+  /** Бренд текущего арендатора (с кэшом). */
   get: authedQuery.query(async ({ ctx }) => {
     return withCache(CacheKeys.tenantBranding(ctx.tenant.id), CacheTTL.branding, async () => {
       const db = getDb();
       const [row] = await db.select().from(tenantBranding)
         .where(eq(tenantBranding.tenantId, ctx.tenant.id)).limit(1);
+
+      if (!row) return NOTHING_SET;
 
       /*
         Не выбрал цвет — значит, цвета нет. Не подставляем.
@@ -63,95 +121,47 @@ export const tenantBrandingRouter = createRouter({
         (useBranding) принимал их за выбор арендатора и вписывал прямо в
         <html>, а inline-стиль перебивает любое правило таблицы, включая блок
         .dark. Латунный акцент тёмной темы не видел никто, кроме тех, кто
-        задал свой цвет вручную: в базе таких записей всего несколько, у
-        остальных арендаторов тёмная тема весь год светилась сине-серым.
+        задал свой цвет вручную.
 
         Пустое значение клиент понимает правильно: снимает переменные и
         отдаёт выбор таблице, а у неё цвет объявлен и для светлой темы, и для
         тёмной. Экран настроек показывает свои DEFAULTS, так что выбирать
         по-прежнему есть из чего.
       */
-      return row ?? {
-        primaryColor:   null,
-        secondaryColor: null,
-        accentColor:    null,
-        logoUrl:        null,
-        companyName:    null,
-        appName:        "Warehouse Pro",
-        supportEmail:   null,
-        supportPhone:   null,
-        customDomain:   null,
-        faviconUrl:     null,
-        loginTitle:     null,
-        loginSubtitle:  null,
-        footerText:     null,
-        mobileTheme:    "auto",
-        inn:            null,
-        legalAddress:   null,
+      return {
+        primaryColor:   row.primaryColor,
+        secondaryColor: row.secondaryColor,
+        logoUrl:        row.logoUrl,
+        faviconUrl:     row.faviconUrl,
+        appName:        row.appName,
+        supportEmail:   row.supportEmail,
+        supportPhone:   row.supportPhone,
+        loginTitle:     row.loginTitle,
+        loginSubtitle:  row.loginSubtitle,
+        footerText:     row.footerText,
+        mobileTheme:    row.mobileTheme ?? "auto",
       };
     });
   }),
 
-  /** Get CSS variables for current tenant branding */
-  cssVariables: authedQuery.query(async ({ ctx }) => {
-    const branding = await (async () => {
-      const cacheKey = CacheKeys.tenantBranding(ctx.tenant.id);
-      const cached = cache.get<BrandingRow>(cacheKey);
-      if (cached) return cached;
-
-      const db = getDb();
-      const [row] = await db.select().from(tenantBranding)
-        .where(eq(tenantBranding.tenantId, ctx.tenant.id)).limit(1);
-      return row ?? { primaryColor: "#5b6d8a", secondaryColor: "#4a5c78", accentColor: "#3b82f6", logoUrl: null, companyName: null, appName: "Warehouse Pro" };
-    })();
-
-    return {
-      css: generateCSSVariables(branding),
-      variables: {
-        primary:   branding.primaryColor ?? "#5b6d8a",
-        secondary: branding.secondaryColor ?? "#4a5c78",
-        accent:    branding.accentColor ?? "#3b82f6",
-      },
-    };
-  }),
-
-  /** Update branding (CEO/admin only) */
+  /** Правка бренда — право владельца. */
   update: adminQuery
-    .input(z.object({
-      logoUrl:        z.string().optional().nullable(),
-      primaryColor:   z.string().regex(/^#[0-9a-fA-F]{6}$/, "Цвет должен быть в формате #hex").optional(),
-      secondaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Цвет должен быть в формате #hex").optional(),
-      accentColor:    z.string().regex(/^#[0-9a-fA-F]{6}$/, "Цвет должен быть в формате #hex").optional(),
-      companyName:    z.string().min(1).max(255).optional(),
-      appName:        z.string().min(1).max(255).optional(),
-      supportEmail:   z.string().email().optional().nullable(),
-      supportPhone:   z.string().max(50).optional(),
-      // White-label extensions
-      customDomain:   z.string().max(255).optional().nullable(),
-      faviconUrl:     z.string().max(500).optional().nullable(),
-      loginTitle:     z.string().max(100).optional(),
-      loginSubtitle:  z.string().max(255).optional(),
-      footerText:     z.string().max(500).optional(),
-      mobileTheme:    z.enum(["light", "dark", "auto"]).optional(),
-    }))
+    .input(brandingInput)
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
       const tenantId = ctx.tenant.id;
 
-      // Sanitize string inputs
+      // Запись идёт по ключам схемы, а не по переписанному от руки списку.
       const data: Record<string, unknown> = {};
-      if (input.companyName !== undefined) data.companyName = sanitizeString(input.companyName);
-      if (input.appName !== undefined) data.appName = sanitizeString(input.appName);
-      if (input.supportEmail !== undefined) data.supportEmail = input.supportEmail;
-      if (input.supportPhone !== undefined) data.supportPhone = sanitizeString(input.supportPhone);
-      if (input.primaryColor !== undefined) data.primaryColor = input.primaryColor;
-      if (input.secondaryColor !== undefined) data.secondaryColor = input.secondaryColor;
-      if (input.accentColor !== undefined) data.accentColor = input.accentColor;
-      if (input.logoUrl !== undefined) {
-        data.logoUrl = input.logoUrl && isSafeUrl(input.logoUrl) ? input.logoUrl : null;
+      for (const key of brandingInputShape as (keyof typeof input)[]) {
+        const value = input[key];
+        if (value === undefined) continue;
+        data[key] = typeof value === "string" && TYPED_FIELDS.has(key)
+          ? sanitizeString(value)
+          : value;
       }
 
-      const [existing] = await db.select().from(tenantBranding)
+      const [existing] = await db.select({ id: tenantBranding.id }).from(tenantBranding)
         .where(eq(tenantBranding.tenantId, tenantId)).limit(1);
 
       if (existing) {
@@ -161,32 +171,8 @@ export const tenantBrandingRouter = createRouter({
         await db.insert(tenantBranding).values({ tenantId, ...data });
       }
 
-      // Invalidate cache
       cache.invalidate(CacheKeys.tenantBranding(tenantId));
 
       return { success: true };
-    }),
-
-  /** Upload logo (stores as data URL or S3 URL) */
-  uploadLogo: adminQuery
-    .input(z.object({
-      dataUrl: z.string().refine(isSafePhotoValue, PHOTO_VALUE_ERROR).max(5_000_000, "Файл слишком большой (макс. 4 МБ)"),
-    }))
-    .mutation(async ({ input, ctx }) => {
-      const db = getDb();
-      const tenantId = ctx.tenant.id;
-
-      const [existing] = await db.select().from(tenantBranding)
-        .where(eq(tenantBranding.tenantId, tenantId)).limit(1);
-
-      if (existing) {
-        await db.update(tenantBranding).set({ logoUrl: input.dataUrl, updatedAt: new Date() })
-          .where(eq(tenantBranding.tenantId, tenantId));
-      } else {
-        await db.insert(tenantBranding).values({ tenantId, logoUrl: input.dataUrl });
-      }
-
-      cache.invalidate(CacheKeys.tenantBranding(tenantId));
-      return { success: true, logoUrl: input.dataUrl };
     }),
 });

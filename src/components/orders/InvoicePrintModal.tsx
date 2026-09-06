@@ -3,7 +3,8 @@ import { AppModal, modalSectionLabel } from "@/components/ui/AppModal";
 import { Printer, Download, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, AlertTriangle, Loader2, Wallet } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
-import { printBatchInvoices, type BatchOrderData, type BatchPrintOptions, type CompanyInfo } from "@/lib/documents";
+import { printBatchInvoices, type BatchOrderData, type BatchPrintOptions } from "@/lib/documents";
+import { useSellerCompany } from "@/hooks/useSellerCompany";
 import { useTranslate } from "@/i18n";
 import { StatusBadge } from "./theme";
 import { colorMix } from "@/lib/color-mix";
@@ -40,20 +41,9 @@ export function InvoicePrintModal({ open, onOpenChange, orderIds, onDone }: Prop
   const [previewIdx, setPreviewIdx] = useState(0);
   const [zoom, setZoom] = useState(75);
 
-  const settings = trpc.settings.get.useQuery();
   const batchMutation = trpc.order.batchPrintInvoices.useMutation();
 
-  const company: CompanyInfo = useMemo(() => ({
-    name: settings.data?.companyName ?? "Warehouse Pro",
-    address: settings.data?.companyAddress ?? undefined,
-    inn: settings.data?.companyInn ?? undefined,
-    director: settings.data?.companyDirector ?? undefined,
-    bank: settings.data?.companyBank ?? undefined,
-    account: settings.data?.companyBankAccount ?? undefined,
-    mfo: settings.data?.companyMfo ?? undefined,
-  }), [settings.data]);
-
-  const currency = settings.data?.currencySymbol ?? "сум";
+  const { company, currency, footerNote, isReady } = useSellerCompany();
 
   const [result, setResult] = useState<{ orders: BatchOrderData[] } | null>(null);
 
@@ -87,7 +77,7 @@ export function InvoicePrintModal({ open, onOpenChange, orderIds, onDone }: Prop
 
   const handlePrint = () => {
     if (!result) return;
-    printBatchInvoices(result.orders, PRINT_OPTIONS, company, currency, docType);
+    printBatchInvoices(result.orders, { ...PRINT_OPTIONS, footerNote }, company, currency, docType);
     onDone();
     onOpenChange(false);
   };
@@ -129,10 +119,13 @@ export function InvoicePrintModal({ open, onOpenChange, orderIds, onDone }: Prop
       maxWidth={860}
       footer={
         <>
-          <button type="button" onClick={handlePrint} disabled={!result} className="neo-btn-primary flex-1 h-12 text-sm">
+          {/* Пока реквизиты не прочитаны, печатать нельзя: в шапке накладной
+              стояло бы «Warehouse Pro» — имя поставщика системы на бумаге,
+              которую арендатор отдаёт своему покупателю. */}
+          <button type="button" onClick={handlePrint} disabled={!result || !isReady} className="neo-btn-primary flex-1 h-12 text-sm">
             <Printer size={16} />{t("Печать", "Chop etish")}
           </button>
-          <button type="button" onClick={handleSavePDF} disabled={!result} className="neo-btn flex-1 h-12 text-sm">
+          <button type="button" onClick={handleSavePDF} disabled={!result || !isReady} className="neo-btn flex-1 h-12 text-sm">
             <Download size={16} />{t("Сохранить PDF", "PDF saqlash")}
           </button>
           <button type="button" onClick={() => onOpenChange(false)} className="neo-btn flex-1 h-12 text-sm">

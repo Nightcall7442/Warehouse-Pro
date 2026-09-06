@@ -15,6 +15,13 @@
       "when": 1788625711245,
       "tag": "0001_salary_payouts",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1788712111245,
+      "tag": "0002_branding_favicon_text",
+      "breakpoints": true
     }
   ]
 }

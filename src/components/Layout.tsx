@@ -1,5 +1,6 @@
 import { memo, useState, useEffect, useCallback, useMemo } from "react";
-import { LogoMark } from "@/components/brand/Logo";
+import { AppBrand } from "@/components/brand/AppBrand";
+import { useAppBrand } from "@/hooks/useAppBrand";
 import { useLocation, useNavigate } from "react-router";
 import { useAuth, hadSession } from "@/hooks/useAuth";
 import { useNotifications } from "@/hooks/useNotifications";
@@ -63,7 +64,9 @@ function usePageMeta() {
   const base = "/" + location.pathname.split("/")[1];
   const detail = PAGE_META[base];
   if (detail) return { title: detail.title, parent: detail.title, parentPath: base };
-  return { title: "Warehouse Pro" };
+  // Заголовок неописанной страницы подставляет вызывающий — из вывески
+  // арендатора, а не из названия системы.
+  return { title: "" };
 }
 
 // ── Desktop sidebar ───────────────────────────────────────────────────────────
@@ -95,8 +98,7 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
         className="flex items-center px-5 gap-3"
         style={{ height: "calc(64px + env(safe-area-inset-top, 0px))", paddingTop: "env(safe-area-inset-top, 0px)" }}
       >
-        <LogoMark size={36} className="flex-shrink-0" decorative />
-        <span style={{ fontSize: "16px", fontWeight: 700, color: "var(--color-text-primary, #2b2a28)", letterSpacing: "-0.02em" }}>Warehouse Pro</span>
+        <AppBrand size={36} className="flex-shrink-0" />
         {onClose && (
           <button onClick={onClose} className="ml-auto md:hidden neo-btn-icon" style={{ width: "36px", height: "36px" }}>
             <X size={18} />
@@ -211,6 +213,7 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
 const MobileHeader = memo(function MobileHeader({ onMenuClick, unreadCount }: { onMenuClick: () => void; unreadCount: number }) {
   const navigate = useNavigate();
   const meta     = usePageMeta();
+  const { name: appName } = useAppBrand();
   const hasParent = !!meta.parent;
 
   /*
@@ -248,7 +251,7 @@ const MobileHeader = memo(function MobileHeader({ onMenuClick, unreadCount }: { 
 
       <div className="flex-1 flex flex-col items-center">
         <span style={{ fontSize: "15px", fontWeight: 600, color: "var(--color-text-primary, #2b2a28)", letterSpacing: "-0.01em" }}>
-          {meta.title}
+          {meta.title || appName}
         </span>
         {hasParent && (
           <span style={{ fontSize: "11px", color: "var(--color-text-tertiary, #6b6760)" }}>{meta.parent}</span>

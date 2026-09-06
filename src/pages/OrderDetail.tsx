@@ -29,6 +29,7 @@ import { CompletionFlowModal } from "@/components/orders/CompletionFlowModal";
 import type { CompletionData, CompletionMode } from "@/components/orders/CompletionFlowModal";
 import { useCompletionFlow } from "@/hooks/useCompletionFlow";
 import { useInvalidateOrderCaches } from "@/hooks/useOrderCacheSync";
+import { useSellerCompany } from "@/hooks/useSellerCompany";
 import { colorMix } from "@/lib/color-mix";
 import { StatusBadge } from "@/components/orders/theme";
 
@@ -92,7 +93,7 @@ export default function OrderDetail() {
     { id: Number(id) }, { enabled: !!id }
   );
 
-  const { data: settings } = trpc.settings.get.useQuery();
+  const { company: seller, footerNote } = useSellerCompany();
 
   const { data: couriers } = trpc.user.list.useQuery(
     { role: "courier" },
@@ -214,15 +215,8 @@ export default function OrderDetail() {
 
   const buildDocData = (): OrderDocData | null => {
     if (!order) return null;
-    const seller: CompanyInfo = {
-      name:    settings?.companyName ?? "Warehouse Pro",
-      address: settings?.companyAddress ?? "",
-      inn:     settings?.companyInn ?? "",
-      director:settings?.companyDirector ?? "",
-      bank:    settings?.companyBank ?? "",
-      account: settings?.companyBankAccount ?? "",
-      mfo:     settings?.companyMfo ?? "",
-    };
+    // Реквизиты ещё не прочитаны — печатать нечего.
+    if (!seller.name) return null;
     // Shops carry no INN of their own, so the buyer's ИНН stays blank on documents.
     const buyer: CompanyInfo = {
       name:    order.shop?.name ?? "",
@@ -257,6 +251,7 @@ export default function OrderDetail() {
       shopOwner:  order.shop?.ownerName ?? undefined,
       shopPhone:  order.shop?.phone ?? undefined,
       territoryName: order.shop?.territoryName ?? undefined,
+      footerNote,
     };
   };
 

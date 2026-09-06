@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, adminQuery, authedQuery, publicQuery } from "./middleware";
+import { createRouter, adminQuery, authedQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { settings } from "@db/schema";
 import { eq } from "drizzle-orm";
@@ -24,11 +24,17 @@ export const settingsRouter = createRouter({
     });
   }),
 
-  // Branding endpoint — lightweight, cached, public (needed before login)
-  branding: publicQuery.query(async () => {
-    // For public access, return default branding (tenant-specific branding requires auth)
-    return { companyName: "Warehouse Pro", logoUrl: null, currency: "UZS", currencySymbol: "сум" };
-  }),
+  /*
+    Здесь была публичная процедура branding, отвечавшая ВСЕМ арендаторам
+    жёстко вписанным { companyName: "Warehouse Pro", currency: "UZS",
+    currencySymbol: "сум" }. Её звало мобильное приложение — и потому у всех
+    арендаторов в приложении стояло имя поставщика системы и сумовая валюта,
+    какую бы они ни выбрали.
+
+    Публичной она была не по недосмотру: до входа арендатор неизвестен, и
+    отдать его бренд невозможно в принципе. Значит и процедуры быть не
+    должно: приложение спрашивает бренд после входа, у brandingAuth ниже.
+  */
 
   // Authenticated branding — returns tenant-specific branding
   brandingAuth: authedQuery.query(async ({ ctx }) => {
@@ -38,8 +44,12 @@ export const settingsRouter = createRouter({
         logoUrl: settings.logoUrl,
         currency: settings.currency,
         currencySymbol: settings.currencySymbol,
+        // Знак стоит до суммы или после — «$ 1 200» против «1 200 сум».
+        // Мобильное приложение теперь берёт валюту отсюда, и без этого поля
+        // ему пришлось бы гадать, куда ставить знак.
+        symbolPosition: settings.symbolPosition,
       }).from(settings).where(eq(settings.tenantId, ctx.tenant.id)).limit(1);
-      return row ?? { companyName: "Warehouse Pro", logoUrl: null, currency: "UZS", currencySymbol: "сум" };
+      return row ?? { companyName: "", logoUrl: null, currency: "UZS", currencySymbol: "сум", symbolPosition: "after" as const };
     });
   }),
 

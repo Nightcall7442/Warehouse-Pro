@@ -177,7 +177,27 @@ export type CompanyInfo = {
   bank?:      string;
   account?:   string;
   mfo?:       string;
+  phone?:     string;
+  /** Знак арендатора строкой data:image/… — печатается в шапке счёта. */
+  logoUrl?:   string;
 };
+
+/**
+ * Подпись внизу документа.
+ *
+ * Здесь стояло «Документ сформирован автоматически в системе Warehouse Pro» —
+ * на расходной накладной, на ТОРГ-12 и в подвале счёта. Эти три бумаги
+ * арендатор отдаёт СВОЕМУ покупателю, и имя поставщика системы на них не
+ * должно стоять вовсе: покупатель видит чужую компанию в документе своей.
+ *
+ * Что печатается вместо: текст, который арендатор задал в «Брендинге», а
+ * если не задал — ничего. Пустая строка честнее чужого имени.
+ */
+function docFooter(note: string | undefined, size: string, color: string): string {
+  const text = (note ?? "").trim();
+  if (!text) return "";
+  return `<p style="margin-top:12px;font-size:${size};color:${color}">${escapeHtml(text)}</p>`;
+}
 
 export type DocItem = {
   name:     string;
@@ -208,6 +228,8 @@ export type OrderDocData = {
   shopOwner?: string;
   shopPhone?: string;
   territoryName?: string;
+  /** Текст в подвале — из «Брендинга» арендатора. Пусто — подписи нет. */
+  footerNote?: string;
 };
 
 export type ArrivalDocData = {
@@ -220,6 +242,7 @@ export type ArrivalDocData = {
   expenses?: { fuel?: number; toll?: number; other?: number; total?: number };
   notes?:    string;
   currency:  string;
+  footerNote?: string;
 };
 
 // ── 1. РАСХОДНАЯ НАКЛАДНАЯ (Uzbekistan standard) — 2 копии на листе ──────────
@@ -322,7 +345,7 @@ export function printUzWaybill(data: OrderDocData) {
     <div class="page-break"></div>
     ${buildCopy("КОПИЯ ДЛЯ ШОФЁРА")}
 
-    <p style="margin-top:12px;font-size:9pt;color:#555">Документ сформирован автоматически в системе Warehouse Pro</p>
+    ${docFooter(data.footerNote, "9pt", "#555")}
   `;
 
   openPrintWindow(html, `Расходная накладная № ${data.number}`);
@@ -490,14 +513,14 @@ export function printTorg12(data: OrderDocData) {
           <th rowspan="2" style="width:7%">Код по ОКЕИ</th>
           <th colspan="2" style="width:16%">Единица измерения</th>
           <th colspan="2" style="width:16%">Количество</th>
-          <th rowspan="2" style="width:10%">Цена, руб.</th>
+          <th rowspan="2" style="width:10%">Цена, ${escapeHtml(data.currency)}</th>
           <th colspan="2" style="width:16%">НДС</th>
-          <th rowspan="2" style="width:12%">Сумма с учётом НДС, руб.</th>
+          <th rowspan="2" style="width:12%">Сумма с учётом НДС, ${escapeHtml(data.currency)}</th>
         </tr>
         <tr>
           <th>наименование</th><th>код</th>
           <th>в одном месте</th><th>мест, штук</th>
-          <th>ставка, %</th><th>сумма, руб.</th>
+          <th>ставка, %</th><th>сумма, ${escapeHtml(data.currency)}</th>
         </tr>
         <tr>
           ${Array.from({length:12},(_,i)=>`<th class="center">${i+1}</th>`).join("")}
@@ -552,7 +575,7 @@ export function printTorg12(data: OrderDocData) {
       </div>
     </div>
 
-    <p style="margin-top:12px;font-size:8pt;color:#666">Сформировано автоматически в системе Warehouse Pro</p>
+    ${docFooter(data.footerNote, "8pt", "#666")}
   `;
 
   openPrintWindow(html, `ТОРГ-12 № ${data.number}`);
@@ -599,7 +622,12 @@ export function printInvoice(data: OrderDocData) {
     <!-- Header -->
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:16px;border-bottom:2px solid #e2e8f0">
       <div style="display:flex;align-items:center;gap:14px">
-        <div style="width:48px;height:48px;background:linear-gradient(135deg,#3b82f6,#1d4ed8);border-radius:12px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:16pt;letter-spacing:1px">${sellerInitials}</div>
+        ${data.seller.logoUrl
+          ? `<img src="${escapeHtml(data.seller.logoUrl)}" alt="" style="width:48px;height:48px;object-fit:contain;border-radius:12px">`
+          /* Знака нет — квадрат с буквами. Он был залит синим #3b82f6:
+             цветом, которого нет ни в палитре приложения, ни у арендатора.
+             Серый ничьим не притворяется. */
+          : `<div style="width:48px;height:48px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:12px;display:flex;align-items:center;justify-content:center;color:#475569;font-weight:700;font-size:16pt;letter-spacing:1px">${sellerInitials}</div>`}
         <div>
           <div style="font-size:14pt;font-weight:700;color:#0f172a;letter-spacing:-0.3px">${escapeHtml(data.seller.name)}</div>
           <div style="font-size:8.5pt;color:#94a3b8;margin-top:2px">${data.seller.address ? escapeHtml(data.seller.address) : ""}</div>
@@ -718,7 +746,7 @@ export function printInvoice(data: OrderDocData) {
 
     <!-- Footer -->
     <div style="margin-top:24px;text-align:center;font-size:7.5pt;color:#cbd5e1;padding-top:10px;border-top:1px solid #f1f5f9">
-      Документ сформирован автоматически в системе Warehouse Pro &bull; ${data.date}
+      ${[escapeHtml((data.footerNote ?? "").trim()), data.date].filter(Boolean).join(" &bull; ")}
     </div>
   `;
 
@@ -767,6 +795,8 @@ export type BatchOrderData = {
 };
 
 export type BatchPrintOptions = {
+  /** Текст в подвале — из «Брендинга» арендатора. */
+  footerNote?: string;
   includeQrCode: boolean;
   includeBarcodes: boolean;
   includeCostPrice: boolean;
@@ -993,6 +1023,8 @@ export function printBatchInvoices(orders: BatchOrderData[], opts: BatchPrintOpt
 export type LoadingListData = {
   listId: number;
   listNumber: string;
+  /** Чья это отгрузка. Лист уходит на склад и водителю без обратного адреса. */
+  companyName?: string;
   totalOrders: number;
   totalItems: number;
   totalWeight: number;
@@ -1066,6 +1098,7 @@ function buildLoadingListAggregated(data: LoadingListData, currency: string): st
 
   return `
     <div style="text-align:center;margin-bottom:10px">
+      ${data.companyName ? `<div style="font-size:10pt;font-weight:600;color:#334155">${escapeHtml(data.companyName)}</div>` : ""}
       <div style="font-size:16pt;font-weight:800">ЗАГРУЗОЧНЫЙ ЛИСТ</div>
       <div style="font-size:11pt;color:#666">№ ${escapeHtml(data.listNumber)}</div>
     </div>
@@ -1156,6 +1189,7 @@ function buildLoadingListByOrder(data: LoadingListData, currency: string): strin
 
   return `
     <div style="text-align:center;margin-bottom:10px">
+      ${data.companyName ? `<div style="font-size:10pt;font-weight:600;color:#334155">${escapeHtml(data.companyName)}</div>` : ""}
       <div style="font-size:16pt;font-weight:800;color:#0f172a">ЗАГРУЗОЧНЫЙ ЛИСТ</div>
       <div style="font-size:11pt;color:#64748b">№ ${escapeHtml(data.listNumber)} — По заказам</div>
     </div>
@@ -1237,6 +1271,7 @@ function buildLoadingListByRoute(data: LoadingListData, currency: string): strin
 
   return `
     <div style="text-align:center;margin-bottom:10px">
+      ${data.companyName ? `<div style="font-size:10pt;font-weight:600;color:#334155">${escapeHtml(data.companyName)}</div>` : ""}
       <div style="font-size:16pt;font-weight:800">ЗАГРУЗОЧНЫЙ ЛИСТ</div>
       <div style="font-size:11pt;color:#666">№ ${escapeHtml(data.listNumber)} — По маршрутам</div>
     </div>

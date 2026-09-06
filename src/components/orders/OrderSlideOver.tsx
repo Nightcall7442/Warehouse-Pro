@@ -29,6 +29,7 @@ import { ru as dateRu } from "date-fns/locale";
 import { OrderComments } from "./OrderComments";
 import { CompletionFlowModal } from "./CompletionFlowModal";
 import { useInvalidateOrderCaches } from "@/hooks/useOrderCacheSync";
+import { useSellerCompany } from "@/hooks/useSellerCompany";
 import type { CompletionData, CompletionMode } from "./CompletionFlowModal";
 import { StatusBadge, InfoCard, PillButton } from "./theme";
 import { F, COLORS, STATUS, PAYMENT } from "./theme-tokens";
@@ -130,7 +131,7 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
     { enabled: !!orderId && open },
   );
 
-  const { data: settings } = trpc.settings.get.useQuery();
+  const { company: seller, footerNote } = useSellerCompany();
 
   // ── Edit state ─────────────────────────────────────────────────────────
   const [editing, setEditing] = useState(false);
@@ -171,15 +172,9 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
   // ── Build document data for printing ──────────────────────────────────
   function buildDocData(): OrderDocData | null {
     if (!order) return null;
-    const seller: CompanyInfo = {
-      name:    settings?.companyName ?? "Warehouse Pro",
-      address: settings?.companyAddress ?? "",
-      inn:     settings?.companyInn ?? "",
-      director:settings?.companyDirector ?? "",
-      bank:    settings?.companyBank ?? "",
-      account: settings?.companyBankAccount ?? "",
-      mfo:     settings?.companyMfo ?? "",
-    };
+    // Реквизиты ещё не прочитаны — печатать нечего: документ ушёл бы
+    // покупателю арендатора с именем поставщика системы в шапке.
+    if (!seller.name) return null;
     const shopExtra = order.shop as Record<string, unknown> | undefined;
     const buyer: CompanyInfo = {
       name:    order.shop?.name ?? "",
@@ -211,6 +206,7 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
       shopOwner:  order.shop?.ownerName ?? undefined,
       shopPhone:  ((order.shop as Record<string, unknown>)?.phone as string) ?? undefined,
       territoryName: (order.shop as Record<string, unknown>)?.territoryName as string ?? undefined,
+      footerNote,
     };
   }
 

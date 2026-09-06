@@ -67,8 +67,11 @@ export default function AcceptInvite() {
 
   return (
     <div className="min-h-screen bg-canvas flex flex-col items-center justify-center px-4">
+      {/* Здесь стояло «WAREHOUSE PRO». Человека зовут работать в
+          конкретную организацию, и её имя приходит вместе с приглашением —
+          показывать вместо него имя поставщика системы незачем. */}
       <div className="text-center mb-8">
-        <span className="font-label text-primary tracking-[0.15em] text-sm">WAREHOUSE PRO</span>
+        <span className="font-label text-primary tracking-[0.15em] text-sm">{invite.orgName.toUpperCase()}</span>
       </div>
       <div className="neo-card w-full max-w-[400px] p-8 space-y-5">
         <div className="flex items-center gap-3">

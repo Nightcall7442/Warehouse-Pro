@@ -1000,17 +1000,33 @@ export const tenantBranding = mysqlTable("tenant_branding", {
   primaryColor:  varchar("primary_color", { length: 7 }).default("#2563eb"),
   secondaryColor:varchar("secondary_color", { length: 7 }).default("#1e40af"),
   accentColor:   varchar("accent_color", { length: 7 }).default("#3b82f6"),
+  /** Не используется: имя компании берётся из settings (раздел «Компания»). */
   companyName:   varchar("company_name", { length: 255 }),
   appName:       varchar("app_name", { length: 255 }).default("Warehouse Pro"),
   supportEmail:  varchar("support_email", { length: 320 }),
   supportPhone:  varchar("support_phone", { length: 50 }),
   // White-label extensions
+  /*
+    Домен пока не разбирается: арендатор определяется по токену, и запрос не
+    смотрит на Host. Столбец оставлен под будущий разбор, роутер его не пишет.
+  */
   customDomain:  varchar("custom_domain", { length: 255 }),
-  faviconUrl:    varchar("favicon_url", { length: 500 }),
+  /*
+    Значок вкладки хранится строкой data:image/…;base64,… — как и логотип.
+    Здесь стояло varchar(500): в такой столбец не помещается ни одна картинка,
+    и загрузка значка отклоняла весь запрос целиком, вместе с цветами.
+  */
+  faviconUrl:    text("favicon_url"),
   loginTitle:    varchar("login_title", { length: 100 }),
   loginSubtitle: varchar("login_subtitle", { length: 255 }),
   footerText:    varchar("footer_text", { length: 500 }),
   mobileTheme:   varchar("mobile_theme", { length: 10 }).default("auto"),
+  /*
+    Реквизиты живут в settings и правятся в разделе «Компания» — там же адрес,
+    директор и банк, которые печатаются на счёте. Эти два столбца остались от
+    прежнего замысла: не читаются и не пишутся, второе место для того же ИНН
+    разошлось бы с первым в тот же день.
+  */
   inn:           varchar("inn", { length: 20 }),
   legalAddress:  varchar("legal_address", { length: 500 }),
   createdAt:     timestamp("created_at").defaultNow().notNull(),

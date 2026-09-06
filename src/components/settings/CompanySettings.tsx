@@ -110,8 +110,8 @@ export function CompanySettings() {
               <Upload size={14} />{form.logoUrl ? t("Заменить логотип", "Logotipni almashtirish") : t("Загрузить логотип", "Logotipni yuklash")}
             </button>
             <p className="text-xs text-tertiary mt-1.5">
-              {t(`PNG или JPG, до ${MAX_LOGO_MB} МБ. Печатается на накладных и счетах.`,
-                 `PNG yoki JPG, ${MAX_LOGO_MB} MB gacha. Hujjatlarda chop etiladi.`)}
+              {t(`PNG или JPG, до ${MAX_LOGO_MB} МБ. Печатается в шапке счёта на оплату.`,
+                 `PNG yoki JPG, ${MAX_LOGO_MB} MB gacha. Hisob-faktura sarlavhasida chop etiladi.`)}
             </p>
           </div>
           <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={handleLogo} />

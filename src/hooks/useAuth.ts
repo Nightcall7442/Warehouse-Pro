@@ -1,4 +1,5 @@
 import { trpc } from "@/providers/trpc";
+import { forgetBrand } from "@/lib/remembered-brand";
 import { useCallback, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router";
 import { LOGIN_PATH } from "@/const";
@@ -84,6 +85,9 @@ export function useAuth(options?: UseAuthOptions) {
   const logout = useCallback(async () => {
     // Прямой POST на простой эндпоинт (без tRPC, без React state)
     try {
+      // Вывеска не должна пережить смену пользователя: на общем
+      // устройстве следующий увидел бы чужой логотип и чужое название.
+      forgetBrand();
       await fetch("/api/logout", { method: "POST", credentials: "include" });
     } catch {
       // Ошибка сервера — всё равно редиректим на /login

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useSellerCompany } from "@/hooks/useSellerCompany";
 import { keepPreviousData } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
 import { ru as ruLocale } from "date-fns/locale";
@@ -952,6 +953,7 @@ function PayoutDetail({ payout, onClose }: { payout: Payout; onClose: () => void
   const { fmt } = useCurrency();
   const t = (r: string, u: string) => (lang === "uz" ? u : r);
   const id = `payout-receipt-${payout.id}`;
+  const { company: seller } = useSellerCompany();
 
   const rows: [string, string][] = [
     [t("Номер", "Raqam"), payoutNo(payout)],
@@ -976,6 +978,9 @@ function PayoutDetail({ payout, onClose }: { payout: Payout; onClose: () => void
             .hidden нет — значит там эти строки появятся. Инлайновый стиль
             уехал бы вместе с разметкой и спрятал бы их и в ордере.
           */}
+          {/* Имя организации — на бумаге, которую подписывают обе стороны.
+              Ордер без шапки не говорит, чья это касса. */}
+          {seller.name && <div className="hidden" style={{ fontWeight: 600 }}>{seller.name}</div>}
           <h1 className="hidden">{t("Расходный ордер", "Xarajat orderi")} {payoutNo(payout)}</h1>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <tbody>

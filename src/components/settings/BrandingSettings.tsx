@@ -35,11 +35,19 @@ import { FieldGroup, Field, FieldRow, SaveBar } from "./ui";
  * которую сохраняет.
  */
 
+/*
+  Имени компании здесь нет намеренно.
+
+  Оно стояло и тут, и в разделе «Компания» — и печать берёт его ОТТУДА,
+  вместе с ИНН, адресом и банком. Заполнив имя здесь, арендатор менял
+  строку, которую не читает никто, а накладная оставалась прежней.
+
+  Домена тут тоже нет: разбора домена в запрос не существует, и поле
+  ничего бы не изменило.
+*/
 const DEFAULTS = {
   primaryColor: "#5b6d8a",
   secondaryColor: "#4a5c78",
-  accentColor: "#3b82f6",
-  companyName: "",
   appName: "Warehouse Pro",
   logoUrl: "",
   faviconUrl: "",
@@ -48,8 +56,6 @@ const DEFAULTS = {
   footerText: "",
   supportEmail: "",
   supportPhone: "",
-  customDomain: "",
-  mobileTheme: "auto" as const,
 };
 
 export function BrandingSettings() {
@@ -63,40 +69,47 @@ export function BrandingSettings() {
   const [form, setForm] = useState<typeof DEFAULTS | null>(null);
 
   if (!isLoading && branding && !form) {
-    const b = branding as Record<string, unknown>;
     setForm({
       primaryColor: branding.primaryColor ?? DEFAULTS.primaryColor,
       secondaryColor: branding.secondaryColor ?? DEFAULTS.secondaryColor,
-      accentColor: branding.accentColor ?? DEFAULTS.accentColor,
-      companyName: branding.companyName ?? "",
       appName: branding.appName ?? DEFAULTS.appName,
       logoUrl: branding.logoUrl ?? "",
-      faviconUrl: (b.faviconUrl as string) ?? "",
-      loginTitle: (b.loginTitle as string) ?? "",
-      loginSubtitle: (b.loginSubtitle as string) ?? "",
-      footerText: (b.footerText as string) ?? "",
-      supportEmail: (b.supportEmail as string) ?? "",
-      supportPhone: (b.supportPhone as string) ?? "",
-      customDomain: (b.customDomain as string) ?? "",
-      mobileTheme: ((b.mobileTheme as string) ?? "auto") as "auto",
+      faviconUrl: branding.faviconUrl ?? "",
+      loginTitle: branding.loginTitle ?? "",
+      loginSubtitle: branding.loginSubtitle ?? "",
+      footerText: branding.footerText ?? "",
+      supportEmail: branding.supportEmail ?? "",
+      supportPhone: branding.supportPhone ?? "",
     });
   }
 
   const saveMutation = trpc.branding.update.useMutation({
     onSuccess: () => {
       utils.branding.get.invalidate();
-      utils.branding.cssVariables.invalidate();
       notify.success(t("Брендинг сохранён", "Brending saqlandi"));
     },
     onError: (e) => notify.error(e.message),
   });
+
+  /*
+    Знак и значок ужимаются под столбец: оба лежат строкой data:… в TEXT,
+    это 65 535 байт. Раньше сюда клался результат общего сжатия — до
+    семисот тысяч знаков; такая строка не помещалась в базу, а значок с
+    его прежним пределом в 500 знаков заодно ронял ВЕСЬ запрос, вместе с
+    цветами. Второй довод за малый размер: бренд приезжает с каждой
+    загрузкой приложения, и лишние полмегабайта платит каждый сотрудник.
+  */
+  const IMAGE_LIMITS = {
+    logoUrl:    { maxDimension: 400, maxChars: 60_000 },
+    faviconUrl: { maxDimension: 64,  maxChars: 30_000 },
+  };
 
   const handleImage = async (e: React.ChangeEvent<HTMLInputElement>, field: "logoUrl" | "faviconUrl", maxMb: number) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > maxMb * 1024 * 1024) { notify.error(t(`Макс. ${maxMb} МБ`, `Maks. ${maxMb} MB`)); return; }
     try {
-      const compressed = await compressImage(file);
+      const compressed = await compressImage(file, IMAGE_LIMITS[field]);
       setForm(f => f ? { ...f, [field]: compressed } : f);
     } catch { notify.error(t("Ошибка обработки", "Qayta ishlash xatosi")); }
   };
@@ -112,7 +125,15 @@ export function BrandingSettings() {
   const COLORS = [
     { key: "primaryColor" as const,   label: t("Основной", "Asosiy"),    desc: t("Кнопки, ссылки, активные пункты меню", "Tugmalar, havolalar, faol menyu") },
     { key: "secondaryColor" as const, label: t("Вторичный", "Ikkinchi"), desc: t("Наведение, градиенты, заголовки", "Hover, gradientlar, sarlavhalar") },
-    { key: "accentColor" as const,    label: t("Акцент", "Aksent"),      desc: t("Уведомления и бейджи", "Bildirishnomalar va belgilar") },
+    /*
+      Третьего цвета здесь не стало.
+
+      Он назывался «Акцент — уведомления и бейджи», сохранялся в базу и не
+      применялся НИГДЕ: ни одна переменная темы его не читала. Уведомления и
+      бейджи красятся смысловыми цветами — успех, предупреждение, отказ, — и
+      перекрашивать их под бренд нельзя: зелёное и красное там означают
+      разное, а не оформляют.
+    */
   ];
 
   return (
@@ -166,7 +187,7 @@ export function BrandingSettings() {
                "Bu ranglar bilan ilova barcha xodimlarga va kirish ekranida ko'rinadi.")}
           </p>
           <button type="button"
-            onClick={() => setForm(f => f ? { ...f, primaryColor: DEFAULTS.primaryColor, secondaryColor: DEFAULTS.secondaryColor, accentColor: DEFAULTS.accentColor } : f)}
+            onClick={() => setForm(f => f ? { ...f, primaryColor: DEFAULTS.primaryColor, secondaryColor: DEFAULTS.secondaryColor } : f)}
             className="neo-btn neo-btn-sm">
             <RotateCcw size={12} />{t("Вернуть стандартные", "Standartga qaytarish")}
           </button>
@@ -220,10 +241,7 @@ export function BrandingSettings() {
                   {t("Отмена", "Bekor qilish")}
                 </button>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: form.accentColor }} />
-                <span className="text-xs text-tertiary">{t("Акцентный цвет", "Aksent rang")}</span>
-              </div>
+
             </div>
           </div>
         </div>
@@ -232,9 +250,6 @@ export function BrandingSettings() {
       {/* ── Тексты ────────────────────────────────────────────────────────── */}
       <FieldGroup title={t("Тексты и контакты", "Matnlar va kontaktlar")}>
         <FieldRow>
-          <Field label={t("Компания", "Kompaniya")}>
-            <input className="neo-input" value={form.companyName} onChange={set("companyName")} placeholder="Acme Corp" />
-          </Field>
           <Field label={t("Название приложения", "Ilova nomi")}>
             <input className="neo-input" value={form.appName} onChange={set("appName")} placeholder="Warehouse Pro" />
           </Field>

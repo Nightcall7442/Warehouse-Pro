@@ -108,13 +108,20 @@ describe("разделы настроек отрисовываются", () => {
     expect(screen.getByLabelText("МФО")).toBeTruthy();
   });
 
-  it("брендинг — три цвета, у каждого одно поле значения", () => {
+  it("брендинг — два цвета, у каждого одно поле значения", () => {
+    /*
+      Цветов два, а был третий — «Акцент». Он сохранялся в базу и не
+      применялся ни к одной переменной темы: арендатор выбирал цвет,
+      жал «Сохранить» и не видел никакой разницы. Настройка, которая
+      ничего не меняет, хуже отсутствующей.
+    */
     show(<BrandingSettings />);
 
-    for (const label of ["Основной", "Вторичный", "Акцент"]) {
+    for (const label of ["Основной", "Вторичный"]) {
       expect(screen.getByLabelText(label)).toBeTruthy();
       expect(screen.getByLabelText(`${label} — HEX`)).toBeTruthy();
     }
+    expect(screen.queryByLabelText("Акцент"), "цвет, который ничего не красит, вернулся в форму").toBeNull();
     // Раньше hex выводился в строке дважды — полем и неизменяемым <code>.
     expect(screen.getAllByDisplayValue("#5b6d8a").length).toBe(2); // выбор цвета + поле
   });

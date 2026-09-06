@@ -58,7 +58,8 @@ export async function exportToExcel(sheets: Array<{
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `${filename ?? `warehouse-report-${new Date().toISOString().split("T")[0]}`}.xlsx`;
+  // Имя файла по умолчанию — без названия системы: файл уходит наружу.
+  a.download = `${filename ?? `otchet-${new Date().toISOString().split("T")[0]}`}.xlsx`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -77,6 +78,12 @@ export async function exportToExcel(sheets: Array<{
 /**
  * Export to PDF via browser print dialog with print-optimized layout.
  */
+/*
+  Под заголовком стояло «Warehouse Pro — дата». Отчёт печатает арендатор и
+  показывает своим людям и партнёрам: имя поставщика системы на нём — чужое
+  имя в чужой бумаге. Название отчёта уже в заголовке выше, дате имени не
+  нужно.
+*/
 export function exportToPDF(title: string, contentHtml: string) {
   const printWindow = window.open("", "_blank");
   if (!printWindow) return;
@@ -110,7 +117,7 @@ export function exportToPDF(title: string, contentHtml: string) {
     </head>
     <body>
       <h1>${escapeHtml(title)}</h1>
-      <div class="subtitle">Warehouse Pro — ${new Date().toLocaleDateString("ru")}</div>
+      <div class="subtitle">${new Date().toLocaleDateString("ru")}</div>
       ${contentHtml}
       <script>window.onload = () => { window.print(); }</script>
     </body>

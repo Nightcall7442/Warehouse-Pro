@@ -21,7 +21,10 @@ export function Steps({ current, labels }: StepsProps) {
                 fontSize: "13px", fontWeight: 700, fontFamily: "'DM Sans', sans-serif",
                 transition: "all 0.3s ease",
                 background: done ? "var(--color-primary)" : active ? "var(--color-primary-subtle)" : "var(--color-surface-light, #f6f4f0)",
-                color: done ? "#fff" : active ? "var(--color-primary-text)" : "var(--color-text-tertiary, #6b6760)",
+                // Надпись на заливке — не «#fff», а цвет, который к этой
+                // заливке подобран: арендатор вправе выбрать светлый цвет,
+                // и белая цифра на нём пропадала.
+                color: done ? "var(--color-on-primary, #fff)" : active ? "var(--color-primary-text)" : "var(--color-text-tertiary, #6b6760)",
                 boxShadow: done ? "0 4px 12px color-mix(in srgb, var(--color-primary) 30%, transparent)" : active ? "0 0 0 3px color-mix(in srgb, var(--color-primary) 15%, transparent)" : "none",
               }}>
                 {done ? <CheckCircle2 size={18} /> : step}
