@@ -139,3 +139,51 @@ describe("«заказ ещё должен» — одно определение
     expect(orderStillOwes(order({ status: "new", paymentMethod: "debt", deletedAt: new Date() }))).toBe(false);
   });
 });
+
+describe("стенды не выдумывают значений, которых схема не знает", () => {
+  it("delivery_status в поддельных строках — только из перечисления", () => {
+    /*
+      В трёх наборах поддельные заказы несли в этом поле значение «none».
+      Такого значения столбец не знает: перечисление это not_assigned,
+      assigned, out_for_delivery, delivered, failed.
+
+      Само по себе безобидно, пока никто не фильтрует по not_assigned. Но
+      стенд, описывающий состояние, которого в базе быть не может, проверяет
+      не продукт, а собственную выдумку — и в день, когда фильтр появится,
+      останется зелёным. Ровно так уже случилось со статусом заказа
+      «completed»: сорок запросов сравнивали колонку со значением, которого
+      она не может содержать.
+    */
+    const DELIVERY_STATUSES = ["not_assigned", "assigned", "out_for_delivery", "delivered", "failed"];
+    const offenders: string[] = [];
+
+    /*
+      Обход СВОЙ: общий sourceFiles намеренно пропускает __tests__, а
+      выдуманное значение живёт именно там. С общим обходчиком проверка была
+      бы пустой — она проходила бы, ничего не читая.
+    */
+    const walkAll = (dir: string): string[] => {
+      const out: string[] = [];
+      for (const entry of readdirSync(dir)) {
+        const full = join(dir, entry);
+        if (statSync(full).isDirectory()) {
+          if (entry === "node_modules") continue;
+          out.push(...walkAll(full));
+        } else if (entry.endsWith(".ts") || entry.endsWith(".tsx")) {
+          out.push(full);
+        }
+      }
+      return out;
+    };
+
+    for (const file of walkAll(API)) {
+      const text = readFileSync(file, "utf8");
+      for (const m of text.matchAll(/deliveryStatus:\s*"([^"]+)"/g)) {
+        if (!DELIVERY_STATUSES.includes(m[1])) offenders.push(`${relative(API, file)}: "${m[1]}"`);
+      }
+    }
+
+    expect(offenders, `значения, которых столбец delivery_status не знает:\n${offenders.join("\n")}`)
+      .toEqual([]);
+  });
+});

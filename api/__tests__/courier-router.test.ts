@@ -70,7 +70,7 @@ let nextNotifId = 10;
 function resetTables() {
   ordersTable = [
     { id: 1, tenantId: 1, orderNumber: "ORD-001", status: "processing", deliveryStatus: "assigned", total: "500.00", shopId: 1, courierId: 100, agentId: 10, deliveredAt: null, createdAt: new Date() },
-    { id: 2, tenantId: 1, orderNumber: "ORD-002", status: "new", deliveryStatus: "none", total: "300.00", shopId: 2, courierId: null, agentId: 10, deliveredAt: null, createdAt: new Date() },
+    { id: 2, tenantId: 1, orderNumber: "ORD-002", status: "new", deliveryStatus: "not_assigned", total: "300.00", shopId: 2, courierId: null, agentId: 10, deliveredAt: null, createdAt: new Date() },
     { id: 3, tenantId: 1, orderNumber: "ORD-003", status: "processing", deliveryStatus: "out_for_delivery", total: "200.00", shopId: 1, courierId: 100, agentId: 10, deliveredAt: null, createdAt: new Date() },
   ];
   shopsTable = [

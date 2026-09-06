@@ -51,8 +51,8 @@ let usersTable: FakeUser[] = [];
 
 function resetTables() {
   ordersTable = [
-    { id: 1, tenantId: 1, agentId: 10, courierId: null, shopId: 1, status: "delivered", deliveryStatus: "none", total: "500.00", createdAt: new Date() },
-    { id: 2, tenantId: 1, agentId: 10, courierId: null, shopId: 1, status: "delivered", deliveryStatus: "none", total: "300.00", createdAt: new Date() },
+    { id: 1, tenantId: 1, agentId: 10, courierId: null, shopId: 1, status: "delivered", deliveryStatus: "not_assigned", total: "500.00", createdAt: new Date() },
+    { id: 2, tenantId: 1, agentId: 10, courierId: null, shopId: 1, status: "delivered", deliveryStatus: "not_assigned", total: "300.00", createdAt: new Date() },
   ];
   plansTable = [
     { id: 1, tenantId: 1, agentId: 10, shopId: 1, status: "visited", planDate: new Date() },

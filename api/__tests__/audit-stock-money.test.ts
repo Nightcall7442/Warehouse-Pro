@@ -238,8 +238,8 @@ describe("order.getById: чужой заказ не отдаётся полев�
     shopsT.push({ id: 1, tenantId: 1, name: "Лавка", address: "ул. 1", city: "Ташкент", phone: "+998901112233", debt: "4200000.00", ownerName: "Каримов А.", territoryId: null });
     usersT.push({ id: 10, tenantId: 1, name: "Агент Свой", role: "agent" });
     usersT.push({ id: 11, tenantId: 1, name: "Агент Чужой", role: "agent" });
-    ordersT.push({ id: 1, tenantId: 1, orderNumber: "№1", status: "new", total: "100.00", subtotal: "100.00", discount: "0.00", notes: null, createdAt: new Date(), updatedAt: new Date(), shopId: 1, agentId: 10, courierId: null, deliveryStatus: "none", deliveredAt: null, deletedAt: null, paymentMethod: "cash", invoicePrintedAt: null });
-    ordersT.push({ id: 2, tenantId: 1, orderNumber: "№2", status: "new", total: "9900000.00", subtotal: "9900000.00", discount: "0.00", notes: null, createdAt: new Date(), updatedAt: new Date(), shopId: 1, agentId: 11, courierId: null, deliveryStatus: "none", deliveredAt: null, deletedAt: null, paymentMethod: "debt", invoicePrintedAt: null });
+    ordersT.push({ id: 1, tenantId: 1, orderNumber: "№1", status: "new", total: "100.00", subtotal: "100.00", discount: "0.00", notes: null, createdAt: new Date(), updatedAt: new Date(), shopId: 1, agentId: 10, courierId: null, deliveryStatus: "not_assigned", deliveredAt: null, deletedAt: null, paymentMethod: "cash", invoicePrintedAt: null });
+    ordersT.push({ id: 2, tenantId: 1, orderNumber: "№2", status: "new", total: "9900000.00", subtotal: "9900000.00", discount: "0.00", notes: null, createdAt: new Date(), updatedAt: new Date(), shopId: 1, agentId: 11, courierId: null, deliveryStatus: "not_assigned", deliveredAt: null, deletedAt: null, paymentMethod: "debt", invoicePrintedAt: null });
   });
 
   it("агент видит свой заказ", async () => {
