@@ -33,18 +33,26 @@ export function ProductFilters({ search, onSearchChange, category, onCategoryCha
           categories={categories}
           lang={lang}
         />
-        {onManageCategories && categories.length > 0 && (
+        {/*
+          Вход в управление категориями — с подписью и всегда.
+
+          Здесь стоял квадрат 36×36 с одной иконкой шестерёнки и подсказкой в
+          title. На касании title не показывается вовсе, а рядом лежат поиск и
+          выбор категории — значок читался как «настройки фильтра». Владелец
+          так и сказал: работать с категориями негде. Оно было, просто без
+          вывески.
+
+          Условие categories.length > 0 убрано: именно когда категорий ноль,
+          человек и идёт искать, где их завести.
+        */}
+        {onManageCategories && (
           <button
             onClick={onManageCategories}
-            title={t("Управление категориями", "Kategoriyalarni boshqarish")}
-            style={{
-              display: "flex", alignItems: "center", justifyContent: "center",
-              width: "36px", height: "36px", borderRadius: "10px",
-              background: "var(--color-surface-light, #f6f4f0)", border: "none",
-              cursor: "pointer", flexShrink: 0,
-            }}
+            className="neo-btn tap"
+            style={{ flexShrink: 0, gap: "8px", paddingLeft: "14px", paddingRight: "14px" }}
           >
             <Settings2 size={16} style={{ color: COLORS.textSecondary }} />
+            <span>{t("Категории", "Kategoriyalar")}</span>
           </button>
         )}
       </div>

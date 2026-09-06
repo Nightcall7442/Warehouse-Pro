@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { plural } from "@/lib/plural";
 import { createPortal } from "react-dom";
 import { X, Pencil, Trash2, Tag, Loader2 } from "lucide-react";
 import { trpc } from "@/providers/trpc.client";
@@ -13,11 +14,18 @@ interface CategoryManagerProps {
 export function CategoryManager({ lang, onClose }: CategoryManagerProps) {
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const utils = trpc.useContext();
-  const { data: rawCategories = [], isLoading } = trpc.product.categories.useQuery();
-  // Колонка products.category допускает NULL, и он приезжает в список как
-  // пустая «категория». Переименовать или удалить её нельзя — нечего, — а
-  // раньше null молча уходил в состояние формы и в мутации.
-  const categories = rawCategories.filter((c): c is string => typeof c === "string" && c.length > 0);
+  /*
+    Список со счётчиками, а не просто имена.
+
+    Без числа товаров управлять категориями нельзя. Когда рядом стоят
+    «Напитки» и «напитки», первый вопрос — какая настоящая: в одной двести
+    товаров, в другой три, попавшие из выгрузки 1С. Список без чисел на это
+    не отвечает, и владелец не трогает ни одну.
+
+    Пустая «категория» (NULL в колонке) сюда не приходит: её нечего
+    переименовывать и нечего удалять.
+  */
+  const { data: categories = [], isLoading } = trpc.product.categoryStats.useQuery();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -63,10 +71,11 @@ export function CategoryManager({ lang, onClose }: CategoryManagerProps) {
             <div style={{ padding: "24px", textAlign: "center" }}><Loader2 size={20} className="animate-spin" style={{ color: COLORS.primaryText }} /></div>
           ) : categories.length === 0 ? (
             <div style={{ padding: "24px", textAlign: "center", color: COLORS.textSecondary, fontSize: "13px" }}>
-              {t("Нет категорий", "Kategoriyalar yo'q")}
+              {t("Категорий пока нет. Категория появляется, когда её указывают в карточке товара.",
+                 "Hozircha kategoriya yo'q. U mahsulot kartasida ko'rsatilganda paydo bo'ladi.")}
             </div>
           ) : (
-            categories.map(cat => (
+            categories.map(({ name: cat, productCount }) => (
               <div key={cat} style={{
                 display: "flex", alignItems: "center", gap: "8px",
                 padding: "8px 12px", borderRadius: "10px",
@@ -84,14 +93,31 @@ export function CategoryManager({ lang, onClose }: CategoryManagerProps) {
                     onChange={e => setEditValue(e.target.value)}
                     onKeyDown={e => {
                       if (e.key === "Enter" && editValue.trim() && editValue !== cat) {
+                        /*
+                          Переименование в уже существующее имя сливает две
+                          категории в одну. Это и есть то, ради чего сюда
+                          приходят с «Напитками» и «напитками», — но сделать
+                          это молча нельзя: товары уедут в чужую категорию,
+                          и вернуть их по одному будет нечем.
+                        */
+                        const merging = categories.find(c => c.name !== cat && c.name.toLowerCase() === editValue.trim().toLowerCase());
+                        if (merging && !confirm(t(
+                          `Категория «${merging.name}» уже есть. Объединить: ${productCount} ${plural(productCount, "товар", "товара", "товаров")} из «${cat}» перейдут в неё. Отменить это одним действием будет нельзя.`,
+                          `«${merging.name}» kategoriyasi allaqachon bor. Birlashtirilsinmi?`,
+                        ))) return;
                         renameMutation.mutate({ from: cat, to: editValue.trim() });
                       }
                       if (e.key === "Escape") setEditingId(null);
                     }}
                   />
                 ) : (
-                  <span style={{ flex: 1, fontSize: "13px", color: COLORS.textPrimary, fontFamily: "'DM Sans', sans-serif" }}>
-                    {cat}
+                  <span style={{ flex: 1, display: "flex", alignItems: "baseline", gap: "8px", minWidth: 0 }}>
+                    <span style={{ fontSize: "13px", color: COLORS.textPrimary, fontFamily: "'DM Sans', sans-serif", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {cat}
+                    </span>
+                    <span style={{ fontSize: "11px", color: COLORS.textTertiary, flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>
+                      {productCount} {plural(productCount, "товар", "товара", "товаров")}
+                    </span>
                   </span>
                 )}
 

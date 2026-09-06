@@ -1,4 +1,6 @@
 import { eq, and, inArray } from "drizzle-orm";
+import { isDuplicateOf } from "../lib/db-errors";
+import { normalizeCategory } from "../lib/category";
 import { getDb } from "../queries/connection";
 import { products, orders, orderItems, warehouseStock, warehouses } from "@db/schema";
 import { getBridgeForTenant } from "../lib/onec-bridge";
@@ -56,36 +58,81 @@ export class OneCSyncService {
                 code: mapped.code,
                 unitPrice: mapped.unitPrice,
                 unit: mapUnit(mapped.unit),
+                category: normalizeCategory(mapped.category),
               })
               .where(eq(products.id, internalId));
           } else {
-            const [result] = await db
-              .insert(products)
-              .values({
-                tenantId,
-                name: mapped.name,
-                code: mapped.code,
-                unitPrice: mapped.unitPrice,
-                unit: mapUnit(mapped.unit),
-                category: mapped.category,
+            /*
+              Товар и его связь с 1С заводятся вместе или не заводятся вовсе.
+
+              Раньше это были три отдельных запроса подряд. Стоило упасть
+              любому после первого — оборвалась связь, перезапустился
+              процесс, — и в базе оставался товар БЕЗ записи в id_mappings.
+              Следующий обмен не находил его по Ref_Key и вставлял заново,
+              упираясь в уникальный индекс uq_product_code_tenant. Так
+              появлялась цепочка «Duplicate entry 'A61-14'» на каждом
+              прогоне, а доля пятисоток поднималась выше порога и будила
+              дежурного.
+
+              Транзакция это прекращает: без связи товара не будет.
+            */
+            const newId = await db.transaction(async (tx) => {
+              const [result] = await tx
+                .insert(products)
+                .values({
+                  tenantId,
+                  name: mapped.name,
+                  code: mapped.code,
+                  unitPrice: mapped.unitPrice,
+                  unit: mapUnit(mapped.unit),
+                  category: normalizeCategory(mapped.category),
+                });
+              const id = Number(result.insertId);
+
+              // Get default warehouse for tenant
+              const [defaultWarehouse] = await tx.select({ id: warehouses.id })
+                .from(warehouses)
+                .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true)))
+                .limit(1);
+
+              if (defaultWarehouse) {
+                await tx.insert(warehouseStock).values({
+                  tenantId,
+                  warehouseId: defaultWarehouse.id,
+                  productId: id,
+                  currentStock: "0.00", reserved: "0.00", available: "0.00",
+                });
+              }
+
+              await OneCMapper.upsert(tx as unknown as typeof db, tenantId, "product", item.Ref_Key, id);
+              return id;
+            }).catch(async (e: unknown) => {
+              /*
+                Код уже занят — значит товар в базе есть, а связи с 1С у него
+                нет: след прежней беды, описанной выше. Заводить второй
+                нельзя (индекс не даст) и незачем: нужно привязать тот,
+                который уже есть.
+
+                Это чинит и то, что уже накопилось: у арендаторов, где обмен
+                падал неделями, первый же прогон после этой правки свяжет
+                осиротевшие товары вместо того, чтобы снова упасть.
+              */
+              if (!isDuplicateOf(e, "uq_product_code_tenant")) throw e;
+
+              const [existing] = await db.select({ id: products.id })
+                .from(products)
+                .where(and(eq(products.tenantId, tenantId), eq(products.code, mapped.code)))
+                .limit(1);
+              if (!existing) throw e;
+
+              await OneCMapper.upsert(db, tenantId, "product", item.Ref_Key, existing.id);
+              logger.warn(`Товар ${mapped.code} был в базе без связи с 1С — связь восстановлена`, {
+                tenantId, externalId: item.Ref_Key, productId: existing.id,
               });
+              return existing.id;
+            });
 
-            // Get default warehouse for tenant
-            const [defaultWarehouse] = await db.select({ id: warehouses.id })
-              .from(warehouses)
-              .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true)))
-              .limit(1);
-
-            if (defaultWarehouse) {
-              await db.insert(warehouseStock).values({
-                tenantId,
-                warehouseId: defaultWarehouse.id,
-                productId: Number(result.insertId),
-                currentStock: "0.00", reserved: "0.00", available: "0.00",
-              });
-            }
-
-            await OneCMapper.upsert(db, tenantId, "product", item.Ref_Key, Number(result.insertId));
+            externalToInternal.set(item.Ref_Key, newId);
           }
           touchedExternalIds.add(item.Ref_Key);
           synced++;

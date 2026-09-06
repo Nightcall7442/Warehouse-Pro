@@ -9,6 +9,41 @@ import { decimalOrDefault } from "./lib/zod-decimal";
 import { cache, withCache, CacheKeys, CacheTTL } from "./lib/cache";
 import { photoRef } from "./lib/photo-url";
 import { ProductService } from "./services/ProductService";
+import { isDuplicateOf } from "./lib/db-errors";
+import { existingSpelling } from "./lib/category";
+import { TRPCError } from "@trpc/server";
+
+/**
+ * Код товара занят — это ответ оператору, а не внутренний сбой.
+ *
+ * ── Что было ────────────────────────────────────────────────────────────────
+ *
+ * Вставка шла без разбора отказа. MySQL отвечал ER_DUP_ENTRY по индексу
+ * uq_product_code_tenant, tRPC считал это внутренним сбоем (текст не наш —
+ * значит показывать нельзя), и оператор получал «Внутренняя ошибка сервера.
+ * Попробуйте позже.»
+ *
+ * Дальше происходило ровно то, о чём предупреждает комментарий в middleware:
+ * человек не понимает, что не так, и жмёт «Сохранить» ещё раз. Каждая
+ * попытка — новая пятисотка. Шестого сентября это подняло долю отказов выше
+ * пяти процентов и разбудило дежурного: в журнале лежала цепочка
+ * «Duplicate entry 'A61-14' for key 'products.uq_product_code_tenant'»,
+ * повторённая подряд.
+ *
+ * Занятый код — обычное дело: товар уже заводили, или его завёл обмен с 1С.
+ * Сказать об этом словами стоит одной строки и прекращает повторы.
+ */
+function rethrowAsBusyCode(e: unknown, code: string | undefined): never {
+  if (isDuplicateOf(e, "uq_product_code_tenant")) {
+    throw new TRPCError({
+      code: "CONFLICT",
+      message: code
+        ? `Товар с кодом «${code}» уже заведён. Откройте его карточку или укажите другой код.`
+        : "Товар с таким кодом уже заведён. Укажите другой код.",
+    });
+  }
+  throw e;
+}
 
 /*
   Склад по умолчанию — единственный источник остатков для продаж.
@@ -272,6 +307,20 @@ export const productRouter = createRouter({
         description: input.description ? sanitizeString(input.description) : undefined,
       };
 
+      /*
+        Категория пишется так, как её уже пишут у этого арендатора.
+
+        Она хранится строкой, и список собирается GROUP BY: «Напитки» и
+        «напитки» — две разные категории в выпадающем списке. Регистр за
+        владельца не переписываем, но если такая категория уже заведена,
+        берём её написание, а не присланное.
+      */
+      const knownCategories = (await getDb().select({ category: products.category })
+        .from(products)
+        .where(eq(products.tenantId, tenantId)).groupBy(products.category)).map(r => r.category);
+
+      sanitized.category = existingSpelling(sanitized.category, knownCategories) ?? undefined;
+
       const productId = await db.transaction(async (tx) => {
         const [result] = await tx.insert(products).values({ tenantId, ...sanitized, status: "active" });
         const id = Number(result.insertId);
@@ -303,7 +352,7 @@ export const productRouter = createRouter({
         }
 
         return id;
-      });
+      }).catch(e => rethrowAsBusyCode(e, sanitized.code));
 
       cache.invalidatePrefix(`products:${tenantId}`);
       cache.invalidatePrefix(`product_cats:${tenantId}`);
@@ -332,14 +381,23 @@ export const productRouter = createRouter({
       const sanitized: Record<string, unknown> = { ...data };
       if (typeof data.code === "string") sanitized.code = sanitizeString(data.code);
       if (typeof data.name === "string") sanitized.name = sanitizeString(data.name);
-      if (typeof data.category === "string") sanitized.category = sanitizeString(data.category);
+      if (typeof data.category === "string") {
+        // То же, что и при создании: не заводим второе написание той же категории.
+        const knownCategories = (await getDb().select({ category: products.category })
+          .from(products)
+          .where(eq(products.tenantId, ctx.tenant.id)).groupBy(products.category)).map(r => r.category);
+        sanitized.category = existingSpelling(sanitizeString(data.category), knownCategories);
+      }
       if (typeof data.description === "string") sanitized.description = sanitizeString(data.description);
 
       // Skip update if no fields to set
       if (Object.keys(sanitized).length === 0) return { success: true };
 
+      // Тот же разбор, что и при создании: сменить код товара на уже занятый
+      // так же обычно, как завести его дважды.
       await getDb().update(products).set(sanitized)
-        .where(and(eq(products.id, id), eq(products.tenantId, ctx.tenant.id)));
+        .where(and(eq(products.id, id), eq(products.tenantId, ctx.tenant.id)))
+        .catch(e => rethrowAsBusyCode(e, typeof sanitized.code === "string" ? sanitized.code : undefined));
       cache.invalidatePrefix(`products:${ctx.tenant.id}`);
       cache.invalidatePrefix(`product_cats:${ctx.tenant.id}`);
       cache.invalidatePrefix(`warehouse:${ctx.tenant.id}`);
@@ -531,16 +589,54 @@ export const productRouter = createRouter({
     return cats;
   }),
 
+  /**
+   * Категории вместе с числом товаров в каждой.
+   *
+   * Без счётчика управлять ими нельзя. У арендатора накопились «Напитки» и
+   * «напитки», и первый вопрос — какая из них настоящая: в одной двести
+   * товаров, в другой три, попавшие туда из выгрузки. Список без чисел на
+   * этот вопрос не отвечает, и владелец боится трогать обе.
+   *
+   * Отдельной процедурой, а не расширением categories: тот список зовут
+   * фильтры на трёх экранах и мобильное приложение, и им нужны только имена.
+   */
+  categoryStats: operatorQuery.query(async ({ ctx }) => {
+    const rows = await getDb()
+      .select({ category: products.category, productCount: sql<number>`COUNT(*)` })
+      .from(products)
+      .where(and(eq(products.tenantId, ctx.tenant.id), eq(products.status, "active")))
+      .groupBy(products.category)
+      .orderBy(desc(sql`COUNT(*)`));
+
+    return rows
+      .filter((r): r is { category: string; productCount: number } => typeof r.category === "string" && r.category.length > 0)
+      .map(r => ({ name: r.category, productCount: Number(r.productCount) }));
+  }),
+
   renameCategory: operatorQuery
     .input(z.object({ from: z.string().min(1), to: z.string().min(1) }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
       const tenantId = ctx.tenant.id;
+      /*
+        Переименование в уже существующее имя — это объединение.
+
+        Оно и нужно: именно так разводят «Напитки» и «напитки», накопленные
+        разными путями записи. Никакой отдельной операции для этого не
+        требуется, но имя приводится к принятому виду — иначе объединение
+        само создало бы третье написание.
+      */
+      const known = (await db.select({ category: products.category })
+        .from(products).where(eq(products.tenantId, tenantId)).groupBy(products.category)).map(r => r.category);
+      const target = existingSpelling(sanitizeString(input.to), known);
+      if (!target) throw new TRPCError({ code: "BAD_REQUEST", message: "Название категории не может быть пустым" });
+
       await db.update(products)
-        .set({ category: sanitizeString(input.to) })
+        .set({ category: target })
         .where(and(eq(products.tenantId, tenantId), eq(products.category, input.from)));
       cache.invalidatePrefix(`product_cats:${tenantId}`);
-      return { success: true };
+      cache.invalidatePrefix(`products:${tenantId}`);
+      return { success: true, category: target };
     }),
 
   deleteCategory: operatorQuery
@@ -552,6 +648,8 @@ export const productRouter = createRouter({
         .set({ category: null })
         .where(and(eq(products.tenantId, tenantId), eq(products.category, input.category)));
       cache.invalidatePrefix(`product_cats:${tenantId}`);
+      // Список товаров показывает категорию в строке — он тоже устарел.
+      cache.invalidatePrefix(`products:${tenantId}`);
       return { success: true };
     }),
 

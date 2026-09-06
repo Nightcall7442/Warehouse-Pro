@@ -114,11 +114,32 @@ function chainable(rows: Record<string, unknown>[]) {
     limit?: (n: number) => ReturnType<typeof chainable>;
     offset?: (n: number) => ReturnType<typeof chainable>;
     orderBy?: (..._a: unknown[]) => ReturnType<typeof chainable>;
+    groupBy?: (..._a: unknown[]) => ReturnType<typeof chainable>;
     for?: (_mode: string) => ReturnType<typeof chainable>;
   };
   p.limit = (n: number) => chainable(rows.slice(0, n));
   p.offset = (n: number) => chainable(rows.slice(n));
   p.orderBy = () => chainable(rows);
+  /*
+    Группировка сводит строки к неповторяющимся — как это делает база.
+
+    Стенд её не знал, и проверка падала не на своей сути, а на «groupBy is
+    not a function»: код читает принятые написания категорий запросом с
+    GROUP BY, ровно как это делает product.categories рядом.
+
+    Схлопываем по всем полям проекции: этого хватает и для одного столбца
+    (категории), и для нескольких.
+  */
+  p.groupBy = () => {
+    const seen = new Set<string>();
+    const unique = rows.filter(r => {
+      const key = JSON.stringify(r);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    return chainable(unique);
+  };
   p.for = () => chainable(rows);
   return p;
 }

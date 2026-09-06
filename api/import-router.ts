@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { existingSpelling } from "./lib/category";
 import { TRPCError } from "@trpc/server";
 import { createRouter, operatorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
@@ -402,6 +403,18 @@ export const importRouter = createRouter({
             defaultWarehouse = { id: Number(created.insertId) };
           }
 
+          /*
+            Написания категорий, уже принятые у арендатора.
+
+            Категория — свободная строка, и список собирается GROUP BY:
+            «Напитки» из выгрузки и «напитки», набранные руками, дают в
+            выпадающем списке две строки. Читаем принятые написания один
+            раз и подставляем их, а не то, что пришло в файле.
+          */
+          const knownCategories = (await db.select({ category: products.category })
+            .from(products)
+            .where(eq(products.tenantId, tenantId)).groupBy(products.category)).map(r => r.category);
+
           for (const row of parsedRows) {
             try {
               let photoUrl = row.photoUrl;
@@ -411,7 +424,7 @@ export const importRouter = createRouter({
 
               const [r] = await db.insert(products).values({
                 tenantId, code: row.code, name: row.name, barcode: row.barcode,
-                category: row.category, costPrice: row.costPrice, unitPrice: row.unitPrice,
+                category: existingSpelling(row.category, knownCategories), costPrice: row.costPrice, unitPrice: row.unitPrice,
                 unit: (["kg", "l", "pcs", "box", "pack", "m", "block"].includes(row.unit) ? row.unit : "pcs") as "kg" | "l" | "pcs" | "box" | "pack" | "m" | "block", unitWeight: row.unitWeight,
                 reorderPoint: row.reorderPoint, description: row.description,
                 photoUrl, status: "active",

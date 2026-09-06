@@ -194,13 +194,27 @@ function makeMockDb() {
     return api;
   }
 
-  const db = {
+  const db: Record<string, unknown> = {
     select: (_proj?: unknown) => selectBuilder(_proj),
     insert: (ref: unknown) => ({
       values: (vals: unknown) => {
         const table = tableOf(ref);
         if (table === "products") {
           const v = vals as Record<string, unknown>;
+          /*
+            Уникальный индекс uq_product_code_tenant — как в базе.
+
+            Без него стенд принимал второй товар с тем же кодом, и беда, из-за
+            которой боевая сыпала пятисотками, на нём не воспроизводилась
+            вовсе: обмен спокойно заводил дубликаты.
+          */
+          const clash = productsTable.find(p => p.tenantId === v.tenantId && p.code === v.code);
+          if (clash) {
+            return Promise.reject(Object.assign(
+              new Error(`Duplicate entry '${String(v.code)}' for key 'products.uq_product_code_tenant'`),
+              { code: "ER_DUP_ENTRY", errno: 1062, sqlMessage: `Duplicate entry '${String(v.code)}' for key 'products.uq_product_code_tenant'` },
+            ));
+          }
           const id = nextProductId++;
           productsTable.push({
             id, tenantId: v.tenantId as number, name: v.name as string,
@@ -247,6 +261,18 @@ function makeMockDb() {
         },
       }),
     }),
+    /*
+      Транзакция на стенде — тот же стенд.
+
+      Товар из 1С и его связь с 1С теперь заводятся одной транзакцией: без
+      этого обрыв между двумя запросами оставлял товар БЕЗ записи в
+      id_mappings, следующий обмен вставлял его заново и упирался в
+      уникальный индекс — та самая цепочка «Duplicate entry» в боевой.
+
+      Отката здесь нет и не нужно: стенд проверяет, что записалось, а не
+      что откатилось. Важно лишь, чтобы вызов существовал.
+    */
+    transaction: async <T>(fn: (tx: unknown) => Promise<T>): Promise<T> => fn(db),
   };
   return db;
 }
@@ -286,6 +312,39 @@ describe("OneCSyncService.syncProducts", () => {
     expect(result.errors).toBe(0);
   });
 
+  it("товар без связи с 1С привязывается, а не заводится вторым", async () => {
+    /*
+      Ровно то, что случилось в боевой шестого сентября.
+
+      Товар в базе есть, а записи в id_mappings у него нет: обмен когда-то
+      оборвался между вставкой и записью связи. С тех пор КАЖДЫЙ прогон
+      пытался вставить его заново и упирался в uq_product_code_tenant — в
+      журнале копилась цепочка «Duplicate entry 'A61-14'», а доля пятисоток
+      поднялась выше порога и разбудила дежурного.
+
+      Правильное поведение — привязать существующий товар. Тогда первый же
+      прогон после починки лечит то, что уже накопилось.
+    */
+    productsTable.push({
+      id: 77, tenantId: 1, name: "Средство универсальное", code: "A61-14",
+      unitPrice: "9500.00", unit: "pcs", category: null, status: "active",
+    } as never);
+
+    vi.mocked(OneCMapper.getAll).mockResolvedValue([]);
+    mockBridge.odataQuery.mockResolvedValue([
+      { Ref_Key: "uuid-a61", Code: "A61-14", Description: "Средство универсальное", Price: 9500, Unit: "шт" },
+    ]);
+
+    const result = await syncService.syncProducts(1);
+
+    // обмен снова упал на дубликате
+    expect(result.errors).toBe(0);
+    // завёлся второй товар с тем же кодом
+    expect(productsTable.filter(p => p.code === "A61-14")).toHaveLength(1);
+    expect(vi.mocked(OneCMapper.upsert)).toHaveBeenCalledWith(
+      expect.anything(), 1, "product", "uuid-a61", 77,
+    );
+  });
   it("inserts new products from 1C", async () => {
     vi.mocked(OneCMapper.getAll).mockResolvedValue([]);
     mockBridge.odataQuery.mockResolvedValue([
