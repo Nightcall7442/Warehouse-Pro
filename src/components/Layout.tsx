@@ -1,5 +1,6 @@
 import { memo, useState, useEffect, useCallback, useMemo } from "react";
 import { AppBrand } from "@/components/brand/AppBrand";
+import { SupportLine } from "@/components/brand/SupportLine";
 import { useAppBrand } from "@/hooks/useAppBrand";
 import { useLocation, useNavigate } from "react-router";
 import { useAuth, hadSession } from "@/hooks/useAuth";
@@ -204,6 +205,7 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
           <LogOut size={14} />
           {t("nav.logout")}
         </button>
+        <SupportLine />
       </div>
     </div>
   );

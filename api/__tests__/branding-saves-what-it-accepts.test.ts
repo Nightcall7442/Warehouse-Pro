@@ -209,3 +209,54 @@ describe("форма не предлагает того, чего роутер �
     ).toEqual([]);
   });
 });
+
+describe("настройка, которая ничего не меняет, хуже отсутствующей", () => {
+  /*
+    Третья половина того же правила — та, которой не хватало больше всего.
+
+    Роутер принимал и записывал, форма спрашивала — а на экране не менялось
+    ничего. Логотип показывался только в предпросмотре самих настроек. Почта и
+    телефон поддержки не показывались нигде. Цвет «Акцент» не читала ни одна
+    переменная темы. Заголовок и подпись экрана входа не читал никто.
+
+    Владелец заполнял поля, жал «Сохранить», получал зелёное уведомление — и не
+    видел разницы. Здесь проверяется, что у каждого поля формы есть хотя бы
+    один читатель за её пределами.
+  */
+  it("каждое поле формы бренда где-то читают", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const root = process.cwd();
+
+    const walk = (dir: string, out: string[] = []): string[] => {
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (e.name === "node_modules" || e.name === "__tests__") continue;
+        const p = path.join(dir, e.name);
+        if (e.isDirectory()) walk(p, out);
+        else if (/\.tsx?$/.test(e.name)) out.push(p);
+      }
+      return out;
+    };
+
+    const FORM = path.resolve(root, "src/components/settings/BrandingSettings.tsx");
+    const src = fs.readFileSync(FORM, "utf8");
+    const at = src.indexOf("const DEFAULTS = {");
+    const fields = [...src.slice(at, src.indexOf("};", at)).matchAll(/^\s{2}(\w+):/gm)].map(m => m[1]);
+    expect(fields.length, "поля формы не разобрались").toBeGreaterThan(5);
+
+    // Читатели — весь клиент, кроме самой формы: она показывает поле, а не применяет.
+    const readers = walk(path.resolve(root, "src"))
+      .filter(f => f !== FORM)
+      .map(f => fs.readFileSync(f, "utf8"))
+      .join("\n");
+
+    const identifiers = new Set(readers.match(/[A-Za-z_$][\w$]*/g) ?? []);
+    const unused = fields.filter(f => !identifiers.has(f));
+    expect(
+      unused,
+      `эти поля бренда никто не читает: ${unused.join(", ")}. ` +
+      "Либо покажите настройку там, где она должна работать, либо уберите её с экрана: " +
+      "заполненное поле, которое ничего не меняет, владелец считает сломанным продуктом.",
+    ).toEqual([]);
+  });
+});

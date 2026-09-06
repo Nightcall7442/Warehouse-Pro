@@ -186,8 +186,20 @@ export function BrandingSettings() {
             {t("Этими цветами приложение показывается всем сотрудникам организации и на экране входа.",
                "Bu ranglar bilan ilova barcha xodimlarga va kirish ekranida ko'rinadi.")}
           </p>
+          {/*
+            Возврат к стандартным СНИМАЕТ цвет, а не вписывает светлый.
+
+            Кнопка ставила #5b6d8a и #4a5c78 — цвета СВЕТЛОЙ темы, — и они
+            уходили в базу как осознанный выбор арендатора. Дальше их
+            применяли к обеим темам сразу, и латунный акцент тёмной темы
+            пропадал у всех, кто хоть раз нажал «вернуть стандартные».
+
+            Пустое значение приложение понимает правильно: правило бренда
+            снимается, и цвет решает таблица стилей — у неё он объявлен и
+            для светлой темы, и для тёмной.
+          */}
           <button type="button"
-            onClick={() => setForm(f => f ? { ...f, primaryColor: DEFAULTS.primaryColor, secondaryColor: DEFAULTS.secondaryColor } : f)}
+            onClick={() => setForm(f => f ? { ...f, primaryColor: "", secondaryColor: "" } : f)}
             className="neo-btn neo-btn-sm">
             <RotateCcw size={12} />{t("Вернуть стандартные", "Standartga qaytarish")}
           </button>
@@ -198,7 +210,10 @@ export function BrandingSettings() {
             {COLORS.map(c => (
               <div key={c.key} className="flex items-center gap-4 p-3 rounded-xl"
                 style={{ background: "var(--color-surface-light)" }}>
-                <input type="color" value={form[c.key]} onChange={set(c.key)}
+                {/* Поле выбора цвета не умеет быть пустым — без значения
+                    браузер показывает чёрный. Пустая форма показывает
+                    стандартный цвет, но в базу уходит пустота. */}
+                <input type="color" value={form[c.key] || DEFAULTS[c.key]} onChange={set(c.key)}
                   aria-label={c.label}
                   className="w-14 h-14 rounded-xl cursor-pointer flex-shrink-0"
                   style={{ border: "1px solid var(--color-border)" }} />
@@ -249,6 +264,10 @@ export function BrandingSettings() {
 
       {/* ── Тексты ────────────────────────────────────────────────────────── */}
       <FieldGroup title={t("Тексты и контакты", "Matnlar va kontaktlar")}>
+        <p className="text-sm text-secondary max-w-prose mb-4 -mt-2">
+          {t("Контакты поддержки видны внизу меню — там их ищут, когда что-то не работает. Текст в подвале печатается на накладных и счетах и стоит на экране входа.",
+             "Qo'llab-quvvatlash kontaktlari menyu pastida ko'rinadi. Pastki matn hujjatlarda va kirish ekranida chiqadi.")}
+        </p>
         <FieldRow>
           <Field label={t("Название приложения", "Ilova nomi")}>
             <input className="neo-input" value={form.appName} onChange={set("appName")} placeholder="Warehouse Pro" />

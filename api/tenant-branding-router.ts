@@ -4,7 +4,8 @@ import { getDb } from "./queries/connection";
 import { tenantBranding } from "@db/schema";
 import { eq } from "drizzle-orm";
 import { cache, withCache, CacheKeys, CacheTTL } from "./lib/cache";
-import { sanitizeString, isSafeUrl } from "./lib/sanitize";
+import { sanitizeString } from "./lib/sanitize";
+import { isSafePhotoValue, PHOTO_VALUE_ERROR } from "./lib/photo-value";
 
 /*
   Брендинг — то, КАК приложение выглядит: знак, цвета, название, тексты входа.
@@ -48,7 +49,10 @@ const optionalImage = (max: number, what: string) =>
     blank,
     z.string()
       .max(max, `${what}: изображение слишком большое, выберите файл поменьше`)
-      .refine(isSafeUrl, `${what}: недопустимый адрес изображения`)
+      // Тот же разбор, что у всех остальных картинок проекта: только
+      // настоящие типы изображений и только https для ссылок. isSafeUrl
+      // мягче — он пропускает любой data:image/…, включая svg со скриптом.
+      .refine(isSafePhotoValue, `${what}: ${PHOTO_VALUE_ERROR}`)
       .nullable()
       .optional(),
   );
