@@ -2,6 +2,7 @@ import { z } from "zod";
 import { isSafePhotoValue, PHOTO_VALUE_ERROR } from "./lib/photo-value";
 import { createRouter, operatorQuery, supervisorQuery, managementQuery } from "./middleware";
 import { getDb } from "./queries/connection";
+import { receivablesAging } from "./services/receivables";
 import { shops, users, orders, payments, territories } from "@db/schema";
 import { eq, like, and, sql, desc } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
@@ -46,6 +47,21 @@ async function assertTenantOwnsRefs(
 
 
 export const shopRouter = createRouter({
+  /**
+   * Долг магазинов, разложенный по возрасту.
+   *
+   * Наш долг перед поставщиком система знала подробно — у поставки есть срок
+   * оплаты и считается просрочка. А чужой долг нам был одним числом, и
+   * отличить недельный от полугодового было нечем, хотя решение принимается
+   * именно из этого различия.
+   *
+   * operatorQuery, как и сводка по поставщикам рядом: собирают долг оператор
+   * и владелец, и обе стороны расчётов им нужны в одном месте.
+   */
+  receivablesAging: operatorQuery.query(async ({ ctx }) => {
+    return receivablesAging(getDb(), ctx.tenant.id);
+  }),
+
   // Территории нужны фильтру на самом списке магазинов.
   territories: managementQuery.query(async ({ ctx }) => {
     const rows = await getDb().select({

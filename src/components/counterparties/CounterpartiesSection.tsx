@@ -7,6 +7,7 @@ import { PremiumSelect } from "@/components/PremiumSelect";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { CounterpartyStats } from "./CounterpartyStats";
+import { ReceivablesPanel } from "./ReceivablesPanel";
 import { CounterpartyList } from "./CounterpartyList";
 import { CounterpartyForm } from "./CounterpartyForm";
 import { CounterpartyDetail } from "./CounterpartyDetail";
@@ -99,6 +100,17 @@ export function CounterpartiesSection() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
       {statsQuery.data && <CounterpartyStats stats={statsQuery.data} lang={lang} />}
+
+      {/*
+        Вторая сторона расчётов.
+
+        Раздел называется «Контрагенты и долги», а показывал одну сторону —
+        наш долг перед заводом. Сколько должны НАМ, лежало в другом разделе
+        одним числом без возраста, и свести обе стороны человек мог только в
+        уме. Между тем это один вопрос: сколько денег зависло и с какой
+        стороны.
+      */}
+      <ReceivablesPanel />
 
       {/* Фильтры и добавление */}
       <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
