@@ -133,16 +133,29 @@ export default function AgentKpi() {
             {isSupervisor ? `${allKpi?.length ?? 0} ${t("агентов", "agentlar")}` : myKpi?.agentName}
           </p>
         </div>
-        <div className="flex gap-1.5 items-center">
-          {PERIODS.map(p => (
-            <button key={p.value} onClick={() => setPeriod(p.value)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${period === p.value ? "bg-[var(--color-primary)] text-white" : "bg-[var(--color-surface-light)] text-[var(--color-text-secondary)]"}`}>
-              {lang === "uz" ? p.uz : p.ru}
-            </button>
-          ))}
+        <div className="flex gap-2 items-center flex-wrap">
+          {/*
+            Домашний переключатель периода — .range-pills, как на главной и в
+            отчётах.
+
+            Здесь была своя пара классов, и выбранная кнопка красилась белым по
+            фирменному цвету. В тёмной теме фирменный — золотой, и белым по
+            нему выходит 2.42:1 при норме 4.5. Ровно эта же ошибка уже
+            разбиралась у кнопки подтверждения: цвет надписи на заливке берут
+            из палитры, а не пишут словом «белый».
+          */}
+          <div role="group" aria-label={t("Период", "Davr")} className="range-pills">
+            {PERIODS.map(p => (
+              <button key={p.value} type="button" onClick={() => setPeriod(p.value)}
+                aria-pressed={period === p.value}
+                className={"range-pill tap" + (period === p.value ? " active" : "")}>
+                {lang === "uz" ? p.uz : p.ru}
+              </button>
+            ))}
+          </div>
           {isSupervisor && allKpi && allKpi.length > 0 && (
-            <button onClick={handleExport} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[var(--color-surface-light)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface)]">
-              <FileDown size={14} /> Excel
+            <button onClick={handleExport} className="neo-btn tap" style={{ padding: "0 14px" }}>
+              <FileDown size={14} aria-hidden /> Excel
             </button>
           )}
         </div>
@@ -553,11 +566,26 @@ function SupervisorView({ kpi, selectedKpi, selectedSalary, detailLoading, onSel
 
 // ── Salary Config ─────────────────────────────────────────────────────────────
 
+/**
+ * Наибольшая допустимая ставка.
+ *
+ * Сервер принимает до 100 (commission-router, setRate), но сто процентов
+ * выручки агенту — это не ставка, а ошибка ввода. Экран держит разумную
+ * границу и НАЗЫВАЕТ её: прежде он молча отбрасывал всё выше пятидесяти, и
+ * человек уходил уверенным, что поставил шестьдесят.
+ */
+const MAX_RATE = 50;
+
 function SalaryConfig({ t }: { t: (r: string, u: string) => string }) {
   const { data: usersData } = trpc.user.list.useQuery({ page: 1, pageSize: 100 });
   const { data: commissionData } = trpc.commission.list.useQuery();
   const utils = trpc.useContext();
-  const [rates, setRates] = useState<Record<number, number>>({});
+  /*
+    Черновики правок — строками и по агенту. Отдельно от сохранённого: пока
+    человек набирает, на экране его цифра, а на сервере прежняя, и путать их
+    нельзя.
+  */
+  const [drafts, setDrafts] = useState<Record<number, string>>({});
 
   const agents = (usersData?.data ?? []).filter((u: { role: string; status: string }) => u.role === "agent" && u.status === "active");
 
@@ -571,10 +599,64 @@ function SalaryConfig({ t }: { t: (r: string, u: string) => string }) {
     onError: (e) => notify.error(e.message),
   });
 
-  const getRate = (agentId: number) => {
-    if (rates[agentId] !== undefined) return rates[agentId];
+  /** Что хранится на сервере для этого агента. */
+  const savedRate = (agentId: number) => {
     const record = (commissionData ?? []).find((c: { userId: number; commissionRate: string | number }) => c.userId === agentId);
     return record ? Math.round(Number(record.commissionRate) * 10) / 10 : 0;
+  };
+
+  /*
+    Черновик хранится СТРОКОЙ, а не числом.
+
+    Было `parseFloat(value) || 0`: стоило стереть содержимое, чтобы набрать
+    заново, как в поле мгновенно появлялся ноль — и он же уходил на сервер при
+    уходе из поля. Поменять «5» на «7» приходилось, целясь курсором и дописывая
+    вокруг старой цифры.
+
+    Пустая строка — разрешённое промежуточное состояние: человек стирает, чтобы
+    набрать, а не чтобы обнулить комиссию.
+  */
+  const shownRate = (agentId: number) =>
+    drafts[agentId] !== undefined ? drafts[agentId] : String(savedRate(agentId));
+
+  /**
+   * Сохранить ставку, если она вообще может быть ставкой.
+   *
+   * Здесь стояло `if (val >= 0 && val <= 50) mutate(...)` — и всё. Ввели 60:
+   * условие не выполнено, не происходит НИЧЕГО. Поле показывает 60, на сервере
+   * лежит прежнее число, и человек уходит уверенным, что поставил шестьдесят.
+   * Молчаливое расхождение между экраном и базой — худший из возможных
+   * ответов, и именно его тут и выдавали.
+   */
+  const commitRate = (agentId: number) => {
+    const raw = drafts[agentId];
+    if (raw === undefined) return;
+
+    const val = Number(raw.replace(",", "."));
+    const stored = savedRate(agentId);
+
+    if (raw.trim() === "" || !Number.isFinite(val)) {
+      notify.error(t("Введите процент числом", "Foizni raqam bilan kiriting"));
+      setDrafts(prev => { const next = { ...prev }; delete next[agentId]; return next; });
+      return;
+    }
+    if (val < 0 || val > MAX_RATE) {
+      notify.error(t(
+        `Комиссия задаётся от 0 до ${MAX_RATE}% — введено ${val}`,
+        `Komissiya 0 dan ${MAX_RATE}% gacha — kiritildi ${val}`,
+      ));
+      // Поле возвращается к тому, что действительно лежит на сервере: иначе на
+      // экране осталось бы непринятое число.
+      setDrafts(prev => { const next = { ...prev }; delete next[agentId]; return next; });
+      return;
+    }
+    // Не тревожим сервер, если ничего не изменилось.
+    if (Math.abs(val - stored) < 0.001) {
+      setDrafts(prev => { const next = { ...prev }; delete next[agentId]; return next; });
+      return;
+    }
+    setRateMutation.mutate({ userId: agentId, commissionRate: val });
+    setDrafts(prev => { const next = { ...prev }; delete next[agentId]; return next; });
   };
 
   const handleCalc = () => {
@@ -585,39 +667,89 @@ function SalaryConfig({ t }: { t: (r: string, u: string) => string }) {
   };
 
   return (
-    <div className="p-4 rounded-xl" style={{ background: "var(--color-surface-light)", border: "1px solid var(--color-border)" }}>
-      <p className="text-xs mb-3" style={{ color: COLORS.textSecondary }}>
-        {t("Настройте комиссию (%) для каждого агента", "Har bir agent uchun komissiya (%) ni sozlang")}
-      </p>
+    <div className="neo-card" style={{ padding: "20px" }}>
+      {/*
+        Сказано, ОТ ЧЕГО процент. Стояло «Настройте комиссию (%) для каждого
+        агента» — и человек не знал, от выручки это, от прибыли или от суммы
+        заказов; а решение «сколько ставить» принимается именно из этого.
+      */}
+      <div style={{ marginBottom: "14px" }}>
+        <h3 style={{ fontFamily: F.display, fontSize: "15px", fontWeight: 600, color: COLORS.textPrimary, margin: 0 }}>
+          {t("Комиссия агентов", "Agentlar komissiyasi")}
+        </h3>
+        <p className="text-xs" style={{ color: COLORS.textSecondary, margin: "4px 0 0" }}>
+          {t(
+            `Процент от выручки доставленных заказов агента за месяц. От 0 до ${MAX_RATE}%.`,
+            `Agentning oy davomida yetkazilgan buyurtmalari tushumidan foiz. 0 dan ${MAX_RATE}% gacha.`,
+          )}
+        </p>
+      </div>
+
       <div className="space-y-2">
         {agents.map((agent: { id: number; name: string }) => {
-          const rate = getRate(agent.id);
+          const saving = setRateMutation.isPending && setRateMutation.variables?.userId === agent.id;
+          const edited = drafts[agent.id] !== undefined;
           return (
-            <div key={agent.id} className="flex items-center gap-3 p-2 rounded-lg" style={{ background: "var(--color-surface, #efedea)", border: "1px solid var(--color-border)" }}>
+            <div key={agent.id} className="flex items-center gap-3 p-2 rounded-xl"
+              style={{ background: "var(--color-surface-light)", border: "1px solid var(--color-border)" }}>
               <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "color-mix(in srgb, var(--color-primary) 10%, transparent)" }}>
                 <span className="text-xs font-bold" style={{ color: "var(--color-primary-text)" }}>{agent.name.charAt(0).toUpperCase()}</span>
               </div>
               <span className="text-sm flex-1 truncate" style={{ color: COLORS.textPrimary }}>{agent.name}</span>
+
+              {/* Признак того, что происходит именно с ЭТОЙ строкой. Общий
+                  всплывающий значок на тридцать агентов не отвечает на вопрос
+                  «сохранилось ли у Азиза». */}
+              {saving && <Loader2 size={13} className="animate-spin" style={{ color: COLORS.textTertiary }} aria-hidden />}
+              {!saving && edited && (
+                <span className="text-[11px]" style={{ color: COLORS.textTertiary }}>
+                  {t("не сохранено", "saqlanmadi")}
+                </span>
+              )}
+
               <div className="flex items-center gap-2">
-                <input type="number" min="0" max="50" step="0.5" value={rate}
-                  onChange={(e) => setRates(prev => ({ ...prev, [agent.id]: parseFloat(e.target.value) || 0 }))}
-                  onBlur={(e) => { const val = parseFloat(e.target.value) || 0; if (val >= 0 && val <= 50) setRateMutation.mutate({ userId: agent.id, commissionRate: val }); }}
-                  className="w-20 text-center text-sm py-1.5 px-2 rounded-lg outline-none"
-                  style={{ background: "var(--color-surface, #efedea)", border: "1.5px solid var(--color-border)", color: COLORS.textPrimary, fontFamily: F.display, fontWeight: 600 }} />
+                <input
+                  type="number" inputMode="decimal" min="0" max={MAX_RATE} step="0.5"
+                  aria-label={t(`Комиссия агента ${agent.name}, процент`, `${agent.name} komissiyasi, foiz`)}
+                  value={shownRate(agent.id)}
+                  onChange={e => setDrafts(prev => ({ ...prev, [agent.id]: e.target.value }))}
+                  onBlur={() => commitRate(agent.id)}
+                  // Enter сохраняет, не заставляя уводить палец с поля.
+                  onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                  // 44 точки: поле было 30 при цели касания в 44, а это ровно
+                  // то поле, куда на телефоне целятся пальцем.
+                  className="w-24 text-center text-sm rounded-lg outline-none tap"
+                  style={{
+                    height: "44px", padding: "0 10px",
+                    background: "var(--color-surface)", border: "1.5px solid var(--color-border)",
+                    color: COLORS.textPrimary, fontFamily: F.display, fontWeight: 600,
+                  }}
+                />
                 <span className="text-xs font-medium" style={{ color: COLORS.textSecondary }}>%</span>
               </div>
             </div>
           );
         })}
       </div>
-      <p className="text-xs mb-2" style={{ color: COLORS.textTertiary }}>
-        {t("Комиссии рассчитываются автоматически при просмотре зарплаты", "Ko'rish vaqtida komissiyalar avtomatik hisoblanadi")}
+
+      {/*
+        Здесь стояло «Комиссии рассчитываются автоматически при просмотре
+        зарплаты» — и тут же кнопка «Пересчитать». Два утверждения спорили друг
+        с другом: если само, зачем кнопка. Сказано то, что есть на самом деле.
+      */}
+      <p className="text-xs" style={{ color: COLORS.textTertiary, margin: "14px 0 8px" }}>
+        {t(
+          "Ставка применяется к следующему расчёту. Уже посчитанные за этот месяц суммы пересчитываются кнопкой ниже.",
+          "Stavka keyingi hisobga qo'llanadi. Shu oy uchun hisoblangan summalar quyidagi tugma bilan qayta hisoblanadi.",
+        )}
       </p>
+      {/* Кнопка домашняя: в градиенте стоял литерал #4a5c78, а в тени —
+          rgba(91,109,138,.3). Ни того, ни другого нет ни в палитре, ни у
+          арендатора, и в тёмной теме они оставались прежними. */}
       <button onClick={handleCalc} disabled={calcMutation.isPending}
-        className="mt-2 w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
-        style={{ background: "linear-gradient(135deg, var(--color-primary), #4a5c78)", color: "var(--color-on-primary)", boxShadow: "0 4px 12px rgba(91,109,138,0.3)" }}>
+        className="neo-btn-primary tap w-full flex items-center justify-center gap-2">
         {calcMutation.isPending && <Loader2 size={14} className="animate-spin" />}
-        {t("Пересчитать комиссии", "Komissiyalarni qayta hisoblash")}
+        {t("Пересчитать комиссии за месяц", "Oylik komissiyalarni qayta hisoblash")}
       </button>
     </div>
   );
