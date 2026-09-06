@@ -560,7 +560,7 @@ describe("courier.completeDelivery: возврат без позиций, дат
   it("оплата, заметно превышающая сумму заказа, отвергается", async () => {
     const c = await caller();
     await expect(c.completeDelivery({ orderId: 1, result: "paid", paidAmount: "5000000" }))
-      .rejects.toThrow(/превышает сумму заказа/);
+      .rejects.toThrow(/больше остатка по заказу/);
     expect(ordersT.find(o => o.id === 1)!.status).toBe("processing");
     expect(paymentsT).toHaveLength(0);
   });

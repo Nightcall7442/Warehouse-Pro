@@ -344,7 +344,8 @@ describe("courier.markDelivered", () => {
   it("throws if cashAmount exceeds order total by >20%", async () => {
     const { courierRouter } = await import("../courier-router");
     const caller = courierRouter.createCaller(makeCtx(1, 100));
-    await expect(caller.markDelivered({ orderId: 1, cashAmount: "1000.00" })).rejects.toThrow("Сумма наличных превышает");
+    // Сумма сверяется с остатком по заказу; текст отказа называет остаток.
+    await expect(caller.markDelivered({ orderId: 1, cashAmount: "1000.00" })).rejects.toThrow(/больше остатка по заказу/);
   });
 
   it("throws if order not found or not assigned", async () => {
@@ -513,5 +514,53 @@ describe("курьер и закрытый заказ", () => {
 
     await expect(caller.markFailed({ orderId: 8 })).rejects.toThrow(/возвращ/i);
     expect(ordersTable.find(o => o.id === 8)!.status).toBe("returned");
+  });
+});
+
+/*
+  ── Дважды по одному заказу деньги не принимаются ────────────────────────────
+
+  Обе курьерские процедуры сверяли присланную сумму с ПОЛНОЙ суммой заказа и
+  уже принятое не читали вовсе. Пока заказ проводится один раз, разницы нет.
+  Но заказ можно провести дважды — вернуть из архива в работу и доставить
+  заново, — и тогда по заказу на 500 появлялись две записи по 500. Магазин
+  числился переплатившим вдвое, а нижняя граница GREATEST(0, …) в расчёте
+  долга эту переплату молча съедала: ни на одном экране этих денег не было.
+
+  Операторский путь (applyPartialPayment) считал остаток правильно всегда —
+  расходились именно курьерские.
+*/
+describe("повторная оплата по тому же заказу", () => {
+  it("вторая полная оплата отвергается", async () => {
+    const { courierRouter } = await import("../courier-router");
+    const caller = courierRouter.createCaller(makeCtx(1, 100));
+
+    await caller.markDelivered({ orderId: 1, cashAmount: "500.00" });
+    expect(paymentsTable).toHaveLength(1);
+
+    // Заказ проводят заново: возвращаем его в развоз, как это делает откат.
+    const order = ordersTable.find(o => o.id === 1)!;
+    order.status = "processing";
+    order.deliveryStatus = "assigned";
+
+    await expect(caller.markDelivered({ orderId: 1, cashAmount: "500.00" }))
+      .rejects.toThrow(/принимать больше нечего/);
+    expect(paymentsTable, "вторая запись об оплате не должна появиться").toHaveLength(1);
+  });
+
+  it("доплата остатка проходит", async () => {
+    // Обратная сторона: частичная оплата и доплата — обычное дело, и запрет
+    // не должен её задеть.
+    const { courierRouter } = await import("../courier-router");
+    const caller = courierRouter.createCaller(makeCtx(1, 100));
+
+    await caller.markDelivered({ orderId: 1, cashAmount: "200.00" });
+    const order = ordersTable.find(o => o.id === 1)!;
+    order.status = "processing";
+    order.deliveryStatus = "assigned";
+
+    await caller.markDelivered({ orderId: 1, cashAmount: "300.00" });
+    expect(paymentsTable).toHaveLength(2);
+    expect(paymentsTable.reduce((s, p) => s + Number(p.amount), 0)).toBe(500);
   });
 });

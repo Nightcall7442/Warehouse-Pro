@@ -124,7 +124,18 @@ describe("правило 2: отказ называет вещь, а не её �
       const src = read(file);
       for (const m of src.matchAll(/(?:throw new Error|badRequest|conflict|notFound)\(\s*`([^`]*)`/g)) {
         const text = m[1];
-        if (!/\$\{[^}]*\b\w*[Ii]d\b[^}]*\}/.test(text)) continue;
+        /*
+          Ищется ИДЕНТИФИКАТОР, а не всякое слово, кончающееся на «id».
+
+          Стояло `\w*[Ii]d\b`, и под него подпадали обычные величины:
+          priorPaid, paid, valid, said. Правило начинало требовать «назови
+          имя» там, где никакого номера в сообщении нет вовсе, — то есть
+          мешало писать понятные отказы про деньги.
+
+          Настоящий идентификатор в этом коде выглядит одним из трёх способов:
+          `id`, `orderId` (верблюжий горб) или `order_id`.
+        */
+        if (!/\$\{[^}]*\b(?:id|\w+_id|\w+Id)\b[^}]*\}/.test(text)) continue;
         if (/productLabel\(|names\.get\(/.test(text)) continue;   // имя всё-таки спрашивается
         if (ALLOWED.some(rx => rx.test(text))) continue;
         if (NOT_FOR_PEOPLE.some(f => file.replace(/\\/g, "/").endsWith(f))) continue;

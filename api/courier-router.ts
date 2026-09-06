@@ -8,6 +8,7 @@ import { logger } from "./lib/logger";
 import { sendPushToUser } from "./services/push-service";
 import { sanitizeString } from "./lib/sanitize";
 import { recalcShopDebt } from "./services/shop-debt";
+import { paidForOrder, assertFitsRemainder } from "./services/payment";
 import { productLabel } from "./services/order";
 import { recordStockMovement } from "./services/stock-ledger";
 
@@ -194,9 +195,16 @@ export const courierRouter = createRouter({
         throw new Error("Заказ уже завершён, отменён или возвращён — повторное списание невозможно");
       }
 
-      if (input.cashAmount && Number(input.cashAmount) > Number(order.total) * 1.2) {
-        throw new Error("Сумма наличных превышает сумму заказа");
-      }
+      /*
+        Сумма сверяется с ОСТАТКОМ по заказу, а не с его полной суммой, и
+        читается это уже внутри транзакции, под блокировкой (см. ниже).
+
+        Здесь стояло `> total * 1.2` — то есть по заказу на 300 можно было
+        принять 300 сколько угодно раз подряд. Заказ, проведённый второй раз
+        после возврата из архива, получал вторую запись на всю сумму, магазин
+        числился переплатившим вдвое, а нижняя граница в расчёте долга эту
+        переплату молча съедала.
+      */
 
       await db.transaction(async (tx) => {
         // Lock and re-check inside the transaction — the select above ran
@@ -271,6 +279,12 @@ export const courierRouter = createRouter({
         }
 
         if (input.cashAmount && Number(input.cashAmount) > 0) {
+          // Уже принятое читается ПОСЛЕ смены статуса выше, то есть под её
+          // блокировкой: иначе два одновременных нажатия прочитали бы одно и
+          // то же «уже принято» и оба сочли, что место есть.
+          const priorPaid = await paidForOrder(tx, ctx.tenant.id, order.id);
+          assertFitsRemainder(Number(order.total), priorPaid, Number(input.cashAmount));
+
           await tx.insert(payments).values({
             tenantId: ctx.tenant.id,
             shopId: order.shopId,
@@ -643,10 +657,18 @@ export const courierRouter = createRouter({
         if (!Number.isFinite(paidAmount) || paidAmount < 0) {
           throw new Error(`Некорректная сумма оплаты: «${input.paidAmount}». Введите число, разделитель — точка`);
         }
-        if (paidAmount > orderTotal * 1.2) {
-          throw new Error(`Сумма оплаты (${paidAmount}) превышает сумму заказа (${orderTotal})`);
-        }
-        debtAmount = orderTotal - paidAmount;
+        /*
+          Сверка с ОСТАТКОМ, а не с полной суммой заказа — та же правка, что
+          в markDelivered выше. Прежнее `> orderTotal * 1.2` позволяло принять
+          полную сумму по уже оплаченному заказу: заказ, проведённый второй
+          раз, получал вторую запись на все деньги.
+        */
+        const priorPaid = await paidForOrder(tx, ctx.tenant.id, order.id);
+        if (paidAmount > 0) assertFitsRemainder(orderTotal, priorPaid, paidAmount);
+
+        // Долг считается от того, что осталось неоплаченным ПО ЗАКАЗУ ЦЕЛИКОМ,
+        // а не только по этой доставке.
+        debtAmount = orderTotal - priorPaid - paidAmount;
 
         // ── Determine final order status ──
         const deliveryResult = input.result;
