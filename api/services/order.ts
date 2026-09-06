@@ -2,9 +2,9 @@ import { eq, and, or, desc, sql, isNull, isNotNull, inArray } from "drizzle-orm"
 import { alias } from "drizzle-orm/mysql-core";
 import { orders, orderItems, warehouseStock, shops, users, products, notifications, warehouses, payments, loadingLists, loadingListOrders, debtReminders, orderAdjustments, territories, returns, returnItems } from "@db/schema";
 import { recalcShopDebt } from "./shop-debt";
-import { OPEN_ORDER_STATUSES, CLOSED_ORDER_STATUSES, holdsStock, deductsStock } from "../lib/order-status";
+import { OPEN_ORDER_STATUSES, CLOSED_ORDER_STATUSES, ORDER_STATUS_LABELS, holdsStock, deductsStock } from "../lib/order-status";
 import { recordStockMovement } from "./stock-ledger";
-import { isReopen, assertReopenable, clearDeliveryTrace } from "./order-reopen";
+import { isReopen, reversesRevenue, assertReopenable, clearDeliveryTrace } from "./order-reopen";
 
 /** Second reference to `users` for courier joins alongside the agent join. */
 const couriers = alias(users, "couriers");
@@ -1506,7 +1506,19 @@ export const OrderService = {
     return { success: true };
   },
 
-  async updateStatus(db: Db, tenantId: number, orderId: number, newStatus: "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned") {
+  /**
+   * actor необязателен намеренно: процедуру зовут и внутренние пути (обмен с
+   * 1С, курьерская синхронизация), у которых человека за спиной нет. Когда он
+   * есть — попадает в журнал действий вместе с направлением перехода.
+   */
+  async updateStatus(
+    db: Db, tenantId: number, orderId: number,
+    newStatus: "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned",
+    actor?: { id: number; role: string },
+  ) {
+    let auditAction: string | null = null;
+    let statusBefore = "";
+
     await db.transaction(async (tx) => {
       const [order] = await tx.select({
         id: orders.id, status: orders.status, shopId: orders.shopId,
@@ -1538,6 +1550,13 @@ export const OrderService = {
       */
       const reopening = isReopen(order.status, newStatus);
       if (reopening) await assertReopenable(tx, tenantId, orderId, order.orderNumber);
+
+      // Запоминается для журнала: после транзакции старого статуса уже не
+      // прочитать, а именно направление перехода и объясняют потом.
+      statusBefore = order.status;
+      auditAction = reopening ? "order.reopened"
+        : reversesRevenue(order.status, newStatus) ? "order.revenue_reversed"
+        : null;
 
       // Any status may follow any other. Operators legitimately correct
       // mistakes both ways ("delivered by accident" → back to new), and the
@@ -1681,14 +1700,42 @@ export const OrderService = {
 
     cache.invalidate(CacheKeys.dashboardKpis(Number(tenantId)));
 
+    /*
+      След в журнале — только для откатов, а не для каждой смены статуса.
+
+      Обычное движение вперёд (новый → в обработке → доставлен) объясняется
+      само и в журнале было бы шумом, за которым не видно важного. А вот два
+      перехода однажды придут объяснять:
+
+        • заказ вернули из архива в работу — товар и деньги пересчитываются
+          заново, и до сих пор это не оставляло НИ ОДНОГО следа: ни записи,
+          ни отметки. У отмены такой след есть (см. cancel ниже), у смены
+          статуса не было;
+        • заказ вывели из «доставлен» — это откат состоявшейся продажи, то
+          есть выручки. В закрытом месяце такое движение меняет отчётность
+          задним числом.
+
+      Пишется ПОСЛЕ транзакции: журнал не должен уметь отменить саму правку.
+    */
+    if (auditAction) {
+      const { recordAudit } = await import("./audit-log");
+      await recordAudit(db, {
+        tenantId,
+        actorId: actor?.id,
+        action: auditAction,
+        targetType: "order",
+        targetId: orderId,
+        meta: { from: statusBefore, to: newStatus, actorRole: actor?.role },
+      });
+    }
+
     // Notify agent about status change (non-blocking)
     try {
       const [orderRow] = await db.select({ orderNumber: orders.orderNumber, agentId: orders.agentId, shopId: orders.shopId })
         .from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId))).limit(1);
       if (orderRow?.agentId) {
         const [shop] = await db.select({ name: shops.name }).from(shops).where(eq(shops.id, orderRow.shopId)).limit(1);
-        const statusLabels: Record<string, string> = { completed: "выполнен", cancelled: "отменён", processing: "в обработке" };
-        const label = statusLabels[newStatus] ?? newStatus;
+        const label = ORDER_STATUS_LABELS[newStatus];
         const { sendPushToUser } = await import("./push-service");
         await sendPushToUser(orderRow.agentId, {
           title: `Заказ ${orderRow.orderNumber}`,

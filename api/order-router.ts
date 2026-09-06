@@ -290,7 +290,7 @@ export const orderRouter = createRouter({
   updateStatus: operatorQuery
     .input(z.object({ id: z.number().int().positive(), status: z.enum(["new", "processing", "shipped", "pending", "delivered", "cancelled", "returned"]) }))
     .mutation(async ({ input, ctx }) => {
-      return OrderService.updateStatus(ctx.db, ctx.tenant.id, input.id, input.status);
+      return OrderService.updateStatus(ctx.db, ctx.tenant.id, input.id, input.status, { id: ctx.user.id, role: ctx.user.role });
     }),
 
   update: operatorQuery
@@ -435,16 +435,47 @@ export const orderRouter = createRouter({
     }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
-      // Verify courier exists and belongs to tenant
+      /*
+        Те же две проверки, что у одиночного назначения (courier-router,
+        assignCourier), и по тем же причинам.
+
+        Здесь не было ни одной. Роль не проверялась — «курьером» назначался
+        любой сотрудник организации, включая агента и директора. Статус и
+        удаление не проверялись тоже, а UPDATE шёл по списку номеров как есть:
+        доставленный, отменённый и даже удалённый заказ получал
+        delivery_status='assigned' и курьера — то есть возвращался в работу
+        и всплывал у курьера в списке. Дальше курьер жал «Доставлено» на
+        заказе, чей резерв давно снят.
+
+        Отбор по статусу стоит в самом UPDATE, а не отдельной выборкой перед
+        ним: между чтением и записью заказ может успеть закрыться, и тогда
+        проверка была бы украшением.
+      */
       const [courier] = await db.select({ id: users.id }).from(users)
-        .where(and(eq(users.id, input.courierId), eq(users.tenantId, ctx.tenant.id))).limit(1);
+        .where(and(
+          eq(users.id, input.courierId),
+          eq(users.tenantId, ctx.tenant.id),
+          eq(users.role, "courier"),
+        )).limit(1);
       if (!courier) throw new Error("Курьер не найден");
 
-      await db.update(orders)
+      const [result] = await db.update(orders)
         .set({ courierId: input.courierId, deliveryStatus: "assigned" })
-        .where(and(eq(orders.tenantId, ctx.tenant.id), inArray(orders.id, input.orderIds)));
+        .where(and(
+          eq(orders.tenantId, ctx.tenant.id),
+          inArray(orders.id, input.orderIds),
+          inArray(orders.status, OPEN_ORDER_STATUSES),
+          isNull(orders.deletedAt),
+        ));
 
-      return { updated: input.orderIds.length };
+      /*
+        Возвращается число ИЗМЕНЁННЫХ заказов, а не запрошенных. Раньше
+        отвечало `input.orderIds.length` — то есть «обновлено 20» даже когда
+        не обновилось ни одного, и оператор уходил в уверенности, что развёз
+        назначен.
+      */
+      const updated = (result as { affectedRows?: number }).affectedRows ?? 0;
+      return { updated, skipped: input.orderIds.length - updated };
     }),
 
   // ── Loading Lists ──────────────────────────────────────────────────────────

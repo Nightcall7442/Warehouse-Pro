@@ -5,6 +5,7 @@ import {
   OPEN_ORDER_STATUSES,
   CLOSED_ORDER_STATUSES,
   REVENUE_ORDER_STATUSES,
+  ORDER_STATUS_LABELS,
 } from "../lib/order-status";
 
 /**
@@ -72,5 +73,30 @@ describe("order status lifecycle", () => {
 
     expect([...new Set(offenders)], "use OPEN/CLOSED/REVENUE_ORDER_STATUSES instead of a literal list")
       .toEqual([]);
+  });
+});
+
+describe("у каждого статуса есть человеческое имя", () => {
+  it("словарь покрывает перечисление целиком", () => {
+    /*
+      Тип Record<OrderStatus, string> уже обязывает, и эта проверка страхует
+      его от ослабления: стоит написать Record<string, string> — и словарь
+      снова разрешено оставить неполным.
+
+      Так и было. Прежний словарь жил прямо в отправке уведомления, знал три
+      значения из семи, и одно из этих трёх — «completed» — статусом никогда
+      не было. Недостающее подставлялось как есть, поэтому агент получал в
+      телефон «Статус изменён: delivered» латиницей, а ошибка не падала.
+    */
+    for (const status of SCHEMA_STATUSES) {
+      const label = ORDER_STATUS_LABELS[status as keyof typeof ORDER_STATUS_LABELS];
+      expect(label, `у статуса "${status}" нет русского имени`).toBeTruthy();
+      expect(label, `имя статуса "${status}" осталось латиницей`).toMatch(/[а-яё]/i);
+    }
+  });
+
+  it("имён не больше, чем статусов", () => {
+    // Лишний ключ — след статуса, которого больше нет, вроде «completed».
+    expect(Object.keys(ORDER_STATUS_LABELS).sort()).toEqual([...SCHEMA_STATUSES].sort());
   });
 });

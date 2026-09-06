@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createRouter, courierQuery, operatorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { orders, shops, users, payments, notifications, orderItems, products, warehouseStock, warehouses, debtReminders } from "@db/schema";
-import { eq, and, sql, desc } from "drizzle-orm";
+import { eq, and, sql, desc, isNull } from "drizzle-orm";
 import { sseBus } from "./lib/sse";
 import { logger } from "./lib/logger";
 import { sendPushToUser } from "./services/push-service";
@@ -41,6 +41,7 @@ export const courierRouter = createRouter({
         .leftJoin(shops, eq(orders.shopId, shops.id))
         .where(and(
           eq(orders.tenantId, ctx.tenant.id),
+          isNull(orders.deletedAt),
           eq(orders.deliveryStatus, "assigned"),
         ))
         .orderBy(desc(orders.createdAt))
@@ -72,6 +73,9 @@ export const courierRouter = createRouter({
       .where(and(
         eq(orders.tenantId, ctx.tenant.id),
         eq(orders.courierId, courierId),
+        // Удалённый заказ курьеру не показывается: его резерв уже вернулся
+        // на склад, и везти по нему нечего.
+        isNull(orders.deletedAt),
         sql`${orders.deliveryStatus} IN ('assigned', 'out_for_delivery')`,
       ))
       .orderBy(desc(orders.createdAt))
@@ -169,12 +173,25 @@ export const courierRouter = createRouter({
           eq(orders.id, input.orderId),
           eq(orders.tenantId, ctx.tenant.id),
           eq(orders.courierId, courierId),
+          // Удалённый заказ курьеру не показывается и списывать по нему
+          // нечего: OrderService.delete уже вернул его резерв на склад.
+          // Фильтра здесь не было вовсе, а массовое назначение курьера
+          // (order-router) удаление тоже не проверяло — заказ из архива
+          // доезжал до этой процедуры и списывал товар второй раз.
+          isNull(orders.deletedAt),
           sql`${orders.deliveryStatus} IN ('assigned', 'out_for_delivery')`,
         )).limit(1);
       if (!order) throw new Error("Заказ не найден или не назначен на вас");
 
-      if (order.status === "delivered" || order.status === "cancelled") {
-        throw new Error("Заказ уже завершён или отменён — повторное списание невозможно");
+      /*
+        'returned' стоит наравне с остальными двумя — у соседней процедуры
+        completeDelivery он перечислен, здесь его не было. Возвращённый заказ
+        товара на складе не держит: резерв по нему снят. Списание по такому
+        заказу уводило reserved в минус, молча аннулируя резерв ЧУЖИХ
+        открытых заказов.
+      */
+      if (order.status === "delivered" || order.status === "cancelled" || order.status === "returned") {
+        throw new Error("Заказ уже завершён, отменён или возвращён — повторное списание невозможно");
       }
 
       if (input.cashAmount && Number(input.cashAmount) > Number(order.total) * 1.2) {

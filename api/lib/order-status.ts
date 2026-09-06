@@ -35,6 +35,29 @@ export type OrderStatus =
   | (typeof OPEN_ORDER_STATUSES)[number]
   | (typeof CLOSED_ORDER_STATUSES)[number];
 
+/**
+ * Как статус называется человеку.
+ *
+ * Тип Record<OrderStatus, string> здесь не украшение: он обязывает. Прежний
+ * словарь жил прямо в отправке уведомления, знал три значения из семи, и одно
+ * из этих трёх — «completed» — статусом никогда не было. Агент получал в
+ * телефон «Статус изменён: delivered», «shipped», «new» — латиницей, кодом из
+ * базы. Отсутствующее значение подставлялось как есть, поэтому ошибка не
+ * падала и не замечалась.
+ *
+ * Появится восьмой статус — не соберётся сборка, а не уедет очередное
+ * английское слово в телефон агенту.
+ */
+export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
+  new:        "новый",
+  processing: "в обработке",
+  shipped:    "отгружен",
+  pending:    "ожидает",
+  delivered:  "доставлен",
+  cancelled:  "отменён",
+  returned:   "возвращён",
+};
+
 /** Goods are still reserved against the warehouse. */
 export function holdsStock(status: string): boolean {
   return (OPEN_ORDER_STATUSES as readonly string[]).includes(status);

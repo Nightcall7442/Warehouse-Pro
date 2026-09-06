@@ -471,3 +471,47 @@ describe("courier.listMyDeliveries", () => {
     expect(idsOf(await foreign.listMyDeliveries())).toEqual([4]);
   });
 });
+
+/*
+  ── Закрытый заказ курьеру не отдаётся ───────────────────────────────────────
+
+  Курьерские процедуры защищались списком «доставлен или отменён». Статуса
+  'returned' в этом списке не было (у соседней completeDelivery он есть), а
+  удаление не проверялось нигде. Оба состояния означают одно: резерв по заказу
+  СНЯТ, товара за ним не числится. Списание по такому заказу уводило reserved
+  в минус — то есть молча аннулировало резерв ЧУЖИХ открытых заказов, — а
+  свободный остаток оставался завышенным.
+
+  Попасть в эти состояния было чем: массовое назначение курьера
+  (order-router.bulkAssignCourier) не проверяло ни статус, ни удаление и
+  ставило delivery_status='assigned' любому заказу из списка.
+*/
+describe("курьер и закрытый заказ", () => {
+  it("возвращённый заказ доставить нельзя", async () => {
+    const { courierRouter } = await import("../courier-router");
+    ordersTable.push({
+      id: 7, tenantId: 1, orderNumber: "ORD-007", status: "returned",
+      deliveryStatus: "assigned", total: "400.00", shopId: 1, courierId: 100,
+      agentId: 10, deliveredAt: null, createdAt: new Date(),
+    });
+    const caller = courierRouter.createCaller(makeCtx(1, 100));
+
+    await expect(caller.markDelivered({ orderId: 7 })).rejects.toThrow(/возвращ/i);
+    expect(ordersTable.find(o => o.id === 7)!.status).toBe("returned");
+  });
+
+  it("возвращённый заказ нельзя пометить и как несостоявшуюся доставку", async () => {
+    // markFailed ставит status='new' прямым UPDATE-ом мимо складской разницы.
+    // Возвращённый заказ так оказывался в работе, не держа на складе ничего.
+    const { courierRouter } = await import("../courier-router");
+    ordersTable.push({
+      id: 8, tenantId: 1, orderNumber: "ORD-008", status: "returned",
+      deliveryStatus: "assigned", total: "400.00", shopId: 1, courierId: 100,
+      agentId: 10, deliveredAt: null, createdAt: new Date(),
+    });
+    const caller = courierRouter.createCaller(makeCtx(1, 100));
+
+    await expect(caller.markFailed({ orderId: 8 })).rejects.toThrow(/возвращ/i);
+    expect(ordersTable.find(o => o.id === 8)!.status).toBe("returned");
+  });
+});
