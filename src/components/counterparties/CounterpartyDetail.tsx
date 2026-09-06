@@ -4,7 +4,8 @@ import { Printer, Pencil, Loader2, AlertTriangle } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { AppModal } from "@/components/ui/AppModal";
 import { COLORS, F, money, PAYMENT_METHODS } from "./constants";
-import type { PayableSupply } from "./PaymentForm";
+import type { PayableSupply } from "./PaymentForm";
+import { useSellerCompany } from "@/hooks/useSellerCompany";
 
 type Tab = "debts" | "payments" | "reconciliation";
 
@@ -38,7 +39,9 @@ export function CounterpartyDetail({ supplierId, lang, onClose, onEdit, onPay }:
   onPay: (supply: PayableSupply) => void;
 }) {
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
-  const [tab, setTab] = useState<Tab>("debts");
+  const [tab, setTab] = useState<Tab>("debts");
+  // Своя сторона акта сверки — оттуда же, откуда её берут накладные.
+  const { company: seller } = useSellerCompany();
   // Период акта сверки. Пусто — за всё время: так документ открывается с
   // полной картиной, а сузить период — осознанное действие.
   const [from, setFrom] = useState("");
@@ -61,6 +64,14 @@ export function CounterpartyDetail({ supplierId, lang, onClose, onEdit, onPay }:
   const debtUzs = unpaid.filter(r => r.currency === "UZS").reduce((s, r) => s + r.debt, 0);
   const debtUsd = unpaid.filter(r => r.currency === "USD").reduce((s, r) => s + r.debt, 0);
 
+  /*
+    Акт сверки подписывают обе стороны, и обе должны быть на нём названы.
+
+    Стояло «От нашей организации» — безымянной строкой над чертой для подписи,
+    и нигде выше своего имени тоже не было. Такой акт контрагенту отдать
+    нельзя: по нему не видно, с кем сверялись. Реквизиты берутся оттуда же,
+    откуда их берут накладные, — из настроек организации.
+  */
   function printReconciliation() {
     if (!reconciliation) return;
     const w = window.open("", "_blank");
@@ -81,7 +92,7 @@ export function CounterpartyDetail({ supplierId, lang, onClose, onEdit, onPay }:
         <td class="num b">${r.balance.toLocaleString("ru-RU")}</td>
       </tr>`).join("");
 
-      return `<h3>Расчёты в ${block.currency}</h3>
+      return `<h3>Расчёты в ${esc(block.currency)}</h3>
       <table>
         <thead><tr>
           <th>Дата</th><th>Операция</th><th>Документ</th>
@@ -98,7 +109,7 @@ export function CounterpartyDetail({ supplierId, lang, onClose, onEdit, onPay }:
           </tr>
         </tbody>
       </table>
-      <p class="total">Задолженность на конец периода: <b>${block.closing.toLocaleString("ru-RU")} ${block.currency}</b></p>`;
+      <p class="total">Задолженность на конец периода: <b>${block.closing.toLocaleString("ru-RU")} ${esc(block.currency)}</b></p>`;
     }).join("");
 
     w.document.write(`<!doctype html><html lang="ru"><head><meta charset="utf-8">
@@ -131,11 +142,12 @@ export function CounterpartyDetail({ supplierId, lang, onClose, onEdit, onPay }:
         }
       </style></head><body>
       <h1>Акт сверки взаимных расчётов</h1>
+      ${seller.name ? `<div class="meta">Организация: <b>${esc(seller.name)}</b>${seller.inn ? ` · ИНН ${esc(seller.inn)}` : ""}</div>` : ""}
       <div class="meta">Контрагент: <b>${esc(reconciliation.supplier?.name)}</b>${reconciliation.supplier?.inn ? ` · ИНН ${esc(reconciliation.supplier.inn)}` : ""}</div>
       <div class="meta">Период: ${period}</div>
       <div class="meta">Составлен: ${format(new Date(), "dd.MM.yyyy")}</div>
       ${blocks || "<p>Движений за период не было.</p>"}
-      <div class="sign"><div>От нашей организации</div><div>От контрагента</div></div>
+      <div class="sign"><div>${seller.name ? esc(seller.name) : "От нашей организации"}</div><div>${esc(reconciliation.supplier?.name) || "От контрагента"}</div></div>
       <script>window.onload=()=>{window.focus();window.onafterprint=()=>window.close();window.print()}</script>
       </body></html>`);
     w.document.close();

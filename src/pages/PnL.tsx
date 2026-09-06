@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { trpc } from "@/providers/trpc";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useLang } from "@/i18n";
-import { exportToPDF } from "@/lib/export";
+import { exportToPDF, escapeHtml } from "@/lib/export";
 import { notify } from "@/lib/toast";
 import { cssVar } from "@/lib/css-var";
 import { readableInk } from "@/lib/contrast";
@@ -57,7 +57,7 @@ export default function PnL() {
     format(new Date(), "yyyy-MM-dd")
   );
   const [showCustom, setShowCustom] = useState(false);
-  const { fmt } = useCurrency();
+  const { fmt, symbol } = useCurrency();
   const { lang } = useLang();
   const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
 
@@ -430,32 +430,41 @@ export default function PnL() {
   const handleExportPDF = async () => {
     const fmtNum = (n: number) => n.toLocaleString("ru");
     const pct = (n: number) => `${n.toFixed(1)}%`;
+    /*
+      Валюта — из настроек организации, а не вписанная словом.
+
+      В карточках и сводке стояло «сум» одиннадцать раз. В таблицах ниже
+      валюты не было вовсе: колонка «Выручка» шла голыми числами, и по такому
+      отчёту нельзя было сказать, в чём он посчитан. Подпись стоит в заголовке
+      колонки, а не у каждого числа: так короче и читается лучше.
+    */
+    const cur = escapeHtml(symbol);
     let html = "";
 
     html += `<div class="kpi-grid">
-      <div class="kpi"><div class="kpi-label">Выручка</div><div class="kpi-value">${fmtNum(current?.revenue ?? 0)} сум</div></div>
-      <div class="kpi"><div class="kpi-label">Себестоимость</div><div class="kpi-value">${fmtNum(current?.cogs ?? 0)} сум</div></div>
-      <div class="kpi"><div class="kpi-label">Валовая прибыль</div><div class="kpi-value">${fmtNum(current?.grossProfit ?? 0)} сум</div></div>
-      <div class="kpi"><div class="kpi-label">Чистая прибыль</div><div class="kpi-value">${fmtNum(current?.netProfit ?? 0)} сум</div></div>
+      <div class="kpi"><div class="kpi-label">Выручка</div><div class="kpi-value">${fmtNum(current?.revenue ?? 0)} ${cur}</div></div>
+      <div class="kpi"><div class="kpi-label">Себестоимость</div><div class="kpi-value">${fmtNum(current?.cogs ?? 0)} ${cur}</div></div>
+      <div class="kpi"><div class="kpi-label">Валовая прибыль</div><div class="kpi-value">${fmtNum(current?.grossProfit ?? 0)} ${cur}</div></div>
+      <div class="kpi"><div class="kpi-label">Чистая прибыль</div><div class="kpi-value">${fmtNum(current?.netProfit ?? 0)} ${cur}</div></div>
     </div>`;
 
     html += `<div class="section"><h2>Сводка</h2>
       <table><thead><tr><th>Показатель</th><th class="right">Значение</th></tr></thead><tbody>
       <tr><td>Период</td><td class="right">${human(from)} — ${human(to)}</td></tr>
-      <tr><td>Выручка</td><td class="right bold">${fmtNum(current?.revenue ?? 0)} сум</td></tr>
-      <tr><td>Скидки</td><td class="right">${fmtNum(current?.discount ?? 0)} сум</td></tr>
-      <tr><td>Себестоимость (COGS)</td><td class="right">${fmtNum(current?.cogs ?? 0)} сум</td></tr>
-      <tr><td>Валовая прибыль</td><td class="right bold">${fmtNum(current?.grossProfit ?? 0)} сум</td></tr>
+      <tr><td>Выручка</td><td class="right bold">${fmtNum(current?.revenue ?? 0)} ${cur}</td></tr>
+      <tr><td>Скидки</td><td class="right">${fmtNum(current?.discount ?? 0)} ${cur}</td></tr>
+      <tr><td>Себестоимость (COGS)</td><td class="right">${fmtNum(current?.cogs ?? 0)} ${cur}</td></tr>
+      <tr><td>Валовая прибыль</td><td class="right bold">${fmtNum(current?.grossProfit ?? 0)} ${cur}</td></tr>
       <tr><td>Валовая маржа</td><td class="right">${pct(current?.grossMarginPct ?? 0)}</td></tr>
-      <tr><td>Расходы на доставку</td><td class="right">${fmtNum(current?.operatingExpenses ?? 0)} сум</td></tr>
-      <tr class="total"><td>Чистая прибыль</td><td class="right">${fmtNum(current?.netProfit ?? 0)} сум</td></tr>
+      <tr><td>Расходы на доставку</td><td class="right">${fmtNum(current?.operatingExpenses ?? 0)} ${cur}</td></tr>
+      <tr class="total"><td>Чистая прибыль</td><td class="right">${fmtNum(current?.netProfit ?? 0)} ${cur}</td></tr>
       <tr><td>Чистая маржа</td><td class="right">${pct(current?.netMarginPct ?? 0)}</td></tr>
       <tr><td>Заказов</td><td class="right">${current?.orderCount ?? 0}</td></tr>
       </tbody></table></div>`;
 
     if (data?.previous && data.prevPeriod) {
       html += `<div class="section"><h2>Сравнение с прошлым периодом (${human(data.prevPeriod.from)} — ${human(data.prevPeriod.to)})</h2>
-        <table><thead><tr><th>Показатель</th><th class="right">Текущий</th><th class="right">Прошлый</th><th class="right">Изменение</th></tr></thead><tbody>`;
+        <table><thead><tr><th>Показатель</th><th class="right">Текущий, ${cur}</th><th class="right">Прошлый, ${cur}</th><th class="right">Изменение</th></tr></thead><tbody>`;
       // Изменение берётся с сервера — тем же числом, что стоит на экране.
       const rows: Array<[string, number, number, number | null | undefined]> = [
         ["Выручка", current?.revenue ?? 0, data.previous.revenue, deltas?.revenue],
@@ -473,7 +482,7 @@ export default function PnL() {
 
     if (cogsByProduct.data && cogsByProduct.data.length > 0) {
       html += `<div class="section"><h2>На чём заработали</h2>
-        <table><thead><tr><th>Товар</th><th class="right">Объём</th><th class="right">Выручка</th><th class="right">Себестоимость</th><th class="right">Прибыль</th><th class="right">Маржа</th></tr></thead><tbody>`;
+        <table><thead><tr><th>Товар</th><th class="right">Объём</th><th class="right">Выручка, ${cur}</th><th class="right">Себестоимость, ${cur}</th><th class="right">Прибыль, ${cur}</th><th class="right">Маржа</th></tr></thead><tbody>`;
       const products = cogsByProduct.data
         .map((p) => {
           const rev = Number(p.totalRevenue);
@@ -483,14 +492,14 @@ export default function PnL() {
         .sort((a, b) => b.profit - a.profit);
       for (const p of products) {
         const margin = p.rev > 0 ? pct((p.profit / p.rev) * 100) : "—";
-        html += `<tr><td>${p.name}</td><td class="right">${p.qty.toFixed(0)}</td><td class="right">${fmtNum(p.rev)}</td><td class="right">${fmtNum(p.cost)}</td><td class="right bold">${fmtNum(p.profit)}</td><td class="right">${margin}</td></tr>`;
+        html += `<tr><td>${escapeHtml(p.name)}</td><td class="right">${p.qty.toFixed(0)}</td><td class="right">${fmtNum(p.rev)}</td><td class="right">${fmtNum(p.cost)}</td><td class="right bold">${fmtNum(p.profit)}</td><td class="right">${margin}</td></tr>`;
       }
       html += `</tbody></table></div>`;
     }
 
     if (paymentBreakdown.data && paymentBreakdown.data.length > 0) {
       html += `<div class="section"><h2>Чем платят</h2>
-        <table><thead><tr><th>Способ оплаты</th><th class="right">Выручка</th><th class="right">Себестоимость</th><th class="right">Прибыль</th><th class="right">Маржа</th><th class="right">Заказов</th></tr></thead><tbody>`;
+        <table><thead><tr><th>Способ оплаты</th><th class="right">Выручка, ${cur}</th><th class="right">Себестоимость, ${cur}</th><th class="right">Прибыль, ${cur}</th><th class="right">Маржа</th><th class="right">Заказов</th></tr></thead><tbody>`;
       for (const row of [...paymentBreakdown.data].sort((a, b) => b.revenue - a.revenue)) {
         html += `<tr><td>${paymentLabel(row.paymentMethod, "ru")}</td><td class="right">${fmtNum(row.revenue)}</td><td class="right">${fmtNum(row.cogs ?? 0)}</td><td class="right bold">${fmtNum(row.grossProfit ?? 0)}</td><td class="right">${pct(row.grossMarginPct ?? 0)}</td><td class="right">${row.orderCount}</td></tr>`;
       }

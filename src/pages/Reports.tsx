@@ -6,7 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { format, subDays } from "date-fns";
 import { FileDown, Printer, LayoutDashboard, ShoppingCart, Award, LayoutGrid, Wallet } from "lucide-react";
 import { exportToExcel } from "@/lib/excel";
-import { exportToPDF } from "@/lib/export";
+import { exportToPDF, escapeHtml } from "@/lib/export";
 import { unitShort } from "@/lib/units";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { F, COLORS, PAYMENT_MAP, delta, type TabKey } from "@/components/reports/report-constants";
@@ -57,12 +57,12 @@ import { DebtorsPanel } from "@/components/debts/DebtorsPanel";
  * их с самого начала, и на это даже стоит проверка в src/__tests__ — здесь же
  * экранировался один заголовок окна.
  *
- * Своя копия, а не общая: escapeHtml в src/lib/export.ts не экспортирован, а
- * трогать чужой файл ради четырёх символов дороже, чем повторить их. Как
- * только export.ts откроют по другому поводу — оттуда и брать.
+ * Здесь стояла своя копия с припиской «как только export.ts откроют по другому
+ * поводу — оттуда и брать». Открыт: escapeHtml экспортирован, осталась только
+ * подстановка прочерка вместо пустого значения — она нужна в таблицах отчёта,
+ * где пустая ячейка читается как потерянные данные.
  */
-const esc = (v: unknown): string =>
-  String(v ?? "—").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const esc = (v: unknown): string => escapeHtml(String(v ?? "—"));
 
 /**
  * Итоги периода — по тем же заказам, что и всё остальное на странице.

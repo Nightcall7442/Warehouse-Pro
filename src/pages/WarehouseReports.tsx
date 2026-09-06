@@ -157,7 +157,7 @@ function PanelBody({ error, empty, onRetry, errorText, emptyText, children }: {
 
 export default function WarehouseReports() {
   const { lang } = useLang();
-  const { fmt } = useCurrency();
+  const { fmt, symbol } = useCurrency();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const [days, setDays] = useState(30);
 
@@ -238,6 +238,7 @@ export default function WarehouseReports() {
         totalUnits: Number(arrivalData.summary.totalUnits ?? 0),
       } : undefined,
       days,
+      currency: symbol,
     };
     await exportToExcel(buildExcelSheets(reportData));
   };
@@ -259,6 +260,7 @@ export default function WarehouseReports() {
         totalUnits: Number(arrivalData.summary.totalUnits ?? 0),
       } : undefined,
       days,
+      currency: symbol,
     };
     exportToPDF(t("Отчёт по складу", "Ombor hisoboti"), buildPDFHtml(reportData));
   };

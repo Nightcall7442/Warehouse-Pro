@@ -28,6 +28,7 @@ function report(over: Partial<ReportData> = {}): ReportData {
       { productName: "Печенье овсяное", productCode: "P-1", currentStock: 100, soldQty: 40, turnoverRate: "0.4", daysToSell: 75 },
     ],
     days: 30,
+    currency: "сум",
     ...over,
   };
 }

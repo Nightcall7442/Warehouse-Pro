@@ -19,7 +19,8 @@ import {
 import { format, startOfMonth } from "date-fns";
 import { exportToExcel, formatOrdersForExport } from "@/lib/excel";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
-import { exportToPDF } from "@/lib/export";
+import { exportToPDF, escapeHtml } from "@/lib/export";
+import { ORDER_STATUS_LABEL, labelled } from "@/lib/entity-labels";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { ColumnSettings } from "@/components/orders/ColumnSettings";
 import { useOrderColumns } from "@/hooks/useOrderColumns";
@@ -376,17 +377,31 @@ function OperatorOrders() {
     const result = await refetchAllOrders();
     if (!result.data?.data) return;
     const fmtNum = (n: number) => n.toLocaleString("ru");
-    let html = `<div class="section"><h2>Заказы за ${dateFrom} — ${dateTo}</h2>
-      <table><thead><tr><th>№</th><th>Дата</th><th>Магазин</th><th>Агент</th><th>Статус</th><th class="right">Сумма</th></tr></thead><tbody>`;
+    /*
+      Три вещи, из-за которых эту выгрузку нельзя было никому отдать.
+
+      Статус печатался значением колонки: «new», «processing», «delivered» —
+      посреди русского отчёта. Словарь подписей лежит в src/lib/entity-labels.
+
+      Названия магазинов и имена агентов заводят руками и подставлялись как
+      есть: скобка в названии ломала разметку.
+
+      Валюта была вписана словом «сум», при том что символ из настроек
+      организации берётся тут же, в этом компоненте. Стоит он в заголовке
+      колонки, а не у каждого числа.
+    */
+    const cur = escapeHtml(symbol);
+    let html = `<div class="section"><h2>Заказы за ${escapeHtml(dateFrom)} — ${escapeHtml(dateTo)}</h2>
+      <table><thead><tr><th>№</th><th>Дата</th><th>Магазин</th><th>Агент</th><th>Статус</th><th class="right">Сумма, ${cur}</th></tr></thead><tbody>`;
     for (const o of result.data.data) {
       const dateStr = o.createdAt ? format(new Date(o.createdAt), "dd.MM.yyyy") : "—";
-      html += `<tr><td>${o.orderNumber}</td><td>${dateStr}</td><td>${o.shopName ?? "—"}</td><td>${o.agentName ?? "—"}</td><td>${o.status}</td><td class="right bold">${fmtNum(Number(o.total ?? 0))}</td></tr>`;
+      html += `<tr><td>${escapeHtml(o.orderNumber)}</td><td>${dateStr}</td><td>${escapeHtml(o.shopName ?? "—")}</td><td>${escapeHtml(o.agentName ?? "—")}</td><td>${escapeHtml(labelled(ORDER_STATUS_LABEL, o.status))}</td><td class="right bold">${fmtNum(Number(o.total ?? 0))}</td></tr>`;
     }
     html += `</tbody></table></div>`;
     const total = result.data.data.reduce((s: number, o: { total?: string | null }) => s + Number(o.total ?? 0), 0);
-    html += `<div style="margin-top:16px;text-align:right;font-size:14px;font-weight:700">Итого: ${fmtNum(total)} сум · ${result.data.data.length} заказов</div>`;
+    html += `<div style="margin-top:16px;text-align:right;font-size:14px;font-weight:700">Итого: ${fmtNum(total)} ${cur} · ${result.data.data.length} заказов</div>`;
     exportToPDF(`Заказы ${dateFrom} — ${dateTo}`, html);
-  }, [refetchAllOrders, dateFrom, dateTo]);
+  }, [refetchAllOrders, dateFrom, dateTo, symbol]);
 
   const allVisibleIds = useMemo(() => (data?.data ?? []).map(o => o.id as number), [data]);
   const allSelected = allVisibleIds.length > 0 && allVisibleIds.every(id => selected.has(id));

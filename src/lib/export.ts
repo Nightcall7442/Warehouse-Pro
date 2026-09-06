@@ -158,7 +158,14 @@ export function exportToPDF(title: string, contentHtml: string) {
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-function escapeHtml(s: string): string {
+/**
+ * Экранирование для страниц, которые собирают документ разметкой.
+ *
+ * Не экспортировалось, и в src/pages/Reports.tsx лежала своя копия с
+ * припиской «как только export.ts откроют по другому поводу — оттуда и
+ * брать». Открыт.
+ */
+export function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
@@ -171,6 +178,8 @@ export interface ReportData {
   turnover: Array<{ productName: string; productCode: string; currentStock: number; soldQty: number; turnoverRate: string; daysToSell: number }>;
   arrivalSummary?: { totalArrivals: number; totalFuelCost: number; totalTollCost: number; totalOtherCost: number; totalExpense: number; totalUnits: number };
   days: number;
+  /** Валюта арендатора из настроек. В карточках PDF было вписано «сум». */
+  currency: string;
 }
 
 export function buildExcelSheets(data: ReportData) {
@@ -278,8 +287,8 @@ export function buildPDFHtml(data: ReportData) {
   const lowStock = data.byCategory.reduce((s, c) => s + Number(c.lowStockCount ?? 0), 0);
 
   html += `<div class="kpi-grid">
-    <div class="kpi"><div class="kpi-label">Себестоимость</div><div class="kpi-value">${fmt(totalValue)} сум</div></div>
-    <div class="kpi"><div class="kpi-label">Розница</div><div class="kpi-value">${fmt(totalRetail)} сум</div></div>
+    <div class="kpi"><div class="kpi-label">Себестоимость</div><div class="kpi-value">${fmt(totalValue)} ${escapeHtml(data.currency)}</div></div>
+    <div class="kpi"><div class="kpi-label">Розница</div><div class="kpi-value">${fmt(totalRetail)} ${escapeHtml(data.currency)}</div></div>
     <div class="kpi"><div class="kpi-label">Единицы</div><div class="kpi-value">${fmt(totalUnits)}</div></div>
     <div class="kpi"><div class="kpi-label">Низкие остатки</div><div class="kpi-value">${lowStock}</div></div>
   </div>`;
@@ -292,8 +301,15 @@ export function buildPDFHtml(data: ReportData) {
   }
   html += `</tbody></table></div>`;
 
+  /*
+    В PDF попадают первые десять строк, и об этом не было сказано ни слова.
+    Отчёт по сотне товаров выглядел как отчёт по десяти: читатель складывал
+    колонку и не понимал, почему сумма не сходится с той, что на экране.
+  */
+  const cut = (shown: number, all: number) => (all > shown ? ` — первые ${shown} из ${all}` : "");
+
   // Top products
-  html += `<div class="section"><h2>Топ товаров по стоимости</h2>
+  html += `<div class="section"><h2>Топ товаров по стоимости${cut(10, data.topByValue.length)}</h2>
     <table><thead><tr><th>Товар</th><th>Код</th><th class="right">Остаток</th><th class="right">Стоимость</th><th class="right">Маржа</th></tr></thead><tbody>`;
   for (const p of data.topByValue.slice(0, 10)) {
     html += `<tr><td>${escapeHtml(p.productName)}</td><td>${escapeHtml(p.productCode)}</td><td class="right">${fmt(Number(p.currentStock))} ${escapeHtml(unitShort(p.unit))}</td><td class="right">${fmt(Number(p.costValue))}</td><td class="right">${fmt(Number(p.margin))}</td></tr>`;
@@ -301,7 +317,7 @@ export function buildPDFHtml(data: ReportData) {
   html += `</tbody></table></div>`;
 
   // Turnover
-  html += `<div class="section"><h2>Оборачиваемость (за ${data.days} дней)</h2>
+  html += `<div class="section"><h2>Оборачиваемость (за ${data.days} дней)${cut(10, data.turnover.length)}</h2>
     <table><thead><tr><th>Товар</th><th class="right">Остаток</th><th class="right">Продано</th><th class="right">Коэфф.</th><th class="right">Дней до продажи</th></tr></thead><tbody>`;
   for (const p of data.turnover.slice(0, 10)) {
     html += `<tr><td>${escapeHtml(p.productName)}</td><td class="right">${fmt(Number(p.currentStock))}</td><td class="right">${fmt(Number(p.soldQty))}</td><td class="right bold">${p.turnoverRate}x</td><td class="right">${p.daysToSell < 999 ? p.daysToSell : "—"}</td></tr>`;
