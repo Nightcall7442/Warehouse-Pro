@@ -6,7 +6,7 @@ import { eq } from "drizzle-orm";
 import { cache, withCache, CacheKeys, CacheTTL } from "./lib/cache";
 import { sanitizeString, isSafeUrl } from "./lib/sanitize";
 import { decimalOrDefault } from "./lib/zod-decimal";
-import { LOGO_MAX_CHARS } from "./lib/image-limits";
+import { LOGO_MAX_CHARS } from "@contracts/image-limits";
 
 export const settingsRouter = createRouter({
   get: authedQuery.query(async ({ ctx }) => {

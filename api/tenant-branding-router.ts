@@ -8,7 +8,7 @@ import { sanitizeString } from "./lib/sanitize";
 import { isSafePhotoValue, PHOTO_VALUE_ERROR } from "./lib/photo-value";
 // Пределы длины — там же, где объяснено, откуда они взялись: это ёмкость
 // столбца, а не пожелание к качеству. Клиент жмёт под те же числа.
-import { LOGO_MAX_CHARS, FAVICON_MAX_CHARS } from "./lib/image-limits";
+import { LOGO_MAX_CHARS, FAVICON_MAX_CHARS } from "@contracts/image-limits";
 
 /*
   Брендинг — то, КАК приложение выглядит: знак, цвета, название, тексты входа.

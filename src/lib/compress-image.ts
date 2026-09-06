@@ -1,3 +1,8 @@
+import {
+  LOGO_MAX_CHARS, FAVICON_MAX_CHARS,
+  LOGO_MAX_DIMENSION, FAVICON_MAX_DIMENSION,
+} from "@contracts/image-limits";
+
 /**
  * Client-side image compression using Canvas API.
  * Resizes and compresses images before upload to reduce storage size.
@@ -85,20 +90,25 @@ export async function compressImage(file: File, opts: CompressOptions = {}): Pro
   });
 }
 
+
 /*
   Пределы для логотипа и значка вкладки.
 
-  Они лежат ЗДЕСЬ, а не в том окне, которое их использует, потому что окон
-  два — «Компания» (settings.logo_url) и «Брендинг» (tenant_branding). Пока
-  число знал только «Брендинг», вкладка «Компания» звала compressImage без
-  ограничения и складывала в тот же по устройству столбец строку в десять раз
-  длиннее. Столбец типа TEXT — это 65 535 байт, и MySQL отклонял ВЕСЬ запрос:
-  вместе с логотипом не сохранялись ни название, ни адрес, ни банковские
-  реквизиты. Ошибка при этом приходила безымянная — «Внутренняя ошибка
-  сервера», без единого слова про логотип.
+  Сами числа лежат в contracts/image-limits.ts — их обязаны знать обе стороны:
+  клиент, чтобы сжать под них, и сервер, чтобы отклонить длинную строку
+  словами. Здесь они лишь одеты в форму, которую принимает compressImage.
 
-  Числа обязаны совпадать с LOGO_MAX_CHARS и FAVICON_MAX_CHARS на сервере;
-  за этим следит api/__tests__/logo-fits-its-column.test.ts.
+  Пока предел знал только раздел «Брендинг», вкладка «Компания» звала это же
+  сжатие общей меркой — до семисот тысяч знаков — и клала результат в такой же
+  по устройству столбец TEXT. MySQL отклонял запрос целиком, и вместе с
+  логотипом не сохранялись реквизиты организации.
 */
-export const LOGO_LIMITS: CompressOptions    = { maxDimension: 400, maxChars: 60_000 };
-export const FAVICON_LIMITS: CompressOptions = { maxDimension: 64,  maxChars: 30_000 };
+export const LOGO_LIMITS: CompressOptions = {
+  maxDimension: LOGO_MAX_DIMENSION,
+  maxChars:     LOGO_MAX_CHARS,
+};
+
+export const FAVICON_LIMITS: CompressOptions = {
+  maxDimension: FAVICON_MAX_DIMENSION,
+  maxChars:     FAVICON_MAX_CHARS,
+};

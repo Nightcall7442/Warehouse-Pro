@@ -23,8 +23,10 @@
  * поднимет качество логотипа, не заглянув в объявление столбца.
  */
 import { describe, it, expect } from "vitest";
-import { LOGO_MAX_CHARS, FAVICON_MAX_CHARS, TEXT_COLUMN_BYTES } from "../lib/image-limits";
-import { LOGO_LIMITS, FAVICON_LIMITS } from "../../src/lib/compress-image";
+import {
+  LOGO_MAX_CHARS, FAVICON_MAX_CHARS, TEXT_COLUMN_BYTES,
+  LOGO_MAX_DIMENSION, FAVICON_MAX_DIMENSION,
+} from "@contracts/image-limits";
 
 describe("предел логотипа", () => {
   it("серверный предел меньше ёмкости столбца", () => {
@@ -38,18 +40,55 @@ describe("предел логотипа", () => {
     expect(FAVICON_MAX_CHARS).toBeLessThan(TEXT_COLUMN_BYTES);
   });
 
-  it("клиент жмёт не крупнее, чем сервер готов принять", () => {
-    // Ровно то, что разошлось: во вкладке «Компания» клиент отдавал больше,
-    // чем принимала база.
-    expect(LOGO_LIMITS.maxChars).toBeLessThanOrEqual(LOGO_MAX_CHARS);
-    expect(FAVICON_LIMITS.maxChars).toBeLessThanOrEqual(FAVICON_MAX_CHARS);
+  it("логотипу отведено больше места, чем значку", () => {
+    // Значок вкладки — 16×16 на экране; логотип стоит в шапке накладной.
+    // Равные числа означали бы, что одно из двух задано не думая.
+    expect(FAVICON_MAX_CHARS).toBeLessThan(LOGO_MAX_CHARS);
+    expect(FAVICON_MAX_DIMENSION).toBeLessThan(LOGO_MAX_DIMENSION);
   });
 
-  it("предел задан, а не забыт", () => {
+  it("сторона задана и вменяема", () => {
     // Умолчание compressImage рассчитано на фотографию товара (столбец
-    // MEDIUMTEXT, 16 МБ) и для логотипа велико на порядок. Отсутствие числа
-    // здесь означает, что кто-то снова положился на умолчание.
-    expect(LOGO_LIMITS.maxChars).toBeGreaterThan(0);
-    expect(FAVICON_LIMITS.maxChars).toBeGreaterThan(0);
+    // MEDIUMTEXT, 16 МБ) и для логотипа велико на порядок. Ноль здесь
+    // означал бы, что кто-то снова положился на умолчание.
+    expect(LOGO_MAX_DIMENSION).toBeGreaterThan(0);
+    expect(FAVICON_MAX_DIMENSION).toBeGreaterThan(0);
+  });
+});
+
+describe("окна, пишущие в столбец TEXT, задают предел явно", () => {
+  /*
+    Согласие чисел теперь держится устройством кода: LOGO_LIMITS собран из тех
+    же констант, что и проверка на сервере, разойтись им негде. А вот САМА
+    ошибка — «позвали сжатие, не передав предел» — устройством не ловится:
+    у compressImage есть умолчание, и оно рассчитано на фотографию товара
+    (столбец MEDIUMTEXT, 16 МБ). Именно так и сломалась вкладка «Компания».
+
+    Поэтому проверка читает исходный текст обоих окон. Это грубо, но ровно по
+    месту: оба они пишут в столбец типа TEXT, и вызов без второго довода в них
+    означает возврат той же беды.
+  */
+  const FILES = [
+    "src/components/settings/CompanySettings.tsx",
+    "src/components/settings/BrandingSettings.tsx",
+  ];
+
+  it.each(FILES)("%s зовёт compressImage с ограничением", async (file) => {
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync(new URL(`../../${file}`, import.meta.url), "utf8");
+
+    // Скобка без вложенных скобок — этого достаточно: у обоих вызовов довод
+    // либо `file`, либо `file, LIMITS`. Строку импорта такой поиск не задевает,
+    // там за именем идёт не скобка.
+    const calls = [...src.matchAll(/compressImage\(([^)]*)\)/g)];
+
+    expect(calls.length).toBeGreaterThan(0);
+    for (const call of calls) {
+      const args = call[1].split(",");
+      expect(
+        args.length,
+        `${file}: compressImage(${call[1]}) — без второго довода сюда уйдёт умолчание для фотографии товара, а столбец здесь TEXT`,
+      ).toBeGreaterThan(1);
+    }
   });
 });
