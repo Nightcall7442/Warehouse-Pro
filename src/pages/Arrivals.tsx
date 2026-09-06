@@ -510,7 +510,7 @@ function SupplierDebtSection({ arrivalId }: { arrivalId: number }) {
 
 // ── Arrival Detail Modal ─────────────────────────────────────────────────────
 function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () => void }) {
-  const { fmt } = useCurrency();
+  const { fmt, symbol } = useCurrency();
   const { lang } = useLang();
   const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);
   const { data: detail, isLoading } = trpc.arrival.getById.useQuery({ id: arrivalId });
@@ -545,7 +545,9 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
       </tr>`;
     }
     html += `</tbody></table>`;
-    html += `<div style="margin-top:16px;text-align:right;font-size:14px;font-weight:700">Итого: ${fmtNum(totalSum)} сум</div>`;
+    // Валюта была вписана словом «сум» — при том что тут же, в этом самом
+    // компоненте, лежит символ из настроек организации.
+    html += `<div style="margin-top:16px;text-align:right;font-size:14px;font-weight:700">Итого: ${fmtNum(totalSum)} ${esc(symbol)}</div>`;
 
     const w = window.open("", "_blank");
     if (!w) return;

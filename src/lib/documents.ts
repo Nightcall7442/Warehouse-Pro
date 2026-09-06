@@ -106,6 +106,20 @@ const BASE_STYLES = `
   h3 { font-size: 12pt; margin: 8px 0 4px; }
   .page-break { page-break-before: always; }
   ${PRINT_RULES}
+  /*
+    На бумаге поля задаёт только @page.
+
+    Отступ body в 15 мм складывался с полем страницы в 10 мм: на А4 шириной
+    210 мм под документ оставалось 160. Колонки жались, длинные названия
+    переносились в три строки, накладная на семь позиций уезжала на второй
+    лист. В экранном окне отступ нужен — там страницы нет; в печати он лишний.
+    В GRID_STYLES это уже было, здесь — нет, поэтому расходная накладная,
+    приходная и ТОРГ-12 печатались с двойными полями.
+  */
+  @media print {
+    body { padding: 0; }
+    .no-print { display: none !important; }
+  }
 `;
 
 /** Professional grid styles for modern documents (invoices, loading lists) */
@@ -309,12 +323,67 @@ export type ArrivalDocData = {
   footerNote?: string;
 };
 
+/**
+ * Строка реквизита. Пусто — строки нет вовсе.
+ *
+ * ── Почему это про «некомпактно» ────────────────────────────────────────────
+ *
+ * Реквизиты печатались всегда, все шесть: «ИНН / СТИР:», «Адрес:», «Банк:»,
+ * «Р/с:», «МФО:». У арендатора, заполнившего только название, накладная
+ * выходила с пятью строками, после двоеточия в которых не было ничего.
+ * Документ занимал место, ничего им не говоря, и выглядел брошенным.
+ *
+ * Пустая строка на бумаге — не «нейтрально»: человек читает её как «данных
+ * нет» и ищет, где они. Строки, которой нет, он не ищет.
+ */
+function metaRow(label: string, value: string | null | undefined, bold = false): string {
+  const v = (value ?? "").trim();
+  if (!v) return "";
+  return `<div class="meta-row"><span class="meta-label">${escapeHtml(label)}</span>`
+    + `<span class="meta-value${bold ? " bold" : ""}">${escapeHtml(v)}</span></div>`;
+}
+
+/**
+ * Соединить части через запятую, пропуская пустые.
+ *
+ * В ТОРГ-12 стояло «${name}, ${address ?? ""}»: без адреса на бланке
+ * оставалась висящая запятая — «ООО Ромашка, » и пустота до конца строки. На
+ * товарной накладной, которую подписывают обе стороны, это выглядит как
+ * незаполненный документ.
+ */
+function joinParts(...parts: (string | null | undefined)[]): string {
+  return parts.map(p => (p ?? "").trim()).filter(Boolean).join(", ");
+}
+
+/**
+ * Пометка «заказано → отпущено», когда довезли не всё.
+ *
+ * ── Почему без неё документ не сходится ─────────────────────────────────────
+ *
+ * При частичной доставке `quantity` строки остаётся заказанным, а `subtotal`
+ * пересчитывается по отпущенному (см. applyPartialDelivery в api/services/
+ * order.ts). Вызывающая сторона печатает qty = отпущено, и арифметика в
+ * строке сходится, но из документа пропадает сам факт недостачи: магазин
+ * видит «7 шт» там, где заказывал 10, без единого слова почему.
+ *
+ * Поля orderedQty / deliveredQty / returnReason в типе DocItem были, но их
+ * не печатал ни один документ.
+ */
+function partialNote(item: DocItem, size = "8pt"): string {
+  const ordered = item.orderedQty;
+  const delivered = item.deliveredQty;
+  if (ordered == null || delivered == null || delivered >= ordered) return "";
+  const reason = (item.returnReason ?? "").trim();
+  const tail = reason ? `, ${reason}` : "";
+  return `<div style="font-size:${size};color:#666">заказано ${cleanNum(ordered)}, отпущено ${cleanNum(delivered)}${escapeHtml(tail)}</div>`;
+}
+
 // ── 1. РАСХОДНАЯ НАКЛАДНАЯ (Uzbekistan standard) — 2 копии на листе ──────────
 export function printUzWaybill(data: OrderDocData) {
   const itemRows = data.items.map((item, i) => `
     <tr>
       <td class="center">${i + 1}</td>
-      <td>${escapeHtml(item.name)}${item.code ? ` (${escapeHtml(item.code)})` : ""}</td>
+      <td>${escapeHtml(item.name)}${item.code ? ` (${escapeHtml(item.code)})` : ""}${partialNote(item)}</td>
       <td class="center">${unitLabel(item.unit)}</td>
       <td class="center">${cleanNum(item.qty)}</td>
       <td class="right">${item.price.toLocaleString("ru-RU")}</td>
@@ -328,26 +397,26 @@ export function printUzWaybill(data: OrderDocData) {
         <tr>
           <td style="width:50%">
             <div class="meta">
-              <div class="meta-row"><span class="meta-label">Поставщик:</span><span class="meta-value bold">${escapeHtml(data.seller.name)}</span></div>
-              <div class="meta-row"><span class="meta-label">ИНН / СТИР:</span><span class="meta-value">${escapeHtml(data.seller.inn ?? "")}</span></div>
-              <div class="meta-row"><span class="meta-label">Адрес:</span><span class="meta-value">${escapeHtml(data.seller.address ?? "")}</span></div>
-              <div class="meta-row"><span class="meta-label">Банк:</span><span class="meta-value">${escapeHtml(data.seller.bank ?? "")}</span></div>
-              <div class="meta-row"><span class="meta-label">Р/с:</span><span class="meta-value">${escapeHtml(data.seller.account ?? "")}</span></div>
-              <div class="meta-row"><span class="meta-label">МФО:</span><span class="meta-value">${escapeHtml(data.seller.mfo ?? "")}</span></div>
+              ${metaRow("Поставщик:", data.seller.name, true)}
+              ${metaRow("ИНН / СТИР:", data.seller.inn)}
+              ${metaRow("Адрес:", data.seller.address)}
+              ${metaRow("Банк:", data.seller.bank)}
+              ${metaRow("Р/с:", data.seller.account)}
+              ${metaRow("МФО:", data.seller.mfo)}
             </div>
           </td>
           <td style="width:50%">
             <div class="meta">
-              <div class="meta-row"><span class="meta-label">Покупатель:</span><span class="meta-value bold">${escapeHtml(data.buyer.name)}</span></div>
-              <div class="meta-row"><span class="meta-label">ИНН / СТИР:</span><span class="meta-value">${escapeHtml(data.buyer.inn ?? "")}</span></div>
-              <div class="meta-row"><span class="meta-label">Адрес:</span><span class="meta-value">${escapeHtml(data.buyer.address ?? "")}</span></div>
+              ${metaRow("Покупатель:", data.buyer.name, true)}
+              ${metaRow("ИНН / СТИР:", data.buyer.inn)}
+              ${metaRow("Адрес:", data.buyer.address)}
             </div>
           </td>
         </tr>
       </table>
 
       <div class="title">РАСХОДНАЯ НАКЛАДНАЯ</div>
-      <div class="subtitle">№ ${data.number} от ${data.date}</div>
+      <div class="subtitle">№ ${escapeHtml(data.number)} от ${escapeHtml(data.date)}</div>
 
       <table>
         <thead>
@@ -404,15 +473,33 @@ export function printUzWaybill(data: OrderDocData) {
     `;
   }
 
+  /*
+    Две копии на одном листе — как и написано в заголовке раздела.
+
+    Между копиями стоял разрыв страницы: на каждый заказ уходило два листа
+    вместо одного. Накладная на семь позиций занимает меньше половины А4, и
+    вторая половина уезжала в мусор. Дистрибьютор печатает их пачками по
+    полсотни в день.
+
+    Разрыва нет — есть линия отреза. Каждая копия целиком помещается на своей
+    половине (page-break-inside), и если позиций окажется много, вторая копия
+    сама перейдёт на следующий лист: это хуже, чем половина листа, но лучше,
+    чем разорванная посередине накладная.
+  */
+  const CUT_LINE = `
+    <div style="margin:6mm 0;border-top:1px dashed #999;position:relative">
+      <span style="position:absolute;top:-7px;left:0;background:#fff;padding-right:6px;font-size:8pt;color:#999">✂ линия отреза</span>
+    </div>`;
+
   const html = `
-    ${buildCopy("КОПИЯ ДЛЯ СКЛАДЧИКА")}
-    <div class="page-break"></div>
-    ${buildCopy("КОПИЯ ДЛЯ ШОФЁРА")}
+    <div style="page-break-inside:avoid">${buildCopy("КОПИЯ ДЛЯ СКЛАДЧИКА")}</div>
+    ${CUT_LINE}
+    <div style="page-break-inside:avoid">${buildCopy("КОПИЯ ДЛЯ ШОФЁРА")}</div>
 
     ${docFooter(data.footerNote, "9pt", "#555")}
   `;
 
-  openPrintWindow(html, `Расходная накладная № ${data.number}`);
+  openPrintWindow(html, `Расходная накладная № ${escapeHtml(data.number)}`);
 }
 
 // ── 2. ПРИХОДНАЯ НАКЛАДНАЯ (Goods Receipt) ────────────────────────────────────
@@ -423,7 +510,7 @@ export function printArrivalReceipt(data: ArrivalDocData) {
       <td>${escapeHtml(item.name)}${item.code ? ` (${escapeHtml(item.code)})` : ""}</td>
       <td class="center">${unitLabel(item.unit)}</td>
       <td class="center">${cleanNum(item.qty)}</td>
-      <td class="center">${(item as Record<string, unknown>).condition ?? "Хорошее"}</td>
+      <td></td>
     </tr>`).join("");
 
   const html = `
@@ -432,22 +519,22 @@ export function printArrivalReceipt(data: ArrivalDocData) {
         <td style="width:50%">
           <div class="meta">
             <div class="meta-row"><span class="meta-label">Поставщик:</span><span class="meta-value bold">${escapeHtml(data.supplier.name)}</span></div>
-            <div class="meta-row"><span class="meta-label">ИНН / СТИР:</span><span class="meta-value">${escapeHtml(data.supplier.inn ?? "")}</span></div>
-            <div class="meta-row"><span class="meta-label">Адрес:</span><span class="meta-value">${escapeHtml(data.supplier.address ?? "")}</span></div>
+            ${metaRow("ИНН / СТИР:", data.supplier.inn)}
+            ${metaRow("Адрес:", data.supplier.address)}
           </div>
         </td>
         <td style="width:50%">
           <div class="meta">
             <div class="meta-row"><span class="meta-label">Получатель:</span><span class="meta-value bold">${escapeHtml(data.receiver.name)}</span></div>
-            <div class="meta-row"><span class="meta-label">ИНН / СТИР:</span><span class="meta-value">${escapeHtml(data.receiver.inn ?? "")}</span></div>
-            <div class="meta-row"><span class="meta-label">Адрес:</span><span class="meta-value">${escapeHtml(data.receiver.address ?? "")}</span></div>
+            ${metaRow("ИНН / СТИР:", data.receiver.inn)}
+            ${metaRow("Адрес:", data.receiver.address)}
           </div>
         </td>
       </tr>
     </table>
 
     <div class="title">ПРИХОДНАЯ НАКЛАДНАЯ</div>
-    <div class="subtitle">№ ${data.number} от ${data.date}</div>
+    <div class="subtitle">№ ${escapeHtml(data.number)} от ${escapeHtml(data.date)}</div>
 
     <table>
       <thead>
@@ -456,14 +543,27 @@ export function printArrivalReceipt(data: ArrivalDocData) {
           <th>Наименование товара</th>
           <th style="width:8%">Ед.изм.</th>
           <th style="width:12%">Кол-во</th>
+          <!--
+            Колонка состояния заполняется рукой при приёмке.
+
+            Здесь печаталось «Хорошее» — в каждой строке, всегда: поля
+            condition в DocItem нет, и приведение к Record<string, unknown>
+            неизменно давало undefined. Приходная накладная утверждала, что
+            весь груз пришёл целым, ещё до того, как кладовщик на него
+            посмотрел, — а подписывает он именно эту графу.
+          -->
           <th style="width:16%">Состояние</th>
         </tr>
       </thead>
       <tbody>
         ${itemRows}
         <tr>
-          <td colspan="2" class="right bold">ИТОГО:</td>
-          <td class="center">кг</td>
+          <!--
+            Под графой «Ед.изм.» стояло «кг» — для любого прихода. Считают
+            штуками, ящиками и литрами тоже, а общее количество по разным
+            единицам всё равно складывается только как число позиций товара.
+          -->
+          <td colspan="3" class="right bold">ИТОГО:</td>
           <td class="center bold">${cleanNum(data.totalQty)}</td>
           <td></td>
         </tr>
@@ -502,20 +602,41 @@ export function printArrivalReceipt(data: ArrivalDocData) {
     </div>
   `;
 
-  openPrintWindow(html, `Приходная накладная № ${data.number}`);
+  openPrintWindow(html, `Приходная накладная № ${escapeHtml(data.number)}`);
 }
 
 // ── 3. ТОРГ-12 (Russian standard) ────────────────────────────────────────────
 export function printTorg12(data: OrderDocData) {
+  /*
+    ── Строка съехала относительно шапки ───────────────────────────────────────
+
+    Шапка объявляла двенадцать граф, строка заполняла их так:
+
+      2 «Код товара»    — пусто,
+      4 «Код по ОКЕИ»   — артикул товара (P-1, а не код классификатора),
+      6 «код единицы»   — 796 для каждой строки, независимо от единицы:
+                          796 это «штука», а в накладную попадают литры,
+                          килограммы и ящики,
+      7 «в одном месте» и 8 «мест, штук» — одно и то же количество дважды.
+                          Число мест это тарные единицы, система их не ведёт.
+
+    То есть артикул стоял в графе классификатора, а количество мест бралось
+    с потолка — по товарной накладной принимают груз и пересчитывают именно
+    места.
+
+    Что теперь: артикул в своей графе «Код товара», графы кодов ОКЕИ и «в
+    одном месте» остаются пустыми под заполнение рукой (ТОРГ-12 — бланк), а
+    отдельная графа «Код по ОКЕИ», дублировавшая подграфу единицы измерения,
+    убрана. Граф стало одиннадцать.
+  */
   const itemRows = data.items.map((item, i) => `
     <tr>
       <td class="center">${i + 1}</td>
-      <td></td>
-      <td>${escapeHtml(item.name)}</td>
       <td class="center">${escapeHtml(item.code ?? "")}</td>
+      <td>${escapeHtml(item.name)}${partialNote(item, "7.5pt")}</td>
       <td class="center">${unitLabel(item.unit)}</td>
-      <td class="center">796</td>
-      <td class="center">${cleanNum(item.qty)}</td>
+      <td></td>
+      <td></td>
       <td class="center">${cleanNum(item.qty)}</td>
       <td class="right">${item.price.toLocaleString("ru-RU", {minimumFractionDigits:2})}</td>
       <td class="center">Без НДС</td>
@@ -534,7 +655,10 @@ export function printTorg12(data: OrderDocData) {
         <td style="width:40%">
           <b>Организация:</b> ${escapeHtml(data.seller.name)}<br>
           <b>ИНН/КПП:</b> ${escapeHtml(data.seller.inn) || "_______________"}<br>
-          <b>Адрес:</b> ${escapeHtml(data.seller.address ?? "")}
+          <!-- Прочерк, как у ИНН строкой выше: ТОРГ-12 — бланк, и поле без
+               значения дозаполняют рукой. Пустое место после двоеточия
+               выглядит забытым, а прочерк — оставленным намеренно. -->
+          <b>Адрес:</b> ${escapeHtml(data.seller.address ?? "") || "_______________"}
         </td>
         <td style="width:30%;vertical-align:bottom">
           <table style="width:100%;font-size:9pt">
@@ -545,7 +669,7 @@ export function printTorg12(data: OrderDocData) {
         <td style="width:30%;vertical-align:bottom">
           <table style="width:100%;border:1px solid #000;font-size:9pt">
             <tr><th colspan="2">Номер документа</th><th>Дата составления</th></tr>
-            <tr><td colspan="2" class="center bold">${data.number}</td><td class="center">${data.date}</td></tr>
+            <tr><td colspan="2" class="center bold">${escapeHtml(data.number)}</td><td class="center">${escapeHtml(data.date)}</td></tr>
           </table>
         </td>
       </tr>
@@ -556,15 +680,15 @@ export function printTorg12(data: OrderDocData) {
     <table class="no-border" style="margin:6px 0">
       <tr>
         <td style="width:50%">
-          <b>Грузоотправитель</b> и его адрес: ${escapeHtml(data.seller.name)}, ${escapeHtml(data.seller.address ?? "")}
+          <b>Грузоотправитель</b> и его адрес: ${escapeHtml(joinParts(data.seller.name, data.seller.address))}
         </td>
         <td style="width:50%">
-          <b>Грузополучатель</b> и его адрес: ${escapeHtml(data.buyer.name)}, ${escapeHtml(data.buyer.address ?? "")}
+          <b>Грузополучатель</b> и его адрес: ${escapeHtml(joinParts(data.buyer.name, data.buyer.address))}
         </td>
       </tr>
       <tr>
         <td>Поставщик: ${escapeHtml(data.seller.name)}</td>
-        <td>Покупатель: ${escapeHtml(data.buyer.name)}, ИНН ${escapeHtml(data.buyer.inn ?? "")}</td>
+        <td>Покупатель: ${escapeHtml(joinParts(data.buyer.name, data.buyer.inn ? "ИНН " + data.buyer.inn : ""))}</td>
       </tr>
     </table>
 
@@ -572,28 +696,27 @@ export function printTorg12(data: OrderDocData) {
       <thead>
         <tr>
           <th rowspan="2" style="width:3%">№</th>
-          <th rowspan="2" style="width:5%">Код товара</th>
+          <th rowspan="2" style="width:7%">Код товара</th>
           <th rowspan="2">Наименование, характеристика, сорт, артикул товара</th>
-          <th rowspan="2" style="width:7%">Код по ОКЕИ</th>
-          <th colspan="2" style="width:16%">Единица измерения</th>
+          <th colspan="2" style="width:14%">Единица измерения</th>
           <th colspan="2" style="width:16%">Количество</th>
           <th rowspan="2" style="width:10%">Цена, ${escapeHtml(data.currency)}</th>
-          <th colspan="2" style="width:16%">НДС</th>
+          <th colspan="2" style="width:14%">НДС</th>
           <th rowspan="2" style="width:12%">Сумма с учётом НДС, ${escapeHtml(data.currency)}</th>
         </tr>
         <tr>
-          <th>наименование</th><th>код</th>
+          <th>наименование</th><th>код по ОКЕИ</th>
           <th>в одном месте</th><th>мест, штук</th>
           <th>ставка, %</th><th>сумма, ${escapeHtml(data.currency)}</th>
         </tr>
         <tr>
-          ${Array.from({length:12},(_,i)=>`<th class="center">${i+1}</th>`).join("")}
+          ${Array.from({length:11},(_,i)=>`<th class="center">${i+1}</th>`).join("")}
         </tr>
       </thead>
       <tbody>
         ${itemRows}
         <tr>
-          <td colspan="7" class="right bold">Итого</td>
+          <td colspan="6" class="right bold">Итого</td>
           <td class="center bold">${cleanNum(data.items.reduce((s,i)=>s+i.qty,0))}</td>
           <td></td>
           <td colspan="2" class="center">Без НДС</td>
@@ -602,10 +725,21 @@ export function printTorg12(data: OrderDocData) {
       </tbody>
     </table>
 
+    <!--
+      Здесь стояло «Итого мест: 1» — жёстко, для любого документа. Число мест
+      это количество тарных единиц, и система его не знает: в данных документа
+      такого поля нет вовсе. Печатать выдуманную единицу на товарной накладной
+      нельзя — по ней принимают груз. Печатается то, что известно на самом
+      деле: сколько наименований в документе.
+
+      Валюта была вписана словом «руб.» — притом что двумя строками выше, в
+      шапке таблицы, она берётся из настроек арендатора. Организация в
+      Узбекистане печатала товарную накладную с рублями.
+    -->
     <table class="no-border" style="margin-top:4px;font-size:10pt">
       <tr>
-        <td>Итого мест: <b>1</b></td>
-        <td class="right">Итого отпущено на сумму: <b>${data.total.toLocaleString("ru-RU",{minimumFractionDigits:2})} руб.</b></td>
+        <td>Всего наименований: <b>${data.items.length}</b></td>
+        <td class="right">Итого отпущено на сумму: <b>${data.total.toLocaleString("ru-RU",{minimumFractionDigits:2})} ${escapeHtml(data.currency)}</b></td>
       </tr>
     </table>
 
@@ -642,7 +776,7 @@ export function printTorg12(data: OrderDocData) {
     ${docFooter(data.footerNote, "8pt", "#666")}
   `;
 
-  openPrintWindow(html, `ТОРГ-12 № ${data.number}`);
+  openPrintWindow(html, `ТОРГ-12 № ${escapeHtml(data.number)}`);
 }
 
 // ── 4. СЧЁТ-ФАКТУРА (Invoice for payment) — professional template ───────────
@@ -650,7 +784,7 @@ export function printInvoice(data: OrderDocData) {
   const itemRows = data.items.map((item, i) => `
     <tr>
       <td style="text-align:center;padding:8px 6px;color:#64748b;font-size:9pt">${i + 1}</td>
-      <td style="padding:8px 10px">${escapeHtml(item.name)}${item.code ? `<br><span style="font-size:8pt;color:#94a3b8">Арт: ${escapeHtml(item.code)}</span>` : ""}</td>
+      <td style="padding:8px 10px">${escapeHtml(item.name)}${item.code ? `<br><span style="font-size:8pt;color:#94a3b8">Арт: ${escapeHtml(item.code)}</span>` : ""}${partialNote(item)}</td>
       <td style="text-align:center;padding:8px 6px;color:#64748b">${unitLabel(item.unit)}</td>
       <td style="text-align:right;padding:8px 10px;font-variant-numeric:tabular-nums">${cleanNum(item.qty)}</td>
       <td style="text-align:right;padding:8px 10px;color:#64748b;font-variant-numeric:tabular-nums">${item.price.toLocaleString("ru-RU")}</td>
@@ -700,15 +834,16 @@ export function printInvoice(data: OrderDocData) {
       <div style="text-align:right">
         <div style="font-size:8pt;text-transform:uppercase;letter-spacing:2px;color:#94a3b8;margin-bottom:2px">Счёт на оплату</div>
         <div style="font-size:20pt;font-weight:800;color:#0f172a;letter-spacing:-0.5px">№ ${escapeHtml(data.number)}</div>
-        <div style="font-size:9pt;color:#64748b;margin-top:2px">${data.date}</div>
+        <div style="font-size:9pt;color:#64748b;margin-top:2px">${escapeHtml(data.date)}</div>
       </div>
     </div>
 
-    <!-- Payment method & order badge -->
-    <div style="display:flex;gap:8px;margin-bottom:18px;align-items:center">
-      ${pmBadge}
-      <span style="display:inline-block;padding:3px 12px;border-radius:20px;font-size:8.5pt;color:#64748b;background:#f1f5f9;border:1px solid #e2e8f0">Заказ № ${escapeHtml(data.number)}</span>
-    </div>
+    <!--
+      Способ оплаты. Рядом стояла вторая метка «Заказ № …» — с тем же
+      номером, что набран двадцатым кеглем на три сантиметра выше. Строка
+      уходила целиком под повтор соседней строки.
+    -->
+    ${pmBadge ? `<div style="margin-bottom:18px">${pmBadge}</div>` : ""}
 
     <!-- Parties -->
     <div style="display:flex;gap:16px;margin-bottom:20px">
@@ -810,11 +945,11 @@ export function printInvoice(data: OrderDocData) {
 
     <!-- Footer -->
     <div style="margin-top:24px;text-align:center;font-size:7.5pt;color:#cbd5e1;padding-top:10px;border-top:1px solid #f1f5f9">
-      ${[escapeHtml((data.footerNote ?? "").trim()), data.date].filter(Boolean).join(" &bull; ")}
+      ${[escapeHtml((data.footerNote ?? "").trim()), escapeHtml(data.date)].filter(Boolean).join(" &bull; ")}
     </div>
   `;
 
-  openPrintWindow(html, `Счёт № ${data.number}`, INVOICE_STYLES);
+  openPrintWindow(html, `Счёт № ${escapeHtml(data.number)}`, INVOICE_STYLES);
 }
 
 // ── 5. BATCH INVOICES — mass print with debt info ──────────────────────────
@@ -844,6 +979,8 @@ export type BatchOrderData = {
   items: Array<{
     productId: number;
     quantity: string;
+    /** Сколько отпустили по факту. null — доставки ещё не было. */
+    deliveredQuantity?: string | null;
     unitPrice: string;
     costPrice: string;
     subtotal: string;
@@ -870,39 +1007,44 @@ export type BatchPrintOptions = {
   sortBy: "orderNumber" | "shop" | "agentRoute" | "territory";
 };
 
-function debtStatusColor(amount: number): string {
-  if (amount <= 0) return "#16a34a";
-  if (amount <= 500_000) return "#ca8a04";
-  if (amount <= 1_000_000) return "#dc2626";
-  return "#dc2626";
-}
-
-function debtStatusLabel(amount: number): string {
-  if (amount <= 0) return "Оплачено полностью";
-  if (amount <= 500_000) return "Небольшая задолженность";
-  if (amount <= 1_000_000) return "Крупная задолженность! Обратите внимание";
-  return "КРИТИЧЕСКИЙ ДОЛГ! Требуется срочная оплата";
-}
+/**
+ * Долг магазина в накладной — числом, без окриков.
+ *
+ * ── Что здесь было ──────────────────────────────────────────────────────────
+ *
+ * Долг раскрашивался и подписывался по трём порогам в абсолютных суммах:
+ * 500 000 — «Небольшая задолженность», миллион — «Крупная задолженность!
+ * Обратите внимание», выше — «КРИТИЧЕСКИЙ ДОЛГ! Требуется срочная оплата».
+ *
+ * Пороги ничего не значат без валюты: полмиллиона сумов и полмиллиона тенге
+ * различаются на порядок, а валюта у каждого арендатора своя (она тут же,
+ * параметром). К тому же две верхние ветки красили одним цветом — третья
+ * ступень не существовала.
+ *
+ * И главное: эту бумагу экспедитор отдаёт в магазин. Крик капслоком в чужом
+ * документе — не про деньги, а про тон; сумма и без него читается.
+ *
+ * Остаётся то, ради чего блок и нужен экспедитору: сколько магазин должен,
+ * сколько забрать с учётом этой поставки и когда платили в последний раз.
+ */
+const DEBT_ACCENT = "#b45309";
 
 function buildDebtBlock(order: BatchOrderData, currency: string): string {
   const debt = order.shopDebtAmount;
-  if (debt <= 0) return ""; // No debt — skip block entirely
+  if (debt <= 0) return ""; // Долга нет — блока нет.
 
-  const color = debtStatusColor(debt);
-  const label = debtStatusLabel(debt);
   const recommended = debt + Number(order.total);
 
-  // Compact: one-line debt info + small payment summary
+  // История платежей приходит за последние 30 дней (batchGetOrdersForPrint).
   const lastPayment = order.paymentHistory[0];
   const paymentLine = lastPayment
-    ? `Последний платёж: ${new Date(lastPayment.createdAt).toLocaleDateString("ru-RU")} ${Number(lastPayment.amount).toLocaleString("ru-RU")} ${escapeHtml(currency)}`
-    : "Нет платежей за 30 дней";
+    ? `Последний платёж: ${new Date(lastPayment.createdAt).toLocaleDateString("ru-RU")} — ${Number(lastPayment.amount).toLocaleString("ru-RU")} ${escapeHtml(currency)}`
+    : "Платежей за 30 дней нет";
 
   return `
-    <div style="margin:4px 0;padding:4px 8px;border:1px solid ${colorMix(color, 25)};background:${colorMix(color, 3)};font-size:8pt">
-      <b style="color:${color}">Долг: ${debt.toLocaleString("ru-RU")} ${escapeHtml(currency)}</b>
-      <span style="color:${color};margin-left:6px;font-size:7pt">${label}</span>
-      ${debt > 0 && Number(order.total) > 0 ? `<span style="margin-left:8px">К оплате: <b>${recommended.toLocaleString("ru-RU")} ${escapeHtml(currency)}</b></span>` : ""}
+    <div style="margin:4px 0;padding:4px 8px;border:1px solid ${colorMix(DEBT_ACCENT, 25)};background:${colorMix(DEBT_ACCENT, 3)};font-size:8pt">
+      <b style="color:${DEBT_ACCENT}">Долг магазина: ${debt.toLocaleString("ru-RU")} ${escapeHtml(currency)}</b>
+      ${Number(order.total) > 0 ? `<span style="margin-left:8px">К оплате с этой поставкой: <b>${recommended.toLocaleString("ru-RU")} ${escapeHtml(currency)}</b></span>` : ""}
       <span style="margin-left:8px;color:#666">${paymentLine}</span>
     </div>`;
 }
@@ -910,10 +1052,24 @@ function buildDebtBlock(order: BatchOrderData, currency: string): string {
 function buildSingleInvoice(order: BatchOrderData, opts: BatchPrintOptions, company: CompanyInfo, currency: string): string {
   const itemRows = (order.items ?? []).map((item, i) => {
     const costCol = opts.includeCostPrice ? `<td class="right">${Number(item.costPrice).toLocaleString("ru-RU")}</td>` : "";
+    /*
+      ── Заказано и отпущено ───────────────────────────────────────────────────
+
+      В обеих колонках стояло item.quantity: заказанное количество, зачёркнутое,
+      и рядом оно же — как «отдали». Документ показывал недостачу, которой по
+      его же числам не было.
+
+      Отпущенное лежит в order_items.delivered_quantity: частичная доставка
+      пишет его туда и пересчитывает subtotal строки, а quantity оставляет
+      заказанным (applyPartialDelivery в api/services/order.ts). Без него
+      строка не сходилась и в обычной накладной: цена × количество давала одно,
+      а в графе «Сумма» стояло другое.
+    */
+    const delivered = item.deliveredQuantity != null ? Number(item.deliveredQuantity) : null;
     const qtyCol = order.isPartial
       ? `<td class="right" style="text-decoration:line-through;color:#999">${cleanNum(item.quantity)}</td>
-         <td class="right bold">${cleanNum(item.quantity)}</td>`
-      : `<td class="right">${cleanNum(item.quantity)}</td>`;
+         <td class="right bold">${cleanNum(delivered ?? item.quantity)}</td>`
+      : `<td class="right">${cleanNum(delivered ?? item.quantity)}</td>`;
     return `
       <tr>
         <td class="center">${i + 1}</td>
@@ -991,20 +1147,35 @@ function buildSingleInvoice(order: BatchOrderData, opts: BatchPrintOptions, comp
       </div>` : ""}`;
 }
 
-// ТТН (Товарно-транспортная накладная) — formal shipment document with 0%-VAT columns
+/*
+  ТТН — товарно-транспортная накладная.
+
+  ── Что здесь было ────────────────────────────────────────────────────────────
+
+  Три графы НДС: «Цена без НДС», «Цена с НДС» и «Ставка НДС». В первые две
+  печаталась одна и та же unitPrice — то есть документ утверждал, что налога в
+  цене нет; в третьей стояло «0%» для каждой строки, всегда.
+
+  Система НДС не ведёт: api/services/onec-vat.ts к заказам не подключён (на
+  него ссылаются только его собственные тесты). Ставку 0% нельзя подставлять за
+  арендатора — на ТТН груз принимают и по ней же сверяются с налоговой, и
+  плательщик НДС этой бумагой заявляет чужую ставку.
+
+  Осталась цена и сумма — по одному разу, как их и знает система. Граф стало
+  шесть вместо восьми: колонки шире, названия не переносятся.
+*/
 function buildTTNInvoice(order: BatchOrderData, company: CompanyInfo, currency: string): string {
   const itemRows = (order.items ?? []).map((item, i) => {
     const price = Number(item.unitPrice);
     const sum = Number(item.subtotal);
+    const delivered = item.deliveredQuantity != null ? Number(item.deliveredQuantity) : null;
     return `
       <tr>
         <td class="center">${i + 1}</td>
         <td>${escapeHtml(item.productName)}${item.productCode ? ` <span style="color:#666;font-size:8pt">(${escapeHtml(item.productCode)})</span>` : ""}</td>
         <td class="center">${unitLabel(item.unit)}</td>
-        <td class="right">${cleanNum(item.quantity)}</td>
+        <td class="right">${cleanNum(delivered ?? item.quantity)}</td>
         <td class="right">${price.toLocaleString("ru-RU")}</td>
-        <td class="right">${price.toLocaleString("ru-RU")}</td>
-        <td class="center">0%</td>
         <td class="right bold">${sum.toLocaleString("ru-RU")}</td>
       </tr>`;
   }).join("");
@@ -1020,14 +1191,14 @@ function buildTTNInvoice(order: BatchOrderData, company: CompanyInfo, currency: 
       <table class="no-border" style="margin-bottom:6px;font-size:9pt">
         <tr>
           <td style="width:50%">
-            <div class="meta-row"><span class="meta-label">Поставщик:</span><span class="meta-value bold">${escapeHtml(company.name)}</span></div>
-            ${company.inn ? `<div class="meta-row"><span class="meta-label">ИНН:</span><span class="meta-value">${escapeHtml(company.inn)}</span></div>` : ""}
-            ${company.address ? `<div class="meta-row"><span class="meta-label">Адрес:</span><span class="meta-value">${escapeHtml(company.address)}</span></div>` : ""}
+            ${metaRow("Поставщик:", company.name, true)}
+            ${metaRow("ИНН:", company.inn)}
+            ${metaRow("Адрес:", company.address)}
           </td>
           <td style="width:50%">
-            <div class="meta-row"><span class="meta-label">Контрагент:</span><span class="meta-value bold">${escapeHtml(order.shopName ?? "")}</span></div>
-            ${order.shopAddress ? `<div class="meta-row"><span class="meta-label">Адрес:</span><span class="meta-value">${escapeHtml(order.shopAddress)}</span></div>` : ""}
-            ${order.shopPhone ? `<div class="meta-row"><span class="meta-label">Телефон:</span><span class="meta-value">${escapeHtml(order.shopPhone)}</span></div>` : ""}
+            ${metaRow("Контрагент:", order.shopName, true)}
+            ${metaRow("Адрес:", order.shopAddress)}
+            ${metaRow("Телефон:", order.shopPhone)}
           </td>
         </tr>
         <tr>
@@ -1044,11 +1215,9 @@ function buildTTNInvoice(order: BatchOrderData, company: CompanyInfo, currency: 
             <th style="width:4%">№</th>
             <th style="text-align:left">Наименование</th>
             <th style="width:7%">Ед.</th>
-            <th style="width:8%">Кол-во</th>
-            <th style="width:11%">Цена без НДС</th>
-            <th style="width:11%">Цена с НДС</th>
-            <th style="width:8%">Ставка НДС</th>
-            <th style="width:13%">Сумма с НДС</th>
+            <th style="width:10%">Кол-во</th>
+            <th style="width:14%">Цена, ${escapeHtml(currency)}</th>
+            <th style="width:16%">Сумма, ${escapeHtml(currency)}</th>
           </tr>
         </thead>
         <tbody>${itemRows}</tbody>
@@ -1056,7 +1225,7 @@ function buildTTNInvoice(order: BatchOrderData, company: CompanyInfo, currency: 
 
       <div class="totals-box">
         <table>
-          <tr class="total-row"><td>Сумма с учётом НДС:</td><td class="right">${total.toLocaleString("ru-RU")} ${escapeHtml(currency)}</td></tr>
+          <tr class="total-row"><td>Итого:</td><td class="right">${total.toLocaleString("ru-RU")} ${escapeHtml(currency)}</td></tr>
         </table>
       </div>
 
@@ -1067,7 +1236,9 @@ function buildTTNInvoice(order: BatchOrderData, company: CompanyInfo, currency: 
       </div>`;
 }
 
-export function printBatchInvoices(orders: BatchOrderData[], opts: BatchPrintOptions, company: CompanyInfo, currency: string = "сум", docType: "simple" | "ttn" = "simple") {
+// Валюта — параметр без запасного значения: стояло «сум», и забытый аргумент
+// напечатал бы узбекскую валюту в документе казахстанского арендатора молча.
+export function printBatchInvoices(orders: BatchOrderData[], opts: BatchPrintOptions, company: CompanyInfo, currency: string, docType: "simple" | "ttn" = "simple") {
   // Sort orders
   const sorted = [...orders];
   if (opts.sortBy === "shop") sorted.sort((a, b) => (a.shopName ?? "").localeCompare(b.shopName ?? ""));
@@ -1200,71 +1371,6 @@ function buildLoadingListAggregated(data: LoadingListData, currency: string): st
     </div>`;
 }
 
-function buildLoadingListByOrder(data: LoadingListData, currency: string): string {
-  const orderSections = data.orders.map(order => {
-    const orderItems = data.items; // In byOrder mode, items are already per-order
-    const itemRows = orderItems.map((item, i) => `
-      <tr>
-        <td class="center">${i + 1}</td>
-        <td>${escapeHtml(item.productName)}</td>
-        <td class="right">${cleanNum(item.totalQty)}</td>
-        <td class="right">${Number(item.totalPrice).toLocaleString("ru-RU")}</td>
-      </tr>`).join("");
-
-    const debt = Number(order.shopDebt);
-    const debtColor = debtStatusColor(debt);
-
-    return `
-      <div style="margin-bottom:16px;page-break-inside:avoid">
-        <table class="no-border" style="margin-bottom:4px">
-          <tr>
-            <td style="font-size:11pt;font-weight:700">ЗАКАЗ № ${escapeHtml(order.orderNumber)}</td>
-            <td style="text-align:right;font-size:11pt;font-weight:700">${Number(order.total).toLocaleString("ru-RU")} ${escapeHtml(currency)}</td>
-          </tr>
-          <tr>
-            <td style="font-size:9pt">→ ${escapeHtml(order.shopName ?? "Магазин")} | Агент: ${escapeHtml(order.agentName ?? "—")}</td>
-            <td style="text-align:right;font-size:8pt">${order.territoryName ? `Территория: ${escapeHtml(order.territoryName)}` : ""}</td>
-          </tr>
-          <tr>
-            <td style="font-size:8pt;color:#666">${escapeHtml(order.shopAddress ?? "")} ${order.shopCity ? `, ${escapeHtml(order.shopCity)}` : ""} ${order.shopPhone ? `| Тел: ${escapeHtml(order.shopPhone)}` : ""}</td>
-            <td style="text-align:right">${debt > 0 ? `<span style="color:${debtColor};font-weight:600;font-size:8pt">Долг: ${debt.toLocaleString("ru-RU")} ${escapeHtml(currency)}</span>` : ""}</td>
-          </tr>
-        </table>
-        <table>
-          <thead><tr>
-            <th style="width:4%">№</th>
-            <th style="text-align:left">Товар</th>
-            <th style="width:12%">Кол-во</th>
-            <th style="width:14%">Сумма</th>
-          </tr></thead>
-          <tbody>${itemRows}</tbody>
-        </table>
-        <div style="display:flex;gap:16px;margin-top:10px;font-size:8pt">
-          <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" style="width:14px;height:14px"> Товар проверен</label>
-          <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" style="width:14px;height:14px"> Упаковка целая</label>
-          <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" style="width:14px;height:14px"> Документы переданы</label>
-        </div>
-        <div style="display:flex;gap:20px;margin-top:10px;font-size:8pt;color:#94a3b8">
-          <div>Подпись получателя: _______________</div>
-          <div>Дата/время: _______________</div>
-        </div>
-      </div>`;
-  }).join("");
-
-  return `
-    <div style="text-align:center;margin-bottom:10px">
-      ${data.companyName ? `<div style="font-size:10pt;font-weight:600;color:#334155">${escapeHtml(data.companyName)}</div>` : ""}
-      <div style="font-size:16pt;font-weight:800;color:#0f172a">ЗАГРУЗОЧНЫЙ ЛИСТ</div>
-      <div style="font-size:11pt;color:#64748b">№ ${escapeHtml(data.listNumber)} — По заказам</div>
-    </div>
-    <div style="display:flex;gap:20px;margin-bottom:12px;font-size:9pt;color:#64748b">
-      <div>Заказов: <b>${data.totalOrders}</b></div>
-      <div>Позиций: <b>${data.totalItems}</b></div>
-      <div>Общий вес: <b>${cleanNum(data.totalWeight)} кг</b></div>
-    </div>
-    ${orderSections}`;
-}
-
 // Route/agent matrix — products × agents, with cash/debt/total money rows per agent
 function buildLoadingListByRoute(data: LoadingListData, currency: string): string {
   const agents = [...new Map(
@@ -1362,13 +1468,22 @@ function buildLoadingListByRoute(data: LoadingListData, currency: string): strin
           ${qtyTotalCells}
           <td class="right bold">${cleanNum(grandQty)}</td>
         </tr>
+        <!--
+          Строки называются по тому, что в них считается.
+
+          Делят заказы по одному признаку: paymentMethod === "debt" или нет.
+          Значит в первой не «наличные деньги», а всё, за что платят при
+          доставке, — и карта, и перечисление тоже. Экспедитор сдаёт по этой
+          строке кассу, и лишние безналичные заказы в ней означают недостачу,
+          которой нет.
+        -->
         <tr>
-          <td colspan="3" class="right">Наличные деньги:</td>
+          <td colspan="3" class="right">Оплата при доставке:</td>
           ${cashCells}
           <td class="right">${grandCash.toLocaleString("ru-RU")}</td>
         </tr>
         <tr>
-          <td colspan="3" class="right">Другие:</td>
+          <td colspan="3" class="right">В долг:</td>
           ${debtCells}
           <td class="right">${grandDebt.toLocaleString("ru-RU")}</td>
         </tr>
@@ -1386,12 +1501,25 @@ function buildLoadingListByRoute(data: LoadingListData, currency: string): strin
     </div>`;
 }
 
-export function printLoadingList(data: LoadingListData, format: "aggregated" | "byOrder" | "byRoute", currency: string = "сум") {
+/*
+  Форматов два: сводный и по маршрутам.
+
+  Был третий, «по заказам», и он печатал одно и то же под каждым заказом:
+
+      const orderItems = data.items; // In byOrder mode, items are already per-order
+
+  Комментарий обещал, что позиции придут по заказам, но createLoadingList
+  складывает их по всем сразу — параметр format сервер только записывает в
+  meta. Так что в разделе первого магазина, второго и десятого лежал полный
+  список отгрузки, и экспедитор по такой бумаге завёз бы каждому всё.
+
+  Печатать было неоткуда: окно предлагает только «Сводный» и «По маршруту».
+  Формат убран вместе с полутора десятками граф, которые он рисовал.
+*/
+export function printLoadingList(data: LoadingListData, format: "aggregated" | "byRoute", currency: string) {
   const html = format === "byRoute"
     ? buildLoadingListByRoute(data, currency)
-    : format === "aggregated"
-      ? buildLoadingListAggregated(data, currency)
-      : buildLoadingListByOrder(data, currency);
+    : buildLoadingListAggregated(data, currency);
 
-  openPrintWindow(html, `Загрузочный лист № ${data.listNumber}`, GRID_STYLES);
+  openPrintWindow(html, `Загрузочный лист № ${escapeHtml(data.listNumber)}`, GRID_STYLES);
 }

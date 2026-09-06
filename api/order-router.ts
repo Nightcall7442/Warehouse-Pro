@@ -482,7 +482,7 @@ export const orderRouter = createRouter({
   createLoadingList: operatorQuery
     .input(z.object({
       orderIds: z.array(z.number().int().positive()).min(1),
-      format: z.enum(["aggregated", "byOrder", "byRoute"]).default("aggregated"),
+      format: z.enum(["aggregated", "byRoute"]).default("aggregated"),
       warehouseId: z.number().int().positive().optional(),
       options: z.object({
         includeBarcodes: z.boolean().default(true),

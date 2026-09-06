@@ -2196,6 +2196,7 @@ export const OrderService = {
       orderId: orderItems.orderId,
       productId: orderItems.productId,
       quantity: orderItems.quantity,
+      deliveredQuantity: orderItems.deliveredQuantity,
       unitPrice: orderItems.unitPrice,
       costPrice: orderItems.costPrice,
       subtotal: orderItems.subtotal,
@@ -2236,12 +2237,21 @@ export const OrderService = {
       paymentsByShop.set(p.shopId, list);
     }
 
-    return ordersData.map(o => ({
-      ...o,
-      items: itemsByOrder.get(o.id) ?? [],
-      shopDebtAmount: Number(o.shopDebt ?? 0),
-      paymentHistory: paymentsByShop.get(o.shopId) ?? [],
-    }));
+    return ordersData.map(o => {
+      const items = itemsByOrder.get(o.id) ?? [];
+      return {
+        ...o,
+        items,
+        shopDebtAmount: Number(o.shopDebt ?? 0),
+        paymentHistory: paymentsByShop.get(o.shopId) ?? [],
+        // Довезли не всё — накладная печатает заказанное и отпущенное двумя
+        // графами. Признак вычисляется здесь: в документе поле isPartial было,
+        // но его никто не заполнял, и обе графы печатали заказанное.
+        isPartial: items.some(i =>
+          i.deliveredQuantity != null && Number(i.deliveredQuantity) < Number(i.quantity)
+        ),
+      };
+    });
   },
 
   async markInvoicesPrinted(db: Db, tenantId: number, orderIds: number[]) {
@@ -2305,7 +2315,7 @@ export const OrderService = {
     db: Db, tenantId: number, createdBy: number,
     input: {
       orderIds: number[];
-      format: "aggregated" | "byOrder" | "byRoute";
+      format: "aggregated" | "byRoute";
       warehouseId?: number;
       options?: { includeBarcodes?: boolean; includeWeight?: boolean; includeTotalWeight?: boolean };
     },
