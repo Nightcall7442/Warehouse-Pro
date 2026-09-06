@@ -170,19 +170,21 @@ export const PeriodPicker = memo(function PeriodPicker({ days, onChange, t }: {
   // не переключалось на узбекский.
   const items = [7, 30, 90];
   return (
-    <div role="group" aria-label={t("Период", "Davr")}
-      style={{ display: "inline-flex", background: COLORS.surfaceLight, borderRadius: "12px", padding: "3px", gap: "2px" }}>
+    /*
+      Домашний переключатель, а не свой.
+
+      Здесь была нарисована собственная лента: свои отступы, свои тени, свои
+      цвета выбранного. Выглядела она похоже, но не так же, как на главной и в
+      KPI, — а человек ходит между этими страницами подряд и видит, что одна
+      из них чужая. У приложения для этого есть .range-pills: те же скругления,
+      та же вдавленная подложка и одинаковое поведение выбранного в обеих темах.
+    */
+    <div role="group" aria-label={t("Период", "Davr")} className="range-pills">
       {items.map(d => (
         <button key={d} type="button" onClick={() => onChange(d)} aria-pressed={days === d}
-          // 12px в кнопке с отступом 8px давало 31 точку по высоте. Период
-          // переключают чаще всего на странице — цель касания здесь нужна.
-          className="tap" style={{
-            padding: "0 16px", fontSize: "12px", fontWeight: 600, fontFamily: F.body,
-            borderRadius: "10px", border: "none", cursor: "pointer", transition: "all 0.2s",
-            background: days === d ? COLORS.surface : "transparent",
-            color: days === d ? COLORS.textPrimary : COLORS.textSecondary,
-            boxShadow: days === d ? SHADOW : "none",
-          }}>
+          // .tap держит цель касания в 44 точки: период переключают чаще всего
+          // на странице, и прежняя высота в 31 точку здесь не годилась.
+          className={"range-pill tap" + (days === d ? " active" : "")}>
           {d} {t("дней", "kun")}
         </button>
       ))}

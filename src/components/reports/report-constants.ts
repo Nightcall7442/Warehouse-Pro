@@ -27,7 +27,24 @@ export const PAYMENT_MAP: Record<string, { label: string; color: string }> = {
   card:     { label: "Карта",        color: "var(--kpi-purple)" },
 };
 
-export type TabKey = "overview" | "sales" | "agents" | "agentProducts" | "all";
+/*
+  Разделы страницы «Отчёты».
+
+  «agentProducts» больше не самостоятельный раздел: «Агент × Товар» — это
+  подробность про агентов, а не пятый равный вопрос. Отдельной вкладкой он
+  ломал ленту (единственная подпись в два слова со знаком «×») и делил
+  разговор про агентов надвое.
+
+  Вместо него появился «debts» — «где деньги зависли». Это четвёртый вопрос, с
+  которым открывают отчёты, и единственный, ответа на который на странице не
+  было: долг жил одной карточкой выгрузки в каталоге, и увидеть его можно было
+  только скачав файл.
+
+  «all» остаётся, но перестаёт быть равной вкладкой: каталог выгрузок — это
+  «забрать с собой», а не «посмотреть», и стоять с ними в одном ряду ему
+  незачем.
+*/
+export type TabKey = "overview" | "sales" | "agents" | "debts" | "all";
 
 export const thStyle: React.CSSProperties = {
   fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase",

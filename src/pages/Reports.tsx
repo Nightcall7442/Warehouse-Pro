@@ -4,7 +4,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { useLang } from "@/i18n";
 import { useAuth } from "@/hooks/useAuth";
 import { format, subDays } from "date-fns";
-import { FileDown, Printer, LayoutDashboard, ShoppingCart, Award, Users, LayoutGrid } from "lucide-react";
+import { FileDown, Printer, LayoutDashboard, ShoppingCart, Award, LayoutGrid, Wallet } from "lucide-react";
 import { exportToExcel } from "@/lib/excel";
 import { exportToPDF } from "@/lib/export";
 import { unitShort } from "@/lib/units";
@@ -16,6 +16,7 @@ import { SalesTab } from "@/components/reports/SalesTab";
 import { AgentsTab, type AgentRow } from "@/components/reports/AgentsTab";
 import { AgentProductsTab } from "@/components/reports/AgentProductsTab";
 import { ReportsHub } from "@/components/reports/ReportsHub";
+import { DebtorsPanel } from "@/components/debts/DebtorsPanel";
 
 /**
  * «Отчёты» — рабочее место директора, а не витрина чисел.
@@ -117,7 +118,9 @@ export default function Reports() {
   const byPaymentQ = trpc.analytics.pnlByPaymentMethod.useQuery({ from, to }, { enabled: isCeo });
   const agentProductsQ = trpc.analytics.agentProductSales.useQuery(
     { dateFrom: apDateFrom, dateTo: apDateTo },
-    { enabled: tab === "agentProducts" },
+    // Раздел «Агенты» разворачивает эту подробность у себя, поэтому запрос
+    // просыпается вместе с ним, а не отдельной вкладкой.
+    { enabled: tab === "agents" },
   );
 
   const summary = summaryQ.data;
@@ -187,12 +190,24 @@ export default function Reports() {
     .sort((a, b) => b.revenue - a.revenue);
   const topAgentsOverview = agentRows?.slice().sort((a, b) => b.revenue - a.revenue);
 
+  /*
+    Четыре раздела — четыре вопроса, с которыми открывают отчёты: сколько
+    заработали, что продаётся, кто из агентов везёт, где деньги зависли.
+
+    Пятой вкладкой стоял каталог выгрузок, а шестой — «Агент × Товар». Ни то,
+    ни другое равным вопросом не является: каталог — это «забрать с собой»,
+    а «Агент × Товар» — подробность про агентов. Вместе они растягивали ленту
+    так, что на ноутбуке она занимала половину ширины, а на телефоне не
+    помещалась вовсе и ломала подпись в два слова на три строки.
+
+    Подписи короткие и в одно слово намеренно: лента должна помещаться целиком
+    везде, иначе разделы, до которых надо доскроллить, перестают существовать.
+  */
   const TABS = [
     { key: "overview" as const, ru: "Обзор", uz: "Umumiy", icon: <LayoutDashboard size={16} /> },
     { key: "sales" as const, ru: "Продажи", uz: "Sotuvlar", icon: <ShoppingCart size={16} /> },
     { key: "agents" as const, ru: "Агенты", uz: "Agentlar", icon: <Award size={16} /> },
-    { key: "agentProducts" as const, ru: "Агент × Товар", uz: "Agent × Mahsulot", icon: <Users size={16} /> },
-    { key: "all" as const, ru: "Все отчёты", uz: "Barcha hisobotlar", icon: <LayoutGrid size={16} /> },
+    { key: "debts" as const, ru: "Долги", uz: "Qarzlar", icon: <Wallet size={16} /> },
   ];
 
   const handleExportAgentProducts = async () => {
@@ -359,7 +374,12 @@ export default function Reports() {
   if (summaryQ.isLoadingError) return <QueryErrorFallback onRetry={summaryQ.refetch} />;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+    /*
+      stagger-children — то же появление, что на главной: разделы проступают
+      по очереди, а не все разом. Мелочь, но из таких мелочей и складывается
+      ощущение, что страницы сделаны одной рукой.
+    */
+    <div className="stagger-children" style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
         <div>
@@ -394,26 +414,48 @@ export default function Reports() {
         </div>
       </div>
 
-      {/* Tabs */}
-      {/* Лента прокручивается вбок, а не вылезает за экран: пяти вкладок на
-          телефоне в ряд не помещается, а страница ездить вбок не должна. */}
-      <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", margin: "0 -4px", padding: "0 4px" }}>
-      <div role="tablist" style={{ display: "inline-flex", background: COLORS.surfaceLight, borderRadius: "14px", padding: "4px", gap: "4px", alignSelf: "flex-start" }}>
-        {TABS.map(tb => (
-          <button key={tb.key} type="button" role="tab" aria-selected={tab === tb.key} onClick={() => setTab(tb.key)}
-            className="tap" style={{
-              display: "flex", alignItems: "center", gap: "8px", padding: "0 20px",
-              fontSize: "13px", fontWeight: 600, fontFamily: F.body, borderRadius: "10px",
-              border: "none", cursor: "pointer", transition: "all 0.2s", whiteSpace: "nowrap",
-              background: tab === tb.key ? COLORS.surface : "transparent",
-              color: tab === tb.key ? COLORS.textPrimary : COLORS.textSecondary,
-              boxShadow: tab === tb.key ? "0 1px 4px rgba(0,0,0,0.08)" : "none",
-            }}>
-            {tb.icon}
-            {t(tb.ru, tb.uz)}
-          </button>
-        ))}
-      </div>
+      {/*
+        Разделы и каталог — на одной строке, но не в одном ряду.
+
+        Каталог выгрузок стоял пятой вкладкой наравне с разделами. Это разные
+        вещи: разделы отвечают на вопрос здесь и сейчас, каталог отдаёт файл.
+        Стоя рядом, они и растягивали ленту, и путали — человек не понимал,
+        чем «Все отчёты» отличаются от «Продаж».
+
+        Теперь слева четыре раздела, справа — вход в каталог, отделённый
+        пробелом и другим видом. На узком экране он переносится под ленту сам:
+        flex-wrap, а не горизонтальная прокрутка, потому что прокрутка прячет
+        то, до чего не догадались дотянуть.
+      */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
+        {/*
+          Лента разделов — тот же .range-pills, что у периода выше и на
+          главной. Своя была нарисована рядом и почти так же: другие тени,
+          другой радиус, другой цвет выбранного. Именно из таких «почти» и
+          складывается ощущение, что страница сделана не тем же человеком.
+        */}
+        <div role="tablist" className="range-pills">
+          {TABS.map(tb => (
+            <button key={tb.key} type="button" role="tab" aria-selected={tab === tb.key} onClick={() => setTab(tb.key)}
+              className={"range-pill tap" + (tab === tb.key ? " active" : "")}
+              style={{ display: "flex", alignItems: "center", gap: "7px", whiteSpace: "nowrap" }}>
+              {tb.icon}
+              {t(tb.ru, tb.uz)}
+            </button>
+          ))}
+        </div>
+
+        <button type="button" onClick={() => setTab(tab === "all" ? "overview" : "all")}
+          aria-pressed={tab === "all"}
+          className="neo-btn tap" style={{
+            padding: "0 16px", gap: "7px",
+            color: tab === "all" ? COLORS.primaryText : COLORS.textSecondary,
+          }}>
+          <LayoutGrid size={16} aria-hidden />
+          {tab === "all"
+            ? t("Скрыть выгрузки", "Yuklamalarni yashirish")
+            : t("Все выгрузки", "Barcha yuklamalar")}
+        </button>
       </div>
 
       {/* Tab content */}
@@ -479,20 +521,48 @@ export default function Reports() {
         />
       )}
 
-      {tab === "agentProducts" && (
-        <AgentProductsTab
-          rows={agentProductsQ.data}
-          isLoading={agentProductsQ.isLoading}
-          isError={agentProductsQ.isError}
-          onRetry={() => void agentProductsQ.refetch()}
-          dateFrom={apDateFrom}
-          dateTo={apDateTo}
-          onDateFromChange={setApDateFrom}
-          onDateToChange={setApDateTo}
-          fmt={fmt}
-          t={t}
-          onExport={handleExportAgentProducts}
-        />
+      {/*
+        «Что продаёт каждый агент» — подробность про агентов, а не отдельный
+        раздел. Стоя пятой вкладкой, она делила один разговор надвое: сравнение
+        агентов в одном месте, состав их продаж в другом, и переключаться между
+        ними приходилось через всю ленту.
+      */}
+      {tab === "agents" && (
+        <details open className="neo-card" style={{ padding: "20px 24px" }}>
+          <summary className="tap" style={{
+            cursor: "pointer", listStyle: "none",
+            fontFamily: F.display, fontSize: "15px", fontWeight: 600, color: COLORS.textPrimary,
+          }}>
+            {t("Что продаёт каждый агент", "Har bir agent nima sotadi")}
+          </summary>
+          <div style={{ marginTop: "16px" }}>
+            <AgentProductsTab
+              rows={agentProductsQ.data}
+              isLoading={agentProductsQ.isLoading}
+              isError={agentProductsQ.isError}
+              onRetry={() => void agentProductsQ.refetch()}
+              dateFrom={apDateFrom}
+              dateTo={apDateTo}
+              onDateFromChange={setApDateFrom}
+              onDateToChange={setApDateTo}
+              fmt={fmt}
+              t={t}
+              onExport={handleExportAgentProducts}
+            />
+          </div>
+        </details>
+      )}
+
+      {/*
+        Где деньги зависли — четвёртый вопрос, которого на странице не было.
+        Долг жил одной карточкой выгрузки в каталоге: увидеть его можно было,
+        только скачав файл. Та же часть стоит и на странице магазинов —
+        считать долг двумя способами эта система уже пробовала.
+      */}
+      {tab === "debts" && (
+        <div className="neo-card" style={{ padding: "24px" }}>
+          <DebtorsPanel t={t} lang={lang} limit={15} />
+        </div>
       )}
     </div>
   );

@@ -7,7 +7,7 @@ import { notify } from "@/lib/toast";
 import { exportToExcel } from "@/lib/excel";
 import { ExcelImport } from "@/components/ExcelImport";
 import { useNavigate } from "react-router";
-import { FileDown, Upload, Plus } from "lucide-react";
+import { FileDown, Upload, Plus, Wallet } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { canOperate } from "@/lib/permissions";
@@ -22,6 +22,7 @@ import {
 import { TerritoryManager } from "@/components/shops/TerritoryManager";
 import type { ShopKpiStats } from "@/components/shops/ShopStats";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
+import { DebtorsPanel } from "@/components/debts/DebtorsPanel";
 import { COLORS } from "@/components/shops/constants";
 
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
@@ -286,6 +287,35 @@ export default function Shops() {
       </div>
 
       <ShopStats stats={kpiStats} lang={lang} fmt={fmt} />
+
+      {/*
+        Должники и их долги — здесь, а не только в отчётах.
+
+        Забрать список должников файлом можно было исключительно в разделе
+        отчётов, отдельной карточкой выгрузки. А смотрят на этот долг здесь: на
+        странице магазинов он и стоит в каждой строке. Владелец сказал об этом
+        прямо.
+
+        Свёрнуто по умолчанию: страница про магазины целиком, а долг — вопрос,
+        который задают не каждый раз. Развернул — и рядом же обе кнопки, файл и
+        печать; оба берут ОДИН И ТОТ ЖЕ набор строк, чтобы бумага и файл не
+        расходились.
+
+        Часть общая с разделом «Долги» в отчётах: считать долг двумя способами
+        эта система уже пробовала, и это стоило расхождений в деньгах.
+      */}
+      <details key="shop-debtors" className="neo-card" style={{ padding: "16px 20px" }}>
+        <summary className="tap" style={{
+          cursor: "pointer", listStyle: "none", display: "flex", alignItems: "center", gap: "8px",
+          fontSize: "14px", fontWeight: 600, color: "var(--color-text-primary)",
+        }}>
+          <Wallet size={16} aria-hidden />
+          {t("Должники и задолженность", "Qarzdorlar va qarzdorlik")}
+        </summary>
+        <div style={{ marginTop: "16px" }}>
+          <DebtorsPanel t={t} lang={lang} limit={20} />
+        </div>
+      </details>
 
       <ShopFilters
         lang={lang} search={search} setSearch={setSearch}
