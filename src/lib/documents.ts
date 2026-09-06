@@ -5,6 +5,51 @@
  */
 import { colorMix } from "@/lib/color-mix";
 
+/**
+ * Правила печати, общие для всех документов.
+ *
+ * ── Почему из @page убран size ──────────────────────────────────────────────
+ *
+ * В правиле страницы рядом с полями стоял ещё и размер бумаги. Казалось бы,
+ * безобидно — но
+ * Chrome, увидев объявленный size, ОТКЛЮЧАЕТ выбор ориентации в окне печати:
+ * страница сказала, чего хочет, и человеку выбирать нечего. Отсюда и жалоба,
+ * что альбомную поставить нельзя ни на одном документе.
+ *
+ * Размер бумаги задаёт тот, кто печатает: у него A4, Letter или рулон
+ * термопринтера, и знать это лучше него мы не можем. Поля остаются: без них
+ * браузер берёт свои, и они разные у разных.
+ *
+ * ── Почему шапка объявлена группой ──────────────────────────────────────────
+ *
+ * `thead { display: table-header-group }` заставляет браузер повторять шапку
+ * таблицы на КАЖДОЙ странице. Без этого накладная на сорок позиций со второй
+ * страницы превращалась в столбцы безымянных чисел: где количество, где цена,
+ * где сумма — непонятно.
+ *
+ * ── Почему строки не рвутся ─────────────────────────────────────────────────
+ *
+ * Строка товара, разорванная между страницами, — это половина названия
+ * наверху одного листа и цифры внизу другого. break-inside держит её целой.
+ *
+ * ── Почему заливки печатаются ───────────────────────────────────────────────
+ *
+ * Браузер по умолчанию не печатает фоны, экономя краску. В документе заливка
+ * шапки таблицы — не украшение, а граница между заголовком и данными: без неё
+ * лист выглядит плоской сеткой цифр. Оттенки здесь светло-серые, краски берут
+ * немного.
+ */
+const PRINT_RULES = `
+  @page { margin: 10mm; }
+  thead { display: table-header-group; }
+  tfoot { display: table-footer-group; }
+  tr { break-inside: avoid; page-break-inside: avoid; }
+  th { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .meta-box, .totals-box, .doc-fill {
+    print-color-adjust: exact; -webkit-print-color-adjust: exact;
+  }
+`;
+
 function escapeHtml(str: string | null | undefined): string {
   if (str == null) return "";
   return String(str)
@@ -60,7 +105,7 @@ const BASE_STYLES = `
   .totals-table .total-row td { font-weight: bold; border-top: 2px solid #000; }
   h3 { font-size: 12pt; margin: 8px 0 4px; }
   .page-break { page-break-before: always; }
-  @page { margin: 10mm; size: A4; }
+  ${PRINT_RULES}
 `;
 
 /** Professional grid styles for modern documents (invoices, loading lists) */
@@ -74,7 +119,7 @@ const GRID_STYLES = `
     padding: 12mm 15mm 10mm;
     line-height: 1.4;
   }
-  @page { margin: 8mm; size: A4; }
+  ${PRINT_RULES}
   @media print {
     body { padding: 0; }
     .no-print { display: none !important; }
@@ -165,7 +210,26 @@ function openPrintWindow(html: string, title: string, customStyles?: string) {
   const styles = customStyles ?? BASE_STYLES;
   w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title><style>${styles}</style></head><body>${html}</body></html>`);
   w.document.close();
-  w.onload = () => { w.print(); setTimeout(() => w.close(), 800); };
+
+  /*
+    Окно закрывается ПОСЛЕ печати, а не через восемьсот миллисекунд.
+
+    Стоял таймер на восемьсот миллисекунд, закрывавший окно. Оно открывается
+    асинхронно, и человек в нём выбирает принтер, ориентацию, «Сохранить как
+    PDF» — на это уходит куда больше восьмисот миллисекунд. Окно закрывалось
+    у него под руками вместе с диалогом: документ не печатался и не
+    сохранялся, а выглядело это как «кнопка не работает».
+
+    afterprint срабатывает и когда напечатали, и когда отказались, — в обоих
+    случаях окно уже не нужно. Если событие не придёт вовсе (так ведут себя
+    некоторые сборки), окно просто останется открытым: это неудобно, но не
+    отнимает у человека документ.
+  */
+  w.onload = () => {
+    w.focus();
+    w.onafterprint = () => w.close();
+    w.print();
+  };
 }
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -610,7 +674,7 @@ export function printInvoice(data: OrderDocData) {
       padding: 12mm 15mm 10mm;
       line-height: 1.5;
     }
-    @page { margin: 8mm; size: A4; }
+    ${PRINT_RULES}
     @media print {
       body { padding: 0; }
       .no-print { display: none !important; }

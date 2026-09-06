@@ -117,6 +117,18 @@ export function CounterpartyDetail({ supplierId, lang, onClose, onEdit, onPay }:
         .total{font-size:13px;margin:0 0 18px}
         .sign{margin-top:36px;display:flex;justify-content:space-between}
         .sign div{width:45%;border-top:1px solid #333;padding-top:6px}
+        /* Поля задаёт @page, а не отступ у body: отступ не повторяется на
+           второй странице. Размер бумаги не объявлен намеренно — объявленный
+           size отключает в Chrome выбор ориентации, а акт сверки за квартал
+           печатают альбомом. */
+        @page{margin:12mm}
+        thead{display:table-header-group}
+        tr{break-inside:avoid;page-break-inside:avoid}
+        h3{break-after:avoid}
+        @media print{
+          body{padding:0}
+          th,.opening td,.closing td{print-color-adjust:exact;-webkit-print-color-adjust:exact}
+        }
       </style></head><body>
       <h1>Акт сверки взаимных расчётов</h1>
       <div class="meta">Контрагент: <b>${esc(reconciliation.supplier?.name)}</b>${reconciliation.supplier?.inn ? ` · ИНН ${esc(reconciliation.supplier.inn)}` : ""}</div>
@@ -124,7 +136,7 @@ export function CounterpartyDetail({ supplierId, lang, onClose, onEdit, onPay }:
       <div class="meta">Составлен: ${format(new Date(), "dd.MM.yyyy")}</div>
       ${blocks || "<p>Движений за период не было.</p>"}
       <div class="sign"><div>От нашей организации</div><div>От контрагента</div></div>
-      <script>window.onload=()=>window.print()</script>
+      <script>window.onload=()=>{window.focus();window.onafterprint=()=>window.close();window.print()}</script>
       </body></html>`);
     w.document.close();
   }

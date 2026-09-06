@@ -59,18 +59,39 @@ export function printElement(elementId: string, title: string) {
         .signature-block { margin-top: 40px; display: flex; justify-content: space-between; }
         .signature-line  { width: 200px; border-top: 1px solid #000; padding-top: 4px; font-size: 11px; color: #555; }
         .footer { margin-top: 32px; font-size: 10px; color: #999; text-align: center; border-top: 1px solid #eee; padding-top: 8px; }
+        /*
+          Поля задаёт @page, а не отступ у body: отступ применяется к потоку
+          один раз и на второй странице не повторяется — верхнее поле там
+          пропадало. Размер бумаги намеренно не объявлен: объявленный size
+          отключает в Chrome выбор ориентации, а этот бланк печатают и
+          альбомом.
+        */
+        @page { margin: 10mm; }
+        thead { display: table-header-group; }
+        tfoot { display: table-footer-group; }
+        tr { break-inside: avoid; page-break-inside: avoid; }
         @media print {
-          body { padding: 10mm 10mm; }
-          @page { margin: 10mm; }
+          body { padding: 0; }
+          /* Заливки состояний и итоговой строки несут смысл: без них бланк
+             печатается плоской сеткой. Браузер фоны сам не печатает. */
+          th, .total-row td, .badge {
+            print-color-adjust: exact; -webkit-print-color-adjust: exact;
+          }
         }
       </style>
     </head>
     <body>
       <div id="print-content"></div>
       <script>
+        /*
+          Окно закрывается ПОСЛЕ печати. Стоял таймер на полсекунды: человек
+          не успевал даже выбрать принтер, окно закрывалось у него под руками
+          вместе с диалогом, и это выглядело как «кнопка не работает».
+        */
         window.onload = function() {
+          window.focus();
+          window.onafterprint = function() { window.close(); };
           window.print();
-          setTimeout(function() { window.close(); }, 500);
         };
       </script>
     </body>

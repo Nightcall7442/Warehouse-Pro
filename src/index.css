@@ -1675,8 +1675,21 @@ textarea:focus-visible {
   }
 }
 
+/*
+  Правила печати самого приложения.
+
+  Поля задаёт @page: без него браузер берёт свои, и они разные у разных.
+  Размер бумаги намеренно НЕ объявлен — объявленный size отключает в Chrome
+  выбор ориентации, и человек не может напечатать широкую таблицу альбомом.
+
+  Шапка таблицы повторяется на каждой странице, строки не рвутся пополам: без
+  этого второй лист длинного списка превращается в столбцы безымянных чисел.
+*/
+@page { margin: 10mm; }
 @media print {
   .no-print { display: none !important; }
+  thead { display: table-header-group; }
+  tr { break-inside: avoid; page-break-inside: avoid; }
   body { background: white !important; color: black !important; }
   .neo-card, .kpi-hero, .neo-card-sm, .glass-panel { box-shadow: none !important; border: 1px solid #ddd !important; }
 }

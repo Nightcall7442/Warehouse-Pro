@@ -554,17 +554,29 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
       h1{font-size:18px;margin-bottom:4px}.sub{color:#666;font-size:11px;margin-bottom:20px}
       .info{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:20px;font-size:12px}
       .info span{color:#888}.info strong{color:#111}
-      @media print{body{padding:20px}}</style></head><body>
+      table{width:100%;border-collapse:collapse}
+      th,td{border:1px solid #333;padding:5px 7px;font-size:10px;vertical-align:top}
+      th{background:#f0f0f0;font-weight:600;text-align:left}
+      /* Поля задаёт @page: отступ у body на второй странице не повторяется.
+         Размер бумаги намеренно не объявлен — объявленный size отключает в
+         Chrome выбор ориентации, а накладную печатают и альбомом. */
+      @page{margin:12mm}
+      thead{display:table-header-group}
+      tr{break-inside:avoid;page-break-inside:avoid}
+      @media print{body{padding:0}th{print-color-adjust:exact;-webkit-print-color-adjust:exact}}
+      </style></head><body>
       <h1>Накладная прихода</h1>
       <div class="sub">${esc(detail.arrivalNumber)} — ${detail.arrivalDate ? new Date(detail.arrivalDate).toLocaleDateString("ru") : ""}</div>
       <div class="info">
         <div><span>Машина:</span> <strong>${esc(detail.truckId) ?? "—"}</strong></div>
         <div><span>Водитель:</span> <strong>${esc(detail.driverName) ?? "—"}</strong></div>
         <div><span>Телефон:</span> <strong>${esc(detail.driverPhone) ?? "—"}</strong></div>
-        <div><span>Статус:</span> <strong>${esc(detail.status)}</strong></div>
+        <!-- Статус словом: печаталось сырое значение колонки — «pending»,
+             «unloading». Словарь подписей лежит в этом же файле. -->
+        <div><span>Статус:</span> <strong>${esc(statusLabels[detail.status]?.[lang === "uz" ? "uz" : "ru"] ?? detail.status)}</strong></div>
       </div>
       ${html}
-      <script>window.onload=()=>window.print()</script>
+      <script>window.onload=()=>{window.focus();window.onafterprint=()=>window.close();window.print()}</script>
       </body></html>`);
     w.document.close();
   };

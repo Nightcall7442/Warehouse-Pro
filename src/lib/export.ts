@@ -112,14 +112,45 @@ export function exportToPDF(title: string, contentHtml: string) {
         .kpi { padding: 12px; border: 1px solid #e5e5e5; border-radius: 8px; }
         .kpi-label { font-size: 10px; text-transform: uppercase; color: #888; letter-spacing: 0.05em; }
         .kpi-value { font-size: 20px; font-weight: 700; margin-top: 4px; }
-        @media print { body { padding: 20px; } }
+
+        /*
+          Правил печати здесь не было вовсе — ни полей, ни поведения таблиц.
+          Браузер брал свои поля (у разных они разные), шапка таблицы
+          оставалась на первой странице, а строки рвались пополам.
+
+          @page без size: объявленный размер бумаги ОТКЛЮЧАЕТ в Chrome выбор
+          ориентации, а отчёты — как раз те документы, которые чаще всего
+          печатают на альбомной: у них много колонок. Размер и поворот
+          выбирает тот, кто печатает.
+        */
+        @page { margin: 12mm; }
+        thead { display: table-header-group; }
+        tfoot { display: table-footer-group; }
+        tr { break-inside: avoid; page-break-inside: avoid; }
+        .section { break-inside: auto; }
+        .section h2 { break-after: avoid; }
+        @media print {
+          /* Отступ страницы задан @page: padding у body на второй и
+             последующих страницах не повторяется и сдвигает только первую. */
+          body { padding: 0; }
+          /* Полосы и заливка шапки — не украшение, а то, чем глаз держит
+             строку в таблице на двадцать колонок. Браузер фоны не печатает,
+             пока его не попросят. */
+          th, tr:nth-child(even) td, .kpi {
+            print-color-adjust: exact; -webkit-print-color-adjust: exact;
+          }
+        }
       </style>
     </head>
     <body>
       <h1>${escapeHtml(title)}</h1>
       <div class="subtitle">${new Date().toLocaleDateString("ru")}</div>
       ${contentHtml}
-      <script>window.onload = () => { window.print(); }</script>
+      <script>
+        /* focus() до print(): без него окно печати в части сборок открывается
+           за родительским окном, и человек видит пустую вкладку. */
+        window.onload = () => { window.focus(); window.print(); };
+      </script>
     </body>
     </html>
   `);
