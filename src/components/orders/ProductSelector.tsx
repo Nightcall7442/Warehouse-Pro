@@ -235,7 +235,20 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
                       background: "var(--color-surface)", display: "flex", alignItems: "center", justifyContent: "center",
                       cursor: "pointer", fontSize: "14px", color: "var(--color-text-secondary)",
                     }}>−</button>
+                    {/*
+                      Метка различается у встроенной корзины и у выезжающего
+                      листа: строки в них одни и те же (renderCart), а лист
+                      рисуется ПОВЕРХ встроенной, не заменяя её. Будь метка
+                      одинаковой, сквозная проверка находила бы два поля на
+                      одно число и падала бы на неоднозначности.
+
+                      Точное количество набирается ИМЕННО здесь: на карточке
+                      товара его больше не набрать — там остались только «−»
+                      и «+», чтобы телефон не выбрасывал клавиатуру на
+                      пол-экрана, пока агент набирает товары один за другим.
+                    */}
                     <input
+                      data-testid={`cart-qty-${item.productId}${inSheet ? "-sheet" : ""}`}
                       type="number"
                       min="0"
                       value={item.quantity}

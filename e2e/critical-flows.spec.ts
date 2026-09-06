@@ -140,8 +140,17 @@ test.describe("заказ", () => {
 
     await page.goto(`/orders/new?shopId=${shop.id}`);
     await page.getByTestId("product-search").fill(product.productCode as string);
-    await page.getByTestId(`product-qty-${product.productId}`).fill(String(QTY));
+    /*
+      Порядок именно такой: сначала «плюс», потом количество.
+
+      На карточке товара количество больше не набирается — там остались
+      только «−» и «+», а product-qty-N стал подписью, а не полем (телефон
+      выбрасывал клавиатуру на пол-экрана, пока агент набирает товары один
+      за другим). Точное число набирают в корзине, куда позиция попадает
+      после «плюса».
+    */
     await page.getByTestId(`product-add-${product.productId}`).click();
+    await page.getByTestId(`cart-qty-${product.productId}`).fill(String(QTY));
 
     await page.getByTestId("order-next").click(); // товары → итог
     await page.getByTestId("order-next").click(); // подтвердить
@@ -165,8 +174,10 @@ test.describe("заказ", () => {
 
     await page.goto(`/orders/new?shopId=${shop.id}`);
     await page.getByTestId("product-search").fill(product.productCode as string);
-    await page.getByTestId(`product-qty-${product.productId}`).fill(String(tooMuch));
     await page.getByTestId(`product-add-${product.productId}`).click();
+    // Поле количества ничем не зажато — отказ обязан прийти с сервера, а не
+    // от того, что число не дали ввести.
+    await page.getByTestId(`cart-qty-${product.productId}`).fill(String(tooMuch));
     await page.getByTestId("order-next").click();
     await page.getByTestId("order-next").click();
 
