@@ -1,14 +1,34 @@
 import { trpc } from "@/providers/trpc";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLang, useTranslate } from "@/i18n";
 import { cssVar } from "@/lib/css-var";
+import { useCurrency } from "@/hooks/useCurrency";
 import { format } from "date-fns";
-import { Radio, RefreshCw, MapPin, Wifi, WifiOff, Store } from "lucide-react";
+import { Radio, RefreshCw, MapPin, Store, Maximize2, Info } from "lucide-react";
 import {
-  TIER_COLOR, TIER_LABEL, TIER_ORDER, money, shopPinSvg,
+  TIER_COLOR, TIER_LABEL, TIER_ORDER, shopPinSvg,
   PIN_SIZE, PIN_ANCHOR, PIN_ANIMATION_LIMIT, type ShopTier,
   PIN_FOOTPRINT,
 } from "@/lib/shop-tier";
+import { buildRoster, timeAgo, STATE_TINT, type TrackedState } from "@/components/tracking/agent-roster";
+import { visiblePins, boundsOf } from "@/components/tracking/map-declutter";
+import { AgentRail } from "@/components/tracking/AgentRail";
+
+/**
+ * ЧТО ЭТО ЗА ЭКРАН
+ *
+ * Рабочее место супервайзера: где мои люди сейчас, кто на связи, кого куда
+ * послать, какие точки рядом. Всё это — вопросы про КАРТУ, поэтому карта тут
+ * не иллюстрация справа, а сама страница; список агентов лежит на ней
+ * панелью, а не отбирает треть ширины.
+ *
+ * Прежняя раскладка отвечала на другие вопросы. Четверть экрана занимали три
+ * плитки «ОНЛАЙН 0 · НЕ В СЕТИ 0 · ВСЕГО 0»: три числа, из которых два —
+ * разность третьего, и ни одно не говорит, что делать. Треть ширины уходила
+ * под колонку, в которой почти всегда пусто, потому что геолокацию агент
+ * включает сам и половина смены проходит без неё. Молчание тут не сбой, а
+ * обычный день, и экран обязан объяснять именно его.
+ */
 
 /**
  * Ключ Яндекс.Карт.
@@ -25,138 +45,272 @@ import {
  */
 const YANDEX_MAPS_API_KEY = import.meta.env.VITE_YANDEX_MAPS_API_KEY || "dd072e98-24e7-4b2e-b328-2989bd981fa5";
 
-function timeAgo(date: Date, lang: string): string {
-  const diff = Math.floor((Date.now() - date.getTime()) / 1000);
-  if (diff < 60)    return lang === "uz" ? "Hozir"             : "Только что";
-  if (diff < 3600)  return lang === "uz" ? `${Math.floor(diff/60)} daq`  : `${Math.floor(diff/60)} мин назад`;
-  if (diff < 86400) return lang === "uz" ? `${Math.floor(diff/3600)} soat` : `${Math.floor(diff/3600)} ч назад`;
-  return format(date, "dd.MM");
-}
+/**
+ * Карта во всю доступную высоту.
+ *
+ * Было жёстко 480 пикселей при любом экране: на ноутбуке под картой
+ * оставалось пустое поле, а на большом мониторе — половина экрана впустую.
+ * Нижняя граница нужна, чтобы карта не выродилась в полоску на телефоне.
+ */
+const MAP_HEIGHT = "clamp(420px, calc(100vh - 296px), 820px)";
 
-function isOnline(createdAt: string | Date | null | undefined): boolean {
-  if (!createdAt) return false;
-  const diff = (Date.now() - new Date(createdAt).getTime()) / 1000;
-  return diff < 600;
+/**
+ * Куда смотреть, пока не пришло ни одной точки.
+ *
+ * Ташкент — не выбор дизайнера, а место, где стоят все нынешние арендаторы.
+ * Как только приходят координаты — агентов или, если их нет, магазинов, —
+ * вид подгоняется под них, и это значение больше ни на что не влияет.
+ */
+const DEFAULT_CENTER = [41.2995, 69.2401];
+
+/**
+ * Подписи в подсказках карты собираются строкой и уходят в innerHTML самой
+ * карты. Имя магазина и имя сотрудника вводит человек, и кавычка в названии
+ * («Магазин "Меркурий"») ломала бы разметку подсказки, а угловая скобка — не
+ * только её.
+ */
+function esc(value: string): string {
+  return value.replace(/[&<>"]/g, c =>
+    c === "&" ? "&amp;" : c === "<" ? "&lt;" : c === ">" ? "&gt;" : "&quot;");
 }
 
 export default function SupervisorTracking() {
   const { lang } = useLang();
   const t = useTranslate();
+  const { fmt } = useCurrency();
 
-  const { data: locations, isLoading, refetch, dataUpdatedAt } = trpc.agent.getLocations.useQuery(
-    undefined, { refetchInterval: 30_000 }
-  );
-  // Магазины на той же карте: супервайзер смотрит, где люди, и тут же видит,
-  // к каким точкам они едут и что это за точки. Отдельная карта заставляла бы
-  // держать две картинки в голове.
-  //
-  // Своя тысяча — потолок запроса; больше на карту всё равно не помещается
-  // осмысленно, а на мобильном канале это уже мегабайты.
-  const [showShops, setShowShops] = useState(true);
-  const { data: shopScores } = trpc.shop.scores.useQuery({ limit: 1000 }, {
+  const locationsQuery = trpc.agent.getLocations.useQuery(undefined, { refetchInterval: 30_000 });
+  const { data: locations, isLoading, refetch, dataUpdatedAt } = locationsQuery;
+  /**
+   * Отказ без данных и отказ поверх данных — разные вещи, и путать их нельзя.
+   *
+   * `failed` — показывать нечего, и это именно сбой связи, а не молчание
+   * агентов: экран обязан сказать это словами, иначе отказ выглядит ровно как
+   * «никто не делится», и человек идёт трясти агентов вместо связиста.
+   *
+   * `stalled` — данные с прошлого опроса на экране остались, а очередной не
+   * прошёл. Стирать их нельзя (карта нужна), но и молчать нельзя: точки на
+   * ней стареют, а «прямой эфир» продолжал бы мигать как ни в чём не бывало.
+   */
+  const failed  = locationsQuery.isLoadingError;
+  const stalled = locationsQuery.isError && !!locations;
+
+  /**
+   * Справочник агентов — вторым запросом, и это главная прибавка экрана.
+   *
+   * getLocations отдаёт только тех, кто прислал точку. Агент с выключенной
+   * геолокацией в ответе отсутствует, то есть на прежнем экране его не было
+   * вовсе — ни строки, ни объяснения. Справочник даёт вторую половину
+   * ответа: кто ещё есть и от кого сигнала нет.
+   *
+   * listAgents открыт супервайзеру (reportsQuery) и отдаёт только id и имя —
+   * лишнего в ответе нет, кэш на пять минут, состав агентов за смену не
+   * меняется.
+   */
+  const rosterQuery = trpc.agent.listAgents.useQuery(undefined, { staleTime: 5 * 60_000 });
+
+  const shopsQuery = trpc.shop.scores.useQuery({ limit: 1000 }, {
     // Оценка меняется от оплат и заказов, то есть медленно: чаще раза в пять
     // минут её перечитывать незачем, а карта обновляется каждые 30 секунд.
     staleTime: 5 * 60_000,
   });
-  /** Метки магазинов вместе с тем, что нужно для их разведения. */
-  const shopMarkersRef = useRef<Array<{
-    pm: YandexPlacemark;
-    coords: number[];
-    visible: boolean;
-  }>>([]);
-  const declutterRef = useRef<(() => void) | null>(null);
-  /** Снять метки магазинов и отписаться от карты. */
-  function clearShopMarkers(map: YandexMap) {
-    if (declutterRef.current) {
-      map.events.remove("boundschange", declutterRef.current);
-      declutterRef.current = null;
-    }
-    shopMarkersRef.current.forEach(m => map.geoObjects.remove(m.pm));
-    shopMarkersRef.current = [];
-  }
-  /** Сколько меток поместилось на экран — в подпись под легендой. */
-  const [shownShops, setShownShops] = useState(0);
+  const shopScores = shopsQuery.data;
 
-  const mapRef     = useRef<YandexMap | null>(null);
-  const mapDivRef  = useRef<HTMLDivElement>(null);
-  const markersMapRef = useRef<Map<number, YandexPlacemark>>(new Map());
+  const [showShops, setShowShops] = useState(true);
+  const [filter, setFilter] = useState<TrackedState | "all">("all");
+  /**
+   * Панель агентов сворачивается до заголовка.
+   *
+   * Она лежит НА карте и закрывает её левый край. Постоянно — плохо: карта
+   * тут главное, и человеку нужен способ убрать с неё всё лишнее, не уходя
+   * со страницы. Заголовок при этом остаётся на месте, иначе панель некуда
+   * было бы вернуть.
+   */
+  const [railOpen, setRailOpen] = useState(true);
   const [selected, setSelected] = useState<number | null>(null);
+  /** Сколько меток магазинов сейчас правда нарисовано. */
+  const [shownShops, setShownShops] = useState(0);
+  /**
+   * Готовность карты — состоянием, а не только ссылкой.
+   *
+   * ЗДЕСЬ И БЫЛО «видно 0 из 73». Карта создаётся внутри ymaps.ready, то есть
+   * через сотни миллисекунд после монтирования, а эффекты, рисующие метки,
+   * зависели только от данных. Ответы tRPC приходят раньше загрузки скрипта
+   * Яндекса почти всегда: эффект просыпался, видел mapRef.current === null,
+   * выходил — и больше не просыпался, потому что ref не вызывает перерисовку.
+   *
+   * У агентов это лечилось само: getLocations перезапрашивается каждые 30
+   * секунд, и вторая попытка заставала карту готовой. У магазинов
+   * перезапроса нет вовсе (staleTime пять минут), поэтому их метки не
+   * появлялись НИКОГДА, а подпись под легендой честно докладывала «видно 0».
+   * Совет «приблизьте карту» при этом был невыполним: приближать было нечего.
+   */
+  const [mapReady, setMapReady] = useState(false);
+  const [mapError, setMapError] = useState<null | "no-key" | "script">(YANDEX_MAPS_API_KEY ? null : "no-key");
+
+  const mapRef        = useRef<YandexMap | null>(null);
+  const mapDivRef     = useRef<HTMLDivElement>(null);
+  const markersMapRef = useRef<Map<number, YandexPlacemark>>(new Map());
+  const shopMarkersRef = useRef<Array<{ pm: YandexPlacemark; coords: number[]; visible: boolean }>>([]);
+  const declutterRef  = useRef<(() => void) | null>(null);
+
   const lastUpdate = dataUpdatedAt ? new Date(dataUpdatedAt) : null;
 
-  const [mapError, setMapError] = useState(!YANDEX_MAPS_API_KEY);
+  /**
+   * «Сейчас» — момент последнего успешного ответа, а не момент отрисовки.
+   *
+   * Так честнее (данные именно на это время) и заодно чинит замирание:
+   * react-query возвращает ТУ ЖЕ ссылку на данные, когда ответ не изменился,
+   * и memo, зависящий только от неё, у стоящего на месте агента больше не
+   * пересчитывался бы никогда — «на связи» висело бы вечно.
+   *
+   * Ноль (успешного ответа ещё не было) отдаётся как undefined: время тогда
+   * ставит сам buildRoster. Своё Date.now() здесь звать нельзя — отрисовка
+   * обязана быть повторяемой, за этим следит react-hooks/purity.
+   */
+  const roster = useMemo(
+    () => buildRoster(rosterQuery.data ?? [], locations ?? [], dataUpdatedAt || undefined),
+    [rosterQuery.data, locations, dataUpdatedAt],
+  );
 
-  // Initialize map
-  function initMap() {
-    const div = mapDivRef.current;
-    const ymaps = window.ymaps;
-    if (!div || mapRef.current) return;
-    if (!ymaps) return;
+  const agentPoints = useMemo(
+    () => roster.rows.filter(r => r.lat != null && r.lng != null),
+    [roster],
+  );
+  /** Магазины, которые вообще могут оказаться на карте. */
+  const placedShops = useMemo(
+    () => (shopScores ?? []).filter(s => s.lat != null && s.lng != null),
+    [shopScores],
+  );
+  /**
+   * Магазины без координат считаются отдельно.
+   *
+   * Знаменатель «видно 0 из 73» брался из всего ответа, а в него входят и
+   * точки, у которых координат нет вовсе. Такой магазин на карте не появится
+   * ни при каком приближении, и сравнивать с ним нарисованные метки — значит
+   * обещать то, чего нет. Их теперь называют своим именем и отдельной
+   * строкой: это не «карта не догрузилась», это «в справочнике не заполнено».
+   */
+  const shopsWithoutGps = (shopScores?.length ?? 0) - placedShops.length;
 
-    ymaps.ready(() => {
-      const map = new ymaps.Map(div, {
-        center: [41.2995, 69.2401],
-        zoom: 11,
-        controls: ["zoomControl", "fullscreenControl", "geolocationControl"],
-      });
+  const visibleRows = useMemo(
+    () => filter === "all" ? roster.rows : roster.rows.filter(r => r.state === filter),
+    [roster, filter],
+  );
 
-      // Style controls
-      map.controls.get("zoomControl")?.options.set({ position: { right: 10, top: 10 } });
-      map.controls.get("fullscreenControl")?.options.set({ position: { right: 10, top: 50 } });
+  // ── Карта ─────────────────────────────────────────────────────────────────
 
-      mapRef.current = map;
-    });
-  }
-
-  // Load Yandex Maps API
   useEffect(() => {
     if (!YANDEX_MAPS_API_KEY) return;
-    if (window.ymaps) { initMap(); return; }
+    let cancelled = false;
+
+    const start = () => {
+      const ymaps = window.ymaps;
+      if (!ymaps) return;
+      ymaps.ready(() => {
+        const div = mapDivRef.current;
+        if (cancelled || !div || mapRef.current) return;
+        const map = new ymaps.Map(div, {
+          center: DEFAULT_CENTER,
+          zoom: 11,
+          controls: ["zoomControl", "fullscreenControl", "geolocationControl"],
+        });
+        map.controls.get("zoomControl")?.options.set({ position: { right: 10, top: 10 } });
+        map.controls.get("fullscreenControl")?.options.set({ position: { right: 10, top: 50 } });
+        mapRef.current = map;
+        setMapReady(true);
+      });
+    };
+
+    if (window.ymaps) { start(); return () => { cancelled = true; }; }
 
     const script = document.createElement("script");
     script.src = `https://api-maps.yandex.ru/2.1/?apikey=${YANDEX_MAPS_API_KEY}&lang=ru_RU`;
-    script.onload = () => initMap();
-    script.onerror = () => setMapError(true);
+    script.onload  = () => start();
+    // Отказ загрузки и ненастроенный ключ — разные беды с разным лечением, а
+    // сообщение было одно на оба: «Настройте VITE_YANDEX_MAPS_API_KEY» при
+    // отсутствии интернета отправляло чинить то, что не сломано.
+    script.onerror = () => setMapError("script");
     document.head.appendChild(script);
-     
+    return () => { cancelled = true; };
   }, []);
 
-  // Update markers when locations change
+  /**
+   * Подгон вида под то, что на карте есть.
+   *
+   * Прежде карта открывалась над Ташкентом на одиннадцатом масштабе и
+   * подгонялась только под агентов. Агентов на этом экране обычно нет — и
+   * вид оставался умозрительным: у организации из другого города в кадре не
+   * было ни одной её точки, а человеку предлагали «приблизить карту».
+   *
+   * Люди важнее: если хоть кто-то делится, вид строится по ним. Магазины —
+   * запасной ориентир, чтобы обзорный вид не оказался пустым полем.
+   */
+  const fitAll = useCallback(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const source = agentPoints.length
+      ? agentPoints.map(a => [a.lat as number, a.lng as number])
+      : showShops ? placedShops.map(s => [s.lat as number, s.lng as number]) : [];
+    const fit = boundsOf(source);
+    if (!fit) return;
+    if ("center" in fit) map.setCenter(fit.center, 14);
+    else map.setBounds(fit.bounds, { checkZoomRange: true, zoomMargin: 48 });
+  }, [agentPoints, placedShops, showShops]);
+
+  /**
+   * Подгон при открытии — и дальше только по кнопке.
+   *
+   * Подгон на каждом обновлении данных возвращал бы карту к общему виду
+   * каждые тридцать секунд, отменяя всё, что человек только что приблизил.
+   *
+   * Исключение одно: магазины и люди приезжают разными запросами, и магазины
+   * почти всегда первыми. Вид, построенный по магазинам, — временный; как
+   * только появился хоть один агент, он строится заново по людям. Обратно
+   * переигрывать нельзя: это уже отняло бы у человека вид, который он
+   * смотрит.
+   */
+  const fittedRef = useRef<"none" | "shops" | "agents">("none");
+  useEffect(() => {
+    if (!mapReady || fittedRef.current === "agents") return;
+    const want = agentPoints.length ? "agents" : placedShops.length ? "shops" : "none";
+    if (want === "none" || want === fittedRef.current) return;
+    fittedRef.current = want;
+    fitAll();
+  }, [mapReady, agentPoints, placedShops, fitAll]);
+
+  // Метки агентов.
   useEffect(() => {
     const ymaps = window.ymaps;
     const map = mapRef.current;
-    if (!ymaps || !map || !locations) return;
+    if (!ymaps || !map || !mapReady) return;
 
     ymaps.ready(() => {
-      // Remove old markers
       markersMapRef.current.forEach(m => map.geoObjects.remove(m));
       markersMapRef.current = new Map();
 
-      const coords: number[][] = [];
-
-      locations.forEach((loc) => {
-        const lat = Number(loc.lat);
-        const lng = Number(loc.lng);
-        if (!lat || !lng) return;
-
-        const online = isOnline(loc.createdAt);
+      agentPoints.forEach((agent) => {
+        const name = agent.name ?? t("Агент", "Agent");
         // Значением, а не переменной: метка рисуется в data:-адресе, где
         // var(--…) не работает и кружок выходит чёрным — в сети агент или нет,
         // на карте выглядело одинаково.
-        const color = online ? cssVar("--color-success-text", "#157a45") : cssVar("--color-text-tertiary", "#6b6760");
-        const initial = (loc.agentName ?? "A")[0].toUpperCase();
+        const color = agent.state === "online"
+          ? cssVar("--color-success-text", "#157a45")
+          : cssVar("--color-text-tertiary", "#6b6760");
+        const initial = esc(name[0].toUpperCase());
 
         const placemark = new ymaps.Placemark(
-          [lat, lng],
+          [agent.lat as number, agent.lng as number],
           {
-            balloonContentHeader: `<b style="font-family:Inter,sans-serif;font-size:14px">${loc.agentName ?? t("Агент","Agent")}</b>`,
+            balloonContentHeader: `<b style="font-family:Inter,sans-serif;font-size:14px">${esc(name)}</b>`,
             balloonContentBody: `
               <div style="font-family:Inter,sans-serif;font-size:12px;color:#666;padding:4px 0">
-                ${online ? t("Онлайн","Onlayn") : t("Не в сети","Oflayn")}
-                <br/>${Number(loc.lat).toFixed(5)}, ${Number(loc.lng).toFixed(5)}
-                ${loc.batteryLevel != null ? `<br/>🔋 ${loc.batteryLevel}%` : ""}
+                ${agent.state === "online" ? t("На связи", "Aloqada") : t("Был здесь", "Shu yerda edi")}
+                ${agent.at ? ` — ${esc(format(agent.at, "dd.MM HH:mm"))}` : ""}
+                ${agent.batteryLevel != null ? `<br/>🔋 ${agent.batteryLevel}%` : ""}
               </div>
             `,
-            hintContent: loc.agentName ?? t("Агент","Agent"),
+            hintContent: esc(name),
           },
           {
             iconLayout: "default#imageWithContent",
@@ -173,30 +327,14 @@ export default function SupervisorTracking() {
             iconImageSize: [40, 40],
             iconImageOffset: [-20, -20],
             balloonPanelMaxMapArea: 0,
-          }
+          },
         );
 
         map.geoObjects.add(placemark);
-        markersMapRef.current.set(loc.agentId, placemark);
-        coords.push([lat, lng]);
+        markersMapRef.current.set(agent.id, placemark);
       });
-
-      // Карта подгоняется под АГЕНТОВ, а не под всё, что на ней лежит.
-      // Раньше границы брались у map.geoObjects, а туда попадают и метки
-      // магазинов: стоило появиться лавке на краю области — и карта отъезжала
-      // так, что людей на ней было не различить.
-      if (coords.length > 1) {
-        const lats = coords.map(c => c[0]);
-        const lngs = coords.map(c => c[1]);
-        map.setBounds(
-          [[Math.min(...lats), Math.min(...lngs)], [Math.max(...lats), Math.max(...lngs)]],
-          { checkZoomRange: true, zoomMargin: 40 },
-        );
-      } else if (coords.length === 1) {
-        map.setCenter(coords[0], 14);
-      }
     });
-  }, [locations, t]);
+  }, [agentPoints, mapReady, t]);
 
   // Магазины отдельным эффектом: они меняются раз в пять минут, а метки
   // агентов — каждые тридцать секунд. В одном эффекте пришлось бы
@@ -204,39 +342,57 @@ export default function SupervisorTracking() {
   useEffect(() => {
     const ymaps = window.ymaps;
     const map = mapRef.current;
-    if (!ymaps || !map) return;
+    if (!ymaps || !map || !mapReady) return;
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    /** Снять метки магазинов и отписаться от карты. */
+    const clear = () => {
+      clearTimeout(timer);
+      if (declutterRef.current) {
+        map.events.remove("boundschange", declutterRef.current);
+        declutterRef.current = null;
+      }
+      shopMarkersRef.current.forEach(m => map.geoObjects.remove(m.pm));
+      shopMarkersRef.current = [];
+    };
 
     ymaps.ready(() => {
-      clearShopMarkers(map);
-      if (!showShops || !shopScores) {
+      clear();
+      if (!showShops || placedShops.length === 0) {
         setShownShops(0);
         return;
       }
 
       // Анимация — только пока меток немного: каждая метка отдельная картинка,
       // и её SMIL браузер считает сам.
-      const animated = shopScores.length <= PIN_ANIMATION_LIMIT;
-      const markers: Array<{ pm: YandexPlacemark; coords: number[]; tier: ShopTier; visible: boolean }> = [];
+      const animated = placedShops.length <= PIN_ANIMATION_LIMIT;
 
-      shopScores.forEach((shop) => {
-        if (shop.lat == null || shop.lng == null) return;
+      // Порядок решает, кто останется на экране, когда места мало: сначала
+      // «долго не платят», потом «есть долг» и так далее. Проблемный магазин
+      // не должен быть тем, кого заслонили.
+      const ordered = [...placedShops].sort((a, b) => {
+        const ta: ShopTier = a.tier in TIER_COLOR ? (a.tier as ShopTier) : "new";
+        const tb: ShopTier = b.tier in TIER_COLOR ? (b.tier as ShopTier) : "new";
+        return TIER_ORDER.indexOf(ta) - TIER_ORDER.indexOf(tb);
+      });
+
+      const markers = ordered.map((shop) => {
         // Незнакомый разряд с сервера — как «заказов не было»: серая метка
         // честнее пустого значка и падения на выборе подписи.
         const tier: ShopTier = shop.tier in TIER_COLOR ? (shop.tier as ShopTier) : "new";
         const color = TIER_COLOR[tier];
-
-        const placemark = new ymaps.Placemark(
-          [shop.lat, shop.lng],
+        const pm = new ymaps.Placemark(
+          [shop.lat as number, shop.lng as number],
           {
-            balloonContentHeader: `<b style="font-family:Inter,sans-serif;font-size:14px">${shop.name}</b>`,
+            balloonContentHeader: `<b style="font-family:Inter,sans-serif;font-size:14px">${esc(shop.name)}</b>`,
             balloonContentBody: `
               <div style="font-family:Inter,sans-serif;font-size:12px;color:#666;padding:4px 0;line-height:1.6">
-                <div><b style="color:${color}">${TIER_LABEL[tier].ru}</b> — ${shop.reason}</div>
-                <div>Принёс за всё время: <b>${money(shop.ltv)}</b></div>
-                <div>Заказов: ${shop.orderCount}${shop.debt > 0 ? ` · долг ${money(shop.debt)}` : ""}</div>
+                <div><b style="color:${color}">${esc(TIER_LABEL[tier].ru)}</b> — ${esc(shop.reason)}</div>
+                <div>Принёс за всё время: <b>${esc(fmt(shop.ltv))}</b></div>
+                <div>Заказов: ${shop.orderCount}${shop.debt > 0 ? ` · долг ${esc(fmt(shop.debt))}` : ""}</div>
               </div>
             `,
-            hintContent: `${shop.name} — ${money(shop.ltv)}`,
+            hintContent: `${esc(shop.name)} — ${esc(fmt(shop.ltv, true))}`,
           },
           {
             // Булавка со значком лавки, а не круг: круги на этой карте заняты
@@ -251,94 +407,51 @@ export default function SupervisorTracking() {
             // Ниже меток агентов: люди важнее точек, их метка не должна
             // оказаться под магазином.
             zIndex: 100,
-          }
+          },
         );
-
-        markers.push({ pm: placemark, coords: [shop.lat, shop.lng], tier, visible: true });
+        map.geoObjects.add(pm);
+        return { pm, coords: [shop.lat as number, shop.lng as number], visible: true };
       });
-      if (markers.length === 0) {
-        setShownShops(0);
-        return;
-      }
-
-      // Магазины в городе стоят вплотную — на соседних улицах, а то и в одном
-      // доме. Если рисовать все булавки подряд, они налезают друг на друга, и
-      // вместо карты выходит каша: не разобрать ни где какая, ни сколько их.
-      //
-      // Поэтому метки разводятся: на каждом масштабе показывается столько,
-      // сколько помещается без наложений, остальные ждут приближения. Ничего
-      // не пропадает насовсем — под легендой написано, сколько сейчас видно.
-      //
-      // Порядок решает, кто останется на экране, когда места мало: сначала
-      // «долго не платят», потом «есть долг» и так далее. Проблемный магазин
-      // не должен быть тем, кого заслонили.
-      markers.sort((a, b) => TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier));
-      markers.forEach(m => map.geoObjects.add(m.pm));
       shopMarkersRef.current = markers;
 
-      // Сетка размером с булавку: метка сверяется только с соседними
-      // клетками, а не со всеми уже расставленными. Иначе на тысяче
-      // магазинов каждый сдвиг карты стоил бы полумиллиона сравнений.
-      const CELL = 64;
-
       const declutter = () => {
+        const div = mapDivRef.current;
+        if (!div) return;
         const projection = map.options.get("projection");
         const zoom = map.getZoom();
-        const [width, height] = map.container.getSize();
-        const grid = new Map<string, number[][]>();
-        let shown = 0;
-
-        for (const m of markers) {
+        // Окно карты в координатах СТРАНИЦЫ — ровно в тех, что отдаёт
+        // globalToPage. Раньше здесь стоял container.getSize(), то есть
+        // размер контейнера от его собственного угла, и метки правее и ниже
+        // середины карты объявлялись «за краем экрана» и пропадали.
+        const rect = div.getBoundingClientRect();
+        const view = {
+          left:   rect.left + window.scrollX,
+          top:    rect.top  + window.scrollY,
+          width:  rect.width,
+          height: rect.height,
+        };
+        const points = markers.map((m) => {
           const [x, y] = map.converter.globalToPage(projection.toGlobalPixels(m.coords, zoom));
-          let visible = false;
+          return { x, y };
+        });
 
-          // За краем экрана считать наложения незачем — метку всё равно не
-          // видно, а место, которое она заняла бы, нужно тем, кто на виду.
-          if (x >= -80 && y >= -80 && x <= width + 80 && y <= height + 80) {
-            const box = [
-              x - PIN_FOOTPRINT.halfWidth, y - PIN_FOOTPRINT.above,
-              x + PIN_FOOTPRINT.halfWidth, y + PIN_FOOTPRINT.below,
-            ];
-            const cx = Math.floor(x / CELL), cy = Math.floor(y / CELL);
-            let free = true;
-            for (let i = cx - 1; i <= cx + 1 && free; i++) {
-              for (let j = cy - 1; j <= cy + 1 && free; j++) {
-                for (const other of grid.get(`${i}:${j}`) ?? []) {
-                  if (box[0] < other[2] && box[2] > other[0] && box[1] < other[3] && box[3] > other[1]) {
-                    free = false;
-                    break;
-                  }
-                }
-              }
-            }
-            if (free) {
-              visible = true;
-              shown++;
-              for (let i = cx - 1; i <= cx + 1; i++) {
-                for (let j = cy - 1; j <= cy + 1; j++) {
-                  const key = `${i}:${j}`;
-                  const cell = grid.get(key);
-                  if (cell) cell.push(box);
-                  else grid.set(key, [box]);
-                }
-              }
-            }
-          }
-
+        const visible = visiblePins(points, view, PIN_FOOTPRINT);
+        let shown = 0;
+        visible.forEach((v, i) => {
+          if (v) shown++;
           // Трогаем метку, только если её состояние правда меняется: карта
           // перерисовывает объект на каждый set, и лишние вызовы дёргают её
           // при обычном перетаскивании.
-          if (visible !== m.visible) {
-            m.visible = visible;
-            m.pm.options.set("visible", visible);
+          if (v !== markers[i].visible) {
+            markers[i].visible = v;
+            markers[i].pm.options.set("visible", v);
           }
-        }
+        });
         setShownShops(shown);
       };
 
       // Пересчёт после того, как карта остановилась: во время перетаскивания
       // boundschange приходит на каждый кадр.
-      let timer: ReturnType<typeof setTimeout> | undefined;
       const onBoundsChange = () => {
         clearTimeout(timer);
         timer = setTimeout(declutter, 120);
@@ -350,207 +463,234 @@ export default function SupervisorTracking() {
 
     // Уход со страницы: карта живёт дольше эффекта, и подписка на неё без
     // этого пережила бы компонент.
-    return () => clearShopMarkers(map);
-  }, [shopScores, showShops]);
+    return clear;
+  }, [placedShops, showShops, mapReady, fmt]);
 
   // Центрирование на выбранном агенте — только при смене выбора. Метки
   // приходят каждые тридцать секунд; зависи эффект от них, карта
   // возвращалась бы к агенту на каждом опросе, пока человек её двигает.
   // Поэтому свежие координаты читаются через ref, а не из зависимостей.
-  const locationsRef = useRef(locations);
-  useEffect(() => { locationsRef.current = locations; }, [locations]);
+  const pointsRef = useRef(agentPoints);
+  useEffect(() => { pointsRef.current = agentPoints; }, [agentPoints]);
 
   useEffect(() => {
     const map = mapRef.current;
-    const locs = locationsRef.current;
-    if (!selected || !map || !locs) return;
-    const loc = locs.find((l) => l.agentId === selected);
-    if (loc && Number(loc.lat) && Number(loc.lng)) {
-      map.setCenter([Number(loc.lat), Number(loc.lng)], 15);
-      // Open balloon
-      const pm = markersMapRef.current.get(selected);
-      if (pm) pm.balloon.open();
-    }
-  }, [selected]);
+    if (selected == null || !map || !mapReady) return;
+    const agent = pointsRef.current.find(a => a.id === selected);
+    if (!agent) return;
+    map.setCenter([agent.lat as number, agent.lng as number], 15);
+    markersMapRef.current.get(selected)?.balloon.open();
+  }, [selected, mapReady]);
 
-  const onlineCount  = locations?.filter((l) => isOnline(l.createdAt)).length ?? 0;
-  const offlineCount = (locations?.length ?? 0) - onlineCount;
+  // ── Разметка ──────────────────────────────────────────────────────────────
+
+  const { counts } = roster;
+
+  /**
+   * Фильтр вместо трёх плиток.
+   *
+   * Плитки «ОНЛАЙН / НЕ В СЕТИ / ВСЕГО» занимали четверть экрана и ничего не
+   * предлагали сделать. Те же числа стоят здесь строкой и одновременно
+   * работают переключателем списка: «покажи мне тех, кто на связи» — это и
+   * есть вопрос, с которым сюда приходят.
+   */
+  const buckets: Array<{ key: TrackedState | "all"; label: string; count: number; tint?: TrackedState }> = [
+    { key: "all",    label: t("Все", "Hammasi"),           count: counts.total },
+    { key: "online", label: t("На связи", "Aloqada"),      count: counts.online, tint: "online" },
+    { key: "stale",  label: t("Были раньше", "Avvalroq"),  count: counts.stale,  tint: "stale" },
+    { key: "silent", label: t("Без сигнала", "Signalsiz"), count: counts.silent, tint: "silent" },
+  ];
 
   return (
-    <div className="space-y-4 animate-fade-up">
+    <div className="space-y-3 animate-fade-up">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <div style={{ display: "flex", gap: "6px", marginBottom: "12px" }}>
-            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-pink, #c06080)", boxShadow: "var(--shadow-xs)" }} />
-            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-orange, #c49530)", boxShadow: "var(--shadow-xs)" }} />
-            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-teal, #3a9a8a)", boxShadow: "var(--shadow-xs)" }} />
-          </div>
-          <h1 className="font-display text-2xl font-bold text-primary tracking-tight">{t("Слежение за агентами", "Agentlarni kuzatish")}</h1>
-          {lastUpdate && (
-            <p className="text-xs mt-0.5" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
-              {t("Обновлено:", "Yangilangan:")} {format(lastUpdate, "HH:mm:ss")}
-            </p>
-          )}
+          <h1 className="font-display text-2xl font-bold text-primary tracking-tight">
+            {t("Слежение за агентами", "Agentlarni kuzatish")}
+          </h1>
+          <p className="text-xs mt-0.5" style={{ color: stalled ? "var(--color-warning-text)" : "var(--color-text-tertiary)" }}>
+            {failed
+              ? t("Связь с сервером потеряна", "Server bilan aloqa uzildi")
+              : lastUpdate
+                ? `${t("Обновлено", "Yangilangan")} ${format(lastUpdate, "HH:mm:ss")}`
+                  + (stalled ? t(" · последний опрос не прошёл", " · so'nggi so'rov o'tmadi") : "")
+                : t("Загружаем…", "Yuklanmoqda…")}
+          </p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5">
-            <Radio size={13} className="text-success animate-pulse" />
-            <span className="font-label text-xs" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
-              {t("ПРЯМОЙ ЭФИР · 30 сек", "JONLI · 30 sek")}
-            </span>
-          </div>
-          <button onClick={() => refetch()} className="neo-btn py-1.5 px-3 text-xs flex items-center gap-1.5">
+          {!failed && !stalled && (
+            <div className="flex items-center gap-1.5">
+              <Radio size={13} className="text-success animate-pulse" />
+              <span className="font-label text-xs" style={{ color: "var(--color-text-tertiary)" }}>
+                {t("ПРЯМОЙ ЭФИР · 30 сек", "JONLI · 30 sek")}
+              </span>
+            </div>
+          )}
+          <button onClick={() => refetch()} className="neo-btn neo-btn-sm tap flex items-center gap-1.5">
             <RefreshCw size={12} />{t("Обновить", "Yangilash")}
           </button>
         </div>
       </div>
 
-      {/* Mini KPI */}
-      <div className="grid grid-cols-3 gap-3">
-        {[
-          { labelRu: "ОНЛАЙН",    labelUz: "ONLAYN",   value: onlineCount,  icon: Wifi,    color: "green" },
-          { labelRu: "НЕ В СЕТИ", labelUz: "OFLAYN",   value: offlineCount, icon: WifiOff, color: "amber" },
-          { labelRu: "ВСЕГО",     labelUz: "JAMI",      value: locations?.length ?? 0, icon: MapPin, color: "indigo" },
-        ].map((k, idx) => {
-          const Icon = k.icon;
-          return (
-            <div key={k.labelRu} className="kpi-hero stagger-children hover-lift" style={{ animationDelay: `${idx * 60}ms`, padding: "18px" }}>
-              <div className={`kpi-icon-box kpi-icon-${k.color} mb-3`}>
-                <Icon size={16} />
-              </div>
-              <p className="font-data text-2xl font-bold text-primary">{k.value}</p>
-              <p className="font-label text-[10px] tracking-wider mt-1" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
-                {lang === "uz" ? k.labelUz : k.labelRu}
-              </p>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Agent list */}
-        <div className="neo-card p-4 lg:col-span-1 order-2 lg:order-1">
-          <p className="font-label text-[10px] text-primary tracking-wider mb-3">
-            {t("АГЕНТЫ", "AGENTLAR")}
-          </p>
-          <div className="space-y-2 max-h-[440px] overflow-y-auto">
-            {isLoading
-              ? Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-16 bg-surface-light animate-pulse rounded-xl" />)
-              : locations?.length === 0
-              ? (
-                <div className="text-center py-10">
-                  <MapPin size={28} className="mx-auto mb-2 opacity-20 text-secondary" />
-                  <p className="text-sm text-secondary">{t("Нет данных о локации", "Joylashuv ma'lumoti yo'q")}</p>
-                  <p className="text-xs mt-1" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
-                    {t("Агенты делятся геолокацией со страницы GPS", "Agentlar GPS sahifasidan joylashuv ulashadi")}
-                  </p>
-                </div>
-              )
-              : locations?.map((loc) => {
-                  const online = isOnline(loc.createdAt);
-                  return (
-                    <div
-                      key={loc.id}
-                      onClick={() => setSelected(loc.agentId)}
-                      className={`p-3 rounded-xl border cursor-pointer transition-all ${
-                        selected === loc.agentId
-                          ? "border-primary bg-primary/5"
-                          : "border-border-custom hover:border-border-strong hover:bg-surface-light/40"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold"
-                          style={{ background: online ? "var(--color-success)" : "var(--color-text-tertiary, #6b6760)" }}>
-                          {(loc.agentName ?? "A")[0].toUpperCase()}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-primary truncate">
-                            {loc.agentName ?? `Agent #${loc.agentId}`}
-                          </p>
-                          <div className="flex items-center gap-1 mt-0.5">
-                            <div className={`w-1.5 h-1.5 rounded-full ${online ? "bg-success" : "bg-warning"}`} />
-                            <span className="text-[11px]" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
-                              {online
-                                ? t("Онлайн", "Onlayn")
-                                : loc.createdAt
-                                  ? timeAgo(new Date(loc.createdAt), lang)
-                                  : t("Нет данных", "Ma'lumot yo'q")}
-                            </span>
-                            {loc.batteryLevel != null && (
-                              <span className="ml-auto text-[10px] font-data flex items-center gap-0.5" style={{ color: loc.batteryLevel < 20 ? "var(--color-danger-text)" : "var(--color-text-tertiary, #6b6760)" }}>
-                                🔋 {loc.batteryLevel}%
-                              </span>
-                            )}
-                            {loc.accuracy && (
-                              <span className="text-[10px] font-data" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
-                                ±{Math.round(Number(loc.accuracy))}м
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      {(Number(loc.lat) && Number(loc.lng)) && (
-                        <p className="font-data text-[10px] mt-1.5 pl-[46px]" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
-                          {Number(loc.lat).toFixed(5)}, {Number(loc.lng).toFixed(5)}
-                        </p>
-                      )}
-                    </div>
-                  );
-                })}
-          </div>
-        </div>
-
-        {/* Map */}
-        <div className="neo-card lg:col-span-2 order-1 lg:order-2" style={{ minHeight: 480, position: "relative" }}>
-          {/* Легенда магазинов.
-              Цвет без подписи — ребус: красная точка на карте может означать
-              что угодно, от долга до отсутствия связи. */}
-          <div className="flex items-center gap-3 flex-wrap px-4 pt-3 pb-1">
-            <button onClick={() => setShowShops(v => !v)}
-              className="neo-btn neo-btn-sm"
-              aria-pressed={showShops}
-              style={showShops ? { color: "var(--color-primary)" } : undefined}>
-              <Store size={13} />
-              {showShops ? t("Магазины на карте", "Xaritada do'konlar") : t("Показать магазины", "Do'konlarni ko'rsatish")}
-            </button>
-            {showShops && shopScores && shownShops < shopScores.length && (
-              /* Метки не пропали — просто не поместились. Без этой строки
-                 «показано 70 из 500» выглядело бы как потерянные магазины. */
-              <span className="text-xs" style={{ color: "var(--color-text-tertiary)" }}>
-                {t(`видно ${shownShops} из ${shopScores.length} — приблизьте карту`,
-                   `${shopScores.length} tadan ${shownShops} ta ko'rinadi — xaritani yaqinlashtiring`)}
-              </span>
-            )}
-            {showShops && TIER_ORDER.map(tier => {
-              const count = shopScores?.filter(sc => sc.tier === tier).length ?? 0;
-              if (count === 0) return null;
+      {/* Строка состояния — она же фильтр списка. */}
+      <div className="neo-card-sm flex items-center gap-2 flex-wrap" style={{ padding: "8px 12px" }}>
+        {failed ? (
+          <span className="text-xs" style={{ color: "var(--color-danger-text)" }}>
+            {t("Местоположения не загрузились — это сбой связи, а не молчание агентов.",
+               "Joylashuvlar yuklanmadi — bu aloqa uzilishi, agentlar sukuti emas.")}
+          </span>
+        ) : counts.total === 0 && !isLoading && !rosterQuery.isLoading ? (
+          <span className="text-xs" style={{ color: "var(--color-text-secondary)" }}>
+            {t("В организации нет активных агентов", "Tashkilotda faol agent yo'q")}
+          </span>
+        ) : (
+          <>
+            {buckets.map(b => {
+              const active = filter === b.key;
+              const tint = b.tint ? cssVar(...STATE_TINT[b.tint]) : null;
               return (
-                <span key={tier} className="flex items-center gap-1.5 text-xs" style={{ color: "var(--color-text-secondary)" }}>
-                  <span style={{ width: 9, height: 9, borderRadius: 3, background: TIER_COLOR[tier], flexShrink: 0 }} />
-                  {t(TIER_LABEL[tier].ru, TIER_LABEL[tier].uz)}
-                  <b style={{ color: "var(--color-text-primary)" }}>{count}</b>
-                </span>
+                <button
+                  key={b.key}
+                  onClick={() => setFilter(b.key)}
+                  aria-pressed={active}
+                  className="neo-btn neo-btn-sm tap flex items-center gap-1.5"
+                  style={{
+                    boxShadow: active ? "var(--shadow-pressed)" : undefined,
+                    color: active ? "var(--color-primary-text)" : "var(--color-text-secondary)",
+                  }}
+                >
+                  {tint && <span style={{ width: 7, height: 7, borderRadius: "50%", background: tint }} />}
+                  {b.label}
+                  <b className="font-data" style={{ color: "var(--color-text-primary)" }}>{b.count}</b>
+                </button>
               );
             })}
-          </div>
+            <span className="text-xs ml-auto" style={{ color: "var(--color-text-tertiary)" }}>
+              {roster.lastSignalAt
+                ? `${t("Последний сигнал", "Oxirgi signal")}: ${timeAgo(roster.lastSignalAt, lang)}`
+                : t("За сутки ни одного сигнала", "Sutka davomida signal yo'q")}
+            </span>
+          </>
+        )}
+      </div>
+
+      <div className="neo-card neo-card-static" style={{ padding: 0, position: "relative", overflow: "hidden" }}>
+        {/* Панель карты.
+            Цвет без подписи — ребус: красная точка на карте может означать
+            что угодно, от долга до отсутствия связи. */}
+        <div className="flex items-center gap-2 flex-wrap px-3 py-2"
+             style={{ borderBottom: "1px solid var(--color-border-subtle)" }}>
+          <button onClick={fitAll} className="neo-btn neo-btn-sm tap flex items-center gap-1.5"
+                  disabled={!mapReady || (agentPoints.length === 0 && placedShops.length === 0)}>
+            <Maximize2 size={13} />{t("Показать всех", "Hammasini ko'rsatish")}
+          </button>
+          <button onClick={() => setShowShops(v => !v)}
+                  className="neo-btn neo-btn-sm tap flex items-center gap-1.5"
+                  aria-pressed={showShops}
+                  style={showShops
+                    ? { boxShadow: "var(--shadow-pressed)", color: "var(--color-primary-text)" }
+                    : undefined}>
+            <Store size={13} />{t("Магазины", "Do'konlar")}
+          </button>
+
+          {showShops && TIER_ORDER.map(tier => {
+            // Легенда считает то, что НА КАРТЕ. Прежде она складывала весь
+            // ответ сервера, включая магазины без координат: «Есть долг 4»
+            // стояло рядом с картой, на которой не было ни одной метки.
+            const count = placedShops.filter(s => s.tier === tier).length;
+            if (count === 0) return null;
+            return (
+              <span key={tier} className="flex items-center gap-1.5 text-xs" style={{ color: "var(--color-text-secondary)" }}>
+                <span style={{ width: 9, height: 9, borderRadius: 3, background: TIER_COLOR[tier], flexShrink: 0 }} />
+                {t(TIER_LABEL[tier].ru, TIER_LABEL[tier].uz)}
+                <b style={{ color: "var(--color-text-primary)" }}>{count}</b>
+              </span>
+            );
+          })}
+
+          <span className="text-xs ml-auto flex items-center gap-1.5" style={{ color: "var(--color-text-tertiary)" }}>
+            {shopsQuery.isError ? (
+              <>
+                <span style={{ color: "var(--color-danger-text)" }}>
+                  {t("Магазины не загрузились", "Do'konlar yuklanmadi")}
+                </span>
+                <button onClick={() => shopsQuery.refetch()} className="neo-btn neo-btn-sm tap">
+                  {t("Повторить", "Qayta urinish")}
+                </button>
+              </>
+            ) : !showShops ? null
+              : shopsQuery.isLoading ? t("Магазины загружаются…", "Do'konlar yuklanmoqda…")
+              /* Пока карты нет, счётчик нарисованных меток равен нулю по
+                 совершенно другой причине — и «видно 0 из 73» снова обещало
+                 бы, что дело в приближении. */
+              : !mapReady ? null
+              : shownShops < placedShops.length ? (
+                /* Метки не пропали — просто не поместились. Без этой строки
+                   «показано 70 из 500» выглядело бы как потерянные магазины. */
+                t(`Видно ${shownShops} из ${placedShops.length} — приблизьте карту`,
+                  `${placedShops.length} tadan ${shownShops} ta ko'rinadi — yaqinlashtiring`)
+              ) : placedShops.length > 0 ? (
+                t(`Все ${placedShops.length} на карте`, `Hammasi xaritada: ${placedShops.length}`)
+              ) : null}
+            {shopsWithoutGps > 0 && showShops && !shopsQuery.isError && (
+              <span title={t("Координаты магазина заполняются в его карточке", "Koordinatalar do'kon kartochkasida to'ldiriladi")}
+                    className="flex items-center gap-1">
+                <Info size={12} />
+                {t(`${shopsWithoutGps} без координат`, `${shopsWithoutGps} ta koordinatasiz`)}
+              </span>
+            )}
+          </span>
+        </div>
+
+        <div style={{ position: "relative" }}>
           {mapError ? (
-            <div className="flex flex-col items-center justify-center h-[480px] text-center p-6">
+            <div className="flex flex-col items-center justify-center text-center p-6" style={{ height: MAP_HEIGHT }}>
               <MapPin size={32} className="mb-3 opacity-30" style={{ color: "var(--color-text-tertiary)" }} />
               <p className="text-sm font-medium" style={{ color: "var(--color-text-secondary)" }}>
-                {t("Карта недоступна", "Xarita mavjud emas")}
+                {mapError === "no-key"
+                  ? t("Ключ карты не настроен", "Xarita kaliti sozlanmagan")
+                  : t("Карта не загрузилась", "Xarita yuklanmadi")}
               </p>
               <p className="text-xs mt-1" style={{ color: "var(--color-text-tertiary)" }}>
-                {t("Настройте VITE_YANDEX_MAPS_API_KEY", "VITE_YANDEX_MAPS_API_KEY ni sozlang")}
+                {mapError === "no-key"
+                  ? "VITE_YANDEX_MAPS_API_KEY"
+                  : t("Проверьте подключение к интернету и обновите страницу",
+                      "Internet aloqasini tekshiring va sahifani yangilang")}
               </p>
             </div>
           ) : (
-            <div ref={mapDivRef} style={{ width: "100%", height: "480px", position: "relative" }} />
+            /* zIndex: 0 запирает слои Яндекса внутри карты: её собственные
+               панели идут с z-index в сотни, и без своего контекста они
+               накрыли бы панель агентов, лежащую сверху. */
+            <div ref={mapDivRef} style={{ width: "100%", height: MAP_HEIGHT, position: "relative", zIndex: 0 }} />
           )}
+
+          {/* Список агентов лежит НА карте, а не отбирает у неё треть ширины.
+              На узком экране он уходит под карту обычным блоком. */}
+          <AgentRail
+            rows={visibleRows}
+            silentCount={counts.silent}
+            filtered={filter !== "all"}
+            onResetFilter={() => setFilter("all")}
+            title={filter === "all"
+              ? t("АГЕНТЫ", "AGENTLAR")
+              : buckets.find(b => b.key === filter)?.label.toUpperCase() ?? ""}
+            open={railOpen}
+            onToggle={() => setRailOpen(v => !v)}
+            failed={failed}
+            loading={isLoading || rosterQuery.isLoading}
+            onRetry={() => refetch()}
+            selected={selected}
+            onSelect={setSelected}
+            lang={lang}
+            t={t}
+          />
         </div>
       </div>
     </div>
   );
 }
+
 
 // Yandex Maps type declarations — only the surface this app actually calls.
 declare global {
