@@ -10,8 +10,24 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      # Версии действий подняты до тех, что работают на Node 24.
+      #
+      # Прежние (@v4) объявляют в себе `using: node20`, а Node 20 у GitHub
+      # снят с поддержки: каждый прогон печатал предупреждение, что действие
+      # НАСИЛЬНО запускается на Node 24. Пока это предупреждение; в день, когда
+      # оно станет ошибкой, встанет весь конвейер разом — все четыре работы
+      # используют одни и те же действия.
+      #
+      # Речь именно о среде самих действий, а не о Node проекта: он уже везде
+      # 22 — и здесь, и в Dockerfile, и в engines.
+      #
+      # Ломающие правки в этих версиях нас не задевают, проверено поимённо:
+      # checkout запрещает выгрузку форк-веток для pull_request_target (мы
+      # запускаемся по push и pull_request), setup-node включает
+      # самокэширование при поле packageManager (его в package.json нет, а
+      # `cache: npm` задан явно), upload-artifact перешёл на ESM внутри.
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -58,8 +74,8 @@ jobs:
           --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -ptest"
           --health-interval=5s --health-timeout=5s --health-retries=20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -105,8 +121,8 @@ jobs:
       # dev-зависимости, и не встало бы ни Playwright, ни Vite. Приложению его
       # ставит скрипт запуска, а Playwright — конфигурация webServer.
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -157,7 +173,7 @@ jobs:
             echo "разборов не найдено"
           fi
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: e2e-отчёт
