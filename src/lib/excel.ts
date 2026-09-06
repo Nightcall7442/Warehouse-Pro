@@ -10,6 +10,10 @@ import { formatQty } from "@/lib/format";
 import { notify } from "@/lib/toast";
 import { unitShort } from "@/lib/units";
 import { cssVar } from "@/lib/css-var";
+import {
+  labelled, ACTIVE_STATUS_LABEL, ARRIVAL_STATUS_LABEL,
+  ORDER_STATUS_LABEL, ROLE_LABEL, STOCK_LEVEL_LABEL,
+} from "@/lib/entity-labels";
 
 type Row = Record<string, string | number | null | undefined>;
 
@@ -38,28 +42,94 @@ function headerArgb(): string {
 // that shipped a blank column because it read a field name that did not exist.
 
 // Цвета статусов для ячеек
+/*
+  Цвет клетки состояния. Ключи — то, что человек читает в файле.
+
+  Раньше ключами были коды из базы («delivered», «low»), потому что и в
+  клетках стояли коды. Теперь в клетках слова, и красить надо по ним.
+*/
 const STATUS_COLORS: Record<string, string> = {
-  new:                  "C7D2FE", // indigo-200
-  processing:           "FDE68A", // amber-200
-  shipped:              "DDD6FE", // purple-200
-  pending:              "FED7AA", // orange-200
-  delivered:            "A7F3D0", // green-200
-  cancelled:            "FECACA", // red-200
-  returned:             "FECACA", // red-200
-  completed:            "A7F3D0", // legacy alias
-  active:     "A7F3D0",
-  inactive:   "FECACA",
-  unloading:  "BAE6FD",
-  low:        "FECACA",
-  ok:         "A7F3D0",
+  "новый":        "C7D2FE",
+  "в обработке":  "FDE68A",
+  "отгружен":     "DDD6FE",
+  "ожидает":      "FED7AA",
+  "доставлен":    "A7F3D0",
+  "отменён":      "FECACA",
+  "возвращён":    "FECACA",
+  "работает":     "A7F3D0",
+  "не работает":  "FECACA",
+  "приостановлен":"FED7AA",
+  "разгружается": "BAE6FD",
+  "принят":       "A7F3D0",
+  "мало":         "FECACA",
+  "достаточно":   "A7F3D0",
+  // Виды движения склада — колонка «Вид».
+  "приход":       "A7F3D0",
+  "расход":       "FECACA",
+  "правка":       "FDE68A",
 };
 
-// Колонки с числовым форматом
-const CURRENCY_COLS = new Set(["Total", "Subtotal", "Discount", "Revenue",
-  "Fuel Cost", "Toll Cost", "Other Cost", "Total Expense", "Unit Price",
-  "Available", "Reserved", "Total Stock", "Reorder Point", "Amount"]);
+/*
+  Колонки, которые имеет смысл складывать в строке «ИТОГО».
 
-const STATUS_COLS = new Set(["Status", "Low Stock", "Вид"]);
+  ── Что было ────────────────────────────────────────────────────────────────
+
+  Набор был выписан ПО-АНГЛИЙСКИ: «Total», «Fuel Cost», «Available»,
+  «Reorder Point». А форматтеры ниже отдают русские заголовки — «Сумма»,
+  «Топливо», «Доступно», «Порог». Совпадений почти не было, и всё, что
+  привязано к этому набору, просто не срабатывало: ни числовой формат, ни
+  выравнивание по правому краю, ни сама строка итогов. В выгрузке по складу
+  не суммировалось НИ ОДНО денежное поле.
+
+  ── Что складывать, а что нет ───────────────────────────────────────────────
+
+  Здесь только величины, у которых сумма имеет смысл: деньги и количества.
+  Цена за единицу, порог, вес, «дней до конца» сюда не входят намеренно —
+  сумма цен по складу не значит ничего, а строка «ИТОГО» с таким числом хуже
+  пустой: её прочитают.
+*/
+const SUMMABLE_COLS = new Set([
+  // Деньги
+  "Сумма", "Скидка", "Итого", "Выручка", "Долг", "Стоимость",
+  "Стоимость (себест.)", "Стоимость (розн.)", "Себестоимость всего",
+  "Топливо", "Платные дороги", "Прочее", "Расходы всего",
+  // Количества
+  "Остаток", "Резерв", "Доступно", "Всего", "Количество",
+  "Визиты", "Заказы", "Заказать",
+]);
+
+/**
+ * Колонки-состояния: их клетки красятся по значению.
+ *
+ * Значения теперь русские (см. lib/entity-labels), поэтому и ключи цветов
+ * ниже — русские. Прежний набор ждал «Status» и «Low Stock», которых в
+ * заголовках уже не было.
+ */
+const STATUS_COLS = new Set(["Статус", "Запас", "Вид"]);
+
+/**
+ * Сколько знаков после запятой показывать в колонке.
+ *
+ * Точность раньше вшивалась в само значение: `.toFixed(3)` у веса,
+ * `.toFixed(1)` у продаж в день. Это и делало клетку текстом. Значение теперь
+ * число, а точность — свойство ОТОБРАЖЕНИЯ, то есть числовой формат клетки.
+ *
+ * Исключения по существу: у веса третий знак решает (0.125 кг и 0.13 кг —
+ * разный товар), а «продажи в день» с одним знаком заведены нарочно, чтобы
+ * 0.4 не округлилось до нуля и товар не выпал из дозаказа.
+ */
+const COLUMN_NUM_FMT: Record<string, string> = {
+  "Вес (кг)":     "#,##0.000",
+  "Продажи/день": "#,##0.0",
+};
+
+function numFmtFor(header: string, value: number): string {
+  const special = COLUMN_NUM_FMT[header];
+  if (special) return special;
+  // Целое показывается целым: «10», а не «10.00» — в столбце порогов лишние
+  // нули только мешают.
+  return Number.isInteger(value) ? "#,##0" : "#,##0.00";
+}
 
 export async function exportToExcel(
   rows: Row[],
@@ -146,9 +216,23 @@ export async function exportToExcel(
         right: { style: "thin", color: { argb: "FFCBD5E1" } },
       };
 
-      // Currency formatting
-      if (CURRENCY_COLS.has(headerName)) {
-        cell.numFmt = "#,##0.00";
+      /*
+        Числовой формат — по ТИПУ значения, а не по названию колонки.
+
+        Раньше формат вешался по списку заголовков, и стоило форматтеру
+        назвать колонку иначе — клетка оставалась без формата. Хуже того:
+        сами значения приходили СТРОКАМИ («5520500.00»), а строке формат не
+        применяется вовсе. Excel помечал такие клетки зелёным уголком «число
+        сохранено как текст», их нельзя было ни сложить, ни отсортировать, ни
+        построить по ним диаграмму — то есть файл открывался, но работать в
+        нём было нельзя.
+
+        Теперь форматтеры отдают числа числами, а здесь у числа появляется
+        разделитель разрядов и выравнивание по правому краю: в столбце цифры
+        встают разряд под разряд.
+      */
+      if (typeof cell.value === "number") {
+        cell.numFmt = numFmtFor(headerName, cell.value);
         cell.alignment = { horizontal: "right", vertical: "middle" };
       } else {
         cell.alignment = { vertical: "middle" };
@@ -156,18 +240,32 @@ export async function exportToExcel(
     });
   });
 
-  // Totals row
+  /*
+    Строка «ИТОГО» — числами, а не строками.
+
+    Стояло `sum.toFixed(2)`, то есть в клетку итога уходил ТЕКСТ. Итог нельзя
+    было ни продолжить формулой, ни сравнить с другим файлом; Excel помечал
+    его тем же «число сохранено как текст», что и остальные суммы.
+
+    Складываются только те колонки, у которых сумма осмысленна (SUMMABLE_COLS
+    выше): сумма цен за единицу или порогов запаса — число, которое кто-то
+    обязательно прочитает как настоящее.
+  */
   const totals: (string | number)[] = headers.map(h => {
-    if (CURRENCY_COLS.has(h)) {
-      const sum = rows.reduce((acc, r) => acc + Number(r[h] ?? 0), 0);
-      return sum.toFixed(2);
-    }
-    return "";
+    if (!SUMMABLE_COLS.has(h)) return "";
+    const sum = rows.reduce((acc, r) => {
+      const v = r[h];
+      return acc + (typeof v === "number" ? v : Number(v ?? 0) || 0);
+    }, 0);
+    return Number(sum.toFixed(2));
   });
   totals[0] = "ИТОГО";
   const totalRow = ws.addRow(totals);
   totalRow.eachCell((cell, colNumber) => {
     cell.font = { bold: true, size: 11 };
+    if (typeof cell.value === "number") {
+      cell.numFmt = numFmtFor(headers[colNumber - 1], cell.value);
+    }
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE0E7FF" } };
     cell.border = {
       top: { style: "thin", color: { argb: "FFCBD5E1" } },
@@ -176,8 +274,34 @@ export async function exportToExcel(
       right: { style: "thin", color: { argb: "FFCBD5E1" } },
     };
     const headerName = headers[colNumber - 1];
-    cell.alignment = { horizontal: CURRENCY_COLS.has(headerName) ? "right" : "left", vertical: "middle" };
+    cell.alignment = { horizontal: SUMMABLE_COLS.has(headerName) ? "right" : "left", vertical: "middle" };
   });
+
+  /*
+    Лист, в котором можно работать, а не только смотреть.
+
+    Ничего этого не было: отчёт на пятьсот строк прокручивался вместе с
+    шапкой (через экран уже не понять, что за колонка), не фильтровался, а при
+    печати со второй страницы превращался в столбцы безымянных чисел — ровно
+    то, на что владелец жаловался про бумажные документы.
+
+    Шапка на четвёртой строке: выше заголовок отчёта, дата и пустая строка.
+  */
+  const HEADER_ROW = 4;
+  ws.views = [{ state: "frozen", ySplit: HEADER_ROW }];
+  ws.autoFilter = {
+    from: { row: HEADER_ROW, column: 1 },
+    to: { row: HEADER_ROW, column: headers.length },
+  };
+  ws.pageSetup = {
+    orientation: headers.length > 6 ? "landscape" : "portrait",
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0,
+    margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 },
+  };
+  // Шапка повторяется на каждой печатной странице.
+  ws.pageSetup.printTitlesRow = `${HEADER_ROW}:${HEADER_ROW}`;
 
   // Column widths
   ws.columns = headers.map((h) => {
@@ -231,10 +355,10 @@ export function formatOrdersForExport(orders: Record<string, unknown>[]) {
     "Магазин":   String(o.shopName ?? ""),
     "Территория":String(o.territoryName ?? ""),
     "Агент":     String(o.agentName ?? ""),
-    "Status":    String(o.status ?? ""),
-    "Сумма":     Number(o.subtotal ?? 0).toFixed(2),
-    "Скидка":    Number(o.discount ?? 0).toFixed(2),
-    "Total":     Number(o.total ?? 0).toFixed(2),
+    "Статус":    labelled(ORDER_STATUS_LABEL, o.status),
+    "Сумма":     Number(o.subtotal ?? 0),
+    "Скидка":    Number(o.discount ?? 0),
+    "Итого":     Number(o.total ?? 0),
     "Примечания":String(o.notes ?? ""),
   }));
 }
@@ -246,11 +370,11 @@ export function formatArrivalsForExport(arrivals: Record<string, unknown>[]) {
     "Грузовик":      String(a.truckId ?? ""),
     "Водитель":      String(a.driverName ?? ""),
     "Телефон":       String(a.driverPhone ?? ""),
-    "Status":        String(a.status ?? ""),
-    "Fuel Cost":     Number(a.fuelCost ?? 0).toFixed(2),
-    "Toll Cost":     Number(a.tollCost ?? 0).toFixed(2),
-    "Other Cost":    Number(a.otherCost ?? 0).toFixed(2),
-    "Total Expense": Number(a.totalExpense ?? 0).toFixed(2),
+    "Статус":         labelled(ARRIVAL_STATUS_LABEL, a.status),
+    "Топливо":        Number(a.fuelCost ?? 0),
+    "Платные дороги": Number(a.tollCost ?? 0),
+    "Прочее":         Number(a.otherCost ?? 0),
+    "Расходы всего":  Number(a.totalExpense ?? 0),
     "Примечания":    String(a.notes ?? ""),
   }));
 }
@@ -261,14 +385,14 @@ export function formatWarehouseForExport(stock: Record<string, unknown>[]) {
     "Код":           String(s.productCode ?? ""),
     "Категория":     String(s.category ?? ""),
     "Единица":       unitShort(s.unit as string | null | undefined),
-    "Цена продажи":  Number(s.unitPrice ?? 0).toFixed(2),
-    "Себестоимость": Number(s.costPrice ?? 0).toFixed(2),
-    "Всего":         Number(s.currentStock ?? 0).toFixed(2),
-    "Резерв":        Number(s.reserved ?? 0).toFixed(2),
-    "Доступно":      Number(s.available ?? 0).toFixed(2),
-    "Порог":         Number(s.reorderPoint ?? 0).toFixed(0),
-    "Стоимость":     (Number(s.currentStock ?? 0) * Number(s.costPrice ?? 0)).toFixed(2),
-    "Low Stock":     Number(s.available ?? 0) < Number(s.reorderPoint ?? 0) ? "low" : "ok",
+    "Цена продажи":  Number(s.unitPrice ?? 0),
+    "Себестоимость": Number(s.costPrice ?? 0),
+    "Всего":         Number(s.currentStock ?? 0),
+    "Резерв":        Number(s.reserved ?? 0),
+    "Доступно":      Number(s.available ?? 0),
+    "Порог":         Number(s.reorderPoint ?? 0),
+    "Стоимость":     Number(s.currentStock ?? 0) * Number(s.costPrice ?? 0),
+    "Запас":         labelled(STOCK_LEVEL_LABEL, Number(s.available ?? 0) < Number(s.reorderPoint ?? 0) ? "low" : "ok"),
   }));
 }
 
@@ -301,7 +425,7 @@ export function formatAgentsForExport(agents: Record<string, unknown>[], days: n
     "Агент":   String(a.agentName ?? `Agent #${a.agentId}`),
     "Визиты":  Number(a.visits),
     "Заказы":  Number(a.orders),
-    "Total":   Number(a.revenue ?? 0).toFixed(2),
+    "Выручка": Number(a.revenue ?? 0),
     "Период":  `${days} дней`,
   }));
 }
@@ -315,8 +439,8 @@ export function formatShopsForExport(shops: Record<string, unknown>[]) {
     "Район":       String(s.district ?? ""),
     "Адрес":       String(s.address ?? ""),
     "Агент":       String(s.agentName ?? ""),
-    "Долг":        Number(s.debt ?? 0).toFixed(0),
-    "Status":      String(s.status ?? ""),
+    "Долг":        Number(s.debt ?? 0),
+    "Статус":      labelled(ACTIVE_STATUS_LABEL, s.status),
   }));
 }
 
@@ -327,12 +451,12 @@ export function formatProductsForExport(products: Record<string, unknown>[]) {
     "Название":    String(p.name ?? ""),
     "Категория":   String(p.category ?? ""),
     "Ед.":         unitShort(p.unit as string | null | undefined),
-    "Вес (кг)":    Number(p.unitWeight ?? 0).toFixed(3),
-    "Себестоимость": Number(p.costPrice ?? 0).toFixed(2),
-    "Цена":        Number(p.unitPrice ?? 0).toFixed(2),
-    "Остаток":     Number(p.currentStock ?? 0).toFixed(2),
-    "Мин. остаток": Number(p.reorderPoint ?? 0).toFixed(0),
-    "Статус":      String(p.status ?? ""),
+    "Вес (кг)":    Number(p.unitWeight ?? 0),
+    "Себестоимость": Number(p.costPrice ?? 0),
+    "Цена":        Number(p.unitPrice ?? 0),
+    "Остаток":     Number(p.currentStock ?? 0),
+    "Мин. остаток": Number(p.reorderPoint ?? 0),
+    "Статус":      labelled(ACTIVE_STATUS_LABEL, p.status),
   }));
 }
 
@@ -341,8 +465,8 @@ export function formatUsersForExport(users: Record<string, unknown>[]) {
     "Имя":         String(u.name ?? ""),
     "Email":       String(u.email ?? ""),
     "Телефон":     String(u.phone ?? ""),
-    "Роль":        String(u.role ?? ""),
-    "Status":      String(u.status ?? ""),
+    "Роль":        labelled(ROLE_LABEL, u.role),
+    "Статус":      labelled(ACTIVE_STATUS_LABEL, u.status),
     "Последний вход": toDate(u.lastSignInAt)?.toLocaleString("ru-RU") ?? "",
   }));
 }
@@ -352,11 +476,11 @@ export function formatStockValuationForExport(stock: Record<string, unknown>[]) 
     "Товар":         String(s.productName ?? ""),
     "Код":           String(s.productCode ?? ""),
     "Единица":       unitShort(s.unit as string | null | undefined),
-    "Остаток":       Number(s.currentStock ?? 0).toFixed(2),
-    "Себестоимость": Number(s.costPrice ?? 0).toFixed(2),
-    "Цена продажи":  Number(s.unitPrice ?? 0).toFixed(2),
-    "Стоимость (себест.)": (Number(s.currentStock ?? 0) * Number(s.costPrice ?? 0)).toFixed(2),
-    "Стоимость (розн.)":  (Number(s.currentStock ?? 0) * Number(s.unitPrice ?? 0)).toFixed(2),
+    "Остаток":       Number(s.currentStock ?? 0),
+    "Себестоимость": Number(s.costPrice ?? 0),
+    "Цена продажи":  Number(s.unitPrice ?? 0),
+    "Стоимость (себест.)": Number(s.currentStock ?? 0) * Number(s.costPrice ?? 0),
+    "Стоимость (розн.)":  Number(s.currentStock ?? 0) * Number(s.unitPrice ?? 0),
   }));
 }
 
@@ -366,10 +490,10 @@ export function formatDeadStockForExport(items: Record<string, unknown>[]) {
     "Код":           String(s.productCode ?? ""),
     "Категория":     String(s.category ?? ""),
     "Единица":       unitShort(s.unit as string | null | undefined),
-    "Остаток":       Number(s.currentStock ?? 0).toFixed(2),
-    "Себестоимость": Number(s.costPrice ?? 0).toFixed(2),
-    "Цена продажи":  Number(s.unitPrice ?? 0).toFixed(2),
-    "Стоимость":     Number(s.value ?? 0).toFixed(2),
+    "Остаток":       Number(s.currentStock ?? 0),
+    "Себестоимость": Number(s.costPrice ?? 0),
+    "Цена продажи":  Number(s.unitPrice ?? 0),
+    "Стоимость":     Number(s.value ?? 0),
     "Последний заказ": toDate(s.lastOrderDate)?.toLocaleDateString("ru-RU") ?? "Никогда",
     "Дней без продаж": Number(s.daysSinceOrder ?? 99999),
   }));
@@ -380,12 +504,12 @@ export function formatReorderForExport(items: Record<string, unknown>[]) {
     "Товар":         String(s.productName ?? ""),
     "Код":           String(s.productCode ?? ""),
     "Единица":       unitShort(s.unit as string | null | undefined),
-    "Остаток":       Number(s.currentStock ?? 0).toFixed(2),
-    "Порог":         Number(s.reorderPoint ?? 0).toFixed(2),
-    "Продажи/день":  Number(s.avgDailySales ?? 0).toFixed(1),
+    "Остаток":       Number(s.currentStock ?? 0),
+    "Порог":         Number(s.reorderPoint ?? 0),
+    "Продажи/день":  Number(s.avgDailySales ?? 0),
     "Дней до конца": Number(s.daysUntilStockout ?? 0),
     "Заказать":      Number(s.suggestedQty ?? 0),
-    "Стоимость":     Number(s.suggestedCost ?? 0).toFixed(2),
+    "Стоимость":     Number(s.suggestedCost ?? 0),
   }));
 }
 

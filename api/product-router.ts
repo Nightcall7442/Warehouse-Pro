@@ -654,46 +654,4 @@ export const productRouter = createRouter({
     }),
 
   /** Delete ALL products for this tenant — clears stock, movements, and product records */
-  clearAll: operatorQuery
-    .mutation(async ({ ctx }) => {
-      const db = getDb();
-      const tenantId = ctx.tenant.id;
-
-      const ALLOWED_TABLES = new Set([
-        "order_items", "arrival_items", "return_items", "price_list_items",
-        "stock_transfers", "stock_movements", "warehouse_stock",
-        "orders", "returns", "products",
-      ]);
-
-      // FK-safe delete order using raw SQL (Drizzle can't handle all FK combos)
-      await db.transaction(async (tx) => {
-        const del = (table: string) => {
-          if (!ALLOWED_TABLES.has(table)) throw new Error(`Invalid table: ${table}`);
-          return tx.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE product_id IN (SELECT id FROM products WHERE tenant_id = ${tenantId})`);
-        };
-        const delByTenant = (table: string) => {
-          if (!ALLOWED_TABLES.has(table)) throw new Error(`Invalid table: ${table}`);
-          return tx.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE tenant_id = ${tenantId}`);
-        };
-
-        await del("order_items").catch(() => {});
-        await del("arrival_items").catch(() => {});
-        await del("return_items").catch(() => {});
-        await del("price_list_items").catch(() => {});
-        await delByTenant("stock_transfers").catch(() => {});
-        await delByTenant("stock_movements").catch(() => {});
-        await delByTenant("warehouse_stock").catch(() => {});
-
-        await delByTenant("orders").catch(() => {});
-        await delByTenant("returns").catch(() => {});
-
-        await tx.execute(sql`DELETE FROM products WHERE tenant_id = ${tenantId}`);
-      });
-
-      cache.invalidatePrefix(`products:${tenantId}`);
-      cache.invalidatePrefix(`product_cats:${tenantId}`);
-      cache.invalidatePrefix(`warehouse:${tenantId}`);
-      cache.invalidatePrefix(`warehouse_valuation:${tenantId}`);
-      return { success: true };
-    }),
 });

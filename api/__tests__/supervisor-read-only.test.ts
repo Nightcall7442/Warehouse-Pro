@@ -127,11 +127,15 @@ describe("магазины: смотреть можно, править нель
     expect(SHOPS).toContain("const canEdit = canOperate(user?.role);");
   });
 
-  it("импорт, очистка и добавление — под условием", () => {
-    // Все три — operatorQuery: shop.create, shop.clearAll, import.executeImport.
+  it("импорт и добавление — под условием", () => {
+    /*
+      Очистки в этом списке больше нет: кнопка «Очистить», удалявшая ВСЕ
+      магазины разом вместе с их долгами, убрана вместе с процедурой. Право на
+      неё не имело смысла ограничивать ролью — такого действия не должно быть
+      ни у кого, включая руководителя.
+    */
     const toolbar = SHOPS.slice(SHOPS.indexOf("{canEdit && (<>"), SHOPS.indexOf("</>)}"));
     expect(toolbar, "кнопка импорта осталась снаружи").toContain("setShowImport");
-    expect(toolbar, "очистка осталась снаружи").toContain("clearAllMutation.mutate()");
     expect(toolbar, "добавление осталось снаружи").toContain("setShowForm");
     expect(SHOPS).toContain("{canEdit && showForm && <ShopForm");
     expect(SHOPS).toContain("{canEdit && showImport && <ExcelImport");

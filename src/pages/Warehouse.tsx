@@ -139,15 +139,6 @@ export default function Warehouse() {
     onError: (e) => notify.error(e.message),
   });
 
-  const deleteAllMutation = trpc.warehouse.deleteAll.useMutation({
-    onSuccess: () => {
-      utils.warehouseMulti.getStock.invalidate();
-      utils.warehouse.valuation.invalidate();
-      notify.success(t("Все товары удалены со склада", "Barcha mahsulotlar o'chirildi"));
-    },
-    onError: (e) => notify.error(e.message),
-  });
-
   const stock = data?.data as StockRow[] | undefined;
   const summary = data?.summary as StockSummary | undefined;
   const lowCount = Number(summary?.lowStockCount ?? 0);
@@ -219,15 +210,6 @@ export default function Warehouse() {
                 style={{ opacity: backfillMutation.isPending ? 0.5 : 1 }}>
                 {backfillMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Package size={14} />}
                 {t("Добить стоки", "Stoklarni to'ldirish")}
-              </button>
-              <button onClick={async () => {
-                const ok = await confirm({ title: t("Удалить ВСЕ товары со склада?", "Barcha mahsulotlarni o'chirish?"), message: t("Это нельзя отменить.", "Qaytarib bo'lmaydi."), danger: true, confirmText: t("Удалить", "O'chirish") });
-                if (ok) deleteAllMutation.mutate();
-              }} disabled={deleteAllMutation.isPending}
-                className="neo-btn flex items-center gap-2 text-sm py-2 px-4"
-                style={{ color: "var(--color-danger-text)", opacity: deleteAllMutation.isPending ? 0.5 : 1 }}>
-                {deleteAllMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                {t("Удалить все", "Hammasini o'chirish")}
               </button>
               <button onClick={async () => stock && await exportToExcel(formatWarehouseForExport(stock), "warehouse-stock", "Склад", t("Остатки склада", "Ombor qoldiqlari"))}
                 className="neo-btn-primary flex items-center gap-2 text-sm py-2 px-5">

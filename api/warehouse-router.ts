@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, operatorQuery, adminQuery } from "./middleware";
+import { createRouter, operatorQuery } from "./middleware";
 import { warehouseStock, products, stockMovements, settings, orderItems, orders, warehouses } from "@db/schema";
 import { eq, like, and, sql, desc } from "drizzle-orm";
 import { StockService } from "./services/stock";
@@ -268,16 +268,4 @@ export const warehouseRouter = createRouter({
     }),
 
   // Удалить все товары со склада (CEO only — destructive operation)
-  deleteAll: adminQuery
-    .mutation(async ({ ctx }) => {
-      const db = ctx.db;
-      const tenantId = ctx.tenant.id;
-
-      await db.transaction(async (tx) => {
-        await tx.delete(warehouseStock).where(eq(warehouseStock.tenantId, tenantId));
-        await tx.update(products).set({ status: "inactive", updatedAt: new Date() }).where(eq(products.tenantId, tenantId));
-      });
-
-      return { success: true };
-    }),
 });
