@@ -238,10 +238,17 @@ export const reportsRouter = createRouter({
         shopName: shops.name,
         shopCity: shops.city,
         shopAddress: shops.address,
-        // Presence, not payload — photo_url holds a data URL up to several MB.
-        hasPhoto: sql<number>`CASE WHEN ${dailyPlans.photoUrl} IS NULL OR ${dailyPlans.photoUrl} = '' THEN 0 ELSE 1 END`,
-        // И ссылка, по которой снимок можно открыть. Один признак «да/нет»
-        // означал, что доказательство есть, а посмотреть на него нельзя.
+        /*
+          Ссылка на снимок, а не признак «да/нет».
+
+          Здесь отдавался hasPhoto — единица или ноль, — и колонка «Фото» в
+          выгрузке печатала «да». То есть журнал сообщал, что доказательство
+          существует, и не давал на него посмотреть, а открывают этот журнал
+          именно затем, чтобы разобрать спорный день.
+
+          Сам снимок по-прежнему не выбирается: photo_url это data-url до
+          нескольких мегабайт, а строк в журнале бывает десять тысяч.
+        */
         photoUrl: photoRef("visit", dailyPlans.id, dailyPlans.photoUrl, dailyPlans.updatedAt),
         notes: dailyPlans.notes,
       })

@@ -158,9 +158,39 @@ function makeMockDb() {
               const out: Record<string, unknown> = {};
               for (const [alias, def] of Object.entries(fields)) {
                 if (def && typeof def === "object" && (def as any).__kind === "sql") {
-                  // The only raw sql in these projections is the photo flag.
-                  const v = at(row, (def as any).values?.[0]);
-                  out[alias] = v === null || v === undefined || v === "" ? 0 : 1;
+                  /*
+                    Сырое выражение в выборке моделируется по устройству, а не
+                    по предположению.
+
+                    Здесь стояло «единственное сырое sql в этих выборках — это
+                    признак фотографии», и оно превращалось в единицу или ноль.
+                    Признак заменили ссылкой (photoRef), и стенд молча начал
+                    отдавать число вместо адреса: проверка сломалась на типе, а
+                    могла бы и не сломаться.
+
+                    photoRef узнаётся по четвёртой подстановке: там лежит
+                    приставка пути «/api/photos/<вид>/» — единственная строка
+                    среди колонок. Значения идут так: колонка снимка, она же,
+                    она же, приставка пути, колонка идентификатора, колонка
+                    времени правки, снова колонка снимка.
+                  */
+                  const parts = ((def as any).strings as string[]).join("");
+                  const vals = (def as any).values as unknown[];
+                  const prefixVal = vals[3];
+                  if (typeof prefixVal === "string" && prefixVal.startsWith("/api/photos/")) {
+                    const photo = at(row, vals[0]);
+                    const prefix = prefixVal;
+                    const id = at(row, vals[4]);
+                    out[alias] = photo === null || photo === undefined || photo === ""
+                      ? null
+                      : String(photo).startsWith("data:") ? `${prefix}${id}?v=0` : String(photo);
+                  } else {
+                    throw new Error(
+                      "Стенд не моделирует это сырое выражение выборки: " +
+                      parts.replace(/\s+/g, " ").slice(0, 120) +
+                      "\nСчитать непонятое нулём нельзя — проверка станет подтверждать что угодно.",
+                    );
+                  }
                 } else {
                   out[alias] = at(row, def) ?? null;
                 }
@@ -235,15 +265,22 @@ describe("reports.getVisitsLog", () => {
     expect(rows.find(r => r.status === "planned")?.visitedAt).toBeNull();
   });
 
-  // photo_url holds a data URL of several megabytes. The report answers whether
-  // proof exists, and must not drag the blob into a spreadsheet to do it.
-  it("reports whether a photo exists without carrying it", async () => {
+  /*
+    Раньше здесь отдавался hasPhoto — единица или ноль, — и колонка «Фото» в
+    выгрузке печатала «да». Журнал сообщал, что доказательство существует, и
+    не давал на него посмотреть, а открывают его именно затем, чтобы разобрать
+    спорный день. Теперь отдаётся ссылка.
+
+    Сам снимок в выгрузку по-прежнему не попадает: photo_url это data-url до
+    нескольких мегабайт, а строк в журнале бывает десять тысяч.
+  */
+  it("отдаёт ссылку на снимок, а не сам снимок", async () => {
     const rows = await (await caller()).getVisitsLog(MARCH);
 
-    expect(rows.find(r => r.status === "visited")?.hasPhoto).toBe(1);
-    expect(rows.find(r => r.status === "planned")?.hasPhoto).toBe(0);
-    // An empty string is not a photo either.
-    expect(rows.find(r => r.status === "skipped")?.hasPhoto).toBe(0);
+    expect(rows.find(r => r.status === "visited")?.photoUrl).toMatch(/^\/api\/photos\/visit\/\d+/);
+    expect(rows.find(r => r.status === "planned")?.photoUrl).toBeNull();
+    // Пустая строка — тоже не фотография.
+    expect(rows.find(r => r.status === "skipped")?.photoUrl).toBeNull();
     expect(JSON.stringify(rows)).not.toContain("base64");
   });
 
