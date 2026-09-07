@@ -34,7 +34,7 @@ vi.mock("../telegram-router", () => ({
   tgMessages: { newOrder: vi.fn(() => "mock message") },
 }));
 
-import { orders, orderItems, warehouseStock, products, warehouses, shops, returns } from "@db/schema";
+import { orders, orderItems, warehouseStock, products, warehouses, shops, returns, stockMovements } from "@db/schema";
 import { createExecuteMock } from "./helpers/mock-execute";
 import { makeConditionEvaluator } from "./helpers/fake-conditions";
 
@@ -69,12 +69,26 @@ interface FakeOrderItem {
   returnReason: string | null;
 }
 interface FakeReturn { id: number; tenantId: number; shopId: number; orderId: number | null; status: string; totalAmount: string; }
+/*
+  Журнал движений склада не моделировался ничем: вставки в stock_movements
+  проваливались в общую ветку «вернуть insertId» и пропадали. Значит ни одна
+  проверка не могла спросить, что именно записано в историю товара, — а сумма
+  движений это и есть ответ на вопрос «сколько на самом деле уехало и
+  приехало». Записи, сделанной не в ту сторону или не на то количество, стенд
+  не видел вовсе.
+*/
+interface FakeMovement {
+  tenantId: number; warehouseId: number; productId: number;
+  type: string; quantity: string; referenceType: string;
+  referenceId: number | null; notes: string | null;
+}
 interface FakeStock { productId: number; tenantId: number; warehouseId: number; currentStock: string; reserved: string; available: string; }
 
 let ordersTable: FakeOrder[] = [];
 let orderItemsTable: FakeOrderItem[] = [];
 let stockTable: FakeStock[] = [];
 let returnsTable: FakeReturn[] = [];
+let movementsTable: FakeMovement[] = [];
 let productsTable: { id: number; tenantId: number; name: string; unitPrice: string; status: string; costPrice?: string }[] = [];
 let warehousesTable: { id: number; tenantId: number; name: string; isDefault: boolean; status: string }[] = [];
 let shopsTable: { id: number; tenantId: number; name: string }[] = [];
@@ -85,6 +99,7 @@ function resetTables() {
   ordersTable = [];
   orderItemsTable = [];
   returnsTable = [];
+  movementsTable = [];
   stockTable = [
     { productId: 1, tenantId: 1, warehouseId: 1, currentStock: "100.00", reserved: "0.00", available: "100.00" },
   ];
@@ -102,7 +117,7 @@ function resetTables() {
   nextItemId = 1;
 }
 
-function tableOf(ref: unknown): "orders" | "orderItems" | "warehouseStock" | "products" | "warehouses" | "shops" | "returns" | "other" {
+function tableOf(ref: unknown): "orders" | "orderItems" | "warehouseStock" | "products" | "warehouses" | "shops" | "returns" | "stockMovements" | "other" {
   if (ref === orders) return "orders";
   if (ref === orderItems) return "orderItems";
   if (ref === warehouseStock) return "warehouseStock";
@@ -110,6 +125,7 @@ function tableOf(ref: unknown): "orders" | "orderItems" | "warehouseStock" | "pr
   if (ref === warehouses) return "warehouses";
   if (ref === shops) return "shops";
   if (ref === returns) return "returns";
+  if (ref === stockMovements) return "stockMovements";
   return "other";
 }
 
@@ -121,6 +137,7 @@ function rowsFor(table: ReturnType<typeof tableOf>): unknown[] {
   if (table === "warehouses") return warehousesTable;
   if (table === "shops") return shopsTable;
   if (table === "returns") return returnsTable;
+  if (table === "stockMovements") return movementsTable;
   return [];
 }
 
@@ -132,6 +149,7 @@ for (const [field, col] of Object.entries(products)) columnToFieldName.set(col, 
 for (const [field, col] of Object.entries(warehouses)) columnToFieldName.set(col, field);
 for (const [field, col] of Object.entries(shops)) columnToFieldName.set(col, field);
 for (const [field, col] of Object.entries(returns)) columnToFieldName.set(col, field);
+for (const [field, col] of Object.entries(stockMovements)) columnToFieldName.set(col, field);
 
 /**
  * Разбор условий отдан общему строгому разборщику.
@@ -247,6 +265,17 @@ function makeMockDb() {
             deliveredQuantity: null, returnReason: null,
           });
           return Promise.resolve([{ insertId: nextItemId }]);
+        }
+        if (table === "stockMovements") {
+          const list = (Array.isArray(vals) ? vals : [vals]) as Record<string, unknown>[];
+          for (const v of list) movementsTable.push({
+            tenantId: v.tenantId as number, warehouseId: v.warehouseId as number,
+            productId: v.productId as number, type: v.type as string,
+            quantity: String(v.quantity), referenceType: v.referenceType as string,
+            referenceId: (v.referenceId ?? null) as number | null,
+            notes: (v.notes ?? null) as string | null,
+          });
+          return Promise.resolve([{ insertId: movementsTable.length }]);
         }
         return Promise.resolve([{ insertId: 1 }]);
       },
@@ -715,5 +744,76 @@ describe("возврат в работу передатирует заказ", (
 
     expect(ordersTable[0].createdAt.getTime()).toBe(when.getTime());
     expect(ordersTable[0].firstOrderedAt).toBeNull();
+  });
+});
+
+/*
+  ── Журнал движений склада ───────────────────────────────────────────────────
+
+  Сумма движений товара — это ответ на вопрос «сколько на самом деле уехало и
+  приехало». По нему сверяют остаток при пересчёте, и по нему объясняют
+  расхождение, когда оно нашлось.
+
+  Стенд его не моделировал: вставки в stock_movements проваливались в общую
+  ветку и пропадали. Значит запись, сделанная не в ту сторону, не на то
+  количество или не на тот заказ, была стенду не видна вовсе.
+*/
+describe("смена статуса пишет в журнал движений", () => {
+  const callers = async () => {
+    const { orderRouter } = await import("../order-router");
+    return {
+      agent: orderRouter.createCaller(makeCtx(1, 10, "agent")),
+      op:    orderRouter.createCaller(makeCtx(1, 1, "operator")),
+    };
+  };
+
+  it("оформление заказа движением не считается", async () => {
+    /*
+      Резерв под открытым заказом ничего со склада не увозит: current_stock не
+      меняется. Запись о таком «движении» рассказывала бы историю о товаре,
+      который никуда не ездил.
+    */
+    const { agent } = await callers();
+    await createOrder(agent);
+
+    expect(movementsTable).toEqual([]);
+  });
+
+  it("доставка записывает уход товара со склада", async () => {
+    const { agent, op } = await callers();
+    await createOrder(agent);
+    await op.updateStatus({ id: 1, status: "delivered" });
+
+    expect(movementsTable).toHaveLength(1);
+    expect(movementsTable[0]).toMatchObject({
+      tenantId: 1, warehouseId: 1, productId: 1,
+      type: "out", referenceType: "order_delivery", referenceId: 1,
+    });
+    expect(Number(movementsTable[0].quantity)).toBe(10);
+  });
+
+  it("возврат заказа в работу записывает приход обратно", async () => {
+    const { agent, op } = await callers();
+    await createOrder(agent);
+    await op.updateStatus({ id: 1, status: "delivered" });
+    await op.updateStatus({ id: 1, status: "new" });
+
+    expect(movementsTable).toHaveLength(2);
+    expect(movementsTable[1]).toMatchObject({
+      type: "in", referenceType: "order_return", referenceId: 1, productId: 1,
+    });
+    // Сколько уехало, столько и вернулось: иначе журнал перестаёт сходиться с
+    // остатком, и расхождение уже нечем объяснить.
+    expect(Number(movementsTable[1].quantity)).toBe(Number(movementsTable[0].quantity));
+  });
+
+  it("движение между открытыми статусами не пишется", async () => {
+    // new → processing двигает только резерв; товар с полки не уходит.
+    const { agent, op } = await callers();
+    await createOrder(agent);
+    await op.updateStatus({ id: 1, status: "processing" });
+    await op.updateStatus({ id: 1, status: "new" });
+
+    expect(movementsTable).toEqual([]);
   });
 });

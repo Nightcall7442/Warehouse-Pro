@@ -101,6 +101,31 @@ jobs:
             exit 1
           fi
 
+      # Снимок схемы в db/migrations/meta не должен отставать от db/schema.ts.
+      #
+      # drizzle-kit сравнивает schema.ts не с базой, а со своим последним
+      # снимком. Миграцию, написанную руками без снимка, он не видит — и
+      # следующий `db:generate` выписывает её содержимое ЗАНОВО, вместе с
+      # чужой правкой. Так и вышло с 0002: файл есть, снимка нет, и очередная
+      # генерация выдала «ALTER TABLE tenant_branding MODIFY favicon_url»
+      # второй раз. На боевой базе такая миграция падает на дубликате, а
+      # падение миграции останавливает запуск сервера.
+      #
+      # Проверка простая: генерация на актуальном коде не должна выписывать
+      # ничего. Появился файл — снимок отстал.
+      - name: Схема и снимок миграций не разошлись
+        env:
+          DATABASE_URL: mysql://root@127.0.0.1:3306/warehouse_pro_migrate_test
+        run: |
+          before=$(ls db/migrations/*.sql | wc -l)
+          npx drizzle-kit generate --name drift_probe
+          after=$(ls db/migrations/*.sql | wc -l)
+          if [ "$after" -ne "$before" ]; then
+            echo "::error::drizzle-kit generate выписал новую миграцию — снимок в db/migrations/meta отстал от db/schema.ts. Сгенерируйте миграцию через npm run db:generate вместо того, чтобы писать SQL руками, и закоммитьте снимок вместе с ней."
+            cat db/migrations/*drift_probe*.sql
+            exit 1
+          fi
+
       # Re-run migrate against the now-migrated database. drizzle-kit tracks
       # applied migrations in __drizzle_migrations and skips them, so this
       # mainly guards against the command itself erroring on a second run
