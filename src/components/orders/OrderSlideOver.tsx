@@ -33,6 +33,7 @@ import { useSellerCompany } from "@/hooks/useSellerCompany";
 import type { CompletionData, CompletionMode } from "./CompletionFlowModal";
 import { StatusBadge, InfoCard, PillButton } from "./theme";
 import { F, COLORS, STATUS, PAYMENT } from "./theme-tokens";
+import { labelled, PAYMENT_METHOD_LABEL, ADJUSTMENT_TYPE_LABEL } from "@/lib/entity-labels";
 import { colorMix } from "@/lib/color-mix";
 
 interface Props {
@@ -936,12 +937,17 @@ function AdjustmentsTab({ orderId, currency }: { orderId: number; currency: stri
   if (isLoading) return <div style={{ padding: "16px", fontFamily: F.body, fontSize: "13px", color: COLORS.textTertiary }}>{t("Загрузка...", "Yuklanmoqda...")}</div>;
   if (!adjustments || adjustments.length === 0) return <div style={{ padding: "16px", fontFamily: F.body, fontSize: "13px", color: COLORS.textTertiary }}>{t("Нет корректировок", "Tuzatmalar yo'q")}</div>;
 
-  const typeLabels: Record<string, { ru: string; uz: string; color: string }> = {
-    partial_delivery: { ru: "Частичная доставка", uz: "Qisman yetkazib berish", color: COLORS.warning },
-    partial_payment: { ru: "Частичная оплата", uz: "Qisman to'lov", color: COLORS.primaryText },
-    price_change: { ru: "Изменение цены", uz: "Narx o'zgarishi", color: "#9b59b6" },
-    quantity_change: { ru: "Изменение количества", uz: "Miqdor o'zgarishi", color: COLORS.success },
+  // Слово — из общего словаря, здесь только цвет.
+  const TYPE_COLOR: Record<string, string> = {
+    partial_delivery: COLORS.warning,
+    partial_payment:  COLORS.primaryText,
+    price_change:     "#9b59b6",
+    quantity_change:  COLORS.success,
   };
+  const typeLabels: Record<string, { ru: string; uz: string; color: string }> =
+    Object.fromEntries(Object.entries(ADJUSTMENT_TYPE_LABEL).map(
+      ([k, v]) => [k, { ...v, color: TYPE_COLOR[k] ?? COLORS.textTertiary }],
+    ));
 
   return (
     <ScrollArea className="h-full px-5 pb-5">
@@ -976,6 +982,7 @@ function AdjustmentsTab({ orderId, currency }: { orderId: number; currency: stri
 
 function PaymentsTab({ orderId, currency, orderTotal, orderStatus }: { orderId: number; currency: string; orderTotal: string; orderStatus: string }) {
   const t = useTranslate();
+  const { lang } = useLang();
   const { data: payments, isLoading } = trpc.order.getOrderPayments.useQuery({ orderId });
 
   const totalPaid = (payments ?? []).reduce((s, p) => s + Number(p.paidAmount ?? p.amount), 0);
@@ -1007,7 +1014,7 @@ function PaymentsTab({ orderId, currency, orderTotal, orderStatus }: { orderId: 
               </div>
               <div style={{ fontFamily: F.body, fontSize: "13px", color: COLORS.textPrimary }}>
                 {t("Получено", "Olingan")}: <b>{Number(p.paidAmount ?? p.amount).toLocaleString("ru")} {currency}</b>
-                {p.paymentMethod && <span style={{ fontSize: "11px", color: COLORS.textTertiary, marginLeft: "6px" }}>({p.paymentMethod})</span>}
+                {p.paymentMethod && <span style={{ fontSize: "11px", color: COLORS.textTertiary, marginLeft: "6px" }}>({labelled(PAYMENT_METHOD_LABEL, p.paymentMethod, lang)})</span>}
               </div>
               {/* debtAmount is what was still outstanding at the moment this
                   payment was taken — a historical figure, not a live one. Once

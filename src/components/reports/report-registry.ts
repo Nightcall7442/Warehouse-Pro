@@ -3,6 +3,10 @@ import { Package, Store, Wallet, CreditCard, Award, Users, Boxes, Truck, Trendin
 import { trpc } from "@/providers/trpc";
 import { unitShort } from "@/lib/units";
 import { movementKind, movementDocument, movementNote } from "@/lib/stock-movement-text";
+import {
+  labelled, ACTIVE_STATUS_LABEL, ARRIVAL_STATUS_LABEL, PLAN_STATUS_LABEL,
+  PAYMENT_METHOD_LABEL, ROLE_LABEL, TIER_LABEL,
+} from "@/lib/entity-labels";
 
 /**
  * Every report the hub can produce, described rather than coded.
@@ -60,52 +64,12 @@ const EXPORT_LIMIT = 10000;
 
 const num = (v: unknown) => Number(v ?? 0);
 
-const PAYMENT_LABEL: Record<string, string> = {
-  cash: "Наличные", transfer: "Перечисление", debt: "Долг", card: "Карта",
-};
-
-
-/** Подписи оценок для выгрузки — в таблице цвет не покажешь. */
-const TIER_LABEL_RU: Record<string, string> = {
-  red: "Долго не платят", yellow: "Есть долг", green: "Рассчитываются", new: "Заказов не было",
-};
-
-const ROLE_LABEL: Record<string, string> = {
-  ceo: "Руководитель", operator: "Оператор", supervisor: "Супервайзер",
-  agent: "Агент", merchandiser: "Мерчендайзер", courier: "Курьер",
-};
-
 /** Excel reads a date far better than an ISO timestamp with a T in it. */
 function formatDate(v: unknown): string {
   if (!v) return "—";
   const d = new Date(v as string);
   return Number.isNaN(d.getTime()) ? String(v) : d.toISOString().slice(0, 10);
 }
-
-const PLAN_STATUS_LABEL: Record<string, string> = {
-  planned: "Запланирован", visited: "Посещён", skipped: "Пропущен",
-};
-
-/**
- * Состояния записей так, как они называются на бумаге.
- *
- * В файл уходило значение колонки как есть: «active», «pending», «unloading».
- * Это ровно та же болезнь, из-за которой владелец назвал нечитаемой выгрузку
- * движений товара («Status: out», «manual_adjustment #null»), только в трёх
- * других отчётах — по магазинам, по сотрудникам и по приходам. Внутреннее
- * слово из базы в файле, который уходит наружу, читать некому.
- */
-const ACTIVE_STATUS_LABEL: Record<string, string> = {
-  active: "Работает", inactive: "Не работает", suspended: "Приостановлен",
-};
-
-const ARRIVAL_STATUS_LABEL: Record<string, string> = {
-  pending: "Ожидает", unloading: "Разгружается", completed: "Принят",
-};
-
-/** Значение по словарю, а неизвестное — как есть: молчать о нём хуже, чем показать код. */
-const labelled = (map: Record<string, string>, v: unknown) =>
-  v === null || v === undefined || v === "" ? "—" : (map[String(v)] ?? String(v));
 
 /** Date with the time, for logs where the hour is the point. */
 function formatDateTime(v: unknown): string {
@@ -224,7 +188,7 @@ export const REPORTS: ReportDef[] = [
     ),
     toRows: (data) => (data as Array<{ paymentMethod: string | null; revenue: number; orderCount: number; cogs: number; grossProfit: number; grossMarginPct: number }>)
       .map(r => ({
-        "Способ оплаты": PAYMENT_LABEL[r.paymentMethod ?? ""] ?? r.paymentMethod ?? "—",
+        "Способ оплаты": labelled(PAYMENT_METHOD_LABEL, r.paymentMethod),
         "Выручка": num(r.revenue),
         "Заказов": num(r.orderCount),
         "Себестоимость": num(r.cogs),
@@ -290,7 +254,7 @@ export const REPORTS: ReportDef[] = [
         // Запасное значение было `String(r.tier)`, и у магазина без оценки в
         // файл уходило слово «undefined» — то же самое «#null», только в
         // другой колонке.
-        "Оценка": labelled(TIER_LABEL_RU, r.tier),
+        "Оценка": labelled(TIER_LABEL, r.tier),
         "Почему": String(r.reason ?? ""),
         "Последний заказ": r.lastOrderAt ? String(r.lastOrderAt).slice(0, 10) : "—",
       })),
@@ -480,7 +444,7 @@ export const REPORTS: ReportDef[] = [
         "Имя": String(r.name ?? "—"),
         "Email": String(r.email ?? "—"),
         "Телефон": String(r.phone ?? "—"),
-        "Роль": ROLE_LABEL[String(r.role)] ?? String(r.role ?? "—"),
+        "Роль": labelled(ROLE_LABEL, r.role),
         "Статус": labelled(ACTIVE_STATUS_LABEL, r.status),
         "Последний вход": formatDate(r.lastSignInAt),
       })),
@@ -502,7 +466,7 @@ export const REPORTS: ReportDef[] = [
     toRows: (data) => (data as Array<Record<string, unknown>>)
       .map(r => ({
         "Дата плана": formatDate(r.planDate),
-        "Статус": PLAN_STATUS_LABEL[String(r.status)] ?? String(r.status ?? "—"),
+        "Статус": labelled(PLAN_STATUS_LABEL, r.status),
         // Blank for plans recorded before visited_at existed — an absent time
         // is the truth there, and filling it from updated_at would be a guess
         // presented as a fact.

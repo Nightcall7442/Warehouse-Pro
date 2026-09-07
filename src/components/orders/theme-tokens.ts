@@ -12,6 +12,12 @@
  * (pre-dates the Mimo-era components) so every order-related screen speaks
  * the same visual language instead of each new component inventing its own.
  */
+import type { Order } from "@contracts/types";
+import { ORDER_STATUS_LABEL, PAYMENT_METHOD_LABEL, type Label } from "@/lib/entity-labels";
+
+type OrderStatus = Order["status"];
+type PaymentMethod = NonNullable<Order["paymentMethod"]>;
+
 export const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
 
 export const COLORS = {
@@ -40,19 +46,45 @@ export const SHADOW = "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgb
 /** Statuses where the goods have not been handed over yet — these can still be completed. */
 export const OPEN_STATUSES = ["new", "processing", "shipped", "pending"];
 
-export const PAYMENT: Record<string, { ru: string; uz: string; color: string }> = {
-  cash:     { ru: "Наличные",     uz: "Naqd",      color: "var(--color-success-text)" },
-  transfer: { ru: "Перечисление", uz: "O'tkazma",  color: "var(--color-primary-text)" },
-  debt:     { ru: "Долг",         uz: "Qarz",      color: "var(--color-warning-text)" },
-  card:     { ru: "Карта",        uz: "Plastik",   color: "#9b59b6" },
+/*
+  Слово и оформление.
+
+  Слово берётся из общего словаря (src/lib/entity-labels.ts) — того же, из
+  которого его берут сводка, карточка магазина, поиск и выгрузки. Раньше здесь
+  лежала собственная копия, и она разошлась с остальными: «Отгружён» против
+  «Отгружен», «Возврат» против «Возвращён». Один заказ на двух экранах
+  назывался по-разному.
+
+  Здесь остаётся оформление: цвет точки и классы плашки. Форма таблицы не
+  изменилась, поэтому пятнадцать мест вызова остались как были.
+*/
+type StatusStyle = { dot: string; bg: string; text: string; border: string };
+
+const STATUS_STYLE: Record<OrderStatus, StatusStyle> = {
+  new:        { dot: "var(--color-primary)", bg: "bg-info/10",    text: "text-info",       border: "border-info/25" },
+  processing: { dot: "var(--color-warning)", bg: "bg-warning/10", text: "text-warning",    border: "border-warning/25" },
+  shipped:    { dot: "#9b59b6",              bg: "bg-purple-100", text: "text-purple-600", border: "border-purple-200" },
+  pending:    { dot: "#f09050",              bg: "bg-orange-100", text: "text-orange-600", border: "border-orange-200" },
+  delivered:  { dot: "var(--color-success)", bg: "bg-success/10", text: "text-success",    border: "border-success/25" },
+  cancelled:  { dot: "var(--color-danger)",  bg: "bg-danger/10",  text: "text-danger",     border: "border-danger/25" },
+  returned:   { dot: "#e85050",              bg: "bg-red-100",    text: "text-red-600",    border: "border-red-200" },
 };
 
-export const STATUS: Record<string, { ru: string; uz: string; dot: string; bg: string; text: string; border: string }> = {
-  new:                  { ru: "Новый",            uz: "Yangi",                   dot: "var(--color-primary)", bg: "bg-info/10",    text: "text-info",    border: "border-info/25" },
-  processing:           { ru: "В обработке",      uz: "Jarayonda",               dot: "var(--color-warning)", bg: "bg-warning/10", text: "text-warning", border: "border-warning/25" },
-  shipped:              { ru: "Отгружён",         uz: "Yuklandi",                dot: "#9b59b6", bg: "bg-purple-100", text: "text-purple-600", border: "border-purple-200" },
-  pending:              { ru: "В ожидании",       uz: "Kutishda",                dot: "#f09050", bg: "bg-orange-100", text: "text-orange-600", border: "border-orange-200" },
-  delivered:            { ru: "Доставлен",        uz: "Yetkazildi",              dot: "var(--color-success)", bg: "bg-success/10", text: "text-success", border: "border-success/25" },
-  cancelled:            { ru: "Отменён",          uz: "Bekor qilindi",           dot: "var(--color-danger)", bg: "bg-danger/10",  text: "text-danger",  border: "border-danger/25" },
-  returned:             { ru: "Возврат",          uz: "Qaytarildi",              dot: "#e85050", bg: "bg-red-100",    text: "text-red-600", border: "border-red-200" },
+const PAYMENT_COLOR: Record<PaymentMethod, string> = {
+  cash:     "var(--color-success-text)",
+  transfer: "var(--color-primary-text)",
+  debt:     "var(--color-warning-text)",
+  card:     "#9b59b6",
 };
+
+export const PAYMENT: Record<string, Label & { color: string }> =
+  Object.fromEntries(
+    (Object.keys(PAYMENT_COLOR) as PaymentMethod[])
+      .map(k => [k, { ...PAYMENT_METHOD_LABEL[k], color: PAYMENT_COLOR[k] }]),
+  );
+
+export const STATUS: Record<string, Label & StatusStyle> =
+  Object.fromEntries(
+    (Object.keys(STATUS_STYLE) as OrderStatus[])
+      .map(k => [k, { ...ORDER_STATUS_LABEL[k], ...STATUS_STYLE[k] }]),
+  );

@@ -18,7 +18,8 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { AppModal } from "@/components/ui/AppModal";
-import { F, COLORS, SHADOW, thStyle, tdStyle, ROLE_LABELS } from "@/components/users/types";
+import { F, COLORS, SHADOW, thStyle, tdStyle } from "@/components/users/types";
+import { labelled, ROLE_LABEL } from "@/lib/entity-labels";
 
 /**
  * Зарплаты — сколько организация начислила за период, сколько отдала и сколько
@@ -213,7 +214,7 @@ export default function Salaries() {
     const seen = [...new Set(allRows.map(r => r.role))];
     return [
       { value: "", label: t("Все роли", "Barcha lavozimlar") },
-      ...seen.map(r => ({ value: r, label: ROLE_LABELS[r] ? (lang === "uz" ? ROLE_LABELS[r].uz : ROLE_LABELS[r].ru) : r })),
+      ...seen.map(r => ({ value: r, label: labelled(ROLE_LABEL, r, lang) })),
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allRows, lang]);
@@ -222,7 +223,7 @@ export default function Salaries() {
     exportToExcel(
       rows.map(r => ({
         [t("Сотрудник", "Xodim")]: r.agentName,
-        [t("Роль", "Lavozim")]: ROLE_LABELS[r.role] ? (lang === "uz" ? ROLE_LABELS[r.role].uz : ROLE_LABELS[r.role].ru) : r.role,
+        [t("Роль", "Lavozim")]: labelled(ROLE_LABEL, r.role, lang),
         [t("Оклад", "Maosh")]: Number(r.baseSalary ?? 0),
         [t("Комиссия", "Komissiya")]: Number(r.commissionAmount ?? 0),
         [t("Премия", "Mukofot")]: Number(r.bonusAmount ?? 0),
@@ -686,7 +687,7 @@ function Avatar({ name }: { name: string }) {
 }
 
 function RoleBadge({ role, lang, rate }: { role: string; lang: string; rate: number | null }) {
-  const label = ROLE_LABELS[role] ? (lang === "uz" ? ROLE_LABELS[role].uz : ROLE_LABELS[role].ru) : role;
+  const label = labelled(ROLE_LABEL, role, lang === "uz" ? "uz" : "ru");
   return (
     <span style={{ fontSize: "11px", color: COLORS.textTertiary }}>
       {label}{rate != null && rate > 0 && ` · ${rate}%`}

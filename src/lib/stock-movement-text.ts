@@ -30,6 +30,8 @@
  * документ.
  */
 
+import { labelled, ORDER_STATUS_LABEL } from "./entity-labels";
+
 type Lang = string;
 const pick = (lang: Lang, ru: string, uz: string) => (lang === "uz" ? uz : ru);
 
@@ -87,17 +89,6 @@ export function movementDocument(
   return hasNumber ? `${name} №${referenceId}` : name;
 }
 
-/** Состояния заказа так, как они называются на остальных экранах. */
-const ORDER_STATUS: Record<string, { ru: string; uz: string }> = {
-  new:        { ru: "Новый",       uz: "Yangi" },
-  processing: { ru: "В обработке", uz: "Jarayonda" },
-  shipped:    { ru: "Отгружён",    uz: "Yuklandi" },
-  pending:    { ru: "В ожидании",  uz: "Kutishda" },
-  delivered:  { ru: "Доставлен",   uz: "Yetkazildi" },
-  cancelled:  { ru: "Отменён",     uz: "Bekor qilindi" },
-  returned:   { ru: "Возврат",     uz: "Qaytarildi" },
-};
-
 /**
  * Заметка к движению.
  *
@@ -110,8 +101,8 @@ export function movementNote(notes: string | null | undefined, lang: Lang = "ru"
   const text = (notes ?? "").trim();
   if (!text) return "—";
 
-  return text.replace(/\b[a-z_]+\b/g, word => {
-    const status = ORDER_STATUS[word];
-    return status ? pick(lang, status.ru, status.uz) : word;
-  });
+  // labelled возвращает само слово, если оно не состояние заказа, — а в
+  // заметке рядом со стрелкой стоят только они.
+  return text.replace(/\b[a-z_]+\b/g, word =>
+    labelled(ORDER_STATUS_LABEL, word, lang === "uz" ? "uz" : "ru"));
 }

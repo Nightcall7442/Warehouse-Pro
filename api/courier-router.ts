@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createRouter, courierQuery, operatorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { orders, shops, users, payments, notifications, orderItems, products, warehouseStock, warehouses, debtReminders } from "@db/schema";
+import { ORDER_STATUS_LABELS } from "./lib/order-status";
 import { eq, and, sql, desc, isNull } from "drizzle-orm";
 import { sseBus } from "./lib/sse";
 import { logger } from "./lib/logger";
@@ -417,7 +418,7 @@ export const courierRouter = createRouter({
       // reserved в минус не уходил, а current_stock уходил.
       // Недостача всплывала только при инвентаризации.
       if (order.status === "delivered" || order.status === "cancelled" || order.status === "returned") {
-        throw new Error(`Заказ уже завершён (статус «${order.status}») — повторное списание невозможно`);
+        throw new Error(`Заказ уже завершён (статус «${ORDER_STATUS_LABELS[order.status]}») — повторное списание невозможно`);
       }
 
       // Declared here, not inside the transaction below, so the notification

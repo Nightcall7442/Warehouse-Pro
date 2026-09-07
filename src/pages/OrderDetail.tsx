@@ -5,6 +5,8 @@ import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useLang } from "@/i18n";
+import { PAYMENT } from "@/components/orders/theme-tokens";
+import { labelled, ORDER_STATUS_LABEL, ADJUSTMENT_TYPE_LABEL } from "@/lib/entity-labels";
 import { format } from "date-fns";
 import { ru as dateRu } from "date-fns/locale";
 import {
@@ -36,23 +38,8 @@ import { StatusBadge } from "@/components/orders/theme";
 /** Statuses where the goods have not been handed over yet — these can still be completed. */
 const OPEN_STATUSES = ["new", "processing", "shipped", "pending"];
 
-const STATUS_LABELS: Record<string, { ru: string; uz: string }> = {
-  new:                  { ru: "Новый",              uz: "Yangi" },
-  processing:           { ru: "В обработке",        uz: "Jarayonda" },
-  shipped:              { ru: "Отгружён",           uz: "Yuklandi" },
-  pending:              { ru: "В ожидании",         uz: "Kutishda" },
-  delivered:            { ru: "Доставлен",          uz: "Yetkazildi" },
-  cancelled:            { ru: "Отменён",            uz: "Bekor qilindi" },
-  returned:             { ru: "Возврат",            uz: "Qaytarildi" },
-};
-
-
-const PAYMENT_METHODS: Record<string, { ru: string; uz: string; color: string }> = {
-  cash:     { ru: "Наличные",     uz: "Naqd",       color: "var(--color-success-text)" },
-  transfer: { ru: "Перечисление", uz: "O'tkazma",   color: "var(--color-primary-text)" },
-  debt:     { ru: "Долг",         uz: "Qarz",       color: "var(--color-warning-text)" },
-  card:     { ru: "Карта",        uz: "Plastik",    color: "#9b59b6" },
-};
+/* Слово и цвет — те же, что на списке заказов и в боковой панели. */
+const PAYMENT_METHODS = PAYMENT;
 
 /** Format number without trailing zeros: 70.00 → 70, 70.50 → 70.5, 70.12 → 70.12 */
 function cleanNum(val: string | number | null | undefined): string {
@@ -263,7 +250,7 @@ export default function OrderDetail() {
         [lang === "uz" ? "Buyurtma" : "Заказ"]:    order.orderNumber,
         [lang === "uz" ? "Do'kon" : "Магазин"]:     order.shop?.name ?? "",
         [lang === "uz" ? "Agent" : "Агент"]:         order.agent?.name ?? "",
-        [lang === "uz" ? "Holat" : "Статус"]:        STATUS_LABELS[order.status]?.[lang] ?? order.status,
+        [lang === "uz" ? "Holat" : "Статус"]:        labelled(ORDER_STATUS_LABEL, order.status, lang),
         [lang === "uz" ? "Mahsulot" : "Товар"]:      i.productName ?? "",
         [lang === "uz" ? "Kod" : "Код"]:             i.productCode ?? "",
         [lang === "uz" ? `Miqdor (${ul.uz})` : `Кол-во (${ul.ru})`]: cleanNum(i.quantity),
@@ -283,10 +270,10 @@ export default function OrderDetail() {
       setShowCompletion(true);
       return;
     }
-    const label = STATUS_LABELS[newStatus]?.[lang] ?? newStatus;
+    const label = labelled(ORDER_STATUS_LABEL, newStatus, lang);
     const ok = await confirm({
       title: lang === "uz" ? "Holatni o'zgartirish?" : "Изменить статус?",
-      message: `${STATUS_LABELS[order.status]?.[lang] ?? order.status} → ${label}`,
+      message: `${labelled(ORDER_STATUS_LABEL, order.status, lang)} → ${label}`,
       confirmText: lang === "uz" ? "O'zgartirish" : "Изменить",
     });
     if (ok) updateStatus.mutate({ id: order.id, status: newStatus as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" });
@@ -380,7 +367,7 @@ export default function OrderDetail() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {Object.entries(STATUS_LABELS).map(([key, labels]) => (
+                  {Object.entries(ORDER_STATUS_LABEL).map(([key, labels]) => (
                     <SelectItem key={key} value={key} className="text-xs">
                       {lang === "uz" ? labels.uz : labels.ru}
                     </SelectItem>
@@ -741,13 +728,7 @@ export default function OrderDetail() {
           </p>
           <div className="space-y-2">
             {adjustments.map(adj => {
-              const typeLabels: Record<string, { ru: string; uz: string }> = {
-                partial_delivery: { ru: "Частичная доставка", uz: "Qisman yetkazib berish" },
-                partial_payment: { ru: "Частичная оплата", uz: "Qisman to'lov" },
-                price_change: { ru: "Изменение цены", uz: "Narx o'zgarishi" },
-                quantity_change: { ru: "Изменение количества", uz: "Miqdor o'zgarishi" },
-              };
-              const label = typeLabels[adj.type] ?? { ru: adj.type, uz: adj.type };
+              const label = ADJUSTMENT_TYPE_LABEL[adj.type] ?? { ru: adj.type, uz: adj.type };
               return (
                 <div key={adj.id} className="p-2 rounded-lg bg-muted/20 text-sm">
                   <div className="flex items-center justify-between">

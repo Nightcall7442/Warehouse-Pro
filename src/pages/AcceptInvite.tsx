@@ -3,10 +3,12 @@ import { useParams, useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { UserPlus, Loader2, CheckCircle2, Eye, EyeOff } from "lucide-react";
-import { useTranslate } from "@/i18n";
+import { useTranslate, useLang } from "@/i18n";
+import { labelled, ROLE_LABEL } from "@/lib/entity-labels";
 
 export default function AcceptInvite() {
   const tr = useTranslate();
+  const { lang } = useLang();
   const { token }    = useParams<{ token: string }>();
   const navigate     = useNavigate();
   const [name, setName]     = useState("");
@@ -60,11 +62,6 @@ export default function AcceptInvite() {
     </div>
   );
 
-  const ROLE_LABELS: Record<string, string> = {
-    operator: tr("Оператор","Operator"), agent: tr("Агент","Agent"),
-    supervisor: tr("Супервайзер","Nazoratchi"), merchandiser: tr("Мерчандайзер","Merchandayzer"),
-  };
-
   return (
     <div className="min-h-screen bg-canvas flex flex-col items-center justify-center px-4">
       {/* Здесь стояло «WAREHOUSE PRO». Человека зовут работать в
@@ -80,7 +77,7 @@ export default function AcceptInvite() {
           </div>
           <div>
             <h1 className="font-display text-lg font-bold text-primary">{tr("Принять приглашение","Taklifni qabul qilish")}</h1>
-            <p className="text-xs text-secondary">{invite.orgName} · {ROLE_LABELS[invite.role] ?? invite.role}</p>
+            <p className="text-xs text-secondary">{invite.orgName} · {labelled(ROLE_LABEL, invite.role, lang)}</p>
           </div>
         </div>
 

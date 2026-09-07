@@ -44,7 +44,14 @@ export function KpiCard({ label, value, delta, icon, gradient, delay }: {
 
 /* ─── Status Badge — pill with a colored dot, per the status color table above ─── */
 export const StatusBadge = memo(function StatusBadge({ status, lang }: { status: string; lang: "ru" | "uz" }) {
-  const s = STATUS[status] ?? STATUS.new;
+  /*
+    Неизвестное состояние показывается кодом и серым, а не «Новым».
+
+    Здесь стояло `?? STATUS.new`. Пока словарь полон, это незаметно; стоит
+    появиться восьмому состоянию — и значок уверенно скажет «Новый» о заказе,
+    который уже доставлен. Пропуск в данных видно, неправду — нет.
+  */
+  const s = STATUS[status] ?? { ru: status, uz: status, dot: COLORS.textTertiary, bg: "", text: "", border: "" };
   return (
     <span style={{
       display: "inline-flex", alignItems: "center", gap: "6px",

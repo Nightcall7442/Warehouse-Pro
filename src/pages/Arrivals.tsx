@@ -6,6 +6,7 @@ import type { AppRouter } from "../../api/router";
 import { trpc } from "@/providers/trpc";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useLang } from "@/i18n";
+import { labelled, ARRIVAL_STATUS_LABEL, PAYMENT_METHOD_LABEL } from "@/lib/entity-labels";
 import { format } from "date-fns";
 import {
   Plus, X, FileDown, Loader2, Printer,
@@ -405,12 +406,6 @@ function SupplierDebtSection({ arrivalId }: { arrivalId: number }) {
     onError: (e) => notify.error(e.message),
   });
 
-  const paymentMethodLabels: Record<string, { ru: string; uz: string }> = {
-    cash: { ru: "Наличные", uz: "Naqd" },
-    card: { ru: "Карта", uz: "Karta" },
-    transfer: { ru: "Перевод", uz: "O'tkazma" },
-  };
-
   if (isLoading) return null;
   if (!supply) return null;
 
@@ -455,7 +450,7 @@ function SupplierDebtSection({ arrivalId }: { arrivalId: number }) {
             {supply.payments.map((p) => (
               <div key={p.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderTop: "1px solid var(--color-border)", fontSize: "12px" }}>
                 <span style={{ color: "var(--color-text-secondary)" }}>
-                  {format(new Date(p.paidAt), "dd.MM.yyyy")} · {paymentMethodLabels[p.paymentMethod]?.[lang as "ru" | "uz"] ?? p.paymentMethod}
+                  {format(new Date(p.paidAt), "dd.MM.yyyy")} · {labelled(PAYMENT_METHOD_LABEL, p.paymentMethod, lang)}
                 </span>
                 <span style={{ fontWeight: 600, color: "var(--color-text-primary)" }}>{currencyFmt(Number(p.amount))}</span>
               </div>
@@ -480,9 +475,9 @@ function SupplierDebtSection({ arrivalId }: { arrivalId: number }) {
                 <label className="font-label text-[10px] text-secondary mb-1.5 block">{t("Способ", "Usul")}</label>
                 <PremiumSelect value={payMethod} onChange={v => setPayMethod(v as "cash" | "card" | "transfer")}
                   options={[
-                    { value: "cash", label: paymentMethodLabels.cash[lang as "ru" | "uz"] },
-                    { value: "card", label: paymentMethodLabels.card[lang as "ru" | "uz"] },
-                    { value: "transfer", label: paymentMethodLabels.transfer[lang as "ru" | "uz"] },
+                    { value: "cash", label: PAYMENT_METHOD_LABEL.cash[lang] },
+                    { value: "card", label: PAYMENT_METHOD_LABEL.card[lang] },
+                    { value: "transfer", label: PAYMENT_METHOD_LABEL.transfer[lang] },
                   ]} width="100%" />
               </div>
             </div>
@@ -575,7 +570,7 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
         <div><span>Телефон:</span> <strong>${esc(detail.driverPhone) ?? "—"}</strong></div>
         <!-- Статус словом: печаталось сырое значение колонки — «pending»,
              «unloading». Словарь подписей лежит в этом же файле. -->
-        <div><span>Статус:</span> <strong>${esc(statusLabels[detail.status]?.[lang === "uz" ? "uz" : "ru"] ?? detail.status)}</strong></div>
+        <div><span>Статус:</span> <strong>${esc(labelled(ARRIVAL_STATUS_LABEL, detail.status, lang === "uz" ? "uz" : "ru"))}</strong></div>
       </div>
       ${html}
       <script>window.onload=()=>{window.focus();window.onafterprint=()=>window.close();window.print()}</script>
@@ -598,11 +593,6 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
 
   const statusColors: Record<string, string> = {
     pending: "var(--color-warning)", unloading: "var(--color-primary)", completed: "var(--color-success)",
-  };
-  const statusLabels: Record<string, { ru: string; uz: string }> = {
-    pending: { ru: "Ожидает", uz: "Kutilmoqda" },
-    unloading: { ru: "Разгрузка", uz: "Tushirilmoqda" },
-    completed: { ru: "Завершён", uz: "Yakunlandi" },
   };
 
   return createPortal(
@@ -635,7 +625,7 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
           <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "24px", padding: "12px 16px", borderRadius: "12px", background: `color-mix(in srgb, ${statusColors[detail.status] ?? "var(--color-primary)"} 10%, transparent)`, border: `1px solid color-mix(in srgb, ${statusColors[detail.status] ?? "var(--color-primary)"} 30%, transparent)` }}>
             <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: statusColors[detail.status] ?? "var(--color-primary)" }} />
             <span style={{ fontSize: "14px", fontWeight: 600, color: statusColors[detail.status] ?? "var(--color-primary-text)" }}>
-              {statusLabels[detail.status]?.[lang as "ru" | "uz"] ?? detail.status}
+              {labelled(ARRIVAL_STATUS_LABEL, detail.status, lang)}
             </span>
           </div>
 

@@ -12,14 +12,12 @@ import { ClipboardList, TrendingUp, TrendingDown, Sparkles, AlertCircle, ArrowRi
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart as RePieChart, Pie, Cell, BarChart, Bar } from "recharts";
 import { ProgressRing } from "@/components/ProgressRing";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
+// Слово и цвет состояния — оттуда же, откуда их берёт экран заказов.
+import { STATUS } from "@/components/orders/theme-tokens";
+import { labelled, ORDER_STATUS_LABEL } from "@/lib/entity-labels";
 
 type Range = "7d" | "30d" | "month";
 
-const STATUS_COLOR: Record<string, string> = { new: "var(--color-primary)", processing: "var(--color-warning)", completed: "var(--color-success)", cancelled: "var(--color-danger)" };
-const STATUS_LABEL: Record<string, { ru: string; uz: string }> = {
-  new: { ru: "Новые", uz: "Yangi" }, processing: { ru: "В обработке", uz: "Jarayonda" },
-  completed: { ru: "Выполнены", uz: "Bajarildi" }, cancelled: { ru: "Отменены", uz: "Bekor qilindi" },
-};
 
 const CHART_COLORS = ["var(--color-primary)", "var(--color-success)", "var(--color-warning)", "var(--color-danger)", "#7a6db5", "#3a9a8a", "#c06080", "#c49530"];
 
@@ -147,9 +145,9 @@ export default function Dashboard() {
   // Pie chart data
   const pieData = useMemo(() =>
     statusData?.map((s, i: number) => ({
-      name: STATUS_LABEL[s.status ?? ""]?.[lang] ?? s.status,
+      name: labelled(ORDER_STATUS_LABEL, s.status, lang),
       value: Number(s.count),
-      color: STATUS_COLOR[s.status ?? ""] ?? CHART_COLORS[i % CHART_COLORS.length],
+      color: STATUS[s.status ?? ""]?.dot ?? CHART_COLORS[i % CHART_COLORS.length],
       status: s.status,
     })) ?? []
   , [statusData, lang]);
@@ -401,7 +399,7 @@ export default function Dashboard() {
                 onMouseEnter={ev => { ev.currentTarget.style.background = "color-mix(in srgb, var(--color-primary) 4%, transparent)"; }}
                 onMouseLeave={ev => { ev.currentTarget.style.background = "transparent"; }}
               >
-                <span style={{ width: "10px", height: "10px", borderRadius: "50%", flexShrink: 0, background: STATUS_COLOR[e.status ?? "new"] ?? "var(--color-border, #d8d5cd)", boxShadow: "var(--shadow-xs)" }} />
+                <span style={{ width: "10px", height: "10px", borderRadius: "50%", flexShrink: 0, background: STATUS[e.status ?? "new"]?.dot ?? "var(--color-border, #d8d5cd)", boxShadow: "var(--shadow-xs)" }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--color-text-primary, #2b2a28)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.agentName}</p>
                   <p style={{ fontSize: "11px", color: "var(--color-text-tertiary, #6b6760)", margin: "2px 0 0" }}>#{e.orderNumber} · {e.createdAt ? format(new Date(e.createdAt), "HH:mm") : ""}</p>

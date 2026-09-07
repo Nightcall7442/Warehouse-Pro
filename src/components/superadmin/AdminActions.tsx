@@ -2,6 +2,7 @@ import { useState } from "react";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { User, Key, Save, Loader2 } from "lucide-react";
+import { labelled, ROLE_LABEL } from "@/lib/entity-labels";
 import { F, COLORS } from "./types";
 import { Section, Input, BtnPrimary } from "./ui";
 
@@ -26,7 +27,7 @@ export function AdminActions() {
         <div style={{ width: "48px", height: "48px", borderRadius: "14px", background: "color-mix(in srgb, var(--color-primary) 10%, transparent)", display: "flex", alignItems: "center", justifyContent: "center" }}><User size={22} style={{ color: COLORS.primaryText }} /></div>
         <div>
           <p style={{ fontFamily: F.display, fontSize: "15px", fontWeight: 600, color: COLORS.textPrimary }}>{user?.name}</p>
-          <p style={{ fontSize: "12px", color: COLORS.textTertiary }}>{user?.role} · {user?.email}</p>
+          <p style={{ fontSize: "12px", color: COLORS.textTertiary }}>{labelled(ROLE_LABEL, user?.role)} · {user?.email}</p>
         </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>

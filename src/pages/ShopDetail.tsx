@@ -8,6 +8,8 @@ import { notify } from "@/lib/toast";
 import { compressImage } from "@/lib/compress-image";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { useLang } from "@/i18n";
+import { STATUS } from "@/components/orders/theme-tokens";
+import { labelled, ORDER_STATUS_LABEL } from "@/lib/entity-labels";
 import { format } from "date-fns";
 import {
   ArrowLeft, Store, Phone, MapPin, Edit2, Plus,
@@ -18,15 +20,6 @@ import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { useAuth } from "@/hooks/useAuth";
 import { canOperate } from "@/lib/permissions";
 
-const STATUS_COLORS: Record<string, string> = {
-  new: "var(--color-primary)", processing: "var(--color-warning)", completed: "var(--color-success)", cancelled: "var(--color-danger)",
-};
-const STATUS_LABELS: Record<string, { ru: string; uz: string }> = {
-  new:        { ru: "Новый",       uz: "Yangi"         },
-  processing: { ru: "В обработке", uz: "Jarayonda"     },
-  completed:  { ru: "Выполнен",    uz: "Bajarildi"     },
-  cancelled:  { ru: "Отменён",     uz: "Bekor"         },
-};
 
 // ── Форма платежа ─────────────────────────────────────────────────────────────
 function PaymentModal({ shopId, onClose }: { shopId: number; onClose: () => void }) {
@@ -395,11 +388,11 @@ export default function ShopDetail() {
                 className="flex items-center gap-3 px-5 py-3.5 cursor-pointer hover:bg-surface-light/40 transition-colors"
                 onClick={() => navigate(`/orders/${o.id}`)}>
                 <span className="w-2 h-2 rounded-full flex-shrink-0"
-                  style={{ background: STATUS_COLORS[o.status ?? "new"] }} />
+                  style={{ background: STATUS[o.status ?? ""]?.dot ?? "var(--color-border, #d8d5cd)" }} />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-data font-semibold text-primary">{o.orderNumber}</p>
                   <p className="text-xs text-secondary mt-0.5">
-                    {STATUS_LABELS[o.status ?? "new"]?.[lang]} ·{" "}
+                    {labelled(ORDER_STATUS_LABEL, o.status, lang)} ·{" "}
                     {o.createdAt ? format(new Date(o.createdAt), "dd.MM.yyyy") : ""}
                   </p>
                 </div>

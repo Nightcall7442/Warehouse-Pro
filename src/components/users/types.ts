@@ -33,14 +33,15 @@ export const ROLE_COLORS: Record<string, string> = {
   courier:      "bg-orange-500/15 text-orange-400 border-orange-500/30",
 };
 
-export const ROLE_LABELS: Record<string, { ru: string; uz: string }> = {
-  ceo:          { ru: "CEO",            uz: "CEO"            },
-  operator:     { ru: "Оператор",       uz: "Operator"       },
-  agent:        { ru: "Агент",          uz: "Agent"          },
-  supervisor:   { ru: "Супервайзер",    uz: "Supervisor"     },
-  merchandiser: { ru: "Мерчандайзер",   uz: "Merchandayzer"  },
-  courier:      { ru: "Доставщик",      uz: "Yetkazib beruvchi" },
-};
+/*
+  Названия ролей — общие.
+
+  Здесь их было шесть из семи: не хватало «superadmin», и в списке сотрудников
+  на его строке стояло английское слово. Заодно «ceo» назывался «CEO», а в
+  выгрузках и отчётах — «Руководитель»: одна и та же роль на бумаге и на экране
+  читалась по-разному.
+*/
+export { ROLE_LABEL as ROLE_LABELS } from "@/lib/entity-labels";
 
 /* ── Table styles ──────────────────────────────────────────────────────────── */
 export const thStyle: React.CSSProperties = {

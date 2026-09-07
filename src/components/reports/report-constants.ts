@@ -1,3 +1,4 @@
+import { PAYMENT_METHOD_LABEL } from "@/lib/entity-labels";
 import type React from "react";
 
 export const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
@@ -17,15 +18,24 @@ export const COLORS = {
 
 export const SHADOW = "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04))";
 
-export const PAYMENT_MAP: Record<string, { label: string; color: string }> = {
-  cash:     { label: "Наличные",     color: "var(--color-success-text)" },
-  transfer: { label: "Перечисление", color: "var(--color-primary-text)" },
-  debt:     { label: "Долг",         color: "var(--color-warning-text)" },
-  // Здесь стояло «#9b59b6» — фиолетовый, которого нет ни в палитре
-  // приложения, ни у арендатора. У арендатора со светлым фирменным цветом
-  // соседние три метки перекрашивались, а эта оставалась чужой.
-  card:     { label: "Карта",        color: "var(--kpi-purple)" },
+/*
+  Цвет метки на графике; слово берётся из общего словаря.
+
+  Про цвет «card»: здесь стояло «#9b59b6» — фиолетовый, которого нет ни в
+  палитре приложения, ни у арендатора. У арендатора со светлым фирменным
+  цветом соседние три метки перекрашивались, а эта оставалась чужой.
+*/
+const PAYMENT_COLOR: Record<string, string> = {
+  cash:     "var(--color-success-text)",
+  transfer: "var(--color-primary-text)",
+  debt:     "var(--color-warning-text)",
+  card:     "var(--kpi-purple)",
 };
+
+export const PAYMENT_MAP: Record<string, { label: string; color: string }> =
+  Object.fromEntries(Object.entries(PAYMENT_METHOD_LABEL).map(
+    ([k, v]) => [k, { label: v.ru, color: PAYMENT_COLOR[k] ?? "var(--color-text-tertiary)" }],
+  ));
 
 /*
   Разделы страницы «Отчёты».

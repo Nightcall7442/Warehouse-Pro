@@ -2,7 +2,7 @@ import { eq, and, or, desc, sql, isNull, isNotNull, inArray } from "drizzle-orm"
 import { alias } from "drizzle-orm/mysql-core";
 import { orders, orderItems, warehouseStock, shops, users, products, notifications, warehouses, payments, loadingLists, loadingListOrders, debtReminders, orderAdjustments, territories, returns, returnItems } from "@db/schema";
 import { recalcShopDebt } from "./shop-debt";
-import { OPEN_ORDER_STATUSES, CLOSED_ORDER_STATUSES, ORDER_STATUS_LABELS, holdsStock, deductsStock } from "../lib/order-status";
+import { OPEN_ORDER_STATUSES, CLOSED_ORDER_STATUSES, ORDER_STATUS_LABELS, LOADING_LIST_STATUS_LABELS, holdsStock, deductsStock } from "../lib/order-status";
 import { recordStockMovement } from "./stock-ledger";
 import { isReopen, reversesRevenue, assertReopenable, clearDeliveryTrace, dateSecondLife } from "./order-reopen";
 
@@ -670,7 +670,7 @@ async function applyPartialPayment(
   // A cancelled/returned order has already given its stock and any charge
   // back; a stray or retried payment call must not resurrect it as delivered.
   if (order.status === "cancelled" || order.status === "returned") {
-    throw new Error(`Нельзя принять оплату по заказу в статусе «${order.status}»`);
+    throw new Error(`Нельзя принять оплату по заказу в статусе «${ORDER_STATUS_LABELS[order.status]}»`);
   }
 
   const total = Number(order.total);
@@ -782,7 +782,7 @@ async function applyPartialDelivery(
   // на клиенте сравнивает со СТАРЫМ статусом), остаток спишется второй раз.
   // Обе операции при этом возвращают успех, и оператор ничего не замечает.
   if (order.status === "cancelled" || order.status === "returned" || order.status === "delivered") {
-    throw badRequest(`Нельзя оформить доставку по заказу в статусе «${order.status}»`);
+    throw badRequest(`Нельзя оформить доставку по заказу в статусе «${ORDER_STATUS_LABELS[order.status]}»`);
   }
 
   // Доставка закрывает заказ целиком, поэтому в запросе обязаны быть ВСЕ его
@@ -2538,7 +2538,7 @@ export const OrderService = {
     if (!list) throw new Error("Загрузочный лист не найден");
 
     if (!validTransitions[list.status]?.includes(newStatus)) {
-      throw new Error(`Невозможно перевести из "${list.status}" в "${newStatus}"`);
+      throw new Error(`Невозможно перевести из «${LOADING_LIST_STATUS_LABELS[list.status]}» в «${LOADING_LIST_STATUS_LABELS[newStatus as keyof typeof LOADING_LIST_STATUS_LABELS] ?? newStatus}»`);
     }
 
     const updates: Record<string, unknown> = { status: newStatus };

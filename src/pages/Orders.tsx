@@ -20,7 +20,7 @@ import { format, startOfMonth } from "date-fns";
 import { exportToExcel, formatOrdersForExport } from "@/lib/excel";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { exportToPDF, escapeHtml } from "@/lib/export";
-import { ORDER_STATUS_LABEL, labelled } from "@/lib/entity-labels";
+import { ORDER_STATUS_LABEL, DELIVERY_STATUS_LABEL, labelled } from "@/lib/entity-labels";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { ColumnSettings } from "@/components/orders/ColumnSettings";
 import { useOrderColumns } from "@/hooks/useOrderColumns";
@@ -470,14 +470,6 @@ function OperatorOrders() {
     high:   { ru: "Высокий", uz: "Yuqori", color: COLORS.danger },
   };
 
-  const DELIVERY: Record<string, { ru: string; uz: string }> = {
-    not_assigned:     { ru: "Не назначена", uz: "Tayinlanmagan" },
-    assigned:         { ru: "Назначена",    uz: "Tayinlangan" },
-    out_for_delivery: { ru: "В пути",       uz: "Yo'lda" },
-    delivered:        { ru: "Доставлена",   uz: "Yetkazildi" },
-    failed:           { ru: "Не удалась",   uz: "Muvaffaqiyatsiz" },
-  };
-
   /**
    * One cell, chosen by column id.
    *
@@ -529,7 +521,7 @@ function OperatorOrders() {
         return p ? <span style={{ fontSize: "12px", color: p.color }}>{lang === "uz" ? p.uz : p.ru}</span> : "—";
       }
       case "deliveryStatus": {
-        const d = DELIVERY[String(row.deliveryStatus ?? "")];
+        const d = DELIVERY_STATUS_LABEL[row.deliveryStatus as keyof typeof DELIVERY_STATUS_LABEL];
         return d ? <span style={{ fontSize: "12px" }}>{lang === "uz" ? d.uz : d.ru}</span> : "—";
       }
       case "courierName":
@@ -945,7 +937,8 @@ function OperatorOrders() {
             : data?.data.length === 0
             ? <p style={{ textAlign: "center", color: COLORS.textSecondary, padding: "56px 0", fontSize: "13px", fontFamily: F.body }}>{t("Нет заказов", "Buyurtma yo'q")}</p>
             : data?.data.map(o => {
-                const s = STATUS[o.status] ?? STATUS.new;
+                // Неизвестное состояние — кодом и серым, а не «Новым»: см. theme.tsx.
+                const s = STATUS[o.status] ?? { ru: o.status, uz: o.status, dot: COLORS.textTertiary, bg: "", text: "", border: "" };
                 return (
                   <div
                     key={o.id}

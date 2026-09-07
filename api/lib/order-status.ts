@@ -1,5 +1,6 @@
 import { eq, inArray, isNull, sql, type SQL } from "drizzle-orm";
 import { orders, orderItems } from "@db/schema";
+import type { LoadingList, Return } from "@db/schema";
 
 /**
  * The order lifecycle, named once.
@@ -48,6 +49,27 @@ export type OrderStatus =
  * Появится восьмой статус — не соберётся сборка, а не уедет очередное
  * английское слово в телефон агенту.
  */
+/**
+ * Как состояние загрузочного листа и возврата называется человеку.
+ *
+ * Тип от схемы по той же причине, что и у заказа: появится новое состояние —
+ * не соберётся сборка, а не уедет английское слово в сообщение оператору.
+ */
+export const LOADING_LIST_STATUS_LABELS: Record<LoadingList["status"], string> = {
+  preparing: "готовится",
+  ready:     "готов",
+  loading:   "загружается",
+  loaded:    "загружен",
+  delivered: "доставлен",
+};
+
+export const RETURN_STATUS_LABELS: Record<Return["status"], string> = {
+  pending:   "на рассмотрении",
+  approved:  "одобрен",
+  rejected:  "отклонён",
+  completed: "оформлен",
+};
+
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   new:        "новый",
   processing: "в обработке",

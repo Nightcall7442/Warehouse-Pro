@@ -21,19 +21,18 @@ const DELIVERY_STATUS_STYLES: Record<string, string> = {
   failed:          "bg-danger/15 text-danger border-danger/30",
 };
 
-const DELIVERY_STATUS_LABELS: Record<string, { ru: string; uz: string }> = {
-  assigned:        { ru: "Назначен",    uz: "Tayinlangan" },
-  out_for_delivery:{ ru: "В пути",      uz: "Yo'lda" },
-  delivered:       { ru: "Доставлен",   uz: "Yetkazildi" },
-  failed:          { ru: "Ошибка",      uz: "Xato" },
-};
+/*
+  Словарь общий: здесь своя копия потеряла «not_assigned», и заказ, которому
+  ещё не назначили курьера, показывался словом «not_assigned».
+*/
+import { labelled, DELIVERY_STATUS_LABEL } from "@/lib/entity-labels";
 
 export default function CourierDeliveries() {
   const { user } = useAuth();
   const { fmt } = useCurrency();
   // This page is written with inline ru/uz pairs; `tKey` is for the shared dictionary.
   const t = useTranslate();
-  const { t: tKey } = useLang();
+  const { lang, t: tKey } = useLang();
   const [cashInput, setCashInput] = useState<Record<number, string>>({});
   const invalidateOrderCaches = useInvalidateOrderCaches();
 
@@ -160,7 +159,7 @@ export default function CourierDeliveries() {
                   <p className="text-sm text-secondary">{order.shopName}</p>
                 </div>
                 <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${DELIVERY_STATUS_STYLES[order.deliveryStatus] ?? ""}`}>
-                  {DELIVERY_STATUS_LABELS[order.deliveryStatus] ? t(DELIVERY_STATUS_LABELS[order.deliveryStatus].ru, DELIVERY_STATUS_LABELS[order.deliveryStatus].uz) : order.deliveryStatus}
+                  {labelled(DELIVERY_STATUS_LABEL, order.deliveryStatus, lang)}
                 </span>
               </div>
               {order.shopAddress && (
@@ -334,6 +333,7 @@ function DeliveryCard({
   onFail: () => void;
   isPending: boolean;
 }) {
+  const { lang } = useLang();
   return (
     <div className="neo-card space-y-3" style={{ padding: "16px", borderLeft: "4px solid var(--color-warning)" }}>
       <div className="flex items-start justify-between">
@@ -342,7 +342,7 @@ function DeliveryCard({
           <p className="text-sm text-secondary">{order.shopName}</p>
         </div>
         <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${DELIVERY_STATUS_STYLES[order.deliveryStatus] ?? ""}`}>
-          {DELIVERY_STATUS_LABELS[order.deliveryStatus] ? t(DELIVERY_STATUS_LABELS[order.deliveryStatus].ru, DELIVERY_STATUS_LABELS[order.deliveryStatus].uz) : order.deliveryStatus}
+          {labelled(DELIVERY_STATUS_LABEL, order.deliveryStatus, lang)}
         </span>
       </div>
       {order.shopAddress && (

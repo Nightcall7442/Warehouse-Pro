@@ -79,22 +79,6 @@ export const uz = {
     subtotal:    "Summa",
     discount:    "Chegirma",
     total:       "Jami",
-    status: {
-      new:                  "Yangi",
-      processing:           "Jarayonda",
-      shipped:              "Yuklandi",
-      pending:              "Kutishda",
-      delivered:            "Yetkazildi",
-      cancelled:            "Bekor qilindi",
-      returned:             "Qaytarildi",
-    },
-    delivery: {
-      not_assigned:    "Tayinlanmagan",
-      assigned:        "Tayinlangan",
-      out_for_delivery:"Yo'lda",
-      delivered:       "Yetkazildi",
-      failed:          "Xato",
-    },
     newOrder: {
       step1: "Do'kon",
       step2: "Mahsulotlar",
@@ -121,10 +105,6 @@ export const uz = {
     address:   "Manzil",
     agent:     "Agent",
     debt:      "Qarz",
-    status: {
-      active:   "Faol",
-      inactive: "Faol emas",
-    },
   },
   products: {
     title:        "Mahsulotlar",
@@ -135,10 +115,6 @@ export const uz = {
     price:        "Narx",
     available:    "Mavjud",
     reorderPoint: "Min. qoldiq",
-    status: {
-      active:   "Faol",
-      inactive: "Faol emas",
-    },
   },
   warehouse: {
     title:         "Ombor",
@@ -166,11 +142,6 @@ export const uz = {
     tollCost:    "Yo'l",
     otherCost:   "Boshqa",
     totalExpense:"Jami xarajat",
-    status: {
-      pending:   "Kutilmoqda",
-      unloading: "Tushirilmoqda",
-      completed: "Tugallandi",
-    },
     receipt: "Tovar xati",
     goods:   "Tovarlar",
     qty:     "Miqdor (kg)",
@@ -221,18 +192,6 @@ export const uz = {
     resetPassword: "Parolni tiklash",
     deactivate:    "O'chirish",
     activate:      "Faollashtirish",
-    roles: {
-      ceo:          "Direktor",
-      operator:     "Operator",
-      agent:        "Agent",
-      supervisor:   "Supervisor",
-      merchandiser: "Merchandayzer",
-      courier:      "Yetkazib beruvchi",
-    },
-    status: {
-      active:   "Faol",
-      inactive: "Faol emas",
-    },
   },
   agent: {
     goodMorning:  "Xayrli tong",

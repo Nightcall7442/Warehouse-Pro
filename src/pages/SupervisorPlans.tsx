@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useLang } from "@/i18n";
+import { PLAN_STATUS_LABEL } from "@/lib/entity-labels";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { useConfirm } from "@/components/ConfirmDialog";
@@ -16,11 +17,16 @@ import { ScheduleManager } from "@/components/plans/ScheduleManager";
 /** Пустой набор одной ссылкой: новый Set в каждой отрисовке ломал бы сравнения. */
 const EMPTY_SET: ReadonlySet<number> = new Set<number>();
 
-const STATUS_CONFIG: Record<string, { ru: string; uz: string; cls: string }> = {
-  planned: { ru: "Запланирован", uz: "Rejalashtirilgan", cls: "bg-info/15 text-info border-info/30"       },
-  visited: { ru: "Посещён",      uz: "Borildi",          cls: "bg-success/15 text-success border-success/30" },
-  skipped: { ru: "Пропущен",     uz: "O'tkazildi",       cls: "bg-warning/15 text-warning border-warning/30" },
+/* Слово — из общего словаря, здесь только классы плашки. */
+const STATUS_CLS: Record<string, string> = {
+  planned: "bg-info/15 text-info border-info/30",
+  visited: "bg-success/15 text-success border-success/30",
+  skipped: "bg-warning/15 text-warning border-warning/30",
 };
+const STATUS_CONFIG: Record<string, { ru: string; uz: string; cls: string }> =
+  Object.fromEntries(Object.entries(PLAN_STATUS_LABEL).map(
+    ([k, v]) => [k, { ...v, cls: STATUS_CLS[k] ?? "" }],
+  ));
 
 // ── Форма создания плана ──────────────────────────────────────────────────────
 function CreatePlanForm({ date, onDone, lang }: { date: string; onDone: () => void; lang: "ru" | "uz" }) {
@@ -422,7 +428,8 @@ export default function SupervisorPlans() {
                   {/* Shop list (territory) */}
                   <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                     {group.shops.map(plan => {
-                      const sc = STATUS_CONFIG[plan.status] ?? STATUS_CONFIG.planned;
+                      // Неизвестное состояние не притворяется запланированным.
+                      const sc = STATUS_CONFIG[plan.status] ?? { ru: plan.status, uz: plan.status, cls: "" };
                       const hasDebt = Number(plan.shopDebt ?? 0) > 0;
                       return (
                         <div key={plan.id} style={{

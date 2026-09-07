@@ -82,22 +82,6 @@ export const ru = {
     subtotal:    "Сумма",
     discount:    "Скидка",
     total:       "Итого",
-    status: {
-      new:                  "Новый",
-      processing:           "В обработке",
-      shipped:              "Отгружён",
-      pending:              "В ожидании",
-      delivered:            "Доставлен",
-      cancelled:            "Отменён",
-      returned:             "Возврат",
-    },
-    delivery: {
-      not_assigned:    "Не назначен",
-      assigned:        "Назначен",
-      out_for_delivery:"В пути",
-      delivered:       "Доставлен",
-      failed:          "Ошибка",
-    },
     newOrder: {
       step1: "Магазин",
       step2: "Товары",
@@ -125,10 +109,6 @@ export const ru = {
     address:   "Адрес",
     agent:     "Агент",
     debt:      "Долг",
-    status: {
-      active:   "Активен",
-      inactive: "Неактивен",
-    },
   },
   // Products
   products: {
@@ -140,10 +120,6 @@ export const ru = {
     price:        "Цена",
     available:    "Доступно",
     reorderPoint: "Мин. остаток",
-    status: {
-      active:   "Активен",
-      inactive: "Неактивен",
-    },
   },
   // Warehouse
   warehouse: {
@@ -173,11 +149,6 @@ export const ru = {
     tollCost:    "Дорога",
     otherCost:   "Прочее",
     totalExpense:"Итого расходы",
-    status: {
-      pending:   "Ожидает",
-      unloading: "Разгружается",
-      completed: "Завершён",
-    },
     receipt: "Товарная накладная",
     goods:   "Товары",
     qty:     "Кол-во (кг)",
@@ -231,18 +202,6 @@ export const ru = {
     resetPassword: "Сбросить пароль",
     deactivate:    "Деактивировать",
     activate:      "Активировать",
-    roles: {
-      ceo:          "Директор",
-      operator:     "Оператор",
-      agent:        "Агент",
-      supervisor:   "Супервайзер",
-      merchandiser: "Мерчандайзер",
-      courier:      "Доставщик",
-    },
-    status: {
-      active:   "Активен",
-      inactive: "Неактивен",
-    },
   },
   // Agent
   agent: {

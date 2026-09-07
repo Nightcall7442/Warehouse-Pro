@@ -2,12 +2,14 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { Search, Store, Package, ClipboardList, X } from "lucide-react";
-import { useTranslate } from "@/i18n";
+import { useTranslate, useLang } from "@/i18n";
+import { labelled, ORDER_STATUS_LABEL } from "@/lib/entity-labels";
 import { useAuth } from "@/hooks/useAuth";
 import { canOperate, canSupervise } from "@/lib/permissions";
 
 export function GlobalSearch() {
   const tr = useTranslate();
+  const { lang } = useLang();
   const [open,  setOpen]  = useState(false);
   const [query, setQuery] = useState("");
   const inputRef          = useRef<HTMLInputElement>(null);
@@ -173,7 +175,7 @@ export function GlobalSearch() {
                       <ClipboardList size={16} style={{ color: "var(--color-primary-text)", flexShrink: 0 }}/>
                       <div>
                         <p style={{ fontSize: "13px", color: "var(--color-text-primary, #2b2a28)", margin: 0, fontWeight: 500 }}>{o.orderNumber}</p>
-                        <p style={{ fontSize: "11px", color: "var(--color-text-secondary, #5e5b54)", margin: "2px 0 0" }}>{o.shopName ?? ""} · {o.status}</p>
+                        <p style={{ fontSize: "11px", color: "var(--color-text-secondary, #5e5b54)", margin: "2px 0 0" }}>{o.shopName ?? ""} · {labelled(ORDER_STATUS_LABEL, o.status, lang)}</p>
                       </div>
                       <span style={{ marginLeft: "auto", fontSize: "11px", color: "var(--color-text-primary, #2b2a28)", fontWeight: 600 }}>{Number(o.total).toLocaleString()} {tr("сум","so'm")}</span>
                     </button>

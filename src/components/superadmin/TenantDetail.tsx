@@ -8,6 +8,7 @@ import {
   BarChart3, Zap, Calendar, Power,
 } from "lucide-react";
 import { PremiumSelect } from "@/components/PremiumSelect";
+import { labelled, ROLE_LABEL } from "@/lib/entity-labels";
 import { F, COLORS, fmt, money, planStatus } from "./types";
 import type { TenantRow } from "./types";
 import { KpiCard, Section, PlanBadge, StatusBadge, Modal, Input, BtnPrimary, BtnSecondary } from "./ui";
@@ -152,7 +153,7 @@ export function TenantDetail({ tenantId, onBack }: TenantDetailProps) {
                 <p style={{ fontSize: "11px", color: COLORS.textTertiary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.email}</p>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
-                <span style={{ fontSize: "10px", color: COLORS.textTertiary, padding: "2px 8px", borderRadius: "6px", background: COLORS.surfaceLight }}>{u.role}</span>
+                <span style={{ fontSize: "10px", color: COLORS.textTertiary, padding: "2px 8px", borderRadius: "6px", background: COLORS.surfaceLight }}>{labelled(ROLE_LABEL, u.role)}</span>
                 <StatusBadge status={u.status} />
                 <button onClick={() => setResetPwd({ userId: u.id, name: u.name })} style={{ padding: "6px", borderRadius: "6px", background: "none", border: `1px solid ${COLORS.border}`, cursor: "pointer", color: COLORS.warning }} title="Сбросить пароль"><Lock size={12} /></button>
               </div>

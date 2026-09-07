@@ -3,6 +3,7 @@ import { createRouter, fieldSalesQuery, operatorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { assertProductsBelongToTenant } from "./lib/tenant-refs";
 import { returns, returnItems, orderItems, shops, users, products, orders, warehouseStock, warehouses } from "@db/schema";
+import { ORDER_STATUS_LABELS, RETURN_STATUS_LABELS } from "./lib/order-status";
 import { eq, and, desc, sql, ne } from "drizzle-orm";
 import { cache, CacheKeys } from "./lib/cache";
 import { sanitizeString } from "./lib/sanitize";
@@ -286,7 +287,7 @@ export const returnsRouter = createRouter({
         // и зачисление на склад создало бы единицы из воздуха.
         if (linkedOrder && !["delivered", "completed"].includes(linkedOrder.status)) {
           throw new Error(
-            `Заказ ${linkedOrder.orderNumber} ещё не доставлен (статус «${linkedOrder.status}») — ` +
+            `Заказ ${linkedOrder.orderNumber} ещё не доставлен (статус «${ORDER_STATUS_LABELS[linkedOrder.status]}») — ` +
             `возвращать с него нечего. Если заказ не нужен, его отменяют, а не возвращают.`);
         }
       }
@@ -299,7 +300,7 @@ export const returnsRouter = createRouter({
       };
       const allowed = validTransitions[ret.status];
       if (!allowed || !allowed.includes(input.status)) {
-        throw new Error(`Невозможно перевести из "${ret.status}" в "${input.status}"`);
+        throw new Error(`Невозможно перевести из «${RETURN_STATUS_LABELS[ret.status]}» в «${RETURN_STATUS_LABELS[input.status as keyof typeof RETURN_STATUS_LABELS] ?? input.status}»`);
       }
 
       // Only add stock on "completed" — never before approval

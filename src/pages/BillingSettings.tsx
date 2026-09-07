@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { PLAN_PRICES_UZS } from '../../contracts/constants';
+import { labelled, SUBSCRIPTION_STATUS_LABEL } from "@/lib/entity-labels";
 
 const PLAN_FEATURES: Record<string, string[]> = {
   trial:     ["3 пользователя", "20 товаров", "50 заказов/мес", "Базовый склад", "14 дней бесплатно"],
@@ -43,15 +44,24 @@ export default function BillingSettings() {
   if (isLoading) return <div className="h-64 bg-surface-light animate-pulse rounded"/>;
   if (!sub)      return null;
 
-  const STATUS_CONFIG: Record<string, { label: string; color: string; icon: typeof CheckCircle2 }> = {
-    trialing:   { label: "Пробный период",    color: "text-info",    icon: CheckCircle2   },
-    active:     { label: "Активна",           color: "text-success", icon: CheckCircle2   },
-    past_due:   { label: "Ошибка оплаты",     color: "text-danger",  icon: AlertTriangle  },
-    canceled:   { label: "Отменена",          color: "text-danger",  icon: AlertTriangle  },
-    incomplete: { label: "Не завершена",      color: "text-warning", icon: AlertTriangle  },
+  const STATUS_STYLE: Record<string, { color: string; icon: typeof CheckCircle2 }> = {
+    trialing:   { color: "text-info",    icon: CheckCircle2   },
+    active:     { color: "text-success", icon: CheckCircle2   },
+    past_due:   { color: "text-danger",  icon: AlertTriangle  },
+    canceled:   { color: "text-danger",  icon: AlertTriangle  },
+    incomplete: { color: "text-warning", icon: AlertTriangle  },
   };
 
-  const cfg     = STATUS_CONFIG[sub.status] ?? STATUS_CONFIG.canceled;
+  /*
+    Незнакомое состояние подписки не выдаётся за отменённую.
+
+    Здесь стояло `?? STATUS_CONFIG.canceled`. Платёжная система заводит новые
+    состояния сама, без нашего участия, и подмена показала бы владельцу
+    «Отменена» — то есть заставила бы его звонить и разбираться с тем, чего
+    не было.
+  */
+  const style   = STATUS_STYLE[sub.status] ?? { color: "text-secondary", icon: AlertTriangle };
+  const cfg     = { ...style, label: labelled(SUBSCRIPTION_STATUS_LABEL, sub.status) };
   const Icon    = cfg.icon;
   const hasStripe = !!sub.stripeSubscriptionId;
 

@@ -37,9 +37,11 @@ export function money(amount: number, currency: string): string {
   return `${Number(amount ?? 0).toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ${currency}`;
 }
 
-/** Подписи способов оплаты — одни на весь раздел. */
-export const PAYMENT_METHODS: Record<string, { ru: string; uz: string }> = {
-  cash:     { ru: "Наличные", uz: "Naqd" },
-  card:     { ru: "Карта",    uz: "Karta" },
-  transfer: { ru: "Перевод",  uz: "O'tkazma" },
-};
+/*
+  Подписи способов оплаты — одни на всё приложение, не на раздел.
+
+  Здесь стояла своя копия из трёх значений, и в ней «card» назывался «Карта /
+  Karta», а на заказах — «Карта / Plastik». Один и тот же способ оплаты у
+  поставщика и у магазина назывался по-разному.
+*/
+export { PAYMENT_METHOD_LABEL as PAYMENT_METHODS } from "@/lib/entity-labels";

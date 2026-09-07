@@ -1,4 +1,5 @@
-import { ROLE_COLORS, ROLE_LABELS, type Lang } from "./types";
+import { ROLE_COLORS, type Lang } from "./types";
+import { labelled, ROLE_LABEL } from "@/lib/entity-labels";
 
 interface RoleBadgeProps {
   role: string;
@@ -8,7 +9,7 @@ interface RoleBadgeProps {
 export function RoleBadge({ role, lang }: RoleBadgeProps) {
   return (
     <span className={`status-badge ${ROLE_COLORS[role] ?? ""}`}>
-      {ROLE_LABELS[role]?.[lang] ?? role}
+      {labelled(ROLE_LABEL, role, lang)}
     </span>
   );
 }

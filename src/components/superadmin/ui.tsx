@@ -1,6 +1,7 @@
 import React from "react";
 import type { LucideIcon } from "lucide-react";
 import { F, COLORS, PLAN_COLORS, STATUS_COLORS } from "./types";
+import { labelled, TENANT_PLAN_LABEL, ACTIVE_STATUS_LABEL } from "@/lib/entity-labels";
 import { AppModal } from "@/components/ui/AppModal";
 
 // ── Badge components ────────────────────────────────────────────────────────
@@ -8,7 +9,7 @@ export function PlanBadge({ plan }: { plan: string }) {
   const c = PLAN_COLORS[plan] ?? PLAN_COLORS.basic;
   return (
     <span style={{ display: "inline-flex", alignItems: "center", padding: "3px 10px", borderRadius: "20px", fontSize: "10px", fontWeight: 700, fontFamily: F.body, color: c.fg, background: c.bg, letterSpacing: "0.04em" }}>
-      {plan.toUpperCase()}
+      {labelled(TENANT_PLAN_LABEL, plan)}
     </span>
   );
 }
@@ -17,7 +18,7 @@ export function StatusBadge({ status }: { status: string }) {
   const c = STATUS_COLORS[status] ?? STATUS_COLORS.active;
   return (
     <span style={{ display: "inline-flex", alignItems: "center", padding: "3px 10px", borderRadius: "20px", fontSize: "10px", fontWeight: 700, fontFamily: F.body, color: c.fg, background: c.bg, letterSpacing: "0.04em" }}>
-      {status.toUpperCase()}
+      {labelled(ACTIVE_STATUS_LABEL, status)}
     </span>
   );
 }
