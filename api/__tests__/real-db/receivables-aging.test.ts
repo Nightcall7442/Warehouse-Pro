@@ -34,6 +34,7 @@
  * константами: тест не должен зависеть от того, когда его запустили.
  */
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
+import { eq } from "drizzle-orm";
 import * as schema from "@db/schema";
 import { receivablesAging, AGE_BUCKETS } from "../../services/receivables";
 import {
@@ -153,6 +154,39 @@ describeIf("старение долга магазинов на настояще
     expect(shop.buckets.d8_30).toBe(300);
     expect(shop.unattributed).toBe(200);
     expect(sumBuckets(shop.buckets) + shop.unattributed).toBe(shop.debt);
+  });
+
+  it("заказ, возвращённый в работу, не молодеет", async () => {
+    /*
+      У заказа, побывавшего в архиве, created_at — дата ТЕКУЩЕГО круга: её
+      двигает services/order-reopen, чтобы выручка второго круга не падала в
+      месяц первого. Долг так двигать нельзя: товар уехал в магазин девяносто
+      дней назад, и правка статуса сегодня не делает этот долг сегодняшним.
+
+      Числа подобраны так, чтобы ошибка давала ДРУГОЙ ответ: возьми запрос
+      created_at — и восемьсот легли бы в d0_7 вместо d60plus.
+    */
+    const orderId = await debtOrder({ days: 0, total: "800.00" });
+    await db.update(schema.orders)
+      .set({ firstOrderedAt: daysAgo(90) })
+      .where(eq(schema.orders.id, orderId));
+
+    const out = await receivablesAging(db, s.tenantId);
+
+    expect(out.buckets.d60plus).toBe(800);
+    expect(out.buckets.d0_7).toBe(0);
+    expect(out.shops.find(x => x.shopId === s.shopId)!.oldestDays).toBeGreaterThanOrEqual(89);
+  });
+
+  it("у обычного заказа пустая первая дата ничего не ломает", async () => {
+    // COALESCE обязан вернуться к created_at: заказов, никогда не бывавших в
+    // архиве, подавляющее большинство, и они не должны попасть в d60plus
+    // из-за NULL.
+    await debtOrder({ days: 3, total: "150.00" });
+
+    const out = await receivablesAging(db, s.tenantId);
+    expect(out.buckets.d0_7).toBe(150);
+    expect(out.buckets.d60plus).toBe(0);
   });
 
   it("долг соседней организации не подмешивается", async () => {

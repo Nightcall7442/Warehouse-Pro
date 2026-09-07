@@ -4,7 +4,7 @@ import { orders, orderItems, warehouseStock, shops, users, products, notificatio
 import { recalcShopDebt } from "./shop-debt";
 import { OPEN_ORDER_STATUSES, CLOSED_ORDER_STATUSES, ORDER_STATUS_LABELS, holdsStock, deductsStock } from "../lib/order-status";
 import { recordStockMovement } from "./stock-ledger";
-import { isReopen, reversesRevenue, assertReopenable, clearDeliveryTrace } from "./order-reopen";
+import { isReopen, reversesRevenue, assertReopenable, clearDeliveryTrace, dateSecondLife } from "./order-reopen";
 
 /** Second reference to `users` for courier joins alongside the agent join. */
 const couriers = alias(users, "couriers");
@@ -1093,6 +1093,10 @@ export const OrderService = {
       id: orders.id, orderNumber: orders.orderNumber, status: orders.status,
       total: orders.total, subtotal: orders.subtotal, discount: orders.discount,
       notes: orders.notes, createdAt: orders.createdAt, updatedAt: orders.updatedAt,
+      // Заполнена только у заказов, побывавших в архиве: тогда createdAt —
+      // дата второго круга, и без первой даты карточка выглядит так, будто
+      // январский заказ оформили сегодня, без единого объяснения.
+      firstOrderedAt: orders.firstOrderedAt,
       shopId: orders.shopId, agentId: orders.agentId,
       courierId: orders.courierId, deliveryStatus: orders.deliveryStatus,
       deliveredAt: orders.deliveredAt, deletedAt: orders.deletedAt,
@@ -1729,7 +1733,16 @@ export const OrderService = {
         по delivered_quantity, и обнулить его раньше значило бы вернуть на
         склад не то количество, которое заказ на самом деле держал.
       */
-      if (reopening) await clearDeliveryTrace(tx, tenantId, orderId);
+      if (reopening) {
+        await clearDeliveryTrace(tx, tenantId, orderId);
+        /*
+          И дата заказа становится датой второго круга: иначе выручка,
+          комиссия, план и прогноз спроса второго круга падают в месяц
+          первого — уже закрытый и уже кем-то прочитанный. Первая дата
+          уходит в first_ordered_at, см. order-reopen.
+        */
+        await dateSecondLife(tx, tenantId, orderId);
+      }
 
       await settleShopDebt(tx, tenantId, order.shopId);
     });

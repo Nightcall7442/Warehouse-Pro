@@ -253,6 +253,19 @@ export const orders = mysqlTable("orders", {
   priority:    mysqlEnum("priority", ["low", "normal", "high"]).default("normal").notNull(),
   deletedAt:   timestamp("deleted_at"),
   createdAt:   timestamp("created_at").defaultNow().notNull(),
+  /*
+    Когда заказ оформили в САМЫЙ первый раз.
+
+    Пусто у всех заказов, кроме тех, что возвращали из архива в работу. У
+    таких `created_at` — дата текущего круга (её двигает order-reopen), а
+    здесь лежит дата первого оформления, чтобы она не пропала.
+
+    Нужна ровно в одном месте — старение долга: обязательство магазина
+    возникло тогда, когда товар уехал в первый раз, и обнулять его возраст
+    из-за правки статуса нельзя. Всё остальное — выручка, комиссия, план,
+    прогноз спроса — считает текущий круг и берёт `created_at`.
+  */
+  firstOrderedAt: timestamp("first_ordered_at"),
   updatedAt:   timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
   }, (t) => ({
     orderNumPerTenant: uniqueIndex("uq_order_number_tenant").on(t.orderNumber, t.tenantId),

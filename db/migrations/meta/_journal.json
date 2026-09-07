@@ -22,6 +22,13 @@
       "when": 1788712111245,
       "tag": "0002_branding_favicon_text",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1788798511245,
+      "tag": "0003_orders_first_ordered_at",
+      "breakpoints": true
     }
   ]
 }

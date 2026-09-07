@@ -160,6 +160,23 @@ export function rollUp(rows: RawRow[]): ReceivablesAging {
  * Возраст берётся от даты заказа, а не от даты доставки: обязательство
  * возникает, когда товар отгружен в долг, и именно с этого дня считают срок в
  * разговоре с магазином.
+ *
+ * ── Почему именно COALESCE(first_ordered_at, created_at) ────────────────────
+ *
+ * У заказа, который возвращали из архива в работу, `created_at` — дата
+ * ТЕКУЩЕГО круга: её двигает services/order-reopen, чтобы выручка и комиссия
+ * второго круга не падали в месяц первого. Долг так двигать нельзя. Товар
+ * уехал в магазин в январе; правка статуса в марте не делает этот долг
+ * мартовским, а по возрасту решают, кому звонить и кому перестать отгружать.
+ * Полугодовой долг, помолодевший до недельного, — ровно та ошибка, ради
+ * которой этот отчёт и написан.
+ *
+ * `first_ordered_at` заполнен только у таких заказов, у остальных пусто —
+ * значит COALESCE у обычного заказа даёт то же самое, что и раньше.
+ *
+ * Направление выбрано в сторону осторожности сознательно: если два толкования
+ * спорят, долг лучше показать более старым, чем более молодым. Первое зовёт
+ * разобраться, второе прячет.
  */
 export async function receivablesAging(db: Db, tenantId: number): Promise<ReceivablesAging> {
   const rows = await db.execute(sql`
@@ -175,16 +192,16 @@ export async function receivablesAging(db: Db, tenantId: number): Promise<Receiv
       SELECT
         o.shop_id AS shop_id,
         CASE
-          WHEN DATEDIFF(CURDATE(), DATE(o.created_at)) <= 7  THEN 'd0_7'
-          WHEN DATEDIFF(CURDATE(), DATE(o.created_at)) <= 30 THEN 'd8_30'
-          WHEN DATEDIFF(CURDATE(), DATE(o.created_at)) <= 60 THEN 'd31_60'
+          WHEN DATEDIFF(CURDATE(), DATE(COALESCE(o.first_ordered_at, o.created_at))) <= 7  THEN 'd0_7'
+          WHEN DATEDIFF(CURDATE(), DATE(COALESCE(o.first_ordered_at, o.created_at))) <= 30 THEN 'd8_30'
+          WHEN DATEDIFF(CURDATE(), DATE(COALESCE(o.first_ordered_at, o.created_at))) <= 60 THEN 'd31_60'
           ELSE 'd60plus'
         END AS bucket,
         SUM(GREATEST(0, CAST(o.total AS DECIMAL(15,2)) - COALESCE((
           SELECT SUM(CAST(p.amount AS DECIMAL(15,2))) FROM payments p
           WHERE p.order_id = o.id AND p.type = 'payment'
         ), 0))) AS amount,
-        MAX(DATEDIFF(CURDATE(), DATE(o.created_at))) AS oldestDays
+        MAX(DATEDIFF(CURDATE(), DATE(COALESCE(o.first_ordered_at, o.created_at)))) AS oldestDays
       FROM orders o
       WHERE o.tenant_id = ${tenantId}
         AND o.deleted_at IS NULL

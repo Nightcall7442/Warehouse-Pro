@@ -54,6 +54,14 @@ interface FakeOrder {
   invoicePrintedAt: Date | null;
   deliveryResult: string | null;
   deliveryNotes: string | null;
+  /*
+    Даты стенд не держал вовсе, и это было не мелочью: почти вся отчётность
+    датирует заказ по created_at, а у заказа, возвращённого из архива в
+    работу, дата обязана стать датой второго круга. Без колонок здесь правило
+    проверялось бы на undefined — то есть не проверялось.
+  */
+  createdAt: Date;
+  firstOrderedAt: Date | null;
 }
 interface FakeOrderItem {
   id: number; orderId: number; productId: number; quantity: string;
@@ -214,6 +222,10 @@ function makeMockDb() {
             deliveryStatus: (vals.deliveryStatus as string) ?? "not_assigned",
             deliveredAt: null, courierId: null, invoicePrintedAt: null,
             deliveryResult: null, deliveryNotes: null,
+            // Как в схеме: дата ставится при вставке, первая дата пуста, пока
+            // заказ не побывал в архиве.
+            createdAt: (vals.createdAt as Date) ?? new Date(),
+            firstOrderedAt: null,
           });
           return Promise.resolve([{ insertId: id }]);
         }
@@ -593,5 +605,105 @@ describe("смена статуса не портит склад молча", ()
     await expect(op.updateStatus({ id: 1, status: "new" }))
       .rejects.toThrow(/карточки остатка/);
     expect(ordersTable[0].status).toBe("delivered");
+  });
+});
+
+/*
+  ── Даты второй жизни ────────────────────────────────────────────────────────
+
+  Заказ, возвращённый из архива в работу, начинает второй круг под тем же
+  номером. Дата у него при этом не двигалась, и почти вся отчётность —
+  выручка за период, комиссия агента, выполнение плана, спрос для прогноза —
+  датирует заказ именно по created_at. Деньги второго круга падали в месяц
+  первого: закрытый, прочитанный и уже разложенный по агентам.
+
+  Ровно одному отчёту нужна первая дата, а не текущая: старение долга. Товар
+  уехал в магазин тогда, и правка статуса не делает долг моложе.
+*/
+describe("возврат в работу передатирует заказ", () => {
+  const callers = async () => {
+    const { orderRouter } = await import("../order-router");
+    return {
+      agent: orderRouter.createCaller(makeCtx(1, 10, "agent")),
+      op:    orderRouter.createCaller(makeCtx(1, 1, "operator")),
+    };
+  };
+
+  /** Отодвинуть дату оформления назад — как будто заказ из прошлого месяца. */
+  const backdate = (days: number) => {
+    const then = new Date(Date.now() - days * 86_400_000);
+    ordersTable[0].createdAt = then;
+    return then;
+  };
+
+  it("дата заказа становится датой второго круга", async () => {
+    const { agent, op } = await callers();
+    await createOrder(agent);
+    const january = backdate(40);
+
+    await op.updateStatus({ id: 1, status: "delivered" });
+    await op.updateStatus({ id: 1, status: "new" });
+
+    expect(ordersTable[0].createdAt.getTime(), "дата осталась от первого круга")
+      .toBeGreaterThan(january.getTime());
+    // С запасом на медленную машину: важно, что дата сегодняшняя, а не
+    // сорокадневной давности.
+    expect(Date.now() - ordersTable[0].createdAt.getTime()).toBeLessThan(60_000);
+  });
+
+  it("первая дата не теряется", async () => {
+    const { agent, op } = await callers();
+    await createOrder(agent);
+    const january = backdate(40);
+
+    await op.updateStatus({ id: 1, status: "delivered" });
+    await op.updateStatus({ id: 1, status: "new" });
+
+    expect(ordersTable[0].firstOrderedAt?.getTime(), "первое оформление потеряно")
+      .toBe(january.getTime());
+  });
+
+  it("третий круг не стирает дату первого", async () => {
+    // COALESCE, а не присваивание: иначе «первая дата» через два возврата
+    // означала бы дату второго круга, и старение долга помолодело бы на
+    // столько же, на сколько раньше.
+    const { agent, op } = await callers();
+    await createOrder(agent);
+    const january = backdate(40);
+
+    await op.updateStatus({ id: 1, status: "delivered" });
+    await op.updateStatus({ id: 1, status: "new" });
+    await op.updateStatus({ id: 1, status: "delivered" });
+    await op.updateStatus({ id: 1, status: "processing" });
+
+    expect(ordersTable[0].firstOrderedAt?.getTime()).toBe(january.getTime());
+  });
+
+  it("обычная смена статуса дату не трогает", async () => {
+    // Движение вперёд второй жизни не начинает: передатировать нечего, и
+    // заказ, ушедший в «доставлен», обязан остаться в своём месяце.
+    const { agent, op } = await callers();
+    await createOrder(agent);
+    const when = backdate(40);
+
+    await op.updateStatus({ id: 1, status: "processing" });
+    await op.updateStatus({ id: 1, status: "delivered" });
+
+    expect(ordersTable[0].createdAt.getTime()).toBe(when.getTime());
+    expect(ordersTable[0].firstOrderedAt).toBeNull();
+  });
+
+  it("уход из «доставлен» в «отменён» тоже не передатирует", async () => {
+    // Заказ остаётся закрытым: второй жизни нет, выручка откатывается — и
+    // откатывается она из СВОЕГО месяца, а не переносится в текущий.
+    const { agent, op } = await callers();
+    await createOrder(agent);
+    const when = backdate(40);
+
+    await op.updateStatus({ id: 1, status: "delivered" });
+    await op.updateStatus({ id: 1, status: "cancelled" });
+
+    expect(ordersTable[0].createdAt.getTime()).toBe(when.getTime());
+    expect(ordersTable[0].firstOrderedAt).toBeNull();
   });
 });

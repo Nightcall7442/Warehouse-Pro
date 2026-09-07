@@ -358,6 +358,19 @@ export default function OrderDetail() {
             <p className="text-sm text-secondary mt-1">
               {order.createdAt ? format(new Date(order.createdAt), "d MMMM yyyy, HH:mm", { locale: dateRu }) : ""}
             </p>
+            {/*
+              Заказ возвращали из архива в работу: дата выше — дата текущего
+              круга, её двигает order-reopen, чтобы выручка второго круга не
+              падала в месяц первого. Без этой строки карточка выглядела бы
+              так, будто январский заказ оформили сегодня, и объяснения не
+              было бы нигде, кроме журнала правок.
+            */}
+            {order.firstOrderedAt && (
+              <p className="text-xs mt-0.5" style={{ color: "var(--color-text-tertiary)" }}>
+                {lang === "uz" ? "Birinchi rasmiylashtirish" : "Первое оформление"}:{" "}
+                {format(new Date(order.firstOrderedAt), "d MMMM yyyy", { locale: dateRu })}
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {/* Status dropdown */}
