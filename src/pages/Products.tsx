@@ -179,8 +179,9 @@ export default function Products() {
           <button
             onClick={async () => {
               const { data: exported } = await refetchAllProducts();
+              // Пустой список не отсекается здесь: выгрузка называет это
+              // отказом словами, а тихий выход неотличим от сломанной кнопки.
               const allProds = exported?.data ?? [];
-              if (!allProds.length) return;
               await exportToExcel(formatProductsForExport(allProds), `products-all`, "Товары", `Все товары (${allProds.length})`);
             }}
             style={{

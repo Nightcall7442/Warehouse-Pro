@@ -272,6 +272,23 @@ export default function Users() {
     // ввод — именно это и выглядело как перезагрузка.
     placeholderData: keepPreviousData,
   });
+  /*
+    Запрос для выгрузки — отдельный, с большой страницей и выключенный до
+    нажатия.
+
+    Кнопка отдавала data.data, то есть ровно ту страницу, что на экране:
+    двадцать пять строк из скольких угодно, без единого признака обрезки в
+    файле. Тот же приём уже стоит на «Заказах» и «Товарах».
+
+    Поиск и роль передаются те же, что на экране: это не обрезка, а ответ на
+    вопрос, который человек задал отбором.
+  */
+  const { refetch: refetchAllUsers } = trpc.user.list.useQuery({
+    page: 1, pageSize: 5000,
+    search: debouncedSearch || undefined,
+    role: isRole(role) ? role : undefined,
+  }, { enabled: false });
+
   const utils = trpc.useUtils();
   const { confirm, dialog } = useConfirm();
 
@@ -358,7 +375,12 @@ export default function Users() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <button
-            onClick={async () => data?.data && await exportToExcel(formatUsersForExport(data.data), "users-export", "Пользователи", t("Список пользователей", "Foydalanuvchilar ro'yxati"))}
+            onClick={async () => {
+              const { data: all } = await refetchAllUsers();
+              // Пустой набор уходит в выгрузку, а не отсекается здесь: она
+              // называет его отказом словами.
+              await exportToExcel(formatUsersForExport(all?.data ?? []), "users-export", "Пользователи", t("Список пользователей", "Foydalanuvchilar ro'yxati"));
+            }}
             style={{
               display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
               fontSize: "13px", fontWeight: 500, fontFamily: F.body, borderRadius: "10px",

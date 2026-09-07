@@ -211,24 +211,24 @@ export default function Warehouse() {
                 {backfillMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Package size={14} />}
                 {t("Добить стоки", "Stoklarni to'ldirish")}
               </button>
-              <button onClick={async () => stock && await exportToExcel(formatWarehouseForExport(stock), "warehouse-stock", "Склад", t("Остатки склада", "Ombor qoldiqlari"))}
+              <button onClick={async () => await exportToExcel(formatWarehouseForExport(stock ?? []), "warehouse-stock", "Склад", t("Остатки склада", "Ombor qoldiqlari"))}
                 className="neo-btn-primary flex items-center gap-2 text-sm py-2 px-5">
                 <FileDown size={16} /> {t("Остатки", "Qoldiqlar")}
               </button>
-              <button onClick={async () => stock && await exportToExcel(formatStockValuationForExport(stock), "stock-valuation", "Оценка склада", t("Оценка стоимости склада", "Ombor qiymati"))}
+              <button onClick={async () => await exportToExcel(formatStockValuationForExport(stock ?? []), "stock-valuation", "Оценка склада", t("Оценка стоимости склада", "Ombor qiymati"))}
                 className="neo-btn flex items-center gap-2 text-sm py-2 px-5">
                 <FileDown size={16} /> {t("Оценка", "Qiymat")}
               </button>
             </>
           )}
           {activeTab === "deadstock" && (
-            <button onClick={async () => deadStockItems?.length && await exportToExcel(formatDeadStockForExport(deadStockItems), "dead-stock", "Мёртвый сток", t("Мёртвый сток — товары без продаж", "O'lik stok — sotilmasdan mahsulotlar"))}
+            <button onClick={async () => await exportToExcel(formatDeadStockForExport(deadStockItems ?? []), "dead-stock", "Мёртвый сток", t("Мёртвый сток — товары без продаж", "O'lik stok — sotilmasdan mahsulotlar"))}
               className="neo-btn-primary flex items-center gap-2 text-sm py-2.5 px-5">
               <FileDown size={16} /> {t("Экспорт", "Eksport")}
             </button>
           )}
           {activeTab === "reorder" && (
-            <button onClick={async () => reorderSuggestions?.length && await exportToExcel(formatReorderForExport(reorderSuggestions), "reorder-suggestions", "Дозаказ", t("Рекомендации по дозаказу", "Qayta buyurtma tavsiyalari"))}
+            <button onClick={async () => await exportToExcel(formatReorderForExport(reorderSuggestions ?? []), "reorder-suggestions", "Дозаказ", t("Рекомендации по дозаказу", "Qayta buyurtma tavsiyalari"))}
               className="neo-btn-primary flex items-center gap-2 text-sm py-2 px-5">
               <FileDown size={16} /> {t("Экспорт", "Eksport")}
             </button>

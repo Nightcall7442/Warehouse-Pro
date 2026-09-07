@@ -369,8 +369,9 @@ function OperatorOrders() {
 
   const handleExport = useCallback(async () => {
     const result = await refetchAllOrders();
-    if (!result.data?.data) return;
-    await exportToExcel(formatOrdersForExport(result.data.data), `orders-${dateFrom}-${dateTo}`, "Заказы", `Заказы ${dateFrom} — ${dateTo}`);
+    // Пустой набор уходит в выгрузку, а не отсекается здесь: она называет его
+    // отказом словами, а тихий выход неотличим от сломанной кнопки.
+    await exportToExcel(formatOrdersForExport(result.data?.data ?? []), `orders-${dateFrom}-${dateTo}`, "Заказы", `Заказы ${dateFrom} — ${dateTo}`);
   }, [refetchAllOrders, dateFrom, dateTo]);
 
   const handleExportPDF = useCallback(async () => {

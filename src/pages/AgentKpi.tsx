@@ -112,8 +112,10 @@ export default function AgentKpi() {
   const isLoading = isSupervisor ? listLoading : myLoading;
 
   const handleExport = useCallback(async () => {
-    if (!isSupervisor || !allKpi) return;
-    const rows = allKpi.map((a, i) => ({
+    // Роль проверяется молча — кнопки у агента и нет вовсе. А вот пустой
+    // список отдаётся выгрузке: она объяснит его словами.
+    if (!isSupervisor) return;
+    const rows = (allKpi ?? []).map((a, i) => ({
       "#": i + 1, "Агент": a.agentName, "Балл": a.kpiScore, "Грейд": a.kpiGrade,
       "Заказы": a.orderCount, "Выручка": a.revenue,
       "Визиты": `${a.visitedPlans}/${a.totalPlans}`, "Фрод %": a.fraudRate,

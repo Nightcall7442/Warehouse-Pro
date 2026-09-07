@@ -738,7 +738,12 @@ export default function Arrivals() {
   const { confirm, dialog } = useConfirm();
 
   const { data, isLoading, isLoadingError, refetch } = trpc.arrival.list.useQuery({ page, pageSize: 25, status: (status || undefined) as "pending" | "unloading" | "completed" | undefined });
-  const { data: all } = trpc.arrival.list.useQuery({ page: 1, pageSize: 500 });
+  /*
+    Запрос для выгрузки. Страница была на пятьсот строк — молчаливый потолок:
+    у организации с шестьюстами приходами в файл попадали пятьсот, и понять
+    это было нельзя ниоткуда. Размер тот же, что у выгрузки заказов.
+  */
+  const { data: all } = trpc.arrival.list.useQuery({ page: 1, pageSize: 5000 });
   const utils = trpc.useUtils();
 
   const createMutation = trpc.arrival.create.useMutation({
@@ -815,7 +820,7 @@ export default function Arrivals() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           {tab === "arrivals" && <>
-          <button onClick={async () => all?.data && await exportToExcel(formatArrivalsForExport(all.data), "arrivals")} style={{
+          <button onClick={async () => await exportToExcel(formatArrivalsForExport(all?.data ?? []), "arrivals")} style={{
             display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
             fontSize: "13px", fontWeight: 500, fontFamily: F.body, borderRadius: "10px",
             border: `1px solid ${COLORS.border}`, cursor: "pointer",

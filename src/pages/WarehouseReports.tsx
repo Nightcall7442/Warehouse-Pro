@@ -18,6 +18,7 @@ import { PremiumSelect } from "@/components/PremiumSelect";
 import { SectionNotice } from "@/components/SectionNotice";
 import { CHART_PALETTE } from "@/lib/chartTheme";
 import { unitShort } from "@/lib/units";
+import { notify } from "@/lib/toast";
 
 /*
   Цвета долей берутся из общей палитры, а не собираются здесь.
@@ -224,7 +225,19 @@ export default function WarehouseReports() {
 
   // ── Export handlers ──────────────────────────────────────────────────────
   const handleExcelExport = async () => {
-    if (!byCategory || !topByValue || !turnoverData) return;
+    /*
+      Отказ словами, а не тихий выход.
+
+      Здесь стояло `return`: при неприехавших данных нажатие не давало ничего
+      — ни файла, ни сообщения, — и отличить это от сломанной кнопки было
+      нельзя. Причин у пустоты две, и они разные: запрос ещё идёт или он
+      отказал. Обе видны на самой странице, а кнопка обязана хотя бы не
+      молчать.
+    */
+    if (!byCategory || !topByValue || !turnoverData) {
+      notify.info(t("Данные ещё не загрузились", "Ma'lumotlar hali yuklanmadi"));
+      return;
+    }
     const reportData: ReportData = {
       byCategory: byCategory.map(c => ({ ...c, totalProducts: Number(c.totalProducts), totalUnits: Number(c.totalUnits), totalValue: Number(c.totalValue), totalRetail: Number(c.totalRetail), lowStockCount: Number(c.lowStockCount) })),
       topByValue: topByValue.map(p => ({ ...p, productName: p.productName ?? "", productCode: p.productCode ?? "", unit: p.unit ?? "", currentStock: Number(p.currentStock), costValue: Number(p.costValue), retailValue: Number(p.retailValue), margin: Number(p.margin) })),
@@ -244,7 +257,11 @@ export default function WarehouseReports() {
   };
 
   const handlePDFExport = async () => {
-    if (!byCategory || !topByValue || !turnoverData) return;
+    // Та же причина, что у выгрузки в Excel выше.
+    if (!byCategory || !topByValue || !turnoverData) {
+      notify.info(t("Данные ещё не загрузились", "Ma'lumotlar hali yuklanmadi"));
+      return;
+    }
     const reportData: ReportData = {
       byCategory: byCategory.map(c => ({ ...c, totalProducts: Number(c.totalProducts), totalUnits: Number(c.totalUnits), totalValue: Number(c.totalValue), totalRetail: Number(c.totalRetail), lowStockCount: Number(c.lowStockCount) })),
       // product_id is a NOT NULL restricted FK, so the leftJoin never actually

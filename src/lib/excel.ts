@@ -315,15 +315,34 @@ export async function exportToExcel(
     return { width: Math.min(max + 3, 40) };
   });
 
-  // Generate and download
-  const buffer = await wb.xlsx.writeBuffer();
-  const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${filename}.xlsx`;
-  a.click();
-  URL.revokeObjectURL(url);
+  /*
+    Сборка файла — под разбором отказа.
+
+    Здесь его не было: упади сборка книги или создание ссылки, обещание
+    отклонялось некому. Выгрузку зовут из девятнадцати мест, и почти везде это
+    одна строка в обработчике нажатия — то есть отказ уходил в консоль, а
+    человек видел нажатие без ответа. Ровно то же, ради чего парой десятков
+    строк выше заведён отказ на пустом наборе.
+
+    Разбор здесь, а не у вызывающих, по той же причине: одно место — значит ни
+    одно из девятнадцати не промолчит.
+  */
+  try {
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${filename}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    notify.error(
+      e instanceof Error && e.message
+        ? `Не удалось собрать файл: ${e.message}`
+        : "Не удалось собрать файл выгрузки",
+    );
+  }
 }
 
 // Здесь была exportToCSV — «запасной вариант на случай совсем старого окружения».

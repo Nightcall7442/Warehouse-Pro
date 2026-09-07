@@ -1,6 +1,7 @@
 import ExcelJS from "exceljs";
 import { unitShort } from "./units";
 import { openPrintWindowOrExplain } from "./print";
+import { notify } from "./toast";
 
 /**
  * Export data to Excel (.xlsx) file.
@@ -12,6 +13,22 @@ export async function exportToExcel(sheets: Array<{
   data: Record<string, unknown>[];
   columns: Array<{ key: string; header: string; width?: number }>;
 }>, filename?: string) {
+  /*
+    Пустой набор — это отказ, а не успех.
+
+    Здесь проверки не было вовсе: книга собиралась из пустых листов и уходила
+    в загрузки — файл есть, в файле одни заголовки. Отличить это от «данных
+    правда нет» человек может, только открыв файл.
+
+    Соседняя выгрузка (src/lib/excel.ts) отвечает на тот же случай словами
+    ещё с прошлого разбора; две выгрузки с одинаковым именем не должны вести
+    себя по-разному.
+  */
+  if (!sheets.some(sheet => sheet.data.length > 0)) {
+    notify.info("Нет данных для выгрузки");
+    return;
+  }
+
   const wb = new ExcelJS.Workbook();
 
   for (const sheet of sheets) {
@@ -54,15 +71,25 @@ export async function exportToExcel(sheets: Array<{
     }));
   }
 
-  const buffer = await wb.xlsx.writeBuffer();
-  const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  // Имя файла по умолчанию — без названия системы: файл уходит наружу.
-  a.download = `${filename ?? `otchet-${new Date().toISOString().split("T")[0]}`}.xlsx`;
-  a.click();
-  URL.revokeObjectURL(url);
+  // Отказ сборки называется словами, а не уходит в консоль отклонённым
+  // обещанием: см. ту же оговорку у соседней выгрузки в src/lib/excel.ts.
+  try {
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    // Имя файла по умолчанию — без названия системы: файл уходит наружу.
+    a.download = `${filename ?? `otchet-${new Date().toISOString().split("T")[0]}`}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    notify.error(
+      e instanceof Error && e.message
+        ? `Не удалось собрать файл: ${e.message}`
+        : "Не удалось собрать файл выгрузки",
+    );
+  }
 }
 
 // \u0417\u0434\u0435\u0441\u044C \u0431\u044B\u043B\u0430 exportToCSV, \u0441\u043E\u0431\u0438\u0440\u0430\u0432\u0448\u0430\u044F CSV \u0441\u043A\u043B\u0435\u0439\u043A\u043E\u0439 \u0441\u0442\u0440\u043E\u043A. \u0415\u0451 \u043D\u0435 \u0432\u044B\u0437\u044B\u0432\u0430\u043B\u0438 \u043D\u0438\u043E\u0442\u043A\u0443\u0434\u0430,
