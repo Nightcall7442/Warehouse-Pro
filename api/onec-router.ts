@@ -339,9 +339,12 @@ export const onecRouter = createRouter({
     }),
 
   syncOrder: adminQuery
-    .input(z.object({ orderId: z.number() }))
+    // asNewDocument — подтверждение директора, что прежний документ в 1С он
+    // разобрал сам: мост умеет только создать и провести, отменить проведение
+    // отсюда нечем. Подробности — в syncOrderTo1C.
+    .input(z.object({ orderId: z.number(), asNewDocument: z.boolean().optional() }))
     .mutation(async ({ ctx, input }) => {
-      await oneCSync.syncOrderTo1C(ctx.tenant.id, input.orderId);
+      await oneCSync.syncOrderTo1C(ctx.tenant.id, input.orderId, { asNewDocument: input.asNewDocument });
       return { success: true };
     }),
 

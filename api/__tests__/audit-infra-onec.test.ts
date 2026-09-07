@@ -47,6 +47,8 @@ vi.mock("../services/onec-mapper", () => ({
   OneCMapper: {
     getInternalId: vi.fn(),
     getExternalId: vi.fn(),
+    getMapping: vi.fn(),
+    forget: vi.fn(async () => undefined),
     upsert: vi.fn(async () => undefined),
     getAll: vi.fn(async () => []),
   },
@@ -129,8 +131,27 @@ beforeEach(() => {
   bridge.createDocument.mockReset().mockResolvedValue({ id: "doc-new" });
   bridge.postDocument.mockReset().mockResolvedValue(undefined);
   vi.mocked(OneCMapper.getExternalId).mockReset().mockResolvedValue(null);
+  vi.mocked(OneCMapper.getMapping).mockReset().mockImplementation(mappingFollowsExternalId);
+  vi.mocked(OneCMapper.forget).mockReset().mockResolvedValue(undefined);
   vi.mocked(OneCMapper.upsert).mockReset().mockResolvedValue(undefined);
 });
+
+/**
+ * getMapping повторяет getExternalId, но с отметкой времени.
+ *
+ * Служба спрашивает связь целиком: у заказа, возвращённого из архива в
+ * работу, документ в 1С остался от первого круга, и отличается этот случай
+ * только временем. Здесь отметка ставится заведомо ПОЗЖЕ оформления заказа —
+ * то есть обычный заказ, второй жизни у него не было.
+ */
+const mappingFollowsExternalId = async (
+  db: unknown, tenantId: number, entityType: string, internalId: number,
+) => {
+  const externalId = await vi.mocked(OneCMapper.getExternalId)
+    .getMockImplementation()?.(db as never, tenantId, entityType as never, internalId);
+  return externalId ? { externalId, lastSyncedAt: new Date("2030-01-01T00:00:00Z") } : null;
+};
+
 
 // ── 1. Ночной дамп базы ──────────────────────────────────────────────────────
 

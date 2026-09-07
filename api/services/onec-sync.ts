@@ -1,3 +1,4 @@
+import { TRPCError } from "@trpc/server";
 import { eq, and, inArray } from "drizzle-orm";
 import { isDuplicateOf } from "../lib/db-errors";
 import { normalizeCategory } from "../lib/category";
@@ -177,7 +178,16 @@ export class OneCSyncService {
     return { synced, errors };
   }
 
-  async syncOrderTo1C(tenantId: number, orderId: number): Promise<void> {
+  /**
+   * Выгрузить заказ в 1С.
+   *
+   * asNewDocument — прямое решение директора выгрузить заказ ЗАНОВО, отдельным
+   * документом. Нужно после возврата заказа из архива в работу: прежний
+   * документ описывает первый круг, а тронуть его отсюда нечем — мост умеет
+   * только создать и провести. Разбирается тот документ в самой 1С, руками, и
+   * этот признак означает «разобрал».
+   */
+  async syncOrderTo1C(tenantId: number, orderId: number, opts?: { asNewDocument?: boolean }): Promise<void> {
     const db = getDb();
     const bridge = await getBridgeForTenant(tenantId);
     const startTime = Date.now();
@@ -200,7 +210,53 @@ export class OneCSyncService {
       //
       // Теперь идентификатор документа ищется в id_mappings до создания, и при
       // повторе остаётся только добросить проведение по сохранённому id.
-      let documentId = await OneCMapper.getExternalId(db, tenantId, "order", orderId);
+      const mapping = await OneCMapper.getMapping(db, tenantId, "order", orderId);
+      let documentId = mapping?.externalId ?? null;
+
+      /*
+        ── Документ первой жизни не выдаётся за выгрузку второй ────────────────
+
+        Повторный вызов намеренно не создаёт документ заново, а до-проводит
+        сохранённый: так закрыт случай с таймаутом, когда «Реализация» в 1С уже
+        появилась, а наружу улетела ошибка. Но у этого хода была вторая
+        сторона.
+
+        Заказ можно вернуть из архива в работу — он начинает второй круг под
+        тем же номером, и состав с суммой у него уже другие. Связь при этом
+        оставалась от первого круга, и синхронизация покорно перепроводила
+        СТАРЫЙ документ, а потом писала «выполнено». В 1С — первая накладная,
+        в Warehouse Pro — вторая, и ни одна сторона об этом не сообщала.
+
+        Признак второго круга — время: order-reopen двигает created_at на день
+        возврата в работу, а last_synced_at остался от выгрузки первого круга.
+        У обычного заказа порядок обратный: сначала оформили, потом выгрузили.
+
+        Отказ, а не тихая перевыгрузка: прежний документ в 1С проведён, и
+        второй такой же удвоит там и выручку, и списание. Решает человек.
+      */
+      const secondLife = Boolean(
+        documentId && mapping?.lastSyncedAt && order[0].createdAt > mapping.lastSyncedAt,
+      );
+
+      if (secondLife && !opts?.asNewDocument) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            `Заказ ${order[0].orderNumber} возвращали в работу после выгрузки в 1С. ` +
+            `В 1С лежит документ первого круга — с прежним составом и суммой, ` +
+            `и он проведён. Перепровести его заново значит отдать в учёт не то, ` +
+            `что повезли. Разберите прежний документ в 1С, затем выгрузите заказ ` +
+            `заново отдельным документом.`,
+        });
+      }
+
+      if (secondLife) {
+        // Директор подтвердил, что прежний документ в 1С разобран. Связь
+        // забывается, и дальше заказ выгружается как невыгруженный.
+        await OneCMapper.forget(db, tenantId, "order", orderId);
+        documentId = null;
+        logger.info(`Order ${orderId} is being re-exported to 1C as a new document`, { tenantId });
+      }
 
       if (documentId) {
         logger.info(`Order ${orderId} already has a 1C document, re-posting instead of creating`, {

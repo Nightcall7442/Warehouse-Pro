@@ -32,6 +32,8 @@ vi.mock("../onec-mapper", () => ({
   OneCMapper: {
     getInternalId: vi.fn(),
     getExternalId: vi.fn(),
+    getMapping: vi.fn(),
+    forget: vi.fn().mockResolvedValue(undefined),
     upsert: vi.fn().mockResolvedValue(undefined),
     getAll: vi.fn().mockResolvedValue([]),
   },
