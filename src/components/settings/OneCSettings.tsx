@@ -118,27 +118,66 @@ ONEC_WEBHOOK_SECRET=your_secret`}
             </button>
           </div>
 
+          {/*
+            Три плитки вместо двух, и каждая говорит о своём.
+
+            Раньше «Последняя синхронизация» показывала время последней ПРОВЕРКИ
+            СВЯЗИ: нажал «Проверить соединение» — и экран сообщал, что данные
+            только что обменялись. А «Ошибки» считались по исходу той же
+            проверки, а не по отказам обмена, поэтому светились зелёным нулём,
+            пока обмен падал.
+
+            Теперь обмен товарами, обмен заказами и проверка связи разведены —
+            это три разных события, и путать их нельзя.
+          */}
           {status && (
-            <div className="grid grid-cols-2 gap-3">
-              <div className="p-3 rounded-lg" style={{ background: "var(--color-surface-light, #f6f4f0)" }}>
-                <p className="text-xs text-tertiary mb-1">
-                  {t("Последняя синхронизация", "Oxirgi sinxronizatsiya")}
-                </p>
-                <p className="text-sm font-medium text-primary">
-                  {status.lastProductSync
-                    ? new Date(status.lastProductSync).toLocaleString("ru")
-                    : t("Не выполнялась", "Bajarilmagan")}
-                </p>
+            <>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="p-3 rounded-lg" style={{ background: "var(--color-surface-light, #f6f4f0)" }}>
+                  <p className="text-xs text-tertiary mb-1">
+                    {t("Товары получены", "Mahsulotlar olindi")}
+                  </p>
+                  <p className="text-sm font-medium text-primary">
+                    {status.lastProductSync
+                      ? new Date(status.lastProductSync).toLocaleString("ru")
+                      : t("Не выполнялась", "Bajarilmagan")}
+                  </p>
+                </div>
+                <div className="p-3 rounded-lg" style={{ background: "var(--color-surface-light, #f6f4f0)" }}>
+                  <p className="text-xs text-tertiary mb-1">
+                    {t("Заказы выгружены", "Buyurtmalar yuborildi")}
+                  </p>
+                  <p className="text-sm font-medium text-primary">
+                    {status.lastOrderSync
+                      ? new Date(status.lastOrderSync).toLocaleString("ru")
+                      : t("Не выполнялась", "Bajarilmagan")}
+                  </p>
+                </div>
+                <div className="p-3 rounded-lg" style={{ background: "var(--color-surface-light, #f6f4f0)" }}>
+                  <p className="text-xs text-tertiary mb-1">
+                    {t("Отказов обмена", "Almashinuv xatolari")}
+                  </p>
+                  <p className={`text-sm font-medium ${status.errors > 0 ? "text-danger" : "text-success"}`}>
+                    {status.errors ?? 0}
+                  </p>
+                </div>
               </div>
-              <div className="p-3 rounded-lg" style={{ background: "var(--color-surface-light, #f6f4f0)" }}>
-                <p className="text-xs text-tertiary mb-1">
-                  {t("Ошибки", "Xatoliklar")}
+
+              {/* Текст последнего отказа: число само по себе не говорит, что чинить. */}
+              {status.lastError && (
+                <div className="p-3 rounded-lg mt-3" style={{ background: "var(--color-danger-dim, rgba(212,80,80,0.10))" }}>
+                  <p className="text-xs text-tertiary mb-1">{t("Последний отказ", "Oxirgi xatolik")}</p>
+                  <p className="text-sm text-danger break-words">{status.lastError}</p>
+                </div>
+              )}
+
+              {status.lastTestedAt && (
+                <p className="text-xs text-tertiary mt-3">
+                  {t("Связь проверяли", "Aloqa tekshirilgan")}: {new Date(status.lastTestedAt).toLocaleString("ru")}
+                  {status.lastTestOk === false && ` — ${t("неудачно", "muvaffaqiyatsiz")}`}
                 </p>
-                <p className={`text-sm font-medium ${status.errors > 0 ? "text-danger" : "text-success"}`}>
-                  {status.errors ?? 0}
-                </p>
-              </div>
-            </div>
+              )}
+            </>
           )}
         </div>
       </div>

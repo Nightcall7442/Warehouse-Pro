@@ -15,7 +15,7 @@ export async function updateSyncStatus(
   error?: string,
 ) {
   const db = getDb();
-  const existing = await db.select({ id: syncStatus.id })
+  const existing = await db.select({ id: syncStatus.id, errorCount: syncStatus.errorCount })
     .from(syncStatus)
     .where(and(
       eq(syncStatus.tenantId, tenantId),
@@ -24,11 +24,24 @@ export async function updateSyncStatus(
     ))
     .limit(1);
 
+  /*
+    Счёт отказов.
+
+    Здесь стояло `errorCount: status === 'failed' ? undefined : 0`. При отказе
+    поле пропускалось — drizzle не пишет undefined, — а при любом другом исходе
+    обнулялось. То есть счётчик отказов не увеличивался НИКОГДА и вечно
+    показывал ноль; экран настроек по нему рисовал зелёное «Ошибки: 0» ровно
+    столько, сколько обмен падал.
+
+    Предыдущее значение уже прочитано выборкой выше, поэтому прибавляем в JS, а
+    не выражением `error_count + 1`: служебные заглушки в тестах разбирают
+    обычные значения и не исполняют сырой SQL.
+  */
   const data = {
     status,
     recordsProcessed: recordsProcessed ?? 0,
     lastSuccessfulSync: status === 'completed' ? new Date() : undefined,
-    errorCount: status === 'failed' ? undefined : 0,
+    errorCount: status === 'failed' ? (existing[0]?.errorCount ?? 0) + 1 : 0,
     lastError: error,
     updatedAt: new Date(),
   };

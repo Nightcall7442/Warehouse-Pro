@@ -9,6 +9,7 @@ import { onecConfig } from "@db/schema";
 import { eq } from "drizzle-orm";
 import { logger } from "./lib/logger";
 import { getMetricsSummary } from "./lib/metrics";
+import { getSyncStatus } from "./services/onec-status";
 
 export const onecRouter = createRouter({
   // ── Setup Wizard ──────────────────────────────────────────────────────────
@@ -348,6 +349,29 @@ export const onecRouter = createRouter({
       return { success: true };
     }),
 
+  /**
+   * Что известно об обмене с 1С.
+   *
+   * ── Что было ──────────────────────────────────────────────────────────────
+   *
+   * Отвечало выдумкой. `lastProductSync` брался из `onec_config.last_tested_at`
+   * — времени последней ПРОВЕРКИ СВЯЗИ, — и экран после нажатия «Проверить
+   * соединение» сообщал, что данные только что синхронизированы. `errors`
+   * считался как `lastTestOk === false ? 1 : 0`: обмен мог падать сутками, а
+   * плитка светилась зелёным нулём, пока связь проверялась успешно. Ещё два
+   * поля, `lastOrderSync` и `pendingOrders`, стояли жёстко null и 0 с пометкой
+   * TODO.
+   *
+   * Настоящие числа всё это время лежали в таблице `sync_status`, которую
+   * заполняет сам обмен, — их просто никто не читал.
+   *
+   * ── Почему нет «в очереди» ────────────────────────────────────────────────
+   *
+   * Поле `pendingOrders` убрано, а не исправлено. Чтобы посчитать неотправленные
+   * заказы, надо решить, что считается отправленным (запись в id_mappings?
+   * успешный ответ 1С?), и решение это не техническое. Число без такого решения
+   * — снова выдумка, только с новой формулой.
+   */
   status: adminQuery.query(async ({ ctx }) => {
     const db = getDb();
 
@@ -366,17 +390,39 @@ export const onecRouter = createRouter({
         configured: false,
         lastProductSync: null,
         lastOrderSync: null,
-        pendingOrders: 0,
         errors: 0,
+        lastError: null,
+        lastTestedAt: null,
+        lastTestOk: null,
       };
     }
 
+    const rows = await getSyncStatus(ctx.tenant.id);
+    const lastOf = (entityType: string) => {
+      const stamps = rows
+        .filter(r => r.entityType === entityType && r.lastSuccessfulSync)
+        .map(r => new Date(r.lastSuccessfulSync as unknown as string).getTime());
+      return stamps.length ? new Date(Math.max(...stamps)).toISOString() : null;
+    };
+
+    // Отказы складываются по всем направлениям обмена: человеку важно, что
+    // где-то не получилось, а не в какой именно из четырёх строк таблицы.
+    const errors = rows.reduce((sum, r) => sum + Number(r.errorCount ?? 0), 0);
+    const failed = rows.filter(r => r.status === "failed" && r.lastError);
+    const lastError = failed.length
+      ? failed.sort((a, b) => new Date(b.updatedAt as unknown as string).getTime()
+                            - new Date(a.updatedAt as unknown as string).getTime())[0].lastError
+      : null;
+
     return {
       configured: true,
-      lastProductSync: config.lastTestedAt?.toISOString() ?? null,
-      lastOrderSync: null, // TODO: track per-type sync timestamps
-      pendingOrders: 0, // TODO: count unsynced orders
-      errors: config.lastTestOk === false ? 1 : 0,
+      lastProductSync: lastOf("product"),
+      lastOrderSync: lastOf("order"),
+      errors,
+      lastError,
+      // Проверка связи — отдельная вещь от обмена, и называется теперь отдельно.
+      lastTestedAt: config.lastTestedAt?.toISOString() ?? null,
+      lastTestOk: config.lastTestOk ?? null,
       schedule: {
         intervalMinutes: config.intervalMinutes,
         syncProducts: config.syncProducts,
