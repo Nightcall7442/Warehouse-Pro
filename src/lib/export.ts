@@ -1,5 +1,6 @@
 import ExcelJS from "exceljs";
 import { unitShort } from "./units";
+import { openPrintWindowOrExplain } from "./print";
 
 /**
  * Export data to Excel (.xlsx) file.
@@ -85,7 +86,9 @@ export async function exportToExcel(sheets: Array<{
   нужно.
 */
 export function exportToPDF(title: string, contentHtml: string) {
-  const printWindow = window.open("", "_blank");
+  // Молчаливый return выглядел как сломанная кнопка: ничего не открылось и
+  // ничего не сказано. Причина обычная — браузер блокирует всплывающие окна.
+  const printWindow = openPrintWindowOrExplain();
   if (!printWindow) return;
 
   printWindow.document.write(`

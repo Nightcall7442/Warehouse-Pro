@@ -404,12 +404,29 @@ export default function Reports() {
                 the name should say which is which. */}
             <FileDown size={14} aria-hidden /> {t("Сводка", "Yig'ma")}
           </button>
-          <button type="button" onClick={handleExportPDF} className="neo-btn tap" style={{ padding: "0 14px" }}>
-            <FileDown size={14} aria-hidden /> PDF
-          </button>
-          <button type="button" onClick={() => window.print()} className="neo-btn tap"
-            aria-label={t("Печать", "Chop etish")} style={{ padding: "0 14px" }}>
-            <Printer size={14} aria-hidden />
+{/*
+              Одна кнопка печати вместо двух.
+
+              За значком принтера стоял голый window.print() — печать самой
+              страницы приложения: тёмная заливка во весь лист, боковое меню,
+              кнопки, обрезанные графики. Снимок экрана, отправленный на
+              принтер.
+
+              Рядом «PDF» собирала нормальный документ и открывала его в окне
+              печати — то есть правильное действие уже было написано, просто
+              под другим значком. Настоящего PDF приложение не делает нигде:
+              файл берётся принтером «Сохранить как PDF» в том же окне, о чём
+              и сказано в подсказке.
+          */}
+          <button
+            type="button"
+            onClick={handleExportPDF}
+            className="neo-btn tap"
+            style={{ padding: "0 14px" }}
+            title={t("Откроется окно печати. Чтобы получить файл, выберите принтер «Сохранить как PDF».",
+                     "Chop etish oynasi ochiladi. Fayl olish uchun «PDF sifatida saqlash» printerini tanlang.")}
+          >
+            <Printer size={14} aria-hidden /> {t("Печать", "Chop etish")}
           </button>
         </div>
       </div>

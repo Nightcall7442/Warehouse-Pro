@@ -64,6 +64,7 @@ function escapeHtml(str: string | null | undefined): string {
 // Подписи единиц — общие, из src/lib/units.ts. Здесь была своя таблица, и
 // в ней `box` печатался «блоком»: в накладной ящик от блока не отличить.
 import { unitShort as unitLabel } from "./units";
+import { openPrintWindowOrExplain } from "./print";
 
 /** Format number without trailing zeros: 70.00 → 70, 60.00 → 60, 12.50 → 12.5 */
 function cleanNum(val: string | number | null | undefined): string {
@@ -219,8 +220,15 @@ const GRID_STYLES = `
 `;
 
 function openPrintWindow(html: string, title: string, customStyles?: string) {
-  const w = window.open("", "_blank", "width=900,height=700");
-  if (!w) { window.print(); return; }
+  /*
+    Заблокированное окно объясняется словами, а не печатает экран.
+
+    Стояло `if (!w) { window.print(); return; }` — то есть на принтер уходила
+    сама страница приложения: тёмная заливка во весь лист, боковое меню,
+    кнопки. Человек нажимал «печать накладной» и получал снимок экрана.
+  */
+  const w = openPrintWindowOrExplain();
+  if (!w) return;
   const styles = customStyles ?? BASE_STYLES;
   w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title><style>${styles}</style></head><body>${html}</body></html>`);
   w.document.close();

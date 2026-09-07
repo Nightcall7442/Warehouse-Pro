@@ -1,8 +1,38 @@
+import { notify } from "./toast";
+
 /**
  * Print utility — injects print-only CSS and triggers window.print().
  * The printed content is rendered into a hidden div that becomes visible
  * only during print via @media print rules.
  */
+
+/**
+ * Окно для документа — или внятный отказ.
+ *
+ * ── Что здесь было ──────────────────────────────────────────────────────────
+ *
+ * `if (!w) { window.print(); return; }` — при заблокированном окне на принтер
+ * уходила САМА СТРАНИЦА приложения: тёмная заливка во весь лист, боковое
+ * меню, кнопки, обрезанные графики. Человек нажимал «печать накладной» и
+ * получал снимок экрана, без единого слова о том, что случилось.
+ *
+ * В четвёртом месте (exportToPDF) стоял молчаливый `return`: не происходило
+ * вообще ничего, и кнопка выглядела сломанной.
+ *
+ * Оба ответа неверны по одной причине: браузер заблокировал всплывающее окно,
+ * и чинится это одной галочкой в адресной строке. Об этом и говорится.
+ */
+export function openPrintWindowOrExplain(): Window | null {
+  const w = window.open("", "_blank", "width=900,height=700");
+  if (!w) {
+    notify.error(
+      "Браузер заблокировал окно печати. Разрешите всплывающие окна для этого сайта — " +
+      "значок в адресной строке — и нажмите ещё раз.",
+    );
+    return null;
+  }
+  return w;
+}
 
 function sanitizeHtml(str: string): string {
   return str
@@ -17,12 +47,8 @@ export function printElement(elementId: string, title: string) {
   const el = document.getElementById(elementId);
   if (!el) return;
 
-  const printWindow = window.open("", "_blank", "width=900,height=700");
-  if (!printWindow) {
-    // Fallback if popup blocked
-    window.print();
-    return;
-  }
+  const printWindow = openPrintWindowOrExplain();
+  if (!printWindow) return;
 
   printWindow.document.write(`
     <!DOCTYPE html>
@@ -128,8 +154,8 @@ export function printSimpleReport(opts: {
   numericFrom?: number;
 }) {
   const { title, subtitle, headers, rows, numericFrom = 1 } = opts;
-  const w = window.open("", "_blank", "width=900,height=700");
-  if (!w) { window.print(); return; }
+  const w = openPrintWindowOrExplain();
+  if (!w) return;
 
   const right = (i: number) => (i >= numericFrom ? ' class="text-right"' : "");
   const head = headers.map((h, i) => `<th${right(i)}>${sanitizeHtml(h)}</th>`).join("");

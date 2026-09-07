@@ -110,12 +110,17 @@ export const AgentsTab = memo(function AgentsTab({
           <button type="button" onClick={onExport} className="neo-btn neo-btn-sm tap" style={{ padding: "0 14px" }}>
             <FileDown size={13} aria-hidden /> Excel
           </button>
-          <button type="button" onClick={onExportPDF} className="neo-btn neo-btn-sm tap" style={{ padding: "0 14px" }}>
-            <FileDown size={13} aria-hidden /> PDF
-          </button>
-          <button type="button" onClick={() => window.print()} className="neo-btn neo-btn-sm tap"
-            aria-label={t("Печать", "Chop etish")} style={{ padding: "0 14px" }}>
-            <Printer size={13} aria-hidden />
+{/* Та же правка, что на странице отчётов: значок принтера печатал сам
+              экран приложения, а документ собирала соседняя кнопка. */}
+          <button
+            type="button"
+            onClick={onExportPDF}
+            className="neo-btn neo-btn-sm tap"
+            style={{ padding: "0 14px" }}
+            title={t("Откроется окно печати. Чтобы получить файл, выберите принтер «Сохранить как PDF».",
+                     "Chop etish oynasi ochiladi. Fayl olish uchun «PDF sifatida saqlash» printerini tanlang.")}
+          >
+            <Printer size={13} aria-hidden /> {t("Печать", "Chop etish")}
           </button>
         </div>
       </GlassPanel>
