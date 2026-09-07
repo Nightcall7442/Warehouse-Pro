@@ -124,6 +124,42 @@ function looseEquals(a: unknown, b: unknown): boolean {
   return String(a) === String(b);
 }
 
+/**
+ * Разобрать sql`${колонка} IN (${sql.join(значения)})`.
+ *
+ * Возвращает null, если условие устроено иначе: тогда решать будет обработчик
+ * теста, как и раньше. Строение, а не текст, потому что моки drizzle в тестах
+ * самодельные и текст в них не собирается вовсе — есть только куски строк и
+ * подстановки между ними.
+ */
+function parseInList(cond: Record<string, unknown>): { col: unknown; values: unknown[] } | null {
+  const strings = cond.strings as string[] | undefined;
+  const values = cond.values as unknown[] | undefined;
+  if (!Array.isArray(strings) || !Array.isArray(values)) return null;
+  if (strings.length !== 3 || values.length !== 2) return null;
+  if (!/\bIN\s*\($/i.test(strings[1].trim())) return null;
+
+  const list = values[1] as Record<string, unknown> | null;
+  if (!list || list.__kind !== "sql_join") return null;
+
+  // Каждый кусок — это sql`${значение}`; берётся его единственная подстановка.
+  // Голое значение тоже принимается: часть моков собирает список без обёртки.
+  const chunks = (list.chunks ?? list.c) as unknown[] | undefined;
+  if (!Array.isArray(chunks)) return null;
+
+  const out: unknown[] = [];
+  for (const chunk of chunks) {
+    if (chunk && typeof chunk === "object") {
+      const c = chunk as Record<string, unknown>;
+      if (c.__kind !== "sql" || !Array.isArray(c.values) || c.values.length !== 1) return null;
+      out.push(c.values[0]);
+    } else {
+      out.push(chunk);
+    }
+  }
+  return { col: values[0], values: out };
+}
+
 function compare(a: unknown, b: unknown): number {
   const na = Number(a), nb = Number(b);
   if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
@@ -261,6 +297,25 @@ export function makeConditionEvaluator(options: EvaluatorOptions) {
 
       case "sql":
       case "sql.join": {
+        /*
+          Один вид сырого sql`` разбирается по-настоящему: список IN.
+
+          Так написан фильтр товаров при блокировке остатков —
+          sql`${warehouseStock.productId} IN (${sql.join(...)})`, — и стенды
+          отвечали на него `rawSql: () => true`. То есть при блокировке
+          возвращались ВСЕ карточки остатка, а не карточки заказанных товаров:
+          проверка достатка сравнивала количество не с тем остатком, и правка,
+          затрагивающая чужой товар, прошла бы незамеченной.
+
+          Разбирается по строению, а не по тексту: две подстановки, между ними
+          «IN (». Всё остальное сырое по-прежнему уходит в обработчик теста
+          либо становится ошибкой.
+        */
+        const inList = parseInList(cond);
+        if (inList) {
+          const v = valueOf(row, inList.col);
+          return missing(v) || inList.values.some(x => looseEquals(v, x));
+        }
         if (!options.rawSql) {
           const text = Array.isArray(cond.strings) ? (cond.strings as string[]).join("?").trim() : "";
           throw new UnsupportedCondition("sql``", text.slice(0, 120) || "без текста");

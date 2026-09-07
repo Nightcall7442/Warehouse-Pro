@@ -149,9 +149,19 @@ for (const [field, col] of Object.entries(returns)) columnToFieldName.set(col, f
 const evalCond = makeConditionEvaluator({
   fieldOf: col => columnToFieldName.get(col) ?? (col as { name?: string } | null)?.name,
   treatMissingColumnAsMatch: true,
-  // Сырой sql`` этот стенд не воспроизводит; условие считается выполненным.
-  // Решение записано здесь, а не спрятано в умолчании разборщика.
-  rawSql: () => true,
+  /*
+    Обработчика сырого sql`` больше нет.
+
+    Здесь стояло `rawSql: () => true`. Единственное сырое условие на этом пути —
+    список товаров при блокировке остатков,
+    sql`${warehouseStock.productId} IN (${sql.join(...)})`, — и «всегда истина»
+    означала, что блокировка возвращает ВСЕ карточки остатка, а не карточки
+    заказанных товаров. Проверка достатка сравнивала количество не с тем
+    остатком, и правка, задевшая чужой товар, прошла бы незамеченной.
+
+    Общий разборщик теперь читает список IN по-настоящему. Появится другое
+    сырое условие — стенд упадёт с внятным текстом, а не промолчит.
+  */
 });
 
 function evalSqlDelta(row: unknown, fieldName: string, expr: unknown): string {
