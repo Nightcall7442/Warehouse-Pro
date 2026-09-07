@@ -1,5 +1,6 @@
 import { trpc } from "@/providers/trpc";
 import { useMemo } from "react";
+import { useLang } from "@/i18n";
 
 interface SettingsData {
   currencySymbol?: string;
@@ -8,11 +9,12 @@ interface SettingsData {
 }
 
 export function useCurrency() {
+  const { lang } = useLang();
   const { data: settings } = trpc.settings.get.useQuery(undefined, {
     staleTime: 1000 * 60 * 10,
   }) as { data: SettingsData | null };
 
-  const symbol   = settings?.currencySymbol ?? "сум";
+  const symbol   = settings?.currencySymbol ?? (lang === "uz" ? "so'm" : "сум");
   const currency = settings?.currency       ?? "UZS";
   const position = settings?.symbolPosition ?? "after";
 

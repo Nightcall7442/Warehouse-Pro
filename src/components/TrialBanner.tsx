@@ -2,8 +2,10 @@ import { trpc } from "@/providers/trpc";
 import { useNavigate } from "react-router";
 import { AlertTriangle, X, Zap } from "lucide-react";
 import { useState } from "react";
+import { useTranslate } from "@/i18n";
 
 export function TrialBanner() {
+  const t = useTranslate();
   const { data: sub }       = trpc.stripe.getSubscription.useQuery(undefined, {
     staleTime: 5 * 60 * 1000,
   });
@@ -28,13 +30,13 @@ export function TrialBanner() {
   let urgent  = false;
 
   if (isCanceled || trialExpired) {
-    message = "Подписка неактивна. Обновите тариф чтобы продолжить работу.";
+    message = t("Подписка неактивна. Обновите тариф чтобы продолжить работу.", "Obuna faol emas. Ishni davom ettirish uchun tarifni yangilang.");
     urgent  = true;
   } else if (isPastDue) {
-    message = "Ошибка оплаты. Обновите платёжные данные.";
+    message = t("Ошибка оплаты. Обновите платёжные данные.", "To'lovda xatolik. To'lov ma'lumotlarini yangilang.");
     urgent  = true;
   } else if (trialUrgent) {
-    message = `Пробный период заканчивается через ${sub.daysLeft} дн.`;
+    message = t(`Пробный период заканчивается через ${sub.daysLeft} дн.`, `Sinov muddati tugashiga ${sub.daysLeft} kun qoldi`);
     urgent  = (sub.daysLeft ?? 0) <= 1;
   }
 
@@ -61,7 +63,7 @@ export function TrialBanner() {
           flexShrink: 0,
         }}
       >
-        <Zap size={12}/>Подключить
+        <Zap size={12}/>{t("Подключить", "Ulash")}
       </button>
       {!urgent && (
         <button onClick={() => setDismissed(true)} style={{ background: "none", border: "none", cursor: "pointer", color: "inherit", opacity: 0.6, flexShrink: 0 }}>

@@ -88,8 +88,8 @@ ONEC_WEBHOOK_SECRET=your_secret`}
             </p>
             <pre className="mt-2 p-3 rounded-lg text-xs font-mono overflow-x-auto"
               style={{ background: "var(--color-surface, #efedea)", border: "1px solid var(--color-border, #d8d5cd)" }}>
-{`Оплата: https://www.warehouse-pro.uz/api/webhooks/1c/payment
-Остатки: https://www.warehouse-pro.uz/api/webhooks/1c/stock`}
+{`${t("Оплата", "To'lov")}: https://www.warehouse-pro.uz/api/webhooks/1c/payment
+${t("Остатки", "Qoldiqlar")}: https://www.warehouse-pro.uz/api/webhooks/1c/stock`}
             </pre>
           </div>
         </div>

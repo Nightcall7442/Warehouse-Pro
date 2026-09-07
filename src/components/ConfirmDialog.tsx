@@ -1,6 +1,7 @@
 import { memo, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { AlertTriangle, X } from "lucide-react";
+import { useTranslate } from "@/i18n";
 
 interface Props {
   title:       string;
@@ -12,6 +13,7 @@ interface Props {
 }
 
 export const ConfirmDialog = memo(function ConfirmDialog({ title, message, confirmText = "Confirm", danger = false, onConfirm, onCancel }: Props) {
+  const t = useTranslate();
   useEffect(() => {
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -78,7 +80,7 @@ export const ConfirmDialog = memo(function ConfirmDialog({ title, message, confi
           </button>
         </div>
         <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
-          <button onClick={onCancel} style={{ padding: "8px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 500, fontFamily: "'DM Sans', sans-serif", color: "var(--color-text-secondary, #5e5b54)", background: "var(--color-surface-light, #f6f4f0)", border: "none", cursor: "pointer" }}>Отмена</button>
+          <button onClick={onCancel} style={{ padding: "8px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 500, fontFamily: "'DM Sans', sans-serif", color: "var(--color-text-secondary, #5e5b54)", background: "var(--color-surface-light, #f6f4f0)", border: "none", cursor: "pointer" }}>{t("Отмена", "Bekor qilish")}</button>
           <button onClick={onConfirm}
             style={{
               padding: "8px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 600,

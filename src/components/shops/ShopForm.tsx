@@ -73,7 +73,7 @@ export function ShopForm({ onSave, onCancel, isPending, lang, agents, territorie
   }, []);
   const handlePhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return;
-    if (file.size > 2 * 1024 * 1024) { notify.error("Макс. 2 МБ"); return; }
+    if (file.size > 2 * 1024 * 1024) { notify.error(t("Макс. 2 МБ", "Maks. 2 MB")); return; }
     const r = new FileReader(); r.onload = () => setPhoto(r.result as string); r.readAsDataURL(file);
   };
   return (

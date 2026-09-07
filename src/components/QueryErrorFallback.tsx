@@ -1,4 +1,5 @@
 import { AlertTriangle, RefreshCw } from "lucide-react";
+import { useTranslate } from "@/i18n";
 
 interface QueryErrorFallbackProps {
   onRetry: () => void;
@@ -6,6 +7,7 @@ interface QueryErrorFallbackProps {
 }
 
 export function QueryErrorFallback({ onRetry, message }: QueryErrorFallbackProps) {
+  const t = useTranslate();
   return (
     <div style={{
       display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
@@ -22,7 +24,7 @@ export function QueryErrorFallback({ onRetry, message }: QueryErrorFallbackProps
         fontSize: "14px", color: "var(--color-text-secondary, #5e5b54)",
         margin: 0, maxWidth: "360px",
       }}>
-        {message ?? "Не удалось загрузить данные. Проверьте подключение к интернету."}
+        {message ?? t("Не удалось загрузить данные. Проверьте подключение к интернету.", "Ma'lumotlarni yuklab bo'lmadi. Internetga ulanishni tekshiring.")}
       </p>
       <button
         onClick={onRetry}
@@ -35,7 +37,7 @@ export function QueryErrorFallback({ onRetry, message }: QueryErrorFallbackProps
           boxShadow: "0 2px 8px color-mix(in srgb, var(--color-primary) 25%, transparent)",
         }}
       >
-        <RefreshCw size={14} /> Повторить
+        <RefreshCw size={14} /> {t("Повторить", "Qayta urinish")}
       </button>
     </div>
   );

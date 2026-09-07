@@ -84,7 +84,7 @@ export default function OfflineOrders() {
       await deletePendingOrder(order.localId as number);
       notify.success(lang === "uz" ? "Buyurtma yuborildi" : "Заказ отправлен");
     } catch (e: unknown) {
-      notify.error(e instanceof Error ? e.message : "Не удалось отправить");
+      notify.error(e instanceof Error ? e.message : (lang === "uz" ? "Yuborib bo'lmadi" : "Не удалось отправить"));
     } finally {
       setSendingId(null);
       await reload();

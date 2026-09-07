@@ -124,11 +124,11 @@ export function InstallPrompt() {
         {!isIos && (
           <div className="flex gap-2 mt-3">
             <button onClick={install} className="flex-1 py-2 text-sm" style={{ borderRadius: "10px", border: "none", background: "var(--color-primary)", color: "var(--color-on-primary, #ffffff)", fontWeight: 600, cursor: "pointer" }}>{tr("Установить", "O'rnatish")}</button>
-            <button onClick={dismiss} className="flex-1 py-2 text-sm" style={{ borderRadius: "10px", border: "1px solid var(--color-border)", background: "var(--color-surface)", color: "var(--color-text-secondary)", cursor: "pointer" }}>Не сейчас</button>
+            <button onClick={dismiss} className="flex-1 py-2 text-sm" style={{ borderRadius: "10px", border: "1px solid var(--color-border)", background: "var(--color-surface)", color: "var(--color-text-secondary)", cursor: "pointer" }}>{tr("Не сейчас", "Hozir emas")}</button>
           </div>
         )}
         {isIos && (
-          <button onClick={dismiss} className="w-full mt-3 py-2 text-sm" style={{ borderRadius: "10px", border: "1px solid var(--color-border)", background: "var(--color-surface)", color: "var(--color-text-secondary)", cursor: "pointer" }}>Понятно</button>
+          <button onClick={dismiss} className="w-full mt-3 py-2 text-sm" style={{ borderRadius: "10px", border: "1px solid var(--color-border)", background: "var(--color-surface)", color: "var(--color-text-secondary)", cursor: "pointer" }}>{tr("Понятно", "Tushunarli")}</button>
         )}
       </div>
     </div>

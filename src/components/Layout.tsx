@@ -221,7 +221,9 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
         </div>
         <button onClick={toggle} className="neo-btn w-full flex items-center justify-center gap-2 text-xs">
           {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
-          <span>{theme === "dark" ? "Светлая тема" : "Тёмная тема"}</span>
+          <span>{theme === "dark"
+            ? (lang === "uz" ? "Yorug' mavzu" : "Светлая тема")
+            : (lang === "uz" ? "Qorong'i mavzu" : "Тёмная тема")}</span>
         </button>
         <button onClick={logout} className="neo-btn w-full flex items-center justify-center gap-2 text-xs" style={{ color: "var(--color-danger-text)" }}>
           <LogOut size={14} />

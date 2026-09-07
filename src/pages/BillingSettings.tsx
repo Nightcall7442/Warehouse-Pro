@@ -8,15 +8,47 @@ import {
 import { format } from "date-fns";
 import { PLAN_PRICES_UZS } from '../../contracts/constants';
 import { labelled, SUBSCRIPTION_STATUS_LABEL } from "@/lib/entity-labels";
+import type { Label } from "@/lib/entity-labels";
+import { useLang, useTranslate } from "@/i18n";
 
-const PLAN_FEATURES: Record<string, string[]> = {
-  trial:     ["3 пользователя", "20 товаров", "50 заказов/мес", "Базовый склад", "14 дней бесплатно"],
-  basic:     ["5 пользователей", "50 товаров", "Базовая аналитика", "Складской учёт", "Email-поддержка"],
-  pro:       ["20 пользователей", "100 товаров", "Полная аналитика", "GPS-трекинг", "Интеграция с 1С", "Приоритетная поддержка"],
-  exclusive: ["Безлимит пользователей", "Безлимит товаров", "API доступ", "White-label", "Выделенный сервер", "24/7 поддержка"],
+const PLAN_FEATURES: Record<string, Label[]> = {
+  trial: [
+    { ru: "3 пользователя",  uz: "3 foydalanuvchi" },
+    { ru: "20 товаров",      uz: "20 mahsulot" },
+    { ru: "50 заказов/мес",  uz: "50 buyurtma/oy" },
+    { ru: "Базовый склад",   uz: "Oddiy ombor" },
+    { ru: "14 дней бесплатно", uz: "14 kun bepul" },
+  ],
+  basic: [
+    { ru: "5 пользователей", uz: "5 foydalanuvchi" },
+    { ru: "50 товаров",      uz: "50 mahsulot" },
+    { ru: "Базовая аналитика", uz: "Oddiy tahlil" },
+    { ru: "Складской учёт",  uz: "Ombor hisobi" },
+    { ru: "Email-поддержка", uz: "Email orqali yordam" },
+  ],
+  pro: [
+    { ru: "20 пользователей", uz: "20 foydalanuvchi" },
+    { ru: "100 товаров",      uz: "100 mahsulot" },
+    { ru: "Полная аналитика", uz: "To'liq tahlil" },
+    { ru: "GPS-трекинг",      uz: "GPS kuzatuv" },
+    { ru: "Интеграция с 1С",  uz: "1C bilan integratsiya" },
+    { ru: "Приоритетная поддержка", uz: "Ustuvor yordam" },
+  ],
+  exclusive: [
+    { ru: "Безлимит пользователей", uz: "Cheksiz foydalanuvchi" },
+    { ru: "Безлимит товаров",       uz: "Cheksiz mahsulot" },
+    { ru: "API доступ",             uz: "API kirish" },
+    { ru: "White-label",            uz: "White-label" },
+    { ru: "Выделенный сервер",      uz: "Ajratilgan server" },
+    { ru: "24/7 поддержка",         uz: "24/7 yordam" },
+  ],
 };
 
 export default function BillingSettings() {
+  const { lang } = useLang();
+  // useTranslate, а не своя стрелка: у неё постоянная личность, и её можно
+  // держать в зависимостях эффекта, не перезапуская его на каждый рендер.
+  const t = useTranslate();
   const [searchParams] = useSearchParams();
   const { data: sub, isLoading, refetch } = trpc.stripe.getSubscription.useQuery();
   trpc.stripe.getPlans.useQuery();
@@ -33,13 +65,13 @@ export default function BillingSettings() {
 
   useEffect(() => {
     if (searchParams.get("success") === "1") {
-      notify.success("Подписка подключена!");
+      notify.success(t("Подписка подключена!", "Obuna ulandi!"));
       refetch();
     }
     if (searchParams.get("canceled") === "1") {
-      notify.info("Оплата отменена.");
+      notify.info(t("Оплата отменена.", "To'lov bekor qilindi."));
     }
-  }, [searchParams, refetch]);
+  }, [searchParams, refetch, t]);
 
   if (isLoading) return <div className="h-64 bg-surface-light animate-pulse rounded"/>;
   if (!sub)      return null;
@@ -61,14 +93,14 @@ export default function BillingSettings() {
     не было.
   */
   const style   = STATUS_STYLE[sub.status] ?? { color: "text-secondary", icon: AlertTriangle };
-  const cfg     = { ...style, label: labelled(SUBSCRIPTION_STATUS_LABEL, sub.status) };
+  const cfg     = { ...style, label: labelled(SUBSCRIPTION_STATUS_LABEL, sub.status, lang) };
   const Icon    = cfg.icon;
   const hasStripe = !!sub.stripeSubscriptionId;
 
   return (
     <div className="max-w-2xl space-y-6">
       <h1 className="font-display text-2xl font-bold text-primary tracking-tight">
-        Подписка
+        {t("Подписка", "Obuna")}
       </h1>
 
       {/* Current status */}
@@ -92,15 +124,15 @@ export default function BillingSettings() {
             </div>
             {sub.isTrialing && sub.daysLeft !== null && (
               <p className="text-sm text-secondary mt-1">
-                Пробный период заканчивается через <b className={sub.daysLeft <= 3 ? "text-danger" : "text-primary"}>
-                  {sub.daysLeft} дн.
-                </b>
+                {t("Пробный период заканчивается через", "Sinov muddati tugashiga")} <b className={sub.daysLeft <= 3 ? "text-danger" : "text-primary"}>
+                  {sub.daysLeft} {t("дн.", "kun")}
+                </b>{t("", " qoldi")}
                 {sub.trialEndsAt && ` (${format(new Date(sub.trialEndsAt), "dd.MM.yyyy")})`}
               </p>
             )}
             {sub.currentPeriodEnds && !sub.isTrialing && (
               <p className="text-sm text-secondary mt-1">
-                Следующее списание: {format(new Date(sub.currentPeriodEnds), "dd.MM.yyyy")}
+                {t("Следующее списание", "Keyingi to'lov")}: {format(new Date(sub.currentPeriodEnds), "dd.MM.yyyy")}
               </p>
             )}
           </div>
@@ -111,7 +143,7 @@ export default function BillingSettings() {
               className="neo-btn flex items-center gap-2 text-sm py-2 flex-shrink-0"
             >
               {portal.isPending ? <Loader2 size={14} className="animate-spin"/> : <ExternalLink size={14}/>}
-              Управление
+              {t("Управление", "Boshqarish")}
             </button>
           )}
         </div>
@@ -119,12 +151,12 @@ export default function BillingSettings() {
 
       {/* Plans */}
       <div>
-        <h2 className="font-label text-secondary tracking-wider text-xs mb-4">ТАРИФЫ</h2>
+        <h2 className="font-label text-secondary tracking-wider text-xs mb-4">{t("ТАРИФЫ", "TARIFLAR")}</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[
-            { key: "basic",     name: "Basic",     price: `${PLAN_PRICES_UZS.basic.toLocaleString('ru-RU')} сум/мес`,  highlight: false },
-            { key: "pro",       name: "Pro",       price: `${PLAN_PRICES_UZS.pro.toLocaleString('ru-RU')} сум/мес`,  highlight: true  },
-            { key: "exclusive", name: "Exclusive", price: `${PLAN_PRICES_UZS.exclusive.toLocaleString('ru-RU')} сум/мес`, highlight: false },
+            { key: "basic",     name: "Basic",     price: `${PLAN_PRICES_UZS.basic.toLocaleString('ru-RU')} ${t("сум/мес", "so'm/oy")}`,  highlight: false },
+            { key: "pro",       name: "Pro",       price: `${PLAN_PRICES_UZS.pro.toLocaleString('ru-RU')} ${t("сум/мес", "so'm/oy")}`,  highlight: true  },
+            { key: "exclusive", name: "Exclusive", price: `${PLAN_PRICES_UZS.exclusive.toLocaleString('ru-RU')} ${t("сум/мес", "so'm/oy")}`, highlight: false },
           ].map(plan => {
             const isCurrent = sub.plan === plan.key && sub.isActive;
             const features  = PLAN_FEATURES[plan.key] ?? [];
@@ -133,7 +165,7 @@ export default function BillingSettings() {
                 className={`panel p-5 flex flex-col gap-4 ${plan.highlight ? "border-primary" : ""} ${isCurrent ? "bg-primary/5" : ""}`}>
                 {plan.highlight && (
                   <span className="self-start status-badge bg-primary/15 text-primary border-primary/30 text-[10px]">
-                    ПОПУЛЯРНЫЙ
+                    {t("ПОПУЛЯРНЫЙ", "OMMABOP")}
                   </span>
                 )}
                 <div>
@@ -142,15 +174,15 @@ export default function BillingSettings() {
                 </div>
                 <ul className="space-y-2 flex-1">
                   {features.map(f => (
-                    <li key={f} className="flex items-center gap-2 text-sm text-secondary">
+                    <li key={f.ru} className="flex items-center gap-2 text-sm text-secondary">
                       <CheckCircle2 size={14} className="text-success flex-shrink-0"/>
-                      {f}
+                      {f[lang]}
                     </li>
                   ))}
                 </ul>
                 {isCurrent ? (
                   <div className="neo-btn w-full text-center py-2 text-sm opacity-60 cursor-default">
-                    Текущий тариф
+                    {t("Текущий тариф", "Joriy tarif")}
                   </div>
                 ) : (
                   <button
@@ -159,7 +191,7 @@ export default function BillingSettings() {
                     className="neo-btn-primary w-full flex items-center justify-center gap-2 py-2 text-sm"
                   >
                     {checkout.isPending ? <Loader2 size={14} className="animate-spin"/> : <Zap size={14}/>}
-                    {sub.isTrialing ? "Подключить" : "Перейти"}
+                    {sub.isTrialing ? t("Подключить", "Ulash") : t("Перейти", "O'tish")}
                   </button>
                 )}
               </div>
@@ -171,12 +203,12 @@ export default function BillingSettings() {
       {/* Trial features */}
       {sub.isTrialing && (
         <div className="neo-card p-5 border-info/30 bg-info/5">
-          <p className="font-label text-info text-xs tracking-wider mb-3">В ПРОБНОМ ПЕРИОДЕ ДОСТУПНО</p>
+          <p className="font-label text-info text-xs tracking-wider mb-3">{t("В ПРОБНОМ ПЕРИОДЕ ДОСТУПНО", "SINOV DAVRIDA MAVJUD")}</p>
           <ul className="space-y-1.5">
             {PLAN_FEATURES.trial.map(f => (
-              <li key={f} className="flex items-center gap-2 text-sm text-secondary">
+              <li key={f.ru} className="flex items-center gap-2 text-sm text-secondary">
                 <CheckCircle2 size={14} className="text-info"/>
-                {f}
+                {f[lang]}
               </li>
             ))}
           </ul>

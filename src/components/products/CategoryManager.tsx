@@ -116,7 +116,7 @@ export function CategoryManager({ lang, onClose }: CategoryManagerProps) {
                       {cat}
                     </span>
                     <span style={{ fontSize: "11px", color: COLORS.textTertiary, flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>
-                      {productCount} {plural(productCount, "товар", "товара", "товаров")}
+                      {productCount} {lang === "uz" ? "mahsulot" : plural(productCount, "товар", "товара", "товаров")}
                     </span>
                   </span>
                 )}

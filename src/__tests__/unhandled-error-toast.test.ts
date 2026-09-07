@@ -52,7 +52,11 @@ describe("о чём сообщать человеку", () => {
     // Проверяем сам вызов: сюда легко вернуть подстановку ${msg}.
     const main = fs.readFileSync(path.resolve(process.cwd(), "src/main.tsx"), "utf8");
     const call = main.slice(main.indexOf("function report("), main.indexOf("window.onerror"));
-    expect(call).toContain('notify.error("');
+    // Фраза может приехать обёрнутой в uiText — это по-прежнему постоянный
+    // текст, просто на двух языках. Важно другое: она в кавычках, а не в
+    // шаблоне, куда так легко вернуть ${msg}.
+    expect(call).toMatch(/notify\.error\((?:uiText\()?"/);
     expect(call, "в тост снова подставляют текст ошибки").not.toMatch(/notify\.error\(`/);
+    expect(call, "в тост снова подставляют текст ошибки").not.toContain("${msg}");
   });
 });

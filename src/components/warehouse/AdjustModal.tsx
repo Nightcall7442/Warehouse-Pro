@@ -118,7 +118,7 @@ export const AdjustModal = memo(function AdjustModal({ productId, productName, c
                 {t("Вес", "Og'irlik")}
               </span>
               <span className="text-xs font-medium" style={{ color: "var(--color-text-secondary, #5e5b54)" }}>
-                {previewWeightKg} кг
+                {previewWeightKg} {t("кг", "kg")}
               </span>
             </div>
           )}

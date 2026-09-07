@@ -1,4 +1,5 @@
 import { AlertTriangle, Inbox, RefreshCw } from "lucide-react";
+import { useTranslate } from "@/i18n";
 
 /**
  * Что стоит в разделе вместо данных.
@@ -33,6 +34,7 @@ interface SectionNoticeProps {
 }
 
 export function SectionNotice({ kind, message, onRetry, retryLabel }: SectionNoticeProps) {
+  const t = useTranslate();
   const isError = kind === "error";
 
   return (
@@ -77,7 +79,7 @@ export function SectionNotice({ kind, message, onRetry, retryLabel }: SectionNot
       </p>
       {isError && onRetry && (
         <button className="neo-btn neo-btn-sm tap" onClick={onRetry}>
-          <RefreshCw size={13} /> {retryLabel ?? "Повторить"}
+          <RefreshCw size={13} /> {retryLabel ?? t("Повторить", "Qayta urinish")}
         </button>
       )}
     </div>

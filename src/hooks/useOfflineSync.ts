@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useInvalidateOrderCaches } from "@/hooks/useOrderCacheSync";
 import { getPendingOrders, deletePendingOrder, recordPendingFailure } from "@/pages/OfflineOrders.helpers";
 import type { PaymentMethod } from "@/components/orders";
+import { uiText } from "@/lib/ui-text";
 
 /**
  * Отправка заказов, сохранённых без связи.
@@ -58,7 +59,7 @@ export function serverAnswered(error: unknown): boolean {
 
 function reasonOf(error: unknown): string {
   const message = (error as { message?: string })?.message;
-  return message && message.length < 300 ? message : "Сервер отклонил заказ";
+  return message && message.length < 300 ? message : uiText("Сервер отклонил заказ", "Server buyurtmani rad etdi");
 }
 
 export type OfflineSync = {

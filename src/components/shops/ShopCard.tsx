@@ -6,6 +6,7 @@ import { Store, MapPin, Phone, Camera, Loader2, AlertCircle, ChevronRight, Check
 import { F, COLORS, SHADOW } from "./constants";
 import { useAuth } from "@/hooks/useAuth";
 import { canOperate } from "@/lib/permissions";
+import { useTranslate } from "@/i18n";
 
 export interface ShopCardData { id: number; name: string; ownerName: string | null; phone: string | null; city: string | null; district: string | null; status: string; debt: string | null; photoUrl: string | null; agentName: string | null; }
 
@@ -18,23 +19,24 @@ export interface ShopCardData { id: number; name: string; ownerName: string | nu
  * рисуют, будет больше.
  */
 export function ShopPhoto({ shopId, photoUrl, size = "md" }: { shopId: number; photoUrl?: string | null; size?: "sm" | "md" | "lg" }) {
+  const t = useTranslate();
   const { user } = useAuth();
   const canEdit = canOperate(user?.role);
   const fileRef = useRef<HTMLInputElement>(null);
   const utils = trpc.useUtils();
   const upload = trpc.shop.uploadPhoto.useMutation({
-    onSuccess: () => { utils.shop.list.invalidate(); utils.shop.getById.invalidate({ id: shopId }); notify.success("Фото обновлено"); },
+    onSuccess: () => { utils.shop.list.invalidate(); utils.shop.getById.invalidate({ id: shopId }); notify.success(t("Фото обновлено", "Rasm yangilandi")); },
     onError: (e) => notify.error(e.message),
   });
   const dim = size === "sm" ? "w-12 h-12" : size === "lg" ? "w-20 h-20" : "w-16 h-16";
   const iconSize = size === "sm" ? 18 : size === "lg" ? 32 : 22;
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return;
-    if (file.size > 10 * 1024 * 1024) { notify.error("Макс. 10 МБ"); return; }
+    if (file.size > 10 * 1024 * 1024) { notify.error(t("Макс. 10 МБ", "Maks. 10 MB")); return; }
     try {
       const compressed = await compressImage(file);
       upload.mutate({ shopId, dataUrl: compressed });
-    } catch { notify.error("Ошибка обработки изображения"); }
+    } catch { notify.error(t("Ошибка обработки изображения", "Rasmni qayta ishlashda xatolik")); }
     e.target.value = "";
   };
   return (

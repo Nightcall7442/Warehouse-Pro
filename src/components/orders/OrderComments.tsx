@@ -22,6 +22,7 @@ interface Props {
 }
 
 function CommentItem({ comment, onReply }: { comment: CommentNode; onReply: (parentId: number) => void }) {
+  const t = useTranslate();
   const initials = (comment.userName ?? "U").split(/\s+/).map(w => w[0]).join("").toUpperCase().slice(0, 2);
 
   return (
@@ -51,7 +52,7 @@ function CommentItem({ comment, onReply }: { comment: CommentNode; onReply: (par
             }}
           >
             <Reply size={10} />
-            Ответить
+            {t("Ответить", "Javob berish")}
           </button>
         </div>
       </div>

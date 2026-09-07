@@ -1,6 +1,9 @@
 import { Component, type ReactNode } from "react";
 import { AlertTriangle, RefreshCw, Home } from "lucide-react";
 import { isStaleChunkError, recoverFromStaleApp } from "@/lib/stale-app-recovery";
+// Класс-компонент хуками пользоваться не может, а стоит он выше провайдера
+// языка: в момент падения контекста может уже не быть.
+import { uiText as tr } from "@/lib/ui-text";
 
 interface Props {
   children: ReactNode;
@@ -50,15 +53,17 @@ export default class ErrorBoundary extends Component<Props, State> {
             fontFamily: "'DM Sans', sans-serif", fontSize: "18px", fontWeight: 700,
             color: "var(--color-text-primary, #2b2a28)", margin: "0 0 8px",
           }}>
-            Что-то пошло не так
+            {tr("Что-то пошло не так", "Nimadir noto'g'ri ketdi")}
           </h2>
           <p style={{
             fontSize: "13px", color: "var(--color-text-secondary, #5e5b54)",
             margin: "0 0 24px", maxWidth: "400px",
           }}>
             {this.props.pageName
-              ? `Ошибка на странице «${this.props.pageName}». Попробуйте обновить.`
-              : "Произошла непредвиденная ошибка. Попробуйте обновить страницу."}
+              ? tr(`Ошибка на странице «${this.props.pageName}». Попробуйте обновить.`,
+                    `«${this.props.pageName}» sahifasida xatolik. Yangilab ko'ring.`)
+              : tr("Произошла непредвиденная ошибка. Попробуйте обновить страницу.",
+                   "Kutilmagan xatolik yuz berdi. Sahifani yangilab ko'ring.")}
           </p>
           {process.env.NODE_ENV !== "production" && this.state.error && (
             <details style={{
@@ -68,7 +73,7 @@ export default class ErrorBoundary extends Component<Props, State> {
               width: "100%", textAlign: "left", fontFamily: "monospace",
             }}>
               <summary style={{ cursor: "pointer", fontWeight: 600 }}>
-                Технические детали
+                {tr("Технические детали", "Texnik tafsilotlar")}
               </summary>
               <pre style={{ marginTop: "8px", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
                 {this.state.error.message}
@@ -93,7 +98,7 @@ export default class ErrorBoundary extends Component<Props, State> {
                 boxShadow: "0 2px 8px color-mix(in srgb, var(--color-primary) 25%, transparent)",
               }}
             >
-              <RefreshCw size={14} /> Обновить
+              <RefreshCw size={14} /> {tr("Обновить", "Yangilash")}
             </button>
             <a href="/"
               style={{
@@ -105,7 +110,7 @@ export default class ErrorBoundary extends Component<Props, State> {
                 color: "var(--color-text-secondary, #5e5b54)", textDecoration: "none",
               }}
             >
-              <Home size={14} /> На главную
+              <Home size={14} /> {tr("На главную", "Bosh sahifaga")}
             </a>
           </div>
         </div>

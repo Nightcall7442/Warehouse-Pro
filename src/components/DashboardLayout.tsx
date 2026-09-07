@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { useTranslate } from "@/i18n";
 
 /* ─── Three colored dots — reference signature ─── */
 export const CardDots = memo(function CardDots({ style }: { style?: React.CSSProperties }) {
@@ -67,7 +68,8 @@ export const PageHeader = memo(function PageHeader({ title, subtitle, actions }:
 
 /* ─── Period picker ─── */
 export const PeriodPicker = memo(function PeriodPicker({ days, onChange }: { days: number; onChange: (d: number) => void }) {
-  const items = [{ d: 7, label: "7 дней" }, { d: 30, label: "30 дней" }, { d: 90, label: "90 дней" }];
+  const t = useTranslate();
+  const items = [7, 30, 90].map(d => ({ d, label: t(`${d} дней`, `${d} kun`) }));
   return (
     <div className="range-pills">
       {items.map(r => (<button key={r.d} onClick={() => onChange(r.d)} className={`range-pill ${days === r.d ? "active" : ""}`}>{r.label}</button>))}

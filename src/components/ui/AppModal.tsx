@@ -1,6 +1,7 @@
 import { useEffect, useRef, useId, useEffectEvent } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
+import { useTranslate } from "@/i18n";
 
 /**
  * The shared modal shell.
@@ -51,6 +52,7 @@ export const modalFieldLabel = "font-label text-[10px] text-secondary mb-1.5 blo
 
 export function AppModal({
   open, onClose, title, subtitle, maxWidth = 720, footer, headerActions, children, dirty = false }: AppModalProps) {
+  const t = useTranslate();
   const panelRef = useRef<HTMLDivElement>(null);
   // useId вместо случайного числа в ссылке.
   //
@@ -174,7 +176,7 @@ export function AppModal({
                 <button
                   type="button"
                   onClick={onClose}
-                  aria-label="Закрыть"
+                  aria-label={t("Закрыть", "Yopish")}
                   className="neo-btn-icon"
                   style={{ width: "40px", height: "40px", background: "color-mix(in srgb, var(--color-on-primary, #ffffff) 18%, transparent)", color: "var(--color-on-primary, #ffffff)", borderRadius: "12px" }}
                 >

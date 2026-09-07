@@ -35,7 +35,7 @@ function AddShopModal({ onClose }: { onClose: () => void }) {
   });
 
   const captureGps = () => {
-    if (!navigator.geolocation) { notify.error("GPS недоступен"); return; }
+    if (!navigator.geolocation) { notify.error(t("GPS недоступен", "GPS mavjud emas")); return; }
     setGpsLoading(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {

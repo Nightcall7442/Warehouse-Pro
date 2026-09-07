@@ -208,7 +208,7 @@ export const PlanCompletion = memo(function PlanCompletion({ data, t }: { data: 
           <div key={String(agent.agentId)}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
               <span style={{ fontSize: "13px", color: COLORS.textPrimary, fontFamily: F.body, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "150px" }}>
-                {String(agent.agentName ?? `Агент #${agent.agentId}`)}
+                {String(agent.agentName ?? t(`Агент #${agent.agentId}`, `Agent #${agent.agentId}`))}
               </span>
               <span style={{ fontSize: "12px", fontWeight: 600, color, fontFamily: F.body }}>
                 {String(agent.visited)}/{String(agent.total)} · {pct}%

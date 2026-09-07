@@ -5,6 +5,7 @@ import { notify } from "@/lib/toast";
 import { compressImage } from "@/lib/compress-image";
 import { useAuth } from "@/hooks/useAuth";
 import { canOperate } from "@/lib/permissions";
+import { useTranslate } from "@/i18n";
 
 export interface ProductPhotoProps {
   productId: number;
@@ -20,23 +21,24 @@ export interface ProductPhotoProps {
  * сжатие и получали отказ.
  */
 export function ProductPhoto({ productId, photoUrl, size = "md" }: ProductPhotoProps) {
+  const t = useTranslate();
   const { user } = useAuth();
   const canEdit = canOperate(user?.role);
   const fileRef = useRef<HTMLInputElement>(null);
   const utils = trpc.useUtils();
   const upload = trpc.product.uploadPhoto.useMutation({
-    onSuccess: () => { utils.product.list.invalidate(); utils.product.getById.invalidate({ id: productId }); notify.success("Фото обновлено"); },
+    onSuccess: () => { utils.product.list.invalidate(); utils.product.getById.invalidate({ id: productId }); notify.success(t("Фото обновлено", "Rasm yangilandi")); },
     onError: (e) => notify.error(e.message),
   });
   const dim = size === "sm" ? "w-12 h-12" : size === "lg" ? "w-20 h-20" : "w-16 h-16";
   const iconSize = size === "sm" ? 18 : size === "lg" ? 32 : 22;
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return;
-    if (file.size > 10 * 1024 * 1024) { notify.error("Макс. 10 МБ"); return; }
+    if (file.size > 10 * 1024 * 1024) { notify.error(t("Макс. 10 МБ", "Maks. 10 MB")); return; }
     try {
       const compressed = await compressImage(file);
       upload.mutate({ productId, dataUrl: compressed });
-    } catch { notify.error("Ошибка обработки изображения"); }
+    } catch { notify.error(t("Ошибка обработки изображения", "Rasmni qayta ishlashda xatolik")); }
     e.target.value = "";
   };
   return (

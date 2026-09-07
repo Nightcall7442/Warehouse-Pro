@@ -9,6 +9,7 @@ import { Toaster } from "@/components/ui/sonner"
 import { LangProvider } from "@/i18n"
 import { InstallPrompt } from "@/components/InstallPrompt"
 import { notify, shouldTellUser } from "@/lib/toast"
+import { uiText } from "@/lib/ui-text"
 import App from './App.tsx'
 import { RadixPointerEventsGuard } from "@/components/RadixPointerEventsGuard"
 
@@ -27,7 +28,7 @@ import { RadixPointerEventsGuard } from "@/components/RadixPointerEventsGuard"
 */
 function report(msg: string) {
   console.error("[необработанная ошибка]", msg);
-  if (shouldTellUser(msg)) notify.error("Что-то пошло не так. Попробуйте ещё раз.");
+  if (shouldTellUser(msg)) notify.error(uiText("Что-то пошло не так. Попробуйте ещё раз.", "Nimadir noto'g'ri ketdi. Yana urinib ko'ring."));
 }
 
 window.onerror = (message) => {

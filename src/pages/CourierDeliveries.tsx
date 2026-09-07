@@ -205,6 +205,7 @@ export default function CourierDeliveries() {
 }
 
 function MapView({ deliveries }: { deliveries: Delivery[] | undefined }) {
+  const t = useTranslate();
   const mapRef = useRef<YandexMap | null>(null);
   const mapDivRef = useRef<HTMLDivElement>(null);
   const markersRef = useRef<YandexPlacemark[]>([]);
@@ -217,10 +218,10 @@ function MapView({ deliveries }: { deliveries: Delivery[] | undefined }) {
       .map((d) => ({
         lat: Number(d.shopGpsLat),
         lng: Number(d.shopGpsLng),
-        name: d.shopName ?? "Магазин",
+        name: d.shopName ?? t("Магазин", "Do'kon"),
         status: d.deliveryStatus,
       })),
-    [allDeliveries]
+    [allDeliveries, t]
   );
 
   useEffect(() => {
@@ -354,7 +355,7 @@ function DeliveryCard({
       {Number(order.totalWeightKg ?? 0) > 0 && (
         <p className="text-xs text-secondary flex items-center gap-1">
           <Package size={12} />
-          {formatQty(order.totalWeightKg)} кг
+          {formatQty(order.totalWeightKg)} {t("кг", "kg")}
         </p>
       )}
 

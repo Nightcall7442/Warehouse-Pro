@@ -169,11 +169,11 @@ export default function ShopDetail() {
   });
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return;
-    if (file.size > 10*1024*1024) { notify.error("Макс. 10 МБ"); return; }
+    if (file.size > 10*1024*1024) { notify.error(t("Макс. 10 МБ", "Maks. 10 MB")); return; }
     try {
       const compressed = await compressImage(file);
       uploadPhoto.mutate({ shopId: Number(id), dataUrl: compressed });
-    } catch { notify.error("Ошибка обработки изображения"); }
+    } catch { notify.error(t("Ошибка обработки изображения", "Rasmni qayta ishlashda xatolik")); }
     e.target.value = "";
   };
 

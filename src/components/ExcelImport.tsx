@@ -4,6 +4,7 @@ import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { Upload, FileSpreadsheet, X, CheckCircle2, AlertTriangle, Loader2, Download } from "lucide-react";
 import type { AppRouter } from "../../api/router";
+import { useTranslate } from "@/i18n";
 
 type ImportType = "products" | "shops";
 
@@ -15,6 +16,9 @@ interface Props {
   onCancel: () => void;
 }
 
+/** Метка отказа чтения: текст для человека подставляется в компоненте. */
+const FILE_READ_FAILED = "file-read-failed";
+
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -24,12 +28,13 @@ function fileToBase64(file: File): Promise<string> {
       const base64 = result.split(",")[1] || result;
       resolve(base64);
     };
-    reader.onerror = () => reject(new Error("Ошибка чтения файла"));
+    reader.onerror = () => reject(new Error(FILE_READ_FAILED));
     reader.readAsDataURL(file);
   });
 }
 
 export function ExcelImport({ type, onDone, onCancel }: Props) {
+  const t = useTranslate();
   const fileRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState("");
   const [base64, setBase64] = useState("");
@@ -42,7 +47,9 @@ export function ExcelImport({ type, onDone, onCancel }: Props) {
   const executeMutation = trpc.import.executeImport.useMutation();
   const templateQuery = trpc.import.downloadTemplate.useQuery({ type });
 
-  const typeLabel = type === "products" ? "товаров" : "магазинов";
+  const typeLabel = type === "products"
+    ? t("товаров", "mahsulotlarni")
+    : t("магазинов", "do'konlarni");
 
   const handleFile = async (file: File) => {
     setFileName(file.name);
@@ -62,7 +69,8 @@ export function ExcelImport({ type, onDone, onCancel }: Props) {
       setPreview(result.preview);
       setTotalRows(result.totalRows);
     } catch (e: unknown) {
-      setErrors([e instanceof Error ? e.message : "Ошибка чтения файла"]);
+      const failed = t("Ошибка чтения файла", "Faylni o'qishda xatolik");
+      setErrors([e instanceof Error && e.message !== FILE_READ_FAILED ? e.message : failed]);
     }
   };
 
@@ -79,20 +87,23 @@ export function ExcelImport({ type, onDone, onCancel }: Props) {
       });
 
       if (result.success > 0) {
-        notify.success(`Импортировано ${result.success} из ${result.total} записей`);
+        notify.success(t(
+          `Импортировано ${result.success} из ${result.total} записей`,
+          `${result.total} ta yozuvdan ${result.success} tasi import qilindi`,
+        ));
         if (result.errors.length > 0) setErrors(result.errors);
-        if (result.skipped.length > 0) setErrors(prev => [...prev, ...result.skipped.map(s => `Пропущено: ${s}`)]);
+        if (result.skipped.length > 0) setErrors(prev => [...prev, ...result.skipped.map(s => `${t("Пропущено", "O'tkazib yuborildi")}: ${s}`)]);
         // Only close if no errors
         if (result.errors.length === 0) {
           onDone();
         }
       } else if (result.errors.length > 0) {
         setErrors(result.errors);
-        notify.error("Импорт не удался");
+        notify.error(t("Импорт не удался", "Import amalga oshmadi"));
       }
     } catch (e: unknown) {
-      setErrors([e instanceof Error ? e.message : "Ошибка импорта"]);
-      notify.error("Ошибка импорта");
+      setErrors([e instanceof Error ? e.message : t("Ошибка импорта", "Import xatosi")]);
+      notify.error(t("Ошибка импорта", "Import xatosi"));
     } finally {
       setImporting(false);
     }
@@ -100,14 +111,14 @@ export function ExcelImport({ type, onDone, onCancel }: Props) {
 
   const handleDownloadTemplate = () => {
     if (templateQuery.isLoading) {
-      notify.error("Шаблон ещё загружается, попробуйте через секунду");
+      notify.error(t("Шаблон ещё загружается, попробуйте через секунду", "Shablon hali yuklanmoqda, bir soniyadan keyin urinib ko'ring"));
       return;
     }
     if (templateQuery.isError || !templateQuery.data) {
       notify.error(
         templateQuery.error instanceof Error
           ? templateQuery.error.message
-          : "Не удалось загрузить шаблон. Проверьте права доступа."
+          : t("Не удалось загрузить шаблон. Проверьте права доступа.", "Shablonni yuklab bo'lmadi. Kirish huquqlarini tekshiring.")
       );
       return;
     }
@@ -137,7 +148,7 @@ export function ExcelImport({ type, onDone, onCancel }: Props) {
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
         <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 700, color: "var(--color-text-primary, #2b2a28)" }}>
-          Импорт {typeLabel}
+          {t("Импорт", "Import")} {typeLabel}
         </h2>
         <button onClick={onCancel} style={{ padding: "8px", borderRadius: "8px", background: "none", border: "none", cursor: "pointer", color: "var(--color-text-secondary, #5e5b54)" }}>
           <X size={18} />
@@ -149,13 +160,13 @@ export function ExcelImport({ type, onDone, onCancel }: Props) {
         <FileSpreadsheet size={18} style={{ color: "#60a5fa", flexShrink: 0, marginTop: "2px" }} />
         <div>
           <p style={{ fontSize: "13px", color: "var(--color-text-primary, #2b2a28)", margin: 0 }}>
-            Скачайте шаблон, заполните данные и загрузите файл обратно.
+            {t("Скачайте шаблон, заполните данные и загрузите файл обратно.", "Shablonni yuklab oling, ma'lumotlarni to'ldiring va faylni qaytadan yuklang.")}
           </p>
           <p style={{ fontSize: "11px", color: "var(--color-text-secondary, #5e5b54)", marginTop: "4px", margin: "4px 0 0" }}>
-            Поддерживаемые форматы: <b>.xlsx</b>, <b>.xls</b>, <b>.csv</b>
+            {t("Поддерживаемые форматы:", "Qo'llab-quvvatlanadigan formatlar:")} <b>.xlsx</b>, <b>.xls</b>, <b>.csv</b>
           </p>
           <button onClick={handleDownloadTemplate} style={{ display: "inline-flex", alignItems: "center", gap: "6px", marginTop: "8px", padding: "6px 12px", borderRadius: "8px", fontSize: "12px", fontWeight: 600, color: "#60a5fa", background: "rgba(37,99,235,0.1)", border: "none", cursor: "pointer" }}>
-            <Download size={13} /> Скачать шаблон
+            <Download size={13} /> {t("Скачать шаблон", "Shablonni yuklab olish")}
           </button>
         </div>
       </div>
@@ -177,14 +188,14 @@ export function ExcelImport({ type, onDone, onCancel }: Props) {
           <>
             <CheckCircle2 size={32} style={{ margin: "0 auto 8px", color: "var(--color-success-text)" }} />
             <p style={{ fontSize: "14px", fontWeight: 600, color: "var(--color-success-text)" }}>{fileName}</p>
-            <p style={{ fontSize: "12px", color: "var(--color-text-secondary, #5e5b54)", marginTop: "4px" }}>{totalRows} строк для импорта</p>
-            <p style={{ fontSize: "11px", color: "var(--color-text-tertiary, #6b6760)", marginTop: "4px" }}>Нажмите чтобы заменить файл</p>
+            <p style={{ fontSize: "12px", color: "var(--color-text-secondary, #5e5b54)", marginTop: "4px" }}>{totalRows} {t("строк для импорта", "qator import uchun")}</p>
+            <p style={{ fontSize: "11px", color: "var(--color-text-tertiary, #6b6760)", marginTop: "4px" }}>{t("Нажмите чтобы заменить файл", "Faylni almashtirish uchun bosing")}</p>
           </>
         ) : (
           <>
             <Upload size={32} style={{ margin: "0 auto 8px", color: "var(--color-text-tertiary, #6b6760)" }} />
-            <p style={{ fontSize: "14px", color: "var(--color-text-primary, #2b2a28)" }}>Перетащите .xlsx / .csv файл</p>
-            <p style={{ fontSize: "12px", color: "var(--color-text-tertiary, #6b6760)", marginTop: "4px" }}>или нажмите для выбора</p>
+            <p style={{ fontSize: "14px", color: "var(--color-text-primary, #2b2a28)" }}>{t("Перетащите .xlsx / .csv файл", ".xlsx / .csv faylni bu yerga tashlang")}</p>
+            <p style={{ fontSize: "12px", color: "var(--color-text-tertiary, #6b6760)", marginTop: "4px" }}>{t("или нажмите для выбора", "yoki tanlash uchun bosing")}</p>
           </>
         )}
       </div>
@@ -209,7 +220,7 @@ export function ExcelImport({ type, onDone, onCancel }: Props) {
                 </tr>
               ))}
               {totalRows > 5 && (
-                <tr><td colSpan={columns.length} style={{ padding: "8px 10px", textAlign: "center", color: "var(--color-text-tertiary, #6b6760)", fontSize: "11px" }}>... и ещё {totalRows - 5} строк</td></tr>
+                <tr><td colSpan={columns.length} style={{ padding: "8px 10px", textAlign: "center", color: "var(--color-text-tertiary, #6b6760)", fontSize: "11px" }}>... {t("и ещё", "va yana")} {totalRows - 5} {t("строк", "qator")}</td></tr>
               )}
             </tbody>
           </table>
@@ -220,10 +231,10 @@ export function ExcelImport({ type, onDone, onCancel }: Props) {
       {errors.length > 0 && (
         <div style={{ marginTop: "16px", padding: "12px", borderRadius: "12px", background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.2)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px", color: "var(--color-danger-text)", fontSize: "13px", fontWeight: 600 }}>
-            <AlertTriangle size={15} /> Ошибки
+            <AlertTriangle size={15} /> {t("Ошибки", "Xatolar")}
           </div>
           {errors.slice(0, 5).map((e, i) => <p key={i} style={{ fontSize: "11px", color: "var(--color-danger-text)", margin: "2px 0" }}>{e}</p>)}
-          {errors.length > 5 && <p style={{ fontSize: "11px", color: "var(--color-danger-text)" }}>... и ещё {errors.length - 5}</p>}
+          {errors.length > 5 && <p style={{ fontSize: "11px", color: "var(--color-danger-text)" }}>... {t("и ещё", "va yana")} {errors.length - 5}</p>}
         </div>
       )}
 
@@ -232,17 +243,20 @@ export function ExcelImport({ type, onDone, onCancel }: Props) {
         {executeMutation.isSuccess ? (
           <button onClick={onDone}
             style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "10px 20px", borderRadius: "12px", fontSize: "13px", fontWeight: 600, color: "#fff", background: "linear-gradient(135deg, var(--color-success), #22c47a)", border: "none", cursor: "pointer", transition: "all 0.2s" }}>
-            <CheckCircle2 size={14} /> Готово
+            <CheckCircle2 size={14} /> {t("Готово", "Tayyor")}
           </button>
         ) : (
           <button onClick={handleImport} disabled={!base64 || importing}
             style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "10px 20px", borderRadius: "12px", fontSize: "13px", fontWeight: 600, color: "var(--color-on-primary)", background: "var(--color-primary)", border: "none", cursor: !base64 || importing ? "not-allowed" : "pointer", opacity: !base64 || importing ? 0.5 : 1, transition: "all 0.2s" }}>
             {importing ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <Upload size={14} />}
-            {importing ? "Импортирую..." : `Импортировать${totalRows > 0 ? ` ${totalRows} строк` : ""}`}
+            {importing
+              ? t("Импортирую...", "Import qilinmoqda...")
+              : t(`Импортировать${totalRows > 0 ? ` ${totalRows} строк` : ""}`,
+                  `Import qilish${totalRows > 0 ? ` — ${totalRows} qator` : ""}`)}
           </button>
         )}
         <button onClick={onCancel} style={{ padding: "10px 20px", borderRadius: "12px", fontSize: "13px", fontWeight: 600, color: "var(--color-text-secondary, #5e5b54)", background: "var(--color-surface, #efedea)", border: "1px solid var(--color-border, #d8d5cd)", cursor: "pointer" }}>
-          {executeMutation.isSuccess ? "Закрыть" : "Отмена"}
+          {executeMutation.isSuccess ? t("Закрыть", "Yopish") : t("Отмена", "Bekor qilish")}
         </button>
       </div>
     </div>

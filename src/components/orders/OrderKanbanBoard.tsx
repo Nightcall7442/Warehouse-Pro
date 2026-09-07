@@ -45,8 +45,9 @@ interface Props {
   currency?: string;
 }
 
-export function OrderKanbanBoard({ orders, onOrderClick, onStatusChange, currency = "сум" }: Props) {
+export function OrderKanbanBoard({ orders, onOrderClick, onStatusChange, currency }: Props) {
   const t = useTranslate();
+  const cur = currency ?? t("сум", "so'm");
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<number | null>(null);
 
@@ -168,7 +169,7 @@ export function OrderKanbanBoard({ orders, onOrderClick, onStatusChange, currenc
                         </div>
                       )}
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                        <span style={{ fontFamily: F.display, fontSize: "13px", fontWeight: 700, color: COLORS.textPrimary }}>{Number(order.total).toLocaleString("ru")} {currency}</span>
+                        <span style={{ fontFamily: F.display, fontSize: "13px", fontWeight: 700, color: COLORS.textPrimary }}>{Number(order.total).toLocaleString("ru")} {cur}</span>
                         <GripVertical size={14} color={COLORS.textTertiary} />
                       </div>
                     </div>

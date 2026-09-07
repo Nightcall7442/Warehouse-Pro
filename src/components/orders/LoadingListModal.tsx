@@ -43,7 +43,7 @@ export function LoadingListModal({ open, onOpenChange, orderIds, onDone }: Props
       });
       setResult(res as LoadingListData);
     } catch (e) {
-      notify.error(e instanceof Error ? e.message : "Ошибка");
+      notify.error(e instanceof Error ? e.message : t("Ошибка", "Xatolik"));
     } finally {
       setLoading(false);
     }

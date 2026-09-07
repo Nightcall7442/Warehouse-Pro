@@ -406,9 +406,9 @@ export default function SupervisorTracking() {
             balloonContentHeader: `<b style="font-family:Inter,sans-serif;font-size:14px">${esc(shop.name)}</b>`,
             balloonContentBody: `
               <div style="font-family:Inter,sans-serif;font-size:12px;color:#666;padding:4px 0;line-height:1.6">
-                <div><b style="color:${color}">${esc(TIER_LABEL[tier].ru)}</b> — ${esc(shop.reason)}</div>
-                <div>Принёс за всё время: <b>${esc(fmt(shop.ltv))}</b></div>
-                <div>Заказов: ${shop.orderCount}${shop.debt > 0 ? ` · долг ${esc(fmt(shop.debt))}` : ""}</div>
+                <div><b style="color:${color}">${esc(t(TIER_LABEL[tier].ru, TIER_LABEL[tier].uz))}</b> — ${esc(shop.reason)}</div>
+                <div>${esc(t("Принёс за всё время", "Butun davr uchun keltirgan"))}: <b>${esc(fmt(shop.ltv))}</b></div>
+                <div>${esc(t("Заказов", "Buyurtmalar"))}: ${shop.orderCount}${shop.debt > 0 ? ` · ${esc(t("долг", "qarz"))} ${esc(fmt(shop.debt))}` : ""}</div>
               </div>
             `,
             hintContent: `${esc(shop.name)} — ${esc(fmt(shop.ltv, true))}`,
@@ -483,7 +483,7 @@ export default function SupervisorTracking() {
     // Уход со страницы: карта живёт дольше эффекта, и подписка на неё без
     // этого пережила бы компонент.
     return clear;
-  }, [placedShops, showShops, mapReady, fmt]);
+  }, [placedShops, showShops, mapReady, fmt, t]);
 
   /**
    * День каждого агента — из планов и норм, по одному разу на приход данных.

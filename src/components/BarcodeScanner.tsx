@@ -8,6 +8,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { X, Keyboard, CheckCircle2 } from "lucide-react";
+import { useTranslate } from "@/i18n";
 
 interface Props {
   onScan:   (code: string) => void;
@@ -18,6 +19,7 @@ interface Props {
 const SUPPORTED = typeof window !== "undefined" && "BarcodeDetector" in window;
 
 export function BarcodeScanner({ onScan, onClose, label = "Scan barcode" }: Props) {
+  const t = useTranslate();
   const videoRef    = useRef<HTMLVideoElement>(null);
   const streamRef   = useRef<MediaStream | null>(null);
   const [manual, setManual]   = useState(!SUPPORTED);
@@ -74,7 +76,7 @@ export function BarcodeScanner({ onScan, onClose, label = "Scan barcode" }: Prop
 
       videoRef.current?.addEventListener("playing", () => { rafId = requestAnimationFrame(tick); }, { once: true });
     }).catch(() => {
-      setError("Нет доступа к камере. Используйте ручной ввод.");
+      setError(t("Нет доступа к камере. Используйте ручной ввод.", "Kameraga ruxsat yo'q. Kodni qo'lda kiriting."));
       setManual(true);
     });
 
@@ -82,7 +84,7 @@ export function BarcodeScanner({ onScan, onClose, label = "Scan barcode" }: Prop
       cancelAnimationFrame(rafId);
       stopCamera();
     };
-  }, [manual, handleDetected, stopCamera]);
+  }, [manual, handleDetected, stopCamera, t]);
 
   useEffect(() => {
     return () => stopCamera();
@@ -98,7 +100,7 @@ export function BarcodeScanner({ onScan, onClose, label = "Scan barcode" }: Prop
             <button
               onClick={() => setManual(v => !v)}
               className={`p-1.5 rounded transition-colors ${manual ? "text-primary" : "text-text-secondary hover:text-text-primary"}`}
-              title="Ручной ввод"
+              title={t("Ручной ввод", "Qo'lda kiritish")}
             >
               <Keyboard size={18}/>
             </button>
@@ -111,10 +113,10 @@ export function BarcodeScanner({ onScan, onClose, label = "Scan barcode" }: Prop
         {/* Camera or manual */}
         {manual ? (
           <div className="p-5 space-y-3">
-            <p className="text-sm text-text-secondary">Введите штрих-код вручную:</p>
+            <p className="text-sm text-text-secondary">{t("Введите штрих-код вручную:", "Shtrix-kodni qo'lda kiriting:")}</p>
             <input
               className="input-field w-full font-data text-lg"
-              placeholder="Код товара…"
+              placeholder={t("Код товара…", "Mahsulot kodi…")}
               value={input}
               onChange={e => setInput(e.target.value)}
               autoFocus
@@ -125,11 +127,11 @@ export function BarcodeScanner({ onScan, onClose, label = "Scan barcode" }: Prop
               disabled={!input.trim()}
               className="btn-primary w-full disabled:opacity-40"
             >
-              Применить
+              {t("Применить", "Qo'llash")}
             </button>
             {!SUPPORTED && (
               <p className="text-xs text-text-secondary text-center">
-                BarcodeDetector не поддерживается в этом браузере
+                {t("BarcodeDetector не поддерживается в этом браузере", "Bu brauzerda BarcodeDetector qo'llab-quvvatlanmaydi")}
               </p>
             )}
           </div>
@@ -176,7 +178,7 @@ export function BarcodeScanner({ onScan, onClose, label = "Scan barcode" }: Prop
         {/* Camera mode hint */}
         {!manual && !scanned && !error && (
           <div className="px-4 py-2 text-center">
-            <p className="text-xs text-text-secondary">Наведите камеру на штрих-код</p>
+            <p className="text-xs text-text-secondary">{t("Наведите камеру на штрих-код", "Kamerani shtrix-kodga qarating")}</p>
           </div>
         )}
       </div>

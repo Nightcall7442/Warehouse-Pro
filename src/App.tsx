@@ -106,7 +106,7 @@ function AppLayout() {
     ушли, на каком бы экране человек ни был.
   */
   useOfflineSync();
-  return <Layout><ErrorBoundary pageName="Страница"><Outlet /></ErrorBoundary></Layout>;
+  return <Layout><ErrorBoundary><Outlet /></ErrorBoundary></Layout>;
 }
 
 /**
@@ -154,7 +154,7 @@ function HotkeysListener() {
 export default function App() {
   return (
     <Suspense fallback={<PageLoader />}>
-      <ErrorBoundary pageName="Приложение">
+      <ErrorBoundary>
       <AppShortcuts />
       <Routes>
         {/* Public */}

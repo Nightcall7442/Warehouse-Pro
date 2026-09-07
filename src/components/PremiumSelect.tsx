@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useId } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Check } from "lucide-react";
+import { useTranslate } from "@/i18n";
 
 interface CommonProps {
   options: { value: string; label: string }[];
@@ -46,8 +47,9 @@ const MAX_PANEL = 280;
 const NO_VALUES: string[] = [];
 
 export function PremiumSelect(props: PremiumSelectProps) {
+  const t = useTranslate();
   const {
-    options, placeholder = "Выберите...", width, disabled,
+    options, placeholder = t("Выберите...", "Tanlang..."), width, disabled,
     "aria-label": ariaLabel,
   } = props;
   const multiple = props.multiple === true;

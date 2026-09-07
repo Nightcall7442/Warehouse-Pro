@@ -29,9 +29,13 @@ export const TIER_LABEL: Record<ShopTier, { ru: string; uz: string }> = {
 /** Порядок для легенды: сначала то, на что смотреть в первую очередь. */
 export const TIER_ORDER: ShopTier[] = ["red", "yellow", "green", "new"];
 
-/** Сумма без копеек и с разделителями — в подсказке на карте места мало. */
-export function money(v: number): string {
-  return `${Math.round(v).toLocaleString("ru")} сум`;
+/**
+ * Сумма без копеек и с разделителями — в подсказке на карте места мало.
+ *
+ * Слово валюты передаётся снаружи: этот модуль о языке экрана не знает.
+ */
+export function money(v: number, currency = "сум"): string {
+  return `${Math.round(v).toLocaleString("ru")} ${currency}`;
 }
 
 /* ────────────────────────────────────────────────────────────────────────────

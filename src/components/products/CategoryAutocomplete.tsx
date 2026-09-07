@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Plus } from "lucide-react";
+import { useTranslate } from "@/i18n";
 
 const ROW = 34;
 const PANEL_PADDING = 8;
@@ -14,7 +15,10 @@ interface CategoryAutocompleteProps {
   placeholder?: string;
 }
 
-export function CategoryAutocomplete({ value, onChange, categories, placeholder = "Категория" }: CategoryAutocompleteProps) {
+export function CategoryAutocomplete({ value, onChange, categories, placeholder }: CategoryAutocompleteProps) {
+  const t = useTranslate();
+  // Значение по умолчанию не в сигнатуре: язык известен только внутри.
+  const hint = placeholder ?? t("Категория", "Toifa");
   const [open, setOpen] = useState(false);
   /**
    * Печатал ли человек в поле.
@@ -105,7 +109,7 @@ export function CategoryAutocomplete({ value, onChange, categories, placeholder 
           ref={inputRef}
           className="neo-input"
           style={{ width: "100%", paddingRight: "32px" }}
-          placeholder={placeholder}
+          placeholder={hint}
           value={query}
           onFocus={() => { setTyped(false); setOpen(true); }}
           onChange={e => {
@@ -171,13 +175,13 @@ export function CategoryAutocomplete({ value, onChange, categories, placeholder 
               }}
             >
               <Plus size={14} />
-              Использовать «{query}»
+              {t("Использовать", "Ishlatish")} «{query}»
             </button>
           )}
 
           {filtered.length === 0 && !query && (
             <div style={{ padding: "12px", textAlign: "center", color: "var(--color-text-tertiary, #6b6760)", fontSize: "12px" }}>
-              Нет категорий
+              {t("Нет категорий", "Toifalar yo'q")}
             </div>
           )}
         </div>,
