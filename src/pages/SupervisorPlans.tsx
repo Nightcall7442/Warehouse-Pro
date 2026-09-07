@@ -11,6 +11,10 @@ import {
   Loader2, CheckCircle2, Calendar, Clock,
 } from "lucide-react";
 import { PremiumSelect } from "@/components/PremiumSelect";
+import { ScheduleManager } from "@/components/plans/ScheduleManager";
+
+/** Пустой набор одной ссылкой: новый Set в каждой отрисовке ломал бы сравнения. */
+const EMPTY_SET: ReadonlySet<number> = new Set<number>();
 
 const STATUS_CONFIG: Record<string, { ru: string; uz: string; cls: string }> = {
   planned: { ru: "Запланирован", uz: "Rejalashtirilgan", cls: "bg-info/15 text-info border-info/30"       },
@@ -48,18 +52,57 @@ function CreatePlanForm({ date, onDone, lang }: { date: string; onDone: () => vo
   });
 
   const selectedTerritory = territories?.find((tr) => tr.id === territoryId);
-  const shopCount = selectedTerritory?.shopCount ?? 0;
+
+  /*
+    Магазины территории — списком с галочками, а не «все сорок или ничего».
+
+    Сервер принимает произвольный список (createPlans), форма же отправляла всю
+    территорию целиком. Убрать из плана одну точку — закрытую, спорную, вчера
+    посещённую — было нельзя вовсе.
+
+    По умолчанию отмечены все: обычный случай — вся территория, и лишних
+    движений он не требует.
+  */
+  const { data: territoryShops } = trpc.territory.getShops.useQuery(
+    { territoryId },
+    { enabled: territoryId > 0 },
+  );
+  /*
+    Исключения помнят, к какой территории относятся.
+
+    Сбрасывать их эффектом на смену территории нельзя: setState внутри эффекта
+    даёт лишний проход отрисовки, и один кадр форма показывала бы галочки от
+    прежней территории на магазинах новой. Признак territoryId хранится рядом
+    со списком, и при несовпадении список просто не считается — сброс выходит
+    сам собой, в том же кадре.
+  */
+  const [excludedFor, setExcludedFor] = useState<{ territoryId: number; ids: Set<number> }>(
+    { territoryId: 0, ids: new Set() },
+  );
+  const excluded = excludedFor.territoryId === territoryId ? excludedFor.ids : EMPTY_SET;
+
+  const chosenShopIds = (territoryShops ?? [])
+    .map(shop => shop.id)
+    .filter(id => !excluded.has(id));
+  const shopCount = chosenShopIds.length;
+
+  const setExcluded = (ids: Set<number>) => setExcludedFor({ territoryId, ids });
+
+  const toggleShop = (id: number) => {
+    const next = new Set(excluded);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setExcluded(next);
+  };
 
   const handleCreate = async () => {
     if (!agentId || !territoryId) return;
-    const shopsInTerritory = await utils.client.territory.getShops.query({ territoryId });
-    if (!shopsInTerritory.length) {
-      notify.error(t("В территории нет магазинов", "Territoriyada do'konlar yo'q"));
+    if (chosenShopIds.length === 0) {
+      notify.error(t("Не выбран ни один магазин", "Birorta do'kon tanlanmadi"));
       return;
     }
     await createPlans.mutateAsync({
       agentId,
-      shopIds: shopsInTerritory.map((shop) => shop.id),
+      shopIds: chosenShopIds,
       planDate: date,
       notes: notes || undefined,
     });
@@ -110,6 +153,48 @@ function CreatePlanForm({ date, onDone, lang }: { date: string; onDone: () => vo
         )}
       </div>
 
+      {/* Магазины территории: снять галочку — исключить точку из плана. */}
+      {territoryId > 0 && (territoryShops?.length ?? 0) > 0 && (
+        <div style={{ marginBottom: "16px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+            <label style={{ fontSize: "11px", fontWeight: 600, color: "var(--color-text-secondary)", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+              {t("МАГАЗИНЫ", "DO'KONLAR")}
+            </label>
+            <button
+              type="button"
+              onClick={() => setExcluded(excluded.size > 0
+                ? new Set()
+                : new Set((territoryShops ?? []).map(shop => shop.id)))}
+              style={{ background: "none", border: "none", cursor: "pointer", fontSize: "12px", color: "var(--color-primary-text)", fontWeight: 500 }}
+            >
+              {excluded.size > 0 ? t("Выбрать все", "Hammasini tanlash") : t("Снять все", "Hammasini olib tashlash")}
+            </button>
+          </div>
+          <div style={{
+            maxHeight: "180px", overflowY: "auto", borderRadius: "10px",
+            border: "1px solid var(--color-border)", padding: "6px",
+          }}>
+            {(territoryShops ?? []).map(shop => (
+              <label key={shop.id} style={{
+                display: "flex", alignItems: "center", gap: "8px", padding: "6px 8px",
+                borderRadius: "8px", cursor: "pointer", fontSize: "13px",
+                color: "var(--color-text-primary)",
+              }}>
+                <input
+                  type="checkbox"
+                  checked={!excluded.has(shop.id)}
+                  onChange={() => toggleShop(shop.id)}
+                  style={{ width: "16px", height: "16px", flexShrink: 0 }}
+                />
+                <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {shop.name}
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div style={{ marginBottom: "20px" }}>
         <label style={{ fontSize: "11px", fontWeight: 600, color: "var(--color-text-secondary)", letterSpacing: "0.06em", textTransform: "uppercase", display: "block", marginBottom: "8px" }}>
           {t("ПРИМЕЧАНИЯ", "IZOHLAR")}
@@ -121,9 +206,9 @@ function CreatePlanForm({ date, onDone, lang }: { date: string; onDone: () => vo
 
       <button
         onClick={handleCreate}
-        disabled={createPlans.isPending || !agentId || !territoryId}
+        disabled={createPlans.isPending || !agentId || !territoryId || shopCount === 0}
         className="neo-btn-primary flex items-center gap-2"
-        style={{ opacity: createPlans.isPending || !agentId || !territoryId ? 0.5 : 1, width: "100%", justifyContent: "center", padding: "12px 24px" }}
+        style={{ opacity: createPlans.isPending || !agentId || !territoryId || shopCount === 0 ? 0.5 : 1, width: "100%", justifyContent: "center", padding: "12px 24px" }}
       >
         {createPlans.isPending && <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} />}
         {t(`Создать план (${shopCount})`, `Reja yaratish (${shopCount})`)}
@@ -257,6 +342,29 @@ export default function SupervisorPlans() {
         />
       )}
 
+      {/*
+        Расписание визитов — свёрнутым разделом, как долги на странице магазинов.
+
+        Форма выше создаёт план на ОДИН день. Чтобы спланировать неделю, её
+        приходилось открывать шесть раз подряд. Расписание задаётся один раз —
+        магазин против дня недели — и разворачивается в планы на любой
+        промежуток одной кнопкой.
+
+        Всё это было написано и не подключено ни к одной странице.
+      */}
+      <details className="neo-card" style={{ padding: "0" }}>
+        <summary style={{
+          cursor: "pointer", padding: "16px 20px", fontSize: "14px", fontWeight: 600,
+          color: "var(--color-text-primary)", listStyle: "none",
+        }}>
+          {t("Расписание визитов — задать один раз и разворачивать в планы",
+             "Tashrif jadvali — bir marta belgilab, rejalarga yoyish")}
+        </summary>
+        <div style={{ padding: "0 20px 20px" }}>
+          <ScheduleManager lang={lang} />
+        </div>
+      </details>
+
       {/* Территории агентов */}
       <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
         {isLoading
@@ -334,6 +442,48 @@ export default function SupervisorPlans() {
                             <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--color-danger-text)" }}>
                               {fmt(plan.shopDebt ?? 0)}
                             </span>
+                          )}
+                          {/*
+                            Время визита — рядом с отметкой, а не только в
+                            выгрузке. «Посещён» без часа не отличает утренний
+                            обход от отметки задним числом вечером.
+                          */}
+                          {plan.visitedAt && (
+                            <span style={{ fontSize: "11px", color: "var(--color-text-tertiary)", whiteSpace: "nowrap" }}>
+                              {format(new Date(plan.visitedAt), "HH:mm")}
+                            </span>
+                          )}
+                          {/*
+                            Фотоотчёт агента.
+
+                            Снимок хранился с самого начала, проходил
+                            фрод-проверку — и не показывался нигде: ручки для
+                            его отдачи не было, а журнал визитов печатал про
+                            него «да» или «нет». Доказательство, на которое
+                            нельзя посмотреть, доказательством не является.
+
+                            Открывается отдельной вкладкой: ответ отдаётся с
+                            sandbox и nosniff (api/photos.ts), и разглядывать
+                            витрину удобнее во весь экран, а не в миниатюре.
+                          */}
+                          {plan.photoUrl && (
+                            <a
+                              href={plan.photoUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              title={t("Открыть фотоотчёт", "Foto hisobotni ochish")}
+                              style={{ display: "flex", flexShrink: 0 }}
+                            >
+                              <img
+                                src={plan.photoUrl}
+                                alt={t("Фотоотчёт о визите", "Tashrif foto hisoboti")}
+                                loading="lazy"
+                                style={{
+                                  width: "28px", height: "28px", borderRadius: "6px",
+                                  objectFit: "cover", border: "1px solid var(--color-border)",
+                                }}
+                              />
+                            </a>
                           )}
                           {plan.status === "planned" && (
                             <div className="flex gap-1">

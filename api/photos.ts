@@ -1,6 +1,6 @@
 import { Hono, type Context } from "hono";
 import { eq, and } from "drizzle-orm";
-import { products, shops } from "@db/schema";
+import { products, shops, dailyPlans } from "@db/schema";
 import { getDb } from "./queries/connection";
 import { authenticateRequest } from "./auth";
 import { isAppError } from "@contracts/errors";
@@ -149,6 +149,34 @@ photos.get("/shop/:id", (c) =>
     const [row] = await getDb().select({ photoUrl: shops.photoUrl })
       .from(shops)
       .where(and(eq(shops.id, id), eq(shops.tenantId, tenantId)))
+      .limit(1);
+    return row?.photoUrl;
+  }));
+
+/*
+  Фотоотчёт о визите.
+
+  ── Чего не было ─────────────────────────────────────────────────────────────
+
+  Агент снимает магазин, приложение шлёт снимок в agent.saveVisitPhoto, тот
+  проходит фрод-проверку и ложится в daily_plans.photo_url — до пяти мегабайт.
+  А ручки, которая отдала бы его обратно, не существовало: здесь были только
+  товар и магазин, в photoRef не было вида "visit", ни один запрос колонку не
+  выбирал, и журнал визитов печатал про неё «да» или «нет».
+
+  То есть фотоотчёт был доказательством, на которое нельзя посмотреть.
+  Супервайзер видел отметку «фото есть» и должен был ей верить — при том что
+  ради этой самой недоверчивости фотоотчёт и заводят.
+
+  Область видимости — организация, как у фото товара и магазина рядом. Уже:
+  не стал, потому что визит разбирают не только его агент и не только прямой
+  начальник — им занимаются и директор, и тот, кто сводит отчёт за месяц.
+*/
+photos.get("/visit/:id", (c) =>
+  serve(c, async (tenantId, id) => {
+    const [row] = await getDb().select({ photoUrl: dailyPlans.photoUrl })
+      .from(dailyPlans)
+      .where(and(eq(dailyPlans.id, id), eq(dailyPlans.tenantId, tenantId)))
       .limit(1);
     return row?.photoUrl;
   }));

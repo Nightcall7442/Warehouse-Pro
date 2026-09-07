@@ -525,8 +525,17 @@ export const agentRouter = createRouter({
       }
 
       return getDb().select({
-        // photoUrl is deliberately not selected: visit photos are base64 blobs of up
-        // to 5 MB and nothing in the plan list renders them.
+        /*
+          Сам снимок по-прежнему не выбирается: это data-url до пяти мегабайт, и
+          сотня планов превратила бы список в полгигабайта JSON.
+
+          Но и «ничего не показывает» перестало быть правдой. Отдаётся короткая
+          ссылка на api/photos/visit/<id> — по ней снимок подтягивается лениво и
+          кэшируется браузером, как фото товара и магазина. Раньше строки не было
+          вовсе, и фотоотчёт нельзя было открыть нигде.
+        */
+        photoUrl: photoRef("visit", dailyPlans.id, dailyPlans.photoUrl, dailyPlans.updatedAt),
+        visitedAt: dailyPlans.visitedAt,
         id: dailyPlans.id, planDate: dailyPlans.planDate, status: dailyPlans.status,
         notes: dailyPlans.notes, createdAt: dailyPlans.createdAt,
         shopName: shops.name, shopAddress: shops.address, shopDebt: shops.debt,
@@ -721,6 +730,16 @@ export const agentRouter = createRouter({
 
       await db.update(dailyPlans).set({
         status: "visited",
+        /*
+          Время визита ставится и здесь.
+
+          Его ставил только updatePlanStatus — путь «Отметить без фото». А этот
+          путь, с фотоотчётом, статус менял, а visited_at оставлял пустым. В
+          журнале визитов есть колонка «Время визита», и она оказывалась
+          заполненной ровно у тех, кто отметился без доказательства, и пустой у
+          тех, кто снял магазин. Ровно наоборот тому, зачем фотоотчёт заводят.
+        */
+        visitedAt: new Date(),
         photoUrl: input.photoUrl,
         notes: input.notes ?? undefined,
       }).where(and(...conditions));

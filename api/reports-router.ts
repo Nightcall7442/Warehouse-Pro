@@ -1,3 +1,4 @@
+import { photoRef } from "./lib/photo-url";
 import { z } from "zod";
 import { createRouter, reportsQuery } from "./middleware";
 import { getDb } from "./queries/connection";
@@ -239,6 +240,9 @@ export const reportsRouter = createRouter({
         shopAddress: shops.address,
         // Presence, not payload — photo_url holds a data URL up to several MB.
         hasPhoto: sql<number>`CASE WHEN ${dailyPlans.photoUrl} IS NULL OR ${dailyPlans.photoUrl} = '' THEN 0 ELSE 1 END`,
+        // И ссылка, по которой снимок можно открыть. Один признак «да/нет»
+        // означал, что доказательство есть, а посмотреть на него нельзя.
+        photoUrl: photoRef("visit", dailyPlans.id, dailyPlans.photoUrl, dailyPlans.updatedAt),
         notes: dailyPlans.notes,
       })
         .from(dailyPlans)

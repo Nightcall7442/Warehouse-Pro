@@ -12,7 +12,15 @@ import type { AnyMySqlColumn } from "drizzle-orm/mysql-core";
  * The `?v=` timestamp busts the browser cache whenever the row is updated.
  */
 export function photoRef(
-  kind: "product" | "shop",
+  /*
+    "visit" — фотоотчёт агента о визите (daily_plans.photo_url).
+
+    Его здесь не было, и это оказалось не пробелом в списке, а тем, что
+    фотографию НЕКОМУ БЫЛО ПОКАЗАТЬ: агент снимал магазин, снимок проходил
+    фрод-проверку и ложился в базу, ручки для его отдачи не существовало, а
+    отчёт по визитам печатал про него «да» или «нет».
+  */
+  kind: "product" | "shop" | "visit",
   idCol: AnyMySqlColumn,
   photoCol: AnyMySqlColumn,
   updatedAtCol: AnyMySqlColumn,

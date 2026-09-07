@@ -38,7 +38,13 @@ import { makeConditionEvaluator } from "./helpers/fake-conditions";
 // ── Fake tables ──────────────────────────────────────────────────────────────
 interface FakeUser { id: number; tenantId: number; name: string; email: string; role: string; status: string; }
 interface FakeShop { id: number; tenantId: number; name: string; city: string; address: string; debt: string; status: string; agentId: number | null; idempotencyKey: string | null; }
-interface FakePlan { id: number; tenantId: number; agentId: number; shopId: number; status: string; planDate: Date; notes: string | null; photoUrl: string | null; createdBy: number; }
+/*
+  visitedAt появился здесь не для полноты. Пока строка плана его не несла,
+  нельзя было заметить, что путь с фотоотчётом статус меняет, а время визита
+  не ставит — то есть колонка «Время визита» в журнале оказывалась заполненной
+  ровно у тех, кто отметился без доказательства.
+*/
+interface FakePlan { id: number; tenantId: number; agentId: number; shopId: number; status: string; planDate: Date; notes: string | null; photoUrl: string | null; visitedAt: Date | null; createdBy: number; }
 interface FakeLocation { id: number; tenantId: number; agentId: number; lat: string; lng: string; accuracy: string | null; batteryLevel: number | null; createdAt: Date; }
 
 let usersTable: FakeUser[] = [];
@@ -61,9 +67,9 @@ function resetTables() {
     { id: 3, tenantId: 1, name: "Shop C", city: "Bukhara", address: "789 Blvd", debt: "0.00", status: "active", agentId: 11 , idempotencyKey: null },
   ];
   plansTable = [
-    { id: 1, tenantId: 1, agentId: 10, shopId: 1, status: "planned", planDate: new Date(), notes: null, photoUrl: null, createdBy: 1 },
-    { id: 2, tenantId: 1, agentId: 10, shopId: 2, status: "visited", planDate: new Date(), notes: "Visited", photoUrl: "data:image/png;base64,abc", createdBy: 1 },
-    { id: 3, tenantId: 1, agentId: 11, shopId: 3, status: "planned", planDate: new Date(), notes: null, photoUrl: null, createdBy: 1 },
+    { id: 1, tenantId: 1, agentId: 10, shopId: 1, status: "planned", planDate: new Date(), notes: null, photoUrl: null, visitedAt: null, createdBy: 1 },
+    { id: 2, tenantId: 1, agentId: 10, shopId: 2, status: "visited", planDate: new Date(), notes: "Visited", photoUrl: "data:image/png;base64,abc", visitedAt: new Date(), createdBy: 1 },
+    { id: 3, tenantId: 1, agentId: 11, shopId: 3, status: "planned", planDate: new Date(), notes: null, photoUrl: null, visitedAt: null, createdBy: 1 },
   ];
   locationsTable = [];
   nextPlanId = 10;
@@ -171,6 +177,8 @@ function makeMockDb() {
             planDate: (vals.planDate as Date) ?? new Date(),
             notes: (vals.notes as string) ?? null,
             photoUrl: (vals.photoUrl as string) ?? null,
+            // Новый план ещё не посещён: как в схеме, где колонка пуста.
+            visitedAt: (vals.visitedAt as Date) ?? null,
             createdBy: (vals.createdBy as number) ?? 0,
           });
           return Promise.resolve([{ insertId: id }]);
@@ -415,6 +423,46 @@ describe("agent.saveVisitPhoto", () => {
   });
 });
 
+/*
+  ── Отметка визита: время ставится обоими путями ─────────────────────────────
+
+  Отметить визит можно двумя способами: «Без фото» (updatePlanStatus) и «С
+  фото» (saveVisitPhoto). Время визита ставил только первый. В журнале визитов
+  есть колонка «Время визита», и она заполнялась ровно у тех, кто отметился
+  без доказательства, и пустовала у тех, кто снял магазин, — то есть ровно
+  наоборот тому, зачем фотоотчёт заводят.
+*/
+describe("время визита", () => {
+  it("отметка без фото ставит время", async () => {
+    const { agentRouter } = await import("../agent-router");
+    const caller = agentRouter.createCaller(makeCtx(1, 10, "agent"));
+    await caller.updatePlanStatus({ planId: 1, status: "visited" });
+
+    const plan = plansTable.find(p => p.id === 1)!;
+    expect(plan.visitedAt, "время визита не поставлено").toBeInstanceOf(Date);
+  });
+
+  it("отметка с фотоотчётом ставит время тоже", async () => {
+    const { agentRouter } = await import("../agent-router");
+    const caller = agentRouter.createCaller(makeCtx(1, 10, "agent"));
+    await caller.saveVisitPhoto({ planId: 1, photoUrl: "data:image/png;base64,test" });
+
+    const plan = plansTable.find(p => p.id === 1)!;
+    expect(plan.status).toBe("visited");
+    expect(plan.visitedAt, "визит с доказательством остался без времени").toBeInstanceOf(Date);
+  });
+
+  it("возврат плана в «запланирован» время стирает", async () => {
+    // Оставшаяся отметка описывала бы визит, которого больше нет.
+    const { agentRouter } = await import("../agent-router");
+    const caller = agentRouter.createCaller(makeCtx(1, 10, "agent"));
+    await caller.updatePlanStatus({ planId: 1, status: "visited" });
+    await caller.updatePlanStatus({ planId: 1, status: "planned" });
+
+    expect(plansTable.find(p => p.id === 1)!.visitedAt).toBeNull();
+  });
+});
+
 describe("agent.saveLocation", () => {
   it("saves agent GPS location", async () => {
     const { agentRouter } = await import("../agent-router");
@@ -574,7 +622,7 @@ describe("agent.getPlans — чужие планы", () => {
 describe("agent.getOptimizedRoute", () => {
   it("returns plans sorted by distance", async () => {
     shopsTable.push({ id: 20, tenantId: 1, name: "Far Shop", city: "X", address: "Y", debt: "0", status: "active", agentId: 10 , idempotencyKey: null });
-    plansTable.push({ id: 20, tenantId: 1, agentId: 10, shopId: 20, status: "planned", planDate: new Date(), notes: null, photoUrl: null, createdBy: 1 });
+    plansTable.push({ id: 20, tenantId: 1, agentId: 10, shopId: 20, status: "planned", planDate: new Date(), notes: null, photoUrl: null, visitedAt: null, createdBy: 1 });
 
     const { agentRouter } = await import("../agent-router");
     const caller = agentRouter.createCaller(makeCtx(1, 10, "agent"));
