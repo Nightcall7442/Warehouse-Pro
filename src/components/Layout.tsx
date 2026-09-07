@@ -28,43 +28,65 @@ const iconMap: Record<string, LucideIcon> = {
   Calendar, WifiOff, Scan, Activity, TrendingUp, CreditCard, Zap, Wallet,
 };
 
-const PAGE_META: Record<string, { title: string; parent?: string; parentPath?: string }> = {
-  "/":                  { title: "Главная" },
-  "/super-admin":       { title: "Super Admin" },
-  "/monitoring":        { title: "Мониторинг" },
-  "/reports":           { title: "Отчёты" },
-  "/shops":             { title: "Магазины" },
-  "/products":          { title: "Товары" },
-  "/catalog":           { title: "Каталог" },
-  "/orders":            { title: "Заказы" },
-  "/orders/new":        { title: "Новый заказ", parent: "Заказы", parentPath: "/orders" },
-  "/warehouse":         { title: "Склад" },
-  "/warehouse-reports": { title: "Отчёты склада" },
-  "/audit-log":         { title: "Аудит-лог" },
-  "/arrivals":          { title: "Приходы" },
-  "/pnl":               { title: "P&L" },
-  "/salaries":          { title: "Зарплаты" },
-  "/users":             { title: "Пользователи" },
-  "/billing":           { title: "Биллинг" },
-  "/settings":          { title: "Настройки" },
-  "/agent":             { title: "Мой день" },
-  "/agent/shops":       { title: "Магазины" },
-  "/agent/gps":         { title: "GPS", parent: "Мой день", parentPath: "/agent" },
-  "/agent/plans":       { title: "Визиты" },
-  "/agent/debts":       { title: "Мои долги", parent: "Мой день", parentPath: "/agent" },
-  "/deliveries":        { title: "Доставки" },
-  "/supervisor":        { title: "Слежение" },
-  "/supervisor/plans":  { title: "Планы", parent: "Слежение", parentPath: "/supervisor" },
-  "/barcode":           { title: "Сканер" },
-  "/offline-orders":    { title: "Офлайн" },
+/*
+  Имя раздела в шапке и в хлебных крошках.
+
+  Здесь стояли только русские слова, хотя приложение двуязычное: узбекский
+  пользователь переключал язык, содержимое становилось узбекским, а над ним
+  по-прежнему висело «Магазины». Заголовок виден всегда — это самая заметная
+  надпись на экране.
+
+  Узбекские слова взяты из словаря nav (src/i18n/uz.ts), где те же разделы
+  давно названы для бокового меню: раздел не должен зваться в меню одним
+  словом, а в шапке другим.
+*/
+type PageTitle = { ru: string; uz: string };
+
+const PAGE_META: Record<string, { title: PageTitle; parent?: PageTitle; parentPath?: string }> = {
+  "/":                  { title: { ru: "Главная",       uz: "Bosh sahifa" } },
+  "/super-admin":       { title: { ru: "Super Admin",   uz: "Super Admin" } },
+  "/monitoring":        { title: { ru: "Мониторинг",    uz: "Monitoring" } },
+  "/reports":           { title: { ru: "Отчёты",        uz: "Hisobotlar" } },
+  "/shops":             { title: { ru: "Магазины",      uz: "Do'konlar" } },
+  "/products":          { title: { ru: "Товары",        uz: "Mahsulotlar" } },
+  "/catalog":           { title: { ru: "Каталог",       uz: "Katalog" } },
+  "/orders":            { title: { ru: "Заказы",        uz: "Buyurtmalar" } },
+  "/orders/new":        { title: { ru: "Новый заказ",   uz: "Yangi buyurtma" }, parent: { ru: "Заказы", uz: "Buyurtmalar" }, parentPath: "/orders" },
+  "/warehouse":         { title: { ru: "Склад",         uz: "Ombor" } },
+  "/warehouse-reports": { title: { ru: "Отчёты склада", uz: "Ombor hisobotlari" } },
+  "/audit-log":         { title: { ru: "Аудит-лог",     uz: "Audit jurnali" } },
+  "/arrivals":          { title: { ru: "Приходы",       uz: "Kirim" } },
+  "/pnl":               { title: { ru: "P&L",           uz: "P&L" } },
+  "/salaries":          { title: { ru: "Зарплаты",      uz: "Ish haqi" } },
+  "/users":             { title: { ru: "Пользователи",  uz: "Foydalanuvchilar" } },
+  "/billing":           { title: { ru: "Биллинг",       uz: "To'lov" } },
+  "/settings":          { title: { ru: "Настройки",     uz: "Sozlamalar" } },
+  "/agent":             { title: { ru: "Мой день",      uz: "Mening kunim" } },
+  "/agent/shops":       { title: { ru: "Магазины",      uz: "Do'konlar" } },
+  "/agent/gps":         { title: { ru: "GPS",           uz: "GPS" }, parent: { ru: "Мой день", uz: "Mening kunim" }, parentPath: "/agent" },
+  "/agent/plans":       { title: { ru: "Визиты",        uz: "Tashriflar" } },
+  "/agent/debts":       { title: { ru: "Мои долги",     uz: "Mening qarzlarim" }, parent: { ru: "Мой день", uz: "Mening kunim" }, parentPath: "/agent" },
+  "/deliveries":        { title: { ru: "Доставки",      uz: "Yetkazishlar" } },
+  "/supervisor":        { title: { ru: "Слежение",      uz: "Kuzatuv" } },
+  "/supervisor/plans":  { title: { ru: "Планы",         uz: "Rejalar" }, parent: { ru: "Слежение", uz: "Kuzatuv" }, parentPath: "/supervisor" },
+  "/barcode":           { title: { ru: "Сканер",        uz: "Skaner" } },
+  "/offline-orders":    { title: { ru: "Офлайн",        uz: "Oflayn" } },
 };
 
-function usePageMeta() {
+function usePageMeta(): { title: string; parent?: string; parentPath?: string } {
   const location = useLocation();
-  if (PAGE_META[location.pathname]) return PAGE_META[location.pathname];
+  const { lang } = useLang();
+  // Язык выбирается здесь, а не в трёх местах вызова: иначе каждое из них
+  // обязано знать про пару {ru, uz}, и одно из трёх однажды про неё забудет.
+  const pick = (p: PageTitle) => (lang === "uz" ? p.uz : p.ru);
+
+  const exact = PAGE_META[location.pathname];
+  if (exact) return { title: pick(exact.title), parent: exact.parent && pick(exact.parent), parentPath: exact.parentPath };
+
   const base = "/" + location.pathname.split("/")[1];
   const detail = PAGE_META[base];
-  if (detail) return { title: detail.title, parent: detail.title, parentPath: base };
+  if (detail) return { title: pick(detail.title), parent: pick(detail.title), parentPath: base };
+
   // Заголовок неописанной страницы подставляет вызывающий — из вывески
   // арендатора, а не из названия системы.
   return { title: "" };
