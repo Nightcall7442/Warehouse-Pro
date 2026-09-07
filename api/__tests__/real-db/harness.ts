@@ -72,6 +72,15 @@ const TABLES = [
   // заведёт, оставил бы строки следующему: долг магазина считается в том
   // числе по возвратам, и чужой возврат тихо изменил бы чужой ответ.
   "return_items", "returns", "order_adjustments",
+  // Планы продаж и визиты: по ним считается выполнение плана агента, и
+  // оставленный чужой план сдвинул бы чужой процент.
+  "sales_targets", "daily_plans",
+  // Погрузочные листы: по ним проверяется, что заказ не собирают дважды, и
+  // забытый лист прошлого теста запретил бы законную сборку в следующем.
+  "loading_list_orders", "loading_lists",
+  // Связи с 1С: по ним отличают повтор после таймаута от второго круга
+  // заказа, и чужая связь дала бы отказ на ровном месте.
+  "id_mappings",
 ];
 
 /**
@@ -134,6 +143,16 @@ export interface Seeded {
   shopId: number;
   productId: number;
   warehouseId: number;
+  /*
+    Курьер и второй товар появились здесь не для полноты.
+
+    Без курьера нечем выразить состояние, в котором система теряла товар:
+    заказ, прошедший через курьера и проводимый вторично. Без второго товара
+    нечем отличить «пересчитали всё» от «пересчитали первую строку»: заказ из
+    одной позиции проходит и при том, и при другом.
+  */
+  courierId: number;
+  secondProductId: number;
 }
 
 /**
@@ -165,16 +184,28 @@ export async function seed(stock: string = "10.000"): Promise<Seeded> {
     .values({ tenantId, name: "Магазин Альфа" });
   const shopId = Number(shop.insertId);
 
+  const [courier] = await d.insert(schema.users).values({
+    tenantId, name: "Курьер", email: "courier@test.local",
+    passwordHash: "x", role: "courier",
+  });
+  const courierId = Number(courier.insertId);
+
   const [product] = await d.insert(schema.products)
     .values({ tenantId, code: "P-1", name: "Товар", unitPrice: "100.00" });
   const productId = Number(product.insertId);
 
-  await d.insert(schema.warehouseStock).values({
-    tenantId, productId, warehouseId,
-    currentStock: stock, reserved: "0.000", available: stock,
-  });
+  const [second] = await d.insert(schema.products)
+    .values({ tenantId, code: "P-2", name: "Второй товар", unitPrice: "250.00" });
+  const secondProductId = Number(second.insertId);
 
-  return { tenantId, otherTenantId, agentId, shopId, productId, warehouseId };
+  // Остаток по обоим товарам одинаковый: разница между ними должна идти от
+  // теста, а не от стенда.
+  await d.insert(schema.warehouseStock).values([
+    { tenantId, productId, warehouseId, currentStock: stock, reserved: "0.000", available: stock },
+    { tenantId, productId: secondProductId, warehouseId, currentStock: stock, reserved: "0.000", available: stock },
+  ]);
+
+  return { tenantId, otherTenantId, agentId, shopId, productId, warehouseId, courierId, secondProductId };
 }
 
 /** Остаток товара как он лежит в базе — для проверки инварианта. */

@@ -1,11 +1,11 @@
 import { z } from "zod";
 import { createRouter, operatorQuery, authedQuery, supervisorQuery, managementQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { salesTargets, users, orders, dailyPlans } from "@db/schema";
-import { eq, and, gte, lte, sql, desc, inArray, type SQL, isNull } from "drizzle-orm";
-import { REVENUE_ORDER_STATUSES } from "./lib/order-status";
+import { salesTargets, users } from "@db/schema";
+import { eq, and, sql, desc } from "drizzle-orm";
 import { cache, CacheKeys } from "./lib/cache";
 import { suggestQuotas } from "./services/quota-suggest";
+import { actualsForTargets } from "./services/sales-target-actuals";
 
 export const salesTargetRouter = createRouter({
   // List sales targets for a period
@@ -31,7 +31,7 @@ export const salesTargetRouter = createRouter({
       if (input?.dateFrom) conditions.push(sql`${salesTargets.periodStart} >= ${input.dateFrom}`);
       if (input?.dateTo) conditions.push(sql`${salesTargets.periodEnd} <= ${input.dateTo}`);
 
-      return db.select({
+      const rows = await db.select({
         id: salesTargets.id,
         userId: salesTargets.userId,
         userName: users.name,
@@ -41,16 +41,36 @@ export const salesTargetRouter = createRouter({
         periodStart: salesTargets.periodStart,
         periodEnd: salesTargets.periodEnd,
         targetAmount: salesTargets.targetAmount,
-        actualAmount: salesTargets.actualAmount,
         orderCountTarget: salesTargets.orderCountTarget,
         visitTarget: salesTargets.visitTarget,
-        actualOrderCount: salesTargets.actualOrderCount,
-        actualVisitPct: salesTargets.actualVisitPct,
         notes: salesTargets.notes,
       }).from(salesTargets)
         .leftJoin(users, eq(salesTargets.userId, users.id))
         .where(and(...conditions))
         .orderBy(desc(salesTargets.periodStart));
+
+      /*
+        Выполнение считается сейчас, а не читается из колонок actual_*.
+
+        Их заполняет только recalculateActuals, а зовёт её ровно никто: ручка
+        есть, кнопки нет ни в вебе, ни в мобильном. То есть в колонках стояли
+        умолчания — нули. Агент у себя видел «выполнено на 80 %» (myQuota
+        считает вживую), начальник в тот же час видел ноль, и ни один экран не
+        сообщал, что числа разной свежести.
+
+        Имена полей прежние: мобильное приложение читает их по именам.
+      */
+      const actuals = await actualsForTargets(db, ctx.tenant.id, rows.map(r => r.id));
+
+      return rows.map(r => {
+        const a = actuals.get(r.id);
+        return {
+          ...r,
+          actualAmount: (a?.revenue ?? 0).toFixed(2),
+          actualOrderCount: a?.orderCount ?? 0,
+          actualVisitPct: (a?.visitPct ?? 0).toFixed(2),
+        };
+      });
     }),
 
   // Create or update sales target
@@ -181,48 +201,28 @@ export const salesTargetRouter = createRouter({
           sql`${salesTargets.periodEnd} <= ${input.periodEnd}`,
         ));
 
+      /*
+        Тот же счёт, что и у экранов, — и это главное здесь.
+
+        Раньше эта ручка считала по-своему: два запроса на каждый план, свои
+        границы периода, свой разбор визитов. Экраны читали её колонки, а агент
+        видел третье число, посчитанное в myQuota. Расхождение между тремя
+        расчётами одного и того же нельзя ни объяснить, ни проверить.
+
+        Снимок в колонках больше никем не читается: list и summary считают
+        вживую. Он остаётся как след «на какой момент сходилось» и обновляется
+        одним и тем же счётом — иначе рано или поздно его кто-нибудь прочтёт и
+        получит своё, четвёртое число.
+      */
+      const actuals = await actualsForTargets(db, ctx.tenant.id, targets.map(t => t.id));
+
       for (const target of targets) {
-        // periodEnd arrives from a DATE column as a Date at midnight, so the
-        // upper bound has to be moved to the end of that day — otherwise the
-        // whole of the target's last day falls outside the range.
-        const periodEndOfDay = new Date(target.periodEnd);
-        periodEndOfDay.setHours(23, 59, 59, 999);
-
-        const conditions = [
-          eq(orders.tenantId, ctx.tenant.id), isNull(orders.deletedAt),
-          eq(orders.agentId, target.userId),
-          inArray(orders.status, REVENUE_ORDER_STATUSES),
-          gte(orders.createdAt, target.periodStart),
-          lte(orders.createdAt, periodEndOfDay),
-        ];
-        if (target.shopId) conditions.push(eq(orders.shopId, target.shopId));
-
-        // Revenue + order count
-        const [orderStats] = await db.select({
-          total: sql<string>`COALESCE(SUM(CAST(${orders.total} AS DECIMAL(15,2))), 0)`,
-          count: sql<string>`COUNT(*)`,
-        }).from(orders).where(and(...conditions));
-
-        // Visit completion %
-        const [visitStats] = await db.select({
-          total: sql<string>`COUNT(*)`,
-          completed: sql<string>`SUM(CASE WHEN ${dailyPlans.status} = 'visited' THEN 1 ELSE 0 END)`,
-        }).from(dailyPlans).where(and(
-          eq(dailyPlans.tenantId, ctx.tenant.id),
-          eq(dailyPlans.agentId, target.userId),
-          gte(dailyPlans.planDate, target.periodStart),
-          lte(dailyPlans.planDate, target.periodEnd),
-        ));
-
-        const visitPct = Number(visitStats.total) > 0
-          ? (Number(visitStats.completed) / Number(visitStats.total)) * 100
-          : 0;
-
+        const a = actuals.get(target.id);
         await db.update(salesTargets)
           .set({
-            actualAmount: orderStats.total,
-            actualOrderCount: Number(orderStats.count),
-            actualVisitPct: visitPct.toFixed(2),
+            actualAmount: (a?.revenue ?? 0).toFixed(2),
+            actualOrderCount: a?.orderCount ?? 0,
+            actualVisitPct: (a?.visitPct ?? 0).toFixed(2),
           })
           .where(eq(salesTargets.id, target.id));
       }
@@ -245,9 +245,9 @@ export const salesTargetRouter = createRouter({
       const db = getDb();
       const now = input?.month ? new Date(input.month) : new Date();
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
-      const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split("T")[0];
 
       const [target] = await db.select({
+        id: salesTargets.id,
         shopId: salesTargets.shopId,
         periodEnd: salesTargets.periodEnd,
         targetAmount: salesTargets.targetAmount,
@@ -264,55 +264,27 @@ export const salesTargetRouter = createRouter({
 
       if (!target) return null;
 
-      // Progress is computed here rather than read from the stored actual_*
-      // columns. Those are only ever filled in by recalculateActuals, which an
-      // operator has to trigger by hand — so an agent opening their own plan
-      // would be shown whatever was last computed, quite possibly zero, which
-      // is worse than showing nothing. The stored columns still serve the
-      // operator-facing list views, where one query covers every agent.
-      const periodEnd = target.periodEnd ?? monthEnd;
-      // periodEnd arrives from a DATE column as a Date at midnight, so the upper
-      // bound has to be moved to the end of that day — otherwise every order
-      // placed on the last day of the plan falls outside the range.
-      const periodEndOfDay = new Date(periodEnd);
-      periodEndOfDay.setHours(23, 59, 59, 999);
-      // Dates are compared through sql`` rather than gte/lte: these columns are
-      // timestamps and the bounds are date strings, which is the idiom the rest
-      // of the codebase (OrderService.list) already uses for exactly this.
-      const orderConditions: SQL[] = [
-        eq(orders.tenantId, ctx.tenant.id), isNull(orders.deletedAt),
-        eq(orders.agentId, ctx.user.id),
-        inArray(orders.status, REVENUE_ORDER_STATUSES),
-        sql`${orders.createdAt} >= ${monthStart}`,
-        sql`${orders.createdAt} <= ${periodEndOfDay}`,
-      ];
-      if (target.shopId) orderConditions.push(eq(orders.shopId, target.shopId));
+      /*
+        Выполнение считается тем же счётом, что и на экранах начальника.
 
-      const [[orderStats], [visitStats]] = await Promise.all([
-        db.select({
-          total: sql<string>`COALESCE(SUM(CAST(${orders.total} AS DECIMAL(15,2))), 0)`,
-          count: sql<string>`COUNT(*)`,
-        }).from(orders).where(and(...orderConditions)),
-        db.select({
-          total: sql<string>`COUNT(*)`,
-          completed: sql<string>`SUM(CASE WHEN ${dailyPlans.status} = 'visited' THEN 1 ELSE 0 END)`,
-        }).from(dailyPlans).where(and(
-          eq(dailyPlans.tenantId, ctx.tenant.id),
-          eq(dailyPlans.agentId, ctx.user.id),
-          sql`${dailyPlans.planDate} >= ${monthStart}`,
-          sql`${dailyPlans.planDate} <= ${periodEnd}`,
-        )),
-      ]);
+        Здесь стоял свой расчёт: свои границы периода, свой разбор визитов,
+        свои два запроса. Начальник читал колонки actual_*, которые никто не
+        заполняет, — и видел ноль там, где агент видел восемьдесят процентов.
+        Пока расчёта было два, спорить об этом можно было бесконечно.
+
+        Границы периода берутся из самой строки плана — так же, как в общем
+        счёте. Прежний запасной вариант «periodEnd ?? конец месяца» был мёртв:
+        колонка period_end объявлена NOT NULL.
+      */
+      const actuals = await actualsForTargets(db, ctx.tenant.id, [target.id]);
+      const a = actuals.get(target.id);
 
       const revenueTarget = Number(target.targetAmount);
-      const revenueActual = Number(orderStats?.total ?? 0);
+      const revenueActual = a?.revenue ?? 0;
       const orderTarget = target.orderCountTarget ?? 0;
-      const orderActual = Number(orderStats?.count ?? 0);
+      const orderActual = a?.orderCount ?? 0;
       const visitTgt = target.visitTarget ? Number(target.visitTarget) : 0;
-      const plannedVisits = Number(visitStats?.total ?? 0);
-      const visitAct = plannedVisits > 0
-        ? (Number(visitStats?.completed ?? 0) / plannedVisits) * 100
-        : 0;
+      const visitAct = a?.visitPct ?? 0;
 
       return {
         revenue: {
@@ -354,14 +326,12 @@ export const salesTargetRouter = createRouter({
       const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split("T")[0];
 
       const targets = await db.select({
+        id: salesTargets.id,
         userId: salesTargets.userId,
         userName: users.name,
         targetAmount: salesTargets.targetAmount,
-        actualAmount: salesTargets.actualAmount,
         orderCountTarget: salesTargets.orderCountTarget,
-        actualOrderCount: salesTargets.actualOrderCount,
         visitTarget: salesTargets.visitTarget,
-        actualVisitPct: salesTargets.actualVisitPct,
       }).from(salesTargets)
         .leftJoin(users, eq(salesTargets.userId, users.id))
         .where(and(
@@ -371,17 +341,29 @@ export const salesTargetRouter = createRouter({
           sql`${salesTargets.periodEnd} <= ${monthEnd}`,
         ));
 
-      return targets.map(t => ({
-        ...t,
-        revenueCompletion: Number(t.targetAmount) > 0
-          ? Math.round((Number(t.actualAmount) / Number(t.targetAmount)) * 100)
-          : 0,
-        orderCompletion: t.orderCountTarget && Number(t.orderCountTarget) > 0
-          ? Math.round((Number(t.actualOrderCount) / Number(t.orderCountTarget)) * 100)
-          : null,
-        visitCompletion: t.visitTarget && Number(t.visitTarget) > 0
-          ? Number(t.actualVisitPct)
-          : null,
-      }));
+      // Те же живые числа, что и в list, и по той же причине — см. там.
+      const actuals = await actualsForTargets(db, ctx.tenant.id, targets.map(t => t.id));
+
+      return targets.map(t => {
+        const a = actuals.get(t.id);
+        const actualAmount = (a?.revenue ?? 0).toFixed(2);
+        const actualOrderCount = a?.orderCount ?? 0;
+        const actualVisitPct = (a?.visitPct ?? 0).toFixed(2);
+        return {
+          ...t,
+          actualAmount,
+          actualOrderCount,
+          actualVisitPct,
+          revenueCompletion: Number(t.targetAmount) > 0
+            ? Math.round((Number(actualAmount) / Number(t.targetAmount)) * 100)
+            : 0,
+          orderCompletion: t.orderCountTarget && Number(t.orderCountTarget) > 0
+            ? Math.round((actualOrderCount / Number(t.orderCountTarget)) * 100)
+            : null,
+          visitCompletion: t.visitTarget && Number(t.visitTarget) > 0
+            ? Number(actualVisitPct)
+            : null,
+        };
+      });
     }),
 });
