@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { AppModal, modalSectionLabel } from "@/components/ui/AppModal";
-import { Download, Printer, Loader2 } from "lucide-react";
+import { Printer, Loader2 } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { printLoadingList, type LoadingListData } from "@/lib/documents";
@@ -83,9 +83,6 @@ export function LoadingListModal({ open, onOpenChange, orderIds, onDone }: Props
           <button type="button" onClick={handlePrint} disabled={!result} className="neo-btn-primary flex-1 h-12 text-sm">
             <Printer size={16} />{t("Печать", "Chop etish")}
           </button>
-          <button type="button" onClick={handlePrint} disabled={!result} className="neo-btn flex-1 h-12 text-sm">
-            <Download size={16} />{t("Скачать PDF", "PDF yuklab olish")}
-          </button>
           <button type="button" onClick={() => onOpenChange(false)} className="neo-btn flex-1 h-12 text-sm">
             {t("Отмена", "Bekor qilish")}
           </button>
@@ -151,6 +148,20 @@ export function LoadingListModal({ open, onOpenChange, orderIds, onDone }: Props
             </div>
           </div>
         )}
+
+        {/*
+          Здесь стояла вторая кнопка, «Сохранить PDF», и делала ровно то же, что
+          первая: открывала диалог печати. Человек жал её и решал, что
+          скачивание сломано.
+        
+          Файл из этого окна берётся — в списке принтеров есть «Сохранить как
+          PDF», и он даёт настоящий PDF с текстом, который ищется и
+          выделяется. Об этом нигде не было сказано, поэтому сказано здесь.
+        */}
+        <p className="text-xs" style={{ color: "var(--color-text-tertiary)" }}>
+          {t("Чтобы получить файл, выберите в окне печати принтер «Сохранить как PDF».",
+             "Fayl olish uchun chop etish oynasida «PDF sifatida saqlash» printerini tanlang.")}
+        </p>
       </div>
     </AppModal>
   );

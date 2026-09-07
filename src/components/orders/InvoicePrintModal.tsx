@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { AppModal, modalSectionLabel } from "@/components/ui/AppModal";
-import { Printer, Download, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, AlertTriangle, Loader2, Wallet } from "lucide-react";
+import { Printer, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, AlertTriangle, Loader2, Wallet } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { printBatchInvoices, type BatchOrderData, type BatchPrintOptions } from "@/lib/documents";
@@ -82,12 +82,6 @@ export function InvoicePrintModal({ open, onOpenChange, orderIds, onDone }: Prop
     onOpenChange(false);
   };
 
-  const handleSavePDF = () => {
-    handlePrint(); // Same flow — browser print dialog with "Save as PDF"
-    onDone();
-    onOpenChange(false);
-  };
-
   // Problem detection
   const getProblems = (order: BatchOrderData): string[] => {
     const problems: string[] = [];
@@ -124,9 +118,6 @@ export function InvoicePrintModal({ open, onOpenChange, orderIds, onDone }: Prop
               которую арендатор отдаёт своему покупателю. */}
           <button type="button" onClick={handlePrint} disabled={!result || !isReady} className="neo-btn-primary flex-1 h-12 text-sm">
             <Printer size={16} />{t("Печать", "Chop etish")}
-          </button>
-          <button type="button" onClick={handleSavePDF} disabled={!result || !isReady} className="neo-btn flex-1 h-12 text-sm">
-            <Download size={16} />{t("Сохранить PDF", "PDF saqlash")}
           </button>
           <button type="button" onClick={() => onOpenChange(false)} className="neo-btn flex-1 h-12 text-sm">
             {t("Отмена", "Bekor qilish")}
@@ -324,6 +315,20 @@ export function InvoicePrintModal({ open, onOpenChange, orderIds, onDone }: Prop
             </div>
           </div>
         )}
+
+        {/*
+          Здесь стояла вторая кнопка, «Сохранить PDF», и делала ровно то же, что
+          первая: открывала диалог печати. Человек жал её и решал, что
+          скачивание сломано.
+        
+          Файл из этого окна берётся — в списке принтеров есть «Сохранить как
+          PDF», и он даёт настоящий PDF с текстом, который ищется и
+          выделяется. Об этом нигде не было сказано, поэтому сказано здесь.
+        */}
+        <p className="text-xs" style={{ color: "var(--color-text-tertiary)" }}>
+          {t("Чтобы получить файл, выберите в окне печати принтер «Сохранить как PDF».",
+             "Fayl olish uchun chop etish oynasida «PDF sifatida saqlash» printerini tanlang.")}
+        </p>
       </div>
     </AppModal>
   );
