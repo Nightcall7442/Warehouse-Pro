@@ -41,8 +41,19 @@ export const MerchandiserService = {
       competitorNotes: input.competitorNotes,
     });
 
+    /*
+      Время визита ставится вместе со статусом.
+
+      Отметить визит можно тремя путями: «без фото» (agent.updatePlanStatus),
+      «с фото» (agent.saveVisitPhoto) и отчётом мерчандайзера — этим. Время
+      ставил только первый, и колонка «Время визита» в журнале оказывалась
+      заполненной ровно у тех, кто отметился без единого доказательства.
+
+      Отчёт мерчандайзера — самый подробный из трёх: фотографии, чек-лист по
+      выкладке, заметки о конкурентах. И он же оставался без времени.
+    */
     await db.update(dailyPlans)
-      .set({ status: "visited" })
+      .set({ status: "visited", visitedAt: new Date() })
       .where(and(eq(dailyPlans.id, input.planId), eq(dailyPlans.tenantId, tenantId)));
 
     cache.invalidate(CacheKeys.dashboardKpis(tenantId));
