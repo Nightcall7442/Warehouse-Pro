@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useLang } from "@/i18n";
 import { useAuth } from "@/hooks/useAuth";
@@ -8,7 +8,10 @@ import { ru as dateRu } from "date-fns/locale";
 import {
   ChevronLeft, ChevronRight, CheckCircle2,
   Clock, Calendar, MapPin, AlertCircle, PlusCircle, ClipboardList,
+  Camera, Loader2,
 } from "lucide-react";
+import { compressImage } from "@/lib/compress-image";
+import { notify } from "@/lib/toast";
 import { useNavigate } from "react-router";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 
@@ -41,6 +44,44 @@ export default function AgentPlans() {
     onSuccess: () => utils.agent.getPlans.invalidate(),
   });
 
+  /*
+    Отметка визита со снимком.
+
+    Ручка та же, что у приложения (agent.saveVisitPhoto): она и статус ставит,
+    и снимок кладёт, и прогоняет проверку на подлог. Здесь её просто не звали —
+    в вебе кнопки не было вовсе.
+
+    capture="environment" на телефоне открывает заднюю камеру сразу, на
+    настольном браузере остаётся обычным выбором файла: снимок могли сделать и
+    телефоном, а отметить с ноутбука.
+  */
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [photoFor, setPhotoFor] = useState<number | null>(null);
+
+  const savePhoto = trpc.agent.saveVisitPhoto.useMutation({
+    onSuccess: () => {
+      utils.agent.getPlans.invalidate();
+      notify.success(t("Визит отмечен с фото", "Tashrif foto bilan belgilandi"));
+    },
+    onError: (e) => notify.error(e.message),
+    onSettled: () => setPhotoFor(null),
+  });
+
+  const handlePhotoFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || photoFor == null) { setPhotoFor(null); return; }
+    try {
+      // Сжатие обязательно: камера телефона отдаёт снимок на несколько
+      // мегабайт, а ручка принимает не больше пяти и хранит строку в базе.
+      const dataUrl = await compressImage(file);
+      savePhoto.mutate({ planId: photoFor, photoUrl: dataUrl });
+    } catch {
+      notify.error(t("Не удалось обработать снимок", "Rasmni qayta ishlab bo'lmadi"));
+      setPhotoFor(null);
+    }
+  };
+
   const visited = plans?.filter(p => p.status === "visited").length ?? 0;
   const total   = plans?.length ?? 0;
   const pct     = total > 0 ? Math.round((visited / total) * 100) : 0;
@@ -48,6 +89,15 @@ export default function AgentPlans() {
 
   return (
     <div className="space-y-4 max-w-lg mx-auto animate-fade-up">
+      {/* Один выбор файла на всю страницу: какой план снимаем, помнит photoFor. */}
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={handlePhotoFile}
+        style={{ display: "none" }}
+      />
 
       {/* Заголовок */}
       <div className="flex items-center justify-between">
@@ -223,11 +273,22 @@ export default function AgentPlans() {
                               <>
                                 <button
                                   onClick={() => update.mutate({ planId: plan.id, status: "visited" })}
-                                  disabled={update.isPending}
+                                  disabled={update.isPending || savePhoto.isPending}
                                   className="neo-btn-primary tap flex-1 text-xs flex items-center justify-center gap-1.5"
                                 >
                                   <CheckCircle2 size={13} />
                                   {t("Отметить", "Belgilash")}
+                                </button>
+                                {/* Отметить со снимком — то же действие, но с доказательством. */}
+                                <button
+                                  onClick={() => { setPhotoFor(plan.id); fileRef.current?.click(); }}
+                                  disabled={update.isPending || savePhoto.isPending}
+                                  title={t("Отметить с фото", "Foto bilan belgilash")}
+                                  className="neo-btn py-2 px-3 text-xs flex items-center gap-1"
+                                >
+                                  {savePhoto.isPending && photoFor === plan.id
+                                    ? <Loader2 size={13} className="animate-spin" />
+                                    : <Camera size={13} />}
                                 </button>
                                 <button
                                   onClick={() => navigate(`/orders/new?shopId=${plan.shopId ?? ""}`)}
