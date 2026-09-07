@@ -2349,9 +2349,76 @@ export const OrderService = {
       .leftJoin(users, eq(orders.agentId, users.id))
       .leftJoin(territories, eq(shops.territoryId, territories.id))
       .leftJoin(couriers, eq(orders.courierId, couriers.id))
-      .where(and(eq(orders.tenantId, tenantId), inArray(orders.id, input.orderIds)));
+      // Удалённые заказы фильтра не имели вовсе. Удаление — штатный способ
+      // исправить ошибку ввода: заказ пропадает из списка и из долга магазина,
+      // а в погрузочный лист попадал по-прежнему, и склад собирал товар,
+      // которого никто не ждёт.
+      .where(and(eq(orders.tenantId, tenantId), inArray(orders.id, input.orderIds), isNull(orders.deletedAt)));
 
     if (ordersData.length === 0) throw new Error("Заказы не найдены");
+
+    /*
+      ── Один заказ не собирают дважды ──────────────────────────────────────────
+
+      Проверок здесь не было ни одной: список идентификаторов принимался как
+      есть. Отсюда три беды, и все три видны только на складе.
+
+      1. Удалённый заказ попадал в лист (фильтр выше).
+
+      2. Закрытый заказ попадал в лист. Товар по нему уже уехал, отменён или
+         вернулся — собирать нечего, а кладовщик собирал.
+
+      3. Заказ попадал во ВТОРОЙ лист, оставаясь в первом. Так выходит после
+         возврата заказа из архива в работу: первый лист ещё не закрыт, заказ
+         в нём есть, и новый лист велит собрать то же самое ещё раз. Товар со
+         склада уходит дважды, а расхождение всплывает при пересчёте остатков
+         недели через две.
+
+      Отказ, а не тихий пропуск: оператор выбрал эти заказы осознанно, и
+      молча собрать не все — значит отправить машину с недогрузом, ничего об
+      этом не сказав.
+    */
+    const found = new Map(ordersData.map(o => [o.id, o]));
+    const missing = input.orderIds.filter(id => !found.has(id));
+    if (missing.length > 0) {
+      throw badRequest(
+        `Не найдены или удалены заказы: ${missing.join(", ")}. Обновите список и выберите заново.`,
+      );
+    }
+
+    const closed = ordersData.filter(o => !holdsStock(o.status));
+    if (closed.length > 0) {
+      const names = closed.map(o => `${o.orderNumber} (${ORDER_STATUS_LABELS[o.status as keyof typeof ORDER_STATUS_LABELS] ?? o.status})`);
+      throw badRequest(
+        `Эти заказы уже закрыты, собирать по ним нечего: ${names.join(", ")}. ` +
+        `Уберите их из выбора или верните в работу.`,
+      );
+    }
+
+    /*
+      Незакрытый лист — это ещё не отгруженный лист: preparing, ready, loading,
+      loaded. Доставленный в счёт не идёт: по нему товар уже уехал, и второй
+      круг заказа собирают заново на законных основаниях.
+    */
+    const alreadyListed = await db.select({
+      orderId: loadingListOrders.orderId,
+      listNumber: loadingLists.listNumber,
+      status: loadingLists.status,
+    }).from(loadingListOrders)
+      .innerJoin(loadingLists, eq(loadingListOrders.listId, loadingLists.id))
+      .where(and(
+        eq(loadingLists.tenantId, tenantId),
+        inArray(loadingListOrders.orderId, input.orderIds),
+      ));
+
+    const stillOpen = alreadyListed.filter(r => r.status !== "delivered");
+    if (stillOpen.length > 0) {
+      const names = stillOpen.map(r => `${found.get(r.orderId)?.orderNumber ?? r.orderId} — лист ${r.listNumber}`);
+      throw badRequest(
+        `Эти заказы уже стоят в незакрытом погрузочном листе: ${names.join("; ")}. ` +
+        `Склад собрал бы их дважды. Закройте прежний лист или уберите заказы из выбора.`,
+      );
+    }
 
     // Fetch items aggregated
     const items = await db.select({
