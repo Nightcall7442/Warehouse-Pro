@@ -32,6 +32,7 @@ function renderRail(over: Partial<Parameters<typeof AgentRail>[0]> = {}) {
   return render(
     <AgentRail
       rows={[]}
+      day={new Map()}
       silentCount={0}
       filtered={false}
       onResetFilter={() => {}}

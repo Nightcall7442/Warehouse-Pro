@@ -1,10 +1,9 @@
-/** Haversine distance between two GPS points in kilometers */
-export function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 6371;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLng = ((lng2 - lng1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
+/**
+ * Формула переехала в contracts/geo.ts.
+ *
+ * Считать расстояние понадобилось и экрану слежения: он складывает дневной
+ * пробег по тем же точкам, что и сервер. Две копии одной формулы — это два
+ * разных километража на одну поездку, и объяснить, какой верный, было бы
+ * нечем. Здесь остаётся имя, которым её зовут восемь мест в api.
+ */
+export { haversineKm, pathLengthKm } from "@contracts/geo";

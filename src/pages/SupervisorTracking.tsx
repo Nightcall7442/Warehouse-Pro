@@ -13,6 +13,10 @@ import {
 import { buildRoster, timeAgo, STATE_TINT, type TrackedState } from "@/components/tracking/agent-roster";
 import { visiblePins, boundsOf } from "@/components/tracking/map-declutter";
 import { AgentRail } from "@/components/tracking/AgentRail";
+import { AgentDayPanel } from "@/components/tracking/AgentDayPanel";
+import { buildAgentDays } from "@/components/tracking/agent-day";
+import { drawTrail } from "@/lib/tracking-motion";
+import { pathLengthKm } from "@contracts/geo";
 
 /**
  * ЧТО ЭТО ЗА ЭКРАН
@@ -115,6 +119,21 @@ export default function SupervisorTracking() {
     staleTime: 5 * 60_000,
   });
   const shopScores = shopsQuery.data;
+
+  /*
+    День агентов: визиты, снимки и нормы.
+
+    Один запрос на всех — getPlans без agentId отдаёт планы всей организации
+    за дату, вместе с agentId, статусом, временем визита и ссылкой на
+    фотоотчёт. Спрашивать по агенту значило бы десяток запросов на открытие
+    экрана, который и так опрашивается каждые тридцать секунд.
+
+    Обновляется реже карты: план на день составляют утром, и визит отмечают
+    руками — минуты здесь достаточно, а точки нужны каждые полминуты.
+  */
+  const today = format(new Date(), "yyyy-MM-dd");
+  const plansQuery = trpc.agent.getPlans.useQuery({ date: today }, { refetchInterval: 60_000 });
+  const normsQuery = trpc.salesTarget.summary.useQuery(undefined, { staleTime: 5 * 60_000 });
 
   const [showShops, setShowShops] = useState(true);
   const [filter, setFilter] = useState<TrackedState | "all">("all");
@@ -466,6 +485,109 @@ export default function SupervisorTracking() {
     return clear;
   }, [placedShops, showShops, mapReady, fmt]);
 
+  /**
+   * День каждого агента — из планов и норм, по одному разу на приход данных.
+   *
+   * Ключ — agentId, потому что и планы, и нормы приходят на него. Агент без
+   * плана на сегодня в карте отсутствует, и панель об этом скажет словами:
+   * «плана на день нет» — это ответ, а ноль из нуля им не был бы.
+   */
+  /**
+   * День каждого агента — из планов, по одному разу на приход данных.
+   *
+   * Сама сборка вынесена в agent-day.ts: это единственное место экрана, где
+   * что-то считается, а не рисуется, и проверять её на странице целиком
+   * значило бы поднимать tRPC, карту и Яндекс ради одного цикла.
+   */
+  const dayByAgent = useMemo(
+    () => buildAgentDays(plansQuery.data, t("Магазин", "Do'kon")),
+    [plansQuery.data, t],
+  );
+
+  const normByAgent = useMemo(() => {
+    const map = new Map<number, number>();
+    for (const row of normsQuery.data ?? []) map.set(row.userId, row.revenueCompletion);
+    return map;
+  }, [normsQuery.data]);
+
+  /** То же, что нужно строке списка: обход и норма без снимков. */
+  const railDay = useMemo(() => {
+    const map = new Map<number, { visited: number; planned: number; normPct: number | null }>();
+    for (const [agentId, d] of dayByAgent) {
+      map.set(agentId, { visited: d.visited, planned: d.planned, normPct: normByAgent.get(agentId) ?? null });
+    }
+    return map;
+  }, [dayByAgent, normByAgent]);
+
+  /*
+    Маршрут выбранного агента за сегодня.
+
+    Запрашивается только когда кого-то выбрали: точек за день у одного
+    человека несколько сотен, и тянуть их на всех разом незачем — линия
+    рисуется по одному.
+  */
+  const trailQuery = trpc.agent.getTrail.useQuery(
+    { agentId: selected ?? 0, date: today },
+    { enabled: selected != null, refetchInterval: 60_000 },
+  );
+
+  /** Точки маршрута в том виде, в каком их принимает карта. */
+  const trailPoints = useMemo(() => {
+    return (trailQuery.data ?? [])
+      .map(p => [Number(p.lat), Number(p.lng)] as [number, number])
+      .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
+  }, [trailQuery.data]);
+
+  // Пройдено за день — по тем же точкам, что рисуют линию, и той же формулой,
+  // что считает расстояние сервер: иначе на одну поездку вышло бы два разных
+  // километража.
+  const trailKm = useMemo(() => pathLengthKm(trailPoints), [trailPoints]);
+
+  /*
+    Линия маршрута на карте, прочерчивается от начала дня к текущей точке.
+
+    Рисуется одним объектом, который перестраивается по мере прорисовки:
+    добавлять по точке отдельными объектами значило бы класть на карту
+    несколько сотен геообъектов и ронять её на телефоне.
+
+    Прорисовка останавливается при смене выбора: иначе две анимации по
+    очереди перестраивали бы один и тот же объект.
+  */
+  const trailRef = useRef<YandexPolyline | null>(null);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+
+    const clear = () => {
+      if (trailRef.current) {
+        map.geoObjects.remove(trailRef.current);
+        trailRef.current = null;
+      }
+    };
+    clear();
+    if (selected == null || trailPoints.length < 2) return;
+
+    const ymaps = window.ymaps;
+    if (!ymaps) return;
+
+    const line = new ymaps.Polyline([], {}, {
+      strokeColor: cssVar("--color-primary", "#3b6ea5"),
+      strokeWidth: 4,
+      strokeOpacity: 0.75,
+      // Линия уходит под метки: маршрут — это фон для точек, а не наоборот.
+      zIndex: 100,
+    });
+    map.geoObjects.add(line);
+    trailRef.current = line;
+
+    const anim = drawTrail(progress => {
+      const upto = Math.max(2, Math.round(trailPoints.length * progress));
+      line.geometry.setCoordinates(trailPoints.slice(0, upto));
+    });
+
+    return () => { anim.cancel(); clear(); };
+  }, [selected, trailPoints, mapReady]);
+
   // Центрирование на выбранном агенте — только при смене выбора. Метки
   // приходят каждые тридцать секунд; зависи эффект от них, карта
   // возвращалась бы к агенту на каждом опросе, пока человек её двигает.
@@ -665,10 +787,38 @@ export default function SupervisorTracking() {
             <div ref={mapDivRef} style={{ width: "100%", height: MAP_HEIGHT, position: "relative", zIndex: 0 }} />
           )}
 
+          {/*
+            День выбранного агента — правым нижним углом карты.
+
+            Справа, а не слева: слева уже лежит список, и две панели по одному
+            краю сложились бы в колонку, отобрав у карты половину. Внизу, а не
+            вверху: сверху над картой идёт строка отбора и легенда.
+          */}
+          {selected != null && (
+            <div className="mt-3 lg:mt-0 lg:absolute lg:right-3 lg:bottom-3 lg:w-[280px] lg:z-10">
+              <AgentDayPanel
+                name={visibleRows.find(r => r.id === selected)?.name
+                  ?? `${t("Агент", "Agent")} #${selected}`}
+                loading={plansQuery.isLoading}
+                onPhotoOpen={url => window.open(url, "_blank", "noopener,noreferrer")}
+                t={t}
+                day={{
+                  visited: dayByAgent.get(selected)?.visited ?? 0,
+                  planned: dayByAgent.get(selected)?.planned ?? 0,
+                  photos: dayByAgent.get(selected)?.photos ?? [],
+                  normPct: normByAgent.get(selected) ?? null,
+                  battery: visibleRows.find(r => r.id === selected)?.batteryLevel ?? null,
+                  distanceKm: trailKm,
+                }}
+              />
+            </div>
+          )}
+
           {/* Список агентов лежит НА карте, а не отбирает у неё треть ширины.
               На узком экране он уходит под карту обычным блоком. */}
           <AgentRail
             rows={visibleRows}
+            day={railDay}
             silentCount={counts.silent}
             filtered={filter !== "all"}
             onResetFilter={() => setFilter("all")}
@@ -706,8 +856,8 @@ declare global {
 
   interface YandexMap {
     geoObjects: {
-      add(object: YandexPlacemark): void;
-      remove(object: YandexPlacemark): void;
+      add(object: YandexPlacemark | YandexPolyline): void;
+      remove(object: YandexPlacemark | YandexPolyline): void;
       /** null, пока на карте нет ни одного объекта. Нужен CourierDeliveries:
           описание карты здесь общее для всех страниц, и убирать из него метод,
           которым пользуется соседняя, нельзя. */
@@ -730,6 +880,11 @@ declare global {
     };
   }
 
+  /** Ломаная маршрута: геометрия перестраивается по мере прорисовки. */
+  interface YandexPolyline {
+    geometry: { setCoordinates(coords: number[][]): void };
+  }
+
   interface YandexMaps {
     ready(callback: () => void): void;
     Map: new (element: HTMLElement, options: { center: number[]; zoom: number; controls?: string[] }) => YandexMap;
@@ -746,6 +901,16 @@ declare global {
         zIndex?: number;
       },
     ) => YandexPlacemark;
+    Polyline: new (
+      geometry: number[][],
+      properties: Record<string, unknown>,
+      options: {
+        strokeColor?: string;
+        strokeWidth?: number;
+        strokeOpacity?: number;
+        zIndex?: number;
+      },
+    ) => YandexPolyline;
   }
 
   interface Window {
