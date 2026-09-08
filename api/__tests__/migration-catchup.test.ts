@@ -80,8 +80,12 @@ async function makeFolder() {
       { idx: 0, when: 1000, tag: "0000_base" },
       { idx: 1, when: 2000, tag: "0001_second" },
       { idx: 2, when: 3000, tag: "0002_third" },
+      { idx: 3, when: 4000, tag: "0003_backfill" },
     ],
   }), "utf8");
+  // Схема плюс перепись данных — та же пара, что в 0007_support_threads.
+  await writeFile(join(dir, "0003_backfill.sql"),
+    "CREATE TABLE t (id int);\n--> statement-breakpoint\nINSERT INTO t SELECT id FROM a;", "utf8");
   await writeFile(join(dir, "0000_base.sql"), "CREATE TABLE a (id int);", "utf8");
   await writeFile(join(dir, "0001_second.sql"),
     "ALTER TABLE a ADD b int;\n--> statement-breakpoint\nALTER TABLE a ADD c int;", "utf8");
@@ -104,18 +108,21 @@ describe("догон применяет пропущенное", () => {
 
     const done = await catchUpMigrations(db as never, folder);
 
-    expect(done, "пропущенные так и не применились").toEqual(["0001_second", "0002_third"]);
+    expect(done, "пропущенные так и не применились")
+      .toEqual(["0001_second", "0002_third", "0003_backfill"]);
     const ddl = db.calls.filter(c => c.kind === "raw").map(c => c.text);
     expect(ddl).toEqual([
       "ALTER TABLE a ADD b int;",
       "ALTER TABLE a ADD c int;",
       "ALTER TABLE a ADD d int;",
+      "CREATE TABLE t (id int);",
+      "INSERT INTO t SELECT id FROM a;",
     ]);
   });
 
   it("уже применённое не трогает", async () => {
     const { catchUpMigrations } = await import("../lib/migration-catchup");
-    const db = fakeDb([1000, 2000, 3000]);
+    const db = fakeDb([1000, 2000, 3000, 4000]);
     expect(await catchUpMigrations(db as never, folder)).toEqual([]);
     expect(db.calls.filter(c => c.kind === "raw")).toHaveLength(0);
   });
@@ -152,14 +159,58 @@ describe("что догон прощает, а что нет", () => {
 
     const done = await catchUpMigrations(db as never, folder);
 
-    expect(done).toEqual(["0001_second", "0002_third"]);
+    expect(done).toEqual(["0001_second", "0002_third", "0003_backfill"]);
     // Файл дочитан до конца: второе выражение выполнено, несмотря на отказ первого.
     expect(db.calls.some(c => c.text === "ALTER TABLE a ADD c int;")).toBe(true);
   });
 
-  it("настоящая ошибка останавливает запуск", async () => {
+  it("код виден и через обёртку drizzle", async () => {
+    /*
+      Главное здесь. Drizzle заворачивает ошибку MySQL в свой DrizzleQueryError,
+      у которого errno нет — он лежит на причине. Пока проход смотрел только
+      верхний уровень, список прощаемых кодов не срабатывал НИ РАЗУ, и первая
+      выкладка отказалась стартовать: `support_threads` в базе уже была, ошибка
+      пришла с 1050 внутри обёртки, а проход её не разглядел.
+    */
+    const { catchUpMigrations } = await import("../lib/migration-catchup");
+    const db = {
+      execute: vi.fn(async (q: { __raw?: string; __tag?: string }) => {
+        if (q.__tag && /SELECT created_at/i.test(q.__tag)) return [[{ created_at: 1000 }], undefined];
+        if (q.__raw?.includes("ADD b")) {
+          const inner = new Error("Duplicate column name 'b'") as Error & { errno: number };
+          inner.errno = 1060;
+          throw new Error("Failed query: ...", { cause: inner });
+        }
+        return [[], undefined];
+      }),
+    };
+
+    await expect(catchUpMigrations(db as never, folder))
+      .resolves.toEqual(["0001_second", "0002_third", "0003_backfill"]);
+  });
+
+  it("после прощения перепись данных не повторяется", async () => {
+    /*
+      Файл наносили руками — значит и данные, которые он досыпает, скорее
+      всего досыпаны. Повтор INSERT задвоил бы строки: у 0007 это два потока
+      поддержки на один разговор, каждый со своим сроком хранения.
+
+      Пропущенная миграция поправима, задвоенные данные — нет.
+    */
+    const { catchUpMigrations } = await import("../lib/migration-catchup");
+    const db = fakeDb([1000, 2000, 3000], st => (st.startsWith("CREATE TABLE t") ? 1050 : null));
+
+    await catchUpMigrations(db as never, folder);
+
+    expect(db.calls.some(c => c.text.startsWith("INSERT INTO t")),
+      "перепись выполнилась поверх уже нанесённой вручную").toBe(false);
+  });
+
+  it("настоящая ошибка не проглатывается", async () => {
     // Иначе получился бы мигратор, который всегда «успешен», а схема живёт
-    // своей жизнью — ровно та беда, из-за которой догон и написан.
+    // своей жизнью — ровно та беда, из-за которой догон и написан. Решение,
+    // ронять ли из-за этого запуск, принимает boot.ts (см. ниже) — но узнать
+    // о сбое он должен.
     const { catchUpMigrations } = await import("../lib/migration-catchup");
     const db = fakeDb([1000], st => (st.includes("ADD b") ? 1064 : null));
 
@@ -174,6 +225,22 @@ describe("догон включён в запуск", () => {
 
   it("вызывается при старте", () => {
     expect(boot).toContain("catchUpMigrations");
+  });
+
+  it("его провал не роняет запуск", () => {
+    /*
+      Штатный мигратор применяет то, чего требует НОВЫЙ код: не применилось —
+      работать нельзя, и он валит старт. Догон применяет старое, пропущенное;
+      его неудача означает «осталось как было» — то состояние, в котором
+      продукт только что работал.
+
+      На первой выкладке догон споткнулся на 0007 и увёл в отказ старта весь
+      сервис: вместо одной сломанной страницы стало ноль работающих.
+    */
+    const at = boot.indexOf("await catchUpMigrations(");
+    const around = boot.slice(Math.max(0, at - 200), at + 1600);
+    expect(around).toMatch(/try\s*\{/);
+    expect(around).toContain("продолжаю запуск на прежней схеме");
   });
 
   it("идёт после штатного мигратора и под тем же замком", () => {

@@ -46,6 +46,13 @@ import { logger } from "./logger";
    «желаемое состояние уже достигнуто»: таблица есть, колонка есть, индекс
    есть, удалять нечего. Каждое прощение пишется в лог поимённо.
 
+   И с этого места файл считается нанесённым руками: его перепись данных
+   больше не выполняется. DDL от повтора не портится, а INSERT — портит.
+   0007 создаёт support_threads и следом переносит туда по строке на каждый
+   существующий разговор; повтор дал бы два потока на один разговор, и оба со
+   своим сроком хранения. Пропущенная миграция — беда поправимая, задвоенные
+   данные — нет.
+
    Всё остальное — ошибка: проход бросает её дальше, и запуск прекращается,
    как и прежде. Прощать вообще всё значило бы завести мигратор, который
    всегда «успешен», а схема живёт своей жизнью, — то есть ровно ту беду, из-за
@@ -68,9 +75,33 @@ type Executor = {
   execute: (query: ReturnType<typeof sql.raw> | ReturnType<typeof sql>) => Promise<unknown>;
 };
 
+/**
+ * Достать код MySQL из ошибки.
+ *
+ * Идти по цепочке `cause` обязательно: drizzle заворачивает исходную ошибку в
+ * свой DrizzleQueryError, у которого никакого errno нет — он лежит на причине.
+ * Смотреть только на верхний уровень значило бы не узнать код НИ РАЗУ, то есть
+ * иметь список прощаемых кодов, который не срабатывает никогда. Ровно на этом
+ * первая выкладка догона и отказалась стартовать: `support_threads` в базе уже
+ * была, ошибка пришла с кодом 1050 внутри обёртки, а проход её не разглядел.
+ */
 function errnoOf(e: unknown): number | null {
-  const errno = (e as { errno?: unknown })?.errno;
-  return typeof errno === "number" ? errno : null;
+  for (let cur: unknown = e, depth = 0; cur && depth < 5; depth++) {
+    const errno = (cur as { errno?: unknown }).errno;
+    if (typeof errno === "number") return errno;
+    cur = (cur as { cause?: unknown }).cause;
+  }
+  return null;
+}
+
+/** Текст самой глубокой причины — то, что на самом деле сказал MySQL. */
+function causeTextOf(e: unknown): string {
+  let last = e;
+  for (let cur: unknown = e, depth = 0; cur && depth < 5; depth++) {
+    last = cur;
+    cur = (cur as { cause?: unknown }).cause;
+  }
+  return last instanceof Error ? last.message : String(last);
 }
 
 /**
@@ -112,13 +143,40 @@ export async function catchUpMigrations(
     // Тот же разбор, что у drizzle: файл делится маркером на выражения.
     const statements = file.split("--> statement-breakpoint").map(s => s.trim()).filter(Boolean);
 
+    /*
+      Было ли в этом файле хоть одно «уже такое».
+
+      Если да, файл наносили руками, и данные, которые он досыпает, скорее
+      всего досыпаны тоже. Выполнить после этого его INSERT значило бы
+      ЗАДВОИТЬ строки — а это уже не пропущенная миграция, а испорченные
+      данные. Скажем 0007: он создаёт support_threads и следом переносит в неё
+      по строке на каждый существующий разговор. Повтор дал бы два потока на
+      один разговор, и оба со своим сроком хранения.
+
+      Поэтому после первого прощения переписи данных в этом файле не трогаем.
+      Схему — трогаем: DDL идемпотентен ровно теми кодами, что мы прощаем.
+    */
+    let handMade = false;
+
     for (const statement of statements) {
+      const isSchemaChange = /^\s*(CREATE|ALTER|DROP|RENAME|TRUNCATE)\b/i.test(statement);
+
+      if (handMade && !isSchemaChange) {
+        logger.warn("перепись данных пропущена: файл уже наносили руками", {
+          migration: entry.tag,
+          statement: statement.slice(0, 140),
+          why: "повтор задвоил бы строки",
+        });
+        continue;
+      }
+
       try {
         await db.execute(sql.raw(statement));
       } catch (e) {
         const errno = errnoOf(e);
         if (errno !== null && ALREADY_THERE.has(errno)) {
           // Нанесено руками мимо журнала — отметить и идти дальше.
+          handMade = true;
           logger.warn("часть миграции уже была нанесена — пропускаю", {
             migration: entry.tag, errno,
             statement: statement.slice(0, 140),
@@ -128,6 +186,10 @@ export async function catchUpMigrations(
         logger.error("догоняющая миграция не применилась", {
           migration: entry.tag,
           statement: statement.slice(0, 140),
+          // errno и причина — отдельными полями: у DrizzleQueryError своё
+          // сообщение «Failed query: …», и настоящая причина в нём не видна.
+          errno,
+          cause: causeTextOf(e),
           error: e instanceof Error ? e.message : String(e),
         });
         throw e;
