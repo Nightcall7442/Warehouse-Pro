@@ -63,7 +63,7 @@ export function DebtJournalPanel() {
   const [page, setPage] = useState(1);
   const debouncedSearch = useDebouncedValue(search, 350);
 
-  const { data, isLoading, isLoadingError, refetch } = trpc.shop.debtJournal.useQuery({
+  const { data, isLoading, isLoadingError, error, refetch } = trpc.shop.debtJournal.useQuery({
     dateFrom: from || undefined,
     // Конец дня, а не его начало: иначе движения самого последнего числа
     // выпадали бы из периода, который человек задал «по такое-то число».
@@ -109,7 +109,16 @@ export function DebtJournalPanel() {
   };
 
   if (isLoadingError) {
-    return <SectionNotice kind="error" message={t("Не удалось собрать архив.", "Arxivni yig'ib bo'lmadi.")} onRetry={refetch} />;
+    return (
+      <SectionNotice
+        kind="error"
+        message={[
+          t("Не удалось собрать архив.", "Arxivni yig'ib bo'lmadi."),
+          error?.message,
+        ].filter(Boolean).join(" ")}
+        onRetry={refetch}
+      />
+    );
   }
 
   const th: React.CSSProperties = {
@@ -161,6 +170,15 @@ export function DebtJournalPanel() {
         <input type="date" className="neo-input" style={{ width: "150px" }} value={to}
           onChange={e => refilter(() => setTo(e.target.value))} aria-label={t("По дату", "Sanagacha")} />
       </div>
+
+      {/* Уперлись в предел выборки — сказать вслух. Молча укоротить архив
+          значит соврать про период. */}
+      {data?.truncated && (
+        <p style={{ fontSize: "12px", color: "var(--color-warning-text)", margin: "0 0 12px" }}>
+          {t("Движений слишком много — показаны не все. Сузьте период или отберите магазин.",
+             "Harakatlar juda ko'p — hammasi ko'rsatilmagan. Davrni toraytiring yoki do'konni tanlang.")}
+        </p>
+      )}
 
       {/* Итог по всему набору, а не по странице: это ответ про архив. */}
       {data && (
