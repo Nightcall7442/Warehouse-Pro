@@ -81,6 +81,15 @@ export const env = {
   // Telegram
   telegramBotToken:    optional("TELEGRAM_BOT_TOKEN"),
   telegramAdminChatId: optional("TELEGRAM_ADMIN_CHAT_ID"),
+  /*
+    Секрет вебхука — отдельно от токена бота.
+
+    Telegram присылает его заголовком в каждом входящем запросе. Ставить туда
+    сам токен нельзя: токен даёт право писать от имени бота кому угодно, а
+    заголовок виден всякому, кто окажется между Telegram и приложением. Плюс
+    отдельную строку можно сменить, не перевыпуская бота.
+  */
+  telegramWebhookSecret: optional("TELEGRAM_WEBHOOK_SECRET"),
 
   // S3 / File storage (for logo uploads in production)
   s3Bucket:     optional("S3_BUCKET"),

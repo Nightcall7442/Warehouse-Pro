@@ -20,6 +20,7 @@ import { createContext } from "./context";
 import { env } from "./lib/env";
 import { registerStripeWebhook } from "./webhooks/stripe";
 import onecWebhooks from "./webhooks/onec";
+import { telegramBot } from "./telegram/bot";
 import publicApi from "./public-api";
 import photos from "./photos";
 import { createSSEResponse } from "./sse-router";
@@ -336,6 +337,16 @@ registerStripeWebhook(app);
 app.use("/api/webhooks/1c/*", bodyLimit({ maxSize: 256 * 1024 })); // 256 KB max
 app.route("/api/webhooks/1c", onecWebhooks);
 
+/*
+  Телеграм-бот.
+
+  Раньше этот вебхук объявлялся в api/cron/telegram-ai-bot.ts и НИКУДА не
+  подключался: в бою POST /api/webhooks/telegram отвечал 404, то есть бот не
+  работал ни дня. Молча не работала и кнопка «связать Telegram одним
+  нажатием» — ссылка вела к боту, которому некому было ответить.
+*/
+app.route("/", telegramBot);
+
 // ── Public REST API (Exclusive tier) ─────────────────────────────────────────
 app.route("/api/v1", publicApi);
 
@@ -462,6 +473,36 @@ app.get("/api/cron/debt-reminders", async (c) => {
   const { runDebtReminders } = await import("./cron/debt-reminders");
   const result = await runDebtReminders();
   return c.json(result, result.success ? 200 : 500);
+});
+
+/*
+  ── Cron: телеграм ──────────────────────────────────────────────────────────
+
+  Две ручки той же формы, что и остальные кроны: ключ в запросе, работа внутри.
+
+  Разбор очереди зовётся часто (раз в несколько минут): в ней лежит то, что
+  пришло ночью и ждёт восьми утра. Сводка — раз в день вечером; час выбирает
+  расписание снаружи, а не код, чтобы её можно было позвать руками и проверить,
+  не дожидаясь вечера.
+*/
+const cronGuard = (c: { req: { query: (k: string) => string | undefined; header: (k: string) => string | undefined } }) => {
+  if (!env.cronSecret) return "Cron endpoint not configured";
+  const secret = c.req.query("secret") ?? c.req.header("x-cron-secret");
+  return safeEqual(secret ?? "", env.cronSecret) ? null : "Unauthorized";
+};
+
+app.get("/api/cron/telegram-outbox", async (c) => {
+  const denied = cronGuard(c);
+  if (denied) return c.json({ error: denied }, 401);
+  const { drainOutbox } = await import("./services/telegram-notify");
+  return c.json(await drainOutbox());
+});
+
+app.get("/api/cron/telegram-digest", async (c) => {
+  const denied = cronGuard(c);
+  if (denied) return c.json({ error: denied }, 401);
+  const { runTelegramDigest } = await import("./cron/telegram-digest");
+  return c.json(await runTelegramDigest());
 });
 
 app.use(bodyLimit({ maxSize: 10 * 1024 * 1024 }));
@@ -1176,6 +1217,12 @@ if (env.isProduction) {
   });
   attachWebSocket(server);
   logger.info("websocket attached");
+
+  /*
+    Подписка бота на вебхук. Не ждём её: сеть до Telegram может лежать ровно в
+    момент выкладки, а приложение без бота работает.
+  */
+  void import("./telegram/register").then(m => m.registerTelegramWebhook());
 
   // Graceful shutdown
   const shutdown = async (signal: string) => {

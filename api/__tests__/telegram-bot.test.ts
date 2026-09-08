@@ -1,0 +1,203 @@
+/**
+ * Телеграм-бот: три правила, которые дороже всего стоят.
+ *
+ * ── Что было ────────────────────────────────────────────────────────────────
+ *
+ * Бот не работал ни дня. Вебхук объявлялся в api/cron/telegram-ai-bot.ts и
+ * никуда не подключался — в бою POST /api/webhooks/telegram отвечал 404.
+ * Вместе с ним молча не работала кнопка «связать Telegram одним нажатием», а
+ * notifyUserById и notifyTenantRole не вызывались ниоткуда: человек привязывал
+ * чат, видел «успешно подключено» и не получал ни одного сообщения.
+ *
+ * ── Почему проверки именно эти ──────────────────────────────────────────────
+ *
+ * 1. Привязка. В ссылке ехал СЫРОЙ номер пользователя. Подключи кто-нибудь тот
+ *    вебхук как есть — и любой человек написал бы боту «/start 5», привязав
+ *    свой телефон к пятому пользователю системы: чужие уведомления, а на
+ *    подходящем тарифе и остатки с выручкой.
+ * 2. Тихие часы. Ошибка на час превращает «копится до утра» в «будит в три
+ *    ночи», и заметить это можно только ночью.
+ * 3. Умолчания. Если считать источником правил только таблицу, у новой
+ *    организации не будет ни одной строки — и уведомления окажутся выключены
+ *    там, где их никто не выключал. Ровно так в этом проекте уже умирали
+ *    возможности.
+ */
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+vi.mock("../lib/env", () => ({ env: { appSecret: "тест-секрет", appUrl: "https://x", telegramBotToken: "", telegramWebhookSecret: "" } }));
+vi.mock("drizzle-orm", async () => {
+  const { drizzleMock } = await import("./helpers/drizzle-mock");
+  return drizzleMock();
+});
+vi.mock("../queries/connection", () => ({ getDb: vi.fn() }));
+vi.mock("../telegram-router", () => ({ sendTelegram: vi.fn(async () => true), tgEscape: (v: unknown) => String(v ?? "") }));
+vi.mock("../lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } }));
+
+const { createLinkToken, readLinkToken, LINK_TTL_MS } = await import("../telegram/link-token");
+const { isQuiet, nextQuietEnd, tashkentHour, DEFAULT_RULES, recipientRoles } =
+  await import("../services/telegram-notify");
+
+const { getDb } = await import("../queries/connection");
+
+/*
+  Комментарии снимаются перед сверкой. Иначе проверка «сырого номера в ссылке
+  больше нет» спотыкается о пояснение рядом с исправлением: там эта строка
+  процитирована как раз затем, чтобы объяснить, чем она была опасна.
+*/
+const strip = (t: string) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^[^\S\r\n]*\/\/.*$/gm, "");
+const ROUTER = strip(readFileSync(join(__dirname, "..", "telegram-router.ts"), "utf8"));
+const BOT = strip(readFileSync(join(__dirname, "..", "telegram", "bot.ts"), "utf8"));
+const BOOT = strip(readFileSync(join(__dirname, "..", "boot.ts"), "utf8"));
+
+beforeEach(() => vi.clearAllMocks());
+
+describe("привязка чата", () => {
+  it("свой токен принимается", () => {
+    const token = createLinkToken(42);
+    expect(readLinkToken(token)).toEqual({ ok: true, userId: 42 });
+  });
+
+  it("голый номер пользователя не принимается", () => {
+    // Ровно то, что стояло в ссылке раньше.
+    expect(readLinkToken("5")).toEqual({ ok: false, reason: "invalid" });
+    expect(readLinkToken("5.9999999999999.")).toMatchObject({ ok: false });
+  });
+
+  it("подделать подпись нельзя", () => {
+    const token = createLinkToken(7);
+    const [id, exp] = token.split(".");
+    expect(readLinkToken(`${id}.${exp}.подделка`)).toEqual({ ok: false, reason: "invalid" });
+    // Подменить номер, оставив чужую подпись, тоже нельзя.
+    const [, , sig] = token.split(".");
+    expect(readLinkToken(`8.${exp}.${sig}`)).toEqual({ ok: false, reason: "invalid" });
+  });
+
+  it("ссылка живёт недолго", () => {
+    const now = 1_700_000_000_000;
+    const token = createLinkToken(3, now);
+    expect(readLinkToken(token, now + LINK_TTL_MS - 1000)).toEqual({ ok: true, userId: 3 });
+    // Пересланная другу ссылка к моменту нажатия уже мертва.
+    expect(readLinkToken(token, now + LINK_TTL_MS + 1000)).toEqual({ ok: false, reason: "expired" });
+  });
+
+  it("в ссылку кладётся подпись, а не номер", () => {
+    /*
+      Проверка по исходнику: поведением её не поймать — код собирает строку,
+      и вернуть в неё ctx.user.id можно, не сломав ни одного теста.
+    */
+    expect(ROUTER).toContain("createLinkToken(ctx.user.id)");
+    expect(ROUTER, "в ссылку вернулся сырой номер").not.toMatch(/\?start=\$\{ctx\.user\.id\}/);
+  });
+});
+
+describe("тихие часы", () => {
+  const at = (hourUtc: number) => new Date(Date.UTC(2026, 8, 8, hourUtc, 0, 0));
+
+  it("считаются по Ташкенту, а не по серверу", () => {
+    // 18:00 UTC — это 23:00 в Ташкенте, то есть уже ночь.
+    expect(tashkentHour(at(18))).toBe(23);
+    expect(isQuiet(at(18))).toBe(true);
+    // 04:00 UTC — 09:00 в Ташкенте, рабочее утро.
+    expect(tashkentHour(at(4))).toBe(9);
+    expect(isQuiet(at(4))).toBe(false);
+  });
+
+  it("ночью молчат, днём нет", () => {
+    expect(isQuiet(at(19))).toBe(true);   // 00:00 Ташкент
+    expect(isQuiet(at(2))).toBe(true);    // 07:00 Ташкент
+    expect(isQuiet(at(3))).toBe(false);   // 08:00 Ташкент — тишина кончилась
+    expect(isQuiet(at(10))).toBe(false);  // 15:00 Ташкент
+  });
+
+  it("отложенное уходит ровно в восемь утра", () => {
+    /*
+      Именно к восьми, а не «через N часов»: иначе сообщения, пришедшие в
+      разное время ночи, растянулись бы очередью по всему утру.
+    */
+    const sendAt = nextQuietEnd(at(19));           // пришло в 00:00 Ташкент
+    expect(tashkentHour(sendAt)).toBe(8);
+    expect(sendAt.getTime()).toBeGreaterThan(at(19).getTime());
+
+    const late = nextQuietEnd(at(18));             // пришло в 23:00 Ташкент
+    expect(tashkentHour(late)).toBe(8);
+    // Это уже следующее утро, а не сегодняшнее.
+    expect(late.getTime()).toBeGreaterThan(at(18).getTime());
+  });
+});
+
+describe("кому уходит", () => {
+  /** Поддельная база: правил в таблице нет либо ровно те, что передали. */
+  function fakeDb(overrides: Array<{ role: string; enabled: boolean }>) {
+    const chain: Record<string, unknown> = {
+      select: vi.fn(() => chain),
+      from: vi.fn(() => chain),
+      where: vi.fn(async () => overrides),
+    };
+    return chain;
+  }
+
+  it("без единой строки в таблице уведомления работают", async () => {
+    vi.mocked(getDb).mockReturnValue(fakeDb([]) as never);
+    /*
+      Самое важное правило. Пустая таблица — это «как задумано», а не
+      «выключено»: иначе новая организация не получала бы ничего и решила бы,
+      что интеграция сломана.
+    */
+    expect(await recipientRoles(1, "order.created")).toEqual(DEFAULT_RULES["order.created"]);
+    expect(await recipientRoles(1, "delivery.assigned")).toEqual(["courier"]);
+  });
+
+  it("директор может добавить роль", async () => {
+    vi.mocked(getDb).mockReturnValue(fakeDb([{ role: "supervisor", enabled: true }]) as never);
+    const roles = await recipientRoles(1, "order.created");
+    expect(roles).toContain("supervisor");
+    expect(roles).toContain("ceo");
+  });
+
+  it("директор может убрать роль из умолчаний", async () => {
+    vi.mocked(getDb).mockReturnValue(fakeDb([{ role: "operator", enabled: false }]) as never);
+    const roles = await recipientRoles(1, "order.created");
+    expect(roles).not.toContain("operator");
+    expect(roles).toContain("ceo");
+  });
+});
+
+describe("вебхук", () => {
+  it("подключён к приложению", () => {
+    /*
+      Прежний бот объявлял этот маршрут и не был смонтирован никуда: в бою он
+      отвечал 404. Проверка по исходнику — единственная, которая это ловит:
+      сам файл с маршрутом при этом выглядел совершенно рабочим.
+    */
+    expect(BOOT).toContain("telegramBot");
+    expect(BOOT).toMatch(/app\.route\("\/", telegramBot\)/);
+  });
+
+  it("секрет отдельный от токена бота", () => {
+    // Токен даёт право писать от имени бота кому угодно; в заголовке каждого
+    // входящего запроса ему не место.
+    expect(BOT).toContain("telegramWebhookSecret");
+    expect(BOT, "секретом снова служит токен").not.toMatch(/secret[^\n]*telegramBotToken/);
+  });
+
+  it("Telegram всегда получает 200", () => {
+    /*
+      На любой другой код Telegram повторяет доставку, а через сутки неудач
+      отключает вебхук совсем — то есть одна наша ошибка выключила бы бота у
+      всех сразу.
+    */
+    const tail = BOT.slice(BOT.indexOf("} catch (err)"));
+    expect(tail).toContain("{ ok: true }");
+  });
+
+  it("бот только читает", () => {
+    // Ни одной записи в данные организации: потерянный телефон стоит утечки
+    // сводки, а не поддельных отгрузок.
+    expect(BOT).not.toMatch(/\.insert\(|\.delete\(/);
+    // Единственные изменения — свои же: язык и отвязка чата.
+    const updates = BOT.match(/\.update\((\w+)\)/g) ?? [];
+    expect(new Set(updates)).toEqual(new Set([".update(users)"]));
+  });
+});

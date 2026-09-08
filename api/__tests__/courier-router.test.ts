@@ -17,6 +17,10 @@ vi.mock("drizzle-orm", async () => {
 
 vi.mock("../telegram-router", () => ({
   notifyAdmin: vi.fn(async () => {}),
+  sendTelegram: vi.fn(async () => true),
+  // Назначение курьера теперь уходит и в Telegram — экранирование берётся
+  // оттуда же, откуда и отправка.
+  tgEscape: (v: unknown) => String(v ?? ""),
   tgMessages: { newOrder: vi.fn(() => "mock message") },
 }));
 

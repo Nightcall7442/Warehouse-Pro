@@ -3,12 +3,15 @@ import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { notify } from "@/lib/toast";
 import { Loader2, Send, CheckCircle2, XCircle, CalendarDays, ShoppingCart, Package, AlertTriangle } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { TelegramRules } from "./TelegramRules";
 
 export function TelegramSettings() {
   const [chatId, setChatId] = useState("");
   const chatIdInputId = useId();
   const { lang } = useLang();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
+  const { user } = useAuth();
   const { data: status } = trpc.telegram.myStatus.useQuery();
   const { data: deepLink } = trpc.telegram.deepLink.useQuery();
   const utils = trpc.useUtils();
@@ -103,6 +106,14 @@ export function TelegramSettings() {
           ))}
         </ul>
       </div>
+
+      {/* Кому что приходит — только директору: это настройка организации, а не
+          личная. Остальные видят выше, что придёт лично им. */}
+      {user?.role === "ceo" && (
+        <div className="pt-4" style={{ borderTop: "1px solid var(--color-border)" }}>
+          <TelegramRules />
+        </div>
+      )}
     </div>
   );
 }

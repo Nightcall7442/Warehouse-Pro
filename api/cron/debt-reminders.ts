@@ -200,6 +200,27 @@ export async function runDebtReminders() {
         })));
       }
 
+      /*
+        И в Telegram.
+
+        Уведомление внутри приложения увидит тот, кто в него зайдёт.
+        Просроченный долг — повод позвонить сегодня, а не когда-нибудь, и
+        человек, который поедет к этому магазину, сидит в телефоне, а не в
+        списке уведомлений.
+      */
+      const { notifyEvent } = await import("../services/telegram-notify");
+      const { tgEscape: esc } = await import("../telegram-router");
+      await notifyEvent({
+        tenantId: reminder.tenantId,
+        event: "debt.overdue",
+        text: [
+          "<b>Просроченный долг</b>",
+          esc(overdueNames.shop(reminder.shopId)),
+          esc(overdueNames.money(reminder.tenantId, reminder.amount)),
+          `просрочен на ${daysOverdue} дн.`,
+        ].join("\n"),
+      });
+
       // Update reminder status
       await db.update(debtReminders).set({
         status: "overdue",

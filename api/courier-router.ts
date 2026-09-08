@@ -134,6 +134,18 @@ export const courierRouter = createRouter({
         data: { title: "Назначен заказ на доставку", orderNumber: order.orderNumber },
       });
 
+      // Только назначенному курьеру: остальным это не новость, а шум.
+      const { notifyEvent } = await import("./services/telegram-notify");
+      const { tgEscape: esc } = await import("./telegram-router");
+      await notifyEvent({
+        tenantId: ctx.tenant.id,
+        event: "delivery.assigned",
+        onlyUserId: input.courierId,
+        text: `🚚 <b>Назначена доставка</b>
+📋 ${esc(order.orderNumber)}
+🏪 ${esc(shop?.name ?? "Магазин")}`,
+      });
+
       logger.info("courier assigned", { orderId: input.orderId, courierId: input.courierId });
 
       return { success: true };

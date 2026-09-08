@@ -1385,6 +1385,18 @@ export const OrderService = {
         sendPushToRole(tenantId, "operator", pushMsg),
         sendPushToRole(tenantId, "supervisor", pushMsg),
       ]);
+
+      /*
+        И в Telegram. Push доходит только до тех, кто поставил приложение;
+        Telegram есть у всех, и именно там люди сидят весь день.
+      */
+      const { notifyEvent } = await import("./telegram-notify");
+      const { tgMessages } = await import("../telegram-router");
+      await notifyEvent({
+        tenantId,
+        event: "order.created",
+        text: tgMessages.newOrder(orderNumber, shop?.name ?? "Магазин", orderTotal.toLocaleString("ru"), "сум"),
+      });
     } catch (e) {
       logger.warn("Order notification failed", { error: String(e) });
     }

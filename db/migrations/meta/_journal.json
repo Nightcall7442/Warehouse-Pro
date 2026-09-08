@@ -43,6 +43,13 @@
       "when": 1788884653571,
       "tag": "0005_support_chat",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1788888556544,
+      "tag": "0006_telegram_bot",
+      "breakpoints": true
     }
   ]
 }

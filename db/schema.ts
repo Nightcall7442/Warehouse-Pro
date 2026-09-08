@@ -65,6 +65,12 @@ export const users = mysqlTable("users", {
   updatedAt:    timestamp("updatedAt").defaultNow().notNull().$onUpdate(() => new Date()),
   lastSignInAt:     timestamp("lastSignInAt").defaultNow().notNull(),
   telegramChatId:   varchar("telegram_chat_id", { length: 50 }),
+  /*
+    Язык бота. Спрашивается кнопками при первом обращении и живёт отдельно от
+    языка приложения: человек может смотреть отчёты по-русски, а короткие
+    сводки в телефоне читать по-узбекски. Пусто — ещё не спрашивали.
+  */
+  telegramLang:     varchar("telegram_lang", { length: 2 }),
 }, (t) => ({
   // email уникален внутри тенанта, но может повторяться в разных тенантах
   emailPerTenant: uniqueIndex("uq_user_email_tenant").on(t.email, t.tenantId),
@@ -1447,3 +1453,53 @@ export const supportMessages = mysqlTable("support_messages", {
 
 export type SupportMessage       = typeof supportMessages.$inferSelect;
 export type InsertSupportMessage = typeof supportMessages.$inferInsert;
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Телеграм-бот: кому что слать и что не ушло.
+
+   ── Правила ─────────────────────────────────────────────────────────────────
+
+   Таблица правил — это ПЕРЕОПРЕДЕЛЕНИЯ поверх встроенных умолчаний, а не
+   единственный источник. Разница существенная: если считать источником только
+   её, у новой организации не будет ни одной строки — и уведомления окажутся
+   выключены ровно там, где их никто не выключал. Ровно так в этом проекте уже
+   умирали возможности: телефон поддержки сохранялся и не показывался,
+   notifyUserById не вызывался ниоткуда, вебхук бота не был подключён.
+
+   Поэтому пусто значит «как задумано», а строка появляется только тогда, когда
+   директор что-то ИЗМЕНИЛ.
+
+   ── Очередь ─────────────────────────────────────────────────────────────────
+
+   Ночью уведомления не шлются, а копятся: склад закрыт, а телефон у человека
+   рядом с подушкой. Копить их в памяти нельзя — выкладка происходит каждый
+   день, и всё накопленное пропало бы молча.
+   ═══════════════════════════════════════════════════════════════════════════ */
+export const telegramRules = mysqlTable("telegram_rules", {
+  id:       serial("id").primaryKey(),
+  tenantId: bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  event:    mysqlEnum("event", ["order.created", "stock.low", "debt.overdue", "delivery.assigned"]).notNull(),
+  role:     mysqlEnum("role", ["ceo", "operator", "supervisor", "agent", "merchandiser", "courier"]).notNull(),
+  enabled:  boolean("enabled").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
+}, (t) => ({
+  ruleIdx: uniqueIndex("uq_tg_rule").on(t.tenantId, t.event, t.role),
+}));
+
+export const telegramOutbox = mysqlTable("telegram_outbox", {
+  id:        serial("id").primaryKey(),
+  tenantId:  bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  chatId:    varchar("chat_id", { length: 50 }).notNull(),
+  body:      varchar("body", { length: 3000 }).notNull(),
+  /** Раньше этого времени не отправлять — конец тихих часов. */
+  sendAfter: timestamp("send_after").notNull(),
+  sentAt:    timestamp("sent_at"),
+  /** Сколько раз пытались. Вечно повторять нельзя: чат могли удалить. */
+  attempts:  int("attempts").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  dueIdx: index("idx_tg_outbox_due").on(t.sentAt, t.sendAfter),
+}));
+
+export type TelegramRule   = typeof telegramRules.$inferSelect;
+export type TelegramOutbox = typeof telegramOutbox.$inferSelect;

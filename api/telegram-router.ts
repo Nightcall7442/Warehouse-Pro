@@ -2,10 +2,11 @@ import { z } from "zod";
 import { eq, and } from "drizzle-orm";
 import { createRouter, authedQuery, adminQuery, managementQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { users } from "@db/schema";
+import { users, telegramRules } from "@db/schema";
 import { env } from "./lib/env";
 import { onDay, onDate } from "./lib/date-range";
 import type { Role } from "@contracts/types";
+import { createLinkToken } from "./telegram/link-token";
 
 /**
  * Escape a value that is about to be dropped into a Telegram message.
@@ -35,14 +36,23 @@ export function tgEscape(value: unknown): string {
 // ── Core send function ───────────────────────────────────────────────────────
 // Exported for the AI bot cron, which replies to whichever chat messaged it and
 // so can't go through the notify* helpers below.
-export async function sendTelegram(chatId: string, text: string): Promise<boolean> {
+export async function sendTelegram(
+  chatId: string,
+  text: string,
+  /*
+    Клавиатура и прочие поля Telegram. Отдельным необязательным доводом, а не
+    новой функцией: отправка одна на всё приложение, и вторая копия рано или
+    поздно разошлась бы с этой в обработке ошибок и экранировании.
+  */
+  extra?: Record<string, unknown>,
+): Promise<boolean> {
   const token = env.telegramBotToken;
   if (!token || !chatId) return false;
   try {
     const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML" }),
+      body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML", ...extra }),
     });
     if (!res.ok) {
       // Say why. A rejected message is indistinguishable from a disabled
@@ -145,6 +155,44 @@ export const telegramRouter = createRouter({
     return { success: true };
   }),
 
+  /**
+   * Правила уведомлений: кому что уходит.
+   *
+   * Отдаются УЖЕ СЛОЖЕННЫМИ — умолчания плюс изменения директора. Показывать
+   * пустую таблицу и подписывать «ничего не настроено» нельзя: у организации,
+   * которая ничего не трогала, уведомления работают, и экран обязан это
+   * показывать, иначе директор выключит то, чего не включал.
+   */
+  rules: adminQuery.query(async ({ ctx }) => {
+    const { DEFAULT_RULES, recipientRoles } = await import("./services/telegram-notify");
+    const events = Object.keys(DEFAULT_RULES) as Array<keyof typeof DEFAULT_RULES>;
+    const rows = await Promise.all(events.map(async event => ({
+      event,
+      roles: await recipientRoles(ctx.tenant.id, event),
+      defaults: DEFAULT_RULES[event],
+    })));
+    return rows;
+  }),
+
+  setRule: adminQuery
+    .input(z.object({
+      event: z.enum(["order.created", "stock.low", "debt.overdue", "delivery.assigned"]),
+      role:  z.enum(["ceo", "operator", "supervisor", "agent", "merchandiser", "courier"]),
+      enabled: z.boolean(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+      /*
+        Запись всегда явная — и когда включают, и когда выключают. Удалять
+        строку при совпадении с умолчанием заманчиво, но тогда смена умолчания
+        в коде молча изменила бы поведение у тех, кто это уже решил сам.
+      */
+      await db.insert(telegramRules)
+        .values({ tenantId: ctx.tenant.id, event: input.event, role: input.role, enabled: input.enabled })
+        .onDuplicateKeyUpdate({ set: { enabled: input.enabled } });
+      return { success: true };
+    }),
+
   /** Get own chat_id status */
   myStatus: authedQuery.query(async ({ ctx }) => {
     const db = getDb();
@@ -176,8 +224,20 @@ export const telegramRouter = createRouter({
     const botUsername = botInfo?.result?.username;
     if (!botUsername) return { url: null, error: "Cannot fetch bot info" };
 
-    // Create deep link with user ID as start parameter
-    const url = `https://t.me/${botUsername}?start=${ctx.user.id}`;
+    /*
+      В ссылке едет ПОДПИСЬ, а не номер пользователя.
+
+      Раньше здесь стояло `?start=${ctx.user.id}` — в открытом виде и без
+      подписи. Обработчика у ссылки не было вовсе, и потому дыра не выстрелила:
+      подключи кто-нибудь вебхук как есть — и любой человек написал бы боту
+      «/start 5», привязав свой телефон к пятому пользователю системы. Дальше
+      он получал бы его уведомления, а на тарифе с ответами бота — остатки и
+      выручку чужой организации.
+
+      Подпись живёт четверть часа: этого хватает дойти от настроек до Telegram
+      и мало, чтобы переслать ссылку кому-то ещё.
+    */
+    const url = `https://t.me/${botUsername}?start=${createLinkToken(ctx.user.id)}`;
     return { url, botUsername };
   }),
 

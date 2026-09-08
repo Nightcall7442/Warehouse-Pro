@@ -20,6 +20,7 @@ export async function findUserById(id: number) {
       updatedAt: schema.users.updatedAt,
       lastSignInAt: schema.users.lastSignInAt,
       telegramChatId: schema.users.telegramChatId,
+      telegramLang:   schema.users.telegramLang,
     })
     .from(schema.users)
     .where(eq(schema.users.id, id))

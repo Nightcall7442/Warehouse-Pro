@@ -38,6 +38,9 @@ const trpcStub = vi.hoisted(() => {
       myStatus: { useQuery: query({ connected: false }) },
       deepLink: { useQuery: query({ url: "https://t.me/bot?start=1" }) },
       saveChatId: { useMutation: mutation }, removeChatId: { useMutation: mutation },
+      // Директор видит ещё и таблицу «кому что приходит».
+      rules: { useQuery: query([]) },
+      setRule: { useMutation: mutation },
     },
     onec: {
       health: { useQuery: query({ healthy: false }) },
@@ -51,7 +54,7 @@ const trpcStub = vi.hoisted(() => {
       settings: { get: { invalidate: vi.fn() } },
       branding: { get: { invalidate: vi.fn() }, cssVariables: { invalidate: vi.fn() } },
       warehouseMulti: { list: { invalidate: vi.fn() } },
-      telegram: { myStatus: { invalidate: vi.fn() } },
+      telegram: { myStatus: { invalidate: vi.fn() }, rules: { invalidate: vi.fn() } },
       onec: { health: { invalidate: vi.fn() }, status: { invalidate: vi.fn() } },
       auth: { me: { invalidate: vi.fn() } },
     }),

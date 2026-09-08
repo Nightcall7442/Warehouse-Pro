@@ -335,6 +335,19 @@ export const StockService = {
           tenantId,
           data: { productId, productName, available: updatedAvailable, reorderPoint },
         });
+
+        // Живое событие видно только тому, у кого открыт экран. Про
+        // заканчивающийся товар надо узнать и тому, кто закупает.
+        const lowName = productName;
+        const lowLeft = String(updatedAvailable);
+        void import("./telegram-notify").then(async ({ notifyEvent }) => {
+          const { tgMessages } = await import("../telegram-router");
+          await notifyEvent({
+            tenantId,
+            event: "stock.low",
+            text: tgMessages.lowStock(lowName, lowLeft),
+          });
+        });
       }
     }
 
