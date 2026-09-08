@@ -18,6 +18,7 @@ import {
   ShopHasHistoryError,
 } from "./services/shop-archive";
 import { shopStatement } from "./services/shop-statement";
+import { debtJournal } from "./services/debt-journal";
 
 /**
  * Проверить, что чужие идентификаторы в запросе принадлежат этой организации.
@@ -406,6 +407,40 @@ export const shopRouter = createRouter({
   // references a shop. Attempt the hard delete and let MySQL's own FK
   // constraint be the source of truth — same pattern as product-router.ts's
   // delete — falling back to soft-delete only on a genuine FK violation.
+  /*
+    Журнал задолженности по всем точкам: кто когда взял в долг и кто заплатил.
+
+    Акт сверки отвечает про ОДИН магазин. Про все сразу ответа не было: «Долги
+    магазинов» и «Дебиторка» показывают остаток на сейчас, и ни один отчёт не
+    говорил, КОГДА это случилось. Чтобы увидеть, приходилось открывать карточки
+    по одной.
+
+    supervisorQuery — как у соседнего отчёта о долгах: это сводка по всей сети,
+    и смотрят её те же, кто отвечает за деньги.
+  */
+  debtJournal: supervisorQuery
+    .input(z.object({
+      dateFrom: z.string().optional(),
+      dateTo: z.string().optional(),
+      agentId: z.number().optional(),
+      territoryId: z.number().optional(),
+      limit: z.number().min(1).max(20000).default(5000),
+    }))
+    .query(async ({ input, ctx }) => {
+      const parse = (v?: string) => {
+        if (!v) return undefined;
+        const d = new Date(v);
+        return Number.isNaN(d.getTime()) ? undefined : d;
+      };
+      return debtJournal(ctx.tenant.id, {
+        from: parse(input.dateFrom),
+        to: parse(input.dateTo),
+        agentId: input.agentId,
+        territoryId: input.territoryId,
+        limit: input.limit,
+      });
+    }),
+
   /*
     Акт сверки: откуда взялось число долга.
 

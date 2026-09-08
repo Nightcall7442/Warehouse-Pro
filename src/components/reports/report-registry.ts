@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Package, Store, Wallet, CreditCard, Award, Users, Boxes, Truck, TrendingUp, Coins, MapPin, ArrowLeftRight } from "lucide-react";
+import { Package, Store, Wallet, CreditCard, Award, Users, Boxes, Truck, TrendingUp, Coins, MapPin, ArrowLeftRight, ScrollText } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { unitShort } from "@/lib/units";
 import { movementKind, movementDocument, movementNote } from "@/lib/stock-movement-text";
@@ -63,6 +63,19 @@ export interface ReportDef {
 const EXPORT_LIMIT = 10000;
 
 const num = (v: unknown) => Number(v ?? 0);
+
+/**
+ * Виды движения долга — по-русски, как всё в выгрузках.
+ *
+ * «order» в файле у директора означало бы ровно то же, что «active» в столбце
+ * статуса: внутреннее слово базы вместо ответа.
+ */
+const DEBT_MOVEMENT_RU: Record<string, string> = {
+  order:   "Отгрузка в долг",
+  payment: "Оплата",
+  debt:    "Начисление вручную",
+  return:  "Возврат товара",
+};
 
 /** Excel reads a date far better than an ISO timestamp with a T in it. */
 function formatDate(v: unknown): string {
@@ -171,6 +184,71 @@ export const REPORTS: ReportDef[] = [
       })),
     filename: (p) => `debt-report${suffix(p)}`,
     sheet: { ru: "Долги магазинов", uz: "Do'konlar qarzi" },
+  },
+  /*
+    Журнал задолженности: кто когда взял в долг и кто когда заплатил.
+
+    Соседний отчёт «Долги магазинов» отвечает на вопрос СКОЛЬКО должны — это
+    остаток на сейчас, у него и периода нет. На вопрос КОГДА это случилось не
+    отвечал ни один: чтобы увидеть, приходилось открывать карточки точек по
+    одной. А спрашивают чаще именно это — почему за месяц долг вырос, у какого
+    агента точки уходят в долг чаще других, когда точка платила в последний раз.
+
+    Столбца «остаток» здесь нет намеренно: журнал ограничен периодом и пределом
+    строк, а нарастающий итог по обрезанному набору верен только иногда.
+    Остаток отвечает за карточку магазина, где виден весь ряд движений.
+  */
+  {
+    id: "debt-journal",
+    category: "shops",
+    title: { ru: "Журнал задолженности", uz: "Qarzdorlik jurnali" },
+    description: {
+      ru: "Кто когда взял в долг и кто когда заплатил, за период",
+      uz: "Kim qachon qarzga oldi va kim qachon to'ladi, davr uchun",
+    },
+    icon: ScrollText,
+    // Ручка supervisorQuery: сводка по всей сети, и смотрят её те, кто
+    // отвечает за деньги. Показать карточку оператору значило бы дать кнопку,
+    // которая всегда отвечает отказом.
+    roles: ["ceo", "supervisor"],
+    needsPeriod: true,
+    filters: ["agent", "territory"],
+    useQuery: (p, opts) => trpc.shop.debtJournal.useQuery(
+      { dateFrom: p.from, dateTo: p.to, agentId: p.agentId, territoryId: p.territoryId, limit: EXPORT_LIMIT },
+      { enabled: opts.enabled },
+    ),
+    /*
+      Принимается и готовый ответ ручки, и голый массив строк.
+
+      Столбцы карточки узнаются пробным вызовом toRows([{}]) — так реестр
+      обещает то же, что окажется в файле. Ручка отдаёт { rows, totals,
+      truncated }, и без этой ветви проба возвращала бы пусто, а карточка молча
+      переставала объяснять, что она выгружает.
+    */
+    toRows: (data) => (Array.isArray(data)
+      ? data as Array<Record<string, unknown>>
+      : ((data as { rows?: Array<Record<string, unknown>> } | undefined)?.rows ?? []))
+      .map(r => {
+        const amount = num(r.amount);
+        return {
+          "Дата": formatDateTime(r.date),
+          "Магазин": String(r.shopName ?? "—"),
+          "Город": String(r.city ?? "—"),
+          "Агент": String(r.agentName ?? "—"),
+          // Запасное «—», а не сам код: в файл директору не должно уходить
+          // внутреннее слово базы — ровно то, за что здесь уже ловили «Статус».
+          "Операция": DEBT_MOVEMENT_RU[String(r.kind)] ?? "—",
+          "Документ": String(r.doc ?? r.note ?? "—"),
+          // Взятое и погашенное — разные столбцы, а не одна колонка со знаком:
+          // так сумму по каждому виду видно прямо в Excel, без формул.
+          "Взял в долг": amount > 0 ? amount : "",
+          "Погасил": amount < 0 ? -amount : "",
+        };
+      }),
+    // Фильтры входят в имя файла: без них две разные выгрузки за один период
+    // ложатся друг на друга в папке «Загрузки».
+    filename: (p) => `debt-journal-${p.from}_${p.to}${suffix(p)}`,
+    sheet: { ru: "Журнал задолженности", uz: "Qarzdorlik jurnali" },
   },
   {
     id: "sales-by-payment",

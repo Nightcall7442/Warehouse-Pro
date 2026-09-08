@@ -49,6 +49,18 @@ import { getDb } from "../queries/connection";
 
 export type StatementKind = "order" | "payment" | "debt" | "return";
 
+/**
+ * Дата, с которой заказ стал долгом.
+ *
+ * Заказ в долг должен с того дня, как выписан. Обычный — с того, как товар
+ * уехал: до отгрузки магазин ничего не должен, что бы ни стояло в заказе.
+ * deliveredAt бывает пустым у давних записей, там остаётся дата заказа: это
+ * приближение, но оно честнее, чем не показать движение вовсе.
+ */
+export function obligationDate(o: { paymentMethod: string; createdAt: Date; deliveredAt: Date | null }): Date {
+  return o.paymentMethod === "debt" ? o.createdAt : (o.deliveredAt ?? o.createdAt);
+}
+
 export interface StatementRow {
   date: Date;
   kind: StatementKind;
@@ -92,8 +104,13 @@ const money = (v: unknown) => Number(v ?? 0);
  *
  * Дословно то же, что в recalcShopDebt: не удалён, не отменён и не возвращён,
  * и либо продан в долг, либо уже доставлен.
+ *
+ * Вывезено наружу нарочно: этими же правилами пользуется журнал задолженности
+ * по всем точкам (services/debt-journal.ts). Две почти одинаковые формулы
+ * одного и того же — это два ответа на один вопрос, и они однажды разойдутся;
+ * в этом файле такое уже разбиралось про recalcShopDebt.
  */
-function orderIsOwed() {
+export function orderIsOwed() {
   return and(
     isNull(orders.deletedAt),
     notInArray(orders.status, ["cancelled", "returned"]),
@@ -118,14 +135,6 @@ export async function shopStatement(
     .limit(1);
   if (!shop) return null;
 
-  /*
-    Дата обязательства — не всегда дата заказа.
-
-    Заказ в долг должен с того дня, как выписан. Обычный — с того, как товар
-    уехал: до отгрузки магазин ничего не должен, что бы ни стояло в заказе.
-    deliveredAt бывает пустым у давних записей, там остаётся дата заказа: это
-    приближение, но оно честнее, чем не показать движение вовсе.
-  */
   const orderRows = await db.select({
     createdAt: orders.createdAt,
     deliveredAt: orders.deliveredAt,
@@ -184,7 +193,7 @@ export async function shopStatement(
 
   const movements: Movement[] = [
     ...orderRows.map(o => ({
-      date: (o.paymentMethod === "debt" ? o.createdAt : (o.deliveredAt ?? o.createdAt)) as Date,
+      date: obligationDate(o as { paymentMethod: string; createdAt: Date; deliveredAt: Date | null }),
       kind: "order" as const,
       doc: o.number,
       note: null,
