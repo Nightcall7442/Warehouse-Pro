@@ -1,5 +1,5 @@
 import { Zap, Check, Loader2, LifeBuoy, AlertTriangle } from "lucide-react";
-import { PLAN_FEATURES, type PlanKey } from "@contracts/constants";
+import { FEATURES, PLAN_ADDS, PLAN_ORDER, PLANS, type FeatureKey, type PlanKey } from "@contracts/constants";
 
 export interface Plan {
   key: string;
@@ -59,7 +59,21 @@ export function SubscriptionPlanCard({
 
   // Что уже не помещается. Считается здесь, а не в голове у покупателя.
   const tooSmall = limits.filter(l => l.max !== null && l.used > l.max);
-  const hasSupportChat = PLAN_FEATURES[plan.key as PlanKey]?.supportChat;
+
+  /*
+    Возможности — из общего каталога, тем же списком, что и на лендинге.
+    Раньше на экране оплаты их не было вовсе: тарифы сравнивались по трём
+    числам, и чем Pro отличается от Basic по существу, человек при оплате не
+    видел.
+
+    Показывается то, что тариф ДОБАВЛЯЕТ, плюс строка «Всё из ...». Полный
+    список у Exclusive был бы в тринадцать строк, из которых новых пять, и
+    разница между тарифами утонула бы.
+  */
+  const key = plan.key as PlanKey;
+  const adds: readonly FeatureKey[] = PLAN_ADDS[key] ?? [];
+  const below = PLAN_ORDER[PLAN_ORDER.indexOf(key) - 1];
+  const inherits = below && below !== "trial" ? PLANS[below].name : null;
 
   return (
     <div
@@ -135,21 +149,31 @@ export function SubscriptionPlanCard({
           </div>
         ))}
 
-        {/* Прямая линия с поддержкой — единственное отличие не числом. */}
-        {hasSupportChat && (
-          <div style={{ display: "flex", alignItems: "center", gap: "9px" }}>
+      </div>
+
+      {/* ── Что умеет ──────────────────────────────────────────────────── */}
+      <div style={{ height: "1px", background: "var(--color-border-subtle)" }} />
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "9px", fontSize: "13px" }}>
+        {inherits && (
+          <p style={{ fontSize: "12px", fontWeight: 700, color: "var(--color-primary-text)" }}>
+            {t(`Всё из ${inherits}, плюс:`, `${inherits}dagi hammasi, ustiga:`)}
+          </p>
+        )}
+        {adds.map(f => (
+          <div key={f} style={{ display: "flex", alignItems: "flex-start", gap: "9px" }}>
             <span style={{
-              width: "19px", height: "19px", borderRadius: "50%", flexShrink: 0,
+              width: "18px", height: "18px", borderRadius: "50%", flexShrink: 0, marginTop: "1px",
               display: "flex", alignItems: "center", justifyContent: "center",
               background: "var(--color-primary-subtle)", color: "var(--color-primary-text)",
             }}>
-              <LifeBuoy size={11} />
+              {f === "supportChat" ? <LifeBuoy size={10} /> : <Check size={10} />}
             </span>
-            <span style={{ color: "var(--color-text-secondary)" }}>
-              {t("Чат с поддержкой прямо в системе", "Tizim ichida qo'llab-quvvatlash chati")}
+            <span style={{ color: "var(--color-text-secondary)", lineHeight: 1.45 }}>
+              {t(FEATURES[f].ru, FEATURES[f].uz)}
             </span>
           </div>
-        )}
+        ))}
       </div>
 
       {/* Не вместит. Сказать это ДО оплаты, а не после. */}

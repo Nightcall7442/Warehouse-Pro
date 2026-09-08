@@ -4,7 +4,7 @@ import { useTranslate } from "@/i18n";
 import { Check } from "lucide-react";
 import { SectionHead, Stamp, BtnInk, BtnGhost } from "./landing-shared";
 import { cn, LX, MONO, tgLink } from "./landing-tokens";
-import { PLANS, PLAN_PRICES_UZS } from "@contracts/constants";
+import { PLANS, PLAN_PRICES_UZS, PLAN_ADDS, FEATURES } from "@contracts/constants";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    07 / Тарифы.
@@ -53,10 +53,7 @@ export default function PricingSection() {
           { v: cap(PLANS.basic.maxOrdersMonth), label: tr("заказов в месяц", "buyurtma/oy") },
         ],
         features: [
-          tr("Склад, заказы, доставка", "Ombor, buyurtmalar, yetkazish"),
-          tr("Мобильное приложение с офлайн-режимом", "Oflayn rejimli mobil ilova"),
-          tr("Базовые отчёты", "Asosiy hisobotlar"),
-          tr("Поддержка по email", "Email orqali yordam"),
+          ...PLAN_ADDS.basic.map(f => tr(FEATURES[f].ru, FEATURES[f].uz)),
         ],
         hl: false,
       },
@@ -72,10 +69,7 @@ export default function PricingSection() {
         ],
         features: [
           tr("Всё из Basic", "Basic'dagi hammasi"),
-          tr("GPS-контроль агентов и курьеров", "Agentlar va kuryerlar GPS nazorati"),
-          tr("Двусторонний обмен с 1С", "1C bilan ikki tomonlama almashinuv"),
-          tr("Полная аналитика: прибыль, KPI, долги", "To'liq tahlil: foyda, KPI, qarzlar"),
-          tr("Приоритетная поддержка", "Ustuvor yordam"),
+          ...PLAN_ADDS.pro.map(f => tr(FEATURES[f].ru, FEATURES[f].uz)),
         ],
         hl: true,
       },
@@ -91,10 +85,7 @@ export default function PricingSection() {
         ],
         features: [
           tr("Всё из Pro", "Pro'dagi hammasi"),
-          tr("Чат с поддержкой прямо в системе", "Tizim ichida qo'llab-quvvatlash chati"),
-          tr("API-доступ и white-label", "API va white-label"),
-          tr("Помощь с переносом данных из Excel и 1С", "Excel va 1C dan ma'lumot ko'chirishda yordam"),
-          tr("Выделенный сервер", "Ajratilgan server"),
+          ...PLAN_ADDS.exclusive.map(f => tr(FEATURES[f].ru, FEATURES[f].uz)),
         ],
         hl: false,
         manager: true,

@@ -9,6 +9,7 @@ import { eq, and, desc, sql } from "drizzle-orm";
 import { createHash } from "crypto";
 import { checkRateLimit as sharedCheckRateLimit } from "./lib/rate-limit";
 import { hasSubscriptionAccess } from "./lib/feature-gating";
+import { planHas, type PlanKey } from "../contracts/constants";
 
 /** What the API-key middleware below puts on the context for every route. */
 type PublicApiVariables = {
@@ -66,7 +67,7 @@ app.use("*", async (c, next) => {
   // список возможностей тарифа на экране оплаты). Ключ при этом выписывается
   // на любом тарифе, включая trial: apiKey.create тариф не смотрит. Пока это
   // так, единственное место, где тариф вообще проверяется, — вот это.
-  if (tenant.plan !== "exclusive") {
+  if (!planHas(tenant.plan as PlanKey, "api")) {
     return c.json({ error: "Public API requires the Exclusive plan." }, 403);
   }
 

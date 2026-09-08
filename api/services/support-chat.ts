@@ -3,7 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { getDb } from "../queries/connection";
 import { supportMessages, supportThreads, tenants, users } from "@db/schema";
 import { sseBus } from "../lib/sse";
-import { PLAN_FEATURES, type PlanKey } from "../../contracts/constants";
+import { planHas, type PlanKey } from "../../contracts/constants";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Чат поддержки — правила разговора.
@@ -61,7 +61,7 @@ export async function hasSupportChat(tenantId: number): Promise<boolean> {
     и подпись на карточке читают одну запись.
   */
   const plan = await tenantPlan(tenantId);
-  return Boolean(plan && PLAN_FEATURES[plan as PlanKey]?.supportChat);
+  return Boolean(plan && planHas(plan as PlanKey, "supportChat"));
 }
 
 export async function requireSupportChat(tenantId: number): Promise<void> {

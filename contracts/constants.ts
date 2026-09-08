@@ -64,24 +64,90 @@ export const PLANS = {
 
 export type PlanKey = keyof typeof PLANS;
 
-/*
-  Что тариф даёт сверх чисел.
+/* ═══════════════════════════════════════════════════════════════════════════
+   Что тариф даёт сверх чисел.
 
-  Правило «чат поддержки — это Exclusive» жило в двух местах: проверкой доступа
-  на сервере (api/services/support-chat.ts) и нигде на экране оплаты. Из-за
-  второго карточки тарифов сравнивались только числами — пользователи, товары,
-  заказы, — и то единственное, чем Exclusive отличается по существу, человек
-  при выборе не видел.
+   ── Зачем один каталог ──────────────────────────────────────────────────────
 
-  Теперь источник один: сервер решает по нему доступ, экран по нему же
-  подписывает карточку.
-*/
-export const PLAN_FEATURES: Record<PlanKey, { supportChat: boolean }> = {
-  trial:     { supportChat: false },
-  basic:     { supportChat: false },
-  pro:       { supportChat: false },
-  exclusive: { supportChat: true },
+   Возможности тарифов были написаны прозой на лендинге и НИГДЕ на экране
+   оплаты: человек, который платит, сравнивал тарифы по трём числам —
+   пользователи, товары, заказы. Чем Pro отличается от Basic по существу, на
+   экране оплаты не говорилось вовсе.
+
+   Теперь список один, и его читают обе страницы. Правило «чат поддержки — это
+   Exclusive» и проверка публичного API читают его же, а не сравнивают с
+   собственной строкой.
+
+   ── Про `enforced` ──────────────────────────────────────────────────────────
+
+   Признак говорит, ПРОВЕРЯЕТ ли это код. Сейчас проверяются ровно две
+   возможности из списка — чат поддержки и API, — плюс числовые пределы
+   (api/lib/plan-limits.ts). Остальное перечислено как обещание тарифа, но
+   технически доступно на любом: GPS, обмен с 1С, оформление под свой бренд,
+   аналитика ничем не ограничены.
+
+   Врать на экране оплаты нельзя, поэтому признак стоит в коде рядом с
+   названием, а не в чьей-то памяти: видно, где обещание подкреплено, а где
+   держится на честном слове.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+export type FeatureKey =
+  | "warehouse" | "mobile" | "reportsBasic" | "supportEmail"
+  | "gps" | "onec" | "analytics" | "supportPriority"
+  | "supportChat" | "api" | "whiteLabel" | "dataMigration" | "dedicatedServer";
+
+export const FEATURES: Record<FeatureKey, { ru: string; uz: string; enforced: boolean }> = {
+  warehouse:       { ru: "Склад, заказы, доставка",                 uz: "Ombor, buyurtmalar, yetkazish",                enforced: false },
+  mobile:          { ru: "Мобильное приложение с офлайн-режимом",   uz: "Oflayn rejimli mobil ilova",                   enforced: false },
+  reportsBasic:    { ru: "Базовые отчёты",                          uz: "Asosiy hisobotlar",                            enforced: false },
+  supportEmail:    { ru: "Поддержка по почте",                      uz: "Pochta orqali yordam",                         enforced: false },
+
+  gps:             { ru: "GPS-контроль агентов и курьеров",         uz: "Agentlar va kuryerlar GPS nazorati",           enforced: false },
+  onec:            { ru: "Двусторонний обмен с 1С",                 uz: "1C bilan ikki tomonlama almashinuv",           enforced: false },
+  analytics:       { ru: "Полная аналитика: прибыль, KPI, долги",   uz: "To'liq tahlil: foyda, KPI, qarzlar",           enforced: false },
+  supportPriority: { ru: "Приоритетная поддержка",                  uz: "Ustuvor yordam",                               enforced: false },
+
+  supportChat:     { ru: "Чат с поддержкой прямо в системе",        uz: "Tizim ichida qo'llab-quvvatlash chati",        enforced: true  },
+  api:             { ru: "Доступ по API",                           uz: "API orqali kirish",                            enforced: true  },
+  whiteLabel:      { ru: "Оформление под свой бренд",               uz: "O'z brendi ostida rasmiylashtirish",           enforced: false },
+  dataMigration:   { ru: "Перенос данных из Excel и 1С",            uz: "Excel va 1C dan ma'lumot ko'chirish",          enforced: false },
+  dedicatedServer: { ru: "Выделенный сервер",                       uz: "Ajratilgan server",                            enforced: false },
 };
+
+/**
+ * Что тариф добавляет СВЕРХ предыдущего.
+ *
+ * Списком «добавляет», а не «включает всё»: иначе карточка Exclusive повторяет
+ * тринадцать строк, из которых новых три, и разница между тарифами тонет.
+ */
+export const PLAN_ADDS: Record<PlanKey, readonly FeatureKey[]> = {
+  trial:     ["warehouse", "mobile", "reportsBasic"],
+  basic:     ["warehouse", "mobile", "reportsBasic", "supportEmail"],
+  pro:       ["gps", "onec", "analytics", "supportPriority"],
+  exclusive: ["supportChat", "api", "whiteLabel", "dataMigration", "dedicatedServer"],
+};
+
+/** Порядок тарифов от младшего к старшему — по нему копятся возможности. */
+export const PLAN_ORDER: readonly PlanKey[] = ["trial", "basic", "pro", "exclusive"];
+
+/** Всё, что даёт тариф, включая унаследованное от младших. */
+export function planFeatures(plan: PlanKey): FeatureKey[] {
+  const upTo = PLAN_ORDER.indexOf(plan);
+  if (upTo < 0) return [];
+  const out: FeatureKey[] = [];
+  // trial стоит особняком: он ничего не наследует и ничему не передаёт — это
+  // ознакомительный срок, а не ступень лестницы.
+  const chain = plan === "trial" ? (["trial"] as const) : PLAN_ORDER.slice(1, upTo + 1);
+  for (const key of chain) {
+    for (const f of PLAN_ADDS[key]) if (!out.includes(f)) out.push(f);
+  }
+  return out;
+}
+
+/** Есть ли у тарифа возможность. По этому же решается доступ на сервере. */
+export function planHas(plan: PlanKey, feature: FeatureKey): boolean {
+  return planFeatures(plan).includes(feature);
+}
 
 /** UZS prices — used by billing-router for local payment providers (Payme, Click, Uzum Pay) */
 export const PLAN_PRICES_UZS: Record<PlanKey, number> = {

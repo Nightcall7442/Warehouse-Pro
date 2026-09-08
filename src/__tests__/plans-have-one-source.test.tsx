@@ -27,7 +27,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { PLANS, PLAN_PRICES_UZS, PLAN_FEATURES } from "@contracts/constants";
+import { PLANS, PLAN_PRICES_UZS, FEATURES, PLAN_ADDS, planFeatures, planHas } from "@contracts/constants";
 
 const SRC = join(__dirname, "..");
 
@@ -60,16 +60,52 @@ describe("числа тарифа не переписаны от руки", () =
 });
 
 describe("что даёт тариф — одна запись на всех", () => {
-  it("чат поддержки описан в общем источнике", () => {
-    expect(PLAN_FEATURES.exclusive.supportChat).toBe(true);
-    expect(PLAN_FEATURES.pro.supportChat).toBe(false);
-    expect(PLAN_FEATURES.basic.supportChat).toBe(false);
+  it("старший тариф наследует возможности младшего", () => {
+    // Иначе карточку пришлось бы заполнять руками, и «Всё из Pro» разошлось бы
+    // с тем, что в Pro на самом деле входит.
+    for (const f of planFeatures("basic")) expect(planFeatures("pro")).toContain(f);
+    for (const f of planFeatures("pro")) expect(planFeatures("exclusive")).toContain(f);
   });
 
-  it("сервер решает доступ по нему же, а не сравнением со строкой", () => {
+  it("чат поддержки и API — только у Exclusive", () => {
+    expect(planHas("exclusive", "supportChat")).toBe(true);
+    expect(planHas("pro", "supportChat")).toBe(false);
+    expect(planHas("exclusive", "api")).toBe(true);
+    expect(planHas("basic", "api")).toBe(false);
+  });
+
+  it("каждая возможность названа на обоих языках", () => {
+    for (const list of Object.values(PLAN_ADDS)) {
+      for (const f of list) {
+        expect(FEATURES[f].ru.length).toBeGreaterThan(0);
+        expect(FEATURES[f].uz.length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("сервер решает доступ по каталогу, а не сравнением со строкой", () => {
     const service = code(join(SRC, "..", "api", "services", "support-chat.ts"));
-    expect(service).toContain("PLAN_FEATURES");
+    expect(service).toContain("planHas");
     expect(service).not.toMatch(/tenantPlan\([^)]*\)\)\s*===\s*"exclusive"/);
+
+    const publicApi = code(join(SRC, "..", "api", "public-api.ts"));
+    expect(publicApi).toContain('planHas(');
+    expect(publicApi).not.toMatch(/plan\s*!==\s*"exclusive"/);
+  });
+
+  it("возможность, помеченная проверяемой, и правда проверяется кодом", () => {
+    /*
+      Признак enforced говорит, подкреплено ли обещание тарифа кодом. Пометить
+      можно что угодно; проверка сверяет пометку с настоящими воротами, чтобы
+      экран оплаты не обещал разграничения, которого нет.
+    */
+    const enforced = Object.entries(FEATURES).filter(([, v]) => v.enforced).map(([k]) => k);
+    expect(enforced.sort()).toEqual(["api", "supportChat"]);
+
+    const service = code(join(SRC, "..", "api", "services", "support-chat.ts"));
+    expect(service).toContain('"supportChat"');
+    const publicApi = code(join(SRC, "..", "api", "public-api.ts"));
+    expect(publicApi).toContain('"api"');
   });
 });
 
@@ -130,7 +166,7 @@ describe("карточка тарифа", () => {
     expect(screen.getByText("Активен")).toBeTruthy();
   });
 
-  it("чат поддержки назван там, где он есть", () => {
+  it("возможности тарифа перечислены, а не только числа", () => {
     const exclusive = { ...basic, key: "exclusive", name: "Exclusive", nameUz: "Exclusive", maxUsers: null, maxProducts: null, maxOrdersMonth: null };
     render(
       <SubscriptionPlanCard
