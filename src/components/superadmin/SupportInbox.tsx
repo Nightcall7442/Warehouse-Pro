@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Archive, Check, CheckCheck, Inbox, LifeBuoy, Loader2, Send } from "lucide-react";
+import { Archive, Check, CheckCheck, Inbox, LifeBuoy, Loader2, Send, Trash2 } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
+import { useConfirm } from "@/components/ConfirmDialog";
 import { labelled, ROLE_LABEL } from "@/lib/entity-labels";
 import { buildThread } from "@/lib/chat-thread";
 import { F, COLORS } from "./types";
@@ -31,6 +32,7 @@ import { Section, PlanBadge } from "./ui";
  */
 export function SupportInbox() {
   const utils = trpc.useUtils();
+  const { confirm, dialog } = useConfirm();
   const [openThread, setOpenThread] = useState<{ tenantId: number; userId: number; name: string; tenant: string; plan: string } | null>(null);
   const [draft, setDraft] = useState("");
   const bottom = useRef<HTMLDivElement>(null);
@@ -62,6 +64,34 @@ export function SupportInbox() {
     onSuccess: () => utils.support.inbox.invalidate(),
     onError: (e) => notify.error(e.message),
   });
+
+  /*
+    Стереть немедленно, не дожидаясь недельного срока.
+
+    Нужно для случая, когда ждать нельзя: человек прислал в чат номер карты,
+    паспорт или пароль. Возврата нет — отсюда подтверждение, и оно называет
+    последствие прямо, а не спрашивает «вы уверены?».
+  */
+  const purge = trpc.support.purgeNow.useMutation({
+    onSuccess: (r) => {
+      setOpenThread(null);
+      utils.support.inbox.invalidate();
+      utils.support.threadOf.invalidate();
+      notify.success(`Переписка стёрта: ${r.messages} сообщ.`);
+    },
+    onError: (e) => notify.error(e.message),
+  });
+
+  const askAndPurge = async () => {
+    if (!openThread) return;
+    const ok = await confirm({
+      title: "Стереть переписку?",
+      message: `Все сообщения этого разговора — ${openThread.name}, ${openThread.tenant} — будут удалены сразу и без возврата. Останется только запись о том, что разговор был.`,
+      confirmText: "Стереть",
+      danger: true,
+    });
+    if (ok) purge.mutate({ tenantId: openThread.tenantId, userId: openThread.userId });
+  };
 
   // Открыли разговор — обращения этого человека прочитаны.
   useEffect(() => {
@@ -227,6 +257,16 @@ export function SupportInbox() {
                       Завершить
                     </button>
                   )}
+                  <button
+                    onClick={() => void askAndPurge()}
+                    disabled={purge.isPending}
+                    className="neo-btn"
+                    aria-label="Стереть переписку"
+                    title="Стереть переписку без возврата"
+                    style={{ fontSize: "11px", padding: "6px 10px", flexShrink: 0, color: "var(--color-danger-text)" }}
+                  >
+                    {purge.isPending ? <Loader2 size={12} style={{ animation: "spin 1s linear infinite" }} /> : <Trash2 size={12} />}
+                  </button>
                   <PlanBadge plan={openThread.plan} />
                 </div>
 
@@ -338,6 +378,7 @@ export function SupportInbox() {
           </div>
         </div>
       )}
+      {dialog}
     </Section>
   );
 }

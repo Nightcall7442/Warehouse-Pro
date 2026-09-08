@@ -327,6 +327,58 @@ export async function closeThread(tenantId: number, userId: number, by: ClosedBy
 }
 
 /**
+ * Стереть сообщения по условию и записать, сколько их было.
+ *
+ * Одно место на оба пути — и на срок, и на «стереть сейчас». Удаление должно
+ * быть написано ОДИН раз: два вызова delete по чуть разным условиям — это
+ * способ однажды стереть не то, и заметить это будет уже не по чему.
+ *
+ * Считать надо ДО удаления: после него считать нечего, а число — единственное,
+ * что остаётся от разговора.
+ */
+async function wipe(threadId: number, where: ReturnType<typeof and>, now: Date): Promise<number> {
+  const db = getDb();
+  const [row] = await db.select({ count: sql<number>`count(*)` }).from(supportMessages).where(where);
+  const count = Number(row?.count ?? 0);
+
+  await db.delete(supportMessages).where(where);
+  await db.update(supportThreads).set({ purgedAt: now, messageCount: count }).where(eq(supportThreads.id, threadId));
+  return count;
+}
+
+/**
+ * Стереть переписку пары ПРЯМО СЕЙЧАС, не дожидаясь срока.
+ *
+ * ── Зачем ───────────────────────────────────────────────────────────────────
+ *
+ * Обычный порядок — завершить разговор и подождать неделю. Но иногда стереть
+ * надо немедленно: человек прислал в чат номер карты, паспорт или пароль.
+ * Ждать неделю в таком случае значит хранить у себя то, чего хранить нельзя.
+ *
+ * ── Что именно стирается ────────────────────────────────────────────────────
+ *
+ * ВСЯ переписка пары, а не только текущий разговор: кнопка называется «стереть
+ * переписку», и оставить после неё сообщения прошлых обращений значило бы
+ * соврать нажавшему. Разговор при этом закрывается и помечается стёртым — след
+ * (сколько было сообщений и когда) остаётся, как и при обычном сроке.
+ */
+export async function purgeThreadNow(tenantId: number, userId: number, now: Date = new Date()): Promise<{ messages: number }> {
+  // Закрыть, если ещё идёт: у открытого разговора нет конца, и след о нём
+  // получился бы незавершённым.
+  await closeThread(tenantId, userId, "platform");
+
+  const t = await latestThread(tenantId, userId);
+  if (!t) return { messages: 0 };
+
+  const messages = await wipe(t.id, and(
+    eq(supportMessages.tenantId, tenantId),
+    eq(supportMessages.userId, userId),
+  ), now);
+
+  return { messages };
+}
+
+/**
  * Стереть тексты завершённых разговоров, которым вышел срок.
  *
  * Сообщения разговора — это сообщения той же пары, попавшие в его окно времени.
@@ -357,21 +409,12 @@ export async function purgeClosedThreads(now: Date = new Date()): Promise<{ thre
 
   let messages = 0;
   for (const t of due) {
-    const window = and(
+    messages += await wipe(t.id, and(
       eq(supportMessages.tenantId, t.tenantId),
       eq(supportMessages.userId, t.userId),
       gte(supportMessages.createdAt, t.openedAt),
       lte(supportMessages.createdAt, t.closedAt!),
-    );
-
-    // Сосчитать НАДО до удаления: после него считать уже нечего, а число —
-    // это всё, что остаётся от разговора.
-    const [row] = await db.select({ count: sql<number>`count(*)` }).from(supportMessages).where(window);
-    const count = Number(row?.count ?? 0);
-
-    await db.delete(supportMessages).where(window);
-    await db.update(supportThreads).set({ purgedAt: now, messageCount: count }).where(eq(supportThreads.id, t.id));
-    messages += count;
+    ), now);
   }
 
   return { threads: due.length, messages };

@@ -4,7 +4,7 @@ import { createRouter, authedQuery, superAdminQuery } from "./middleware";
 import { checkRateLimit, rateLimitSubject } from "./lib/rate-limit";
 import {
   MAX_BODY, RETENTION_DAYS, hasSupportChat, requireSupportChat, threadMessages,
-  unreadCount, markRead, postMessage, inbox, threadState, closeThread,
+  unreadCount, markRead, postMessage, inbox, threadState, closeThread, purgeThreadNow,
 } from "./services/support-chat";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -164,6 +164,21 @@ export const supportRouter = createRouter({
     .mutation(async ({ input }) => {
       await closeThread(input.tenantId, input.userId, "platform");
       return { ok: true };
+    }),
+
+  /**
+   * Стереть переписку немедленно.
+   *
+   * Обычный порядок — завершить и подождать неделю. Эта ручка нужна для
+   * случая, когда ждать нельзя: человек прислал в чат номер карты, паспорт
+   * или пароль. Возврата нет, поэтому вызывается только с подтверждением на
+   * экране и только суперадмином.
+   */
+  purgeNow: superAdminQuery
+    .input(z.object({ tenantId: z.number().int().positive(), userId: z.number().int().positive() }))
+    .mutation(async ({ input }) => {
+      const { messages } = await purgeThreadNow(input.tenantId, input.userId);
+      return { ok: true, messages };
     }),
 
   /** Поддержка прочитала обращения этого человека. */

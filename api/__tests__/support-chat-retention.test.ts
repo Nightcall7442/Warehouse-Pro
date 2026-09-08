@@ -31,7 +31,7 @@ import { getDb } from "../queries/connection";
 import { supportThreads } from "@db/schema";
 import {
   RETENTION_DAYS, SILENCE_DAYS,
-  purgeClosedThreads, autoCloseSilent, closeThread, ensureOpenThread, threadState,
+  purgeClosedThreads, autoCloseSilent, closeThread, ensureOpenThread, threadState, purgeThreadNow,
 } from "../services/support-chat";
 
 // ── Маленькая база в памяти ─────────────────────────────────────────────────
@@ -367,6 +367,73 @@ describe("завершение вручную", () => {
     seedThread({ opened_at: daysAgo(1) });
     await ensureOpenThread(1, 7);
     expect(store.threads).toHaveLength(1);
+  });
+});
+
+// ── Стереть немедленно ──────────────────────────────────────────────────────
+
+describe("стереть переписку сейчас", () => {
+  /*
+    Кнопка суперадмина для случая, когда ждать неделю нельзя: человек прислал в
+    чат номер карты, паспорт или пароль. Возврата нет, поэтому проверяется не
+    только «стёрлось», но и «стёрлось РОВНО у этого человека».
+  */
+  it("стирает переписку, не дожидаясь срока", async () => {
+    const th = seedThread({ opened_at: daysAgo(2) });
+    seedMessage(daysAgo(1));
+    seedMessage(daysAgo(1));
+
+    const res = await purgeThreadNow(1, 7, NOW);
+
+    expect(res.messages).toBe(2);
+    expect(store.messages).toHaveLength(0);
+    expect(th.purged_at).toEqual(NOW);
+    expect(th.message_count).toBe(2);
+  });
+
+  it("идущий разговор сначала закрывается", async () => {
+    // У открытого разговора нет конца, и след о нём получился бы
+    // незавершённым: «был, шёл с такого-то, кончился никогда».
+    const th = seedThread({ opened_at: daysAgo(2) });
+    seedMessage(daysAgo(1));
+
+    await purgeThreadNow(1, 7, NOW);
+
+    expect(th.closed_at).not.toBeNull();
+    expect(th.closed_by).toBe("platform");
+  });
+
+  it("чужие переписки не задеты", async () => {
+    seedThread({ opened_at: daysAgo(2) });
+    const other = seedMessage(daysAgo(1), { tenant_id: 2, user_id: 7 });
+    const sameTenantOtherUser = seedMessage(daysAgo(1), { tenant_id: 1, user_id: 9 });
+    seedMessage(daysAgo(1));
+
+    await purgeThreadNow(1, 7, NOW);
+
+    // Осталось ровно то, что принадлежит другим парам.
+    expect(store.messages.map(m => m.id).sort()).toEqual([other.id, sameTenantOtherUser.id].sort());
+  });
+
+  it("стирается ВСЯ переписка пары, а не только последний разговор", async () => {
+    /*
+      Кнопка называется «стереть переписку». Оставить после неё сообщения
+      прошлых обращений значило бы соврать нажавшему.
+    */
+    seedThread({ opened_at: daysAgo(40), closed_at: daysAgo(30) });
+    seedThread({ opened_at: daysAgo(2) });
+    seedMessage(daysAgo(35));
+    seedMessage(daysAgo(1));
+
+    const res = await purgeThreadNow(1, 7, NOW);
+
+    expect(res.messages).toBe(2);
+    expect(store.messages).toHaveLength(0);
+  });
+
+  it("когда разговора не было — нечего и стирать", async () => {
+    const res = await purgeThreadNow(1, 7, NOW);
+    expect(res.messages).toBe(0);
   });
 });
 
