@@ -1,4 +1,5 @@
 import { trpc } from "@/providers/trpc";
+import { PremiumSelect } from "@/components/PremiumSelect";
 import type { FilterKind, ReportParams } from "./report-registry";
 
 /**
@@ -26,7 +27,19 @@ export function ReportFilter({ kind, value, onChange, t, style }: {
   return <CategoryFilter value={value.category} onChange={v => onChange({ category: v })} t={t} style={style} />;
 }
 
-/** Shared shape: "все" first, then the list; empty string clears the filter. */
+/**
+ * Shared shape: "все" first, then the list; empty string clears the filter.
+ *
+ * ── Почему не родной select ─────────────────────────────────────────────────
+ *
+ * Здесь стоял <select> с инлайновым стилем. Браузер рисует его по-своему:
+ * системная стрелка, системный шрифт списка, светлый фон выпадающей части даже
+ * при тёмной теме, и высота, не совпадающая с соседними полями. Двенадцать
+ * карточек отчётов встречали человека дюжиной чужеродных прямоугольников.
+ *
+ * PremiumSelect — тот же список, что во всём остальном приложении: со своей
+ * разметкой, клавиатурой и темой. Ширину по-прежнему задаёт карточка.
+ */
 function Select({ label, value, options, onChange, style }: {
   label: string;
   value: string;
@@ -35,10 +48,13 @@ function Select({ label, value, options, onChange, style }: {
   style: React.CSSProperties;
 }) {
   return (
-    <select aria-label={label} value={value} onChange={e => onChange(e.target.value)} style={style}>
-      <option value="">{label}</option>
-      {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-    </select>
+    <PremiumSelect
+      aria-label={label}
+      value={value}
+      onChange={onChange}
+      options={[{ value: "", label }, ...options]}
+      width={typeof style.width === "string" ? style.width : "100%"}
+    />
   );
 }
 

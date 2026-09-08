@@ -7,6 +7,7 @@ import { useTranslate, useLang } from "@/i18n";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useSellerCompany } from "@/hooks/useSellerCompany";
 import { SectionNotice } from "@/components/SectionNotice";
+import { PremiumSelect } from "@/components/PremiumSelect";
 
 /**
  * Акт сверки с магазином: откуда взялось число долга.
@@ -40,6 +41,18 @@ export function ShopStatement({ shopId }: { shopId: number }) {
   const { company, isReady } = useSellerCompany();
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [span, setSpan] = useState<"all" | "30" | "90" | "365" | "custom">("all");
+
+  /** Готовый отрезок в две даты. «Всё время» — это отсутствие обеих. */
+  const pickSpan = (next: typeof span) => {
+    setSpan(next);
+    if (next === "custom") return;
+    if (next === "all") { setFrom(""); setTo(""); return; }
+    const start = new Date();
+    start.setDate(start.getDate() - Number(next));
+    setFrom(start.toISOString().slice(0, 10));
+    setTo(new Date().toISOString().slice(0, 10));
+  };
 
   const { data, isLoading, isLoadingError, refetch } = trpc.shop.statement.useQuery({
     shopId,
@@ -196,10 +209,27 @@ export function ShopStatement({ shopId }: { shopId: number }) {
         <h2 className="font-display text-base font-semibold text-primary" style={{ margin: 0, flex: 1 }}>
           {t("Акт сверки", "Solishtirma dalolatnoma")}
         </h2>
-        <input type="date" className="neo-input" style={{ width: "150px" }} value={from}
-          onChange={e => setFrom(e.target.value)} aria-label={t("С даты", "Sanadan")} />
-        <input type="date" className="neo-input" style={{ width: "150px" }} value={to}
-          onChange={e => setTo(e.target.value)} aria-label={t("По дату", "Sanagacha")} />
+        <PremiumSelect
+          value={span}
+          onChange={v => pickSpan(v as typeof span)}
+          options={[
+            { value: "all",    label: t("За всё время", "Butun davr") },
+            { value: "30",     label: t("30 дней", "30 kun") },
+            { value: "90",     label: t("90 дней", "90 kun") },
+            { value: "365",    label: t("Год", "Yil") },
+            { value: "custom", label: t("Свой период", "O'z davri") },
+          ]}
+          width="170px"
+          aria-label={t("Период", "Davr")}
+        />
+        {span === "custom" && (
+          <>
+            <input type="date" className="neo-input" style={{ width: "150px" }} value={from}
+              onChange={e => setFrom(e.target.value)} aria-label={t("С даты", "Sanadan")} />
+            <input type="date" className="neo-input" style={{ width: "150px" }} value={to}
+              onChange={e => setTo(e.target.value)} aria-label={t("По дату", "Sanagacha")} />
+          </>
+        )}
         <button onClick={toExcel} className="neo-btn flex items-center gap-1.5 text-sm py-2"
           title={t("Выгрузить акт в Excel", "Dalolatnomani Excelga yuklab olish")}>
           <FileDown size={13} />

@@ -8,6 +8,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { exportToExcel } from "@/lib/excel";
 import { SectionNotice } from "@/components/SectionNotice";
+import { PremiumSelect } from "@/components/PremiumSelect";
 
 /**
  * Полный архив задолженности: кто когда взял в долг и кто когда погасил.
@@ -58,6 +59,15 @@ export function DebtJournalPanel() {
   // Пустые даты — весь архив. Это и есть ответ на «за всё время».
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  /*
+    Период выбирается готовыми отрезками, а не двумя полями даты.
+
+    Родные поля type="date" в пустом виде показывают «дд.мм.гггг» — то есть по
+    умолчанию экран встречал двумя незаполненными полями, и «за всё время»
+    выглядело как «вы забыли выбрать даты». Отрезки называют ответ словами, а
+    поля даты появляются, только когда человек просит свой период.
+  */
+  const [span, setSpan] = useState<"all" | "30" | "90" | "365" | "custom">("all");
   const [search, setSearch] = useState("");
   const [kind, setKind] = useState<Kind | "">("");
   const [page, setPage] = useState(1);
@@ -78,6 +88,18 @@ export function DebtJournalPanel() {
 
   /** Сброс на первую страницу: иначе новый фильтр открывается на сороковой. */
   const refilter = (apply: () => void) => { apply(); setPage(1); };
+
+  /** Готовый отрезок в две даты. «Всё время» — это отсутствие обеих. */
+  const pickSpan = (next: typeof span) => refilter(() => {
+    setSpan(next);
+    if (next === "custom") return;
+    if (next === "all") { setFrom(""); setTo(""); return; }
+    const days = Number(next);
+    const start = new Date();
+    start.setDate(start.getDate() - days);
+    setFrom(start.toISOString().slice(0, 10));
+    setTo(new Date().toISOString().slice(0, 10));
+  });
 
   const toExcel = async () => {
     /*
@@ -157,18 +179,39 @@ export function DebtJournalPanel() {
             placeholder={t("Магазин…", "Do'kon…")}
             value={search} onChange={e => refilter(() => setSearch(e.target.value))} />
         </div>
-        <select className="neo-input" style={{ width: "190px" }} value={kind}
-          onChange={e => refilter(() => setKind(e.target.value as Kind | ""))}
-          aria-label={t("Вид операции", "Amal turi")}>
-          <option value="">{t("Все операции", "Barcha amallar")}</option>
-          {(Object.keys(KIND) as Kind[]).map(k => (
-            <option key={k} value={k}>{KIND[k][lang]}</option>
-          ))}
-        </select>
-        <input type="date" className="neo-input" style={{ width: "150px" }} value={from}
-          onChange={e => refilter(() => setFrom(e.target.value))} aria-label={t("С даты", "Sanadan")} />
-        <input type="date" className="neo-input" style={{ width: "150px" }} value={to}
-          onChange={e => refilter(() => setTo(e.target.value))} aria-label={t("По дату", "Sanagacha")} />
+        <PremiumSelect
+          value={kind}
+          onChange={v => refilter(() => setKind(v as Kind | ""))}
+          options={[
+            { value: "", label: t("Все операции", "Barcha amallar") },
+            ...(Object.keys(KIND) as Kind[]).map(k => ({ value: k, label: KIND[k][lang] })),
+          ]}
+          width="190px"
+          aria-label={t("Вид операции", "Amal turi")}
+        />
+        <PremiumSelect
+          value={span}
+          onChange={v => pickSpan(v as typeof span)}
+          options={[
+            { value: "all",    label: t("За всё время", "Butun davr") },
+            { value: "30",     label: t("30 дней", "30 kun") },
+            { value: "90",     label: t("90 дней", "90 kun") },
+            { value: "365",    label: t("Год", "Yil") },
+            { value: "custom", label: t("Свой период", "O'z davri") },
+          ]}
+          width="170px"
+          aria-label={t("Период", "Davr")}
+        />
+        {/* Поля даты — только когда их попросили: пустые «дд.мм.гггг» читаются
+            как незаполненная форма, а не как «за всё время». */}
+        {span === "custom" && (
+          <>
+            <input type="date" className="neo-input" style={{ width: "150px" }} value={from}
+              onChange={e => refilter(() => setFrom(e.target.value))} aria-label={t("С даты", "Sanadan")} />
+            <input type="date" className="neo-input" style={{ width: "150px" }} value={to}
+              onChange={e => refilter(() => setTo(e.target.value))} aria-label={t("По дату", "Sanagacha")} />
+          </>
+        )}
       </div>
 
       {/* Уперлись в предел выборки — сказать вслух. Молча укоротить архив
