@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { format } from "date-fns";
-import { Printer, Loader2, ScrollText } from "lucide-react";
+import { Printer, Loader2, ScrollText, FileDown } from "lucide-react";
+import { exportToExcel } from "@/lib/excel";
 import { trpc } from "@/providers/trpc";
 import { useTranslate, useLang } from "@/i18n";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -133,6 +134,50 @@ export function ShopStatement({ shopId }: { shopId: number }) {
     w.document.close();
   };
 
+  /*
+    Выгрузка в Excel — по-русски, как все документы в этой системе.
+
+    Печать даёт бумагу и PDF, но не даёт сложить столбец: акт часто уходит
+    бухгалтеру, а тот сверяет его со своей таблицей. Суммы поэтому уходят
+    ЧИСЛАМИ, а не строками: число как текст Excel не складывает, не сортирует и
+    подсвечивает уголком — на такой лист нельзя даже посмотреть итог внизу окна.
+
+    Пустая строка вместо нуля в столбцах «Долг +» и «Оплата −» намеренно: ноль
+    там означал бы «движение на ноль», а его не было.
+  */
+  const toExcel = async () => {
+    const period = data.from || data.to
+      ? `${data.from ? format(new Date(data.from), "dd.MM.yyyy") : "начала"} — ${data.to ? format(new Date(data.to), "dd.MM.yyyy") : "сегодня"}`
+      : "за всё время";
+
+    const rows: Array<Record<string, string | number>> = [
+      { "Дата": "", "Операция": "Остаток на начало периода", "Документ": "", "Долг +": "", "Оплата −": "", "Остаток": data.opening },
+      ...data.rows.map(r => ({
+        "Дата":     format(new Date(r.date), "dd.MM.yyyy"),
+        "Операция": KIND[r.kind]?.ru ?? r.kind,
+        "Документ": r.doc ?? r.note ?? "",
+        "Долг +":   r.debit || "",
+        "Оплата −": r.credit || "",
+        "Остаток":  r.balance,
+      })),
+      { "Дата": "", "Операция": "ИТОГО", "Документ": "", "Долг +": data.totals.debit, "Оплата −": data.totals.credit, "Остаток": data.closing },
+    ];
+
+    if (data.discrepancy !== 0) {
+      rows.push({
+        "Дата": "", "Операция": "Расхождение с текущим долгом в системе",
+        "Документ": "", "Долг +": "", "Оплата −": "", "Остаток": data.discrepancy,
+      });
+    }
+
+    await exportToExcel(
+      rows,
+      `akt-sverki-${data.shop.id}`,
+      "Акт сверки",
+      `Акт сверки с магазином «${data.shop.name}» · ${period}`,
+    );
+  };
+
   const th: React.CSSProperties = {
     textAlign: "left", padding: "8px 10px", fontSize: "10px", fontWeight: 700,
     textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--color-text-tertiary)",
@@ -155,6 +200,11 @@ export function ShopStatement({ shopId }: { shopId: number }) {
           onChange={e => setFrom(e.target.value)} aria-label={t("С даты", "Sanadan")} />
         <input type="date" className="neo-input" style={{ width: "150px" }} value={to}
           onChange={e => setTo(e.target.value)} aria-label={t("По дату", "Sanagacha")} />
+        <button onClick={toExcel} className="neo-btn flex items-center gap-1.5 text-sm py-2"
+          title={t("Выгрузить акт в Excel", "Dalolatnomani Excelga yuklab olish")}>
+          <FileDown size={13} />
+          Excel
+        </button>
         <button onClick={print} className="neo-btn flex items-center gap-1.5 text-sm py-2"
           title={t("Откроется окно печати. Чтобы получить файл, выберите принтер «Сохранить как PDF».",
                    "Chop etish oynasi ochiladi. Fayl olish uchun «PDF sifatida saqlash» printerini tanlang.")}>
