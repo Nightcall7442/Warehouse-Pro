@@ -4,7 +4,7 @@ import { createRouter, fieldSalesQuery, supervisorQuery, selfKpiQuery, managemen
 import { getDb } from "./queries/connection";
 import { getPeriod } from "./lib/period";
 import { onDate } from "./lib/date-range";
-import { calculateAgentKpi, calculateAllAgentsKpi, calculateSalary, getAgentList } from "./services/kpi";
+import { calculateAgentKpi, calculateAllAgentsKpi, calculateCourierStats, calculateSalary, getAgentList } from "./services/kpi";
 import { withCache, CacheTTL, cache, CacheKeys } from "./lib/cache";
 import { recordAudit } from "./services/audit-log";
 import { getClientIp } from "./lib/rate-limit";
@@ -33,6 +33,33 @@ export const kpiRouter = createRouter({
 
       return withCache(cacheKey, CacheTTL.kpis, () =>
         calculateAgentKpi(db, ctx.user.id, ctx.tenant.id, periodStart, periodEnd));
+    }),
+
+  /**
+   * Показатели курьера.
+   *
+   * Отдельно от agentKpi, потому что меряется другое: агентский расчёт считает
+   * визиты, планы и оформленные заказы, а у курьера нет ни одного из них.
+   * Прогони его через агентский — получишь ноль по всем строкам и оценку «F»,
+   * причём не за плохую работу, а за то, что меряли не тем.
+   */
+  courierKpi: selfKpiQuery
+    .input(z.object({
+      period: z.enum(["week", "month", "quarter"]).default("month"),
+      /* Директор смотрит чужие показатели, курьер — только свои. */
+      courierId: z.number().int().positive().optional(),
+    }).optional())
+    .query(async ({ input, ctx }) => {
+      const db = getDb();
+      const period = input?.period ?? "month";
+      const { periodStart, periodEnd } = getPeriod(period);
+
+      const canSeeOthers = ctx.user.role === "ceo" || ctx.user.role === "operator" || ctx.user.role === "supervisor";
+      const courierId = canSeeOthers && input?.courierId ? input.courierId : ctx.user.id;
+
+      const cacheKey = `kpi:courier:${ctx.tenant.id}:${courierId}:${period}`;
+      return withCache(cacheKey, CacheTTL.kpis, () =>
+        calculateCourierStats(db, courierId, ctx.tenant.id, periodStart, periodEnd));
     }),
 
   supervisorKpi: supervisorQuery

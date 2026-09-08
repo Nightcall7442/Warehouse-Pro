@@ -869,6 +869,16 @@ export const commissions = mysqlTable("commissions", {
   tenantId:     bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
   userId:       bigint("user_id", { mode: "number", unsigned: true }).notNull().references(() => users.id, { onDelete: "restrict" }),
   commissionRate: decimal("commission_rate", { precision: 5, scale: 2 }).default("0.00").notNull(), // percentage
+  /*
+    Сколько платить курьеру ЗА ОДНУ доставку — в сумах, не в процентах.
+
+    Комиссия процентом курьеру не подходит: сумму заказа он не назначает и на
+    неё не влияет, а везёт одинаково — что коробку на сто тысяч, что на
+    миллион. Поэтому у него своя ставка, и живёт она здесь же: таблица и так
+    означает «как человеку считают переменную часть в этом периоде», и вторая
+    строка в ней уместнее второй таблицы.
+  */
+  deliveryRate: decimal("delivery_rate", { precision: 12, scale: 2 }).default("0.00").notNull(),
   periodType:   mysqlEnum("period_type", ["monthly", "quarterly"]).default("monthly").notNull(),
   periodStart:  date("period_start").notNull(),
   periodEnd:    date("period_end").notNull(),

@@ -5,11 +5,12 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { notify } from "@/lib/toast";
 import { COLORS, F } from "@/components/products/constants";
 import { exportToExcel } from "@/lib/excel";
-import { Settings, Loader2, FileDown, Target, ShoppingCart, DollarSign, Users, Package, Star, MapPin, AlertTriangle , Truck } from "lucide-react";
+import { Settings, Loader2, FileDown, Target, ShoppingCart, DollarSign, Users, Package, Star, MapPin, AlertTriangle } from "lucide-react";
 import { ProgressRing } from "@/components/ProgressRing";
 import { RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer } from "recharts";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { colorMix } from "@/lib/color-mix";
+import { CourierKpiView } from "@/components/kpi/CourierKpiView";
 
 interface KpiData {
   agentId: number; agentName: string; period: string;
@@ -36,8 +37,10 @@ interface AgentListEntry {
 interface SalaryData {
   agentId: number; agentName: string; period: string;
   baseSalary: number; commissionRate: number; salesAmount: number;
-  commissionAmount: number; kpiScore: number; bonusAmount: number; totalSalary: number;
-  breakdown: { base: number; commission: number; bonus: number; fraudDeduction: number };
+  commissionAmount: number; kpiScore: number; bonusAmount: number;
+  deliveryRate: number; deliveredCount: number; deliveryPay: number;
+  totalSalary: number;
+  breakdown: { base: number; commission: number; bonus: number; fraudDeduction: number; delivery: number };
 }
 
 const PERIODS = [
@@ -74,9 +77,9 @@ export default function AgentKpi() {
     бы экран нулей. Считать ему есть что своё: доставки и собранные деньги,
     и то и другое расчёт уже берёт по нему самому.
 
-    Зарплату курьеру не показываем вовсе: она считается по заказам, которые
-    человек ОФОРМИЛ, а курьер их не оформляет — вышел бы ноль, выданный за
-    настоящую цифру.
+    Зарплату ему теперь считают по-своему — фиксированной суммой за каждую
+    довезённую заявку, а не процентом от оформленного. Раньше запрос был
+    отключён именно потому, что агентский расчёт давал «оклад и три нуля».
   */
   const isCourier = user?.role === "courier";
   /*
@@ -94,9 +97,24 @@ export default function AgentKpi() {
   */
   const isOperator = user?.role === "operator";
 
-  const { data: myKpi, isLoading: myLoading } = trpc.kpi.agentKpi.useQuery({ period }, { enabled: !isSupervisor });
+  /*
+    Курьеру агентский расчёт не запрашивается: все его строки — визиты, планы,
+    выручка, средний чек — меряют оформление заказов, которых у курьера нет.
+    Ответ был бы полон нулей, и оценка «F» к работе человека отношения не
+    имеет. Свои числа он берёт из courierKpi.
+  */
+  const { data: myKpi, isLoading: myLoading } = trpc.kpi.agentKpi.useQuery({ period }, { enabled: !isSupervisor && !isCourier });
   const { data: agentList, isLoading: listLoading } = trpc.kpi.agentList.useQuery({ period }, { enabled: isSupervisor });
-  const { data: mySalary } = trpc.kpi.salary.useQuery({ period }, { enabled: (!isSupervisor && !isCourier) || isOperator });
+    /*
+    Курьеру зарплата теперь считается и показывается.
+
+    Запрос был отключён именно для него — и не зря: агентский расчёт давал ему
+    «оклад и три нуля», потому что комиссия считается процентом от заказов,
+    которые человек ОФОРМИЛ, а курьер их не оформляет. Теперь у него свой
+    расчёт: фиксированная сумма за каждую довезённую заявку.
+  */
+  const { data: mySalary } = trpc.kpi.salary.useQuery({ period }, { enabled: !isSupervisor || isOperator });
+  const { data: courierStats, isLoading: courierLoading } = trpc.kpi.courierKpi.useQuery({ period }, { enabled: isCourier });
 
   const [selectedAgentId, setSelectedAgentId] = useState<number | null>(null);
   const { data: selectedKpi, isLoading: detailLoading } = trpc.kpi.agentDetail.useQuery(
@@ -109,7 +127,7 @@ export default function AgentKpi() {
   );
 
   const allKpi = useMemo(() => agentList ?? [], [agentList]);
-  const isLoading = isSupervisor ? listLoading : myLoading;
+  const isLoading = isSupervisor ? listLoading : isCourier ? courierLoading : myLoading;
 
   const handleExport = useCallback(async () => {
     // Роль проверяется молча — кнопки у агента и нет вовсе. А вот пустой
@@ -132,7 +150,7 @@ export default function AgentKpi() {
             {isSupervisor ? t("KPI Агентов", "Agentlar KPI") : isCourier ? t("Мои доставки", "Yetkazishlarim") : t("KPI Агента", "Agent KPI")}
           </h1>
           <p style={{ fontSize: "13px", color: COLORS.textSecondary, marginTop: "4px" }}>
-            {isSupervisor ? `${allKpi?.length ?? 0} ${t("агентов", "agentlar")}` : myKpi?.agentName}
+            {isSupervisor ? `${allKpi?.length ?? 0} ${t("агентов", "agentlar")}` : isCourier ? courierStats?.courierName : myKpi?.agentName}
           </p>
         </div>
         <div className="flex gap-2 items-center flex-wrap">
@@ -167,6 +185,20 @@ export default function AgentKpi() {
         <div className="flex items-center justify-center py-20">
           <div className="w-8 h-8 rounded-full border-3 border-[var(--color-border)] border-t-[var(--color-primary)] animate-spin" />
         </div>
+      ) : isCourier ? (
+        /*
+          У курьера свой экран.
+
+          Агентский показывал ему визиты, планы, выручку и оценку «F» — всё это
+          меряет оформление заказов, которых курьер не оформляет. Он не работал
+          плохо: его мерили не тем.
+        */
+        <CourierKpiView
+          stats={courierStats ?? { delivered: 0, failed: 0, returned: 0, deliveredAmount: 0, cashCollected: 0, successRate: 0 }}
+          salary={mySalary ?? null}
+          fmt={fmt}
+          t={t}
+        />
       ) : isSupervisor ? (
         <>
           {/* Оклад оператора. Показываем, только когда он заведён: карточка
@@ -187,8 +219,6 @@ export default function AgentKpi() {
           )}
           <SupervisorView kpi={allKpi} selectedKpi={selectedKpi ?? null} selectedSalary={selectedSalary} detailLoading={detailLoading} onSelect={setSelectedAgentId} selectedAgentId={selectedAgentId} fmt={fmt} t={t} lang={lang} />
       </>
-      ) : isCourier ? (
-        myKpi ? <CourierView kpi={myKpi} fmt={fmt} t={t} /> : null
       ) : myKpi ? (
         <AgentView kpi={myKpi} salary={mySalary} fmt={fmt} t={t} lang={lang} />
       ) : null}
@@ -198,64 +228,6 @@ export default function AgentKpi() {
 
 // ── Agent View ────────────────────────────────────────────────────────────────
 
-/**
- * Экран курьера: только то, что он действительно делает.
- *
- * Все четыре числа расчёт уже считает по самому курьеру — доставки по
- * orders.courier_id, деньги по payments.created_by. Ничего нового считать не
- * понадобилось, нужно было лишь пустить его к своим же числам.
- */
-function CourierView({ kpi, fmt, t }: {
-  kpi: { deliveryCount: number; deliveredCount: number; failedCount: number; deliverySuccessRate: number; cashCollected: number };
-  fmt: (v: number | string) => string;
-  t: (ru: string, uz: string) => string;
-}) {
-  const rate = kpi.deliverySuccessRate;
-  return (
-    <div className="space-y-5">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KpiHero
-          label={t("Доставлено", "Yetkazildi")}
-          value={String(kpi.deliveredCount)}
-          sub={`${t("из", "dan")} ${kpi.deliveryCount}`}
-          color="var(--color-success-text)"
-          progress={kpi.deliveryCount > 0 ? kpi.deliveredCount / kpi.deliveryCount : 0}
-          icon={<Truck size={20} color="var(--color-success-text)" />}
-        />
-        <KpiHero
-          label={t("Доля успешных", "Muvaffaqiyat")}
-          value={`${rate}%`}
-          color={rate >= 90 ? "var(--color-success-text)" : rate >= 70 ? "var(--color-warning-text)" : "var(--color-danger-text)"}
-          progress={rate / 100}
-          icon={<Target size={20} color={rate >= 90 ? "var(--color-success-text)" : "var(--color-warning-text)"} />}
-        />
-        <KpiHero
-          label={t("Сорвано", "Bajarilmadi")}
-          value={String(kpi.failedCount)}
-          color={kpi.failedCount > 0 ? "var(--color-danger-text)" : "var(--color-text-tertiary)"}
-          progress={kpi.deliveryCount > 0 ? kpi.failedCount / kpi.deliveryCount : 0}
-          icon={<AlertTriangle size={20} color={kpi.failedCount > 0 ? "var(--color-danger-text)" : "var(--color-text-tertiary)"} />}
-        />
-        <KpiHero
-          label={t("Собрано денег", "Yig'ilgan pul")}
-          value={fmt(kpi.cashCollected)}
-          color="var(--color-primary-text)"
-          progress={Math.min(1, kpi.cashCollected / 10_000_000)}
-          icon={<DollarSign size={20} color="var(--color-primary-text)" />}
-        />
-      </div>
-
-      {/* Пустой период не оставляем немым: ноль доставок — это либо выходной,
-          либо им ещё не назначали, и человек должен понимать, что не сломалось. */}
-      {kpi.deliveryCount === 0 && (
-        <div className="neo-card" style={{ padding: "24px", textAlign: "center", color: "var(--color-text-tertiary)" }}>
-          <Truck size={32} style={{ margin: "0 auto 10px", display: "block" }} />
-          <p style={{ margin: 0 }}>{t("За этот период доставок не было", "Bu davrda yetkazish bo'lmagan")}</p>
-        </div>
-      )}
-    </div>
-  );
-}
 function AgentView({ kpi, salary, fmt, t, lang }: { kpi: KpiData; salary?: SalaryData; fmt: (v: number) => string; t: (r: string, u: string) => string; lang: Lang }) {
   const grade = GRADES[kpi.kpiGrade] ?? GRADES.F;
   return (
@@ -607,22 +579,26 @@ function SupervisorView({ kpi, selectedKpi, selectedSalary, detailLoading, onSel
  * человек уходил уверенным, что поставил шестьдесят.
  */
 const MAX_RATE = 50;
+/*
+  Потолок суммы за доставку.
+
+  Процентом курьера мерить нельзя: сумму заказа он не назначает и на неё не
+  влияет, а везёт одинаково — что коробку на сто тысяч, что на миллион. Платят
+  фиксированную сумму за довезённую заявку, и потолок здесь только затем, чтобы
+  промах на клавиатуре («50000» вместо «5000») не ушёл на сервер молча.
+*/
+const MAX_DELIVERY = 1_000_000;
 
 function SalaryConfig({ t }: { t: (r: string, u: string) => string }) {
   const { data: usersData } = trpc.user.list.useQuery({ page: 1, pageSize: 100 });
   const { data: commissionData } = trpc.commission.list.useQuery();
   const utils = trpc.useContext();
-  /*
-    Черновики правок — строками и по агенту. Отдельно от сохранённого: пока
-    человек набирает, на экране его цифра, а на сервере прежняя, и путать их
-    нельзя.
-  */
-  const [drafts, setDrafts] = useState<Record<number, string>>({});
 
-  const agents = (usersData?.data ?? []).filter((u: { role: string; status: string }) => u.role === "agent" && u.status === "active");
+  const staff = (usersData?.data ?? []) as { id: number; name: string; role: string; status: string }[];
+  const active = (role: string) => staff.filter(u => u.role === role && u.status === "active");
 
   const setRateMutation = trpc.commission.setRate.useMutation({
-    onSuccess: () => { utils.commission.list.invalidate(); notify.success(t("Комиссия сохранена", "Komissiya saqlandi")); },
+    onSuccess: () => { utils.commission.list.invalidate(); notify.success(t("Ставка сохранена", "Stavka saqlandi")); },
     onError: (e) => notify.error(e.message),
   });
 
@@ -631,25 +607,138 @@ function SalaryConfig({ t }: { t: (r: string, u: string) => string }) {
     onError: (e) => notify.error(e.message),
   });
 
-  /** Что хранится на сервере для этого агента. */
-  const savedRate = (agentId: number) => {
-    const record = (commissionData ?? []).find((c: { userId: number; commissionRate: string | number }) => c.userId === agentId);
-    return record ? Math.round(Number(record.commissionRate) * 10) / 10 : 0;
-  };
+  /** Что лежит на сервере для этого человека. */
+  const rowOf = (userId: number) =>
+    (commissionData ?? []).find((c: { userId: number }) => c.userId === userId);
+
+  const savedCommission = (id: number) => Math.round(Number(rowOf(id)?.commissionRate ?? 0) * 10) / 10;
+  const savedDelivery = (id: number) => Math.round(Number(rowOf(id)?.deliveryRate ?? 0));
 
   /*
-    Черновик хранится СТРОКОЙ, а не числом.
+    Ставки живут в одной строке commissions, поэтому сохраняются вместе: послав
+    одну без другой, мы обнулили бы соседнюю. Ручка это и так бережёт —
+    непереданное поле она не трогает, — но послать текущее значение дешевле,
+    чем полагаться на память о том, что оно бережёт.
+  */
+  const saveCommission = (id: number, value: number) =>
+    setRateMutation.mutate({ userId: id, commissionRate: value });
+  const saveDelivery = (id: number, value: number) =>
+    setRateMutation.mutate({ userId: id, commissionRate: savedCommission(id), deliveryRate: value });
 
-    Было `parseFloat(value) || 0`: стоило стереть содержимое, чтобы набрать
-    заново, как в поле мгновенно появлялся ноль — и он же уходил на сервер при
-    уходе из поля. Поменять «5» на «7» приходилось, целясь курсором и дописывая
-    вокруг старой цифры.
+  const handleCalc = () => {
+    const now = new Date();
+    const periodStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
+    const periodEnd = now.toISOString().split("T")[0];
+    calcMutation.mutate({ periodType: "monthly", periodStart, periodEnd });
+  };
+
+  const savingId = setRateMutation.isPending ? setRateMutation.variables?.userId ?? null : null;
+
+  return (
+    <div className="space-y-4">
+      <RateList
+        t={t}
+        people={active("agent")}
+        savingId={savingId}
+        title={t("Комиссия агентов", "Agentlar komissiyasi")}
+        /*
+          Сказано, ОТ ЧЕГО процент. Стояло «Настройте комиссию (%) для каждого
+          агента» — и человек не знал, от выручки это, от прибыли или от суммы
+          заказов; а решение «сколько ставить» принимается именно из этого.
+        */
+        hint={t(
+          `Процент от выручки доставленных заказов агента за месяц. От 0 до ${MAX_RATE}%.`,
+          `Agentning oy davomida yetkazilgan buyurtmalari tushumidan foiz. 0 dan ${MAX_RATE}% gacha.`,
+        )}
+        empty={t("Активных агентов нет", "Faol agentlar yo'q")}
+        unit="%"
+        max={MAX_RATE}
+        step="0.5"
+        saved={savedCommission}
+        onSave={saveCommission}
+      />
+
+      {/*
+        Ставка курьера.
+
+        Её негде было задать вовсе: экран знал только процент и только у
+        агентов, а курьер в расчёте зарплаты получал «оклад и три нуля».
+      */}
+      <RateList
+        t={t}
+        people={active("courier")}
+        savingId={savingId}
+        title={t("Оплата курьеров за доставку", "Kuryerlarga yetkazish uchun to'lov")}
+        hint={t(
+          "Сумма за каждую довезённую заявку. Сорванные доставки её не уменьшают — они видны в показателях, но платят за факт.",
+          "Har bir yetkazilgan ariza uchun summa. Bajarilmagan yetkazishlar uni kamaytirmaydi — ular ko'rsatkichlarda ko'rinadi, lekin to'lov faktga.",
+        )}
+        empty={t("Активных курьеров нет", "Faol kuryerlar yo'q")}
+        unit={t("сум", "so'm")}
+        max={MAX_DELIVERY}
+        step="1000"
+        saved={savedDelivery}
+        onSave={saveDelivery}
+      />
+
+      {/*
+        Здесь стояло «Комиссии рассчитываются автоматически при просмотре
+        зарплаты» — и тут же кнопка «Пересчитать». Два утверждения спорили друг
+        с другом: если само, зачем кнопка. Сказано то, что есть на самом деле.
+      */}
+      <div className="neo-card" style={{ padding: "16px 20px 20px" }}>
+        <p className="text-xs" style={{ color: COLORS.textTertiary, margin: "0 0 10px" }}>
+          {t(
+            "Ставка применяется к следующему расчёту. Уже посчитанные за этот месяц суммы пересчитываются кнопкой ниже.",
+            "Stavka keyingi hisobga qo'llanadi. Shu oy uchun hisoblangan summalar quyidagi tugma bilan qayta hisoblanadi.",
+          )}
+        </p>
+        {/* Кнопка домашняя: в градиенте стоял литерал #4a5c78, а в тени —
+            rgba(91,109,138,.3). Ни того, ни другого нет ни в палитре, ни у
+            арендатора, и в тёмной теме они оставались прежними. */}
+        <button onClick={handleCalc} disabled={calcMutation.isPending}
+          className="neo-btn-primary tap w-full flex items-center justify-center gap-2">
+          {calcMutation.isPending && <Loader2 size={14} className="animate-spin" />}
+          {t("Пересчитать комиссии за месяц", "Oylik komissiyalarni qayta hisoblash")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Список «человек — ставка».
+ *
+ * Одна и та же таблица для двух разных ставок: у агента процент, у курьера
+ * сумма за доставку. Различаются они подписью, единицей и потолком — всё
+ * остальное, включая разбор ввода, одинаково, и разводить это в две копии
+ * значило бы чинить найденные здесь ошибки дважды.
+ */
+function RateList({ t, people, savingId, title, hint, empty, unit, max, step, saved, onSave }: {
+  t: (r: string, u: string) => string;
+  people: { id: number; name: string }[];
+  savingId: number | null;
+  title: string; hint: string; empty: string;
+  unit: string; max: number; step: string;
+  saved: (id: number) => number;
+  onSave: (id: number, value: number) => void;
+}) {
+  /*
+    Черновики правок — строками и по человеку. Отдельно от сохранённого: пока
+    он набирает, на экране его цифра, а на сервере прежняя, и путать их нельзя.
+
+    Черновик хранится СТРОКОЙ, а не числом. Было `parseFloat(value) || 0`:
+    стоило стереть содержимое, чтобы набрать заново, как в поле мгновенно
+    появлялся ноль — и он же уходил на сервер при уходе из поля. Поменять «5»
+    на «7» приходилось, целясь курсором и дописывая вокруг старой цифры.
 
     Пустая строка — разрешённое промежуточное состояние: человек стирает, чтобы
-    набрать, а не чтобы обнулить комиссию.
+    набрать, а не чтобы обнулить ставку.
   */
-  const shownRate = (agentId: number) =>
-    drafts[agentId] !== undefined ? drafts[agentId] : String(savedRate(agentId));
+  const [drafts, setDrafts] = useState<Record<number, string>>({});
+
+  const shown = (id: number) => drafts[id] !== undefined ? drafts[id] : String(saved(id));
+  const forget = (id: number) => setDrafts(prev => { const next = { ...prev }; delete next[id]; return next; });
 
   /**
    * Сохранить ставку, если она вообще может быть ставкой.
@@ -660,129 +749,97 @@ function SalaryConfig({ t }: { t: (r: string, u: string) => string }) {
    * Молчаливое расхождение между экраном и базой — худший из возможных
    * ответов, и именно его тут и выдавали.
    */
-  const commitRate = (agentId: number) => {
-    const raw = drafts[agentId];
+  const commit = (id: number) => {
+    const raw = drafts[id];
     if (raw === undefined) return;
 
     const val = Number(raw.replace(",", "."));
-    const stored = savedRate(agentId);
+    const stored = saved(id);
 
     if (raw.trim() === "" || !Number.isFinite(val)) {
-      notify.error(t("Введите процент числом", "Foizni raqam bilan kiriting"));
-      setDrafts(prev => { const next = { ...prev }; delete next[agentId]; return next; });
+      notify.error(t("Введите ставку числом", "Stavkani raqam bilan kiriting"));
+      forget(id);
       return;
     }
-    if (val < 0 || val > MAX_RATE) {
+    if (val < 0 || val > max) {
       notify.error(t(
-        `Комиссия задаётся от 0 до ${MAX_RATE}% — введено ${val}`,
-        `Komissiya 0 dan ${MAX_RATE}% gacha — kiritildi ${val}`,
+        `Ставка задаётся от 0 до ${max} ${unit} — введено ${val}`,
+        `Stavka 0 dan ${max} ${unit} gacha — kiritildi ${val}`,
       ));
       // Поле возвращается к тому, что действительно лежит на сервере: иначе на
       // экране осталось бы непринятое число.
-      setDrafts(prev => { const next = { ...prev }; delete next[agentId]; return next; });
+      forget(id);
       return;
     }
     // Не тревожим сервер, если ничего не изменилось.
-    if (Math.abs(val - stored) < 0.001) {
-      setDrafts(prev => { const next = { ...prev }; delete next[agentId]; return next; });
-      return;
-    }
-    setRateMutation.mutate({ userId: agentId, commissionRate: val });
-    setDrafts(prev => { const next = { ...prev }; delete next[agentId]; return next; });
-  };
+    if (Math.abs(val - stored) < 0.001) { forget(id); return; }
 
-  const handleCalc = () => {
-    const now = new Date();
-    const periodStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
-    const periodEnd = now.toISOString().split("T")[0];
-    calcMutation.mutate({ periodType: "monthly", periodStart, periodEnd });
+    onSave(id, val);
+    forget(id);
   };
 
   return (
     <div className="neo-card" style={{ padding: "20px" }}>
-      {/*
-        Сказано, ОТ ЧЕГО процент. Стояло «Настройте комиссию (%) для каждого
-        агента» — и человек не знал, от выручки это, от прибыли или от суммы
-        заказов; а решение «сколько ставить» принимается именно из этого.
-      */}
       <div style={{ marginBottom: "14px" }}>
         <h3 style={{ fontFamily: F.display, fontSize: "15px", fontWeight: 600, color: COLORS.textPrimary, margin: 0 }}>
-          {t("Комиссия агентов", "Agentlar komissiyasi")}
+          {title}
         </h3>
-        <p className="text-xs" style={{ color: COLORS.textSecondary, margin: "4px 0 0" }}>
-          {t(
-            `Процент от выручки доставленных заказов агента за месяц. От 0 до ${MAX_RATE}%.`,
-            `Agentning oy davomida yetkazilgan buyurtmalari tushumidan foiz. 0 dan ${MAX_RATE}% gacha.`,
-          )}
-        </p>
+        <p className="text-xs" style={{ color: COLORS.textSecondary, margin: "4px 0 0" }}>{hint}</p>
       </div>
 
-      <div className="space-y-2">
-        {agents.map((agent: { id: number; name: string }) => {
-          const saving = setRateMutation.isPending && setRateMutation.variables?.userId === agent.id;
-          const edited = drafts[agent.id] !== undefined;
-          return (
-            <div key={agent.id} className="flex items-center gap-3 p-2 rounded-xl"
-              style={{ background: "var(--color-surface-light)", border: "1px solid var(--color-border)" }}>
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "color-mix(in srgb, var(--color-primary) 10%, transparent)" }}>
-                <span className="text-xs font-bold" style={{ color: "var(--color-primary-text)" }}>{agent.name.charAt(0).toUpperCase()}</span>
+      {people.length === 0 ? (
+        // Пустая таблица без слов читается как поломка. Здесь она означает
+        // ровно одно: таких сотрудников нет.
+        <p className="text-xs" style={{ color: COLORS.textTertiary, margin: 0 }}>{empty}</p>
+      ) : (
+        <div className="space-y-2">
+          {people.map(person => {
+            const busy = savingId === person.id;
+            const edited = drafts[person.id] !== undefined;
+            return (
+              <div key={person.id} className="flex items-center gap-3 p-2 rounded-xl"
+                style={{ background: "var(--color-surface-light)", border: "1px solid var(--color-border)" }}>
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "color-mix(in srgb, var(--color-primary) 10%, transparent)" }}>
+                  <span className="text-xs font-bold" style={{ color: "var(--color-primary-text)" }}>{person.name.charAt(0).toUpperCase()}</span>
+                </div>
+                <span className="text-sm flex-1 truncate" style={{ color: COLORS.textPrimary }}>{person.name}</span>
+
+                {/* Признак того, что происходит именно с ЭТОЙ строкой. Общий
+                    всплывающий значок на тридцать человек не отвечает на вопрос
+                    «сохранилось ли у Азиза». */}
+                {busy && <Loader2 size={13} className="animate-spin" style={{ color: COLORS.textTertiary }} aria-hidden />}
+                {!busy && edited && (
+                  <span className="text-[11px]" style={{ color: COLORS.textTertiary }}>
+                    {t("не сохранено", "saqlanmadi")}
+                  </span>
+                )}
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number" inputMode="decimal" min="0" max={max} step={step}
+                    aria-label={`${title}: ${person.name}`}
+                    value={shown(person.id)}
+                    onChange={e => setDrafts(prev => ({ ...prev, [person.id]: e.target.value }))}
+                    onBlur={() => commit(person.id)}
+                    // Enter сохраняет, не заставляя уводить палец с поля.
+                    onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                    // 44 точки: поле было 30 при цели касания в 44, а это ровно
+                    // то поле, куда на телефоне целятся пальцем.
+                    className="text-center text-sm rounded-lg outline-none tap"
+                    style={{
+                      width: unit === "%" ? "96px" : "124px",
+                      height: "44px", padding: "0 10px",
+                      background: "var(--color-surface)", border: "1.5px solid var(--color-border)",
+                      color: COLORS.textPrimary, fontFamily: F.display, fontWeight: 600,
+                    }}
+                  />
+                  <span className="text-xs font-medium" style={{ color: COLORS.textSecondary, minWidth: "26px" }}>{unit}</span>
+                </div>
               </div>
-              <span className="text-sm flex-1 truncate" style={{ color: COLORS.textPrimary }}>{agent.name}</span>
-
-              {/* Признак того, что происходит именно с ЭТОЙ строкой. Общий
-                  всплывающий значок на тридцать агентов не отвечает на вопрос
-                  «сохранилось ли у Азиза». */}
-              {saving && <Loader2 size={13} className="animate-spin" style={{ color: COLORS.textTertiary }} aria-hidden />}
-              {!saving && edited && (
-                <span className="text-[11px]" style={{ color: COLORS.textTertiary }}>
-                  {t("не сохранено", "saqlanmadi")}
-                </span>
-              )}
-
-              <div className="flex items-center gap-2">
-                <input
-                  type="number" inputMode="decimal" min="0" max={MAX_RATE} step="0.5"
-                  aria-label={t(`Комиссия агента ${agent.name}, процент`, `${agent.name} komissiyasi, foiz`)}
-                  value={shownRate(agent.id)}
-                  onChange={e => setDrafts(prev => ({ ...prev, [agent.id]: e.target.value }))}
-                  onBlur={() => commitRate(agent.id)}
-                  // Enter сохраняет, не заставляя уводить палец с поля.
-                  onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-                  // 44 точки: поле было 30 при цели касания в 44, а это ровно
-                  // то поле, куда на телефоне целятся пальцем.
-                  className="w-24 text-center text-sm rounded-lg outline-none tap"
-                  style={{
-                    height: "44px", padding: "0 10px",
-                    background: "var(--color-surface)", border: "1.5px solid var(--color-border)",
-                    color: COLORS.textPrimary, fontFamily: F.display, fontWeight: 600,
-                  }}
-                />
-                <span className="text-xs font-medium" style={{ color: COLORS.textSecondary }}>%</span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/*
-        Здесь стояло «Комиссии рассчитываются автоматически при просмотре
-        зарплаты» — и тут же кнопка «Пересчитать». Два утверждения спорили друг
-        с другом: если само, зачем кнопка. Сказано то, что есть на самом деле.
-      */}
-      <p className="text-xs" style={{ color: COLORS.textTertiary, margin: "14px 0 8px" }}>
-        {t(
-          "Ставка применяется к следующему расчёту. Уже посчитанные за этот месяц суммы пересчитываются кнопкой ниже.",
-          "Stavka keyingi hisobga qo'llanadi. Shu oy uchun hisoblangan summalar quyidagi tugma bilan qayta hisoblanadi.",
-        )}
-      </p>
-      {/* Кнопка домашняя: в градиенте стоял литерал #4a5c78, а в тени —
-          rgba(91,109,138,.3). Ни того, ни другого нет ни в палитре, ни у
-          арендатора, и в тёмной теме они оставались прежними. */}
-      <button onClick={handleCalc} disabled={calcMutation.isPending}
-        className="neo-btn-primary tap w-full flex items-center justify-center gap-2">
-        {calcMutation.isPending && <Loader2 size={14} className="animate-spin" />}
-        {t("Пересчитать комиссии за месяц", "Oylik komissiyalarni qayta hisoblash")}
-      </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

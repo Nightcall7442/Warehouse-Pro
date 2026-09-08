@@ -1,0 +1,1 @@
+ALTER TABLE `commissions` ADD `delivery_rate` decimal(12,2) DEFAULT '0.00' NOT NULL;

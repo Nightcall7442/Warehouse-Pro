@@ -23,6 +23,7 @@ const read = (p: string) => fs.readFileSync(path.resolve(process.cwd(), p), "utf
 const MW = read("api/middleware.ts");
 const KPI = read("api/kpi-router.ts");
 const PAGE = read("src/pages/AgentKpi.tsx");
+const SERVICE = read("api/services/kpi.ts");
 
 function rolesOf(kind: string): string[] {
   const at = MW.indexOf(`export const ${kind}`);
@@ -40,7 +41,7 @@ function kindOf(op: string): string {
 
 describe("курьер и свой KPI", () => {
   it("может открыть собственные числа", () => {
-    expect(rolesOf(kindOf("agentKpi")), "курьеру снова закрыли его же KPI").toContain("courier");
+    expect(rolesOf(kindOf("courierKpi")), "курьеру снова закрыли его же KPI").toContain("courier");
   });
 
   it("чужого при этом не открылось", () => {
@@ -51,18 +52,91 @@ describe("курьер и свой KPI", () => {
 
   it("видит свой экран, а не агентский", () => {
     // В агентском виде визиты, средний чек и возвраты — у курьера всё нули.
-    expect(PAGE).toContain("function CourierView");
+    expect(PAGE).toContain("CourierKpiView");
     expect(PAGE).toContain('const isCourier = user?.role === "courier"');
   });
 
-  it("зарплату курьеру не запрашивают", () => {
+  it("агентский расчёт ему даже не запрашивают", () => {
     /*
-      Она считается по заказам, которые человек оформил, — у курьера их нет.
-      Ноль, выданный за настоящую цифру, хуже отсутствия цифры.
+      Он отвечает нулями по визитам, планам и выручке и оценкой «F» — не
+      потому что человек плохо работает, а потому что меряет не то. Раз экран
+      этих чисел не показывает, и спрашивать их незачем.
     */
+    const line = PAGE.split("\n").find((l) => l.includes("kpi.agentKpi.useQuery"));
+    expect(line, "запрос агентского KPI не найден").toBeDefined();
+    expect(line!, "курьеру снова считают агентский KPI").toContain("!isCourier");
+  });
+});
+
+/*
+  ── Зарплата курьера ────────────────────────────────────────────────────────
+
+  Раньше её не запрашивали вовсе, и это было верно: агентский расчёт давал
+  курьеру «оклад и три нуля». Комиссия — процент от заказов, которые человек
+  ОФОРМИЛ (у курьера orders.agent_id пуст), премия — от оценки по визитам и
+  планам, которых ему не ставят, вычет — за подозрительные визиты, которых он
+  не делает.
+
+  Решение владельца: фиксированная сумма за каждую довезённую заявку. Срывы её
+  не уменьшают — они видны в показателях, но платят за факт.
+*/
+describe("зарплата курьера", () => {
+  const salary = SERVICE.slice(SERVICE.indexOf("export async function calculateSalary"));
+
+  it("теперь запрашивается", () => {
     const line = PAGE.split("\n").find((l) => l.includes("kpi.salary.useQuery"));
     expect(line, "запрос зарплаты не найден").toBeDefined();
-    expect(line!, "курьеру снова запрашивают зарплату").toContain("!isCourier");
+    expect(line!, "курьеру снова отключили зарплату").not.toContain("!isCourier");
+  });
+
+  it("считается ставкой за доставку, а не процентом", () => {
+    expect(salary).toContain("deliveredCount * deliveryRate");
+  });
+
+  it("итог курьера — только оклад и доставки", () => {
+    /*
+      Без этой проверки к сумме легко вернутся комиссия, премия и вычет: все
+      три в той же функции строкой выше, и все три у курьера ноль или мусор.
+    */
+    const total = salary.slice(salary.indexOf("const totalSalary"), salary.indexOf("return {"));
+    expect(total).toContain("baseSalary + deliveryPay");
+    expect(total).toMatch(/isCourier/);
+  });
+
+  it("срывы выплату не уменьшают", () => {
+    // Платим за факт: сорванные видны в показателях, но из денег не вычитаются.
+    const total = salary.slice(salary.indexOf("const totalSalary"), salary.indexOf("return {"));
+    expect(total).not.toMatch(/failed/);
+  });
+
+  it("строку комиссии курьеру не пишут", () => {
+    // Запись означала бы «комиссия ноль» вместо «комиссии нет».
+    expect(salary).toContain("persist && !isCourier");
+  });
+
+  it("доставки считаются по дате доставки, а не создания заказа", () => {
+    /*
+      Заказ мог быть оформлен в конце месяца, а доехать в начале следующего.
+      По дате создания доставка попала бы в месяц, в котором курьер её ещё не
+      делал, и в свой месяц не попала бы вовсе — человек недосчитался бы денег.
+    */
+    const stats = SERVICE.slice(
+      SERVICE.indexOf("export async function calculateCourierStats"),
+      SERVICE.indexOf("export interface AgentListEntry"),
+    );
+    expect(stats).toContain("COALESCE(${orders.deliveredAt}, ${orders.createdAt})");
+  });
+
+  it("деньги считаются по тому, кто их внёс", () => {
+    /*
+      Не по заказу: тот же заказ мог частью погасить агент при визите, и эти
+      деньги курьеру не приписываются.
+    */
+    const stats = SERVICE.slice(
+      SERVICE.indexOf("export async function calculateCourierStats"),
+      SERVICE.indexOf("export interface AgentListEntry"),
+    );
+    expect(stats).toContain("payments.createdBy");
   });
 });
 

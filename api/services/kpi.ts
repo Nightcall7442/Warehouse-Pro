@@ -65,6 +65,15 @@ export interface SalaryData {
   kpiScore: number;
   bonusAmount: number;
 
+  /*
+    Курьерская часть. Заполняется только у курьера и только тогда, когда ему
+    назначена ставка: у остальных ролей эти поля остаются пустыми, и экран по
+    ним же решает, какую разбивку показывать.
+  */
+  deliveryRate: number;
+  deliveredCount: number;
+  deliveryPay: number;
+
   totalSalary: number;
 
   breakdown: {
@@ -72,6 +81,105 @@ export interface SalaryData {
     commission: number;
     bonus: number;
     fraudDeduction: number;
+    /** Оплата за доставки: ставка × довезённые заказы. */
+    delivery: number;
+  };
+}
+
+/**
+ * Показатели курьера.
+ *
+ * ── Зачем отдельно от агента ────────────────────────────────────────────────
+ *
+ * Расчёт агента меряет визиты, планы и оформленные заказы. У курьера нет ни
+ * одного из них: заказы он не оформляет (orders.agentId у него пуст), планов
+ * визитов ему не ставят. Прогнав курьера через агентский расчёт, получаешь
+ * ноль по всем строкам и оценку «F» — не потому что он плохо работает, а
+ * потому что меряли не тем.
+ *
+ * Здесь меряется то, что курьер действительно делает: довёз, не довёз, привёз
+ * ли деньги.
+ */
+export interface CourierStats {
+  courierId: number;
+  courierName: string;
+  /** Довезённые заказы — за них и платят. */
+  delivered: number;
+  /** Сорванные: магазин закрыт, отказ, не дозвонились. */
+  failed: number;
+  /** Довезены, но товар вернулся — полностью или частью. */
+  returned: number;
+  /** Сумма довезённых заказов. */
+  deliveredAmount: number;
+  /** Наличные, привезённые курьером в кассу. */
+  cashCollected: number;
+  /** Доля довезённого от всего назначенного, в процентах. */
+  successRate: number;
+}
+
+export async function calculateCourierStats(
+  db: DrizzleInstance,
+  courierId: number,
+  tenantId: number,
+  periodStart: Date,
+  periodEnd: Date,
+): Promise<CourierStats> {
+  /*
+    Считается по дате ДОСТАВКИ, а не создания заказа.
+
+    Заказ мог быть оформлен в конце месяца, а доехать в начале следующего.
+    Плати мы по дате создания — доставка попадала бы в тот месяц, в котором
+    курьер её ещё не делал, и в свой месяц не попадала бы вовсе.
+  */
+  const [counts] = await db.select({
+    delivered: sql<number>`SUM(CASE WHEN ${orders.deliveryStatus} = 'delivered' THEN 1 ELSE 0 END)`,
+    failed: sql<number>`SUM(CASE WHEN ${orders.deliveryStatus} = 'failed' THEN 1 ELSE 0 END)`,
+    returned: sql<number>`SUM(CASE WHEN ${orders.deliveryResult} IN ('returned', 'partial_returned') THEN 1 ELSE 0 END)`,
+    deliveredAmount: sql<string>`COALESCE(SUM(CASE WHEN ${orders.deliveryStatus} = 'delivered' THEN CAST(${orders.total} AS DECIMAL(15,2)) ELSE 0 END), 0)`,
+  }).from(orders)
+    .where(and(
+      eq(orders.tenantId, tenantId),
+      eq(orders.courierId, courierId),
+      isNull(orders.deletedAt),
+      gte(sql`COALESCE(${orders.deliveredAt}, ${orders.createdAt})`, periodStart),
+      lte(sql`COALESCE(${orders.deliveredAt}, ${orders.createdAt})`, periodEnd),
+    ));
+
+  /*
+    Наличные — по тому, КТО их внёс.
+
+    Курьер вносит платёж при доставке, и строка платежа хранит его в createdBy
+    (см. api/courier-router.ts). Считать по заказу нельзя: тот же заказ мог
+    частью погасить агент при визите, и эти деньги курьеру не приписываются.
+  */
+  const [cash] = await db.select({
+    total: sql<string>`COALESCE(SUM(CAST(${payments.amount} AS DECIMAL(15,2))), 0)`,
+  }).from(payments)
+    .where(and(
+      eq(payments.tenantId, tenantId),
+      eq(payments.createdBy, courierId),
+      eq(payments.type, "payment"),
+      gte(payments.createdAt, periodStart),
+      lte(payments.createdAt, periodEnd),
+    ));
+
+  const [who] = await db.select({ name: users.name })
+    .from(users).where(eq(users.id, courierId)).limit(1);
+
+  const delivered = Number(counts?.delivered ?? 0);
+  const failed = Number(counts?.failed ?? 0);
+  const assigned = delivered + failed;
+
+  return {
+    courierId,
+    courierName: who?.name ?? "",
+    delivered,
+    failed,
+    returned: Number(counts?.returned ?? 0),
+    deliveredAmount: Number(counts?.deliveredAmount ?? 0),
+    cashCollected: Number(cash?.total ?? 0),
+    // Ноль назначенных — это не «ноль процентов успеха», а «мерить нечего».
+    successRate: assigned === 0 ? 0 : Number(((delivered / assigned) * 100).toFixed(1)),
   };
 }
 
@@ -409,6 +517,7 @@ export async function calculateSalary(
 
   const [commissionRecord] = await db.select({
     commissionRate: sql<string>`commission_rate`,
+    deliveryRate: sql<string>`delivery_rate`,
   }).from(commissions)
     .where(and(
       eq(commissions.tenantId, tenantId),
@@ -420,6 +529,7 @@ export async function calculateSalary(
     .limit(1);
 
   const commissionRate = Number(commissionRecord?.commissionRate ?? 0);
+  const deliveryRate = Number(commissionRecord?.deliveryRate ?? 0);
 
   const [salesStats] = await db.select({
     salesAmount: sql<string>`COALESCE(SUM(CAST(total AS DECIMAL(15,2))), 0)`,
@@ -470,7 +580,32 @@ export async function calculateSalary(
 
   const fraudDeduction = Number((baseSalary * (kpi.fraudRate / 100) * 0.5).toFixed(2));
 
-  const totalSalary = Math.max(0, baseSalary + commissionAmount + bonusAmount - fraudDeduction);
+  /*
+    Курьеру платят за довезённое, а не за оформленное.
+
+    Агентский расчёт для него бессмыслен во всех трёх слагаемых: комиссия
+    считается процентом от заказов, которые человек ОФОРМИЛ (у курьера их нет —
+    orders.agentId пуст), премия — от оценки по визитам и планам, которых ему
+    не ставят, а вычет за подозрительные визиты вычитает за то, чего он не
+    делает. На экране это выглядело как «оклад и три нуля».
+
+    Решение владельца: фиксированная сумма за каждую довезённую заявку, срывы
+    ничего не вычитают — они видны в показателях, но платят за факт.
+  */
+  const [whoIs] = await db.select({ role: users.role })
+    .from(users).where(eq(users.id, agentId)).limit(1);
+  const isCourier = whoIs?.role === "courier";
+
+  const courier = isCourier && deliveryRate > 0
+    ? await calculateCourierStats(db, agentId, tenantId, periodStart, periodEnd)
+    : null;
+
+  const deliveredCount = courier?.delivered ?? 0;
+  const deliveryPay = Number((deliveredCount * deliveryRate).toFixed(2));
+
+  const totalSalary = isCourier
+    ? Math.max(0, baseSalary + deliveryPay)
+    : Math.max(0, baseSalary + commissionAmount + bonusAmount - fraudDeduction);
 
   const periodLabel = `${periodStart.toISOString().slice(0, 10)} — ${periodEnd.toISOString().slice(0, 10)}`;
 
@@ -490,7 +625,10 @@ export async function calculateSalary(
   const monthStart = periodStart.toISOString().slice(0, 10);
   const monthEnd = periodEnd.toISOString().slice(0, 10);
 
-  if (persist) {
+  // Курьеру строку комиссии не пишем: salesAmount и commissionAmount у него
+  // нулевые по определению, и запись означала бы «комиссия ноль» вместо
+  // «комиссии нет».
+  if (persist && !isCourier) {
     try {
       // Проверка и запись — В ОДНОЙ ТРАНЗАКЦИИ, под блокировкой строки.
       //
@@ -582,12 +720,18 @@ export async function calculateSalary(
     commissionAmount,
     kpiScore: kpi.kpiScore,
     bonusAmount,
+    deliveryRate,
+    deliveredCount,
+    deliveryPay,
     totalSalary,
     breakdown: {
       base: baseSalary,
-      commission: commissionAmount,
-      bonus: bonusAmount,
-      fraudDeduction: -fraudDeduction,
+      // У курьера комиссии, премии и вычета нет — не «ноль по ошибке», а не
+      // применимо. Экран по этим нулям и понимает, что разбивка курьерская.
+      commission: isCourier ? 0 : commissionAmount,
+      bonus: isCourier ? 0 : bonusAmount,
+      fraudDeduction: isCourier ? 0 : -fraudDeduction,
+      delivery: deliveryPay,
     },
   };
 }

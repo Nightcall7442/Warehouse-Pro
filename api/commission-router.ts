@@ -68,6 +68,9 @@ export const commissionRouter = createRouter({
         userId: commissions.userId,
         userName: users.name,
         commissionRate: commissions.commissionRate,
+        // Без неё экран настроек не знал бы, что у курьера уже стоит, и
+        // показывал бы ноль поверх заведённой ставки.
+        deliveryRate: commissions.deliveryRate,
         periodType: commissions.periodType,
         periodStart: commissions.periodStart,
         periodEnd: commissions.periodEnd,
@@ -91,6 +94,12 @@ export const commissionRouter = createRouter({
     .input(z.object({
       userId: z.number(),
       commissionRate: z.number().min(0).max(100),
+      /*
+        Сумма за одну доставку, в сумах. У курьера процент бессмыслен: сумму
+        заказа он не назначает и на неё не влияет, а везёт одинаково — что
+        коробку на сто тысяч, что на миллион.
+      */
+      deliveryRate: z.number().min(0).max(100_000_000).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
@@ -113,13 +122,19 @@ export const commissionRouter = createRouter({
 
       if (existing) {
         await db.update(commissions)
-          .set({ commissionRate: input.commissionRate.toFixed(2) })
+          .set({
+            commissionRate: input.commissionRate.toFixed(2),
+            // Не передали — не трогаем: экран ставок агента не должен обнулять
+            // курьерскую ставку только потому, что ничего про неё не знает.
+            ...(input.deliveryRate === undefined ? {} : { deliveryRate: input.deliveryRate.toFixed(2) }),
+          })
           .where(eq(commissions.id, existing.id));
       } else {
         await db.insert(commissions).values({
           tenantId: ctx.tenant.id,
           userId: input.userId,
           commissionRate: input.commissionRate.toFixed(2),
+          deliveryRate: (input.deliveryRate ?? 0).toFixed(2),
           periodType: "monthly",
           // These are `date` columns, so drizzle types them as Date, but the
           // period is keyed by the "YYYY-MM-DD" string the lookup above uses —
