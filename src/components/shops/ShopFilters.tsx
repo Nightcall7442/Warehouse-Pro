@@ -4,10 +4,14 @@ import { COLORS, SHADOW } from "./constants";
 
 interface AgentOption { id: number; name: string; }
 type SortBy = "newest" | "debtDesc" | "debtAsc";
+type Archived = "hide" | "only" | "all";
 
-export function ShopFilters({ lang, search, setSearch, viewMode, setViewMode, agentFilter, setAgentFilter, city, district, agents, onlyDebtors, setOnlyDebtors, sortBy, setSortBy, setPage, resetFilters }: {
+export function ShopFilters({ lang, search, setSearch, viewMode, setViewMode, archived, setArchived, archivedCount, agentFilter, setAgentFilter, city, district, agents, onlyDebtors, setOnlyDebtors, sortBy, setSortBy, setPage, resetFilters }: {
   lang: string; search: string; setSearch: (v: string) => void;
   viewMode: "territories" | "list"; setViewMode: (v: "territories" | "list") => void;
+  archived: Archived; setArchived: (v: Archived) => void;
+  /** Сколько точек лежит в архиве — чтобы вход туда не был вслепую. */
+  archivedCount: number;
   agentFilter: string | undefined; setAgentFilter: (v: string | undefined) => void;
   city: string | undefined; district: string | undefined;
   agents: AgentOption[];
@@ -43,6 +47,34 @@ export function ShopFilters({ lang, search, setSearch, viewMode, setViewMode, ag
           {t("Все магазины", "Barcha do'konlar")}
         </button>
       </div>
+
+      {/*
+        Живые точки, архив или всё вместе.
+
+        Раньше выбора не было: убранная точка стояла в списке рядом с живой и
+        отличалась только словом в столбце статуса. Число рядом с «Архивом»
+        стоит намеренно — без него неоткуда узнать, что там вообще что-то есть.
+      */}
+      {viewMode === "list" && (
+        <div style={{ display: "flex", borderRadius: "10px", overflow: "hidden", border: `1px solid ${COLORS.border}` }}>
+          {([
+            { key: "hide" as const, label: t("Активные", "Faol") },
+            { key: "only" as const, label: t("Архив", "Arxiv") + (archivedCount > 0 ? ` ${archivedCount}` : "") },
+            { key: "all"  as const, label: t("Все", "Hammasi") },
+          ]).map(v => (
+            <button key={v.key} onClick={() => { setArchived(v.key); setPage(1); }}
+              aria-pressed={archived === v.key}
+              style={{
+                padding: "8px 14px", fontSize: "13px", fontWeight: 600, border: "none", cursor: "pointer",
+                background: archived === v.key ? "var(--color-primary)" : COLORS.surface,
+                color: archived === v.key ? "#fff" : COLORS.textSecondary,
+                transition: "all 0.2s",
+              }}>
+              {v.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div style={{ position: "relative", flex: 1, minWidth: "200px" }}>
         <Search size={16} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: COLORS.textSecondary }} />

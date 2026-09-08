@@ -42,7 +42,11 @@ describe("shopRouter", () => {
     expect(shopRouter.getById).toBeDefined();
     expect(shopRouter.create).toBeDefined();
     expect(shopRouter.update).toBeDefined();
-    expect(shopRouter.delete).toBeDefined();
+    // «Удалить» разошлось на три разных дела: убрать в архив, вернуть и
+    // стереть насовсем. См. services/shop-archive.ts.
+    expect(shopRouter.archive).toBeDefined();
+    expect(shopRouter.restore).toBeDefined();
+    expect(shopRouter.deleteForever).toBeDefined();
   });
 
   it("list endpoint is defined", () => {
@@ -57,8 +61,8 @@ describe("shopRouter", () => {
     expect(shopRouter.update).toBeDefined();
   });
 
-  it("delete endpoint is defined", () => {
-    expect(shopRouter.delete).toBeDefined();
+  it("archive endpoint is defined", () => {
+    expect(shopRouter.archive).toBeDefined();
   });
 
   it("has addPayment endpoint", () => {
@@ -98,9 +102,9 @@ describe("shopRouter endpoint shapes", () => {
     expect(typeof shopRouter.update).toBe("function");
   });
 
-  it("delete accepts id input", () => {
-    expect(shopRouter.delete).toBeDefined();
-    expect(typeof shopRouter.delete).toBe("function");
+  it("archive accepts a list of ids", () => {
+    expect(shopRouter.archive).toBeDefined();
+    expect(typeof shopRouter.archive).toBe("function");
   });
 
   it("getById accepts id input", () => {

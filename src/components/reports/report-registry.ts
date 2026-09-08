@@ -208,7 +208,7 @@ export const REPORTS: ReportDef[] = [
     needsPeriod: false,
     filters: ["agent", "territory"],
     useQuery: (p, opts) => trpc.shop.list.useQuery(
-      { page: 1, pageSize: EXPORT_LIMIT, agentId: p.agentId, territoryId: p.territoryId },
+      { page: 1, pageSize: EXPORT_LIMIT, agentId: p.agentId, territoryId: p.territoryId, archived: "all" },
       { enabled: opts.enabled },
     ),
     toRows: (data) => ((data as { data?: Array<Record<string, unknown>> } | undefined)?.data ?? [])

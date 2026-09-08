@@ -1,4 +1,4 @@
-import { MapPin, Trash2, CheckSquare, Square } from "lucide-react";
+import { MapPin, CheckSquare, Square, Archive, RotateCcw } from "lucide-react";
 import { ShopCard } from "./ShopCard";
 import type { ShopCardData } from "./ShopCard";
 import { COLORS } from "./constants";
@@ -61,8 +61,17 @@ export function ShopList({ data, isLoading, lang, fmt, selectable = true, select
   );
 }
 
-export function SelectionBar({ count, lang, onReset, onBulkDelete, isDeleting }: {
-  count: number; lang: string; onReset: () => void; onBulkDelete: () => void; isDeleting: boolean;
+/**
+ * Что делать с отмеченными точками.
+ *
+ * Кнопка одна, но смысл её зависит от того, какой список открыт: в работе
+ * точку убирают, в архиве — возвращают. Держать обе одновременно значило бы
+ * предлагать вернуть то, что и так в работе.
+ */
+export function SelectionBar({ count, lang, onReset, onBulkArchive, onBulkRestore, isBusy, inArchive }: {
+  count: number; lang: string; onReset: () => void;
+  onBulkArchive: () => void; onBulkRestore: () => void;
+  isBusy: boolean; inArchive: boolean;
 }) {
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   return (
@@ -79,14 +88,20 @@ export function SelectionBar({ count, lang, onReset, onBulkDelete, isDeleting }:
         <button onClick={onReset} className="neo-btn text-xs py-1.5 px-3">
           {t("Сбросить", "Bekor qilish")}
         </button>
-        <button onClick={onBulkDelete} disabled={isDeleting}
+        <button onClick={inArchive ? onBulkRestore : onBulkArchive} disabled={isBusy}
           style={{
             display: "flex", alignItems: "center", gap: "5px", padding: "6px 14px",
             fontSize: "12px", fontWeight: 600, borderRadius: "8px",
             border: "none", cursor: "pointer", color: "#fff",
-            background: "var(--color-danger)", opacity: isDeleting ? 0.5 : 1,
+            // Архивация не разрушительна — красным её красить незачем: этот
+            // цвет должен означать «назад пути нет», иначе он перестаёт
+            // означать хоть что-нибудь.
+            background: inArchive ? "var(--color-success)" : "var(--color-primary)",
+            opacity: isBusy ? 0.5 : 1,
           }}>
-          <Trash2 size={13} />{t("Удалить", "O'chirish")}
+          {inArchive
+            ? <><RotateCcw size={13} />{t("Вернуть в работу", "Ishga qaytarish")}</>
+            : <><Archive size={13} />{t("В архив", "Arxivga")}</>}
         </button>
       </div>
     </div>

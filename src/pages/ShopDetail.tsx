@@ -13,7 +13,7 @@ import { labelled, ORDER_STATUS_LABEL } from "@/lib/entity-labels";
 import { format } from "date-fns";
 import {
   ArrowLeft, Store, Phone, MapPin, Edit2, Plus,
-  AlertCircle, Loader2, CheckCircle2, X, Trash2, ChevronRight, Camera,
+  AlertCircle, Loader2, CheckCircle2, X, Trash2, ChevronRight, Camera, Archive, RotateCcw,
 } from "lucide-react";
 import { PhotoOrIcon } from "@/components/PhotoOrIcon";
 import { PremiumSelect } from "@/components/PremiumSelect";
@@ -182,18 +182,60 @@ export default function ShopDetail() {
     onSuccess: () => { utils.shop.getById.invalidate({ id: Number(id) }); setEditing(false); notify.success(t("Магазин обновлён", "Do'kon yangilandi")); },
     onError:   (e) => notify.error(e.message),
   });
-  const deleteShop = trpc.shop.delete.useMutation({
+  /*
+    Что за точкой числится — спрашиваем до того, как предложить действие.
+
+    Это и решает, показывать ли «удалить насовсем». Прежде такая кнопка стояла
+    всегда и делала одно из двух наугад: у точки с заказами внешний ключ не
+    давал стереть строку, и она молча становилась неактивной; у точки без
+    заказов удалялось всё — адрес, координаты, фотография, история визитов.
+    Обещало окно при этом в обоих случаях «безвозвратно».
+
+    Теперь стереть можно ровно то, за чем ничего не числится: дубль, который
+    завёлся от повторного тапа по «Создать». Всё остальное уходит в архив.
+  */
+  const { data: trace } = trpc.shop.trace.useQuery({ id: Number(id) }, { enabled: Number.isFinite(Number(id)) });
+  const isArchived = shop?.status === "inactive";
+  const canDeleteForever = !!trace && trace.total === 0;
+
+  const archiveShop = trpc.shop.archive.useMutation({
+    onSuccess: () => { goBack(); notify.success(t("Магазин убран в архив", "Do'kon arxivga olindi")); },
+    onError:   (e: { message: string }) => notify.error(e.message),
+  });
+  const restoreShopMutation = trpc.shop.restore.useMutation({
+    onSuccess: () => { utils.shop.getById.invalidate({ id: Number(id) }); notify.success(t("Магазин вернулся в работу", "Do'kon ishga qaytdi")); },
+    onError:   (e: { message: string }) => notify.error(e.message),
+  });
+  const deleteForever = trpc.shop.deleteForever.useMutation({
     onSuccess: () => { goBack(); notify.success(t("Магазин удалён", "Do'kon o'chirildi")); },
-    onError:   (e) => notify.error(e.message),
+    onError:   (e: { message: string }) => notify.error(e.message),
   });
 
-  const handleDelete = async () => {
+  const handleArchive = async () => {
+    const debt = Number(shop?.debt ?? 0);
     const ok = await confirm({
-      title: t("Удалить магазин?", "Do'konni o'chirish?"),
-      message: t("Все данные магазина будут удалены безвозвратно.", "Barcha ma'lumotlar o'chib ketadi."),
-      confirmText: t("Удалить", "O'chirish"), danger: true,
+      title: t("Убрать магазин в архив?", "Do'kon arxivga olinsinmi?"),
+      message: [
+        t("Точка пропадёт из списков, планов визитов и карты. Заказы, оплаты и история остаются, вернуть можно в любой момент.",
+          "Do'kon ro'yxatlardan, tashrif rejalaridan va xaritadan yo'qoladi. Buyurtmalar, to'lovlar va tarix saqlanadi, istalgan vaqtda qaytarish mumkin."),
+        debt > 0
+          ? t(`За точкой числится долг ${fmt(debt)} — он остаётся и из дебиторки не уходит.`,
+              `Do'kon zimmasida ${fmt(debt)} qarz bor — u saqlanadi va qarzdorlardan chiqmaydi.`)
+          : "",
+      ].filter(Boolean).join(" "),
+      confirmText: t("В архив", "Arxivga"),
     });
-    if (ok) deleteShop.mutate({ id: Number(id) });
+    if (ok) archiveShop.mutate({ ids: [Number(id)] });
+  };
+
+  const handleDeleteForever = async () => {
+    const ok = await confirm({
+      title: t("Удалить магазин насовсем?", "Do'kon butunlay o'chirilsinmi?"),
+      message: t("За точкой ничего не числится — ни заказов, ни оплат, ни визитов. Строка будет стёрта, вернуть её нельзя.",
+                 "Do'kon zimmasida hech narsa yo'q — na buyurtma, na to'lov, na tashrif. Yozuv o'chiriladi va qaytarilmaydi."),
+      confirmText: t("Удалить насовсем", "Butunlay o'chirish"), danger: true,
+    });
+    if (ok) deleteForever.mutate({ id: Number(id) });
   };
 
   if (isLoadingError) return <QueryErrorFallback onRetry={refetch} />;
@@ -225,9 +267,24 @@ export default function ShopDetail() {
           <button onClick={() => setEditing(v => !v)} className="neo-btn flex items-center gap-1.5 text-sm py-2">
             <Edit2 size={13} />{t("Изменить", "O'zgartirish")}
           </button>
-          <button onClick={handleDelete} className="btn-ghost flex items-center gap-1.5 text-sm text-danger">
-            <Trash2 size={13} />
-          </button>
+          {isArchived ? (
+            <button onClick={() => restoreShopMutation.mutate({ id: Number(id) })}
+              className="neo-btn flex items-center gap-1.5 text-sm py-2">
+              <RotateCcw size={13} />{t("Вернуть в работу", "Ishga qaytarish")}
+            </button>
+          ) : (
+            <button onClick={handleArchive} className="neo-btn flex items-center gap-1.5 text-sm py-2"
+              title={t("Убрать из работы, сохранив историю", "Tarixni saqlab, ishdan olib qo'yish")}>
+              <Archive size={13} />{t("В архив", "Arxivga")}
+            </button>
+          )}
+          {/* Стереть предлагаем, только когда стирать нечего. */}
+          {canDeleteForever && (
+            <button onClick={handleDeleteForever} className="btn-ghost flex items-center gap-1.5 text-sm text-danger"
+              title={t("За точкой ничего не числится — можно удалить", "Do'kon zimmasida hech narsa yo'q — o'chirish mumkin")}>
+              <Trash2 size={13} />
+            </button>
+          )}
         </div>
         )}
       </div>

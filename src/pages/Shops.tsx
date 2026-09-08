@@ -10,6 +10,7 @@ import { useNavigate } from "react-router";
 import { FileDown, Upload, Plus, Wallet } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { useAuth } from "@/hooks/useAuth";
+import { labelled, ACTIVE_STATUS_LABEL } from "@/lib/entity-labels";
 import { canOperate } from "@/lib/permissions";
 import type { AppRouter } from "../../api/router";
 import type { inferRouterOutputs } from "@trpc/server";
@@ -33,6 +34,7 @@ import { useUrlState, urlString, urlMaybeString, urlNumber, urlPage, urlBool, ur
 // без нужды.
 const SORT_CODEC = urlEnum(["newest", "debtDesc", "debtAsc"] as const, "newest");
 const VIEW_CODEC = urlEnum(["territories", "list"] as const, "territories");
+const ARCHIVED_CODEC = urlEnum(["hide", "only", "all"] as const, "hide");
 export default function Shops() {
   const { lang } = useLang();
   const { fmt } = useCurrency();
@@ -73,8 +75,9 @@ export default function Shops() {
   const [showTerritoryManager, setShowTerritoryManager] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [viewMode, setViewMode] = useUrlState("view", "territories", VIEW_CODEC);
+  const [archived, setArchived] = useUrlState("archived", "hide", ARCHIVED_CODEC);
 
-  const { data, isLoading, isLoadingError, refetch } = trpc.shop.list.useQuery({ page, pageSize: 25, search: debouncedSearch || undefined, city, district, agentId: agentFilter ? Number(agentFilter) : undefined, territoryId: territoryFilter, onlyDebtors: onlyDebtors || undefined, sortBy }, {
+  const { data, isLoading, isLoadingError, refetch } = trpc.shop.list.useQuery({ page, pageSize: 25, search: debouncedSearch || undefined, city, district, agentId: agentFilter ? Number(agentFilter) : undefined, territoryId: territoryFilter, onlyDebtors: onlyDebtors || undefined, sortBy, archived }, {
     // Прошлый список остаётся на экране, пока грузится новый: без этого
     // смена запроса обнуляет data, и страница падает в скелетон на каждый
     // ввод — именно это и выглядело как перезагрузка.
@@ -100,9 +103,34 @@ export default function Shops() {
     onSuccess: () => { utils.shop.list.invalidate(); utils.shop.cities.invalidate(); setShowForm(false); notify.success("Магазин добавлен"); },
     onError: (e) => notify.error(e.message),
   });
-  const deleteMutation = trpc.shop.delete.useMutation({
-    onSuccess: () => { utils.shop.list.invalidate(); setSelected(new Set()); notify.success("Магазины удалены"); },
-    onError: (e) => notify.error(e.message),
+  /*
+    Убрать в архив — одним запросом на все отмеченные точки.
+
+    Прежнее удаление шло циклом по одному вызову на магазин: двадцать точек —
+    двадцать обращений, и при обрыве связи посередине часть оказывалась
+    убранной, а часть нет, без всякого следа о том, где остановилось.
+  */
+  const archiveMutation = trpc.shop.archive.useMutation({
+    onSuccess: (r) => {
+      utils.shop.list.invalidate();
+      setSelected(new Set());
+      notify.success(
+        r.withDebt > 0
+          ? t(`В архиве: ${r.archived}. Долг ${fmt(r.debtTotal)} остаётся за точками и виден в дебиторке.`,
+              `Arxivda: ${r.archived}. ${fmt(r.debtTotal)} qarz do'konlar zimmasida qoladi.`)
+          : t(`В архиве: ${r.archived}`, `Arxivda: ${r.archived}`),
+      );
+    },
+    onError: (e: { message: string }) => notify.error(e.message),
+  });
+
+  const restoreMutation = trpc.shop.restore.useMutation({
+    onSuccess: () => {
+      utils.shop.list.invalidate();
+      setSelected(new Set());
+      notify.success(t("Возвращено в работу", "Ishga qaytarildi"));
+    },
+    onError: (e: { message: string }) => notify.error(e.message),
   });
   const { confirm, dialog } = useConfirm();
 
@@ -116,6 +144,8 @@ export default function Shops() {
     debtCount:   data?.totals?.debtCount ?? 0,
     totalDebt:   data?.totals?.totalDebt ?? 0,
   }), [data]);
+
+  const archivedCount = data?.totals?.archivedCount ?? 0;
 
   const allVisibleIds = useMemo(() => (data?.data ?? []).map((s) => s.id as number), [data]);
   const allSelected = allVisibleIds.length > 0 && allVisibleIds.every(id => selected.has(id));
@@ -136,20 +166,40 @@ export default function Shops() {
     }
   }, [allSelected, allVisibleIds]);
 
-  const handleBulkDelete = async () => {
+  /*
+    Подтверждение говорит, что произойдёт на самом деле.
+
+    Стояло «Данные будут удалены безвозвратно» — и это была неправда дважды:
+    у точки с заказами ничего не удалялось, а у точки без заказов удалялось
+    вместе с адресом и фотографией. Теперь действие одно и обратимое, а про
+    долг сказано отдельно: убрать должника с глаз — не то же самое, что
+    простить ему деньги, и человек должен видеть это до нажатия, а не после.
+  */
+  const handleBulkArchive = async () => {
     const count = selected.size;
     if (count === 0) return;
+    const debtors = (data?.data ?? []).filter(s => selected.has(s.id as number) && Number(s.debt ?? 0) > 0);
+    const debtSum = debtors.reduce((sum, s) => sum + Number(s.debt ?? 0), 0);
+
     const ok = await confirm({
-      title: t(`Удалить ${count} магазинов?`, `${count} ta do'kon o'chirilsinmi?`),
-      message: t("Данные будут удалены безвозвратно.", "Ma'lumotlar qaytarib bo'lmaydigan tarzda o'chiriladi."),
-      confirmText: t("Удалить", "O'chirish"),
-      danger: true,
+      title: t(`Убрать ${count} магазинов в архив?`, `${count} ta do'kon arxivga olinsinmi?`),
+      message: [
+        t("Точки пропадут из списков, планов визитов и карты. Заказы, оплаты и история остаются, вернуть можно в любой момент.",
+          "Do'konlar ro'yxatlardan, tashrif rejalaridan va xaritadan yo'qoladi. Buyurtmalar, to'lovlar va tarix saqlanadi, istalgan vaqtda qaytarish mumkin."),
+        debtors.length > 0
+          ? t(`Среди них ${debtors.length} с долгом на ${fmt(debtSum)} — долг остаётся за ними и из дебиторки не уходит.`,
+              `Ular orasida ${debtors.length} tasida ${fmt(debtSum)} qarz bor — qarz ularning zimmasida qoladi.`)
+          : "",
+      ].filter(Boolean).join(" "),
+      confirmText: t("В архив", "Arxivga"),
     });
-    if (ok) {
-      for (const id of selected) {
-        await deleteMutation.mutateAsync({ id });
-      }
-    }
+    if (ok) await archiveMutation.mutateAsync({ ids: [...selected] });
+  };
+
+  const handleBulkRestore = async () => {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    for (const id of ids) await restoreMutation.mutateAsync({ id });
   };
 
   // Сброс — это возврат к чистому адресу, а не семь отдельных сбросов.
@@ -207,7 +257,7 @@ export default function Shops() {
             const allShops: ShopListRow[] = [];
             let page = 1;
             while (true) {
-              const result = await utils.shop.list.fetch({ page, pageSize: 500 });
+              const result = await utils.shop.list.fetch({ page, pageSize: 500, archived });
               if (!result?.data?.length) break;
               allShops.push(...result.data);
               if (allShops.length >= (result?.total ?? 0)) break;
@@ -239,7 +289,7 @@ export default function Shops() {
                   Адрес: shop.address ?? "",
                   Агент: shop.agentName ?? "",
                   Долг: Number(shop.debt ?? 0).toFixed(0),
-                  Статус: shop.status ?? "",
+                  Статус: labelled(ACTIVE_STATUS_LABEL, shop.status),
                 });
               }
               rows.push({ Территория: "", Название: "", Владелец: "", Телефон: "", Город: "", Район: "", Адрес: "", Агент: "", Долг: "", Статус: "" });
@@ -320,6 +370,7 @@ export default function Shops() {
       <ShopFilters
         lang={lang} search={search} setSearch={setSearch}
         viewMode={viewMode} setViewMode={setViewMode}
+        archived={archived} setArchived={setArchived} archivedCount={archivedCount}
         agentFilter={agentFilter} setAgentFilter={setAgentFilter}
         city={city} district={district} agents={agents}
         onlyDebtors={onlyDebtors} setOnlyDebtors={setOnlyDebtors}
@@ -348,7 +399,14 @@ export default function Shops() {
             )}
 
             {canEdit && selected.size > 0 && (
-              <SelectionBar count={selected.size} lang={lang} onReset={() => setSelected(new Set())} onBulkDelete={handleBulkDelete} isDeleting={deleteMutation.isPending} />
+              <SelectionBar
+                count={selected.size} lang={lang}
+                onReset={() => setSelected(new Set())}
+                onBulkArchive={handleBulkArchive}
+                onBulkRestore={handleBulkRestore}
+                isBusy={archiveMutation.isPending || restoreMutation.isPending}
+                inArchive={archived === "only"}
+              />
             )}
 
             <ShopList

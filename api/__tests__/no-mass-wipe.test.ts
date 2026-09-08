@@ -73,14 +73,40 @@ describe("массовой очистки в продукте нет", () => {
     expect(offenders, "экран зовёт массовую очистку:\n" + offenders.join("\n")).toEqual([]);
   });
 
-  it("удаление магазина по-прежнему щадящее", () => {
+  it("магазин стирается ровно в одном месте и только под проверкой", () => {
     /*
       Обратная сторона: убрав массовую очистку, нельзя случайно сделать
-      одиночное удаление жёстким. При любой ссылке (заказы, платежи, планы)
-      магазин переводится в «неактивен» — история остаётся.
+      одиночное удаление жёстким.
+
+      Раньше правило звучало «при любой ссылке магазин переводится в
+      неактивен», и проверка искала эту строку в обработчике delete. Само
+      правило держалось на ошибке внешнего ключа: обработчик ПРОБОВАЛ стереть
+      строку и переходил к мягкому пути, только когда база не давала. У точки
+      без заказов база давала — и она исчезала вместе с адресом, координатами и
+      фотографией, при том что окно обещало одно и то же в обоих случаях.
+
+      Теперь это два разных действия (services/shop-archive.ts), и правило
+      сильнее: стереть строку можно ровно в одном месте кода и только после
+      проверки, что за точкой ничего не числится.
     */
-    const shopRouter = readFileSync(join(API, "shop-router.ts"), "utf8");
-    const del = shopRouter.slice(shopRouter.indexOf("  delete: operatorQuery"));
-    expect(del, "мягкое удаление магазина пропало").toMatch(/status:\s*"inactive"/);
+    const offenders: string[] = [];
+    for (const file of walk(API)) {
+      if (file.includes("__tests__")) continue;
+      const rel = relative(API, file);
+      if (rel.split(/[\\/]/).join("/") === "services/shop-archive.ts") continue;
+      if (/\.delete\(\s*shops\s*\)/.test(readFileSync(file, "utf8"))) offenders.push(rel);
+    }
+    expect(
+      offenders,
+      "магазин стирается в обход services/shop-archive.ts — там стоит проверка " +
+      "истории, и мимо неё точка исчезает вместе с заказами:\n" + offenders.join("\n"),
+    ).toEqual([]);
+
+    const archive = readFileSync(join(API, "services", "shop-archive.ts"), "utf8");
+    // Стирание закрыто отказом, а отказ — перечнем того, что бы пропало.
+    expect(archive, "проверка истории перед удалением пропала")
+      .toMatch(/if \(trace\.total > 0\) throw new ShopHasHistoryError/);
+    // Архивация остаётся мягкой: строка на месте, статус меняется.
+    expect(archive, "архивация перестала быть мягкой").toMatch(/status:\s*"inactive"/);
   });
 });

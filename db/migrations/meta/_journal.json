@@ -29,6 +29,13 @@
       "when": 1788798511245,
       "tag": "0003_orders_first_ordered_at",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1788865749191,
+      "tag": "0004_shops_archive",
+      "breakpoints": true
     }
   ]
 }

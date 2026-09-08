@@ -267,8 +267,10 @@ export const CacheKeys = {
   /** Оценка магазинов: выручка за всю историю и платёжное поведение. */
   shopScores: (tenantId: number, limit: number) => `shopscores:${tenantId}:${limit}`,
 
-  shopList: (tenantId: number, page: number, pageSize: number, search?: string, city?: string, district?: string, agentId?: number, territoryId?: number, onlyDebtors?: boolean, sortBy?: string) =>
-    `shops:${tenantId}:${page}:${pageSize}:${search ?? ""}:${city ?? ""}:${district ?? ""}:${agentId ?? ""}:${territoryId ?? ""}:${onlyDebtors ?? ""}:${sortBy ?? ""}`,
+  // archived входит в ключ обязательно: «активные» и «архив» — разные ответы на
+  // один и тот же остальной набор условий, и без него один подменял бы другой.
+  shopList: (tenantId: number, page: number, pageSize: number, search?: string, city?: string, district?: string, agentId?: number, territoryId?: number, onlyDebtors?: boolean, sortBy?: string, archived?: string) =>
+    `shops:${tenantId}:${page}:${pageSize}:${search ?? ""}:${city ?? ""}:${district ?? ""}:${agentId ?? ""}:${territoryId ?? ""}:${onlyDebtors ?? ""}:${sortBy ?? ""}:${archived ?? ""}`,
   shopCities: (tenantId: number) => `shop_cities:${tenantId}`,
   shopDistricts: (tenantId: number, city?: string) => `shop_districts:${tenantId}:${city ?? ""}`,
   smartAlerts: (tenantId: number, userId: number) => `alerts:${tenantId}:${userId}`,

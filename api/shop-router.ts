@@ -13,6 +13,10 @@ import { parseLocationFromUrl } from "./lib/parse-location";
 import { haversineKm } from "./lib/geo";
 import { photoRef } from "./lib/photo-url";
 import { shopScores } from "./services/shop-scoring";
+import {
+  archiveShops, restoreShop, deleteShopForever, shopTrace,
+  ShopHasHistoryError,
+} from "./services/shop-archive";
 
 /**
  * Проверить, что чужие идентификаторы в запросе принадлежат этой организации.
@@ -132,6 +136,15 @@ export const shopRouter = createRouter({
       agentId:    z.number().optional(),
       territoryId: z.number().optional(),
       onlyDebtors: z.boolean().optional(),
+      /*
+        Что показывать: работающие точки, архив или всё вместе.
+
+        Раньше выбора не было, и список отдавал всё подряд. Убранная точка
+        стояла в нём рядом с живой, отличаясь только словом в столбце статуса,
+        — и попадала в поиск, в выбор магазина, в глаза. По умолчанию теперь
+        живые: справочник — это то, с чем работают сегодня.
+      */
+      archived: z.enum(["hide", "only", "all"]).default("hide"),
       sortBy: z.enum(["newest", "debtDesc", "debtAsc"]).optional(),
     }).optional())
     .query(async ({ input, ctx }) => {
@@ -142,7 +155,9 @@ export const shopRouter = createRouter({
       const offset   = (page - 1) * pageSize;
       const sortBy   = input?.sortBy ?? "newest";
 
-      const cacheKey = CacheKeys.shopList(tenantId, page, pageSize, input?.search, input?.city, input?.district, input?.agentId, input?.territoryId, input?.onlyDebtors, sortBy);
+      const archived = input?.archived ?? "hide";
+
+      const cacheKey = CacheKeys.shopList(tenantId, page, pageSize, input?.search, input?.city, input?.district, input?.agentId, input?.territoryId, input?.onlyDebtors, sortBy, archived);
       return withCache(cacheKey, CacheTTL.shops, async () => {
       const conditions = [eq(shops.tenantId, tenantId)];
       if (input?.search)   conditions.push(like(shops.name, `%${sanitizeSearch(input.search)}%`));
@@ -151,6 +166,17 @@ export const shopRouter = createRouter({
       if (input?.agentId)    conditions.push(eq(shops.agentId, input.agentId));
       if (input?.territoryId) conditions.push(eq(shops.territoryId, input.territoryId));
       if (input?.onlyDebtors) conditions.push(sql`CAST(${shops.debt} AS DECIMAL(15,2)) > 0`);
+      /*
+        Сводка считается ПО ВСЕМ точкам, страница — по выбранным.
+
+        Иначе «общий долг» менялся бы от того, куда переключён вид: спрятал
+        архив — сумма упала, и выглядит это как погашение. Долг убранной точки
+        никуда не делся, она остаётся в дебиторке; см. services/shop-archive.ts.
+        Отсюда два набора условий: одинаковые во всём, кроме признака архива.
+      */
+      const whereAll = and(...conditions);
+      if (archived === "hide") conditions.push(eq(shops.status, "active"));
+      if (archived === "only") conditions.push(eq(shops.status, "inactive"));
       const where = and(...conditions);
 
       const orderBy = sortBy === "debtDesc" ? desc(sql`CAST(${shops.debt} AS DECIMAL(15,2))`)
@@ -171,6 +197,8 @@ export const shopRouter = createRouter({
           gpsLng:    shops.gpsLng,
           debt:      shops.debt,
           status:    shops.status,
+          archivedAt:    shops.archivedAt,
+          archiveReason: shops.archiveReason,
           createdAt: shops.createdAt,
           agentName: users.name,
         })
@@ -193,21 +221,32 @@ export const shopRouter = createRouter({
         // Отдельного запроса это не стоит: те же условия, тот же проход, что и
         // у count(*), просто с тремя дополнительными столбцами.
         db.select({
-          count:       sql<number>`count(*)`,
-          activeCount: sql<number>`SUM(CASE WHEN ${shops.status} = 'active' THEN 1 ELSE 0 END)`,
-          debtCount:   sql<number>`SUM(CASE WHEN CAST(${shops.debt} AS DECIMAL(15,2)) > 0 THEN 1 ELSE 0 END)`,
-          totalDebt:   sql<string>`COALESCE(SUM(CAST(${shops.debt} AS DECIMAL(15,2))), 0)`,
-        }).from(shops).where(where),
+          activeCount:   sql<number>`SUM(CASE WHEN ${shops.status} = 'active' THEN 1 ELSE 0 END)`,
+          archivedCount: sql<number>`SUM(CASE WHEN ${shops.status} = 'inactive' THEN 1 ELSE 0 END)`,
+          debtCount:     sql<number>`SUM(CASE WHEN CAST(${shops.debt} AS DECIMAL(15,2)) > 0 THEN 1 ELSE 0 END)`,
+          totalDebt:     sql<string>`COALESCE(SUM(CAST(${shops.debt} AS DECIMAL(15,2))), 0)`,
+        }).from(shops).where(whereAll),
       ]);
 
       const итоги = countResult[0];
+      const activeCount   = Number(итоги?.activeCount ?? 0);
+      const archivedCount = Number(итоги?.archivedCount ?? 0);
+
       return {
         data,
-        total: Number(итоги?.count ?? 0),
+        /*
+          Отдельного count(*) для страницы не нужно: статусов всего два, и
+          число строк в выбранном виде складывается из тех же двух слагаемых,
+          что уже посчитаны.
+        */
+        total: archived === "hide" ? activeCount
+             : archived === "only" ? archivedCount
+             : activeCount + archivedCount,
         // Number() обязателен: MySQL отдаёт SUM по DECIMAL строкой, и без
         // приведения «общий долг» сложился бы склейкой строк.
         totals: {
-          activeCount: Number(итоги?.activeCount ?? 0),
+          activeCount,
+          archivedCount,
           debtCount:   Number(итоги?.debtCount ?? 0),
           totalDebt:   Number(итоги?.totalDebt ?? 0),
         },
@@ -366,31 +405,66 @@ export const shopRouter = createRouter({
   // references a shop. Attempt the hard delete and let MySQL's own FK
   // constraint be the source of truth — same pattern as product-router.ts's
   // delete — falling back to soft-delete only on a genuine FK violation.
-  delete: operatorQuery
+  /*
+    Что за точкой числится — чтобы окно подтверждения говорило правду.
+
+    Раньше оно обещало «данные будут удалены безвозвратно» независимо от того,
+    что произойдёт на самом деле, а произойти могло одно из двух. Теперь экран
+    спрашивает заранее и показывает, чем именно рискует человек.
+  */
+  trace: managementQuery
+    .input(z.object({ id: z.number() }))
+    .query(async ({ input, ctx }) => {
+      const trace = await shopTrace(ctx.tenant.id, input.id);
+      if (!trace) throw new TRPCError({ code: "NOT_FOUND", message: "Магазин не найден" });
+      return trace;
+    }),
+
+  /** Убрать точки из работы. История цела, долг цел, действие обратимо. */
+  archive: operatorQuery
+    .input(z.object({
+      ids: z.array(z.number()).min(1).max(500),
+      reason: z.string().max(200).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const tenantId = ctx.tenant.id;
+      const result = await archiveShops(tenantId, input.ids, ctx.user.id, input.reason);
+      cache.invalidatePrefix(`shops:${tenantId}`);
+      cache.invalidate(CacheKeys.shopCities(tenantId));
+      return result;
+    }),
+
+  /** Вернуть точку в работу. */
+  restore: operatorQuery
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
       const tenantId = ctx.tenant.id;
+      const ok = await restoreShop(tenantId, input.id);
+      if (!ok) throw new TRPCError({ code: "NOT_FOUND", message: "Магазин не найден или уже в работе" });
+      cache.invalidatePrefix(`shops:${tenantId}`);
+      cache.invalidate(CacheKeys.shopCities(tenantId));
+      return { success: true };
+    }),
 
-      const [existingShop] = await db.select().from(shops)
-        .where(and(eq(shops.id, input.id), eq(shops.tenantId, tenantId))).limit(1);
-      if (!existingShop) throw new Error("Магазин не найден");
+  /*
+    Стереть точку насовсем — исправление ошибки ввода, а не житейское событие.
 
+    Разрешено ровно тогда, когда стирать нечего: на точку не ссылается ни одна
+    запись. Так убирают дубли, наплодившиеся от повторного тапа по «Создать» до
+    появления ключа попытки, — и только их.
+  */
+  deleteForever: operatorQuery
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const tenantId = ctx.tenant.id;
       try {
-        await db.delete(shops)
-          .where(and(eq(shops.id, input.id), eq(shops.tenantId, tenantId)));
-      } catch (err: unknown) {
-        const code = (err as { cause?: { code?: string }; code?: string })?.cause?.code ?? (err as { code?: string })?.code ?? "";
-        const msg = (err as { cause?: { message?: string }; message?: string })?.cause?.message ?? (err as { message?: string })?.message ?? "";
-        if (code === "ER_NO_REFERENCED_ROW_2" || code === "ER_ROW_IS_REFERENCED" || code === "ER_ROW_IS_REFERENCED_2" || msg.includes("foreign key") || msg.includes("a child row")) {
-          await db.update(shops)
-            .set({ status: "inactive" })
-            .where(and(eq(shops.id, input.id), eq(shops.tenantId, tenantId)));
-        } else {
-          throw err;
+        await deleteShopForever(tenantId, input.id);
+      } catch (err) {
+        if (err instanceof ShopHasHistoryError) {
+          throw new TRPCError({ code: "PRECONDITION_FAILED", message: err.message });
         }
+        throw err;
       }
-
       cache.invalidatePrefix(`shops:${tenantId}`);
       cache.invalidate(CacheKeys.shopCities(tenantId));
       return { success: true };

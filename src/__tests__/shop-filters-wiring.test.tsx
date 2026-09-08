@@ -30,6 +30,7 @@ function Harness() {
       lang="ru"
       search={search} setSearch={setSearch}
       viewMode="list" setViewMode={() => {}}
+      archived="hide" setArchived={() => {}} archivedCount={0}
       agentFilter={undefined} setAgentFilter={() => {}}
       city={undefined} district={undefined}
       agents={[]}
