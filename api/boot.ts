@@ -1224,6 +1224,17 @@ if (env.isProduction) {
   */
   void import("./telegram/register").then(m => m.registerTelegramWebhook());
 
+  /*
+    Расписание работ.
+
+    До этого ни одна работа по расписанию не запускалась НИ РАЗУ: ручки
+    /api/cron/* написаны и закрыты ключом, но вызывать их было некому — по
+    счётчикам Prometheus за всё время наблюдения там ноль запросов. Значит не
+    уходили напоминания о долгах, об окончании пробного периода, и не делалась
+    ночная копия базы.
+  */
+  void import("./cron/scheduler").then(m => m.startScheduler());
+
   // Graceful shutdown
   const shutdown = async (signal: string) => {
     logger.info(`${signal} received, starting graceful shutdown`);

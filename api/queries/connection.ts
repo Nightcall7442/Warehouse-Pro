@@ -119,6 +119,18 @@ export interface PoolStats {
  * мониторинга. Ноль соединений при непустом счётчике запросов и означал бы
  * «не знаем»: пул создаётся лениво, до первого запроса он пуст по-настоящему.
  */
+/**
+ * Сам пул — для замка расписания.
+ *
+ * GET_LOCK привязан к соединению, поэтому взять и отпустить его надо на одном
+ * и том же: через drizzle это не выразить, нужен пул. Возвращается тот же
+ * объект, что раздаёт getDb, — второго пула в приложении быть не должно.
+ */
+export function getPool(): mysql.Pool | null {
+  if (!poolRef) getDb();
+  return poolRef;
+}
+
 export function poolStats(): PoolStats | null {
   if (!poolRef) return null;
   const raw = (poolRef as unknown as { pool?: Record<string, { length?: number } | undefined> }).pool;
