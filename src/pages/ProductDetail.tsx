@@ -10,6 +10,7 @@ import { useTranslate, useLang } from "@/i18n";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { format } from "date-fns";
 import { ArrowLeft, Package, Edit2, TrendingUp, TrendingDown, ArrowUpDown, Loader2, Camera } from "lucide-react";
+import { PhotoOrIcon } from "@/components/PhotoOrIcon";
 import { useAuth } from "@/hooks/useAuth";
 import { canOperate } from "@/lib/permissions";
 import { exportToExcel, formatMovementsForExport } from "@/lib/excel";
@@ -136,10 +137,13 @@ export default function ProductDetail() {
             >
               {uploadPhoto.isPending ? (
                 <Loader2 size={28} className="text-primary animate-spin" />
-              ) : product.photoUrl ? (
-                <img src={product.photoUrl} alt={product.name} className="w-full h-full object-cover" />
               ) : (
-                <Package size={28} className="text-primary" />
+                <PhotoOrIcon
+                  src={product.photoUrl}
+                  alt={product.name}
+                  className="w-full h-full object-cover"
+                  fallback={<Package size={28} className="text-primary" />}
+                />
               )}
               {canEdit && (
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 rounded-xl">

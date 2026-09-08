@@ -10,7 +10,9 @@ import { ru as dateRu } from "date-fns/locale";
 import {
   ChevronLeft, ChevronRight, Plus, X,
   Loader2, CheckCircle2, Calendar, Clock,
+  ImageOff,
 } from "lucide-react";
+import { PhotoOrIcon } from "@/components/PhotoOrIcon";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { ScheduleManager } from "@/components/plans/ScheduleManager";
 
@@ -481,14 +483,14 @@ export default function SupervisorPlans() {
                               title={t("Открыть фотоотчёт", "Foto hisobotni ochish")}
                               style={{ display: "flex", flexShrink: 0 }}
                             >
-                              <img
+                              <PhotoOrIcon
                                 src={plan.photoUrl}
                                 alt={t("Фотоотчёт о визите", "Tashrif foto hisoboti")}
-                                loading="lazy"
                                 style={{
                                   width: "28px", height: "28px", borderRadius: "6px",
                                   objectFit: "cover", border: "1px solid var(--color-border)",
                                 }}
+                                fallback={<ImageOff size={16} style={{ color: "var(--color-text-tertiary)" }} />}
                               />
                             </a>
                           )}

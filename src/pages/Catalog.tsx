@@ -64,7 +64,7 @@ function ProductCard({ product, onOpen }: { product: CatalogProduct; onOpen: () 
         display: "flex", alignItems: "center", justifyContent: "center",
         background: "var(--color-surface-light)",
       }}>
-        <PhotoOrIcon src={product.photoUrl} iconSize={28} />
+        <PhotoOrIcon src={product.photoUrl} fallback={<Package size={28} style={{ color: "var(--color-text-tertiary)" }} />} />
       </div>
 
       <p style={{
@@ -125,7 +125,7 @@ function ProductSheet({ product, onClose, onOrder }: {
           display: "flex", alignItems: "center", justifyContent: "center",
           background: "var(--color-surface-light)", marginBottom: "14px",
         }}>
-          <PhotoOrIcon src={product.photoUrl} iconSize={56} lazy={false} />
+          <PhotoOrIcon src={product.photoUrl} lazy={false} fallback={<Package size={56} style={{ color: "var(--color-text-tertiary)" }} />} />
         </div>
 
         <h2 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "var(--color-text-primary)" }}>

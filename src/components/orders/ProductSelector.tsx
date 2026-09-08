@@ -494,8 +494,7 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
                   }}>
                     <PhotoOrIcon
                       src={product.photoUrl as string | null}
-                      iconSize={28}
-                      iconColor={inCart ? "var(--color-primary-text)" : "var(--color-text-tertiary)"}
+                      fallback={<Package size={28} style={{ color: inCart ? "var(--color-primary-text)" : "var(--color-text-tertiary)" }} />}
                     />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>

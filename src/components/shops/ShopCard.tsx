@@ -7,6 +7,7 @@ import { F, COLORS, SHADOW } from "./constants";
 import { useAuth } from "@/hooks/useAuth";
 import { canOperate } from "@/lib/permissions";
 import { useTranslate } from "@/i18n";
+import { PhotoOrIcon } from "@/components/PhotoOrIcon";
 
 export interface ShopCardData { id: number; name: string; ownerName: string | null; phone: string | null; city: string | null; district: string | null; status: string; debt: string | null; photoUrl: string | null; agentName: string | null; }
 
@@ -44,8 +45,8 @@ export function ShopPhoto({ shopId, photoUrl, size = "md" }: { shopId: number; p
       <div className={`${dim} rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0 border border-border-subtle ${canEdit ? "cursor-pointer" : ""}`}
         style={{ background: "color-mix(in srgb, var(--color-primary) 8%, transparent)" }} onClick={canEdit ? () => fileRef.current?.click() : undefined}>
         {upload.isPending ? <Loader2 size={iconSize} className="text-primary animate-spin" />
-          : photoUrl ? <img src={photoUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
-          : <Store size={iconSize} className="text-primary" />}
+          : <PhotoOrIcon src={photoUrl} className="w-full h-full object-cover"
+              fallback={<Store size={iconSize} className="text-primary" />} />}
         {canEdit && (
         <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl">
           <Camera size={iconSize - 4} color="#fff" />

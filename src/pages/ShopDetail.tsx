@@ -15,6 +15,7 @@ import {
   ArrowLeft, Store, Phone, MapPin, Edit2, Plus,
   AlertCircle, Loader2, CheckCircle2, X, Trash2, ChevronRight, Camera,
 } from "lucide-react";
+import { PhotoOrIcon } from "@/components/PhotoOrIcon";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { useAuth } from "@/hooks/useAuth";
@@ -286,8 +287,8 @@ export default function ShopDetail() {
               <div className="w-20 h-20 rounded-xl overflow-hidden flex items-center justify-center border border-border-subtle"
                 style={{ background: "color-mix(in srgb, var(--color-primary) 10%, transparent)" }}>
                 {uploadPhoto.isPending ? <Loader2 size={28} className="text-primary animate-spin"/>
-                  : shop.photoUrl ? <img src={shop.photoUrl} alt={shop.name} className="w-full h-full object-cover"/>
-                  : <Store size={28} className="text-primary"/>}
+                  : <PhotoOrIcon src={shop.photoUrl} alt={shop.name} className="w-full h-full object-cover"
+                      fallback={<Store size={28} className="text-primary"/>} />}
               </div>
               {canEdit && (
               <div className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 rounded-xl">

@@ -6,6 +6,7 @@ import { compressImage } from "@/lib/compress-image";
 import { useAuth } from "@/hooks/useAuth";
 import { canOperate } from "@/lib/permissions";
 import { useTranslate } from "@/i18n";
+import { PhotoOrIcon } from "@/components/PhotoOrIcon";
 
 export interface ProductPhotoProps {
   productId: number;
@@ -47,8 +48,8 @@ export function ProductPhoto({ productId, photoUrl, size = "md" }: ProductPhotoP
         style={{ background: "color-mix(in srgb, var(--color-primary) 8%, transparent)" }}
         onClick={canEdit ? () => fileRef.current?.click() : undefined}>
         {upload.isPending ? <Loader2 size={iconSize} className="text-primary animate-spin" />
-          : photoUrl ? <img src={photoUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
-          : <Package size={iconSize} className="text-primary" />}
+          : <PhotoOrIcon src={photoUrl} className="w-full h-full object-cover"
+              fallback={<Package size={iconSize} className="text-primary" />} />}
         {canEdit && (
         <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl">
           <Camera size={iconSize - 4} color="#fff" />

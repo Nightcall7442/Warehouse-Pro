@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
-import { Camera, Clock, Route } from "lucide-react";
+import { Camera, Clock, Route, ImageOff } from "lucide-react";
+import { PhotoOrIcon } from "@/components/PhotoOrIcon";
 import { countTo, sweepRing, revealRows, pulse } from "@/lib/tracking-motion";
 
 /**
@@ -267,8 +268,8 @@ export function AgentDayPanel({
                   ? `${photo.shopName} · ${photo.at.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}`
                   : photo.shopName}
               >
-                <img src={photo.url} alt={photo.shopName} loading="lazy"
-                     style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                <PhotoOrIcon src={photo.url} alt={photo.shopName}
+                  fallback={<ImageOff size={16} style={{ color: "var(--color-text-tertiary)" }} />} />
               </button>
             ))}
           </div>
