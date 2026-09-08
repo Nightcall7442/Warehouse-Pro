@@ -1777,3 +1777,138 @@ textarea:focus-visible {
 .keyboard-open .app-modal-shell {
   bottom: var(--keyboard-inset, 0px);
 }
+
+/* ═════════════════════════════════════════════════════════════════════════════
+   ЧАТ ПОДДЕРЖКИ
+
+   Экран был собран инлайновыми стилями мимо этой самой системы: рамки
+   `1px solid`, пузыри без теней, поле ввода с обводкой вместо вдавленного
+   .neo-input. На фоне остального приложения он выглядел чужим и дешёвым — не
+   из-за цветов, а из-за того, что в нём не было ни одного признака Soft UI.
+
+   Здесь ровно те же приёмы, что и у .neo-card: вдавленное «поле разговора»
+   и приподнятые над ним пузыри. Тень делает всю работу — цвета остались те же.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Поле разговора — вдавленное, как .neo-input. Пузыри лежат НА нём, и поэтому
+   у них есть за что отбрасывать тень. Плоский фон одного цвета с карточкой
+   этого не давал: пузырь висел в воздухе. */
+.chat-well {
+  background: var(--color-canvas, #e8e6e1);
+  box-shadow: var(--shadow-pressed);
+}
+
+/* Столбик одной реплики: имя, строка «лицо + пузырь», время.
+   Ширину ограничивает ОН, а не пузырь. На пузыре ограничение считалось от его
+   же собственной ширины — короткая фраза вроде «Накладная №4471» получала 78%
+   от самой себя и переносилась на вторую строку без всякой причины. */
+.chat-stack {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-width: min(82%, 600px);
+}
+
+/* Пузырь. Скругление 18 — как у .neo-card-sm, чтобы разговор не выбивался из
+   ряда остальных поверхностей. Хвостик (6px) ставится только последнему в
+   группе: он показывает, где реплика кончилась. */
+.chat-bubble {
+  max-width: 100%;
+  padding: 10px 14px;
+  border-radius: 18px;
+  font-size: 14px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  animation: fadeUp 0.28s cubic-bezier(0.25, 0.1, 0.25, 1) backwards;
+}
+.chat-bubble-mine {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-hover, #4a5c78));
+  color: var(--color-on-primary, #fff);
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--color-primary) 22%, transparent);
+}
+.chat-bubble-theirs {
+  background: var(--color-surface-raised, #f2f0ec);
+  color: var(--color-text-primary, #2b2a28);
+  box-shadow: var(--shadow-sm);
+}
+.chat-bubble-tail-right  { border-bottom-right-radius: 6px; }
+.chat-bubble-tail-left   { border-bottom-left-radius: 6px; }
+
+/* Отправляется. Сообщение показывается сразу — ждать ответа сервера, чтобы
+   увидеть собственные слова, это и есть ощущение дешевизны. Приглушение
+   говорит, что оно ещё в пути. */
+.chat-bubble-pending { opacity: 0.55; }
+
+/* Разделитель суток — приподнятая пилюля поверх вдавленного поля. */
+.chat-day {
+  align-self: center;
+  padding: 4px 14px;
+  border-radius: 999px;
+  background: var(--color-surface, #efedea);
+  box-shadow: var(--shadow-sm);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--color-text-tertiary, #6b6760);
+}
+
+/* Поле ввода. Тот же вдавленный приём, что у .neo-input, но высота растёт по
+   тексту, поэтому класс свой: у .neo-input она фиксированная. */
+.chat-input {
+  flex: 1;
+  resize: none;
+  border: none;
+  outline: none;
+  background: var(--color-canvas, #e8e6e1);
+  border-radius: 16px;
+  padding: 12px 16px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-primary, #2b2a28);
+  box-shadow: var(--shadow-pressed), inset 0 0 0 1px var(--color-border, #d8d5cd);
+  transition: box-shadow 0.2s ease;
+  max-height: 168px;
+  overflow-y: auto;
+}
+.chat-input::placeholder { color: var(--color-text-tertiary, #6b6760); }
+.chat-input:focus {
+  box-shadow: var(--shadow-pressed), 0 0 0 2px color-mix(in srgb, var(--color-primary) 22%, transparent);
+}
+
+/* Подсказки для пустого разговора. Пустой экран с одной серой строкой — это
+   не «чисто», это «здесь ничего нет». Нажатие подставляет тему в поле, но
+   НЕ отправляет: человек дописывает своими словами. */
+.chat-chip {
+  padding: 8px 14px;
+  border: none;
+  border-radius: 999px;
+  background: var(--color-surface, #efedea);
+  box-shadow: var(--shadow-sm);
+  color: var(--color-text-secondary, #5e5b54);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: box-shadow 0.25s ease, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.15s ease;
+}
+.chat-chip:hover {
+  box-shadow: var(--shadow-raised);
+  color: var(--color-primary-text, #53637d);
+  transform: translateY(-1px);
+}
+.chat-chip:active { box-shadow: var(--shadow-pressed); transform: none; }
+
+/* Точка «ждём ответа». Настоящее состояние, а не украшение: горит, только
+   пока последнее слово в разговоре наше. */
+.chat-waiting-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--color-warning, #d4973a);
+  animation: chat-breathe 2s ease-in-out infinite;
+}
+@keyframes chat-breathe {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.3; }
+}

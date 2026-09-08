@@ -56,6 +56,13 @@ beforeEach(() => {
   state.unread = 0;
 });
 
+/** Сегодняшнее время — чтобы разделитель суток был предсказуем. */
+function todayAt(h: number, m: number): Date {
+  const d = new Date();
+  d.setHours(h, m, 0, 0);
+  return d;
+}
+
 describe("экран поддержки", () => {
   it("рисует пустой разговор", () => {
     render(<Support />);
@@ -69,8 +76,8 @@ describe("экран поддержки", () => {
       superjson, имя автора у сообщения пользователя пустое.
     */
     state.messages = [
-      { id: 1, fromPlatform: false, authorName: null, body: "Не грузятся фото", createdAt: new Date("2026-09-08T10:00:00Z"), readAt: null },
-      { id: 2, fromPlatform: true, authorName: "Поддержка", body: "Уже смотрим", createdAt: new Date("2026-09-08T10:05:00Z"), readAt: null },
+      { id: 1, fromPlatform: false, authorName: null, body: "Не грузятся фото", createdAt: todayAt(10, 0), readAt: null },
+      { id: 2, fromPlatform: true, authorName: "Поддержка", body: "Уже смотрим", createdAt: todayAt(10, 5), readAt: null },
     ];
     render(<Support />);
     expect(screen.getByText("Не грузятся фото")).toBeTruthy();
@@ -95,6 +102,68 @@ describe("экран поддержки", () => {
     render(<Support />);
     expect(screen.getByText(/Прямая линия/)).toBeTruthy();
     // Не отказ и не пустой экран: человек должен понять, как получить нужное.
-    expect(screen.getByText(/Exclusive/)).toBeTruthy();
+    expect(screen.getAllByText(/Exclusive/).length).toBeGreaterThan(0);
+    // И к кому идти: тариф меняет руководитель, остальным кнопка вела бы на
+    // экран, закрытый по роли.
+    expect(screen.getByText(/руководитель/)).toBeTruthy();
+  });
+});
+
+/*
+  Ниже — то, из-за чего экран и переписывался. Владелец сказал: «выглядит очень
+  дёшево и просто». Дешевизна была не в цветах: время висело под каждой
+  репликой подряд, а границы суток не показывались вовсе.
+*/
+describe("разговор виден как разговор", () => {
+  it("подряд идущие реплики одной стороны подписаны временем один раз", () => {
+    state.messages = [
+      { id: 1, fromPlatform: false, authorName: null, body: "Первое", createdAt: todayAt(10, 0), readAt: null },
+      { id: 2, fromPlatform: false, authorName: null, body: "И ещё", createdAt: todayAt(10, 1), readAt: null },
+      { id: 3, fromPlatform: false, authorName: null, body: "И вот это", createdAt: todayAt(10, 2), readAt: null },
+    ];
+    render(<Support />);
+
+    // Три реплики — одна подпись времени. Раньше их было три одинаковых.
+    const stamps = screen.getAllByText(/^\d{2}:\d{2}$/);
+    expect(stamps).toHaveLength(1);
+    expect(screen.getByText("Первое")).toBeTruthy();
+    expect(screen.getByText("И вот это")).toBeTruthy();
+  });
+
+  it("разные сутки разделены заголовком", () => {
+    const yesterday = new Date(Date.now() - 86_400_000);
+    yesterday.setHours(18, 0, 0, 0);
+    state.messages = [
+      { id: 1, fromPlatform: false, authorName: null, body: "Вчерашнее", createdAt: yesterday, readAt: null },
+      { id: 2, fromPlatform: true, authorName: "Поддержка", body: "Сегодняшнее", createdAt: todayAt(9, 0), readAt: null },
+    ];
+    render(<Support />);
+    expect(screen.getByText("Вчера")).toBeTruthy();
+    expect(screen.getByText("Сегодня")).toBeTruthy();
+  });
+
+  it("ждём ответа, только когда последнее слово наше", () => {
+    // Состояние настоящее и выводится из переписки. Выдумывать «поддержка в
+    // сети» не из чего, и такая надпись была бы враньём.
+    state.messages = [
+      { id: 1, fromPlatform: false, authorName: null, body: "Вопрос", createdAt: todayAt(10, 0), readAt: null },
+    ];
+    const { unmount } = render(<Support />);
+    expect(screen.getByText(/Ждём ответа/)).toBeTruthy();
+    unmount();
+
+    state.messages = [
+      ...state.messages,
+      { id: 2, fromPlatform: true, authorName: "Поддержка", body: "Ответ", createdAt: todayAt(10, 4), readAt: null },
+    ];
+    render(<Support />);
+    expect(screen.queryByText(/Ждём ответа/)).toBeNull();
+  });
+
+  it("пустой разговор предлагает, с чего начать", () => {
+    render(<Support />);
+    expect(screen.getByText(/Чем помочь/)).toBeTruthy();
+    // Подсказки подставляют тему в поле, а не отправляют её.
+    expect(screen.getByText("Вопрос по оплате")).toBeTruthy();
   });
 });
