@@ -520,8 +520,23 @@ function SupervisorView({ kpi, selectedKpi, selectedSalary, detailLoading, onSel
           <table className="w-full text-sm">
             <thead>
               <tr style={{ background: "var(--color-surface-light)" }}>
-                {["", t("Агент", "Agent"), t("Балл", "Ball"), t("Заказы", "Buyurtma"), t("Выручка", "Tushum"), t("Визиты", "Tashrif"), t("Фрод", "Frod")].map((h, i) => (
-                  <th key={i} className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider" style={{ color: COLORS.textTertiary }}>{h}</th>
+                {/*
+                  Числовые колонки прижаты вправо и набраны цифрами одной
+                  ширины. Слева они не сравниваются глазом: «1 011 000» и
+                  «0» начинались в одной точке и заканчивались в разных, и
+                  столбец выручки читался как список слов, а не как числа.
+                */}
+                {[
+                  { h: "", right: false },
+                  { h: t("Агент", "Agent"), right: false },
+                  { h: t("Балл", "Ball"), right: false },
+                  { h: t("Заказы", "Buyurtma"), right: true },
+                  { h: t("Выручка", "Tushum"), right: true },
+                  { h: t("Визиты", "Tashrif"), right: true },
+                  { h: t("Фрод", "Frod"), right: true },
+                ].map((c, i) => (
+                  <th key={i} className={`px-3 py-2.5 text-[10px] font-semibold uppercase tracking-wider ${c.right ? "text-right" : "text-left"}`}
+                    style={{ color: COLORS.textTertiary }}>{c.h}</th>
                 ))}
               </tr>
             </thead>
@@ -533,20 +548,35 @@ function SupervisorView({ kpi, selectedKpi, selectedSalary, detailLoading, onSel
                     className="cursor-pointer transition-all hover:bg-[var(--color-surface-light)]"
                     style={{ borderBottom: "1px solid var(--color-border)", background: selectedAgentId === a.agentId ? "var(--color-surface-light)" : "transparent" }}>
                     <td className="px-3 py-2.5">
+                      {/*
+                        Место — бледной подложкой фирменного цвета, а не
+                        золотом-серебром-бронзой. Медальные цвета в приложение
+                        не входят, на тёмной теме серый с бронзой сливаются, а
+                        белый текст поверх них теряет разборчивость. Такое же
+                        решение уже принято в таблице агентов в отчётах.
+                      */}
                       <div className="w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-bold"
-                        style={{ background: i < 3 ? ["var(--color-warning)", "#9ca3af", "#cd7f32"][i] : "var(--color-surface-light)", color: i < 3 ? "#fff" : COLORS.textSecondary }}>
+                        style={{
+                          background: i < 3 ? colorMix("var(--color-primary)", 16) : "var(--color-surface-light)",
+                          color: i < 3 ? "var(--color-primary-text)" : COLORS.textSecondary,
+                        }}>
                         {i + 1}
                       </div>
                     </td>
                     <td className="px-3 py-2.5 font-semibold" style={{ color: COLORS.textPrimary }}>{a.agentName}</td>
                     <td className="px-3 py-2.5"><span className="px-2 py-0.5 rounded text-xs font-bold" style={{ background: colorMix(grade.color, 8), color: grade.color }}>{a.kpiScore} • {a.kpiGrade}</span></td>
-                    <td className="px-3 py-2.5" style={{ color: COLORS.textPrimary }}>{a.orderCount}</td>
-                    <td className="px-3 py-2.5 font-semibold" style={{ color: COLORS.textPrimary }}>{fmt(a.revenue)}</td>
-                    <td className="px-3 py-2.5" style={{ color: COLORS.textPrimary }}>{a.visitedPlans}/{a.totalPlans}</td>
-                    <td className="px-3 py-2.5">
+                    <td className="px-3 py-2.5 text-right tabular-nums" style={{ color: COLORS.textPrimary }}>{a.orderCount}</td>
+                    <td className="px-3 py-2.5 text-right font-semibold tabular-nums" style={{ color: COLORS.textPrimary }}>{fmt(a.revenue)}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums" style={{ color: COLORS.textPrimary }}>{a.visitedPlans}/{a.totalPlans}</td>
+                    <td className="px-3 py-2.5 text-right">
                       {a.suspiciousVisits > 0 ? (
                         <span className="px-2 py-0.5 rounded text-xs font-bold" style={{ background: "rgba(212,80,80,.10)", color: "var(--color-danger-text)" }}>{a.suspiciousVisits} ({a.fraudRate}%)</span>
-                      ) : <span className="text-xs" style={{ color: COLORS.textTertiary }}>✓</span>}
+                      ) : (
+                        // Галочка в столбце «Фрод» читается как флажок, а не как
+                        // ответ: непонятно, отмечен агент или проверен. Слово
+                        // отвечает прямо.
+                        <span className="text-xs" style={{ color: COLORS.textTertiary }}>{t("нет", "yo'q")}</span>
+                      )}
                     </td>
                   </tr>
                 );

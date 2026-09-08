@@ -77,13 +77,25 @@ export const AgentsTab = memo(function AgentsTab({
   );
   const totalRevenue = rows.reduce((s, a) => s + a.revenue, 0);
 
+  /*
+    Столбец сравнения показывается, только когда есть с чем сравнивать.
+
+    У молодой организации прошлого периода нет ни у одного агента, и колонка
+    стояла целиком из прочерков — во всю ширину экрана, у каждой строки. Такой
+    столбец не сообщает ничего и при этом выглядит как поломка: человек видит
+    «—» и думает, что данные не загрузились, а не что сравнивать не с чем.
+  */
+  const hasComparison = rows.some(a => delta(a.revenue, a.prevRevenue) !== null);
+
   const columns: { key: SortKey | null; ru: string; uz: string; right?: boolean }[] = [
     { key: null, ru: "Агент", uz: "Agent" },
     { key: "orders", ru: "Заказов", uz: "Buyurtma", right: true },
     { key: "avgOrderValue", ru: "Средний чек", uz: "O'rtacha chek", right: true },
     { key: "revenue", ru: "Выручка", uz: "Tushum", right: true },
     { key: null, ru: "Доля", uz: "Ulush", right: true },
-    { key: null, ru: `К прошлым ${days} дн.`, uz: `Oldingi ${days} kunga`, right: true },
+    ...(hasComparison
+      ? [{ key: null, ru: `К прошлым ${days} дн.`, uz: `Oldingi ${days} kunga`, right: true } as const]
+      : []),
   ];
 
   return (
@@ -180,8 +192,19 @@ export const AgentsTab = memo(function AgentsTab({
                       // а не золотом-серебром-бронзой поверх белого текста.
                       background: i < 3 ? colorMix(COLORS.primary, 4) : "transparent",
                     }}>
-                      <td style={{ ...tdStyle, textAlign: "right", color: COLORS.textTertiary, fontVariantNumeric: "tabular-nums" }}>
-                        {i + 1}
+                      <td style={{ ...tdStyle, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                        {/* У тройки лидеров место — кружок фирменного цвета:
+                            бледная подложка строки на тёмной теме почти не
+                            видна, и первый от четвёртого ничем не отличался. */}
+                        <span style={{
+                          display: "inline-flex", alignItems: "center", justifyContent: "center",
+                          width: "22px", height: "22px", borderRadius: "50%",
+                          fontSize: "11px", fontWeight: 700,
+                          background: i < 3 ? colorMix(COLORS.primary, 16) : "transparent",
+                          color: i < 3 ? COLORS.primaryText : COLORS.textTertiary,
+                        }}>
+                          {i + 1}
+                        </span>
                       </td>
                       <td style={{ ...tdStyle, fontWeight: 600 }}>
                         {a.agentName ?? `${t("Агент", "Agent")} #${a.agentId}`}
@@ -194,11 +217,31 @@ export const AgentsTab = memo(function AgentsTab({
                         {fmt(a.revenue)}
                       </td>
                       <td style={{ ...tdStyle, textAlign: "right", color: COLORS.textSecondary, fontVariantNumeric: "tabular-nums" }}>
-                        {share.toFixed(1)}%
+                        {/*
+                          Доля — единственное отношение в этой таблице, и
+                          читается оно глазом быстрее, чем числом: «91 против
+                          9» видно по длине полосы, не пересчитывая проценты.
+                          Полоса рисует настоящую величину, а не украшает.
+                        */}
+                        <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "flex-end", gap: "4px", minWidth: "68px" }}>
+                          <span>{share.toFixed(1)}%</span>
+                          <span aria-hidden style={{
+                            display: "block", width: "100%", height: "3px", borderRadius: "2px",
+                            background: colorMix(COLORS.primary, 12),
+                          }}>
+                            <span style={{
+                              display: "block", height: "100%", borderRadius: "2px",
+                              width: `${Math.max(2, Math.min(100, share))}%`,
+                              background: "var(--color-primary)",
+                            }} />
+                          </span>
+                        </span>
                       </td>
-                      <td style={{ ...tdStyle, textAlign: "right" }}>
-                        <DeltaCell pct={d?.pct ?? null} t={t} />
-                      </td>
+                      {hasComparison && (
+                        <td style={{ ...tdStyle, textAlign: "right" }}>
+                          <DeltaCell pct={d?.pct ?? null} t={t} />
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
