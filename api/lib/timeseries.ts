@@ -1,3 +1,6 @@
+import { monitorEventLoopDelay } from "node:perf_hooks";
+import { poolStats } from "../queries/connection";
+
 /**
  * In-memory time-series metrics store.
  * Collects system metrics at regular intervals for charting.
@@ -18,7 +21,7 @@ const MAX_POINTS = 120; // 2 minutes at 1s intervals
 const SERIES = new Map<string, MetricSeries>();
 
 // ── Request tracking ─────────────────────────────────────────────────────────
-let reqWindow: { ts: number; count: number; errors: number; totalTime: number }[] = [];
+let reqWindow: { ts: number; count: number; errors: number; totalTime: number; worst: number }[] = [];
 const WINDOW_SIZE = 60; // 60-second sliding window
 
 export function recordRequestPoint(responseTimeMs: number, isError: boolean) {
@@ -28,11 +31,12 @@ export function recordRequestPoint(responseTimeMs: number, isError: boolean) {
   // Add to current second window
   let current = reqWindow.find((w) => w.ts === windowKey);
   if (!current) {
-    current = { ts: windowKey, count: 0, errors: 0, totalTime: 0 };
+    current = { ts: windowKey, count: 0, errors: 0, totalTime: 0, worst: 0 };
     reqWindow.push(current);
   }
   current.count++;
   current.totalTime += responseTimeMs;
+  if (responseTimeMs > current.worst) current.worst = responseTimeMs;
   if (isError) current.errors++;
 
   // Trim old windows
@@ -43,6 +47,15 @@ export function recordRequestPoint(responseTimeMs: number, isError: boolean) {
   pushPoint("req_per_sec", windowKey * 1000, current.count);
   pushPoint("avg_response_ms", windowKey * 1000, current.count > 0 ? current.totalTime / current.count : 0);
   pushPoint("errors_per_sec", windowKey * 1000, current.errors);
+  /*
+    Худший ответ за секунду, а не только средний.
+
+    Среднее прячет ровно то, из-за чего люди жалуются: один запрос на четыре
+    секунды среди сотни быстрых сдвигает среднее на сорок миллисекунд и на
+    графике не виден вовсе. Жалуется при этом тот, кто попал в тот самый
+    запрос.
+  */
+  pushPoint("max_response_ms", windowKey * 1000, current.worst);
 }
 
 function pushPoint(name: string, ts: number, value: number) {
@@ -64,8 +77,20 @@ function pushPoint(name: string, ts: number, value: number) {
   if (value > series.maxValue) series.maxValue = value;
 }
 
-// ── Memory tracking ──────────────────────────────────────────────────────────
+// ── Память и насыщение ───────────────────────────────────────────────────────
 let memInterval: ReturnType<typeof setInterval> | null = null;
+
+/*
+  Задержка цикла событий — сколько ждала очередная задача.
+
+  Считается родным измерителем Node, а не разностью таймеров: он опрашивает
+  цикл каждые 20 мс и хранит гистограмму, поэтому у него есть хвост. Среднее
+  здесь бесполезно — оно почти всегда у нуля даже тогда, когда часть запросов
+  уже ждёт: одна тяжёлая синхронная операция в секунду теряется среди тысячи
+  лёгких. Хвост показывает именно её.
+*/
+const loopDelay = monitorEventLoopDelay({ resolution: 20 });
+loopDelay.enable();
 
 export function startMemoryTracking() {
   if (memInterval) return;
@@ -74,7 +99,30 @@ export function startMemoryTracking() {
     const ts = Date.now();
     pushPoint("heap_used_mb", ts, Math.round(mem.heapUsed / (1024 * 1024)));
     pushPoint("heap_total_mb", ts, Math.round(mem.heapTotal / (1024 * 1024)));
+    // RSS, а не только куча: предел контейнера считается по нему.
     pushPoint("rss_mb", ts, Math.round(mem.rss / (1024 * 1024)));
+
+    pushPoint("event_loop_lag_ms", ts, Math.round(loopDelay.percentile(99) / 1e6));
+    // Хвост копится с прошлого замера, иначе один давний всплеск держал бы
+    // линию задранной до перезапуска.
+    loopDelay.reset();
+
+    /*
+      Насыщение пула соединений. Это единственный из четырёх сигналов
+      здоровья, который говорит не «что происходит сейчас», а «сколько
+      осталось запаса»: упёршийся в потолок пул виден в остальных трёх лишь
+      последствием — время ответа растёт при совершенно здоровой базе, и
+      причину ищут не там.
+    */
+    try {
+      const pool = typeof poolStats === "function" ? poolStats() : null;
+      if (pool) {
+        pushPoint("db_pool_busy", ts, pool.busy);
+        pushPoint("db_pool_queue", ts, pool.waiting);
+      }
+    } catch {
+      // Пул ещё не поднят или подменён в тесте — рядов просто не будет.
+    }
   }, 5000); // every 5 seconds
 }
 

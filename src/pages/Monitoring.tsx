@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo } from "react";
-import type { ComponentProps } from "react";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import {
@@ -18,10 +17,17 @@ import { SystemStatusBanner } from "@/components/monitoring/SystemStatusBanner";
 import { PerformanceCharts } from "@/components/monitoring/PerformanceCharts";
 import { ErrorLogViewer } from "@/components/monitoring/ErrorLogViewer";
 import { RealTimeMetrics } from "@/components/monitoring/RealTimeMetrics";
+import { buildMetricGrid } from "@/lib/metric-grid";
 
 const REFRESH_INTERVAL = 3_000;
 
-type ChartPoint = ComponentProps<typeof PerformanceCharts>["chartData"][number];
+/*
+  Ширина окна графиков, в секундах.
+
+  Столько же точек держит и сервер (MAX_POINTS в api/lib/timeseries.ts), так
+  что просить больше нечего: ряды запросов дальше двух минут просто не живут.
+*/
+const SPAN_SECONDS = 120;
 
 // ── Keyframes ─────────────────────────────────────────────────────────────────
 const slideUpKeyframe = `
@@ -108,44 +114,15 @@ export default function Monitoring() {
     return () => window.removeEventListener("keydown", h);
   }, [refetch]);
 
-  // Chart data
-  // eslint-disable-next-line react-hooks/preserve-manual-memoization
-  const chartData = useMemo(() => {
-    if (!data?.series) return [];
-    const reqData = data.series.req_per_sec?.data ?? [];
-    const respData = data.series.avg_response_ms?.data ?? [];
-    const errData = data.series.errors_per_sec?.data ?? [];
-    const heapData = data.series.heap_used_mb?.data ?? [];
-
-    const tsMap = new Map<number, ChartPoint>();
-    const fmtTime = (ts: number) => new Date(ts).toLocaleTimeString("ru", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-
-    for (const d of reqData) {
-      const key = Math.floor(d.timestamp / 1000);
-      const existing = tsMap.get(key) || { time: fmtTime(d.timestamp) };
-      existing.rps = d.value;
-      tsMap.set(key, existing);
-    }
-    for (const d of respData) {
-      const key = Math.floor(d.timestamp / 1000);
-      const existing = tsMap.get(key) || { time: fmtTime(d.timestamp) };
-      existing.response = Math.round(d.value);
-      tsMap.set(key, existing);
-    }
-    for (const d of errData) {
-      const key = Math.floor(d.timestamp / 1000);
-      const existing = tsMap.get(key) || { time: fmtTime(d.timestamp) };
-      existing.errors = d.value;
-      tsMap.set(key, existing);
-    }
-    for (const d of heapData) {
-      const key = Math.floor(d.timestamp / 1000);
-      const existing = tsMap.get(key) || { time: fmtTime(d.timestamp) };
-      existing.heap = d.value;
-      tsMap.set(key, existing);
-    }
-    return Array.from(tsMap.values()).slice(-60);
-  }, [data?.series]);
+  /*
+    Ряды укладываются на общую секундную сетку — см. src/lib/metric-grid.ts.
+    Раньше они сливались здесь в Map и отдавались в порядке вставки, отчего
+    ось времени у графиков шла вспять.
+  */
+  const chartData = useMemo(
+    () => buildMetricGrid(data?.series ?? {}, SPAN_SECONDS),
+    [data?.series],
+  );
 
   if (isLoading) {
     return (
