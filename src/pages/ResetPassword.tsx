@@ -97,7 +97,7 @@ export default function ResetPassword() {
           <ArrowLeft size={14} /> {t("auth.resetPassword.backToLogin")}
         </Link>
 
-        <div className="animate-fade-up" style={{ background: "var(--color-surface, #efedea)", borderRadius: 16, border: "1px solid #dde2ec", padding: "32px 28px" }}>
+        <div className="animate-fade-up neo-card neo-card-static" style={{ padding: "32px 28px" }}>
           {done ? (
             <div style={{ textAlign: "center" }}>
               <div style={{ width: 48, height: 48, borderRadius: 12, background: "rgba(74,222,128,.10)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
@@ -146,7 +146,8 @@ export default function ResetPassword() {
                       minLength={8}
                       style={{
                         width: "100%", padding: "10px 36px 10px 12px", borderRadius: 8,
-                        border: "1px solid #dde2ec", background: "var(--color-surface-light, #f6f4f0)",
+                        border: "none", background: "var(--color-canvas, #e8e6e1)",
+                        boxShadow: "var(--shadow-pressed), inset 0 0 0 1px var(--color-border, #d8d5cd)",
                         color: "var(--color-text-primary, #2b2a28)", fontSize: 14, outline: "none",
                         boxSizing: "border-box",
                       }}
@@ -172,7 +173,8 @@ export default function ResetPassword() {
                       minLength={8}
                       style={{
                         width: "100%", padding: "10px 36px 10px 12px", borderRadius: 8,
-                        border: "1px solid #dde2ec", background: "var(--color-surface-light, #f6f4f0)",
+                        border: "none", background: "var(--color-canvas, #e8e6e1)",
+                        boxShadow: "var(--shadow-pressed), inset 0 0 0 1px var(--color-border, #d8d5cd)",
                         color: "var(--color-text-primary, #2b2a28)", fontSize: 14, outline: "none",
                         boxSizing: "border-box",
                       }}

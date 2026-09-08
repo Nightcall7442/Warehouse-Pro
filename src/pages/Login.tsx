@@ -1,17 +1,32 @@
 import { useState, useEffect } from "react";
-import { AppBrand } from "@/components/brand/AppBrand";
-import { recallBrand } from "@/lib/remembered-brand";
 import { useNavigate, Link } from "react-router";
 import { useAuth } from "@/hooks/useAuth";
-
-import { Eye, EyeOff, Loader2, Mail, Lock, AlertCircle } from "lucide-react";
+import { Eye, EyeOff, Loader2, Mail, Lock, AlertCircle, Building2 } from "lucide-react";
 import { useLang } from "@/i18n";
 import { ROLE_ROUTES } from "@/const";
+import { AuthShell, AuthError } from "@/components/auth/AuthShell";
 
 type Organization = { tenantId: number; name: string };
 
-const F = { display: "'Inter', -apple-system, system-ui, sans-serif", body: "'Inter', -apple-system, system-ui, sans-serif" };
-
+/**
+ * Вход.
+ *
+ * ── Что было ────────────────────────────────────────────────────────────────
+ *
+ * Первый экран системы был собран мимо её собственного оформления: тридцать
+ * шесть цветов, вписанных числом, из палитры, которой в приложении нет (бирюза
+ * #0d9488 у кнопки и синяя тень от неё же — остаток ещё более раннего вида),
+ * шрифт Inter, который даже не подключён и подставлялся системным, тёмной темы
+ * нет вовсе. Приветствие «Добро пожаловать» стояло дважды: слева крупно и ещё
+ * раз в карточке.
+ *
+ * Отдельно жаловались на жёлтые полосы вокруг поля при вводе логина — это
+ * Chrome красит автозаполненное поле своим фоном. Лечится не здесь, а один раз
+ * на всё приложение: см. блок «АВТОЗАПОЛНЕНИЕ» в src/index.css.
+ *
+ * Действия остались прежние: войти, показать пароль, выбрать организацию,
+ * восстановить пароль, зарегистрироваться.
+ */
 export default function Login() {
   const { t } = useLang();
 
@@ -34,17 +49,6 @@ export default function Login() {
       navigate(dest, { replace: true });
     }
   }, [user, isLoading, navigate]);
-
-  /*
-    Вывеска на входе — та, что устройство видело в прошлый раз.
-
-    Экран входа один на всех: почта может числиться в нескольких
-    организациях, и тенант выбирается уже ПОСЛЕ пароля. До этого сервер не
-    знает, чей бренд показывать, поэтому сотрудник арендатора каждый день
-    начинал день с вывески поставщика системы. Память устройства это
-    закрывает; оговорки — в lib/remembered-brand.ts.
-  */
-  const brand = recallBrand();
 
   const submit = async (tenantId?: number) => {
     setError("");
@@ -81,281 +85,129 @@ export default function Login() {
   if (user) return null;
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", fontFamily: F.body }}>
+    <AuthShell
+      title={t("auth.login.title")}
+      subtitle={t("auth.login.subtitle")}
+      footer={
+        <>
+          {t("auth.login.noAccount")}{" "}
+          <Link to="/register" style={{ fontWeight: 700, color: "var(--color-primary-text)", textDecoration: "none" }}>
+            {t("auth.login.createAccount")}
+          </Link>
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+        <Field label={t("auth.login.email")}>
+          <span className="auth-icon"><Mail size={16} /></span>
+          <input
+            data-testid="login-email"
+            type="email"
+            className="auth-input"
+            placeholder="you@company.com"
+            value={email}
+            onChange={e => { setEmail(e.target.value); setOrgChoice(null); }}
+            autoComplete="email"
+            disabled={isPending}
+          />
+        </Field>
 
-      {/* ── Left panel (hero) ── */}
-      <div style={{
-        display: "none", flexDirection: "column", justifyContent: "space-between",
-        width: "55%", padding: "56px 64px", position: "relative", overflow: "hidden",
-        background: "#111827", color: "#fff",
-      }} className="login-left">
+        <Field label={t("auth.login.password")}>
+          <span className="auth-icon"><Lock size={16} /></span>
+          <input
+            data-testid="login-password"
+            type={showPw ? "text" : "password"}
+            className="auth-input"
+            style={{ paddingRight: "46px" }}
+            placeholder="••••••••"
+            value={password}
+            onChange={e => { setPassword(e.target.value); setOrgChoice(null); }}
+            autoComplete="current-password"
+            disabled={isPending}
+          />
+          <button
+            type="button"
+            onClick={() => setShowPw(!showPw)}
+            aria-label={showPw ? t("auth.login.password") : t("auth.login.password")}
+            style={{
+              position: "absolute", right: "8px", top: "50%", transform: "translateY(-50%)",
+              width: "32px", height: "32px", display: "flex", alignItems: "center", justifyContent: "center",
+              background: "none", border: "none", borderRadius: "10px", cursor: "pointer",
+              color: "var(--color-text-tertiary)",
+            }}
+          >
+            {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+          </button>
+        </Field>
 
-        {/* Subtle grid pattern */}
-        <div style={{
-          position: "absolute", inset: 0, opacity: 0.03,
-          backgroundImage: "radial-gradient(circle, #fff 1px, transparent 1px)",
-          backgroundSize: "24px 24px",
-        }} />
-
-        {/* Accent glow */}
-        <div style={{
-          position: "absolute", top: "-20%", right: "-10%", width: "60%", height: "60%",
-          background: "radial-gradient(circle, rgba(79,70,229,0.15) 0%, transparent 70%)",
-          filter: "blur(60px)", pointerEvents: "none",
-        }} />
-
-        {/* Logo */}
-        <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 14, zIndex: 1 }}>
-          <AppBrand size={36} onDark signedIn={false} color="#fff" />
+        <div style={{ textAlign: "right", marginTop: "-6px" }}>
+          <Link
+            to="/forgot-password"
+            style={{ fontSize: "12.5px", fontWeight: 600, color: "var(--color-primary-text)", textDecoration: "none" }}
+          >
+            {t("auth.login.forgotPassword")}
+          </Link>
         </div>
 
-        {/* Hero content */}
-        <div style={{ position: "relative", zIndex: 1, flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", maxWidth: 460 }}>
-          <h1 style={{
-            fontFamily: F.display, fontSize: "42px", fontWeight: 800,
-            lineHeight: 1.08, letterSpacing: "-0.035em", margin: "0 0 24px", whiteSpace: "pre-line",
-          }}>
-            {brand?.loginTitle?.trim() || t("auth.login.title")}
-          </h1>
-          <p style={{ fontSize: "16px", color: "#9ca3af", lineHeight: 1.6, margin: 0 }}>
-            {brand?.loginSubtitle?.trim() || t("auth.login.subtitle")}
-          </p>
-        </div>
-
-        {/* Footer */}
-        <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "12px", color: "#4b5563", zIndex: 1 }}>
-          <span>{brand?.footerText?.trim() || `© ${new Date().getFullYear()} Warehouse Pro`}</span>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e" }} />
-            <span>v2.5.0</span>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Right panel (form) ── */}
-      <div style={{
-        flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
-        justifyContent: "center", padding: "40px 24px",
-        background: "#faf9f7", position: "relative",
-      }}>
-
-        {/* Mobile header */}
-        <div style={{
-          position: "absolute", top: 0, left: 0, right: 0, height: 4,
-          background: "#0d9488",
-        }} className="login-mobile-bar" />
-
-        {/* Mobile logo */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 40, zIndex: 1 }} className="login-mobile-logo">
-          <AppBrand size={36} signedIn={false} color="#111827" />
-        </div>
-
-        {/* Form card */}
-        <div className="animate-fade-up" style={{ width: "100%", maxWidth: 400, position: "relative", zIndex: 1 }}>
+        {/* Пароль подошёл к нескольким организациям — выбрать за человека нельзя. */}
+        {orgChoice && (
           <div style={{
-            background: "#fff", borderRadius: 16, padding: "40px 36px",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.06)",
-            border: "1px solid #f0eeeb",
+            padding: "14px", borderRadius: "14px", background: "var(--color-primary-subtle)",
+            display: "flex", flexDirection: "column", gap: "8px",
           }}>
-
-            {/* Header */}
-            <div style={{ marginBottom: 32 }}>
-              <h2 style={{
-                fontFamily: F.display, fontSize: "26px", fontWeight: 700,
-                color: "#111827", margin: "0 0 6px", letterSpacing: "-0.02em",
-              }}>
-                {t("auth.login.title")}
-              </h2>
-              <p style={{ fontSize: "14px", color: "#6b7280", margin: 0 }}>
-                {t("auth.login.subtitle")}
-              </p>
-            </div>
-
-            <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-              {/* Email */}
-              <div>
-                <label style={{ display: "block", fontSize: "13px", fontWeight: 500, color: "#374151", marginBottom: 6 }}>
-                  {t("auth.login.email")}
-                </label>
-                <div style={{ position: "relative" }}>
-                  <Mail size={16} style={{
-                    position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)",
-                    color: "#9ca3af", pointerEvents: "none",
-                  }} />
-                  <input
-                    data-testid="login-email"
-                    type="email"
-                    className="login-input"
-                    style={{
-                      width: "100%", padding: "12px 12px 12px 40px",
-                      borderRadius: 10, fontSize: "14px", fontFamily: F.body,
-                      background: "#fff", color: "#111827",
-                      boxSizing: "border-box",
-                    }}
-                    placeholder="you@company.com"
-                    value={email}
-                    onChange={e => { setEmail(e.target.value); setOrgChoice(null); }}
-                    autoComplete="email"
-                    disabled={isPending}
-                  />
-                </div>
-              </div>
-
-              {/* Password */}
-              <div>
-                <label style={{ display: "block", fontSize: "13px", fontWeight: 500, color: "#374151", marginBottom: 6 }}>
-                  {t("auth.login.password")}
-                </label>
-                <div style={{ position: "relative" }}>
-                  <Lock size={16} style={{
-                    position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)",
-                    color: "#9ca3af", pointerEvents: "none",
-                  }} />
-                  <input
-                    data-testid="login-password"
-                    type={showPw ? "text" : "password"}
-                    className="login-input"
-                    style={{
-                      width: "100%", padding: "12px 44px 12px 40px",
-                      borderRadius: 10, fontSize: "14px", fontFamily: F.body,
-                      background: "#fff", color: "#111827",
-                      boxSizing: "border-box",
-                    }}
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={e => { setPassword(e.target.value); setOrgChoice(null); }}
-                    autoComplete="current-password"
-                    disabled={isPending}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPw(!showPw)}
-                    className="pw-toggle-btn"
-                    style={{
-                      position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)",
-                      background: "none", border: "none", cursor: "pointer",
-                      color: "#9ca3af", padding: 4, display: "flex",
-                    }}
-                    aria-label={showPw ? "Hide password" : "Show password"}
-                  >
-                    {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Forgot password */}
-              <div style={{ textAlign: "right", marginTop: -4 }}>
-                <Link
-                  to="/forgot-password"
-                  className="forgot-link"
-                  style={{ fontSize: "13px", color: "#0d9488", textDecoration: "none", fontWeight: 500 }}
-                >
-                  {t("auth.login.forgotPassword")}
-                </Link>
-              </div>
-
-              {/* Выбор организации */}
-              {orgChoice && (
-                <div style={{
-                  padding: "12px 14px", borderRadius: 10,
-                  background: "#eef2ff", border: "1px solid #c7d2fe",
-                  display: "flex", flexDirection: "column", gap: 8,
-                }}>
-                  <span style={{ fontSize: "13px", fontWeight: 500, color: "#3730a3" }}>{orgChoice.message}</span>
-                  {orgChoice.organizations.map(org => (
-                    <button
-                      key={org.tenantId}
-                      type="button"
-                      disabled={isPending}
-                      onClick={() => void submit(org.tenantId)}
-                      style={{
-                        padding: "10px 14px", borderRadius: 8, textAlign: "left",
-                        fontSize: "14px", fontWeight: 600, fontFamily: F.body,
-                        background: "#fff", color: "#3730a3", border: "1px solid #c7d2fe",
-                        cursor: isPending ? "not-allowed" : "pointer",
-                      }}
-                    >
-                      {org.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {/* Error */}
-              {error && (
-                <div style={{
-                  display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderRadius: 10,
-                  background: "#fef2f2", border: "1px solid #fecaca",
-                  fontSize: "13px", fontWeight: 500, color: "#dc2626",
-                }}>
-                  <AlertCircle size={15} />
-                  <span>{error}</span>
-                </div>
-              )}
-
-              {/* Submit */}
+            <span style={{ fontSize: "12.5px", fontWeight: 600, color: "var(--color-primary-text)" }}>
+              {orgChoice.message}
+            </span>
+            {orgChoice.organizations.map(org => (
               <button
-                data-testid="login-submit"
-                type="submit"
+                key={org.tenantId}
+                type="button"
                 disabled={isPending}
-                className="submit-btn"
-                style={{
-                  width: "100%", padding: "12px 24px", borderRadius: 10,
-                  fontSize: "14px", fontWeight: 600, fontFamily: F.body,
-                  border: "none", cursor: isPending ? "not-allowed" : "pointer",
-                  background: "#0d9488", color: "#fff",
-                  opacity: isPending ? 0.7 : 1,
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                  transition: "background 0.15s, transform 0.1s",
-                  boxShadow: "0 1px 2px rgba(79,70,229,0.3)",
-                }}
+                onClick={() => void submit(org.tenantId)}
+                className="neo-btn"
+                style={{ justifyContent: "flex-start", width: "100%", fontSize: "13px", padding: "11px 14px" }}
               >
-                {isPending ? (
-                  <><Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} />{t("auth.login.submitting")}</>
-                ) : t("auth.login.submit")}
+                <Building2 size={15} />
+                {org.name}
               </button>
-            </form>
-
-            {/* Register */}
-            <div style={{ marginTop: 28, paddingTop: 20, borderTop: "1px solid #f3f4f6", textAlign: "center" }}>
-              <p style={{ fontSize: "13px", color: "#6b7280", margin: 0 }}>
-                {t("auth.login.noAccount")}{""}
-                <Link
-                  to="/register"
-                  className="register-link"
-                  style={{ fontWeight: 600, color: "#0d9488", textDecoration: "none", marginLeft: 4 }}
-                >
-                  {t("auth.login.createAccount")}
-                </Link>
-              </p>
-            </div>
+            ))}
           </div>
-        </div>
-      </div>
+        )}
 
-      {/* Responsive */}
-      <style>{`
-        .login-input {
-          border: 1px solid #e5e7eb;
-          outline: none;
-          transition: border-color 0.15s, box-shadow 0.15s;
-        }
-        .login-input:focus {
-          border-color: #0d9488 !important;
-          box-shadow: 0 0 0 3px rgba(79,70,229,0.1) !important;
-        }
-        .pw-toggle-btn:hover { color: #6b7280 !important; }
-        .forgot-link:hover { color: #0f766e !important; }
-        .register-link:hover { color: #0f766e !important; }
-        .submit-btn:not(:disabled):hover { background: #0f766e !important; }
-        .submit-btn:not(:disabled):active { transform: scale(0.98); }
-        @media (min-width: 1024px) {
-          .login-left { display: flex !important; }
-          .login-mobile-bar { display: none !important; }
-          .login-mobile-logo { display: none !important; }
-        }
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-      `}</style>
+        {error && (
+          <AuthError>
+            <AlertCircle size={15} style={{ flexShrink: 0, marginTop: "1px" }} />
+            <span>{error}</span>
+          </AuthError>
+        )}
+
+        <button
+          data-testid="login-submit"
+          type="submit"
+          disabled={isPending}
+          className="neo-btn-primary"
+          style={{ width: "100%", height: "48px", borderRadius: "14px", fontSize: "14px", marginTop: "4px" }}
+        >
+          {isPending
+            ? <><Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} />{t("auth.login.submitting")}</>
+            : t("auth.login.submit")}
+        </button>
+      </form>
+    </AuthShell>
+  );
+}
+
+/** Поле с подписью. Значок кладётся внутрь — отсюда position: relative. */
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label style={{
+        display: "block", fontSize: "11px", fontWeight: 700, letterSpacing: "0.06em",
+        textTransform: "uppercase", color: "var(--color-text-tertiary)", marginBottom: "7px",
+      }}>
+        {label}
+      </label>
+      <div style={{ position: "relative" }}>{children}</div>
     </div>
   );
 }

@@ -83,11 +83,11 @@ export default function Register() {
         style={{ background: "var(--color-surface, #efedea)" }}>
         <div className="absolute inset-0 pointer-events-none opacity-[0.03]"
           style={{
-            backgroundImage: "linear-gradient(#2b3450 1px, transparent 1px), linear-gradient(90deg, #2b3450 1px, transparent 1px)",
+            backgroundImage: "linear-gradient(var(--color-border-strong) 1px, transparent 1px), linear-gradient(90deg, var(--color-border-strong) 1px, transparent 1px)",
             backgroundSize: "40px 40px",
           }} />
         <div className="absolute -bottom-40 -left-40 w-[500px] h-[500px] rounded-full pointer-events-none"
-          style={{ background: "radial-gradient(circle, color-mix(in srgb, #34c473 12%, transparent), transparent 70%)" }} />
+          style={{ background: "radial-gradient(circle, color-mix(in srgb, var(--color-success) 12%, transparent), transparent 70%)" }} />
 
         <div className="relative flex items-center gap-3">
           <LogoMark size={34} decorative />
@@ -120,7 +120,7 @@ export default function Register() {
           </div>
 
           <div className="flex items-center gap-3 px-4 py-3 rounded-xl"
-            style={{ background: "color-mix(in srgb, #34c473 8%, transparent)", border: "1px solid color-mix(in srgb, #34c473 20%, transparent)" }}>
+            style={{ background: "color-mix(in srgb, var(--color-success) 8%, transparent)", border: "1px solid color-mix(in srgb, var(--color-success) 20%, transparent)" }}>
             <CheckCircle2 size={16} className="text-success flex-shrink-0" />
             <p className="text-sm text-primary">{tr("Бесплатный пробный период на 14 дней", "14 kunlik bepul sinov muddati")}</p>
           </div>

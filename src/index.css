@@ -1912,3 +1912,125 @@ textarea:focus-visible {
   0%, 100% { opacity: 1; }
   50%      { opacity: 0.3; }
 }
+
+/* ═════════════════════════════════════════════════════════════════════════════
+   АВТОЗАПОЛНЕНИЕ
+
+   Владелец: «когда логин пишешь — жёлтые такие линии вокруг поля».
+
+   Это не наша вёрстка. Chrome подставляет сохранённые логин и пароль и красит
+   поле своим жёлтым, поверх любого фона. Отменить это свойством background
+   нельзя: браузер рисует заливку отдельно и с более высоким приоритетом.
+
+   Работает единственный приём: увести переход по фону в бесконечность. Смена
+   цвета формально начинается и не доходит до конца никогда, поэтому видимым
+   остаётся наш собственный фон. Цвет текста и курсора приходится задавать
+   отдельными свойствами -webkit-*: обычный color на автозаполненное поле
+   браузер тоже перебивает.
+
+   Правило общее для всего приложения, а не для страницы входа: сохранённые
+   значения браузер подставляет и в поиск, и в формы магазинов — там жёлтое
+   было ровно таким же.
+   ═══════════════════════════════════════════════════════════════════════════ */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  transition: background-color 100000s ease-in-out 0s, color 100000s ease-in-out 0s;
+  -webkit-text-fill-color: var(--color-text-primary, #2b2a28);
+  caret-color: var(--color-text-primary, #2b2a28);
+}
+
+/* Firefox зовёт это состояние иначе и кладёт поверх поля свой фильтр. */
+input:autofill,
+textarea:autofill,
+select:autofill {
+  filter: none;
+  color: var(--color-text-primary, #2b2a28);
+}
+
+/* ═════════════════════════════════════════════════════════════════════════════
+   ВХОД, РЕГИСТРАЦИЯ, ВОССТАНОВЛЕНИЕ ПАРОЛЯ
+
+   Страницы входа были собраны мимо системы оформления: три десятка цветов,
+   вписанных числом, из палитры, которой в приложении нет, шрифт Inter (он даже
+   не подключён — подставлялся системный) и ни одного признака Soft UI. Первое,
+   что видит человек в системе, выглядело как чужой продукт.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Поле со значком слева. Тот же вдавленный приём, что у .neo-input, но с
+   местом под иконку — иначе она ложится на текст. */
+.auth-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: none;
+  outline: none;
+  background: var(--color-canvas, #e8e6e1);
+  border-radius: 14px;
+  padding: 13px 16px 13px 44px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  color: var(--color-text-primary, #2b2a28);
+  box-shadow: var(--shadow-pressed), inset 0 0 0 1px var(--color-border, #d8d5cd);
+  transition: box-shadow 0.2s ease;
+}
+.auth-input::placeholder { color: var(--color-text-tertiary, #6b6760); }
+.auth-input:focus {
+  box-shadow: var(--shadow-pressed), 0 0 0 2px color-mix(in srgb, var(--color-primary) 30%, transparent);
+}
+.auth-input:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Значок внутри поля. Не перехватывает нажатия: щелчок по нему должен ставить
+   курсор в поле, а не проваливаться в пустоту. */
+.auth-icon {
+  position: absolute;
+  left: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-text-tertiary, #6b6760);
+  pointer-events: none;
+  display: flex;
+}
+
+/* Левая половина экрана входа. Всегда тёмная — это и есть «премиальность»
+   разворота: светлая карточка на глубоком фоне. Класс dark поверх неё
+   переключает токены на тёмную палитру приложения, поэтому цветов числом здесь
+   нет вовсе, а панель сама собой оказывается фирменной. */
+.auth-hero {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 90% at 12% 8%, color-mix(in srgb, var(--color-primary) 22%, transparent) 0%, transparent 55%),
+    linear-gradient(155deg, var(--color-surface-raised) 0%, var(--color-canvas) 60%);
+}
+
+/* Ткань фона: едва различимая сетка. Заметна не сама по себе, а тем, что
+   плоскость перестаёт выглядеть заливкой. */
+.auth-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, color-mix(in srgb, var(--color-text-primary) 60%, transparent) 1px, transparent 1px);
+  background-size: 26px 26px;
+  opacity: 0.06;
+  pointer-events: none;
+}
+
+.auth-hero-line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13.5px;
+  color: var(--color-text-secondary);
+}
+.auth-hero-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--color-primary);
+  flex-shrink: 0;
+}
+
+@media (max-width: 1023px) {
+  .auth-hero { display: none !important; }
+}
