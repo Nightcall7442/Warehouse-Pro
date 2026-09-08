@@ -22,7 +22,7 @@ export default defineConfig({
     react(),
     // Sentry source maps upload — only when SENTRY_AUTH_TOKEN is set
     !!process.env.SENTRY_AUTH_TOKEN && sentryVitePlugin({
-      org: process.env.SENTRY_ORG || "nightcall",
+      org: process.env.SENTRY_ORG || "no-name-a7",
       project: process.env.SENTRY_PROJECT || "warehouse-pro",
       authToken: process.env.SENTRY_AUTH_TOKEN,
       // Версия задаётся ЯВНО и той же, что уходит в браузер (VITE_APP_VERSION

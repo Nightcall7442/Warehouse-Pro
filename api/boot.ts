@@ -417,8 +417,10 @@ app.get("/api/admin/backup/download", async (c) => {
   try {
     dump = await startDump();
   } catch (e) {
-    // Ответ об ошибке возможен только здесь: startDump ждёт первых байт, а
-    // после отправки заголовков сменить код ответа уже нельзя.
+    // Ответ об ошибке возможен только здесь: startDump доводит до конца всё,
+    // что может не получиться — соединение, снимок, перечень таблиц, — и лишь
+    // потом отдаёт поток. После отправки заголовков сменить код ответа уже
+    // нельзя, и сорвавшаяся выгрузка выглядела бы успешной загрузкой.
     const message = e instanceof DumpUnavailableError ? e.message : String(e);
     logger.error("backup download failed to start", { userId: auth.user.id, error: message });
     return c.json({ error: `Не удалось сделать выгрузку: ${message}` }, 500);
