@@ -3,9 +3,9 @@ CREATE TABLE `support_threads` (
 	`tenant_id` bigint unsigned NOT NULL,
 	`user_id` bigint unsigned NOT NULL,
 	`opened_at` timestamp NOT NULL DEFAULT (now()),
-	`closed_at` timestamp NULL,
+	`closed_at` timestamp,
 	`closed_by` enum('client','platform','silence'),
-	`purged_at` timestamp NULL,
+	`purged_at` timestamp,
 	`message_count` int NOT NULL DEFAULT 0,
 	CONSTRAINT `support_threads_id` PRIMARY KEY(`id`)
 );
