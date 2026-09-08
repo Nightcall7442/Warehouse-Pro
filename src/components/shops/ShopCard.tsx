@@ -2,12 +2,13 @@ import { memo, useRef } from "react";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { compressImage } from "@/lib/compress-image";
-import { Store, MapPin, Phone, Camera, Loader2, AlertCircle, ChevronRight, CheckSquare, Square } from "lucide-react";
-import { F, COLORS, SHADOW } from "./constants";
+import { MapPin, Phone, Camera, Loader2, AlertCircle, ChevronRight, CheckSquare, Square, User } from "lucide-react";
+import { F, COLORS } from "./constants";
 import { useAuth } from "@/hooks/useAuth";
 import { canOperate } from "@/lib/permissions";
 import { useTranslate } from "@/i18n";
 import { PhotoOrIcon } from "@/components/PhotoOrIcon";
+import { ShopAvatar } from "./ShopAvatar";
 
 export interface ShopCardData { id: number; name: string; ownerName: string | null; phone: string | null; city: string | null; district: string | null; status: string; debt: string | null; photoUrl: string | null; agentName: string | null; }
 
@@ -19,7 +20,7 @@ export interface ShopCardData { id: number; name: string; ownerName: string | nu
  * загрузки. Роль спрашиваем прямо здесь: компонент один, а мест, откуда его
  * рисуют, будет больше.
  */
-export function ShopPhoto({ shopId, photoUrl, size = "md" }: { shopId: number; photoUrl?: string | null; size?: "sm" | "md" | "lg" }) {
+export function ShopPhoto({ shopId, shopName = "", photoUrl, size = "md" }: { shopId: number; shopName?: string; photoUrl?: string | null; size?: "sm" | "md" | "lg" }) {
   const t = useTranslate();
   const { user } = useAuth();
   const canEdit = canOperate(user?.role);
@@ -29,8 +30,13 @@ export function ShopPhoto({ shopId, photoUrl, size = "md" }: { shopId: number; p
     onSuccess: () => { utils.shop.list.invalidate(); utils.shop.getById.invalidate({ id: shopId }); notify.success(t("Фото обновлено", "Rasm yangilandi")); },
     onError: (e) => notify.error(e.message),
   });
-  const dim = size === "sm" ? "w-12 h-12" : size === "lg" ? "w-20 h-20" : "w-16 h-16";
-  const iconSize = size === "sm" ? 18 : size === "lg" ? 32 : 22;
+  /*
+    Плашка крупнее прежней: в списке она была 80 точек и терялась рядом с
+    названием в шестнадцать пунктов. Фотография точки — то, по чему её узнают
+    в поле, и разглядывать её должно быть можно.
+  */
+  const px = size === "sm" ? 52 : size === "lg" ? 96 : 72;
+  const iconSize = Math.round(px * 0.34);
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return;
     if (file.size > 10 * 1024 * 1024) { notify.error(t("Макс. 10 МБ", "Maks. 10 MB")); return; }
@@ -42,15 +48,32 @@ export function ShopPhoto({ shopId, photoUrl, size = "md" }: { shopId: number; p
   };
   return (
     <div className="relative group" onClick={e => e.stopPropagation()}>
-      <div className={`${dim} rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0 border border-border-subtle ${canEdit ? "cursor-pointer" : ""}`}
-        style={{ background: "color-mix(in srgb, var(--color-primary) 8%, transparent)" }} onClick={canEdit ? () => fileRef.current?.click() : undefined}>
-        {upload.isPending ? <Loader2 size={iconSize} className="text-primary animate-spin" />
-          : <PhotoOrIcon src={photoUrl} className="w-full h-full object-cover"
-              fallback={<Store size={iconSize} className="text-primary" />} />}
+      <div
+        className={`overflow-hidden flex items-center justify-center flex-shrink-0 ${canEdit ? "cursor-pointer" : ""}`}
+        style={{
+          width: `${px}px`, height: `${px}px`,
+          borderRadius: `${Math.round(px * 0.28)}px`,
+          // Приподнята тенью, а не обведена рамкой: обводка в один пиксель —
+          // приём из другого языка, и на тёмной теме она светлая полоса.
+          boxShadow: "var(--shadow-sm)",
+          background: "var(--color-surface-light)",
+        }}
+        onClick={canEdit ? () => fileRef.current?.click() : undefined}
+      >
+        {upload.isPending
+          ? <Loader2 size={iconSize} className="animate-spin" style={{ color: "var(--color-primary-text)" }} />
+          : <PhotoOrIcon
+              src={photoUrl}
+              className="w-full h-full object-cover"
+              fallback={<ShopAvatar id={shopId} name={shopName} size={px} />}
+            />}
         {canEdit && (
-        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl">
-          <Camera size={iconSize - 4} color="#fff" />
-        </div>
+          <div
+            className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+            style={{ borderRadius: `${Math.round(px * 0.28)}px`, background: "rgba(0,0,0,0.34)" }}
+          >
+            <Camera size={iconSize} color="#fff" />
+          </div>
         )}
       </div>
       <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
@@ -65,16 +88,21 @@ export const ShopCard = memo(function ShopCard({ s, onClick, selected, onToggleS
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const hasDebt = Number(s.debt ?? 0) > 0;
   return (
-    <div style={{
-      background: COLORS.surface, borderRadius: "24px", padding: "20px",
-      boxShadow: SHADOW, display: "flex", alignItems: "center", gap: "16px",
-      cursor: "pointer", transition: "transform 0.2s, box-shadow 0.2s",
-      animation: `slideUp ${0.4 + delay}s ease`,
-      border: selected ? `2px solid ${COLORS.primary}` : "2px solid transparent",
-    }}
-    onClick={onClick}
-    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = "translateY(-2px)"; (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 20px rgba(0,0,0,0.08)"; }}
-    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = "translateY(0)"; (e.currentTarget as HTMLElement).style.boxShadow = SHADOW; }}
+    /*
+      Подъём и нажатие берёт на себя .neo-card — та же отзывчивость, что у всех
+      карточек приложения. Раньше это делали обработчики наведения: они
+      присваивали тень числом (rgba(0,0,0,0.08)), которая не знает про тему, и
+      возвращали не ту, что стояла изначально.
+    */
+    <div
+      className="neo-card"
+      style={{
+        padding: "18px", display: "flex", alignItems: "center", gap: "16px",
+        cursor: "pointer",
+        animation: `slideUp ${0.4 + delay}s ease`,
+        ...(selected ? { boxShadow: "var(--shadow-raised), 0 0 0 2px var(--color-primary)" } : {}),
+      }}
+      onClick={onClick}
     >
       {onToggleSelect && (
         <button
@@ -87,7 +115,7 @@ export const ShopCard = memo(function ShopCard({ s, onClick, selected, onToggleS
           }
         </button>
       )}
-      <ShopPhoto shopId={s.id} photoUrl={s.photoUrl} size="lg" />
+      <ShopPhoto shopId={s.id} shopName={s.name} photoUrl={s.photoUrl} size="lg" />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "8px" }}>
           <div style={{ minWidth: 0 }}>
@@ -99,15 +127,20 @@ export const ShopCard = memo(function ShopCard({ s, onClick, selected, onToggleS
             </p>}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+            {/* Заливки — из токенов. Числом здесь стояли rgba(232,80,80,.15) и
+                rgba(74,222,128,.15): оба из отменённой палитры и оба не
+                менялись вместе с темой. */}
             {hasDebt && <span style={{
-              display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "12px", fontWeight: 600,
-              padding: "2px 8px", borderRadius: "9999px", background: "rgba(232,80,80,.15)",
-              color: "var(--color-danger-text)", fontFamily: F.body,
+              display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "12px", fontWeight: 700,
+              padding: "4px 10px", borderRadius: "999px", whiteSpace: "nowrap",
+              background: "var(--color-danger-subtle)", color: "var(--color-danger-text)",
+              fontVariantNumeric: "tabular-nums",
             }}><AlertCircle size={11} />{fmt(s.debt, { decimals: 0 })}</span>}
             <span style={{
-              fontSize: "10px", padding: "2px 8px", borderRadius: "9999px", fontWeight: 500,
-              background: s.status === "active" ? "rgba(74,222,128,.15)" : COLORS.surfaceLight,
-              color: s.status === "active" ? "var(--color-success-text)" : COLORS.textSecondary,
+              fontSize: "10px", padding: "4px 10px", borderRadius: "999px", fontWeight: 700,
+              letterSpacing: "0.03em", whiteSpace: "nowrap",
+              background: s.status === "active" ? "var(--color-success-subtle)" : "var(--color-surface-light)",
+              color: s.status === "active" ? "var(--color-success-text)" : COLORS.textTertiary,
             }}>
               {s.status === "active" ? t("Актив", "Aktiv") : t("Неактив", "Noaktiv")}
             </span>
@@ -121,7 +154,13 @@ export const ShopCard = memo(function ShopCard({ s, onClick, selected, onToggleS
             </span>
           )}
           {s.phone && <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", color: COLORS.textSecondary }}><Phone size={10} />{s.phone}</span>}
-          {s.agentName && <span style={{ marginLeft: "auto", fontSize: "11px", color: COLORS.textSecondary }}>👤 {s.agentName}</span>}
+          {/* Значок, а не смайлик: набор смайликов у каждой системы свой, и
+              на части устройств «👤» приезжает квадратом. */}
+          {s.agentName && (
+            <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", color: COLORS.textSecondary }}>
+              <User size={10} />{s.agentName}
+            </span>
+          )}
         </div>
       </div>
     </div>

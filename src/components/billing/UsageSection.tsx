@@ -24,6 +24,7 @@ export function UsageSection({ usage, limits, t }: UsageSectionProps) {
         label={t("Пользователи", "Foydalanuvchilar")}
         atLimit={t("На пределе новых сотрудников не добавить — сначала тариф выше.",
           "Limitda yangi xodim qo'shib bo'lmaydi — avval yuqori tarif.")}
+        noLimit={t("Без ограничения по числу сотрудников", "Xodimlar soni cheklanmagan")}
       />
       <UsageBar
         icon={Package}
@@ -32,6 +33,7 @@ export function UsageSection({ usage, limits, t }: UsageSectionProps) {
         label={t("Товары (SKU)", "Mahsulotlar (SKU)")}
         atLimit={t("На пределе новый товар в каталог не заведётся.",
           "Limitda katalogga yangi mahsulot qo'shilmaydi.")}
+        noLimit={t("Без ограничения по числу позиций", "Mahsulot soni cheklanmagan")}
       />
       <UsageBar
         icon={ClipboardList}
@@ -40,6 +42,7 @@ export function UsageSection({ usage, limits, t }: UsageSectionProps) {
         label={t("Заказы (мес.)", "Buyurtmalar (oy)")}
         atLimit={t("На пределе заказы этого месяца перестанут проводиться. Счёт обнуляется первого числа.",
           "Limitda shu oy buyurtmalari o'tmay qoladi. Hisob oyning birinchi kunida yangilanadi.")}
+        noLimit={t("Без ограничения по числу заказов", "Buyurtmalar soni cheklanmagan")}
       />
     </div>
   );

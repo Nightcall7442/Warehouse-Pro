@@ -6,6 +6,8 @@ interface UsageBarProps {
   label: string;
   /** Что перестанет работать при достижении предела. */
   atLimit: string;
+  /** Что написать вместо полосы, когда предела нет. */
+  noLimit: string;
   icon: React.ComponentType<{ size?: number; style?: React.CSSProperties }>;
 }
 
@@ -18,7 +20,7 @@ interface UsageBarProps {
  * пользователей» не говорит, случится ли что-то плохое на двадцать первом —
  * откажут в добавлении или просто спишут больше. Теперь под полосой написано.
  */
-export function UsageBar({ used, max, label, atLimit, icon: Icon }: UsageBarProps) {
+export function UsageBar({ used, max, label, atLimit, noLimit, icon: Icon }: UsageBarProps) {
   const pct = max ? Math.min((used / max) * 100, 100) : 100;
   const warn = max !== null && used >= max * 0.85;
   const over = max !== null && used >= max;
@@ -55,21 +57,31 @@ export function UsageBar({ used, max, label, atLimit, icon: Icon }: UsageBarProp
         </div>
       </div>
 
-      {/* Жёлоб вдавлен, заполнение приподнято — тот же приём, что у всей
-          остальной вёрстки. Раньше полоса была плоской заливкой. */}
-      <div style={{
-        height: "9px", borderRadius: "999px", overflow: "hidden",
-        background: "var(--color-canvas)", boxShadow: "var(--shadow-pressed)",
-      }}>
+      {/*
+        Без предела полосы нет вовсе.
+
+        Она рисовалась залитой на всю ширину — и это была не просто яркая
+        зелёная лента во весь экран, а НЕПРАВДА: полный индикатор читается как
+        «вы у потолка», тогда как значит ровно обратное. Мерить нечем, значит и
+        мерки быть не должно.
+      */}
+      {max === null ? (
+        <p style={{ fontSize: "11.5px", color: "var(--color-text-tertiary)" }}>
+          {noLimit}
+        </p>
+      ) : (
         <div style={{
-          height: "100%", width: `${pct}%`, borderRadius: "999px",
-          background: max === null
-            ? `linear-gradient(90deg, var(--color-success), ${colorMix("var(--color-success)", 65)})`
-            : `linear-gradient(90deg, ${tone}, ${colorMix(tone, 70)})`,
-          transition: "width 0.8s cubic-bezier(0.4, 0, 0.2, 1)",
-          animation: "progressFill 0.9s ease",
-        }} />
-      </div>
+          height: "9px", borderRadius: "999px", overflow: "hidden",
+          background: "var(--color-canvas)", boxShadow: "var(--shadow-pressed)",
+        }}>
+          <div style={{
+            height: "100%", width: `${pct}%`, borderRadius: "999px",
+            background: `linear-gradient(90deg, ${tone}, ${colorMix(tone, 70)})`,
+            transition: "width 0.8s cubic-bezier(0.4, 0, 0.2, 1)",
+            animation: "progressFill 0.9s ease",
+          }} />
+        </div>
+      )}
 
       {/* Что случится у предела — только когда он близко. Постоянная строка под
           каждой полосой была бы шумом. */}

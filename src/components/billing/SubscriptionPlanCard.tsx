@@ -137,7 +137,12 @@ export function SubscriptionPlanCard({
             <span style={{
               width: "19px", height: "19px", borderRadius: "50%", flexShrink: 0,
               display: "flex", alignItems: "center", justifyContent: "center",
-              background: "var(--color-success-subtle)", color: "var(--color-success-text, var(--color-success))",
+              // Акцент на карточке ОДИН. Зелёный здесь стоял рядом с
+              // фирменным и спорил с ним: две ярких краски на одной карточке
+              // читаются как несобранность, а на тёмной теме зелёный ещё и
+              // кислотный. Зелёный остаётся за состоянием «хорошо», а не за
+              // перечислением того, что входит.
+              background: "var(--color-primary-subtle)", color: "var(--color-primary-text)",
             }}>
               <Check size={11} />
             </span>
