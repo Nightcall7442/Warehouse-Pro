@@ -1,0 +1,1 @@
+CREATE INDEX `idx_notif_purge` ON `notifications` (`is_read`,`created_at`);

@@ -937,6 +937,13 @@ export const notifications = mysqlTable("notifications", {
   tenantIdx: index("idx_notif_tenant").on(t.tenantId),
   userTenantIdx: index("idx_notif_user_tenant").on(t.userId, t.tenantId),
   userTenantReadIdx: index("idx_notif_user_tenant_read").on(t.userId, t.tenantId, t.isRead),
+  /*
+    Под ночную уборку: «прочитанные старше месяца», «непрочитанные старше трёх».
+    Все прежние ключи начинаются с организации или человека, а уборка идёт по
+    всей таблице разом — без этого она читала бы её целиком каждую ночь, и чем
+    дальше, тем дольше.
+  */
+  purgeIdx: index("idx_notif_purge").on(t.isRead, t.createdAt),
 }));
 
 export type Notification       = typeof notifications.$inferSelect;

@@ -96,6 +96,22 @@ const JOBS: Job[] = [
       return { ...closed, ...purged };
     },
   },
+  {
+    /*
+      Срок хранения уведомлений: прочитанное месяц, непрочитанное три.
+
+      Своей работой, а не вместе с уборкой чата: обе стирают, и споткнись
+      первая — вторая не выполнилась бы вовсе, а узнали бы мы об этом по
+      размеру базы через полгода.
+    */
+    name: "notifications-cleanup",
+    daily: { hour: 3, minute: 40 },
+    run: async () => {
+      const { getDb } = await import("../queries/connection");
+      const { NotificationService } = await import("../services/NotificationService");
+      return NotificationService.purgeOld(getDb());
+    },
+  },
 ];
 
 /** Когда работа выполнялась в последний раз — чтобы не повторяться в ту же минуту. */

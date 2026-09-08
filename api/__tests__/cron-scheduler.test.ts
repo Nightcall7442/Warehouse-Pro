@@ -32,10 +32,22 @@ const utc = (h: number, m = 0) => new Date(Date.UTC(2026, 8, 8, h, m, 0));
 describe("когда что запускается", () => {
   const job = (name: string) => _internals.JOBS.find(j => j.name === name)!;
 
-  it("все шесть работ на месте", () => {
+  it("все семь работ на месте", () => {
     expect(_internals.JOBS.map(j => j.name).sort()).toEqual([
-      "backup", "debt-reminders", "support-cleanup", "telegram-digest", "telegram-outbox", "trial-reminders",
+      "backup", "debt-reminders", "notifications-cleanup", "support-cleanup",
+      "telegram-digest", "telegram-outbox", "trial-reminders",
     ]);
+  });
+
+  it("стирающие работы разведены, а не слиты в одну", () => {
+    /*
+      Уборка чата и уборка уведомлений обе удаляют. Слитые в одну работу, они
+      делили бы судьбу: споткнись первая — вторая не выполнилась бы вовсе, и
+      узнали бы мы об этом по размеру базы через полгода.
+    */
+    expect(_internals.isDue(job("support-cleanup"), utc(22, 30))).toBe(true);        // 03:30 Ташкент
+    expect(_internals.isDue(job("notifications-cleanup"), utc(22, 40))).toBe(true);  // 03:40 Ташкент
+    expect(_internals.isDue(job("notifications-cleanup"), utc(22, 30))).toBe(false);
   });
 
   it("уборка чата идёт ПОСЛЕ ночной копии", () => {

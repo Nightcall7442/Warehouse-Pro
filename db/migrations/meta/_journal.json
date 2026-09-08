@@ -57,6 +57,13 @@
       "when": 1788896970241,
       "tag": "0007_support_threads",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1788897237120,
+      "tag": "0008_notifications_purge_index",
+      "breakpoints": true
     }
   ]
 }

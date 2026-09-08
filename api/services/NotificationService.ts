@@ -1,5 +1,6 @@
 import { notifications, warehouseStock, products, orders, dailyPlans, shops } from "@db/schema";
 import { eq, and, desc, lt, sql } from "drizzle-orm";
+import { affectedRows } from "../lib/db-rows";
 import { cache, withCache, CacheKeys, CacheTTL } from "../lib/cache";
 import { sseBus } from "../lib/sse";
 import { DEBT_NOTIFICATION_THRESHOLD } from "../lib/constants";
@@ -9,6 +10,34 @@ import { onDate } from "../lib/date-range";
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 
 type NotificationType = "order" | "payment" | "stock" | "system";
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Срок хранения.
+
+   ── Зачем ───────────────────────────────────────────────────────────────────
+
+   Таблица только росла. Ни одна запись никогда не удалялась: уведомление о
+   заказе, прочитанное год назад, лежало ровно столько же, сколько сегодняшнее.
+   Растёт при этом самая шумная таблица в базе — уведомление порождается на
+   каждый заказ, каждый низкий остаток и каждое напоминание о долге, причём
+   отдельной строкой КАЖДОМУ получателю.
+
+   ── Почему два срока ────────────────────────────────────────────────────────
+
+   Прочитанное своё дело сделало: его держим месяц — на случай «а что там было
+   на той неделе». Непрочитанное — незакрытое дело, и стирать его через месяц
+   значит решить за человека, что оно неважно; ему три месяца. Дольше не нужно:
+   уведомление, не прочитанное за три месяца, не прочитают никогда, а висящий
+   счётчик перестают замечать вовсе.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/** Сколько живёт прочитанное уведомление. */
+export const READ_RETENTION_DAYS = 30;
+
+/** Сколько живёт непрочитанное. */
+export const UNREAD_RETENTION_DAYS = 90;
+
+const DAY_MS = 86_400_000;
 
 export interface NotificationRow {
   id: number;
@@ -191,6 +220,36 @@ export const NotificationService = {
       unread += n;
     }
     return { unread, byType };
+  },
+
+  /**
+   * Стереть уведомления, которым вышел срок.
+   *
+   * Двумя запросами, а не одним с `OR`: у условий разные границы, и разбор с
+   * `OR` по двум диапазонам одного столбца MySQL всё равно свёл бы к чтению
+   * таблицы целиком. Каждый запрос по отдельности ложится на idx_notif_purge.
+   */
+  async purgeOld(db: Db, now: Date = new Date()): Promise<{ read: number; unread: number }> {
+    const olderThan = (days: number) => new Date(now.getTime() - days * DAY_MS);
+
+    const read = await db.delete(notifications).where(and(
+      eq(notifications.isRead, true),
+      lt(notifications.createdAt, olderThan(READ_RETENTION_DAYS)),
+    ));
+    const unread = await db.delete(notifications).where(and(
+      eq(notifications.isRead, false),
+      lt(notifications.createdAt, olderThan(UNREAD_RETENTION_DAYS)),
+    ));
+
+    /*
+      Счётчик непрочитанного кешируется на тридцать секунд у каждого человека
+      отдельно. Кого именно задела уборка, мы не знаем — она идёт по всей
+      таблице, — поэтому сбрасываем весь раздел разом. Иначе у тех, чьи старые
+      непрочитанные стёрты, значок полминуты показывал бы их.
+    */
+    cache.invalidatePrefix("notif_unread:");
+
+    return { read: affectedRows(read) ?? 0, unread: affectedRows(unread) ?? 0 };
   },
 
   async unreadCount(db: Db, tenantId: number, userId: number): Promise<number> {
