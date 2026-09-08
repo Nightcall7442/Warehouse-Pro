@@ -4,7 +4,7 @@ import { keepPreviousData } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
 import { ru as ruLocale } from "date-fns/locale";
 import {
-  Wallet, HandCoins, TrendingUp, Coins,
+  Wallet, HandCoins,
   ChevronLeft, ChevronRight, ChevronDown, Search, FileDown, Printer, SlidersHorizontal, Loader2,
 } from "lucide-react";
 import { trpc } from "@/providers/trpc";
@@ -286,7 +286,9 @@ export default function Salaries() {
       {/* ── Шапка: что это, за какой период, и куда листать ─────────────── */}
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <h1 className="font-display text-2xl font-bold text-primary tracking-tight">
+          {/* Заголовок как на остальных экранах: тёмный, не акцентный.
+              Акцентом красят то, что нажимают, а не то, что читают. */}
+          <h1 style={{ fontFamily: F.display, fontSize: "24px", fontWeight: 700, color: COLORS.textPrimary, letterSpacing: "-0.02em" }}>
             {t("Зарплаты", "Ish haqi")}
           </h1>
           <p className="text-sm" style={{ color: COLORS.textTertiary }}>
@@ -299,37 +301,52 @@ export default function Salaries() {
 
         <div className="flex items-center gap-2 flex-wrap">
           {/* Листалка периодов. Вперёд дальше текущего — некуда. */}
-          <div className="flex items-center gap-1" style={{ background: COLORS.surfaceLight, borderRadius: "12px", padding: "2px" }}>
+          <div className="range-pills" role="group" aria-label={t("Период", "Davr")}>
             <button
               onClick={() => setOffset(o => o + 1)}
-              className="tap rounded-lg"
-              style={{ color: COLORS.textSecondary, width: "36px" }}
+              className="range-pill tap"
+              style={{ padding: "8px 10px" }}
               aria-label={t("Предыдущий период", "Oldingi davr")}
               data-testid="period-prev"
             >
-              <ChevronLeft size={18} style={{ margin: "0 auto" }} />
+              <ChevronLeft size={16} />
             </button>
-            <span style={{ fontSize: "13px", fontWeight: 600, color: COLORS.textPrimary, minWidth: "112px", textAlign: "center", textTransform: "capitalize" }}>
+            <span style={{
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: "12.5px", fontWeight: 700, color: COLORS.textPrimary,
+              minWidth: "116px", textAlign: "center", textTransform: "capitalize",
+            }}>
               {periodLabel(period, offset, lang)}
             </span>
             <button
               onClick={() => setOffset(o => Math.max(0, o - 1))}
               disabled={offset === 0}
-              className="tap rounded-lg disabled:opacity-30"
-              style={{ color: COLORS.textSecondary, width: "36px" }}
+              className="range-pill tap disabled:opacity-30"
+              style={{ padding: "8px 10px" }}
               aria-label={t("Следующий период", "Keyingi davr")}
               data-testid="period-next"
             >
-              <ChevronRight size={18} style={{ margin: "0 auto" }} />
+              <ChevronRight size={16} />
             </button>
           </div>
 
-          <div className="flex gap-1.5">
+          {/*
+            Домашний переключатель — .range-pills, тот же, что на главной, в
+            отчётах и в KPI.
+
+            Здесь была своя пара классов, и выбранная кнопка красилась белым по
+            фирменному цвету. В тёмной теме фирменный — золотой, и белым по нему
+            выходит 2.42:1 при норме 4.5. Та же ошибка уже разбиралась у кнопки
+            подтверждения и у переключателя периода в KPI: цвет надписи на
+            заливке берут из палитры, а не пишут словом «белый».
+          */}
+          <div role="group" aria-label={t("Длина периода", "Davr uzunligi")} className="range-pills">
             {PERIODS.map(p => (
               <button
                 key={p.value}
                 onClick={() => { setPeriod(p.value); setOffset(0); }}
-                className={`tap px-3 rounded-lg text-xs font-semibold transition-all ${period === p.value ? "bg-[var(--color-primary)] text-white" : "bg-[var(--color-surface-light)] text-[var(--color-text-secondary)]"}`}
+                aria-pressed={period === p.value}
+                className={"range-pill tap" + (period === p.value ? " active" : "")}
               >
                 {lang === "uz" ? p.uz : p.ru}
               </button>
@@ -343,37 +360,109 @@ export default function Salaries() {
         </div>
       </div>
 
-      {/* ── Деньги в четырёх состояниях ──────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Tile label={t("ФОНД ОПЛАТЫ", "ISH HAQI FONDI")} value={fmt(totals.total)} icon={<Wallet size={18} color="#fff" />} gradient="var(--color-primary)" accent />
-        <Tile label={t("ВЫПЛАЧЕНО", "TO'LANGAN")} value={fmt(totals.paid)} icon={<HandCoins size={18} color="#fff" />} gradient="linear-gradient(135deg, #16a34a, #22c47a)" />
-        <Tile label={t("АВАНСЫ", "AVANSLAR")} value={fmt(totals.advances)} icon={<Coins size={18} color="#fff" />} gradient="linear-gradient(135deg, #f59e0b, #fbbf24)" />
-        <Tile label={t("К ВЫПЛАТЕ", "TO'LANADI")} value={fmt(totals.due)} icon={<TrendingUp size={18} color="#fff" />} gradient="linear-gradient(135deg, #6366f1, #818cf8)" />
-      </div>
+      {/*
+        ── Фонд оплаты ────────────────────────────────────────────────────────
 
-      {/* Полоса закрытия фонда и его состав — на один взгляд. */}
-      <div className="neo-card" style={{ padding: "14px 16px" }}>
-        <div className="flex items-center justify-between" style={{ fontSize: "12px", color: COLORS.textTertiary }}>
-          <span>{t("Фонд закрыт на", "Fond yopildi")} <b style={{ color: COLORS.textPrimary }}>{paidPct}%</b></span>
-          <span className="flex flex-wrap gap-x-4">
-            <span>{t("ОКЛАДЫ", "MAOSHLAR")}: {fmt(totals.base)}</span>
-            <span>{t("КОМИССИЯ", "KOMISSIYA")}: {fmt(totals.commission)}</span>
-            <span>{t("ПРЕМИИ", "MUKOFOTLAR")}: {fmt(totals.bonus)}</span>
-          </span>
+        Здесь стояли четыре одинаковых плитки — фонд, выплачено, авансы, к
+        выплате — и под ними пятая карточка с полосой. Две беды.
+
+        Первая: четыре равновеликие плитки утверждают, что перед нами четыре
+        независимых величины. На деле это ОДНО число и его разложение:
+        начислено = выплачено + осталось, а авансы вообще часть выплаченного —
+        и этого нигде не было сказано, так что «выплачено 5 млн, авансы 2 млн»
+        читалось как семь.
+
+        Вторая: цвета. Значки сидели на градиентах #16a34a→#22c47a,
+        #f59e0b→#fbbf24 и #6366f1→#818cf8 — зелёный, янтарный и индиго из
+        палитры Tailwind, которой у нас нет. В тёмной теме они оставались
+        прежними, рядом с золотым фирменным читались как чужие, а сами значки
+        были белыми словом — на золотом это 2.4:1 при норме 4.5.
+
+        Теперь одно число, одна составная полоса под ним и подписи с суммами.
+        Цвет один — фирменный: доля закрытого фонда. Остальное — нейтрали.
+      */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1.35fr_1fr] gap-3">
+        <div className="neo-card neo-card-static" style={{ padding: "20px 22px" }}>
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <p className="font-label" style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em", color: COLORS.textTertiary }}>
+                {t("ФОНД ОПЛАТЫ", "ISH HAQI FONDI")}
+              </p>
+              <p style={{
+                margin: "4px 0 0", fontFamily: F.display, fontSize: "30px", fontWeight: 700,
+                lineHeight: 1.1, letterSpacing: "-0.025em",
+                color: COLORS.textPrimary, fontVariantNumeric: "tabular-nums",
+              }}>
+                {fmt(totals.total)}
+              </p>
+            </div>
+            <div className="flex items-center gap-2.5">
+              <span style={{
+                width: "38px", height: "38px", borderRadius: "13px", flexShrink: 0,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                background: "var(--color-primary-subtle)", color: "var(--color-primary-text)",
+              }}>
+                <Wallet size={18} />
+              </span>
+              <div>
+                <p style={{ fontSize: "19px", fontWeight: 700, lineHeight: 1.1, color: COLORS.textPrimary, fontVariantNumeric: "tabular-nums" }}>
+                  {paidPct}%
+                </p>
+                <p style={{ fontSize: "11px", color: COLORS.textTertiary }}>{t("фонд закрыт", "fond yopildi")}</p>
+              </div>
+            </div>
+          </div>
+
+          <FundBar paid={totals.paid} advances={totals.advances} total={totals.total} />
+
+          {/* Подписи с суммами. Полоса без чисел показывает пропорцию, но
+              директору нужна не пропорция, а сколько ещё раздать. */}
+          <div className="flex flex-wrap gap-x-7 gap-y-2 mt-3">
+            <Legend
+              swatch="var(--color-primary)"
+              label={t("ВЫПЛАЧЕНО", "TO'LANGAN")}
+              value={fmt(totals.paid)}
+              note={totals.advances > 0
+                ? t(`в т.ч. АВАНСЫ ${fmt(totals.advances)}`, `shu jumladan AVANSLAR ${fmt(totals.advances)}`)
+                : undefined}
+            />
+            <Legend
+              swatch="var(--color-canvas)"
+              outlined
+              label={t("К ВЫПЛАТЕ", "TO'LANADI")}
+              value={fmt(totals.due)}
+              note={totals.due > 0 ? t("остаток по людям", "odamlar bo'yicha qoldiq") : t("раздано всё", "hammasi berildi")}
+              strong={totals.due > 0}
+            />
+          </div>
         </div>
-        <div style={{ height: "6px", borderRadius: "999px", background: COLORS.surfaceLight, marginTop: "8px", overflow: "hidden" }}>
-          <div style={{ width: `${paidPct}%`, height: "100%", borderRadius: "999px", background: "linear-gradient(90deg, #16a34a, #22c47a)", transition: "width .3s ease" }} />
+
+        {/* Из чего сложилось начисление. Вопрос директора обычно не «сколько
+            всего», а «почему столько». */}
+        <div className="neo-card neo-card-static" style={{ padding: "20px 22px", display: "flex", flexDirection: "column", justifyContent: "center", gap: "11px" }}>
+          <p className="font-label" style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em", color: COLORS.textTertiary }}>
+            {t("СОСТАВ НАЧИСЛЕНИЯ", "HISOBLASH TARKIBI")}
+          </p>
+          <Part label={t("ОКЛАДЫ", "MAOSHLAR")} value={totals.base} total={totals.total} fmt={fmt} />
+          <Part label={t("КОМИССИЯ", "KOMISSIYA")} value={totals.commission} total={totals.total} fmt={fmt} />
+          <Part label={t("ПРЕМИИ", "MUKOFOTLAR")} value={totals.bonus} total={totals.total} fmt={fmt} />
         </div>
       </div>
 
       {/* ── Вкладки и фильтры ────────────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex gap-1.5">
+        {/* Разделы — тот же .range-pills, что у периода выше и на других
+            экранах. Своя пара классов означала третий механизм переключения на
+            одной странице: у периода свой, у разделов свой, у вида выплаты в
+            окне третий — и ни один не похож на остальное приложение. */}
+        <div role="tablist" aria-label={t("Раздел", "Bo'lim")} className="range-pills">
           {([["accruals", t("Начисления", "Hisoblangan")], ["payouts", `${t("Выплаты", "To'lovlar")} · ${(paidQuery.data ?? []).length}`]] as const).map(([key, label]) => (
             <button
               key={key}
+              role="tab"
+              aria-selected={tab === key}
               onClick={() => setTab(key as "accruals" | "payouts")}
-              className={`tap px-4 rounded-xl text-sm font-semibold transition-all ${tab === key ? "bg-[var(--color-primary)] text-white" : "bg-[var(--color-surface-light)] text-[var(--color-text-secondary)]"}`}
+              className={"range-pill tap" + (tab === key ? " active" : "")}
               data-testid={`salaries-tab-${key}`}
             >
               {label}
@@ -396,12 +485,15 @@ export default function Salaries() {
           {tab === "accruals" && (
             <>
               <PremiumSelect value={role} onChange={setRole} options={roleOptions} width="170px" aria-label={t("Роль", "Lavozim")} />
+              {/* Домашняя кнопка вместо своей пары стилей: нажатое состояние
+                  красилось белым по фирменному — на золоте тёмной темы 2.4:1. */}
               <button
                 onClick={() => setOnlyDue(v => !v)}
-                className="tap px-3 rounded-lg text-xs font-semibold flex items-center gap-1.5"
+                aria-pressed={onlyDue}
+                className="neo-btn tap px-3 text-xs font-semibold flex items-center gap-1.5"
                 style={onlyDue
-                  ? { background: "var(--color-primary)", color: "#fff" }
-                  : { border: `1px solid ${COLORS.border}`, color: COLORS.textSecondary }}
+                  ? { color: "var(--color-primary-text)", boxShadow: "var(--shadow-pressed)" }
+                  : undefined}
                 data-testid="salaries-only-due"
               >
                 <SlidersHorizontal size={13} />
@@ -457,7 +549,7 @@ export default function Salaries() {
                       const paid = paidByUser.get(r.agentId);
                       const due = dueOf(r);
                       return (
-                        <tr key={r.agentId} data-testid={`salary-row-${r.agentId}`}>
+                        <tr key={r.agentId} className="row-hover" data-testid={`salary-row-${r.agentId}`}>
                           <td style={tdStyle}>
                             <div className="flex items-center gap-3">
                               <Avatar name={r.agentName} />
@@ -500,6 +592,44 @@ export default function Salaries() {
                       );
                     })}
                   </tbody>
+                  {/*
+                    Итог ведомости.
+
+                    Его не было вовсе: суммы по столбцам директор мог узнать
+                    только из карточек наверху, и то не все — по окладам,
+                    комиссии и премиям там числа за ВСЮ организацию, а таблица
+                    показывает отфильтрованных. Отфильтровал по роли — и сверить
+                    стало не с чем.
+                  */}
+                  <tfoot>
+                    <tr>
+                      <td style={{ ...tdStyle, fontWeight: 700, borderBottom: "none" }}>
+                        {t("Итого", "Jami")}
+                        <span style={{ fontWeight: 500, color: COLORS.textTertiary }}>
+                          {" · "}{rows.length}
+                          {rows.length !== allRows.length ? ` ${t("из", "dan")} ${allRows.length}` : ""}
+                        </span>
+                      </td>
+                      {[
+                        rows.reduce((x, r) => x + Number(r.baseSalary ?? 0), 0),
+                        rows.reduce((x, r) => x + Number(r.commissionAmount ?? 0), 0),
+                        rows.reduce((x, r) => x + Number(r.bonusAmount ?? 0), 0),
+                        rows.reduce((x, r) => x + Number(r.totalSalary ?? 0), 0),
+                        rows.reduce((x, r) => x + (paidByUser.get(r.agentId)?.total ?? 0), 0),
+                        rows.reduce((x, r) => x + Math.max(0, dueOf(r)), 0),
+                      ].map((v, i) => (
+                        <td key={i} style={{
+                          ...tdStyle, textAlign: "right", borderBottom: "none",
+                          fontVariantNumeric: "tabular-nums",
+                          fontWeight: i >= 3 ? 700 : 600,
+                          color: i >= 3 ? COLORS.textPrimary : COLORS.textSecondary,
+                        }}>
+                          {fmt(v)}
+                        </td>
+                      ))}
+                      <td style={{ ...tdStyle, borderBottom: "none" }} />
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
             </div>
@@ -524,7 +654,7 @@ export default function Salaries() {
                         <RoleBadge role={r.role} lang={lang} rate={commission > 0 ? r.commissionRate : null} />
                       </div>
                     </div>
-                    <p style={{ margin: 0, fontSize: "18px", fontWeight: 700, color: COLORS.primaryText, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+                    <p style={{ margin: 0, fontSize: "18px", fontWeight: 700, color: COLORS.textPrimary, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
                       {fmt(Number(r.totalSalary ?? 0))}
                     </p>
                   </div>
@@ -623,6 +753,15 @@ export default function Salaries() {
                     <tr
                       key={p.id}
                       onClick={() => setViewing(p)}
+                      /*
+                        Строка кликается, значит должна и подсвечиваться, и
+                        открываться с клавиатуры. Курсор-палец без подсветки —
+                        единственный признак, что строка живая, и он есть только
+                        у мыши.
+                      */
+                      className="row-hover"
+                      tabIndex={0}
+                      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setViewing(p); } }}
                       style={{ cursor: "pointer" }}
                       data-testid={`payout-row-${p.id}`}
                     >
@@ -634,13 +773,17 @@ export default function Salaries() {
                       <td style={{ ...tdStyle, textAlign: "right", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{fmt(Number(p.amount))}</td>
                     </tr>
                   ))}
+                </tbody>
+                {/* Итог — в tfoot, а не последней строкой tbody: иначе он
+                    попадает под наведение и клик как обычная выплата. */}
+                <tfoot>
                   <tr>
-                    <td colSpan={5} style={{ ...tdStyle, fontWeight: 600, color: COLORS.textSecondary }}>{t("Итого за период", "Davr uchun jami")}</td>
-                    <td style={{ ...tdStyle, textAlign: "right", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
+                    <td colSpan={5} style={{ ...tdStyle, fontWeight: 700, borderBottom: "none" }}>{t("Итого за период", "Davr uchun jami")}</td>
+                    <td style={{ ...tdStyle, textAlign: "right", fontWeight: 700, borderBottom: "none", fontVariantNumeric: "tabular-nums" }}>
                       {fmt(payouts.reduce((s, p) => s + Number(p.amount ?? 0), 0))}
                     </td>
                   </tr>
-                </tbody>
+                </tfoot>
               </table>
             </div>
           )}
@@ -673,13 +816,21 @@ export default function Salaries() {
 
 /* ── Мелкие части ─────────────────────────────────────────────────────────── */
 
+/**
+ * Кружок с инициалами.
+ *
+ * Был квадратом со скруглением и серой рамкой — той же формы, что плитка
+ * товара и значок склада. Круг отличает человека от вещи, и на списке в
+ * тридцать строк это единственное, что подсказывает: колонка про людей.
+ */
 function Avatar({ name }: { name: string }) {
   return (
     <div style={{
-      width: "36px", height: "36px", flexShrink: 0, borderRadius: "12px",
-      background: "var(--color-surface-light)", border: `1px solid ${COLORS.border}`,
+      width: "36px", height: "36px", flexShrink: 0, borderRadius: "999px",
+      background: "var(--color-primary-subtle)",
       display: "flex", alignItems: "center", justifyContent: "center",
-      fontFamily: F.display, fontSize: "12px", fontWeight: 700, color: COLORS.textSecondary,
+      fontFamily: F.display, fontSize: "12px", fontWeight: 700, letterSpacing: "0.02em",
+      color: "var(--color-primary-text)",
     }}>
       {initials(name)}
     </div>
@@ -714,11 +865,29 @@ function KindBadge({ kind, lang }: { kind: "payout" | "advance"; lang: string })
     : <Pill text={t("выплата", "to'lov")} tone="ok" />;
 }
 
+/**
+ * Плашка состояния.
+ *
+ * ── Что было ────────────────────────────────────────────────────────────────
+ *
+ * `var(--color-success-bg, rgba(22,163,74,.12))` — токена --color-success-bg в
+ * приложении НЕТ (есть --color-success-subtle). Значит запасное значение
+ * срабатывало ВСЕГДА, и плашка всегда была зелёной из палитры Tailwind, мимо
+ * темы. То же с warning. Написано как из палитры, работало как литерал.
+ *
+ * ── Что теперь ──────────────────────────────────────────────────────────────
+ *
+ * Зелёного здесь нет вовсе, и не только из-за токена. «Выплачено» — не
+ * хорошая новость, а закрытая строка: красить её в цвет успеха значит
+ * подсвечивать на экране то, чем заниматься уже не нужно. Внимания требует
+ * ОСТАТОК — он и берёт фирменный цвет. Предупреждающий остаётся там, где и
+ * должен: аванс и переплата.
+ */
 function Pill({ text, tone }: { text: string; tone: "ok" | "warn" | "due" }) {
   const tones = {
-    ok:   { bg: "var(--color-success-bg, rgba(22,163,74,.12))", fg: "var(--color-success-text, #15803d)" },
-    warn: { bg: "var(--color-warning-bg, rgba(245,158,11,.14))", fg: "var(--color-warning-text, #b45309)" },
-    due:  { bg: "var(--color-surface-light)", fg: "var(--color-text-primary)" },
+    ok:   { bg: "var(--color-surface-light)",   fg: "var(--color-text-tertiary)" },
+    warn: { bg: "var(--color-warning-subtle)",  fg: "var(--color-warning-text)" },
+    due:  { bg: "var(--color-primary-subtle)",  fg: "var(--color-primary-text)" },
   }[tone];
   return (
     <span style={{
@@ -739,22 +908,90 @@ function Num({ v, fmt, empty }: { v: number; fmt: (n: number) => string; empty?:
   );
 }
 
-function Tile({ label, value, icon, gradient, accent }: { label: string; value: string; icon: React.ReactNode; gradient: string; accent?: boolean }) {
+/**
+ * Составная полоса фонда: сколько уже отдано и сколько осталось.
+ *
+ * Цвет один — фирменный. Прежняя полоса заливалась градиентом #16a34a→#22c47a:
+ * зелёный из палитры Tailwind, которой у нас нет, одинаковый в обеих темах и
+ * ни на что в приложении не похожий.
+ *
+ * Авансы показаны внутри выплаченного тем же цветом, но светлее: они и есть
+ * часть выплаченного, а не пятая величина рядом. Отдельной плиткой они читались
+ * как ещё одни деньги, и итог на экране не сходился ни с чем.
+ */
+function FundBar({ paid, advances, total }: { paid: number; advances: number; total: number }) {
+  const share = (v: number) => (total > 0 ? Math.max(0, Math.min(100, (v / total) * 100)) : 0);
   return (
-    <div className="kpi-hero" style={{ borderRadius: "20px", padding: "16px" }}>
-      <div className="flex items-start justify-between">
-        <span className="font-label text-[10px] tracking-wider" style={{ color: COLORS.textTertiary }}>{label}</span>
-        <div style={{ width: "34px", height: "34px", borderRadius: "10px", background: gradient, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-          {icon}
-        </div>
+    <div style={{
+      height: "10px", borderRadius: "999px", marginTop: "16px", overflow: "hidden",
+      background: "var(--color-canvas)", boxShadow: "var(--shadow-pressed)",
+      display: "flex",
+    }}>
+      <div style={{
+        width: `${share(paid - advances)}%`, height: "100%",
+        background: "var(--color-primary)", transition: "width .3s ease",
+      }} />
+      <div style={{
+        width: `${share(advances)}%`, height: "100%",
+        background: "color-mix(in srgb, var(--color-primary) 45%, transparent)",
+        transition: "width .3s ease",
+      }} />
+    </div>
+  );
+}
+
+/**
+ * Подпись под полосой: квадратик цвета, слово, сумма.
+ *
+ * `outlined` — для незалитой части: её квадратик того же цвета, что дорожка
+ * полосы, и без обводки был бы неразличим на карточке. Взять для него просто
+ * цвет рамки нельзя: тогда квадратик и полоса говорят об одном разными
+ * цветами, а подпись затем и нужна, чтобы их связать.
+ */
+function Legend({ swatch, label, value, note, strong, outlined }: {
+  swatch: string; label: string; value: string; note?: string; strong?: boolean; outlined?: boolean;
+}) {
+  return (
+    <div style={{ display: "flex", alignItems: "flex-start", gap: "9px", minWidth: 0 }}>
+      <span style={{
+        width: "9px", height: "9px", borderRadius: "3px", background: swatch,
+        boxShadow: outlined ? "inset 0 0 0 1px var(--color-border)" : undefined,
+        flexShrink: 0, marginTop: "5px",
+      }} />
+      <div style={{ minWidth: 0 }}>
+        <p className="font-label" style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.07em", color: COLORS.textTertiary }}>
+          {label}
+        </p>
+        <p style={{
+          fontSize: "16px", fontWeight: 700, lineHeight: 1.25, fontVariantNumeric: "tabular-nums",
+          color: strong ? "var(--color-primary-text)" : COLORS.textPrimary,
+        }}>
+          {value}
+        </p>
+        {note && <p style={{ fontSize: "11px", color: COLORS.textTertiary, marginTop: "1px" }}>{note}</p>}
       </div>
-      <p style={{
-        margin: "10px 0 0", fontFamily: F.display, fontSize: accent ? "22px" : "19px", fontWeight: 700,
-        color: accent ? COLORS.primaryText : COLORS.textPrimary,
-        fontVariantNumeric: "tabular-nums", lineHeight: 1.1, letterSpacing: "-0.02em",
-      }}>
-        {value}
-      </p>
+    </div>
+  );
+}
+
+/** Строка состава начисления: слово, доля полоской, сумма. */
+function Part({ label, value, total, fmt }: { label: string; value: number; total: number; fmt: (v: number) => string }) {
+  const pct = total > 0 ? Math.max(0, Math.min(100, (value / total) * 100)) : 0;
+  return (
+    <div>
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="font-label" style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.07em", color: COLORS.textTertiary }}>
+          {label}
+        </span>
+        <span style={{ fontSize: "13.5px", fontWeight: 700, color: COLORS.textPrimary, fontVariantNumeric: "tabular-nums" }}>
+          {fmt(value)}
+        </span>
+      </div>
+      {/* Доля — полоской, а не процентом цифрой: три доли рядом сравниваются
+          глазом за один взгляд, три числа приходится вычитать в уме. */}
+      <div style={{ height: "4px", borderRadius: "999px", marginTop: "5px", background: "var(--color-canvas)", overflow: "hidden" }}>
+        <div style={{ width: `${pct}%`, height: "100%", background: "color-mix(in srgb, var(--color-primary) 55%, transparent)" }} />
+      </div>
     </div>
   );
 }
@@ -791,15 +1028,16 @@ function PayoutModal({ row, due, onClose, onDone }: { row: Row; due: number; onC
       <div className="space-y-4" style={{ padding: "20px" }}>
         <div>
           <label className="font-label text-secondary text-xs block mb-1">{t("ВИД", "TURI")}</label>
-          <div className="flex gap-2">
+          {/* Тот же .range-pills, что у периода и разделов на странице: третий
+              механизм переключения в одном окне читался как чужая вставка. */}
+          <div role="group" aria-label={t("Вид", "Turi")} className="range-pills" style={{ display: "flex", width: "100%" }}>
             {(["payout", "advance"] as const).map(k => (
               <button
                 key={k}
                 onClick={() => setKind(k)}
-                className="tap flex-1 rounded-xl text-sm font-medium"
-                style={kind === k
-                  ? { background: "var(--color-primary)", color: "var(--color-on-primary, #fff)" }
-                  : { border: `1px solid ${COLORS.border}`, color: COLORS.textSecondary }}
+                aria-pressed={kind === k}
+                className={"range-pill tap" + (kind === k ? " active" : "")}
+                style={{ flex: 1 }}
                 data-testid={`payout-kind-${k}`}
               >
                 {k === "payout" ? t("Выплата", "To'lov") : t("Аванс", "Avans")}
