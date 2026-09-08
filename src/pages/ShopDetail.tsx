@@ -12,10 +12,11 @@ import { STATUS } from "@/components/orders/theme-tokens";
 import { labelled, ORDER_STATUS_LABEL } from "@/lib/entity-labels";
 import { format } from "date-fns";
 import {
-  ArrowLeft, Store, Phone, MapPin, Edit2, Plus,
+  ArrowLeft, Phone, MapPin, Edit2, Plus,
   AlertCircle, Loader2, CheckCircle2, X, Trash2, ChevronRight, Camera, Archive, RotateCcw,
 } from "lucide-react";
 import { PhotoOrIcon } from "@/components/PhotoOrIcon";
+import { ShopAvatar } from "@/components/shops/ShopAvatar";
 import { ShopStatement } from "@/components/shops/ShopStatement";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
@@ -342,14 +343,18 @@ export default function ShopDetail() {
             <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload}/>
             <div className={`relative group flex-shrink-0 ${canEdit ? "cursor-pointer" : ""}`}
                  onClick={canEdit ? () => fileRef.current?.click() : undefined}>
-              <div className="w-20 h-20 rounded-xl overflow-hidden flex items-center justify-center border border-border-subtle"
-                style={{ background: "color-mix(in srgb, var(--color-primary) 10%, transparent)" }}>
-                {uploadPhoto.isPending ? <Loader2 size={28} className="text-primary animate-spin"/>
+              {/* Та же плашка, что в списке: цвет выводится из номера точки, и
+                  человек узнаёт карточку по ней, а не читает заголовок. Раньше
+                  здесь стоял общий серый значок лавки — тот самый, от которого
+                  список и рябил. */}
+              <div className="w-24 h-24 overflow-hidden flex items-center justify-center"
+                style={{ borderRadius: "26px", boxShadow: "var(--shadow-sm)", background: "var(--color-surface-light)" }}>
+                {uploadPhoto.isPending ? <Loader2 size={28} className="animate-spin" style={{ color: "var(--color-primary-text)" }}/>
                   : <PhotoOrIcon src={shop.photoUrl} alt={shop.name} className="w-full h-full object-cover"
-                      fallback={<Store size={28} className="text-primary"/>} />}
+                      fallback={<ShopAvatar id={shop.id} name={shop.name} size={96} />} />}
               </div>
               {canEdit && (
-              <div className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 rounded-xl">
+              <div className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1" style={{ borderRadius: "26px" }}>
                 <Camera size={18} color="#fff"/><span className="text-white text-[9px]">{t("Фото","Rasm")}</span>
               </div>
               )}

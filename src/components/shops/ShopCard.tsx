@@ -2,7 +2,7 @@ import { memo, useRef } from "react";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { compressImage } from "@/lib/compress-image";
-import { MapPin, Phone, Camera, Loader2, AlertCircle, ChevronRight, CheckSquare, Square, User } from "lucide-react";
+import { MapPin, Phone, Camera, Loader2, AlertCircle, CheckSquare, Square, User } from "lucide-react";
 import { F, COLORS } from "./constants";
 import { useAuth } from "@/hooks/useAuth";
 import { canOperate } from "@/lib/permissions";
@@ -116,52 +116,91 @@ export const ShopCard = memo(function ShopCard({ s, onClick, selected, onToggleS
         </button>
       )}
       <ShopPhoto shopId={s.id} shopName={s.name} photoUrl={s.photoUrl} size="lg" />
+
+      {/*
+        Строка делится на три части: КТО, ИТОГ, ДЕЙСТВИЕ.
+
+        Раньше значок статуса, стрелка и имя агента стояли вперемешку: стрелка
+        сидела в одной строке со значком и сдвигала его влево, а имя агента
+        оказывалось на второй строке с другим правым краем. Оттого столбец
+        справа и выглядел рваным — выравнивать было нечего по чему.
+
+        Теперь у итога один правый край на обе строки, а стрелка вынесена за
+        него отдельным кружком по центру высоты: это не сведение, а действие,
+        и стоять в ряду со сведениями ей незачем.
+      */}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "8px" }}>
-          <div style={{ minWidth: 0 }}>
-            <p style={{ fontFamily: F.display, fontWeight: 600, color: COLORS.textPrimary, fontSize: "16px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", margin: 0 }}>
-              {s.name}
-            </p>
-            {s.ownerName && <p style={{ fontSize: "12px", color: COLORS.textSecondary, marginTop: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", margin: 0 }}>
-              {s.ownerName}
-            </p>}
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
-            {/* Заливки — из токенов. Числом здесь стояли rgba(232,80,80,.15) и
-                rgba(74,222,128,.15): оба из отменённой палитры и оба не
-                менялись вместе с темой. */}
-            {hasDebt && <span style={{
-              display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "12px", fontWeight: 700,
-              padding: "4px 10px", borderRadius: "999px", whiteSpace: "nowrap",
-              background: "var(--color-danger-subtle)", color: "var(--color-danger-text)",
-              fontVariantNumeric: "tabular-nums",
-            }}><AlertCircle size={11} />{fmt(s.debt, { decimals: 0 })}</span>}
-            <span style={{
-              fontSize: "10px", padding: "4px 10px", borderRadius: "999px", fontWeight: 700,
-              letterSpacing: "0.03em", whiteSpace: "nowrap",
-              background: s.status === "active" ? "var(--color-success-subtle)" : "var(--color-surface-light)",
-              color: s.status === "active" ? "var(--color-success-text)" : COLORS.textTertiary,
-            }}>
-              {s.status === "active" ? t("Актив", "Aktiv") : t("Неактив", "Noaktiv")}
-            </span>
-            <ChevronRight size={16} style={{ color: COLORS.textSecondary }} />
-          </div>
-        </div>
+        <p style={{
+          fontFamily: F.display, fontWeight: 700, color: COLORS.textPrimary, fontSize: "16px",
+          letterSpacing: "-0.01em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        }}>
+          {s.name}
+        </p>
+        {s.ownerName && (
+          <p style={{ fontSize: "12px", color: COLORS.textSecondary, marginTop: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {s.ownerName}
+          </p>
+        )}
         <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "8px", flexWrap: "wrap" }}>
           {(s.city || s.district) && (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", color: COLORS.textSecondary }}>
-              <MapPin size={10} />{[s.city, s.district].filter(Boolean).join(", ")}
+            <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11.5px", color: COLORS.textTertiary }}>
+              <MapPin size={11} />{[s.city, s.district].filter(Boolean).join(", ")}
             </span>
           )}
-          {s.phone && <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", color: COLORS.textSecondary }}><Phone size={10} />{s.phone}</span>}
-          {/* Значок, а не смайлик: набор смайликов у каждой системы свой, и
-              на части устройств «👤» приезжает квадратом. */}
-          {s.agentName && (
-            <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", color: COLORS.textSecondary }}>
-              <User size={10} />{s.agentName}
+          {s.phone && (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11.5px", color: COLORS.textTertiary, fontVariantNumeric: "tabular-nums" }}>
+              <Phone size={11} />{s.phone}
             </span>
           )}
         </div>
+      </div>
+
+      {/*
+        ── Итог ────────────────────────────────────────────────────────────
+
+        Справа стоит только то, что РАЗЛИЧАЕТСЯ между строками.
+
+        Было иначе: в каждой строке одинаковый зелёный значок «Актив», в каждой
+        строке стрелка, и обе повторялись сверху донизу. Сведение, которое у
+        всех одно и то же, ничего не сообщает — это украшение, выдающее себя за
+        данные, и от него столбец и выглядел дёшево.
+
+        Поэтому: состояние показывается ТОЛЬКО когда оно не обычное — «Актив»
+        молчит, «Неактив» говорит. Стрелка убрана совсем: нажимается вся
+        строка, и она уже отзывается подъёмом при наведении.
+
+        У обычного действующего магазина без долга справа не остаётся ничего —
+        и это верно: сказать про него нечего.
+      */}
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "7px", flexShrink: 0 }}>
+        {hasDebt && (
+          <span style={{
+            display: "inline-flex", alignItems: "center", gap: "5px", whiteSpace: "nowrap",
+            fontSize: "12.5px", fontWeight: 700, padding: "5px 11px", borderRadius: "999px",
+            background: "var(--color-danger-subtle)", color: "var(--color-danger-text)",
+            fontVariantNumeric: "tabular-nums",
+          }}>
+            <AlertCircle size={12} />{fmt(s.debt, { decimals: 0 })}
+          </span>
+        )}
+
+        {s.status !== "active" && (
+          <span style={{
+            fontSize: "10px", padding: "5px 11px", borderRadius: "999px", fontWeight: 700,
+            letterSpacing: "0.04em", whiteSpace: "nowrap", textTransform: "uppercase",
+            background: "var(--color-surface-light)", color: COLORS.textTertiary,
+          }}>
+            {t("Неактив", "Noaktiv")}
+          </span>
+        )}
+
+        {/* Значок, а не смайлик: набор смайликов у каждой системы свой, и на
+            части устройств «👤» приезжает квадратом. */}
+        {s.agentName && (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "11.5px", color: COLORS.textTertiary, whiteSpace: "nowrap" }}>
+            <User size={11} />{s.agentName}
+          </span>
+        )}
       </div>
     </div>
   );

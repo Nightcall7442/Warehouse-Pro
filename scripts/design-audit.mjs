@@ -76,12 +76,23 @@ function stripComments(src) {
     .replace(/\/\/.*$/gm, "");
 }
 
+/*
+  Строка готовит HTML для ПЕЧАТИ или письма, а не для экрана.
+
+  Отличается надёжно: разметка в шаблонной строке пишет style="..." кавычками,
+  а разметка экрана — style={{...}} фигурными скобками. У печатного листа нет
+  тёмной темы и нет наших переменных, поэтому цвет числом там единственно
+  возможный.
+*/
+const isMarkupString = (line) => /style="|<(th|td|tr|table|body|h1)|@media print/.test(line) && !/style=\{\{/.test(line);
+
 const RULES = [
   {
     key: "цвет числом",
     weight: 3,
     why: "не знает про тему: на тёмной это светлая полоса или нечитаемый текст",
     find: (line) => {
+      if (isMarkupString(line)) return false;
       // Запасное значение в var(...) законно — вырезаем перед поиском.
       const bare = line.replace(/var\([^)]*\)/g, "");
       return /#[0-9a-fA-F]{3,8}\b/.test(bare) && !/fill=|stroke=|<svg/.test(line);
@@ -91,13 +102,24 @@ const RULES = [
     key: "rgba числом",
     weight: 2,
     why: "тот же цвет числом, только в другой записи",
-    find: (line) => /rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+/.test(line) && !/var\(/.test(line),
+    find: (line) => !isMarkupString(line) && /rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+/.test(line) && !/var\(/.test(line),
   },
   {
-    key: "обводка 1px",
+    key: "обводка 1px числом",
     weight: 2,
-    why: "в этом языке поверхность отделяется тенью; обводка читается как чужой продукт",
-    find: (line) => /border(Top|Bottom|Left|Right)?:\s*[`"']?\s*1px solid/.test(line),
+    /*
+      Считается только обводка ЧУЖИМ цветом.
+
+      Линейка между строками таблицы — приём законный: строки нельзя разделить
+      тенью, и `1px solid var(--color-border)` там верен. Дешевизну выдаёт не
+      сама обводка, а цвет, который не знает про тему.
+    */
+    why: "обводка цветом, который не знает про тему",
+    find: (line) => {
+      if (isMarkupString(line)) return false;
+      const m = line.match(/border(Top|Bottom|Left|Right)?:\s*[`"']?\s*1px solid\s*([^"'`,}]*)/);
+      return Boolean(m) && !/var\(|COLORS\.|LX\.|\$\{/.test(m[2]);
+    },
   },
   {
     key: "наведение руками",
