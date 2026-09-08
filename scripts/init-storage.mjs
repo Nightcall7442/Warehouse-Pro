@@ -27,10 +27,22 @@
  */
 import { S3Client, CreateBucketCommand, PutBucketPolicyCommand, HeadBucketCommand } from "@aws-sdk/client-s3";
 
-const {
-  S3_BUCKET, S3_BACKUP_BUCKET, S3_REGION, S3_ACCESS_KEY, S3_SECRET_KEY,
-  S3_ENDPOINT, S3_FORCE_PATH,
-} = process.env;
+/*
+  Пробелы по краям снимаются, как и в приложении (api/lib/env.ts).
+
+  Пароль, вписанный в панель с лишним пробелом на конце, MinIO при чтении
+  обрежет, а клиент S3 — нет. Значения выглядят одинаковыми до последнего
+  символа, а подпись не сходится.
+*/
+const pick = (name) => (process.env[name] ?? "").trim();
+
+const S3_BUCKET = pick("S3_BUCKET");
+const S3_BACKUP_BUCKET = pick("S3_BACKUP_BUCKET");
+const S3_REGION = pick("S3_REGION");
+const S3_ACCESS_KEY = pick("S3_ACCESS_KEY");
+const S3_SECRET_KEY = pick("S3_SECRET_KEY");
+const S3_ENDPOINT = pick("S3_ENDPOINT");
+const S3_FORCE_PATH = pick("S3_FORCE_PATH");
 
 if (!S3_BUCKET || !S3_ACCESS_KEY || !S3_SECRET_KEY) {
   console.error("Не заданы S3_BUCKET / S3_ACCESS_KEY / S3_SECRET_KEY — заводить нечего и нечем.");

@@ -26,8 +26,33 @@ import { randomBytes } from "node:crypto";
  * Приставка dev-insecure сохранена: по ней значение узнаётся в журнале и в
  * защитных проверках вроде mailer.ts.
  */
+/*
+   Пробелы по краям снимаются со ВСЕХ переменных.
+
+   ── Что было ────────────────────────────────────────────────────────────────
+
+   Пароль хранилища был вписан в панель Railway с лишним пробелом на конце —
+   обычная опечатка при вставке. MinIO при чтении своей переменной пробелы
+   обрезает, наш клиент S3 — нет. Значения выглядели одинаковыми до последнего
+   символа: одна длина, один отпечаток, — а подпись не сходилась, и хранилище
+   отвечало SignatureDoesNotMatch. Найти это можно было только сравнив оба
+   значения побайтно.
+
+   Так же молча ломается ЛЮБОЙ секрет, который сверяют посимвольно: ключ крона,
+   секрет вебхука телеграма, токен метрик. Пробел на краю не значит ничего ни в
+   одной переменной этого приложения — ни в адресе, ни в токене, ни в списке
+   через запятую, — поэтому снимается один раз здесь, а не в каждом месте, где
+   вспомнят.
+
+   Внутренние переводы строк остаются: trim() трогает только края, и
+   многострочное значение (ключ в формате PEM) не пострадает.
+*/
+function clean(value: string): string {
+  return value.trim();
+}
+
 function required(name: string): string {
-  const value = process.env[name];
+  const value = process.env[name]?.trim();
   if (!value) {
     if (process.env.NODE_ENV === "production") {
       console.error(`[FATAL] Missing required environment variable: ${name}`);
@@ -43,7 +68,8 @@ function required(name: string): string {
 }
 
 function optional(name: string, fallback = ""): string {
-  return process.env[name] ?? fallback;
+  const value = process.env[name];
+  return value === undefined ? fallback : clean(value);
 }
 
 export const env = {
