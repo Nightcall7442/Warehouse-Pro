@@ -17,6 +17,7 @@ import {
   archiveShops, restoreShop, deleteShopForever, shopTrace,
   ShopHasHistoryError,
 } from "./services/shop-archive";
+import { shopStatement } from "./services/shop-statement";
 
 /**
  * Проверить, что чужие идентификаторы в запросе принадлежат этой организации.
@@ -405,6 +406,35 @@ export const shopRouter = createRouter({
   // references a shop. Attempt the hard delete and let MySQL's own FK
   // constraint be the source of truth — same pattern as product-router.ts's
   // delete — falling back to soft-delete only on a genuine FK violation.
+  /*
+    Акт сверки: откуда взялось число долга.
+
+    Прежде на этот вопрос отвечать было нечем. В карточке стоял блок «История
+    платежей» — пять строк из таблицы payments, без отгрузок, без возвратов и
+    без остатка после каждой строки. Спор о долге решается бумагой, которую
+    подписывают обе стороны; у поставщиков такая бумага в системе была, у
+    магазинов — нет.
+
+    Права те же, что у чтения карточки: акт показывает ровно то, что и так
+    видно в ней, только собранным в документ.
+  */
+  statement: managementQuery
+    .input(z.object({
+      shopId: z.number(),
+      from: z.string().optional(),
+      to: z.string().optional(),
+    }))
+    .query(async ({ input, ctx }) => {
+      const parse = (v?: string) => {
+        if (!v) return undefined;
+        const d = new Date(v);
+        return Number.isNaN(d.getTime()) ? undefined : d;
+      };
+      const result = await shopStatement(ctx.tenant.id, input.shopId, parse(input.from), parse(input.to));
+      if (!result) throw new TRPCError({ code: "NOT_FOUND", message: "Магазин не найден" });
+      return result;
+    }),
+
   /*
     Что за точкой числится — чтобы окно подтверждения говорило правду.
 

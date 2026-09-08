@@ -16,6 +16,7 @@ import {
   AlertCircle, Loader2, CheckCircle2, X, Trash2, ChevronRight, Camera, Archive, RotateCcw,
 } from "lucide-react";
 import { PhotoOrIcon } from "@/components/PhotoOrIcon";
+import { ShopStatement } from "@/components/shops/ShopStatement";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { useAuth } from "@/hooks/useAuth";
@@ -403,34 +404,20 @@ export default function ShopDetail() {
           )}
         </div>
 
-        {/* История платежей */}
-        {shop.paymentHistory && shop.paymentHistory.length > 0 && (
-          <div className="mt-4 space-y-0" style={{ borderTop: "1px solid var(--color-border, #d8d5cd)", paddingTop: 12 }}>
-            <p className="font-label text-[10px] text-secondary tracking-wider mb-2">
-              {t("ИСТОРИЯ ПЛАТЕЖЕЙ", "TO'LOVLAR TARIXI")}
-            </p>
-            {shop.paymentHistory.slice(0, 5).map((p: { id: number; type: string; notes: string | null; amount: string; createdAt: string | Date }) => (
-              <div key={p.id} className="flex items-center justify-between py-2"
-                style={{ borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
-                <div>
-                  <p className="text-sm text-primary">
-                    {p.type === "payment"
-                      ? t("💰 Оплата", "💰 To'lov")
-                      : t("📋 Долг", "📋 Qarz")}
-                    {p.notes ? ` — ${p.notes}` : ""}
-                  </p>
-                  <p className="text-xs text-secondary mt-0.5">
-                    {p.createdAt ? format(new Date(p.createdAt), "dd.MM.yyyy HH:mm") : ""}
-                  </p>
-                </div>
-                <span className={`font-data font-bold ${p.type === "payment" ? "text-success" : "text-danger"}`}>
-                  {p.type === "payment" ? "−" : "+"}{fmt(p.amount)}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
+
+      {/*
+        Акт сверки вместо прежней «Истории платежей».
+
+        Там показывались пять записей таблицы платежей — .slice(0, 5) от
+        запроса, который и сам брал только двадцать последних, так что дальше
+        пятой строки истории попросту не существовало. Отгрузок и возвратов в
+        ней не было вовсе, а без них ряд платежей ничего не объясняет: долг
+        растёт не от них. Здесь те же платежи, но с отгрузками, возвратами и
+        остатком после каждой строки — и с бумагой, которую подписывают обе
+        стороны.
+      */}
+      <ShopStatement shopId={Number(id)} />
 
       {/* История заказов */}
       {shop.recentOrders && shop.recentOrders.length > 0 && (
