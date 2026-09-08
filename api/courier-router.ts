@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createRouter, courierQuery, operatorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { orders, shops, users, payments, notifications, orderItems, products, warehouseStock, warehouses, debtReminders } from "@db/schema";
+import { orders, shops, users, payments, orderItems, products, warehouseStock, warehouses, debtReminders } from "@db/schema";
 import { ORDER_STATUS_LABELS } from "./lib/order-status";
 import { eq, and, sql, desc, isNull } from "drizzle-orm";
 import { sseBus } from "./lib/sse";
@@ -12,6 +12,7 @@ import { recalcShopDebt } from "./services/shop-debt";
 import { paidForOrder, assertFitsRemainder } from "./services/payment";
 import { productLabel } from "./services/order";
 import { recordStockMovement } from "./services/stock-ledger";
+import { NotificationService } from "./services/NotificationService";
 
 export const courierRouter = createRouter({
   listMyDeliveries: courierQuery.query(async ({ ctx }) => {
@@ -109,7 +110,7 @@ export const courierRouter = createRouter({
       const [shop] = await db.select({ name: shops.name }).from(shops)
         .where(eq(shops.id, order.shopId)).limit(1);
 
-      await db.insert(notifications).values({
+      await NotificationService.create(db, {
         tenantId: ctx.tenant.id,
         userId: input.courierId,
         type: "order",
@@ -323,19 +324,12 @@ export const courierRouter = createRouter({
         .limit(1);
 
       if (ceo) {
-        await db.insert(notifications).values({
+        await NotificationService.create(db, {
           tenantId: ctx.tenant.id,
           userId: ceo.id,
           type: "order",
           title: "Заказ доставлен",
           message: `Заказ ${order.orderNumber} доставлен${input.cashAmount ? `, наличные: ${input.cashAmount}` : ""}`,
-        });
-
-        sseBus.emit({
-          type: "notification.new",
-          tenantId: ctx.tenant.id,
-          userId: ceo.id,
-          data: { title: "Заказ доставлен", orderNumber: order.orderNumber },
         });
 
         // Push notification to CEO
@@ -747,7 +741,7 @@ export const courierRouter = createRouter({
 
       // Notify agent
       if (order.agentId) {
-        await db.insert(notifications).values({
+        await NotificationService.create(db, {
           tenantId: ctx.tenant.id,
           userId: order.agentId,
           type: "order",
@@ -765,7 +759,7 @@ export const courierRouter = createRouter({
       const [ceo] = await db.select({ id: users.id }).from(users)
         .where(and(eq(users.tenantId, ctx.tenant.id), eq(users.role, "ceo"))).limit(1);
       if (ceo) {
-        await db.insert(notifications).values({
+        await NotificationService.create(db, {
           tenantId: ctx.tenant.id,
           userId: ceo.id,
           type: "order",
@@ -832,19 +826,12 @@ export const courierRouter = createRouter({
         .limit(1);
 
       if (ceo) {
-        await db.insert(notifications).values({
+        await NotificationService.create(db, {
           tenantId: ctx.tenant.id,
           userId: ceo.id,
           type: "order",
           title: "Доставка не состоялась",
           message: `Заказ ${order.orderNumber}${safeReason ? ` — ${safeReason}` : ""}`,
-        });
-
-        sseBus.emit({
-          type: "notification.new",
-          tenantId: ctx.tenant.id,
-          userId: ceo.id,
-          data: { title: "Доставка не состоялась", orderNumber: order.orderNumber },
         });
 
         // Push notification to CEO

@@ -327,17 +327,27 @@ describe("notification.list", () => {
     const caller = notificationRouter.createCaller(makeCtx(1, 10));
     const result = await caller.list();
 
-    expect(result).toHaveLength(2);
-    expect(result.map((n: any) => n.title)).toEqual(["Order created", "Stock low"]);
+    expect(result.items).toHaveLength(2);
+    expect(result.items.map((n: any) => n.title)).toEqual(["Order created", "Stock low"]);
   });
 
-  it("orders by createdAt desc", async () => {
+  it("orders newest first", async () => {
     const { notificationRouter } = await import("../notification-router");
     const caller = notificationRouter.createCaller(makeCtx(1, 10));
     const result = await caller.list();
 
-    expect(result[0].title).toBe("Order created");
-    expect(result[1].title).toBe("Stock low");
+    expect(result.items[0].title).toBe("Order created");
+    expect(result.items[1].title).toBe("Stock low");
+  });
+
+  it("говорит, есть ли что листать дальше", async () => {
+    // Без этого признака кнопка «показать ещё» либо висит всегда, либо не
+    // появляется никогда — оба раза лента выглядит короче, чем она есть.
+    const { notificationRouter } = await import("../notification-router");
+    const caller = notificationRouter.createCaller(makeCtx(1, 10));
+
+    expect((await caller.list({ limit: 1 })).hasMore).toBe(true);
+    expect((await caller.list({ limit: 50 })).hasMore).toBe(false);
   });
 });
 

@@ -1,7 +1,8 @@
 import { getDb } from "../queries/connection";
-import { debtReminders, users, notifications, shops, orders, payments, settings } from "@db/schema";
+import { debtReminders, users, shops, orders, payments, settings } from "@db/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { logger } from "../lib/logger";
+import { NotificationService } from "../services/NotificationService";
 import { orderStillOwes } from "../lib/order-status";
 
 type Db = ReturnType<typeof getDb>;
@@ -143,14 +144,14 @@ export async function runDebtReminders() {
         .where(and(eq(users.tenantId, reminder.tenantId), sql`${users.role} IN ('ceo', 'operator')`, eq(users.status, "active")));
 
       if (operators.length > 0) {
-        await db.insert(notifications).values(operators.map(op => ({
+        await NotificationService.createBulk(db, {
           tenantId: reminder.tenantId,
-          userId: op.id,
-          type: "system" as const,
+          userIds: operators.map(op => op.id),
+          type: "system",
           title: "Напоминание о долге",
           message: `Завтра срок погашения долга ${upcomingNames.money(reminder.tenantId, reminder.amount)} — ${upcomingNames.shop(reminder.shopId)}`,
           link: reminder.orderId ? `/orders/${reminder.orderId}` : undefined,
-        })));
+        });
       }
 
       await db.update(debtReminders).set({ status: "sent", sentAt: new Date() })
@@ -190,14 +191,14 @@ export async function runDebtReminders() {
         .where(and(eq(users.tenantId, reminder.tenantId), eq(users.role, "ceo"), eq(users.status, "active")));
 
       if (ceos.length > 0) {
-        await db.insert(notifications).values(ceos.map(ceo => ({
+        await NotificationService.createBulk(db, {
           tenantId: reminder.tenantId,
-          userId: ceo.id,
-          type: "system" as const,
+          userIds: ceos.map(ceo => ceo.id),
+          type: "system",
           title: "ПРОСРОЧЕННЫЙ ДОЛГ",
           message: `Долг ${overdueNames.money(reminder.tenantId, reminder.amount)} просрочен на ${daysOverdue} дн. — ${overdueNames.shop(reminder.shopId)}`,
           link: reminder.orderId ? `/orders/${reminder.orderId}` : undefined,
-        })));
+        });
       }
 
       /*

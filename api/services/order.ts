@@ -1,9 +1,10 @@
 import { eq, and, or, desc, sql, isNull, isNotNull, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
-import { orders, orderItems, warehouseStock, shops, users, products, notifications, warehouses, payments, loadingLists, loadingListOrders, debtReminders, orderAdjustments, territories, returns, returnItems } from "@db/schema";
+import { orders, orderItems, warehouseStock, shops, users, products, warehouses, payments, loadingLists, loadingListOrders, debtReminders, orderAdjustments, territories, returns, returnItems } from "@db/schema";
 import { recalcShopDebt } from "./shop-debt";
 import { OPEN_ORDER_STATUSES, CLOSED_ORDER_STATUSES, ORDER_STATUS_LABELS, LOADING_LIST_STATUS_LABELS, holdsStock, deductsStock } from "../lib/order-status";
 import { recordStockMovement } from "./stock-ledger";
+import { NotificationService } from "./NotificationService";
 import { isReopen, reversesRevenue, assertReopenable, clearDeliveryTrace, dateSecondLife } from "./order-reopen";
 
 /** Second reference to `users` for courier joins alongside the agent join. */
@@ -634,14 +635,14 @@ async function traceDebtChange(
       ? `${entry.shopName} · заказ ${entry.orderNumber}` + (entry.remaining != null ? ` · остаток ${entry.remaining.toLocaleString("ru")} сум` : "")
       : `${entry.shopName} · долг ${money} сум списан отменой`;
 
-    await db.insert(notifications).values(office.map(o => ({
+    await NotificationService.createBulk(db, {
       tenantId,
-      userId: o.id,
-      type: "order" as const,
+      userIds: office.map(o => o.id),
+      type: "order",
       title,
       message,
       link: `/orders/${entry.orderId}`,
-    })));
+    });
   } catch (err) {
     logger.error("Не удалось уведомить офис об изменении долга", { orderId: entry.orderId, error: String(err) });
   }
@@ -1363,14 +1364,14 @@ export const OrderService = {
 
       // Batch insert notifications (N+1 fix)
       if (operators.length > 0) {
-        await db.insert(notifications).values(operators.map(op => ({
+        await NotificationService.createBulk(db, {
           tenantId,
-          userId: op.id,
-          type: "order" as const,
+          userIds: operators.map(op => op.id),
+          type: "order",
           title: `Новый заказ ${orderNumber}`,
           message: `${shop?.name ?? "Магазин"} — ${orderTotal.toLocaleString("ru")} сум`,
           link: `/orders/${orderId}`,
-        })));
+        });
       }
 
       // Send push notifications

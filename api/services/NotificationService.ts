@@ -1,5 +1,5 @@
 import { notifications, warehouseStock, products, orders, dailyPlans, shops } from "@db/schema";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, lt, sql } from "drizzle-orm";
 import { cache, withCache, CacheKeys, CacheTTL } from "../lib/cache";
 import { sseBus } from "../lib/sse";
 import { DEBT_NOTIFICATION_THRESHOLD } from "../lib/constants";
@@ -9,6 +9,16 @@ import { onDate } from "../lib/date-range";
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 
 type NotificationType = "order" | "payment" | "stock" | "system";
+
+export interface NotificationRow {
+  id: number;
+  type: NotificationType;
+  title: string;
+  message: string | null;
+  isRead: boolean;
+  link: string | null;
+  createdAt: Date;
+}
 
 export const NotificationService = {
   /**
@@ -110,19 +120,77 @@ export const NotificationService = {
     }
   },
 
-  async list(db: Db, tenantId: number, userId: number, opts?: { page?: number; pageSize?: number }) {
-    const page = opts?.page ?? 1;
-    const pageSize = Math.min(opts?.pageSize ?? 50, 100);
-    const offset = (page - 1) * pageSize;
-    return db.select({
+  /**
+   * Лента уведомлений.
+   *
+   * ── Отбор считает база, а не экран ──────────────────────────────────────────
+   *
+   * Раньше страница брала первые пятьдесят записей и фильтровала их у себя. На
+   * ленте, где заказов много, а платежей мало, это давало прямую ложь: вкладка
+   * «Платежи» показывала «нет уведомлений в этой категории», хотя они были —
+   * просто не попали в первые пятьдесят.
+   *
+   * ── Листание по ключу, а не по смещению ────────────────────────────────────
+   *
+   * `before` — идентификатор самой старой показанной записи. Смещением листать
+   * нельзя: пока человек читает, приходят новые уведомления, всё съезжает на
+   * позицию вниз, и «следующие пятьдесят» повторяют уже показанное.
+   */
+  async list(db: Db, tenantId: number, userId: number, opts?: {
+    type?: NotificationType;
+    unreadOnly?: boolean;
+    before?: number;
+    limit?: number;
+  }): Promise<{ items: NotificationRow[]; hasMore: boolean }> {
+    const limit = Math.min(opts?.limit ?? 30, 100);
+
+    const rows = await db.select({
       id: notifications.id, type: notifications.type, title: notifications.title,
       message: notifications.message, isRead: notifications.isRead,
       link: notifications.link, createdAt: notifications.createdAt,
     }).from(notifications)
-      .where(and(eq(notifications.userId, userId), eq(notifications.tenantId, tenantId)))
-      .orderBy(desc(notifications.createdAt))
-      .limit(pageSize)
-      .offset(offset);
+      .where(and(
+        eq(notifications.userId, userId),
+        eq(notifications.tenantId, tenantId),
+        ...(opts?.type ? [eq(notifications.type, opts.type)] : []),
+        ...(opts?.unreadOnly ? [eq(notifications.isRead, false)] : []),
+        ...(opts?.before ? [lt(notifications.id, opts.before)] : []),
+      ))
+      // По идентификатору, а не по времени: две записи одной пачки (уведомление
+      // всем операторам разом) имеют одинаковый createdAt, и порядок между ними
+      // был бы произвольным — на границе страницы это теряет запись.
+      .orderBy(desc(notifications.id))
+      .limit(limit + 1);
+
+    return { items: rows.slice(0, limit) as NotificationRow[], hasMore: rows.length > limit };
+  },
+
+  /**
+   * Сколько непрочитанного и какого рода.
+   *
+   * Нужно вкладкам: пустая вкладка без числа не отличается от вкладки, где
+   * ничего не ждёт, — а разница как раз в том, куда идти первым делом.
+   */
+  async counts(db: Db, tenantId: number, userId: number): Promise<{ unread: number; byType: Record<NotificationType, number> }> {
+    const rows = await db.select({
+      type: notifications.type,
+      count: sql<number>`count(*)`,
+    }).from(notifications)
+      .where(and(
+        eq(notifications.userId, userId),
+        eq(notifications.tenantId, tenantId),
+        eq(notifications.isRead, false),
+      ))
+      .groupBy(notifications.type);
+
+    const byType: Record<NotificationType, number> = { order: 0, payment: 0, stock: 0, system: 0 };
+    let unread = 0;
+    for (const r of rows) {
+      const n = Number(r.count ?? 0);
+      byType[r.type as NotificationType] = n;
+      unread += n;
+    }
+    return { unread, byType };
   },
 
   async unreadCount(db: Db, tenantId: number, userId: number): Promise<number> {

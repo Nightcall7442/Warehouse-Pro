@@ -70,7 +70,13 @@ describe("уменьшить долг незаметно нельзя", () => {
     expect(at, "помощник следа не найден").toBeGreaterThan(0);
     const body = ORDER.slice(at, ORDER.indexOf("async function applyPartialPayment", at));
     expect(body, "запись в журнал пропала").toContain("recordAudit");
-    expect(body, "уведомление офису пропало").toContain("notifications");
+    /*
+      Через службу, а не прямой вставкой в таблицу. Разница не стилистическая:
+      служба шлёт живое событие и сбрасывает кеш счётчика непрочитанного, а
+      прямая вставка кладёт строку и молчит — офис узнал бы о снятом долге,
+      только зайдя на страницу уведомлений сам.
+    */
+    expect(body, "уведомление офису пропало").toContain("NotificationService.createBulk");
     // Офису — значит руководителю и оператору, а не всем подряд.
     expect(body).toContain("'ceo', 'operator'");
   });
