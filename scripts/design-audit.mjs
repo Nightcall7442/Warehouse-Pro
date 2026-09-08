@@ -84,7 +84,13 @@ function stripComments(src) {
   тёмной темы и нет наших переменных, поэтому цвет числом там единственно
   возможный.
 */
-const isMarkupString = (line) => /style="|<(th|td|tr|table|body|h1)|@media print/.test(line) && !/style=\{\{/.test(line);
+const isMarkupString = (line) => {
+  if (/style=\{\{/.test(line)) return false;
+  // Разметка печатного листа: атрибут style="…" или голые теги таблицы.
+  if (/style="|<(th|td|tr|table|body|h1)|@media print/.test(line)) return true;
+  // Правила CSS в той же строке-шаблоне: «h1{…}», «.info span{color:…}».
+  return /^[\s<]*(<style>)?[.#*]?[a-zA-Z][\w\s,.*>:#-]*\{[^}]*[:;]/.test(line);
+};
 
 const RULES = [
   {
@@ -118,7 +124,7 @@ const RULES = [
     find: (line) => {
       if (isMarkupString(line)) return false;
       const m = line.match(/border(Top|Bottom|Left|Right)?:\s*[`"']?\s*1px solid\s*([^"'`,}]*)/);
-      return Boolean(m) && !/var\(|COLORS\.|LX\.|\$\{/.test(m[2]);
+      return Boolean(m) && !/var\(|color-mix\(|COLORS\.|LX\.|\$\{/.test(m[2]);
     },
   },
   {

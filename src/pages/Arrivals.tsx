@@ -82,7 +82,7 @@ import { unitShort as unitLabel } from "@/lib/units";
 
 const STATUS: Record<string, { ru: string; uz: string; color: string }> = {
   pending:   { ru: "Ожидает", uz: "Kutilmoqda", color: "var(--color-warning-text)" },
-  unloading: { ru: "Разгрузка", uz: "Tushirilmoqda", color: "#60a5fa" },
+  unloading: { ru: "Разгрузка", uz: "Tushirilmoqda", color: "var(--color-info)" },
   completed: { ru: "Завершён", uz: "Yakunlandi", color: "var(--color-success-text)" },
 };
 
@@ -165,17 +165,17 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: ArrivalCreate
 
   return createPortal(
     <>
-    <div style={{ position: "fixed", inset: 0, zIndex: 9999, backgroundColor: "rgba(0,0,0,0.75)" }} onClick={onClose} />
+    <div style={{ position: "fixed", inset: 0, zIndex: 9999, backgroundColor: "var(--overlay-scrim)" }} onClick={onClose} />
 
     <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 overflow-y-auto">
 
       {/* Modal */}
-      <div className="relative w-full max-w-[720px] max-h-[90vh] overflow-y-auto neo-card animate-scale-in" style={{ borderRadius: "24px", boxShadow: "0 25px 80px -12px rgba(0,0,0,0.35)" }}>
+      <div className="relative w-full max-w-[720px] max-h-[90vh] overflow-y-auto neo-card animate-scale-in" style={{ borderRadius: "24px", boxShadow: "var(--shadow-overlay)" }}>
 
         {/* Gradient header */}
         <div className="relative overflow-hidden" style={{ background: "linear-gradient(135deg, var(--color-primary), var(--color-primary-hover, #4a5c78))", borderRadius: "24px 24px 0 0", padding: "28px 32px 24px" }}>
-          <div className="absolute -top-16 -right-16 w-40 h-40 rounded-full" style={{ background: "rgba(255,255,255,0.08)" }} />
-          <div className="absolute -bottom-8 -left-8 w-24 h-24 rounded-full" style={{ background: "rgba(255,255,255,0.05)" }} />
+          <div className="absolute -top-16 -right-16 w-40 h-40 rounded-full" style={{ background: "color-mix(in srgb, var(--color-on-primary) 8%, transparent)" }} />
+          <div className="absolute -bottom-8 -left-8 w-24 h-24 rounded-full" style={{ background: "color-mix(in srgb, var(--color-on-primary) 5%, transparent)" }} />
           <div className="relative flex items-center justify-between">
             <div>
               <h2 className="text-xl font-bold mb-0.5" style={{ color: "var(--color-on-primary, #ffffff)" }}>{t("Новый приход", "Yangi kelish")}</h2>
@@ -580,7 +580,7 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
 
   if (isLoading) return createPortal(
     <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
-      <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }} onClick={onClose} />
+      <div className="absolute inset-0" style={{ background: "var(--overlay-scrim)", backdropFilter: "blur(4px)" }} onClick={onClose} />
       <div className="relative w-full max-w-[640px] neo-card" style={{ borderRadius: "24px", padding: "48px", textAlign: "center" }}>
         <Loader2 size={32} className="animate-spin" style={{ color: "var(--color-primary-text)", margin: "0 auto 16px" }} />
         <p style={{ fontSize: "14px", color: "var(--color-text-secondary)" }}>{t("Загрузка…", "Yuklanmoqda…")}</p>
@@ -597,23 +597,29 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
 
   return createPortal(
     <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 overflow-y-auto">
-      <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }} onClick={onClose} />
+      <div className="absolute inset-0" style={{ background: "var(--overlay-scrim)", backdropFilter: "blur(4px)" }} onClick={onClose} />
       <div className="relative w-full max-w-[640px] max-h-[90vh] overflow-y-auto neo-card animate-scale-in" style={{ borderRadius: "24px" }}>
 
-        {/* Gradient header — dark background for white text in both themes */}
-        <div className="dark-mode-header" style={{ background: "linear-gradient(135deg, #2b3450, #1e293b)", borderRadius: "24px 24px 0 0", padding: "28px 32px 24px", position: "relative", overflow: "hidden" }}>
-          <div className="absolute -top-16 -right-16" style={{ width: "160px", height: "160px", borderRadius: "50%", background: "rgba(255,255,255,0.08)" }} />
-          <div className="absolute -bottom-8 -left-8" style={{ width: "96px", height: "96px", borderRadius: "50%", background: "rgba(255,255,255,0.05)" }} />
+        {/*
+          Шапка — та же, что у окна создания прихода.
+
+          Здесь стояла своя: сине-серый градиент #2b3450 -> #1e293b из палитры,
+          которой в приложении больше нет. Два окна одного раздела открывались
+          с разными шапками, и второе выглядело чужим.
+        */}
+        <div style={{ background: "linear-gradient(135deg, var(--color-primary), var(--color-primary-hover))", borderRadius: "24px 24px 0 0", padding: "28px 32px 24px", position: "relative", overflow: "hidden" }}>
+          <div className="absolute -top-16 -right-16" style={{ width: "160px", height: "160px", borderRadius: "50%", background: "color-mix(in srgb, var(--color-on-primary) 8%, transparent)" }} />
+          <div className="absolute -bottom-8 -left-8" style={{ width: "96px", height: "96px", borderRadius: "50%", background: "color-mix(in srgb, var(--color-on-primary) 5%, transparent)" }} />
           <div className="relative flex items-center justify-between">
             <div>
-              <h2 style={{ fontFamily: F.display, fontSize: "20px", fontWeight: 700, color: "#fff", margin: "0 0 4px" }}>{detail.arrivalNumber}</h2>
-              <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.7)", margin: 0 }}>{t("Детали прихода", "Kelish tafsilotlari")}</p>
+              <h2 style={{ fontFamily: F.display, fontSize: "20px", fontWeight: 700, color: "var(--color-on-primary)", margin: "0 0 4px" }}>{detail.arrivalNumber}</h2>
+              <p style={{ fontSize: "13px", color: "color-mix(in srgb, var(--color-on-primary) 72%, transparent)", margin: 0 }}>{t("Детали прихода", "Kelish tafsilotlari")}</p>
             </div>
             <div style={{ display: "flex", gap: "8px" }}>
-              <button onClick={handlePrintInvoice} style={{ padding: "8px 16px", borderRadius: "10px", background: "rgba(255,255,255,0.2)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", color: "#fff", fontSize: "12px", fontWeight: 600 }}>
+              <button onClick={handlePrintInvoice} style={{ padding: "8px 16px", borderRadius: "10px", background: "color-mix(in srgb, var(--color-on-primary) 18%, transparent)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", color: "var(--color-on-primary)", fontSize: "12px", fontWeight: 600 }}>
                 <Printer size={14} /> {t("Накладная", "Hujjat")}
               </button>
-              <button onClick={onClose} style={{ width: "40px", height: "40px", borderRadius: "12px", background: "rgba(255,255,255,0.2)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
+              <button onClick={onClose} style={{ width: "40px", height: "40px", borderRadius: "12px", background: "color-mix(in srgb, var(--color-on-primary) 18%, transparent)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-on-primary)" }}>
                 <X size={20} />
               </button>
             </div>
@@ -683,7 +689,7 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
                   </thead>
                   <tbody>
                     {detail.items.map((item, i) => (
-                      <tr key={i} style={{ transition: "background 0.15s" }} onMouseEnter={e => (e.currentTarget.style.background = "color-mix(in srgb, var(--color-primary) 2%, transparent)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                      <tr key={i} className="row-hover">
                         <td style={{ padding: "12px 14px", fontSize: "13px", color: "var(--color-text-primary)", borderBottom: "1px solid var(--color-border)" }}>{item.productName ?? "—"}</td>
                         <td style={{ padding: "12px 14px", fontSize: "12px", color: "var(--color-text-tertiary)", fontFamily: "monospace", borderBottom: "1px solid var(--color-border)" }}>{item.productCode ?? "—"}</td>
                         <td style={{ padding: "12px 14px", fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary)", borderBottom: "1px solid var(--color-border)" }}>{formatQty(item.quantity)}</td>
@@ -866,7 +872,7 @@ export default function Arrivals() {
           label={t("ВСЕГО ПРИХОДОВ", "JAMI KELISHLAR")}
           value={String(kpis.total)}
           delta={null}
-          icon={<Package size={20} color="#fff" />}
+          icon={<Package size={20} color="var(--color-on-primary)" />}
           gradient="var(--color-primary)"
           delay={0}
         />
@@ -874,24 +880,24 @@ export default function Arrivals() {
           label={t("РАСХОДЫ", "XARAJATLAR")}
           value={fmt(kpis.totalExpenses)}
           delta={null}
-          icon={<Truck size={20} color="#fff" />}
-          gradient="linear-gradient(135deg, #fb923c, #f97316)"
+          icon={<Truck size={20} color="var(--color-on-primary)" />}
+          gradient="linear-gradient(135deg, var(--color-warning), color-mix(in srgb, var(--color-warning) 70%, var(--color-danger)))"
           delay={0.05}
         />
         <KpiCard
           label={t("ЗАВЕРШЕНЫ", "YAKUNLANDI")}
           value={String(kpis.completed)}
           delta={null}
-          icon={<CheckCircle2 size={20} color="#fff" />}
-          gradient="linear-gradient(135deg, #16a34a, #22c47a)"
+          icon={<CheckCircle2 size={20} color="var(--color-on-primary)" />}
+          gradient="linear-gradient(135deg, var(--color-success), color-mix(in srgb, var(--color-success) 65%, var(--color-primary)))"
           delay={0.1}
         />
         <KpiCard
           label={t("ДОЛГ ПОСТАВЩИКАМ", "YETKAZUVCHILARGA QARZ")}
           value={fmt(kpis.supplierDebt)}
           delta={null}
-          icon={<Clock size={20} color="#fff" />}
-          gradient="linear-gradient(135deg, #e07b39, #e07b39)"
+          icon={<Clock size={20} color="var(--color-on-primary)" />}
+          gradient="linear-gradient(135deg, var(--color-danger), color-mix(in srgb, var(--color-danger) 70%, var(--color-warning)))"
           delay={0.15}
         />
       </div>
@@ -932,7 +938,7 @@ export default function Arrivals() {
             )) : arrivals.length === 0 ? (
               <tr><td colSpan={7} style={{ textAlign: "center", padding: "48px 16px", color: COLORS.textTertiary, fontSize: "14px" }}>{t("Нет приходов", "Kelishlar yo'q")}</td></tr>
             ) : arrivals.map((a) => (
-              <tr key={a.id} style={{ transition: "background 0.15s", cursor: "pointer" }} onClick={() => setDetailId(a.id)} onMouseEnter={e => (e.currentTarget.style.background = "color-mix(in srgb, var(--color-primary) 2%, transparent)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+              <tr key={a.id} className="row-hover" style={{ cursor: "pointer" }} onClick={() => setDetailId(a.id)}>
                 <td style={{ ...tdStyle, fontWeight: 500 }}>{a.arrivalNumber}</td>
                 <td style={{ ...tdStyle, color: COLORS.textSecondary }}>{a.arrivalDate ? format(new Date(a.arrivalDate), "dd.MM.yyyy") : "—"}</td>
                 <td style={{ ...tdStyle, color: COLORS.textSecondary }}>
@@ -959,7 +965,7 @@ export default function Arrivals() {
                     <StatusBadge status={a.status ?? "pending"} lang={lang as "ru" | "uz"} />
                     {a.status === "pending" && <button onClick={(e) => { e.stopPropagation(); updateStatus.mutate({ id: a.id, status: "unloading" }); }} style={{ padding: "6px 12px", borderRadius: "8px", fontSize: "11px", fontWeight: 600, fontFamily: F.body, color: COLORS.primaryText, background: "color-mix(in srgb, var(--color-primary) 8%, transparent)", border: "none", cursor: "pointer" }}>{t("Разгрузка", "Tushirish")}</button>}
                     {a.status === "unloading" && <button onClick={(e) => { e.stopPropagation(); updateStatus.mutate({ id: a.id, status: "completed" }); }} className="neo-btn-primary neo-btn-sm">{t("Завершить", "Yakunlash")}</button>}
-                    {a.status !== "completed" && <button onClick={async (e) => { e.stopPropagation(); const ok = await confirm({ title: t("Удалить приход?", "Kelish o'chirilsinmi?"), message: t("Данные будут удалены безвозвратно.", "Ma'lumotlar qaytarib bo'lmaydigan tarzda o'chiriladi."), confirmText: t("Удалить", "O'chirish"), danger: true }); if (ok) deleteMutation.mutate({ id: a.id }); }} style={{ padding: "6px 10px", borderRadius: "8px", fontSize: "11px", fontWeight: 600, fontFamily: F.body, color: COLORS.danger, background: "rgba(212,80,80,0.08)", border: "none", cursor: "pointer" }}>{t("Удалить", "O'chirish")}</button>}
+                    {a.status !== "completed" && <button onClick={async (e) => { e.stopPropagation(); const ok = await confirm({ title: t("Удалить приход?", "Kelish o'chirilsinmi?"), message: t("Данные будут удалены безвозвратно.", "Ma'lumotlar qaytarib bo'lmaydigan tarzda o'chiriladi."), confirmText: t("Удалить", "O'chirish"), danger: true }); if (ok) deleteMutation.mutate({ id: a.id }); }} style={{ padding: "6px 10px", borderRadius: "8px", fontSize: "11px", fontWeight: 600, fontFamily: F.body, color: COLORS.danger, background: "var(--color-danger-subtle)", border: "none", cursor: "pointer" }}>{t("Удалить", "O'chirish")}</button>}
                   </div>
                 </td>
               </tr>
