@@ -48,16 +48,14 @@ function Fade({ id, color }: { id: string; color: string }) {
   );
 }
 
-function Frame() {
-  return (
-    <>
-      <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
-      <XAxis dataKey="time" tick={axis} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={40} />
-      <YAxis tick={axis} tickLine={false} axisLine={false} />
-      <Tooltip content={<ChartTooltip />} />
-    </>
-  );
-}
+/*
+  Оси намеренно повторяются в каждом графике, а не вынесены в общий компонент.
+
+  Recharts ищет оси, сетку и подсказку среди ПРЯМЫХ детей графика: обёртка,
+  возвращающая их фрагментом, для него — один незнакомый ребёнок. Линии при
+  этом рисуются как ни в чём не бывало, а оси исчезают молча. Так и вышло на
+  первой попытке: пять графиков остались без единой подписи.
+*/
 
 export function PerformanceCharts({ chartData }: PerformanceChartsProps) {
   return (
@@ -67,7 +65,10 @@ export function PerformanceCharts({ chartData }: PerformanceChartsProps) {
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chartData} margin={MARGIN}>
               <defs><Fade id="gradRps" color={COLORS.primary} /></defs>
-              <Frame />
+              <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
+              <XAxis dataKey="time" tick={axis} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={40} />
+              <YAxis tick={axis} tickLine={false} axisLine={false} />
+              <Tooltip content={<ChartTooltip />} />
               <Area type="monotone" dataKey="rps" name="Запросов" stroke={COLORS.primary} strokeWidth={2} fill="url(#gradRps)" dot={false} isAnimationActive={false} />
             </AreaChart>
           </ResponsiveContainer>
@@ -83,7 +84,10 @@ export function PerformanceCharts({ chartData }: PerformanceChartsProps) {
                 <Fade id="gradResp" color={COLORS.success} />
                 <Fade id="gradWorst" color={COLORS.warning} />
               </defs>
-              <Frame />
+              <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
+              <XAxis dataKey="time" tick={axis} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={40} />
+              <YAxis tick={axis} tickLine={false} axisLine={false} />
+              <Tooltip content={<ChartTooltip />} />
               <Legend wrapperStyle={legend} iconType="plainline" />
               <Area type="monotone" dataKey="worst" name="худший" stroke={COLORS.warning} strokeWidth={1.5} fill="url(#gradWorst)" dot={false} isAnimationActive={false} />
               <Area type="monotone" dataKey="response" name="средний" stroke={COLORS.success} strokeWidth={2} fill="url(#gradResp)" dot={false} isAnimationActive={false} />
@@ -116,7 +120,10 @@ export function PerformanceCharts({ chartData }: PerformanceChartsProps) {
                 <Fade id="gradBusy" color={COLORS.info} />
                 <Fade id="gradQueue" color={COLORS.danger} />
               </defs>
-              <Frame />
+              <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
+              <XAxis dataKey="time" tick={axis} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={40} />
+              <YAxis tick={axis} tickLine={false} axisLine={false} />
+              <Tooltip content={<ChartTooltip />} />
               <Legend wrapperStyle={legend} iconType="plainline" />
               <Area type="stepAfter" dataKey="dbBusy" name="занято" stroke={COLORS.info} strokeWidth={2} fill="url(#gradBusy)" dot={false} isAnimationActive={false} />
               {/* Очередь — не доля, а событие: ноль это норма, любое другое
@@ -132,7 +139,10 @@ export function PerformanceCharts({ chartData }: PerformanceChartsProps) {
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chartData} margin={MARGIN}>
               <defs><Fade id="gradLag" color={COLORS.warning} /></defs>
-              <Frame />
+              <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
+              <XAxis dataKey="time" tick={axis} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={40} />
+              <YAxis tick={axis} tickLine={false} axisLine={false} />
+              <Tooltip content={<ChartTooltip />} />
               {/* Хвост p99, а не среднее: среднее по циклу событий почти всегда
                   у нуля даже тогда, когда часть запросов уже ждёт. */}
               <Area type="monotone" dataKey="lag" name="p99, мс" stroke={COLORS.warning} strokeWidth={2} fill="url(#gradLag)" dot={false} isAnimationActive={false} />
@@ -149,7 +159,10 @@ export function PerformanceCharts({ chartData }: PerformanceChartsProps) {
                 <Fade id="gradRss" color={COLORS.primary} />
                 <Fade id="gradHeap" color={COLORS.info} />
               </defs>
-              <Frame />
+              <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
+              <XAxis dataKey="time" tick={axis} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={40} />
+              <YAxis tick={axis} tickLine={false} axisLine={false} />
+              <Tooltip content={<ChartTooltip />} />
               <Legend wrapperStyle={legend} iconType="plainline" />
               {/* RSS первым: он всегда больше кучи и не должен её накрывать. */}
               <Area type="monotone" dataKey="rss" name="RSS" stroke={COLORS.primary} strokeWidth={1.5} fill="url(#gradRss)" dot={false} isAnimationActive={false} />

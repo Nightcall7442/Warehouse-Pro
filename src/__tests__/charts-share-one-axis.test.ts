@@ -24,6 +24,8 @@
  * ради этого графики и рисуют.
  */
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { buildMetricGrid, type SeriesMap } from "@/lib/metric-grid";
 
 const T = 1_757_000_000_000; // произвольный момент, кратный секунде
@@ -126,5 +128,62 @@ describe("сетка графиков", () => {
     // Нули нарисовали бы ровную линию «всё спокойно» там, где данных нет вовсе.
     expect(buildMetricGrid({}, 60)).toEqual([]);
     expect(buildMetricGrid({ req_per_sec: { data: [] } }, 60)).toEqual([]);
+  });
+});
+
+/**
+ * У каждого графика есть свои оси.
+ *
+ * Recharts ищет оси, сетку и подсказку среди ПРЯМЫХ детей графика. Общий
+ * компонент, возвращающий их фрагментом, для него — один незнакомый ребёнок:
+ * линии продолжают рисоваться как ни в чём не бывало, а оси исчезают молча.
+ *
+ * Именно так и вышло при первой попытке убрать повторение: пять графиков из
+ * шести остались без единой подписи, и на глаз это выглядело просто как
+ * «график почему-то пустоват». Поэтому повторение здесь намеренное, и правило
+ * стоит сторожем.
+ */
+describe("оси графиков", () => {
+  const SOURCE = readFileSync(
+    join(__dirname, "..", "components", "monitoring", "PerformanceCharts.tsx"),
+    "utf8",
+  );
+
+  /** Куски исходника от <AreaChart / <BarChart до закрывающего тега. */
+  function chartBlocks(): string[] {
+    const blocks: string[] = [];
+    for (const kind of ["AreaChart", "BarChart"]) {
+      let from = 0;
+      for (;;) {
+        const start = SOURCE.indexOf(`<${kind} `, from);
+        if (start < 0) break;
+        const end = SOURCE.indexOf(`</${kind}>`, start);
+        blocks.push(SOURCE.slice(start, end));
+        from = end + 1;
+      }
+    }
+    return blocks;
+  }
+
+  it("графиков шесть", () => {
+    // Было четыре. Насыщения — того самого сигнала, что говорит, сколько
+    // осталось запаса, — среди них не было вовсе.
+    expect(chartBlocks()).toHaveLength(6);
+  });
+
+  it("оси стоят прямыми детьми каждого графика", () => {
+    for (const block of chartBlocks()) {
+      const name = block.slice(0, 40);
+      expect(block, `${name}: пропала ось времени`).toContain("<XAxis");
+      expect(block, `${name}: пропала ось значений`).toContain("<YAxis");
+      expect(block, `${name}: пропала сетка`).toContain("<CartesianGrid");
+    }
+  });
+
+  it("оси не завёрнуты в свой компонент", () => {
+    // Соблазн убрать повторение велик, и цена ошибки не видна: линии рисуются,
+    // подписи исчезают.
+    expect(SOURCE).not.toMatch(/<Frame\s*\/>/);
+    expect(SOURCE).not.toMatch(/function\s+\w*Axes\w*\s*\(/);
   });
 });
