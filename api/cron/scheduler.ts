@@ -78,6 +78,24 @@ const JOBS: Job[] = [
     daily: { hour: 3, minute: 0 },
     run: async () => (await import("./backup")).runBackup(),
   },
+  {
+    /*
+      Уборка чата поддержки: закрыть молчащие разговоры и стереть тексты тех,
+      что закрыты неделю назад.
+
+      Полчетвёртого — после копии базы, а не до неё. Порядок здесь имеет
+      смысл: в ночной копии переписка ещё есть, и если стирание окажется
+      ошибочным, восстановить будет откуда.
+    */
+    name: "support-cleanup",
+    daily: { hour: 3, minute: 30 },
+    run: async () => {
+      const s = await import("../services/support-chat");
+      const closed = await s.autoCloseSilent();
+      const purged = await s.purgeClosedThreads();
+      return { ...closed, ...purged };
+    },
+  },
 ];
 
 /** Когда работа выполнялась в последний раз — чтобы не повторяться в ту же минуту. */

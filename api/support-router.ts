@@ -3,8 +3,8 @@ import { TRPCError } from "@trpc/server";
 import { createRouter, authedQuery, superAdminQuery } from "./middleware";
 import { checkRateLimit, rateLimitSubject } from "./lib/rate-limit";
 import {
-  MAX_BODY, hasSupportChat, requireSupportChat, threadMessages,
-  unreadCount, markRead, postMessage, inbox,
+  MAX_BODY, RETENTION_DAYS, hasSupportChat, requireSupportChat, threadMessages,
+  unreadCount, markRead, postMessage, inbox, threadState, closeThread,
 } from "./services/support-chat";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -32,13 +32,27 @@ export const supportRouter = createRouter({
     .input(z.object({ before: z.number().int().positive().optional() }).optional())
     .query(async ({ ctx, input }) => {
       const available = await hasSupportChat(ctx.tenant.id);
-      if (!available) return { available, messages: [], hasMore: false, unread: 0 };
+      /*
+        Обе ветки отдают ОДИН набор полей.
 
-      const [{ messages, hasMore }, unread] = await Promise.all([
+        Иначе клиент получает объединение двух разных форм, и обращение к
+        `closedAt` не проходит проверку типов ни в одной ветке — хотя на
+        не-Exclusive экран до разговора и не доходит. Форма ответа не должна
+        зависеть от тарифа: от него зависит содержимое.
+      */
+      if (!available) {
+        return {
+          available, messages: [], hasMore: false, unread: 0,
+          closedAt: null, closedBy: null, purgeAt: null, retentionDays: RETENTION_DAYS,
+        };
+      }
+
+      const [{ messages, hasMore }, unread, state] = await Promise.all([
         threadMessages(ctx.tenant.id, ctx.user.id, input?.before),
         unreadCount(ctx.tenant.id, ctx.user.id, true),
+        threadState(ctx.tenant.id, ctx.user.id),
       ]);
-      return { available, messages, hasMore, unread };
+      return { available, messages, hasMore, unread, ...state, retentionDays: RETENTION_DAYS };
     }),
 
   /**
@@ -85,6 +99,22 @@ export const supportRouter = createRouter({
       });
     }),
 
+  /**
+   * Завершить свой разговор.
+   *
+   * Закрывать может и клиент, и поддержка — решение владельца. Переписка после
+   * этого живёт ещё неделю и стирается; передумали — достаточно написать снова,
+   * разговор откроется заново.
+   *
+   * Тариф здесь НЕ проверяется намеренно: организация могла съехать с
+   * Exclusive, и запретить ей закрыть собственный разговор значило бы держать
+   * её переписку у себя ровно потому, что она перестала платить.
+   */
+  close: authedQuery.mutation(async ({ ctx }) => {
+    await closeThread(ctx.tenant.id, ctx.user.id, "client");
+    return { ok: true };
+  }),
+
   /** Я прочитал ответы поддержки. */
   markRead: authedQuery.mutation(async ({ ctx }) => {
     if (!(await hasSupportChat(ctx.tenant.id))) return { ok: true };
@@ -126,6 +156,14 @@ export const supportRouter = createRouter({
         authorId: ctx.user.id,
         body: input.body,
       });
+    }),
+
+  /** Поддержка закрывает решённый вопрос. */
+  closeThread: superAdminQuery
+    .input(z.object({ tenantId: z.number().int().positive(), userId: z.number().int().positive() }))
+    .mutation(async ({ input }) => {
+      await closeThread(input.tenantId, input.userId, "platform");
+      return { ok: true };
     }),
 
   /** Поддержка прочитала обращения этого человека. */

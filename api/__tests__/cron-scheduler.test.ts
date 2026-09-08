@@ -32,10 +32,21 @@ const utc = (h: number, m = 0) => new Date(Date.UTC(2026, 8, 8, h, m, 0));
 describe("когда что запускается", () => {
   const job = (name: string) => _internals.JOBS.find(j => j.name === name)!;
 
-  it("все пять работ на месте", () => {
+  it("все шесть работ на месте", () => {
     expect(_internals.JOBS.map(j => j.name).sort()).toEqual([
-      "backup", "debt-reminders", "telegram-digest", "telegram-outbox", "trial-reminders",
+      "backup", "debt-reminders", "support-cleanup", "telegram-digest", "telegram-outbox", "trial-reminders",
     ]);
+  });
+
+  it("уборка чата идёт ПОСЛЕ ночной копии", () => {
+    /*
+      Порядок здесь не косметический: уборка стирает переписку безвозвратно, и
+      в копии, снятой до неё, эта переписка ещё есть. Поменяй их местами — и
+      откатиться после ошибочного стирания будет некуда.
+    */
+    expect(_internals.isDue(job("backup"), utc(22, 0))).toBe(true);         // 03:00 Ташкент
+    expect(_internals.isDue(job("support-cleanup"), utc(22, 30))).toBe(true); // 03:30 Ташкент
+    expect(_internals.isDue(job("support-cleanup"), utc(22, 0))).toBe(false);
   });
 
   it("часы считаются по Ташкенту, а не по серверу", () => {

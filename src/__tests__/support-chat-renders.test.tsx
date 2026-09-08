@@ -25,7 +25,10 @@ const state: {
   available: boolean;
   messages: Array<Record<string, unknown>>;
   unread: number;
-} = { available: true, messages: [], unread: 0 };
+  closedAt: Date | null;
+  closedBy: string | null;
+  purgeAt: Date | null;
+} = { available: true, messages: [], unread: 0, closedAt: null, closedBy: null, purgeAt: null };
 
 vi.mock("@/providers/trpc", () => {
   const nothing = () => {};
@@ -37,6 +40,7 @@ vi.mock("@/providers/trpc", () => {
         thread:   { useQuery: () => ({ data: { ...state, hasMore: false }, isLoading: false }) },
         send:     { useMutation: mutation },
         markRead: { useMutation: mutation },
+        close:    { useMutation: mutation },
       },
     },
   };
@@ -54,6 +58,9 @@ beforeEach(() => {
   state.available = true;
   state.messages = [];
   state.unread = 0;
+  state.closedAt = null;
+  state.closedBy = null;
+  state.purgeAt = null;
 });
 
 /** Сегодняшнее время — чтобы разделитель суток был предсказуем. */
@@ -165,5 +172,51 @@ describe("разговор виден как разговор", () => {
     expect(screen.getByText(/Чем помочь/)).toBeTruthy();
     // Подсказки подставляют тему в поле, а не отправляют её.
     expect(screen.getByText("Вопрос по оплате")).toBeTruthy();
+  });
+});
+
+/*
+  Переписка не лежит у нас вечно: завершённый разговор через неделю стирается.
+  Дата стирания обязана быть на экране — тихое исчезновение переписки человек
+  прочтёт как пропажу, а не как обещанное.
+*/
+describe("завершённый разговор", () => {
+  beforeEach(() => {
+    state.messages = [
+      { id: 1, fromPlatform: false, authorName: null, body: "Вопрос", createdAt: todayAt(10, 0), readAt: null },
+    ];
+    state.closedAt = todayAt(11, 0);
+    state.purgeAt = new Date(todayAt(11, 0).getTime() + 7 * 86_400_000);
+  });
+
+  it("говорит, когда переписка будет удалена и как это отменить", () => {
+    state.closedBy = "client";
+    render(<Support />);
+    expect(screen.getByText(/Вы завершили разговор/)).toBeTruthy();
+    expect(screen.getByText(/будет удалена/)).toBeTruthy();
+    // Отменить можно, просто написав снова, — и это должно быть сказано.
+    expect(screen.getByText(/Напишите ещё раз/)).toBeTruthy();
+  });
+
+  it("различает, кто завершил", () => {
+    state.closedBy = "silence";
+    render(<Support />);
+    expect(screen.getByText(/закрылся сам/)).toBeTruthy();
+  });
+
+  it("поле ввода остаётся — экран не запирается", () => {
+    state.closedBy = "platform";
+    render(<Support />);
+    // Написать можно и в завершённый: это и есть возврат к разговору.
+    expect(screen.getByPlaceholderText(/Опишите/)).toBeTruthy();
+    // А кнопки «Завершить» больше нет — завершать нечего.
+    expect(screen.queryByText("Завершить")).toBeNull();
+  });
+
+  it("у идущего разговора кнопка «Завершить» есть", () => {
+    state.closedAt = null;
+    state.purgeAt = null;
+    render(<Support />);
+    expect(screen.getByText("Завершить")).toBeTruthy();
   });
 });

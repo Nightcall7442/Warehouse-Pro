@@ -102,20 +102,23 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
   const navigate = useNavigate();
   const role     = user?.role ?? "agent";
   /*
-    Пункт «Поддержка» добавляется по ТАРИФУ, а не по роли.
+    Поддержка живёт в нижнем блоке, а не в списке разделов.
 
-    Роль тут ни при чём: чат входит в Exclusive, и решает это сервер — он же
-    отдаёт число непрочитанных ответов. Держать признак в статичной карте
-    NAV_ITEMS было бы нельзя: тариф меняется на ходу, а карта собирается один
+    Сначала она стояла пунктом меню — и это было неверно дважды. Список выше
+    это разделы склада: заказы, товары, отчёты; разговор с нами к ним не
+    относится, как не относятся уведомления. К тому же список у директора уже
+    не помещается и прокручивается, а пункт был приписан в самый низ — то
+    есть за краем видимого.
+
+    Внизу он стоит рядом с уведомлениями, и это верное соседство: и то и
+    другое — личное, а не про склад. Признак доступности отдаёт сервер (чат
+    входит в Exclusive), поэтому запрос остаётся: в статичной карте NAV_ITEMS
+    его держать было нельзя — тариф меняется на ходу, а карта собирается один
     раз при загрузке модуля.
   */
   const { data: support } = trpc.support.unread.useQuery(undefined, { refetchInterval: 60_000 });
-  const items = useMemo(() => {
-    const base = NAV_ITEMS[role] ?? [];
-    return support?.available
-      ? [...base, { labelKey: "nav.support", path: "/support", icon: "LifeBuoy" }]
-      : base;
-  }, [role, support?.available]);
+  const supportUnread = support?.count ?? 0;
+  const items = useMemo(() => NAV_ITEMS[role] ?? [], [role]);
   const showWarehouseSelector = role === "ceo" || role === "operator";
 
   return (
@@ -204,14 +207,6 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
             >
               {Icon && <Icon size={18} strokeWidth={isActive ? 2.5 : 1.5} />}
               <span>{t(item.labelKey)}</span>
-              {/* Непрочитанные ответы поддержки. Значок стоит у самого пункта,
-                  а не в общем колокольчике: ответ на свой вопрос ждут иначе,
-                  чем уведомление о чужом заказе. */}
-              {item.path === "/support" && (support?.count ?? 0) > 0 && (
-                <span className="ml-auto min-w-[18px] h-[18px] rounded-full text-white text-[10px] font-bold flex items-center justify-center px-1" style={{ background: "var(--color-danger-strong)" }}>
-                  {(support?.count ?? 0) > 99 ? "99+" : support?.count}
-                </span>
-              )}
             </button>
           );
         })}
@@ -219,20 +214,55 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
 
       {/* Bottom actions */}
       <div className="p-4 space-y-2 mt-auto" style={{ borderTop: "1px solid var(--color-border-subtle, #e0ddd7)" }}>
-        <button
-          onClick={() => { navigate("/notifications"); onClose?.(); }}
-          className="sidebar-nav-item w-full"
-        >
-          <div className="relative">
-            <Bell size={18} />
-            {unreadCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-[16px] rounded-full text-white text-[9px] font-bold flex items-center justify-center px-1" style={{ background: "var(--color-danger-strong)", boxShadow: "var(--shadow-xs)" }}>
-                {unreadCount > 99 ? "99+" : unreadCount}
+        {/*
+          Уведомления и поддержка — в один ряд.
+
+          Оба ведут к личному, а не к складу, и оба носят значок непрочитанного:
+          рядом они читаются как пара, а не как два случайных пункта. Ряд ещё и
+          не отнимает высоты — список разделов выше и так прокручивается, и
+          вторая строка отъела бы её у него.
+
+          Поддержки может не быть (тариф ниже Exclusive) — тогда уведомления
+          занимают всю ширину, а не стоят рядом с дырой.
+        */}
+        <div className="flex gap-2">
+          <button
+            onClick={() => { navigate("/notifications"); onClose?.(); }}
+            className="neo-btn flex-1 min-w-0 flex flex-col items-center justify-center gap-1.5 text-[10.5px]"
+            style={{ padding: "10px 6px" }}
+          >
+            <span className="relative flex-shrink-0">
+              <Bell size={15} />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 min-w-[15px] h-[15px] rounded-full text-white text-[9px] font-bold flex items-center justify-center px-1" style={{ background: "var(--color-danger-strong)", boxShadow: "var(--shadow-xs)" }}>
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              )}
+            </span>
+            <span className="truncate">{t("nav.notifications")}</span>
+          </button>
+
+          {support?.available && (
+            <button
+              onClick={() => { navigate("/support"); onClose?.(); }}
+              className="neo-btn flex-1 min-w-0 flex flex-col items-center justify-center gap-1.5 text-[10.5px]"
+              style={{ padding: "10px 6px" }}
+            >
+              <span className="relative flex-shrink-0">
+                <LifeBuoy size={15} />
+                {/* Непрочитанные ответы поддержки. Свой значок, а не общий
+                    колокольчик: ответ на свой вопрос ждут иначе, чем
+                    уведомление о чужом заказе. */}
+                {supportUnread > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 min-w-[15px] h-[15px] rounded-full text-white text-[9px] font-bold flex items-center justify-center px-1" style={{ background: "var(--color-danger-strong)", boxShadow: "var(--shadow-xs)" }}>
+                    {supportUnread > 99 ? "99+" : supportUnread}
+                  </span>
+                )}
               </span>
-            )}
-          </div>
-          {t("nav.notifications")}
-        </button>
+              <span className="truncate">{t("nav.support")}</span>
+            </button>
+          )}
+        </div>
 
         <div className="flex gap-2 mb-1 p-1 rounded-[12px]" style={{ background: "var(--color-surface)", boxShadow: "var(--shadow-pressed)" }}>
           {(["ru", "uz"] as const).map(l => (

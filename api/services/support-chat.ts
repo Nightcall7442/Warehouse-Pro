@@ -1,7 +1,7 @@
-import { and, desc, eq, inArray, isNull, lt, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { getDb } from "../queries/connection";
-import { supportMessages, tenants, users } from "@db/schema";
+import { supportMessages, supportThreads, tenants, users } from "@db/schema";
 import { sseBus } from "../lib/sse";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -166,6 +166,17 @@ export async function postMessage(input: PostInput): Promise<{ id: number }> {
     throw new TRPCError({ code: "BAD_REQUEST", message: `Сообщение длиннее ${MAX_BODY} символов.` });
   }
 
+  /*
+    Разговор заводится ДО сообщения.
+
+    Порядок важен: сначала окно, потом то, что в него попадает. Сделай мы
+    наоборот — сообщение легло бы на миллисекунду раньше начала разговора и не
+    попало бы в его окно времени, то есть при стирании осталось бы в базе
+    навсегда. Здесь же это и отмена стирания: письмо в закрытый, но ещё не
+    стёртый разговор открывает его заново.
+  */
+  await ensureOpenThread(input.tenantId, input.userId);
+
   const result = await getDb().insert(supportMessages).values({
     tenantId: input.tenantId,
     userId: input.userId,
@@ -187,6 +198,224 @@ export async function postMessage(input: PostInput): Promise<{ id: number }> {
   return { id };
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   Жизнь разговора: открыт → завершён → стёрт.
+
+   ── Решение владельца ───────────────────────────────────────────────────────
+
+   Переписка не лежит у нас вечно. Завершённый разговор через неделю стирается;
+   от него остаётся строка без текстов — чей разговор, когда шёл, сколько было
+   сообщений. Платформа не теряет счёт обращений, а содержание чужих жалоб у
+   нас не хранится.
+
+   ── Почему неделя, а не сразу ───────────────────────────────────────────────
+
+   Ответ поддержки нужен человеку и назавтра: «как вы это чинили» перечитывают.
+   Неделя же чинит и промах: закрыли по ошибке — достаточно написать снова,
+   разговор откроется заново и стирание отменится само.
+
+   ── Почему разговор закрывается сам ─────────────────────────────────────────
+
+   Иначе брошенные висят вечно. Закрывать вручную каждый разговор, на который
+   просто перестали отвечать, никто не вспомнит — и затея свелась бы к тому,
+   что стираются только те переписки, о которых кто-то позаботился.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/** Сколько живёт переписка после завершения разговора. */
+export const RETENTION_DAYS = 7;
+
+/** После скольких дней молчания разговор закрывается сам. */
+export const SILENCE_DAYS = 14;
+
+const DAY_MS = 86_400_000;
+
+export type ClosedBy = "client" | "platform" | "silence";
+
+export interface ThreadState {
+  /** Пусто — разговор идёт. */
+  closedAt: Date | null;
+  closedBy: ClosedBy | null;
+  /** Когда сотрутся тексты. Пусто, пока разговор не завершён. */
+  purgeAt: Date | null;
+}
+
+/** Последний по времени разговор пары — тот, что показывается на экране. */
+async function latestThread(tenantId: number, userId: number) {
+  const [row] = await getDb()
+    .select({
+      id: supportThreads.id,
+      openedAt: supportThreads.openedAt,
+      closedAt: supportThreads.closedAt,
+      closedBy: supportThreads.closedBy,
+      purgedAt: supportThreads.purgedAt,
+    })
+    .from(supportThreads)
+    .where(and(eq(supportThreads.tenantId, tenantId), eq(supportThreads.userId, userId)))
+    .orderBy(desc(supportThreads.id))
+    .limit(1);
+  return row ?? null;
+}
+
+/**
+ * Состояние разговора для экрана.
+ *
+ * Стёртый разговор состоянием не считается: для человека это не «завершённый
+ * разговор без сообщений», а чистый лист — можно писать заново. Строка о нём
+ * остаётся, но она для платформы, а не для него.
+ */
+export async function threadState(tenantId: number, userId: number): Promise<ThreadState> {
+  const t = await latestThread(tenantId, userId);
+  if (!t || t.purgedAt || !t.closedAt) return { closedAt: null, closedBy: null, purgeAt: null };
+  return {
+    closedAt: t.closedAt,
+    closedBy: (t.closedBy as ClosedBy | null) ?? null,
+    purgeAt: new Date(t.closedAt.getTime() + RETENTION_DAYS * DAY_MS),
+  };
+}
+
+/**
+ * Разговор, в который ляжет новое сообщение.
+ *
+ * Три случая: идёт — пишем в него; завершён, но ещё не стёрт — открываем
+ * заново (это и есть отмена стирания); стёрт или не было вовсе — начинаем
+ * новый.
+ */
+export async function ensureOpenThread(tenantId: number, userId: number): Promise<void> {
+  const db = getDb();
+  const t = await latestThread(tenantId, userId);
+
+  if (t && !t.closedAt) return;
+
+  if (t && !t.purgedAt) {
+    await db
+      .update(supportThreads)
+      .set({ closedAt: null, closedBy: null })
+      .where(eq(supportThreads.id, t.id));
+    return;
+  }
+
+  await db.insert(supportThreads).values({ tenantId, userId });
+}
+
+/**
+ * Завершить разговор.
+ *
+ * Закрываются ВСЕ открытые строки пары, а не одна. Две открытые могут
+ * появиться, если человек отправил два сообщения одновременно и обе проверки
+ * «есть ли открытый» прошли до первой вставки. Случай редкий, замок ради него
+ * держать незачем — но оставь мы вторую строку открытой, разговор после
+ * нажатия «завершить» так и остался бы незакрытым, и человек нажимал бы ещё
+ * раз, не понимая, почему не работает.
+ */
+export async function closeThread(tenantId: number, userId: number, by: ClosedBy): Promise<void> {
+  await getDb()
+    .update(supportThreads)
+    .set({ closedAt: new Date(), closedBy: by })
+    .where(and(
+      eq(supportThreads.tenantId, tenantId),
+      eq(supportThreads.userId, userId),
+      isNull(supportThreads.closedAt),
+    ));
+}
+
+/**
+ * Стереть тексты завершённых разговоров, которым вышел срок.
+ *
+ * Сообщения разговора — это сообщения той же пары, попавшие в его окно времени.
+ * Внешнего ключа между ними нет намеренно (см. db/schema.ts): новый разговор
+ * начинается строго после закрытия предыдущего, и окно разделяет их однозначно.
+ */
+export async function purgeClosedThreads(now: Date = new Date()): Promise<{ threads: number; messages: number }> {
+  const db = getDb();
+  const cutoff = new Date(now.getTime() - RETENTION_DAYS * DAY_MS);
+
+  const due = await db
+    .select({
+      id: supportThreads.id,
+      tenantId: supportThreads.tenantId,
+      userId: supportThreads.userId,
+      openedAt: supportThreads.openedAt,
+      closedAt: supportThreads.closedAt,
+    })
+    .from(supportThreads)
+    .where(and(
+      isNull(supportThreads.purgedAt),
+      isNotNull(supportThreads.closedAt),
+      lt(supportThreads.closedAt, cutoff),
+    ))
+    // Порция: разбирать накопившееся понемногу лучше, чем одним запросом на
+    // всю таблицу, который держит блокировки дольше, чем идёт рабочий день.
+    .limit(200);
+
+  let messages = 0;
+  for (const t of due) {
+    const window = and(
+      eq(supportMessages.tenantId, t.tenantId),
+      eq(supportMessages.userId, t.userId),
+      gte(supportMessages.createdAt, t.openedAt),
+      lte(supportMessages.createdAt, t.closedAt!),
+    );
+
+    // Сосчитать НАДО до удаления: после него считать уже нечего, а число —
+    // это всё, что остаётся от разговора.
+    const [row] = await db.select({ count: sql<number>`count(*)` }).from(supportMessages).where(window);
+    const count = Number(row?.count ?? 0);
+
+    await db.delete(supportMessages).where(window);
+    await db.update(supportThreads).set({ purgedAt: now, messageCount: count }).where(eq(supportThreads.id, t.id));
+    messages += count;
+  }
+
+  return { threads: due.length, messages };
+}
+
+/** Закрыть разговоры, в которых давно молчат. */
+export async function autoCloseSilent(now: Date = new Date()): Promise<{ closed: number }> {
+  const db = getDb();
+  const cutoff = new Date(now.getTime() - SILENCE_DAYS * DAY_MS);
+
+  const open = await db
+    .select({
+      id: supportThreads.id,
+      tenantId: supportThreads.tenantId,
+      userId: supportThreads.userId,
+      openedAt: supportThreads.openedAt,
+    })
+    .from(supportThreads)
+    .where(isNull(supportThreads.closedAt))
+    .limit(500);
+  if (open.length === 0) return { closed: 0 };
+
+  /*
+    Когда в каждой паре писали в последний раз — одним запросом на все
+    открытые разговоры. По запросу на разговор это был бы тот же ответ ценой
+    сотни обращений к базе.
+  */
+  const lastRows = await db
+    .select({
+      tenantId: supportMessages.tenantId,
+      userId: supportMessages.userId,
+      last: sql<Date>`max(${supportMessages.createdAt})`,
+    })
+    .from(supportMessages)
+    .where(inArray(supportMessages.tenantId, [...new Set(open.map(t => t.tenantId))]))
+    .groupBy(supportMessages.tenantId, supportMessages.userId);
+
+  const last = new Map(lastRows.map(r => [`${r.tenantId}:${r.userId}`, new Date(r.last)]));
+
+  // Разговор без единого сообщения меряется по своему началу: иначе он
+  // остался бы открытым навсегда именно потому, что в нём ничего нет.
+  const stale = open.filter(t => (last.get(`${t.tenantId}:${t.userId}`) ?? t.openedAt) < cutoff);
+  if (stale.length === 0) return { closed: 0 };
+
+  await db
+    .update(supportThreads)
+    .set({ closedAt: now, closedBy: "silence" })
+    .where(inArray(supportThreads.id, stale.map(t => t.id)));
+
+  return { closed: stale.length };
+}
+
 export interface InboxThread {
   tenantId: number;
   tenantName: string;
@@ -198,6 +427,9 @@ export interface InboxThread {
   lastAt: Date;
   lastFromPlatform: boolean;
   unread: number;
+  /** Пусто — разговор идёт. */
+  closedAt: Date | null;
+  closedBy: ClosedBy | null;
 }
 
 /**
@@ -247,8 +479,36 @@ export async function inbox(): Promise<InboxThread[]> {
     for (const m of recent) previews.set(m.id, { body: m.body, fromPlatform: m.fromPlatform });
   }
 
+  /*
+    Завершён ли разговор — третьим запросом на все пары сразу.
+
+    Присоединить таблицу разговоров к самой группировке нельзя: у пары их
+    несколько (человек обращался не раз), и строка в списке размножилась бы по
+    числу прошлых обращений.
+  */
+  const closed = new Map<string, { closedAt: Date | null; closedBy: ClosedBy | null }>();
+  if (rows.length) {
+    const states = await db
+      .select({
+        tenantId: supportThreads.tenantId,
+        userId: supportThreads.userId,
+        closedAt: supportThreads.closedAt,
+        closedBy: supportThreads.closedBy,
+        id: supportThreads.id,
+      })
+      .from(supportThreads)
+      .where(inArray(supportThreads.tenantId, [...new Set(rows.map(r => r.tenantId))]))
+      .orderBy(supportThreads.id);
+    // Порядок по возрастанию — последняя запись пары затирает предыдущие, то
+    // есть в карте остаётся самый свежий разговор.
+    for (const t of states) {
+      closed.set(`${t.tenantId}:${t.userId}`, { closedAt: t.closedAt, closedBy: (t.closedBy as ClosedBy | null) ?? null });
+    }
+  }
+
   return rows.map(r => {
     const p = previews.get(Number(r.lastId));
+    const state = closed.get(`${r.tenantId}:${r.userId}`);
     return {
       tenantId: r.tenantId,
       tenantName: r.tenantName,
@@ -260,6 +520,8 @@ export async function inbox(): Promise<InboxThread[]> {
       lastAt: r.lastAt,
       lastFromPlatform: p?.fromPlatform ?? false,
       unread: Number(r.unread ?? 0),
+      closedAt: state?.closedAt ?? null,
+      closedBy: state?.closedBy ?? null,
     };
   }).sort((a, b) => (b.unread > 0 ? 1 : 0) - (a.unread > 0 ? 1 : 0) || +new Date(b.lastAt) - +new Date(a.lastAt));
 }

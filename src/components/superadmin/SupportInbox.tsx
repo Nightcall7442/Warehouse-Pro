@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Check, CheckCheck, Inbox, LifeBuoy, Loader2, Send } from "lucide-react";
+import { Archive, Check, CheckCheck, Inbox, LifeBuoy, Loader2, Send } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { labelled, ROLE_LABEL } from "@/lib/entity-labels";
@@ -58,6 +58,10 @@ export function SupportInbox() {
     },
     onError: (e) => notify.error(e.message),
   });
+  const closeIt = trpc.support.closeThread.useMutation({
+    onSuccess: () => utils.support.inbox.invalidate(),
+    onError: (e) => notify.error(e.message),
+  });
 
   // Открыли разговор — обращения этого человека прочитаны.
   useEffect(() => {
@@ -85,6 +89,10 @@ export function SupportInbox() {
 
   const list = threads ?? [];
   const waiting = list.filter(t => t.unread > 0).length;
+  const openRow = openThread
+    ? list.find(t => t.tenantId === openThread.tenantId && t.userId === openThread.userId)
+    : undefined;
+  const closedAt = openRow?.closedAt ? new Date(openRow.closedAt) : null;
   const rows = useMemo(() => buildThread(messages, new Date()), [messages]);
 
   const send = () => {
@@ -164,6 +172,17 @@ export function SupportInbox() {
                   <div style={{ display: "flex", alignItems: "center", gap: "6px", margin: "8px 0 5px" }}>
                     <PlanBadge plan={t.plan} />
                     <span style={{ fontSize: "10.5px", color: COLORS.textTertiary }}>{labelled(ROLE_LABEL, t.userRole)}</span>
+                    {/* Завершённые видно сразу: браться за них незачем, а
+                        через неделю от них останется только счёт. */}
+                    {t.closedAt && (
+                      <span style={{
+                        marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: "3px",
+                        fontSize: "10px", fontWeight: 700, color: COLORS.textTertiary,
+                      }}>
+                        <Archive size={10} />
+                        {t.closedBy === "silence" ? "молчит" : "завершён"}
+                      </span>
+                    )}
                   </div>
 
                   <p style={{ fontSize: "11.5px", lineHeight: 1.45, color: COLORS.textTertiary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -195,6 +214,19 @@ export function SupportInbox() {
                       {openThread.tenant}
                     </p>
                   </div>
+                  {/* Завершить может и поддержка, и клиент. Здесь это «вопрос
+                      решён»: тексты сотрутся через неделю сами. */}
+                  {!closedAt && (
+                    <button
+                      onClick={() => closeIt.mutate({ tenantId: openThread.tenantId, userId: openThread.userId })}
+                      disabled={closeIt.isPending}
+                      className="neo-btn"
+                      style={{ fontSize: "11px", padding: "6px 12px", flexShrink: 0 }}
+                    >
+                      {closeIt.isPending ? <Loader2 size={12} style={{ animation: "spin 1s linear infinite" }} /> : <Archive size={12} />}
+                      Завершить
+                    </button>
+                  )}
                   <PlanBadge plan={openThread.plan} />
                 </div>
 
@@ -262,6 +294,21 @@ export function SupportInbox() {
                   )}
                   <div ref={bottom} />
                 </div>
+
+                {closedAt && (
+                  <div style={{
+                    padding: "10px 14px", background: "var(--color-warning-subtle)",
+                    display: "flex", alignItems: "center", gap: "8px",
+                  }}>
+                    <Archive size={13} style={{ color: "var(--color-warning-text, var(--color-warning))", flexShrink: 0 }} />
+                    <span style={{ fontSize: "11.5px", lineHeight: 1.45, color: COLORS.textSecondary }}>
+                      Разговор завершён {closedAt.toLocaleDateString("ru", { day: "numeric", month: "long" })}
+                      {openRow?.closedBy === "silence" ? " — молчанием" : ""}. Переписка сотрётся{" "}
+                      {new Date(closedAt.getTime() + 7 * 86_400_000).toLocaleDateString("ru", { day: "numeric", month: "long" })}.
+                      Ответ откроет разговор заново и отменит стирание.
+                    </span>
+                  </div>
+                )}
 
                 <div style={{ padding: "12px", background: COLORS.surface, display: "flex", gap: "8px", alignItems: "flex-end" }}>
                   <textarea

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Check, CheckCheck, Clock3, Headset, LifeBuoy, Loader2, Send, Sparkles } from "lucide-react";
+import { Archive, Check, CheckCheck, Clock3, Headset, LifeBuoy, Loader2, Send, Sparkles } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { useLang } from "@/i18n";
@@ -64,9 +64,24 @@ export default function Support() {
   const markRead = trpc.support.markRead.useMutation({
     onSuccess: () => utils.support.unread.invalidate(),
   });
+  const close = trpc.support.close.useMutation({
+    onSuccess: () => { utils.support.thread.invalidate(); utils.support.unread.invalidate(); },
+    onError: (e) => notify.error(e.message),
+  });
 
   const available = data?.available ?? false;
   const messages = useMemo(() => data?.messages ?? [], [data?.messages]);
+
+  /*
+    Разговор завершён — своей рукой, поддержкой или сам после молчания.
+
+    Экран при этом не запирается: поле ввода остаётся, и новое сообщение
+    открывает разговор заново. Запертый экран заставлял бы искать кнопку
+    «открыть заново» там, где достаточно просто написать.
+  */
+  const closedAt = data?.closedAt ? new Date(data.closedAt) : null;
+  const purgeAt = data?.purgeAt ? new Date(data.purgeAt) : null;
+  const closedBy = data?.closedBy ?? null;
 
   // Открыли экран — значит прочитали. Отметка ставится один раз на порцию
   // непрочитанного, а не на каждую отрисовку.
@@ -218,14 +233,31 @@ export default function Support() {
             {t("Поддержка", "Qo'llab-quvvatlash")}
           </h1>
           <div style={{ display: "flex", alignItems: "center", gap: "7px", marginTop: "3px" }}>
-            {awaiting && <span className="chat-waiting-dot" />}
+            {awaiting && !closedAt && <span className="chat-waiting-dot" />}
             <p style={{ fontSize: "12.5px", color: "var(--color-text-secondary)" }}>
-              {awaiting
-                ? t("Ждём ответа поддержки", "Qo'llab-quvvatlash javobini kutmoqdamiz")
-                : t("Пишите прямо здесь — ответим в это же окно", "Shu yerda yozing — javob shu oynaga keladi")}
+              {closedAt
+                ? t("Разговор завершён", "Suhbat yakunlandi")
+                : awaiting
+                  ? t("Ждём ответа поддержки", "Qo'llab-quvvatlash javobini kutmoqdamiz")
+                  : t("Пишите прямо здесь — ответим в это же окно", "Shu yerda yozing — javob shu oynaga keladi")}
             </p>
           </div>
         </div>
+
+        {/* Завершить может и клиент, и поддержка. Кнопка появляется, только
+            когда есть что завершать: у пустого экрана она бессмысленна. */}
+        {!closedAt && messages.length > 0 && (
+          <button
+            onClick={() => close.mutate()}
+            disabled={close.isPending}
+            className="neo-btn"
+            style={{ flexShrink: 0, fontSize: "12px", padding: "8px 14px" }}
+          >
+            {close.isPending ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <Archive size={14} />}
+            {t("Завершить", "Yakunlash")}
+          </button>
+        )}
+
         <span style={{
           flexShrink: 0, padding: "5px 12px", borderRadius: "999px",
           background: "var(--color-primary-subtle)", color: "var(--color-primary-text)",
@@ -345,6 +377,31 @@ export default function Support() {
           )}
           <div ref={bottom} />
         </div>
+
+        {/* ── Завершён ───────────────────────────────────────────────────── */}
+        {closedAt && (
+          <div style={{
+            padding: "12px 16px", background: "var(--color-warning-subtle)",
+            display: "flex", alignItems: "flex-start", gap: "10px",
+          }}>
+            <Archive size={15} style={{ color: "var(--color-warning-text, var(--color-warning))", flexShrink: 0, marginTop: "2px" }} />
+            <div style={{ minWidth: 0 }}>
+              <p style={{ fontSize: "12.5px", fontWeight: 600, color: "var(--color-text-primary)" }}>
+                {closedBy === "silence"
+                  ? t("Разговор закрылся сам — в нём давно молчали", "Suhbat o'zi yopildi — unda uzoq vaqt yozilmadi")
+                  : closedBy === "platform"
+                    ? t("Поддержка отметила вопрос решённым", "Qo'llab-quvvatlash savolni hal qilingan deb belgiladi")
+                    : t("Вы завершили разговор", "Siz suhbatni yakunladingiz")}
+              </p>
+              {/* Прямо сказать, когда исчезнет переписка, и что это отменимо.
+                  Тихое удаление через неделю выглядело бы как пропажа. */}
+              <p style={{ fontSize: "11.5px", lineHeight: 1.5, color: "var(--color-text-secondary)", marginTop: "2px" }}>
+                {purgeAt && `${t("Переписка будет удалена", "Yozishmalar o'chiriladi")} ${purgeAt.toLocaleDateString(lang === "uz" ? "uz" : "ru", { day: "numeric", month: "long" })}. `}
+                {t("Напишите ещё раз — разговор продолжится, и удаления не будет.", "Yana yozing — suhbat davom etadi va o'chirilmaydi.")}
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* ── Ввод ───────────────────────────────────────────────────────── */}
         <div style={{ padding: "14px", display: "flex", flexDirection: "column", gap: "8px", background: "var(--color-surface)" }}>
