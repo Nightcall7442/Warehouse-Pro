@@ -1202,8 +1202,23 @@ if (env.isProduction) {
      * же, где данные, которые защищает. Redis необязателен и может быть общим
      * для нескольких сред.
      */
+    const { catchUpMigrations } = await import("./lib/migration-catchup");
+
     await withMigrationLock(db.$client as never, async () => {
       await migrate(db, { migrationsFolder: "./db/migrations" });
+      /*
+        Догон — под тем же замком и сразу за штатным мигратором.
+
+        Штатный сверяет журнал с ОДНОЙ строкой — самой поздней по created_at, —
+        и запись с меткой из будущего навсегда глушит всё, что после неё. Он при
+        этом рапортует об успехе. Так пропали 0007, 0008 и 0009: страница зарплат
+        отвечала «Внутренняя ошибка сервера», в логе стояло «Unknown column
+        delivery_rate», а строкой выше — «database migrations up to date».
+
+        Проверка ниже (reportSkippedMigrations) знала об этом и раньше, но умела
+        только назвать пропущенных. Теперь их применяют.
+      */
+      await catchUpMigrations(db as never);
     });
 
     logger.info("database migrations up to date");
