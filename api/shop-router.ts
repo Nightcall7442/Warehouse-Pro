@@ -424,7 +424,11 @@ export const shopRouter = createRouter({
       dateTo: z.string().optional(),
       agentId: z.number().optional(),
       territoryId: z.number().optional(),
-      limit: z.number().min(1).max(20000).default(5000),
+      shopId: z.number().optional(),
+      search: z.string().max(120).optional(),
+      kind: z.enum(["order", "payment", "debt", "return"]).optional(),
+      page: z.number().min(1).default(1),
+      pageSize: z.number().min(1).max(500).default(50),
     }))
     .query(async ({ input, ctx }) => {
       const parse = (v?: string) => {
@@ -437,7 +441,11 @@ export const shopRouter = createRouter({
         to: parse(input.dateTo),
         agentId: input.agentId,
         territoryId: input.territoryId,
-        limit: input.limit,
+        shopId: input.shopId,
+        search: input.search,
+        kind: input.kind,
+        page: input.page,
+        pageSize: input.pageSize,
       });
     }),
 

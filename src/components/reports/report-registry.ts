@@ -214,7 +214,9 @@ export const REPORTS: ReportDef[] = [
     needsPeriod: true,
     filters: ["agent", "territory"],
     useQuery: (p, opts) => trpc.shop.debtJournal.useQuery(
-      { dateFrom: p.from, dateTo: p.to, agentId: p.agentId, territoryId: p.territoryId, limit: EXPORT_LIMIT },
+      // Одна большая страница: файл со «страницы 1 из 40» ответом на вопрос
+      // «за всё время» не является.
+      { dateFrom: p.from, dateTo: p.to, agentId: p.agentId, territoryId: p.territoryId, page: 1, pageSize: 500 },
       { enabled: opts.enabled },
     ),
     /*

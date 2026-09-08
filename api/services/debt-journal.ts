@@ -1,36 +1,42 @@
-import { and, eq, gte, lte, desc, inArray } from "drizzle-orm";
-import { shops, orders, payments, returns, users } from "@db/schema";
-import type { AnyMySqlColumn } from "drizzle-orm/mysql-core";
+import { sql, type SQL } from "drizzle-orm";
 import { getDb } from "../queries/connection";
-import { orderIsOwed, obligationDate, type StatementKind } from "./shop-statement";
+import { rowsOf, firstRow } from "../lib/db-rows";
+import { orderIsOwed, type StatementKind } from "./shop-statement";
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   Журнал задолженности: кто когда взял в долг и кто когда заплатил.
+   Полный архив задолженности: кто когда взял в долг и кто когда погасил.
 
    ── Чего не было ────────────────────────────────────────────────────────────
 
-   Про ОДИН магазин ответ появился — акт сверки в его карточке. Про все сразу
-   ответа не было ни одного. «Долги магазинов» показывают остаток на сейчас,
-   «Дебиторка» — его же по возрастам; оба отвечают на вопрос «сколько должны»,
-   и ни один — на вопрос «когда это случилось».
+   Про ОДИН магазин ответ есть — акт сверки в его карточке. Про все сразу и за
+   всё время не было ничего. «Долги магазинов» и «Дебиторка» показывают остаток
+   на сейчас; ни один отчёт не говорил, КОГДА это случилось.
 
-   А спрашивают чаще второе: почему за месяц долг вырос на сорок миллионов, у
-   какого агента точки уходят в долг чаще других, когда точка платила в последний
-   раз. Чтобы это увидеть, приходилось открывать карточки по одной.
+   Первая попытка отвечала на этот вопрос наполовину: четыре отдельных запроса,
+   сведение и сортировка в памяти, предел строк и признак «показано не всё».
+   Для месяца сойдёт, для архива — нет. Нужен ряд, по которому можно листать
+   сколько угодно вглубь: кто когда взял долг и когда оплатил, даже годы спустя.
+   Обрезанный список на такой вопрос отвечать не может в принципе — он отвечает
+   «а дальше не знаю».
+
+   ── Отсюда UNION и страницы ─────────────────────────────────────────────────
+
+   Четыре источника сводятся ОДНИМ запросом, и сведение, сортировку и отбор
+   страницы делает база. Это единственный способ листать вглубь честно: при
+   сведении в памяти вторая страница требовала бы вычитать всё, что было до
+   неё, а предел на каждый источник по отдельности врал бы тем сильнее, чем
+   дальше человек листает.
+
+   Итоги считаются по ВСЕМУ набору под фильтрами, а не по видимой странице:
+   «взяли столько, погасили столько» — ответ про период, а не про пятьдесят
+   строк, попавших на экран.
 
    ── Правила отбора здесь не свои ────────────────────────────────────────────
 
-   Что считать движением, знает services/shop-statement.ts, и знает в одном
-   экземпляре: orderIsOwed и obligationDate берутся оттуда. Своя копия условий
-   означала бы две почти одинаковые формулы одного и того же — в этом коде так
-   уже расходились расчёт долга и его объяснение.
-
-   ── Почему без остатка ──────────────────────────────────────────────────────
-
-   Столбца «остаток» здесь нет намеренно. Журнал ограничен периодом и пределом
-   строк, и нарастающий итог по обрезанному набору — число, верное только
-   иногда. Остаток отвечает за карточку магазина, где виден весь ряд движений
-   целиком.
+   Что считать движением, знает services/shop-statement.ts: orderIsOwed берётся
+   оттуда и подставляется в запрос как есть. Своя копия условий означала бы две
+   почти одинаковые формулы одного и того же — в этом коде так уже расходились
+   расчёт долга и его объяснение.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 export interface DebtJournalRow {
@@ -40,169 +46,192 @@ export interface DebtJournalRow {
   city: string | null;
   agentName: string | null;
   kind: StatementKind;
-  /** Номер заказа или возврата; у ручной записи его нет. */
+  /** Номер документа: заказа или возврата. У ручной записи его нет. */
   doc: string | null;
+  /** Заказ, на который можно перейти. У ручной записи пуст. */
+  orderId: number | null;
   note: string | null;
   /** Плюс — долг вырос, минус — погашен. */
   amount: number;
 }
 
-export interface DebtJournalOptions {
+export interface DebtJournalQuery {
   from?: Date;
   to?: Date;
   agentId?: number;
   territoryId?: number;
-  /** Предел строк: журнал за год у крупной сети — это десятки тысяч движений. */
-  limit?: number;
+  shopId?: number;
+  /** Поиск по названию точки. */
+  search?: string;
+  kind?: StatementKind;
+  page?: number;
+  pageSize?: number;
 }
 
-const money = (v: unknown) => Number(v ?? 0);
+export interface DebtJournalPage {
+  rows: DebtJournalRow[];
+  /** Сколько движений всего под этими фильтрами — не на странице. */
+  total: number;
+  page: number;
+  pageSize: number;
+  /** Итоги по всему набору под фильтрами. */
+  totals: { taken: number; paid: number };
+}
 
-export async function debtJournal(
-  tenantId: number,
-  opts: DebtJournalOptions = {},
-): Promise<{ rows: DebtJournalRow[]; truncated: boolean; totals: { taken: number; paid: number } }> {
-  const db = getDb();
-  const limit = opts.limit ?? 5000;
+/**
+ * Четыре источника движения долга одним набором строк.
+ *
+ * Имена столбцов задаёт первая ветвь — так устроен UNION в MySQL. NULL-ы
+ * приводятся явно: без приведения тип столбца в объединении выводится по
+ * первой ветви, и текстовое поле, начавшееся с NULL, обрезало бы остальные.
+ */
+function movementsUnion(tenantId: number): SQL {
+  return sql`
+    SELECT
+      orders.shop_id AS shop_id,
+      CASE
+        WHEN orders.payment_method = 'debt' THEN orders.created_at
+        ELSE COALESCE(orders.delivered_at, orders.created_at)
+      END AS moved_at,
+      'order' AS kind,
+      orders.order_number AS doc,
+      CAST(NULL AS CHAR(1)) AS note,
+      CAST(orders.total AS DECIMAL(15,2)) AS amount,
+      orders.id AS order_id
+    FROM orders
+    WHERE orders.tenant_id = ${tenantId} AND ${orderIsOwed()}
 
-  /** Условия по самой точке — общие для всех четырёх источников. */
-  const shopScope = [eq(shops.tenantId, tenantId)];
-  if (opts.agentId)     shopScope.push(eq(shops.agentId, opts.agentId));
-  if (opts.territoryId) shopScope.push(eq(shops.territoryId, opts.territoryId));
+    UNION ALL
 
-  const shopCols = {
-    shopId: shops.id, shopName: shops.name, city: shops.city, agentName: users.name,
-  };
+    SELECT
+      payments.shop_id, payments.created_at, 'payment', CAST(NULL AS CHAR(1)),
+      payments.notes, -CAST(payments.amount AS DECIMAL(15,2)), payments.order_id
+    FROM payments
+    WHERE payments.tenant_id = ${tenantId} AND payments.type = 'payment'
+      AND (payments.order_id IS NULL OR EXISTS (
+        SELECT 1 FROM orders WHERE orders.id = payments.order_id AND orders.deleted_at IS NULL
+      ))
 
-  /*
-    Отбор по дате идёт в базе, а не в памяти.
+    UNION ALL
 
-    У заказа дата обязательства — это created_at у долгового и delivered_at у
-    обычного, поэтому одним условием их не отобрать: берём период по обеим
-    датам с запасом и отбрасываем лишнее уже после вычисления. У остальных
-    трёх источников дата одна, и условие точное.
-  */
-  const inPeriod = (col: AnyMySqlColumn) => {
-    const c = [];
-    if (opts.from) c.push(gte(col, opts.from));
-    if (opts.to)   c.push(lte(col, opts.to));
-    return c;
-  };
+    SELECT
+      payments.shop_id, payments.created_at, 'debt', CAST(NULL AS CHAR(1)),
+      payments.notes, CAST(payments.amount AS DECIMAL(15,2)), payments.order_id
+    FROM payments
+    WHERE payments.tenant_id = ${tenantId} AND payments.type = 'debt' AND payments.order_id IS NULL
 
-  const orderRows = await db.select({
-    ...shopCols,
-    createdAt: orders.createdAt,
-    deliveredAt: orders.deliveredAt,
-    paymentMethod: orders.paymentMethod,
-    doc: orders.orderNumber,
-    total: orders.total,
-  })
-    .from(orders)
-    .innerJoin(shops, and(eq(orders.shopId, shops.id), ...shopScope))
-    .leftJoin(users, eq(shops.agentId, users.id))
-    .where(and(eq(orders.tenantId, tenantId), orderIsOwed()))
-    .orderBy(desc(orders.createdAt))
-    .limit(limit * 2);
+    UNION ALL
 
-  const paymentRows = await db.select({
-    ...shopCols,
-    createdAt: payments.createdAt,
-    type: payments.type,
-    amount: payments.amount,
-    note: payments.notes,
-    orderId: payments.orderId,
-    orderDeletedAt: orders.deletedAt,
-  })
-    .from(payments)
-    .innerJoin(shops, and(eq(payments.shopId, shops.id), ...shopScope))
-    .leftJoin(users, eq(shops.agentId, users.id))
-    // Заказ подтягивается ради одного признака: удалён он или нет.
-    .leftJoin(orders, eq(payments.orderId, orders.id))
-    .where(and(eq(payments.tenantId, tenantId), ...inPeriod(payments.createdAt)))
-    .orderBy(desc(payments.createdAt))
-    .limit(limit);
+    SELECT
+      returns.shop_id, returns.created_at, 'return', returns.return_number,
+      returns.notes, -CAST(returns.total_amount AS DECIMAL(15,2)), returns.order_id
+    FROM returns
+    WHERE returns.tenant_id = ${tenantId} AND returns.status = 'completed'
+      AND (returns.order_id IS NULL OR EXISTS (
+        SELECT 1 FROM orders WHERE orders.id = returns.order_id AND ${orderIsOwed()}
+      ))
+  `;
+}
 
-  const returnRows = await db.select({
-    ...shopCols,
-    createdAt: returns.createdAt,
-    doc: returns.returnNumber,
-    amount: returns.totalAmount,
-    note: returns.notes,
-    orderId: returns.orderId,
-  })
-    .from(returns)
-    .innerJoin(shops, and(eq(returns.shopId, shops.id), ...shopScope))
-    .leftJoin(users, eq(shops.agentId, users.id))
-    .where(and(eq(returns.tenantId, tenantId), eq(returns.status, "completed"), ...inPeriod(returns.createdAt)))
-    .orderBy(desc(returns.createdAt))
-    .limit(limit);
+/*
+  Три условия внутри объединения повторяют правила, разобранные в
+  services/shop-debt.ts, и стоят там же по тем же причинам:
 
-  // Возврат вычитается, только если его заказ ещё должен либо заказа нет.
-  const owedIds = new Set<number>();
-  const returnOrderIds = returnRows.map(r => r.orderId).filter((v): v is number => v !== null);
-  if (returnOrderIds.length > 0) {
-    const owed = await db.select({ id: orders.id })
-      .from(orders)
-      .where(and(eq(orders.tenantId, tenantId), inArray(orders.id, returnOrderIds), orderIsOwed()));
-    for (const o of owed) owedIds.add(o.id);
+  · платёж по УДАЛЁННОМУ заказу не считается — удаление это «заказа не было»,
+    а с ним не было и оплаты; засчитать её значило бы выдать придуманный кредит;
+  · ручное начисление считается только БЕЗ заказа — с заказом обязательство
+    уже учтено самим заказом, иначе оно удваивается;
+  · возврат по заказу, который и так ничего не должен, не вычитается — заказ
+    уже даёт ноль, и списание сверх него уносит те же деньги дважды.
+*/
+
+/** Условия по точке и по периоду — одни и те же у страницы и у итогов. */
+function filters(q: DebtJournalQuery): SQL[] {
+  const c: SQL[] = [];
+  if (q.from)        c.push(sql`m.moved_at >= ${q.from}`);
+  if (q.to)          c.push(sql`m.moved_at <= ${q.to}`);
+  if (q.agentId)     c.push(sql`s.agent_id = ${q.agentId}`);
+  if (q.territoryId) c.push(sql`s.territory_id = ${q.territoryId}`);
+  if (q.shopId)      c.push(sql`s.id = ${q.shopId}`);
+  if (q.kind)        c.push(sql`m.kind = ${q.kind}`);
+  if (q.search?.trim()) {
+    // Экранируются служебные знаки самого LIKE: без этого «%», набранный
+    // человеком, превращает поиск в «показать всё».
+    const like = `%${q.search.trim().replace(/[\\%_]/g, ch => "\\" + ch)}%`;
+    c.push(sql`s.name LIKE ${like}`);
   }
+  return c;
+}
 
-  const base = (r: { shopId: number; shopName: string; city: string | null; agentName: string | null }) => ({
-    shopId: r.shopId, shopName: r.shopName, city: r.city, agentName: r.agentName,
-  });
+const MAX_PAGE_SIZE = 500;
 
-  const rows: DebtJournalRow[] = [
-    ...orderRows.map(o => ({
-      ...base(o),
-      date: obligationDate(o as { paymentMethod: string; createdAt: Date; deliveredAt: Date | null }),
-      kind: "order" as const,
-      doc: o.doc,
-      note: null,
-      amount: money(o.total),
-    })),
-    ...paymentRows
-      // Платёж по удалённому заказу не считается: удаление значит «заказа не
-      // было», а с ним не было и оплаты. Так же поступает recalcShopDebt.
-      .filter(p => p.orderId === null || p.orderDeletedAt === null)
-      // Ручное начисление — только без привязки к заказу: с заказом
-      // обязательство уже учтено самим заказом.
-      .filter(p => p.type === "payment" || p.orderId === null)
-      .map(p => ({
-        ...base(p),
-        date: p.createdAt as Date,
-        kind: (p.type === "payment" ? "payment" : "debt") as StatementKind,
-        doc: null,
-        note: p.note,
-        amount: p.type === "payment" ? -money(p.amount) : money(p.amount),
-      })),
-    ...returnRows
-      .filter(r => r.orderId === null || owedIds.has(r.orderId))
-      .map(r => ({
-        ...base(r),
-        date: r.createdAt as Date,
-        kind: "return" as const,
-        doc: r.doc,
-        note: r.note,
-        amount: -money(r.amount),
-      })),
-  ]
-    // Дата обязательства у заказов вычислена уже здесь, поэтому период
-    // применяется к готовому ряду — иначе долговой и обычный заказ отбирались
-    // бы по разным столбцам.
-    .filter(r => (!opts.from || r.date >= opts.from) && (!opts.to || r.date <= opts.to))
-    .sort((a, b) => b.date.getTime() - a.date.getTime());
+export async function debtJournal(tenantId: number, q: DebtJournalQuery = {}): Promise<DebtJournalPage> {
+  const db = getDb();
+  const page = Math.max(1, q.page ?? 1);
+  const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, q.pageSize ?? 50));
+  const offset = (page - 1) * pageSize;
 
-  const totals = rows.reduce(
-    (acc, r) => (r.amount >= 0 ? { ...acc, taken: acc.taken + r.amount } : { ...acc, paid: acc.paid - r.amount }),
-    { taken: 0, paid: 0 },
-  );
+  const where = filters(q);
+  const whereSql = where.length ? sql` AND ${sql.join(where, sql` AND `)}` : sql``;
+
+  const source = sql`
+    FROM (${movementsUnion(tenantId)}) m
+    JOIN shops s ON s.id = m.shop_id AND s.tenant_id = ${tenantId}
+    LEFT JOIN users u ON u.id = s.agent_id
+    WHERE 1 = 1${whereSql}
+  `;
+
+  const [pageResult, totalsResult] = await Promise.all([
+    db.execute(sql`
+      SELECT m.moved_at, m.kind, m.doc, m.note, m.amount, m.order_id,
+             s.id AS shop_id, s.name AS shop_name, s.city, u.name AS agent_name
+      ${source}
+      ORDER BY m.moved_at DESC, m.kind ASC
+      LIMIT ${pageSize} OFFSET ${offset}
+    `),
+    /*
+      Итоги и счётчик — по всему набору, а не по странице.
+
+      «Взяли столько, погасили столько» отвечает про период; посчитанное по
+      пятидесяти видимым строкам это число означало бы совсем другое, а
+      выглядело бы точно так же.
+    */
+    db.execute(sql`
+      SELECT COUNT(*) AS n,
+             COALESCE(SUM(CASE WHEN m.amount > 0 THEN m.amount ELSE 0 END), 0) AS taken,
+             COALESCE(SUM(CASE WHEN m.amount < 0 THEN -m.amount ELSE 0 END), 0) AS paid
+      ${source}
+    `),
+  ]);
+
+  const totals = firstRow<{ n: number; taken: string; paid: string }>(totalsResult);
 
   return {
-    rows: rows.slice(0, limit),
-    // Обрезанный журнал должен об этом сказать: молча укоротить список значит
-    // соврать про период.
-    truncated: rows.length > limit,
-    totals,
+    rows: rowsOf<Record<string, unknown>>(pageResult).map(toRow),
+    total: Number(totals?.n ?? 0),
+    page,
+    pageSize,
+    totals: { taken: Number(totals?.taken ?? 0), paid: Number(totals?.paid ?? 0) },
   };
 }
 
+/**
+ * Строка базы в строку журнала.
+ *
+ * Вынесено отдельно и без обращений к базе: именно здесь легко потерять знак
+ * суммы или подставить не тот столбец, и проверять это надо без живой базы.
+ */
+export function toRow(r: Record<string, unknown>): DebtJournalRow {
+  return {
+    date: new Date(r.moved_at as string),
+    shopId: Number(r.shop_id ?? 0),
+    shopName: String(r.shop_name ?? ""),
+    city: (r.city as string | null) ?? null,
+    agentName: (r.agent_name as string | null) ?? null,
+    kind: String(r.kind) as StatementKind,
+    doc: (r.doc as string | null) ?? null,
+    orderId: r.order_id == null ? null : Number(r.order_id),
+    note: (r.note as string | null) ?? null,
+    amount: Number(r.amount ?? 0),
+  };
+}
