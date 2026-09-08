@@ -9,6 +9,8 @@ const fullSchema = { ...schema, ...relations };
 type DrizzleInstance = ReturnType<typeof drizzle<typeof fullSchema>>;
 
 let instance: DrizzleInstance | null = null;
+/** Сам пул — чтобы можно было спросить, насколько он занят. */
+let poolRef: mysql.Pool | null = null;
 
 /**
  * Parse DATABASE_URL and determine if SSL is needed.
@@ -70,6 +72,8 @@ export function getDb(): DrizzleInstance {
     // NOTE: drizzle-orm's generic inference doesn't fully resolve when `schema`
     // and `relations` are merged into one object (known upstream limitation).
     // The runtime shape is correct; only the inferred type needs a nudge here.
+    poolRef = pool;
+
     instance = drizzle(pool, {
       schema: fullSchema,
       mode: "default",
@@ -84,4 +88,56 @@ export function getDb(): DrizzleInstance {
  */
 export function resetDb(): void {
   instance = null;
+  poolRef = null;
+}
+
+export interface PoolStats {
+  /** Сколько соединений открыто. */
+  open: number;
+  /** Сколько из них свободны прямо сейчас. */
+  free: number;
+  /** Сколько занято. */
+  busy: number;
+  /** Потолок из DB_CONNECTION_LIMIT. */
+  limit: number;
+  /** Сколько запросов стоит в очереди за соединением. */
+  waiting: number;
+}
+
+/**
+ * Насколько занят НАШ пул соединений.
+ *
+ * Страница мониторинга показывала «Threads_connected» из SHOW STATUS — это
+ * потоки всей базы, включая чужие подключения и служебные. По ним нельзя
+ * сказать главного: не упёрлись ли МЫ в свой потолок. А упереться — значит
+ * встать в очередь: запросы начинают ждать соединения, и время ответа растёт
+ * при полностью здоровой базе.
+ *
+ * Числа берутся из внутренностей mysql2: своего открытого способа спросить об
+ * этом у пула нет. Поэтому каждое поле читается защищённо и по отдельности —
+ * смена версии драйвера должна означать «не знаем», а не падение страницы
+ * мониторинга. Ноль соединений при непустом счётчике запросов и означал бы
+ * «не знаем»: пул создаётся лениво, до первого запроса он пуст по-настоящему.
+ */
+export function poolStats(): PoolStats | null {
+  if (!poolRef) return null;
+  const raw = (poolRef as unknown as { pool?: Record<string, { length?: number } | undefined> }).pool;
+  if (!raw) return null;
+
+  const size = (key: string) => {
+    const v = raw[key];
+    return typeof v?.length === "number" ? v.length : null;
+  };
+  const open = size("_allConnections");
+  const free = size("_freeConnections");
+  const waiting = size("_connectionQueue");
+  if (open === null || free === null) return null;
+
+  return {
+    open,
+    free,
+    busy: Math.max(0, open - free),
+    limit: env.dbConnectionLimit,
+    waiting: waiting ?? 0,
+  };
 }

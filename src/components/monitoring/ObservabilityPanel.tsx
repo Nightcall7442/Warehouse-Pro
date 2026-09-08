@@ -1,4 +1,4 @@
-import { ExternalLink, ShieldAlert, Activity, Boxes } from "lucide-react";
+import { ExternalLink, ShieldAlert, Activity, Boxes, GaugeCircle } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { COLORS, F } from "./theme";
 import { Section } from "./Section";
@@ -78,6 +78,60 @@ export function ObservabilityPanel() {
                 )}
               </div>
             ))}
+          </div>
+        )}
+      </Section>
+
+      {/* ── Насыщение ───────────────────────────────────────────────────────
+          Четвёртый сигнал здоровья, которого на странице не было. Трафик,
+          время и ошибки говорят, что происходит СЕЙЧАС; насыщение — сколько
+          осталось до того, как станет плохо. Упёршийся в потолок пул виден в
+          остальных трёх только последствием, и причину ищут не там. */}
+      <Section title="Насыщение: сколько осталось запаса" icon={GaugeCircle} delay={0.08}>
+        {(data?.saturation ?? []).length === 0 ? (
+          <p style={{ color: COLORS.textTertiary, fontSize: "13px", margin: 0 }}>Загрузка…</p>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "12px" }}>
+            {(data?.saturation ?? []).map(s => {
+              const color = s.level === "hot" ? "var(--color-danger-text)"
+                : s.level === "warn" ? "var(--color-warning-text)"
+                : "var(--kpi-green)";
+              return (
+                <div key={s.key} title={s.hint} style={{
+                  padding: "14px 16px", borderRadius: "12px",
+                  background: COLORS.surfaceLight, border: `1px solid ${COLORS.border}`,
+                }}>
+                  <p style={{ fontSize: "11px", color: COLORS.textTertiary, margin: 0, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                    {s.title}
+                  </p>
+                  <p style={{ margin: "6px 0 0", fontSize: "20px", fontWeight: 700, color, fontVariantNumeric: "tabular-nums" }}>
+                    {s.value}{s.suffix && ` ${s.suffix}`}
+                    {s.limit !== null && (
+                      <span style={{ fontSize: "13px", fontWeight: 500, color: COLORS.textTertiary }}>
+                        {" "}из {s.limit}{s.suffix && ` ${s.suffix}`}
+                      </span>
+                    )}
+                  </p>
+                  {/* Полоса рисуется только там, где потолок известен. Рисовать
+                      её без потолка значило бы выдумать шкалу. */}
+                  {s.ratio !== null && (
+                    <span aria-hidden style={{
+                      display: "block", marginTop: "10px", height: "4px", borderRadius: "2px",
+                      background: COLORS.border,
+                    }}>
+                      <span style={{
+                        display: "block", height: "100%", borderRadius: "2px",
+                        width: `${Math.max(2, Math.min(100, s.ratio * 100))}%`,
+                        background: color,
+                      }} />
+                    </span>
+                  )}
+                  <p style={{ fontSize: "11px", color: COLORS.textTertiary, margin: "8px 0 0", lineHeight: 1.45 }}>
+                    {s.hint}
+                  </p>
+                </div>
+              );
+            })}
           </div>
         )}
       </Section>

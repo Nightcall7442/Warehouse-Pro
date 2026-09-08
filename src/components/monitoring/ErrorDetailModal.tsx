@@ -1,7 +1,8 @@
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
-import { AlertCircle, XCircle } from "lucide-react";
+import { AlertCircle, XCircle, ExternalLink } from "lucide-react";
 import { trpc } from "@/providers/trpc";
+import { lokiExploreUrl } from "@/lib/grafana-link";
 import { COLORS, F, statusColor, timeAgo } from "./theme";
 import { CopyButton } from "./CopyButton";
 
@@ -12,6 +13,14 @@ interface ErrorDetailModalProps {
 
 export function ErrorDetailModal({ errorId, onClose }: ErrorDetailModalProps) {
   const { data: error, isLoading } = trpc.system.errorDetail.useQuery({ id: errorId });
+  /*
+    Адрес Grafana и имя источника данных приходят с сервера: в разных
+    установках они разные, а зашитые в код однажды приведут в пустой Explore.
+    Нет адреса — нет и ссылки, вместо неведущей кнопки.
+  */
+  const { data: obs } = trpc.system.observability.useQuery();
+  const grafanaUrl = obs?.grafana.url ?? "";
+  const lokiDatasource = obs?.grafana.lokiDatasource ?? "loki";
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -67,6 +76,30 @@ export function ErrorDetailModal({ errorId, onClose }: ErrorDetailModalProps) {
                   <span style={{ fontFamily: F.display, fontSize: "14px", fontWeight: 600, color: COLORS.textPrimary }}>{error.code}</span>
                 </div>
                 <p style={{ fontSize: "13px", color: COLORS.textSecondary, fontFamily: F.body }}>{error.message}</p>
+
+                {/*
+                  Отсюда — сразу в журнал этого самого запроса.
+
+                  Раньше путь был такой: переписать correlation id глазами,
+                  открыть Grafana, выбрать источник Loki, набрать запрос,
+                  выставить период. Пять шагов между «вижу ошибку» и «вижу, что
+                  было вокруг неё» — достаточно, чтобы этого не делал никто.
+                */}
+                {grafanaUrl && error.correlationId && (
+                  <a
+                    href={lokiExploreUrl({ grafanaUrl, datasource: lokiDatasource, needle: error.correlationId })}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: "6px", marginTop: "12px",
+                      padding: "7px 12px", borderRadius: "8px", fontSize: "12px", fontWeight: 600,
+                      textDecoration: "none", color: COLORS.textPrimary,
+                      background: COLORS.surface, border: `1px solid ${COLORS.border}`,
+                    }}
+                  >
+                    <ExternalLink size={12} /> Журнал этого запроса в Grafana
+                  </a>
+                )}
               </div>
 
               <div style={{ borderRadius: "12px", border: `1px solid ${COLORS.border}`, overflow: "hidden" }}>

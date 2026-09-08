@@ -10,6 +10,7 @@ import { getReqStats, getAllSeries, recordRequestPoint } from "./lib/timeseries"
 import { getErrors, getErrorById, getErrorStats, getGroupedErrors, getErrorTrend, purgeOldErrors } from "./lib/error-log";
 import { orders, products, shops, users } from "@db/schema";
 import { observabilityServices, firingAlerts, endpointStats } from "./services/observability";
+import { saturation } from "./services/saturation";
 import { getStaleAssetHits } from "./lib/deploy-signals";
 
 const APP_VERSION = process.env.APP_VERSION ?? "2.0.0";
@@ -168,15 +169,23 @@ export const systemRouter = createRouter({
     мониторинга не должна ждать ту самую службу, которая как раз и легла.
   */
   observability: superAdminQuery.query(async () => {
-    const [services, alerts, endpoints] = await Promise.all([
+    const [services, alerts, endpoints, limits] = await Promise.all([
       observabilityServices(),
       firingAlerts(),
       endpointStats(),
+      saturation(),
     ]);
     return {
       services,
       alerts,
       endpoints,
+      /*
+        Четвёртый сигнал здоровья. Трафик, время и ошибки говорят, что
+        происходит сейчас; насыщение — сколько осталось до того, как станет
+        плохо. Упёршийся в потолок пул виден в остальных трёх только
+        последствием, и причину ищут не там.
+      */
+      saturation: limits,
       /*
         Вкладки на прежней сборке. Не ошибка, а событие выкладки: после каждой
         люди какое-то время держат открытым старое приложение, оно просит свои
