@@ -17,6 +17,7 @@ import { AgentsTab, type AgentRow } from "@/components/reports/AgentsTab";
 import { AgentProductsTab } from "@/components/reports/AgentProductsTab";
 import { ReportsHub } from "@/components/reports/ReportsHub";
 import { DebtorsPanel } from "@/components/debts/DebtorsPanel";
+import { DebtJournalPanel } from "@/components/debts/DebtJournalPanel";
 
 /**
  * «Отчёты» — рабочее место директора, а не витрина чисел.
@@ -577,9 +578,24 @@ export default function Reports() {
         считать долг двумя способами эта система уже пробовала.
       */}
       {tab === "debts" && (
-        <div className="neo-card" style={{ padding: "24px" }}>
-          <DebtorsPanel t={t} lang={lang} limit={15} />
-        </div>
+        <>
+          <div className="neo-card" style={{ padding: "24px" }}>
+            <DebtorsPanel t={t} lang={lang} limit={15} />
+          </div>
+
+          {/*
+            Второй вопрос про тот же долг: КОГДА это случилось.
+
+            Должники выше отвечают, сколько висит прямо сейчас. Почему за месяц
+            долг вырос на сорок миллионов, у какого агента точки уходят в долг
+            чаще, когда точка платила в последний раз — из остатка не видно, и
+            раньше ответа не было вовсе: журнал существовал только карточкой
+            выгрузки, то есть отдавал файл и не показывал ничего.
+          */}
+          <div className="neo-card" style={{ padding: "24px", marginTop: "16px" }}>
+            <DebtJournalPanel />
+          </div>
+        </>
       )}
     </div>
   );
