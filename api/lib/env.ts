@@ -104,6 +104,12 @@ export const env = {
   // ошибки сервера и браузера лягут в Sentry под разными релизами, и связать
   // одно с другим будет нечем.
   sentryRelease:       optional("SENTRY_RELEASE") || optional("RAILWAY_GIT_COMMIT_SHA"),
+  /*
+    Загружаются ли карты кода. Здесь именно признак, а не сам ключ: значение
+    секретное, а на страницу мониторинга уходит только «да» или «нет».
+    Без карт стек в Sentry остаётся минифицированным — по нему искать нечего.
+  */
+  sentryMapsUploaded:  Boolean(optional("SENTRY_AUTH_TOKEN")),
 
   // Prometheus metrics (/metrics endpoint)
   /*

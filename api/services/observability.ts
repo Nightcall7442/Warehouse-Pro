@@ -28,7 +28,15 @@ import { register } from "../prometheus-metrics";
    есть.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-export type ServiceState = "ok" | "down" | "unknown" | "not_configured";
+/**
+ * Состояние прибора.
+ *
+ * `configured` стоит особняком: так помечена служба, которую мы намеренно не
+ * проверяем, но про свою связь с ней знаем всё. Раньше на её месте стояло
+ * «не проверяем» серым — рядом с пятью зелёными это читалось как поломка,
+ * хотя означало ровно обратное.
+ */
+export type ServiceState = "ok" | "down" | "unknown" | "not_configured" | "configured";
 
 export interface ObservabilityService {
   key: string;
@@ -53,7 +61,21 @@ export interface ObservabilityService {
  * переменная — это «не настроено», а не «сломано», и на экране это разные
  * состояния.
  */
-function describe() {
+interface ServiceDef {
+  key: string;
+  title: string;
+  purpose: string;
+  /** Куда нажать. Пусто — наружу служба не открыта. */
+  url: string | null;
+  /** Куда стучится проверка. Пусто — не проверяем. */
+  internal: string;
+  probePath: string;
+  /** Готовое состояние: для службы, которую мы намеренно не проверяем. */
+  state?: ServiceState;
+  note?: string;
+}
+
+function describe(): ServiceDef[] {
   return [
     {
       key: "grafana",
@@ -106,8 +128,25 @@ function describe() {
       // наружу с каждого открытия страницы — плохая привычка.
       internal: "",
       probePath: "",
+      /*
+        Поэтому вместо доступности показывается то, что действительно стоит
+        знать и что знаем только мы: настроена ли отправка и уходят ли карты
+        кода. Без карт стек в Sentry минифицированный, и по нему искать нечего
+        — а по одному «отвечает» этого было бы не видно никогда.
+      */
+      state: (env.sentryDsn ? "configured" : "not_configured") as ServiceState,
+      note: sentryNote(),
     },
   ];
+}
+
+/** Что мы знаем про свою связь с Sentry. */
+function sentryNote(): string {
+  if (!env.sentryDsn) return "Не задан SENTRY_DSN — падения никуда не уходят";
+  const release = env.sentryRelease ? ` · выпуск ${env.sentryRelease.slice(0, 7)}` : "";
+  return env.sentryMapsUploaded
+    ? `Доступность не проверяем — это чужое облако. Карты кода загружаются${release}`
+    : `Доступность не проверяем — это чужое облако. Карты кода НЕ загружаются: не задан SENTRY_AUTH_TOKEN, стек останется минифицированным${release}`;
 }
 
 /**
@@ -136,9 +175,12 @@ export async function observabilityServices(): Promise<ObservabilityService[]> {
   const defs = describe();
   return Promise.all(defs.map(async d => {
     const target = d.internal ? d.internal.replace(/\/+$/, "") + d.probePath : "";
-    const { state, latencyMs } = target
-      ? await probe(target)
-      : { state: (d.url ? "unknown" : "not_configured") as ServiceState, latencyMs: null };
+    const { state, latencyMs } = d.state
+      // Состояние задано заранее — эту службу мы не проверяем по замыслу.
+      ? { state: d.state, latencyMs: null }
+      : target
+        ? await probe(target)
+        : { state: (d.url ? "unknown" : "not_configured") as ServiceState, latencyMs: null };
     return {
       key: d.key,
       title: d.title,

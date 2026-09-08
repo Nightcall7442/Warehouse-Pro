@@ -22,6 +22,13 @@ const STATE_LABEL: Record<string, { text: string; color: string }> = {
   down:           { text: "не отвечает",  color: "var(--kpi-red)" },
   unknown:        { text: "не проверяем", color: "var(--color-text-tertiary)" },
   not_configured: { text: "не настроено", color: "var(--color-text-tertiary)" },
+  /*
+    Служба, которую мы не проверяем по замыслу, но про свою связь с ней знаем
+    всё. Зелёный здесь не про доступность чужого облака — про то, что наша
+    сторона настроена; что именно настроено, говорит подпись рядом. Серым эта
+    карточка стояла между пятью зелёными и читалась как поломка.
+  */
+  configured:     { text: "настроен",     color: "var(--kpi-green)" },
 };
 
 export function ObservabilityPanel() {
