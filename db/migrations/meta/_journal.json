@@ -36,6 +36,13 @@
       "when": 1788865749191,
       "tag": "0004_shops_archive",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1788884653571,
+      "tag": "0005_support_chat",
+      "breakpoints": true
     }
   ]
 }

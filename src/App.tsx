@@ -55,6 +55,7 @@ const BarcodePage          = lazyWithRecovery(() => import("./pages/Barcode"));
 const OfflineOrders        = lazyWithRecovery(() => import("./pages/OfflineOrders"));
 const Notifications        = lazyWithRecovery(() => import("./pages/Notifications"));
 const Monitoring           = lazyWithRecovery(() => import("./pages/Monitoring"));
+const Support              = lazyWithRecovery(() => import("./pages/Support"));
 const WarehouseReports     = lazyWithRecovery(() => import("./pages/WarehouseReports"));
 const AuditLog             = lazyWithRecovery(() => import("./pages/AuditLog"));
 const MerchandiserVisit    = lazyWithRecovery(() => import("./pages/MerchandiserVisit"));
@@ -219,6 +220,9 @@ export default function App() {
           <Route path="/settings"       element={<Settings />} />
           <Route path="/settings/billing" element={<RoleGuard roles={["ceo"]}><BillingSettings /></RoleGuard>} />
           <Route path="/billing"        element={<RoleGuard roles={["ceo"]}><BillingPage /></RoleGuard>} />
+          {/* Доступ решает тариф, а не роль: сервер отвечает признаком, экран
+              показывает либо разговор, либо что даёт Exclusive. */}
+          <Route path="/support"        element={<Support />} />
           <Route path="/barcode"        element={<RoleGuard roles={["ceo","operator","supervisor","agent","merchandiser"]}><BarcodePage /></RoleGuard>} />
           <Route path="/offline-orders" element={<RoleGuard roles={["ceo","operator","supervisor","agent","merchandiser"]}><OfflineOrders /></RoleGuard>} />
           <Route path="/notifications"  element={<Notifications />} />

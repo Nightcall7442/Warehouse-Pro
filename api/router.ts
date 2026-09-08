@@ -39,6 +39,7 @@ import { kpiRouter } from "./kpi-router";
 import { scheduleRouter } from "./schedule-router";
 import { forecastRouter } from "./forecast-router";
 import { createRouter, publicQuery } from "./middleware";
+import { supportRouter } from "./support-router";
 
 export const appRouter = createRouter({
   ping:         publicQuery.query(() => ({ ok: true, ts: Date.now(), version: "1.0.0" })),
@@ -57,6 +58,7 @@ export const appRouter = createRouter({
   user:         userRouter,
   lead:         leadRouter,
   notification: notificationRouter,
+  support:      supportRouter,
   settings:     settingsRouter,
   billing:      billingRouter,
   stripe:       stripeRouter,

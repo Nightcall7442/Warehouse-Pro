@@ -17,7 +17,7 @@ import {
   LayoutDashboard, Store, Package, ClipboardList, Truck,
   Warehouse, BarChart3, Users, Settings, PlusCircle, MapPin,
   Calendar, LogOut, X, Moon, Sun, WifiOff, Scan, Activity,
-  TrendingUp, CreditCard, ChevronLeft, Bell, Zap, Wallet,
+  TrendingUp, CreditCard, ChevronLeft, Bell, Zap, Wallet, LifeBuoy,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { PremiumSelect } from "@/components/PremiumSelect";
@@ -25,7 +25,7 @@ import { PremiumSelect } from "@/components/PremiumSelect";
 const iconMap: Record<string, LucideIcon> = {
   LayoutDashboard, Store, Package, ClipboardList, Truck,
   Warehouse, BarChart3, Users, Settings, PlusCircle, MapPin,
-  Calendar, WifiOff, Scan, Activity, TrendingUp, CreditCard, Zap, Wallet,
+  Calendar, WifiOff, Scan, Activity, TrendingUp, CreditCard, Zap, Wallet, LifeBuoy,
 };
 
 /*
@@ -101,7 +101,21 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
   const location = useLocation();
   const navigate = useNavigate();
   const role     = user?.role ?? "agent";
-  const items    = NAV_ITEMS[role] ?? [];
+  /*
+    Пункт «Поддержка» добавляется по ТАРИФУ, а не по роли.
+
+    Роль тут ни при чём: чат входит в Exclusive, и решает это сервер — он же
+    отдаёт число непрочитанных ответов. Держать признак в статичной карте
+    NAV_ITEMS было бы нельзя: тариф меняется на ходу, а карта собирается один
+    раз при загрузке модуля.
+  */
+  const { data: support } = trpc.support.unread.useQuery(undefined, { refetchInterval: 60_000 });
+  const items = useMemo(() => {
+    const base = NAV_ITEMS[role] ?? [];
+    return support?.available
+      ? [...base, { labelKey: "nav.support", path: "/support", icon: "LifeBuoy" }]
+      : base;
+  }, [role, support?.available]);
   const showWarehouseSelector = role === "ceo" || role === "operator";
 
   return (
@@ -190,6 +204,14 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
             >
               {Icon && <Icon size={18} strokeWidth={isActive ? 2.5 : 1.5} />}
               <span>{t(item.labelKey)}</span>
+              {/* Непрочитанные ответы поддержки. Значок стоит у самого пункта,
+                  а не в общем колокольчике: ответ на свой вопрос ждут иначе,
+                  чем уведомление о чужом заказе. */}
+              {item.path === "/support" && (support?.count ?? 0) > 0 && (
+                <span className="ml-auto min-w-[18px] h-[18px] rounded-full text-white text-[10px] font-bold flex items-center justify-center px-1" style={{ background: "var(--color-danger-strong)" }}>
+                  {(support?.count ?? 0) > 99 ? "99+" : support?.count}
+                </span>
+              )}
             </button>
           );
         })}

@@ -12,7 +12,18 @@ function SSEListener() {
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const attachListeners = useCallback(function attach(es: EventSource): void {
-    es.addEventListener("notification.new", (e) => {
+    /*
+      Слушается "message", а вид события читается из поля type.
+
+      Раньше здесь стоял addEventListener("notification.new") — и не срабатывал
+      НИ РАЗУ. Сервер пишет в поток только строку `data: {...}`, без строки
+      `event:`, поэтому браузер доставляет всё как обычное сообщение, а
+      подписка по имени ждёт события, которого не бывает. Молча: ни ошибки, ни
+      предупреждения — просто списки заказов и склада не обновлялись сами, и
+      это списывали на «надо обновить страницу». Рабочий приём был рядом, в
+      useNotifications: он слушает "message" и смотрит на type.
+    */
+    es.addEventListener("message", (e) => {
       try {
         const data = JSON.parse(e.data);
         if (data.type === "order.created" || data.type === "order.status_changed") {
@@ -24,6 +35,15 @@ function SSEListener() {
         if (data.type === "arrival.completed") {
           queryClient.invalidateQueries({ queryKey: [["warehouse"]] });
           queryClient.invalidateQueries({ queryKey: [["product"]] });
+        }
+        /*
+          Ответ поддержки. У него своя адресация: событие приходит тому одному
+          человеку, чей это разговор, — рассылать его по организации значило бы
+          показать агенту, что директору что-то ответили.
+        */
+        if (data.type === "support.message") {
+          queryClient.invalidateQueries({ queryKey: [["support", "thread"]] });
+          queryClient.invalidateQueries({ queryKey: [["support", "unread"]] });
         }
       } catch { /* ignore parse errors */ }
     });

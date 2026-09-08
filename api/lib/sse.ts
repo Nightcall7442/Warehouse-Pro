@@ -6,7 +6,13 @@ export type SSEEventType =
   | "agent.location_updated"
   | "stock.low"
   | "notification.new"
-  | "plan.updated";
+  | "plan.updated"
+  /*
+    Ответ поддержки. Адресуется конкретному пользователю (userId обязателен):
+    разговор с платформой у каждого свой, и общее по организации событие
+    показало бы агенту, что директор о чём-то переписывается.
+  */
+  | "support.message";
 
 export type SSEEvent = {
   type: SSEEventType;

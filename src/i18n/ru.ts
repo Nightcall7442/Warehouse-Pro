@@ -1,6 +1,7 @@
 export const ru = {
   // Navigation
   nav: {
+    support:     "Поддержка",
     dashboard:   "Главная",
     kpi:         "KPI",
     shops:       "Магазины",

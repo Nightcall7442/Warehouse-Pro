@@ -1403,3 +1403,47 @@ export const leads = mysqlTable("leads", {
 
 export type Lead       = typeof leads.$inferSelect;
 export type InsertLead = typeof leads.$inferInsert;
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Чат поддержки — только для тарифа Exclusive.
+
+   ── Зачем ───────────────────────────────────────────────────────────────────
+
+   «24/7 поддержка» стоит в списке возможностей тарифа на экране оплаты и до
+   сих пор не была подкреплена ничем: организация платила за прямую линию, а
+   написать могла только на общий адрес почты. Это та же беда, что была с
+   телефоном поддержки, который сохранялся в настройках и не показывался ни на
+   одном экране, — обещание без исполнения.
+
+   ── Почему разговор у каждого свой ──────────────────────────────────────────
+
+   Ключ разговора — пара (организация, пользователь), а не одна организация.
+   Общий на всех тред означал бы, что агент читает переписку директора о
+   деньгах и доступах. Отдельной таблицы тредов при этом нет: пара полей и есть
+   тред, а лишняя таблица потребовала бы держать её в согласии с сообщениями.
+   ═══════════════════════════════════════════════════════════════════════════ */
+export const supportMessages = mysqlTable("support_messages", {
+  id:        serial("id").primaryKey(),
+  tenantId:  bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  /** Чей это разговор. Платформа отвечает именно этому человеку. */
+  userId:    bigint("user_id", { mode: "number", unsigned: true }).notNull().references(() => users.id, { onDelete: "restrict" }),
+  /** Сторона: false — написал пользователь, true — платформа. */
+  fromPlatform: boolean("from_platform").default(false).notNull(),
+  /*
+    Кто именно написал. У ответа платформы это суперадмин, и его может не
+    стать — поэтому связь снимается в null, а не запрещает удаление: переписка
+    обязана пережить увольнение сотрудника поддержки.
+  */
+  authorId:  bigint("author_id", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "set null" }),
+  body:      varchar("body", { length: 4000 }).notNull(),
+  /** Когда сообщение прочла ПРОТИВОПОЛОЖНАЯ сторона. */
+  readAt:    timestamp("read_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  threadIdx: index("idx_support_thread").on(t.tenantId, t.userId, t.createdAt),
+  // Непрочитанное считается с двух сторон, поэтому сторона входит в ключ.
+  unreadIdx: index("idx_support_unread").on(t.userId, t.fromPlatform, t.readAt),
+}));
+
+export type SupportMessage       = typeof supportMessages.$inferSelect;
+export type InsertSupportMessage = typeof supportMessages.$inferInsert;

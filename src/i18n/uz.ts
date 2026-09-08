@@ -1,5 +1,6 @@
 export const uz = {
   nav: {
+    support:     "Qo'llab-quvvatlash",
     dashboard:   "Bosh sahifa",
     kpi:         "KPI",
     shops:       "Do'konlar",
