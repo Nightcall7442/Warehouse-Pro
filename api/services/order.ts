@@ -2426,10 +2426,28 @@ export const OrderService = {
 
     const stillOpen = alreadyListed.filter(r => r.status !== "delivered");
     if (stillOpen.length > 0) {
-      const names = stillOpen.map(r => `${found.get(r.orderId)?.orderNumber ?? r.orderId} — лист ${r.listNumber}`);
+      /*
+        Список листов, а не список заказов.
+
+        Прежнее сообщение перечисляло КАЖДЫЙ заказ со своим листом: при
+        одиннадцати заказах из одного листа выходило одиннадцать раз повторённое
+        «— лист ZL-20260908-JPXE», и главное — какой лист мешает — тонуло в
+        повторе. Мешает лист, а не заказы, и назвать надо его.
+
+        И сказать, ГДЕ его закрыть. Раньше сообщение советовало «закройте
+        прежний лист», а экрана листов не существовало вовсе: ручки были
+        написаны и не вызывались ниоткуда. Совет вёл в никуда.
+      */
+      const byList = new Map<string, number>();
+      for (const r of stillOpen) byList.set(r.listNumber, (byList.get(r.listNumber) ?? 0) + 1);
+      const lists = [...byList.entries()]
+        .map(([number, count]) => `${number} (${count} зак.)`)
+        .join(", ");
+
       throw badRequest(
-        `Эти заказы уже стоят в незакрытом погрузочном листе: ${names.join("; ")}. ` +
-        `Склад собрал бы их дважды. Закройте прежний лист или уберите заказы из выбора.`,
+        `Эти заказы уже стоят в незакрытом погрузочном листе: ${lists}. ` +
+        `Склад собрал бы их дважды. Откройте «Погрузочные листы» на этой странице ` +
+        `и закройте или удалите прежний лист — либо уберите заказы из выбора.`,
       );
     }
 
@@ -2562,6 +2580,50 @@ export const OrderService = {
       .where(and(eq(loadingLists.id, listId), eq(loadingLists.tenantId, tenantId)));
 
     return { success: true };
+  },
+
+  /**
+   * Удалить погрузочный лист, собранный по ошибке.
+   *
+   * ── Зачем ─────────────────────────────────────────────────────────────────
+   *
+   * Пока лист не отгружен, он держит свои заказы: собрать их во второй лист
+   * нельзя, иначе склад соберёт их дважды. Выйти из этого можно было только
+   * доведя лист до «доставлен» — через четыре последовательных перевода, и
+   * каждый из них означал бы, что товар поехал, хотя он никуда не ехал.
+   *
+   * У арендатора это кончилось тем, что одиннадцать заказов оказались заперты
+   * в листе ZL-20260908-JPXE навсегда: система писала «закройте прежний лист»,
+   * а закрыть его было нечем — ни экрана, ни удаления.
+   *
+   * Удаление честнее перевода в «доставлен»: доставки не было, и записывать
+   * её ради разблокировки значит портить историю ради обхода.
+   *
+   * ── Что нельзя удалить ────────────────────────────────────────────────────
+   *
+   * Отгруженный лист. Он больше не держит заказы (см. проверку в
+   * createLoadingList), а как запись о факте — нужен.
+   */
+  async deleteLoadingList(db: Db, tenantId: number, listId: number) {
+    const [list] = await db.select({ id: loadingLists.id, status: loadingLists.status, listNumber: loadingLists.listNumber })
+      .from(loadingLists)
+      .where(and(eq(loadingLists.id, listId), eq(loadingLists.tenantId, tenantId)))
+      .limit(1);
+    if (!list) throw new TRPCError({ code: "NOT_FOUND", message: "Погрузочный лист не найден" });
+
+    if (list.status === "delivered") {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: `Лист ${list.listNumber} уже отгружен — он ничего не держит и остаётся записью о факте.`,
+      });
+    }
+
+    // Связки заказов сначала: без этого строки остались бы сиротами и
+    // продолжили бы держать заказы уже несуществующим листом.
+    await db.delete(loadingListOrders).where(eq(loadingListOrders.listId, listId));
+    await db.delete(loadingLists).where(and(eq(loadingLists.id, listId), eq(loadingLists.tenantId, tenantId)));
+
+    return { success: true, listNumber: list.listNumber };
   },
 
   // ── Partial Payment ────────────────────────────────────────────────────────

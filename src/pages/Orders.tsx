@@ -14,7 +14,7 @@ import {
   ShoppingCart, Clock, CheckCircle2, XCircle, DollarSign,
   Trash2, RotateCcw, Printer,
   CheckSquare, Square, LayoutGrid, Table as TableIcon, Eye, Users,
-  RefreshCw, Truck,
+  RefreshCw, Truck, ClipboardList,
 } from "lucide-react";
 import { format, startOfMonth } from "date-fns";
 import { exportToExcel, formatOrdersForExport } from "@/lib/excel";
@@ -32,6 +32,7 @@ import { OrderFilterChips, type ActiveFilters } from "@/components/orders/OrderF
 import { OrderBulkActions } from "@/components/orders/OrderBulkActions";
 import { InvoicePrintModal } from "@/components/orders/InvoicePrintModal";
 import { LoadingListModal } from "@/components/orders/LoadingListModal";
+import { LoadingListsModal } from "@/components/orders/LoadingListsModal";
 import { OrderSlideOver } from "@/components/orders/OrderSlideOver";
 import { OrderKanbanBoard } from "@/components/orders/OrderKanbanBoard";
 import { OrderAgentGroups } from "@/components/orders/OrderAgentGroups";
@@ -128,6 +129,9 @@ function OperatorOrders() {
   const [slideOverOrderId, setSlideOverOrderId] = useState<number | null>(null);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [showLoadingListModal, setShowLoadingListModal] = useState(false);
+  // Список уже собранных листов: незакрытый держит свои заказы, и закрыть его
+  // до сих пор было нечем — ручки были, экрана не было.
+  const [showLoadingLists, setShowLoadingLists] = useState(false);
   const [showQuickOrder, setShowQuickOrder] = useState(false);
 
   const switchSection = useCallback((next: "active" | "archive") => {
@@ -690,6 +694,13 @@ function OperatorOrders() {
           }}>
             <Printer size={14} /> PDF
           </button>
+          {/* Погрузочные листы. Незакрытый лист держит свои заказы, и до сих
+              пор попасть к нему было НЕОТКУДА: ручки были написаны, экрана не
+              было, и сообщение «закройте прежний лист» вело в никуда. */}
+          <button onClick={() => setShowLoadingLists(true)} className="neo-btn neo-btn-sm">
+            <ClipboardList size={15} />
+            <span>{t("Погрузочные листы", "Yuklash varaqalari")}</span>
+          </button>
           <button onClick={() => setShowQuickOrder(true)} className="neo-btn-primary neo-btn-sm">
             <Plus size={16} />
             <span>{t("Новый заказ", "Yangi buyurtma")}</span>
@@ -1205,6 +1216,8 @@ function OperatorOrders() {
     />
 
     {/* ── Loading List Modal ── */}
+    <LoadingListsModal open={showLoadingLists} onOpenChange={setShowLoadingLists} />
+
     <LoadingListModal
       open={showLoadingListModal}
       onOpenChange={setShowLoadingListModal}

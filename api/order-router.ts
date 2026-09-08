@@ -514,6 +514,19 @@ export const orderRouter = createRouter({
       return OrderService.updateLoadingListStatus(ctx.db, ctx.tenant.id, input.listId, input.status);
     }),
 
+  /**
+   * Удалить лист, собранный по ошибке.
+   *
+   * Пока лист не отгружен, он держит свои заказы. Выйти из этого можно было
+   * только доведя лист до «доставлен» — то есть записав доставку, которой не
+   * было. Удаление честнее.
+   */
+  deleteLoadingList: operatorQuery
+    .input(z.object({ listId: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      return OrderService.deleteLoadingList(ctx.db, ctx.tenant.id, input.listId);
+    }),
+
   // ── Saved Filters ──────────────────────────────────────────────────────────
   saveFilter: fieldSalesQuery
     .input(z.object({

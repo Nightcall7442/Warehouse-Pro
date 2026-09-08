@@ -128,6 +128,21 @@ export const ARRIVAL_STATUS_LABEL: Record<Arrival["status"], Label> = {
   completed: { ru: "Принят",       uz: "Qabul qilindi" },
 };
 
+/**
+ * Состояние погрузочного листа.
+ *
+ * На сервере эти же состояния подписаны только по-русски (api/lib/order-status)
+ * — там они уходят в печать и в сообщения об отказе, где язык всегда русский.
+ * Экран двуязычен, отсюда своя пара.
+ */
+export const LOADING_LIST_STATUS_LABEL: Record<string, Label> = {
+  preparing: { ru: "Готовится",  uz: "Tayyorlanmoqda" },
+  ready:     { ru: "Готов",      uz: "Tayyor" },
+  loading:   { ru: "Загружается", uz: "Yuklanmoqda" },
+  loaded:    { ru: "Загружен",   uz: "Yuklandi" },
+  delivered: { ru: "Отгружен",   uz: "Jo'natildi" },
+};
+
 /** Состояние точки в плане агента. */
 export const PLAN_STATUS_LABEL: Record<DailyPlan["status"], Label> = {
   planned: { ru: "Запланирован", uz: "Rejalashtirilgan" },
