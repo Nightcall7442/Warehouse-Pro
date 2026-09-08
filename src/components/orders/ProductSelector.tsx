@@ -304,7 +304,7 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
             {totalWeightKg > 0 && (
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
                 <span style={{ fontSize: "13px", color: "var(--color-text-secondary)" }}>{t("Вес", "Og'irlik")}</span>
-                <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--color-text-primary)" }}>{formatQty(totalWeightKg)} кг</span>
+                <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--color-text-primary)" }}>{formatQty(totalWeightKg)} {t("кг", "kg")}</span>
               </div>
             )}
             <div style={{ display: "flex", justifyContent: "space-between", paddingTop: "8px", borderTop: "1px solid var(--color-border)" }}>

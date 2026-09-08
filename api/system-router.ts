@@ -177,7 +177,13 @@ export const systemRouter = createRouter({
     ]);
     return {
       services,
-      alerts,
+      alerts: alerts.alerts,
+      /*
+        Пустой список тревог и недоступный AlertManager — разные вещи. Без
+        этого признака экран писал «Ничего не горит» именно тогда, когда
+        спросить было не у кого.
+      */
+      alertsReachable: alerts.reachable,
       endpoints,
       /*
         Четвёртый сигнал здоровья. Трафик, время и ошибки говорят, что

@@ -238,6 +238,7 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
 // ── Mobile header ─────────────────────────────────────────────────────────────
 const MobileHeader = memo(function MobileHeader({ onMenuClick, unreadCount }: { onMenuClick: () => void; unreadCount: number }) {
   const navigate = useNavigate();
+  const { lang }  = useLang();
   const meta     = usePageMeta();
   const { name: appName } = useAppBrand();
   const hasParent = !!meta.parent;
@@ -266,7 +267,7 @@ const MobileHeader = memo(function MobileHeader({ onMenuClick, unreadCount }: { 
           <ChevronLeft size={20} />
         </button>
       ) : (
-        <button onClick={onMenuClick} className="btn-ghost p-2" aria-label="Меню">
+        <button onClick={onMenuClick} className="btn-ghost p-2" aria-label={lang === "uz" ? "Menyu" : "Меню"}>
           <div className="flex flex-col gap-[5px]">
             <span className="block w-[18px] h-[1.5px] rounded" style={{ background: "var(--color-text-primary, #2b2a28)" }} />
             <span className="block w-[18px] h-[1.5px] rounded" style={{ background: "var(--color-text-primary, #2b2a28)" }} />

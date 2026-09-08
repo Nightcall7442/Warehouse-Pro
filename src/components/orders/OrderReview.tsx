@@ -98,7 +98,7 @@ export function OrderReview({
           {totalWeightKg > 0 && (
             <div className="flex justify-between pt-1">
               <span className="text-sm text-secondary">{t("Общий вес", "Umumiy og'irlik")}</span>
-              <span className="font-data text-sm font-semibold text-primary">{formatQty(totalWeightKg)} кг</span>
+              <span className="font-data text-sm font-semibold text-primary">{formatQty(totalWeightKg)} {t("кг", "kg")}</span>
             </div>
           )}
         </div>

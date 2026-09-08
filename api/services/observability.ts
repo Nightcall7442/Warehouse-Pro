@@ -159,33 +159,50 @@ export interface FiringAlert {
   since: string | null;
 }
 
+export interface AlertsResult {
+  /** Удалось ли вообще спросить AlertManager. */
+  reachable: boolean;
+  alerts: FiringAlert[];
+}
+
 /**
  * Что горит прямо сейчас — из того же AlertManager, что пишет в Telegram.
  *
  * Отдельного списка тревог заводить нельзя: два источника правды о том, что
  * сломано, разойдутся, и разойдутся молча. Здесь только чтение.
+ *
+ * ── Почему возвращается не просто список ────────────────────────────────────
+ *
+ * Пустой список и недоступный источник — разные вещи, а выглядели одинаково:
+ * любая неудача запроса давала [], и страница уверенно писала «Ничего не
+ * горит». То есть ровно в тот момент, когда наблюдение сломано, экран
+ * успокаивал сильнее всего. Отсюда отдельный признак: не знаем — так и
+ * говорим.
  */
-export async function firingAlerts(): Promise<FiringAlert[]> {
+export async function firingAlerts(): Promise<AlertsResult> {
   const base = (env.alertmanagerInternalUrl || env.alertmanagerUrl).replace(/\/+$/, "");
-  if (!base) return [];
+  if (!base) return { reachable: false, alerts: [] };
   const control = new AbortController();
   const timer = setTimeout(() => control.abort(), 2000);
   try {
     const res = await fetch(`${base}/api/v2/alerts?active=true&silenced=false&inhibited=false`, { signal: control.signal });
-    if (!res.ok) return [];
+    if (!res.ok) return { reachable: false, alerts: [] };
     const raw = await res.json() as Array<{
       labels?: Record<string, string>;
       annotations?: Record<string, string>;
       startsAt?: string;
     }>;
-    return raw.map(a => ({
-      name: a.labels?.alertname ?? "—",
-      severity: a.labels?.severity ?? "warning",
-      summary: a.annotations?.summary ?? a.annotations?.description ?? "",
-      since: a.startsAt ?? null,
-    }));
+    return {
+      reachable: true,
+      alerts: raw.map(a => ({
+        name: a.labels?.alertname ?? "—",
+        severity: a.labels?.severity ?? "warning",
+        summary: a.annotations?.summary ?? a.annotations?.description ?? "",
+        since: a.startsAt ?? null,
+      })),
+    };
   } catch {
-    return [];
+    return { reachable: false, alerts: [] };
   } finally {
     clearTimeout(timer);
   }

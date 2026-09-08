@@ -286,7 +286,7 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: ArrivalCreate
             <div className="flex items-center justify-between mb-3">
               <p className={sectionLabel} style={{ marginBottom: 0 }}>{t("Товары", "Tovarlar")}</p>
               <div className="flex gap-4">
-                {totalWeight > 0 && <span className="text-xs font-semibold text-secondary">{formatQty(totalWeight)} кг</span>}
+                {totalWeight > 0 && <span className="text-xs font-semibold text-secondary">{formatQty(totalWeight)} {t("кг", "kg")}</span>}
                 {totalCost > 0 && <span className="text-xs font-semibold text-primary font-data">{fmt(totalCost.toFixed(0))}</span>}
               </div>
             </div>

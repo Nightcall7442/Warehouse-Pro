@@ -51,6 +51,12 @@ export function ObservabilityPanel() {
       <Section title="Тревоги" icon={ShieldAlert} delay={0.05}>
         {!data ? (
           <p style={{ color: COLORS.textTertiary, fontSize: "13px" }}>Загрузка…</p>
+        ) : !data.alertsReachable ? (
+          /* «Не знаем» вместо «ничего не горит»: недоступный AlertManager —
+             это поломка наблюдения, и успокаивать ею нельзя. */
+          <p style={{ color: "var(--color-warning-text)", fontSize: "13px", margin: 0 }}>
+            AlertManager не ответил — что горит сейчас, неизвестно. Проверьте карточку службы ниже.
+          </p>
         ) : data.alerts.length === 0 ? (
           <p style={{ color: COLORS.textSecondary, fontSize: "13px", margin: 0 }}>
             Ничего не горит. Список приходит из AlertManager — того же, что пишет в Telegram.

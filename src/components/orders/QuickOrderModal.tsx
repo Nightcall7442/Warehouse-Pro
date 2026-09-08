@@ -431,7 +431,7 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, initial
                   style={{ borderTop: "1px solid var(--color-border, #d8d5cd)" }}
                 >
                   <span className="text-xs text-secondary font-medium">{t("Итого", "Jami")}</span>
-                  <span className="text-base font-bold text-primary font-data">{total.toLocaleString("ru")} сум</span>
+                  <span className="text-base font-bold text-primary font-data">{total.toLocaleString("ru")} {t("сум", "so'm")}</span>
                 </div>
               </div>
             </div>
@@ -524,7 +524,7 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, initial
             style={{ background: colorMix("var(--color-primary)", 10) }}
           >
             <span className="text-sm text-secondary font-medium">{t("Итого к оплате", "Jami to'lovga")}</span>
-            <span className="text-xl font-bold text-primary font-data">{total.toLocaleString("ru")} сум</span>
+            <span className="text-xl font-bold text-primary font-data">{total.toLocaleString("ru")} {t("сум", "so'm")}</span>
           </div>
         </>
       )}
