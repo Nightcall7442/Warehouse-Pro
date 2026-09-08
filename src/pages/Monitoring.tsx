@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import {
   COLORS, F,
+  ObservabilityPanel,
 } from "@/components/monitoring";
 import { KpiCard } from "@/components/monitoring/KpiCard";
 import { Section } from "@/components/monitoring/Section";
@@ -248,6 +249,8 @@ export default function Monitoring() {
 
       {/* Charts */}
       <PerformanceCharts chartData={chartData} />
+
+      <ObservabilityPanel />
 
       {/* Detail Grid */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "16px" }}>

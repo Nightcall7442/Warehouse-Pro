@@ -30,6 +30,7 @@ import { tenants } from "@db/schema";
 import { sql, type SQL } from "drizzle-orm";
 import { logger } from "./lib/logger";
 import { recordRequest } from "./system-router";
+import { noteStaleAssetHit } from "./lib/deploy-signals";
 import { logError } from "./lib/error-log";
 import { safeEqual } from "./lib/safe-compare";
 import { isAppError } from "@contracts/errors";
@@ -217,7 +218,10 @@ if (env.isProduction) {
     c.header("x-correlation-id", corrId);
     await next();
     const ms = Date.now() - start;
-    recordRequest(ms, c.res.status >= 400);
+    // Ошибка — это 5xx. Тем же правилом считают Prometheus (см.
+    // httpRequestErrorsTotal) и тревоги; до этого страница мониторинга
+    // расходилась с ними и показывала 1,8% на исправной системе.
+    recordRequest(ms, c.res.status >= 500);
     logger.info("request", {
       method: c.req.method,
       path: c.req.path,
@@ -751,16 +755,57 @@ app.use("/api/trpc/*", async (c) => {
   return res;
 });
 
-// ── HTTP error logger ────────────────────────────────────────────────────────
+/* ── Что считать ошибкой ─────────────────────────────────────────────────────
+
+   В журнал ошибок писался ЛЮБОЙ ответ от 400 и выше, и он же шёл в долю
+   ошибок на странице мониторинга. От этого журнал состоял из чужих неудач, а
+   не из наших:
+
+     · после каждой выкладки вкладки, оставшиеся на прежней сборке, просят
+       свои куски приложения по старым именам с хэшем — и получают 404
+       десятками подряд. Приложение это умеет чинить само
+       (isStaleChunkError → recoverFromStaleApp), человек ничего не замечает;
+     · 401 приходит на каждое обращение без входа, включая проверки снаружи;
+     · 403 — это отработавшая защита, а не поломка.
+
+   Ни одно из этого не значит «сервер сломан», а вместе они топят те немногие
+   строки, ради которых журнал и открывают. Доля ошибок при этом показывала
+   1,8% на исправной системе — и по такому числу нельзя понять ничего.
+
+   Правило теперь совпадает с тем, по которому уже считают Prometheus и
+   тревоги в AlertManager: ошибка — это 5xx, наша вина. Остальное либо не
+   записывается, либо записывается отдельно и без тревоги.
+   ────────────────────────────────────────────────────────────────────────── */
+
+/** Кусок приложения с хэшем в имени: /assets/Shops-BYCKANnN.js */
+const HASHED_ASSET = /^\/assets\/.+-[A-Za-z0-9_-]{6,}\.(js|css|map)$/;
+
 app.use("*", async (c, next) => {
   await next();
-  if (c.res.status >= 400) {
+  const status = c.res.status;
+  if (status < 400) return;
+
+  /*
+    Вкладка на прежней сборке — не ошибка, а событие выкладки. Считаем их
+    отдельно: число само по себе полезно (видно, что выкладка прошла и люди
+    ещё на старом), а в журнал ошибок ему нельзя.
+  */
+  if (status === 404 && HASHED_ASSET.test(c.req.path)) {
+    noteStaleAssetHit();
+    return;
+  }
+
+  // Отказ входа и отказ прав — не поломка. Их разбирают по журналу обращений,
+  // где они и так есть со всеми подробностями.
+  if (status === 401 || status === 403) return;
+
+  if (status >= 500) {
     logError({
-      message: `HTTP ${c.res.status}`,
-      code: `HTTP_${c.res.status}`,
+      message: `HTTP ${status}`,
+      code: `HTTP_${status}`,
       path: c.req.path,
       method: c.req.method,
-      statusCode: c.res.status,
+      statusCode: status,
       ip: c.req.header("x-forwarded-for")?.split(",")[0]?.trim(),
       correlationId: c.req.header("x-correlation-id"),
     });

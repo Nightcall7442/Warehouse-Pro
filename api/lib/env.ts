@@ -106,6 +106,27 @@ export const env = {
   sentryRelease:       optional("SENTRY_RELEASE") || optional("RAILWAY_GIT_COMMIT_SHA"),
 
   // Prometheus metrics (/metrics endpoint)
+  /*
+    Адреса служебных приборов — для страницы мониторинга.
+
+    Публичный адрес и внутренний разведены намеренно. По публичному человек
+    нажимает из браузера; по внутреннему приложение проверяет, жива ли служба.
+    У Loki публичного нет и не должно быть: своей защиты у него нет вовсе, и с
+    доменом боевые журналы читались из интернета обычным curl.
+
+    Не заданная переменная означает «не настроено» — на экране это отдельное
+    состояние, не «сломано».
+  */
+  grafanaUrl:              optional("GRAFANA_URL"),
+  prometheusUrl:           optional("PROMETHEUS_URL"),
+  prometheusInternalUrl:   optional("PROMETHEUS_INTERNAL_URL"),
+  jaegerUrl:               optional("JAEGER_URL"),
+  alertmanagerUrl:         optional("ALERTMANAGER_URL"),
+  alertmanagerInternalUrl: optional("ALERTMANAGER_INTERNAL_URL"),
+  sentryUrl:               optional("SENTRY_URL"),
+  /** Имя источника данных Loki в Grafana — для ссылок в Explore. */
+  grafanaLokiDatasource:   optional("GRAFANA_LOKI_DATASOURCE", "loki"),
+
   prometheusEnabled:   optional("PROMETHEUS_ENABLED", "true") !== "false",
   prometheusMetricsToken: optional("PROMETHEUS_METRICS_TOKEN"),
 } as const;

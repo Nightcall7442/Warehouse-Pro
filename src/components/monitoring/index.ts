@@ -10,3 +10,4 @@ export { SystemStatusBanner } from "./SystemStatusBanner";
 export { PerformanceCharts } from "./PerformanceCharts";
 export { ErrorLogViewer } from "./ErrorLogViewer";
 export { RealTimeMetrics } from "./RealTimeMetrics";
+export { ObservabilityPanel } from "./ObservabilityPanel";

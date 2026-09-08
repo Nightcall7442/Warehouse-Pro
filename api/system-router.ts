@@ -9,6 +9,8 @@ import { sql, eq } from "drizzle-orm";
 import { getReqStats, getAllSeries, recordRequestPoint } from "./lib/timeseries";
 import { getErrors, getErrorById, getErrorStats, getGroupedErrors, getErrorTrend, purgeOldErrors } from "./lib/error-log";
 import { orders, products, shops, users } from "@db/schema";
+import { observabilityServices, firingAlerts, endpointStats } from "./services/observability";
+import { getStaleAssetHits } from "./lib/deploy-signals";
 
 const APP_VERSION = process.env.APP_VERSION ?? "2.0.0";
 
@@ -157,6 +159,38 @@ export const systemRouter = createRouter({
   }),
 
   /** List errors with filtering */
+  /*
+    Служебные приборы, тревоги и разрез по ручкам — одним запросом.
+
+    Тремя запросами страница просила бы трижды на каждое обновление, а данные
+    эти всегда читают вместе: «что горит», «где болит», «куда идти смотреть».
+    Проверки служб идут параллельно и с коротким тайм-аутом — страница
+    мониторинга не должна ждать ту самую службу, которая как раз и легла.
+  */
+  observability: superAdminQuery.query(async () => {
+    const [services, alerts, endpoints] = await Promise.all([
+      observabilityServices(),
+      firingAlerts(),
+      endpointStats(),
+    ]);
+    return {
+      services,
+      alerts,
+      endpoints,
+      /*
+        Вкладки на прежней сборке. Не ошибка, а событие выкладки: после каждой
+        люди какое-то время держат открытым старое приложение, оно просит свои
+        куски по прежним именам и получает 404. Приложение чинит это само, но
+        знать число полезно — по нему видно, что выкладка прошла.
+      */
+      staleAssetHits: getStaleAssetHits(),
+      grafana: {
+        url: env.grafanaUrl || null,
+        lokiDatasource: env.grafanaLokiDatasource,
+      },
+    };
+  }),
+
   errors: superAdminQuery
     .input(z.object({
       limit: z.number().optional(),
