@@ -870,7 +870,8 @@ export const agentRouter = createRouter({
       address:   z.string().optional(),
       city:      z.string().optional(),
       district:  z.string().optional(),
-      photoUrl:  z.string().max(2_800_000, "Файл слишком большой (макс. 2 МБ)").optional(),
+      photoUrl:  z.string().max(2_800_000, "Файл слишком большой (макс. 2 МБ)")
+        .refine(isSafePhotoValue, PHOTO_VALUE_ERROR).optional(),
       gpsLat:    z.preprocess(v => (v === "" ? undefined : v), z.string().refine(v => { const n = Number(v); return Number.isFinite(n) && n >= -90 && n <= 90; }, "Широта должна быть от -90 до 90").optional()),
       gpsLng:    z.preprocess(v => (v === "" ? undefined : v), z.string().refine(v => { const n = Number(v); return Number.isFinite(n) && n >= -180 && n <= 180; }, "Долгота должна быть от -180 до 180").optional()),
       notes:     z.string().optional(),

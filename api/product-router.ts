@@ -293,7 +293,8 @@ export const productRouter = createRouter({
       unit:         z.enum(["kg", "l", "pcs", "box", "pack", "m", "block"]).default("pcs"),
       unitWeight:   decimalOrDefault("0.000").default("0.000"),
       description:  z.string().optional(),
-      photoUrl:     z.string().max(2_800_000, "Файл слишком большой (макс. 2 МБ)").optional(),
+      photoUrl:     z.string().max(2_800_000, "Файл слишком большой (макс. 2 МБ)")
+        .refine(isSafePhotoValue, PHOTO_VALUE_ERROR).optional(),
       reorderPoint: decimalOrDefault("10.00").default("10.00"),
     }))
     .mutation(async ({ input, ctx }) => {
@@ -372,7 +373,8 @@ export const productRouter = createRouter({
       unit:         z.enum(["kg", "l", "pcs", "box", "pack", "m", "block"]).optional(),
       unitWeight:   decimalOrDefault("0.000").optional(),
       description:  z.string().optional(),
-      photoUrl:     z.string().max(2_800_000, "Файл слишком большой (макс. 2 МБ)").nullable().optional(),
+      photoUrl:     z.string().max(2_800_000, "Файл слишком большой (макс. 2 МБ)")
+        .refine(isSafePhotoValue, PHOTO_VALUE_ERROR).nullable().optional(),
       reorderPoint: decimalOrDefault("10.00").optional(),
       status:       z.enum(["active", "inactive"]).optional(),
     }))

@@ -4,6 +4,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { useTranslate } from "@/i18n";
 import { Package, Search, X, Plus, Minus } from "lucide-react";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
+import { PhotoOrIcon } from "@/components/PhotoOrIcon";
 import { QuickOrderModal } from "@/components/orders";
 import { formatQty } from "@/lib/format";
 import { unitLabel } from "@/components/orders/types";
@@ -63,9 +64,7 @@ function ProductCard({ product, onOpen }: { product: CatalogProduct; onOpen: () 
         display: "flex", alignItems: "center", justifyContent: "center",
         background: "var(--color-surface-light)",
       }}>
-        {product.photoUrl
-          ? <img src={product.photoUrl} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-          : <Package size={28} style={{ color: "var(--color-text-tertiary)" }} />}
+        <PhotoOrIcon src={product.photoUrl} iconSize={28} />
       </div>
 
       <p style={{
@@ -126,9 +125,7 @@ function ProductSheet({ product, onClose, onOrder }: {
           display: "flex", alignItems: "center", justifyContent: "center",
           background: "var(--color-surface-light)", marginBottom: "14px",
         }}>
-          {product.photoUrl
-            ? <img src={product.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-            : <Package size={56} style={{ color: "var(--color-text-tertiary)" }} />}
+          <PhotoOrIcon src={product.photoUrl} iconSize={56} lazy={false} />
         </div>
 
         <h2 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "var(--color-text-primary)" }}>

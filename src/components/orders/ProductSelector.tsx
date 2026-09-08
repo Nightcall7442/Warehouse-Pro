@@ -7,6 +7,7 @@ import { Package, Search, ShoppingCart, Plus, Minus, Trash2, ChevronUp, ChevronD
 import { unitLabel } from "./types";
 import type { OrderItem } from "./types";
 import { formatQty } from "@/lib/format";
+import { PhotoOrIcon } from "@/components/PhotoOrIcon";
 import { useOfflineCopy } from "@/hooks/useOfflineCopy";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../api/router";
@@ -491,16 +492,11 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
                     alignItems: "center", justifyContent: "center", overflow: "hidden",
                     background: inCart ? "var(--color-primary-subtle)" : "var(--color-surface-light)",
                   }}>
-                    {product.photoUrl ? (
-                      <img
-                        src={product.photoUrl as string}
-                        alt=""
-                        loading="lazy"
-                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                      />
-                    ) : (
-                      <Package size={28} style={{ color: inCart ? "var(--color-primary-text)" : "var(--color-text-tertiary)" }} />
-                    )}
+                    <PhotoOrIcon
+                      src={product.photoUrl as string | null}
+                      iconSize={28}
+                      iconColor={inCart ? "var(--color-primary-text)" : "var(--color-text-tertiary)"}
+                    />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{ fontWeight: 500, fontSize: "13px", color: "var(--color-text-primary)", margin: 0, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", minHeight: "34px", lineHeight: "17px" }}>

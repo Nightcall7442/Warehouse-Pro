@@ -8,6 +8,7 @@ import { eq, and, sql } from "drizzle-orm";
 import { cache } from "./lib/cache";
 import { env } from "./lib/env";
 import { recordStockMovement } from "./services/stock-ledger";
+import { isSafePhotoValue } from "./lib/photo-value";
 // Type-only: exceljs itself stays behind the dynamic imports below so it never
 // lands in the boot bundle.
 import type { CellValue } from "exceljs";
@@ -21,13 +22,16 @@ import { firstRow } from "./lib/db-rows";
  */
 type ParsedRow = Record<string, CellValue>;
 
-/** Upload base64 data URI to S3. Returns the S3 URL or empty string if S3 not configured. */
+/**
+ * Кладёт картинку из файла в хранилище и отдаёт адрес.
+ *
+ * Хранилища нет — строка данных остаётся строкой данных и ложится в базу, как
+ * это делает ручная загрузка фото товара (product.uploadPhoto). Прежде здесь
+ * возвращалась пустая строка, и снимок пропадал молча.
+ */
 async function uploadBase64ToS3(dataUrl: string, folder: string, tenantId: number): Promise<string> {
   const isS3 = !!(env.s3Bucket && env.s3AccessKey && env.s3SecretKey);
-  if (!isS3) {
-    // S3 not configured — skip base64 data to avoid DB size limits
-    return "";
-  }
+  if (!isS3) return dataUrl;
 
   const match = dataUrl.match(/^data:image\/(\w+);base64,(.+)$/);
   if (!match) return dataUrl;
@@ -51,6 +55,26 @@ async function uploadBase64ToS3(dataUrl: string, folder: string, tenantId: numbe
     ContentType: `image/${ext === "jpg" ? "jpeg" : ext}`,
   }));
   return `https://${env.s3Bucket}.s3.${env.s3Region || "us-east-1"}.amazonaws.com/${key}`;
+}
+
+/**
+ * Значение колонки «фото», которое браузер сможет показать.
+ *
+ * Раньше ячейка бралась как есть. А стоит в ней обычно не картинка: имя файла
+ * из папки, откуда собирали прайс («IMG_0042.jpg»), или ссылка по http. И то,
+ * и другое доезжало до тега img на экране — имя достраивалось до адреса
+ * текущей страницы и давало 404, http молча блокировала политика безопасности
+ * страницы, — и товар навсегда оставался с не загрузившейся картинкой.
+ *
+ * Отброшенное считаем: «фото не подхватилось» человек должен узнать от нас, а
+ * не по серым карточкам через неделю.
+ */
+function usablePhoto(raw: unknown, rejected: { count: number }): string | undefined {
+  const value = String(raw ?? "").trim();
+  if (!value) return undefined;
+  if (isSafePhotoValue(value)) return value;
+  rejected.count++;
+  return undefined;
 }
 
 // ── Column mappings (all supported columns) ──────────────────────────────────
@@ -324,6 +348,8 @@ export const importRouter = createRouter({
       let success = 0;
       const errors: string[] = [];
       const skipped: string[] = [];
+      /** Сколько ячеек «фото» пришлось отбросить — о них надо сказать вслух. */
+      const unusablePhotos = { count: 0 };
 
       if (input.type === "products") {
         const parsedRows: Array<{
@@ -383,7 +409,15 @@ export const importRouter = createRouter({
             reorderPoint: String(Number(row.reorderPoint ?? 10) || 10),
             initialStock: String(Number(String(row.initialStock ?? "0").replace(/[^\d.]/g, "")) || 0),
             description: String(row.description ?? "").trim() || undefined,
-            photoUrl: String(row.photoUrl ?? "").trim() || undefined,
+            /*
+              В колонке «фото» чаще всего стоит имя файла («IMG_0042.jpg») или
+              ссылка по http — ни то, ни другое браузер показать не может: имя
+              достраивается до адреса текущей страницы и даёт 404, а http
+              молча блокирует политика безопасности страницы. Раньше такое
+              значение доезжало до тега img, и товар выглядел с не
+              загрузившейся картинкой — насовсем.
+            */
+            photoUrl: usablePhoto(row.photoUrl, unusablePhotos),
           });
         }
 
@@ -614,6 +648,13 @@ export const importRouter = createRouter({
       cache.invalidatePrefix(`shop_districts:${tenantId}`);
       cache.invalidatePrefix(`warehouse:${tenantId}`);
       cache.invalidatePrefix(`warehouse_valuation:${tenantId}`);
+
+      if (unusablePhotos.count > 0) {
+        skipped.push(
+          `Фото не подхватилось у ${unusablePhotos.count} товаров — в колонке «фото» ` +
+          `нужна ссылка по https или сама картинка внутри файла, а не имя файла на диске`,
+        );
+      }
 
       return { success, errors, skipped, total: dataRows.length };
     }),
