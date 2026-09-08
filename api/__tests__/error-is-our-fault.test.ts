@@ -62,6 +62,46 @@ describe("что считается ошибкой", () => {
   });
 });
 
+describe("ошибки tRPC", () => {
+  /*
+    Владелец увидел на мониторинге три записи подряд: auth.me, branding.get,
+    warehouseMulti.list — все КРИТИЧЕСКИЕ, все с кодом 500, все с текстом
+    «Authentication required».
+
+    Сервер при этом вёл себя правильно: в middleware.ts стоит
+    TRPCError({ code: "UNAUTHORIZED" }), то есть честный 401 «вы не вошли». А
+    это ровно те запросы, что уходят до входа или на истёкшей сессии — обычный
+    ход дел, а не поломка.
+
+    Врал журнал: statusCode был зашит числом 500 для ЛЮБОЙ ошибки tRPC, и в
+    журнал писалась тоже любая.
+  */
+  it("код ответа берётся из кода ошибки, а не зашит числом", () => {
+    expect(BOOT, "statusCode снова зашит числом").not.toMatch(/statusCode: 500,/);
+    expect(BOOT).toContain("const statusCode = TRPC_STATUS[error.code] ?? 500;");
+  });
+
+  it("отказ входа не считается сбоем сервера", () => {
+    const m = BOOT.match(/const TRPC_STATUS: Record<string, number> = \{([\s\S]*?)\};/);
+    expect(m, "перечень кодов пропал").not.toBeNull();
+    const table = m![1];
+    // Ровно те коды, из-за которых журнал и был забит: «не вошёл» и «нельзя».
+    expect(table).toMatch(/UNAUTHORIZED: 401/);
+    expect(table).toMatch(/FORBIDDEN: 403/);
+    expect(table).toMatch(/INTERNAL_SERVER_ERROR: 500/);
+  });
+
+  it("в журнал уходит только то, что 5xx", () => {
+    const at = BOOT.indexOf("const statusCode = TRPC_STATUS[error.code]");
+    expect(BOOT.slice(at, at + 200)).toContain("if (statusCode >= 500) {");
+  });
+
+  it("неизвестный код считается нашей виной", () => {
+    // Безопасная сторона ошибки: лучше записать лишнее, чем потерять сбой.
+    expect(BOOT).toContain("TRPC_STATUS[error.code] ?? 500");
+  });
+});
+
 describe("вкладки на прежней сборке", () => {
   beforeEach(() => resetStaleAssetHits());
 
