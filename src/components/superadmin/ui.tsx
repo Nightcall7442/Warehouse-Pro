@@ -24,20 +24,46 @@ export function StatusBadge({ status }: { status: string }) {
 }
 
 // ── KPI Card ────────────────────────────────────────────────────────────────
-export function KpiCard({ label, value, icon: Icon, gradient, loading }: {
-  label: string; value: string | number; icon: LucideIcon; gradient: string; loading?: boolean;
+/**
+ * Карточка показателя.
+ *
+ * Единица измерения идёт отдельным полем, а не приклеивается к числу строкой.
+ * Раньше выручка приходила сюда как «872 265 169 сум» одним куском, в
+ * двадцативосьмиточечном начертании это не влезало в ячейку, и «сум»
+ * переносилось на вторую строку — карточка вырастала вдвое и стояла с дырой.
+ *
+ * Число ещё и уменьшается, когда оно длинное: девять цифр с разделителями не
+ * помещаются ни в какую разумную ячейку, а обрезать показатель нельзя — его
+ * читают целиком.
+ */
+export function KpiCard({ label, value, suffix, icon: Icon, gradient, loading }: {
+  label: string; value: string | number; suffix?: string; icon: LucideIcon; gradient: string; loading?: boolean;
 }) {
+  const text = String(value);
+  const size = text.length > 11 ? "22px" : text.length > 8 ? "25px" : "28px";
   return (
     <div className="kpi-hero" style={{ padding: "22px", position: "relative", overflow: "hidden" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
         <span style={{ fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: COLORS.textTertiary }}>{label}</span>
-        <div style={{ width: "40px", height: "40px", borderRadius: "12px", background: gradient, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ width: "40px", height: "40px", borderRadius: "12px", background: gradient, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           <Icon size={18} color="#fff" />
         </div>
       </div>
       {loading
         ? <div style={{ height: "28px", borderRadius: "8px", background: COLORS.surfaceLight, animation: "pulse 1.5s infinite" }} />
-        : <div style={{ fontFamily: F.display, fontSize: "28px", fontWeight: 700, color: COLORS.textPrimary, lineHeight: 1, letterSpacing: "-0.03em" }}>{value}</div>
+        : (
+          <div style={{ display: "flex", alignItems: "baseline", gap: "6px", flexWrap: "wrap" }}>
+            <span style={{
+              fontFamily: F.display, fontSize: size, fontWeight: 700, color: COLORS.textPrimary,
+              lineHeight: 1, letterSpacing: "-0.03em", fontVariantNumeric: "tabular-nums",
+            }}>
+              {text}
+            </span>
+            {suffix && (
+              <span style={{ fontFamily: F.body, fontSize: "12px", fontWeight: 600, color: COLORS.textTertiary }}>{suffix}</span>
+            )}
+          </div>
+        )
       }
     </div>
   );

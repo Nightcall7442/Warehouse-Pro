@@ -155,7 +155,7 @@ export function TenantDetail({ tenantId, onBack }: TenantDetailProps) {
               <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
                 <span style={{ fontSize: "10px", color: COLORS.textTertiary, padding: "2px 8px", borderRadius: "6px", background: COLORS.surfaceLight }}>{labelled(ROLE_LABEL, u.role)}</span>
                 <StatusBadge status={u.status} />
-                <button onClick={() => setResetPwd({ userId: u.id, name: u.name })} style={{ padding: "6px", borderRadius: "6px", background: "none", border: `1px solid ${COLORS.border}`, cursor: "pointer", color: COLORS.warning }} title="Сбросить пароль"><Lock size={12} /></button>
+                <button onClick={() => setResetPwd({ userId: u.id, name: u.name })} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: "28px", height: "28px", borderRadius: "8px", background: "transparent", border: "none", cursor: "pointer", color: COLORS.warning, transition: "background 0.15s" }} onMouseEnter={e => (e.currentTarget.style.background = COLORS.border)} onMouseLeave={e => (e.currentTarget.style.background = "transparent")} title="Сбросить пароль"><Lock size={12} /></button>
               </div>
             </div>
           ))}
@@ -172,8 +172,8 @@ export function TenantDetail({ tenantId, onBack }: TenantDetailProps) {
                 <div style={{ flex: 1, height: "6px", borderRadius: "3px", background: COLORS.surfaceLight, overflow: "hidden" }}>
                   <div style={{ height: "100%", borderRadius: "3px", background: "linear-gradient(90deg, var(--color-primary), var(--color-primary))", width: `${Math.min(100, ((m.orders ?? 0) / Math.max(1, ...monthlyOrders.map(x => x.orders ?? 0))) * 100)}%` }} />
                 </div>
-                <span style={{ width: "40px", textAlign: "right", fontSize: "12px", fontWeight: 600, color: COLORS.textPrimary }}>{m.orders ?? 0}</span>
-                <span style={{ width: "100px", textAlign: "right", fontSize: "11px", color: COLORS.textTertiary }}>{money(Number(m.revenue ?? 0))} сум</span>
+                <span style={{ width: "40px", textAlign: "right", fontSize: "12px", fontWeight: 600, color: COLORS.textPrimary, fontVariantNumeric: "tabular-nums" }}>{m.orders ?? 0}</span>
+                <span style={{ width: "110px", textAlign: "right", fontSize: "11px", color: COLORS.textTertiary, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{money(Number(m.revenue ?? 0))} сум</span>
               </div>
             ))}
           </div>

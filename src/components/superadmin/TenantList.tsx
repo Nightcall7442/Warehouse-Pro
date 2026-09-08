@@ -13,6 +13,33 @@ interface TenantListProps {
   onSelect: (id: number) => void;
 }
 
+/** Столбцы таблицы. `numeric` решает выравнивание — вправо, как в бухгалтерии. */
+const COLUMNS = [
+  { key: "org",     label: "Организация",   numeric: false },
+  { key: "plan",    label: "Тариф",         numeric: false },
+  { key: "status",  label: "Статус",        numeric: false },
+  { key: "left",    label: "Осталось",      numeric: false },
+  { key: "users",   label: "Пользователей", numeric: true },
+  { key: "orders",  label: "Заказов",       numeric: true },
+  { key: "revenue", label: "Выручка",       numeric: true },
+  { key: "created", label: "Создана",       numeric: false },
+  { key: "actions", label: "",              numeric: false },
+];
+
+/** Ячейка с числом: вправо, цифрами одной ширины, без переноса. */
+const NUM: React.CSSProperties = {
+  padding: "12px 16px", textAlign: "right",
+  fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap",
+};
+
+/** Кнопка-значок в строке: проявляется подложкой, а не стоит в рамке. */
+const ICON_BTN: React.CSSProperties = {
+  display: "inline-flex", alignItems: "center", justifyContent: "center",
+  width: "30px", height: "30px", borderRadius: "9px",
+  background: "transparent", border: "none", cursor: "pointer",
+  transition: "background 0.15s",
+};
+
 export function TenantList({ onSelect }: TenantListProps) {
   const [search, setSearch] = useState("");
   const [filterPlan, setFilterPlan] = useState("all");
@@ -47,11 +74,25 @@ export function TenantList({ onSelect }: TenantListProps) {
       {/* Table */}
       <div style={{ background: COLORS.surface, borderRadius: "20px", boxShadow: SHADOW, overflow: "hidden" }}>
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", minWidth: "900px", fontSize: "13px", fontFamily: F.body }}>
+          <table style={{ width: "100%", minWidth: "900px", fontSize: "13px", fontFamily: F.body, borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ borderBottom: `1px solid ${COLORS.border}` }}>
-                {["Организация", "Тариф", "Статус", "Осталось", "Юзеров", "Заказов", "Выручка", "Создана", ""].map(h => (
-                  <th key={h} style={{ fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", padding: "14px 16px", textAlign: "left", color: COLORS.textTertiary }}>{h}</th>
+                {/*
+                  Числовые столбцы прижаты вправо и набраны цифрами одной
+                  ширины. Слева они стояли рваной лесенкой: «1», «13», «1.4K» —
+                  и сравнить две строки глазами было нельзя, хотя таблица
+                  существует ровно для сравнения.
+
+                  «Юзеров» переименовано в «Пользователей»: жаргон в заголовке
+                  столбца — та самая дешевизна, из-за которой страница читается
+                  как черновик.
+                */}
+                {COLUMNS.map(c => (
+                  <th key={c.key} style={{
+                    fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase",
+                    letterSpacing: "0.08em", padding: "14px 16px", color: COLORS.textTertiary,
+                    textAlign: c.numeric ? "right" : "left", whiteSpace: "nowrap",
+                  }}>{c.label}</th>
                 ))}
               </tr>
             </thead>
@@ -66,23 +107,34 @@ export function TenantList({ onSelect }: TenantListProps) {
                 const ts = planStatus(t);
                 return (
                   <tr key={t.id} style={{ borderBottom: `1px solid ${COLORS.border}`, cursor: "pointer", transition: "background 0.15s" }} onClick={() => onSelect(t.id)} onMouseEnter={e => (e.currentTarget.style.background = COLORS.surfaceLight)} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
-                    <td style={{ padding: "12px 16px" }}>
+                    {/* Столбцу с названием отдана ширина: без неё «Олтин Йўл
+                        Дистрибуция М·ДК» ломалось на три строки, а числовые
+                        столбцы рядом стояли полупустыми. */}
+                    <td style={{ padding: "12px 16px", width: "34%", minWidth: "240px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                         <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: "color-mix(in srgb, var(--color-primary) 10%, transparent)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><span style={{ fontSize: "14px", fontWeight: 700, color: COLORS.primaryText }}>{t.name[0].toUpperCase()}</span></div>
-                        <div><p style={{ fontSize: "13px", fontWeight: 500, color: COLORS.textPrimary }}>{t.name}</p><p style={{ fontSize: "10px", color: COLORS.textTertiary }}>{t.slug}</p></div>
+                        <div style={{ minWidth: 0 }}>
+                          <p style={{ fontSize: "13px", fontWeight: 600, color: COLORS.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={t.name}>{t.name}</p>
+                          <p style={{ fontSize: "10px", color: COLORS.textTertiary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.slug}</p>
+                        </div>
                       </div>
                     </td>
                     <td style={{ padding: "12px 16px" }}><PlanBadge plan={t.plan} /></td>
                     <td style={{ padding: "12px 16px" }}><StatusBadge status={t.status} /></td>
-                    <td style={{ padding: "12px 16px", fontSize: "12px", fontWeight: 600, color: ts.color }}>{ts.label}</td>
-                    <td style={{ padding: "12px 16px", fontSize: "13px", fontWeight: 600, color: COLORS.textPrimary }}>{t.userCount}</td>
-                    <td style={{ padding: "12px 16px", fontSize: "13px", fontWeight: 600, color: COLORS.textPrimary }}>{fmt(t.orderCount)}</td>
-                    <td style={{ padding: "12px 16px", fontSize: "13px", color: COLORS.textSecondary }}>{money(t.orderTotal)} сум</td>
-                    <td style={{ padding: "12px 16px", fontSize: "11px", color: COLORS.textTertiary }}>{format(new Date(t.createdAt), "dd.MM.yy")}</td>
+                    <td style={{ padding: "12px 16px", fontSize: "12px", fontWeight: 600, color: ts.color, whiteSpace: "nowrap" }}>{ts.label}</td>
+                    <td style={{ ...NUM, fontSize: "13px", fontWeight: 600, color: COLORS.textPrimary }}>{t.userCount}</td>
+                    <td style={{ ...NUM, fontSize: "13px", fontWeight: 600, color: COLORS.textPrimary }}>{fmt(t.orderCount)}</td>
+                    <td style={{ ...NUM, fontSize: "13px", color: COLORS.textSecondary }}>
+                      {money(t.orderTotal)} <span style={{ fontSize: "10px", color: COLORS.textTertiary }}>сум</span>
+                    </td>
+                    <td style={{ padding: "12px 16px", fontSize: "11px", color: COLORS.textTertiary, whiteSpace: "nowrap" }}>{format(new Date(t.createdAt), "dd.MM.yy")}</td>
                     <td style={{ padding: "12px 16px" }} onClick={e => e.stopPropagation()}>
-                      <div style={{ display: "flex", gap: "6px" }}>
-                        <button onClick={async e => { e.stopPropagation(); const next = t.status === "active" ? "suspended" : "active"; const ok = await confirm({ title: next === "suspended" ? `Приостановить "${t.name}"?` : `Активировать "${t.name}"?`, message: next === "suspended" ? "Все пользователи потеряют доступ." : "Пользователи снова смогут войти.", confirmText: next === "suspended" ? "Приостановить" : "Активировать", danger: next === "suspended" }); if (ok) setStatus.mutate({ tenantId: t.id, status: next }); }} style={{ padding: "6px", borderRadius: "8px", background: "none", border: `1px solid ${COLORS.border}`, cursor: "pointer", color: t.status === "active" ? COLORS.danger : COLORS.success }} title={t.status === "active" ? "Приостановить" : "Активировать"}><Power size={13} /></button>
-                        <button onClick={e => { e.stopPropagation(); onSelect(t.id); }} style={{ padding: "6px", borderRadius: "8px", background: "none", border: `1px solid ${COLORS.border}`, cursor: "pointer", color: COLORS.textTertiary }} title="Подробнее"><ChevronRight size={13} /></button>
+                      {/* Кнопки без обводки: два серых квадратика в конце каждой
+                          строки притягивали взгляд сильнее самих данных. Теперь
+                          они проявляются подложкой при наведении. */}
+                      <div style={{ display: "flex", gap: "4px", justifyContent: "flex-end" }}>
+                        <button onClick={async e => { e.stopPropagation(); const next = t.status === "active" ? "suspended" : "active"; const ok = await confirm({ title: next === "suspended" ? `Приостановить "${t.name}"?` : `Активировать "${t.name}"?`, message: next === "suspended" ? "Все пользователи потеряют доступ." : "Пользователи снова смогут войти.", confirmText: next === "suspended" ? "Приостановить" : "Активировать", danger: next === "suspended" }); if (ok) setStatus.mutate({ tenantId: t.id, status: next }); }} style={{ ...ICON_BTN, color: t.status === "active" ? COLORS.danger : COLORS.success }} onMouseEnter={e => (e.currentTarget.style.background = COLORS.border)} onMouseLeave={e => (e.currentTarget.style.background = "transparent")} title={t.status === "active" ? "Приостановить" : "Активировать"}><Power size={14} /></button>
+                        <button onClick={e => { e.stopPropagation(); onSelect(t.id); }} style={{ ...ICON_BTN, color: COLORS.textTertiary }} onMouseEnter={e => (e.currentTarget.style.background = COLORS.border)} onMouseLeave={e => (e.currentTarget.style.background = "transparent")} title="Подробнее"><ChevronRight size={14} /></button>
                       </div>
                     </td>
                   </tr>
