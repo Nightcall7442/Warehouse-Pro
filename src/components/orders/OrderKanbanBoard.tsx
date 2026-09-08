@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { GripVertical, Store, User, MapPin } from "lucide-react";
 import { useTranslate } from "@/i18n";
-import { F, COLORS, PAYMENT } from "./theme-tokens";
+import { F, COLORS, PAYMENT, STATUS } from "./theme-tokens";
 import { colorMix } from "@/lib/color-mix";
 
 interface OrderCard {
@@ -25,14 +25,23 @@ interface Column {
   dot: string;
 }
 
+/*
+  Цвет столбца берётся из общего словаря статусов.
+
+  Здесь лежала третья копия таблицы цветов — своя у доски, своя у плашек и своя
+  у фильтров. Копии разошлись: сиреневый #9b59b6 у «Отгружены» и оранжевый
+  #f09050 у «В ожидании» жили только тут и в фильтрах, мимо палитры и мимо
+  тёмной темы. Один заказ на трёх экранах был трёх разных цветов.
+*/
 const COLUMNS: Column[] = [
-  { id: "new",        label: "Новые",        labelUz: "Yangi",       statuses: ["new"],                  dot: "var(--color-primary)" },
-  { id: "processing", label: "В обработке",  labelUz: "Jarayonda",   statuses: ["processing"],           dot: "var(--color-warning)" },
-  { id: "shipped",    label: "Отгружены",    labelUz: "Yuklangan",   statuses: ["shipped"],               dot: "#9b59b6" },
-  { id: "pending",    label: "В ожидании",   labelUz: "Kutishda",    statuses: ["pending"],               dot: "#f09050" },
-  { id: "delivered",  label: "Доставлены",   labelUz: "Yetkazildi",  statuses: ["delivered"],             dot: "var(--color-success)" },
-  { id: "cancelled",  label: "Отменены",     labelUz: "Bekor",       statuses: ["cancelled", "returned"], dot: "var(--color-danger)" },
-];
+  { id: "new",        label: "Новые",       labelUz: "Yangi",      statuses: ["new"] },
+  { id: "processing", label: "В обработке", labelUz: "Jarayonda",  statuses: ["processing"] },
+  { id: "shipped",    label: "Отгружены",   labelUz: "Yuklangan",  statuses: ["shipped"] },
+  { id: "pending",    label: "В ожидании",  labelUz: "Kutishda",   statuses: ["pending"] },
+  { id: "delivered",  label: "Доставлены",  labelUz: "Yetkazildi", statuses: ["delivered"] },
+  // Отменённые и возвраты стоят в одном столбце, ведёт его цвет отменённых.
+  { id: "cancelled",  label: "Отменены",    labelUz: "Bekor",      statuses: ["cancelled", "returned"] },
+].map(c => ({ ...c, dot: STATUS[c.statuses[0]]?.dot ?? "var(--color-text-tertiary)" }));
 
 interface Props {
   orders: OrderCard[];
@@ -133,7 +142,7 @@ export function OrderKanbanBoard({ orders, onOrderClick, onStatusChange, currenc
                       style={{
                         padding: "12px", borderRadius: "12px", cursor: "pointer",
                         background: COLORS.surface, border: `1px solid ${COLORS.border}`,
-                        boxShadow: "0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04)",
+                        boxShadow: "var(--shadow-sm)",
                         opacity: draggingId === order.id ? 0.5 : 1,
                         transform: draggingId === order.id ? "scale(0.97)" : "scale(1)",
                         transition: "opacity 0.15s, transform 0.15s",

@@ -17,6 +17,17 @@ interface Props {
   onAssignAgent: (agentId: number) => void;
   onAssignCourier: (courierId: number) => void;
   onExportExcel: () => void;
+  /*
+    Оставить в выделении первые `maxSelection` заказов.
+
+    Без этого панель при переполнении показывала «Макс. 50 заказов» и убирала
+    ВСЕ кнопки — оставался один крестик. Выделение живёт в sessionStorage и
+    переживает переходы по страницам, так что набрать больше пятидесяти легко и
+    незаметно; человек упирался в стену и мог только сбросить всё и начать
+    заново. Предел настоящий — сервер принимает не больше пятидесяти за раз, —
+    но предел должен предлагать выход, а не отнимать экран.
+  */
+  onTrimSelection?: () => void;
   agents?: Array<{ id: number; name: string }>;
   couriers?: Array<{ id: number; name: string }>;
   validStatusTransitions?: string[];
@@ -24,7 +35,7 @@ interface Props {
 
 export function OrderBulkActions({
   selectedCount, maxSelection = 50, onClearSelection,
-  onPrintInvoices, onCreateLoadingList, onChangeStatus, onComplete, onCompleteWithPayment, onAssignAgent, onAssignCourier, onExportExcel,
+  onPrintInvoices, onCreateLoadingList, onChangeStatus, onComplete, onCompleteWithPayment, onAssignAgent, onAssignCourier, onExportExcel, onTrimSelection,
   agents, couriers, validStatusTransitions = ["processing", "shipped", "delivered", "cancelled", "returned"],
 }: Props) {
   const t = useTranslate();
@@ -41,16 +52,26 @@ export function OrderBulkActions({
     <div className="order-bulk-actions-bar fixed left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-4 w-max max-w-[calc(100vw-2rem)]">
       <div
         className="neo-card flex items-center gap-3 flex-wrap justify-center"
-        style={{ padding: "12px 20px", borderRadius: "20px", boxShadow: "0 25px 80px -12px rgba(0,0,0,0.35)" }}
+        // Тень домашняя: тут стояло rgba(0,0,0,.35) числом — в тёмной теме она
+        // оставалась той же и вокруг панели проступал чёрный нимб.
+        style={{ padding: "12px 20px", borderRadius: "20px", boxShadow: "var(--shadow-lg)" }}
       >
         {/* Selection count */}
         <div className="flex items-center gap-2.5">
           <div
             className="flex items-center justify-center shrink-0"
+            /*
+              Плитка со счётчиком.
+
+              Был диагональный градиент до литерала #4a5c78 и белый значок
+              словом. Литерал равен светлому фирменному — в тёмной теме плитка
+              оставалась сине-стальной, а белое на золотом даёт 2.4:1 при норме
+              4.5. Цвет надписи на заливке берут из палитры, а не пишут словом.
+            */
             style={{
               width: "40px", height: "40px", borderRadius: "12px",
-              background: "linear-gradient(135deg, var(--color-primary), var(--color-primary-hover, #4a5c78))",
-              color: "#fff",
+              background: "var(--color-primary)",
+              color: "var(--color-on-primary)",
             }}
           >
             <CheckSquare size={18} />
@@ -61,12 +82,25 @@ export function OrderBulkActions({
           </div>
         </div>
 
-        <div style={{ width: "1px", height: "36px", background: "var(--color-border, #d8d5cd)" }} />
+        <div style={{ width: "1px", height: "36px", background: "var(--color-border)" }} />
 
         {overLimit ? (
-          <div className="flex items-center gap-1.5 text-sm" style={{ color: "var(--color-danger-text)" }}>
-            <AlertTriangle size={16} />
-            <span>{t("Макс. 50 заказов", "Maks. 50 ta buyurtma")}</span>
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-start gap-2 text-sm" style={{ color: "var(--color-danger-text)", maxWidth: "280px" }}>
+              <AlertTriangle size={16} className="shrink-0" style={{ marginTop: "1px" }} />
+              <span>
+                {t(
+                  `За раз обрабатываем ${maxSelection} заказов — выбрано ${selectedCount}`,
+                  `Bir vaqtda ${maxSelection} ta buyurtma — ${selectedCount} ta tanlangan`,
+                )}
+              </span>
+            </div>
+            {onTrimSelection && (
+              <button type="button" onClick={onTrimSelection} className="neo-btn h-10">
+                <CheckSquare size={16} />
+                {t(`Оставить первые ${maxSelection}`, `Birinchi ${maxSelection} tasini qoldirish`)}
+              </button>
+            )}
           </div>
         ) : (
           <>
@@ -204,7 +238,7 @@ export function OrderBulkActions({
           </>
         )}
 
-        <div style={{ width: "1px", height: "36px", background: "var(--color-border, #d8d5cd)" }} />
+        <div style={{ width: "1px", height: "36px", background: "var(--color-border)" }} />
 
         <button
           type="button"

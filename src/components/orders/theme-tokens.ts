@@ -58,23 +58,53 @@ export const OPEN_STATUSES = ["new", "processing", "shipped", "pending"];
   Здесь остаётся оформление: цвет точки и классы плашки. Форма таблицы не
   изменилась, поэтому пятнадцать мест вызова остались как были.
 */
-type StatusStyle = { dot: string; bg: string; text: string; border: string };
+/*
+  Цвет статуса.
+
+  Поле было одно из четырёх: рядом с `dot` лежали `bg`, `text` и `border` —
+  классы Tailwind вида `bg-purple-100 text-purple-600`. Их не читал НИКТО: все
+  пятнадцать мест вызова берут только `dot` и разводят из него и заливку
+  (colorMix), и рамку. Толку от трёх полей не было, а вред был: они называли
+  цвета из палитры Tailwind, которой у нас нет. `purple-100` не меняется от
+  темы вовсе, и в тёмной остался бы светло-сиреневым пятном.
+
+  Сиреневый и оранжевый литералы у `shipped` и `pending` — из той же истории:
+  цвета, взятые не из палитры приложения, а «на глаз». В тёмной теме они
+  оставались прежними, а рядом с золотым фирменным читались как чужие. Ровно на
+  них и указали: «дешёвая фиолетовая линия».
+
+  Теперь у каждого статуса один цвет и он из палитры. Все они — «текстовые»
+  варианты: цвет служит и точкой, и подписью, а подпись обязана читаться.
+*/
+type StatusStyle = { dot: string };
 
 const STATUS_STYLE: Record<OrderStatus, StatusStyle> = {
-  new:        { dot: "var(--color-primary)", bg: "bg-info/10",    text: "text-info",       border: "border-info/25" },
-  processing: { dot: "var(--color-warning)", bg: "bg-warning/10", text: "text-warning",    border: "border-warning/25" },
-  shipped:    { dot: "#9b59b6",              bg: "bg-purple-100", text: "text-purple-600", border: "border-purple-200" },
-  pending:    { dot: "#f09050",              bg: "bg-orange-100", text: "text-orange-600", border: "border-orange-200" },
-  delivered:  { dot: "var(--color-success)", bg: "bg-success/10", text: "text-success",    border: "border-success/25" },
-  cancelled:  { dot: "var(--color-danger)",  bg: "bg-danger/10",  text: "text-danger",     border: "border-danger/25" },
-  returned:   { dot: "#e85050",              bg: "bg-red-100",    text: "text-red-600",    border: "border-red-200" },
+  // Пришёл, ещё наш — фирменный.
+  new:        { dot: "var(--color-primary-text)" },
+  // Взяли в работу.
+  processing: { dot: "var(--color-warning-text)" },
+  // Уехал — синий «в пути», а не сиреневый ниоткуда.
+  shipped:    { dot: "var(--color-info-text, var(--color-info))" },
+  // Ждёт: сейчас ничего не происходит, кричать не о чем.
+  pending:    { dot: "var(--color-text-secondary)" },
+  delivered:  { dot: "var(--color-success-text)" },
+  /*
+    Отменён приглушён, возвращён — красный.
+
+    Раньше оба были красными, и на экране две разные истории выглядели одной
+    бедой. Отменённый заказ просто не состоялся; возвращённый — состоялся,
+    поехал и вернулся, и вот с ним действительно надо разбираться.
+  */
+  cancelled:  { dot: "var(--color-text-tertiary)" },
+  returned:   { dot: "var(--color-danger-text)" },
 };
 
 const PAYMENT_COLOR: Record<PaymentMethod, string> = {
   cash:     "var(--color-success-text)",
   transfer: "var(--color-primary-text)",
   debt:     "var(--color-warning-text)",
-  card:     "#9b59b6",
+  // Был сиреневый литерал — тот же, что у «Отгружен», и с той же бедой.
+  card:     "var(--color-info-text, var(--color-info))",
 };
 
 export const PAYMENT: Record<string, Label & { color: string }> =

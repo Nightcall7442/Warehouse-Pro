@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { ChevronRight, User, AlertCircle, CheckSquare, Square, Package } from "lucide-react";
 import { F, COLORS, SHADOW, STATUS, PAYMENT } from "./theme-tokens";
 import { colorMix } from "@/lib/color-mix";
@@ -115,7 +114,6 @@ function AgentRow({
   t: (ru: string, uz: string) => string;
   lang: string;
 }) {
-  const [hover, setHover] = useState(false);
   const debt = Number(agent.debt);
   const idle = agent.orderCount === 0;
   const orderIds = orders.map(o => o.id);
@@ -134,17 +132,22 @@ function AgentRow({
       opacity: idle && !expanded ? 0.6 : 1,
       transition: "border-color .15s ease, opacity .15s ease",
     }}>
+      {/*
+        Наведение — правилом .row-hover, а не состоянием React.
+
+        Каждое движение мыши по списку агентов перерисовывало строку целиком;
+        сама подсветка живёт в стилях и на сенсорном экране не залипает, если
+        палец ушёл со строки мимо «выхода».
+      */}
       <button
         onClick={onToggle}
-        onMouseEnter={() => setHover(true)}
-        onMouseLeave={() => setHover(false)}
         aria-expanded={expanded}
+        className="row-hover"
         style={{
           display: "flex", alignItems: "center", gap: "14px",
           width: "100%", padding: "14px 18px",
-          background: hover ? COLORS.surfaceLight : "transparent",
+          background: "transparent",
           border: "none", cursor: "pointer", textAlign: "left",
-          transition: "background .15s ease",
         }}
       >
         <ChevronRight

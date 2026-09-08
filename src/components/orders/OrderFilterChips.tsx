@@ -3,7 +3,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { X, Calendar, Bookmark, Save } from "lucide-react";
 import { useTranslate } from "@/i18n";
-import { F, COLORS } from "./theme-tokens";
+import { F, COLORS, STATUS } from "./theme-tokens";
 import { colorMix } from "@/lib/color-mix";
 
 export interface ActiveFilters {
@@ -29,13 +29,14 @@ const DATE_PRESETS = [
   { value: "month", labelRu: "Этот месяц", labelUz: "Bu oy" },
 ];
 
+/* Цвет — из общего словаря статусов, см. OrderKanbanBoard о трёх копиях. */
 const STATUS_CHIPS = [
-  { value: "new", labelRu: "Новые", labelUz: "Yangi", color: "var(--color-primary-text)" },
-  { value: "processing", labelRu: "В обработке", labelUz: "Jarayonda", color: "var(--color-warning-text)" },
-  { value: "shipped", labelRu: "Отгружены", labelUz: "Yuklangan", color: "#9b59b6" },
-  { value: "delivered", labelRu: "Доставлены", labelUz: "Yetkazildi", color: "var(--color-success-text)" },
-  { value: "cancelled", labelRu: "Отменённые", labelUz: "Bekor qilingan", color: "var(--color-danger-text)" },
-];
+  { value: "new", labelRu: "Новые", labelUz: "Yangi" },
+  { value: "processing", labelRu: "В обработке", labelUz: "Jarayonda" },
+  { value: "shipped", labelRu: "Отгружены", labelUz: "Yuklangan" },
+  { value: "delivered", labelRu: "Доставлены", labelUz: "Yetkazildi" },
+  { value: "cancelled", labelRu: "Отменённые", labelUz: "Bekor qilingan" },
+].map(c => ({ ...c, color: STATUS[c.value]?.dot ?? "var(--color-text-tertiary)" }));
 
 const PAYMENT_CHIPS = [
   { value: "cash", labelRu: "Наличные", labelUz: "Naqd" },
@@ -179,7 +180,7 @@ export function OrderFilterChips({ filters, onChange, savedFilters, onSave, onLo
                   }}
                   style={{
                     width: "100%", padding: "8px", borderRadius: "10px", border: "none",
-                    background: `linear-gradient(135deg, ${COLORS.primary}, var(--color-primary-hover))`, color: "var(--color-on-primary, #ffffff)",
+                    background: COLORS.primary, color: "var(--color-on-primary)",
                     fontFamily: F.body, fontSize: "13px", fontWeight: 600, cursor: "pointer",
                   }}
                 >

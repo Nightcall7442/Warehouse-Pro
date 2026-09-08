@@ -102,10 +102,12 @@ function DocRow({ icon, iconBg, label, onClick }: {
       style={{
         width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: "12px", borderRadius: "12px", border: `1px solid ${COLORS.border}`,
-        background: COLORS.surface, cursor: "pointer", transition: "background 0.15s",
+        background: COLORS.surface, cursor: "pointer",
       }}
-      onMouseEnter={e => { e.currentTarget.style.background = COLORS.surfaceLight; }}
-      onMouseLeave={e => { e.currentTarget.style.background = COLORS.surface; }}
+      // Наведение — правилом, а не двумя обработчиками на каждую карточку:
+      // руками оно не гаснет при уходе пальца на сенсорном экране и не знает
+      // про prefers-reduced-motion.
+      className="hover-lift"
     >
       <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
         <div style={{ width: "32px", height: "32px", borderRadius: "10px", background: iconBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -417,64 +419,95 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
     <>
     <Sheet open={open} onOpenChange={(v) => { if (!showCompletion) onOpenChange(v); }}>
       <SheetContent className="w-full sm:w-[600px] sm:max-w-[600px] p-0 flex flex-col">
-        {/* Brass gradient header — the same band every other screen's dialog
-            uses, so the panel reads as part of the app rather than a bolt-on.
-            The total lives here alone; it used to be repeated immediately
-            below in a larger size, which made the eye check twice whether the
-            two numbers agreed. */}
+        {/*
+          Шапка панели заказа.
+
+          Здесь стояла «латунная» полоса: диагональный градиент от фирменного к
+          #4a5c78 и два белых круга поверх него «для объёма». Три беды разом.
+
+          Литерал #4a5c78 равен светлому фирменному, и в тёмной теме, где
+          фирменный золотой, полоса оставалась сине-стальной — чужой на своём же
+          экране. Белый текст задан словом, а не из палитры: на золотом это
+          2.4:1 при норме 4.5 — ровно та ошибка, которую уже разбирали у кнопки
+          подтверждения и у переключателя периода в KPI. И сама полоса не несла
+          ни одной новой мысли: то же, что ниже, но крупнее и на цвете.
+
+          Теперь шапка — обычная поверхность приложения, а работу делает
+          расстановка: слева кто это (номер, состояние, способ оплаты), справа
+          сколько. Ровно те два вопроса, ради которых панель и открывают.
+        */}
         <SheetHeader
-          className="relative overflow-hidden shrink-0 p-0"
+          className="shrink-0 p-0"
           style={{
-            background: "linear-gradient(135deg, var(--color-primary), var(--color-primary-hover, #4a5c78))",
-            padding: "24px 24px 20px",
+            padding: "20px 52px 18px 24px",
+            background: COLORS.surface,
+            borderBottom: `1px solid ${COLORS.border}`,
           }}
         >
-          <div className="absolute -top-16 -right-16 w-40 h-40 rounded-full" style={{ background: "rgba(255,255,255,0.08)" }} />
-          <div className="absolute -bottom-8 -left-8 w-24 h-24 rounded-full" style={{ background: "rgba(255,255,255,0.05)" }} />
-          <SheetTitle className="relative">
+          <SheetTitle>
             {isLoading ? (
-              <span style={{ color: "var(--color-on-primary, #ffffff)" }}>{t("Загрузка…", "Yuklanmoqda…")}</span>
+              <span style={{ fontFamily: F.body, fontSize: "14px", fontWeight: 500, color: COLORS.textTertiary }}>
+                {t("Загрузка…", "Yuklanmoqda…")}
+              </span>
             ) : (
-              <div className="flex flex-col gap-2.5">
-                <div className="flex items-center gap-2.5 flex-wrap">
-                  <span className="text-sm font-bold font-data" style={{ color: "var(--color-on-primary, #ffffff)" }}>{order?.orderNumber}</span>
-                  {/* Status dropdown for CEO/operator, badge for others — same pattern as the Orders table row */}
-                  {isOperatorOrCeo && order && !order.deletedAt ? (
-                    <Select value={order.status} onValueChange={handleStatusChange}>
-                      <SelectTrigger style={{
-                        height: "28px", padding: "0 12px", fontFamily: F.body, fontSize: "11px", fontWeight: 600,
-                        borderRadius: "9999px", border: "none", width: "auto",
-                        background: "color-mix(in srgb, var(--color-on-primary, #ffffff) 18%, transparent)", color: "var(--color-on-primary, #ffffff)",
-                      }}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(STATUS).map(([key, labels]) => (
-                          <SelectItem key={key} value={key} style={{ fontSize: "12px" }}>
-                            {lang === "uz" ? labels.uz : labels.ru}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : order ? (
-                    <StatusBadge status={order.status} lang={lang} />
-                  ) : null}
-                  {(() => {
-                    const pm = PAYMENT[order?.paymentMethod ?? "cash"];
-                    if (!pm) return null;
-                    return (
-                      <span
-                        className="inline-flex px-3 py-1 rounded-full text-[11px] font-semibold"
-                        style={{ background: "color-mix(in srgb, var(--color-on-primary, #ffffff) 18%, transparent)", color: "var(--color-on-primary, #ffffff)" }}
-                      >
-                        {t(pm.ru, pm.uz)}
-                      </span>
-                    );
-                  })()}
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "18px", flexWrap: "wrap" }}>
+
+                {/* Кто это */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "9px", minWidth: 0 }}>
+                  <span className="font-data" style={{ fontSize: "15px", fontWeight: 700, letterSpacing: "-0.01em", color: COLORS.textPrimary }}>
+                    {order?.orderNumber}
+                  </span>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                    {/* Директор и оператор меняют статус прямо отсюда, остальные видят плашку. */}
+                    {isOperatorOrCeo && order && !order.deletedAt ? (
+                      <Select value={order.status} onValueChange={handleStatusChange}>
+                        <SelectTrigger style={{
+                          height: "32px", padding: "0 12px", fontFamily: F.body, fontSize: "11.5px", fontWeight: 600,
+                          borderRadius: "999px", width: "auto", color: STATUS[order.status]?.dot ?? COLORS.textSecondary,
+                        }}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(STATUS).map(([key, labels]) => (
+                            <SelectItem key={key} value={key} style={{ fontSize: "12px" }}>
+                              {lang === "uz" ? labels.uz : labels.ru}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : order ? (
+                      <StatusBadge status={order.status} lang={lang} />
+                    ) : null}
+
+                    {(() => {
+                      const pm = PAYMENT[order?.paymentMethod ?? "cash"];
+                      if (!pm) return null;
+                      return (
+                        <span
+                          className="inline-flex items-center px-3 rounded-full text-[11px] font-semibold"
+                          style={{
+                            height: "32px", background: colorMix(pm.color, 10),
+                            border: `1px solid ${colorMix(pm.color, 18)}`, color: pm.color,
+                          }}
+                        >
+                          {t(pm.ru, pm.uz)}
+                        </span>
+                      );
+                    })()}
+                  </div>
                 </div>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-3xl font-bold font-data" style={{ color: "var(--color-on-primary, #ffffff)" }}>{Number(order?.total ?? 0).toLocaleString("ru")}</span>
-                  <span className="text-base" style={{ color: "color-mix(in srgb, var(--color-on-primary, #ffffff) 72%, transparent)" }}>{currency}</span>
+
+                {/* Сколько. Сумма была тут же дважды — в полосе и сразу под
+                    ней, крупнее, — и глаз каждый раз проверял, сходятся ли два
+                    числа. Она осталась в одном месте. */}
+                <div style={{ flexShrink: 0, textAlign: "right" }}>
+                  <p className="font-label" style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: COLORS.textTertiary }}>
+                    {t("Сумма заказа", "Buyurtma summasi")}
+                  </p>
+                  <p className="font-data" style={{ fontSize: "25px", fontWeight: 700, lineHeight: 1.15, marginTop: "3px", color: COLORS.textPrimary, fontVariantNumeric: "tabular-nums" }}>
+                    {Number(order?.total ?? 0).toLocaleString("ru")}
+                    <span style={{ fontSize: "13px", fontWeight: 600, marginLeft: "5px", color: COLORS.textTertiary }}>{currency}</span>
+                  </p>
                 </div>
               </div>
             )}
@@ -857,13 +890,13 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
         // <body> while the Sheet is open, which this portal would otherwise
         // inherit — leaving the dialog visible but unclickable.
         className="pointer-events-auto"
-        style={{ position: "fixed", inset: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.5)", padding: "16px" }}
+        style={{ position: "fixed", inset: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--overlay-scrim)", padding: "16px" }}
         onClick={() => setShowDebtModal(false)}
         role="presentation"
       >
         <div
           className="pointer-events-auto"
-          style={{ position: "relative", zIndex: 10, width: "100%", maxWidth: "384px", borderRadius: "16px", background: COLORS.surface, padding: "20px", boxShadow: "0 20px 50px rgba(0,0,0,0.25)" }}
+          style={{ position: "relative", zIndex: 10, width: "100%", maxWidth: "384px", borderRadius: "16px", background: COLORS.surface, padding: "20px", boxShadow: "var(--shadow-overlay)" }}
           onClick={e => e.stopPropagation()}
           role="dialog"
           aria-modal="true"
@@ -941,7 +974,7 @@ function AdjustmentsTab({ orderId, currency }: { orderId: number; currency: stri
   const TYPE_COLOR: Record<string, string> = {
     partial_delivery: COLORS.warning,
     partial_payment:  COLORS.primaryText,
-    price_change:     "#9b59b6",
+    price_change:     "var(--color-info-text, var(--color-info))",
     quantity_change:  COLORS.success,
   };
   const typeLabels: Record<string, { ru: string; uz: string; color: string }> =

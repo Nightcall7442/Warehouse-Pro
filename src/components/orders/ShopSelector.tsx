@@ -62,7 +62,7 @@ export function ShopSelector({ shopId, onSelect }: ShopSelectorProps) {
             flexShrink: 0, padding: "8px 18px", borderRadius: "24px", fontSize: "13px", fontWeight: 600,
             fontFamily: "'DM Sans', sans-serif", cursor: "pointer", transition: "all 0.25s ease",
             background: !selectedCity ? "var(--color-primary)" : "var(--color-surface-light, #f6f4f0)",
-            color: !selectedCity ? "#fff" : "var(--color-text-secondary, #5e5b54)",
+            color: !selectedCity ? "var(--color-on-primary)" : "var(--color-text-secondary)",
             border: "none", boxShadow: !selectedCity ? "0 4px 12px color-mix(in srgb, var(--color-primary) 30%, transparent)" : "none",
           }}>
             {t("Все", "Barchasi")}
@@ -72,7 +72,7 @@ export function ShopSelector({ shopId, onSelect }: ShopSelectorProps) {
               flexShrink: 0, padding: "8px 18px", borderRadius: "24px", fontSize: "13px", fontWeight: 600,
               fontFamily: "'DM Sans', sans-serif", cursor: "pointer", transition: "all 0.25s ease",
               background: selectedCity === city ? "var(--color-primary)" : "var(--color-surface-light, #f6f4f0)",
-              color: selectedCity === city ? "#fff" : "var(--color-text-secondary, #5e5b54)",
+              color: selectedCity === city ? "var(--color-on-primary)" : "var(--color-text-secondary)",
               border: "none", boxShadow: selectedCity === city ? "0 4px 12px color-mix(in srgb, var(--color-primary) 30%, transparent)" : "none",
             }}>
               {city}
@@ -159,7 +159,7 @@ export function ShopSelector({ shopId, onSelect }: ShopSelectorProps) {
                 background: shopId === shop.id ? "var(--color-primary-subtle)" : "var(--color-surface, #efedea)",
                 boxShadow: shopId === shop.id
                   ? "0 4px 16px color-mix(in srgb, var(--color-primary) 12%, transparent)"
-                  : "0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04)",
+                  : "var(--shadow-sm)",
               }}
             >
               <div style={{
@@ -180,7 +180,7 @@ export function ShopSelector({ shopId, onSelect }: ShopSelectorProps) {
                   {shop.city ? `, ${shop.city}` : ""}
                 </p>
                 {Number(shop.debt ?? 0) > 0 && (
-                  <div style={{ display: "inline-flex", alignItems: "center", gap: "4px", marginTop: "6px", padding: "3px 8px", borderRadius: "6px", background: "rgba(232,80,80,0.08)" }}>
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: "4px", marginTop: "6px", padding: "3px 8px", borderRadius: "6px", background: "var(--color-danger-subtle)" }}>
                     <AlertCircle size={10} style={{ color: "var(--color-danger-text)" }} />
                     <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--color-danger-text)" }}>
                       {fmt(shop.debt)} {t("долг", "qarz")}

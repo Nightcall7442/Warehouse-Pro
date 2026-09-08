@@ -100,6 +100,10 @@
     --color-danger-strong:   #b8323f;
     --color-info:            #5a8fad;
     --color-info-subtle:     rgba(90,143,173,.10);
+    /* Тот же приём, что у success/warning/danger ниже: заливочный синий читается
+       как текст на 3.3:1 при норме 4.5. Экран заказов красил бы им слово
+       «Отгружен», если бы не брал вместо него сиреневый литерал. */
+    --color-info-text:       #3f6f8c;  /* 4.57:1 на #efedea */
 
     /* The colours above are tuned to be legible as a *fill* — a badge ground, a
        status dot, a chart series. On a light page they are far too pale to read
@@ -268,6 +272,8 @@
     --color-danger-strong:   #c9264a;
     --color-info:            #00b4ff;
     --color-info-subtle:     rgba(0,180,255,.12);
+    /* В тёмной теме заливочный синий и так даёт 6.58:1 — тут просто псевдоним. */
+    --color-info-text:       var(--color-info);
 
     /* On this dark ground the fill colours are already legible as text
        (9.44 / 8.55 / 4.85 : 1 on a raised card), so the text variants are
@@ -598,6 +604,37 @@
   .neo-input::placeholder { color: var(--color-text-tertiary, #6b6760); }
   .neo-input:focus {
     box-shadow: var(--shadow-raised), 0 0 0 2px color-mix(in srgb, var(--color-primary) 20%, transparent);
+  }
+
+  /* ── Поля из набора shadcn ───────────────────────────────────────────────
+     Экран заказов — единственное место, где остались чужие поля. У них своя
+     обводка в три пикселя сплошным цветом вместо мягкой подсветки и радиус 22
+     на поле высотой 36, отчего поле превращается в капсулу.
+
+     Хуже другое: `focus-visible:ring-ring/50` не делает того, что написано.
+     Цвет `ring` объявлен у нас как `hsl(var(--ring))` — без `<alpha-value>`, а
+     к такому цвету Tailwind прозрачность не применяет. Вместо мягкого
+     полупрозрачного свечения выходила плотная линия в полную силу цвета. Ровно
+     её видно вокруг поля комментария в заказе: холодная, сине-фиолетовая, ни
+     на что в приложении не похожая.
+
+     Здесь тот же вдавленный вид и та же подсветка при наборе, что у
+     .neo-input, — поля перестают быть чужими, оставаясь своих размеров. */
+  .neo-field {
+    background: var(--color-canvas, #e8e6e1);
+    border: none;
+    border-radius: 14px;
+    box-shadow: var(--shadow-pressed), inset 0 0 0 1px var(--color-border, #d8d5cd);
+    transition: box-shadow 0.18s ease;
+  }
+  .neo-field:focus,
+  .neo-field:focus-visible,
+  .neo-field[data-state="open"] {
+    outline: none;
+    box-shadow: var(--shadow-raised), 0 0 0 2px color-mix(in srgb, var(--color-primary) 20%, transparent);
+  }
+  .neo-field[aria-invalid="true"] {
+    box-shadow: var(--shadow-pressed), inset 0 0 0 1px var(--color-danger);
   }
 
   /* ══════════════════════════════════════════════════════════════════════

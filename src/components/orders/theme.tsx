@@ -51,7 +51,7 @@ export const StatusBadge = memo(function StatusBadge({ status, lang }: { status:
     появиться восьмому состоянию — и значок уверенно скажет «Новый» о заказе,
     который уже доставлен. Пропуск в данных видно, неправду — нет.
   */
-  const s = STATUS[status] ?? { ru: status, uz: status, dot: COLORS.textTertiary, bg: "", text: "", border: "" };
+  const s = STATUS[status] ?? { ru: status, uz: status, dot: COLORS.textTertiary };
   return (
     <span style={{
       display: "inline-flex", alignItems: "center", gap: "6px",

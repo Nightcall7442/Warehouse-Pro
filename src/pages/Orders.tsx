@@ -546,8 +546,10 @@ function OperatorOrders() {
             <SelectTrigger style={{
               height: "28px", padding: "0 8px", fontSize: "11px", fontWeight: 600,
               borderRadius: "9999px", border: "none", width: "auto",
-              background: colorMix(STATUS[o.status]?.dot ?? "#5b6d8a", 8),
-              color: STATUS[o.status]?.dot ?? "#5b6d8a",
+              // Запасной цвет — из палитры: литерал #5b6d8a равен светлому
+              // фирменному и в тёмной теме остался бы синим на золотом экране.
+              background: colorMix(STATUS[o.status]?.dot ?? COLORS.textTertiary, 8),
+              color: STATUS[o.status]?.dot ?? COLORS.textTertiary,
             }}>
               <SelectValue />
             </SelectTrigger>
@@ -949,7 +951,7 @@ function OperatorOrders() {
             ? <p style={{ textAlign: "center", color: COLORS.textSecondary, padding: "56px 0", fontSize: "13px", fontFamily: F.body }}>{t("Нет заказов", "Buyurtma yo'q")}</p>
             : data?.data.map(o => {
                 // Неизвестное состояние — кодом и серым, а не «Новым»: см. theme.tsx.
-                const s = STATUS[o.status] ?? { ru: o.status, uz: o.status, dot: COLORS.textTertiary, bg: "", text: "", border: "" };
+                const s = STATUS[o.status] ?? { ru: o.status, uz: o.status, dot: COLORS.textTertiary };
                 return (
                   <div
                     key={o.id}
@@ -1146,6 +1148,12 @@ function OperatorOrders() {
     <OrderBulkActions
       selectedCount={selected.size}
       onClearSelection={() => clearSelection()}
+      /*
+        Порядок в Set — порядок добавления, поэтому «первые 50» это первые
+        отмеченные, а не случайные. Человек снимает лишнее одним нажатием и
+        продолжает с тем, что уже отобрал.
+      */
+      onTrimSelection={() => setSelected(prev => new Set(Array.from(prev).slice(0, 50)))}
       onPrintInvoices={() => setShowInvoiceModal(true)}
       onCreateLoadingList={() => setShowLoadingListModal(true)}
       onChangeStatus={(newStatus) => {

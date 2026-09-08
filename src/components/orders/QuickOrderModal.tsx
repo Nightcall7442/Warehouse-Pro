@@ -316,13 +316,20 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, initial
                   type="button"
                   key={s.id}
                   onClick={() => setShopId(s.id)}
-                  className="w-full flex items-center justify-between gap-3 text-left"
+                  /*
+                    Наведение — правилом .row-hover, а не парой обработчиков на
+                    каждую строку списка. Руками оно не гаснет, если палец ушёл
+                    с сенсорного экрана мимо «выхода», и правит style прямо на
+                    узле в обход стилей.
+
+                    Выбранная строка своей заливки не теряет: правило подсвечивает
+                    прозрачным по фону, а у неё фон уже есть.
+                  */
+                  className="w-full flex items-center justify-between gap-3 text-left row-hover"
                   style={{
                     padding: "10px 12px", borderRadius: "12px", cursor: "pointer", border: "none",
                     background: shopId === s.id ? "var(--color-primary-subtle)" : "transparent",
                   }}
-                  onMouseEnter={e => { if (shopId !== s.id) e.currentTarget.style.background = "var(--color-surface-light)"; }}
-                  onMouseLeave={e => { if (shopId !== s.id) e.currentTarget.style.background = "transparent"; }}
                 >
                   <span className="min-w-0 flex items-center gap-2">
                     <Store size={14} style={{ color: "var(--color-text-tertiary)", flexShrink: 0 }} />
@@ -370,10 +377,8 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, initial
                     type="button"
                     key={p.id}
                     onClick={() => addToCart(p)}
-                    className="w-full flex items-center justify-between gap-3 text-left"
+                    className="w-full flex items-center justify-between gap-3 text-left row-hover"
                     style={{ padding: "10px 12px", borderRadius: "12px", background: "transparent", border: "none", cursor: "pointer" }}
-                    onMouseEnter={e => { e.currentTarget.style.background = "var(--color-surface-light)"; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
                   >
                     <span className="min-w-0">
                       <span className="block text-sm font-medium truncate" style={{ color: "var(--color-text-primary)" }}>{p.name}</span>

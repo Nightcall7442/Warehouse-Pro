@@ -147,7 +147,9 @@ export function OrderReview({
                   background: isActive ? method.color : "var(--color-surface-light, #f6f4f0)",
                   flexShrink: 0,
                 }}>
-                  <Icon size={16} style={{ color: isActive ? "#fff" : "var(--color-text-secondary, #5e5b54)" }} />
+                  {/* Цвет значка на заливке — из палитры: белым словом на
+                      золотой заливке тёмной темы выходит 2.4:1 при норме 4.5. */}
+                  <Icon size={16} style={{ color: isActive ? "var(--color-on-primary)" : "var(--color-text-secondary)" }} />
                 </div>
                 <span style={{
                   fontSize: "13px", fontWeight: isActive ? 600 : 500,
@@ -164,7 +166,10 @@ export function OrderReview({
           <div style={{
             display: "flex", alignItems: "center", gap: "8px", marginTop: "10px",
             padding: "10px 14px", borderRadius: "10px",
-            background: "rgba(232,168,48,0.08)", border: "1px solid rgba(232,168,48,0.2)",
+            // Было rgba(232,168,48,…) числом — янтарь, которого нет в палитре
+            // и который в тёмной теме оставался прежним.
+            background: "var(--color-warning-subtle)",
+            border: `1px solid ${colorMix("var(--color-warning)", 22)}`,
           }}>
             <AlertTriangle size={14} style={{ color: "var(--color-warning-text)", flexShrink: 0 }} />
             <span style={{ fontSize: "12px", color: "var(--color-warning-text)", fontWeight: 500 }}>
