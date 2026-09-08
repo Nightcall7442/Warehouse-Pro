@@ -64,6 +64,25 @@ export const PLANS = {
 
 export type PlanKey = keyof typeof PLANS;
 
+/*
+  Что тариф даёт сверх чисел.
+
+  Правило «чат поддержки — это Exclusive» жило в двух местах: проверкой доступа
+  на сервере (api/services/support-chat.ts) и нигде на экране оплаты. Из-за
+  второго карточки тарифов сравнивались только числами — пользователи, товары,
+  заказы, — и то единственное, чем Exclusive отличается по существу, человек
+  при выборе не видел.
+
+  Теперь источник один: сервер решает по нему доступ, экран по нему же
+  подписывает карточку.
+*/
+export const PLAN_FEATURES: Record<PlanKey, { supportChat: boolean }> = {
+  trial:     { supportChat: false },
+  basic:     { supportChat: false },
+  pro:       { supportChat: false },
+  exclusive: { supportChat: true },
+};
+
 /** UZS prices — used by billing-router for local payment providers (Payme, Click, Uzum Pay) */
 export const PLAN_PRICES_UZS: Record<PlanKey, number> = {
   trial:     0,

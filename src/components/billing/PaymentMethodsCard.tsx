@@ -1,5 +1,4 @@
-import { Zap } from "lucide-react";
-import { COLORS } from "./designTokens";
+import { Wallet } from "lucide-react";
 
 interface PaymentMethodsCardProps {
   t: (ru: string, uz: string) => string;
@@ -7,39 +6,20 @@ interface PaymentMethodsCardProps {
 
 export function PaymentMethodsCard({ t }: PaymentMethodsCardProps) {
   return (
-    <div className="neo-card" style={{
-      padding: "24px",
-      marginTop: "32px",
-      animation: "slideUp 1s ease",
-    }}>
-      <div style={{
-        display: "flex",
-        alignItems: "flex-start",
-        gap: "16px",
-      }}>
+    <div className="neo-card neo-card-static" style={{ padding: "22px" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: "14px" }}>
         <div style={{
-          width: "40px",
-          height: "40px",
-          borderRadius: "12px",
-          background: "color-mix(in srgb, var(--color-primary) 12%, transparent)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          flexShrink: 0,
+          width: "40px", height: "40px", borderRadius: "14px", flexShrink: 0,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          background: "var(--color-primary-subtle)", color: "var(--color-primary-text)",
         }}>
-          <Zap size={18} style={{ color: COLORS.primaryText }} />
+          <Wallet size={18} />
         </div>
-        <div style={{ fontSize: "14px" }}>
-          <p style={{
-            fontWeight: "600",
-            color: COLORS.textPrimary,
-            margin: "0 0 4px",
-          }}>{t("Способы оплаты", "To'lov usullari")}</p>
-          <p style={{
-            color: COLORS.textSecondary,
-            margin: 0,
-            lineHeight: 1.5,
-          }}>
+        <div>
+          <p style={{ fontSize: "14px", fontWeight: 700, color: "var(--color-text-primary)", marginBottom: "4px" }}>
+            {t("Способы оплаты", "To'lov usullari")}
+          </p>
+          <p style={{ fontSize: "13px", lineHeight: 1.55, color: "var(--color-text-secondary)" }}>
             {t("Оплата через Click, Payme, Uzum Pay. Оператор свяжется с вами в течение 30 минут после запроса.",
               "Click, Payme, Uzum Pay orqali to'lash mumkin. Operator 30 daqiqa ichida bog'lanadi.")}
           </p>

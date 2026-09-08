@@ -1,5 +1,5 @@
-import { Zap } from "lucide-react";
-import { COLORS, FONTS, GRADIENTS, SHADOWS } from "./designTokens";
+import { Zap, Check, Loader2, LifeBuoy, AlertTriangle } from "lucide-react";
+import { PLAN_FEATURES, type PlanKey } from "@contracts/constants";
 
 export interface Plan {
   key: string;
@@ -13,234 +13,182 @@ export interface Plan {
 
 interface SubscriptionPlanCardProps {
   plan: Plan;
-  index: number;
   isCurrent: boolean;
   isPro: boolean;
+  /** Сколько у организации СЕЙЧАС — чтобы не предлагать то, что не вместит. */
+  usage: { users: number; products: number; orders: number };
   planName: (p: { name: string; nameUz: string }) => string;
   t: (ru: string, uz: string) => string;
   isPending: boolean;
   onSelect: (key: string) => void;
 }
 
+/**
+ * Карточка тарифа.
+ *
+ * ── Что было ────────────────────────────────────────────────────────────────
+ *
+ * Оформление шло мимо системы приложения — через свой словарь designTokens, где
+ * имена теней были на ступень мимо настоящих, а свечение вписано числами RGB
+ * светлой палитры. Наведение обрабатывалось руками через e.target: при входе
+ * курсора на значок внутри кнопки стиль ложился на значок, а не на кнопку. И
+ * onMouseLeave присваивал карточке тень, которой onMouseEnter не ставил, —
+ * после первого наведения тень менялась НАВСЕГДА.
+ *
+ * Белый цвет текста кнопки был вписан числом. В тёмной теме акцент золотой, а
+ * чернила на нём должны быть тёмными (--color-on-primary) — то есть надпись
+ * «Подключить» была белой на золотом.
+ *
+ * ── Чего не хватало по существу ─────────────────────────────────────────────
+ *
+ * Тариф мог НЕ ВМЕСТИТЬ нынешнюю нагрузку, и об этом нигде не говорилось:
+ * организации с двенадцатью пользователями предлагался Basic на пять. Человек
+ * узнавал бы об этом после оплаты.
+ *
+ * И то единственное, чем Exclusive отличается не числом, — прямая линия с
+ * поддержкой — на карточке не упоминалось вовсе.
+ */
 export function SubscriptionPlanCard({
-  plan,
-  index,
-  isCurrent,
-  isPro,
-  planName,
-  t,
-  isPending,
-  onSelect,
+  plan, isCurrent, isPro, usage, planName, t, isPending, onSelect,
 }: SubscriptionPlanCardProps) {
+  const limits: Array<{ max: number | null; used: number; label: string; short: string }> = [
+    { max: plan.maxUsers, used: usage.users, label: t("пользователей", "foydalanuvchi"), short: t("Пользователи", "Foydalanuvchilar") },
+    { max: plan.maxProducts, used: usage.products, label: t("SKU товаров", "SKU mahsulot"), short: t("Товары", "Mahsulotlar") },
+    { max: plan.maxOrdersMonth, used: usage.orders, label: t("заказов/мес", "buyurtma/oy"), short: t("Заказы", "Buyurtmalar") },
+  ];
+
+  // Что уже не помещается. Считается здесь, а не в голове у покупателя.
+  const tooSmall = limits.filter(l => l.max !== null && l.used > l.max);
+  const hasSupportChat = PLAN_FEATURES[plan.key as PlanKey]?.supportChat;
+
   return (
     <div
-      className="neo-card"
+      className={isCurrent ? "neo-card neo-card-static" : "neo-card"}
       style={{
-        position: "relative",
-        padding: "24px",
-        display: "flex",
-        flexDirection: "column",
-        gap: "16px",
-        transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-        animation: `slideUp ${0.8 + index * 0.1}s ease`,
-        cursor: "default",
+        position: "relative", padding: "22px", display: "flex", flexDirection: "column", gap: "14px",
         overflow: "visible",
-      }}
-      onMouseEnter={(e) => {
-        if (!isCurrent) {
-          (e.currentTarget as HTMLElement).style.transform = "translateY(-4px)";
-        }
-      }}
-      onMouseLeave={(e) => {
-        (e.currentTarget as HTMLElement).style.transform = "translateY(0)";
-        (e.currentTarget as HTMLElement).style.boxShadow = isPro
-          ? `${SHADOWS.xl}, ${SHADOWS.glow("primary", 0.12)}`
-          : isCurrent
-            ? `${SHADOWS.lg}, 0 0 0 2px ${colorMix(COLORS.primary, 19)}`
-            : SHADOWS.md;
+        ...(isCurrent ? { boxShadow: "var(--shadow-raised), 0 0 0 2px color-mix(in srgb, var(--color-primary) 30%, transparent)" } : {}),
       }}
     >
-      {/* Popular badge */}
       {isPro && !isCurrent && (
         <div style={{
-          position: "absolute",
-          top: "-12px",
-          left: "50%",
-          transform: "translateX(-50%)",
-          display: "inline-flex",
-          alignItems: "center",
-          gap: "4px",
-          padding: "4px 12px",
-          borderRadius: "100px",
-          fontSize: "10px",
-          fontWeight: "700",
-          color: "#fff",
-          background: GRADIENTS.button,
-          boxShadow: `0 2px 8px ${colorMix(COLORS.primary, 25)}`,
-          whiteSpace: "nowrap",
+          position: "absolute", top: "-11px", left: "50%", transform: "translateX(-50%)",
+          display: "inline-flex", alignItems: "center", gap: "4px",
+          padding: "4px 12px", borderRadius: "999px", whiteSpace: "nowrap",
+          fontSize: "10px", fontWeight: 700, letterSpacing: "0.04em",
+          background: "linear-gradient(135deg, var(--color-primary), var(--color-primary-hover))",
+          color: "var(--color-on-primary)",
+          boxShadow: "0 2px 8px color-mix(in srgb, var(--color-primary) 30%, transparent)",
         }}>
           <Zap size={11} />
           {t("ПОПУЛЯРНЫЙ", "OMMABOP")}
         </div>
       )}
 
-      {/* Plan header */}
+      {/* Имя и цена */}
       <div>
-        <div style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "6px",
-        }}>
-          {isPro && <Zap size={16} style={{ color: COLORS.primaryText }} />}
-          <p style={{
-            fontFamily: FONTS.display,
-            fontWeight: "700",
-            color: COLORS.textPrimary,
-            margin: 0,
-            fontSize: "16px",
-          }}>{planName(plan)}</p>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          {isPro && <Zap size={15} style={{ color: "var(--color-primary-text)" }} />}
+          <p style={{ fontSize: "16px", fontWeight: 700, color: "var(--color-text-primary)" }}>{planName(plan)}</p>
           {isCurrent && (
             <span style={{
-              marginLeft: "auto",
-              padding: "2px 8px",
-              borderRadius: "6px",
-              fontSize: "10px",
-              fontWeight: "600",
-              color: COLORS.primaryText,
-              background: "color-mix(in srgb, var(--color-primary) 15%, transparent)",
+              marginLeft: "auto", padding: "3px 9px", borderRadius: "999px",
+              fontSize: "10px", fontWeight: 700, letterSpacing: "0.04em",
+              color: "var(--color-primary-text)", background: "var(--color-primary-subtle)",
             }}>
               {t("ТЕКУЩИЙ", "JORIY")}
             </span>
           )}
         </div>
-        <p style={{
-          fontFamily: FONTS.body,
-          fontSize: "28px",
-          fontWeight: "700",
-          color: COLORS.textPrimary,
-          marginTop: "12px",
-          margin: "12px 0 0",
-          lineHeight: 1.2,
-        }}>
+        <p style={{ fontSize: "27px", fontWeight: 700, color: "var(--color-text-primary)", marginTop: "10px", lineHeight: 1.2, letterSpacing: "-0.02em" }}>
           {plan.price === 0
             ? t("Бесплатно", "Bepul")
-            : <>{plan.price.toLocaleString("ru-RU")}<span style={{
-                fontSize: "14px",
-                fontWeight: "500",
-                color: COLORS.textSecondary,
-                fontFamily: FONTS.display,
-              }}> {t("сум/мес", "so'm/oy")}</span></>}
+            : (
+              <>
+                <span style={{ fontVariantNumeric: "tabular-nums" }}>{plan.price.toLocaleString("ru")}</span>
+                <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--color-text-secondary)" }}>
+                  {" "}{t("сум/мес", "so'm/oy")}
+                </span>
+              </>
+            )}
         </p>
       </div>
 
-      {/* Divider */}
-      <div style={{
-        height: "1px",
-        background: `linear-gradient(90deg, transparent, ${colorMix(COLORS.textTertiary, 19)}, transparent)`,
-        margin: "4px 0",
-      }} />
+      <div style={{ height: "1px", background: "var(--color-border-subtle)" }} />
 
-      {/* Features */}
-      <div style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: "12px",
-        fontSize: "14px",
-        flex: 1,
-      }}>
-        {[
-          { val: plan.maxUsers, label: t("пользователей", "foydalanuvchi") },
-          { val: plan.maxProducts, label: t("SKU товаров", "SKU mahsulot") },
-          { val: plan.maxOrdersMonth, label: t("заказов/мес", "buyurtma/oy") },
-        ].map((item) => (
-          <div key={item.label} style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "10px",
-          }}>
-            <div style={{
-              width: "20px",
-              height: "20px",
-              borderRadius: "50%",
-              background: "rgba(74,222,128,.15)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexShrink: 0,
+      {/* Что входит */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "10px", fontSize: "13.5px", flex: 1 }}>
+        {limits.map(item => (
+          <div key={item.label} style={{ display: "flex", alignItems: "center", gap: "9px" }}>
+            <span style={{
+              width: "19px", height: "19px", borderRadius: "50%", flexShrink: 0,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              background: "var(--color-success-subtle)", color: "var(--color-success-text, var(--color-success))",
             }}>
-              <Check size={12} style={{ color: "var(--color-success-text)" }} />
-            </div>
-            <span style={{ color: COLORS.textSecondary }}>
-              <span style={{
-                color: COLORS.textPrimary,
-                fontWeight: "600",
-                fontFamily: FONTS.body,
-              }}>
-                {item.val === null ? t("Безлимит", "Cheksiz") : item.val.toLocaleString()}
-              </span> {item.label}
+              <Check size={11} />
+            </span>
+            <span style={{ color: "var(--color-text-secondary)" }}>
+              <span style={{ color: "var(--color-text-primary)", fontWeight: 600 }}>
+                {item.max === null ? t("Безлимит", "Cheksiz") : item.max.toLocaleString("ru")}
+              </span>{" "}{item.label}
             </span>
           </div>
         ))}
+
+        {/* Прямая линия с поддержкой — единственное отличие не числом. */}
+        {hasSupportChat && (
+          <div style={{ display: "flex", alignItems: "center", gap: "9px" }}>
+            <span style={{
+              width: "19px", height: "19px", borderRadius: "50%", flexShrink: 0,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              background: "var(--color-primary-subtle)", color: "var(--color-primary-text)",
+            }}>
+              <LifeBuoy size={11} />
+            </span>
+            <span style={{ color: "var(--color-text-secondary)" }}>
+              {t("Чат с поддержкой прямо в системе", "Tizim ichida qo'llab-quvvatlash chati")}
+            </span>
+          </div>
+        )}
       </div>
 
-      {/* CTA Button */}
-      {!isCurrent && (
-        <button
-          onClick={() => onSelect(plan.key)}
-          disabled={isPending}
-          style={{
-            width: "100%",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "8px",
-            fontSize: "14px",
-            fontWeight: "600",
-            padding: "12px 20px",
-            borderRadius: "12px",
-            border: "none",
-            cursor: isPending ? "not-allowed" : "pointer",
-            color: "#fff",
-            background: isPro ? GRADIENTS.button : `${COLORS.primary}`,
-            boxShadow: isPro ? `0 4px 14px ${colorMix(COLORS.primary, 25)}` : SHADOWS.sm,
-            transition: "all 0.2s ease",
-            opacity: isPending ? 0.7 : 1,
-          }}
-          onMouseEnter={(e) => {
-            if (!isPending) {
-              (e.target as HTMLElement).style.background = isPro ? GRADIENTS.buttonHover : COLORS.primaryDark;
-              (e.target as HTMLElement).style.boxShadow = isPro ? `0 6px 20px ${colorMix(COLORS.primary, 31)}` : SHADOWS.md;
-              (e.target as HTMLElement).style.transform = "translateY(-1px)";
-            }
-          }}
-          onMouseLeave={(e) => {
-            (e.target as HTMLElement).style.background = isPro ? GRADIENTS.button : COLORS.primary;
-            (e.target as HTMLElement).style.boxShadow = isPro ? `0 4px 14px ${colorMix(COLORS.primary, 25)}` : SHADOWS.sm;
-            (e.target as HTMLElement).style.transform = "translateY(0)";
-          }}
-        >
-          {isPending ? <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> : <Zap size={16} />}
-          {t("Подключить", "Ulash")}
-        </button>
-      )}
-      {isCurrent && (
+      {/* Не вместит. Сказать это ДО оплаты, а не после. */}
+      {tooSmall.length > 0 && !isCurrent && (
         <div style={{
-          width: "100%",
-          textAlign: "center",
-          fontSize: "14px",
-          fontWeight: "500",
-          padding: "12px 20px",
-          borderRadius: "12px",
-          color: COLORS.textTertiary,
-          background: "rgba(156,163,175,.10)",
+          display: "flex", alignItems: "flex-start", gap: "8px",
+          padding: "10px 12px", borderRadius: "12px",
+          background: "var(--color-warning-subtle)",
+          fontSize: "12px", lineHeight: 1.45,
+          color: "var(--color-warning-text, var(--color-warning))",
+        }}>
+          <AlertTriangle size={13} style={{ flexShrink: 0, marginTop: "2px" }} />
+          <span>
+            {t("Не вместит: ", "Sig'maydi: ")}
+            {tooSmall.map(l => `${l.short.toLowerCase()} ${l.used.toLocaleString("ru")}/${l.max?.toLocaleString("ru")}`).join(", ")}
+          </span>
+        </div>
+      )}
+
+      {isCurrent ? (
+        <div style={{
+          width: "100%", textAlign: "center", padding: "12px 20px", borderRadius: "14px",
+          fontSize: "13.5px", fontWeight: 600,
+          color: "var(--color-text-tertiary)", background: "var(--color-surface-light)",
+          boxShadow: "var(--shadow-pressed)",
         }}>
           {t("Активен", "Faol")}
         </div>
+      ) : (
+        <button
+          onClick={() => onSelect(plan.key)}
+          disabled={isPending}
+          className={isPro ? "neo-btn-primary" : "neo-btn"}
+          style={{ width: "100%", height: "44px", borderRadius: "14px", fontSize: "13.5px" }}
+        >
+          {isPending ? <Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} /> : <Zap size={15} />}
+          {t("Подключить", "Ulash")}
+        </button>
       )}
     </div>
   );
 }
-
-// Re-export Check for usage in plan features
-import { Check, Loader2 } from "lucide-react";
-import { colorMix } from "@/lib/color-mix";

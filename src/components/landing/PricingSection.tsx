@@ -4,9 +4,24 @@ import { useTranslate } from "@/i18n";
 import { Check } from "lucide-react";
 import { SectionHead, Stamp, BtnInk, BtnGhost } from "./landing-shared";
 import { cn, LX, MONO, tgLink } from "./landing-tokens";
+import { PLANS, PLAN_PRICES_UZS } from "@contracts/constants";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    07 / Тарифы.
+
+   ── Числа берутся из источника, а не переписываются ─────────────────────────
+
+   Цены и пределы стояли здесь строками: «299 000», «До 5 пользователей». Это
+   вторая копия того, что живёт в contracts/constants.ts и по чему приложение
+   считает доступ. Совпадали они по случайности: подними цену в одном месте — и
+   лендинг продолжит обещать старую, а на экране оплаты человек увидит другую.
+
+   ── Чего не хватало ────────────────────────────────────────────────────────
+
+   Предел по товарам не назывался ВООБСЕ. У Basic это 50 SKU, у Pro — 100:
+   для оптовика с тысячей позиций это главный вопрос к тарифу, и ответа на
+   странице не было. Пределы теперь стоят отдельной строкой в каждой карточке,
+   все три сразу.
 
    Возражение директора — не «дорого», а «непонятно, какой тариф мой и что
    будет после триала». Поэтому: строка самоопределения под именем тарифа,
@@ -22,15 +37,23 @@ export default function PricingSection() {
   const tgSales = tgLink(tr("Здравствуйте! Интересует тариф Exclusive.", "Assalomu alaykum! Exclusive tarifi bo'yicha ma'lumot olmoqchiman."));
 
   const plans = useMemo(
-    () => [
+    () => {
+      /** Предел: null значит «без ограничения». Внутри memo — иначе он
+          пересоздаётся каждую отрисовку и обнуляет смысл memo. */
+      const cap = (v: number | null) => (v === null ? tr("без предела", "cheksiz") : v.toLocaleString("ru"));
+      return [
       {
         name: "Basic",
-        price: "299 000",
+        price: PLAN_PRICES_UZS.basic.toLocaleString("ru"),
         fit: tr("Команда до 5 человек, один склад", "5 kishigacha jamoa, bitta ombor"),
         anchor: tr("≈ 10 000 сум в день", "kuniga ≈ 10 000 so'm"),
+        limits: [
+          { v: cap(PLANS.basic.maxUsers), label: tr("пользователей", "foydalanuvchi") },
+          { v: cap(PLANS.basic.maxProducts), label: tr("SKU товаров", "SKU mahsulot") },
+          { v: cap(PLANS.basic.maxOrdersMonth), label: tr("заказов в месяц", "buyurtma/oy") },
+        ],
         features: [
           tr("Склад, заказы, доставка", "Ombor, buyurtmalar, yetkazish"),
-          tr("До 5 пользователей", "5 tagacha foydalanuvchi"),
           tr("Мобильное приложение с офлайн-режимом", "Oflayn rejimli mobil ilova"),
           tr("Базовые отчёты", "Asosiy hisobotlar"),
           tr("Поддержка по email", "Email orqali yordam"),
@@ -39,11 +62,16 @@ export default function PricingSection() {
       },
       {
         name: "Pro",
-        price: "599 000",
+        price: PLAN_PRICES_UZS.pro.toLocaleString("ru"),
         fit: tr("5–20 сотрудников, агенты в поле", "5–20 xodim, daladagi agentlar"),
         anchor: tr("≈ 20 000 сум в день — меньше одной недостачи", "kuniga ≈ 20 000 so'm — bitta kamomaddan arzon"),
+        limits: [
+          { v: cap(PLANS.pro.maxUsers), label: tr("пользователей", "foydalanuvchi") },
+          { v: cap(PLANS.pro.maxProducts), label: tr("SKU товаров", "SKU mahsulot") },
+          { v: cap(PLANS.pro.maxOrdersMonth), label: tr("заказов в месяц", "buyurtma/oy") },
+        ],
         features: [
-          tr("Всё из Basic, до 20 пользователей", "Basic'dagi hammasi, 20 tagacha foydalanuvchi"),
+          tr("Всё из Basic", "Basic'dagi hammasi"),
           tr("GPS-контроль агентов и курьеров", "Agentlar va kuryerlar GPS nazorati"),
           tr("Двусторонний обмен с 1С", "1C bilan ikki tomonlama almashinuv"),
           tr("Полная аналитика: прибыль, KPI, долги", "To'liq tahlil: foyda, KPI, qarzlar"),
@@ -53,20 +81,26 @@ export default function PricingSection() {
       },
       {
         name: "Exclusive",
-        price: "1 299 000",
+        price: PLAN_PRICES_UZS.exclusive.toLocaleString("ru"),
         fit: tr("Сеть филиалов, без ограничений", "Filiallar tarmog'i, cheklovsiz"),
         anchor: tr("Персональный менеджер и внедрение", "Shaxsiy menejer va joriy etish"),
+        limits: [
+          { v: cap(PLANS.exclusive.maxUsers), label: tr("пользователей", "foydalanuvchi") },
+          { v: cap(PLANS.exclusive.maxProducts), label: tr("SKU товаров", "SKU mahsulot") },
+          { v: cap(PLANS.exclusive.maxOrdersMonth), label: tr("заказов в месяц", "buyurtma/oy") },
+        ],
         features: [
-          tr("Без ограничений по людям и товарам", "Odamlar va tovarlar bo'yicha cheksiz"),
+          tr("Всё из Pro", "Pro'dagi hammasi"),
+          tr("Чат с поддержкой прямо в системе", "Tizim ichida qo'llab-quvvatlash chati"),
           tr("API-доступ и white-label", "API va white-label"),
           tr("Помощь с переносом данных из Excel и 1С", "Excel va 1C dan ma'lumot ko'chirishda yordam"),
           tr("Выделенный сервер", "Ajratilgan server"),
-          tr("Поддержка 24/7", "24/7 yordam"),
         ],
         hl: false,
         manager: true,
       },
-    ],
+      ];
+    },
     [tr],
   );
 
@@ -123,7 +157,25 @@ export default function PricingSection() {
                 {plan.anchor}
               </p>
 
-              <ul className="mt-6 space-y-2.5 flex-1">
+              {/* Пределы — все три сразу и числом. Предел по товарам раньше не
+                  назывался вовсе, а для оптовика это главный вопрос. */}
+              <div
+                className="mt-5 grid grid-cols-3 gap-2 rounded-lg py-3 px-2"
+                style={{ background: LX.paperRaised, border: `1px solid ${LX.rule}` }}
+              >
+                {plan.limits.map(l => (
+                  <div key={l.label} className="text-center">
+                    <div className="text-[15px] font-semibold leading-none" style={{ ...MONO, color: LX.ink }}>
+                      {l.v}
+                    </div>
+                    <div className="text-[10.5px] mt-1.5 leading-tight" style={{ color: LX.inkFaint }}>
+                      {l.label}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <ul className="mt-5 space-y-2.5 flex-1">
                 {plan.features.map(f => (
                   <li key={f} className="flex items-start gap-2.5 text-[13.5px]" style={{ color: LX.inkSoft }}>
                     <Check size={14} strokeWidth={3} className="mt-0.5 shrink-0" style={{ color: LX.brassText }} />

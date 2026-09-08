@@ -1,18 +1,22 @@
-import { COLORS } from "./designTokens";
-
 interface SkeletonBlockProps {
   height: number;
   style?: React.CSSProperties;
 }
 
+/**
+ * Заглушка на время загрузки.
+ *
+ * Цвета брались из своего словаря designTokens, где `surfaceDark` на деле был
+ * СВЕТЛЕЕ обычной поверхности — переливание шло в обратную сторону.
+ */
 export function SkeletonBlock({ height, style = {} }: SkeletonBlockProps) {
   return (
     <div style={{
       height: `${height}px`,
-      borderRadius: "16px",
-      background: `linear-gradient(90deg, ${COLORS.surfaceDark} 25%, ${COLORS.surface} 50%, ${COLORS.surfaceDark} 75%)`,
+      borderRadius: "24px",
+      background: "linear-gradient(90deg, var(--color-surface) 25%, var(--color-surface-light) 50%, var(--color-surface) 75%)",
       backgroundSize: "200% 100%",
-      animation: "pulse 1.5s ease-in-out infinite",
+      animation: "shimmer 1.6s linear infinite",
       ...style,
     }} />
   );

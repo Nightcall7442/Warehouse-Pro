@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { getDb } from "../queries/connection";
 import { supportMessages, supportThreads, tenants, users } from "@db/schema";
 import { sseBus } from "../lib/sse";
+import { PLAN_FEATURES, type PlanKey } from "../../contracts/constants";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Чат поддержки — правила разговора.
@@ -53,7 +54,14 @@ export async function tenantPlan(tenantId: number): Promise<string | null> {
 }
 
 export async function hasSupportChat(tenantId: number): Promise<boolean> {
-  return (await tenantPlan(tenantId)) === "exclusive";
+  /*
+    Сравнение с "exclusive" строкой стояло здесь, а на экране оплаты не стояло
+    нигде: карточки тарифов сравнивались одними числами, и то единственное, чем
+    Exclusive отличается по существу, при выборе было не видно. Теперь и доступ,
+    и подпись на карточке читают одну запись.
+  */
+  const plan = await tenantPlan(tenantId);
+  return Boolean(plan && PLAN_FEATURES[plan as PlanKey]?.supportChat);
 }
 
 export async function requireSupportChat(tenantId: number): Promise<void> {

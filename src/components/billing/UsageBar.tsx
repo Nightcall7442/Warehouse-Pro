@@ -1,87 +1,83 @@
-import { COLORS, FONTS } from "./designTokens";
 import { colorMix } from "@/lib/color-mix";
 
 interface UsageBarProps {
   used: number;
   max: number | null;
   label: string;
+  /** Что перестанет работать при достижении предела. */
+  atLimit: string;
   icon: React.ComponentType<{ size?: number; style?: React.CSSProperties }>;
 }
 
-export function UsageBar({ used, max, label, icon: Icon }: UsageBarProps) {
+/**
+ * Полоса расхода лимита.
+ *
+ * ── Чего не хватало ─────────────────────────────────────────────────────────
+ *
+ * Полоса краснела у предела и молчала о том, что при этом произойдёт. «18/20
+ * пользователей» не говорит, случится ли что-то плохое на двадцать первом —
+ * откажут в добавлении или просто спишут больше. Теперь под полосой написано.
+ */
+export function UsageBar({ used, max, label, atLimit, icon: Icon }: UsageBarProps) {
   const pct = max ? Math.min((used / max) * 100, 100) : 100;
-  const warn = max && used >= max * 0.85;
-  const over = max && used >= max;
-  const barColor = over ? COLORS.danger : warn ? COLORS.warning : COLORS.primary;
+  const warn = max !== null && used >= max * 0.85;
+  const over = max !== null && used >= max;
+
+  const tone = over
+    ? "var(--color-danger)"
+    : warn
+      ? "var(--color-warning)"
+      : "var(--color-primary)";
+  const ink = over
+    ? "var(--color-danger-text, var(--color-danger))"
+    : warn
+      ? "var(--color-warning-text, var(--color-warning))"
+      : "var(--color-text-primary)";
 
   return (
-    <div style={{
-      marginBottom: "20px",
-      animation: "fadeIn 0.5s ease",
-    }}>
-      <div style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        marginBottom: "10px",
-      }}>
-        <div style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "10px",
-        }}>
-          <div style={{
-            width: "32px",
-            height: "32px",
-            borderRadius: "10px",
-            background: colorMix(barColor, 8),
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}>
-            <Icon size={16} style={{ color: barColor }} />
-          </div>
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", marginBottom: "9px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
           <span style={{
-            fontSize: "14px",
-            fontWeight: "500",
-            color: COLORS.textSecondary,
-          }}>{label}</span>
+            width: "32px", height: "32px", borderRadius: "11px", flexShrink: 0,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            background: colorMix(tone, 10), color: ink,
+          }}>
+            <Icon size={15} />
+          </span>
+          <span style={{ fontSize: "13.5px", fontWeight: 500, color: "var(--color-text-secondary)" }}>{label}</span>
         </div>
-        <div style={{
-          fontFamily: FONTS.body,
-          fontSize: "14px",
-          fontWeight: over ? "700" : warn ? "600" : "500",
-          color: over ? COLORS.danger : warn ? COLORS.warning : COLORS.textPrimary,
-        }}>
-          {used.toLocaleString()}
-          <span style={{
-            color: COLORS.textTertiary,
-            fontWeight: "400",
-            marginLeft: "4px",
-          }}>
-            / {max ? max.toLocaleString() : "∞"}
+        <div style={{ fontSize: "13.5px", fontWeight: over ? 700 : warn ? 600 : 500, color: ink, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>
+          {used.toLocaleString("ru")}
+          <span style={{ color: "var(--color-text-tertiary)", fontWeight: 400, marginLeft: "4px" }}>
+            / {max === null ? "∞" : max.toLocaleString("ru")}
           </span>
         </div>
       </div>
+
+      {/* Жёлоб вдавлен, заполнение приподнято — тот же приём, что у всей
+          остальной вёрстки. Раньше полоса была плоской заливкой. */}
       <div style={{
-        height: "8px",
-        borderRadius: "4px",
-        background: colorMix(barColor, 7),
-        overflow: "hidden",
-        position: "relative",
+        height: "9px", borderRadius: "999px", overflow: "hidden",
+        background: "var(--color-canvas)", boxShadow: "var(--shadow-pressed)",
       }}>
         <div style={{
-          height: "100%",
-          borderRadius: "4px",
-          width: `${pct}%`,
-          background: max
-            ? `linear-gradient(90deg, ${barColor}, ${colorMix(barColor, 80)})`
-            : `linear-gradient(90deg, ${COLORS.success}, #16A38A)`,
+          height: "100%", width: `${pct}%`, borderRadius: "999px",
+          background: max === null
+            ? `linear-gradient(90deg, var(--color-success), ${colorMix("var(--color-success)", 65)})`
+            : `linear-gradient(90deg, ${tone}, ${colorMix(tone, 70)})`,
           transition: "width 0.8s cubic-bezier(0.4, 0, 0.2, 1)",
-          animation: "progressFill 1s ease forwards",
-          boxShadow: `0 0 10px ${colorMix(barColor, 25)}`,
+          animation: "progressFill 0.9s ease",
         }} />
       </div>
+
+      {/* Что случится у предела — только когда он близко. Постоянная строка под
+          каждой полосой была бы шумом. */}
+      {warn && (
+        <p style={{ fontSize: "11.5px", lineHeight: 1.45, color: ink, marginTop: "7px" }}>
+          {atLimit}
+        </p>
+      )}
     </div>
   );
 }
