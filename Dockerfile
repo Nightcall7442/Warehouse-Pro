@@ -47,8 +47,15 @@ RUN npm run build
 
 FROM base AS runtime
 WORKDIR /app
-# mysqldump — needed by api/cron/backup.ts to produce real, restorable backups
-RUN apk add --no-cache mysql-client
+# Никакого клиента базы здесь больше нет.
+#
+# Стоял `mysql-client` ради mysqldump. В Alpine под этим именем лежит клиент
+# MariaDB — настоящий mysqldump там переименован в mariadb-dump, — а он не
+# умеет способ входа caching_sha2_password, который MySQL 8 назначает
+# пользователям по умолчанию. Выгрузка падала на входе с ошибкой 1045, и
+# узнали об этом только когда её впервые попробовали скачать.
+# Теперь копию собирает само приложение тем же соединением mysql2, которым
+# работает каждый день: см. api/services/db-dump.ts.
 RUN addgroup -g 1001 -S appgroup && adduser -S appuser -u 1001 -G appgroup
 COPY --from=builder --chown=appuser:appgroup /app/dist ./dist
 # Source maps were already uploaded to Sentry during the build stage — they are

@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
-import { EventEmitter } from "node:events";
 
 /**
  * Инфраструктура и 1С: три места, где сбой не виден изнутри системы.
@@ -85,20 +84,22 @@ vi.mock("../queries/connection", () => ({
   }),
 }));
 
-// Дочерний процесс mysqldump: отдаёт немного байт и завершается успешно.
-vi.mock("child_process", () => ({
-  spawn: () => {
-    const child = new EventEmitter() as EventEmitter & {
-      stdout: EventEmitter; stderr: EventEmitter;
-    };
-    child.stdout = new EventEmitter();
-    child.stderr = new EventEmitter();
-    setTimeout(() => {
-      child.stdout.emit("data", Buffer.from("-- MySQL dump\nCREATE TABLE users (...);\n"));
-      child.emit("close", 0);
-    }, 0);
-    return child;
-  },
+/*
+  Выгрузка базы: отдаёт немного байт сжатым потоком.
+
+  Раньше здесь подменялся дочерний процесс mysqldump — ночная копия снимала
+  его сама. Теперь копию снимает та же служба, что отдаёт её по кнопке
+  суперадмину, и подменяется именно она: двух способов снять копию быть не
+  должно, иначе они сломаются порознь.
+*/
+vi.mock("../services/db-dump", () => ({
+  startDump: async () => ({
+    // Поток создаётся внутри двойника: обращаться из фабрики vi.mock к
+    // импорту из шапки файла нельзя — фабрика поднимается выше него.
+    stream: (await import("node:stream")).Readable.from([Buffer.from("gzipped-dump-bytes")]),
+    filename: "warehouse-pro-2026-09-08.sql.gz",
+  }),
+  DumpUnavailableError: class DumpUnavailableError extends Error {},
 }));
 
 // S3: запоминаем ровно то, что ушло бы в бакет.

@@ -1,17 +1,17 @@
-import { spawn } from "child_process";
 import { randomBytes } from "crypto";
-import { gzipSync } from "zlib";
 import { getDb } from "../queries/connection";
 import { logger } from "../lib/logger";
 import { env } from "../lib/env";
+import { startDump } from "../services/db-dump";
 
 import { firstRow } from "../lib/db-rows";
 /**
  * Database backup cron job
  * Runs daily at 3 AM UTC
  *
- * Produces a real, restorable `mysqldump` of the database, gzips it, and
- * uploads it to S3. Requires `mysqldump` on PATH (see Dockerfile) and S3
+ * Produces a real, restorable logical dump of the database, gzipped, and
+ * uploads it to S3. The dump itself is built by `startDump` — the same code
+ * path the superadmin download button uses. Requires S3
  * credentials — without S3 there is nowhere durable to put the dump (the
  * container's filesystem doesn't survive a redeploy), so that case is
  * reported as a failure rather than a false "success".
@@ -56,55 +56,25 @@ export async function runBackup(): Promise<{ success: boolean; message: string }
     return { success: false, message: "Backup NOT performed: S3 is not configured, so there is no durable storage for the dump" };
   }
 
-  let parsed: URL;
   try {
-    parsed = new URL(env.databaseUrl);
-  } catch {
-    return { success: false, message: "Backup failed: could not parse DATABASE_URL" };
-  }
-  const dbHost = parsed.hostname;
-  const dbPort = parsed.port || "3306";
-  const dbUser = decodeURIComponent(parsed.username);
-  const dbPassword = decodeURIComponent(parsed.password);
-  const dbName = parsed.pathname.replace(/^\//, "");
-  if (!dbHost || !dbUser || !dbName) {
-    return { success: false, message: "Backup failed: DATABASE_URL is missing host/user/database" };
-  }
+    /*
+      Копию снимает та же служба, что отдаёт её суперадмину по кнопке.
 
-  try {
-    const dump = await new Promise<Buffer>((resolve, reject) => {
-      const args = [
-        "--single-transaction", // consistent InnoDB snapshot without locking tables
-        "--quick",              // stream rows instead of buffering the whole table
-        "--routines",
-        "--triggers",
-        `--host=${dbHost}`,
-        `--port=${dbPort}`,
-        `--user=${dbUser}`,
-        dbName,
-      ];
-      // Password via env var (MYSQL_PWD), not argv, so it doesn't show up in `ps`.
-      const child = spawn("mysqldump", args, { env: { ...process.env, MYSQL_PWD: dbPassword } });
+      Раньше здесь стоял свой запуск mysqldump — второй способ снять копию,
+      отличавшийся от первого мелочами. Проку от этого не было никакого, а
+      цена была: сломались они порознь и в разное время, и про ночную копию
+      никто бы не узнал, потому что её никто не открывает.
 
-      const chunks: Buffer[] = [];
-      let stderr = "";
-      child.stdout.on("data", (c: Buffer) => chunks.push(c));
-      child.stderr.on("data", (c: Buffer) => { stderr += c.toString(); });
-      child.on("error", reject); // e.g. mysqldump binary not found
-      child.on("close", (code) => {
-        if (code !== 0) {
-          reject(new Error(`mysqldump exited with code ${code}: ${stderr.slice(0, 2000)}`));
-          return;
-        }
-        resolve(Buffer.concat(chunks));
-      });
-    });
+      Поток уже сжат — отдельного gzip здесь быть не должно.
+    */
+    const { stream } = await startDump();
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) chunks.push(chunk as Buffer);
+    const gzipped = Buffer.concat(chunks);
 
-    if (dump.length === 0) {
-      throw new Error("mysqldump produced an empty output");
+    if (gzipped.length === 0) {
+      throw new Error("dump produced an empty output");
     }
-
-    const gzipped = gzipSync(dump);
 
     // Дамп кладётся в отдельный бакет, а не туда, откуда раздаются фото.
     //
@@ -144,7 +114,7 @@ export async function runBackup(): Promise<{ success: boolean; message: string }
       Metadata: { tableCounts: JSON.stringify(counts) },
     }));
 
-    logger.info("Backup dump uploaded to S3", { bucket: targetBucket, key: backupKey, rawBytes: dump.length, gzippedBytes: gzipped.length, counts });
+    logger.info("Backup dump uploaded to S3", { bucket: targetBucket, key: backupKey, gzippedBytes: gzipped.length, counts });
     return { success: true, message: `Backup saved: ${backupKey} (${(gzipped.length / 1024 / 1024).toFixed(1)} MB gzipped)` };
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
