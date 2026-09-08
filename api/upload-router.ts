@@ -2,29 +2,20 @@ import { z } from "zod";
 import { isSafePhotoValue, PHOTO_VALUE_ERROR } from "./lib/photo-value";
 import { createRouter, authedQuery } from "./middleware";
 import { env } from "./lib/env";
+import { s3Client, publicUrl, isS3Configured } from "./lib/s3";
 
 const ALLOWED_IMAGE_EXTENSIONS = ["jpeg", "jpg", "png", "webp", "gif"] as const;
 
-function isS3Configured(): boolean {
-  return !!(env.s3Bucket && env.s3AccessKey && env.s3SecretKey);
-}
-
 async function uploadToS3(key: string, body: Buffer, contentType: string): Promise<string> {
-  const { S3Client, PutObjectCommand } = await import("@aws-sdk/client-s3");
-  const s3 = new S3Client({
-    region: env.s3Region || "us-east-1",
-    credentials: {
-      accessKeyId: env.s3AccessKey || "",
-      secretAccessKey: env.s3SecretKey || "",
-    },
-  });
+  const { PutObjectCommand } = await import("@aws-sdk/client-s3");
+  const s3 = await s3Client();
   await s3.send(new PutObjectCommand({
     Bucket: env.s3Bucket!,
     Key: key,
     Body: body,
     ContentType: contentType,
   }));
-  return `https://${env.s3Bucket}.s3.${env.s3Region || "us-east-1"}.amazonaws.com/${key}`;
+  return publicUrl(key);
 }
 
 export const uploadRouter = createRouter({

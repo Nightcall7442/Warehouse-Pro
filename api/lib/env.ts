@@ -96,6 +96,23 @@ export const env = {
   s3Region:     optional("S3_REGION"),
   s3AccessKey:  optional("S3_ACCESS_KEY"),
   s3SecretKey:  optional("S3_SECRET_KEY"),
+  /*
+    Свой адрес входа — для S3-совместимых хранилищ, которых не AWS.
+
+    Пусто значит обычный Amazon. Заполнено — Cloudflare R2, Backblaze B2,
+    Yandex Object Storage и прочие: протокол у них тот же, а домен свой.
+  */
+  s3Endpoint:   optional("S3_ENDPOINT"),
+  /*
+    По какому адресу файлы читают снаружи.
+
+    Адрес входа и адрес чтения — разные вещи. У R2 в бакет пишут по
+    <account>.r2.cloudflarestorage.com, а читают по выданному pub-….r2.dev или
+    по своему домену. Собрать второй из первого нельзя.
+  */
+  s3PublicUrl:  optional("S3_PUBLIC_URL"),
+  /** Имя бакета в пути, а не в поддомене. Нужно почти всем, кроме AWS. */
+  s3ForcePathStyle: optional("S3_FORCE_PATH", "") !== "",
 
   // Redis
   redisUrl:            optional("REDIS_URL"),

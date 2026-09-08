@@ -3,6 +3,7 @@ import { getDb } from "../queries/connection";
 import { logger } from "../lib/logger";
 import { env } from "../lib/env";
 import { startDump } from "../services/db-dump";
+import { s3Client, serverSideEncryption } from "../lib/s3";
 
 import { firstRow } from "../lib/db-rows";
 /**
@@ -92,14 +93,10 @@ export async function runBackup(): Promise<{ success: boolean; message: string }
       );
     }
 
-    const { S3Client, PutObjectCommand } = await import("@aws-sdk/client-s3");
-    const s3 = new S3Client({
-      region: env.s3Region || "us-east-1",
-      credentials: {
-        accessKeyId: env.s3AccessKey,
-        secretAccessKey: env.s3SecretKey,
-      },
-    });
+    const { PutObjectCommand } = await import("@aws-sdk/client-s3");
+    // Клиент общий на всё приложение: он же умеет чужой адрес входа, если
+    // хранилище не амазоновское.
+    const s3 = await s3Client();
     await s3.send(new PutObjectCommand({
       Bucket: targetBucket,
       Key: backupKey,
@@ -110,7 +107,13 @@ export async function runBackup(): Promise<{ success: boolean; message: string }
       // ACL здесь намеренно не передаётся: у бакетов с Object Ownership =
       // BucketOwnerEnforced любой ACL в запросе — ошибка, и бэкап бы просто
       // перестал загружаться.
-      ServerSideEncryption: "AES256",
+      //
+      // Заголовок уходит только на сам AWS. Хранилища вроде Cloudflare R2
+      // шифруют содержимое сами и всегда, а незнакомый заголовок отвергают
+      // целиком — то есть ночная копия падала бы каждую ночь ради шифрования,
+      // которое там и так включено. Проверять нечего: наличие своего адреса
+      // входа и означает «хранилище не амазоновское».
+      ...serverSideEncryption(),
       Metadata: { tableCounts: JSON.stringify(counts) },
     }));
 

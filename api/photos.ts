@@ -1,4 +1,5 @@
 import { Hono, type Context } from "hono";
+import { allowedPhotoHost } from "./lib/s3";
 import { eq, and } from "drizzle-orm";
 import { products, shops, dailyPlans } from "@db/schema";
 import { getDb } from "./queries/connection";
@@ -46,11 +47,15 @@ const CACHE_HEADER = "private, max-age=604800, immutable";
  * Разрешён единственный хост — тот, куда выкладываем сами. Не настроено
  * хранилище — переадресации нет вовсе.
  */
+/*
+  Хост берётся из общего модуля хранилища — оттуда же, откуда собираются сами
+  ссылки. Раньше он складывался здесь по амазоновскому образцу, и на любом
+  другом S3-совместимом хранилище проверка отвергала бы наши же файлы:
+  фотографии перестали бы открываться, а выглядело бы это как «сломалась
+  раздача».
+*/
 function allowedRedirectHost(): string | null {
-  const bucket = process.env.S3_BUCKET;
-  if (!bucket) return null;
-  const region = process.env.S3_REGION || "us-east-1";
-  return bucket + ".s3." + region + ".amazonaws.com";
+  return allowedPhotoHost();
 }
 
 export function isAllowedPhotoTarget(raw: string): boolean {

@@ -925,8 +925,14 @@ app.get("/health", async (c) => {
   let s3Status = "not_configured";
   if (env.s3Bucket) {
     try {
-      const { S3Client, HeadBucketCommand } = await import("@aws-sdk/client-s3");
-      const s3 = new S3Client({ region: env.s3Region || "us-east-1" });
+      const { HeadBucketCommand } = await import("@aws-sdk/client-s3");
+      /*
+        Клиент общий. Прежний создавался здесь БЕЗ ключей — проверка бакета
+        уходила без подписи и на закрытом бакете всегда падала, то есть
+        показывала «error» на исправно настроенном хранилище.
+      */
+      const { s3Client } = await import("./lib/s3");
+      const s3 = await s3Client();
       await s3.send(new HeadBucketCommand({ Bucket: env.s3Bucket }));
       s3Status = "connected";
     } catch {

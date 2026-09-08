@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { s3Client, publicUrl } from "./lib/s3";
 import { isSafePhotoValue, PHOTO_VALUE_ERROR } from "./lib/photo-value";
 import { createRouter, operatorQuery, supervisorQuery, managementQuery } from "./middleware";
 import { getDb } from "./queries/connection";
@@ -574,16 +575,13 @@ export const shopRouter = createRouter({
       if (isS3) {
         const match = input.dataUrl.match(/^data:image\/(\w+);base64,(.+)$/);
         if (match) {
-          const { S3Client, PutObjectCommand } = await import("@aws-sdk/client-s3");
+          const { PutObjectCommand } = await import("@aws-sdk/client-s3");
           const ext = match[1].toLowerCase() === "jpeg" ? "jpg" : match[1].toLowerCase();
           const buffer = Buffer.from(match[2], "base64");
           const key = `shops/${ctx.tenant.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-          const s3 = new S3Client({
-            region: env.s3Region || "us-east-1",
-            credentials: { accessKeyId: env.s3AccessKey || "", secretAccessKey: env.s3SecretKey || "" },
-          });
+          const s3 = await s3Client();
           await s3.send(new PutObjectCommand({ Bucket: env.s3Bucket!, Key: key, Body: buffer, ContentType: `image/${ext === "jpg" ? "jpeg" : ext}` }));
-          photoUrl = `https://${env.s3Bucket}.s3.${env.s3Region || "us-east-1"}.amazonaws.com/${key}`;
+          photoUrl = publicUrl(key);
         }
       }
       await getDb().update(shops)

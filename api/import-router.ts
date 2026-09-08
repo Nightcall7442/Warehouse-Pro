@@ -7,6 +7,7 @@ import { products, shops, warehouses, territories } from "@db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { cache } from "./lib/cache";
 import { env } from "./lib/env";
+import { s3Client, publicUrl } from "./lib/s3";
 import { recordStockMovement } from "./services/stock-ledger";
 import { isSafePhotoValue } from "./lib/photo-value";
 // Type-only: exceljs itself stays behind the dynamic imports below so it never
@@ -40,21 +41,15 @@ async function uploadBase64ToS3(dataUrl: string, folder: string, tenantId: numbe
   const buffer = Buffer.from(match[2], "base64");
   const key = `${folder}/${tenantId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
-  const { S3Client, PutObjectCommand } = await import("@aws-sdk/client-s3");
-  const s3 = new S3Client({
-    region: env.s3Region || "us-east-1",
-    credentials: {
-      accessKeyId: env.s3AccessKey || "",
-      secretAccessKey: env.s3SecretKey || "",
-    },
-  });
+  const { PutObjectCommand } = await import("@aws-sdk/client-s3");
+  const s3 = await s3Client();
   await s3.send(new PutObjectCommand({
     Bucket: env.s3Bucket!,
     Key: key,
     Body: buffer,
     ContentType: `image/${ext === "jpg" ? "jpeg" : ext}`,
   }));
-  return `https://${env.s3Bucket}.s3.${env.s3Region || "us-east-1"}.amazonaws.com/${key}`;
+  return publicUrl(key);
 }
 
 /**
