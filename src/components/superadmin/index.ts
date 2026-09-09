@@ -5,3 +5,4 @@ export { AdminActions } from "./AdminActions";
 export { CreateTenantModal } from "./CreateTenantModal";
 export { BackupSection } from "./BackupSection";
 export { SupportInbox } from "./SupportInbox";
+export { FeatureUsage } from "./FeatureUsage";

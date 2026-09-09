@@ -104,8 +104,19 @@ describe("кого пускают в чат", () => {
     await expect(requireSupportChat(1)).resolves.toBeUndefined();
   });
 
-  it("любой другой тариф — отказ с объяснением", async () => {
-    for (const plan of ["trial", "basic", "pro"]) {
+  it("на пробном периоде пускают", async () => {
+    /*
+      Решение владельца: пробный показывает продукт целиком. Для чата это
+      вдвойне разумно — вопросы задают именно на пробном, и человек, которому
+      ответили, покупает охотнее.
+    */
+    vi.mocked(getDb).mockReturnValue(fakeDb({ plan: "trial" }) as never);
+    expect(await hasSupportChat(1)).toBe(true);
+    await expect(requireSupportChat(1)).resolves.toBeUndefined();
+  });
+
+  it("покупаемый тариф ниже Exclusive — отказ с объяснением", async () => {
+    for (const plan of ["basic", "pro"]) {
       vi.mocked(getDb).mockReturnValue(fakeDb({ plan }) as never);
       expect(await hasSupportChat(1)).toBe(false);
       await expect(requireSupportChat(1)).rejects.toMatchObject({

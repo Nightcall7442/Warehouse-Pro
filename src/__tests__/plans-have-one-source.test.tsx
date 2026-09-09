@@ -27,7 +27,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { PLANS, PLAN_PRICES_UZS, FEATURES, PLAN_ADDS, planFeatures, planHas } from "@contracts/constants";
+import { PLANS, PLAN_PRICES_UZS, FEATURES, PLAN_ADDS, SERVICE_FEATURES, planFeatures, planHas, type FeatureKey } from "@contracts/constants";
 
 const SRC = join(__dirname, "..");
 
@@ -67,7 +67,28 @@ describe("что даёт тариф — одна запись на всех", (
     for (const f of planFeatures("pro")) expect(planFeatures("exclusive")).toContain(f);
   });
 
+  it("пробный период показывает продукт целиком", () => {
+    /*
+      Решение владельца. Пока разграничение не проверялось кодом, состав
+      пробного не значил ничего; со включённой проверкой человек, пришедший
+      посмотреть на две недели, увидел бы запертыми GPS, 1С и аналитику — ровно
+      то, за что и платят.
+
+      Услуги (приоритетная поддержка, перенос данных, выделенный сервер)
+      делаются людьми и железом: обещать их пробному нельзя.
+    */
+    const trial = planFeatures("trial");
+    for (const f of Object.keys(FEATURES) as FeatureKey[]) {
+      if (SERVICE_FEATURES.includes(f)) {
+        expect(trial, `услуга ${f} обещана пробному`).not.toContain(f);
+      } else {
+        expect(trial, `${f} заперт на пробном периоде`).toContain(f);
+      }
+    }
+  });
+
   it("чат поддержки и API — только у Exclusive", () => {
+    // Среди ПОКУПАЕМЫХ тарифов. Пробный — не ступень лестницы, у него всё.
     expect(planHas("exclusive", "supportChat")).toBe(true);
     expect(planHas("pro", "supportChat")).toBe(false);
     expect(planHas("exclusive", "api")).toBe(true);
