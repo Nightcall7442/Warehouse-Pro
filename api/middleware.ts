@@ -1,4 +1,4 @@
-import { ErrorMessages } from "@contracts/constants";
+import { ErrorMessages, type OperatorCapability } from "@contracts/constants";
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import type { TrpcContext } from "./context";
@@ -433,6 +433,44 @@ export const financeQuery    = authedQuery.use(requireRole(["ceo"]));
  * have no business reading the sales team's plan.
  */
 export const managementQuery = authedQuery.use(requireRole(["ceo", "operator", "supervisor"]));
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Что арендатор отобрал у роли.
+
+   Роль — потолок, одинаковый для всех организаций. Эта проверка опускает пол
+   в отдельно взятой организации: «здесь оператор заказы не удаляет».
+   Разрешить сверх роли она не может — только запретить.
+
+   Ставится ПОСЛЕ проверки роли, отдельным звеном:
+
+       delete: operatorQuery.use(can("orders.delete"))
+
+   Именно так, а не заменой вида процедуры на свой: вид (operatorQuery) —
+   единственное, по чему и человек, и проверки в наборе тестов узнают, кому
+   ручка открыта. Спрячь его за обёрткой — и стражи ролей замолчат.
+   ═══════════════════════════════════════════════════════════════════════════ */
+export function can(capability: OperatorCapability) {
+  return t.middleware(async ({ ctx, next }) => {
+    /*
+      Настраивается пока только оператор. Директор в каждом operatorQuery
+      присутствует и правами распоряжается сам — отбирать у него через
+      настройку, которую он же и ведёт, бессмысленно.
+    */
+    if (ctx.user?.role === "operator" && ctx.tenant) {
+      const { capabilitiesOf } = await import("./lib/role-permissions");
+      const map = await capabilitiesOf(ctx.db, ctx.tenant.id, ctx.user.role);
+      if (map[capability] === false) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          // Не «недостаточно прав»: отказ здесь не от роли, а от решения
+          // директора, и человек должен понимать, к кому идти.
+          message: "Это действие закрыто оператору в вашей организации. Обратитесь к руководителю.",
+        });
+      }
+    }
+    return next();
+  });
+}
 
 // Здесь были billedQuery, billedAdmin, billedOperator и billedAgent — те самые
 // четыре процедуры, которых не позвал никто. Они удалены намеренно: теперь

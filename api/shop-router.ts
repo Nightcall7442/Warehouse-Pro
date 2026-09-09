@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { s3Client, publicUrl } from "./lib/s3";
 import { isSafePhotoValue, PHOTO_VALUE_ERROR } from "./lib/photo-value";
-import { createRouter, operatorQuery, supervisorQuery, managementQuery } from "./middleware";
+import { createRouter, operatorQuery, supervisorQuery, managementQuery, can } from "./middleware";
 import { getDb } from "./queries/connection";
 import { receivablesAging } from "./services/receivables";
 import { shops, users, orders, payments, territories } from "@db/schema";
@@ -495,7 +495,7 @@ export const shopRouter = createRouter({
     }),
 
   /** Убрать точки из работы. История цела, долг цел, действие обратимо. */
-  archive: operatorQuery
+  archive: operatorQuery.use(can("shops.delete"))
     .input(z.object({
       ids: z.array(z.number()).min(1).max(500),
       reason: z.string().max(200).optional(),
@@ -509,7 +509,7 @@ export const shopRouter = createRouter({
     }),
 
   /** Вернуть точку в работу. */
-  restore: operatorQuery
+  restore: operatorQuery.use(can("shops.delete"))
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
       const tenantId = ctx.tenant.id;
@@ -527,7 +527,7 @@ export const shopRouter = createRouter({
     запись. Так убирают дубли, наплодившиеся от повторного тапа по «Создать» до
     появления ключа попытки, — и только их.
   */
-  deleteForever: operatorQuery
+  deleteForever: operatorQuery.use(can("shops.delete"))
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
       const tenantId = ctx.tenant.id;
@@ -544,7 +544,7 @@ export const shopRouter = createRouter({
       return { success: true };
     }),
 
-  addPayment: operatorQuery
+  addPayment: operatorQuery.use(can("payments.accept"))
     .input(z.object({
       shopId: z.number(),
       amount: z.string().refine(v => /^\d+(\.\d{1,2})?$/.test(v) && Number(v) > 0, "Неверный формат суммы"),

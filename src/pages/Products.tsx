@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import { useCan } from "@/hooks/useCan";
 import { keepPreviousData } from "@tanstack/react-query";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useAuth } from "@/hooks/useAuth";
@@ -46,7 +47,9 @@ export default function Products() {
    * намеренное и безопасное: сервер остаётся источником правды и отклонит
    * запрос в любом случае, здесь лишь прячется то, что всё равно не сработает.
    */
-  const canEdit = canOperate(user?.role);
+  // Плюс настройка организации: у оператора ведение номенклатуры могли закрыть.
+  const can = useCan();
+  const canEdit = canOperate(user?.role) && can("products.manage");
 
   const [search, setSearch] = useState("");
   // Поле ввода остаётся мгновенным, а в запрос уходит придержанное
@@ -165,7 +168,7 @@ export default function Products() {
             открывает ту же страницу как каталог: смотрит цены и остатки. */}
         {canEdit && (
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <button
+          {can("import.run") && <button
             onClick={() => setShowImport(v => !v)}
             style={{
               display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
@@ -175,7 +178,7 @@ export default function Products() {
             }}
           >
             <Upload size={14} /><span className="hidden sm:inline">{t("Импорт", "Import")}</span>
-          </button>
+          </button>}
           <button
             onClick={async () => {
               const { data: exported } = await refetchAllProducts();
@@ -209,7 +212,7 @@ export default function Products() {
 
       {/* Import Section */}
       <div key="import-section">
-        {showImport && <ExcelImport type="products" onDone={() => { setShowImport(false); utils.product.list.invalidate(); }} onCancel={() => setShowImport(false)} />}
+        {showImport && can("import.run") && <ExcelImport type="products" onDone={() => { setShowImport(false); utils.product.list.invalidate(); }} onCancel={() => setShowImport(false)} />}
       </div>
 
       {/* Form Section */}

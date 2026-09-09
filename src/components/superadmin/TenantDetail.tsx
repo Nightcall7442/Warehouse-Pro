@@ -1,12 +1,10 @@
 import { useState } from "react";
+import { OperatorAccess } from "@/components/settings/OperatorAccess";
 import { format } from "date-fns";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { useConfirm } from "@/components/ConfirmDialog";
-import {
-  ArrowLeft, Users, ShoppingCart, Package, Store, Shield, Lock,
-  BarChart3, Zap, Calendar, Power, Plus,
-} from "lucide-react";
+import { ArrowLeft, Users, ShoppingCart, Package, Store, Shield, Lock, BarChart3, Zap, Calendar, Power, Plus, ShieldCheck } from "lucide-react";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { labelled, ROLE_LABEL } from "@/lib/entity-labels";
 import { EXTRA_PRICES_UZS } from "@contracts/constants";
@@ -199,6 +197,16 @@ export function TenantDetail({ tenantId, onBack }: TenantDetailProps) {
             <Power size={13} /> {tenant.status === "active" ? "Приостановить" : "Активировать"}
           </BtnSecondary>
         </div>
+      </Section>
+
+      {/*
+        Права оператора — тот же список, что у директора в настройках.
+        Здесь он нужен потому, что просьба «закройте нашему оператору удаление
+        заказов» приходит в поддержку, а не в настройки: пока раздел новый,
+        арендатор о нём не знает и пишет владельцу платформы.
+      */}
+      <Section title="Права оператора" icon={ShieldCheck}>
+        <OperatorAccess tenantId={tenantId} />
       </Section>
 
       {/* Users */}

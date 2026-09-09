@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import { useCan } from "@/hooks/useCan";
 import { keepPreviousData } from "@tanstack/react-query";
 import { trpc } from "@/providers/trpc";
 import { useWarehouse } from "@/providers/WarehouseContext";
@@ -79,6 +80,14 @@ export default function Warehouse() {
   const { data: reorderSuggestions } = trpc.warehouse.reorderSuggestions.useQuery();
   const { data: deadStockItems, isLoading: deadStockLoading } = trpc.warehouse.deadStock.useQuery({ days: deadStockDays });
   const utils = trpc.useUtils();
+
+  /*
+    Ручная правка остатков и удаление товара — то, что арендатор чаще всего
+    закрывает оператору: списать «на бумаге» лишний мешок можно одним нажатием.
+  */
+  const can = useCan();
+  const canAdjust = can("warehouse.adjust");
+  const canDeleteProduct = can("products.manage");
 
   const handleAdjust = useCallback((item: { id: number; name: string; stock: number; unit: string; unitWeight: number }) => {
     setAdjusting(item);
@@ -338,16 +347,16 @@ export default function Warehouse() {
                                 <p className="text-sm font-semibold" style={{ color: "var(--color-text-primary, #2b2a28)" }}>{item.productName}</p>
                               </div>
                               <div className="flex items-center gap-2">
-                                <button onClick={() => handleAdjust({ id: item.productId, name: item.productName ?? "", stock: Number(item.currentStock ?? 0), unit: item.unit ?? "pcs", unitWeight: Number(item.unitWeight ?? 0) })}
+                                {canAdjust && <button onClick={() => handleAdjust({ id: item.productId, name: item.productName ?? "", stock: Number(item.currentStock ?? 0), unit: item.unit ?? "pcs", unitWeight: Number(item.unitWeight ?? 0) })}
                                   className="text-xs py-1.5 px-3 rounded-lg transition-colors" style={{ color: "var(--color-primary)", background: "color-mix(in srgb, var(--color-primary) 8%, transparent)" }}>
                                   {t("Скорр.", "Tuzatish")}
-                                </button>
-                                <button onClick={() => handleDelete(item.productId, item.productName ?? undefined)}
+                                </button>}
+                                {canDeleteProduct && <button onClick={() => handleDelete(item.productId, item.productName ?? undefined)}
                                   disabled={deleteMutation.isPending}
                                   className="text-xs py-1.5 px-2 rounded-lg transition-all"
                                   style={{ color: "var(--color-danger-text)", background: "rgba(232,80,80,0.08)" }}>
                                   <Trash2 size={12} />
-                                </button>
+                                </button>}
                               </div>
                             </div>
                             <div className="grid grid-cols-3 gap-3">
@@ -430,17 +439,17 @@ export default function Warehouse() {
                             </td>
                             <td className="px-5 py-3.5" style={{ borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                               <div className="flex items-center gap-2">
-                                <button onClick={() => handleAdjust({ id: item.productId, name: item.productName ?? "", stock: Number(item.currentStock ?? 0), unit: item.unit ?? "pcs", unitWeight: Number(item.unitWeight ?? 0) })}
+                                {canAdjust && <button onClick={() => handleAdjust({ id: item.productId, name: item.productName ?? "", stock: Number(item.currentStock ?? 0), unit: item.unit ?? "pcs", unitWeight: Number(item.unitWeight ?? 0) })}
                                   className="text-xs py-1.5 px-3 rounded-lg transition-all"
                                   style={{ color: "var(--color-primary)", background: "color-mix(in srgb, var(--color-primary) 8%, transparent)" }}>
                                   {t("Скорректировать", "Tuzatish")}
-                                </button>
-                                <button onClick={() => handleDelete(item.productId, item.productName ?? undefined)}
+                                </button>}
+                                {canDeleteProduct && <button onClick={() => handleDelete(item.productId, item.productName ?? undefined)}
                                   disabled={deleteMutation.isPending}
                                   className="text-xs py-1.5 px-3 rounded-lg transition-all"
                                   style={{ color: "var(--color-danger-text)", background: "rgba(232,80,80,0.08)" }}>
                                   <Trash2 size={12} />
-                                </button>
+                                </button>}
                               </div>
                             </td>
                           </tr>

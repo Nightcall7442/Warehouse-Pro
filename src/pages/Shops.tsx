@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import { useCan } from "@/hooks/useCan";
 import { keepPreviousData } from "@tanstack/react-query";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
@@ -95,6 +96,7 @@ export default function Shops() {
   // Заводить, править и удалять точки — дело оператора; супервайзер их
   // смотрит. Сервер думает так же (shop.create и соседи — operatorQuery).
   const { user } = useAuth();
+  const can = useCan();
   const canEdit = canOperate(user?.role);
   const utils = trpc.useUtils();
 
@@ -304,14 +306,14 @@ export default function Shops() {
             <FileDown size={14} /> Excel
           </button>
           {canEdit && (<>
-          <button onClick={() => setShowImport(v => !v)} style={{
+          {can("import.run") && <button onClick={() => setShowImport(v => !v)} style={{
             display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
             fontSize: "13px", fontWeight: 500, borderRadius: "10px",
             border: `1px solid ${COLORS.border}`, cursor: "pointer",
             background: COLORS.surface, color: COLORS.textSecondary,
           }}>
             <Upload size={14} /><span className="hidden sm:inline">{t("Импорт", "Import")}</span>
-          </button>
+          </button>}
           <button onClick={() => setShowForm(!showForm)} className="neo-btn-primary flex items-center gap-2">
             <Plus size={16} /><span className="hidden sm:inline">{t("Добавить", "Qo'shish")}</span>
           </button>
@@ -332,7 +334,7 @@ export default function Shops() {
       </div>
 
       <div key="shop-import">
-        {canEdit && showImport && <ExcelImport type="shops" onDone={() => { setShowImport(false); utils.shop.list.invalidate(); }} onCancel={() => setShowImport(false)} />}
+        {canEdit && showImport && can("import.run") && <ExcelImport type="shops" onDone={() => { setShowImport(false); utils.shop.list.invalidate(); }} onCancel={() => setShowImport(false)} />}
       </div>
 
       <ShopStats stats={kpiStats} lang={lang} fmt={fmt} />
@@ -384,7 +386,7 @@ export default function Shops() {
               <CityBreadcrumb city={city} district={district} total={data?.total ?? 0} lang={lang} />
             )}
 
-            {canEdit && selected.size > 0 && (
+            {canEdit && can("shops.delete") && selected.size > 0 && (
               <SelectionBar
                 count={selected.size} lang={lang}
                 onReset={() => setSelected(new Set())}

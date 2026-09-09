@@ -1,4 +1,5 @@
 import { useParams, useNavigate } from "react-router";
+import { useCan } from "@/hooks/useCan";
 import { normalizeDecimalInput } from "@/lib/decimal-input";
 import { discountMoneyToPct } from "@/lib/order-discount";
 import { trpc } from "@/providers/trpc";
@@ -74,6 +75,8 @@ export default function OrderDetail() {
   const [pendingStatus, setPendingStatus] = useState<string | null>(null);
 
   const isOperatorOrCeo = user?.role === "ceo" || user?.role === "operator";
+  // Удаление заказа арендатор может закрыть оператору — см. Права оператора.
+  const can = useCan();
   const { confirm, dialog } = useConfirm();
 
   const { data: order, isLoading, isLoadingError, refetch } = trpc.order.getById.useQuery(
@@ -747,7 +750,7 @@ export default function OrderDetail() {
       )}
 
       {/* ── Delete ── */}
-      {isOperatorOrCeo && (order.status === "new" || order.status === "processing" || order.status === "cancelled") && (
+      {isOperatorOrCeo && can("orders.delete") && (order.status === "new" || order.status === "processing" || order.status === "cancelled") && (
         <div className="neo-card p-4">
           <button
             onClick={async () => {

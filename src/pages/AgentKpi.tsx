@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo } from "react";
+import { useCan } from "@/hooks/useCan";
 import { trpc } from "@/providers/trpc";
 import { useLang, type Lang } from "@/i18n";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -402,13 +403,14 @@ function SupervisorView({ kpi, period, selectedKpi, selectedSalary, detailLoadin
   lang: Lang;
 }) {
   const { data: viewer } = trpc.auth.me.useQuery();
+  const can = useCan();
   /*
     Ставки комиссии ставит тот, кому их разрешает сервер: commission.setRate —
     руководитель и оператор, а список агентов внутри (user.list) и вовсе
     только руководитель. Супервайзер на этот экран заходит по праву — команду
     он и должен видеть, — но настроить оплату не может.
   */
-  const canConfigureSalary = viewer?.role === "ceo" || viewer?.role === "operator";
+  const canConfigureSalary = (viewer?.role === "ceo" || viewer?.role === "operator") && can("commission.manage");
 
   /*
     Кого смотрим — агентов или курьеров.

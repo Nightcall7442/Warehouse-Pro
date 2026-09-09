@@ -4,7 +4,7 @@ import { useSearchParams } from "react-router";
 import { useLang } from "@/i18n";
 import { useAuth } from "@/hooks/useAuth";
 import {
-  User, Bell, Building2, SunMoon, Database, Warehouse, Palette,
+  User, Bell, Building2, SunMoon, Database, Warehouse, Palette, ShieldCheck,
 } from "lucide-react";
 import { ProfileSettings } from "@/components/settings/ProfileSettings";
 import { CompanySettings } from "@/components/settings/CompanySettings";
@@ -13,6 +13,7 @@ import { TelegramSettings } from "@/components/settings/TelegramSettings";
 import { OneCSettings } from "@/components/settings/OneCSettings";
 import { AppearanceSettings } from "@/components/settings/AppearanceSettings";
 import { BrandingSettings } from "@/components/settings/BrandingSettings";
+import { OperatorAccess } from "@/components/settings/OperatorAccess";
 import { SectionHeader } from "@/components/settings/ui";
 
 /**
@@ -81,6 +82,21 @@ const SECTIONS: Section[] = [
     descRu: "Склады организации и тот, который подставляется по умолчанию.",
     descUz: "Tashkilot omborxonalari va sukut bo'yicha tanlanadigani.",
     Comp: WarehouseSettings,
+  },
+  {
+    /*
+      Права оператора — рядом со складами и компанией, то есть среди того, что
+      директор настраивает про организацию, а не про себя. Роль задаёт потолок
+      («что оператору вообще положено»), здесь опускается пол в конкретной
+      организации: где-то оператор правая рука, где-то человек на телефоне.
+    */
+    key: "access", Icon: ShieldCheck, roles: ["ceo"],
+    titleRu: "Права оператора", titleUz: "Operator huquqlari",
+    descRu: "Что оператор может делать в вашей организации. Выключенное закрыто и на сервере, не только в кнопках.",
+    descUz: "Operator tashkilotingizda nima qila oladi. O'chirilgani serverda ham yopiladi.",
+    // Раздел настроек рисуется без доводов: организация берётся из ключа
+    // директора. Довод tenantId есть только у суперадмина в карточке аренды.
+    Comp: () => <OperatorAccess />,
   },
   {
     key: "telegram", Icon: Bell,

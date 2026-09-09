@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { createRouter, operatorQuery, authedQuery } from "./middleware";
+import { createRouter, operatorQuery, authedQuery, can } from "./middleware";
 import { getDb } from "./queries/connection";
 import { commissions, users } from "@db/schema";
 import { eq, and, gte, lte, desc, isNull , inArray, sql } from "drizzle-orm";
@@ -91,7 +91,7 @@ export const commissionRouter = createRouter({
     }),
 
   // Set commission rate for a user
-  setRate: operatorQuery
+  setRate: operatorQuery.use(can("commission.manage"))
     .input(z.object({
       userId: z.number(),
       commissionRate: z.number().min(0).max(100),
@@ -259,7 +259,7 @@ export const commissionRouter = createRouter({
     }),
 
   // Approve/paid commission
-  updateStatus: operatorQuery
+  updateStatus: operatorQuery.use(can("commission.manage"))
     .input(z.object({
       id: z.number(),
       status: z.enum(["pending", "approved", "paid"]),

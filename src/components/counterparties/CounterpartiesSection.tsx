@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useCan } from "@/hooks/useCan";
 import { Plus, Search } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
@@ -42,6 +43,12 @@ export function CounterpartiesSection() {
   const [editing, setEditing] = useState<CounterpartyRow | null>(null);
   const [detailId, setDetailId] = useState<number | null>(null);
   const [paying, setPaying] = useState<PayableSupply | null>(null);
+  /*
+    Заведение поставщика и оплата ему — деньги, уходящие из организации.
+    Арендатор может закрыть это оператору (Настройки → Права оператора).
+  */
+  const can = useCan();
+  const canManageSuppliers = can("suppliers.manage");
 
   const statsQuery = trpc.supplier.stats.useQuery();
   const listQuery = trpc.supplier.list.useQuery({
@@ -147,14 +154,14 @@ export function CounterpartiesSection() {
           ]}
           width="170px"
         />
-        <button
+        {canManageSuppliers && <button
           data-testid="counterparty-new"
           onClick={() => { setEditing(null); setFormOpen(true); }}
           className="neo-btn-primary"
           style={{ display: "flex", alignItems: "center", gap: "6px", padding: "10px 16px" }}
         >
           <Plus size={15} /> {t("Контрагент", "Kontragent")}
-        </button>
+        </button>}
       </div>
 
       <CounterpartyList rows={rows} lang={lang} onOpen={setDetailId} />
@@ -194,7 +201,7 @@ export function CounterpartiesSection() {
             setEditing(row);
             setFormOpen(true);
           }}
-          onPay={setPaying}
+          onPay={canManageSuppliers ? setPaying : undefined}
         />
       )}
 

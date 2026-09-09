@@ -37,6 +37,7 @@ import { returnsRouter } from "./returns-router";
 import { priceListRouter } from "./price-list-router";
 import { kpiRouter } from "./kpi-router";
 import { scheduleRouter } from "./schedule-router";
+import { accessRouter } from "./access-router";
 import { forecastRouter } from "./forecast-router";
 import { createRouter, publicQuery } from "./middleware";
 import { supportRouter } from "./support-router";
@@ -83,6 +84,7 @@ export const appRouter = createRouter({
   priceList:    priceListRouter,
   kpi:          kpiRouter,
   schedule:     scheduleRouter,
+  access:       accessRouter,
   forecast:     forecastRouter,
 });
 

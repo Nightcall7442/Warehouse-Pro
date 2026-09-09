@@ -138,7 +138,9 @@ describe("магазины: смотреть можно, править нель
     expect(toolbar, "кнопка импорта осталась снаружи").toContain("setShowImport");
     expect(toolbar, "добавление осталось снаружи").toContain("setShowForm");
     expect(SHOPS).toContain("{canEdit && showForm && <ShopForm");
-    expect(SHOPS).toContain("{canEdit && showImport && <ExcelImport");
+    // Рядом с ролью — настройка организации: загрузку из файла арендатор
+    // может закрыть своему оператору (Настройки → Права оператора).
+    expect(SHOPS).toContain('{canEdit && showImport && can("import.run") && <ExcelImport');
   });
 
   it("территории остаются доступны — это его работа", () => {
@@ -151,7 +153,7 @@ describe("магазины: смотреть можно, править нель
 
   it("галочки для удаления пачкой — только тем, кто удаляет", () => {
     expect(SHOPS).toContain("selectable={canEdit}");
-    expect(SHOPS).toContain("{canEdit && selected.size > 0 && (");
+    expect(SHOPS).toContain('{canEdit && can("shops.delete") && selected.size > 0 && (');
     expect(SHOP_LIST).toContain("selectable = true");
     expect(SHOP_LIST).toContain("{selectable && data && data.length > 0 && (");
     expect(SHOP_LIST).toContain("onToggleSelect={selectable ? () => onToggleSelect(s.id) : undefined}");
@@ -170,7 +172,13 @@ describe("магазины: смотреть можно, править нель
     expect(SHOP_DETAIL).toContain('onClick={canEdit ? () => fileRef.current?.click() : undefined}');
     const pay = SHOP_DETAIL.indexOf('data-testid="payment-open"');
     expect(pay, "кнопка платежа не найдена").toBeGreaterThan(0);
-    expect(SHOP_DETAIL.slice(pay - 200, pay), "платёж остался открытым").toContain("{canEdit && (");
+    /*
+      Приём денег закрыт роли И настройкой организации: canTakeMoney — это
+      canEdit плюс возможность payments.accept. Проверяем оба слоя, иначе
+      снятие любого из них пройдёт незамеченным.
+    */
+    expect(SHOP_DETAIL.slice(pay - 200, pay), "платёж остался открытым").toContain("{canTakeMoney && (");
+    expect(SHOP_DETAIL).toContain('const canTakeMoney  = canEdit && can("payments.accept");');
     // Список пользователей — ceo-only; спрашиваем его только у тех, кто правит.
     expect(SHOP_DETAIL).toContain("{ enabled: canEdit }");
   });

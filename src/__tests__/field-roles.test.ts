@@ -25,7 +25,9 @@ const APP = read("src/App.tsx");
 
 describe("карточка товара", () => {
   it("правка, удаление и фото — только оператору", () => {
-    expect(DETAIL).toContain("const canEdit = canOperate(user?.role);");
+    // Роль плюс настройка организации: ведение номенклатуры арендатор может
+    // закрыть своему оператору, и кнопки должны исчезнуть вместе с правом.
+    expect(DETAIL).toContain('const canEdit = canOperate(user?.role) && can("products.manage");');
     expect(DETAIL, "кнопки правки снова у всех").toContain("{canEdit && (\n        <div className=\"flex gap-2\">");
     expect(DETAIL, "фото снова грузит кто угодно").toContain("onClick={canEdit ? () => fileRef.current?.click() : undefined}");
   });

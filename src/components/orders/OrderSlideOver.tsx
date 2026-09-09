@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useCan } from "@/hooks/useCan";
 import { normalizeDecimalInput } from "@/lib/decimal-input";
 import { discountMoneyToPct } from "@/lib/order-discount";
 import { createPortal } from "react-dom";
@@ -128,6 +129,10 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
   const { lang } = useLang();
   const { symbol } = useCurrency();
   const isOperatorOrCeo = user?.role === "ceo" || user?.role === "operator";
+  // Долг заводится через shop.addPayment — ту же ручку, что и приём денег;
+  // закрыв её оператору, арендатор закрывает и эту кнопку.
+  const can = useCan();
+  const canTakeMoney = isOperatorOrCeo && can("payments.accept");
 
   const { data: order, isLoading } = trpc.order.getById.useQuery(
     { id: orderId! },
@@ -738,7 +743,7 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
                   {order.shop && Number((order.shop as unknown as { debt?: string }).debt ?? 0) > 0 && (
                     <DebtBlock debt={(order.shop as unknown as { debt?: string }).debt ?? "0"} orderTotal={order.total} currency={currency} />
                   )}
-                  {isOperatorOrCeo && !order.deletedAt && (
+                  {canTakeMoney && !order.deletedAt && (
                     <div>
                       <PillButton tone="neutral" onClick={() => { setDebtIdempotencyKey(crypto.randomUUID()); setShowDebtModal(true); }}>
                         <Plus size={14} />{t("Новый долг", "Yangi qarz")}

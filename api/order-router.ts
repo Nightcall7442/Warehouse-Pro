@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { createRouter, operatorQuery, fieldSalesQuery } from "./middleware";
+import { createRouter, operatorQuery, fieldSalesQuery, can } from "./middleware";
 import { OrderService, assertOrderVisible } from "./services/order";
 import { getDb } from "./queries/connection";
 import { savedFilters, orderComments, shops, payments, users, orders } from "@db/schema";
@@ -336,7 +336,7 @@ export const orderRouter = createRouter({
       return OrderService.updateStatus(ctx.db, ctx.tenant.id, input.id, input.status, { id: ctx.user.id, role: ctx.user.role });
     }),
 
-  update: operatorQuery
+  update: operatorQuery.use(can("orders.edit"))
     .input(z.object({
       id: z.number().int().positive(),
       notes: z.string().max(500).optional(),
@@ -348,7 +348,7 @@ export const orderRouter = createRouter({
       return OrderService.update(ctx.db, ctx.tenant.id, id, data);
     }),
 
-  updateItems: operatorQuery
+  updateItems: operatorQuery.use(can("orders.edit"))
     .input(z.object({
       id: z.number().int().positive(),
       items: z.array(z.object({
@@ -364,13 +364,13 @@ export const orderRouter = createRouter({
       return OrderService.updateItems(ctx.db, ctx.tenant.id, input.id, { items: input.items });
     }),
 
-  delete: operatorQuery
+  delete: operatorQuery.use(can("orders.delete"))
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ input, ctx }) => {
       return OrderService.delete(ctx.db, ctx.tenant.id, input.id);
     }),
 
-  restore: operatorQuery
+  restore: operatorQuery.use(can("orders.delete"))
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ input, ctx }) => {
       return OrderService.restore(ctx.db, ctx.tenant.id, input.id);
@@ -425,7 +425,7 @@ export const orderRouter = createRouter({
     }),
 
   // ── Bulk Complete + Full Payment ────────────────────────────────────────────
-  bulkCompleteWithPayment: operatorQuery
+  bulkCompleteWithPayment: operatorQuery.use(can("payments.accept"))
     .input(z.object({
       orderIds: z.array(z.number().int().positive()).min(1).max(100),
     }))
@@ -442,7 +442,7 @@ export const orderRouter = createRouter({
     }),
 
   // ── Массовое завершение: у каждого заказа своя оплата и свой возврат ───────
-  bulkCompleteDetailed: operatorQuery
+  bulkCompleteDetailed: operatorQuery.use(can("payments.accept"))
     .input(z.object({
       entries: z.array(z.object({
         orderId: z.number().int().positive(),

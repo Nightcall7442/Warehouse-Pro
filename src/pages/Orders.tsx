@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import { useCan } from "@/hooks/useCan";
 import { keepPreviousData } from "@tanstack/react-query";
 import { useCurrency } from "@/hooks/useCurrency";
 import { trpc } from "@/providers/trpc";
@@ -90,6 +91,13 @@ function OperatorOrders() {
   const isCeo               = user?.role === "ceo";
   const isOperator          = user?.role === "operator";
   const isOperatorOrCeo     = isCeo || isOperator;
+  /*
+    Удаление заказа арендатор может закрыть оператору (Настройки → Права
+    оператора). Кнопку тогда не рисуем: сервер всё равно откажет, а кнопка,
+    существующая ради отказа, — худший вид интерфейса.
+  */
+  const can                 = useCan();
+  const canDeleteOrders     = isOperatorOrCeo && can("orders.delete");
   const cols                = useOrderColumns(user?.tenantId, user?.id);
   // Persist selection in sessionStorage so it survives navigation
   const [selected, setSelectedRaw] = useState<Set<number>>(() => {
@@ -597,7 +605,7 @@ function OperatorOrders() {
 
   const renderActions = (o: OrderRow) => {
     if (o.deletedAt) {
-      return isOperatorOrCeo ? (
+      return canDeleteOrders ? (
         <button
           onClick={() => restoreOrder.mutate({ id: o.id })}
           style={{
@@ -644,13 +652,13 @@ function OperatorOrders() {
           >
             {t("Выполнен", "Bajarildi")}
           </button>
-          {isOperatorOrCeo && deleteButton(o.id)}
+          {canDeleteOrders && deleteButton(o.id)}
         </div>
       );
     }
 
     const deletable = o.status === "new" || o.status === "processing" || o.status === "cancelled";
-    return deletable && isOperatorOrCeo ? deleteButton(o.id) : null;
+    return deletable && canDeleteOrders ? deleteButton(o.id) : null;
   };
 
   if (isLoadingError) return <QueryErrorFallback onRetry={refetch} />;

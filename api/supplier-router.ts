@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, operatorQuery } from "./middleware";
+import { createRouter, operatorQuery, can } from "./middleware";
 import { suppliers, supplies, supplierPayments, users } from "@db/schema";
 import { eq, and, sql, desc, like } from "drizzle-orm";
 import { sanitizeString, sanitizeSearch } from "./lib/sanitize";
@@ -221,7 +221,7 @@ export const supplierRouter = createRouter({
       return result;
     }),
 
-  create: operatorQuery
+  create: operatorQuery.use(can("suppliers.manage"))
     .input(z.object({
       name:        z.string().min(1).max(255),
       contactName: z.string().max(255).optional(),
@@ -255,7 +255,7 @@ export const supplierRouter = createRouter({
       }
     }),
 
-  update: operatorQuery
+  update: operatorQuery.use(can("suppliers.manage"))
     .input(z.object({
       id:          z.number(),
       name:        z.string().min(1).max(255).optional(),
@@ -455,7 +455,7 @@ export const supplierRouter = createRouter({
       return rows.map(r => ({ ...r, amount: Number(r.amount) }));
     }),
 
-  pay: operatorQuery
+  pay: operatorQuery.use(can("suppliers.manage"))
     .input(z.object({
       supplyId:       z.number(),
       amount:         decimalOrDefault("0.00").refine(v => Number(v) > 0, "Сумма платежа должна быть положительной"),

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, operatorQuery } from "./middleware";
+import { createRouter, operatorQuery, can } from "./middleware";
 import { warehouseStock, products, stockMovements, settings, orderItems, orders, warehouses } from "@db/schema";
 import { eq, like, and, sql, desc } from "drizzle-orm";
 import { StockService } from "./services/stock";
@@ -107,7 +107,7 @@ export const warehouseRouter = createRouter({
       return { success: true };
     }),
 
-  adjustStock: operatorQuery
+  adjustStock: operatorQuery.use(can("warehouse.adjust"))
     .input(z.object({
       productId:   z.number().int().positive(),
       warehouseId: z.number().int().positive().optional(),
@@ -226,7 +226,7 @@ export const warehouseRouter = createRouter({
   }),
 
   /** Create missing warehouse_stock rows for products that don't have one */
-  backfillStock: operatorQuery
+  backfillStock: operatorQuery.use(can("warehouse.adjust"))
     .mutation(async ({ ctx }) => {
       const db       = ctx.db;
       const tenantId = ctx.tenant.id;

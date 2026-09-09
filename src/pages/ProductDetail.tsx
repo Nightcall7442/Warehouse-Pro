@@ -1,4 +1,5 @@
 import { useParams, useNavigate, useSearchParams } from "react-router";
+import { useCan } from "@/hooks/useCan";
 import { movementKind, movementDocument, movementNote } from "@/lib/stock-movement-text";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -44,7 +45,8 @@ export default function ProductDetail() {
     три кнопки, которые сервер им не даст, здесь только мешают.
   */
   const { user } = useAuth();
-  const canEdit = canOperate(user?.role);
+  const can = useCan();
+  const canEdit = canOperate(user?.role) && can("products.manage");
 
   const [editing, setEditing] = useState(false);
   const [editData, setEditData] = useState<Record<string, unknown>>({});

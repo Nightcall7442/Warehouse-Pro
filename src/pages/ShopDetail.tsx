@@ -1,4 +1,5 @@
 import { useParams, useNavigate, useLocation } from "react-router";
+import { useCan } from "@/hooks/useCan";
 import { normalizeDecimalInput } from "@/lib/decimal-input";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useRef, useState, useMemo, useCallback } from "react";
@@ -159,7 +160,14 @@ export default function ShopDetail() {
   // Правка, платежи и фото — operatorQuery. Супервайзер карточку смотрит:
     // долг, историю платежей, заказы точки.
   const { user } = useAuth();
+  const can = useCan();
   const canEdit = canOperate(user?.role);
+  /*
+    Убрать точку и принять деньги — два действия, которые арендатор закрывает
+    оператору чаще прочих: первое стирает историю продаж, второе — касса.
+  */
+  const canRemoveShop = canEdit && can("shops.delete");
+  const canTakeMoney  = canEdit && can("payments.accept");
 
   // Список агентов нужен только форме правки, и полный user.list открыт
   // одному руководителю — поэтому спрашиваем его лишь у тех, кто правит.
@@ -198,7 +206,7 @@ export default function ShopDetail() {
   */
   const { data: trace } = trpc.shop.trace.useQuery({ id: Number(id) }, { enabled: Number.isFinite(Number(id)) });
   const isArchived = shop?.status === "inactive";
-  const canDeleteForever = !!trace && trace.total === 0;
+  const canDeleteForever = !!trace && trace.total === 0 && can("shops.delete");
 
   const archiveShop = trpc.shop.archive.useMutation({
     onSuccess: () => { goBack(); notify.success(t("Магазин убран в архив", "Do'kon arxivga olindi")); },
@@ -269,7 +277,7 @@ export default function ShopDetail() {
           <button onClick={() => setEditing(v => !v)} className="neo-btn flex items-center gap-1.5 text-sm py-2">
             <Edit2 size={13} />{t("Изменить", "O'zgartirish")}
           </button>
-          {isArchived ? (
+          {canRemoveShop && (isArchived ? (
             <button onClick={() => restoreShopMutation.mutate({ id: Number(id) })}
               className="neo-btn flex items-center gap-1.5 text-sm py-2">
               <RotateCcw size={13} />{t("Вернуть в работу", "Ishga qaytarish")}
@@ -279,7 +287,7 @@ export default function ShopDetail() {
               title={t("Убрать из работы, сохранив историю", "Tarixni saqlab, ishdan olib qo'yish")}>
               <Archive size={13} />{t("В архив", "Arxivga")}
             </button>
-          )}
+          ))}
           {/* Стереть предлагаем, только когда стирать нечего. */}
           {canDeleteForever && (
             <button onClick={handleDeleteForever} className="btn-ghost flex items-center gap-1.5 text-sm text-danger"
@@ -402,7 +410,7 @@ export default function ShopDetail() {
           </div>
           {/* shop.addPayment — operatorQuery. Долг супервайзер видит, но
               деньги в кассу принимает не он. */}
-          {canEdit && (
+          {canTakeMoney && (
           <button data-testid="payment-open" onClick={() => setShowPayment(true)} className="neo-btn-primary flex items-center gap-2">
             <Plus size={15} />{t("Добавить платёж", "To'lov qo'shish")}
           </button>

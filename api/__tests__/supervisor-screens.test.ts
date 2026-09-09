@@ -106,7 +106,7 @@ describe("KPI агентов", () => {
       оператор). Условие стоит и на кнопке, и на самой панели: иначе состояние
       переживёт скрытую кнопку и панель откроется без неё.
     */
-    expect(KPI_PAGE).toContain('const canConfigureSalary = viewer?.role === "ceo" || viewer?.role === "operator"');
+    expect(KPI_PAGE).toContain('const canConfigureSalary = (viewer?.role === "ceo" || viewer?.role === "operator") && can("commission.manage")');
     expect(KPI_PAGE).toContain("{canConfigureSalary && (");
     expect(KPI_PAGE).toContain("{canConfigureSalary && showSalaryConfig &&");
   });

@@ -4,7 +4,8 @@ import { Printer, Pencil, Loader2, AlertTriangle } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { AppModal } from "@/components/ui/AppModal";
 import { COLORS, F, money, PAYMENT_METHODS } from "./constants";
-import type { PayableSupply } from "./PaymentForm";
+import type { PayableSupply } from "./PaymentForm";
+
 import { useSellerCompany } from "@/hooks/useSellerCompany";
 
 type Tab = "debts" | "payments" | "reconciliation";
@@ -36,11 +37,14 @@ export function CounterpartyDetail({ supplierId, lang, onClose, onEdit, onPay }:
   lang: string;
   onClose: () => void;
   onEdit: () => void;
-  onPay: (supply: PayableSupply) => void;
+  /** Нет обработчика — оплата этому человеку закрыта: кнопку не рисуем. */
+  onPay?: (supply: PayableSupply) => void;
 }) {
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
-  const [tab, setTab] = useState<Tab>("debts");
-  // Своя сторона акта сверки — оттуда же, откуда её берут накладные.
+  const [tab, setTab] = useState<Tab>("debts");
+
+  // Своя сторона акта сверки — оттуда же, откуда её берут накладные.
+
   const { company: seller } = useSellerCompany();
   // Период акта сверки. Пусто — за всё время: так документ открывается с
   // полной картиной, а сузить период — осознанное действие.
@@ -244,7 +248,7 @@ export function CounterpartyDetail({ supplierId, lang, onClose, onEdit, onPay }:
                       {money(r.debt, r.currency)}
                     </td>
                     <td style={{ ...td, textAlign: "right" }}>
-                      {r.debt > 0 && (
+                      {r.debt > 0 && onPay && (
                         <button
                           data-testid={`cp-pay-${r.id}`}
                           onClick={() => onPay({ id: r.id, supplyNumber: r.supplyNumber, supplierName: r.supplierName, currency: r.currency, debt: r.debt })}

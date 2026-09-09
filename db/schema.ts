@@ -1628,3 +1628,38 @@ export const telegramOutbox = mysqlTable("telegram_outbox", {
 
 export type TelegramRule   = typeof telegramRules.$inferSelect;
 export type TelegramOutbox = typeof telegramOutbox.$inferSelect;
+
+// ============================================
+// ROLE PERMISSIONS — что арендатор отобрал у роли
+// ============================================
+/*
+  Права ролей зашиты в middleware и одинаковы для всех организаций: оператор
+  везде может удалить заказ, править товары и принимать оплату. Организации же
+  устроены по-разному — в одной оператор это правая рука директора, в другой
+  наёмный человек на телефоне, которому удалять заказы нельзя.
+
+  Здесь лежат ТОЛЬКО отличия от зашитого умолчания: нет строки — можно, как и
+  раньше. Поэтому выкладка ничего не меняет ни одному арендатору, а запрет
+  всегда виден одной строкой в таблице, а не выводится из её отсутствия.
+
+  Роль полем, хотя пока настраивается один оператор: следующей просьбой будет
+  супервайзер, и она должна стоить строчку кода, а не миграцию боевой базы.
+*/
+export const rolePermissions = mysqlTable("role_permissions", {
+  id:         serial("id").primaryKey(),
+  tenantId:   bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  role:       mysqlEnum("role", ["operator", "supervisor", "merchandiser", "courier", "agent"]).notNull(),
+  /** Имя возможности из OPERATOR_CAPABILITIES, например «orders.delete». */
+  capability: varchar("capability", { length: 64 }).notNull(),
+  allowed:    boolean("allowed").notNull(),
+  /** Кто менял — для журнала: право отобрали, а спросить некого. */
+  updatedBy:  bigint("updated_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "set null" }),
+  createdAt:  timestamp("created_at").defaultNow().notNull(),
+  updatedAt:  timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
+}, (t) => ({
+  tenantIdx:   index("idx_role_permissions_tenant").on(t.tenantId),
+  uniqueEntry: unique("uq_role_permission").on(t.tenantId, t.role, t.capability),
+}));
+
+export type RolePermission       = typeof rolePermissions.$inferSelect;
+export type InsertRolePermission = typeof rolePermissions.$inferInsert;

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { capabilitiesOf } from "./lib/role-permissions";
 import { createRouter, publicQuery, authedQuery } from "./middleware";
 import { requestPasswordReset, confirmPasswordReset } from "./services/password-reset";
 import { checkRateLimit, rateLimitSubject } from "./lib/rate-limit";
@@ -7,7 +8,19 @@ import { env } from "./lib/env";
 
 export const authRouter = createRouter({
   /** Return current authenticated user */
-  me: authedQuery.query(({ ctx }) => ctx.user),
+  /*
+    Кто я — и что мне здесь можно.
+
+    Возможности приезжают вместе с пользователем, а не отдельным запросом:
+    иначе экран успевает отрисовать кнопку до того, как узнает, что она
+    закрыта, и человек жмёт её ради отказа. Набор полный (все возможности с
+    их значением), поэтому отсутствие ключа никогда не читается как «нельзя»
+    — у ролей без настройки там просто всё true.
+  */
+  me: authedQuery.query(async ({ ctx }) => ({
+    ...ctx.user,
+    can: await capabilitiesOf(ctx.db, ctx.tenant.id, ctx.user.role),
+  })),
 
   /** Request password reset — always returns success to prevent user enumeration */
   requestPasswordReset: publicQuery

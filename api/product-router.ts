@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { s3Client, publicUrl } from "./lib/s3";
 import { isSafePhotoValue, PHOTO_VALUE_ERROR } from "./lib/photo-value";
-import { createRouter, operatorQuery, fieldSalesQuery } from "./middleware";
+import { createRouter, operatorQuery, fieldSalesQuery, can } from "./middleware";
 import { getDb } from "./queries/connection";
 import { products, warehouseStock, stockMovements, warehouses } from "@db/schema";
 import { eq, like, and, sql, desc } from "drizzle-orm";
@@ -283,7 +283,7 @@ export const productRouter = createRouter({
       };
     }),
 
-  create: operatorQuery
+  create: operatorQuery.use(can("products.manage"))
     .input(z.object({
       code:         z.string().min(1),
       barcode:      z.string().optional(),
@@ -363,7 +363,7 @@ export const productRouter = createRouter({
       return { id: productId };
     }),
 
-  update: operatorQuery
+  update: operatorQuery.use(can("products.manage"))
     .input(z.object({
       id:           z.number(),
       code:         z.string().min(1).optional(),
@@ -408,7 +408,7 @@ export const productRouter = createRouter({
       return { success: true };
     }),
 
-  delete: operatorQuery
+  delete: operatorQuery.use(can("products.manage"))
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
@@ -469,7 +469,7 @@ export const productRouter = createRouter({
       return { success: true };
     }),
 
-  bulkDelete: operatorQuery
+  bulkDelete: operatorQuery.use(can("products.manage"))
     .input(z.object({ ids: z.array(z.number()).min(1).max(200) }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
@@ -518,7 +518,7 @@ export const productRouter = createRouter({
       return { deleted, softDeleted, total: input.ids.length };
     }),
 
-  uploadPhoto: operatorQuery
+  uploadPhoto: operatorQuery.use(can("products.manage"))
     .input(z.object({
       productId: z.number(),
       // Прежняя проверка пропускала любой подтип data:image/ (в том числе
@@ -613,7 +613,7 @@ export const productRouter = createRouter({
       .map(r => ({ name: r.category, productCount: Number(r.productCount) }));
   }),
 
-  renameCategory: operatorQuery
+  renameCategory: operatorQuery.use(can("products.manage"))
     .input(z.object({ from: z.string().min(1), to: z.string().min(1) }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
@@ -639,7 +639,7 @@ export const productRouter = createRouter({
       return { success: true, category: target };
     }),
 
-  deleteCategory: operatorQuery
+  deleteCategory: operatorQuery.use(can("products.manage"))
     .input(z.object({ category: z.string().min(1) }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();

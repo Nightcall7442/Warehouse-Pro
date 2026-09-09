@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, operatorQuery, authedQuery, supervisorQuery } from "./middleware";
+import { createRouter, operatorQuery, authedQuery, supervisorQuery, can } from "./middleware";
 import { getDb } from "./queries/connection";
 import { assertProductsBelongToTenant } from "./lib/tenant-refs";
 import { priceLists, priceListItems, priceListAssignments, products, shops } from "@db/schema";
@@ -61,7 +61,7 @@ export const priceListRouter = createRouter({
     }),
 
   // Create price list
-  create: operatorQuery
+  create: operatorQuery.use(can("prices.manage"))
     .input(z.object({
       name: z.string(),
       description: z.string().optional(),
@@ -81,7 +81,7 @@ export const priceListRouter = createRouter({
     }),
 
   // Update price list
-  update: operatorQuery
+  update: operatorQuery.use(can("prices.manage"))
     .input(z.object({
       id: z.number(),
       name: z.string().optional(),
@@ -99,7 +99,7 @@ export const priceListRouter = createRouter({
     }),
 
   // Delete price list
-  delete: operatorQuery
+  delete: operatorQuery.use(can("prices.manage"))
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
@@ -109,7 +109,7 @@ export const priceListRouter = createRouter({
     }),
 
   // Add/update item in price list
-  upsertItem: operatorQuery
+  upsertItem: operatorQuery.use(can("prices.manage"))
     .input(z.object({
       priceListId: z.number(),
       productId: z.number(),
@@ -159,7 +159,7 @@ export const priceListRouter = createRouter({
     }),
 
   // Remove item from price list
-  removeItem: operatorQuery
+  removeItem: operatorQuery.use(can("prices.manage"))
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
@@ -178,7 +178,7 @@ export const priceListRouter = createRouter({
     }),
 
   // Assign price list to shop
-  assignShop: operatorQuery
+  assignShop: operatorQuery.use(can("prices.manage"))
     .input(z.object({
       priceListId: z.number(),
       shopId: z.number(),
@@ -209,7 +209,7 @@ export const priceListRouter = createRouter({
     }),
 
   // Unassign price list from shop
-  unassignShop: operatorQuery
+  unassignShop: operatorQuery.use(can("prices.manage"))
     .input(z.object({
       priceListId: z.number(),
       shopId: z.number(),
