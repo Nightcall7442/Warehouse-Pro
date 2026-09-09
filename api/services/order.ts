@@ -1070,16 +1070,16 @@ export const OrderService = {
       // pagination count next to it.
       itemCount: sql<number>`(SELECT COUNT(*) FROM order_items WHERE order_items.order_id = ${orders.id})`,
     }).from(orders)
-      .leftJoin(shops, eq(orders.shopId, shops.id))
-      .leftJoin(users, eq(orders.agentId, users.id))
-      .leftJoin(courier, eq(orders.courierId, courier.id))
+      .leftJoin(shops, and(eq(orders.shopId, shops.id), eq(shops.tenantId, tenantId)))
+      .leftJoin(users, and(eq(orders.agentId, users.id), eq(users.tenantId, tenantId)))
+      .leftJoin(courier, and(eq(orders.courierId, courier.id), eq(courier.tenantId, tenantId)))
       .leftJoin(territories, eq(shops.territoryId, territories.id))
       .where(and(...conditions));
 
     const [data, countResult] = await Promise.all([
       baseQuery.orderBy(desc(orders.createdAt)).limit(limit).offset(offset),
       db.select({ count: sql<number>`count(*)` }).from(orders)
-        .leftJoin(shops, eq(orders.shopId, shops.id))
+        .leftJoin(shops, and(eq(orders.shopId, shops.id), eq(shops.tenantId, tenantId)))
         .where(and(...conditions)),
     ]);
 
@@ -1130,7 +1130,7 @@ export const OrderService = {
         returnReason: orderItems.returnReason,
         productName: products.name, productCode: products.code, unit: products.unit,
       }).from(orderItems)
-        .innerJoin(products, eq(orderItems.productId, products.id))
+        .innerJoin(products, and(eq(orderItems.productId, products.id), eq(products.tenantId, tenantId)))
         .where(eq(orderItems.orderId, orderId)),
       db.select({ id: shops.id, name: shops.name, address: shops.address, city: shops.city, phone: shops.phone, debt: shops.debt, ownerName: shops.ownerName, territoryName: territories.name })
         .from(shops)
@@ -2244,10 +2244,10 @@ export const OrderService = {
       territoryName: territories.name,
       courierName: couriers.name,
     }).from(orders)
-      .leftJoin(shops, eq(orders.shopId, shops.id))
-      .leftJoin(users, eq(orders.agentId, users.id))
+      .leftJoin(shops, and(eq(orders.shopId, shops.id), eq(shops.tenantId, tenantId)))
+      .leftJoin(users, and(eq(orders.agentId, users.id), eq(users.tenantId, tenantId)))
       .leftJoin(territories, eq(shops.territoryId, territories.id))
-      .leftJoin(couriers, eq(orders.courierId, couriers.id))
+      .leftJoin(couriers, and(eq(orders.courierId, couriers.id), eq(couriers.tenantId, tenantId)))
       .where(and(eq(orders.tenantId, tenantId), inArray(orders.id, orderIds)));
 
     // Fetch items for all orders in one query
@@ -2263,7 +2263,7 @@ export const OrderService = {
       productCode: products.code,
       unit: products.unit,
     }).from(orderItems)
-      .innerJoin(products, eq(orderItems.productId, products.id))
+      .innerJoin(products, and(eq(orderItems.productId, products.id), eq(products.tenantId, tenantId)))
       .where(inArray(orderItems.orderId, orderIds));
 
     // Fetch payment history for all shops
@@ -2391,10 +2391,10 @@ export const OrderService = {
       territoryName: territories.name,
       courierName: couriers.name,
     }).from(orders)
-      .leftJoin(shops, eq(orders.shopId, shops.id))
-      .leftJoin(users, eq(orders.agentId, users.id))
+      .leftJoin(shops, and(eq(orders.shopId, shops.id), eq(shops.tenantId, tenantId)))
+      .leftJoin(users, and(eq(orders.agentId, users.id), eq(users.tenantId, tenantId)))
       .leftJoin(territories, eq(shops.territoryId, territories.id))
-      .leftJoin(couriers, eq(orders.courierId, couriers.id))
+      .leftJoin(couriers, and(eq(orders.courierId, couriers.id), eq(couriers.tenantId, tenantId)))
       // Удалённые заказы фильтра не имели вовсе. Удаление — штатный способ
       // исправить ошибку ввода: заказ пропадает из списка и из долга магазина,
       // а в погрузочный лист попадал по-прежнему, и склад собирал товар,
@@ -2494,7 +2494,7 @@ export const OrderService = {
       totalQty: sql<string>`SUM(${orderItems.quantity})`,
       totalPrice: sql<string>`SUM(${orderItems.subtotal})`,
     }).from(orderItems)
-      .innerJoin(products, eq(orderItems.productId, products.id))
+      .innerJoin(products, and(eq(orderItems.productId, products.id), eq(products.tenantId, tenantId)))
       .innerJoin(orders, eq(orderItems.orderId, orders.id))
       .where(and(eq(orders.tenantId, tenantId), inArray(orderItems.orderId, input.orderIds)))
       .groupBy(orderItems.productId, products.name, products.code, products.unit, products.unitWeight);
@@ -2509,9 +2509,9 @@ export const OrderService = {
       agentName: users.name,
       totalQty: sql<string>`SUM(${orderItems.quantity})`,
     }).from(orderItems)
-      .innerJoin(products, eq(orderItems.productId, products.id))
+      .innerJoin(products, and(eq(orderItems.productId, products.id), eq(products.tenantId, tenantId)))
       .innerJoin(orders, eq(orderItems.orderId, orders.id))
-      .leftJoin(users, eq(orders.agentId, users.id))
+      .leftJoin(users, and(eq(orders.agentId, users.id), eq(users.tenantId, tenantId)))
       .where(and(eq(orders.tenantId, tenantId), inArray(orderItems.orderId, input.orderIds)))
       .groupBy(orderItems.productId, products.name, products.code, products.unit, orders.agentId, users.name);
 
@@ -2581,8 +2581,8 @@ export const OrderService = {
         // листа разные люди, и одно соединение не даёт обоих.
         courierName: courierUser.name,
       }).from(loadingLists)
-        .leftJoin(users, eq(loadingLists.agentId, users.id))
-        .leftJoin(courierUser, eq(loadingLists.courierId, courierUser.id))
+        .leftJoin(users, and(eq(loadingLists.agentId, users.id), eq(users.tenantId, tenantId)))
+        .leftJoin(courierUser, and(eq(loadingLists.courierId, courierUser.id), eq(courierUser.tenantId, tenantId)))
         .where(and(...conditions))
         .orderBy(desc(loadingLists.createdAt))
         .limit(limit).offset(offset),
@@ -2744,7 +2744,7 @@ export const OrderService = {
         shopName: shops.name,
         total: orders.total,
       }).from(orders)
-        .leftJoin(shops, eq(shops.id, orders.shopId))
+        .leftJoin(shops, and(eq(shops.id, orders.shopId), eq(shops.tenantId, tenantId)))
         .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, tenantId))).limit(1);
 
       const [sum] = await db.select({
@@ -2878,7 +2878,7 @@ export const OrderService = {
       total: orders.total, subtotal: orders.subtotal, discount: orders.discount,
       shopId: orders.shopId, shopName: shops.name, paymentMethod: orders.paymentMethod,
     }).from(orders)
-      .leftJoin(shops, eq(orders.shopId, shops.id))
+      .leftJoin(shops, and(eq(orders.shopId, shops.id), eq(shops.tenantId, tenantId)))
       .where(and(eq(orders.tenantId, tenantId), inArray(orders.id, orderIds), isNull(orders.deletedAt), ...scope));
 
     if (heads.length === 0) return [];
@@ -2889,7 +2889,7 @@ export const OrderService = {
       deliveredQuantity: orderItems.deliveredQuantity,
       productName: products.name, productCode: products.code, unit: products.unit,
     }).from(orderItems)
-      .innerJoin(products, eq(orderItems.productId, products.id))
+      .innerJoin(products, and(eq(orderItems.productId, products.id), eq(products.tenantId, tenantId)))
       .where(inArray(orderItems.orderId, heads.map(h => h.id)));
 
     // Сколько уже принято по каждому заказу: окно показывает остаток, а не
@@ -3011,7 +3011,7 @@ export const OrderService = {
       createdAt: orderAdjustments.createdAt,
       adjustedByName: users.name,
     }).from(orderAdjustments)
-      .leftJoin(users, eq(orderAdjustments.adjustedBy, users.id))
+      .leftJoin(users, and(eq(orderAdjustments.adjustedBy, users.id), eq(users.tenantId, tenantId)))
       .where(and(eq(orderAdjustments.orderId, orderId), eq(orderAdjustments.tenantId, tenantId)))
       .orderBy(desc(orderAdjustments.createdAt));
   },
@@ -3034,7 +3034,7 @@ export const OrderService = {
       createdAt: payments.createdAt,
       createdByName: users.name,
     }).from(payments)
-      .leftJoin(users, eq(payments.createdBy, users.id))
+      .leftJoin(users, and(eq(payments.createdBy, users.id), eq(users.tenantId, tenantId)))
       .where(and(eq(payments.orderId, orderId), eq(payments.tenantId, tenantId)))
       .orderBy(desc(payments.createdAt));
   },

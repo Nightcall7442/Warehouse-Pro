@@ -129,8 +129,8 @@ export const dashboardRouter = createRouter({
       total: orders.total, createdAt: orders.createdAt, shopName: shops.name, agentName: users.name,
     })
       .from(orders)
-      .leftJoin(shops, eq(orders.shopId, shops.id))
-      .leftJoin(users, eq(orders.agentId, users.id))
+      .leftJoin(shops, and(eq(orders.shopId, shops.id), eq(shops.tenantId, ctx.tenant.id)))
+      .leftJoin(users, and(eq(orders.agentId, users.id), eq(users.tenantId, ctx.tenant.id)))
       .where(and(eq(orders.tenantId, ctx.tenant.id), isNull(orders.deletedAt)))
       .orderBy(desc(orders.createdAt)).limit(10);
   }),

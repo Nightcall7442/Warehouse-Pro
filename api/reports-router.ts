@@ -194,7 +194,7 @@ export const reportsRouter = createRouter({
       skipped:   sql<number>`count(CASE WHEN ${dailyPlans.status} = 'skipped' THEN 1 END)`,
     })
       .from(dailyPlans)
-      .leftJoin(users, eq(dailyPlans.agentId, users.id))
+      .leftJoin(users, and(eq(dailyPlans.agentId, users.id), eq(users.tenantId, ctx.tenant.id)))
       .where(and(eq(dailyPlans.tenantId, tenantId), onDate(dailyPlans.planDate, today)))
       .groupBy(dailyPlans.agentId);
 
@@ -253,8 +253,8 @@ export const reportsRouter = createRouter({
         notes: dailyPlans.notes,
       })
         .from(dailyPlans)
-        .leftJoin(users, eq(dailyPlans.agentId, users.id))
-        .leftJoin(shops, eq(dailyPlans.shopId, shops.id))
+        .leftJoin(users, and(eq(dailyPlans.agentId, users.id), eq(users.tenantId, ctx.tenant.id)))
+        .leftJoin(shops, and(eq(dailyPlans.shopId, shops.id), eq(shops.tenantId, ctx.tenant.id)))
         .where(and(...conditions))
         .orderBy(desc(dailyPlans.planDate))
         .limit(input.limit);
@@ -293,7 +293,7 @@ export const reportsRouter = createRouter({
         notes: stockMovements.notes,
       })
         .from(stockMovements)
-        .leftJoin(products, eq(stockMovements.productId, products.id))
+        .leftJoin(products, and(eq(stockMovements.productId, products.id), eq(products.tenantId, ctx.tenant.id)))
         .where(and(...conditions))
         .orderBy(desc(stockMovements.createdAt))
         .limit(input.limit);

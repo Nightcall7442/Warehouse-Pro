@@ -132,8 +132,8 @@ export async function debtJournal(tenantId: number, q: DebtJournalQuery = {}): P
                     paymentMethod: orders.paymentMethod, doc: orders.orderNumber,
                     total: orders.total, orderId: orders.id })
           .from(orders)
-          .innerJoin(shops, and(eq(orders.shopId, shops.id), ...shopScope))
-          .leftJoin(users, eq(shops.agentId, users.id))
+          .innerJoin(shops, and(and(eq(orders.shopId, shops.id), ...shopScope), eq(shops.tenantId, tenantId)))
+          .leftJoin(users, and(eq(shops.agentId, users.id), eq(users.tenantId, tenantId)))
           .where(and(eq(orders.tenantId, tenantId), orderIsOwed()))
           .orderBy(desc(orders.createdAt))
           .limit(HARD_CAP)
@@ -144,8 +144,8 @@ export async function debtJournal(tenantId: number, q: DebtJournalQuery = {}): P
                     amount: payments.amount, note: payments.notes, orderId: payments.orderId,
                     orderDeletedAt: orders.deletedAt })
           .from(payments)
-          .innerJoin(shops, and(eq(payments.shopId, shops.id), ...shopScope))
-          .leftJoin(users, eq(shops.agentId, users.id))
+          .innerJoin(shops, and(and(eq(payments.shopId, shops.id), ...shopScope), eq(shops.tenantId, tenantId)))
+          .leftJoin(users, and(eq(shops.agentId, users.id), eq(users.tenantId, tenantId)))
           // Заказ подтягивается ради одного признака: удалён он или нет.
           .leftJoin(orders, eq(payments.orderId, orders.id))
           .where(and(eq(payments.tenantId, tenantId), ...inPeriod(payments.createdAt)))
@@ -157,8 +157,8 @@ export async function debtJournal(tenantId: number, q: DebtJournalQuery = {}): P
       ? db.select({ ...shopCols, createdAt: returns.createdAt, doc: returns.returnNumber,
                     amount: returns.totalAmount, note: returns.notes, orderId: returns.orderId })
           .from(returns)
-          .innerJoin(shops, and(eq(returns.shopId, shops.id), ...shopScope))
-          .leftJoin(users, eq(shops.agentId, users.id))
+          .innerJoin(shops, and(and(eq(returns.shopId, shops.id), ...shopScope), eq(shops.tenantId, tenantId)))
+          .leftJoin(users, and(eq(shops.agentId, users.id), eq(users.tenantId, tenantId)))
           .where(and(eq(returns.tenantId, tenantId), eq(returns.status, "completed"), ...inPeriod(returns.createdAt)))
           .orderBy(desc(returns.createdAt))
           .limit(HARD_CAP)

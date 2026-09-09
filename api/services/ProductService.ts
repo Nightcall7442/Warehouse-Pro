@@ -228,7 +228,7 @@ export const ProductService = {
 
     const [orderItemCount] = await db.select({ count: sql<number>`count(*)` })
       .from(orderItems)
-      .innerJoin(products, eq(orderItems.productId, products.id))
+      .innerJoin(products, and(eq(orderItems.productId, products.id), eq(products.tenantId, tenantId)))
       .where(and(eq(orderItems.productId, productId), eq(products.tenantId, tenantId)));
     if (Number(orderItemCount.count) > 0) {
       throw new Error(`Невозможно удалить товар: связан с ${orderItemCount.count} позицией(ями) заказов`);

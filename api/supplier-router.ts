@@ -397,7 +397,7 @@ export const supplierRouter = createRouter({
         authorName:    users.name,
       })
         .from(supplierPayments)
-        .leftJoin(users, eq(supplierPayments.createdBy, users.id))
+        .leftJoin(users, and(eq(supplierPayments.createdBy, users.id), eq(users.tenantId, ctx.tenant.id)))
         .where(eq(supplierPayments.supplyId, supply.id))
         .orderBy(desc(supplierPayments.paidAt));
 
@@ -447,7 +447,7 @@ export const supplierRouter = createRouter({
         .from(supplierPayments)
         .innerJoin(supplies, eq(supplierPayments.supplyId, supplies.id))
         .innerJoin(suppliers, eq(supplierPayments.supplierId, suppliers.id))
-        .leftJoin(users, eq(supplierPayments.createdBy, users.id))
+        .leftJoin(users, and(eq(supplierPayments.createdBy, users.id), eq(users.tenantId, ctx.tenant.id)))
         .where(and(...conditions))
         .orderBy(desc(supplierPayments.paidAt))
         .limit(input?.limit ?? 50);

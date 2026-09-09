@@ -54,7 +54,7 @@ export const priceListRouter = createRouter({
         shopName: shops.name,
       }).from(priceListAssignments)
         .innerJoin(priceLists, eq(priceListAssignments.priceListId, priceLists.id))
-        .leftJoin(shops, eq(priceListAssignments.shopId, shops.id))
+        .leftJoin(shops, and(eq(priceListAssignments.shopId, shops.id), eq(shops.tenantId, ctx.tenant.id)))
         .where(and(eq(priceListAssignments.priceListId, input.id), eq(priceLists.tenantId, ctx.tenant.id)));
 
       return { ...list, items, assignments };

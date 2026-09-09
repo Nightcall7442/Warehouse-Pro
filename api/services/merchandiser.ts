@@ -82,8 +82,8 @@ export const MerchandiserService = {
         shopName: shops.name,
       })
         .from(visitReports)
-        .leftJoin(shops, eq(visitReports.shopId, shops.id))
-        .leftJoin(users, eq(visitReports.userId, users.id))
+        .leftJoin(shops, and(eq(visitReports.shopId, shops.id), eq(shops.tenantId, tenantId)))
+        .leftJoin(users, and(eq(visitReports.userId, users.id), eq(users.tenantId, tenantId)))
         .where(and(...conditions))
         .orderBy(desc(visitReports.createdAt))
         .limit(limit).offset(offset),
@@ -118,8 +118,8 @@ export const MerchandiserService = {
         shopName: shops.name,
       })
         .from(visitReports)
-        .leftJoin(shops, eq(visitReports.shopId, shops.id))
-        .leftJoin(users, eq(visitReports.userId, users.id))
+        .leftJoin(shops, and(eq(visitReports.shopId, shops.id), eq(shops.tenantId, tenantId)))
+        .leftJoin(users, and(eq(visitReports.userId, users.id), eq(users.tenantId, tenantId)))
         .where(and(...conditions))
         .orderBy(desc(visitReports.createdAt))
         .limit(limit).offset(offset),
@@ -144,8 +144,8 @@ export const MerchandiserService = {
       shopAddress: shops.address,
     })
       .from(visitReports)
-      .leftJoin(shops, eq(visitReports.shopId, shops.id))
-      .leftJoin(users, eq(visitReports.userId, users.id))
+      .leftJoin(shops, and(eq(visitReports.shopId, shops.id), eq(shops.tenantId, tenantId)))
+      .leftJoin(users, and(eq(visitReports.userId, users.id), eq(users.tenantId, tenantId)))
       .where(and(eq(visitReports.id, reportId), eq(visitReports.tenantId, tenantId)))
       .limit(1);
 

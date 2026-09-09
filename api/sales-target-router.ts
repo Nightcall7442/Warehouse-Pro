@@ -45,7 +45,7 @@ export const salesTargetRouter = createRouter({
         visitTarget: salesTargets.visitTarget,
         notes: salesTargets.notes,
       }).from(salesTargets)
-        .leftJoin(users, eq(salesTargets.userId, users.id))
+        .leftJoin(users, and(eq(salesTargets.userId, users.id), eq(users.tenantId, ctx.tenant.id)))
         .where(and(...conditions))
         .orderBy(desc(salesTargets.periodStart));
 
@@ -333,7 +333,7 @@ export const salesTargetRouter = createRouter({
         orderCountTarget: salesTargets.orderCountTarget,
         visitTarget: salesTargets.visitTarget,
       }).from(salesTargets)
-        .leftJoin(users, eq(salesTargets.userId, users.id))
+        .leftJoin(users, and(eq(salesTargets.userId, users.id), eq(users.tenantId, ctx.tenant.id)))
         .where(and(
           eq(salesTargets.tenantId, ctx.tenant.id),
           eq(salesTargets.periodType, "monthly"),

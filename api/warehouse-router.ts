@@ -52,15 +52,15 @@ export const warehouseRouter = createRouter({
           unitPrice: products.unitPrice, costPrice: products.costPrice, reorderPoint: products.reorderPoint,
         })
           .from(warehouseStock)
-          .leftJoin(products, eq(warehouseStock.productId, products.id))
+          .leftJoin(products, and(eq(warehouseStock.productId, products.id), eq(products.tenantId, ctx.tenant.id)))
           .where(where).limit(pageSize).offset(offset).orderBy(products.name),
         db.select({ count: sql<number>`count(*)` })
-          .from(warehouseStock).leftJoin(products, eq(warehouseStock.productId, products.id)).where(where),
+          .from(warehouseStock).leftJoin(products, and(eq(warehouseStock.productId, products.id), eq(products.tenantId, ctx.tenant.id))).where(where),
         db.select({
           totalSKUs:     sql<number>`count(*)`,
           totalWeight:   sql<string>`COALESCE(SUM(CAST(${warehouseStock.currentStock} AS DECIMAL(15,3)) * CAST(COALESCE(${products.unitWeight}, '0') AS DECIMAL(15,3))), 0)`,
           lowStockCount: sql<number>`count(CASE WHEN ${warehouseStock.available} < ${products.reorderPoint} THEN 1 END)`,
-        }).from(warehouseStock).leftJoin(products, eq(warehouseStock.productId, products.id)).where(where),
+        }).from(warehouseStock).leftJoin(products, and(eq(warehouseStock.productId, products.id), eq(products.tenantId, ctx.tenant.id))).where(where),
       ]);
 
       return { data, total: Number(countResult[0]?.count ?? 0), page, pageSize, summary: summary[0] };
@@ -79,7 +79,7 @@ export const warehouseRouter = createRouter({
         unit: products.unit,
       })
         .from(stockMovements)
-        .leftJoin(products, eq(stockMovements.productId, products.id))
+        .leftJoin(products, and(eq(stockMovements.productId, products.id), eq(products.tenantId, ctx.tenant.id)))
         .where(and(eq(stockMovements.productId, input.productId), eq(stockMovements.tenantId, ctx.tenant.id)))
         .orderBy(desc(stockMovements.createdAt)).limit(50);
     }),
@@ -139,7 +139,7 @@ export const warehouseRouter = createRouter({
         totalUnits:      sql<string>`COALESCE(SUM(${warehouseStock.currentStock}), 0)`,
       })
         .from(warehouseStock)
-        .leftJoin(products, eq(warehouseStock.productId, products.id))
+        .leftJoin(products, and(eq(warehouseStock.productId, products.id), eq(products.tenantId, ctx.tenant.id)))
         .where(eq(warehouseStock.tenantId, tenantId));
 
       return summary ?? { totalCostValue: "0", totalRetailValue: "0", totalUnits: "0" };
@@ -168,7 +168,7 @@ export const warehouseRouter = createRouter({
         daysSinceOrder: sql<number>`CASE WHEN MAX(CASE WHEN ${orders.status} = 'delivered' THEN ${orders.createdAt} END) IS NULL THEN 99999 ELSE DATEDIFF(NOW(), MAX(CASE WHEN ${orders.status} = 'delivered' THEN ${orders.createdAt} END)) END`,
       })
         .from(warehouseStock)
-        .leftJoin(products, eq(warehouseStock.productId, products.id))
+        .leftJoin(products, and(eq(warehouseStock.productId, products.id), eq(products.tenantId, ctx.tenant.id)))
         .leftJoin(orderItems, eq(orderItems.productId, products.id))
         .leftJoin(orders, eq(orderItems.orderId, orders.id))
         .where(and(
@@ -200,7 +200,7 @@ export const warehouseRouter = createRouter({
       avgDailySales: sql<string>`COALESCE((SELECT SUM(${orderItems.quantity}) FROM ${orderItems} INNER JOIN ${orders} ON ${orderItems.orderId} = ${orders.id} WHERE ${orderItems.productId} = ${products.id} AND ${orders.tenantId} = ${tenantId} AND ${orders.status} = 'delivered' AND ${orders.createdAt} >= ${days30}) / 30, 0)`,
     })
       .from(warehouseStock)
-      .leftJoin(products, eq(warehouseStock.productId, products.id))
+      .leftJoin(products, and(eq(warehouseStock.productId, products.id), eq(products.tenantId, ctx.tenant.id)))
       .where(and(
         eq(warehouseStock.tenantId, tenantId),
         sql`${warehouseStock.available} <= ${products.reorderPoint}`,

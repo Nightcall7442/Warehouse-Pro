@@ -119,7 +119,7 @@ export async function returnsInPeriod(
       eq(orderItems.orderId, returns.orderId),
       eq(orderItems.productId, returnItems.productId),
     ))
-    .leftJoin(products, eq(products.id, returnItems.productId))
+    .leftJoin(products, and(eq(products.id, returnItems.productId), eq(products.tenantId, tenantId)))
     .where(inArray(returnItems.returnId, ids));
 
   const costByReturn = new Map<number, number>();

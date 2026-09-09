@@ -135,7 +135,7 @@ async function computeStockouts(
     reorderPoint: products.reorderPoint,
   })
     .from(warehouseStock)
-    .innerJoin(products, eq(warehouseStock.productId, products.id))
+    .innerJoin(products, and(eq(warehouseStock.productId, products.id), eq(products.tenantId, tenantId)))
     .where(and(
       eq(warehouseStock.tenantId, tenantId),
       eq(products.status, "active"),

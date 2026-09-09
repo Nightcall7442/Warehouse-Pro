@@ -42,7 +42,7 @@ export async function answerStock(tenantId: number, lang: Lang): Promise<string>
       point: sql<number>`max(${warehouseStock.reorderPoint})`,
     })
     .from(warehouseStock)
-    .innerJoin(products, eq(products.id, warehouseStock.productId))
+    .innerJoin(products, and(eq(products.id, warehouseStock.productId), eq(products.tenantId, tenantId)))
     .where(and(eq(warehouseStock.tenantId, tenantId), eq(products.status, "active")))
     .groupBy(products.id, products.name, products.unit)
     // Сравнение после группировки: остаток считается по всем складам сразу,
@@ -66,7 +66,7 @@ export async function answerOrders(tenantId: number, lang: Lang): Promise<string
       at: orders.createdAt,
     })
     .from(orders)
-    .leftJoin(shops, eq(shops.id, orders.shopId))
+    .leftJoin(shops, and(eq(shops.id, orders.shopId), eq(shops.tenantId, tenantId)))
     .where(and(eq(orders.tenantId, tenantId), isNull(orders.deletedAt)))
     .orderBy(desc(orders.id))
     .limit(LIMIT);
@@ -123,7 +123,7 @@ export async function answerTop(tenantId: number, lang: Lang): Promise<string> {
     })
     .from(orderItems)
     .innerJoin(orders, eq(orders.id, orderItems.orderId))
-    .innerJoin(products, eq(products.id, orderItems.productId))
+    .innerJoin(products, and(eq(products.id, orderItems.productId), eq(products.tenantId, tenantId)))
     .where(and(
       eq(orders.tenantId, tenantId),
       gte(orders.createdAt, since),

@@ -41,7 +41,7 @@ export const courierRouter = createRouter({
         deliveredAt: orders.deliveredAt,
       })
         .from(orders)
-        .leftJoin(shops, eq(orders.shopId, shops.id))
+        .leftJoin(shops, and(eq(orders.shopId, shops.id), eq(shops.tenantId, ctx.tenant.id)))
         .where(and(
           eq(orders.tenantId, ctx.tenant.id),
           isNull(orders.deletedAt),
@@ -72,7 +72,7 @@ export const courierRouter = createRouter({
       deliveredAt: orders.deliveredAt,
     })
       .from(orders)
-      .leftJoin(shops, eq(orders.shopId, shops.id))
+      .leftJoin(shops, and(eq(orders.shopId, shops.id), eq(shops.tenantId, ctx.tenant.id)))
       .where(and(
         eq(orders.tenantId, ctx.tenant.id),
         eq(orders.courierId, courierId),

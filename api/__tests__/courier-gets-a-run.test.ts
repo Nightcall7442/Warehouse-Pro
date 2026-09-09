@@ -92,7 +92,9 @@ describe("видно, кто везёт", () => {
       курьер.
     */
     expect(SERVICE).toContain('const courierUser = alias(users, "courier_user")');
-    expect(SERVICE).toContain("leftJoin(courierUser, eq(loadingLists.courierId, courierUser.id))");
+    // Связь плюс проверка организации в самом ON — как у всех соединений с
+    // таблицами арендатора после аудита безопасности.
+    expect(SERVICE).toContain("leftJoin(courierUser, and(eq(loadingLists.courierId, courierUser.id), eq(courierUser.tenantId, tenantId)))");
   });
 
   it("выбор стоит в самом списке рейсов", () => {

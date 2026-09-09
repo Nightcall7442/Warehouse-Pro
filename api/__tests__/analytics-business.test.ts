@@ -183,12 +183,30 @@ function makeMockDb() {
       const joins: Array<{ table: Record<string, unknown>[]; primaryCol: string; joinCol: string }> = [];
 
       const from: any = {};
+      /*
+        Условие соединения теперь может быть and(связь, фильтр по организации).
+
+        Продукт закрывает каждое соединение с таблицей арендатора условием
+        eq(table.tenantId, …) прямо в ON — защита от чужой строки по внешнему
+        ключу. Стенд же разбирал только голый eq двух колонок, и с and молча
+        пропускал соединение целиком: таблица не присоединялась, и восемь
+        проверок отчётов падали на пустых именах.
+
+        Из and берётся связь (eq колонка-колонка); eq с константой — фильтр на
+        присоединяемую строку. Стенд однотенантный, но фильтр всё равно
+        применяется: строка с чужим tenant_id не должна присоединиться и здесь.
+      */
       from.leftJoin = (joinTable: any, joinCond: unknown) => {
-        if (joinCond && typeof joinCond === "object" && (joinCond as any).__kind === "eq") {
+        const parts = (joinCond as any)?.__kind === "and" ? (joinCond as any).conds : [joinCond];
+        const link = parts.find((p: any) => p?.__kind === "eq" && mapCol(p.col) && mapCol(p.val));
+        const filters = parts
+          .filter((p: any) => p?.__kind === "eq" && p !== link && mapCol(p.col))
+          .map((p: any) => ({ col: mapCol(p.col) as string, val: p.val }));
+        if (link) {
           joins.push({
-            table: useTable(joinTable),
-            primaryCol: mapCol((joinCond as any).col),
-            joinCol: mapCol((joinCond as any).val),
+            table: useTable(joinTable).filter(r => filters.every((f: { col: string; val: unknown }) => String((r as any)[f.col]) === String(f.val))),
+            primaryCol: mapCol(link.col),
+            joinCol: mapCol(link.val),
           });
         }
         return from;

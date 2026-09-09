@@ -585,7 +585,9 @@ export async function inbox(): Promise<InboxThread[]> {
     })
     .from(supportMessages)
     .innerJoin(tenants, eq(tenants.id, supportMessages.tenantId))
-    .innerJoin(users, eq(users.id, supportMessages.userId))
+    // Обзор платформы, организаций много: пользователь сверяется с
+    // организацией САМОГО сообщения, а не с константой.
+    .innerJoin(users, and(eq(users.id, supportMessages.userId), eq(users.tenantId, supportMessages.tenantId)))
     .groupBy(supportMessages.tenantId, supportMessages.userId, tenants.name, tenants.plan, users.name, users.role)
     .orderBy(desc(sql`max(${supportMessages.createdAt})`))
     .limit(200);

@@ -73,7 +73,7 @@ export const orderRouter = createRouter({
         total: sql<number>`count(*)`,
         totalRevenue: sql<number>`COALESCE(SUM(CAST(${orders.total} AS DECIMAL(15,2))), 0)`,
       }).from(orders)
-        .leftJoin(shops, eq(orders.shopId, shops.id))
+        .leftJoin(shops, and(eq(orders.shopId, shops.id), eq(shops.tenantId, ctx.tenant.id)))
         .where(and(...conditions));
 
       // Get counts per status (WITH same filters as total)
@@ -81,7 +81,7 @@ export const orderRouter = createRouter({
         status: orders.status,
         count: sql<number>`count(*)`,
       }).from(orders)
-        .leftJoin(shops, eq(orders.shopId, shops.id))
+        .leftJoin(shops, and(eq(orders.shopId, shops.id), eq(shops.tenantId, ctx.tenant.id)))
         .where(and(...conditions))
         .groupBy(orders.status);
 
@@ -671,7 +671,7 @@ export const orderRouter = createRouter({
         userName: users.name,
         userAvatar: users.avatar,
       }).from(orderComments)
-        .leftJoin(users, eq(orderComments.userId, users.id))
+        .leftJoin(users, and(eq(orderComments.userId, users.id), eq(users.tenantId, ctx.tenant.id)))
         .where(and(eq(orderComments.orderId, input.orderId), eq(orderComments.tenantId, ctx.tenant.id)))
         .orderBy(orderComments.createdAt);
 

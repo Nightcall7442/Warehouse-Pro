@@ -271,7 +271,7 @@ export class OneCSyncService {
           unit: products.unit,
           unitWeight: products.unitWeight,
         }).from(orderItems)
-          .leftJoin(products, eq(orderItems.productId, products.id))
+          .leftJoin(products, and(eq(orderItems.productId, products.id), eq(products.tenantId, tenantId)))
           .where(and(
             eq(orderItems.orderId, orderId),
             eq(products.tenantId, tenantId),

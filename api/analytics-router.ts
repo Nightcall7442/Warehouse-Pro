@@ -34,7 +34,7 @@ export const analyticsRouter = createRouter({
         revenue:    sql<string>`COALESCE(SUM(${orders.total}), 0)`,
         orderCount: sql<number>`count(*)`,
       })
-        .from(orders).leftJoin(shops, eq(orders.shopId, shops.id))
+        .from(orders).leftJoin(shops, and(eq(orders.shopId, shops.id), eq(shops.tenantId, ctx.tenant.id)))
         .where(and(...conditions)).groupBy(shops.id).orderBy(desc(sql`SUM(${orders.total})`)).limit(input?.limit ?? 20);
     }),
 
@@ -66,7 +66,7 @@ export const analyticsRouter = createRouter({
         totalRevenue: sql<string>`COALESCE(SUM(${deliveredQty()} * ${orderItems.unitPrice}), 0)`,
       })
         .from(orderItems)
-        .leftJoin(products, eq(orderItems.productId, products.id))
+        .leftJoin(products, and(eq(orderItems.productId, products.id), eq(products.tenantId, ctx.tenant.id)))
         .leftJoin(orders, eq(orderItems.orderId, orders.id))
         .where(and(...conditions)).groupBy(products.id).orderBy(desc(sql`SUM(${orderItems.quantity})`)).limit(input?.limit ?? 10);
     }),
@@ -90,7 +90,7 @@ export const analyticsRouter = createRouter({
         totalRevenue:  sql<string>`COALESCE(SUM(${orders.total}), 0)`,
         avgOrderValue: sql<string>`COALESCE(AVG(${orders.total}), 0)`,
       })
-        .from(orders).leftJoin(users, eq(orders.agentId, users.id))
+        .from(orders).leftJoin(users, and(eq(orders.agentId, users.id), eq(users.tenantId, ctx.tenant.id)))
         .where(and(...conditions)).groupBy(users.id).orderBy(desc(sql`SUM(${orders.total})`));
     }),
 
@@ -123,7 +123,7 @@ export const analyticsRouter = createRouter({
         totalCost:    sql<string>`COALESCE(SUM(${deliveredQty()} * ${orderItems.costPrice}), 0)`,
       })
         .from(orderItems)
-        .leftJoin(products, eq(orderItems.productId, products.id))
+        .leftJoin(products, and(eq(orderItems.productId, products.id), eq(products.tenantId, ctx.tenant.id)))
         .leftJoin(orders, eq(orderItems.orderId, orders.id))
         .where(and(...conditions)).groupBy(products.id).orderBy(desc(sql`SUM(${deliveredQty()} * ${orderItems.unitPrice})`)).limit(20);
     }),
@@ -146,7 +146,7 @@ export const analyticsRouter = createRouter({
       })
         .from(orders)
         .leftJoin(orderItems, eq(orderItems.orderId, orders.id))
-        .leftJoin(products, eq(orderItems.productId, products.id))
+        .leftJoin(products, and(eq(orderItems.productId, products.id), eq(products.tenantId, ctx.tenant.id)))
         .where(and(...conditions));
 
       return {
@@ -194,7 +194,7 @@ export const analyticsRouter = createRouter({
         debt: shops.debt,
         agentName: users.name,
       })
-        .from(shops).leftJoin(users, eq(shops.agentId, users.id))
+        .from(shops).leftJoin(users, and(eq(shops.agentId, users.id), eq(users.tenantId, ctx.tenant.id)))
         .where(and(...conditions))
         .orderBy(desc(sql`CAST(${shops.debt} AS DECIMAL(15,2))`));
     }),
@@ -330,7 +330,7 @@ export const analyticsRouter = createRouter({
           totalCOGS: sql<string>`COALESCE(SUM(${deliveredQty()} * ${orderItems.costPrice}), 0)`,
         })
           .from(orderItems)
-          .leftJoin(products, eq(orderItems.productId, products.id))
+          .leftJoin(products, and(eq(orderItems.productId, products.id), eq(products.tenantId, ctx.tenant.id)))
           .leftJoin(orders, eq(orderItems.orderId, orders.id))
           .where(and(
             // Тот же помощник, что у выручки строкой выше: набор условий
@@ -617,8 +617,8 @@ export const analyticsRouter = createRouter({
       })
         .from(orderItems)
         .innerJoin(orders, eq(orderItems.orderId, orders.id))
-        .leftJoin(users, eq(orders.agentId, users.id))
-        .leftJoin(products, eq(orderItems.productId, products.id))
+        .leftJoin(users, and(eq(orders.agentId, users.id), eq(users.tenantId, ctx.tenant.id)))
+        .leftJoin(products, and(eq(orderItems.productId, products.id), eq(products.tenantId, ctx.tenant.id)))
         .where(and(...conditions))
         .groupBy(orders.agentId, orderItems.productId)
         .orderBy(users.name, desc(sql`SUM(${deliveredQty()} * ${orderItems.unitPrice})`));

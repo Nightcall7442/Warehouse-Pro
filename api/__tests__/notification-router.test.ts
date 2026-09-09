@@ -182,6 +182,15 @@ function evalCondCross(leftRow: unknown, rightRow: unknown, cond: unknown): bool
       const r = rightRow as Record<string, unknown>;
       return l[leftField] === r[rightField] || String(l[leftField]) === String(r[rightField]);
     }
+    /*
+      Колонка против константы — фильтр по организации на присоединяемой
+      строке: продукт закрывает каждое соединение условием eq(table.tenantId, …)
+      прямо в ON. Раньше стенд отвечал на такое false, и всё and рушилось.
+    */
+    if (leftField && !rightField) {
+      const r = rightRow as Record<string, unknown>;
+      return !(leftField in r) || String(r[leftField]) === String(c.val);
+    }
     return false;
   }
   return true;

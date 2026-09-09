@@ -42,7 +42,7 @@ export const returnsRouter = createRouter({
           totalAmount: returns.totalAmount,
           createdAt: returns.createdAt,
         }).from(returns)
-          .leftJoin(shops, eq(returns.shopId, shops.id))
+          .leftJoin(shops, and(eq(returns.shopId, shops.id), eq(shops.tenantId, ctx.tenant.id)))
           .where(and(...conditions))
           .orderBy(desc(returns.createdAt))
           .limit(input?.pageSize ?? 25)
@@ -72,8 +72,8 @@ export const returnsRouter = createRouter({
         totalAmount: returns.totalAmount,
         createdAt: returns.createdAt,
       }).from(returns)
-        .leftJoin(shops, eq(returns.shopId, shops.id))
-        .leftJoin(users, eq(returns.agentId, users.id))
+        .leftJoin(shops, and(eq(returns.shopId, shops.id), eq(shops.tenantId, ctx.tenant.id)))
+        .leftJoin(users, and(eq(returns.agentId, users.id), eq(users.tenantId, ctx.tenant.id)))
         .where(and(eq(returns.id, input.id), eq(returns.tenantId, ctx.tenant.id)))
         .limit(1);
 

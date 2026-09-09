@@ -314,7 +314,7 @@ export const NotificationService = {
         reorderPoint: products.reorderPoint,
       })
         .from(warehouseStock)
-        .leftJoin(products, eq(warehouseStock.productId, products.id))
+        .leftJoin(products, and(eq(warehouseStock.productId, products.id), eq(products.tenantId, tenantId)))
         .where(and(eq(warehouseStock.tenantId, tenantId), sql`${warehouseStock.available} < ${products.reorderPoint}`))
         .limit(5),
 

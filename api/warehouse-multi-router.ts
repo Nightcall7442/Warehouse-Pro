@@ -352,7 +352,7 @@ export const warehouseMultiRouter = createRouter({
         productName: products.name,
       })
         .from(stockTransfers)
-        .innerJoin(products, eq(stockTransfers.productId, products.id))
+        .innerJoin(products, and(eq(stockTransfers.productId, products.id), eq(products.tenantId, ctx.tenant.id)))
         .where(and(...conditions))
         .orderBy(desc(stockTransfers.createdAt))
         .limit(input?.limit ?? 20);

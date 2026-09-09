@@ -419,14 +419,35 @@ function makeDb(): any {
       const otherRows: Row[] = isSub
         ? (other as any).__rows
         : (data[otherName] ?? []).map(r => namespaced(otherName, r));
-      const leftKey = fieldOf(cond?.col) ?? (cond?.col as any)?.__key;
-      const rightKey = fieldOf(cond?.val) ?? (cond?.val as any)?.__key;
-      if (!leftKey || !rightKey) throw new Error("Стенд умеет только join по равенству колонок");
+      /*
+        Условие соединения теперь может быть and(связь, фильтр по организации).
+
+        Продукт закрывает каждое соединение с таблицей арендатора условием
+        eq(table.tenantId, …) прямо в ON — защита от чужой строки по внешнему
+        ключу. Стенд же разбирал только голый eq двух колонок, и с and молча
+        пропускал соединение целиком: таблица не присоединялась, и восемь
+        проверок отчётов падали на пустых именах.
+
+        Из and берётся связь (eq колонка-колонка); eq с константой — фильтр на
+        присоединяемую строку. Стенд однотенантный, но фильтр всё равно
+        применяется: строка с чужим tenant_id не должна присоединиться и здесь.
+      */
+      const parts: any[] = cond?.__kind === "and" ? cond.conds : [cond];
+      const keyOf = (c: any) => fieldOf(c) ?? (c as any)?.__key;
+      const link = parts.find(p => p?.__kind === "eq" && keyOf(p.col) && keyOf(p.val));
+      if (!link) throw new Error("Стенд умеет только join по равенству колонок");
+      const leftKey = keyOf(link.col);
+      const rightKey = keyOf(link.val);
+      const filters = parts
+        .filter(p => p?.__kind === "eq" && p !== link && keyOf(p.col))
+        .map(p => ({ key: keyOf(p.col) as string, val: p.val }));
       const out: Row[] = [];
       for (const l of state.rows) {
         const matches = otherRows.filter(r => {
           const merged = { ...l, ...r };
-          return merged[leftKey] != null && String(merged[leftKey]) === String(merged[rightKey]);
+          if (!(merged[leftKey] != null && String(merged[leftKey]) === String(merged[rightKey]))) return false;
+          // Фильтр по организации — на присоединяемой строке; нет поля — не мешаем.
+          return filters.every(f => !(f.key in merged) || String(merged[f.key]) === String(f.val));
         });
         if (matches.length === 0) { if (!inner) out.push({ ...l }); }
         else for (const r of matches) out.push({ ...l, ...r });

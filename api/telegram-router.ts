@@ -285,7 +285,7 @@ export const telegramRouter = createRouter({
         productName: products.name,
         available: warehouseStock.available,
       }).from(warehouseStock)
-        .leftJoin(products, eq(warehouseStock.productId, products.id))
+        .leftJoin(products, and(eq(warehouseStock.productId, products.id), eq(products.tenantId, ctx.tenant.id)))
         .where(and(eq(warehouseStock.tenantId, tenantId), sql`${warehouseStock.available} < ${products.reorderPoint}`))
         .limit(5),
 

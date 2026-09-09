@@ -547,8 +547,8 @@ export const agentRouter = createRouter({
         agentId: dailyPlans.agentId,
       })
         .from(dailyPlans)
-        .leftJoin(shops, eq(dailyPlans.shopId, shops.id))
-        .leftJoin(users, eq(dailyPlans.agentId, users.id))
+        .leftJoin(shops, and(eq(dailyPlans.shopId, shops.id), eq(shops.tenantId, ctx.tenant.id)))
+        .leftJoin(users, and(eq(dailyPlans.agentId, users.id), eq(users.tenantId, ctx.tenant.id)))
         .where(and(...conditions))
         .limit(100);
     }),
@@ -588,7 +588,7 @@ export const agentRouter = createRouter({
         lng: shops.gpsLng,
       })
         .from(dailyPlans)
-        .leftJoin(shops, eq(dailyPlans.shopId, shops.id))
+        .leftJoin(shops, and(eq(dailyPlans.shopId, shops.id), eq(shops.tenantId, ctx.tenant.id)))
         .where(and(...conditions))
         .limit(50);
 

@@ -101,7 +101,7 @@ export const forecastRouter = createRouter({
       })
         .from(orderItems)
         .innerJoin(orders, eq(orderItems.orderId, orders.id))
-        .innerJoin(products, eq(orderItems.productId, products.id))
+        .innerJoin(products, and(eq(orderItems.productId, products.id), eq(products.tenantId, ctx.tenant.id)))
         .where(and(
           eq(orders.tenantId, tenantId), isNull(orders.deletedAt),
           inArray(orders.status, REVENUE_ORDER_STATUSES),
@@ -145,7 +145,7 @@ export const forecastRouter = createRouter({
       })
         .from(orderItems)
         .innerJoin(orders, eq(orderItems.orderId, orders.id))
-        .innerJoin(products, eq(orderItems.productId, products.id))
+        .innerJoin(products, and(eq(orderItems.productId, products.id), eq(products.tenantId, ctx.tenant.id)))
         .where(and(
           eq(orders.tenantId, tenantId), isNull(orders.deletedAt),
           inArray(orders.status, REVENUE_ORDER_STATUSES),

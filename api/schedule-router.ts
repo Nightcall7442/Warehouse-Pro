@@ -26,8 +26,8 @@ export const scheduleRouter = createRouter({
         active: visitSchedules.active,
       })
         .from(visitSchedules)
-        .leftJoin(users, eq(visitSchedules.agentId, users.id))
-        .leftJoin(shops, eq(visitSchedules.shopId, shops.id))
+        .leftJoin(users, and(eq(visitSchedules.agentId, users.id), eq(users.tenantId, ctx.tenant.id)))
+        .leftJoin(shops, and(eq(visitSchedules.shopId, shops.id), eq(shops.tenantId, ctx.tenant.id)))
         .where(and(...conditions))
         .orderBy(visitSchedules.agentId, visitSchedules.dayOfWeek);
     }),

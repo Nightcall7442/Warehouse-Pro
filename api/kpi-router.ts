@@ -325,8 +325,8 @@ export const kpiRouter = createRouter({
         paidByName: payer.name,
       })
         .from(salaryPayouts)
-        .innerJoin(users, eq(salaryPayouts.userId, users.id))
-        .leftJoin(payer, eq(salaryPayouts.createdBy, payer.id))
+        .innerJoin(users, and(eq(salaryPayouts.userId, users.id), eq(users.tenantId, ctx.tenant.id)))
+        .leftJoin(payer, and(eq(salaryPayouts.createdBy, payer.id), eq(payer.tenantId, ctx.tenant.id)))
         .where(and(
           eq(salaryPayouts.tenantId, ctx.tenant.id),
           gte(salaryPayouts.paidAt, periodStart),
