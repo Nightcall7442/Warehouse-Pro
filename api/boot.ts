@@ -827,9 +827,14 @@ app.get("/metrics", async (c) => {
     return c.json({ error: "Not Found" }, 404);
   }
   if (env.prometheusMetricsToken) {
+    /*
+      Ключ — только заголовком. Запасной приём из адреса (?token=) снят: адрес
+      оседает в журналах прокси, а это долгоживущий общий секрет. Prometheus и
+      так шлёт его как Bearer (docs/observability/prometheus.yml), так что
+      запасной путь никого не обслуживал — только расширял поверхность.
+    */
     const authHeader = c.req.header("authorization");
-    const bearer = authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : undefined;
-    const provided = bearer ?? c.req.query("token");
+    const provided = authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : undefined;
     if (!provided || !safeEqual(provided, env.prometheusMetricsToken)) {
       return c.json({ error: "Unauthorized" }, 401);
     }
@@ -1198,7 +1203,6 @@ export default app;
 if (env.isProduction) {
   const { serve }            = await import("@hono/node-server");
   const { serveStaticFiles } = await import("./lib/vite");
-  const { attachWebSocket }  = await import("./lib/ws");
   const { connectRedis }     = await import("./lib/redis");
   serveStaticFiles(app);
 
@@ -1321,8 +1325,21 @@ if (env.isProduction) {
   const server = serve({ fetch: app.fetch, port }, () => {
     logger.info("server started", { port, version: APP_VERSION });
   });
-  attachWebSocket(server);
-  logger.info("websocket attached");
+  /*
+    WebSocket здесь больше нет — и не потому, что мешал.
+
+    Сервер поднимал канал, принимал JWT строкой запроса (?token=…) и клал
+    координаты агентов. Клиента у канала не было НИ ОДНОГО: веб его не
+    открывает, мобильное приложение шлёт координаты через agent.saveLocation по
+    tRPC, в комнаты арендаторов никто не писал, стражей в тестах не стояло.
+    Написан и не вызван ниоткуда — как вебхук бота, кроны и погрузочные листы.
+
+    Мёртвый вход, принимающий токен из адреса, — это не «неиспользуемая
+    функция», а поверхность атаки: адрес с JWT оседает в логах прокси. Аудит
+    безопасности нашёл именно это; лечение — не переносить токен в заголовок
+    для клиента, которого нет, а убрать вход. Понадобится живой канал — его
+    заведут заново под текущий способ входа, а не унаследуют этот.
+  */
 
   /*
     Подписка бота на вебхук. Не ждём её: сеть до Telegram может лежать ровно в
