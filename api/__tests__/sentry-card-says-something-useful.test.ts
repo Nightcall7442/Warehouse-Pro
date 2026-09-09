@@ -21,6 +21,8 @@
  * «отвечает» этого не было бы видно никогда.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 const env: Record<string, unknown> = {};
 vi.mock("../lib/env", () => ({ env }));
@@ -96,5 +98,49 @@ describe("карточка Sentry", () => {
       expect(String(call[0])).not.toContain("sentry.io");
     }
     fetchSpy.mockRestore();
+  });
+});
+
+/**
+ * Одна трассировка на процесс.
+ *
+ * ── Что было в логе ─────────────────────────────────────────────────────────
+ *
+ * При каждом запуске сервер писал:
+ *
+ *     Error: @opentelemetry/api: Attempted duplicate registration of API: trace
+ *       at registerGlobalTracerProvider (@sentry/node/.../initOtel.js)
+ *
+ * Первой строкой boot.ts поднимает наш OpenTelemetry — тот, что шлёт промежутки
+ * в Jaeger. Следом Sentry.init поднимал свой и пытался зарегистрировать своего
+ * поставщика трасс поверх. OpenTelemetry второго не принимает: пишет ошибку и
+ * оставляет первого.
+ *
+ * Значит трассировка Sentry не работала ни дня, а tracesSampleRate рядом с ней
+ * не делал ничего — сэмплировать было нечего. Настройка выглядела включённой и
+ * была мёртвой.
+ */
+describe("трассировка не регистрируется дважды", () => {
+  const boot = readFileSync(join(process.cwd(), "api", "boot.ts"), "utf8");
+  const init = boot.slice(boot.indexOf("Sentry.init({"), boot.indexOf("const app = new Hono"));
+
+  it("Sentry не поднимает свой OpenTelemetry", () => {
+    expect(init, "Sentry снова ставит трассировку поверх нашей").toContain("skipOpenTelemetrySetup: true");
+  });
+
+  it("и не притворяется, будто сэмплирует трассы", () => {
+    /*
+      Без своего OpenTelemetry Sentry промежутков не создаёт, и доля выборки
+      применяться не к чему. Оставить её значило бы держать в настройках число,
+      которое ничего не меняет, — а по нему потом будут судить, что трассировка
+      на сервере есть.
+    */
+    expect(init, "вернулась настройка, которой нечего сэмплировать").not.toContain("tracesSampleRate");
+  });
+
+  it("наша трассировка запускается раньше Sentry", () => {
+    // Порядок важен: поставщика принимают только первого. Наш шлёт в Jaeger,
+    // куда смотрит остальной стек наблюдения.
+    expect(boot.indexOf("initTelemetry()")).toBeLessThan(boot.indexOf("Sentry.init({"));
   });
 });

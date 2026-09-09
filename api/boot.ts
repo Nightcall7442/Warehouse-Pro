@@ -78,11 +78,43 @@ const TRPC_STATUS: Record<string, number> = {
   GATEWAY_TIMEOUT: 504,
 };
 
-// Always init Sentry — if DSN is empty, it's a no-op
+/*
+  Sentry — про ошибки. Трассировка у нас своя, в Jaeger.
+
+  ── Что было в логе ─────────────────────────────────────────────────────────
+
+  При каждом запуске сервер писал:
+
+      Error: @opentelemetry/api: Attempted duplicate registration of API: trace
+        at registerGlobalTracerProvider (@sentry/node/.../initOtel.js)
+
+  Строкой 8 initTelemetry() поднимает наш OpenTelemetry и регистрирует
+  глобального поставщика трасс — того, что шлёт промежутки в Jaeger. Следом
+  Sentry.init поднимал СВОЙ OpenTelemetry и пытался зарегистрировать своего
+  поставщика поверх. OpenTelemetry второго не принимает: пишет ошибку и
+  оставляет первого.
+
+  То есть трассировка Sentry не работала ни дня — её просто не пускали. И
+  tracesSampleRate, стоявший здесь, не делал ничего: сэмплировать было нечего.
+  Настройка выглядела включённой, а была мёртвой — тот же род дефекта, что и
+  проверка подписки, написанная и не вызванная ниоткуда.
+
+  ── Почему так, а не наоборот ───────────────────────────────────────────────
+
+  Развести их можно было двумя способами: отдать трассы Sentry или оставить их
+  себе. Оставляем себе. У платформы уже стоит свой стек наблюдения — Jaeger,
+  Prometheus, Loki, Grafana, — и трассы идут туда. Дублировать их в Sentry
+  значило бы платить за второй экземпляр того же и связывать порядок запуска
+  двух систем ради этого.
+
+  skipOpenTelemetrySetup говорит Sentry: OpenTelemetry настроен, не трогай.
+  Ошибки, релизы и хлебные крошки он собирает по-прежнему; промежутков не
+  создаёт — их создаёт наш слой, и они уходят в Jaeger.
+*/
 Sentry.init({
   dsn: env.sentryDsn || undefined,
   environment: env.isProduction ? "production" : "development",
-  tracesSampleRate: env.isProduction ? 0.2 : 1.0,
+  skipOpenTelemetrySetup: true,
   debug: !env.isProduction,
   // Не APP_VERSION: та зашита в код числом «1.0.0» и одинакова во всех
   // выкладках — по ней нельзя сказать, какая из них сломалась. Здесь
