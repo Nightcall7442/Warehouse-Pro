@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { checkPlanLimits } from "./lib/plan-limits";
 import { s3Client, publicUrl } from "./lib/s3";
 import { isSafePhotoValue, PHOTO_VALUE_ERROR } from "./lib/photo-value";
 import { createRouter, operatorQuery, fieldSalesQuery, can } from "./middleware";
@@ -301,6 +302,27 @@ export const productRouter = createRouter({
     .mutation(async ({ input, ctx }) => {
       const db       = getDb();
       const tenantId = ctx.tenant.id;
+
+      /*
+        Предел тарифа по позициям.
+
+        checkPlanLimits умела считать товары с самого начала, но её не звал
+        НИКТО: предел был написан на странице тарифов, нарисован полосой в
+        оплате — и не действовал. Организация на Basic заводила сколько угодно
+        позиций, а тариф обещал пятьдесят. Место занимало обещание, а не
+        правило.
+
+        Отказ называет числа: «50 из 50» говорит, что делать, а «достигнут
+        предел» отправляет человека угадывать.
+      */
+      const limits = await checkPlanLimits(db, tenantId, "products");
+      if (!limits.allowed) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: `Достигнут предел тарифа по товарам (${limits.current} из ${limits.limit}). Перейдите на старший тариф или докупите позиции.`,
+        });
+      }
+
       const sanitized = {
         ...input,
         code: sanitizeString(input.code),

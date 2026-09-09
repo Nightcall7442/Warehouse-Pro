@@ -1,4 +1,5 @@
 import { TRPCError } from "@trpc/server";
+import { checkPlanLimits } from "../lib/plan-limits";
 import { eq, and, inArray } from "drizzle-orm";
 import { isDuplicateOf } from "../lib/db-errors";
 import { normalizeCategory } from "../lib/category";
@@ -13,11 +14,20 @@ import { updateSyncStatus } from "./onec-status";
 import { record1CSync } from "../lib/metrics";
 
 export class OneCSyncService {
-  async syncProducts(tenantId: number): Promise<{ synced: number; errors: number }> {
+  async syncProducts(tenantId: number): Promise<{ synced: number; errors: number; blockedByPlan: number }> {
     const db = getDb();
     const bridge = await getBridgeForTenant(tenantId);
     let synced = 0;
     let errors = 0;
+    /*
+      Предел тарифа действует и на обмен с 1С.
+
+      Иначе он обходится в один щелчок: номенклатура 1С приезжает целиком, и
+      организация на Basic получает три тысячи позиций вместо пятидесяти.
+      Уже заведённые товары обмен продолжает ОБНОВЛЯТЬ при любом пределе —
+      предел не даёт заводить новые, а не отключает синхронизацию.
+    */
+    let blockedByPlan = 0;
     const startTime = Date.now();
 
     try {
@@ -46,6 +56,13 @@ export class OneCSyncService {
 
       const touchedExternalIds = new Set<string>();
 
+      // Свободное место читается один раз до цикла: спрашивать базу на каждой
+      // из трёх тысяч позиций — три тысячи запросов.
+      const planRoom = await checkPlanLimits(db, tenantId, "products");
+      let room = planRoom.limit === null
+        ? Number.POSITIVE_INFINITY
+        : Math.max(0, planRoom.limit - planRoom.current);
+
       for (const item of items) {
         try {
           const mapped = mapProduct1C(item);
@@ -62,6 +79,15 @@ export class OneCSyncService {
                 category: normalizeCategory(mapped.category),
               })
               .where(eq(products.id, internalId));
+          } else if (room <= 0) {
+            /*
+              Место кончилось: товар не заводим и связь не портим — на
+              следующем обмене, после расширения тарифа, он заведётся.
+              touchedExternalIds его не получает, но и в «пропавшие из 1С» он
+              не попадёт: туда идут только те, у кого связь уже есть.
+            */
+            blockedByPlan++;
+            continue;
           } else {
             /*
               Товар и его связь с 1С заводятся вместе или не заводятся вовсе.
@@ -134,6 +160,7 @@ export class OneCSyncService {
             });
 
             externalToInternal.set(item.Ref_Key, newId);
+            room--;
           }
           touchedExternalIds.add(item.Ref_Key);
           synced++;
@@ -164,8 +191,11 @@ export class OneCSyncService {
       }
 
       logger.info(`Product sync completed: ${synced} synced, ${errors} errors, ${staleIds.length} deactivated`, {
-        tenantId,
+        tenantId, blockedByPlan,
       });
+      if (blockedByPlan > 0) {
+        logger.warn(`Обмен с 1С: ${blockedByPlan} позиций не заведено — предел тарифа ${planRoom.limit}`, { tenantId });
+      }
       await updateSyncStatus(tenantId, "product", "from1c", "completed", synced);
       record1CSync("product", "from1c", Date.now() - startTime, errors === 0);
     } catch (e) {
@@ -175,7 +205,7 @@ export class OneCSyncService {
       throw e;
     }
 
-    return { synced, errors };
+    return { synced, errors, blockedByPlan };
   }
 
   /**

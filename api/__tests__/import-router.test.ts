@@ -23,6 +23,19 @@ vi.mock("../lib/env", () => ({
   env: { s3Bucket: "", s3AccessKey: "", s3SecretKey: "", s3Region: "" },
 }));
 
+/*
+  Предел тарифа по товарам — своей подстановкой.
+
+  Настоящая checkPlanLimits идёт в базу за организацией и считает строки; в
+  этом стенде организации нет, и она честно отвечает «0 из 0». Здесь проверяется
+  не тариф, поэтому предел подставляется — и тем же рычагом проверяется отказ,
+  когда он исчерпан.
+*/
+const { planLimits } = vi.hoisted(() => ({
+  planLimits: vi.fn(async () => ({ allowed: true, current: 0, limit: null as number | null })),
+}));
+vi.mock("../lib/plan-limits", () => ({ checkPlanLimits: planLimits }));
+
 vi.mock("../lib/logger", () => ({
   logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
 }));

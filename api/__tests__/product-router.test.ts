@@ -23,6 +23,19 @@ vi.mock("../lib/sse", () => ({
   sseBus: { emit: vi.fn() },
 }));
 
+/*
+  Предел тарифа по товарам — своей подстановкой.
+
+  Настоящая checkPlanLimits идёт в базу за организацией и считает строки; в
+  этом стенде организации нет, и она честно отвечает «0 из 0». Здесь проверяется
+  не тариф, поэтому предел подставляется — и тем же рычагом проверяется отказ,
+  когда он исчерпан.
+*/
+const { planLimits } = vi.hoisted(() => ({
+  planLimits: vi.fn(async () => ({ allowed: true, current: 0, limit: null as number | null })),
+}));
+vi.mock("../lib/plan-limits", () => ({ checkPlanLimits: planLimits }));
+
 vi.mock("../lib/sanitize", () => ({
   sanitizeString: (s: string) => s.replace(/<[^>]*>/g, "").trim(),
   sanitizeSearch: (s: string) => s.replace(/['";\\]/g, "").replace(/--/g, "").trim(),
@@ -341,6 +354,21 @@ describe("product.getById", () => {
 });
 
 describe("product.create", () => {
+  it("предел тарифа не даёт завести позицию сверх", async () => {
+    /*
+      Ради этого всё и делалось: до правки checkPlanLimits для товаров не звал
+      никто, и число SKU на странице тарифов было обещанием, а не правилом.
+      Отказ называет числа — «50 из 50» говорит, что делать дальше.
+    */
+    planLimits.mockResolvedValueOnce({ allowed: false, current: 50, limit: 50 });
+    const { productRouter } = await import("../product-router");
+    const caller = productRouter.createCaller({ ...makeCtx(1, 1), db: mockDb });
+    const before = productsTable.length;
+    await expect(caller.create({ code: "OVER-001", name: "Сверх предела", unitPrice: "10.00" }))
+      .rejects.toThrow("50 из 50");
+    expect(productsTable.length, "товар всё-таки завёлся").toBe(before);
+  });
+
   it("creates product + stock row (0 stock), returns id", async () => {
     const { productRouter } = await import("../product-router");
     const caller = productRouter.createCaller({ ...makeCtx(1, 1), db: mockDb });

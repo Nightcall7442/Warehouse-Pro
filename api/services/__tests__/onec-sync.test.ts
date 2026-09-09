@@ -24,6 +24,19 @@ vi.mock("../../lib/metrics", () => ({
   record1CSync: vi.fn(),
 }));
 
+/*
+  Предел тарифа по товарам — своей подстановкой.
+
+  Настоящая checkPlanLimits идёт в базу за организацией и считает строки; в
+  этом стенде организации нет, и она честно отвечает «0 из 0». Здесь проверяется
+  не тариф, поэтому предел подставляется — и тем же рычагом проверяется отказ,
+  когда он исчерпан.
+*/
+const { planLimits } = vi.hoisted(() => ({
+  planLimits: vi.fn(async () => ({ allowed: true, current: 0, limit: null as number | null })),
+}));
+vi.mock("../../lib/plan-limits", () => ({ checkPlanLimits: planLimits }));
+
 vi.mock("../onec-status", () => ({
   updateSyncStatus: vi.fn().mockResolvedValue(undefined),
 }));

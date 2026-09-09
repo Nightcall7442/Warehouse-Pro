@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { checkPlanLimits } from "./lib/plan-limits";
 import { existingSpelling } from "./lib/category";
 import { TRPCError } from "@trpc/server";
 import { createRouter, operatorQuery, can } from "./middleware";
@@ -444,7 +445,21 @@ export const importRouter = createRouter({
             .from(products)
             .where(eq(products.tenantId, tenantId)).groupBy(products.category)).map(r => r.category);
 
+          /*
+            Сколько позиций тариф ещё позволяет завести.
+
+            Читается ОДИН раз до цикла и уменьшается по мере вставки:
+            спрашивать базу на каждой строке — тысяча запросов на тысячной
+            выгрузке. Что не поместилось, не пропадает молча, а называется
+            отдельной строкой в ответе: файл на тысячу строк, из которого
+            встали сорок, иначе выглядит как поломка импорта.
+          */
+          const planRoom = await checkPlanLimits(db, tenantId, "products");
+          let room = planRoom.limit === null ? Number.POSITIVE_INFINITY : Math.max(0, planRoom.limit - planRoom.current);
+          let blockedByPlan = 0;
+
           for (const row of parsedRows) {
+            if (room <= 0) { blockedByPlan++; continue; }
             try {
               let photoUrl = row.photoUrl;
               if (photoUrl && photoUrl.startsWith("data:image/")) {
@@ -510,6 +525,7 @@ export const importRouter = createRouter({
                 });
               }
               success++;
+              room--;
             } catch (err: unknown) {
               const e = err as { cause?: { message?: string }; message?: string; sqlMessage?: string; code?: string };
               const causeMsg = e?.cause?.message || "";
@@ -520,6 +536,13 @@ export const importRouter = createRouter({
                 errors.push(`Строка ${row.rowNum}: ${fullMsg}`);
               }
             }
+          }
+
+          if (blockedByPlan > 0) {
+            skipped.push(
+              `${blockedByPlan} позиций не заведено: предел тарифа — ${planRoom.limit} товаров. ` +
+              `Перейдите на старший тариф или докупите позиции.`,
+            );
           }
         }
       } else {
