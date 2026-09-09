@@ -2,10 +2,29 @@ import { z } from "zod";
 import { createRouter, operatorQuery, authedQuery, supervisorQuery, managementQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { salesTargets, users } from "@db/schema";
-import { eq, and, sql, desc } from "drizzle-orm";
+import { eq, and, inArray, sql, desc } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
 import { cache, CacheKeys } from "./lib/cache";
 import { suggestQuotas } from "./services/quota-suggest";
 import { actualsForTargets } from "./services/sales-target-actuals";
+
+/**
+ * Норму ставят только своему сотруднику.
+ *
+ * tenant_id строки берётся из ключа вызывающего, а user_id — из входа как
+ * есть. Чужой id заводил норму-призрак: она считалась в своде организации, но
+ * имя в ней было пустым, потому что соединение с users закрыто по организации.
+ * Утечки данных тут нет, а вот числа в сводке портились молча.
+ */
+async function requireOwnUsers(db: ReturnType<typeof getDb>, tenantId: number, userIds: number[]) {
+  const wanted = [...new Set(userIds)];
+  if (wanted.length === 0) return;
+  const rows = await db.select({ id: users.id }).from(users)
+    .where(and(inArray(users.id, wanted), eq(users.tenantId, tenantId)));
+  if (rows.length !== wanted.length) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Сотрудник не найден в вашей организации" });
+  }
+}
 
 export const salesTargetRouter = createRouter({
   // List sales targets for a period
@@ -90,6 +109,7 @@ export const salesTargetRouter = createRouter({
     }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
+      await requireOwnUsers(db, ctx.tenant.id, [input.userId]);
 
       if (input.id) {
         await db.update(salesTargets)
@@ -140,6 +160,7 @@ export const salesTargetRouter = createRouter({
     }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
+      await requireOwnUsers(db, ctx.tenant.id, input.targets.map(t => t.userId));
       let created = 0;
       let updated = 0;
 
@@ -230,8 +251,15 @@ export const salesTargetRouter = createRouter({
       return { success: true, updated: targets.length };
     }),
 
-  // Auto-suggest quotas from 3-month history
-  autoSuggest: operatorQuery
+  /*
+    Подсказка норм по трёхмесячной истории.
+
+    Была уровня оператора — то есть директору и оператору, но НЕ супервайзеру.
+    Нормы при этом ставит именно супервайзер (upsert и bulkUpsert открыты ему),
+    и на его экране кнопка «подсказать» отвечала бы отказом. Здесь читается
+    только сводная история агентов, которую он и так видит в KPI.
+  */
+  autoSuggest: managementQuery
     .input(z.object({ targetMonth: z.string() }))
     .query(async ({ input, ctx }) => {
       const db = getDb();

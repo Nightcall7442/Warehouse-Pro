@@ -15,6 +15,9 @@ import {
 import { PhotoOrIcon } from "@/components/PhotoOrIcon";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { ScheduleManager } from "@/components/plans/ScheduleManager";
+import { MonthPlanner } from "@/components/plans/MonthPlanner";
+import { currentMonth, monthLabel, shiftMonth } from "@/components/plans/month";
+import { MonthNorms } from "@/components/plans/MonthNorms";
 
 /** Пустой набор одной ссылкой: новый Set в каждой отрисовке ломал бы сравнения. */
 const EMPTY_SET: ReadonlySet<number> = new Set<number>();
@@ -228,6 +231,13 @@ function CreatePlanForm({ date, onDone, lang }: { date: string; onDone: () => vo
 // ── Главная страница планов супервайзера ──────────────────────────────────────
 export default function SupervisorPlans() {
   const [date,        setDate]        = useState(new Date());
+  /*
+    День, месяц и нормы — три взгляда на одно и то же, поэтому вкладки, а не
+    три страницы: месяц расставляют и тут же смотрят, что вышло по дням, а
+    норму ставят от числа расставленных визитов.
+  */
+  const [tab,         setTab]         = useState<"day" | "month" | "norms">("day");
+  const [month,       setMonth]       = useState(currentMonth);
   const [showForm,    setShowForm]    = useState(false);
   const [filterAgent, setFilterAgent] = useState(0);
   const { fmt }                       = useCurrency();
@@ -286,18 +296,65 @@ export default function SupervisorPlans() {
           <h1 className="font-display text-2xl font-bold text-primary tracking-tight">
             {t("Планы визитов", "Tashrif rejalari")}
           </h1>
-          {isToday && (
+          {isToday && tab === "day" && (
             <p className="text-xs mt-0.5" style={{ color: "var(--color-primary-text)" }}>
               {t("Сегодня", "Bugun")}
             </p>
           )}
         </div>
-        <button onClick={() => setShowForm(v => !v)} className="neo-btn-primary flex items-center gap-2">
-          <Plus size={16} />
-          <span className="hidden sm:inline">{t("Создать план", "Reja yaratish")}</span>
-        </button>
+        {tab === "day" && (
+          <button onClick={() => setShowForm(v => !v)} className="neo-btn-primary flex items-center gap-2">
+            <Plus size={16} />
+            <span className="hidden sm:inline">{t("Создать план", "Reja yaratish")}</span>
+          </button>
+        )}
       </div>
 
+      <div role="tablist" aria-label={t("Как планируем", "Qanday rejalashtiramiz")} className="range-pills">
+        {([
+          ["day",   t("День", "Kun")],
+          ["month", t("Месяц", "Oy")],
+          ["norms", t("Нормы", "Normalar")],
+        ] as const).map(([key, label]) => (
+          <button
+            key={key}
+            role="tab"
+            aria-selected={tab === key}
+            onClick={() => setTab(key)}
+            className={"range-pill tap" + (tab === key ? " active" : "")}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Месяц выбирается один на обе месячные вкладки: норму ставят на тот же
+          месяц, визиты которого только что расставили. */}
+      {tab !== "day" && (
+        <div className="flex items-center gap-3">
+          <button onClick={() => setMonth(m => shiftMonth(m, -1))}
+            aria-label={t("Прошлый месяц", "O'tgan oy")}
+            className="neo-btn w-10 h-10 flex items-center justify-center">
+            <ChevronLeft size={18} />
+          </button>
+          <div className="flex-1 panel p-3 text-center">
+            <p className="font-semibold text-primary">{monthLabel(month, lang)}</p>
+            <p className="font-label text-[11px] tracking-wider mt-0.5" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
+              {tab === "month" ? t("Визиты на месяц", "Oylik tashriflar") : t("Нормы на месяц", "Oylik normalar")}
+            </p>
+          </div>
+          <button onClick={() => setMonth(m => shiftMonth(m, 1))}
+            aria-label={t("Следующий месяц", "Keyingi oy")}
+            className="neo-btn w-10 h-10 flex items-center justify-center">
+            <ChevronRight size={18} />
+          </button>
+        </div>
+      )}
+
+      {tab === "month" && <MonthPlanner month={month} lang={lang} />}
+      {tab === "norms" && <MonthNorms   month={month} lang={lang} />}
+
+      {tab === "day" && (<>
       {/* Навигация по дате */}
       <div className="flex items-center gap-3">
         <button onClick={() => setDate(d => subDays(d, 1))}
@@ -520,6 +577,7 @@ export default function SupervisorPlans() {
               );
             })}
       </div>
+      </>)}
     </div>
   );
 }

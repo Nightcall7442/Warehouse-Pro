@@ -20,6 +20,14 @@ export const NAV_ITEMS: Record<string, Array<{ labelKey: string; path: string; i
     { labelKey: "nav.dashboard",  path: "/",          icon: "LayoutDashboard" },
     { labelKey: "nav.kpi",        path: "/agent/kpi",  icon: "BarChart3"        },
     { labelKey: "nav.tracking",   path: "/supervisor", icon: "MapPin"          },
+    /*
+      План визитов был открыт директору маршрутом (RoleGuard пускает ceo), но
+      ссылки на него не было нигде: ни здесь, ни в нижней панели. То есть
+      попасть на собственное планирование он мог только набрав адрес руками.
+      Ставится рядом со слежением: сначала расставить месяц, потом смотреть,
+      как он идёт.
+    */
+    { labelKey: "nav.plans",      path: "/supervisor/plans", icon: "Calendar"  },
     { labelKey: "nav.reports",    path: "/reports",   icon: "Activity"        },
     { labelKey: "nav.shops",      path: "/shops",     icon: "Store"           },
     { labelKey: "nav.products",   path: "/products",  icon: "Package"         },
