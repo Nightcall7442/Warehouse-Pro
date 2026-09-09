@@ -317,3 +317,65 @@ describe("балл не выносят приговор без данных", ()
     expect(page).toContain('a.totalPlans > 0 ? `${a.visitedPlans}/${a.totalPlans}` : "—"');
   });
 });
+
+/*
+  ── Разбор по одному курьеру ────────────────────────────────────────────────
+
+  Строка курьера в списке была немой: посмотреть человека отдельно было нечем,
+  тогда как у агента разбор открывался кликом с самого начала.
+*/
+describe("курьера можно разобрать отдельно", () => {
+  const page = read("src/pages/AgentKpi.tsx");
+
+  it("ручка отдаёт всё для карточки одним запросом", () => {
+    // Три отдельных запроса на один клик — три ожидания вместо одного.
+    expect(KPI).toContain("courierDetail: managementQuery");
+    const at = KPI.indexOf("courierDetail: managementQuery");
+    const body = KPI.slice(at, KPI.indexOf("agentDetail:", at));
+    expect(body).toContain("calculateCourierStats");
+    expect(body).toContain("calculateSalary");
+    expect(body).toContain("getCourierDaily");
+  });
+
+  it("просмотр чужой карточки ничего не записывает", () => {
+    /*
+      calculateSalary умеет писать строку комиссии. Руководитель только
+      смотрит, и просмотр не должен менять чужие данные — persist = false
+      передан явно, а не оставлен на умолчание.
+    */
+    const at = KPI.indexOf("courierDetail: managementQuery");
+    const body = KPI.slice(at, KPI.indexOf("agentDetail:", at));
+    expect(body).toMatch(/calculateSalary\([^)]*undefined,\s*false\)/);
+  });
+
+  it("чужого сотрудника и не-курьера отдаёт отказом, а не пустой карточкой", () => {
+    // Пустая карточка читается как «ничего не возил» — это неправда.
+    const at = KPI.indexOf("courierDetail: managementQuery");
+    const body = KPI.slice(at, KPI.indexOf("agentDetail:", at));
+    expect(body).toContain('eq(users.tenantId, ctx.tenant.id)');
+    expect(body).toContain('who.role !== "courier"');
+    expect(body).toContain("NOT_FOUND");
+  });
+
+  it("строка кликается и открывается с клавиатуры", () => {
+    expect(page).toContain("onSelect(c.courierId)");
+    expect(page).toContain('e.key === "Enter" || e.key === " "');
+  });
+
+  it("показатели курьеру и руководителю рисует один и тот же вид", () => {
+    // Два разных вида одних и тех же чисел разошлись бы через месяц.
+    expect(page).toContain("<CourierKpiView stats={courierDetail.stats}");
+  });
+
+  it("график по дням есть", () => {
+    /*
+      «Тридцать довезено за месяц» не отвечает, работал человек ровно или закрыл
+      всё за три дня. Одним числом это не сказать.
+    */
+    expect(page).toContain("CourierDaysChart");
+    const chart = read("src/components/kpi/CourierDaysChart.tsx");
+    // Оси — прямыми детьми: обёртка над ними молча убивает подписи.
+    expect(chart).toMatch(/<BarChart[\s\S]{0,400}<XAxis/);
+    expect(chart).toMatch(/<XAxis[\s\S]{0,400}<YAxis/);
+  });
+});

@@ -210,6 +210,62 @@ export async function calculateCourierStats(
  * десятью курьерами это тридцать запросов на открытие экрана. Здесь два
  * запроса с группировкой, независимо от числа людей.
  */
+/**
+ * Доставки курьера по дням — для графика в его карточке.
+ *
+ * Показатели за месяц отвечают «сколько», но не отвечают «как шло»: тридцать
+ * заявок могли быть ровным потоком по одной в день, а могли — тремя авралами и
+ * тремя неделями простоя. Руководителю нужно второе, и одним числом это не
+ * сказать.
+ */
+export interface CourierDay {
+  /** ГГГГ-ММ-ДД — по дате ДОСТАВКИ, как и всё остальное у курьера. */
+  date: string;
+  delivered: number;
+  failed: number;
+}
+
+/**
+ * День в виде «ГГГГ-ММ-ДД».
+ *
+ * MySQL отдаёт DATE то строкой, то объектом Date — в зависимости от драйвера и
+ * настроек соединения. График получал бы то «2026-09-01», то
+ * «Mon Sep 01 2026 …», и подписи оси ломались бы на ровном месте.
+ */
+function toIsoDay(value: unknown): string {
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  return String(value).slice(0, 10);
+}
+
+export async function getCourierDaily(
+  db: DrizzleInstance,
+  courierId: number,
+  tenantId: number,
+  periodStart: Date,
+  periodEnd: Date,
+): Promise<CourierDay[]> {
+  const rows = await db.select({
+    date: sql<string>`DATE(COALESCE(${orders.deliveredAt}, ${orders.createdAt}))`,
+    delivered: sql<number>`SUM(CASE WHEN ${orders.deliveryStatus} = 'delivered' THEN 1 ELSE 0 END)`,
+    failed: sql<number>`SUM(CASE WHEN ${orders.deliveryStatus} = 'failed' THEN 1 ELSE 0 END)`,
+  }).from(orders)
+    .where(and(
+      eq(orders.tenantId, tenantId),
+      eq(orders.courierId, courierId),
+      isNull(orders.deletedAt),
+      gte(sql`COALESCE(${orders.deliveredAt}, ${orders.createdAt})`, periodStart),
+      lte(sql`COALESCE(${orders.deliveredAt}, ${orders.createdAt})`, periodEnd),
+    ))
+    .groupBy(sql`DATE(COALESCE(${orders.deliveredAt}, ${orders.createdAt}))`)
+    .orderBy(sql`DATE(COALESCE(${orders.deliveredAt}, ${orders.createdAt}))`);
+
+  return rows.map(r => ({
+    date: toIsoDay(r.date),
+    delivered: Number(r.delivered ?? 0),
+    failed: Number(r.failed ?? 0),
+  }));
+}
+
 export interface CourierListEntry {
   courierId: number;
   courierName: string;

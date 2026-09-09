@@ -4,7 +4,7 @@ import { createRouter, fieldSalesQuery, supervisorQuery, selfKpiQuery, managemen
 import { getDb } from "./queries/connection";
 import { getPeriod } from "./lib/period";
 import { onDate } from "./lib/date-range";
-import { calculateAgentKpi, calculateAllAgentsKpi, calculateCourierStats, calculateSalary, getAgentList, getCourierList } from "./services/kpi";
+import { calculateAgentKpi, calculateAllAgentsKpi, calculateCourierStats, calculateSalary, getAgentList, getCourierList, getCourierDaily } from "./services/kpi";
 import { withCache, CacheTTL, cache, CacheKeys } from "./lib/cache";
 import { recordAudit } from "./services/audit-log";
 import { getClientIp } from "./lib/rate-limit";
@@ -112,6 +112,48 @@ export const kpiRouter = createRouter({
       const db = getDb();
       const { periodStart, periodEnd } = getPeriod(input?.period ?? "month");
       return getCourierList(db, ctx.tenant.id, periodStart, periodEnd);
+    }),
+
+  /**
+   * Разбор по одному курьеру — то же, что agentDetail у агента.
+   *
+   * Одной ручкой, а не тремя: карточке нужны показатели, оплата и ход по дням
+   * сразу, и три отдельных запроса на один клик — три ожидания вместо одного.
+   *
+   * Расчёт зарплаты здесь НЕ записывается (persist = false): руководитель
+   * смотрит чужую карточку, и просмотр не должен ничего менять в чужих
+   * строках. Курьеру она и так не пишется, но полагаться на это молча нельзя.
+   */
+  courierDetail: managementQuery
+    .input(z.object({
+      courierId: z.number().int().positive(),
+      period: z.enum(["week", "month", "quarter"]).default("month"),
+    }))
+    .query(async ({ input, ctx }) => {
+      const db = getDb();
+      const { periodStart, periodEnd } = getPeriod(input.period);
+
+      const [who] = await db.select({ id: users.id, role: users.role })
+        .from(users)
+        .where(and(
+          eq(users.id, input.courierId),
+          eq(users.tenantId, ctx.tenant.id),
+        ))
+        .limit(1);
+
+      // Чужой сотрудник и просто «не курьер» — оба случая отвечают отказом, а
+      // не пустой карточкой: пустая читается как «ничего не возил».
+      if (!who || who.role !== "courier") {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Курьер не найден в вашей организации" });
+      }
+
+      const [stats, salary, daily] = await Promise.all([
+        calculateCourierStats(db, input.courierId, ctx.tenant.id, periodStart, periodEnd),
+        calculateSalary(db, input.courierId, ctx.tenant.id, periodStart, periodEnd, undefined, false),
+        getCourierDaily(db, input.courierId, ctx.tenant.id, periodStart, periodEnd),
+      ]);
+
+      return { stats, salary, daily };
     }),
 
   // Тот же набор ролей, что и у списка выше.

@@ -11,6 +11,7 @@ import { RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer } fro
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { colorMix } from "@/lib/color-mix";
 import { CourierKpiView } from "@/components/kpi/CourierKpiView";
+import { CourierDaysChart } from "@/components/kpi/CourierDaysChart";
 
 interface KpiData {
   agentId: number; agentName: string; period: string;
@@ -419,6 +420,11 @@ function SupervisorView({ kpi, period, selectedKpi, selectedSalary, detailLoadin
     экране, и повторять её здесь незачем.
   */
   const [tab, setTab] = useState<"agents" | "couriers">("agents");
+  const [selectedCourierId, setSelectedCourierId] = useState<number | null>(null);
+  const { data: courierDetail, isLoading: courierDetailLoading } = trpc.kpi.courierDetail.useQuery(
+    { courierId: selectedCourierId!, period },
+    { enabled: tab === "couriers" && selectedCourierId !== null },
+  );
   const { data: couriers, isLoading: couriersLoading } = trpc.kpi.courierList.useQuery(
     { period },
     { enabled: tab === "couriers" },
@@ -552,7 +558,14 @@ function SupervisorView({ kpi, period, selectedKpi, selectedSalary, detailLoadin
         {canConfigureSalary && showSalaryConfig && <div className="p-4 border-b" style={{ borderColor: "var(--color-border)" }}><SalaryConfig t={t} /></div>}
 
         {tab === "couriers" ? (
-          <CourierTable rows={courierRows} loading={couriersLoading} fmt={fmt} t={t} />
+          <CourierTable
+            rows={courierRows}
+            loading={couriersLoading}
+            selectedId={selectedCourierId}
+            onSelect={id => setSelectedCourierId(selectedCourierId === id ? null : id)}
+            fmt={fmt}
+            t={t}
+          />
         ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm" style={{ tableLayout: "fixed" }}>
@@ -671,6 +684,26 @@ function SupervisorView({ kpi, period, selectedKpi, selectedSalary, detailLoadin
         </div>
       )}
       {tab === "agents" && selectedKpi && <AgentView kpi={selectedKpi} salary={selectedSalary} fmt={fmt} t={t} lang={lang} />}
+
+      {tab === "couriers" && selectedCourierId !== null && (
+        courierDetailLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="w-6 h-6 rounded-full border-2 border-[var(--color-border)] border-t-[var(--color-primary)] animate-spin" />
+          </div>
+        ) : courierDetail ? (
+          <>
+            {/* Показатели и оплата — тем же видом, что курьер видит у себя.
+                Два разных вида одних и тех же чисел разошлись бы через месяц. */}
+            <CourierKpiView stats={courierDetail.stats} salary={courierDetail.salary} fmt={fmt} t={t} />
+            <div className="neo-card neo-card-static" style={{ padding: "20px 22px" }}>
+              <p className="font-label" style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: COLORS.textTertiary, marginBottom: "14px" }}>
+                {t("Ход по дням", "Kunlar bo'yicha")}
+              </p>
+              <CourierDaysChart days={courierDetail.daily} t={t} />
+            </div>
+          </>
+        ) : null
+      )}
     </>
   );
 }
@@ -694,9 +727,11 @@ interface CourierRow {
  * человеке, который весь месяц возил. Здесь то, что курьер действительно
  * делает: довёз, сорвал, вернул, привёз ли деньги.
  */
-function CourierTable({ rows, loading, fmt, t }: {
+function CourierTable({ rows, loading, selectedId, onSelect, fmt, t }: {
   rows: CourierRow[];
   loading: boolean;
+  selectedId: number | null;
+  onSelect: (id: number) => void;
   fmt: (v: number) => string;
   t: (r: string, u: string) => string;
 }) {
@@ -752,7 +787,23 @@ function CourierTable({ rows, loading, fmt, t }: {
           {rows.map(c => {
             const assigned = c.delivered + c.failed;
             return (
-              <tr key={c.courierId} style={{ borderBottom: "1px solid var(--color-border)" }}>
+              <tr
+                key={c.courierId}
+                onClick={() => onSelect(c.courierId)}
+                /*
+                  Строка кликается — значит должна и подсвечиваться, и
+                  открываться с клавиатуры. У агентов так с самого начала;
+                  курьерская таблица была немой, и разобрать одного человека
+                  было нечем.
+                */
+                tabIndex={0}
+                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(c.courierId); } }}
+                className="cursor-pointer transition-all hover:bg-[var(--color-surface-light)]"
+                style={{
+                  borderBottom: "1px solid var(--color-border)",
+                  background: selectedId === c.courierId ? "var(--color-surface-light)" : "transparent",
+                }}
+              >
                 <td className="px-3 py-2.5 font-semibold truncate" style={{ color: COLORS.textPrimary }}>
                   {c.courierName}
                   {/* Возвраты — не отдельная колонка: они редки, и пустой

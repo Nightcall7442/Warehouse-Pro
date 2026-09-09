@@ -8,7 +8,7 @@ import { useNavigate } from "react-router";
 import { getGreeting } from "@/lib/utils";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
-import { ClipboardList, TrendingUp, TrendingDown, Sparkles, AlertCircle, ArrowRight, PieChart, Activity } from "lucide-react";
+import { ClipboardList, TrendingUp, TrendingDown, Plus, AlertCircle, ArrowRight, PieChart, Activity } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart as RePieChart, Pie, Cell, BarChart, Bar } from "recharts";
 import { ProgressRing } from "@/components/ProgressRing";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
@@ -183,8 +183,11 @@ export default function Dashboard() {
             {greeting}, {user?.name?.split(" ")[0] ?? ""} — {format(new Date(), "EEEE, d MMMM yyyy", { locale: ru })}
           </p>
         </div>
+        {/* Плюс, а не «искры»: кнопка создаёт заказ, а не колдует. Sparkles —
+            знак волшебства и подсказок ИИ, к оформлению заказа отношения не
+            имеет, и рядом с деловым экраном читается как случайная картинка. */}
         <button onClick={() => navigate("/orders/new")} className="neo-btn-primary">
-          <Sparkles size={16} />
+          <Plus size={16} />
           <span>{t("Новый заказ", "Yangi buyurtma")}</span>
         </button>
       </div>

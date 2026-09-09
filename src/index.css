@@ -520,9 +520,21 @@
   }
 
   /* Primary neumorphic button */
+  /*
+    Главная кнопка.
+
+    Здесь был диагональный градиент от фирменного к --color-primary-hover. На
+    полосе высотой сорок точек градиент не читается как градиент: он читается
+    как грязь — цвет неровный, край размыт, и кнопка выглядит дешевле всего
+    остального экрана. Тот же приём мы уже убрали из шапки панели заказа, из
+    массовой панели и из плиток зарплат.
+
+    Ровный фирменный цвет. Объём даёт тень, как у всех .neo-* — этим приложение
+    и живёт.
+  */
   .neo-btn-primary {
     display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-hover, #4a5c78));
+    background: var(--color-primary);
     color: var(--color-on-primary, #fff);
     border: none;
     border-radius: 12px;
@@ -553,7 +565,10 @@
   }
 
   .dark .neo-btn-primary {
-    box-shadow: 4px 4px 12px rgba(0,0,0,0.4), -2px -2px 6px rgba(255,255,255,0.03);
+    /* Была жёсткая чёрная тень числом: на золотом фирменном она давала
+       грязный ореол снизу справа. Здесь тот же приём, что и в светлой теме, —
+       мягкий отсвет самого цвета кнопки. */
+    box-shadow: 0 3px 10px color-mix(in srgb, var(--color-primary) 30%, transparent);
   }
 
   /* Button size variants */
