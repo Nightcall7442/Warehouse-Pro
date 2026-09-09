@@ -4,6 +4,8 @@ vi.mock("drizzle-orm", () => ({
   eq:  (col: unknown, val: unknown) => ({ __kind: "eq", col, val }),
   and: (...conds: unknown[]) => ({ __kind: "and", conds }),
   desc: (col: unknown) => ({ __kind: "desc", col }),
+  isNull: (col: unknown) => ({ __kind: "isNull", col }),
+  inArray: (col: unknown, values: unknown) => ({ __kind: "inArray", col, values }),
   sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ __kind: "sql", strings, values }),
 }));
 
@@ -24,7 +26,7 @@ import { makeConditionEvaluator } from "./helpers/fake-conditions";
 
 // ── Fake tables ──────────────────────────────────────────────────────────────
 type FakeTerritory = { id: number; tenantId: number; name: string; color: string | null; };
-interface FakeShop { id: number; tenantId: number; name: string; city: string; address: string; status: string; territoryId: number | null; }
+interface FakeShop { id: number; tenantId: number; name: string; city: string; district?: string; address: string; status: string; territoryId: number | null; }
 
 let territoriesTable: FakeTerritory[] = [];
 let shopsTable: FakeShop[] = [];
@@ -351,5 +353,147 @@ describe("territory.getShops — filtering", () => {
     const caller = territoryRouter.createCaller(makeCtx(1, 10));
     const result = await caller.getShops({ territoryId: 1 }) as any;
     expect(result.every((s: any) => s.tenantId !== 999)).toBe(true);
+  });
+});
+
+/**
+ * Территории из магазинов.
+ *
+ * ── Что было ────────────────────────────────────────────────────────────────
+ *
+ * Территорию заводили только руками: имя, цвет, координаты центра, радиус. У
+ * арендатора с двумя сотнями точек, где город и район уже записаны в карточке
+ * каждого магазина, это работа на вечер — и ровно та, где машина вернее
+ * человека, потому что данные для неё уже лежат в базе.
+ *
+ * ── Чего здесь боятся ───────────────────────────────────────────────────────
+ *
+ * Кнопка, создающая десяток справочных записей, опасна двумя способами:
+ * повторным нажатием (справочник удваивается) и переигрыванием ручной работы
+ * (магазин, отнесённый к соседнему району осознанно, уезжает обратно). Оба
+ * случая проверяются ниже.
+ */
+describe("territory.createFromShops", () => {
+  const supervisor = async () => {
+    const { territoryRouter } = await import("../territory-router");
+    return territoryRouter.createCaller(makeCtx(1, 1, "supervisor"));
+  };
+
+  beforeEach(() => {
+    territoriesTable = [];
+    shopsTable = [
+      { id: 1, tenantId: 1, name: "A", city: "Ташкент",  address: "", status: "active", territoryId: null },
+      { id: 2, tenantId: 1, name: "B", city: "ташкент ", address: "", status: "active", territoryId: null },
+      { id: 3, tenantId: 1, name: "C", city: "Самарканд", address: "", status: "active", territoryId: null },
+      // Уже отнесён руками — трогать нельзя.
+      { id: 4, tenantId: 1, name: "D", city: "Самарканд", address: "", status: "active", territoryId: 99 },
+      // Архивный: территории не требует.
+      { id: 5, tenantId: 1, name: "E", city: "Бухара",   address: "", status: "inactive", territoryId: null },
+      // Город не заполнен — группировать не по чему.
+      { id: 6, tenantId: 1, name: "F", city: "   ",      address: "", status: "active", territoryId: null },
+      // Чужая организация.
+      { id: 7, tenantId: 2, name: "G", city: "Ташкент",  address: "", status: "active", territoryId: null },
+    ];
+    nextId = 10;
+  });
+
+  it("на каждый город — одна территория", async () => {
+    const r = await (await supervisor()).createFromShops({ by: "city" });
+    expect(r.created).toBe(2); // Ташкент и Самарканд
+    expect(territoriesTable.map(t => t.name).sort()).toEqual(["Самарканд", "Ташкент"]);
+  });
+
+  it("разное написание — один город", async () => {
+    // «Ташкент» и «ташкент » — одно место, и три территории вместо одной
+    // здесь не нужны никому.
+    await (await supervisor()).createFromShops({ by: "city" });
+    expect(territoriesTable.filter(t => t.name.toLowerCase() === "ташкент")).toHaveLength(1);
+  });
+
+  it("магазины привязываются к своей территории", async () => {
+    await (await supervisor()).createFromShops({ by: "city" });
+    const tashkent = territoriesTable.find(t => t.name === "Ташкент")!;
+    expect(shopsTable.find(s => s.id === 1)!.territoryId).toBe(tashkent.id);
+    expect(shopsTable.find(s => s.id === 2)!.territoryId).toBe(tashkent.id);
+  });
+
+  it("уже отнесённый магазин не переигрывают", async () => {
+    /*
+      Его отнесли осознанно: точка на границе районов могла быть сознательно
+      отдана соседу. Кнопка заполняет пустое, а не переписывает заполненное.
+    */
+    await (await supervisor()).createFromShops({ by: "city" });
+    expect(shopsTable.find(s => s.id === 4)!.territoryId, "чужое решение переписано").toBe(99);
+  });
+
+  it("архивный магазин территории не требует", async () => {
+    await (await supervisor()).createFromShops({ by: "city" });
+    expect(territoriesTable.some(t => t.name === "Бухара"), "архивный попал в счёт").toBe(false);
+  });
+
+  it("пустой город не заводит безымянную территорию", async () => {
+    await (await supervisor()).createFromShops({ by: "city" });
+    expect(territoriesTable.some(t => t.name.trim() === ""), "завелась территория без имени").toBe(false);
+  });
+
+  it("второе нажатие не удваивает справочник", async () => {
+    // Нажимают дважды почти всегда: первый раз чтобы посмотреть, второй —
+    // «кажется, не сработало».
+    await (await supervisor()).createFromShops({ by: "city" });
+    const after = territoriesTable.length;
+    const again = await (await supervisor()).createFromShops({ by: "city" });
+    expect(again.created).toBe(0);
+    expect(territoriesTable).toHaveLength(after);
+  });
+
+  it("территорию с таким именем не создаёт заново", async () => {
+    territoriesTable = [{ id: 5, tenantId: 1, name: "  ТАШКЕНТ ", color: "#5b6d8a" }];
+    const r = await (await supervisor()).createFromShops({ by: "city" });
+    expect(r.created).toBe(1); // только Самарканд
+    expect(shopsTable.find(s => s.id === 1)!.territoryId).toBe(5);
+  });
+
+  it("группировать не по чему — говорит словами", async () => {
+    shopsTable = shopsTable.map(s => ({ ...s, city: "" }));
+    await expect((await supervisor()).createFromShops({ by: "city" }))
+      .rejects.toThrow(/город/i);
+  });
+
+  it("агенту не открыто", async () => {
+    const { territoryRouter } = await import("../territory-router");
+    const agent = territoryRouter.createCaller(makeCtx(1, 7, "agent"));
+    await expect(agent.createFromShops({ by: "city" })).rejects.toThrow();
+  });
+});
+
+describe("territory.previewFromShops", () => {
+  beforeEach(() => {
+    territoriesTable = [{ id: 5, tenantId: 1, name: "Ташкент", color: "#5b6d8a" }];
+    shopsTable = [
+      { id: 1, tenantId: 1, name: "A", city: "Ташкент", address: "", status: "active", territoryId: null },
+      { id: 2, tenantId: 1, name: "B", city: "Самарканд", address: "", status: "active", territoryId: null },
+    ];
+  });
+
+  it("считает и ничего не меняет", async () => {
+    /*
+      Создание десятка сущностей вслепую — не то действие, которое делают одним
+      нажатием. Предпросмотр показывает, что именно получится.
+    */
+    const { territoryRouter } = await import("../territory-router");
+    const caller = territoryRouter.createCaller(makeCtx(1, 1, "supervisor"));
+    const r = await caller.previewFromShops({ by: "city" });
+
+    expect(r.toCreate, "существующий город снова пошёл бы в создание").toBe(1);
+    expect(r.toAssign).toBe(2);
+    expect(territoriesTable).toHaveLength(1);
+  });
+
+  it("отмечает города, у которых территория уже есть", async () => {
+    const { territoryRouter } = await import("../territory-router");
+    const caller = territoryRouter.createCaller(makeCtx(1, 1, "supervisor"));
+    const r = await caller.previewFromShops({ by: "city" });
+    expect(r.items.find(i => i.name === "Ташкент")!.exists).toBe(true);
+    expect(r.items.find(i => i.name === "Самарканд")!.exists).toBe(false);
   });
 });
