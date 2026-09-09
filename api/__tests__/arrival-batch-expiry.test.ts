@@ -169,10 +169,12 @@ describe("сырого SQL по остатку не становится бол�
     типов в scripts/typecheck.mjs. Выросло — проверка падает и заставляет
     объяснить, зачем понадобилось следующее.
 
-    19 → 17: приход и возврат на склад переведены на receiveStock
-    (api/services/stock-ledger.ts).
+    19 → 17: приход и возврат переведены на receiveStock.
+    17 → 11: семь мест резерва и снятия резерва — на reserveStock/releaseStock.
+    Единица из одиннадцати — сама дверь (api/services/stock-ledger.ts): её
+    запрос и есть то место, куда всё сводится.
   */
-  const BASELINE = 17;
+  const BASELINE = 11;
 
   it(`не больше ${BASELINE} мест с UPDATE warehouse_stock`, () => {
     const files: string[] = [];

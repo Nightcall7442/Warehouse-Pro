@@ -190,11 +190,39 @@ describe("the two return routes cannot credit the same goods twice", () => {
         .not.toContain(pattern);
     }
 
-    // И каждая из формул должна считаться через heldQuantity: два вызова в
-    // cancel, два в delete, один в restore, один в updateStatus.
-    const heldCalls = (source.match(/heldQuantity\(/g) ?? []).length;
-    expect(heldCalls, "heldQuantity перестал применяться во всех путях освобождения")
-      .toBeGreaterThanOrEqual(6);
+    /*
+      Каждое освобождение резерва считает величину через heldQuantity.
+
+      Раньше здесь считалось ЧИСЛО вызовов (шесть: по два в cancel и delete,
+      по одному в restore и updateStatus). Число было не свойством, а
+      отпечатком тогдашнего кода: каждый запрос писал одно и то же выражение
+      дважды — в присвоение available и в присвоение reserved. Как только
+      освобождение переехало в общую дверь (releaseStock), величина стала
+      браться ОДИН раз на место, и счётчик упал до пяти, ничего при этом не
+      сломав.
+
+      Считать копии — значит запрещать упрощение. Поэтому проверяется само
+      свойство: у каждого вызова releaseStock количество приходит из
+      heldQuantity, а не из сырого quantity.
+    */
+    const releases = [...source.matchAll(/releaseStock\(\s*tx\s*,\s*\{[\s\S]{0,400}?\}\s*\)/g)].map(m => m[0]);
+    expect(releases.length, "освобождения резерва больше не идут через дверь").toBeGreaterThanOrEqual(3);
+
+    /*
+      Проверяются те освобождения, что идут ПО СТРОКАМ ЗАКАЗА (items.map) —
+      отмена и удаление. Именно они брали сырое quantity и возвращали в
+      свободный остаток больше, чем строка держит.
+
+      Освобождение в applyStockDelta сюда не входит намеренно: там величину
+      уже посчитал вызывающий и передал знаковой дельтой, строк заказа у этой
+      функции нет вовсе.
+    */
+    const overLines = releases.filter(call => call.includes("items.map("));
+    expect(overLines.length, "отмена и удаление больше не освобождают резерв по строкам").toBeGreaterThanOrEqual(2);
+    for (const call of overLines) {
+      expect(call, `освобождение резерва по строкам без heldQuantity:
+${call}`).toContain("heldQuantity(");
+    }
   });
 
   it("completing a return is refused when its order is already cancelled/returned", () => {

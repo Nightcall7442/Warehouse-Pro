@@ -209,6 +209,44 @@ function makeDb() {
       }
 
       /*
+        Дверь резерва: сдвиг резерва на знаковую величину.
+
+        Запрос один на обе операции:
+          available = available - (GREATEST(0, reserved + CASE..) - reserved),
+          reserved  = GREATEST(0, reserved + CASE..)
+
+        Стенд считает ТУ ЖЕ арифметику, а не «примерно то же»: ограничитель
+        применяется к обеим колонкам, и available двигается ровно на
+        фактически применённую величину. Посчитай стенд наивно (reserved
+        упирается в ноль, available меняется на всю дельту) — он подтвердил бы
+        как раз ту ошибку, ради которой эта форма и выведена.
+      */
+      if (full.includes("GREATEST(0, reserved + CASE") && full.includes("UPDATE warehouse_stock")) {
+        const nums = vals.filter((v: unknown) => typeof v === "number") as number[];
+        // Последние два числа условия — организация и склад; до них идут пары
+        // «товар, дельта», продублированные дважды (available и reserved).
+        const tenantId = nums[nums.length - 2];
+        const deltas = new Map<number, number>();
+        for (const v of vals) {
+          if (!v || v.__kind !== "sql_join") continue;
+          for (const chunk of v.chunks ?? []) {
+            if (!chunk || chunk.__kind !== "sql") continue;
+            if (chunk.values.length < 2) continue;
+            deltas.set(Number(chunk.values[0]), Number(chunk.values[1]));
+          }
+        }
+        for (const [productId, delta] of deltas) {
+          const row = stockTable.find(r => r.productId === productId && r.tenantId === tenantId);
+          if (!row) continue;
+          const reserved = Number(row.reserved);
+          const next = Math.max(0, reserved + delta);
+          row.available = (Number(row.available) - (next - reserved)).toFixed(2);
+          row.reserved = next.toFixed(2);
+        }
+        return Promise.resolve([{ affectedRows: deltas.size }]);
+      }
+
+      /*
         Дверь прихода: INSERT .. ON DUPLICATE KEY UPDATE.
 
         Ветка стоит перед разбором UPDATE, потому что запрос содержит оба

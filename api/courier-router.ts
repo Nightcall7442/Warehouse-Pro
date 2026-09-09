@@ -11,7 +11,7 @@ import { sanitizeString } from "./lib/sanitize";
 import { recalcShopDebt } from "./services/shop-debt";
 import { paidForOrder, assertFitsRemainder } from "./services/payment";
 import { productLabel } from "./services/order";
-import { recordStockMovement } from "./services/stock-ledger";
+import { recordStockMovement, releaseStock } from "./services/stock-ledger";
 import { NotificationService } from "./services/NotificationService";
 
 export const courierRouter = createRouter({
@@ -563,12 +563,10 @@ export const courierRouter = createRouter({
             // сколько там лежало: LEAST(qty, reserved). Прибавляя available
             // полное qty при просевшем резерве, мы дописывали в свободный
             // остаток единицы, которых на складе нет.
-            await tx.execute(sql`
-              UPDATE warehouse_stock
-              SET available = available + LEAST(${qty}, reserved),
-                  reserved = GREATEST(0, reserved - ${qty})
-              WHERE product_id = ${item.productId} AND tenant_id = ${ctx.tenant.id} AND warehouse_id = ${whId}
-            `);
+            await releaseStock(tx, {
+              tenantId: ctx.tenant.id, warehouseId: whId,
+              items: [{ productId: item.productId, quantity: qty }],
+            });
           }
         } else if (input.result === "partial_returned") {
           // Условие ветки требовало ещё и input.returnedItems, и запрос без
@@ -640,12 +638,10 @@ export const courierRouter = createRouter({
               // Вернули всё — товар не уезжал, current_stock не меняется.
               // Возвращается ровно то, что лежит в резерве: LEAST(qty, reserved).
               // available первым — MySQL вычисляет SET слева направо.
-              await tx.execute(sql`
-                UPDATE warehouse_stock
-                SET available = available + LEAST(${qty}, reserved),
-                    reserved = GREATEST(0, reserved - ${qty})
-                WHERE product_id = ${item.productId} AND tenant_id = ${ctx.tenant.id} AND warehouse_id = ${whId}
-              `);
+              await releaseStock(tx, {
+                tenantId: ctx.tenant.id, warehouseId: whId,
+                items: [{ productId: item.productId, quantity: qty }],
+              });
             }
 
             // Update delivered quantity on order item

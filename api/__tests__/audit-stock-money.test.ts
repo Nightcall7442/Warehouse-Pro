@@ -42,7 +42,18 @@ vi.mock("../telegram-router", () => ({
   tgMessages: { newOrder: vi.fn(() => "mock") },
 }));
 vi.mock("../services/audit-log", () => ({ recordAudit: vi.fn() }));
-vi.mock("../services/stock-ledger", () => ({ recordStockMovement: vi.fn(async () => {}) }));
+/*
+  Дверь для остатка целиком: этот стенд проверяет нумерацию заказов, а не
+  склад, и подставляет её пустышками. Список обязан покрывать ВСЕ операции
+  двери — модуль подменяется целиком, и забытая функция падает не «остаток не
+  сошёлся», а «нет такого экспорта».
+*/
+vi.mock("../services/stock-ledger", () => ({
+  recordStockMovement: vi.fn(async () => {}),
+  receiveStock: vi.fn(async () => {}),
+  reserveStock: vi.fn(async () => {}),
+  releaseStock: vi.fn(async () => {}),
+}));
 vi.mock("../services/shop-debt", () => ({ recalcShopDebt: vi.fn(async () => {}) }));
 vi.mock("../services/push-service", () => ({
   sendPushToUser: vi.fn(async () => {}),

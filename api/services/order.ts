@@ -1,4 +1,5 @@
 import { eq, and, or, desc, sql, isNull, isNotNull, inArray } from "drizzle-orm";
+import { releaseStock, reserveStock } from "./stock-ledger";
 import { alias } from "drizzle-orm/mysql-core";
 import { orders, orderItems, warehouseStock, shops, users, products, warehouses, payments, loadingLists, loadingListOrders, debtReminders, orderAdjustments, territories, returns, returnItems } from "@db/schema";
 import { recalcShopDebt } from "./shop-debt";
@@ -357,16 +358,19 @@ async function applyStockDelta(
     // то, что действительно было зарезервировано. available двигается на ту же
     // величину, и равенство сохраняется.
     //
-    // ПОРЯДОК ПРИСВОЕНИЙ НЕСУЩИЙ. MySQL вычисляет SET слева направо и в правых
-    // частях видит уже ОБНОВЛЁННЫЕ значения предыдущих колонок. Поэтому
-    // available считается первым, пока reserved ещё хранит старое значение;
-    // поменяй их местами — разница посчитается от самой себя и выйдет нулём.
-    await tx.execute(sql`
-      UPDATE warehouse_stock
-      SET available = available - (GREATEST(0, reserved + ${delta}) - reserved),
-          reserved  = GREATEST(0, reserved + ${delta})
-      WHERE product_id = ${productId} AND tenant_id = ${tenantId} AND warehouse_id = ${warehouseId}
-    `);
+    /*
+      Знак дельты решает, какая это операция. Обе живут в двери
+      (api/services/stock-ledger.ts), и порядок присвоений — несущий — сохранён
+      там же: available считается первым, пока reserved ещё старый.
+
+      Прежняя запись `available -= GREATEST(0, reserved + delta) - reserved`
+      равна LEAST(|delta|, reserved) при отрицательной дельте и просто |delta|
+      при положительной — то есть ровно тому, что делают reserveStock и
+      releaseStock.
+    */
+    const items = [{ productId, quantity: Math.abs(delta) }];
+    if (delta >= 0) await reserveStock(tx, { tenantId, warehouseId, items });
+    else await releaseStock(tx, { tenantId, warehouseId, items });
     return;
   }
 
@@ -1332,19 +1336,12 @@ export const OrderService = {
 
       if (items.length > 0) {
         // P0-2 FIX: Include warehouse_id in UPDATE to prevent cross-warehouse corruption
-        await tx.execute(sql`
-          UPDATE warehouse_stock
-          SET
-            reserved = reserved + CASE ${sql.join(items.map(i =>
-              sql`WHEN product_id = ${i.productId} THEN ${Number(i.quantity)}`
-            ), sql`\n`)} ELSE 0 END,
-            available = available - CASE ${sql.join(items.map(i =>
-              sql`WHEN product_id = ${i.productId} THEN ${Number(i.quantity)}`
-            ), sql`\n`)} ELSE 0 END
-          WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
-            AND tenant_id = ${tenantId}
-            AND warehouse_id = ${reserveWarehouseId}
-        `);
+        // Условие по складу здесь появилось правкой P0-2: без него резерв
+        // ложился на строку остатка другого склада. Дверь несёт его сама.
+        await reserveStock(tx, {
+          tenantId, warehouseId: reserveWarehouseId,
+          items: items.map(i => ({ productId: i.productId, quantity: Number(i.quantity) })),
+        });
       }
 
       // A credit order owes from the moment it exists; re-derive so the shop's
@@ -1485,19 +1482,10 @@ export const OrderService = {
         //
         // available идёт ПЕРВЫМ: MySQL вычисляет SET слева направо и видит уже
         // обновлённые колонки, а LEAST нужен от старого резерва.
-        await tx.execute(sql`
-          UPDATE warehouse_stock
-          SET
-            available = CASE ${sql.join(items.map(i =>
-              sql`WHEN product_id = ${i.productId} THEN available + LEAST(${heldQuantity(i, cancelReturned)}, reserved)`
-            ), sql`\n`)} ELSE available END,
-            reserved = CASE ${sql.join(items.map(i =>
-              sql`WHEN product_id = ${i.productId} THEN GREATEST(0, reserved - ${heldQuantity(i, cancelReturned)})`
-            ), sql`\n`)} ELSE reserved END
-          WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
-            AND tenant_id = ${tenantId}
-            AND warehouse_id = ${cancelWhId}
-        `);
+        await releaseStock(tx, {
+          tenantId, warehouseId: cancelWhId,
+          items: items.map(i => ({ productId: i.productId, quantity: heldQuantity(i, cancelReturned) })),
+        });
       }
       await tx.update(orders).set({ status: "cancelled" }).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), eq(orders.status, "new")));
       await settleShopDebt(tx, tenantId, order.shopId);
@@ -1886,19 +1874,10 @@ export const OrderService = {
           // current_stock = available + reserved расходилось бы молча.
           //
           // available первым — MySQL вычисляет SET слева направо.
-          await tx.execute(sql`
-            UPDATE warehouse_stock
-            SET
-              available = available + LEAST(CASE ${sql.join(items.map(i =>
-                sql`WHEN product_id = ${i.productId} THEN ${heldQuantity(i, deleteReturned)}`
-              ), sql`\n`)} ELSE 0 END, reserved),
-              reserved = GREATEST(0, reserved - CASE ${sql.join(items.map(i =>
-                sql`WHEN product_id = ${i.productId} THEN ${heldQuantity(i, deleteReturned)}`
-              ), sql`\n`)} ELSE 0 END)
-            WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
-              AND tenant_id = ${tenantId}
-              AND warehouse_id = ${deleteWhId}
-          `);
+          await releaseStock(tx, {
+            tenantId, warehouseId: deleteWhId,
+            items: items.map(i => ({ productId: i.productId, quantity: heldQuantity(i, deleteReturned) })),
+          });
         }
       }
 
@@ -2211,11 +2190,12 @@ export const OrderService = {
           if (available < qty) {
             throw new Error(`Не восстановить заказ: «${await productLabel(tx, tenantId, item.productId)}» — доступно ${available}, нужно ${qty}`);
           }
-          await tx.execute(sql`
-            UPDATE warehouse_stock
-            SET available = available - ${qty}, reserved = reserved + ${qty}
-            WHERE product_id = ${item.productId} AND tenant_id = ${tenantId} AND warehouse_id = ${restoreWhId}
-          `);
+          // Проверка «хватает ли свободного» осталась выше: она отказывает с
+          // именем товара и числами, а дверь такого сказать не может.
+          await reserveStock(tx, {
+            tenantId, warehouseId: restoreWhId,
+            items: [{ productId: item.productId, quantity: qty }],
+          });
         }
       }
     });
