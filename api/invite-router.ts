@@ -12,6 +12,8 @@ import { logger } from "./lib/logger";
 import { INVITE_EXPIRY_MS } from "./lib/constants";
 import { checkRateLimit, rateLimitSubject } from "./lib/rate-limit";
 import { checkPlanLimits } from "./lib/plan-limits";
+import { cache } from "./lib/cache";
+import { notifyAdmin, tgMessages } from "./telegram-router";
 
 export const inviteRouter = createRouter({
   /** CEO sends an invitation email */
@@ -123,6 +125,18 @@ export const inviteRouter = createRouter({
       // P0-11 FIX: Check plan user limits before accepting invite
       const limits = await checkPlanLimits(db, invite.tenantId, "users");
       if (!limits.allowed) {
+        /*
+          Суперадмину — раз в сутки на организацию: упёрлись в лимит, значит
+          готовы платить за место (тариф выше или сверхлимит). Чаще — шум:
+          каждый повторный клик по той же ссылке.
+        */
+        const key = `tg:users-limit:${invite.tenantId}`;
+        if (cache.get(key) === undefined) {
+          cache.set(key, true, 86_400_000);
+          const [org] = await db.select({ name: tenants.name }).from(tenants)
+            .where(eq(tenants.id, invite.tenantId)).limit(1);
+          void notifyAdmin(tgMessages.usersLimitHit(org?.name ?? `#${invite.tenantId}`, limits.limit ?? 0));
+        }
         throw new TRPCError({
           code: "FORBIDDEN",
           message: `Достигнут лимит пользователей тарифа (${limits.limit}). Обновите тариф для добавления новых пользователей.`,

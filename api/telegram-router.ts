@@ -104,9 +104,6 @@ export const tgMessages = {
   lowStock: (name: string, qty: string) =>
     `⚠️ <b>Мало на складе</b>\n📦 ${tgEscape(name)}\n📉 Остаток: ${tgEscape(qty)} кг`,
 
-  paymentReceived: (shop: string, amount: string, cur: string) =>
-    `✅ <b>Оплата получена</b>\n🏪 ${tgEscape(shop)}\n💵 ${tgEscape(amount)} ${tgEscape(cur)}`,
-
   supportMessage: (org: string, who: string, preview: string) =>
     `💬 <b>Вопрос в поддержку</b>\n🏢 ${tgEscape(org)}\n👤 ${tgEscape(who)}\n\n${tgEscape(preview)}`,
 
@@ -116,14 +113,60 @@ export const tgMessages = {
   upgradeRequest: (org: string, plan: string, price: string, contact: string) =>
     `💳 <b>Запрос на апгрейд</b>\n🏢 ${tgEscape(org)}\n📈 Тариф: ${tgEscape(plan)}\n💰 ${tgEscape(price)} сум/мес\n📞 ${tgEscape(contact)}`,
 
-  // count is typed number, and is escaped anyway: "everything interpolated is
-  // escaped" is a rule that survives a refactor, "everything except the numeric
-  // ones" is a rule someone eventually gets wrong.
-  agentPlan: (agent: string, count: number, date: string) =>
-    `📅 <b>Ваш план на ${tgEscape(date)}</b>\n👤 ${tgEscape(agent)}\n🏪 ${tgEscape(count)} визитов`,
+  /*
+    ── Суперадмину ──────────────────────────────────────────────────────────
 
-  orderStatusChange: (n: string, shop: string, status: string) =>
-    `📦 <b>Статус заказа изменён</b>\n📋 ${tgEscape(n)}\n🏪 ${tgEscape(shop)}\n➡️ ${tgEscape(status)}`,
+    Всё ниже уходит в TELEGRAM_ADMIN_CHAT_ID через notifyAdmin. Числа тоже
+    экранируются: правило «экранируется всё, что подставлено» переживает
+    правки, правило «всё, кроме чисел» кто-нибудь однажды нарушит.
+
+    Каждый шаблон здесь обязан иметь вызов — это держит тест
+    admin-telegram.test.ts. Три шаблона до него лежали годами без единого
+    вызова (paymentReceived, agentPlan, orderStatusChange) и сняты.
+  */
+  paid: (org: string, plan: string) =>
+    `💰 <b>Оплата тарифа</b>\n🏢 ${tgEscape(org)}\n📈 ${tgEscape(plan)}`,
+
+  paymentFailed: (org: string) =>
+    `⛔ <b>Платёж не прошёл</b>\n🏢 ${tgEscape(org)}\nПодписка переведена в past_due, владельцу ушло письмо`,
+
+  subscriptionCanceled: (org: string) =>
+    `🚫 <b>Подписка отменена</b>\n🏢 ${tgEscape(org)}`,
+
+  trials: (ending: Array<{ org: string; days: number }>, expired: string[]) => {
+    const lines = ["⏳ <b>Пробные периоды</b>"];
+    if (ending.length) {
+      lines.push("", "Заканчиваются:");
+      for (const t of ending) lines.push(`• ${tgEscape(t.org)} — ${tgEscape(t.days)} дн.`);
+    }
+    if (expired.length) {
+      lines.push("", "Закончились за сутки:");
+      for (const org of expired) lines.push(`• ${tgEscape(org)}`);
+    }
+    return lines.join("\n");
+  },
+
+  cronFailed: (job: string, error: string) =>
+    `🟠 <b>Крон упал</b>\n⚙️ ${tgEscape(job)}\n${tgEscape(error.slice(0, 300))}`,
+
+  serverUp: (version: string, caughtUp: string[]) =>
+    `🚀 <b>Сервер запущен</b>\n🏷 ${tgEscape(version.slice(0, 12))}` +
+    (caughtUp.length ? `\n🛠 Догнаны миграции: ${caughtUp.map(tgEscape).join(", ")}` : ""),
+
+  usersLimitHit: (org: string, limit: number) =>
+    `📈 <b>Упёрлись в лимит пользователей</b>\n🏢 ${tgEscape(org)}\n👥 Лимит ${tgEscape(limit)} — повод предложить тариф выше или сверхлимит`,
+
+  adminDigest: (d: {
+    registrations: number; orders: number; revenue: number;
+    unanswered: number; trialsEnding: number; pastDue: number; activeTenants: number;
+  }) =>
+    `📊 <b>Сводка за сутки</b>\n` +
+    `🆕 Регистраций: ${tgEscape(d.registrations)}\n` +
+    `🛒 Заказов: ${tgEscape(d.orders)} на ${tgEscape(Math.round(d.revenue).toLocaleString("ru-RU"))} сум\n` +
+    `💬 Ждут ответа поддержки: ${tgEscape(d.unanswered)}\n` +
+    `⏳ Пробных заканчивается (3 дня): ${tgEscape(d.trialsEnding)}\n` +
+    `⛔ Просрочили оплату: ${tgEscape(d.pastDue)}\n` +
+    `🏢 Активных организаций: ${tgEscape(d.activeTenants)}`,
 };
 
 // ── tRPC router ──────────────────────────────────────────────────────────────

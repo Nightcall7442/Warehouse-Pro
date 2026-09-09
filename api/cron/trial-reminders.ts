@@ -5,6 +5,7 @@ import { subscriptions, billingEvents, tenants, users } from "@db/schema";
 import { sendTrialEndingEmail } from "../lib/mailer";
 import { env } from "../lib/env";
 import { logger } from "../lib/logger";
+import { notifyAdmin, tgMessages } from "../telegram-router";
 
 /**
  * Send trial-ending reminder emails to tenants whose trial ends in ≤3 days.
@@ -77,6 +78,28 @@ export async function runTrialReminders(): Promise<{ sent: number; errors: strin
     } catch (err: unknown) {
       errors.push(`Tenant ${sub.tenantId}: ${err instanceof Error ? err.message : String(err)}`);
     }
+  }
+
+  /*
+    Суперадмину — одним сообщением: кто заканчивает и кто закончил за сутки.
+    Письма выше уходят арендатору и про его продление; это про деньги
+    платформы, и оно не зависит от того, есть ли у организации CEO.
+  */
+  const dayAgo = new Date(now.getTime() - 86_400_000);
+  const trials = await db.select({ org: tenants.name, ends: subscriptions.trialEndsAt })
+    .from(subscriptions)
+    .innerJoin(tenants, eq(tenants.id, subscriptions.tenantId))
+    .where(and(
+      eq(subscriptions.status, "trialing"),
+      gte(subscriptions.trialEndsAt, dayAgo),
+      lte(subscriptions.trialEndsAt, in3Days),
+    ));
+  if (trials.length) {
+    const ending = trials
+      .filter(t => t.ends && t.ends >= now)
+      .map(t => ({ org: t.org, days: Math.ceil((t.ends!.getTime() - now.getTime()) / 86_400_000) }));
+    const expired = trials.filter(t => t.ends && t.ends < now).map(t => t.org);
+    void notifyAdmin(tgMessages.trials(ending, expired));
   }
 
   logger.info("Trial reminders cron", { sent, errors: errors.length });

@@ -17,7 +17,7 @@ vi.mock("drizzle-orm", () => ({
 // ─── module mocks ─────────────────────────────────────────────────────────────
 vi.mock("../telegram-router", () => ({
   notifyAdmin: vi.fn(async () => {}),
-  tgMessages: { upgradeRequest: vi.fn(() => "mock") },
+  tgMessages: { upgradeRequest: vi.fn(() => "mock"), newRegistration: vi.fn(() => "mock") },
 }));
 
 vi.mock("../lib/feature-gating", () => ({

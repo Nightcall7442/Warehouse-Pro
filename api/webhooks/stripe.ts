@@ -8,6 +8,7 @@ import { verifyWebhook } from "../lib/stripe";
 import { sendEmail } from "../lib/mailer";
 import { env } from "../lib/env";
 import { logger } from "../lib/logger";
+import { notifyAdmin, tgMessages } from "../telegram-router";
 
 /** Stripe sets this in checkout metadata; anything else is not a plan we sell. */
 type PaidPlan = "basic" | "pro" | "exclusive";
@@ -53,6 +54,14 @@ export function registerStripeWebhook<E extends Env>(app: Hono<E>) {
     // on every event, rolling back the subscription/cancellation/past-due
     // update the case block just made in the same transaction.
     let tenantId: number | undefined;
+    /*
+      Что сказать суперадмину — решает ветка ниже, отправка идёт ПОСЛЕ
+      транзакции: не дошло до базы — нечего и сообщать. Имя организации
+      подставляется там же, одним запросом на все три случая.
+    */
+    // Полем объекта, не let: присвоение внутри колбэка транзакции TS не
+    // видит, и после неё let считался бы навсегда null.
+    const admin: { note: ((org: string) => string) | null } = { note: null };
 
     try {
       await db.transaction(async (tx) => {
@@ -82,6 +91,7 @@ export function registerStripeWebhook<E extends Env>(app: Hono<E>) {
             }
             // P0-8 FIX: Sync plan to tenants table (single source of truth)
             await tx.update(tenants).set({ plan, updatedAt: new Date() }).where(eq(tenants.id, tenantId));
+            admin.note = org => tgMessages.paid(org, plan);
             break;
           }
           case "customer.subscription.updated": {
@@ -116,6 +126,7 @@ export function registerStripeWebhook<E extends Env>(app: Hono<E>) {
             if (!tenantId) break;
             await tx.update(subscriptions).set({ status: "canceled", updatedAt: new Date() })
               .where(eq(subscriptions.tenantId, tenantId));
+            admin.note = tgMessages.subscriptionCanceled;
             break;
           }
           case "invoice.payment_failed": {
@@ -126,6 +137,7 @@ export function registerStripeWebhook<E extends Env>(app: Hono<E>) {
               .where(eq(subscriptions.tenantId, tenantId));
             const [tenant] = await tx.select().from(tenants)
               .where(eq(tenants.id, tenantId)).limit(1);
+            admin.note = tgMessages.paymentFailed;
             if (tenant?.ownerEmail) {
             sendEmail({
               to: tenant.ownerEmail,
@@ -152,6 +164,14 @@ export function registerStripeWebhook<E extends Env>(app: Hono<E>) {
           logger.warn("stripe webhook event has no resolvable tenantId, skipping billingEvents record", { eventId: event.id, eventType: event.type });
         }
       });
+
+      if (tenantId && admin.note) {
+        const note = admin.note;
+        const id = tenantId;
+        void db.select({ name: tenants.name }).from(tenants).where(eq(tenants.id, id)).limit(1)
+          .then(([t]) => notifyAdmin(note(t?.name ?? `#${id}`)))
+          .catch(err => logger.warn("stripe: admin telegram skipped", { error: err instanceof Error ? err.message : String(err) }));
+      }
     } catch (err) {
       logger.error("stripe webhook handler error", { error: err instanceof Error ? err.message : String(err) });
       return c.json({ error: "Handler failed" }, 500);

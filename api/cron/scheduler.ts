@@ -76,7 +76,19 @@ const JOBS: Job[] = [
     // Копия базы — ночью, когда склад не работает и запросов меньше всего.
     name: "backup",
     daily: { hour: 3, minute: 0 },
-    run: async () => (await import("./backup")).runBackup(),
+    run: async () => {
+      const r = await (await import("./backup")).runBackup();
+      // Неудача копии — провал работы, а не «результат»: пусть идёт той же
+      // дорогой, что исключение, и доходит до суперадмина.
+      if (!r.success) throw new Error(r.message);
+      return r;
+    },
+  },
+  {
+    // Сводка суперадмину — после вечерних сводок арендаторам (20:00).
+    name: "admin-digest",
+    daily: { hour: 21, minute: 0 },
+    run: async () => (await import("./admin-digest")).runAdminDigest(),
   },
   {
     /*
@@ -152,7 +164,12 @@ async function runExclusively(job: Job): Promise<void> {
       const result = await job.run();
       logger.info("cron job finished", { job: job.name, ms: Date.now() - started, result });
     } catch (e) {
-      logger.error("cron job failed", { job: job.name, error: e instanceof Error ? e.message : String(e) });
+      const error = e instanceof Error ? e.message : String(e);
+      logger.error("cron job failed", { job: job.name, error });
+      // Суперадмину: тихий провал ночной работы иначе замечают через месяцы
+      // (см. шапку файла — так и вышло с копией базы).
+      const { notifyAdmin, tgMessages } = await import("../telegram-router");
+      void notifyAdmin(tgMessages.cronFailed(job.name, error));
     } finally {
       await conn.query("SELECT RELEASE_LOCK(?) AS ok", [`warehouse_pro:cron:${job.name}`]).catch(() => {});
     }

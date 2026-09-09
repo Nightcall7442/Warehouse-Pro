@@ -1247,6 +1247,8 @@ if (env.isProduction) {
     process.exit(1);
   }
 
+  // Что догнал catchUpMigrations — уходит суперадмину вместе с «сервер запущен».
+  let caughtUp: string[] = [];
   try {
     const { migrate } = await import("drizzle-orm/mysql2/migrator");
     const { getDb } = await import("./queries/connection");
@@ -1287,7 +1289,7 @@ if (env.isProduction) {
         только назвать пропущенных. Теперь их применяют.
       */
       try {
-        await catchUpMigrations(db as never);
+        caughtUp = await catchUpMigrations(db as never);
       } catch (e) {
         /*
           Провал догона запуск НЕ останавливает — в отличие от штатного
@@ -1324,6 +1326,11 @@ if (env.isProduction) {
   const port = parseInt(process.env.PORT ?? "3000", 10);
   const server = serve({ fetch: app.fetch, port }, () => {
     logger.info("server started", { port, version: APP_VERSION });
+    // Суперадмину: выкладка встала (или сервер перезапустился — это тоже
+    // новость), и какие миграции при этом догнали.
+    void import("./telegram-router")
+      .then(({ notifyAdmin, tgMessages }) => notifyAdmin(tgMessages.serverUp(env.sentryRelease || APP_VERSION, caughtUp)))
+      .catch(() => { /* Telegram не настроен — молчим */ });
   });
   /*
     WebSocket здесь больше нет — и не потому, что мешал.

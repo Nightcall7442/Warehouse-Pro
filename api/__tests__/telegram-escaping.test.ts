@@ -36,6 +36,19 @@ describe("tgEscape", () => {
 describe("tgMessages templates", () => {
   const templates = Object.entries(tgMessages) as [string, (...a: never[]) => string][];
 
+  /*
+    Три суперадминских шаблона берут не строки, а списки и объект — им
+    враждебное значение подставляется в каждое поле формы. Остальным, как и
+    прежде, по строке на параметр.
+  */
+  const SHAPES: Record<string, (v: string) => unknown[]> = {
+    trials:      v => [[{ org: v, days: v }], [v]],
+    serverUp:    v => [v, [v]],
+    adminDigest: v => [{ registrations: v, orders: v, revenue: 0, unanswered: v, trialsEnding: v, pastDue: v, activeTenants: v }],
+  };
+  const argsFor = (name: string, fn: (...a: never[]) => string, v: string) =>
+    (SHAPES[name]?.(v) ?? Array(fn.length).fill(v)) as never[];
+
   it("exports templates to check", () => {
     expect(templates.length).toBeGreaterThan(0);
   });
@@ -45,7 +58,7 @@ describe("tgMessages templates", () => {
       // Every parameter gets the hostile string. The numeric parameter
       // (agentPlan's visit count) is unaffected by receiving a string here —
       // it is interpolated the same way either way.
-      const out = fn(...(Array(fn.length).fill(HOSTILE) as never[]));
+      const out = fn(...argsFor(name, fn, HOSTILE));
 
       expect(out).toContain("&lt;i&gt;ЗЛО&lt;/i&gt;");
       expect(out).toContain("&amp;");
@@ -57,7 +70,7 @@ describe("tgMessages templates", () => {
     it(`${name}: keeps its own bold heading`, () => {
       // Escaping the inputs must not escape the template's deliberate markup —
       // the fix is at the interpolation, not over the whole string.
-      const out = fn(...(Array(fn.length).fill("обычный текст") as never[]));
+      const out = fn(...argsFor(name, fn, "обычный текст"));
       expect(out).toContain("<b>");
       expect(out).toContain("</b>");
     });

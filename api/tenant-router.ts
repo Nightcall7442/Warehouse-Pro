@@ -13,6 +13,7 @@ import { logger } from "./lib/logger";
 import { checkPlanLimits } from "./lib/plan-limits";
 import { sendEmail } from "./lib/mailer";
 import { env } from "./lib/env";
+import { notifyAdmin, tgMessages } from "./telegram-router";
 
 import { rowsOf } from "./lib/db-rows";
 /**
@@ -162,6 +163,10 @@ export const tenantRouter = createRouter({
           currentPeriodEnds: trialEnds,
         });
       });
+
+      // Суперадмину — сразу, а не в вечерней сводке: новую организацию
+      // встречают в первый день, потом она либо работает, либо ушла.
+      void notifyAdmin(tgMessages.newRegistration(input.orgName, input.email));
 
       return registrationAccepted(slug);
     }),
