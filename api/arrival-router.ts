@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { receiveStock } from "./services/stock-ledger";
 import { TRPCError } from "@trpc/server";
 import { createRouter, operatorQuery } from "./middleware";
 import { arrivals, arrivalItems, products, warehouses, suppliers, supplies, supplierPayments } from "@db/schema";
@@ -6,7 +7,6 @@ import { eq, and, sql, desc } from "drizzle-orm";
 import { sanitizeString } from "./lib/sanitize";
 import { decimalOrDefault } from "./lib/zod-decimal";
 import { sseBus } from "./lib/sse";
-import { recordStockMovement } from "./services/stock-ledger";
 import { arrivalSupplyColumns } from "./supplier-router";
 import { isDuplicateOf } from "./lib/db-errors";
 
@@ -401,31 +401,23 @@ export const arrivalRouter = createRouter({
           for (const item of items) {
             const qty = Number(item.quantity);
 
-            // Lock the row first to prevent race conditions on concurrent arrivals
-            // mysql2 returns [rows, fields]; rows is an empty array [] when no match
-            const [rows] = await tx.execute(sql`
-              SELECT id FROM warehouse_stock
-              WHERE tenant_id = ${tenantId} AND warehouse_id = ${warehouseId} AND product_id = ${item.productId}
-              FOR UPDATE
-            `) as unknown as [Array<{ id: number }>, unknown];
-            const existing = rows?.[0];
+            /*
+              Один вызов вместо «найти строку под блокировкой, а дальше UPDATE
+              или INSERT».
 
-            if (existing) {
-              await tx.execute(sql`
-                UPDATE warehouse_stock
-                SET current_stock = current_stock + ${qty}, available = available + ${qty}
-                WHERE tenant_id = ${tenantId} AND warehouse_id = ${warehouseId} AND product_id = ${item.productId}
-              `);
-            } else {
-              await tx.execute(sql`
-                INSERT INTO warehouse_stock (tenant_id, warehouse_id, product_id, current_stock, reserved, available)
-                VALUES (${tenantId}, ${warehouseId}, ${item.productId}, ${qty}, 0, ${qty})
-              `);
-            }
+              Прежний способ брал SELECT .. FOR UPDATE, чтобы два одновременных
+              прихода не перетёрли друг друга. Но заблокировать НЕСУЩЕСТВУЮЩУЮ
+              строку нельзя, и ровно в этом случае — первый приход товара на
+              склад — защиты не было вовсе: оба запроса не находили строки и оба
+              шли вставлять. Дверь делает это одним INSERT .. ON DUPLICATE KEY
+              UPDATE: он атомарен на уровне строки, и два прихода складываются.
 
-            await recordStockMovement(tx, {
+              Движение в журнал пишет она же — раньше это был отдельный вызов
+              следом, и его можно было забыть.
+            */
+            await receiveStock(tx, {
               tenantId, warehouseId, productId: item.productId,
-              type: "in", quantity: qty,
+              quantity: qty,
               reason: "arrival", referenceId: id,
               notes: `Приход ${arrivalNumber}`,
             });

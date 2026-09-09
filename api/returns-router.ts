@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { receiveStock } from "./services/stock-ledger";
 import { monthRange } from "./lib/period";
 import { createRouter, fieldSalesQuery, operatorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
@@ -10,7 +11,6 @@ import { cache, CacheKeys } from "./lib/cache";
 import { sanitizeString } from "./lib/sanitize";
 import { recalcShopDebt } from "./services/shop-debt";
 import { productLabel } from "./services/order";
-import { recordStockMovement } from "./services/stock-ledger";
 
 import { affectedRows } from "./lib/db-rows";
 export const returnsRouter = createRouter({
@@ -322,28 +322,27 @@ export const returnsRouter = createRouter({
               .where(and(eq(warehouseStock.productId, item.productId), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, whId)))
               .for("update");
           }
-          if (items.length > 0) {
-            await tx.execute(sql`
-              UPDATE warehouse_stock
-              SET
-                current_stock = current_stock + CASE ${sql.join(items.map(i =>
-                  sql`WHEN product_id = ${i.productId} THEN ${Number(i.quantity)}`
-                ), sql`\n`)} ELSE 0 END,
-                available = available + CASE ${sql.join(items.map(i =>
-                  sql`WHEN product_id = ${i.productId} THEN ${Number(i.quantity)}`
-                ), sql`\n`)} ELSE 0 END
-              WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
-                AND tenant_id = ${tenantId}
-                AND warehouse_id = ${whId}
-            `);
-            for (const item of items) {
-              await recordStockMovement(tx, {
-                tenantId, warehouseId: whId, productId: item.productId,
-                type: "in", quantity: Number(item.quantity),
-                reason: "return_completed", referenceId: input.id,
-                notes: "Возврат принят на склад",
-              });
-            }
+          /*
+            Возврат ложится на склад той же дверью, что и приход.
+
+            Здесь стоял голый UPDATE по списку товаров — и у него была тихая
+            дыра: строки остатка на этом складе может не быть вовсе (товар
+            уехал в магазин с другого склада, товар завели позже, склад новый).
+            Тогда UPDATE не совпадал НИ С ОДНОЙ строкой, возврат при этом
+            принимали и с магазина списывали, а на склад он не попадал. Ни
+            ошибки, ни записи — просто пропавший товар.
+
+            Дверь заводит строку, если её нет. Цикл вместо одного запроса с
+            CASE: в возврате единицы строк, а читаемость и общий журнал важнее
+            экономии одного обращения.
+          */
+          for (const item of items) {
+            await receiveStock(tx, {
+              tenantId, warehouseId: whId, productId: item.productId,
+              quantity: Number(item.quantity),
+              reason: "return_completed", referenceId: input.id,
+              notes: "Возврат принят на склад",
+            });
           }
 
           // Условие по прежнему статусу — вторая половина защиты. Даже если

@@ -196,6 +196,35 @@ function makeMockDb() {
   db.execute = vi.fn(async (rawSql: unknown) => {
     if (rawSql && typeof rawSql === "object" && (rawSql as any).__kind === "sql") {
       const sqlStr = String((rawSql as any).strings?.join?.("") ?? "");
+      /*
+        Приход через дверь: INSERT .. ON DUPLICATE KEY UPDATE.
+
+        Ветку надо ставить ПЕРЕД разбором UPDATE и INSERT по отдельности:
+        запрос двери содержит оба слова, и стенд, ищущий подстроки, попадал в
+        чужую ветку и читал доводы не с тех мест — остаток менялся на случайное
+        число, а тест сообщал «ожидалось 200, получено 100».
+
+        Порядок доводов у двери: организация, склад, товар, количество (в
+        строку вставки — дважды), количество (в дописку — дважды).
+      */
+      if (sqlStr.includes("ON DUPLICATE KEY") && sqlStr.includes("warehouse_stock")) {
+        const vals = (rawSql as any).values ?? [];
+        const tenantId = Number(vals[0]);
+        const productId = Number(vals[2]);
+        const qty = Number(vals[3]);
+        const stock = stockTable.find(s => s.productId === productId && s.tenantId === tenantId);
+        if (stock) {
+          stock.currentStock = String(Number(stock.currentStock) + qty);
+          stock.available = String(Number(stock.available) + qty);
+        } else {
+          stockTable.push({
+            id: stockTable.length + 1, tenantId, productId,
+            warehouseId: Number(vals[1]),
+            currentStock: String(qty), reserved: "0.00", available: String(qty),
+          } as any);
+        }
+        return;
+      }
       if (sqlStr.includes("UPDATE warehouse_stock")) {
         const cases = returnItemsTable.filter(i => returnsTable.some(r => r.id === i.returnId));
         for (const c of cases) {

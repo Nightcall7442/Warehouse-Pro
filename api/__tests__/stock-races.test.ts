@@ -208,6 +208,26 @@ function makeDb() {
         return Promise.resolve([{ affectedRows: 1 }]);
       }
 
+      /*
+        Дверь прихода: INSERT .. ON DUPLICATE KEY UPDATE.
+
+        Ветка стоит перед разбором UPDATE, потому что запрос содержит оба
+        слова. Здесь же проверяется главное свойство двери — что два
+        одновременных проведения возврата приходуют товар ОДИН раз: защиту
+        даёт условие по прежнему статусу возврата, а не блокировка строки
+        остатка, и стенд обязан считать ровно столько вызовов, сколько их было.
+      */
+      if (full.includes("ON DUPLICATE KEY") && full.includes("warehouse_stock")) {
+        const nums = vals.filter((v: unknown) => typeof v === "number") as number[];
+        const [tenantId, , productId, qty] = nums;
+        const row = stockTable.find(r => r.productId === productId && r.tenantId === tenantId);
+        if (row) {
+          row.currentStock = (Number(row.currentStock) + qty).toFixed(2);
+          row.available = (Number(row.available) + qty).toFixed(2);
+        }
+        return Promise.resolve([{ affectedRows: 1 }]);
+      }
+
       if (full.includes("UPDATE warehouse_stock")) {
         const nums = vals.filter((v: unknown) => typeof v === "number") as number[];
 

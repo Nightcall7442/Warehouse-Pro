@@ -306,6 +306,37 @@ function makeMockDb() {
         return Promise.resolve();
       }
 
+      /*
+        Приход через дверь: INSERT .. ON DUPLICATE KEY UPDATE.
+
+        Ветку надо ставить ПЕРЕД разбором UPDATE и INSERT по отдельности:
+        запрос двери содержит оба слова, и стенд, ищущий подстроки, попадал в
+        чужую ветку и читал доводы не с тех мест — остаток менялся на случайное
+        число, а тест сообщал «ожидалось 200, получено 100».
+
+        Порядок доводов у двери: организация, склад, товар, количество (в
+        строку вставки — дважды), количество (в дописку — дважды).
+      */
+      if (rawSql.includes("ON DUPLICATE KEY") && rawSql.includes("warehouse_stock")) {
+        const tenantId = Number(vals[0]);
+        const warehouseId = Number(vals[1]);
+        const productId = Number(vals[2]);
+        const qty = Number(vals[3]);
+        const existing = stockTable.find(
+          (s) => s.tenantId === tenantId && s.warehouseId === warehouseId && s.productId === productId,
+        );
+        if (existing) {
+          existing.currentStock = String(Number(existing.currentStock) + qty);
+          existing.available = String(Number(existing.available) + qty);
+        } else {
+          stockTable.push({
+            id: nextStockId++, tenantId, productId, warehouseId,
+            currentStock: String(qty), reserved: "0.00", available: String(qty),
+          });
+        }
+        return Promise.resolve();
+      }
+
       // SELECT FROM warehouse_stock (FOR UPDATE lock)
       // mysql2 format: [rows, fields]
       if (rawSql.includes("SELECT") && rawSql.includes("warehouse_stock")) {
