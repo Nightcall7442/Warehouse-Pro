@@ -4,7 +4,7 @@ import { useTranslate } from "@/i18n";
 import { Check } from "lucide-react";
 import { SectionHead, Stamp, BtnInk, BtnGhost } from "./landing-shared";
 import { cn, LX, MONO, tgLink } from "./landing-tokens";
-import { PLANS, PLAN_PRICES_UZS, PLAN_ADDS, FEATURES } from "@contracts/constants";
+import { PLANS, PLAN_PRICES_UZS, PLAN_ADDS, FEATURES, EXTRA_PRICES_UZS } from "@contracts/constants";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    07 / Тарифы.
@@ -41,6 +41,15 @@ export default function PricingSection() {
       /** Предел: null значит «без ограничения». Внутри memo — иначе он
           пересоздаётся каждую отрисовку и обнуляет смысл memo. */
       const cap = (v: number | null) => (v === null ? tr("без предела", "cheksiz") : v.toLocaleString("ru"));
+      /*
+        Предел — не стена: место и позицию можно докупить сверх тарифа. Цены
+        берутся из того же источника, что и списание (EXTRA_PRICES_UZS), а не
+        переписываются сюда — ровно по той же причине, что и цены тарифов выше.
+      */
+      const extraNote = tr(
+        `Мало? Сверх тарифа: место ${EXTRA_PRICES_UZS.user.toLocaleString("ru")} · товар ${EXTRA_PRICES_UZS.product.toLocaleString("ru")} сум/мес`,
+        `Kam? Tarifdan ortiq: joy ${EXTRA_PRICES_UZS.user.toLocaleString("ru")} · mahsulot ${EXTRA_PRICES_UZS.product.toLocaleString("ru")} so'm/oy`,
+      );
       return [
       {
         name: "Basic",
@@ -56,6 +65,7 @@ export default function PricingSection() {
           ...PLAN_ADDS.basic.map(f => tr(FEATURES[f].ru, FEATURES[f].uz)),
         ],
         hl: false,
+        extra: extraNote,
       },
       {
         name: "Pro",
@@ -72,11 +82,18 @@ export default function PricingSection() {
           ...PLAN_ADDS.pro.map(f => tr(FEATURES[f].ru, FEATURES[f].uz)),
         ],
         hl: true,
+        extra: extraNote,
       },
       {
         name: "Exclusive",
         price: PLAN_PRICES_UZS.exclusive.toLocaleString("ru"),
-        fit: tr("Сеть филиалов, без ограничений", "Filiallar tarmog'i, cheklovsiz"),
+        /*
+          Было «Сеть филиалов, без ограничений». Числа рядом берутся из PLANS и
+          после отмены безлимита показывают 50 и 250 — то есть подпись спорила
+          с колонкой прямо под собой. Теперь она говорит про то, чем Exclusive
+          и отличается на самом деле: сопровождение и заказы без предела.
+        */
+        fit: tr("Сеть филиалов, заказы без предела", "Filiallar tarmog'i, buyurtmalar cheksiz"),
         anchor: tr("Персональный менеджер и внедрение", "Shaxsiy menejer va joriy etish"),
         limits: [
           { v: cap(PLANS.exclusive.maxUsers), label: tr("пользователей", "foydalanuvchi") },
@@ -88,6 +105,7 @@ export default function PricingSection() {
           ...PLAN_ADDS.exclusive.map(f => tr(FEATURES[f].ru, FEATURES[f].uz)),
         ],
         hl: false,
+        extra: extraNote,
         manager: true,
       },
       ];
@@ -165,6 +183,25 @@ export default function PricingSection() {
                   </div>
                 ))}
               </div>
+
+              {/*
+                Что делать, когда предела не хватило.
+
+                Раньше числа стояли молча, и человек читал их как «дальше
+                стена»: не хватает пятидесяти товаров — значит либо старший
+                тариф, либо не наш продукт. Надбавка существует именно для
+                этого случая (EXTRA_PRICES_UZS), но узнать о ней можно было
+                только уже став клиентом. Строка одна, мелкая и с ценами —
+                снимает главное возражение оптовика, не перетягивая внимание
+                с самих тарифов.
+
+                У пробного её нет: там предел стоит нарочно, чтобы им не жили.
+              */}
+              {plan.extra && (
+                <p className="mt-2.5 text-center text-[11px] leading-snug" style={{ color: LX.inkFaint }}>
+                  {plan.extra}
+                </p>
+              )}
 
               <ul className="mt-5 space-y-2.5 flex-1">
                 {plan.features.map(f => (

@@ -6,37 +6,71 @@ import {
   CheckCircle2, AlertTriangle, Zap, ExternalLink, Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
-import { PLAN_PRICES_UZS } from '../../contracts/constants';
+import { PLANS, PLAN_PRICES_UZS, type PlanKey } from '../../contracts/constants';
+import { plural } from "@/lib/plural";
 import { labelled, SUBSCRIPTION_STATUS_LABEL } from "@/lib/entity-labels";
 import type { Label } from "@/lib/entity-labels";
 import { useLang, useTranslate } from "@/i18n";
 
+/*
+  Числа тарифа берутся из PLANS, а не переписываются словами.
+
+  Здесь стояло «Безлимит пользователей» и «Безлимит товаров» у Exclusive — и
+  осталось стоять после того, как безлимит отменили: экран оплаты обещал то,
+  чего сервер уже не давал. Остальные строки («5 пользователей», «50 товаров»)
+  тогда ещё совпадали с PLANS — то есть беда была не в опечатке, а в том, что
+  число живёт в двух местах и второе никто не вспоминает при правке первого.
+
+  Склонение — через plural: «250 товаров», но «22 товара». Без него экран
+  оплаты писал бы «22 товаров», а по такой мелочи сразу видно, что текст никто
+  не читал.
+*/
+function limitLines(key: PlanKey): Label[] {
+  const p = PLANS[key];
+  const lines: Label[] = [];
+  if (p.maxUsers !== null) {
+    lines.push({
+      ru: `${p.maxUsers} ${plural(p.maxUsers, "пользователь", "пользователя", "пользователей")}`,
+      uz: `${p.maxUsers} foydalanuvchi`,
+    });
+  }
+  if (p.maxProducts !== null) {
+    lines.push({
+      ru: `${p.maxProducts} ${plural(p.maxProducts, "товар", "товара", "товаров")}`,
+      uz: `${p.maxProducts} mahsulot`,
+    });
+  }
+  if (p.maxOrdersMonth !== null) {
+    lines.push({
+      ru: `${p.maxOrdersMonth} ${plural(p.maxOrdersMonth, "заказ", "заказа", "заказов")}/мес`,
+      uz: `${p.maxOrdersMonth} buyurtma/oy`,
+    });
+  }
+  return lines;
+}
+
 const PLAN_FEATURES: Record<string, Label[]> = {
   trial: [
-    { ru: "3 пользователя",  uz: "3 foydalanuvchi" },
-    { ru: "20 товаров",      uz: "20 mahsulot" },
-    { ru: "50 заказов/мес",  uz: "50 buyurtma/oy" },
+    ...limitLines("trial"),
     { ru: "Базовый склад",   uz: "Oddiy ombor" },
     { ru: "14 дней бесплатно", uz: "14 kun bepul" },
   ],
   basic: [
-    { ru: "5 пользователей", uz: "5 foydalanuvchi" },
-    { ru: "50 товаров",      uz: "50 mahsulot" },
+    ...limitLines("basic"),
     { ru: "Базовая аналитика", uz: "Oddiy tahlil" },
     { ru: "Складской учёт",  uz: "Ombor hisobi" },
     { ru: "Email-поддержка", uz: "Email orqali yordam" },
   ],
   pro: [
-    { ru: "20 пользователей", uz: "20 foydalanuvchi" },
-    { ru: "100 товаров",      uz: "100 mahsulot" },
+    ...limitLines("pro"),
     { ru: "Полная аналитика", uz: "To'liq tahlil" },
     { ru: "GPS-трекинг",      uz: "GPS kuzatuv" },
     { ru: "Интеграция с 1С",  uz: "1C bilan integratsiya" },
     { ru: "Приоритетная поддержка", uz: "Ustuvor yordam" },
   ],
   exclusive: [
-    { ru: "Безлимит пользователей", uz: "Cheksiz foydalanuvchi" },
-    { ru: "Безлимит товаров",       uz: "Cheksiz mahsulot" },
+    ...limitLines("exclusive"),
+    { ru: "Заказы без предела",     uz: "Buyurtmalar cheksiz" },
     { ru: "API доступ",             uz: "API kirish" },
     { ru: "White-label",            uz: "White-label" },
     { ru: "Выделенный сервер",      uz: "Ajratilgan server" },
