@@ -473,13 +473,19 @@ describe("billing.status — usage limits", () => {
     expect(result.limits.maxOrdersMonth).toBeNull();
   });
 
-  it("returns exclusive plan limits (all null/unlimited)", async () => {
+  it("на Exclusive пределы есть — безлимита не осталось ни у кого", async () => {
+    /*
+      Раньше здесь стояло «all null/unlimited». Старший тариф был единственным
+      местом с «без предела», и это снимало всякий смысл докупать места и
+      позиции. Заказы — исключение и остаются без предела: их число это оборот
+      арендатора, и брать за него деньги значит наказывать за рост.
+    */
     tenantsTable[0].plan = "exclusive";
     const { billingRouter } = await import("../billing-router");
     const caller = billingRouter.createCaller(makeCtx(1, 10));
     const result = await caller.status();
-    expect(result.limits.maxUsers).toBeNull();
-    expect(result.limits.maxProducts).toBeNull();
+    expect(result.limits.maxUsers).toBe(50);
+    expect(result.limits.maxProducts).toBe(250);
     expect(result.limits.maxOrdersMonth).toBeNull();
   });
 
