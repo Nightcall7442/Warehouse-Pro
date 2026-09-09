@@ -497,3 +497,85 @@ describe("territory.previewFromShops", () => {
     expect(r.items.find(i => i.name === "Самарканд")!.exists).toBe(false);
   });
 });
+
+/**
+ * Почему получился ноль.
+ *
+ * «Создать 0» — верный ответ и бесполезный. Причин у нуля три, и человек не
+ * может отличить их друг от друга: поле не заполнено ни у кого; территории на
+ * все города уже заведены; магазины и так разложены. В каждом случае делать
+ * надо разное, а экран молчал — владелец открыл его у Serena Trade, увидел
+ * ноль и спросил, как вообще создать территорию.
+ *
+ * Поэтому предпросмотр отдаёт не только итог, но и слагаемые.
+ */
+describe("предпросмотр объясняет свой ответ", () => {
+  const caller = async () => {
+    const { territoryRouter } = await import("../territory-router");
+    return territoryRouter.createCaller(makeCtx(1, 1, "supervisor"));
+  };
+
+  it("считает магазины без города отдельно", async () => {
+    /*
+      Их видно всегда, а не только при нуле: иначе человек создаст территории,
+      недосчитается половины точек и не поймёт, куда они делись.
+    */
+    territoriesTable = [];
+    shopsTable = [
+      { id: 1, tenantId: 1, name: "A", city: "Ташкент", address: "", status: "active", territoryId: null },
+      { id: 2, tenantId: 1, name: "B", city: "",        address: "", status: "active", territoryId: null },
+      { id: 3, tenantId: 1, name: "C", city: "   ",     address: "", status: "active", territoryId: null },
+    ];
+
+    const r = await (await caller()).previewFromShops({ by: "city" });
+
+    expect(r.totalShops).toBe(3);
+    expect(r.withoutPlace, "магазины без города не посчитаны").toBe(2);
+    expect(r.toCreate).toBe(1);
+  });
+
+  it("отличает «уже разложено» от «нечего группировать»", async () => {
+    // Ноль при заведённых территориях и ноль при пустом поле — разные беды.
+    territoriesTable = [{ id: 5, tenantId: 1, name: "Ташкент", color: "#5b6d8a" }];
+    shopsTable = [
+      { id: 1, tenantId: 1, name: "A", city: "Ташкент", address: "", status: "active", territoryId: 5 },
+    ];
+
+    const r = await (await caller()).previewFromShops({ by: "city" });
+
+    expect(r.toCreate).toBe(0);
+    expect(r.toAssign).toBe(0);
+    expect(r.withoutPlace, "поле заполнено — значит беда не в нём").toBe(0);
+    expect(r.existingTerritories).toBe(1);
+    expect(r.alreadyAssigned).toBe(1);
+  });
+
+  it("архивные магазины в счёт не идут", async () => {
+    // Территория архивному не нужна, а в «у скольких не заполнено» он завысил
+    // бы число и отправил человека заполнять карточки, которые не в работе.
+    territoriesTable = [];
+    shopsTable = [
+      { id: 1, tenantId: 1, name: "A", city: "Ташкент", address: "", status: "active", territoryId: null },
+      { id: 2, tenantId: 1, name: "B", city: "",        address: "", status: "inactive", territoryId: null },
+    ];
+
+    const r = await (await caller()).previewFromShops({ by: "city" });
+
+    expect(r.totalShops).toBe(1);
+    expect(r.withoutPlace).toBe(0);
+  });
+
+  it("экран называет кнопку тем, что она сделает", () => {
+    /*
+      «Создать 0» при непривязанных магазинах говорило «делать нечего», хотя
+      привязать ещё требовалось.
+    */
+    const { readFileSync } = require("node:fs") as typeof import("node:fs");
+    const { join } = require("node:path") as typeof import("node:path");
+    const view = readFileSync(join(process.cwd(), "src", "components", "shops", "TerritoryManager.tsx"), "utf8");
+
+    expect(view).toContain("Привязать ${p.toAssign} магазинов");
+    expect(view).toContain("Создать ${p.toCreate} и привязать ${p.toAssign}");
+    expect(view, "причина нуля не названа").toContain("withoutPlace === p.totalShops");
+  });
+});

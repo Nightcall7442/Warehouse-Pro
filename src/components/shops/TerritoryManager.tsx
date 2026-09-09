@@ -255,31 +255,91 @@ export function TerritoryManager({ lang, onClose }: TerritoryManagerProps) {
                   ))}
                 </div>
 
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                  <button
-                    onClick={() => fromShopsMutation.mutate({ by: byPlace })}
-                    disabled={fromShopsMutation.isPending || (preview.data.toCreate === 0 && preview.data.toAssign === 0)}
-                    className="neo-btn-primary tap"
-                    style={{ fontSize: "12px", padding: "8px 12px" }}
-                  >
-                    {fromShopsMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
-                    {t(`Создать ${preview.data.toCreate}`, `${preview.data.toCreate} ta yaratish`)}
-                  </button>
-                  <span style={{ fontSize: "11.5px", color: COLORS.textTertiary }}>
-                    {preview.data.toCreate === 0 && preview.data.toAssign === 0
-                      ? t("Всё уже разложено", "Hammasi joyida")
+                {(() => {
+                  /*
+                    Кнопка называется тем, что сделает.
+
+                    Было «Создать N» — и при N = 0 она сообщала «делать нечего»,
+                    хотя привязать магазины ещё требовалось. Хуже другое: ноль
+                    получается по трём разным причинам — поле не заполнено ни у
+                    кого, территории на все города уже заведены, магазины и так
+                    разложены, — и в каждом случае делать надо разное. Экран
+                    молчал, и владелец спросил, как вообще создать территорию.
+                  */
+                  const p = preview.data;
+                  const nothing = p.toCreate === 0 && p.toAssign === 0;
+                  const action = p.toCreate > 0 && p.toAssign > 0
+                    ? t(`Создать ${p.toCreate} и привязать ${p.toAssign}`, `${p.toCreate} ta yaratib ${p.toAssign} ta bog'lash`)
+                    : p.toCreate > 0
+                      ? t(`Создать ${p.toCreate}`, `${p.toCreate} ta yaratish`)
+                      : p.toAssign > 0
+                        ? t(`Привязать ${p.toAssign} магазинов`, `${p.toAssign} ta do'konni bog'lash`)
+                        : t("Делать нечего", "Bajariladigan ish yo'q");
+
+                  // Почему ноль — по порядку убывания вероятности.
+                  const why = !nothing ? null
+                    : p.withoutPlace === p.totalShops
+                      ? byPlace === "city"
+                        ? t("Ни у одного магазина не заполнен город. Заполните его в карточках — или соберите по районам.",
+                            "Hech bir do'konda shahar to'ldirilmagan. Kartochkalarda to'ldiring yoki tumanlar bo'yicha yig'ing.")
+                        : t("Ни у одного магазина не заполнен район. Заполните его в карточках — или соберите по городам.",
+                            "Hech bir do'konda tuman to'ldirilmagan. Kartochkalarda to'ldiring yoki shaharlar bo'yicha yig'ing.")
                       : t(
-                          `Привяжется магазинов: ${preview.data.toAssign}. Те, что уже в территориях, не тронутся.`,
-                          `Bog'lanadi: ${preview.data.toAssign} ta. Territoriyadagilar tegilmaydi.`,
+                          `Территории на все ${p.items.length} мест уже заведены, и магазины по ним разложены. Создавать и привязывать нечего.`,
+                          `Barcha ${p.items.length} ta joy uchun territoriyalar bor va do'konlar taqsimlangan.`,
+                        );
+
+                  return (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "7px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                        <button
+                          onClick={() => fromShopsMutation.mutate({ by: byPlace })}
+                          disabled={fromShopsMutation.isPending || nothing}
+                          className="neo-btn-primary tap"
+                          style={{ fontSize: "12px", padding: "8px 12px" }}
+                        >
+                          {fromShopsMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
+                          {action}
+                        </button>
+                        {!nothing && (
+                          <span style={{ fontSize: "11.5px", color: COLORS.textTertiary }}>
+                            {t("Магазины, уже стоящие в территориях, не тронутся.",
+                               "Territoriyada turgan do'konlarga tegilmaydi.")}
+                          </span>
                         )}
-                  </span>
-                </div>
+                      </div>
+
+                      {why && (
+                        <span style={{ fontSize: "11.5px", color: COLORS.textSecondary, lineHeight: 1.5 }}>{why}</span>
+                      )}
+
+                      {/*
+                        Магазины без города видны всегда, а не только когда
+                        получился ноль: иначе человек создаст территории,
+                        недосчитается половины точек и не поймёт, где они.
+                      */}
+                      {p.withoutPlace > 0 && p.withoutPlace < p.totalShops && (
+                        <span style={{ fontSize: "11.5px", color: "var(--color-warning-text)" }}>
+                          {byPlace === "city"
+                            ? t(`У ${p.withoutPlace} из ${p.totalShops} магазинов город не заполнен — они останутся без территории.`,
+                                `${p.totalShops} tadan ${p.withoutPlace} tasida shahar yo'q — ular territoriyasiz qoladi.`)
+                            : t(`У ${p.withoutPlace} из ${p.totalShops} магазинов район не заполнен — они останутся без территории.`,
+                                `${p.totalShops} tadan ${p.withoutPlace} tasida tuman yo'q — ular territoriyasiz qoladi.`)}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
               </>
             ) : (
-              <span style={{ fontSize: "12px", color: COLORS.textTertiary }}>
-                {byPlace === "city"
-                  ? t("Ни у одного магазина не заполнен город", "Hech bir do'konda shahar to'ldirilmagan")
-                  : t("Ни у одного магазина не заполнен район", "Hech bir do'konda tuman to'ldirilmagan")}
+              <span style={{ fontSize: "12px", color: COLORS.textSecondary, lineHeight: 1.5 }}>
+                {preview.data && preview.data.totalShops === 0
+                  ? t("Действующих магазинов нет — собирать не из чего.", "Faol do'konlar yo'q.")
+                  : byPlace === "city"
+                    ? t(`Ни у одного из ${preview.data?.totalShops ?? 0} магазинов не заполнен город. Заполните его в карточках — или соберите по районам.`,
+                        `${preview.data?.totalShops ?? 0} ta do'konning hech birida shahar to'ldirilmagan. Kartochkalarda to'ldiring yoki tumanlar bo'yicha yig'ing.`)
+                    : t(`Ни у одного из ${preview.data?.totalShops ?? 0} магазинов не заполнен район. Заполните его в карточках — или соберите по городам.`,
+                        `${preview.data?.totalShops ?? 0} ta do'konning hech birida tuman to'ldirilmagan. Kartochkalarda to'ldiring yoki shaharlar bo'yicha yig'ing.`)}
               </span>
             )}
           </div>

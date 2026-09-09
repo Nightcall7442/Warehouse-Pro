@@ -79,13 +79,21 @@ const TERRITORY_COLORS = [
  *
  * Магазины берутся только действующие: архивный (status = inactive) территории
  * не требует, а в счёт бы попал и завысил бы её размер.
+ *
+ * Вместе с группами возвращаются слагаемые: сколько всего магазинов, у скольких
+ * поле пусто, сколько уже привязано. Их считают ЗДЕСЬ, из тех же строк, а не
+ * отдельным запросом с SUM(CASE …): строки уже прочитаны, второе обращение к
+ * базе ради тех же чисел — лишняя работа и второй способ ошибиться.
+ *
+ * Пустое поле больше не отсекается запросом: без этих строк не сосчитать, у
+ * скольких магазинов город не заполнен, — а именно этот ответ и нужен человеку,
+ * когда группировать оказалось нечего.
  */
 async function groupShopsByPlace(
   db: ReturnType<typeof getDb>,
   tenantId: number,
   by: "city" | "district",
 ) {
-  const column = by === "city" ? shops.city : shops.district;
 
   /*
     Выбираются оба поля, а нужное берётся по разрезу. Алиас `place: column` был
@@ -101,7 +109,6 @@ async function groupShopsByPlace(
   }).from(shops).where(and(
     eq(shops.tenantId, tenantId),
     eq(shops.status, "active"),
-    sql`${column} IS NOT NULL AND TRIM(${column}) <> ''`,
   ));
 
   /*
@@ -109,17 +116,24 @@ async function groupShopsByPlace(
     регистру: человеку читать «Ташкент», а не «ташкент». Ключ при этом общий.
   */
   const groups = new Map<string, { name: string; shopIds: number[]; freeShopIds: number[] }>();
+  let withoutPlace = 0;
+  let alreadyAssigned = 0;
+
   for (const row of rows) {
+    if (row.territoryId !== null && row.territoryId !== undefined) alreadyAssigned++;
+
     const raw = String((by === "city" ? row.city : row.district) ?? "");
     const key = placeKey(raw);
-    if (!key) continue;
+    if (!key) { withoutPlace++; continue; }
+
     const g = groups.get(key) ?? { name: raw.trim().replace(/\s+/g, " "), shopIds: [], freeShopIds: [] };
     g.shopIds.push(Number(row.id));
     // Уже привязанные не трогаем — см. createFromShops.
-    if (row.territoryId === null) g.freeShopIds.push(Number(row.id));
+    if (row.territoryId === null || row.territoryId === undefined) g.freeShopIds.push(Number(row.id));
     groups.set(key, g);
   }
-  return groups;
+
+  return { groups, totalShops: rows.length, withoutPlace, alreadyAssigned };
 }
 
 export const territoryRouter = createRouter({
@@ -311,7 +325,8 @@ export const territoryRouter = createRouter({
     .input(z.object({ by: z.enum(["city", "district"]) }))
     .query(async ({ input, ctx }) => {
       const db = getDb();
-      const groups = await groupShopsByPlace(db, ctx.tenant.id, input.by);
+      const { groups, totalShops, withoutPlace, alreadyAssigned } =
+        await groupShopsByPlace(db, ctx.tenant.id, input.by);
 
       const existing = await db.select({ name: territories.name })
         .from(territories).where(eq(territories.tenantId, ctx.tenant.id));
@@ -326,11 +341,25 @@ export const territoryRouter = createRouter({
         }))
         .sort((a, b) => b.shops - a.shops);
 
+      /*
+        Одного числа мало.
+
+        «Создать 0» — верный ответ и бесполезный: причин у нуля три, и человек
+        не может отличить их друг от друга. Либо поле не заполнено ни у кого,
+        либо территории на все города уже заведены, либо магазины и так
+        разложены. В каждом случае делать надо разное, а экран молчал.
+
+        Поэтому вместе с итогом приходят слагаемые.
+      */
       return {
         items,
         toCreate: items.filter(i => !i.exists).length,
         toAssign: items.reduce((n, i) => n + i.free, 0),
         limit: MAX_NEW_TERRITORIES,
+        totalShops,
+        withoutPlace,
+        alreadyAssigned,
+        existingTerritories: existing.length,
       };
     }),
 
@@ -339,7 +368,7 @@ export const territoryRouter = createRouter({
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
       const tenantId = ctx.tenant.id;
-      const groups = await groupShopsByPlace(db, tenantId, input.by);
+      const { groups } = await groupShopsByPlace(db, tenantId, input.by);
 
       if (groups.size === 0) {
         throw new TRPCError({
