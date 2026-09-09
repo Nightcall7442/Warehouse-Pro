@@ -122,7 +122,9 @@ describe("оклад", () => {
       Экран умеет листать назад. Если бы оклад записывался в показанный
       период, правка в августе переписала бы то, по чему уже выплатили.
     */
-    expect(SET_SALARY).toContain("const monthStart = ymd(new Date(now.getFullYear(), now.getMonth(), 1));");
+    // Ключ месяца теперь общий (api/lib/period.ts): своя копия арифметики в
+    // каждом файле и была причиной расхождения на день.
+    expect(SET_SALARY).toContain("const { start: monthStart, end: monthEnd } = monthRange();");
     expect(SET_SALARY, "месяц ищется не по началу периода").toContain("onDate(salesTargets.periodStart, monthStart)");
   });
 

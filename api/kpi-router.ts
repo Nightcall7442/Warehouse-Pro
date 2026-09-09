@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { monthRange } from "./lib/period";
 import { TRPCError } from "@trpc/server";
 import { createRouter, fieldSalesQuery, supervisorQuery, selfKpiQuery, managementQuery, financeQuery, adminQuery } from "./middleware";
 import { getDb } from "./queries/connection";
@@ -422,11 +423,11 @@ export const kpiRouter = createRouter({
         .limit(1);
       if (!person) throw new TRPCError({ code: "NOT_FOUND", message: "Сотрудник не найден в вашей организации" });
 
-      const now = new Date();
       // Колонки period_start/period_end — DATE. Драйверу отдаём строку:
       // Date он развернул бы в часовом поясе сервера и мог сдвинуть день.
-      const monthStart = ymd(new Date(now.getFullYear(), now.getMonth(), 1));
-      const monthEnd   = ymd(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+      // Считал это место правильно, но своей копией арифметики; теперь ключ
+      // общий со всеми, кто пишет и читает те же строки.
+      const { start: monthStart, end: monthEnd } = monthRange();
 
       const [existingTarget] = await db.select({ id: salesTargets.id })
         .from(salesTargets)
@@ -501,7 +502,3 @@ export const kpiRouter = createRouter({
 });
 
 /** Дата в виде YYYY-MM-DD по местному времени — как её хранят DATE-колонки. */
-function ymd(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-

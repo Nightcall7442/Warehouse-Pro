@@ -1,4 +1,5 @@
 import { sql, eq, and, gte, lte, inArray, isNull, isNotNull, desc } from "drizzle-orm";
+import { dayKey } from "../lib/period";
 import { REVENUE_ORDER_STATUSES, revenueOrderConditions } from "../lib/order-status";
 import { orders, dailyPlans, returns, shops, salesTargets, commissions, agentLocations, visitReports, users, payments } from "@db/schema";
 import { calculateFraudMetrics } from "./anti-fraud";
@@ -404,10 +405,6 @@ const KPI_WEIGHTS = {
  * карточке, список считал балл вообще без штрафа.
  */
 /** Дата в виде YYYY-MM-DD — как её хранят DATE-колонки. */
-function ymd(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
 const FRAUD_PENALTY_WEIGHT = 0.3;
 
 const GRADE_THRESHOLDS = [
@@ -589,7 +586,7 @@ export async function calculateAgentKpi(
       eq(salesTargets.tenantId, tenantId),
       eq(salesTargets.userId, agentId),
       eq(salesTargets.periodType, "monthly"),
-      untilDate(salesTargets.periodStart, ymd(periodEnd)),
+      untilDate(salesTargets.periodStart, dayKey(periodEnd)),
     ))
     .orderBy(desc(salesTargets.periodStart))
     .limit(1);
@@ -615,7 +612,9 @@ export async function calculateAgentKpi(
     .where(and(eq(users.id, agentId), eq(users.tenantId, tenantId)))
     .limit(1);
 
-  const periodLabel = `${periodStart.toISOString().slice(0, 10)} — ${periodEnd.toISOString().slice(0, 10)}`;
+  // Подпись периода — тем же ключом, что и строки за период: иначе человек
+  // читал бы «2026-08-31 — 2026-09-29» на экране зарплаты за сентябрь.
+  const periodLabel = `${dayKey(periodStart)} — ${dayKey(periodEnd)}`;
 
   return {
     agentId,
@@ -824,7 +823,9 @@ export async function calculateSalary(
     ? Math.max(0, baseSalary + deliveryPay)
     : Math.max(0, baseSalary + commissionAmount + bonusAmount - fraudDeduction);
 
-  const periodLabel = `${periodStart.toISOString().slice(0, 10)} — ${periodEnd.toISOString().slice(0, 10)}`;
+  // Подпись периода — тем же ключом, что и строки за период: иначе человек
+  // читал бы «2026-08-31 — 2026-09-29» на экране зарплаты за сентябрь.
+  const periodLabel = `${dayKey(periodStart)} — ${dayKey(periodEnd)}`;
 
   const [agent] = preloadedKpi ? [{ name: preloadedKpi.agentName }] : await db.select({ name: sql<string>`name` })
     .from(users)
@@ -835,12 +836,18 @@ export async function calculateSalary(
   // view, and only while the record is still a draft. A record already
   // "approved" or "paid" has been signed off on; simply opening the salary
   // screen again must not silently rewrite figures finance already acted on.
-  // `period_start`/`period_end` are `date` columns, so drizzle types them as
-  // Date, but commission-router keys the period by this "YYYY-MM-DD" string —
-  // handing the driver a Date instead would shift the stored day by the
-  // server's UTC offset and stop the two ever matching.
-  const monthStart = periodStart.toISOString().slice(0, 10);
-  const monthEnd = periodEnd.toISOString().slice(0, 10);
+  /*
+    `period_start`/`period_end` — колонки DATE, и ключом служит строка
+    «ГГГГ-ММ-ДД», та же, что у commission-router.setRate.
+
+    Здесь стояло `periodStart.toISOString().slice(0, 10)` — ровно тот сдвиг, от
+    которого предостерегал комментарий на этом же месте: getPeriod отдаёт
+    МЕСТНУЮ полночь, а toISOString печатает её в UTC. При сервере восточнее UTC
+    ставка и расчёт разошлись бы на день, то есть на две строки комиссии за
+    один месяц — обе одобряемые и обе оплачиваемые.
+  */
+  const monthStart = dayKey(periodStart);
+  const monthEnd = dayKey(periodEnd);
 
   // Курьеру строку комиссии не пишем: salesAmount и commissionAmount у него
   // нулевые по определению, и запись означала бы «комиссия ноль» вместо

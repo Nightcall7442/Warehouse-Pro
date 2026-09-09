@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { monthRange } from "./lib/period";
 import { TRPCError } from "@trpc/server";
 import { createRouter, operatorQuery, authedQuery, can } from "./middleware";
 import { getDb } from "./queries/connection";
@@ -112,10 +113,10 @@ export const commissionRouter = createRouter({
 
       await assertUserBelongsToTenant(db, ctx.tenant.id, input.userId);
 
-      // Update or create monthly commission record for current period
-      const now = new Date();
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
-      const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split("T")[0];
+      // Update or create monthly commission record for current period.
+      // Ключ месяца — общий с расчётом зарплаты (api/services/kpi.ts): две
+      // строки за один месяц означали бы две оплаченные комиссии.
+      const { start: monthStart, end: monthEnd } = monthRange();
 
       const [existing] = await db.select()
         .from(commissions)

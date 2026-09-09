@@ -13,6 +13,7 @@
  * что угодно — именно потому, что чужое имя не появлялось бы и без правки.
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { monthRange } from "../lib/period";
 import { TRPCError } from "@trpc/server";
 
 vi.mock("drizzle-orm", async () => {
@@ -340,8 +341,17 @@ vi.mock("../queries/connection", () => ({ getDb: () => mockDb }));
 // строку по «YYYY-MM-DD» текущего месяца, и фиксированная дата в фикстуре
 // проверяла бы только ветку вставки, никогда не доходя до обновления.
 const TODAY = new Date();
-const MONTH_START = new Date(TODAY.getFullYear(), TODAY.getMonth(), 1).toISOString().split("T")[0];
-const MONTH_END = new Date(TODAY.getFullYear(), TODAY.getMonth() + 1, 0).toISOString().split("T")[0];
+/*
+  Ключ месяца стенд берёт оттуда же, откуда продукт.
+
+  Здесь стояло `new Date(y, m, 1).toISOString().split("T")[0]` — та самая
+  печать местной полуночи в UTC. На машине в Ташкенте (+5) она даёт «31
+  августа», а продукт пишет «1 сентября»: стенд подкладывал строку с ключом,
+  которого никто не ищет, и проверка «ставка обновилась» ловила не то.
+
+  Именно этот стенд и показал, что расхождение не теоретическое.
+*/
+const { start: MONTH_START, end: MONTH_END } = monthRange(TODAY);
 
 function reset() {
   updateStatements = 0;

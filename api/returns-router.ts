@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { monthRange } from "./lib/period";
 import { createRouter, fieldSalesQuery, operatorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { assertProductsBelongToTenant } from "./lib/tenant-refs";
@@ -387,8 +388,9 @@ export const returnsRouter = createRouter({
   // Returns summary by reason
   summary: operatorQuery.query(async ({ ctx }) => {
     const db = getDb();
-    const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
+    // Тот же ключ месяца, что у зарплат и норм: свод возвратов за «этот месяц»
+    // обязан начинаться там же, где месяц у всех остальных экранов.
+    const monthStart = monthRange().start;
 
     return db.select({
       reason: returns.reason,

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { monthRange } from "./lib/period";
 import { createRouter, operatorQuery, authedQuery, supervisorQuery, managementQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { salesTargets, users } from "@db/schema";
@@ -272,7 +273,9 @@ export const salesTargetRouter = createRouter({
     .query(async ({ input, ctx }) => {
       const db = getDb();
       const now = input?.month ? new Date(input.month) : new Date();
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
+      // Тот же ключ, каким норму записывают kpi.setSalary и bulkUpsert: иначе
+      // агент видит «плана нет» на норме, которую начальник только что поставил.
+      const monthStart = monthRange(now).start;
 
       const [target] = await db.select({
         id: salesTargets.id,
@@ -350,8 +353,7 @@ export const salesTargetRouter = createRouter({
     .query(async ({ ctx }) => {
       const db = getDb();
       const now = new Date();
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
-      const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split("T")[0];
+      const { start: monthStart, end: monthEnd } = monthRange(now);
 
       const targets = await db.select({
         id: salesTargets.id,
