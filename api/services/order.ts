@@ -727,8 +727,13 @@ async function applyPartialPayment(
 
   // Update order status — goods were delivered; remaining debt lives on
   // payments.status / shops.debt, not on this status field.
+  //
+  // Отметка доставки — вместе со статусом: см. updateStatus о том, почему без
+  // неё показатели курьера меряли экран, а не работу.
   await tx.update(orders).set({
     status: "delivered",
+    deliveryStatus: "delivered",
+    deliveredAt: new Date(),
   }).where(and(eq(orders.id, order.id), eq(orders.tenantId, tenantId)));
 
   // Log adjustment
@@ -917,6 +922,9 @@ async function applyPartialDelivery(
     discount: newDiscount.toFixed(2),
     total: newTotal.toFixed(2),
     status: "delivered",
+    // Частичная доставка — тоже доставка: товар довезли, часть вернулась.
+    deliveryStatus: "delivered",
+    deliveredAt: new Date(),
   }).where(and(eq(orders.id, order.id), eq(orders.tenantId, tenantId)));
 
   // Log adjustment
@@ -1735,7 +1743,23 @@ export const OrderService = {
           }
         }
       }
-      const [statusUpdateResult] = await tx.update(orders).set({ status: newStatus })
+      /*
+        Заказ, закрытый из веба, тоже считается доставленным курьером.
+
+        delivery_status и delivered_at заполняло только курьерское приложение,
+        а оператор закрывает заказ кнопкой «Выполнить». Показатели курьера в
+        итоге меряли не работу, а то, через какой экран её отметили.
+
+        Считать мы теперь умеем и без этого (см. calculateCourierStats), но
+        данные всё равно надо привести в порядок: без delivered_at период
+        доставки определяется по дате СОЗДАНИЯ заказа, и доставка конца месяца
+        попадает не в тот месяц, за который курьеру платят.
+      */
+      const deliveryPatch = newStatus === "delivered"
+        ? { deliveryStatus: "delivered" as const, deliveredAt: new Date() }
+        : {};
+
+      const [statusUpdateResult] = await tx.update(orders).set({ status: newStatus, ...deliveryPatch })
         .where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), eq(orders.status, order.status)));
       if ((statusUpdateResult as { affectedRows?: number }).affectedRows !== 1) {
         throw new Error("Статус заказа уже был изменён другим действием");

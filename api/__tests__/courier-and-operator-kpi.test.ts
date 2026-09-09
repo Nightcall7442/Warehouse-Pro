@@ -261,7 +261,9 @@ describe("курьеры видны руководителю", () => {
       по очереди было бы короче и дороже втрое: у арендатора с десятью
       курьерами это тридцать запросов на открытие экрана.
     */
-    expect(list, "список считает курьеров поштучно").not.toContain("calculateCourierStats");
+    // Ищем ВЫЗОВ, а не упоминание: на поштучный расчёт ссылается комментарий
+    // о том, откуда взято правило счёта, и запрет на слово ломался бы об него.
+    expect(list, "список считает курьеров поштучно").not.toMatch(/await calculateCourierStats\(/);
     expect((list.match(/\.groupBy\(/g) ?? []).length).toBeGreaterThanOrEqual(2);
   });
 
@@ -377,5 +379,94 @@ describe("курьера можно разобрать отдельно", () => 
     // Оси — прямыми детьми: обёртка над ними молча убивает подписи.
     expect(chart).toMatch(/<BarChart[\s\S]{0,400}<XAxis/);
     expect(chart).toMatch(/<XAxis[\s\S]{0,400}<YAxis/);
+  });
+});
+
+/*
+  ── Довезённое считается по факту, а не по отметке в приложении ─────────────
+
+  delivery_status заполняет только курьерское приложение. Заказ при этом
+  закрывают и из веба: оператор жмёт «Выполнить», проводит оплату или частичную
+  доставку — и там пишется orders.status = 'delivered', а delivery_status
+  остаётся прежним.
+
+  У арендатора так и вышло: курьер отработал, на дашборде пять доставленных
+  заказов, а в его KPI и зарплате стояли нули. Мерили не работу, а то, через
+  какой экран её отметили.
+*/
+describe("курьеру засчитывают доставленный заказ", () => {
+  /*
+    Срез до СЛЕДУЮЩЕЙ функции, а не до конца курьерского блока.
+
+    Сначала здесь стояло «до AgentListEntry» — и в кусок попадали все три
+    функции сразу: показатели, список и разбивка по дням. Сломай счёт в одной,
+    строка нашлась бы в двух других, и проверка осталась бы зелёной. Проверено
+    поломкой: так и было.
+  */
+  const stats = SERVICE.slice(
+    SERVICE.indexOf("export async function calculateCourierStats"),
+    SERVICE.indexOf("export async function getCourierDaily"),
+  );
+
+  it("довезённое берётся из статуса заказа", () => {
+    expect(stats).toContain("${orders.status} = 'delivered' THEN 1 ELSE 0 END");
+  });
+
+  it("сумма довезённого — оттуда же", () => {
+    // Иначе число доставок и деньги за них считались бы по разным правилам, и
+    // «5 довезено на 0 сум» выглядело бы поломкой расчёта.
+    expect(stats).toContain("${orders.status} = 'delivered' THEN CAST(${orders.total}");
+  });
+
+  it("список и разбивка по дням считают так же", () => {
+    /*
+      Три места считают одно и то же, и разойтись им нельзя: у руководителя в
+      списке одно число, в карточке другое, а на графике третье — и не понять,
+      какому верить.
+    */
+    const list = SERVICE.slice(
+      SERVICE.indexOf("export async function getCourierList"),
+      SERVICE.indexOf("export interface AgentListEntry"),
+    );
+    const daily = SERVICE.slice(
+      SERVICE.indexOf("export async function getCourierDaily"),
+      SERVICE.indexOf("export interface CourierListEntry"),
+    );
+    expect(list).toContain("${orders.status} = 'delivered' THEN 1 ELSE 0 END");
+    expect(daily).toContain("${orders.status} = 'delivered' THEN 1 ELSE 0 END");
+  });
+
+  it("сорванное остаётся по отметке курьера", () => {
+    /*
+      «Магазин закрыт», «не дозвонились», «отказ» отмечает именно курьер в
+      приложении — другого источника у этого нет, и статус заказа при срыве
+      возвращается в «новый».
+    */
+    expect(stats).toContain("${orders.deliveryStatus} = 'failed'");
+  });
+});
+
+describe("веб-закрытие оставляет след доставки", () => {
+  const order = read("api/services/order.ts");
+
+  it("смена статуса на «доставлен» ставит отметку и дату", () => {
+    /*
+      Считать мы умеем и без этого, но без delivered_at период доставки
+      определяется по дате СОЗДАНИЯ заказа: доставка конца месяца попадает не в
+      тот месяц, за который курьеру платят.
+    */
+    expect(order).toContain('newStatus === "delivered"');
+    expect(order).toContain('deliveryStatus: "delivered" as const, deliveredAt: new Date()');
+  });
+
+  it("выполнение с оплатой — тоже", () => {
+    const at = order.indexOf("// Update order status — goods were delivered");
+    expect(order.slice(at, at + 500)).toContain('deliveryStatus: "delivered"');
+  });
+
+  it("частичная доставка — тоже доставка", () => {
+    // Товар довезли, часть вернулась: работа курьера сделана.
+    const at = order.indexOf("subtotal: newSubtotal.toFixed(2)");
+    expect(order.slice(at, at + 400)).toContain('deliveryStatus: "delivered"');
   });
 });

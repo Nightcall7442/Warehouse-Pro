@@ -141,11 +141,28 @@ export async function calculateCourierStats(
     Плати мы по дате создания — доставка попадала бы в тот месяц, в котором
     курьер её ещё не делал, и в свой месяц не попадала бы вовсе.
   */
+  /*
+    ── Довезённое считается по СТАТУСУ ЗАКАЗА, а не по delivery_status ───────
+
+    delivery_status заполняет только курьерское приложение: «назначен», «в
+    пути», «доставлен». Но заказ закрывают и из веба — оператор жмёт
+    «Выполнить», проводит оплату или частичную доставку, — и там пишется
+    orders.status = 'delivered', а delivery_status остаётся прежним.
+
+    У арендатора так и вышло: курьер отработал, на дашборде пять доставленных
+    заказов, а в его KPI и зарплате стояли нули. Мы мерили не факт доставки, а
+    то, отметил ли её курьер в приложении.
+
+    Теперь довезённое — это доставленный заказ, закреплённый за курьером,
+    независимо от того, кто нажал кнопку. Сорванное остаётся по
+    delivery_status: «не дозвонились» и «магазин закрыт» отмечает именно
+    курьер, и другого источника у этого нет.
+  */
   const [counts] = await db.select({
-    delivered: sql<number>`SUM(CASE WHEN ${orders.deliveryStatus} = 'delivered' THEN 1 ELSE 0 END)`,
+    delivered: sql<number>`SUM(CASE WHEN ${orders.status} = 'delivered' THEN 1 ELSE 0 END)`,
     failed: sql<number>`SUM(CASE WHEN ${orders.deliveryStatus} = 'failed' THEN 1 ELSE 0 END)`,
     returned: sql<number>`SUM(CASE WHEN ${orders.deliveryResult} IN ('returned', 'partial_returned') THEN 1 ELSE 0 END)`,
-    deliveredAmount: sql<string>`COALESCE(SUM(CASE WHEN ${orders.deliveryStatus} = 'delivered' THEN CAST(${orders.total} AS DECIMAL(15,2)) ELSE 0 END), 0)`,
+    deliveredAmount: sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'delivered' THEN CAST(${orders.total} AS DECIMAL(15,2)) ELSE 0 END), 0)`,
   }).from(orders)
     .where(and(
       eq(orders.tenantId, tenantId),
@@ -246,7 +263,9 @@ export async function getCourierDaily(
 ): Promise<CourierDay[]> {
   const rows = await db.select({
     date: sql<string>`DATE(COALESCE(${orders.deliveredAt}, ${orders.createdAt}))`,
-    delivered: sql<number>`SUM(CASE WHEN ${orders.deliveryStatus} = 'delivered' THEN 1 ELSE 0 END)`,
+    // Тот же счёт, что и в показателях: доставленный заказ, а не отметка в
+    // курьерском приложении.
+    delivered: sql<number>`SUM(CASE WHEN ${orders.status} = 'delivered' THEN 1 ELSE 0 END)`,
     failed: sql<number>`SUM(CASE WHEN ${orders.deliveryStatus} = 'failed' THEN 1 ELSE 0 END)`,
   }).from(orders)
     .where(and(
@@ -300,12 +319,13 @@ export async function getCourierList(
     начале следующего: по дате создания доставка попала бы в месяц, в котором
     курьер её ещё не делал.
   */
+  // Довезённое — по статусу заказа; почему так, см. calculateCourierStats.
   const rows = await db.select({
     courierId: orders.courierId,
-    delivered: sql<number>`SUM(CASE WHEN ${orders.deliveryStatus} = 'delivered' THEN 1 ELSE 0 END)`,
+    delivered: sql<number>`SUM(CASE WHEN ${orders.status} = 'delivered' THEN 1 ELSE 0 END)`,
     failed: sql<number>`SUM(CASE WHEN ${orders.deliveryStatus} = 'failed' THEN 1 ELSE 0 END)`,
     returned: sql<number>`SUM(CASE WHEN ${orders.deliveryResult} IN ('returned', 'partial_returned') THEN 1 ELSE 0 END)`,
-    deliveredAmount: sql<string>`COALESCE(SUM(CASE WHEN ${orders.deliveryStatus} = 'delivered' THEN CAST(${orders.total} AS DECIMAL(15,2)) ELSE 0 END), 0)`,
+    deliveredAmount: sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'delivered' THEN CAST(${orders.total} AS DECIMAL(15,2)) ELSE 0 END), 0)`,
   }).from(orders)
     .where(and(
       eq(orders.tenantId, tenantId),
