@@ -565,6 +565,27 @@ import { checkRateLimit, rateLimitSubject } from "./lib/rate-limit";
 
 const LOGIN_RATE_LIMIT = { windowMs: 15 * 60 * 1000, limit: 20, namespace: "login" };
 
+/**
+ * Второй счёт — по адресу в сети.
+ *
+ * ── Чего не хватало ─────────────────────────────────────────────────────────
+ *
+ * Попытки считались только по аккаунту. Против перебора пароля к ОДНОМУ
+ * человеку это верная защита, и считать глобально нельзя — двадцать чужих
+ * ошибок запирали продукт всей платформе.
+ *
+ * Но есть обратная атака: один расхожий пароль на СОТНЮ адресов. По каждому
+ * аккаунту это одна попытка из двадцати, счётчик не срабатывает ни разу, и
+ * перебирать можно бесконечно. Так подбирают не пароль к человеку, а человека
+ * к паролю, и в организации на двадцать сотрудников кто-нибудь да поставил
+ * «12345678».
+ *
+ * Предел здесь щедрее аккаунтного и намеренно: за одним адресом сидит целый
+ * офис, и рабочий день с общего NAT не должен упираться в защиту. Сто попыток
+ * в четверть часа с одного адреса — это уже не люди.
+ */
+const LOGIN_IP_RATE_LIMIT = { windowMs: 15 * 60 * 1000, limit: 100, namespace: "login-ip" };
+
 app.post("/api/login", async (c) => {
   try {
     // tenantId необязателен и нужен только для одного случая: адрес и пароль
@@ -580,6 +601,17 @@ app.post("/api/login", async (c) => {
     // anyone locked every tenant out of the product for fifteen minutes.
     const subject = rateLimitSubject(c.req.raw, `email:${String(email).trim().toLowerCase()}`);
     if (!(await checkRateLimit(subject, LOGIN_RATE_LIMIT))) {
+      return c.json({ error: "Too many login attempts. Please try again in 15 minutes." }, 429);
+    }
+
+    /*
+      И по адресу в сети — против перебора аккаунтов одним паролем.
+
+      Счёт по аккаунту такую атаку не видит: на каждый адрес приходится по одной
+      попытке. Оба счётчика нужны вместе — они ловят разные атаки.
+    */
+    const fromAddress = rateLimitSubject(c.req.raw);
+    if (fromAddress && !(await checkRateLimit(fromAddress, LOGIN_IP_RATE_LIMIT))) {
       return c.json({ error: "Too many login attempts. Please try again in 15 minutes." }, 429);
     }
 
