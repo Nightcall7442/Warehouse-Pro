@@ -1,4 +1,4 @@
-import { sql, eq, and, gte, lte, inArray, isNull, desc } from "drizzle-orm";
+import { sql, eq, and, gte, lte, inArray, isNull, isNotNull, desc } from "drizzle-orm";
 import { REVENUE_ORDER_STATUSES, revenueOrderConditions } from "../lib/order-status";
 import { orders, dailyPlans, returns, shops, salesTargets, commissions, agentLocations, visitReports, users, payments } from "@db/schema";
 import { calculateFraudMetrics } from "./anti-fraud";
@@ -191,6 +191,113 @@ export async function calculateCourierStats(
     // Ноль назначенных — это не «ноль процентов успеха», а «мерить нечего».
     successRate: assigned === 0 ? 0 : Number(((delivered / assigned) * 100).toFixed(1)),
   };
+}
+
+/**
+ * Список курьеров с их показателями — для руководителя.
+ *
+ * ── Зачем отдельный список ──────────────────────────────────────────────────
+ *
+ * В «KPI агентов» курьеров не было вовсе. Дописать их строками в агентскую
+ * таблицу нельзя: там заказы, выручка, визиты и оценка по визитам, а у курьера
+ * ничего этого нет — вышло бы четыре нуля и оценка «F» на человеке, который
+ * весь месяц возил. Ровно эту ошибку уже исправляли на его собственном экране.
+ *
+ * ── Почему одним запросом, а не в цикле ─────────────────────────────────────
+ *
+ * calculateCourierStats делает три обращения к базе на человека. Позвать её по
+ * очереди было бы короче на десять строк и дороже втрое: у арендатора с
+ * десятью курьерами это тридцать запросов на открытие экрана. Здесь два
+ * запроса с группировкой, независимо от числа людей.
+ */
+export interface CourierListEntry {
+  courierId: number;
+  courierName: string;
+  delivered: number;
+  failed: number;
+  returned: number;
+  deliveredAmount: number;
+  cashCollected: number;
+  successRate: number;
+}
+
+export async function getCourierList(
+  db: DrizzleInstance,
+  tenantId: number,
+  periodStart: Date,
+  periodEnd: Date,
+): Promise<CourierListEntry[]> {
+  const couriers = await db.select({ id: users.id, name: users.name })
+    .from(users)
+    .where(and(
+      eq(users.tenantId, tenantId),
+      eq(users.role, "courier"),
+      eq(users.status, "active"),
+    ))
+    .orderBy(users.name);
+
+  if (couriers.length === 0) return [];
+
+  /*
+    Считается по дате ДОСТАВКИ, а не создания заказа — то же правило, что и в
+    расчёте зарплаты. Заказ мог быть оформлен в конце месяца, а доехать в
+    начале следующего: по дате создания доставка попала бы в месяц, в котором
+    курьер её ещё не делал.
+  */
+  const rows = await db.select({
+    courierId: orders.courierId,
+    delivered: sql<number>`SUM(CASE WHEN ${orders.deliveryStatus} = 'delivered' THEN 1 ELSE 0 END)`,
+    failed: sql<number>`SUM(CASE WHEN ${orders.deliveryStatus} = 'failed' THEN 1 ELSE 0 END)`,
+    returned: sql<number>`SUM(CASE WHEN ${orders.deliveryResult} IN ('returned', 'partial_returned') THEN 1 ELSE 0 END)`,
+    deliveredAmount: sql<string>`COALESCE(SUM(CASE WHEN ${orders.deliveryStatus} = 'delivered' THEN CAST(${orders.total} AS DECIMAL(15,2)) ELSE 0 END), 0)`,
+  }).from(orders)
+    .where(and(
+      eq(orders.tenantId, tenantId),
+      isNotNull(orders.courierId),
+      isNull(orders.deletedAt),
+      gte(sql`COALESCE(${orders.deliveredAt}, ${orders.createdAt})`, periodStart),
+      lte(sql`COALESCE(${orders.deliveredAt}, ${orders.createdAt})`, periodEnd),
+    ))
+    .groupBy(orders.courierId);
+
+  /*
+    Наличные — по тому, КТО их внёс. Считать по заказу нельзя: тот же заказ мог
+    частью погасить агент при визите, и эти деньги курьеру не приписываются.
+  */
+  const cash = await db.select({
+    courierId: payments.createdBy,
+    total: sql<string>`COALESCE(SUM(CAST(${payments.amount} AS DECIMAL(15,2))), 0)`,
+  }).from(payments)
+    .where(and(
+      eq(payments.tenantId, tenantId),
+      eq(payments.type, "payment"),
+      gte(payments.createdAt, periodStart),
+      lte(payments.createdAt, periodEnd),
+    ))
+    .groupBy(payments.createdBy);
+
+  const byId = new Map(rows.map(r => [Number(r.courierId), r]));
+  const cashById = new Map(cash.map(r => [Number(r.courierId), Number(r.total ?? 0)]));
+
+  return couriers.map(c => {
+    const id = Number(c.id);
+    const row = byId.get(id);
+    const delivered = Number(row?.delivered ?? 0);
+    const failed = Number(row?.failed ?? 0);
+    const assigned = delivered + failed;
+
+    return {
+      courierId: id,
+      courierName: String(c.name ?? ""),
+      delivered,
+      failed,
+      returned: Number(row?.returned ?? 0),
+      deliveredAmount: Number(row?.deliveredAmount ?? 0),
+      cashCollected: cashById.get(id) ?? 0,
+      // Ноль назначенных — это не «ноль процентов успеха», а «мерить нечего».
+      successRate: assigned === 0 ? 0 : Number(((delivered / assigned) * 100).toFixed(1)),
+    };
+  });
 }
 
 export interface AgentListEntry {

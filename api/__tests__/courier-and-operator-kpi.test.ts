@@ -234,3 +234,86 @@ describe("курьеру можно платить процентом", () => {
     expect(router).toContain("input.courierPayMode === undefined ? {} :");
   });
 });
+
+/*
+  ── Курьеры в списке для руководителя ───────────────────────────────────────
+
+  В «KPI агентов» курьеров не было вовсе: руководитель видел четверых агентов и
+  ни одного из тех, кто возит. Дописать их строками в агентскую таблицу нельзя —
+  там заказы, выручка, визиты и оценка по визитам, а у курьера ничего этого нет:
+  вышло бы четыре нуля и «F» на человеке, который весь месяц работал. Ту же
+  ошибку уже исправляли на его собственном экране.
+*/
+describe("курьеры видны руководителю", () => {
+  const list = SERVICE.slice(
+    SERVICE.indexOf("export async function getCourierList"),
+    SERVICE.indexOf("export interface AgentListEntry"),
+  );
+
+  it("список есть и открыт тем же, кому список агентов", () => {
+    expect(KPI).toContain("courierList: managementQuery");
+    expect(rolesOf(kindOf("courierList"))).toEqual(rolesOf(kindOf("agentList")));
+  });
+
+  it("считается двумя запросами, а не по человеку в цикле", () => {
+    /*
+      calculateCourierStats делает три обращения к базе на человека. Позвать её
+      по очереди было бы короче и дороже втрое: у арендатора с десятью
+      курьерами это тридцать запросов на открытие экрана.
+    */
+    expect(list, "список считает курьеров поштучно").not.toContain("calculateCourierStats");
+    expect((list.match(/\.groupBy\(/g) ?? []).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("берёт только действующих курьеров своей организации", () => {
+    expect(list).toContain('eq(users.role, "courier")');
+    expect(list).toContain('eq(users.status, "active")');
+    expect(list).toContain("eq(users.tenantId, tenantId)");
+  });
+
+  it("доставки считаются по дате доставки, а не создания заказа", () => {
+    // То же правило, что и в расчёте зарплаты: заказ конца месяца мог доехать
+    // в начале следующего.
+    expect(list).toContain("COALESCE(${orders.deliveredAt}, ${orders.createdAt})");
+  });
+
+  it("курьер без заявок не получает ноль процентов успеха", () => {
+    /*
+      Ноль назначенных — «мерить нечего», а не «ноль процентов». Красный ноль
+      на курьере, которому не давали заявок, обвиняет его в чужом решении.
+    */
+    expect(list).toContain("assigned === 0 ? 0 :");
+    const page = read("src/pages/AgentKpi.tsx");
+    expect(page).toContain('assigned === 0 ? "—"');
+  });
+
+  it("у курьеров своя таблица и свои плитки", () => {
+    const page = read("src/pages/AgentKpi.tsx");
+    expect(page).toContain("CourierTable");
+    expect(page).toContain('tab === "couriers"');
+    // Агентские плитки курьеру не показываются: у него нет ни выручки, ни визитов.
+    expect(page).toMatch(/tab === "couriers" \? \(/);
+  });
+});
+
+/*
+  ── Оценка без данных ───────────────────────────────────────────────────────
+
+  У арендатора все четыре строки горели красным: 18·F, 25·F, 15·F, 48·D. Ни у
+  кого нет ни визитов, ни планов, у двоих нет и заказов — балл считался от нулей
+  и выходил приговором работе, которой не было.
+*/
+describe("балл не выносят приговор без данных", () => {
+  const page = read("src/pages/AgentKpi.tsx");
+
+  it("нет заказов и нет планов — вместо оценки сказано «нет данных»", () => {
+    expect(page).toContain("a.orderCount > 0 || a.totalPlans > 0");
+    expect(page).toContain("нет данных");
+  });
+
+  it("«0/0» визитов заменено прочерком", () => {
+    // Ноль из нуля — не результат, а отсутствие плана: визитов не назначали,
+    // и сравнивать не с чем.
+    expect(page).toContain('a.totalPlans > 0 ? `${a.visitedPlans}/${a.totalPlans}` : "—"');
+  });
+});

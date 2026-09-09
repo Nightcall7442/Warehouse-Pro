@@ -5,7 +5,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { notify } from "@/lib/toast";
 import { COLORS, F } from "@/components/products/constants";
 import { exportToExcel } from "@/lib/excel";
-import { Settings, Loader2, FileDown, Target, ShoppingCart, DollarSign, Users, Package, Star, MapPin, AlertTriangle } from "lucide-react";
+import { Settings, Loader2, FileDown, Target, ShoppingCart, DollarSign, Users, Package, PackageCheck, PackageX, Star, MapPin, AlertTriangle, Truck } from "lucide-react";
 import { ProgressRing } from "@/components/ProgressRing";
 import { RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer } from "recharts";
 import { PremiumSelect } from "@/components/PremiumSelect";
@@ -217,7 +217,7 @@ export default function AgentKpi() {
               </p>
             </div>
           )}
-          <SupervisorView kpi={allKpi} selectedKpi={selectedKpi ?? null} selectedSalary={selectedSalary} detailLoading={detailLoading} onSelect={setSelectedAgentId} selectedAgentId={selectedAgentId} fmt={fmt} t={t} lang={lang} />
+          <SupervisorView kpi={allKpi} period={period} selectedKpi={selectedKpi ?? null} selectedSalary={selectedSalary} detailLoading={detailLoading} onSelect={setSelectedAgentId} selectedAgentId={selectedAgentId} fmt={fmt} t={t} lang={lang} />
       </>
       ) : myKpi ? (
         <AgentView kpi={myKpi} salary={mySalary} fmt={fmt} t={t} lang={lang} />
@@ -388,8 +388,9 @@ function SalarySection({ salary, fmt, t }: { salary: SalaryData; fmt: (v: number
 
 // ── Supervisor View ───────────────────────────────────────────────────────────
 
-function SupervisorView({ kpi, selectedKpi, selectedSalary, detailLoading, onSelect, selectedAgentId, fmt, t, lang }: {
+function SupervisorView({ kpi, period, selectedKpi, selectedSalary, detailLoading, onSelect, selectedAgentId, fmt, t, lang }: {
   kpi: AgentListEntry[];
+  period: "week" | "month" | "quarter";
   selectedKpi: KpiData | null;
   selectedSalary?: SalaryData;
   detailLoading: boolean;
@@ -408,6 +409,21 @@ function SupervisorView({ kpi, selectedKpi, selectedSalary, detailLoading, onSel
   */
   const canConfigureSalary = viewer?.role === "ceo" || viewer?.role === "operator";
 
+  /*
+    Кого смотрим — агентов или курьеров.
+
+    Курьеров на этом экране не было вовсе. Дописать их строками в агентскую
+    таблицу нельзя: там заказы, выручка, визиты и оценка по визитам, а у
+    курьера ничего этого нет — вышло бы четыре нуля и «F» на человеке, который
+    весь месяц возил. Ровно эту ошибку уже исправляли на его собственном
+    экране, и повторять её здесь незачем.
+  */
+  const [tab, setTab] = useState<"agents" | "couriers">("agents");
+  const { data: couriers, isLoading: couriersLoading } = trpc.kpi.courierList.useQuery(
+    { period },
+    { enabled: tab === "couriers" },
+  );
+
   const [showSalaryConfig, setShowSalaryConfig] = useState(false);
   const [territoryFilter, setTerritoryFilter] = useState<string>("all");
   const { data: territories } = trpc.territory.list.useQuery();
@@ -423,6 +439,21 @@ function SupervisorView({ kpi, selectedKpi, selectedSalary, detailLoading, onSel
   const totalVisits = filteredKpi.reduce((s, k) => s + k.visitedPlans, 0);
   const avgScore = filteredKpi.length > 0 ? Math.round(filteredKpi.reduce((s, k) => s + k.kpiScore, 0) / filteredKpi.length) : 0;
   const suspiciousTotal = filteredKpi.reduce((s, k) => s + k.suspiciousVisits, 0);
+
+  const courierRows = couriers ?? [];
+  const courierTotals = (() => {
+    const delivered = courierRows.reduce((n, c) => n + c.delivered, 0);
+    const failed = courierRows.reduce((n, c) => n + c.failed, 0);
+    const assigned = delivered + failed;
+    return {
+      delivered, failed, assigned,
+      // Доля считается от ОБЩЕГО назначенного, а не средним по людям: средним
+      // курьер с двумя заявками весит столько же, сколько курьер с двумя сотнями.
+      rate: assigned === 0 ? 0 : Math.round((delivered / assigned) * 100),
+      deliveredAmount: courierRows.reduce((n, c) => n + c.deliveredAmount, 0),
+      cash: courierRows.reduce((n, c) => n + c.cashCollected, 0),
+    };
+  })();
 
   return (
     <>
@@ -445,7 +476,23 @@ function SupervisorView({ kpi, selectedKpi, selectedSalary, detailLoading, onSel
         </div>
       </div>
 
-      {/* Summary Cards */}
+      {/*
+        Сводка под тех, кого смотрим.
+
+        У курьера нет ни выручки, ни визитов, ни оценки по планам: показывать
+        ему агентские плитки значило бы шесть нулей и вывод «команда не
+        работает» там, где она весь месяц возила.
+      */}
+      {tab === "couriers" ? (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 stagger-children">
+          <KpiHero label={t("Курьеров", "Kuryerlar")} value={String(courierRows.length)} color="var(--color-primary-text)" progress={1} icon={<Users size={20} color="var(--color-primary-text)" />} />
+          <KpiHero label={t("Довезено", "Yetkazildi")} value={String(courierTotals.delivered)} color="var(--color-primary-text)" progress={Math.min(1, courierTotals.delivered / 200)} icon={<PackageCheck size={20} color="var(--color-primary-text)" />} />
+          <KpiHero label={t("Сорвано", "Bajarilmadi")} value={String(courierTotals.failed)} color={courierTotals.failed > 0 ? "var(--color-danger-text)" : "var(--color-text-tertiary)"} progress={Math.min(1, courierTotals.failed / 50)} icon={<PackageX size={20} color={courierTotals.failed > 0 ? "var(--color-danger-text)" : "var(--color-text-tertiary)"} />} />
+          <KpiHero label={t("Доля успешных", "Muvaffaqiyat")} value={courierTotals.assigned > 0 ? `${courierTotals.rate}%` : "—"} sub={courierTotals.assigned > 0 ? undefined : t("нечего мерить", "o'lchash uchun narsa yo'q")} color="var(--color-primary-text)" progress={courierTotals.rate / 100} icon={<Target size={20} color="var(--color-primary-text)" />} />
+          <KpiHero label={t("Сумма довезённого", "Yetkazilgan summa")} value={fmt(courierTotals.deliveredAmount)} color="var(--color-primary-text)" progress={Math.min(1, courierTotals.deliveredAmount / 10_000_000)} icon={<Package size={20} color="var(--color-primary-text)" />} />
+          <KpiHero label={t("Привезено денег", "Pul olib kelindi")} value={fmt(courierTotals.cash)} color="var(--color-primary-text)" progress={Math.min(1, courierTotals.cash / 10_000_000)} icon={<DollarSign size={20} color="var(--color-primary-text)" />} />
+        </div>
+      ) : (
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 stagger-children">
         <KpiHero label={t("Агентов", "Agentlar")} value={String(filteredKpi.length)} color="var(--color-primary-text)" progress={1} icon={<Users size={20} color="var(--color-primary-text)" />} />
         <KpiHero label={t("Средний балл", "O'rtacha")} value={String(avgScore)} color="var(--color-primary-text)" progress={avgScore / 100} icon={<Star size={20} color="var(--color-primary-text)" />} />
@@ -454,8 +501,9 @@ function SupervisorView({ kpi, selectedKpi, selectedSalary, detailLoading, onSel
         <KpiHero label={t("Визиты", "Tashrif")} value={String(totalVisits)} color="var(--color-warning-text)" progress={Math.min(1, totalVisits / 200)} icon={<MapPin size={20} color="var(--color-warning-text)" />} />
         <KpiHero label={t("Фрод", "Frod")} value={String(suspiciousTotal)} color="var(--color-danger-text)" progress={Math.min(1, suspiciousTotal / 20)} icon={<AlertTriangle size={20} color="var(--color-danger-text)" />} />
       </div>
+      )}
 
-      {suspiciousTotal > 0 && (
+      {tab === "agents" && suspiciousTotal > 0 && (
         <div className="neo-card p-4" style={{ borderLeft: "4px solid #d45050" }}>
           <span className="text-sm font-semibold" style={{ color: "var(--color-danger-text)" }}>
             ⚠ {t("Подозрительная активность", "Shubhali faoliyat")}: {suspiciousTotal} {t("визитов", "tashrif")}
@@ -465,10 +513,25 @@ function SupervisorView({ kpi, selectedKpi, selectedSalary, detailLoading, onSel
 
       {/* Agent Table */}
       <div className="neo-card overflow-hidden">
-        <div className="flex items-center justify-between p-4 border-b" style={{ borderColor: "var(--color-border)" }}>
-          <h3 style={{ fontFamily: F.display, fontSize: "14px", fontWeight: 600, color: COLORS.textPrimary }}>
-            {t("Дашборд агентов", "Agentlar dashboard")}
-          </h3>
+        <div className="flex items-center justify-between p-4 border-b gap-3 flex-wrap" style={{ borderColor: "var(--color-border)" }}>
+          {/*
+            «Дашборд агентов» переименован: слово чужое, а рядом стоит «Настройка
+            ЗП» — на одном заголовке два языка. И называть надо не таблицу, а
+            людей, которых в ней смотрят.
+          */}
+          <div role="tablist" aria-label={t("Кого смотрим", "Kimni ko'ramiz")} className="range-pills">
+            {([["agents", t("Агенты", "Agentlar")], ["couriers", t("Курьеры", "Kuryerlar")]] as const).map(([key, label]) => (
+              <button
+                key={key}
+                role="tab"
+                aria-selected={tab === key}
+                onClick={() => setTab(key)}
+                className={"range-pill tap" + (tab === key ? " active" : "")}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           {/*
             Только тем, кто может её сохранить.
 
@@ -488,8 +551,29 @@ function SupervisorView({ kpi, selectedKpi, selectedSalary, detailLoading, onSel
 
         {canConfigureSalary && showSalaryConfig && <div className="p-4 border-b" style={{ borderColor: "var(--color-border)" }}><SalaryConfig t={t} /></div>}
 
+        {tab === "couriers" ? (
+          <CourierTable rows={courierRows} loading={couriersLoading} fmt={fmt} t={t} />
+        ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm" style={{ tableLayout: "fixed" }}>
+            <colgroup>
+              {/*
+                Ширины заданы явно.
+
+                Без них браузер раздаёт место поровну между семью колонками, и
+                при коротких значениях («0», «нет») таблица растягивается на всю
+                ширину экрана: имя жмётся к левому краю, числа уезжают к
+                правому, а между ними — ладонь пустоты. Смотреть строку
+                приходится в два приёма.
+              */}
+              <col style={{ width: "44px" }} />
+              <col />
+              <col style={{ width: "112px" }} />
+              <col style={{ width: "92px" }} />
+              <col style={{ width: "160px" }} />
+              <col style={{ width: "104px" }} />
+              <col style={{ width: "104px" }} />
+            </colgroup>
             <thead>
               <tr style={{ background: "var(--color-surface-light)" }}>
                 {/*
@@ -514,6 +598,16 @@ function SupervisorView({ kpi, selectedKpi, selectedSalary, detailLoading, onSel
             </thead>
             <tbody>
               {filteredKpi.map((a, i) => {
+                /*
+                  Есть ли что мерить.
+
+                  Ни заказов, ни планов — значит человеку ничего не назначали
+                  или он не начинал. Балл в этом случае считается от нулей и
+                  выходит «15 · F»: на экране это красная плашка и приговор
+                  работе, которой не было. Все четыре строки у арендатора
+                  горели красным именно поэтому.
+                */
+                const measurable = a.orderCount > 0 || a.totalPlans > 0;
                 const grade = GRADES[a.kpiGrade] ?? GRADES.F;
                 return (
                   <tr key={a.agentId} onClick={() => onSelect(selectedAgentId === a.agentId ? null : a.agentId)}
@@ -535,14 +629,26 @@ function SupervisorView({ kpi, selectedKpi, selectedSalary, detailLoading, onSel
                         {i + 1}
                       </div>
                     </td>
-                    <td className="px-3 py-2.5 font-semibold" style={{ color: COLORS.textPrimary }}>{a.agentName}</td>
-                    <td className="px-3 py-2.5"><span className="px-2 py-0.5 rounded text-xs font-bold" style={{ background: colorMix(grade.color, 8), color: grade.color }}>{a.kpiScore} • {a.kpiGrade}</span></td>
-                    <td className="px-3 py-2.5 text-right tabular-nums" style={{ color: COLORS.textPrimary }}>{a.orderCount}</td>
-                    <td className="px-3 py-2.5 text-right font-semibold tabular-nums" style={{ color: COLORS.textPrimary }}>{fmt(a.revenue)}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums" style={{ color: COLORS.textPrimary }}>{a.visitedPlans}/{a.totalPlans}</td>
+                    <td className="px-3 py-2.5 font-semibold truncate" style={{ color: COLORS.textPrimary }}>{a.agentName}</td>
+                    <td className="px-3 py-2.5">
+                      {measurable ? (
+                        <span className="px-2 py-0.5 rounded text-xs font-bold" style={{ background: colorMix(grade.color, 8), color: grade.color }}>
+                          {a.kpiScore} • {a.kpiGrade}
+                        </span>
+                      ) : (
+                        <span className="text-xs" style={{ color: COLORS.textTertiary }}>{t("нет данных", "ma'lumot yo'q")}</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5 text-right tabular-nums" style={{ color: a.orderCount > 0 ? COLORS.textPrimary : COLORS.textTertiary }}>{a.orderCount}</td>
+                    <td className="px-3 py-2.5 text-right font-semibold tabular-nums" style={{ color: a.revenue > 0 ? COLORS.textPrimary : COLORS.textTertiary }}>{a.revenue > 0 ? fmt(a.revenue) : "—"}</td>
+                    {/* «0/0» — не результат, а отсутствие плана: визитов не
+                        назначали, и сравнивать не с чем. */}
+                    <td className="px-3 py-2.5 text-right tabular-nums" style={{ color: a.totalPlans > 0 ? COLORS.textPrimary : COLORS.textTertiary }}>
+                      {a.totalPlans > 0 ? `${a.visitedPlans}/${a.totalPlans}` : "—"}
+                    </td>
                     <td className="px-3 py-2.5 text-right">
                       {a.suspiciousVisits > 0 ? (
-                        <span className="px-2 py-0.5 rounded text-xs font-bold" style={{ background: "rgba(212,80,80,.10)", color: "var(--color-danger-text)" }}>{a.suspiciousVisits} ({a.fraudRate}%)</span>
+                        <span className="px-2 py-0.5 rounded text-xs font-bold" style={{ background: "var(--color-danger-subtle)", color: "var(--color-danger-text)" }}>{a.suspiciousVisits} ({a.fraudRate}%)</span>
                       ) : (
                         // Галочка в столбце «Фрод» читается как флажок, а не как
                         // ответ: непонятно, отмечен агент или проверен. Слово
@@ -556,6 +662,7 @@ function SupervisorView({ kpi, selectedKpi, selectedSalary, detailLoading, onSel
             </tbody>
           </table>
         </div>
+        )}
       </div>
 
       {detailLoading && (
@@ -563,8 +670,122 @@ function SupervisorView({ kpi, selectedKpi, selectedSalary, detailLoading, onSel
           <div className="w-6 h-6 rounded-full border-2 border-[var(--color-border)] border-t-[var(--color-primary)] animate-spin" />
         </div>
       )}
-      {selectedKpi && <AgentView kpi={selectedKpi} salary={selectedSalary} fmt={fmt} t={t} lang={lang} />}
+      {tab === "agents" && selectedKpi && <AgentView kpi={selectedKpi} salary={selectedSalary} fmt={fmt} t={t} lang={lang} />}
     </>
+  );
+}
+
+interface CourierRow {
+  courierId: number;
+  courierName: string;
+  delivered: number;
+  failed: number;
+  returned: number;
+  deliveredAmount: number;
+  cashCollected: number;
+  successRate: number;
+}
+
+/**
+ * Курьеры — своей таблицей, а не строками в агентской.
+ *
+ * У курьера нет ни заказов, ни выручки, ни визитов, ни оценки по планам:
+ * подмешав его к агентам, руководитель увидел бы четыре нуля и «F» на
+ * человеке, который весь месяц возил. Здесь то, что курьер действительно
+ * делает: довёз, сорвал, вернул, привёз ли деньги.
+ */
+function CourierTable({ rows, loading, fmt, t }: {
+  rows: CourierRow[];
+  loading: boolean;
+  fmt: (v: number) => string;
+  t: (r: string, u: string) => string;
+}) {
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-10">
+        <div className="w-6 h-6 rounded-full border-2 border-[var(--color-border)] border-t-[var(--color-primary)] animate-spin" />
+      </div>
+    );
+  }
+
+  if (rows.length === 0) {
+    return (
+      <div style={{ padding: "40px 20px", textAlign: "center" }}>
+        <Truck size={30} style={{ margin: "0 auto 10px", display: "block", color: COLORS.textTertiary }} />
+        <p style={{ fontSize: "13.5px", color: COLORS.textPrimary, marginBottom: "3px" }}>
+          {t("Курьеров нет", "Kuryerlar yo'q")}
+        </p>
+        <p style={{ fontSize: "12px", color: COLORS.textTertiary }}>
+          {t("Заведите сотрудника с ролью «Курьер» — он появится здесь", "«Kuryer» rolidagi xodim qo'shing")}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm" style={{ tableLayout: "fixed" }}>
+        <colgroup>
+          <col />
+          <col style={{ width: "96px" }} />
+          <col style={{ width: "96px" }} />
+          <col style={{ width: "112px" }} />
+          <col style={{ width: "160px" }} />
+          <col style={{ width: "160px" }} />
+        </colgroup>
+        <thead>
+          <tr style={{ background: "var(--color-surface-light)" }}>
+            {[
+              { h: t("Курьер", "Kuryer"), right: false },
+              { h: t("Довезено", "Yetkazildi"), right: true },
+              { h: t("Сорвано", "Bajarilmadi"), right: true },
+              { h: t("Доля", "Ulush"), right: true },
+              { h: t("Сумма довезённого", "Yetkazilgan summa"), right: true },
+              { h: t("Привезено денег", "Pul olib kelindi"), right: true },
+            ].map((c, i) => (
+              <th key={i} className={`px-3 py-2.5 text-[10px] font-semibold uppercase tracking-wider ${c.right ? "text-right" : "text-left"}`}
+                style={{ color: COLORS.textTertiary }}>{c.h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(c => {
+            const assigned = c.delivered + c.failed;
+            return (
+              <tr key={c.courierId} style={{ borderBottom: "1px solid var(--color-border)" }}>
+                <td className="px-3 py-2.5 font-semibold truncate" style={{ color: COLORS.textPrimary }}>
+                  {c.courierName}
+                  {/* Возвраты — не отдельная колонка: они редки, и пустой
+                      столбец занимал бы место у тех пяти чисел, ради которых
+                      таблицу открывают. */}
+                  {c.returned > 0 && (
+                    <span className="text-xs font-normal" style={{ color: "var(--color-warning-text)" }}>
+                      {" · "}{t(`возвратов ${c.returned}`, `${c.returned} qaytarish`)}
+                    </span>
+                  )}
+                </td>
+                <td className="px-3 py-2.5 text-right tabular-nums font-semibold" style={{ color: c.delivered > 0 ? COLORS.textPrimary : COLORS.textTertiary }}>{c.delivered}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums" style={{ color: c.failed > 0 ? "var(--color-danger-text)" : COLORS.textTertiary }}>{c.failed}</td>
+                {/*
+                  Ноль назначенных — это «мерить нечего», а не «ноль процентов
+                  успеха». Красный ноль на курьере, которому не давали заявок,
+                  обвиняет его в чужом решении.
+                */}
+                <td className="px-3 py-2.5 text-right tabular-nums" style={{ color: assigned === 0 ? COLORS.textTertiary : COLORS.textPrimary }}>
+                  {assigned === 0 ? "—" : `${c.successRate}%`}
+                </td>
+                <td className="px-3 py-2.5 text-right tabular-nums" style={{ color: c.deliveredAmount > 0 ? COLORS.textPrimary : COLORS.textTertiary }}>
+                  {c.deliveredAmount > 0 ? fmt(c.deliveredAmount) : "—"}
+                </td>
+                <td className="px-3 py-2.5 text-right tabular-nums font-semibold" style={{ color: c.cashCollected > 0 ? COLORS.textPrimary : COLORS.textTertiary }}>
+                  {c.cashCollected > 0 ? fmt(c.cashCollected) : "—"}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

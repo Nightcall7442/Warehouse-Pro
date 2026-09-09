@@ -4,7 +4,7 @@ import { createRouter, fieldSalesQuery, supervisorQuery, selfKpiQuery, managemen
 import { getDb } from "./queries/connection";
 import { getPeriod } from "./lib/period";
 import { onDate } from "./lib/date-range";
-import { calculateAgentKpi, calculateAllAgentsKpi, calculateCourierStats, calculateSalary, getAgentList } from "./services/kpi";
+import { calculateAgentKpi, calculateAllAgentsKpi, calculateCourierStats, calculateSalary, getAgentList, getCourierList } from "./services/kpi";
 import { withCache, CacheTTL, cache, CacheKeys } from "./lib/cache";
 import { recordAudit } from "./services/audit-log";
 import { getClientIp } from "./lib/rate-limit";
@@ -95,6 +95,23 @@ export const kpiRouter = createRouter({
       const { periodStart, periodEnd } = getPeriod(period);
 
       return getAgentList(db, ctx.tenant.id, periodStart, periodEnd);
+    }),
+
+  /*
+    Список курьеров — тем же, кому открыт список агентов.
+
+    Отдельной ручкой, а не полем в agentList: у курьера другие показатели, и
+    подмешать его в агентский список значило бы отдать экрану строку с
+    четырьмя нулями и оценкой «F» на человеке, который весь месяц возил.
+  */
+  courierList: managementQuery
+    .input(z.object({
+      period: z.enum(["week", "month", "quarter"]).default("month"),
+    }).optional())
+    .query(async ({ input, ctx }) => {
+      const db = getDb();
+      const { periodStart, periodEnd } = getPeriod(input?.period ?? "month");
+      return getCourierList(db, ctx.tenant.id, periodStart, periodEnd);
     }),
 
   // Тот же набор ролей, что и у списка выше.
