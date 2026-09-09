@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { createRouter, operatorQuery } from "./middleware";
 import { arrivals, arrivalItems, products, warehouses, suppliers, supplies, supplierPayments } from "@db/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
@@ -19,6 +20,8 @@ type ArrivalItemRow = {
   sellingPrice: string | null;
   productName:  string | null;
   productCode:  string | null;
+  batchNumber:  string | null;
+  expiresAt:    string | null;
 };
 
 export const arrivalRouter = createRouter({
@@ -86,9 +89,9 @@ export const arrivalRouter = createRouter({
       if (!arrival) return null;
 
       // Always use raw SQL for items — avoids Drizzle referencing non-existent columns
-      let items: Array<{ id: number; productId: number; quantity: number; condition: string; notes: string; productName: string; productCode: string; costPrice: string; sellingPrice: string }>;
+      let items: Array<{ id: number; productId: number; quantity: number; condition: string; notes: string; productName: string; productCode: string; costPrice: string; sellingPrice: string; batchNumber: string | null; expiresAt: string | null }>;
       try {
-        const result = await db.execute(sql`SELECT ai.id, ai.product_id AS productId, ai.quantity, ai.condition, ai.notes, ai.cost_price AS costPrice, ai.selling_price AS sellingPrice, p.name AS productName, p.code AS productCode FROM arrival_items ai LEFT JOIN products p ON ai.product_id = p.id WHERE ai.arrival_id = ${arrival.id}`);
+        const result = await db.execute(sql`SELECT ai.id, ai.product_id AS productId, ai.quantity, ai.condition, ai.notes, ai.cost_price AS costPrice, ai.selling_price AS sellingPrice, ai.batch_number AS batchNumber, DATE_FORMAT(ai.expires_at, '%Y-%m-%d') AS expiresAt, p.name AS productName, p.code AS productCode FROM arrival_items ai LEFT JOIN products p ON ai.product_id = p.id WHERE ai.arrival_id = ${arrival.id}`);
         const [rows] = result as unknown as [ArrivalItemRow[], unknown];
         items = Array.isArray(rows) ? rows.map(r => ({
           id: Number(r.id),
@@ -100,6 +103,10 @@ export const arrivalRouter = createRouter({
           productCode: String(r.productCode ?? ""),
           costPrice: String(r.costPrice ?? "0.00"),
           sellingPrice: String(r.sellingPrice ?? "0.00"),
+          // Пусто — это «не заполняли», а не пустая строка: у бытовой химии
+          // срока годности нет вовсе, и экран должен различать эти два случая.
+          batchNumber: r.batchNumber ?? null,
+          expiresAt: r.expiresAt ?? null,
         })) : [];
       } catch {
         items = [];
@@ -118,7 +125,23 @@ export const arrivalRouter = createRouter({
       tollCost:    decimalOrDefault("0.00").default("0.00"),
       otherCost:   decimalOrDefault("0.00").default("0.00"),
       notes:       z.string().optional(),
-      items:       z.array(z.object({ productId: z.number(), quantity: z.string().refine(v => Number(v) > 0, "Количество должно быть положительным"), costPrice: decimalOrDefault("0.00").optional(), sellingPrice: decimalOrDefault("0.00").optional(), condition: z.string().optional() })).optional(),
+      /*
+        Партия и срок годности — необязательны и оба сразу.
+
+        У бытовой химии и посуды срока нет вовсе, и требовать его — верный
+        способ получить «01.01.2099» во всех строках. А там, где он есть, это
+        единственный момент, когда его вообще можно записать: на остатке лежит
+        одно число на товар, без памяти о том, какими партиями оно набралось.
+      */
+      items:       z.array(z.object({
+        productId: z.number(),
+        quantity: z.string().refine(v => Number(v) > 0, "Количество должно быть положительным"),
+        costPrice: decimalOrDefault("0.00").optional(),
+        sellingPrice: decimalOrDefault("0.00").optional(),
+        condition: z.string().optional(),
+        batchNumber: z.string().max(64).optional(),
+        expiresAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Срок годности задаётся как ГГГГ-ММ-ДД").optional(),
+      })).optional(),
       // Долг перед поставщиком, привязанный к этому приходу. Опционален
       // целиком: обычный приход без учёта задолженности не заполняет это
       // поле вовсе. Ровно один способ назвать поставщика — supplierId ИЛИ
@@ -139,6 +162,22 @@ export const arrivalRouter = createRouter({
     .mutation(async ({ input, ctx }) => {
       const db       = ctx.db;
       const tenantId = ctx.tenant.id;
+
+      /*
+        Срок годности раньше дня прихода — это опечатка, а не товар.
+
+        Проверка здесь, а не в схеме входа: zod видит поля по одному, а сравнить
+        надо с датой самого прихода. Принять такую строку значит завести партию,
+        которая просрочена в момент приёмки, и объяснять потом, откуда она.
+      */
+      for (const item of input.items ?? []) {
+        if (item.expiresAt && item.expiresAt < input.arrivalDate) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Срок годности ${item.expiresAt} раньше даты прихода ${input.arrivalDate}`,
+          });
+        }
+      }
       const raw = crypto.randomUUID().replace(/-/g, "");
       const arrivalNumber = `ARR-${raw.slice(0, 12).toUpperCase()}`;
       const totalExpense  = (Number(input.fuelCost) + Number(input.tollCost) + Number(input.otherCost)).toFixed(2);
@@ -243,6 +282,13 @@ export const arrivalRouter = createRouter({
               costPrice: item.costPrice ?? "0.00",
               sellingPrice: item.sellingPrice ?? "0.00",
               condition: item.condition ? sanitizeString(item.condition) : undefined,
+              batchNumber: item.batchNumber ? sanitizeString(item.batchNumber) : null,
+              /*
+                Дата уходит строкой, а не Date: колонка DATE времени не хранит,
+                а Date драйвер развернул бы в поясе сервера и мог сдвинуть день.
+                Тот же случай, что с ключом месяца в api/lib/period.ts.
+              */
+              expiresAt: item.expiresAt ? sql`${item.expiresAt}` : null,
             });
           }
         }

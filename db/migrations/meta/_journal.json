@@ -106,6 +106,13 @@
       "when": 1788982410321,
       "tag": "0014_operator_access",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "5",
+      "when": 1788992280517,
+      "tag": "0015_arrival_batch",
+      "breakpoints": true
     }
   ]
 }

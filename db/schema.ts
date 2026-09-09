@@ -573,6 +573,24 @@ export const arrivalItems = mysqlTable("arrival_items", {
   quantity:     decimal("quantity", { precision: 12, scale: 2 }).notNull(),
   costPrice:    decimal("cost_price", { precision: 10, scale: 2 }).default("0.00"),
   sellingPrice: decimal("selling_price", { precision: 10, scale: 2 }).default("0.00"),
+  /*
+    Партия и срок годности — записываются там, где товар ВХОДИТ.
+
+    Приход — единственная дверь, через которую продукты появляются на складе с
+    известной датой. Не записав срок здесь, его потом неоткуда взять: на
+    остатке лежит одно число на товар, без всякой памяти о том, какими
+    партиями оно набралось.
+
+    Обе колонки необязательны: у бытовой химии и посуды срока годности нет, и
+    заставлять кладовщика придумывать его — верный способ получить «01.01.2099»
+    во всех строках.
+
+    Учёт остатка по партиям (списание по FEFO, отчёт «сгорает через неделю»)
+    сюда НЕ входит и появится отдельно: остаток меняют девятнадцать мест сырым
+    SQL, и параллельный учёт по партиям разъехался бы с ним за неделю.
+  */
+  batchNumber:  varchar("batch_number", { length: 64 }),
+  expiresAt:    date("expires_at"),
   condition:    varchar("condition", { length: 255 }),
   notes:        text("notes"),
   createdAt:    timestamp("created_at").defaultNow().notNull(),

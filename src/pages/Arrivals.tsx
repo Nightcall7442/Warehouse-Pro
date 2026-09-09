@@ -134,15 +134,15 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: ArrivalCreate
     ((supplierMode === "existing" ? supplierId > 0 : newSupplierName.trim().length > 0)
       && Number(supplyAmount) > 0
       && (supplyCurrency === "UZS" || Number(supplyRate) > 0));
-  const [items, setItems] = useState<{ productId: number; quantity: string; costPrice: string; sellingPrice: string; condition: string; unit: string; unitWeight: number }[]>([
-    { productId: 0, quantity: "", costPrice: "", sellingPrice: "", condition: "Хорошее", unit: "pcs", unitWeight: 0 },
+  const [items, setItems] = useState<{ productId: number; quantity: string; costPrice: string; sellingPrice: string; condition: string; unit: string; unitWeight: number; batchNumber: string; expiresAt: string }[]>([
+    { productId: 0, quantity: "", costPrice: "", sellingPrice: "", condition: "Хорошее", unit: "pcs", unitWeight: 0, batchNumber: "", expiresAt: "" },
   ]);
 
   const totalExpense = Number(form.fuelCost) + Number(form.tollCost) + Number(form.otherCost);
   const totalWeight = items.reduce((s, i) => s + Number(i.quantity || 0) * (i.unitWeight || 1), 0);
   const totalCost = items.reduce((s, i) => s + Number(i.quantity || 0) * Number(i.costPrice || 0), 0);
 
-  const addItem = () => setItems(p => [...p, { productId: 0, quantity: "", costPrice: "", sellingPrice: "", condition: "Хорошее", unit: "pcs", unitWeight: 0 }]);
+  const addItem = () => setItems(p => [...p, { productId: 0, quantity: "", costPrice: "", sellingPrice: "", condition: "Хорошее", unit: "pcs", unitWeight: 0, batchNumber: "", expiresAt: "" }]);
   const removeItem = (i: number) => setItems(p => p.filter((_, idx) => idx !== i));
   const updateItem = (i: number, field: string, val: string | number) => {
     setItems(p => p.map((item, idx) => {
@@ -317,6 +317,32 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: ArrivalCreate
                       <label className="font-label text-[10px] text-secondary mb-1.5 block">{t("Состояние", "Holat")}</label>
                       <input className="neo-input" style={{ padding: "8px 10px" }} placeholder={t("Хорошее", "Yaxshi")} value={item.condition} onChange={e => updateItem(i, "condition", e.target.value)} />
                     </div>
+                    {/*
+                      Партия и срок годности.
+
+                      Приёмка — единственный момент, когда срок вообще можно
+                      записать: на остатке лежит одно число на товар, без
+                      памяти о том, какими партиями оно набралось. Поля
+                      необязательные — у бытовой химии срока нет, и требовать
+                      его значит получить «01.01.2099» во всех строках.
+                    */}
+                    <div>
+                      <label className="font-label text-[10px] text-secondary mb-1.5 block">{t("Партия", "Partiya")}</label>
+                      <input className="neo-input" style={{ padding: "8px 10px" }} placeholder={t("необязательно", "ixtiyoriy")} value={item.batchNumber} onChange={e => updateItem(i, "batchNumber", e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="font-label text-[10px] text-secondary mb-1.5 block">{t("Годен до", "Muddati")}</label>
+                      {/* Раньше дня прихода срока не бывает: сервер такую строку
+                          отклонит, и календарь не должен её предлагать. */}
+                      <input
+                        type="date"
+                        className="neo-input"
+                        style={{ padding: "8px 10px" }}
+                        value={item.expiresAt}
+                        min={form.arrivalDate}
+                        onChange={e => updateItem(i, "expiresAt", e.target.value)}
+                      />
+                    </div>
                     <div className="flex justify-end">
                       {items.length > 1 && (
                         <button onClick={() => removeItem(i)} className="w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:bg-red-50" style={{ border: "none", background: "transparent", color: "var(--color-danger-text)", cursor: "pointer" }}>
@@ -343,7 +369,15 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: ArrivalCreate
           <div className="flex gap-3 pt-2">
             <button onClick={() => form.arrivalDate && supplierValid && onSave({
                 ...form,
-                items: items.filter(i => i.productId > 0 && Number(i.quantity) > 0).map(i => ({ productId: i.productId, quantity: i.quantity, costPrice: i.costPrice, sellingPrice: i.sellingPrice, condition: i.condition })),
+                items: items.filter(i => i.productId > 0 && Number(i.quantity) > 0).map(i => ({
+                  productId: i.productId, quantity: i.quantity, costPrice: i.costPrice,
+                  sellingPrice: i.sellingPrice, condition: i.condition,
+                  // Пустое поле — это «не заполняли», и на сервер уходит
+                  // отсутствие, а не пустая строка: иначе у половины партий
+                  // появился бы номер «».
+                  batchNumber: i.batchNumber.trim() || undefined,
+                  expiresAt: i.expiresAt || undefined,
+                })),
                 supplier: supplierMode === "none" ? undefined : {
                   supplierId:      supplierMode === "existing" ? supplierId : undefined,
                   newSupplierName: supplierMode === "new" ? newSupplierName.trim() : undefined,
@@ -682,7 +716,7 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
                 <table style={{ width: "100%", minWidth: "520px", borderCollapse: "separate", borderSpacing: 0 }}>
                   <thead>
                     <tr>
-                      {[t("Товар", "Mahsulot"), t("Код", "Kod"), t("Кол-во", "Miqdor"), t("Себест.", "Tannarx"), t("Продажа", "Sotish"), t("Состояние", "Holat")].map(h => (
+                      {[t("Товар", "Mahsulot"), t("Код", "Kod"), t("Кол-во", "Miqdor"), t("Себест.", "Tannarx"), t("Продажа", "Sotish"), t("Состояние", "Holat"), t("Партия", "Partiya"), t("Годен до", "Muddati")].map(h => (
                         <th key={h} style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-text-tertiary)", padding: "10px 14px", textAlign: "left", borderBottom: "1px solid var(--color-border)", background: "var(--color-surface-light)" }}>{h}</th>
                       ))}
                     </tr>
@@ -696,6 +730,30 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
                         <td style={{ padding: "12px 14px", fontSize: "13px", color: "var(--color-text-secondary)", borderBottom: "1px solid var(--color-border)", textAlign: "right" }}>{fmt(item.costPrice ?? 0)}</td>
                         <td style={{ padding: "12px 14px", fontSize: "13px", color: "var(--color-text-primary)", fontWeight: 600, borderBottom: "1px solid var(--color-border)", textAlign: "right" }}>{fmt(item.sellingPrice ?? 0)}</td>
                         <td style={{ padding: "12px 14px", fontSize: "13px", color: "var(--color-text-secondary)", borderBottom: "1px solid var(--color-border)" }}>{item.condition ?? "—"}</td>
+                        <td style={{ padding: "12px 14px", fontSize: "12px", color: "var(--color-text-tertiary)", fontFamily: "monospace", borderBottom: "1px solid var(--color-border)" }}>{item.batchNumber || "—"}</td>
+                        {/*
+                          Просроченное и то, что горит на днях, называется цветом.
+                          Дата в общем ряду серых ячеек не сообщает ничего: кладовщик
+                          не станет вычитать её из сегодняшнего числа в уме.
+                        */}
+                        <td style={{
+                          padding: "12px 14px", fontSize: "13px", borderBottom: "1px solid var(--color-border)",
+                          fontWeight: item.expiresAt ? 600 : 400,
+                          color: !item.expiresAt ? "var(--color-text-tertiary)"
+                            : daysLeft(item.expiresAt) < 0 ? "var(--color-danger-text)"
+                            : daysLeft(item.expiresAt) <= 30 ? "var(--color-warning-text)"
+                            : "var(--color-text-secondary)",
+                        }}>
+                          {item.expiresAt ? formatDay(item.expiresAt) : "—"}
+                          {item.expiresAt && daysLeft(item.expiresAt) < 0 && (
+                            <span style={{ display: "block", fontSize: "10px", fontWeight: 500 }}>{t("просрочен", "muddati o'tgan")}</span>
+                          )}
+                          {item.expiresAt && daysLeft(item.expiresAt) >= 0 && daysLeft(item.expiresAt) <= 30 && (
+                            <span style={{ display: "block", fontSize: "10px", fontWeight: 500 }}>
+                              {t(`${daysLeft(item.expiresAt)} дн.`, `${daysLeft(item.expiresAt)} kun`)}
+                            </span>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -722,6 +780,27 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
 }
 
 // ── Main Page ────────────────────────────────────────────────────────────────
+/**
+ * Сколько дней осталось до срока. Отрицательное — просрочен.
+ *
+ * Считается по календарю, а не через toISOString: местная полночь, напечатанная
+ * в UTC, на ташкентском поясе даёт вчерашний день — и товар, который горит
+ * сегодня, показывался бы вчерашним. Тот же случай, что с ключом месяца.
+ */
+function daysLeft(day: string): number {
+  const [y, m, d] = day.split("-").map(Number);
+  const due = new Date(y, m - 1, d).getTime();
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  return Math.round((due - today) / 86_400_000);
+}
+
+/** «2026-09-10» → «10.09.2026». */
+function formatDay(day: string): string {
+  const [y, m, d] = day.split("-");
+  return `${d}.${m}.${y}`;
+}
+
 export default function Arrivals() {
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState("");
