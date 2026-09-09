@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 vi.mock("drizzle-orm", () => ({
   eq:  (col: unknown, val: unknown) => ({ __kind: "eq", col, val }),
@@ -570,8 +572,6 @@ describe("предпросмотр объясняет свой ответ", () =
       «Создать 0» при непривязанных магазинах говорило «делать нечего», хотя
       привязать ещё требовалось.
     */
-    const { readFileSync } = require("node:fs") as typeof import("node:fs");
-    const { join } = require("node:path") as typeof import("node:path");
     const view = readFileSync(join(process.cwd(), "src", "components", "shops", "TerritoryManager.tsx"), "utf8");
 
     expect(view).toContain("Привязать ${p.toAssign} магазинов");
