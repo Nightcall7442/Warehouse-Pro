@@ -19,6 +19,7 @@ import { MonthPlanner } from "@/components/plans/MonthPlanner";
 import { currentMonth, monthLabel, shiftMonth } from "@/components/plans/month";
 import { MonthNorms } from "@/components/plans/MonthNorms";
 import { VisitReports } from "@/components/plans/VisitReports";
+import { GeoDay } from "@/components/plans/GeoDay";
 
 /** Пустой набор одной ссылкой: новый Set в каждой отрисовке ломал бы сравнения. */
 const EMPTY_SET: ReadonlySet<number> = new Set<number>();
@@ -240,6 +241,14 @@ export default function SupervisorPlans() {
   const [tab,         setTab]         = useState<"day" | "month" | "norms" | "reports">("day");
   const [month,       setMonth]       = useState(currentMonth);
   const [showForm,    setShowForm]    = useState(false);
+  /*
+    Чей день разобран прямо сейчас.
+
+    Один за раз: разбор дня — это чтение всех координат человека за сутки, и
+    раскрывать его сразу у десятка агентов значит десять таких запросов на
+    открытие страницы.
+  */
+  const [geoAgent,    setGeoAgent]    = useState<number | null>(null);
   const [filterAgent, setFilterAgent] = useState(0);
   const { fmt }                       = useCurrency();
   const { lang }                      = useLang();
@@ -490,8 +499,30 @@ export default function SupervisorPlans() {
                       <div style={{ width: "80px", height: "6px", borderRadius: "3px", background: "var(--color-surface-light)", overflow: "hidden" }}>
                         <div style={{ height: "100%", borderRadius: "3px", width: `${progress}%`, background: allVisited ? "var(--color-success)" : "var(--color-primary)", transition: "width 0.5s" }} />
                       </div>
+                      {/*
+                        Отметки в списке ниже говорят, что агент СКАЗАЛ. Разбор
+                        дня говорит, где он был: во сколько подъехал, сколько
+                        простоял, сколько намотал между точками и какие отметки
+                        ничем не подтверждены.
+                      */}
+                      <button
+                        onClick={() => setGeoAgent(cur => cur === group.agentId ? null : group.agentId)}
+                        aria-expanded={geoAgent === group.agentId}
+                        className="neo-btn tap"
+                        style={{ fontSize: "11px", padding: "6px 12px", whiteSpace: "nowrap" }}
+                      >
+                        {geoAgent === group.agentId
+                          ? t("Свернуть день", "Kunni yopish")
+                          : t("Как прошёл день", "Kun qanday o'tdi")}
+                      </button>
                     </div>
                   </div>
+
+                  {geoAgent === group.agentId && (
+                    <div style={{ marginBottom: "12px", paddingBottom: "12px", borderBottom: "1px solid var(--color-border)" }}>
+                      <GeoDay agentId={group.agentId} day={dateStr} lang={lang} />
+                    </div>
+                  )}
 
                   {/* Shop list (territory) */}
                   <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>

@@ -16,8 +16,17 @@ export interface FraudCheckResult {
   };
 }
 
-const GEOFENCE_RADIUS = 500;
-const MIN_VISIT_DURATION = 5;
+/*
+  Что считается «рядом с магазином» и «слишком быстро».
+
+  Экспортируются, потому что разбор дня (services/visit-geo.ts) отвечает на те
+  же два вопроса — где был и сколько пробыл — и обязан отвечать теми же
+  числами. Своя копия пятисот метров в соседнем файле означала бы, что визит,
+  признанный подозрительным здесь, на экране «как прошёл день» выглядит
+  безупречным.
+*/
+export const GEOFENCE_RADIUS = 500;
+export const MIN_VISIT_DURATION = 5;
 const MAX_SAME_SHOP_VISITS = 2;
 
 interface GpsPing {

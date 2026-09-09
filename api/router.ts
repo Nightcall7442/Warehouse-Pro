@@ -38,6 +38,7 @@ import { priceListRouter } from "./price-list-router";
 import { kpiRouter } from "./kpi-router";
 import { scheduleRouter } from "./schedule-router";
 import { accessRouter } from "./access-router";
+import { geoRouter } from "./geo-router";
 import { forecastRouter } from "./forecast-router";
 import { createRouter, publicQuery } from "./middleware";
 import { supportRouter } from "./support-router";
@@ -85,6 +86,7 @@ export const appRouter = createRouter({
   kpi:          kpiRouter,
   schedule:     scheduleRouter,
   access:       accessRouter,
+  geo:          geoRouter,
   forecast:     forecastRouter,
 });
 
