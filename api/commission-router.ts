@@ -71,6 +71,7 @@ export const commissionRouter = createRouter({
         // Без неё экран настроек не знал бы, что у курьера уже стоит, и
         // показывал бы ноль поверх заведённой ставки.
         deliveryRate: commissions.deliveryRate,
+        courierPayMode: commissions.courierPayMode,
         periodType: commissions.periodType,
         periodStart: commissions.periodStart,
         periodEnd: commissions.periodEnd,
@@ -100,6 +101,11 @@ export const commissionRouter = createRouter({
         коробку на сто тысяч, что на миллион.
       */
       deliveryRate: z.number().min(0).max(100_000_000).optional(),
+      /*
+        Чем платить курьеру. Не передали — способ не меняем: экран ставок
+        агента ничего про него не знает и обнулять чужую настройку не должен.
+      */
+      courierPayMode: z.enum(["per_delivery", "percent"]).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
@@ -127,6 +133,7 @@ export const commissionRouter = createRouter({
             // Не передали — не трогаем: экран ставок агента не должен обнулять
             // курьерскую ставку только потому, что ничего про неё не знает.
             ...(input.deliveryRate === undefined ? {} : { deliveryRate: input.deliveryRate.toFixed(2) }),
+            ...(input.courierPayMode === undefined ? {} : { courierPayMode: input.courierPayMode }),
           })
           .where(eq(commissions.id, existing.id));
       } else {
@@ -135,6 +142,7 @@ export const commissionRouter = createRouter({
           userId: input.userId,
           commissionRate: input.commissionRate.toFixed(2),
           deliveryRate: (input.deliveryRate ?? 0).toFixed(2),
+          courierPayMode: input.courierPayMode ?? "per_delivery",
           periodType: "monthly",
           // These are `date` columns, so drizzle types them as Date, but the
           // period is keyed by the "YYYY-MM-DD" string the lookup above uses —

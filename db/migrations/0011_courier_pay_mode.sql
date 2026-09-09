@@ -1,0 +1,1 @@
+ALTER TABLE `commissions` ADD `courier_pay_mode` enum('per_delivery','percent') DEFAULT 'per_delivery' NOT NULL;

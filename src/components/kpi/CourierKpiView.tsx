@@ -30,8 +30,15 @@ export interface CourierStatsView {
 
 export interface CourierSalaryView {
   baseSalary: number;
+  /*
+    Чем платят: суммой за довезённую заявку или процентом от довезённого.
+    Способ решает арендатор — платформа обоих не навязывает.
+  */
+  courierPayMode: "per_delivery" | "percent";
   deliveryRate: number;
+  commissionRate: number;
   deliveredCount: number;
+  deliveredAmount: number;
   deliveryPay: number;
   totalSalary: number;
 }
@@ -43,6 +50,18 @@ export function CourierKpiView({ stats, salary, fmt, t }: {
   t: (ru: string, uz: string) => string;
 }) {
   const assigned = stats.delivered + stats.failed;
+
+  /*
+    Строка расчёта зависит от способа, и обе должны читаться как школьное
+    умножение: «12 × 15 000» или «3 200 000 × 5%». Человек, получающий деньги,
+    должен пересчитать их в уме — иначе спор «мне недоплатили» разрешать нечем.
+  */
+  const percent = salary?.courierPayMode === "percent";
+  const rateSet = percent ? (salary?.commissionRate ?? 0) > 0 : (salary?.deliveryRate ?? 0) > 0;
+  const formula = !salary ? ""
+    : percent
+      ? `${fmt(salary.deliveredAmount)} × ${salary.commissionRate}%`
+      : `${salary.deliveredCount} × ${fmt(salary.deliveryRate)}`;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
@@ -105,9 +124,7 @@ export function CourierKpiView({ stats, salary, fmt, t }: {
               tone="primary"
               label={t("За доставки", "Yetkazishlar uchun")}
               value={fmt(salary.deliveryPay)}
-              sub={salary.deliveryRate > 0
-                ? `${salary.deliveredCount} × ${fmt(salary.deliveryRate)}`
-                : t("ставка не назначена", "stavka tayinlanmagan")}
+              sub={rateSet ? formula : t("ставка не назначена", "stavka tayinlanmagan")}
             />
             <Tile icon={<Wallet size={16} />} tone="success" label={t("ИТОГО", "JAMI")} value={fmt(salary.totalSalary)} strong />
           </div>
@@ -124,17 +141,26 @@ export function CourierKpiView({ stats, salary, fmt, t }: {
             display: "flex", flexDirection: "column", gap: "7px",
           }}>
             <Row label={t("Оклад", "Oylik")} value={fmt(salary.baseSalary)} />
-            {salary.deliveryRate > 0 ? (
+            {rateSet ? (
               <Row
-                label={t("Довезено × ставка", "Yetkazildi × stavka")}
-                value={`${salary.deliveredCount} × ${fmt(salary.deliveryRate)} = ${fmt(salary.deliveryPay)}`}
+                label={percent
+                  ? t("Сумма довезённого × процент", "Yetkazilgan summa × foiz")
+                  : t("Довезено × ставка", "Yetkazildi × stavka")}
+                value={`${formula} = ${fmt(salary.deliveryPay)}`}
               />
             ) : (
               <Row
-                label={t("Ставка за доставку", "Yetkazish stavkasi")}
+                label={percent
+                  ? t("Процент за доставку", "Yetkazish foizi")
+                  : t("Ставка за доставку", "Yetkazish stavkasi")}
                 value={t("не назначена", "tayinlanmagan")}
                 muted
               />
+            )}
+            {/* При проценте сумма довезённого — это и есть база расчёта.
+                Без неё строка «× 5%» повисает: непонятно, от чего процент. */}
+            {percent && rateSet && (
+              <Row label={t("Сумма довезённого", "Yetkazilgan summa")} value={fmt(salary.deliveredAmount)} muted />
             )}
             {stats.failed > 0 && (
               <Row

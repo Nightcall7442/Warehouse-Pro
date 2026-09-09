@@ -613,6 +613,11 @@ function SalaryConfig({ t }: { t: (r: string, u: string) => string }) {
 
   const savedCommission = (id: number) => Math.round(Number(rowOf(id)?.commissionRate ?? 0) * 10) / 10;
   const savedDelivery = (id: number) => Math.round(Number(rowOf(id)?.deliveryRate ?? 0));
+  /*
+    Чем платят курьеру. Строки может не быть вовсе — тогда «за штуку», как
+    считалось до появления выбора: то же умолчание, что и на сервере.
+  */
+  const savedMode = (id: number) => rowOf(id)?.courierPayMode === "percent" ? "percent" : "per_delivery";
 
   /*
     Ставки живут в одной строке commissions, поэтому сохраняются вместе: послав
@@ -624,6 +629,23 @@ function SalaryConfig({ t }: { t: (r: string, u: string) => string }) {
     setRateMutation.mutate({ userId: id, commissionRate: value });
   const saveDelivery = (id: number, value: number) =>
     setRateMutation.mutate({ userId: id, commissionRate: savedCommission(id), deliveryRate: value });
+
+  /*
+    Процент курьеру лежит в том же поле, что и агентский: это тот же процент,
+    только от другой суммы — у агента от оформленного, у курьера от довезённого.
+    Ставку за штуку при этом не трогаем: человека могут вернуть обратно, и
+    прежнее число не должно пропасть.
+  */
+  const saveCourierPercent = (id: number, value: number) =>
+    setRateMutation.mutate({ userId: id, commissionRate: value, deliveryRate: savedDelivery(id) });
+
+  const saveCourierMode = (id: number, mode: string) =>
+    setRateMutation.mutate({
+      userId: id,
+      commissionRate: savedCommission(id),
+      deliveryRate: savedDelivery(id),
+      courierPayMode: mode === "percent" ? "percent" : "per_delivery",
+    });
 
   const handleCalc = () => {
     const now = new Date();
@@ -651,11 +673,7 @@ function SalaryConfig({ t }: { t: (r: string, u: string) => string }) {
           `Agentning oy davomida yetkazilgan buyurtmalari tushumidan foiz. 0 dan ${MAX_RATE}% gacha.`,
         )}
         empty={t("Активных агентов нет", "Faol agentlar yo'q")}
-        unit="%"
-        max={MAX_RATE}
-        step="0.5"
-        saved={savedCommission}
-        onSave={saveCommission}
+        kinds={[{ id: "percent", label: "%", max: MAX_RATE, step: "0.5", saved: savedCommission, onSave: saveCommission }]}
       />
 
       {/*
@@ -670,15 +688,16 @@ function SalaryConfig({ t }: { t: (r: string, u: string) => string }) {
         savingId={savingId}
         title={t("Оплата курьеров за доставку", "Kuryerlarga yetkazish uchun to'lov")}
         hint={t(
-          "Сумма за каждую довезённую заявку. Сорванные доставки её не уменьшают — они видны в показателях, но платят за факт.",
-          "Har bir yetkazilgan ariza uchun summa. Bajarilmagan yetkazishlar uni kamaytirmaydi — ular ko'rsatkichlarda ko'rinadi, lekin to'lov faktga.",
+          "Сумма за каждую довезённую заявку или процент от суммы довезённого — переключателем у каждого. Сорванные доставки выплату не уменьшают: они видны в показателях, но платят за факт.",
+          "Har bir yetkazilgan ariza uchun summa yoki yetkazilgan summadan foiz — har birida almashtirgich bilan. Bajarilmagan yetkazishlar to'lovni kamaytirmaydi.",
         )}
         empty={t("Активных курьеров нет", "Faol kuryerlar yo'q")}
-        unit={t("сум", "so'm")}
-        max={MAX_DELIVERY}
-        step="1000"
-        saved={savedDelivery}
-        onSave={saveDelivery}
+        kinds={[
+          { id: "per_delivery", label: t("сум", "so'm"), max: MAX_DELIVERY, step: "1000", saved: savedDelivery, onSave: saveDelivery },
+          { id: "percent",      label: "%",              max: MAX_RATE,     step: "0.5",  saved: savedCommission, onSave: saveCourierPercent },
+        ]}
+        modeOf={savedMode}
+        onMode={saveCourierMode}
       />
 
       {/*
@@ -714,14 +733,43 @@ function SalaryConfig({ t }: { t: (r: string, u: string) => string }) {
  * остальное, включая разбор ввода, одинаково, и разводить это в две копии
  * значило бы чинить найденные здесь ошибки дважды.
  */
-function RateList({ t, people, savingId, title, hint, empty, unit, max, step, saved, onSave }: {
+/**
+ * Вид ставки: в чём её задают и как она называется.
+ *
+ * У агента вид один — процент. У курьера их два, и выбирает арендатор: сумма за
+ * довезённую заявку или процент от довезённого. Способ хранится по человеку,
+ * поэтому в одной организации могут работать оба.
+ */
+interface RateKind {
+  id: string;
+  /*
+    Слово на переключателе: «сум» или «%».
+
+    Не `unit`: в проекте так называется единица измерения товара (шт, ящик,
+    литр), и её нельзя подставлять в разметку кодом из базы — на это есть
+    отдельная проверка. Здесь слово наше и уже переведённое, но одинаковое имя
+    для двух разных вещей путает и людей, и проверки.
+  */
+  label: string;
+  max: number;
+  step: string;
+  saved: (personId: number) => number;
+  onSave: (personId: number, value: number) => void;
+}
+
+function RateList({ t, people, savingId, title, hint, empty, kinds, modeOf, onMode }: {
   t: (r: string, u: string) => string;
   people: { id: number; name: string }[];
   savingId: number | null;
   title: string; hint: string; empty: string;
-  unit: string; max: number; step: string;
-  saved: (id: number) => number;
-  onSave: (id: number, value: number) => void;
+  /*
+    Один вид — поле как было. Два — рядом с полем встаёт переключатель, и
+    видно, чем этому человеку платят. Отдельный список под курьеров вернул бы
+    сто строк копии, которую недавно свели в одну.
+  */
+  kinds: RateKind[];
+  modeOf?: (personId: number) => string;
+  onMode?: (personId: number, kindId: string) => void;
 }) {
   /*
     Черновики правок — строками и по человеку. Отдельно от сохранённого: пока
@@ -737,7 +785,11 @@ function RateList({ t, people, savingId, title, hint, empty, unit, max, step, sa
   */
   const [drafts, setDrafts] = useState<Record<number, string>>({});
 
-  const shown = (id: number) => drafts[id] !== undefined ? drafts[id] : String(saved(id));
+  /** Каким видом платят этому человеку. Один вид — он же и есть. */
+  const kindOf = (id: number): RateKind =>
+    (kinds.length === 1 ? kinds[0] : kinds.find(k => k.id === modeOf?.(id)) ?? kinds[0]);
+
+  const shown = (id: number) => drafts[id] !== undefined ? drafts[id] : String(kindOf(id).saved(id));
   const forget = (id: number) => setDrafts(prev => { const next = { ...prev }; delete next[id]; return next; });
 
   /**
@@ -753,8 +805,10 @@ function RateList({ t, people, savingId, title, hint, empty, unit, max, step, sa
     const raw = drafts[id];
     if (raw === undefined) return;
 
+    const kind = kindOf(id);
+    const { label, max } = kind;
     const val = Number(raw.replace(",", "."));
-    const stored = saved(id);
+    const stored = kind.saved(id);
 
     if (raw.trim() === "" || !Number.isFinite(val)) {
       notify.error(t("Введите ставку числом", "Stavkani raqam bilan kiriting"));
@@ -763,8 +817,8 @@ function RateList({ t, people, savingId, title, hint, empty, unit, max, step, sa
     }
     if (val < 0 || val > max) {
       notify.error(t(
-        `Ставка задаётся от 0 до ${max} ${unit} — введено ${val}`,
-        `Stavka 0 dan ${max} ${unit} gacha — kiritildi ${val}`,
+        `Ставка задаётся от 0 до ${max} ${label} — введено ${val}`,
+        `Stavka 0 dan ${max} ${label} gacha — kiritildi ${val}`,
       ));
       // Поле возвращается к тому, что действительно лежит на сервере: иначе на
       // экране осталось бы непринятое число.
@@ -774,7 +828,7 @@ function RateList({ t, people, savingId, title, hint, empty, unit, max, step, sa
     // Не тревожим сервер, если ничего не изменилось.
     if (Math.abs(val - stored) < 0.001) { forget(id); return; }
 
-    onSave(id, val);
+    kind.onSave(id, val);
     forget(id);
   };
 
@@ -815,8 +869,28 @@ function RateList({ t, people, savingId, title, hint, empty, unit, max, step, sa
                 )}
 
                 <div className="flex items-center gap-2">
+                  {/* Переключатель вида — только там, где видов больше одного.
+                      Смена вида сбрасывает черновик: «5» как процент и «5» как
+                      сумма за доставку — разные деньги, и отправлять одно
+                      вместо другого нельзя. */}
+                  {kinds.length > 1 && onMode && (
+                    <div role="group" aria-label={t("Чем платить", "Nima bilan to'lash")} className="range-pills">
+                      {kinds.map(k => (
+                        <button
+                          key={k.id}
+                          type="button"
+                          onClick={() => { forget(person.id); onMode(person.id, k.id); }}
+                          aria-pressed={kindOf(person.id).id === k.id}
+                          className={"range-pill tap" + (kindOf(person.id).id === k.id ? " active" : "")}
+                          style={{ padding: "7px 10px", fontSize: "11px" }}
+                        >
+                          {k.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   <input
-                    type="number" inputMode="decimal" min="0" max={max} step={step}
+                    type="number" inputMode="decimal" min="0" max={kindOf(person.id).max} step={kindOf(person.id).step}
                     aria-label={`${title}: ${person.name}`}
                     value={shown(person.id)}
                     onChange={e => setDrafts(prev => ({ ...prev, [person.id]: e.target.value }))}
@@ -827,13 +901,17 @@ function RateList({ t, people, savingId, title, hint, empty, unit, max, step, sa
                     // то поле, куда на телефоне целятся пальцем.
                     className="text-center text-sm rounded-lg outline-none tap"
                     style={{
-                      width: unit === "%" ? "96px" : "124px",
+                      width: kindOf(person.id).id === "percent" ? "96px" : "124px",
                       height: "44px", padding: "0 10px",
                       background: "var(--color-surface)", border: "1.5px solid var(--color-border)",
                       color: COLORS.textPrimary, fontFamily: F.display, fontWeight: 600,
                     }}
                   />
-                  <span className="text-xs font-medium" style={{ color: COLORS.textSecondary, minWidth: "26px" }}>{unit}</span>
+                  {/* При одном виде единица подписана рядом с полем; при двух
+                      её уже назвал переключатель, и повторять незачем. */}
+                  {kinds.length === 1 && (
+                    <span className="text-xs font-medium" style={{ color: COLORS.textSecondary, minWidth: "26px" }}>{kinds[0].label}</span>
+                  )}
                 </div>
               </div>
             );

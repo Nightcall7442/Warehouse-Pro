@@ -157,3 +157,80 @@ describe("оператор наравне с директором", () => {
     expect(PAGE).toContain("mySalary.totalSalary > 0");
   });
 });
+
+/*
+  ── Процент вместо ставки за штуку ──────────────────────────────────────────
+
+  Владелец одного арендатора платит курьерам процентом, а не суммой за
+  довезённую заявку. Способ выбирается по человеку и хранится в
+  commissions.courier_pay_mode, поэтому в одной организации могут работать оба:
+  платформа ни одного не навязывает.
+
+  Процент считается от суммы ДОВЕЗЁННОГО, а не от собранных денег: довёз —
+  сделал свою работу, а заплатит ли магазин сегодня или в долг, курьер не
+  решает.
+*/
+describe("курьеру можно платить процентом", () => {
+  const salary = SERVICE.slice(SERVICE.indexOf("export async function calculateSalary"));
+  const total = salary.slice(salary.indexOf("const courierRate"), salary.indexOf("return {"));
+
+  it("способ хранится явно, а не выводится из заполненного поля", () => {
+    /*
+      Вывести было бы короче: стоит ставка — платим за штуку, стоит процент —
+      процентом. Но заполнены могут оказаться оба (курьера перевели с одного на
+      другой, не обнулив прежнее), и правило пришлось бы додумывать — а речь о
+      зарплате, где догадка кончается спором с человеком, который недосчитался
+      денег.
+    */
+    const schema = read("db/schema.ts");
+    expect(schema).toContain('mysqlEnum("courier_pay_mode", ["per_delivery", "percent"])');
+    expect(schema, "умолчание должно повторять прежнее поведение").toMatch(
+      /courier_pay_mode[\s\S]{0,120}default\("per_delivery"\)/,
+    );
+  });
+
+  it("процент берётся от суммы довезённого", () => {
+    expect(total).toContain("deliveredAmount * (commissionRate / 100)");
+  });
+
+  it("за штуку считается по-прежнему", () => {
+    // Второй способ никуда не делся: большинство платит именно так.
+    expect(total).toContain("deliveredCount * deliveryRate");
+  });
+
+  it("способ выбирает, какую ставку спрашивать", () => {
+    /*
+      Иначе курьер на проценте с пустой ставкой за штуку выглядел бы человеком
+      без ставки вовсе, и показатели ему бы не считали.
+    */
+    expect(total).toContain('courierPayMode === "percent" ? commissionRate : deliveryRate');
+  });
+
+  it("экран называет строку расчёта по способу", () => {
+    /*
+      «12 × 15 000» и «3 200 000 × 5%» дают разные суммы из одних и тех же
+      данных. Не назвав способ, экран оставляет человека без возможности
+      пересчитать свою зарплату в уме.
+    */
+    const view = read("src/components/kpi/CourierKpiView.tsx");
+    expect(view).toContain("courierPayMode");
+    expect(view).toContain("Сумма довезённого × процент");
+    expect(view).toContain("Довезено × ставка");
+  });
+
+  it("способ задаётся в настройках зарплат", () => {
+    // Ручка без экрана — то же самое, что ручки нет.
+    const page = read("src/pages/AgentKpi.tsx");
+    expect(page).toContain("courierPayMode");
+    expect(page).toContain("saveCourierMode");
+  });
+
+  it("не переданный способ не затирает выбранный", () => {
+    /*
+      Экран ставок агента про способ ничего не знает и обнулять чужую настройку
+      не должен — та же оговорка, что и у ставки за доставку.
+    */
+    const router = read("api/commission-router.ts");
+    expect(router).toContain("input.courierPayMode === undefined ? {} :");
+  });
+});

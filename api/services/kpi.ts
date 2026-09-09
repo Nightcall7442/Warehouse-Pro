@@ -69,9 +69,16 @@ export interface SalaryData {
     Курьерская часть. Заполняется только у курьера и только тогда, когда ему
     назначена ставка: у остальных ролей эти поля остаются пустыми, и экран по
     ним же решает, какую разбивку показывать.
+
+    Способ приходит вместе с числами: без него экран не может назвать строку
+    расчёта, а человек — проверить свою зарплату. «12 × 15 000» и «3 200 000 ×
+    5%» дают разные суммы из одних и тех же данных.
   */
+  courierPayMode: CourierPayMode;
   deliveryRate: number;
   deliveredCount: number;
+  /** Сумма довезённых заказов — от неё считается процент. */
+  deliveredAmount: number;
   deliveryPay: number;
 
   totalSalary: number;
@@ -100,6 +107,9 @@ export interface SalaryData {
  * Здесь меряется то, что курьер действительно делает: довёз, не довёз, привёз
  * ли деньги.
  */
+/** Чем платят курьеру: суммой за довезённую заявку или процентом от неё. */
+export type CourierPayMode = "per_delivery" | "percent";
+
 export interface CourierStats {
   courierId: number;
   courierName: string;
@@ -518,6 +528,7 @@ export async function calculateSalary(
   const [commissionRecord] = await db.select({
     commissionRate: sql<string>`commission_rate`,
     deliveryRate: sql<string>`delivery_rate`,
+    courierPayMode: sql<string>`courier_pay_mode`,
   }).from(commissions)
     .where(and(
       eq(commissions.tenantId, tenantId),
@@ -530,6 +541,12 @@ export async function calculateSalary(
 
   const commissionRate = Number(commissionRecord?.commissionRate ?? 0);
   const deliveryRate = Number(commissionRecord?.deliveryRate ?? 0);
+  /*
+    Чем платят курьеру. Строки может не быть вовсе — тогда «за штуку», как
+    считалось до появления выбора.
+  */
+  const courierPayMode: CourierPayMode =
+    commissionRecord?.courierPayMode === "percent" ? "percent" : "per_delivery";
 
   const [salesStats] = await db.select({
     salesAmount: sql<string>`COALESCE(SUM(CAST(total AS DECIMAL(15,2))), 0)`,
@@ -596,12 +613,29 @@ export async function calculateSalary(
     .from(users).where(eq(users.id, agentId)).limit(1);
   const isCourier = whoIs?.role === "courier";
 
-  const courier = isCourier && deliveryRate > 0
+  /*
+    Два способа платить курьеру — решение владельца арендатора, а не платформы.
+
+    За штуку: сумма за каждую довезённую заявку. Курьер везёт одинаково — что
+    коробку на сто тысяч, что на миллион, — и платить поровну справедливо.
+
+    Процентом: доля от суммы довезённых заказов. Так платят там, где рейсы
+    сильно разной величины и возить дорогое считают более ответственной
+    работой.
+
+    Процент берётся от ДОВЕЗЁННОГО, а не от собранных денег: довёз — сделал
+    свою работу, а заплатит ли магазин сегодня или в долг, курьер не решает.
+  */
+  const courierRate = courierPayMode === "percent" ? commissionRate : deliveryRate;
+  const courier = isCourier && courierRate > 0
     ? await calculateCourierStats(db, agentId, tenantId, periodStart, periodEnd)
     : null;
 
   const deliveredCount = courier?.delivered ?? 0;
-  const deliveryPay = Number((deliveredCount * deliveryRate).toFixed(2));
+  const deliveredAmount = courier?.deliveredAmount ?? 0;
+  const deliveryPay = Number((courierPayMode === "percent"
+    ? deliveredAmount * (commissionRate / 100)
+    : deliveredCount * deliveryRate).toFixed(2));
 
   const totalSalary = isCourier
     ? Math.max(0, baseSalary + deliveryPay)
@@ -720,8 +754,10 @@ export async function calculateSalary(
     commissionAmount,
     kpiScore: kpi.kpiScore,
     bonusAmount,
+    courierPayMode,
     deliveryRate,
     deliveredCount,
+    deliveredAmount,
     deliveryPay,
     totalSalary,
     breakdown: {
