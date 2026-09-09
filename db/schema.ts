@@ -1317,6 +1317,20 @@ export const loadingLists = mysqlTable("loading_lists", {
   listNumber:   varchar("list_number", { length: 50 }).notNull(),
   warehouseId:  bigint("warehouse_id", { mode: "number", unsigned: true }).references(() => warehouses.id, { onDelete: "set null" }),
   agentId:      bigint("agent_id", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "set null" }),
+  /*
+    Кто повезёт этот лист.
+
+    Погрузочный лист — это и есть рейс: заказы, собранные вместе, чтобы их
+    отвёз один человек. Курьер при этом назначался НЕ на лист, а на каждый
+    заказ по отдельности — по одному, из карточки или галочками в списке.
+    Собрать лист из двадцати заказов и потом двадцать раз указать одного и того
+    же курьера — работа ни для кого.
+
+    Здесь связь заводится там, где она есть на самом деле. Заказам courier_id
+    проставляется тем же действием: они и остаются источником правды для
+    показателей и зарплаты, но заполняются одним движением.
+  */
+  courierId:    bigint("courier_id", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),
   routeData:    json("route_data"),
   status:       mysqlEnum("status", ["preparing", "ready", "loading", "loaded", "delivered"]).default("preparing").notNull(),
   totalOrders:  int("total_orders").default(0).notNull(),

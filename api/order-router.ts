@@ -548,6 +548,23 @@ export const orderRouter = createRouter({
       return OrderService.listLoadingLists(ctx.db, ctx.tenant.id, input ?? {});
     }),
 
+  /**
+   * Отдать рейс курьеру.
+   *
+   * Погрузочный лист — это и есть рейс: заказы, собранные вместе, чтобы их
+   * отвёз один человек. Курьера при этом назначали не на лист, а на каждый
+   * заказ по отдельности; собрать лист из двадцати заказов и потом двадцать
+   * раз указать одного и того же курьера — работа ни для кого.
+   */
+  assignCourierToList: operatorQuery
+    .input(z.object({
+      listId: z.number().int().positive(),
+      courierId: z.number().int().positive(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      return OrderService.assignCourierToList(ctx.db, ctx.tenant.id, input.listId, input.courierId);
+    }),
+
   updateLoadingListStatus: operatorQuery
     .input(z.object({
       listId: z.number().int().positive(),

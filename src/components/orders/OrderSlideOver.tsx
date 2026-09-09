@@ -32,7 +32,7 @@ import { useInvalidateOrderCaches } from "@/hooks/useOrderCacheSync";
 import { useSellerCompany } from "@/hooks/useSellerCompany";
 import type { CompletionData, CompletionMode } from "./CompletionFlowModal";
 import { StatusBadge, InfoCard, PillButton } from "./theme";
-import { F, COLORS, STATUS, PAYMENT } from "./theme-tokens";
+import { F, COLORS, STATUS, PAYMENT, OPEN_STATUSES } from "./theme-tokens";
 import { labelled, PAYMENT_METHOD_LABEL, ADJUSTMENT_TYPE_LABEL } from "@/lib/entity-labels";
 import { colorMix } from "@/lib/color-mix";
 
@@ -269,7 +269,12 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
 
   const { data: couriers } = trpc.user.list.useQuery(
     { role: "courier" },
-    { enabled: isOperatorOrCeo && !!order && (order.status === "new" || order.status === "processing") },
+    /*
+      Список курьеров нужен, пока заказ открыт — по тому же правилу, что и сам
+      выбор ниже. Со старым условием после сборки погрузочного листа список не
+      загружался вовсе, и даже появись поле, выбирать в нём было бы некого.
+    */
+    { enabled: isOperatorOrCeo && !!order && OPEN_STATUSES.includes(order.status) },
   );
 
   // ── Status change handler ─────────────────────────────────────────────
@@ -551,8 +556,13 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
                     </InfoCard>
                   </div>
 
-                  {/* ── Courier assignment for CEO/operator ── */}
-                  {isOperatorOrCeo && (order.status === "new" || order.status === "processing") && (
+                  {/*
+                    Курьер — пока заказ открыт.
+
+                    Стояло «новый или в обработке», и после сборки погрузочного
+                    листа поле исчезало — ровно тогда, когда курьера и назначают.
+                  */}
+                  {isOperatorOrCeo && OPEN_STATUSES.includes(order.status) && (
                     <InfoCard label={t("КУРЬЕР", "KURYER")} icon={<Truck size={12} />}>
                       <Select
                         value={order.courierId ? String(order.courierId) : ""}

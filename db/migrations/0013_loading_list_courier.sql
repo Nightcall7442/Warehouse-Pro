@@ -1,0 +1,2 @@
+ALTER TABLE `loading_lists` ADD `courier_id` bigint unsigned;--> statement-breakpoint
+ALTER TABLE `loading_lists` ADD CONSTRAINT `loading_lists_courier_id_users_id_fk` FOREIGN KEY (`courier_id`) REFERENCES `users`(`id`) ON DELETE restrict ON UPDATE no action;

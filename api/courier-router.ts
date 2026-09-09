@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createRouter, courierQuery, operatorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { orders, shops, users, payments, orderItems, products, warehouseStock, warehouses, debtReminders } from "@db/schema";
-import { ORDER_STATUS_LABELS } from "./lib/order-status";
+import { ORDER_STATUS_LABELS, OPEN_ORDER_STATUSES } from "./lib/order-status";
 import { eq, and, sql, desc, isNull } from "drizzle-orm";
 import { sseBus } from "./lib/sse";
 import { logger } from "./lib/logger";
@@ -94,8 +94,23 @@ export const courierRouter = createRouter({
         .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, ctx.tenant.id)))
         .limit(1);
       if (!order) throw new Error("Заказ не найден");
-      if (order.status !== "processing" && order.status !== "new") {
-        throw new Error("Можно назначить курьера только на заказ в статусе 'новый' или 'в обработке'");
+      /*
+        Курьера цепляют, пока заказ ОТКРЫТ, а не только пока он «новый».
+
+        Здесь стояло «только новый или в обработке» — и это ломало обычный ход
+        работы: заказы собирают в погрузочный лист, статус становится
+        «отгружен», и ровно в этот момент их отдают курьеру. Назначить его было
+        уже нельзя.
+
+        Хуже, что рядом массовое назначение (order.bulkAssignCourier) с самого
+        начала работало по всем открытым статусам. Один и тот же заказ можно
+        было отдать курьеру галочкой в списке и нельзя — из его же карточки.
+
+        Закрытый заказ курьеру не отдают: доставленный уже доехал, отменённый
+        никуда не едет, возвращённый вернулся.
+      */
+      if (!OPEN_ORDER_STATUSES.includes(order.status as (typeof OPEN_ORDER_STATUSES)[number])) {
+        throw new Error("Заказ уже закрыт — курьера назначают, пока он в работе");
       }
 
       const [courier] = await db.select().from(users)

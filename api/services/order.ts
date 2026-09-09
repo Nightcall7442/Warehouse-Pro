@@ -16,6 +16,15 @@ import { affectedRows } from "../lib/db-rows";
 import { TRPCError } from "@trpc/server";
 import { isDuplicateEntry, isDuplicateOf } from "../lib/db-errors";
 
+/*
+  Второй взгляд на users — для курьера рейса.
+
+  Лист соединяется с users дважды: раз за агентом, раз за курьером. Без
+  псевдонима MySQL не знает, о каком из двух идёт речь, и второе соединение
+  просто перетирает первое.
+*/
+const courierUser = alias(users, "courier_user");
+
 /**
  * Ошибка, которую оператор должен увидеть и может исправить сам.
  *
@@ -2567,8 +2576,13 @@ export const OrderService = {
         createdAt: loadingLists.createdAt,
         loadedAt: loadingLists.loadedAt,
         agentName: users.name,
+        courierId: loadingLists.courierId,
+        // Имя курьера — вторым соединением с той же таблицей: агент и курьер у
+        // листа разные люди, и одно соединение не даёт обоих.
+        courierName: courierUser.name,
       }).from(loadingLists)
         .leftJoin(users, eq(loadingLists.agentId, users.id))
+        .leftJoin(courierUser, eq(loadingLists.courierId, courierUser.id))
         .where(and(...conditions))
         .orderBy(desc(loadingLists.createdAt))
         .limit(limit).offset(offset),
@@ -2576,6 +2590,58 @@ export const OrderService = {
     ]);
 
     return { data, total: Number(countResult[0]?.count ?? 0), page, pageSize: limit };
+  },
+
+  /**
+   * Отдать рейс курьеру.
+   *
+   * Одним действием: и лист, и все его заказы. Раньше курьера назначали на
+   * каждый заказ отдельно — двадцать одинаковых выборов на один рейс, — и
+   * половина заказов оставалась без курьера, потому что на середине списка
+   * человек сбивался.
+   *
+   * Заказы обновляются ТОЛЬКО открытые: доставленный из этого же листа уже
+   * доехал, и переписывать ему курьера значило бы задним числом менять то, по
+   * чему уже посчитана зарплата.
+   */
+  async assignCourierToList(db: Db, tenantId: number, listId: number, courierId: number) {
+    const [list] = await db.select({ id: loadingLists.id, listNumber: loadingLists.listNumber })
+      .from(loadingLists)
+      .where(and(eq(loadingLists.id, listId), eq(loadingLists.tenantId, tenantId)))
+      .limit(1);
+    if (!list) throw new Error("Погрузочный лист не найден");
+
+    const [courier] = await db.select({ id: users.id, name: users.name }).from(users)
+      .where(and(
+        eq(users.id, courierId),
+        eq(users.tenantId, tenantId),
+        eq(users.role, "courier"),
+        eq(users.status, "active"),
+      )).limit(1);
+    if (!courier) throw new Error("Курьер не найден в вашей организации");
+
+    const rows = await db.select({ orderId: loadingListOrders.orderId })
+      .from(loadingListOrders)
+      .where(eq(loadingListOrders.listId, listId));
+    const orderIds = rows.map(r => Number(r.orderId));
+
+    await db.update(loadingLists).set({ courierId })
+      .where(and(eq(loadingLists.id, listId), eq(loadingLists.tenantId, tenantId)));
+
+    let assigned = 0;
+    if (orderIds.length > 0) {
+      const [result] = await db.update(orders)
+        .set({ courierId, deliveryStatus: "assigned" })
+        .where(and(
+          eq(orders.tenantId, tenantId),
+          inArray(orders.id, orderIds),
+          inArray(orders.status, OPEN_ORDER_STATUSES),
+          isNull(orders.deletedAt),
+        ));
+      assigned = Number((result as { affectedRows?: number }).affectedRows ?? 0);
+    }
+
+    return { listNumber: list.listNumber, courierName: courier.name ?? "", assigned, total: orderIds.length };
   },
 
   async updateLoadingListStatus(db: Db, tenantId: number, listId: number, newStatus: string) {

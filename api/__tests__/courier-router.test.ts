@@ -293,11 +293,27 @@ describe("courier.assignCourier", () => {
     await expect(caller.assignCourier({ orderId: 999, courierId: 100 })).rejects.toThrow("Заказ не найден");
   });
 
-  it("throws if order status is not new/processing", async () => {
+  it("закрытому заказу курьера не назначают", async () => {
+    // Доставленный уже доехал, отменённый никуда не едет.
     ordersTable[0].status = "delivered";
     const { courierRouter } = await import("../courier-router");
     const caller = courierRouter.createCaller(makeCtx(1, 1));
-    await expect(caller.assignCourier({ orderId: 1, courierId: 100 })).rejects.toThrow("Можно назначить курьера");
+    await expect(caller.assignCourier({ orderId: 1, courierId: 100 })).rejects.toThrow("уже закрыт");
+  });
+
+  it("отгруженному — назначают", async () => {
+    /*
+      Суть правки. Заказы собирают в погрузочный лист, статус становится
+      «отгружен», и ровно в этот момент их отдают курьеру. Прежнее правило
+      («только новый или в обработке») запрещало это ровно тогда, когда
+      назначение и происходит, — при том что массовое назначение рядом всегда
+      работало по всем открытым статусам.
+    */
+    ordersTable[0].status = "shipped";
+    const { courierRouter } = await import("../courier-router");
+    const caller = courierRouter.createCaller(makeCtx(1, 1));
+    await expect(caller.assignCourier({ orderId: 1, courierId: 100 })).resolves.toBeDefined();
+    expect(ordersTable[0].courierId).toBe(100);
   });
 
   it("throws if courier user not found", async () => {

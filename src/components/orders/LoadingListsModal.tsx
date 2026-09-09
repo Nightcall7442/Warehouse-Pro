@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { ClipboardList, Loader2, Trash2, ChevronRight, PackageCheck } from "lucide-react";
+import { ClipboardList, Loader2, Trash2, ChevronRight, PackageCheck, Truck } from "lucide-react";
+import { PremiumSelect } from "@/components/PremiumSelect";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { useLang } from "@/i18n";
@@ -45,6 +46,28 @@ export function LoadingListsModal({ open, onOpenChange }: { open: boolean; onOpe
 
   const advance = trpc.order.updateLoadingListStatus.useMutation({
     onSuccess: () => { refresh(); notify.success(t("Статус изменён", "Holat o'zgartirildi")); },
+    onError: (e) => notify.error(e.message),
+    onSettled: () => setBusy(null),
+  });
+
+  /*
+    Кому отдать рейс.
+
+    Список курьеров нужен здесь же: выбирать человека, уходя на другой экран и
+    возвращаясь, — то же самое, что не выбирать.
+  */
+  const { data: couriers } = trpc.user.list.useQuery({ page: 1, pageSize: 100 }, { enabled: open });
+  const courierOptions = ((couriers?.data ?? []) as { id: number; name: string; role: string; status: string }[])
+    .filter(u => u.role === "courier" && u.status === "active");
+
+  const assignCourier = trpc.order.assignCourierToList.useMutation({
+    onSuccess: (r) => {
+      refresh();
+      notify.success(t(
+        `${r.listNumber} → ${r.courierName}: назначено заказов ${r.assigned} из ${r.total}`,
+        `${r.listNumber} → ${r.courierName}: ${r.total} dan ${r.assigned} ta`,
+      ));
+    },
     onError: (e) => notify.error(e.message),
     onSettled: () => setBusy(null),
   });
@@ -137,6 +160,41 @@ export function LoadingListsModal({ open, onOpenChange }: { open: boolean; onOpe
                       {labelled(LOADING_LIST_STATUS_LABEL, l.status, lang)}
                       {l.agentName ? ` · ${l.agentName}` : ""}
                     </p>
+                    {/*
+                      Кто везёт — на виду, а не в карточке каждого заказа.
+
+                      Пока курьера назначали поштучно, ответить «кто повезёт
+                      этот лист» можно было, только открыв все его заказы по
+                      очереди.
+                    */}
+                    {!done && (
+                      <div style={{ display: "flex", alignItems: "center", gap: "7px", marginTop: "7px", flexWrap: "wrap" }}>
+                        <Truck size={13} style={{ color: "var(--color-text-tertiary)", flexShrink: 0 }} />
+                        <PremiumSelect
+                          value={l.courierId ? String(l.courierId) : ""}
+                          onChange={v => {
+                            if (!v) return;
+                            setBusy(l.id);
+                            assignCourier.mutate({ listId: l.id, courierId: Number(v) });
+                          }}
+                          width="190px"
+                          aria-label={t("Кому отдать рейс", "Reysni kimga berish")}
+                          options={[
+                            { value: "", label: t("Курьер не назначен", "Kuryer tayinlanmagan") },
+                            ...courierOptions.map(c => ({ value: String(c.id), label: c.name })),
+                          ]}
+                        />
+                        {busy === l.id && assignCourier.isPending && (
+                          <Loader2 size={13} style={{ animation: "spin 1s linear infinite", color: "var(--color-text-tertiary)" }} />
+                        )}
+                      </div>
+                    )}
+                    {done && l.courierName && (
+                      <p style={{ fontSize: "11.5px", color: "var(--color-text-tertiary)", marginTop: "5px" }}>
+                        <Truck size={11} style={{ display: "inline", marginRight: "4px", verticalAlign: "-1px" }} />
+                        {l.courierName}
+                      </p>
+                    )}
                   </div>
 
                   <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
