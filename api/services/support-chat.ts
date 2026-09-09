@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { getDb } from "../queries/connection";
 import { supportMessages, supportThreads, tenants, users } from "@db/schema";
 import { sseBus } from "../lib/sse";
+import { logger } from "../lib/logger";
 import { planHas, type PlanKey } from "../../contracts/constants";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -194,6 +195,20 @@ export async function postMessage(input: PostInput): Promise<{ id: number }> {
   });
   const id = Number((result as unknown as { insertId?: number }).insertId ?? 0);
 
+  /*
+    Письмо от арендатора — в телеграм платформе.
+
+    Иначе вопрос лежит в системе до тех пор, пока кто-нибудь не откроет
+    суперадмина и не заметит его сам. Человек в это время ждёт: он написал в
+    поддержку, а поддержка о нём не знает.
+
+    Не ждём отправки и не роняем сообщение, если телеграм недоступен: письмо
+    уже записано, и оно важнее уведомления о нём.
+  */
+  if (!input.fromPlatform) {
+    void notifyPlatformAboutQuestion(input.tenantId, input.userId, body);
+  }
+
   if (input.fromPlatform) {
     sseBus.emit({
       type: "support.message",
@@ -204,6 +219,68 @@ export async function postMessage(input: PostInput): Promise<{ id: number }> {
   }
 
   return { id };
+}
+
+/**
+ * Как часто беспокоить платформу об одном и том же разговоре.
+ *
+ * Человек пишет вопрос в три-четыре сообщения подряд — мысль, уточнение, «а
+ * ещё». Уведомлять о каждом значит превратить телеграм в ленту, которую
+ * перестают читать. Пятнадцать минут: серия реплик даёт одно уведомление, а
+ * вопрос, заданный через час, — новое.
+ */
+const NOTIFY_QUIET_MS = 15 * 60 * 1000;
+
+/**
+ * Сказать платформе, что арендатор написал.
+ *
+ * Ошибки глушатся намеренно: сообщение уже записано и человек его отправил.
+ * Недоступный телеграм — повод для строки в журнале, а не для отказа в отправке
+ * письма.
+ */
+async function notifyPlatformAboutQuestion(tenantId: number, userId: number, body: string): Promise<void> {
+  try {
+    const db = getDb();
+
+    /*
+      Было ли недавнее сообщение от этого же человека.
+
+      Считаем ДО вставки текущего? Нет — оно уже вставлено, поэтому берём
+      предпоследнее: смотрим второе с конца. Иначе своё же сообщение и было бы
+      «недавним», и уведомление не ушло бы никогда.
+    */
+    const recent = await db.select({ createdAt: supportMessages.createdAt })
+      .from(supportMessages)
+      .where(and(
+        eq(supportMessages.tenantId, tenantId),
+        eq(supportMessages.userId, userId),
+        eq(supportMessages.fromPlatform, false),
+      ))
+      .orderBy(desc(supportMessages.id))
+      .limit(2);
+
+    const previous = recent[1];
+    if (previous && Date.now() - new Date(previous.createdAt).getTime() < NOTIFY_QUIET_MS) return;
+
+    const [org] = await db.select({ name: tenants.name })
+      .from(tenants).where(eq(tenants.id, tenantId)).limit(1);
+    const [who] = await db.select({ name: users.name })
+      .from(users).where(eq(users.id, userId)).limit(1);
+
+    const { notifyAdmin, tgMessages } = await import("../telegram-router");
+    await notifyAdmin(tgMessages.supportMessage(
+      org?.name ?? `#${tenantId}`,
+      who?.name ?? `#${userId}`,
+      // Длинное письмо в уведомлении не нужно: оно зовёт открыть переписку, а
+      // не заменяет её.
+      body.length > 300 ? `${body.slice(0, 300)}…` : body,
+    ));
+  } catch (e) {
+    logger.warn("не удалось уведомить платформу о вопросе в поддержку", {
+      tenantId, userId,
+      error: e instanceof Error ? e.message : String(e),
+    });
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

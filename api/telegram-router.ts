@@ -107,6 +107,9 @@ export const tgMessages = {
   paymentReceived: (shop: string, amount: string, cur: string) =>
     `✅ <b>Оплата получена</b>\n🏪 ${tgEscape(shop)}\n💵 ${tgEscape(amount)} ${tgEscape(cur)}`,
 
+  supportMessage: (org: string, who: string, preview: string) =>
+    `💬 <b>Вопрос в поддержку</b>\n🏢 ${tgEscape(org)}\n👤 ${tgEscape(who)}\n\n${tgEscape(preview)}`,
+
   newRegistration: (org: string, email: string) =>
     `🆕 <b>Новая регистрация</b>\n🏢 ${tgEscape(org)}\n📧 ${tgEscape(email)}`,
 
