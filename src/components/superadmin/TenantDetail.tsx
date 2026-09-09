@@ -5,10 +5,11 @@ import { notify } from "@/lib/toast";
 import { useConfirm } from "@/components/ConfirmDialog";
 import {
   ArrowLeft, Users, ShoppingCart, Package, Store, Shield, Lock,
-  BarChart3, Zap, Calendar, Power,
+  BarChart3, Zap, Calendar, Power, Plus,
 } from "lucide-react";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { labelled, ROLE_LABEL } from "@/lib/entity-labels";
+import { EXTRA_PRICES_UZS } from "@contracts/constants";
 import { F, COLORS, fmt, money, planStatus } from "./types";
 import type { TenantRow } from "./types";
 import { KpiCard, Section, PlanBadge, StatusBadge, Modal, Input, BtnPrimary, BtnSecondary } from "./ui";
@@ -35,6 +36,22 @@ export function TenantDetail({ tenantId, onBack }: TenantDetailProps) {
   const invalidate = () => { refetch(); utils.tenant.list.invalidate(); utils.tenant.platformStats.invalidate(); };
   const updatePlan = trpc.tenant.updatePlan.useMutation({ onSuccess: () => { invalidate(); notify.success("Тариф обновлён"); setShowPlan(false); }, onError: (e) => notify.error(e.message) });
   const setStatus = trpc.tenant.setStatus.useMutation({ onSuccess: () => { invalidate(); notify.success("Статус обновлён"); }, onError: (e) => notify.error(e.message) });
+  /*
+    Докупленное сверх тарифа.
+
+    Поля показывают ИТОГОВОЕ число докупленного, а не «добавить ещё»: так
+    значение в поле совпадает с тем, что видно рядом, и повторное нажатие
+    «Сохранить» ничего не удваивает.
+  */
+  const [showExtra, setShowExtra] = useState(false);
+  const [extraUsers, setExtraUsers] = useState(0);
+  const [extraProducts, setExtraProducts] = useState(0);
+
+  const setExtra = trpc.tenant.setExtraLimits.useMutation({
+    onSuccess: () => { invalidate(); notify.success("Лимиты обновлены"); setShowExtra(false); },
+    onError: (e) => notify.error(e.message),
+  });
+
   const extendTrial = trpc.tenant.extendTrial.useMutation({ onSuccess: (r) => { invalidate(); notify.success(`Trial продлён до ${format(new Date(r.trialEndsAt), "dd.MM.yyyy")}`); setShowExt(false); }, onError: (e) => notify.error(e.message) });
   const resetPassword = trpc.tenant.resetOwnerPassword.useMutation({ onSuccess: () => { notify.success("Пароль сброшен"); setResetPwd(null); setNewPwd(""); }, onError: (e) => notify.error(e.message) });
 
@@ -103,6 +120,18 @@ export function TenantDetail({ tenantId, onBack }: TenantDetailProps) {
             tenant.trialEndsAt ? { label: "Trial до", value: format(new Date(tenant.trialEndsAt), "dd.MM.yyyy"), color: COLORS.textPrimary } : null,
             tenant.planExpiresAt ? { label: "Тариф до", value: format(new Date(tenant.planExpiresAt), "dd.MM.yyyy"), color: COLORS.textPrimary } : null,
             subscription ? { label: "Stripe", value: subscription.status, color: COLORS.textPrimary } : null,
+            /*
+              Докупленное показываем, только когда оно есть: строка «Сверх
+              тарифа — 0» занимает место и ничего не сообщает.
+            */
+            (Number(tenant.extraUsers ?? 0) > 0 || Number(tenant.extraProducts ?? 0) > 0) ? {
+              label: "Сверх тарифа",
+              value: [
+                Number(tenant.extraUsers ?? 0) > 0 ? `${tenant.extraUsers} мест` : null,
+                Number(tenant.extraProducts ?? 0) > 0 ? `${tenant.extraProducts} товаров` : null,
+              ].filter(Boolean).join(" · "),
+              color: COLORS.textPrimary,
+            } : null,
           ].filter(Boolean).map((item, i) => item && (
             <div key={i}>
               <p style={{ fontSize: "11px", color: COLORS.textTertiary, marginBottom: "4px" }}>{item.label}</p>
@@ -129,6 +158,38 @@ export function TenantDetail({ tenantId, onBack }: TenantDetailProps) {
             </div>
           ) : (
             <BtnSecondary onClick={() => setShowExt(true)} style={{ padding: "6px 14px", fontSize: "12px" }}><Calendar size={13} /> Продлить trial</BtnSecondary>
+          )}
+          {showExtra ? (
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+              <label style={{ fontSize: "12px", color: COLORS.textSecondary }}>Мест</label>
+              <input type="number" min="0" max="1000" value={extraUsers} onChange={e => setExtraUsers(Math.max(0, Number(e.target.value)))}
+                style={{ width: "72px", padding: "6px 10px", borderRadius: "8px", border: `1px solid ${COLORS.border}`, background: COLORS.surfaceLight, color: COLORS.textPrimary, fontSize: "12px" }} />
+              <label style={{ fontSize: "12px", color: COLORS.textSecondary }}>Товаров</label>
+              <input type="number" min="0" max="1000" value={extraProducts} onChange={e => setExtraProducts(Math.max(0, Number(e.target.value)))}
+                style={{ width: "72px", padding: "6px 10px", borderRadius: "8px", border: `1px solid ${COLORS.border}`, background: COLORS.surfaceLight, color: COLORS.textPrimary, fontSize: "12px" }} />
+              {/* Сумма считается здесь, а не в голове у того, кто выставляет
+                  счёт: 17 мест по 35 000 в уме умножают с ошибкой. */}
+              <span style={{ fontSize: "12px", color: COLORS.textPrimary, fontVariantNumeric: "tabular-nums" }}>
+                = {(extraUsers * EXTRA_PRICES_UZS.user + extraProducts * EXTRA_PRICES_UZS.product).toLocaleString("ru")} сум/мес
+              </span>
+              <BtnPrimary onClick={() => setExtra.mutate({ tenantId, extraUsers, extraProducts })} disabled={setExtra.isPending} style={{ padding: "6px 14px", fontSize: "12px" }}>
+                {setExtra.isPending ? "…" : "Сохранить"}
+              </BtnPrimary>
+              <BtnSecondary onClick={() => setShowExtra(false)} style={{ padding: "6px 10px", fontSize: "12px" }}>✕</BtnSecondary>
+            </div>
+          ) : (
+            <BtnSecondary
+              onClick={() => {
+                // Открываем с тем, что уже стоит: иначе «Сохранить» обнулило бы
+                // ранее докупленное, показав в полях нули.
+                setExtraUsers(Number(tenant.extraUsers ?? 0));
+                setExtraProducts(Number(tenant.extraProducts ?? 0));
+                setShowExtra(true);
+              }}
+              style={{ padding: "6px 14px", fontSize: "12px" }}
+            >
+              <Plus size={13} /> Сверх тарифа
+            </BtnSecondary>
           )}
           <BtnSecondary onClick={async () => {
             const next = tenant.status === "active" ? "suspended" : "active";

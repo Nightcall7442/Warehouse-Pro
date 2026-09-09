@@ -95,7 +95,7 @@ export default function BillingPage() {
         t={t}
       />
 
-      <UsageSection usage={billing.usage} limits={billing.limits} t={t} />
+      <UsageSection usage={billing.usage} limits={billing.limits} extra={billing.extra} t={t} />
 
       <div>
         <p style={{

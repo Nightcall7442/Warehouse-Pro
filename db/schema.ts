@@ -33,10 +33,32 @@ export const tenants = mysqlTable("tenants", {
   trialEndsAt:   timestamp("trial_ends_at"),
   planExpiresAt: timestamp("plan_expires_at"),
   // Limits per plan (null = unlimited)
+  /*
+    ── Осторожно: max_* тарифом НЕ управляют ─────────────────────────────────
+
+    Эти три поля лежат тут с самого начала и не читаются нигде, кроме карточки
+    арендатора в суперадмине. Лимиты берутся из тарифа (PLANS в
+    contracts/constants.ts), см. api/lib/plan-limits.ts. Менять их бесполезно:
+    на то, что человеку разрешено, они не влияют.
+
+    Убрать бы, но это правка боевой схемы ради порядка — отдельным делом.
+  */
   maxUsers:      bigint("max_users", { mode: "number", unsigned: true }),
   maxProducts:   bigint("max_products", { mode: "number", unsigned: true }),
   maxOrdersMonth:bigint("max_orders_month", { mode: "number", unsigned: true }),
   // Contact
+  /*
+    Докупленные сверх тарифа места и товары.
+
+    Надбавка, а не новый предел: у Basic пятьдесят товаров, докупили двадцать —
+    здесь стоит 20, а разрешено 70. Хранить абсолютный предел было бы короче и
+    опаснее: при переходе на Pro его пришлось бы пересчитывать руками, а забыв
+    это сделать, арендатор остался бы с прежним числом на старшем тарифе.
+
+    Надбавка переживает смену тарифа сама: докупленное остаётся докупленным.
+  */
+  extraUsers:    int("extra_users").default(0).notNull(),
+  extraProducts: int("extra_products").default(0).notNull(),
   ownerEmail:    varchar("owner_email", { length: 320 }),
   ownerPhone:    varchar("owner_phone", { length: 30 }),
   createdAt:     timestamp("created_at").defaultNow().notNull(),

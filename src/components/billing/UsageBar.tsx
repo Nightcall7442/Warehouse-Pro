@@ -8,6 +8,14 @@ interface UsageBarProps {
   atLimit: string;
   /** Что написать вместо полосы, когда предела нет. */
   noLimit: string;
+  /*
+    Откуда взялся предел, если он не тарифный.
+
+    Арендатор, докупивший двадцать позиций, видит «70» у тарифа, который обещает
+    пятьдесят, и не понимает, кому верить. Строка объясняет разницу — и стоит
+    всегда, а не только у предела: вопрос возникает при первом же взгляде.
+  */
+  note?: string;
   icon: React.ComponentType<{ size?: number; style?: React.CSSProperties }>;
 }
 
@@ -20,7 +28,7 @@ interface UsageBarProps {
  * пользователей» не говорит, случится ли что-то плохое на двадцать первом —
  * откажут в добавлении или просто спишут больше. Теперь под полосой написано.
  */
-export function UsageBar({ used, max, label, atLimit, noLimit, icon: Icon }: UsageBarProps) {
+export function UsageBar({ used, max, label, atLimit, noLimit, note, icon: Icon }: UsageBarProps) {
   const pct = max ? Math.min((used / max) * 100, 100) : 100;
   const warn = max !== null && used >= max * 0.85;
   const over = max !== null && used >= max;
@@ -81,6 +89,12 @@ export function UsageBar({ used, max, label, atLimit, noLimit, icon: Icon }: Usa
             animation: "progressFill 0.9s ease",
           }} />
         </div>
+      )}
+
+      {note && (
+        <p style={{ fontSize: "11.5px", lineHeight: 1.45, color: "var(--color-text-tertiary)", marginTop: "7px" }}>
+          {note}
+        </p>
       )}
 
       {/* Что случится у предела — только когда он близко. Постоянная строка под

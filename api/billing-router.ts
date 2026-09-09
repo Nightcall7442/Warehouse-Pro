@@ -5,8 +5,12 @@ import { getDb } from "./queries/connection";
 import { tenants, users, orders, products } from "@db/schema";
 import { eq, and, sql, gte } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { PLANS, PLAN_PRICES_UZS, type PlanKey } from "../contracts/constants";
+import { PLANS, PLAN_PRICES_UZS, EXTRA_PRICES_UZS, type PlanKey } from "../contracts/constants";
 import { logger } from "./lib/logger";
+
+/** Тарифный предел плюс докупленное. Безлимитному прибавлять нечего. */
+const withExtra = (base: number | null, extra: number | null) =>
+  base === null ? null : base + Math.max(0, Number(extra ?? 0));
 
 export const billingRouter = createRouter({
   /** Current tenant subscription status */
@@ -52,10 +56,25 @@ export const billingRouter = createRouter({
         : planActive
           ? Math.ceil((planEnds!.getTime() - now.getTime()) / 86_400_000)
           : 0,
+      /*
+        Предел, который действует на самом деле: тарифный плюс докупленное.
+
+        Показывать голый тарифный нельзя: у арендатора, докупившего двадцать
+        позиций, полоса упёрлась бы в пятьдесят и кричала «предел исчерпан»,
+        когда на деле свободно ещё двадцать.
+      */
       limits: {
-        maxUsers:       plan.maxUsers,
-        maxProducts:    plan.maxProducts,
+        maxUsers:       withExtra(plan.maxUsers, tenant.extraUsers),
+        maxProducts:    withExtra(plan.maxProducts, tenant.extraProducts),
         maxOrdersMonth: plan.maxOrdersMonth,
+      },
+      extra: {
+        users:    Number(tenant.extraUsers ?? 0),
+        products: Number(tenant.extraProducts ?? 0),
+        // Доплата в месяц — чтобы к сумме тарифа не приходилось считать в уме.
+        priceMonthly:
+          Number(tenant.extraUsers ?? 0) * EXTRA_PRICES_UZS.user +
+          Number(tenant.extraProducts ?? 0) * EXTRA_PRICES_UZS.product,
       },
       usage: {
         users:   Number(userCount[0]?.c ?? 0),

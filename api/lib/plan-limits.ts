@@ -26,8 +26,18 @@ export async function checkPlanLimits(
   let current = 0;
   let limit: number | null = null;
 
+  /*
+    Предел тарифа плюс докупленное.
+
+    Надбавка хранится в самой организации и живёт отдельно от тарифа: перешли
+    на старший — докупленное осталось. Безлимитный тариф (null) надбавка не
+    трогает: к «сколько угодно» прибавлять нечего.
+  */
+  const withExtra = (base: number | null, extra: number) =>
+    base === null ? null : base + Math.max(0, Number(extra ?? 0));
+
   if (resource === "users") {
-    limit = plan.maxUsers;
+    limit = withExtra(plan.maxUsers, tenant.extraUsers);
     if (limit !== null) {
       const [{ count }] = await db
         .select({ count: sql<number>`count(*)` })
@@ -36,7 +46,7 @@ export async function checkPlanLimits(
       current = Number(count);
     }
   } else if (resource === "products") {
-    limit = plan.maxProducts;
+    limit = withExtra(plan.maxProducts, tenant.extraProducts);
     if (limit !== null) {
       const [{ count }] = await db
         .select({ count: sql<number>`count(*)` })

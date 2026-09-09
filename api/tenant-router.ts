@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { randomUUID } from "crypto";
 import { TRPCError } from "@trpc/server";
+import { recordAudit } from "./services/audit-log";
 import { createRouter, publicQuery, adminQuery, superAdminQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { tenants, users, settings, orders, products, shops, subscriptions, warehouses } from "@db/schema";
@@ -237,6 +238,53 @@ export const tenantRouter = createRouter({
     }));
   }),
 
+  /**
+   * Докупить места или товары сверх тарифа.
+   *
+   * У арендатора на Basic кончились пятьдесят позиций номенклатуры, а переходить
+   * на Pro ради десяти новых незачем. Раньше выход был один — поднять тариф
+   * целиком; теперь суперадмин добавляет ровно столько, сколько нужно.
+   *
+   * Задаётся ИТОГОВОЕ число докупленного, а не «добавить ещё N»: так значение
+   * в поле совпадает с тем, что видно на экране, и повторное нажатие ничего не
+   * удваивает. Ноль возвращает арендатора к тарифному пределу.
+   *
+   * Потолок в тысячу — от промаха на клавиатуре: «5000» вместо «500» это
+   * двадцать пять миллионов сум в месяц, и заметят это не сразу.
+   */
+  setExtraLimits: superAdminQuery
+    .input(z.object({
+      tenantId: z.number().int().positive(),
+      extraUsers: z.number().int().min(0).max(1000),
+      extraProducts: z.number().int().min(0).max(1000),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+      const [tenant] = await db.select({ id: tenants.id })
+        .from(tenants).where(eq(tenants.id, input.tenantId)).limit(1);
+      if (!tenant) throw new TRPCError({ code: "NOT_FOUND", message: "Организация не найдена" });
+
+      await db.update(tenants)
+        .set({ extraUsers: input.extraUsers, extraProducts: input.extraProducts })
+        .where(eq(tenants.id, input.tenantId));
+
+      /*
+        Кто и когда раздал места — вопрос денег, и ответ на него должен
+        остаться. Тариф меняют через updatePlan, и там запись в журнал уже есть.
+      */
+      await recordAudit(db, {
+        tenantId: input.tenantId,
+        actorId: ctx.user.id,
+        actorName: ctx.user.name,
+        action: "tenant.extra_limits",
+        targetType: "tenant",
+        targetId: input.tenantId,
+        meta: { extraUsers: input.extraUsers, extraProducts: input.extraProducts },
+      });
+
+      return { extraUsers: input.extraUsers, extraProducts: input.extraProducts };
+    }),
+
   /** Детальный профиль одного тенанта */
   getDetail: superAdminQuery
     .input(z.object({ tenantId: z.number() }))
@@ -248,6 +296,7 @@ export const tenantRouter = createRouter({
         status: tenants.status, trialEndsAt: tenants.trialEndsAt, planExpiresAt: tenants.planExpiresAt,
         ownerEmail: tenants.ownerEmail, ownerPhone: tenants.ownerPhone,
         maxUsers: tenants.maxUsers, maxProducts: tenants.maxProducts, maxOrdersMonth: tenants.maxOrdersMonth,
+        extraUsers: tenants.extraUsers, extraProducts: tenants.extraProducts,
         createdAt: tenants.createdAt, updatedAt: tenants.updatedAt,
       }).from(tenants).where(eq(tenants.id, input.tenantId)).limit(1);
       if (!tenant) throw new TRPCError({ code: "NOT_FOUND", message: "Tenant not found." });
