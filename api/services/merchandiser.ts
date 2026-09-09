@@ -20,6 +20,27 @@ export interface SubmitReportInput {
   competitorNotes?: string;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   Отчёты мерчандайзера о визите.
+
+   ── Что было ────────────────────────────────────────────────────────────────
+
+   Служба и три ручки к ней (по магазину, по промежутку дат, по одному отчёту)
+   написаны целиком. Из веба не вызывалась НИ ОДНА: мерчандайзер снимал полку,
+   заполнял чек-лист по товарам, писал про конкурентов — и это не видел никто
+   и никогда. Единственный вызов из браузера — submitReport, то есть запись.
+
+   Причина, по которой витрину нельзя было просто нарисовать, лежит здесь:
+   photos — массив JSON с data-url внутри. Список отдавал их целиком, и
+   страница из двадцати пяти отчётов весила бы сотни мегабайт.
+
+   ── Как сейчас ──────────────────────────────────────────────────────────────
+
+   Ни один список и ни одна карточка не отдают снимки. Отдаётся их ЧИСЛО, а
+   экран собирает ссылки /api/photos/report/<id>/<номер> — снимок тянется
+   лениво, по одному, и кэшируется браузером. Ровно так же устроены фото
+   товара и магазина (api/lib/photo-url.ts).
+   ═══════════════════════════════════════════════════════════════════════════ */
 export const MerchandiserService = {
   async submitReport(db: Db, tenantId: number, userId: number, input: SubmitReportInput) {
     const [plan] = await db.select().from(dailyPlans)
@@ -74,7 +95,15 @@ export const MerchandiserService = {
         shopId: visitReports.shopId,
         userId: visitReports.userId,
         planId: visitReports.planId,
-        photos: visitReports.photos,
+        /*
+          Число снимков, а не сами снимки.
+
+          В photos лежат data-url целиком, по мегабайту с лишним. Страница из
+          двадцати пяти отчётов по три снимка — это сотни мегабайт в одном
+          ответе; именно поэтому витрины отчётов не существовало. Экран строит
+          ссылки /api/photos/report/<id>/<номер> и тянет снимки лениво.
+        */
+        photoCount: sql<number>`COALESCE(JSON_LENGTH(${visitReports.photos}), 0)`,
         checklist: visitReports.checklist,
         competitorNotes: visitReports.competitorNotes,
         createdAt: visitReports.createdAt,
@@ -110,7 +139,15 @@ export const MerchandiserService = {
         shopId: visitReports.shopId,
         userId: visitReports.userId,
         planId: visitReports.planId,
-        photos: visitReports.photos,
+        /*
+          Число снимков, а не сами снимки.
+
+          В photos лежат data-url целиком, по мегабайту с лишним. Страница из
+          двадцати пяти отчётов по три снимка — это сотни мегабайт в одном
+          ответе; именно поэтому витрины отчётов не существовало. Экран строит
+          ссылки /api/photos/report/<id>/<номер> и тянет снимки лениво.
+        */
+        photoCount: sql<number>`COALESCE(JSON_LENGTH(${visitReports.photos}), 0)`,
         checklist: visitReports.checklist,
         competitorNotes: visitReports.competitorNotes,
         createdAt: visitReports.createdAt,
@@ -135,7 +172,10 @@ export const MerchandiserService = {
       shopId: visitReports.shopId,
       userId: visitReports.userId,
       planId: visitReports.planId,
-      photos: visitReports.photos,
+      // И здесь тоже число: пять снимков по мегабайту — это десять мегабайт
+      // на открытие одной карточки, причём каждый раз заново. По ссылкам они
+      // грузятся по одному и остаются в кэше браузера.
+      photoCount: sql<number>`COALESCE(JSON_LENGTH(${visitReports.photos}), 0)`,
       checklist: visitReports.checklist,
       competitorNotes: visitReports.competitorNotes,
       createdAt: visitReports.createdAt,

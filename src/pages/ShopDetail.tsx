@@ -1,5 +1,6 @@
 import { useParams, useNavigate, useLocation } from "react-router";
 import { useCan } from "@/hooks/useCan";
+import { ShopVisitReports } from "@/components/plans/VisitReports";
 import { normalizeDecimalInput } from "@/lib/decimal-input";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useRef, useState, useMemo, useCallback } from "react";
@@ -463,6 +464,24 @@ export default function ShopDetail() {
           </div>
         </div>
       )}
+      {/*
+        Что привозили с визитов в эту точку.
+
+        Свёрнутым разделом: карточка магазина и так длинная, а вопрос «что у
+        него на полке» задают не каждый раз. Отчёты собирал мерчандайзер, и до
+        сих пор их не показывал ни один экран.
+      */}
+      <details className="neo-card" style={{ padding: 0 }}>
+        <summary style={{
+          cursor: "pointer", padding: "16px 20px", fontSize: "13px", fontWeight: 600,
+          color: "var(--color-text-primary)", listStyle: "none",
+        }}>
+          {t("Отчёты о визитах — фото полки и чек-лист", "Tashrif hisobotlari — javon surati va ro'yxat")}
+        </summary>
+        <div style={{ padding: "0 20px 20px" }}>
+          <ShopVisitReports shopId={Number(id)} lang={lang} />
+        </div>
+      </details>
     </div>
   );
 }

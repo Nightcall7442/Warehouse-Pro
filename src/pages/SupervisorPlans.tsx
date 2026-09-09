@@ -18,6 +18,7 @@ import { ScheduleManager } from "@/components/plans/ScheduleManager";
 import { MonthPlanner } from "@/components/plans/MonthPlanner";
 import { currentMonth, monthLabel, shiftMonth } from "@/components/plans/month";
 import { MonthNorms } from "@/components/plans/MonthNorms";
+import { VisitReports } from "@/components/plans/VisitReports";
 
 /** Пустой набор одной ссылкой: новый Set в каждой отрисовке ломал бы сравнения. */
 const EMPTY_SET: ReadonlySet<number> = new Set<number>();
@@ -236,7 +237,7 @@ export default function SupervisorPlans() {
     три страницы: месяц расставляют и тут же смотрят, что вышло по дням, а
     норму ставят от числа расставленных визитов.
   */
-  const [tab,         setTab]         = useState<"day" | "month" | "norms">("day");
+  const [tab,         setTab]         = useState<"day" | "month" | "norms" | "reports">("day");
   const [month,       setMonth]       = useState(currentMonth);
   const [showForm,    setShowForm]    = useState(false);
   const [filterAgent, setFilterAgent] = useState(0);
@@ -315,6 +316,7 @@ export default function SupervisorPlans() {
           ["day",   t("День", "Kun")],
           ["month", t("Месяц", "Oy")],
           ["norms", t("Нормы", "Normalar")],
+          ["reports", t("Отчёты", "Hisobotlar")],
         ] as const).map(([key, label]) => (
           <button
             key={key}
@@ -340,7 +342,9 @@ export default function SupervisorPlans() {
           <div className="flex-1 panel p-3 text-center">
             <p className="font-semibold text-primary">{monthLabel(month, lang)}</p>
             <p className="font-label text-[11px] tracking-wider mt-0.5" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
-              {tab === "month" ? t("Визиты на месяц", "Oylik tashriflar") : t("Нормы на месяц", "Oylik normalar")}
+              {tab === "month" ? t("Визиты на месяц", "Oylik tashriflar")
+                : tab === "norms" ? t("Нормы на месяц", "Oylik normalar")
+                : t("Что привезли с визитов", "Tashrifdan nima keldi")}
             </p>
           </div>
           <button onClick={() => setMonth(m => shiftMonth(m, 1))}
@@ -353,6 +357,11 @@ export default function SupervisorPlans() {
 
       {tab === "month" && <MonthPlanner month={month} lang={lang} />}
       {tab === "norms" && <MonthNorms   month={month} lang={lang} />}
+      {/*
+        Отчёты живут здесь же, а не отдельной страницей: план визита и отчёт о
+        нём — две стороны одного, и месяц у них общий с соседними вкладками.
+      */}
+      {tab === "reports" && <VisitReports month={month} lang={lang} />}
 
       {tab === "day" && (<>
       {/* Навигация по дате */}

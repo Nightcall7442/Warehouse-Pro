@@ -79,11 +79,19 @@ describe("merchandiser.getReportsByDateRange", () => {
 
 describe("merchandiser.getReportById", () => {
   it("returns a single report", async () => {
-    mocks.mockGetReportById.mockResolvedValue({ id: 1, reportNumber: "MR-001", photos: ["p1.jpg"] });
+    /*
+      Снимки наружу больше не отдаются — только их число.
+
+      В photos лежат data-url целиком; карточка из пяти снимков весила бы
+      десять мегабайт, и каждое открытие тянуло бы их заново. Экран строит
+      ссылки /api/photos/report/<id>/<номер>, браузер кэширует их по одному.
+    */
+    mocks.mockGetReportById.mockResolvedValue({ id: 1, reportNumber: "MR-001", photoCount: 3 });
     const caller = merchandiserRouter.createCaller(makeCtx());
     const result = await caller.getReportById({ id: 1 });
     expect(result.id).toBe(1);
-    expect(result.photos).toEqual(["p1.jpg"]);
+    expect(result.photoCount).toBe(3);
+    expect(result, "снимки снова поехали в ответе").not.toHaveProperty("photos");
   });
 
   it("returns null for non-existent report", async () => {

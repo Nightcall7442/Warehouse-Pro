@@ -1,7 +1,7 @@
 import { Hono, type Context } from "hono";
 import { allowedPhotoHost } from "./lib/s3";
-import { eq, and } from "drizzle-orm";
-import { products, shops, dailyPlans } from "@db/schema";
+import { eq, and, sql } from "drizzle-orm";
+import { products, shops, dailyPlans, visitReports } from "@db/schema";
 import { getDb } from "./queries/connection";
 import { authenticateRequest } from "./auth";
 import { isAppError } from "@contracts/errors";
@@ -184,6 +184,42 @@ photos.get("/visit/:id", (c) =>
       .where(and(eq(dailyPlans.id, id), eq(dailyPlans.tenantId, tenantId)))
       .limit(1);
     return row?.photoUrl;
+  }));
+
+/*
+  Снимки отчёта мерчандайзера.
+
+  ── Чего не было ─────────────────────────────────────────────────────────────
+
+  Отчёт о визите хранит НЕСКОЛЬКО снимков — колонка photos, массив JSON, и в
+  него ложатся data-url целиком, по мегабайту с лишним каждый. Из-за этого
+  витрину отчётов нельзя было сделать в принципе: страница из двадцати пяти
+  отчётов по три снимка — это сотни мегабайт JSON в одном ответе.
+
+  Поэтому списки отчётов отдают не снимки, а их ЧИСЛО, и экран собирает
+  ссылки сюда: /api/photos/report/<id>/<номер>. Снимок подтягивается лениво,
+  по одному, и кэшируется браузером — как фото товара и магазина рядом.
+
+  Номер берётся из адреса, а не из тела: ссылка должна быть постоянной, чтобы
+  браузер мог её закэшировать. Он же и ограничивает: JSON_EXTRACT с чужим
+  индексом вернёт NULL, то есть 404, а не чужой снимок.
+*/
+photos.get("/report/:id/:n", (c) =>
+  serve(c, async (tenantId, id) => {
+    const n = Number(c.req.param("n"));
+    // Отрицательный или дробный номер до базы не доходит: MySQL на таком пути
+    // JSON вернул бы ошибку, а не NULL, и запрос упал бы пятисоткой.
+    if (!Number.isInteger(n) || n < 0 || n > 50) return null;
+    const [row] = await getDb().select({
+      photo: sql<string | null>`JSON_UNQUOTE(JSON_EXTRACT(${visitReports.photos}, ${"$[" + n + "]"}))`,
+    })
+      .from(visitReports)
+      .where(and(eq(visitReports.id, id), eq(visitReports.tenantId, tenantId)))
+      .limit(1);
+    // JSON_UNQUOTE от несуществующего элемента даёт SQL NULL, но строка "null"
+    // тоже возможна, если в массиве лежит literal null — обе означают «нет».
+    const photo = row?.photo;
+    return photo && photo !== "null" ? photo : null;
   }));
 
 export default photos;
