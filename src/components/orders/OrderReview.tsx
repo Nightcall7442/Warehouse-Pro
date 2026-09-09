@@ -6,9 +6,20 @@ import { formatQty } from "@/lib/format";
 import { PAYMENT_METHODS, unitLabel } from "./types";
 import type { OrderItem, PaymentMethod } from "./types";
 import { colorMix } from "@/lib/color-mix";
+import { PremiumSelect } from "@/components/PremiumSelect";
 
 interface OrderReviewProps {
   shopName: string;
+  /*
+    Кому засчитать продажу.
+
+    Показывается только тем, кто оформляет заказы за других: директору,
+    оператору, супервайзеру. Агент оформляет на себя, и выбор ему не нужен —
+    лишнее поле в форме, которую он заполняет по двадцать раз в день.
+  */
+  agents?: { id: number; name: string }[];
+  agentId?: number;
+  onAgentChange?: (id: number) => void;
   items: OrderItem[];
   notes: string;
   onNotesChange: (v: string) => void;
@@ -22,6 +33,7 @@ export function OrderReview({
   shopName, items, notes, onNotesChange,
   discount, onDiscountChange,
   paymentMethod, onPaymentMethodChange,
+  agents, agentId, onAgentChange,
 }: OrderReviewProps) {
   const { fmt } = useCurrency();
   const { lang } = useLang();
@@ -64,6 +76,33 @@ export function OrderReview({
         </div>
 
         {/* Totals */}
+        {/*
+          За кем числится продажа.
+
+          Заказ всегда приписывался ТОМУ, КТО ЕГО СОЗДАЛ. У арендатора, где
+          заказы оформляет директор, весь KPI агентов оказывался пуст: продажи
+          есть, а числятся за тем, кто нажал кнопку. Комиссия считается
+          процентом от оформленного — значит и зарплата агентов выходила нулём.
+        */}
+        {agents && agents.length > 0 && onAgentChange && (
+          <div className="pt-3" style={{ borderTop: "1px solid var(--color-border)" }}>
+            <p className="font-label" style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "var(--color-text-tertiary)", marginBottom: "8px" }}>
+              {t("Продажа засчитывается", "Sotuv hisobga olinadi")}
+            </p>
+            <PremiumSelect
+              value={String(agentId ?? "")}
+              onChange={v => onAgentChange(Number(v))}
+              width="100%"
+              aria-label={t("Кому засчитать продажу", "Sotuvni kimga hisoblash")}
+              options={agents.map(a => ({ value: String(a.id), label: a.name }))}
+            />
+            <p style={{ fontSize: "11.5px", color: "var(--color-text-tertiary)", marginTop: "6px", lineHeight: 1.45 }}>
+              {t("По этому выбору считаются KPI и комиссия. По умолчанию — вы.",
+                 "Shu tanlov bo'yicha KPI va komissiya hisoblanadi. Odatda — siz.")}
+            </p>
+          </div>
+        )}
+
         <div className="space-y-2 pt-3" style={{ borderTop: "1px solid var(--color-border, #d8d5cd)" }}>
           <div className="flex justify-between text-sm">
             <span className="text-secondary">{t("Подитого", "Jami")}</span>

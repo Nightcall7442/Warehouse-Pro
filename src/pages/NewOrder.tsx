@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { trpc } from "@/providers/trpc";
 import { useInvalidateOrderCaches } from "@/hooks/useOrderCacheSync";
 import { notify } from "@/lib/toast";
@@ -51,6 +51,13 @@ interface OrderWizard {
   setPaymentMethod: (v: PaymentMethod) => void;
   cartOpen: boolean;
   setCartOpen: (v: boolean) => void;
+  /*
+    Кому засчитать продажу. Пусто у агента: он оформляет на себя, и выбор ему
+    только мешал бы в форме, которую он заполняет по двадцать раз в день.
+  */
+  assignableAgents?: { id: number; name: string }[];
+  agentId: number;
+  setAgentId: (id: number) => void;
 }
 
 const useWizard = () => useOutletContext<OrderWizard>();
@@ -80,6 +87,9 @@ export function NewOrderReviewStep() {
   return (
     <OrderReview
       shopName={w.shopName}
+      agents={w.assignableAgents}
+      agentId={w.agentId}
+      onAgentChange={w.setAgentId}
       items={w.items}
       notes={w.notes}
       onNotesChange={w.setNotes}
@@ -109,6 +119,29 @@ export default function NewOrder() {
   const [notes,    setNotes]    = useState("");
   const [discount, setDiscount] = useState("0");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
+
+  /*
+    Кому засчитать продажу.
+
+    По умолчанию — себе: так было всегда, и для агента это единственный
+    возможный ответ. Директор, оператор и супервайзер могут выбрать другого —
+    иначе их собственные оформления съедают весь KPI команды.
+  */
+  const canAssign = user?.role === "ceo" || user?.role === "operator" || user?.role === "supervisor";
+  const [agentId, setAgentId] = useState<number>(0);
+  const { data: agentList } = trpc.agent.listAgents.useQuery(undefined, { enabled: canAssign });
+
+  const assignableAgents = useMemo(() => {
+    if (!canAssign || !user) return undefined;
+    const others = (agentList ?? []).filter(a => a.id !== user.id);
+    /*
+      Себя — первым: чаще всего заказ оформляют «на себя», и искать своё имя в
+      середине списка не должно быть нужно. Пометка на языке интерфейса, но
+      без t: он объявлен ниже по файлу, а список считается здесь.
+    */
+    const meLabel = lang === "uz" ? "siz" : "вы";
+    return [{ id: user.id, name: `${user.name} (${meLabel})` }, ...others];
+  }, [canAssign, agentList, user, lang]);
   const [idempotencyKey] = useState(() => crypto.randomUUID());
   // Открыта ли панель корзины. Признак нужен только на мобильном, но живёт
   // здесь: кнопка-итог стоит в нижней строке этой страницы, а сама панель —
@@ -234,7 +267,8 @@ export default function NewOrder() {
 
     const payload = {
       shopId,
-      agentId: user?.id ?? 0,
+      // Ноль означает «не выбирали» — тогда заказ за создающим, как и раньше.
+      agentId: agentId > 0 ? agentId : (user?.id ?? 0),
       idempotencyKey,
       items:   items
         .filter(i => i.productId > 0 && Number(i.quantity) > 0)
@@ -298,6 +332,7 @@ export default function NewOrder() {
     discount, setDiscount,
     paymentMethod, setPaymentMethod,
     cartOpen, setCartOpen,
+    assignableAgents, agentId, setAgentId,
   };
 
   return (

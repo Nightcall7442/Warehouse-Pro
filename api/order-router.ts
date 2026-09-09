@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { createRouter, operatorQuery, fieldSalesQuery } from "./middleware";
 import { OrderService, assertOrderVisible } from "./services/order";
 import { getDb } from "./queries/connection";
@@ -260,7 +261,49 @@ export const orderRouter = createRouter({
     }))
     .mutation(async ({ input, ctx }) => {
       try {
-        return await OrderService.create(ctx.db, ctx.tenant.id, ctx.user.id, input);
+        /*
+          Чей это заказ.
+
+          Поле agentId принималось на входе с самого начала — и не
+          использовалось: заказ всегда приписывался ТОМУ, КТО ЕГО СОЗДАЛ.
+          Интерфейс даже слал сюда `agentId: user.id`, то есть себя же.
+
+          Для арендатора, где заказы оформляет директор или оператор, это
+          означало, что весь KPI агентов пуст: продажи есть, а числятся они за
+          тем, кто нажал кнопку. Комиссия при этом считается процентом от
+          заказов, которые человек оформил, — значит и зарплата у агентов
+          выходила нулём.
+
+          Назначать чужого может только тот, кто распоряжается работой: агент и
+          мерчандайзер оформляют заказ на себя, и передать его коллеге не могут.
+        */
+        const canAssign = ["ceo", "operator", "supervisor"].includes(ctx.user.role);
+        const agentId = canAssign && input.agentId ? input.agentId : ctx.user.id;
+
+        /*
+          Чужого проверяем, себя — нет.
+
+          Себя проверять нечего: создающий только что прошёл вход, он свой и
+          действующий. А число из запроса на веру брать нельзя — иначе заказ
+          уедет на сотрудника чужой организации или на уволенного.
+
+          Проверка стоит здесь, а не в службе: именно здесь решается, чей это
+          заказ. В службе она была бы лишним запросом на КАЖДОМ создании, в том
+          числе на «оформил сам себе», а таких — почти все.
+        */
+        if (agentId !== ctx.user.id) {
+          const [agent] = await ctx.db.select({ id: users.id }).from(users)
+            .where(and(
+              eq(users.id, agentId),
+              eq(users.tenantId, ctx.tenant.id),
+              eq(users.status, "active"),
+            )).limit(1);
+          if (!agent) {
+            throw new TRPCError({ code: "NOT_FOUND", message: "Сотрудник не найден в вашей организации" });
+          }
+        }
+
+        return await OrderService.create(ctx.db, ctx.tenant.id, agentId, input);
       } catch (err) {
         const cause = err instanceof Error ? err.cause : undefined;
         console.error("[order.create FAILED]", {
