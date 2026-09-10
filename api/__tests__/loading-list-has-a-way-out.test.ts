@@ -70,7 +70,7 @@ describe("выход из листа есть на экране", () => {
 });
 
 describe("сообщение об отказе ведёт к выходу", () => {
-  const service = code(join(SRC, "..", "api", "services", "order.ts"));
+  const service = code(join(SRC, "..", "api", "services", "loading-list.ts"));
   const at = service.indexOf("уже стоят в незакрытом погрузочном листе");
   const around = service.slice(Math.max(0, at - 900), at + 500);
 
@@ -93,7 +93,7 @@ describe("сообщение об отказе ведёт к выходу", () =
 describe("что удалять нельзя", () => {
   it("отгруженный лист удалить нельзя", () => {
     // Он больше ничего не держит, а как запись о факте — нужен.
-    const service = code(join(SRC, "..", "api", "services", "order.ts"));
+    const service = code(join(SRC, "..", "api", "services", "loading-list.ts"));
     const at = service.indexOf("async deleteLoadingList");
     expect(at).toBeGreaterThan(0);
     const body = service.slice(at, at + 1400);
@@ -106,7 +106,7 @@ describe("что удалять нельзя", () => {
       держать заказы уже несуществующим листом — та же блокировка, только без
       возможности её увидеть.
     */
-    const service = code(join(SRC, "..", "api", "services", "order.ts"));
+    const service = code(join(SRC, "..", "api", "services", "loading-list.ts"));
     const at = service.indexOf("async deleteLoadingList");
     const body = service.slice(at, at + 1400);
     const orderLinks = body.indexOf("loadingListOrders");

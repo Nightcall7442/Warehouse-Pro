@@ -67,6 +67,18 @@ export default function ProductDetail() {
   // Список уже заведённых категорий — для подсказки в правке.
   const { data: categories } = trpc.product.categories.useQuery();
 
+  /*
+    Разрез остатка по партиям.
+
+    Отдельным запросом, а не полем товара: он нужен только на этой карточке, а
+    product.getById зовут ещё из списка и из окна заказа — тянуть туда партии
+    значило бы платить за них там, где их не показывают.
+  */
+  const batchesQ = trpc.warehouseReports.productBatches.useQuery(
+    { productId: Number(id) },
+    { enabled: !!id },
+  );
+
   const updateProduct = trpc.product.update.useMutation({
     onSuccess: () => { utils.product.getById.invalidate({id:Number(id)}); stopEditing(); notify.success(tr("Товар обновлён", "Mahsulot yangilandi")); },
     onError:   (e) => notify.error(e.message),
@@ -109,6 +121,8 @@ export default function ProductDetail() {
   // Короткая подпись рядом с числом: «12 шт», а не «12 штук».
   const unitLabel = (u?: string) => unitShort(u, lang);
   const totalWeightKg = stock ? (Number(stock.currentStock) * Number(product.unitWeight||0)) : 0;
+  const batches = batchesQ.data?.batches ?? [];
+  const untracked = batchesQ.data?.untracked ?? 0;
 
   return (
     <div className="max-w-3xl mx-auto space-y-4">
@@ -247,6 +261,59 @@ export default function ProductDetail() {
 
         {low && (
           <p className="text-xs text-danger mt-3 font-medium">⚠ {tr("Ниже точки дозаказа","Qayta buyurtma nuqtasidan past")} ({formatQty(product.reorderPoint, 0)} {unitLabel(product.unit)})</p>
+        )}
+
+        {/*
+          Из чего сложился остаток.
+
+          Общее число не говорит о риске ничего: «на складе 240» может значить
+          и «лежит полгода», и «90 сгорает через неделю». Разрез по партиям
+          показывается ровно в том порядке, в котором списывает FEFO, — человек
+          видит, что уйдёт первым, так же, как это решит система.
+
+          Строк нет — блока нет: у бытовой химии и посуды срока не бывает
+          вовсе, и пустая таблица «партий нет» на её карточке — шум.
+        */}
+        {batches.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-border-subtle">
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-label text-primary tracking-wider text-[10px]">
+                {tr("ПАРТИИ И СРОКИ","PARTIYA VA MUDDAT")}
+              </span>
+              {untracked > 0 && (
+                // Остаток без партии показывается, а не прячется: спрятать
+                // разницу значило бы показать меньше, чем лежит на полке.
+                <span className="text-[11px] text-secondary">
+                  {tr("без партии","partiyasiz")}: {formatQty(untracked)} {unitLabel(product.unit)}
+                </span>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              {batches.map(b => {
+                const days = b.daysLeft;
+                const tone = days == null ? "text-secondary"
+                  : days < 0 ? "text-danger"
+                  : days <= 7 ? "text-warning"
+                  : "text-secondary";
+                return (
+                  <div key={b.batchId} className="flex items-center justify-between text-xs">
+                    <span className="text-secondary truncate">
+                      {b.batchNumber ?? tr("без номера","raqamsiz")}
+                      {b.expiresAt && ` · ${tr("до","gacha")} ${String(b.expiresAt).slice(0, 10).split("-").reverse().join(".")}`}
+                    </span>
+                    <span className="flex items-center gap-2 shrink-0">
+                      <span className={`font-medium ${tone}`}>
+                        {days == null ? tr("бессрочно","muddatsiz")
+                          : days < 0 ? tr(`просрочено ${-days} дн.`, `${-days} kun o'tgan`)
+                          : tr(`${days} дн.`, `${days} kun`)}
+                      </span>
+                      <span className="font-data font-bold text-primary">{formatQty(b.quantity)}</span>
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         )}
       </div>
 

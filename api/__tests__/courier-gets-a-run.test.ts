@@ -21,7 +21,10 @@ import { join } from "node:path";
  * и тот же заказ можно было отдать галочкой в списке и нельзя — из его карточки.
  */
 const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8");
-const SERVICE = read("api/services/order.ts");
+// Погрузочные листы уехали из services/order.ts в свой модуль: с заказом у
+// них общая только ссылка, а файл на три тысячи строк — то место, где заводится
+// «написано и не вызывается ниоткуда» (эти самые листы им и болели).
+const SERVICE = read("api/services/loading-list.ts");
 const ASSIGN = SERVICE.slice(
   SERVICE.indexOf("async assignCourierToList"),
   SERVICE.indexOf("async updateLoadingListStatus"),

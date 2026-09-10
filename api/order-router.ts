@@ -2,6 +2,8 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { createRouter, operatorQuery, fieldSalesQuery, can } from "./middleware";
 import { OrderService, assertOrderVisible } from "./services/order";
+// Погрузочные листы живут своим модулем: с заказом у них общая только ссылка.
+import { LoadingListService } from "./services/loading-list";
 import { getDb } from "./queries/connection";
 import { savedFilters, orderComments, shops, payments, users, orders, returns } from "@db/schema";
 import { eq, and, or, desc, sql, isNull, inArray } from "drizzle-orm";
@@ -557,7 +559,7 @@ export const orderRouter = createRouter({
       }).prefault({}),
     }))
     .mutation(async ({ input, ctx }) => {
-      return OrderService.createLoadingList(ctx.db, ctx.tenant.id, ctx.user.id, input);
+      return LoadingListService.createLoadingList(ctx.db, ctx.tenant.id, ctx.user.id, input);
     }),
 
   listLoadingLists: operatorQuery
@@ -567,7 +569,7 @@ export const orderRouter = createRouter({
       status: z.string().optional(),
     }).optional())
     .query(async ({ input, ctx }) => {
-      return OrderService.listLoadingLists(ctx.db, ctx.tenant.id, input ?? {});
+      return LoadingListService.listLoadingLists(ctx.db, ctx.tenant.id, input ?? {});
     }),
 
   /**
@@ -584,7 +586,7 @@ export const orderRouter = createRouter({
       courierId: z.number().int().positive(),
     }))
     .mutation(async ({ input, ctx }) => {
-      return OrderService.assignCourierToList(ctx.db, ctx.tenant.id, input.listId, input.courierId);
+      return LoadingListService.assignCourierToList(ctx.db, ctx.tenant.id, input.listId, input.courierId);
     }),
 
   updateLoadingListStatus: operatorQuery
@@ -593,7 +595,7 @@ export const orderRouter = createRouter({
       status: z.string(),
     }))
     .mutation(async ({ input, ctx }) => {
-      return OrderService.updateLoadingListStatus(ctx.db, ctx.tenant.id, input.listId, input.status);
+      return LoadingListService.updateLoadingListStatus(ctx.db, ctx.tenant.id, input.listId, input.status);
     }),
 
   /**
@@ -606,7 +608,7 @@ export const orderRouter = createRouter({
   deleteLoadingList: operatorQuery
     .input(z.object({ listId: z.number().int().positive() }))
     .mutation(async ({ input, ctx }) => {
-      return OrderService.deleteLoadingList(ctx.db, ctx.tenant.id, input.listId);
+      return LoadingListService.deleteLoadingList(ctx.db, ctx.tenant.id, input.listId);
     }),
 
   // ── Saved Filters ──────────────────────────────────────────────────────────

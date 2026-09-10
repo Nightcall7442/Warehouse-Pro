@@ -35,7 +35,7 @@ vi.mock("../lib/logger", () => ({
 }));
 
 import { orders, loadingLists, loadingListOrders } from "@db/schema";
-import { OrderService } from "../services/order";
+import { LoadingListService } from "../services/loading-list";
 
 interface FakeOrder {
   id: number; tenantId: number; orderNumber: string; status: string;
@@ -120,7 +120,7 @@ function makeDb(requested: number[], tenantId: number) {
 }
 
 const create = (ids: number[], tenantId = 1) =>
-  OrderService.createLoadingList(
+  LoadingListService.createLoadingList(
     makeDb(ids, tenantId).db as never, tenantId, 1,
     { orderIds: ids, format: "aggregated" as const },
   );
