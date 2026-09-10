@@ -230,6 +230,17 @@ function Footer() {
           style={{ ...MONO, color: LX.inkFaint, borderTop: `1px solid ${LX.rule}` }}
         >
           <span>© 2026 Warehouse Pro · {tr("Все права защищены", "Barcha huquqlar himoyalangan")}</span>
+          {/*
+            Ссылка на политику — в подвале, а не спрятана.
+
+            Её требуют оба магазина приложений, и проверяющий ищет её именно
+            здесь. Но важнее другое: приложение записывает, где находится
+            человек на работе, и документ об этом должен находиться без
+            подсказки.
+          */}
+          <a href="/privacy" style={{ color: "inherit" }}>
+            {tr("Политика конфиденциальности", "Maxfiylik siyosati")}
+          </a>
           <span>{tr("Ташкент, Узбекистан", "Toshkent, O'zbekiston")}</span>
         </div>
       </div>

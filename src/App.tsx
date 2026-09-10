@@ -10,6 +10,7 @@ import { NoAccess } from "@/components/NoAccess";
 import Login                from "./pages/Login";
 import Register             from "./pages/Register";
 import Landing              from "./pages/Landing";
+const Privacy              = lazyWithRecovery(() => import("./pages/Privacy"));
 import ForgotPassword       from "./pages/ForgotPassword";
 import ResetPassword        from "./pages/ResetPassword";
 import NotFound             from "./pages/NotFound";
@@ -170,6 +171,10 @@ export default function App() {
             людей — всё это ceo и оператор. */}
         <Route path="/onboarding" element={<RoleGuard roles={["ceo","operator"]}><Onboarding /></RoleGuard>} />
         <Route path="/landing"            element={<Landing />} />
+        {/* Публичная и без входа: ссылку на неё требуют оба магазина
+            приложений, и открывать её будут люди, которые в систему не
+            входят вовсе. */}
+        <Route path="/privacy"            element={<Privacy />} />
         <Route path="/"                   element={<RootGate />} />
 
         <Route element={<AppLayout />}>
