@@ -47,16 +47,34 @@ vi.mock("../services/push-service", () => ({
   sendPushToUser: vi.fn(async () => {}),
 }));
 
-import { orders, shops, users, payments, notifications, orderItems, warehouseStock, warehouses } from "@db/schema";
+import { orders, shops, users, payments, notifications, orderItems, warehouseStock, warehouses, orderAdjustments } from "@db/schema";
 import { makeConditionEvaluator } from "./helpers/fake-conditions";
 
 // ── Fake tables ──────────────────────────────────────────────────────────────
-interface FakeOrder { id: number; tenantId: number; orderNumber: string; status: string; deliveryStatus: string; total: string; shopId: number; courierId: number | null; agentId: number; deliveredAt: Date | null; createdAt: Date; }
+interface FakeOrder { id: number; tenantId: number; orderNumber: string; status: string; deliveryStatus: string; total: string; subtotal: string; discount: string; shopId: number; courierId: number | null; agentId: number; deliveredAt: Date | null; createdAt: Date; }
 interface FakeShop { id: number; tenantId: number; name: string; address: string; city: string; debt: string; status: string; agentId: number | null; territoryId: number | null; }
 interface FakeUser { id: number; tenantId: number; name: string; email: string; role: string; status: string; }
 interface FakePayment { id: number; tenantId: number; shopId: number; orderId: number | null; amount: string; type: string; notes: string; createdBy: number; createdAt: Date; }
 interface FakeNotification { id: number; tenantId: number; userId: number; type: string; title: string; message: string; createdAt: Date; }
-interface FakeOrderItem { id: number; orderId: number; productId: number; quantity: string; }
+/*
+  Строка заказа описана целиком, а не одним количеством.
+
+  Без unitPrice и subtotal ветку частичного возврата было нечем даже запустить:
+  сумма считалась из undefined и выходила NaN. Поэтому единственная операция
+  курьера, которая МЕНЯЕТ ДЕНЬГИ заказа, здесь не проверялась вовсе — и в ней
+  всё это время не переписывалась стоимость строки.
+*/
+interface FakeOrderItem {
+  id: number; orderId: number; productId: number; quantity: string;
+  unitPrice: string; subtotal: string;
+  deliveredQuantity: string | null; returnReason: string | null;
+}
+
+/** Запись журнала правок — их курьерский путь не писал ни одной. */
+interface FakeAdjustment {
+  id: number; tenantId: number; orderId: number; adjustedBy: number;
+  type: string; oldValue: unknown; newValue: unknown; reason: string | null;
+}
 interface FakeStock { id: number; productId: number; tenantId: number; warehouseId: number; currentStock: string; reserved: string; available: string; }
 interface FakeWarehouse { id: number; tenantId: number; name: string; isDefault: boolean; status: string; }
 
@@ -67,15 +85,18 @@ let usersTable: FakeUser[] = [];
 let paymentsTable: FakePayment[] = [];
 let notificationsTable: FakeNotification[] = [];
 let orderItemsTable: FakeOrderItem[] = [];
+let adjustmentsTable: FakeAdjustment[] = [];
+let nextAdjustmentId = 1;
 let stocksTable: FakeStock[] = [];
 let nextPaymentId = 10;
 let nextNotifId = 10;
 
 function resetTables() {
   ordersTable = [
-    { id: 1, tenantId: 1, orderNumber: "ORD-001", status: "processing", deliveryStatus: "assigned", total: "500.00", shopId: 1, courierId: 100, agentId: 10, deliveredAt: null, createdAt: new Date() },
-    { id: 2, tenantId: 1, orderNumber: "ORD-002", status: "new", deliveryStatus: "not_assigned", total: "300.00", shopId: 2, courierId: null, agentId: 10, deliveredAt: null, createdAt: new Date() },
-    { id: 3, tenantId: 1, orderNumber: "ORD-003", status: "processing", deliveryStatus: "out_for_delivery", total: "200.00", shopId: 1, courierId: 100, agentId: 10, deliveredAt: null, createdAt: new Date() },
+    // Заказ №1: 10 × 30 + 5 × 40 = 500, скидки нет.
+    { id: 1, tenantId: 1, orderNumber: "ORD-001", status: "processing", deliveryStatus: "assigned", total: "500.00", subtotal: "500.00", discount: "0.00", shopId: 1, courierId: 100, agentId: 10, deliveredAt: null, createdAt: new Date() },
+    { id: 2, tenantId: 1, orderNumber: "ORD-002", status: "new", deliveryStatus: "not_assigned", total: "300.00", subtotal: "300.00", discount: "0.00", shopId: 2, courierId: null, agentId: 10, deliveredAt: null, createdAt: new Date() },
+    { id: 3, tenantId: 1, orderNumber: "ORD-003", status: "processing", deliveryStatus: "out_for_delivery", total: "200.00", subtotal: "200.00", discount: "0.00", shopId: 1, courierId: 100, agentId: 10, deliveredAt: null, createdAt: new Date() },
   ];
   shopsTable = [
     { id: 1, tenantId: 1, name: "Shop A", address: "123 Main St", city: "Tashkent", debt: "0.00", status: "active", agentId: 10, territoryId: null },
@@ -89,9 +110,10 @@ function resetTables() {
   paymentsTable = [];
   notificationsTable = [];
   orderItemsTable = [
-    { id: 1, orderId: 1, productId: 1, quantity: "10" },
-    { id: 2, orderId: 1, productId: 2, quantity: "5" },
+    { id: 1, orderId: 1, productId: 1, quantity: "10", unitPrice: "30.00", subtotal: "300.00", deliveredQuantity: null, returnReason: null },
+    { id: 2, orderId: 1, productId: 2, quantity: "5", unitPrice: "40.00", subtotal: "200.00", deliveredQuantity: null, returnReason: null },
   ];
+  adjustmentsTable = [];
   stocksTable = [
     { id: 1, productId: 1, tenantId: 1, warehouseId: 1, currentStock: "100.00", reserved: "15.00", available: "85.00" },
     { id: 2, productId: 2, tenantId: 1, warehouseId: 1, currentStock: "50.00", reserved: "5.00", available: "45.00" },
@@ -103,6 +125,7 @@ function resetTables() {
   ];
   nextPaymentId = 10;
   nextNotifId = 10;
+  nextAdjustmentId = 1;
 }
 
 function tableOf(ref: unknown): string {
@@ -114,6 +137,7 @@ function tableOf(ref: unknown): string {
   if (ref === orderItems) return "orderItems";
   if (ref === warehouseStock) return "warehouseStock";
   if (ref === warehouses) return "warehouses";
+  if (ref === orderAdjustments) return "orderAdjustments";
   return "other";
 }
 
@@ -126,6 +150,7 @@ function rowsFor(table: string): Record<string, unknown>[] {
   if (table === "orderItems") return orderItemsTable as unknown as Record<string, unknown>[];
   if (table === "warehouseStock") return stocksTable as unknown as Record<string, unknown>[];
   if (table === "warehouses") return warehousesTable as unknown as Record<string, unknown>[];
+  if (table === "orderAdjustments") return adjustmentsTable as unknown as Record<string, unknown>[];
   return [];
 }
 
@@ -204,6 +229,21 @@ function makeMockDb() {
             orderId: (vals.orderId as number | null) ?? null,
             amount: String(vals.amount ?? "0"), type: String(vals.type ?? "payment"),
             notes: String(vals.notes ?? ""), createdBy: (vals.createdBy as number) ?? 0, createdAt: new Date(),
+          });
+          return Promise.resolve([{ insertId: id }]);
+        }
+        if (table === "orderAdjustments") {
+          /*
+            Запись журнала ловится ЯВНО, а не проваливается в общий
+            `[{insertId:1}]` ниже. Провались она туда — проверка «курьер
+            оставляет след в истории» прошла бы, ничего не записав.
+          */
+          const id = nextAdjustmentId++;
+          adjustmentsTable.push({
+            id, tenantId: vals.tenantId as number, orderId: vals.orderId as number,
+            adjustedBy: vals.adjustedBy as number, type: String(vals.type ?? ""),
+            oldValue: vals.oldValue, newValue: vals.newValue,
+            reason: (vals.reason as string | null) ?? null,
           });
           return Promise.resolve([{ insertId: id }]);
         }
@@ -448,7 +488,7 @@ function idsOf(rows: unknown): number[] {
 function addForeignTenantOrder() {
   ordersTable.push({
     id: 4, tenantId: 2, orderNumber: "ORD-004", status: "processing",
-    deliveryStatus: "assigned", total: "700.00", shopId: 1,
+    deliveryStatus: "assigned", total: "700.00", subtotal: "700.00", discount: "0.00", shopId: 1,
     courierId: 100, agentId: 10, deliveredAt: null, createdAt: new Date(),
   });
 }
@@ -512,7 +552,7 @@ describe("курьер и закрытый заказ", () => {
     const { courierRouter } = await import("../courier-router");
     ordersTable.push({
       id: 7, tenantId: 1, orderNumber: "ORD-007", status: "returned",
-      deliveryStatus: "assigned", total: "400.00", shopId: 1, courierId: 100,
+      deliveryStatus: "assigned", total: "400.00", subtotal: "400.00", discount: "0.00", shopId: 1, courierId: 100,
       agentId: 10, deliveredAt: null, createdAt: new Date(),
     });
     const caller = courierRouter.createCaller(makeCtx(1, 100));
@@ -527,7 +567,7 @@ describe("курьер и закрытый заказ", () => {
     const { courierRouter } = await import("../courier-router");
     ordersTable.push({
       id: 8, tenantId: 1, orderNumber: "ORD-008", status: "returned",
-      deliveryStatus: "assigned", total: "400.00", shopId: 1, courierId: 100,
+      deliveryStatus: "assigned", total: "400.00", subtotal: "400.00", discount: "0.00", shopId: 1, courierId: 100,
       agentId: 10, deliveredAt: null, createdAt: new Date(),
     });
     const caller = courierRouter.createCaller(makeCtx(1, 100));
@@ -582,5 +622,97 @@ describe("повторная оплата по тому же заказу", () =
     await caller.markDelivered({ orderId: 1, cashAmount: "300.00" });
     expect(paymentsTable).toHaveLength(2);
     expect(paymentsTable.reduce((s, p) => s + Number(p.amount), 0)).toBe(500);
+  });
+});
+
+describe("courier.completeDelivery — частичный возврат", () => {
+  /*
+    Единственная операция курьера, которая МЕНЯЕТ ДЕНЬГИ заказа, и до сих пор
+    она здесь не проверялась вовсе: стенд не знал цен, и сумма считалась из
+    undefined.
+
+    Заказ №1: 10 × 30 + 5 × 40 = 500.
+  */
+  const line = (id: number) => orderItemsTable.find(i => i.id === id)!;
+
+  async function partialReturn(returned: Array<{ itemId: number; returnedQty: number }>) {
+    const { courierRouter } = await import("../courier-router");
+    const caller = courierRouter.createCaller(makeCtx(1, 100));
+    return caller.completeDelivery({
+      orderId: 1,
+      result: "partial_returned",
+      returnedItems: returned,
+      returnReason: "магазин отказался от части",
+      paidAmount: "0",
+      paymentMethod: "cash",
+    });
+  }
+
+  it("заказ сходится сам с собой: сумма строк равна сумме заказа", async () => {
+    /*
+      Главная проверка. Курьер уменьшал orders.subtotal и НЕ трогал
+      order_items.subtotal: строки продолжали стоить как заказанные, и
+      SUM(строк) переставал сходиться с суммой заказа на одном и том же
+      заказе. Отчёты, складывающие строки, показывали проданным то, что
+      вернулось.
+    */
+    await partialReturn([{ itemId: 1, returnedQty: 4 }]);
+
+    const order = ordersTable.find(o => o.id === 1)!;
+    const linesTotal = orderItemsTable
+      .filter(i => i.orderId === 1)
+      .reduce((s, i) => s + Number(i.subtotal), 0);
+
+    // 6 × 30 + 5 × 40 = 380
+    expect(Number(order.subtotal)).toBe(380);
+    expect(linesTotal, "сумма строк разошлась с суммой заказа").toBe(Number(order.subtotal));
+  });
+
+  it("стоимость строки считается от доставленного, а не от заказанного", async () => {
+    await partialReturn([{ itemId: 1, returnedQty: 4 }]);
+
+    expect(line(1).deliveredQuantity).toBe("6");
+    expect(Number(line(1).subtotal), "строка стоит как заказанная").toBe(180);
+    // Нетронутая строка остаётся прежней.
+    expect(Number(line(2).subtotal)).toBe(200);
+  });
+
+  it("вернули всё по строке — строка стоит ноль, а не полную цену", async () => {
+    await partialReturn([{ itemId: 1, returnedQty: 10 }]);
+
+    expect(line(1).deliveredQuantity).toBe("0");
+    expect(Number(line(1).subtotal)).toBe(0);
+    expect(Number(ordersTable.find(o => o.id === 1)!.subtotal)).toBe(200);
+  });
+
+  it("правка попадает в журнал — с причиной и со строками", async () => {
+    /*
+      Курьерский путь не писал в журнал ничего: сумма заказа просто
+      оказывалась меньше, чем в накладной, и объяснить это было нечем — ни
+      причины, ни кто это сделал. Ту же операцию от оператора журнал
+      показывал полностью.
+    */
+    await partialReturn([{ itemId: 1, returnedQty: 4 }]);
+
+    expect(adjustmentsTable, "правка не оставила следа в истории заказа").toHaveLength(1);
+    const adj = adjustmentsTable[0];
+    expect(adj.type).toBe("partial_delivery");
+    expect(adj.adjustedBy, "не записано, кто это сделал").toBe(100);
+    expect(adj.reason).toBe("магазин отказался от части");
+
+    const before = (adj.oldValue as { total: string; items: Array<{ id: number; subtotal: string }> });
+    const after = (adj.newValue as { total: string; items: Array<{ id: number; subtotal: string }> });
+    expect(Number(before.total)).toBe(500);
+    expect(Number(after.total)).toBe(380);
+    expect(before.items.find(i => i.id === 1)!.subtotal, "«до» записано уже изменённым").toBe("300.00");
+    expect(after.items.find(i => i.id === 1)!.subtotal).toBe("180.00");
+  });
+
+  it("вернуть больше, чем в заказе, нельзя — и ничего не записано", async () => {
+    await expect(partialReturn([{ itemId: 1, returnedQty: 25 }]))
+      .rejects.toThrow(/Возвращено больше, чем в заказе/);
+
+    expect(Number(line(1).subtotal), "строка тронута отказанной операцией").toBe(300);
+    expect(adjustmentsTable, "в журнал ушла запись об операции, которой не было").toHaveLength(0);
   });
 });

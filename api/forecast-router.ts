@@ -3,7 +3,7 @@ import { createRouter, supervisorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { orderItems, orders, products } from "@db/schema";
 import { eq, and, sql, gte, desc , inArray, isNull } from "drizzle-orm";
-import { REVENUE_ORDER_STATUSES } from "./lib/order-status";
+import { REVENUE_ORDER_STATUSES, deliveredQty } from "./lib/order-status";
 import { withCache, CacheTTL } from "./lib/cache";
 import {
   simpleMovingAverage,
@@ -96,8 +96,20 @@ export const forecastRouter = createRouter({
 
       const rows = await db.select({
         date: sql<string>`DATE(${orders.createdAt})`,
-        quantity: sql<string>`SUM(CAST(${orderItems.quantity} AS DECIMAL(15,3)))`,
-        revenue: sql<string>`SUM(CAST(${orderItems.subtotal} AS DECIMAL(15,2)))`,
+      /*
+        Проданное и выручка — по ДОСТАВЛЕННОМУ количеству, а не по заказанному.
+
+        Строки заказов, проведённых курьером через частичный возврат ДО правки
+        этого пути, хранят количество и сумму как заказанные: курьерский путь
+        писал только deliveredQuantity. Прогноз спроса строился на них — и
+        предлагал закупать то, что магазины вернули. Три отчёта в
+        analytics-router это уже обходили, прогноз не обходил.
+
+        Сейчас путь курьера строку переписывает, но исторические строки в базе
+        остались, и считать по ним надо всё так же.
+      */
+        quantity: sql<string>`COALESCE(SUM(${deliveredQty()}), 0)`,
+        revenue: sql<string>`COALESCE(SUM(${deliveredQty()} * ${orderItems.unitPrice}), 0)`,
       })
         .from(orderItems)
         .innerJoin(orders, eq(orderItems.orderId, orders.id))
@@ -139,8 +151,20 @@ export const forecastRouter = createRouter({
         productId: orderItems.productId,
         productName: products.name,
         productCode: products.code,
-        totalQty: sql<string>`SUM(CAST(${orderItems.quantity} AS DECIMAL(15,3)))`,
-        totalRevenue: sql<string>`SUM(CAST(${orderItems.subtotal} AS DECIMAL(15,2)))`,
+      /*
+        Проданное и выручка — по ДОСТАВЛЕННОМУ количеству, а не по заказанному.
+
+        Строки заказов, проведённых курьером через частичный возврат ДО правки
+        этого пути, хранят количество и сумму как заказанные: курьерский путь
+        писал только deliveredQuantity. Прогноз спроса строился на них — и
+        предлагал закупать то, что магазины вернули. Три отчёта в
+        analytics-router это уже обходили, прогноз не обходил.
+
+        Сейчас путь курьера строку переписывает, но исторические строки в базе
+        остались, и считать по ним надо всё так же.
+      */
+        totalQty: sql<string>`COALESCE(SUM(${deliveredQty()}), 0)`,
+        totalRevenue: sql<string>`COALESCE(SUM(${deliveredQty()} * ${orderItems.unitPrice}), 0)`,
         orderCount: sql<number>`COUNT(DISTINCT ${orders.id})`,
       })
         .from(orderItems)
@@ -152,7 +176,7 @@ export const forecastRouter = createRouter({
           gte(orders.createdAt, startDate),
         ))
         .groupBy(orderItems.productId, products.name, products.code)
-        .orderBy(desc(sql`SUM(CAST(${orderItems.quantity} AS DECIMAL(15,3)))`))
+        .orderBy(desc(sql`SUM(${deliveredQty()})`))
         .limit(10);
 
       return rows.map(r => ({

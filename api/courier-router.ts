@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createRouter, courierQuery, operatorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { orders, shops, users, payments, orderItems, products, warehouseStock, warehouses, debtReminders } from "@db/schema";
+import { orders, shops, users, payments, orderItems, products, warehouseStock, warehouses, debtReminders, orderAdjustments } from "@db/schema";
 import { ORDER_STATUS_LABELS, OPEN_ORDER_STATUSES } from "./lib/order-status";
 import { eq, and, sql, desc, isNull } from "drizzle-orm";
 import { sseBus } from "./lib/sse";
@@ -502,6 +502,20 @@ export const courierRouter = createRouter({
         orderTotal = Number(locked.total);
         order.subtotal = locked.subtotal;
         order.discount = locked.discount;
+        /*
+          Сумма заказа ДО этой доставки — снимком, а не чтением `order.total`
+          потом.
+
+          Ниже частичный возврат переписывает строку заказа, и `order` к тому
+          моменту описывает уже новое состояние. В бою это сходило с рук
+          случайно: драйвер отдаёт раскодированные копии, и прочитанный объект
+          остаётся снимком. Стенд же возвращает саму строку таблицы — и в
+          журнал правок уходило «было 380, стало 380».
+
+          Полагаться на то, копия перед нами или ссылка, для записи в историю
+          нельзя: она и заводится затем, чтобы показать РАЗНИЦУ.
+        */
+        const totalBeforeDelivery = String(locked.total);
 
         // Get default warehouse
         const [defaultWh] = await tx.select({ id: warehouses.id }).from(warehouses)
@@ -567,6 +581,18 @@ export const courierRouter = createRouter({
           // flow. Without this the shop was being charged for goods that
           // never left the warehouse.
           let newSubtotal = 0;
+          /*
+            Строки «до» и «после» — для журнала правок.
+
+            Операторский путь (OrderService.applyPartialDelivery) пишет такую
+            запись, курьерский не писал ни одной: частичный возврат, сделанный
+            курьером, не оставлял в истории заказа НИЧЕГО. На экране заказа
+            сумма просто оказывалась меньше, чем в накладной, и объяснить это
+            было нечем — ни причины, ни фотографий, ни кто это сделал.
+          */
+          const oldLines: Array<{ id: number; quantity: string; subtotal: string }> = [];
+          const newLines: Array<{ id: number; quantity: string; subtotal: string }> = [];
+
           for (const item of items) {
             const qty = Number(item.quantity);
             const returnedQty = returnedMap.get(item.id) ?? 0;
@@ -584,7 +610,10 @@ export const courierRouter = createRouter({
             }
 
             const deliveredQty = qty - returnedQty;
-            newSubtotal += Number(item.unitPrice) * deliveredQty;
+            const newLineSubtotal = Number(item.unitPrice) * deliveredQty;
+            newSubtotal += newLineSubtotal;
+            oldLines.push({ id: item.id, quantity: item.quantity, subtotal: item.subtotal });
+            newLines.push({ id: item.id, quantity: deliveredQty.toFixed(2), subtotal: newLineSubtotal.toFixed(2) });
 
             if (deliveredQty > 0) {
               /*
@@ -612,9 +641,29 @@ export const courierRouter = createRouter({
               });
             }
 
-            // Update delivered quantity on order item
+            /*
+              Строка заказа переписывается ЦЕЛИКОМ, а не только доставленным
+              количеством.
+
+              subtotal здесь не трогали, и строка оставалась стоить как
+              заказанная, хотя сумма заказа уже уменьшилась. То есть
+              SUM(order_items.subtotal) переставал сходиться с orders.total на
+              одном и том же заказе.
+
+              Три отчёта в analytics-router это обходили — считали выручку как
+              `доставленное × цену` и написали в комментариях, почему. Два
+              других не обошли: прогноз спроса (forecast-router) и «топ товаров»
+              в телеграме брали subtotal как есть и показывали проданным то,
+              что вернулось. Операторский путь строку переписывает
+              (services/order.ts, applyPartialDelivery) — расходились именно
+              два пути одной операции.
+            */
             await tx.update(orderItems)
-              .set({ deliveredQuantity: String(deliveredQty), returnReason: input.returnReason ?? null })
+              .set({
+                deliveredQuantity: String(deliveredQty),
+                returnReason: input.returnReason ?? null,
+                subtotal: newLineSubtotal.toFixed(2),
+              })
               .where(eq(orderItems.id, item.id));
           }
 
@@ -631,6 +680,31 @@ export const courierRouter = createRouter({
             discount: newDiscount.toFixed(2),
             total: orderTotal.toFixed(2),
           }).where(and(eq(orders.id, input.orderId), eq(orders.tenantId, ctx.tenant.id)));
+
+          /*
+            Запись в журнал правок — та же, что пишет операторский путь.
+
+            Курьер уменьшает сумму заказа, и до сих пор это не оставляло следа:
+            в истории заказа пусто, кто и почему списал часть — неизвестно.
+            Оператор ту же операцию логировал с причиной и фотографиями.
+
+            Тип записи тот же — «partial_delivery», — чтобы экран истории не
+            пришлось учить второму названию одного и того же события.
+          */
+          await tx.insert(orderAdjustments).values({
+            tenantId: ctx.tenant.id,
+            orderId: order.id,
+            adjustedBy: courierId,
+            type: "partial_delivery",
+            oldValue: { total: totalBeforeDelivery, items: oldLines },
+            newValue: { total: orderTotal.toFixed(2), items: newLines },
+            reason: input.returnReason ?? null,
+            // Фотографий у курьерского пути нет: мобильное приложение их при
+            // завершении доставки не шлёт (CompleteDeliveryInput). Ставить сюда
+            // что-то другое значило бы выдать за доказательство то, чем оно не
+            // является.
+            photos: null,
+          });
         }
 
         paidAmount = Number(input.paidAmount ?? 0);

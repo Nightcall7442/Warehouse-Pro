@@ -1,7 +1,7 @@
 import { and, desc, eq, gt, gte, inArray, isNull, like, sql } from "drizzle-orm";
 import { getDb } from "../queries/connection";
 import { orders, orderItems, products, shops, warehouseStock } from "@db/schema";
-import { REVENUE_ORDER_STATUSES } from "../lib/order-status";
+import { REVENUE_ORDER_STATUSES, deliveredQty } from "../lib/order-status";
 import { tgEscape } from "../telegram-router";
 import { T, type Lang } from "./texts";
 
@@ -118,8 +118,16 @@ export async function answerTop(tenantId: number, lang: Lang): Promise<string> {
   const rows = await getDb()
     .select({
       name: products.name,
-      sold: sql<number>`sum(${orderItems.quantity})`,
-      revenue: sql<number>`sum(${orderItems.subtotal})`,
+      /*
+        Проданное и выручка — по ДОСТАВЛЕННОМУ количеству.
+
+        Строки заказов, проведённых курьером через частичный возврат до правки
+        того пути, хранят количество и сумму как заказанные. «Топ товаров» в
+        телеграме показывал бы лучше всего продающимся то, что чаще всего
+        возвращают.
+      */
+      sold: sql<number>`COALESCE(sum(${deliveredQty()}), 0)`,
+      revenue: sql<number>`COALESCE(sum(${deliveredQty()} * ${orderItems.unitPrice}), 0)`,
     })
     .from(orderItems)
     .innerJoin(orders, eq(orders.id, orderItems.orderId))
@@ -131,7 +139,7 @@ export async function answerTop(tenantId: number, lang: Lang): Promise<string> {
       isNull(orders.deletedAt),
     ))
     .groupBy(products.id, products.name)
-    .orderBy(desc(sql`sum(${orderItems.subtotal})`))
+    .orderBy(desc(sql`sum(${deliveredQty()} * ${orderItems.unitPrice})`))
     .limit(LIMIT);
 
   const lines = rows.map((r, i) => `${i + 1}. ${tgEscape(r.name)} — ${qty(r.sold)} · ${money(r.revenue)}`);

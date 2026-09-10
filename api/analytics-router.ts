@@ -59,9 +59,11 @@ export const analyticsRouter = createRouter({
         productName:  products.name,
         productCode:  products.code,
         // Проданное и выручка — по ДОСТАВЛЕННОМУ количеству.
-        // orderItems.subtotal и quantity остаются заказанными: курьерский
-        // путь частичного возврата пишет только deliveredQuantity. Отчёт по
-        // товарам показывал бы проданным то, что вернулось.
+        //
+        // Курьерский путь частичного возврата писал только deliveredQuantity,
+        // оставляя subtotal и quantity заказанными: отчёт по товарам показывал
+        // проданным то, что вернулось. Сам путь исправлен, но СТРОКИ, записанные
+        // до правки, в базе остались — считать по ним надо всё так же.
         totalQty:     sql<string>`COALESCE(SUM(${deliveredQty()}), 0)`,
         totalRevenue: sql<string>`COALESCE(SUM(${deliveredQty()} * ${orderItems.unitPrice}), 0)`,
       })
@@ -115,10 +117,11 @@ export const analyticsRouter = createRouter({
         productCode:  products.code,
         totalQty:     sql<string>`COALESCE(SUM(${orderItems.quantity}), 0)`,
         // Выручка и себестоимость считаются из ОДНОГО количества.
-        // orderItems.subtotal курьерский путь частичного возврата не
-        // переписывает: там заполняется только deliveredQuantity. Взяв
-        // выручку из subtotal, а себестоимость из доставленного, отчёт
-        // показывал бы прибыль, которой не было.
+        //
+        // Взяв выручку из subtotal, а себестоимость из доставленного, отчёт
+        // показывал бы прибыль, которой не было: курьерский путь частичного
+        // возврата subtotal не переписывал. Путь исправлен, но исторические
+        // строки остались — вычисляем обе величины из доставленного.
         totalRevenue: sql<string>`COALESCE(SUM(${deliveredQty()} * ${orderItems.unitPrice}), 0)`,
         totalCost:    sql<string>`COALESCE(SUM(${deliveredQty()} * ${orderItems.costPrice}), 0)`,
       })
@@ -608,9 +611,11 @@ export const analyticsRouter = createRouter({
         productCode:  products.code,
         unit:         products.unit,
         // Проданное и выручка — по ДОСТАВЛЕННОМУ количеству.
-        // orderItems.subtotal и quantity остаются заказанными: курьерский
-        // путь частичного возврата пишет только deliveredQuantity. Отчёт по
-        // товарам показывал бы проданным то, что вернулось.
+        //
+        // Курьерский путь частичного возврата писал только deliveredQuantity,
+        // оставляя subtotal и quantity заказанными: отчёт по товарам показывал
+        // проданным то, что вернулось. Сам путь исправлен, но СТРОКИ, записанные
+        // до правки, в базе остались — считать по ним надо всё так же.
         totalQty:     sql<string>`COALESCE(SUM(${deliveredQty()}), 0)`,
         totalRevenue: sql<string>`COALESCE(SUM(${deliveredQty()} * ${orderItems.unitPrice}), 0)`,
         orderCount:   sql<number>`count(DISTINCT ${orders.id})`,
