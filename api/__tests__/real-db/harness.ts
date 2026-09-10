@@ -88,6 +88,41 @@ const TABLES = [
 ];
 
 /**
+ * Ошибка, которую vitest сумеет напечатать.
+ *
+ * ── Что было ────────────────────────────────────────────────────────────────
+ *
+ * Когда база не поднялась или миграция упала, все десять наборов краснели
+ * одним и тем же: «SyntaxError: Unexpected end of JSON input», по десять раз.
+ * Ни базы, ни миграции, ни строчки причины.
+ *
+ * Виновата не наша ошибка, а её РАЗБОР. На упавшем `beforeAll` vitest идёт
+ * искать карту исходников по кадрам стека, натыкается на файл с обрезанным
+ * `sourceMappingURL` и падает уже внутри convert-source-map. Настоящая причина
+ * до экрана не доходит вовсе — и это ровно то, из-за чего красный real-db в CI
+ * невозможно было разобрать: сообщение одинаковое при любой поломке.
+ *
+ * Проверено снятием: без этого блока десять таких же строк появляются и на
+ * пустом порте, и на сломанной миграции.
+ *
+ * Лечится двумя ходами: причину печатаем САМИ — её увидит и лог, и пометка на
+ * странице прогона (scripts/ci-run.sh), — а наружу отдаём короткую ошибку без
+ * кадров, разбирать которую нечего.
+ */
+function brief(title: string, detail: string): Error {
+  // В поток ошибок отдельной строкой: это единственное место, где причина
+  // видна целиком, каким бы длинным ни был вывод drizzle-kit.
+  console.error(`
+${title}:
+${detail}
+`);
+  const err = new Error(`${title} — причина выведена выше`);
+  // Пустой стек намеренно: по его кадрам vitest и уходил в разбор карт.
+  err.stack = err.message;
+  return err;
+}
+
+/**
  * Схема ставится ТЕМИ ЖЕ миграциями, что накатывает приложение при старте.
  *
  * Раньше здесь стоял `drizzle-kit push` — сборка схемы прямо из db/schema.ts
@@ -102,12 +137,34 @@ const TABLES = [
  * продолжат работать на схеме, собранной в обход.
  */
 function applyMigrations(): void {
-  execFileSync("npx", ["drizzle-kit", "migrate"], {
-    cwd: REPO_ROOT,
-    env: { ...process.env, DATABASE_URL: TEST_DATABASE_URL },
-    stdio: "pipe",
-    shell: process.platform === "win32",
-  });
+  try {
+    execFileSync("npx", ["drizzle-kit", "migrate"], {
+      cwd: REPO_ROOT,
+      env: { ...process.env, DATABASE_URL: TEST_DATABASE_URL },
+      stdio: "pipe",
+      shell: process.platform === "win32",
+    });
+  } catch (e) {
+    /*
+      Причина падения миграции обязана дойти до глаз.
+
+      `stdio: "pipe"` уводит вывод drizzle-kit в объект ошибки, и без этого
+      блока наверх поднималось голое «Command failed: npx drizzle-kit migrate»
+      — то есть все десять наборов краснели с сообщением, по которому нельзя
+      понять ровно ничего. А ломается здесь ровно одно: очередная миграция, и
+      она сама говорит, что ей не понравилось.
+
+      Тот же приём, что в scripts/ci-run.sh: там причину выносят на страницу
+      прогона, потому что логи GitHub видны не всем.
+    */
+    const err = e as { stdout?: Buffer | string; stderr?: Buffer | string; message?: string };
+    const out = [err.stdout, err.stderr]
+      .map(v => (v == null ? "" : String(v)))
+      .filter(Boolean)
+      .join("\n")
+      .trim();
+    throw brief("Миграции не встали на тестовую базу", out || err.message || String(e));
+  }
 }
 
 export async function connectRealDb(): Promise<ServiceDb> {
