@@ -4,11 +4,12 @@ import { useSearchParams } from "react-router";
 import { useLang } from "@/i18n";
 import { useAuth } from "@/hooks/useAuth";
 import {
-  User, Bell, Building2, SunMoon, Database, Warehouse, Palette, ShieldCheck,
+  User, Bell, Building2, SunMoon, Database, Warehouse, Palette, ShieldCheck, Tags,
 } from "lucide-react";
 import { ProfileSettings } from "@/components/settings/ProfileSettings";
 import { CompanySettings } from "@/components/settings/CompanySettings";
 import { WarehouseSettings } from "@/components/settings/WarehouseSettings";
+import { PriceListSettings } from "@/components/settings/PriceListSettings";
 import { TelegramSettings } from "@/components/settings/TelegramSettings";
 import { OneCSettings } from "@/components/settings/OneCSettings";
 import { AppearanceSettings } from "@/components/settings/AppearanceSettings";
@@ -82,6 +83,20 @@ const SECTIONS: Section[] = [
     descRu: "Склады организации и тот, который подставляется по умолчанию.",
     descUz: "Tashkilot omborxonalari va sukut bo'yicha tanlanadigani.",
     Comp: WarehouseSettings,
+  },
+  {
+    /*
+      Прайс-листы — рядом со складами: это тоже про организацию, а не про себя.
+
+      Мобильное приложение их ЧИТАЕТ давно — агент видит в заказе цену своего
+      магазина. Завести их было нечем: семь ручек управления написаны и не
+      вызывались ниоткуда.
+    */
+    key: "prices", Icon: Tags, roles: ["ceo", "operator"],
+    titleRu: "Прайс-листы", titleUz: "Narx ro'yxatlari",
+    descRu: "Свои цены для отдельных магазинов. Цену даёт список с бо́льшим приоритетом.",
+    descUz: "Alohida do'konlar uchun narxlar. Narxni yuqori ustuvorlikdagi ro'yxat beradi.",
+    Comp: PriceListSettings,
   },
   {
     /*

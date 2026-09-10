@@ -99,7 +99,9 @@ const MOBILE_ONLY = new Set([
   "courier.completeDelivery",
   "dashboard.revenueTrend", "dashboard.supervisorDashboard",
   "order.cancel", "order.myOrders",
-  "priceList.getById", "priceList.getPrice", "priceList.list",
+  // priceList.getById / list ушли отсюда: их зовёт и веб — раздел настроек,
+  // которым прайс-листы наконец можно завести.
+  "priceList.getPrice",
   "product.findByBarcode",
   // returns.list / getById / summary ушли отсюда: их зовёт и веб — страница
   // возвратов, которой раньше не было вовсе.
@@ -133,8 +135,13 @@ const MOBILE_ONLY = new Set([
  * listTransfers). Сервер умел это давно — с блокировками, проверкой чужих
  * складов и защитой от двойного проведения, — а кнопки не было ни одной.
  * Вкладка «Перемещения» на странице склада.
+ *
+ * 43 → 36: прайс-листы (create, update, delete, upsertItem, removeItem,
+ * assignShop, unassignShop). Мобилка их ЧИТАЕТ давно — агент видит в заказе
+ * цену своего магазина, — а завести было нечем. Раздел «Прайс-листы» в
+ * настройках.
  */
-const BASELINE = 43;
+const BASELINE = 36;
 
 describe("вся поверхность API кем-то вызывается", () => {
   const procedures = allProcedures();
