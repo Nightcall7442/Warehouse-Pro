@@ -2,7 +2,6 @@ import { memo } from "react";
 import { useLang } from "@/i18n";
 import { useCurrency } from "@/hooks/useCurrency";
 import { Trophy, Flame, Target, Award, TrendingUp } from "lucide-react";
-import { colorMix } from "@/lib/color-mix";
 import { F } from "@/components/users/types";
 
 interface LeaderboardEntry {
@@ -34,8 +33,20 @@ interface GamificationData {
   topAgent?: { name: string; revenue: number } | null;
 }
 
-const RANK_COLORS = ["var(--color-warning)", "#9ca3af", "#cd7f32"];
-const RANK_ICONS = ["🥇", "🥈", "🥉"];
+/**
+ * Цвет места — из палитры, а не числом.
+ *
+ * Здесь стояли «#9ca3af» и «#cd7f32» — серебро и бронза, вписанные числом. На
+ * тёмной теме они остаются прежними, потому что число темы не знает: серое
+ * пятно и рыжее пятно на угольном холсте. Ровно тот признак, по которому
+ * владелец узнаёт «дёшево»: цвет, записанный числом, в этом приложении не
+ * встречается больше нигде.
+ *
+ * Замена не выдумана: бронза в палитре уже есть — это `--kpi-orange`
+ * (#c07040), а серебро в тёмном интерфейсе честнее всего читается нейтральным
+ * текстовым тоном, а не выдуманным серым.
+ */
+const RANK_COLORS = ["var(--kpi-amber)", "var(--color-text-secondary)", "var(--kpi-orange)"];
 
 /**
  * Как я на фоне остальных.
@@ -133,10 +144,15 @@ export const GamificationCard = memo(function GamificationCard({ data }: { data:
             {data.achievements.map(a => (
               <div key={a.id} style={{
                 display: "flex", alignItems: "center", gap: "6px", padding: "6px 10px",
-                /* Оттенок из палитры, а не литералом: rgba(232,168,48,…)
-                   остаётся жёлтым и в тёмной теме, и у арендатора с другим
-                   фирменным цветом. */
-                borderRadius: "8px", background: colorMix("var(--color-warning)", 8),
+                /*
+                  Вдавленная плашка, а не крашеная. Здесь стоял литерал
+                  rgba(232,168,48,…) — жёлтый и в тёмной теме, и у арендатора
+                  с другим фирменным цветом; потом он стал янтарной заливкой и
+                  превратился на тёмном в бурое пятно. Цвет несёт подпись,
+                  фон — глубину.
+                */
+                borderRadius: "8px", background: "var(--color-surface-light)",
+                boxShadow: "var(--shadow-pressed)",
               }}>
                 <span style={{ fontSize: "14px" }}>{a.icon}</span>
                 <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--color-warning-text)" }}>
@@ -156,17 +172,34 @@ export const GamificationCard = memo(function GamificationCard({ data }: { data:
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
             {data.leaderboard.slice(0, 5).map((entry, i) => (
-              <div key={entry.agentId} style={{
-                display: "flex", alignItems: "center", gap: "10px", padding: "8px 12px",
-                borderRadius: "10px", background: i < 3 ? colorMix(RANK_COLORS[i], 8) : "transparent",
+              /*
+                Строка — приподнятая полоса, а не крашеная.
+
+                Тройку призёров подсвечивала заливка цветом места: на светлой
+                теме бледный оттенок, на тёмной — бурое пятно во всю строку. В
+                этом языке оформления разницу держит ГЛУБИНА, а не краска:
+                поверхность вдавлена, объекты на ней приподняты. Поэтому у всех
+                строк одна поверхность, а место называет значок слева.
+              */
+              <div key={entry.agentId} className="neo-card-sm" style={{
+                display: "flex", alignItems: "center", gap: "10px",
+                padding: "8px 12px", borderRadius: "12px",
               }}>
+                {/*
+                  Место — числом у всех, включая тройку. Медали стояли
+                  картинками (🥇🥈🥉), и рядом с четвёртым местом, набранным
+                  цифрой, это два разных языка в одном столбце. Цвет значка
+                  говорит про место ровно то же, что говорила медаль.
+                */}
                 <div style={{
-                  width: "24px", height: "24px", borderRadius: "6px", display: "flex",
+                  width: "24px", height: "24px", borderRadius: "8px", display: "flex",
                   alignItems: "center", justifyContent: "center", fontSize: "12px", fontWeight: 700,
-                  background: i < 3 ? colorMix(RANK_COLORS[i], 8) : "var(--color-surface-light)",
+                  flexShrink: 0,
+                  background: "var(--color-surface-light)",
                   color: i < 3 ? RANK_COLORS[i] : "var(--color-text-tertiary)",
+                  boxShadow: "var(--shadow-pressed)",
                 }}>
-                  {i < 3 ? RANK_ICONS[i] : entry.rank}
+                  {entry.rank}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--color-text-primary)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -189,12 +222,16 @@ export const GamificationCard = memo(function GamificationCard({ data }: { data:
 
       {/* Top Agent of Month */}
       {data.topAgent && (
-        <div style={{
+        /*
+          Лучший месяца — тоже полосой, а не заливкой. Цвет здесь несёт значок,
+          а не фон: на тёмной теме тот же янтарь во всю ширину превращался в
+          бурое поле.
+        */
+        <div className="neo-card-sm" style={{
           marginTop: "12px", padding: "12px", borderRadius: "12px",
-          background: colorMix("var(--color-warning)", 8),
           display: "flex", alignItems: "center", gap: "10px",
         }}>
-          <Award size={18} style={{ color: "var(--color-warning-text)" }} />
+          <Award size={18} style={{ color: "var(--kpi-amber)" }} />
           <div>
             <p style={{ fontSize: "11px", color: "var(--color-text-tertiary)", margin: 0 }}>
               {t("Лучший агент месяца", "Oyning eng yaxshi agenti")}
