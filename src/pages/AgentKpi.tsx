@@ -43,13 +43,13 @@ interface AgentListEntry {
 interface SalaryData {
   agentId: number; agentName: string; period: string;
   baseSalary: number; commissionRate: number; salesAmount: number;
-  commissionAmount: number; kpiScore: number; bonusAmount: number;
+  commissionAmount: number; kpiScore: number;
   /* По скольким проданным товарам стоит свой процент — этим объясняется
      расхождение суммы с простым «продажи × процент». */
   productRateCount: number;
   deliveryRate: number; deliveredCount: number; deliveryPay: number;
   totalSalary: number;
-  breakdown: { base: number; commission: number; bonus: number; fraudDeduction: number; delivery: number };
+  breakdown: { base: number; commission: number; fraudDeduction: number; delivery: number };
 }
 
 const PERIODS = [
@@ -97,7 +97,7 @@ export default function AgentKpi() {
     По правам он теперь видит то же, что руководитель: список агентов и
     разбор по каждому. А своя зарплата у него фиксированная: комиссия
     считается процентом от заказов, которые человек ОФОРМИЛ, а оператор их
-    не оформляет — и комиссия, и премия выходят нулём сами собой. Значит его
+    не оформляет — и комиссия выходит нулём сама собой. Значит его
     итог равен окладу, который заведён ему в плановой сумме.
 
     Показать оклад нужно отдельно: страница считает оператора начальником, и
@@ -397,10 +397,9 @@ function SalarySection({ salary, fmt, t }: { salary: SalaryData; fmt: (v: number
       <h3 style={{ fontFamily: F.display, fontSize: "14px", fontWeight: 600, color: COLORS.textPrimary, marginBottom: "14px" }}>
         {t("Зарплата", "Oylik")}
       </h3>
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
         <SalaryItem label={t("Оклад", "Oylik")} value={fmt(salary.baseSalary)} />
         <SalaryItem label={t("Комиссия", "Komissiya")} value={`${fmt(salary.commissionAmount)} (${salary.commissionRate}%)`} />
-        <SalaryItem label={t("Бонус", "Bonus")} value={fmt(salary.bonusAmount)} />
         {salary.breakdown.fraudDeduction < 0 && (
           <SalaryItem label={t("Штраф фрод", "Jazo")} value={fmt(salary.breakdown.fraudDeduction)} danger />
         )}
@@ -424,8 +423,13 @@ function SalarySection({ salary, fmt, t }: { salary: SalaryData; fmt: (v: number
           ) : (
             <div className="flex justify-between"><span>{t("Расчёт комиссии", "Komissiya hisoblash")}</span><span className="font-semibold" style={{ color: COLORS.textPrimary }}>{fmt(salary.salesAmount)} × {salary.commissionRate}% = {fmt(salary.commissionAmount)}</span></div>
           )}
+          {/*
+            Балл KPI остался, а строки премии нет: балл показывает работу,
+            но денег больше не двигает. Решение владельца 11.09.2026 —
+            премия платилась по двум процентам, зашитым в код, которых
+            никто не назначал.
+          */}
           <div className="flex justify-between"><span>{t("KPI балл", "KPI bali")}</span><span className="font-semibold" style={{ color: COLORS.textPrimary }}>{salary.kpiScore}/100</span></div>
-          <div className="flex justify-between"><span>{t("Расчёт бонуса", "Bonus hisoblash")}</span><span className="font-semibold" style={{ color: COLORS.textPrimary }}>2% × {fmt(salary.salesAmount)} × {salary.kpiScore}/100 = {fmt(salary.bonusAmount)}</span></div>
           {salary.breakdown.fraudDeduction < 0 && (
             <div className="flex justify-between"><span>{t("Штраф за фрод", "Frod uchun jazo")}</span><span className="font-semibold" style={{ color: "var(--color-danger-text)" }}>{fmt(salary.baseSalary)} × {Math.round((Math.abs(salary.breakdown.fraudDeduction) / salary.baseSalary) * 100)}% = {fmt(salary.breakdown.fraudDeduction)}</span></div>
           )}

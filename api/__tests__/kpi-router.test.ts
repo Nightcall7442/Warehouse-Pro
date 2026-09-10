@@ -328,7 +328,12 @@ describe("kpi.salary", () => {
     expect(result.breakdown).toBeDefined();
     expect(result.breakdown.base).toBeDefined();
     expect(result.breakdown.commission).toBeDefined();
-    expect(result.breakdown.bonus).toBeDefined();
+    /*
+      Премии в разбивке больше нет — убрана по решению владельца 11.09.2026:
+      два процента от продаж были зашиты числом в коде, и назначал их никто.
+      Проверяем именно ОТСУТСТВИЕ: иначе она вернулась бы молча.
+    */
+    expect(result.breakdown.bonus, "премия вернулась в разбивку зарплаты").toBeUndefined();
   });
 });
 

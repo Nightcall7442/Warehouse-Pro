@@ -30,16 +30,20 @@ import { labelled, ROLE_LABEL } from "@/lib/entity-labels";
  * KPI поодиночке. Фонда оплаты — то есть суммы, которая уходит из кассы, — не
  * было видно нигде.
  *
- * Начисление складывается из трёх частей, и экран показывает их отдельно,
+ * Начисление складывается из двух частей, и экран показывает их отдельно,
  * потому что вопрос директора обычно не «сколько всего», а «почему столько»:
  *
  *   • оклад — из плановой суммы по сотруднику;
- *   • комиссия — процент от того, что человек продал;
- *   • премия — от выполнения KPI.
+ *   • комиссия — процент от того, что человек продал.
  *
- * У оператора, супервайзера и курьера комиссия и премия выходят нулём сами
- * собой: и то и другое считается от заказов, которые человек ОФОРМИЛ, а они их
- * не оформляют. Поэтому у них вся выплата — оклад, и это видно по строке.
+ * Третьей частью была премия — два процента от продаж, умноженные на балл
+ * KPI. Два процента были зашиты числом в коде: их не назначал ни арендатор,
+ * ни платформа. Убрана по решению владельца 11.09.2026; балл KPI остался и
+ * показывает работу, но денег больше не двигает.
+ *
+ * У оператора, супервайзера и курьера комиссия выходит нулём сама собой: она
+ * считается от заказов, которые человек ОФОРМИЛ, а они их не оформляют.
+ * Поэтому у них вся выплата — оклад, и это видно по строке.
  *
  * Начисленное — ещё не отданное. Выдачу денег система не знала вовсе: учёт
  * вёлся на стороне, и спор «мне за март не платили» разрешать было нечем.
@@ -63,7 +67,6 @@ type Row = {
   commissionRate: number;
   salesAmount: number;
   commissionAmount: number;
-  bonusAmount: number;
   /*
     Курьерские слагаемые. У остальных ролей они нули сами собой — доставок за
     ними не числится.
@@ -199,12 +202,11 @@ export default function Salaries() {
       (acc, r) => ({
         base:       acc.base + Number(r.baseSalary ?? 0),
         commission: acc.commission + Number(r.commissionAmount ?? 0),
-        bonus:      acc.bonus + Number(r.bonusAmount ?? 0),
         delivery:   acc.delivery + Number(r.deliveryPay ?? 0),
         allowance:  acc.allowance + Number(r.allowancePay ?? 0),
         total:      acc.total + Number(r.totalSalary ?? 0),
       }),
-      { base: 0, commission: 0, bonus: 0, delivery: 0, allowance: 0, total: 0 },
+      { base: 0, commission: 0, delivery: 0, allowance: 0, total: 0 },
     );
     // Выплачено — по всем записям периода, включая тех, кого уже нет в
     // списке: деньги из кассы ушли, и прятать их нельзя.
@@ -246,7 +248,6 @@ export default function Salaries() {
         [t("Роль", "Lavozim")]: labelled(ROLE_LABEL, r.role, lang),
         [t("Оклад", "Maosh")]: Number(r.baseSalary ?? 0),
         [t("Комиссия", "Komissiya")]: Number(r.commissionAmount ?? 0),
-        [t("Премия", "Mukofot")]: Number(r.bonusAmount ?? 0),
         [t("За доставки", "Yetkazish uchun")]: Number(r.deliveryPay ?? 0),
         [t("Обед и дорожные", "Tushlik va yo'l")]: Number(r.allowancePay ?? 0),
         [t("Начислено", "Hisoblangan")]: Number(r.totalSalary ?? 0),
@@ -467,7 +468,6 @@ export default function Salaries() {
           </p>
           <Part label={t("ОКЛАДЫ", "MAOSHLAR")} value={totals.base} total={totals.total} fmt={fmt} />
           <Part label={t("КОМИССИЯ", "KOMISSIYA")} value={totals.commission} total={totals.total} fmt={fmt} />
-          <Part label={t("ПРЕМИИ", "MUKOFOTLAR")} value={totals.bonus} total={totals.total} fmt={fmt} />
           {/*
             Курьерские части показываются, только когда они есть: у
             организации без курьеров две нулевые строки занимали бы место и
@@ -571,7 +571,7 @@ export default function Salaries() {
                 <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
                   <thead>
                     <tr>
-                      {[t("СОТРУДНИК", "XODIM"), t("ОКЛАД", "MAOSH"), t("КОМИССИЯ", "KOMISSIYA"), t("ПРЕМИЯ", "MUKOFOT"),
+                      {[t("СОТРУДНИК", "XODIM"), t("ОКЛАД", "MAOSH"), t("КОМИССИЯ", "KOMISSIYA"),
                         t("НАЧИСЛЕНО", "HISOBLANGAN"), t("ВЫПЛАЧЕНО", "TO'LANGAN"), t("ОСТАТОК", "QOLDIQ"), ""].map((h, i) => (
                         <th key={i} style={{ ...thStyle, textAlign: i === 0 || i === 7 ? "left" : "right" }}>{h}</th>
                       ))}
@@ -594,7 +594,6 @@ export default function Salaries() {
                           </td>
                           <Num v={Number(r.baseSalary ?? 0)} fmt={fmt} empty={t("не задан", "belgilanmagan")} />
                           <Num v={Number(r.commissionAmount ?? 0)} fmt={fmt} />
-                          <Num v={Number(r.bonusAmount ?? 0)} fmt={fmt} />
                           <td style={{ ...tdStyle, textAlign: "right", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
                             {fmt(Number(r.totalSalary ?? 0))}
                           </td>
@@ -646,7 +645,6 @@ export default function Salaries() {
                       {[
                         rows.reduce((x, r) => x + Number(r.baseSalary ?? 0), 0),
                         rows.reduce((x, r) => x + Number(r.commissionAmount ?? 0), 0),
-                        rows.reduce((x, r) => x + Number(r.bonusAmount ?? 0), 0),
                         rows.reduce((x, r) => x + Number(r.totalSalary ?? 0), 0),
                         rows.reduce((x, r) => x + (paidByUser.get(r.agentId)?.total ?? 0), 0),
                         rows.reduce((x, r) => x + Math.max(0, dueOf(r)), 0),
@@ -673,7 +671,6 @@ export default function Salaries() {
             {rows.map(r => {
               const base = Number(r.baseSalary ?? 0);
               const commission = Number(r.commissionAmount ?? 0);
-              const bonus = Number(r.bonusAmount ?? 0);
               const paid = paidByUser.get(r.agentId);
               const due = dueOf(r);
               const open = expanded === r.agentId;
@@ -692,13 +689,12 @@ export default function Salaries() {
                     </p>
                   </div>
 
-                  {/* Из чего сложилось. Ноль не печатаем: строка «премия 0»
+                  {/* Из чего сложилось. Ноль не печатаем: строка «комиссия 0»
                       ничего не сообщает, а место занимает. */}
                   <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2" style={{ fontSize: "12px", color: COLORS.textTertiary }}>
                     {base > 0 && <span>{t("оклад", "maosh")}: {fmt(base)}</span>}
                     {commission > 0 && <span>{t("комиссия", "komissiya")}: {fmt(commission)}</span>}
-                    {bonus > 0 && <span>{t("премия", "mukofot")}: {fmt(bonus)}</span>}
-                    {base === 0 && commission === 0 && bonus === 0 && (
+                    {base === 0 && commission === 0 && (
                       // Пусто — это не ошибка расчёта, а незаполненный оклад.
                       // Сказать прямо дешевле, чем принимать вопрос «почему ноль».
                       <span style={{ color: "var(--color-warning-text)" }}>

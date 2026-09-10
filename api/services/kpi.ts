@@ -76,7 +76,6 @@ export interface SalaryData {
   productRateCount: number;
 
   kpiScore: number;
-  bonusAmount: number;
 
   /*
     Курьерская часть. Заполняется только у курьера и только тогда, когда ему
@@ -113,7 +112,6 @@ export interface SalaryData {
   breakdown: {
     base: number;
     commission: number;
-    bonus: number;
     fraudDeduction: number;
     /** Оплата за доставки: ставка × довезённые заказы. */
     delivery: number;
@@ -853,8 +851,23 @@ export async function calculateSalary(
   const commissionAmount = commissionOf(byProduct, rates, commissionRate, salesAmount);
   const productRateCount = overridesUsed(byProduct, rates);
 
+  /*
+    ── Премии в зарплате больше нет ──────────────────────────────────────────
+
+    Здесь стояло `calculateBonus(kpi.kpiScore, salesAmount)` — два процента от
+    продаж, умноженные на оценку KPI. Два процента были ЗАШИТЫ числом в коде:
+    ни в настройках, ни в тарифе, ни в разделе комиссий их не было. Их никто
+    не назначал — ни платформа, ни арендатор.
+
+    А платились они всерьёз: арендатор, поставивший агенту 5%, отдавал до 7%
+    — пять назначенных и до двух, о которых не знал.
+
+    Решение владельца 11.09.2026: премию убрать. Оценка KPI осталась и
+    считается по-прежнему — она показывает работу, но денег больше не двигает.
+
+    Зарплата теперь: оклад + комиссия − вычет за подозрительные визиты.
+  */
   const kpi = preloadedKpi ?? await calculateAgentKpi(db, agentId, tenantId, periodStart, periodEnd);
-  const bonusAmount = calculateBonus(kpi.kpiScore, salesAmount);
 
   const [targetRecord] = await db.select({
     targetAmount: sql<string>`target_amount`,
@@ -879,9 +892,8 @@ export async function calculateSalary(
 
     Агентский расчёт для него бессмыслен во всех трёх слагаемых: комиссия
     считается процентом от заказов, которые человек ОФОРМИЛ (у курьера их нет —
-    orders.agentId пуст), премия — от оценки по визитам и планам, которых ему
-    не ставят, а вычет за подозрительные визиты вычитает за то, чего он не
-    делает. На экране это выглядело как «оклад и три нуля».
+    orders.agentId пуст), а вычет за подозрительные визиты вычитает за то,
+    чего он не делает. На экране это выглядело как «оклад и три нуля».
 
     Решение владельца: фиксированная сумма за каждую довезённую заявку, срывы
     ничего не вычитают — они видны в показателях, но платят за факт.
@@ -936,7 +948,7 @@ export async function calculateSalary(
 
   const totalSalary = isCourier
     ? Math.max(0, baseSalary + deliveryPay + allowancePay)
-    : Math.max(0, baseSalary + commissionAmount + bonusAmount - fraudDeduction);
+    : Math.max(0, baseSalary + commissionAmount - fraudDeduction);
 
   // Подпись периода — тем же ключом, что и строки за период: иначе человек
   // читал бы «2026-08-31 — 2026-09-29» на экране зарплаты за сентябрь.
@@ -1059,7 +1071,6 @@ export async function calculateSalary(
     commissionAmount,
     productRateCount,
     kpiScore: kpi.kpiScore,
-    bonusAmount,
     courierPayMode,
     deliveryRate,
     deliveredCount,
@@ -1072,10 +1083,9 @@ export async function calculateSalary(
     totalSalary,
     breakdown: {
       base: baseSalary,
-      // У курьера комиссии, премии и вычета нет — не «ноль по ошибке», а не
+      // У курьера комиссии и вычета нет — не «ноль по ошибке», а не
       // применимо. Экран по этим нулям и понимает, что разбивка курьерская.
       commission: isCourier ? 0 : commissionAmount,
-      bonus: isCourier ? 0 : bonusAmount,
       fraudDeduction: isCourier ? 0 : -fraudDeduction,
       delivery: deliveryPay,
       allowance: allowancePay,
@@ -1131,10 +1141,6 @@ function getGrade(score: number): "A" | "B" | "C" | "D" | "F" {
   return "F";
 }
 
-function calculateBonus(kpiScore: number, revenue: number): number {
-  const baseBonus = Math.round(revenue * 0.02);
-  return Math.round(baseBonus * (kpiScore / 100));
-}
 
 export async function getAgentList(
   db: DrizzleInstance,
