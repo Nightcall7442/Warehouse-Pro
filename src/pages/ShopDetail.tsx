@@ -22,6 +22,7 @@ import { ShopAvatar } from "@/components/shops/ShopAvatar";
 import { ShopStatement } from "@/components/shops/ShopStatement";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
+import { ShopMoney } from "@/components/shops/ShopMoney";
 import { useAuth } from "@/hooks/useAuth";
 import { canOperate } from "@/lib/permissions";
 
@@ -431,6 +432,13 @@ export default function ShopDetail() {
         остатком после каждой строки — и с бумагой, которую подписывают обе
         стороны.
       */}
+      {/*
+        Откуда долг и как идут продажи — рядом с выпиской и перед списком
+        заказов: разговор с магазином начинается с «вы должны столько-то», а
+        карточка показывала это одним числом без объяснения.
+      */}
+      <ShopMoney shopId={Number(id)} />
+
       <ShopStatement shopId={Number(id)} />
 
       {/* История заказов */}

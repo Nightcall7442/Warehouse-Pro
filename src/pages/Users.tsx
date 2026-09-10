@@ -13,6 +13,7 @@ import {
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { F, COLORS, SHADOW, ROLE_LABELS } from "@/components/users/types";
 import { UserFilters } from "@/components/users/UserFilters";
+import { PendingInvites } from "@/components/users/PendingInvites";
 import { UserTable } from "@/components/users/UserTable";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { WorkZoneSelector } from "@/components/agents/WorkZoneSelector";
@@ -437,6 +438,14 @@ export default function Users() {
           onDone={() => { setShowInvite(false); utils.user.list.invalidate(); }}
         />
       )}
+
+      {/*
+        Приглашения — между формой и списком: они про тех же людей, только
+        ещё не дошедших. Ручка списка была написана и не звалась ниоткуда, и
+        вопрос «я звал троих, пришёл один — где остальные» оставался без
+        ответа.
+      */}
+      <PendingInvites />
 
       {/* ── Filters ──────────────────────────────────────────────────────── */}
       <UserFilters

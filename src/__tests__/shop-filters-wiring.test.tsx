@@ -32,7 +32,7 @@ function Harness() {
       viewMode="list" setViewMode={() => {}}
       archived="hide" setArchived={() => {}} archivedCount={0}
       agentFilter={undefined} setAgentFilter={() => {}}
-      city={undefined} district={undefined}
+      city={undefined} district={undefined} setDistrict={() => {}} districts={[]}
       agents={[]}
       onlyDebtors={onlyDebtors} setOnlyDebtors={setOnlyDebtors}
       sortBy="newest" setSortBy={() => {}}

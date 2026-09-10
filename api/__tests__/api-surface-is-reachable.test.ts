@@ -208,7 +208,7 @@ const MOBILE_ONLY = new Set([
  * Две ручки на один ответ — это две правды, которые однажды разойдутся: одну
  * починят, вторую забудут. В этом продукте так уже вышло трижды.
  */
-const BASELINE = 12;
+const BASELINE = 6;
 
 describe("вся поверхность API кем-то вызывается", () => {
   const procedures = allProcedures();

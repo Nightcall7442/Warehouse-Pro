@@ -6,14 +6,17 @@ interface AgentOption { id: number; name: string; }
 type SortBy = "newest" | "debtDesc" | "debtAsc";
 type Archived = "hide" | "only" | "all";
 
-export function ShopFilters({ lang, search, setSearch, viewMode, setViewMode, archived, setArchived, archivedCount, agentFilter, setAgentFilter, city, district, agents, onlyDebtors, setOnlyDebtors, sortBy, setSortBy, setPage, resetFilters }: {
+export function ShopFilters({ lang, search, setSearch, viewMode, setViewMode, archived, setArchived, archivedCount, agentFilter, setAgentFilter, city, district, setDistrict, districts, agents, onlyDebtors, setOnlyDebtors, sortBy, setSortBy, setPage, resetFilters }: {
+  /** Районы этой организации — для выпадающего списка. */
+  districts: string[];
   lang: string; search: string; setSearch: (v: string) => void;
   viewMode: "territories" | "list"; setViewMode: (v: "territories" | "list") => void;
   archived: Archived; setArchived: (v: Archived) => void;
   /** Сколько точек лежит в архиве — чтобы вход туда не был вслепую. */
   archivedCount: number;
   agentFilter: string | undefined; setAgentFilter: (v: string | undefined) => void;
-  city: string | undefined; district: string | undefined;
+  city: string | undefined;
+  district: string | undefined; setDistrict: (v: string | undefined) => void;
   agents: AgentOption[];
   onlyDebtors: boolean; setOnlyDebtors: (v: boolean) => void;
   sortBy: SortBy; setSortBy: (v: SortBy) => void;
@@ -83,6 +86,21 @@ export function ShopFilters({ lang, search, setSearch, viewMode, setViewMode, ar
       {viewMode === "list" && agents.length > 0 && (
         <PremiumSelect value={agentFilter ?? ""} onChange={v => { setAgentFilter(v || undefined); setPage(1); }}
                     options={[{ value: "", label: t("Все агенты", "Barcha agentlar") }, ...(agents ?? []).map((a: { id: number; name: string }) => ({ value: String(a.id), label: a.name }))]}
+          width="180px" />
+      )}
+
+      {/*
+        Район выбирается списком, а не набирается в адресе.
+
+        Фильтр по району работал давно — список магазинов принимает `district`,
+        и ссылка из карточки его переносила, — но ВЫБРАТЬ район было нечем:
+        попасть в него можно было, только зная название и вписав его в адрес
+        руками. Ручка со списком районов при этом была написана и не
+        вызывалась ниоткуда.
+      */}
+      {viewMode === "list" && districts.length > 0 && (
+        <PremiumSelect value={district ?? ""} onChange={v => { setDistrict(v || undefined); setPage(1); }}
+          options={[{ value: "", label: t("Все районы", "Barcha tumanlar") }, ...districts.map(d => ({ value: d, label: d }))]}
           width="180px" />
       )}
 

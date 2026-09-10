@@ -65,7 +65,7 @@ export default function Shops() {
   // который принимающая сторона не читала. Теперь читает: адрес и есть
   // состояние, и переход «показать магазины этого города» наконец работает.
   const [city] = useUrlState("city", undefined, urlMaybeString);
-  const [district] = useUrlState("district", undefined, urlMaybeString);
+  const [district, setDistrict] = useUrlState("district", undefined, urlMaybeString);
   const [agentFilter, setAgentFilter] = useUrlState("agent", undefined, urlMaybeString);
   const [territoryFilter, setTerritoryFilter] = useUrlState("territory", undefined, urlNumber);
   const [onlyDebtors, setOnlyDebtors] = useUrlState("debtors", false, urlBool);
@@ -76,6 +76,12 @@ export default function Shops() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [viewMode, setViewMode] = useUrlState("view", "territories", VIEW_CODEC);
   const [archived, setArchived] = useUrlState("archived", "hide", ARCHIVED_CODEC);
+
+  /*
+    Районы для выпадающего списка. Зависят от выбранного города: в списке
+    районов чужого города выбирать нечего.
+  */
+  const districtsQ = trpc.shop.districts.useQuery({ city });
 
   const { data, isLoading, isLoadingError, refetch } = trpc.shop.list.useQuery({ page, pageSize: 25, search: debouncedSearch || undefined, city, district, agentId: agentFilter ? Number(agentFilter) : undefined, territoryId: territoryFilter, onlyDebtors: onlyDebtors || undefined, sortBy, archived }, {
     // Прошлый список остаётся на экране, пока грузится новый: без этого
@@ -360,8 +366,10 @@ export default function Shops() {
         viewMode={viewMode} setViewMode={setViewMode}
         archived={archived} setArchived={setArchived} archivedCount={archivedCount}
         agentFilter={agentFilter} setAgentFilter={setAgentFilter}
-        city={city} district={district} agents={agents}
+        city={city} agents={agents}
         onlyDebtors={onlyDebtors} setOnlyDebtors={setOnlyDebtors}
+        district={district} setDistrict={setDistrict}
+        districts={(districtsQ.data ?? []).filter((d): d is string => Boolean(d))}
         sortBy={sortBy} setSortBy={setSortBy}
         setPage={setPage} resetFilters={resetFilters}
       />

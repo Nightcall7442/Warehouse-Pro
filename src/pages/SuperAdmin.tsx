@@ -3,7 +3,7 @@ import { trpc } from "@/providers/trpc";
 import { Zap, RefreshCw, Plus } from "lucide-react";
 import { F, COLORS } from "@/components/superadmin/types";
 import { BtnPrimary, BtnSecondary } from "@/components/superadmin/ui";
-import { PlatformStats, TenantList, TenantDetail, AdminActions, CreateTenantModal, BackupSection, SupportInbox, FeatureUsage } from "@/components/superadmin";
+import { PlatformStats, TenantList, TenantDetail, AdminActions, CreateTenantModal, BackupSection, SupportInbox, FeatureUsage, LeadInbox } from "@/components/superadmin";
 
 export default function SuperAdmin() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -47,6 +47,12 @@ export default function SuperAdmin() {
       {/* Обращения выше списка организаций: человек, который ждёт
           ответа, — самое срочное на этой странице. */}
       <SupportInbox />
+      {/*
+        Заявки с сайта — рядом с обращениями и по той же причине: там человек
+        ждёт ответа, здесь ждёт звонка. Обе ручки были написаны и не звались
+        ниоткуда: заявки копились в базе, и посмотреть их было негде.
+      */}
+      <LeadInbox />
       {/*
         Отчёт по тарифам — ВЫШЕ списка организаций, а не под ним.
 
