@@ -10,6 +10,7 @@ import { createHash } from "crypto";
 import { checkRateLimit as sharedCheckRateLimit } from "./lib/rate-limit";
 import { hasSubscriptionAccess } from "./lib/feature-gating";
 import { planHas, type PlanKey } from "../contracts/constants";
+import { ordersV1 } from "./public/orders-v1";
 
 /** What the API-key middleware below puts on the context for every route. */
 type PublicApiVariables = {
@@ -40,7 +41,15 @@ app.use("*", async (c, next) => {
   // without it this branch never ran and every key's configured rateLimit was
   // decoration.
   if (!(await sharedCheckRateLimit(keyHash, { windowMs: 60_000, limit: key.rateLimit, namespace: "public-api" }))) {
-    return c.json({ error: "Rate limit exceeded", retryAfter: 60 }, 429);
+    /*
+      Retry-After ЗАГОЛОВКОМ, а не только в теле.
+
+      Тело читает человек, а пауза нужна машине: клиенты, которые честно ждут
+      перед повтором (и интеграция BEKDRINKS в их ТЗ прямо это обещает), берут
+      значение из заголовка. Без него добросовестный клиент либо бьётся в
+      стену, либо придумывает паузу сам.
+    */
+    return c.json({ error: "Rate limit exceeded", retryAfter: 60 }, 429, { "Retry-After": "60" });
   }
 
   // ── Состояние организации, которой принадлежит ключ ────────────────────────
@@ -134,30 +143,17 @@ app.get("/products/:id", async (c) => {
 // ORDERS
 // ══════════════════════════════════════════════════════════════════════════════
 
-/** GET /api/v1/orders — list orders */
-app.get("/orders", async (c) => {
-  const tenantId = c.get("tenantId");
-  const scopes = c.get("scopes");
-  if (!requireScope(scopes, "orders")) return c.json({ error: "Scope 'orders' required" }, 403);
+app.route("/orders", ordersV1);
 
-  const db = getDb();
-  const limit = Math.min(Number(c.req.query("limit") ?? 50), 200);
-  const offset = Number(c.req.query("offset") ?? 0);
+/*
+  Список заказов переехал в api/public/orders-v1.ts.
 
-  const rows = await db.select({
-    id: orders.id, orderNumber: orders.orderNumber, status: orders.status,
-    total: orders.total, shopId: orders.shopId, agentId: orders.agentId,
-    createdAt: orders.createdAt,
-  }).from(orders)
-    .where(eq(orders.tenantId, tenantId))
-    .orderBy(desc(orders.createdAt))
-    .limit(limit).offset(offset);
-
-  const [{ count }] = await db.select({ count: sql<number>`count(*)` })
-    .from(orders).where(eq(orders.tenantId, tenantId));
-
-  return c.json({ data: rows, total: count, limit, offset });
-});
+  Здесь он листался смещением (`limit`/`offset`), и приёмку интеграции это не
+  проходит в принципе: пока идёт выгрузка, приходят новые заказы, смещение
+  сдвигает всё следующее — одна строка теряется, другая приходит дважды. В
+  новом обработчике набор фиксируется снимком, а листание идёт курсором по
+  неизменяемому идентификатору.
+*/
 
 /** GET /api/v1/orders/:id — get order with items */
 app.get("/orders/:id", async (c) => {
