@@ -268,3 +268,19 @@ export type OperatorCapability = typeof OPERATOR_CAPABILITIES[number];
 export function allCapabilities(): Record<OperatorCapability, boolean> {
   return Object.fromEntries(OPERATOR_CAPABILITIES.map(c => [c, true])) as Record<OperatorCapability, boolean>;
 }
+
+/**
+ * Статусы, в которых ПОЛЕВОЙ сотрудник ещё вправе править состав своего заказа.
+ *
+ * Живёт здесь, а не на сервере, потому что читают это двое и по-разному:
+ * сервер отказывает, а экран решает, показывать ли кнопку. Две копии списка
+ * разъехались бы при первой же правке — и вышло бы худшее из двух: кнопка
+ * есть, а ответом отказ.
+ *
+ * Заказ живёт так: оформили («new»), собрали («processing», «pending»), отдали
+ * курьеру («shipped»), довезли («delivered»). Агенту открыто всё до отгрузки:
+ * «shipped» значит, что курьер везёт конкретный набор коробок, а по
+ * «delivered» уже посчитан долг магазина. Офиса это не касается — там правку
+ * в поздних состояниях делают осознанно.
+ */
+export const FIELD_EDITABLE_ORDER_STATUSES = ["new", "processing", "pending"] as const;

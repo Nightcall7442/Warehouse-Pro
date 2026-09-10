@@ -119,7 +119,7 @@ describe("менять и удалять заказ супервайзер не 
    * ceo и operator. Проверка читает роутер, чтобы правило не уехало молча.
    */
   const GUARDED = [
-    "update", "updateItems", "updateStatus", "delete", "restore",
+    "update", "updateStatus", "delete", "restore",
     "bulkUpdateStatus", "bulkCompleteWithPayment", "bulkAssignAgent", "bulkAssignCourier",
   ];
 
@@ -130,6 +130,56 @@ describe("менять и удалять заказ супервайзер не 
       expect(ROUTER.slice(at, at + 60), `${proc} открыта шире, чем operatorQuery`).toContain("operatorQuery");
     });
   }
+
+  /*
+    updateItems ушла из этого списка сознательно: решение владельца — состав
+    своего заказа правит и агент. Заказ оформляет он, и «добавьте ещё две
+    коробки, а это уберите» слышит он же, стоя в магазине; раньше выходом был
+    только звонок в офис.
+
+    Но открыть шире — не значит открыть настежь, и обе границы должны стоять
+    ЗДЕСЬ, в процедуре: сервис их не знает.
+  */
+  it("updateItems открыт агенту, но только на СВОЙ заказ", () => {
+    const at = ROUTER.indexOf("\n  updateItems: ");
+    expect(at, "процедура updateItems не найдена").toBeGreaterThan(-1);
+    const body = ROUTER.slice(at, ROUTER.indexOf("\n\n  ", at + 10));
+    expect(body, "updateItems закрыта полевым — просьба владельца не выполнена").toContain("fieldSalesQuery");
+    expect(body, "агент может переписать состав ЧУЖОГО заказа")
+      .toContain('assertOrderVisible(ctx.db, ctx.tenant.id, input.id, actor, "Менять состав")');
+  });
+
+  it("и только пока заказ не уехал", () => {
+    /*
+      «shipped» значит, что курьер везёт конкретный набор коробок: допиши агент
+      строку — накладная разойдётся с тем, что в машине. По «delivered» уже
+      посчитан долг магазина, и правка двигает и склад, и деньги задним числом.
+    */
+    const at = ROUTER.indexOf("\n  updateItems: ");
+    const body = ROUTER.slice(at, ROUTER.indexOf("\n\n  ", at + 10));
+    expect(body, "агент правит состав уже отгруженного заказа")
+      .toContain("assertItemsEditableBy(ctx.db, ctx.tenant.id, input.id, actor)");
+
+    /*
+      Список живёт в contracts: по нему сервер отказывает, а экран решает,
+      показывать ли кнопку. Две копии дали бы худшее из двух — кнопка есть, а
+      ответом отказ.
+    */
+    const CONTRACTS = readFileSync(join(process.cwd(), "contracts", "constants.ts"), "utf8");
+    const win = CONTRACTS.slice(CONTRACTS.indexOf("export const FIELD_EDITABLE_ORDER_STATUSES"));
+    const list = win.slice(0, win.indexOf(";"));
+    expect(SRC, "сервер завёл свой список статусов вместо общего")
+      .toContain("FIELD_EDITABLE_STATUSES = FIELD_EDITABLE_ORDER_STATUSES;");
+    expect(list, "отгруженный заказ попал в окно правки").not.toContain("shipped");
+    expect(list, "доставленный заказ попал в окно правки").not.toContain("delivered");
+    expect(list, "оформленный заказ выпал из окна правки").toContain("new");
+
+    // Офис правит в любом состоянии — иначе поправить чужую ошибку станет
+    // нечем, а именно за этим к оператору и идут.
+    const fn = SRC.slice(SRC.indexOf("export async function assertItemsEditableBy"));
+    expect(fn.slice(0, fn.indexOf("\n}")), "офису тоже закрыли позднюю правку")
+      .toContain("if (canSettleAnyOrder(actor.role)) return;");
+  });
 });
 
 /**

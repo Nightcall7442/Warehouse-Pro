@@ -4,6 +4,7 @@ import { alias } from "drizzle-orm/mysql-core";
 import { orders, orderItems, warehouseStock, shops, users, products, warehouses, payments, debtReminders, orderAdjustments, territories, returns, returnItems } from "@db/schema";
 import { recalcShopDebt } from "./shop-debt";
 import { OPEN_ORDER_STATUSES, CLOSED_ORDER_STATUSES, ORDER_STATUS_LABELS, holdsStock, deductsStock } from "../lib/order-status";
+import { FIELD_EDITABLE_ORDER_STATUSES } from "@contracts/constants";
 import { NotificationService } from "./NotificationService";
 import { isReopen, reversesRevenue, assertReopenable, clearDeliveryTrace, dateSecondLife } from "./order-reopen";
 
@@ -510,6 +511,55 @@ export async function assertOrderVisible(
     ))
     .limit(1);
   if (!own) throw await orderAccessError(db as unknown as Tx, tenantId, orderId, action);
+}
+
+/**
+ * Статусы, в которых ПОЛЕВОЙ сотрудник ещё вправе править состав своего заказа.
+ *
+ * Заказ живёт так: оформили («new»), собрали («processing», «pending»),
+ * отдали курьеру («shipped»), довезли («delivered»).
+ *
+ * Агенту открыто всё до отгрузки, и граница проходит именно здесь. «shipped»
+ * значит, что курьер уже везёт КОНКРЕТНЫЙ набор коробок: допиши агент строку —
+ * резерв вырастет, накладная разойдётся с тем, что в машине, и разбираться
+ * будут в точке. «delivered» ещё жёстче: товар отдан, долг магазина посчитан, и
+ * правка состава двигает и склад, и деньги задним числом — это решение офиса, а
+ * не того, кто оформил заказ.
+ *
+ * Офиса (ORDER_SETTLERS) это не касается: там правку состава в поздних
+ * состояниях делают осознанно и отвечают за неё.
+ */
+/* Список общий с экранами — см. @contracts/constants: сервер по нему
+   отказывает, экран по нему решает, показывать ли кнопку. */
+export const FIELD_EDITABLE_STATUSES = FIELD_EDITABLE_ORDER_STATUSES;
+
+/**
+ * Может ли ЭТОТ человек менять состав ЭТОГО заказа прямо сейчас.
+ *
+ * Отдельно от assertOrderVisible: та отвечает «чей заказ», а эта — «не поздно
+ * ли». Оба отказа человек получает по-разному и чинит по-разному, поэтому и
+ * тексты разные.
+ */
+export async function assertItemsEditableBy(
+  db: Db, tenantId: number, orderId: number, actor: Actor,
+): Promise<void> {
+  if (canSettleAnyOrder(actor.role)) return;
+
+  const [row] = await db.select({ status: orders.status }).from(orders)
+    .where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt)))
+    .limit(1);
+  if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Заказ не найден" });
+
+  if (!(FIELD_EDITABLE_STATUSES as readonly string[]).includes(row.status)) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      // Названо, ЧТО делать дальше: «нельзя» без выхода отправляет человека
+      // звонить в офис и объяснять на словах.
+      message: row.status === "shipped"
+        ? "Заказ уже у курьера — состав менять нельзя. Позвоните оператору: он поправит или оформит возврат."
+        : "Заказ уже закрыт — состав менять нельзя. Изменения по нему оформляются возвратом.",
+    });
+  }
 }
 
 async function orderAccessError(

@@ -18,6 +18,7 @@ import { trpc } from "@/providers/trpc";
 import { useTranslate, useLang } from "@/i18n";
 import { useAuth } from "@/hooks/useAuth";
 import { unitShort } from "@/lib/units";
+import { linesFromOrder, linesToPayload, validateLines, type EditLine } from "@/lib/order-item-edit";
 import { useCurrency } from "@/hooks/useCurrency";
 import { notify } from "@/lib/toast";
 import { useConfirm } from "@/components/ConfirmDialog";
@@ -45,14 +46,12 @@ interface Props {
 }
 
 /** A line being edited. `itemId` is absent for a product added during this edit. */
-interface EditLine {
-  key: string;
-  itemId?: number;
-  productId: number;
-  productName: string;
-  quantity: string;
-  unitPrice: string;
-}
+/*
+  Строка редактора и сборка запроса переехали в src/lib/order-item-edit.ts:
+  тот же состав правит теперь и карточка заказа, где это делает агент. Копий
+  быть не должно — разъезжается там ровно одно место, УБРАННЫЕ строки, и цена
+  ошибки в нём — товар, молча оставшийся в заказе вместе с резервом.
+*/
 
 
 function DebtBlock({ debt, orderTotal, currency }: { debt: string; orderTotal: string; currency: string }) {
@@ -310,14 +309,7 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
     // вдвое. Одна функция на оба места, проверена тестом.
     setEditDiscount(String(discountMoneyToPct(order)));
     setEditPaymentMethod(order.paymentMethod ?? "cash");
-    setEditLines((order.items ?? []).map((i) => ({
-      key: `item-${i.id}`,
-      itemId: i.id,
-      productId: i.productId,
-      productName: i.productName ?? "",
-      quantity: String(Number(i.quantity)),
-      unitPrice: String(Number(i.unitPrice)),
-    })));
+    setEditLines(linesFromOrder(order.items ?? []));
     setAddProductId("");
     setEditing(true);
   }
@@ -357,34 +349,10 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
   async function saveEditing() {
     if (!order) return;
 
-    if (editLines.length === 0) {
-      notify.error(t("В заказе должна остаться хотя бы одна позиция", "Buyurtmada kamida bitta pozitsiya qolishi kerak"));
-      return;
-    }
-    if (editLines.some(l => !(Number(l.quantity) > 0))) {
-      notify.error(t("Количество должно быть больше нуля", "Miqdor noldan katta bo'lishi kerak"));
-      return;
-    }
-    if (editLines.some(l => Number(l.unitPrice) < 0 || !Number.isFinite(Number(l.unitPrice)))) {
-      notify.error(t("Неверная цена", "Noto'g'ri narx"));
-      return;
-    }
+    const wrong = validateLines(editLines);
+    if (wrong) { notify.error(wrong); return; }
 
-    const original = order.items ?? [];
-    // Lines dropped in the editor are sent as quantity 0 so the server releases
-    // their stock, rather than silently leaving them on the order.
-    const removed = original
-      .filter(o => !editLines.some(l => l.itemId === o.id))
-      .map(o => ({ itemId: o.id, quantity: 0 }));
-
-    const lines = [
-      ...editLines.map(l => (
-        l.itemId !== undefined
-          ? { itemId: l.itemId, quantity: Number(l.quantity), unitPrice: l.unitPrice }
-          : { productId: l.productId, quantity: Number(l.quantity), unitPrice: l.unitPrice }
-      )),
-      ...removed,
-    ];
+    const lines = linesToPayload(order.items ?? [], editLines);
 
     try {
       // Items first: it rewrites subtotal, which the discount percentage applies to.

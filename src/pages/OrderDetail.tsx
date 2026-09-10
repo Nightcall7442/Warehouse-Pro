@@ -1,6 +1,8 @@
 import { useParams, useNavigate } from "react-router";
 import { useCan } from "@/hooks/useCan";
 import { normalizeDecimalInput } from "@/lib/decimal-input";
+import { FIELD_EDITABLE_ORDER_STATUSES } from "@contracts/constants";
+import { OrderItemsEditor } from "@/components/orders/OrderItemsEditor";
 import { discountMoneyToPct } from "@/lib/order-discount";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
@@ -76,6 +78,7 @@ export default function OrderDetail() {
   const [pendingStatus, setPendingStatus] = useState<string | null>(null);
 
   const isOperatorOrCeo = user?.role === "ceo" || user?.role === "operator";
+
   // Удаление заказа арендатор может закрыть оператору — см. Права оператора.
   const can = useCan();
   const { confirm, dialog } = useConfirm();
@@ -89,6 +92,29 @@ export default function OrderDetail() {
   const { data: couriers } = trpc.user.list.useQuery(
     { role: "courier" },
     { enabled: isOperatorOrCeo && !!order && (order.status === "new" || order.status === "processing") }
+  );
+
+  /*
+    Кто и когда правит СОСТАВ заказа.
+
+    Просьба владельца: состав своего заказа должен править и агент — он его и
+    оформляет, и «добавьте ещё две коробки, а это уберите» слышит он же, стоя в
+    магазине. Раньше выходом был только звонок в офис: правка состава жила
+    исключительно в операторской панели заказа.
+
+    Границы те же, что на сервере (assertOrderVisible + assertItemsEditableBy),
+    и повторены здесь ровно затем, чтобы не показывать кнопку там, где ответом
+    будет отказ:
+
+      • офису — всегда: поправить чужую ошибку идут именно к нему;
+      • автору заказа — пока заказ не уехал. «Отгружен» значит, что курьер везёт
+        конкретный набор коробок, а по «доставлен» уже посчитан долг магазина.
+
+    Решает всё равно сервер: экран лишь не обещает того, чего не будет.
+  */
+  const isAuthor = !!order && order.agentId === user?.id;
+  const canEditItems = !order?.deletedAt && (
+    isOperatorOrCeo || (isAuthor && (FIELD_EDITABLE_ORDER_STATUSES as readonly string[]).includes(order?.status ?? ""))
   );
 
   const { data: adjustments } = trpc.order.getAdjustments.useQuery(
@@ -435,6 +461,9 @@ export default function OrderDetail() {
                   {lang === "uz" ? "Buyurtmani yakunlash" : "Завершить заказ"}
                 </button>
               )}
+              {/* Состав правится своим блоком ниже: скидка, способ оплаты и
+                  примечание — одно действие, а товары и количества — другое,
+                  и склад двигает только второе. */}
               <button
                 onClick={editing ? saveEditing : startEditing}
                 disabled={editing && updateOrder.isPending}
@@ -499,9 +528,32 @@ export default function OrderDetail() {
 
         {/* ── Items Table ── */}
         <div>
-          <h3 className="font-label text-secondary text-xs tracking-wider mb-3 flex items-center gap-1">
-            <Package size={13}/> {lang === "uz" ? "MAHSULOTLAR" : "ТОВАРЫ"} ({order.items?.length ?? 0})
-          </h3>
+          <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+            <h3 className="font-label text-secondary text-xs tracking-wider flex items-center gap-1">
+              <Package size={13}/> {lang === "uz" ? "MAHSULOTLAR" : "ТОВАРЫ"} ({order.items?.length ?? 0})
+            </h3>
+            {/*
+              Правка состава — здесь же, у самих товаров, а не в общей кнопке
+              «Изменить заказ» сверху: та меняет скидку, способ оплаты и
+              примечание, и склад не двигает. Это разные действия с разными
+              последствиями, и сводить их в одну кнопку значит скрыть от
+              человека, что именно он сейчас поменяет.
+            */}
+            {canEditItems && (
+              <OrderItemsEditor
+                orderId={order.id}
+                items={(order.items ?? []).map(i => ({
+                  id: i.id,
+                  productId: i.productId,
+                  productName: i.productName,
+                  quantity: i.quantity,
+                  unitPrice: i.unitPrice,
+                  unit: i.unit,
+                }))}
+                onSaved={() => refetch()}
+              />
+            )}
+          </div>
           {/* Desktop — table, scrolled horizontally rather than clipped so
               narrow-but-not-phone widths don't silently lose the right
               columns (overflow-x: auto, not overflow: hidden). */}

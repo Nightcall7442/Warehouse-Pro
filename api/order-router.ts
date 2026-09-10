@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { createRouter, operatorQuery, fieldSalesQuery, can } from "./middleware";
-import { OrderService, assertOrderVisible } from "./services/order";
+import { OrderService, assertOrderVisible, assertItemsEditableBy } from "./services/order";
 // Погрузочные листы живут своим модулем: с заказом у них общая только ссылка.
 import { LoadingListService } from "./services/loading-list";
 import { getDb } from "./queries/connection";
@@ -372,7 +372,28 @@ export const orderRouter = createRouter({
       return OrderService.update(ctx.db, ctx.tenant.id, id, data);
     }),
 
-  updateItems: operatorQuery.use(can("orders.edit"))
+  /*
+    ── Состав заказа правит и АГЕНТ ──────────────────────────────────────────
+
+    Просьба владельца: агент должен добавлять товары, убирать их и менять
+    количество. Раньше здесь стоял operatorQuery, то есть директор с
+    оператором, — а заказ оформляет агент, и стоя́ в магазине он же слышит
+    «добавьте ещё две коробки, а вот это уберите». Единственным выходом был
+    звонок в офис.
+
+    Открыто не всем и не навсегда, и обе границы стоят ниже отдельными
+    проверками:
+
+      • assertOrderVisible — СВОЙ заказ. Без неё агент, подставив чужой номер,
+        переписывал бы состав чужой продажи;
+      • assertItemsEditableBy — пока заказ НЕ УЕХАЛ. У курьера в машине
+        конкретный набор коробок, а по доставленному уже посчитан долг
+        магазина.
+
+    can("orders.edit") остаётся: он ограничивает ОПЕРАТОРА по настройке
+    директора и никого больше не трогает.
+  */
+  updateItems: fieldSalesQuery.use(can("orders.edit"))
     .input(z.object({
       id: z.number().int().positive(),
       items: z.array(z.object({
@@ -385,6 +406,9 @@ export const orderRouter = createRouter({
         .min(1),
     }))
     .mutation(async ({ input, ctx }) => {
+      const actor = { id: ctx.user.id, role: ctx.user.role };
+      await assertOrderVisible(ctx.db, ctx.tenant.id, input.id, actor, "Менять состав");
+      await assertItemsEditableBy(ctx.db, ctx.tenant.id, input.id, actor);
       return OrderService.updateItems(ctx.db, ctx.tenant.id, input.id, { items: input.items });
     }),
 
