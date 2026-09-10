@@ -62,10 +62,18 @@ export const shopRouter = createRouter({
    * отличить недельный от полугодового было нечем, хотя решение принимается
    * именно из этого различия.
    *
-   * operatorQuery, как и сводка по поставщикам рядом: собирают долг оператор
-   * и владелец, и обе стороны расчётов им нужны в одном месте.
+   * managementQuery — владелец, оператор и СУПЕРВАЙЗЕР.
+   *
+   * Супервайзера здесь не было, и это была дыра в его работе, а не бережность:
+   * он и так видит каждую строку долгового журнала (shop.debtJournal), долг
+   * каждого магазина с карточкой (shop.getDebtDetails) и полный список
+   * должников с суммами (analytics.debtReport). Не хватало ровно одного —
+   * ВОЗРАСТА долга, то есть того единственного, из чего он решает, к кому
+   * ехать сегодня.
+   *
+   * Оператор доступ сохранил: managementQuery шире operatorQuery, а не другой.
    */
-  receivablesAging: operatorQuery.query(async ({ ctx }) => {
+  receivablesAging: managementQuery.query(async ({ ctx }) => {
     return receivablesAging(getDb(), ctx.tenant.id);
   }),
 

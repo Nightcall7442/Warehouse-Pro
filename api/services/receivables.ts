@@ -51,6 +51,20 @@ export const AGE_BUCKETS: AgeBucket[] = ["d0_7", "d8_30", "d31_60", "d60plus"];
 export interface ShopAging {
   shopId: number;
   shopName: string;
+  /*
+    Телефон магазина и агент, за которым он числится.
+
+    Без них список должников на телефоне — это список для чтения, а не для
+    работы: супервайзер видит «Нодира MCHJ, 3 млн, 47 дней» и лезет искать
+    номер в другой экран. Долг закрывается звонком, и номер должен лежать в
+    той же строке.
+
+    Агент — держатель магазина, а не тот, кто принял последний заказ: вопрос
+    «на чьём маршруте висит» отвечается именно так (то же правило, что в
+    analytics.debtReport).
+  */
+  phone: string | null;
+  agentName: string | null;
   /** Долг магазина целиком — то же число, что на его карточке. */
   debt: number;
   /** Разбивка по возрасту неоплаченных заказов. */
@@ -75,6 +89,10 @@ const emptyBuckets = (): Record<AgeBucket, number> =>
 interface RawRow {
   shopId: number;
   shopName: string;
+  /* Приходят левым соединением, поэтому их может не быть вовсе: у магазина
+     бывает не заполнен телефон и не назначен агент. */
+  phone?: string | null;
+  agentName?: string | null;
   debt: number | string;
   bucket: AgeBucket | null;
   amount: number | string | null;
@@ -98,6 +116,8 @@ export function rollUp(rows: RawRow[]): ReceivablesAging {
       shop = {
         shopId: row.shopId,
         shopName: row.shopName,
+        phone: row.phone ?? null,
+        agentName: row.agentName ?? null,
         debt: Number(row.debt ?? 0),
         buckets: emptyBuckets(),
         unattributed: 0,
@@ -183,6 +203,8 @@ export async function receivablesAging(db: Db, tenantId: number): Promise<Receiv
     SELECT
       s.id                          AS shopId,
       s.name                        AS shopName,
+      s.phone                       AS phone,
+      u.name                        AS agentName,
       CAST(s.debt AS DECIMAL(15,2)) AS debt,
       d.bucket                      AS bucket,
       d.amount                      AS amount,
@@ -213,6 +235,9 @@ export async function receivablesAging(db: Db, tenantId: number): Promise<Receiv
         ), 0)
       GROUP BY o.shop_id, bucket
     ) d ON d.shop_id = s.id
+    /* Соединение ЛЕВОЕ и с проверкой организации: у магазина может не быть
+       агента, и такой должник обязан остаться в списке — он-то и опаснее. */
+    LEFT JOIN users u ON u.id = s.agent_id AND u.tenant_id = ${tenantId}
     WHERE s.tenant_id = ${tenantId}
       AND (CAST(s.debt AS DECIMAL(15,2)) > 0 OR d.amount IS NOT NULL)
   `);
