@@ -28,12 +28,33 @@
    (revenueOrderConditions). Ровно та же ошибка — похожее, но не совпадающее
    условие — уже стоила расхождений в долге магазина.
 
-   ── Про даты ────────────────────────────────────────────────────────────────
+   ── Про даты: одна база на весь продукт ─────────────────────────────────────
 
    Возврат уменьшает выручку ТОГО месяца, когда он проведён, а не того, когда
    продали. Иначе закрытый месяц менялся бы задним числом каждый раз, когда
    магазин что-то возвращает. Это обычная встречная запись, и по ней период
    сходится сам с собой.
+
+   База обязана быть ОДНА на весь продукт, и раньше её не было. Прибыль
+   вычитала возвраты по дате возврата, комиссия агента и выручка в KPI — по
+   дате ЗАКАЗА, а доля возвратов в той же карточке KPI — снова по дате
+   возврата. Три экрана про одного человека за один месяц давали три разных
+   ответа, и балл KPI считался с одного из них, а премия — с другого.
+
+   Хуже того, у всех этих запросов не было отбора по статусу заказа. Возврат
+   вычитался и тогда, когда заказ потом отменили, — а отменённый заказ и так
+   выпал из выручки целиком. Те же деньги вычитались дважды: у агента с одной
+   отменой месяц уходил в ноль на ровном месте.
+
+   Поэтому отбор здесь один и на всех: по дате ПРОВЕДЕНИЯ и только против
+   заказов, которые сами считаются выручкой (revenueOrderConditions).
+
+   ── Долг — это другой вопрос ────────────────────────────────────────────────
+
+   Здесь считают «сколько вернулось ЗА ПЕРИОД». Долгу нужно «сколько вернулось
+   ПО ЭТОМУ ЗАКАЗУ», без периода вовсе, и это правило живёт в
+   services/shop-debt.ts. Смешивать их нельзя: у долга нет отчётного месяца, а
+   у выручки нет отдельного заказа.
 
    ── Про себестоимость ───────────────────────────────────────────────────────
 
@@ -55,16 +76,37 @@ export interface ReturnedValue {
   amount: number;
   /** Себестоимость вернувшегося товара. Вычитается из COGS. */
   cost: number;
+  /**
+   * Сколько документов возврата.
+   *
+   * Нужен доле возвратов в KPI. Считался отдельным запросом с ДРУГИМ отбором —
+   * по дате самого возврата и по `returns.agentId`, тогда как сумма в той же
+   * карточке бралась по дате заказа и по `orders.agentId`. Числитель и
+   * знаменатель одной дроби жили в разных периодах и относились к разным
+   * людям.
+   */
+  count: number;
 }
 
-export const NOTHING_RETURNED: ReturnedValue = { amount: 0, cost: 0 };
+export const NOTHING_RETURNED: ReturnedValue = { amount: 0, cost: 0, count: 0 };
 
-export interface ReturnRow extends ReturnedValue {
+/**
+ * Один документ возврата.
+ *
+ * Наследовать ReturnedValue было бы удобнее на вид, но неверно по смыслу: там
+ * есть `count` — сколько документов сложено, — а в одном документе считать
+ * нечего. Складывают строки функции ниже, и только они знают счёт.
+ */
+export interface ReturnRow {
   /** Месяц проведения, «ГГГГ-ММ» — для месячного графика. */
   month: string;
   /** Способ оплаты ЗАКАЗА — для разбивки «чем платят». */
   paymentMethod: string;
   agentId: number | null;
+  /** Сумма продажи, вернувшаяся магазину. */
+  amount: number;
+  /** Себестоимость вернувшегося товара. */
+  cost: number;
 }
 
 /**
@@ -138,12 +180,17 @@ export async function returnsInPeriod(
   }));
 }
 
+const plus = (a: ReturnedValue, b: ReturnedValue): ReturnedValue => ({
+  amount: a.amount + b.amount,
+  cost:   a.cost + b.cost,
+  count:  a.count + b.count,
+});
+
+const ONE = (r: ReturnRow): ReturnedValue => ({ amount: r.amount, cost: r.cost, count: 1 });
+
 /** Сложить строки в одну величину. */
 export function totalReturned(rows: ReturnRow[]): ReturnedValue {
-  return rows.reduce<ReturnedValue>(
-    (acc, r) => ({ amount: acc.amount + r.amount, cost: acc.cost + r.cost }),
-    { ...NOTHING_RETURNED },
-  );
+  return rows.reduce<ReturnedValue>((acc, r) => plus(acc, ONE(r)), { ...NOTHING_RETURNED });
 }
 
 /** Разложить строки по ключу: месяц, способ оплаты — что понадобится. */
@@ -153,8 +200,34 @@ export function groupReturned(
   const out = new Map<string, ReturnedValue>();
   for (const r of rows) {
     const k = key(r);
-    const prev = out.get(k) ?? { ...NOTHING_RETURNED };
-    out.set(k, { amount: prev.amount + r.amount, cost: prev.cost + r.cost });
+    out.set(k, plus(out.get(k) ?? NOTHING_RETURNED, ONE(r)));
   }
   return out;
+}
+
+/**
+ * Разложить по агенту, ЧЬЯ ПРОДАЖА вернулась.
+ *
+ * Агент берётся из заказа, а не из документа возврата. Это разные люди:
+ * `returns.agentId` — кто ОФОРМИЛ возврат, им может быть оператор или другой
+ * агент, оказавшийся в точке. Комиссия и выручка уменьшаются у того, чью
+ * продажу отменили, иначе один человек теряет деньги за чужую работу, а другой
+ * их сохраняет.
+ *
+ * Возврат без заказа сюда не попадает вовсе: `returnsInPeriod` соединяет с
+ * заказом внутренним соединением — такому возврату нечего уменьшать в выручке,
+ * он живёт только в долге магазина.
+ */
+export function returnedByAgent(rows: ReturnRow[]): Map<number, ReturnedValue> {
+  const out = new Map<number, ReturnedValue>();
+  for (const r of rows) {
+    if (r.agentId == null) continue;
+    out.set(r.agentId, plus(out.get(r.agentId) ?? NOTHING_RETURNED, ONE(r)));
+  }
+  return out;
+}
+
+/** Что вернулось у одного агента — ноль, если ничего. */
+export function returnedOf(byAgent: Map<number, ReturnedValue>, agentId: number): ReturnedValue {
+  return byAgent.get(agentId) ?? NOTHING_RETURNED;
 }

@@ -3,7 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { createRouter, operatorQuery, fieldSalesQuery, can } from "./middleware";
 import { OrderService, assertOrderVisible } from "./services/order";
 import { getDb } from "./queries/connection";
-import { savedFilters, orderComments, shops, payments, users, orders } from "@db/schema";
+import { savedFilters, orderComments, shops, payments, users, orders, returns } from "@db/schema";
 import { eq, and, or, desc, sql, isNull, inArray } from "drizzle-orm";
 import { sanitizeString } from "./lib/sanitize";
 import { OPEN_ORDER_STATUSES, CLOSED_ORDER_STATUSES } from "./lib/order-status";
@@ -168,20 +168,42 @@ export const orderRouter = createRouter({
         totalValue: sql<string>`COALESCE(SUM(CAST(${orders.total} AS DECIMAL(15,2))), 0)`,
         openCount: sql<number>`COALESCE(SUM(CASE WHEN ${orders.status} IN ('new','processing','shipped','pending') THEN 1 ELSE 0 END), 0)`,
         deliveredCount: sql<number>`COALESCE(SUM(CASE WHEN ${orders.status} = 'delivered' THEN 1 ELSE 0 END), 0)`,
-        // Unpaid balance on this agent's orders, mirroring recalcShopDebt's
-        // per-order rule: a credit order owes from creation, anything else once
-        // it reached delivered, in both cases net of payments against it.
-        debt: sql<string>`COALESCE(SUM(
+        /*
+          Незакрытая сумма по заказам этого агента.
+
+          Повторяет правило recalcShopDebt (services/shop-debt.ts): долговой
+          заказ должен с оформления, любой другой — с момента доставки, и в
+          обоих случаях за вычетом платежей по нему И проведённых возвратов.
+
+          Возвратов здесь не было вовсе. Магазин вернул половину доставленного
+          заказа: shops.debt падал (там возвраты учтены), а эта колонка —
+          нет. Оператор видел на экране заказов один долг агента, а в карточке
+          магазина по тем же заказам другой, и разница ничем не объяснялась.
+
+          Возврат вычитается ВНУТРИ той же ветки, что и начисление, — то есть
+          только пока заказ ещё должен. Иначе отменённый заказ, по которому
+          провели возврат, вычитал бы его из чужих заказов: сам он даёт ноль,
+          его сумма уже списана целиком.
+
+          Нижняя граница — на всей сумме агента, а не на каждом заказе:
+          переплаченный и потом возвращённый заказ оставляет магазину право на
+          деньги, и это право гасит другие его заказы. Ровно так же устроен
+          пересчёт долга магазина.
+        */
+        debt: sql<string>`GREATEST(0, COALESCE(SUM(
           CASE
             WHEN ${orders.status} IN ('cancelled','returned') THEN 0
             WHEN ${orders.paymentMethod} = 'debt' OR ${orders.status} = 'delivered'
               THEN GREATEST(0, CAST(${orders.total} AS DECIMAL(15,2)) - COALESCE((
                 SELECT SUM(CAST(p.amount AS DECIMAL(15,2))) FROM ${payments} p
                 WHERE p.order_id = ${orders.id} AND p.type = 'payment'
-              ), 0))
+              ), 0)) - COALESCE((
+                SELECT SUM(CAST(r.total_amount AS DECIMAL(15,2))) FROM ${returns} r
+                WHERE r.order_id = ${orders.id} AND r.status = 'completed'
+              ), 0)
             ELSE 0
           END
-        ), 0)`,
+        ), 0))`,
         lastOrderAt: sql<string | null>`MAX(${orders.createdAt})`,
       })
         .from(users)

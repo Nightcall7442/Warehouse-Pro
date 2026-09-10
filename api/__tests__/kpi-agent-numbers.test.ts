@@ -65,13 +65,42 @@ describe("балл считается одной формулой", () => {
 });
 
 describe("выручка в списке и в карточке", () => {
-  it("обе за вычетом завершённых возвратов", () => {
+  const MONEY_FUNCTIONS = [
+    "export async function calculateAgentKpi",
+    "export async function getAgentList",
+    "export async function calculateSalary",
+  ];
+
+  it("возвраты берутся общим правилом, а не своим запросом", () => {
+    /*
+      Свой запрос был у каждой из трёх функций, и все три отбирали по-разному:
+      по дате ЗАКАЗА, без фильтра статуса, а счёт возвратов — ещё и по дате
+      возврата с другим агентом. Правило одно (services/revenue-returns.ts):
+      по дате проведения и только против заказов, которые сами считаются
+      выручкой.
+    */
+    for (const fn of MONEY_FUNCTIONS) {
+      const body = bodyOf(fn);
+      expect(body, `${fn}: возвраты не учитываются`).toContain("returnsInPeriod(");
+      expect(body, `${fn}: вернулся свой запрос по таблице возвратов`)
+        .not.toContain("from(returns)");
+    }
+  });
+
+  it("сумма и счёт выводятся из ОДНОГО набора строк", () => {
+    /*
+      Числитель и знаменатель доли возвратов входят в один балл KPI. Пока это
+      были два запроса, они жили в разных периодах: сумма — по дате заказа,
+      счёт — по дате возврата. Балл считался с выручки одного месяца и доли
+      другого.
+    */
     for (const fn of ["export async function calculateAgentKpi", "export async function getAgentList"]) {
       const body = bodyOf(fn);
-      expect(body, `${fn}: возвраты не учитываются`).toContain('eq(returns.status, "completed")');
+      const usesAmount = /\.amount\b/.test(body);
+      const usesCount = /\.count\b/.test(body);
+      expect(usesAmount, `${fn}: сумма возвратов не вычитается`).toBe(true);
+      expect(usesCount, `${fn}: счёт возвратов взят не из того же набора`).toBe(true);
     }
-    expect(bodyOf("export async function getAgentList"), "в списке возвраты не вычитаются из выручки")
-      .toContain("Number(orders?.revenue ?? 0) - Number(returnedMoneyMap.get(agent.agentId)?.returned ?? 0)");
   });
 });
 

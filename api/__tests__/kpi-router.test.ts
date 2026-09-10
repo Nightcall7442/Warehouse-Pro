@@ -25,6 +25,25 @@ vi.mock("../services/anti-fraud", () => ({
   })),
 }));
 
+/*
+  Возвраты этот стенд не моделирует — и говорит об этом вслух.
+
+  Поддельная база ниже отбирает строки, но НЕ проецирует их: запрос
+  `returnsInPeriod` берёт `amount: returns.totalAmount`, а стенд отдаёт сырую
+  строку, где такого поля нет. Научить его частично значило бы получить
+  правдоподобные нули: проверки остались бы зелёными, а возвраты в них не
+  участвовали бы вовсе — и никто бы не узнал.
+
+  Здесь проверяется РОУТЕР: форма ответа и доступ по ролям. Арифметику
+  возвратов держат три других набора — revenue-returns.test.ts (сложение),
+  _audit-commission-evidence.test.ts (настоящий разбор SQL на памяти) и
+  real-db/, где база настоящая.
+*/
+vi.mock("../services/revenue-returns", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../services/revenue-returns")>();
+  return { ...actual, returnsInPeriod: vi.fn(async () => []) };
+});
+
 import { orders, dailyPlans, returns, shops, salesTargets, commissions, agentLocations, visitReports, users } from "@db/schema";
 import { makeConditionEvaluator } from "./helpers/fake-conditions";
 

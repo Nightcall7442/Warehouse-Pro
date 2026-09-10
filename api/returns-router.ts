@@ -398,6 +398,11 @@ export const returnsRouter = createRouter({
     }).from(returns)
       .where(and(
         eq(returns.tenantId, ctx.tenant.id),
+        // Только проведённые. Отбора по состоянию здесь не было вовсе, и в
+        // «сумму возвратов за месяц» складывались заявки, по которым товар
+        // никуда не двигался: поданные и — хуже — ОТКЛОНЁННЫЕ. Отказать в
+        // возврате и увидеть его сумму в отчёте о возвратах.
+        eq(returns.status, "completed"),
         sql`${returns.createdAt} >= ${monthStart}`,
       ))
       .groupBy(returns.reason);

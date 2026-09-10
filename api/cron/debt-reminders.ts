@@ -1,5 +1,5 @@
 import { getDb } from "../queries/connection";
-import { debtReminders, users, shops, orders, payments, settings } from "@db/schema";
+import { debtReminders, users, shops, orders, payments, returns, settings } from "@db/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { NotificationService } from "../services/NotificationService";
@@ -81,16 +81,60 @@ async function settledReminderIds(db: Db, reminders: Reminder[]): Promise<Set<nu
     paidByOrder.set(key, (paidByOrder.get(key) ?? 0) + (Number(p.amount) || 0));
   }
 
+  /*
+    Проведённые возвраты закрывают долг наравне с деньгами.
+
+    Их здесь не было, и остаток считался как «сумма заказа минус оплаты». Тот,
+    кто вместо доплаты ВЕРНУЛ товар, оставался должен навсегда: shops.debt у
+    него падал до нуля (пересчёт долга возвраты знает), а напоминание жило
+    своей арифметикой и каждый день слало директору «ПРОСРОЧЕННЫЙ ДОЛГ» — и в
+    приложение, и в телеграм. Ровно тот случай, ради которого это условие и
+    сверяли с services/shop-debt.ts: похожее, но не совпадающее правило.
+  */
+  const returnRows = await db.select({ orderId: returns.orderId, amount: returns.totalAmount })
+    .from(returns)
+    .where(and(inArray(returns.orderId, orderIds), eq(returns.status, "completed")));
+  const returnedByOrder = new Map<number, number>();
+  for (const r of returnRows) {
+    const key = Number(r.orderId);
+    returnedByOrder.set(key, (returnedByOrder.get(key) ?? 0) + (Number(r.amount) || 0));
+  }
+
   for (const r of withOrder) {
-    const o = byId.get(Number(r.orderId));
+    const key = Number(r.orderId);
+    const o = byId.get(key);
     if (!o) { settled.add(r.id); continue; }
 
-    const owes = orderStillOwes(o);
-    const remaining = Number(o.total) - (paidByOrder.get(Number(r.orderId)) ?? 0);
-
-    if (!owes || remaining <= 0) settled.add(r.id);
+    if (reminderSettled(o, paidByOrder.get(key) ?? 0, returnedByOrder.get(key) ?? 0)) {
+      settled.add(r.id);
+    }
   }
   return settled;
+}
+
+/**
+ * Закрыто ли напоминание по этому заказу.
+ *
+ * Вынесено отдельной функцией не ради красоты: решение отправить директору
+ * «ПРОСРОЧЕННЫЙ ДОЛГ» — это деньги и репутация, а проверить его внутри крона с
+ * поддельной базой почти нечем. Здесь его можно померить числами.
+ *
+ * Два условия, и оба обязательные:
+ *
+ *   • заказ ещё должен — то же правило, что в services/shop-debt.ts;
+ *   • по нему что-то осталось — сумма минус деньги минус ВЕРНУВШИЙСЯ ТОВАР.
+ *
+ * Возврат в этой арифметике не участвовал вовсе, и тот, кто вместо доплаты
+ * вернул товар, оставался должен навсегда: shops.debt у него падал до нуля, а
+ * напоминание жило своей формулой и слало уведомление каждый день.
+ */
+export function reminderSettled(
+  order: Parameters<typeof orderStillOwes>[0] & { total: unknown },
+  paid: number,
+  returned: number,
+): boolean {
+  if (!orderStillOwes(order)) return true;
+  return Number(order.total) - paid - returned <= 0;
 }
 
 /**

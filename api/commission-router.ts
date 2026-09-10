@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { monthRange } from "./lib/period";
+import { monthRange, dayKey } from "./lib/period";
 import { TRPCError } from "@trpc/server";
 import { createRouter, operatorQuery, authedQuery, can } from "./middleware";
 import { getDb } from "./queries/connection";
@@ -7,6 +7,7 @@ import { commissions, users } from "@db/schema";
 import { eq, and, gte, lte, desc, isNull , inArray, sql } from "drizzle-orm";
 import { onDate } from "./lib/date-range";
 import { REVENUE_ORDER_STATUSES } from "./lib/order-status";
+import { returnsInPeriod, returnedByAgent, returnedOf } from "./services/revenue-returns";
 import { cache, CacheKeys } from "./lib/cache";
 
 /**
@@ -192,7 +193,7 @@ export const commissionRouter = createRouter({
           sql`${commissions.periodEnd} <= ${input.periodEnd}`,
         ));
 
-      const { orders, returns } = await import("@db/schema");
+      const { orders } = await import("@db/schema");
       const { sql: sqlFn } = await import("drizzle-orm");
 
       const results = await Promise.all(
@@ -219,20 +220,30 @@ export const commissionRouter = createRouter({
             lte(orders.createdAt, agentPeriodEndDate),
           ));
 
-          const [returnResult] = await db.select({
-            total: sqlFn<string>`COALESCE(SUM(${returns.totalAmount}), 0)`,
-          }).from(returns)
-            .innerJoin(orders, eq(returns.orderId, orders.id))
-            .where(and(
-              eq(returns.tenantId, ctx.tenant.id),
-              eq(orders.agentId, agent.userId),
-              eq(returns.status, "completed"),
-              isNull(orders.deletedAt),
-              gte(orders.createdAt, agent.periodStart),
-              lte(orders.createdAt, agentPeriodEndDate),
-            ));
+          /*
+            Возвраты — общим правилом (services/revenue-returns.ts).
 
-          const salesAmount = Math.max(0, Number(orderResult.total) - Number(returnResult.total));
+            Здесь стоял свой запрос, и он ошибался дважды.
+
+            Во-первых, брал возвраты по дате ЗАКАЗА, а прибыль на соседней
+            странице — по дате проведения возврата. Один и тот же возврат
+            уменьшал разные месяцы в двух отчётах.
+
+            Во-вторых, и это дороже, у него не было отбора по статусу заказа
+            вовсе — только `deleted_at IS NULL`. Заказ, отменённый после
+            проведения возврата, выпадал из суммы продаж целиком (статус
+            фильтруется выше) и продолжал вычитаться возвратом: те же деньги
+            уходили из базы комиссии дважды. У агента с одной отменой месяц
+            обнулялся на ровном месте, и Math.max(0, …) это прятал.
+          */
+          const returned = returnedOf(
+            returnedByAgent(await returnsInPeriod(
+              db, ctx.tenant.id, dayKey(new Date(agent.periodStart)), dayKey(agentPeriodEndDate),
+            )),
+            agent.userId,
+          );
+
+          const salesAmount = Math.max(0, Number(orderResult.total) - returned.amount);
           const commissionAmount = salesAmount * (Number(agent.commissionRate) / 100);
 
           // Статус в условии UPDATE повторно, а не только в выборке выше:

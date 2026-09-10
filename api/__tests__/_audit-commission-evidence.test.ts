@@ -336,7 +336,19 @@ describe("calculateSalary: запись расчёта по месяцам", () 
 });
 
 describe("EVIDENCE: what the commission base subtracts", () => {
-  it("D. a completed return is subtracted even after the order is moved to 'returned'", async () => {
+  it("D. возврат по списанному заказу больше не вычитается второй раз", async () => {
+    /*
+      Это была УЛИКА, а теперь проверка.
+
+      Отбор возвратов в базе комиссии не фильтровал статус заказа вовсе —
+      только `deleted_at IS NULL`. Заказ, переведённый в «возвращён» ПОСЛЕ
+      проведения документа, выпадал из суммы продаж целиком (статус
+      фильтруется) и продолжал вычитаться возвратом. Те же деньги уходили
+      дважды, и вычет съедал СОСЕДНИЙ заказ, к которому не имел отношения:
+      два заказа по миллиону превращались в ноль продаж.
+
+      Числа ниже измерены, а не придуманы: до правки третья строка давала 0.
+    */
     data.commissions = [{
       id: 1, tenantId: 1, userId: 10, commissionRate: "10.00", periodType: "monthly",
       periodStart: "2026-07-01", periodEnd: "2026-07-31",
@@ -363,7 +375,8 @@ describe("EVIDENCE: what the commission base subtracts", () => {
 
     expect(before.salesAmount).toBe(2000000);
     expect(withReturn.salesAmount).toBe(1000000);
-    expect(after.salesAmount).toBe(0); // ← the untouched order #1 vanishes too
+    expect(after.salesAmount, "нетронутый заказ №1 снова исчез вместе с чужим возвратом")
+      .toBe(1000000);
   });
 
   it("E. a return not linked to an order is never subtracted", async () => {

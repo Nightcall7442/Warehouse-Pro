@@ -6,6 +6,7 @@ import { REVENUE_ORDER_STATUSES, deliveredQty } from "./lib/order-status";
 import { subDays } from "date-fns";
 import { cache, CacheKeys, CacheTTL } from "./lib/cache";
 import { onDay, onDate, sinceDay } from "./lib/date-range";
+import { returnsInPeriod, totalReturned } from "./services/revenue-returns";
 
 /**
  * Сколько дней назад смотрит плитка валовой маржи на дашборде.
@@ -83,8 +84,21 @@ export const dashboardRouter = createRouter({
         .where(and(eq(orders.tenantId, tenantId), isNull(orders.deletedAt), sinceDay(orders.createdAt, marginFrom))),
     ]);
 
-    const totalRev = Number(revenueResult[0]?.totalRevenue ?? 0);
-    const totalCostVal = Number(costResult[0]?.totalCost ?? 0);
+    /*
+      Возвраты уменьшают и выручку, и себестоимость.
+
+      Плитка называется «ВАЛОВАЯ ПРИБЫЛЬ» и стоит на первом экране директора, а
+      P&L на соседней странице ту же прибыль считает ЗА ВЫЧЕТОМ возвратов
+      (analytics.pnl). Две цифры про одно и то же расходились ровно на сумму
+      возвратов, и объяснить это расхождение было нечем.
+
+      Окно то же, что у выручки и себестоимости выше: числитель и знаменатель
+      одной дроби обязаны считаться по одному набору событий.
+    */
+    const returned = totalReturned(await returnsInPeriod(db, tenantId, marginFrom, today));
+
+    const totalRev = Number(revenueResult[0]?.totalRevenue ?? 0) - returned.amount;
+    const totalCostVal = Number(costResult[0]?.totalCost ?? 0) - returned.cost;
     const grossMargin = totalRev > 0 ? ((totalRev - totalCostVal) / totalRev) * 100 : 0;
 
     const result: DashboardKpis = {

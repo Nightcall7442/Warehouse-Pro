@@ -1,8 +1,11 @@
 import { sql, eq, and, gte, lte, inArray, isNull, isNotNull, desc } from "drizzle-orm";
 import { dayKey } from "../lib/period";
 import { REVENUE_ORDER_STATUSES, revenueOrderConditions } from "../lib/order-status";
-import { orders, dailyPlans, returns, shops, salesTargets, commissions, agentLocations, visitReports, users, payments } from "@db/schema";
+import { orders, dailyPlans, shops, salesTargets, commissions, agentLocations, visitReports, users, payments } from "@db/schema";
 import { calculateFraudMetrics } from "./anti-fraud";
+import {
+  returnsInPeriod, returnedByAgent, returnedOf, type ReturnedValue,
+} from "./revenue-returns";
 import { logger } from "../lib/logger";
 import { untilDate } from "../lib/date-range";
 
@@ -422,6 +425,20 @@ export async function calculateAgentKpi(
   periodStart: Date,
   periodEnd: Date,
   preloadedKpis?: Partial<AgentKpiData>,
+  /*
+    Возвраты этого агента, если вызывающий уже сложил их за весь период.
+
+    Отдельным параметром, а не полем preloadedKpis: там лежат готовые числа
+    карточки (`revenue` — уже за вычетом, `returnRate` — уже доля), а сюда
+    нужно исходное «сколько и на сколько вернулось», из которого оба и
+    считаются. Подсунуть готовое в качестве исходного — способ получить третье
+    число, не равное ни одному из двух.
+
+    Веерным вызовам (список агентов, сводка по территории) это бережёт по два
+    запроса на человека: правило тенантное, и за период его достаточно
+    спросить один раз.
+  */
+  preloadedReturns?: ReturnedValue,
 ): Promise<AgentKpiData> {
   const [planStats] = preloadedKpis?.totalPlans != null ? [{ total: preloadedKpis.totalPlans, visited: preloadedKpis.visitedPlans, skipped: preloadedKpis.skippedPlans }] : await db.select({
     total: sql<number>`count(*)`,
@@ -456,34 +473,35 @@ export async function calculateAgentKpi(
   const orderCount = Number(orderStats?.count ?? 0);
   const grossRevenue = Number(orderStats?.revenue ?? 0);
 
-  // Subtract completed returns from revenue so commission/KPI reflect net sales
-  const [returnRevenue] = await db.select({
-    total: sql<string>`COALESCE(SUM(${returns.totalAmount}), 0)`,
-  }).from(returns)
-    .innerJoin(orders, eq(returns.orderId, orders.id))
-    .where(and(
-      eq(returns.tenantId, tenantId),
-      eq(orders.agentId, agentId),
-      eq(returns.status, "completed"),
-      isNull(orders.deletedAt),
-      gte(orders.createdAt, periodStart),
-      lte(orders.createdAt, periodEnd),
-    ));
+  /*
+    Возвраты — ОДНИМ запросом на всю карточку.
 
-  const revenue = Math.max(0, grossRevenue - Number(returnRevenue?.total ?? 0));
+    Их было два, и они противоречили друг другу внутри одной карточки:
+
+      сумма   — по дате ЗАКАЗА,   агент из orders.agentId
+      счёт    — по дате ВОЗВРАТА, агент из returns.agentId
+
+    То есть числитель и знаменатель доли возвратов жили в разных периодах, а
+    выручка уменьшалась на возвраты третьего, ещё одного набора. Балл KPI
+    считался с выручки, премия — с неё же, а доля возвратов входила в тот же
+    балл своим весом: три разных ответа на один вопрос за один месяц.
+
+    Ни у одного из двух запросов не было отбора по статусу заказа: возврат по
+    заказу, который потом отменили, вычитался из выручки, хотя сам заказ уже
+    выпал из неё целиком. Те же деньги дважды.
+
+    Теперь оба числа — из общего правила (services/revenue-returns.ts): по дате
+    проведения и только против заказов, которые сами считаются выручкой.
+  */
+  const returned = preloadedReturns ?? returnedOf(
+    returnedByAgent(await returnsInPeriod(db, tenantId, dayKey(periodStart), dayKey(periodEnd))),
+    agentId,
+  );
+
+  const revenue = Math.max(0, grossRevenue - returned.amount);
   const avgOrderValue = orderCount > 0 ? Math.round(revenue / orderCount) : 0;
 
-  const [returnStats] = preloadedKpis?.returnCount != null ? [{ count: preloadedKpis.returnCount }] : await db.select({
-    count: sql<number>`count(*)`,
-  }).from(returns)
-    .where(and(
-      eq(returns.tenantId, tenantId),
-      eq(returns.agentId, agentId),
-      gte(returns.createdAt, periodStart),
-      lte(returns.createdAt, periodEnd),
-    ));
-
-  const returnCount = Number(returnStats?.count ?? 0);
+  const returnCount = returned.count;
   const returnRate = orderCount > 0 ? Math.round((returnCount / orderCount) * 100) : 0;
 
   const [deliveryStats] = preloadedKpis?.deliveryCount != null ? [{ total: preloadedKpis.deliveryCount, delivered: preloadedKpis.deliveredCount, failed: preloadedKpis.failedCount }] : await db.select({
@@ -668,9 +686,14 @@ export async function calculateAllAgentsKpi(
       eq(users.status, "active"),
     ));
 
+  // Возвраты за период — один раз на всех: правило тенантное.
+  const returnedByAgentMap = returnedByAgent(
+    await returnsInPeriod(db, tenantId, dayKey(periodStart), dayKey(periodEnd)));
+
   const results = await Promise.all(
     agentsList.map(agent =>
-      calculateAgentKpi(db, agent.id, tenantId, periodStart, periodEnd)
+      calculateAgentKpi(db, agent.id, tenantId, periodStart, periodEnd, undefined,
+        returnedOf(returnedByAgentMap, agent.id))
         .then(kpi => { kpi.agentName = agent.name; return kpi; })
     )
   );
@@ -742,20 +765,17 @@ export async function calculateSalary(
       lte(orders.createdAt, periodEnd),
     ));
 
-  const [returnSales] = await db.select({
-    total: sql<string>`COALESCE(SUM(${returns.totalAmount}), 0)`,
-  }).from(returns)
-    .innerJoin(orders, eq(returns.orderId, orders.id))
-    .where(and(
-      eq(returns.tenantId, tenantId),
-      eq(orders.agentId, agentId),
-      eq(returns.status, "completed"),
-      isNull(orders.deletedAt),
-      gte(orders.createdAt, periodStart),
-      lte(orders.createdAt, periodEnd),
-    ));
+  /*
+    База комиссии — за вычетом возвратов, тем же правилом, что и выручка в
+    карточке. Здесь стоял свой запрос по дате ЗАКАЗА и без отбора по статусу:
+    возврат по потом отменённому заказу уменьшал базу второй раз.
+  */
+  const returnedSales = returnedOf(
+    returnedByAgent(await returnsInPeriod(db, tenantId, dayKey(periodStart), dayKey(periodEnd))),
+    agentId,
+  );
 
-  const salesAmount = Math.max(0, Number(salesStats?.salesAmount ?? 0) - Number(returnSales?.total ?? 0));
+  const salesAmount = Math.max(0, Number(salesStats?.salesAmount ?? 0) - returnedSales.amount);
   const commissionAmount = Number((salesAmount * (commissionRate / 100)).toFixed(2));
 
   const kpi = preloadedKpi ?? await calculateAgentKpi(db, agentId, tenantId, periodStart, periodEnd);
@@ -1033,7 +1053,7 @@ export async function getAgentList(
 
   const agentIds = agents.map(a => a.agentId);
 
-  const [orderRows, planRows, returnRows, fraudRows, shopDebtRows, returnedMoneyRows] = await Promise.all([
+  const [orderRows, planRows, fraudRows, shopDebtRows, returnRows] = await Promise.all([
     db.select({
       agentId: orders.agentId,
       orderCount: sql<number>`count(*)`,
@@ -1064,17 +1084,6 @@ export async function getAgentList(
       )).groupBy(dailyPlans.agentId),
 
     db.select({
-      agentId: returns.agentId,
-      returnCount: sql<number>`count(*)`,
-    }).from(returns)
-      .where(and(
-        eq(returns.tenantId, tenantId),
-        gte(returns.createdAt, periodStart),
-        lte(returns.createdAt, periodEnd),
-        inArray(returns.agentId, agentIds),
-      )).groupBy(returns.agentId),
-
-    db.select({
       agentId: agentLocations.agentId,
       gpsCount: sql<number>`count(*)`,
     }).from(agentLocations)
@@ -1097,46 +1106,39 @@ export async function getAgentList(
       )).groupBy(shops.agentId),
 
     /*
-      Завершённые возвраты — их вычитает карточка агента, а список нет.
+      Возвраты — ОДНИМ правилом на сумму и на счёт.
 
-      Из-за этого один и тот же человек в списке продавал больше, чем в
-      своей карточке, и балл KPI считался с этой завышенной выручки. Тот же
-      класс беды, что уже ловили с мягко удалёнными заказами.
+      Их здесь было два запроса, ровно как в карточке, и с той же бедой: сумма
+      отбиралась по дате ЗАКАЗА и по orders.agentId, счёт — по дате ВОЗВРАТА и
+      по returns.agentId. Числитель и знаменатель доли возвратов оказывались в
+      разных периодах и про разных людей, а балл KPI складывается из обоих.
+
+      Отбора по статусу заказа не было ни у одного: возврат по потом
+      отменённому заказу вычитался из выручки, из которой заказ уже выпал
+      целиком.
     */
-    db.select({
-      agentId: orders.agentId,
-      returned: sql<string>`COALESCE(SUM(${returns.totalAmount}), 0)`,
-    }).from(returns)
-      .innerJoin(orders, eq(returns.orderId, orders.id))
-      .where(and(
-        eq(returns.tenantId, tenantId),
-        eq(returns.status, "completed"),
-        isNull(orders.deletedAt),
-        gte(orders.createdAt, periodStart),
-        lte(orders.createdAt, periodEnd),
-        inArray(orders.agentId, agentIds),
-      )).groupBy(orders.agentId),
+    returnsInPeriod(db, tenantId, dayKey(periodStart), dayKey(periodEnd)),
   ]);
+
+  const returnedMap = returnedByAgent(returnRows);
 
   const orderMap = new Map(orderRows.map(r => [r.agentId, r]));
   const planMap = new Map(planRows.map(r => [r.agentId, r]));
-  const returnMap = new Map(returnRows.map(r => [r.agentId, r]));
   const gpsMap = new Map(fraudRows.map(r => [r.agentId, r]));
   const debtMap = new Map(shopDebtRows.map(r => [r.agentId, r]));
-  const returnedMoneyMap = new Map(returnedMoneyRows.map(r => [r.agentId, r]));
 
   return agents.map((agent) => {
     const orders = orderMap.get(agent.agentId);
     const plans = planMap.get(agent.agentId);
-    const rets = returnMap.get(agent.agentId);
     const gps = gpsMap.get(agent.agentId);
+    // Сумма и счёт — из одного набора строк, как в карточке агента.
+    const rets = returnedOf(returnedMap, agent.agentId);
 
     const orderCount = Number(orders?.orderCount ?? 0);
-    // За вычетом возвращённого — ровно как в карточке агента.
-    const revenue = Math.max(0, Number(orders?.revenue ?? 0) - Number(returnedMoneyMap.get(agent.agentId)?.returned ?? 0));
+    const revenue = Math.max(0, Number(orders?.revenue ?? 0) - rets.amount);
     const totalPlans = Number(plans?.totalPlans ?? 0);
     const visitedPlans = Number(plans?.visitedPlans ?? 0);
-    const returnCount = Number(rets?.returnCount ?? 0);
+    const returnCount = rets.count;
 
     const visitCompletionRate = totalPlans > 0 ? Math.round((visitedPlans / totalPlans) * 100) : 0;
     const returnRate = orderCount > 0 ? Math.round((returnCount / orderCount) * 100) : 0;

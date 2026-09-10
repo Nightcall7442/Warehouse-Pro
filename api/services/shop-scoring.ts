@@ -159,7 +159,11 @@ export async function shopScores(db: Db, tenantId: number, limit = 500): Promise
     LEFT JOIN (
       SELECT
         o.shop_id,
-        SUM(CASE WHEN o.status IN ('delivered', 'completed')
+        -- 'completed' статусом заказа никогда не было: колонка — MySQL enum,
+        -- и такого значения в нём нет. Сравнение молча не совпадало ни с чем,
+        -- а читалось как «есть второй вид выполненного заказа» — и условие
+        -- возвратов ниже пришлось бы писать под него же.
+        SUM(CASE WHEN o.status = 'delivered'
                  THEN CAST(o.total AS DECIMAL(15,2)) ELSE 0 END) AS revenue,
         COUNT(*)                                                  AS order_count,
         SUM(CASE WHEN o.payment_method = 'debt' THEN 1 ELSE 0 END) AS debt_orders,
@@ -169,9 +173,29 @@ export async function shopScores(db: Db, tenantId: number, limit = 500): Promise
       GROUP BY o.shop_id
     ) o ON o.shop_id = s.id
     LEFT JOIN (
+      -- Возврат вычитается из выручки только тогда, когда сам заказ в неё
+      -- вошёл. Условие здесь ОБЯЗАНО совпадать с отбором выручки выше, а не
+      -- быть похожим: отменённый и удалённый заказ в выручку не попадают
+      -- вовсе, и возврат по такому заказу вычитал бы те же деньги второй раз —
+      -- у магазина падал рейтинг за отмену, которую уже учли.
+      --
+      -- То же правило, что в services/revenue-returns.ts для отчётов и в
+      -- services/shop-debt.ts для долга; здесь оно выражено в SQL, потому что
+      -- весь балл считается одним запросом.
+      --
+      -- Возврат без заказа (order_id IS NULL) сюда не входит намеренно: он
+      -- ничему в выручке не соответствует, уменьшать ему нечего. В долге
+      -- магазина такой возврат вычитается — там это отдельное обязательство.
       SELECT r.shop_id, SUM(CAST(r.total_amount AS DECIMAL(15,2))) AS returned
       FROM returns r
       WHERE r.tenant_id = ${tenantId} AND r.status = 'completed'
+        AND EXISTS (
+          SELECT 1 FROM orders ro
+          WHERE ro.id = r.order_id
+            AND ro.tenant_id = ${tenantId}
+            AND ro.deleted_at IS NULL
+            AND ro.status = 'delivered'
+        )
       GROUP BY r.shop_id
     ) r ON r.shop_id = s.id
     LEFT JOIN (
