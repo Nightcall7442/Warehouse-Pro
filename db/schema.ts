@@ -1025,6 +1025,22 @@ export const commissions = mysqlTable("commissions", {
     агента от оформленного, у курьера от довезённого.
   */
   courierPayMode: mysqlEnum("courier_pay_mode", ["per_delivery", "percent"]).default("per_delivery").notNull(),
+  /*
+    Обед и дорожные — суммы ЗА ОДИН РАБОЧИЙ ДЕНЬ, в сумах.
+
+    Арендатор: «доставщики берут деньги на обед и дорожные, они тоже должны
+    считаться». Эти деньги выдавались наличными в течение месяца и не
+    попадали никуда: ни в зарплату курьера, ни в расходы организации. В конце
+    месяца ему платили полный расчёт сверх уже выданного, а прибыль
+    показывалась завышенной ровно на эту сумму.
+
+    За день, а не за месяц: курьер, отработавший половину месяца, обедает
+    половину месяца. Рабочим днём считается день, в который он что-то довёз, —
+    другого следа выхода на работу в системе нет, и выдумывать табель ради
+    двух сумм не стоит.
+  */
+  mealAllowance:   decimal("meal_allowance",   { precision: 12, scale: 2 }).default("0.00").notNull(),
+  travelAllowance: decimal("travel_allowance", { precision: 12, scale: 2 }).default("0.00").notNull(),
   periodType:   mysqlEnum("period_type", ["monthly", "quarterly"]).default("monthly").notNull(),
   periodStart:  date("period_start").notNull(),
   periodEnd:    date("period_end").notNull(),
@@ -1040,6 +1056,42 @@ export const commissions = mysqlTable("commissions", {
 
 export type Commission       = typeof commissions.$inferSelect;
 export type InsertCommission = typeof commissions.$inferInsert;
+
+// ============================================
+// COMMISSION PRODUCT RATES — процент по ТОВАРУ
+// ============================================
+//
+// Жалоба арендатора: «система процентов для агентов неправильная, потому что
+// он поставил разные проценты для разных товаров». В commissions процент
+// один на человека и на всё, что он продал, — а торгуют товарами с разной
+// наценкой, и платить с них поровну владелец не хочет.
+//
+// Ставка привязана к ТОВАРУ, а не к паре «человек + товар». Так решается
+// именно та задача, о которой речь: у товара своя наценка, и процент с него
+// свой независимо от того, кто продал. Пара «человек + товар» означала бы
+// для организации с десятью агентами и пятью особыми товарами полсотни
+// строк, которые надо завести руками, — то есть ровно ту ручную работу, от
+// которой этот раздел и заводится.
+//
+// Товара нет в таблице — действует процент человека из commissions. То есть
+// пустая таблица считает ровно так же, как считалось до её появления: это не
+// новый режим, а исключения из старого.
+export const commissionProductRates = mysqlTable("commission_product_rates", {
+  id:        serial("id").primaryKey(),
+  tenantId:  bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  productId: bigint("product_id", { mode: "number", unsigned: true }).notNull().references(() => products.id, { onDelete: "cascade" }),
+  rate:      decimal("rate", { precision: 5, scale: 2 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
+}, (t) => ({
+  // Одна ставка на товар. Без запрета вторая строка молча выигрывала бы или
+  // проигрывала по порядку чтения — то есть процент зависел бы от того, в
+  // каком порядке база вернула строки.
+  tenantProductUq: uniqueIndex("uq_commission_product_rates").on(t.tenantId, t.productId),
+}));
+
+export type CommissionProductRate       = typeof commissionProductRates.$inferSelect;
+export type InsertCommissionProductRate = typeof commissionProductRates.$inferInsert;
 
 // ============================================
 // SALARY PAYOUTS — что человеку отдали на руки
@@ -1066,6 +1118,19 @@ export const salaryPayouts = mysqlTable("salary_payouts", {
   amount:       decimal("amount", { precision: 14, scale: 2 }).notNull(),
   paidAt:       timestamp("paid_at").defaultNow().notNull(),
   note:         varchar("note", { length: 255 }),
+  /*
+    Когда САМ сотрудник подтвердил, что деньги получил.
+
+    Запись выплаты говорит «мы выдали», и до этой колонки другой стороны у
+    неё не было: спор «мне не платили» упирался в слово против слова, а
+    подпись в тетради к системе отношения не имела.
+
+    Пусто — не «не получил», а «ещё не подтвердил»: деньги могли отдать в
+    руки, а телефон человек откроет вечером. Поэтому подтверждение ничего в
+    расчётах не меняет и ничего не блокирует — оно только отвечает на вопрос
+    «а он подтвердил?».
+  */
+  confirmedAt:  timestamp("confirmed_at"),
   createdBy:    bigint("created_by", { mode: "number", unsigned: true }).notNull().references(() => users.id, { onDelete: "restrict" }),
   createdAt:    timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({

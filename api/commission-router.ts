@@ -3,12 +3,13 @@ import { monthRange, dayKey } from "./lib/period";
 import { TRPCError } from "@trpc/server";
 import { createRouter, operatorQuery, authedQuery, can } from "./middleware";
 import { getDb } from "./queries/connection";
-import { commissions, users } from "@db/schema";
+import { commissions, users, products, commissionProductRates } from "@db/schema";
 import { eq, and, gte, lte, desc, isNull , inArray, sql } from "drizzle-orm";
 import { onDate } from "./lib/date-range";
 import { REVENUE_ORDER_STATUSES } from "./lib/order-status";
 import { returnsInPeriod, returnedByAgent, returnedOf } from "./services/revenue-returns";
 import { cache, CacheKeys } from "./lib/cache";
+import { rateRows } from "./services/commission-base";
 
 /**
  * Проверить, что сотрудник, которому назначают ставку, из этой организации.
@@ -74,6 +75,8 @@ export const commissionRouter = createRouter({
         // показывал бы ноль поверх заведённой ставки.
         deliveryRate: commissions.deliveryRate,
         courierPayMode: commissions.courierPayMode,
+        mealAllowance: commissions.mealAllowance,
+        travelAllowance: commissions.travelAllowance,
         periodType: commissions.periodType,
         periodStart: commissions.periodStart,
         periodEnd: commissions.periodEnd,
@@ -108,6 +111,14 @@ export const commissionRouter = createRouter({
         агента ничего про него не знает и обнулять чужую настройку не должен.
       */
       courierPayMode: z.enum(["per_delivery", "percent"]).optional(),
+      /*
+        Обед и дорожные — суммы ЗА ОДИН РАБОЧИЙ ДЕНЬ, в сумах.
+
+        Не передали — не трогаем, тем же правилом, что и остальные ставки:
+        экран, который про них не знает, не должен их обнулять.
+      */
+      mealAllowance: z.number().min(0).max(100_000_000).optional(),
+      travelAllowance: z.number().min(0).max(100_000_000).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
@@ -136,6 +147,8 @@ export const commissionRouter = createRouter({
             // курьерскую ставку только потому, что ничего про неё не знает.
             ...(input.deliveryRate === undefined ? {} : { deliveryRate: input.deliveryRate.toFixed(2) }),
             ...(input.courierPayMode === undefined ? {} : { courierPayMode: input.courierPayMode }),
+            ...(input.mealAllowance === undefined ? {} : { mealAllowance: input.mealAllowance.toFixed(2) }),
+            ...(input.travelAllowance === undefined ? {} : { travelAllowance: input.travelAllowance.toFixed(2) }),
           })
           .where(eq(commissions.id, existing.id));
       } else {
@@ -145,6 +158,8 @@ export const commissionRouter = createRouter({
           commissionRate: input.commissionRate.toFixed(2),
           deliveryRate: (input.deliveryRate ?? 0).toFixed(2),
           courierPayMode: input.courierPayMode ?? "per_delivery",
+          mealAllowance: (input.mealAllowance ?? 0).toFixed(2),
+          travelAllowance: (input.travelAllowance ?? 0).toFixed(2),
           periodType: "monthly",
           // These are `date` columns, so drizzle types them as Date, but the
           // period is keyed by the "YYYY-MM-DD" string the lookup above uses —
@@ -268,6 +283,91 @@ export const commissionRouter = createRouter({
       );
 
       return { success: true, updated: results.length };
+    }),
+
+  /*
+    ── Проценты по ТОВАРАМ ───────────────────────────────────────────────────
+
+    Жалоба арендатора: «система процентов для агентов неправильная, потому что
+    он поставил разные проценты для разных товаров». Процент был один на
+    человека и на всё, что тот продал, — а торгуют товарами с разной наценкой.
+
+    Ставка привязана к товару, а не к паре «человек + товар»: у товара своя
+    наценка независимо от того, кто его продал, а пара означала бы для
+    организации с десятью агентами и пятью особыми товарами полсотни строк,
+    заводимых руками. Товара нет в списке — действует процент человека, то
+    есть пустой список считает ровно как до появления этого раздела.
+  */
+  productRates: authedQuery.query(async ({ ctx }) => {
+    const db = getDb();
+    return rateRows(db, ctx.tenant.id);
+  }),
+
+  setProductRate: operatorQuery.use(can("commission.manage"))
+    .input(z.object({
+      productId: z.number().int().positive(),
+      rate: z.number().min(0).max(100),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+
+      /*
+        Товар — из ЭТОЙ организации. Внешний ключ этого не проверяет: таблица
+        товаров общая на всю платформу, и без проверки оператор одной
+        организации перебором завёл бы ставки на чужие товары. Считаться они
+        бы не считались (продаж по ним у него нет), но список ставок отдаёт
+        название товара — и стал бы каналом для чтения чужого справочника.
+      */
+      const [product] = await db.select({ id: products.id })
+        .from(products)
+        .where(and(eq(products.id, input.productId), eq(products.tenantId, ctx.tenant.id)))
+        .limit(1);
+      if (!product) throw new TRPCError({ code: "NOT_FOUND", message: "Товар не найден в вашей организации" });
+
+      const [existing] = await db.select({ id: commissionProductRates.id })
+        .from(commissionProductRates)
+        .where(and(
+          eq(commissionProductRates.tenantId, ctx.tenant.id),
+          eq(commissionProductRates.productId, input.productId),
+        ))
+        .limit(1);
+
+      if (existing) {
+        await db.update(commissionProductRates)
+          .set({ rate: input.rate.toFixed(2) })
+          .where(and(
+            eq(commissionProductRates.id, existing.id),
+            eq(commissionProductRates.tenantId, ctx.tenant.id),
+          ));
+      } else {
+        await db.insert(commissionProductRates).values({
+          tenantId: ctx.tenant.id,
+          productId: input.productId,
+          rate: input.rate.toFixed(2),
+        });
+      }
+
+      cache.invalidate(CacheKeys.commissions(ctx.tenant.id));
+      return { success: true };
+    }),
+
+  /*
+    Убрать ставку у товара — вернуть его под процент человека.
+
+    Это не то же самое, что поставить ноль: ноль означает «с этого товара
+    комиссии нет», и такой выбор арендатор тоже делает осознанно.
+  */
+  deleteProductRate: operatorQuery.use(can("commission.manage"))
+    .input(z.object({ productId: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+      await db.delete(commissionProductRates)
+        .where(and(
+          eq(commissionProductRates.tenantId, ctx.tenant.id),
+          eq(commissionProductRates.productId, input.productId),
+        ));
+      cache.invalidate(CacheKeys.commissions(ctx.tenant.id));
+      return { success: true };
     }),
 
   // Approve/paid commission

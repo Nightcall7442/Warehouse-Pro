@@ -114,10 +114,19 @@ describe("цель", () => {
     const body = bodyOf("export async function calculateAgentKpi");
     const at = body.indexOf("targetAmount: sql<string>");
     expect(at, "выборка цели не найдена").toBeGreaterThan(0);
-    const query = body.slice(at, at + 500);
+    /*
+      До конца ЭТОГО запроса, а не «ещё 500 знаков»: следом идут соседние
+      чтения со своими ограничителями, и по окну страж находил чужой limit
+      вместо пропавшего. Ровно так молчал такой же страж в salary-payouts —
+      проверено сломом.
+    */
+    const query = body.slice(at, body.indexOf(";", at) + 1);
     expect(query, "тип периода не отобран").toContain('eq(salesTargets.periodType, "monthly")');
     expect(query, "берётся план и из будущих месяцев").toContain("untilDate(salesTargets.periodStart");
     expect(query, "порядок не задан — строка случайная").toContain("orderBy(desc(salesTargets.periodStart))");
+    // Без ограничителя берётся [0] из всех строк за всю историю, и порядок
+    // решает случай — то есть строка снова становится произвольной.
+    expect(query, "строк берётся больше одной").toContain(".limit(1)");
   });
 });
 

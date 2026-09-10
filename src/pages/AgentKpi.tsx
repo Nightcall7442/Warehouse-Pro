@@ -14,6 +14,8 @@ import { colorMix } from "@/lib/color-mix";
 import { CourierKpiView } from "@/components/kpi/CourierKpiView";
 import { CourierDaysChart } from "@/components/kpi/CourierDaysChart";
 import { CommissionLedger } from "@/components/kpi/CommissionLedger";
+import { ProductRates } from "@/components/kpi/ProductRates";
+import { MyPayouts } from "@/components/kpi/MyPayouts";
 
 interface KpiData {
   agentId: number; agentName: string; period: string;
@@ -41,6 +43,9 @@ interface SalaryData {
   agentId: number; agentName: string; period: string;
   baseSalary: number; commissionRate: number; salesAmount: number;
   commissionAmount: number; kpiScore: number; bonusAmount: number;
+  /* По скольким проданным товарам стоит свой процент — этим объясняется
+     расхождение суммы с простым «продажи × процент». */
+  productRateCount: number;
   deliveryRate: number; deliveredCount: number; deliveryPay: number;
   totalSalary: number;
   breakdown: { base: number; commission: number; bonus: number; fraudDeduction: number; delivery: number };
@@ -325,6 +330,17 @@ function AgentView({ kpi, salary, fmt, t, lang }: { kpi: KpiData; salary?: Salar
       {/* Salary */}
       {salary && <SalarySection salary={salary} fmt={fmt} t={t} />}
 
+      {/*
+        Что уже выдали на руки — и подтверждение получения.
+
+        До этого выплата была событием в одну сторону: руководитель записал, а
+        сотрудник об этом не знал. Просьба арендатора — «сотрудник получает
+        уведомление и подтверждение о получении»: уведомление шлётся при
+        записи выплаты, а подтверждают здесь, рядом с расчётом, из которого
+        сумма сложилась.
+      */}
+      <MyPayouts t={t} />
+
       {/* Visits + GPS + Reports */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <StatCard label={t("Всего визитов", "Jami tashrif")} value={String(kpi.totalPlans)} sub={`${kpi.visitedPlans} ${t("посещено", "tashrif")}`} />
@@ -373,7 +389,17 @@ function SalarySection({ salary, fmt, t }: { salary: SalaryData; fmt: (v: number
         <div className="space-y-1.5 text-xs" style={{ color: COLORS.textSecondary }}>
           <div className="flex justify-between"><span>{t("Выручка за период", "Davr uchun tushum")}</span><span className="font-semibold" style={{ color: COLORS.textPrimary }}>{fmt(salary.salesAmount)}</span></div>
           <div className="flex justify-between"><span>{t("Ставка комиссии", "Komissiya stavkasi")}</span><span className="font-semibold" style={{ color: COLORS.textPrimary }}>{salary.commissionRate}%</span></div>
-          <div className="flex justify-between"><span>{t("Расчёт комиссии", "Komissiya hisoblash")}</span><span className="font-semibold" style={{ color: COLORS.textPrimary }}>{fmt(salary.salesAmount)} × {salary.commissionRate}% = {fmt(salary.commissionAmount)}</span></div>
+          {/*
+            Строка расчёта перестаёт быть простым умножением, как только у
+            товаров появляются свои проценты: «10 млн × 5%» тогда не сходится с
+            суммой, и человек читает расхождение как ошибку. Поэтому при
+            исключениях показывается ЧТО произошло, а не выдуманное умножение.
+          */}
+          {salary.productRateCount > 0 ? (
+            <div className="flex justify-between"><span>{t("Расчёт комиссии", "Komissiya hisoblash")}</span><span className="font-semibold" style={{ color: COLORS.textPrimary }}>{t(`по ${salary.productRateCount} товарам свой процент`, `${salary.productRateCount} tovarga o'z foizi`)} = {fmt(salary.commissionAmount)}</span></div>
+          ) : (
+            <div className="flex justify-between"><span>{t("Расчёт комиссии", "Komissiya hisoblash")}</span><span className="font-semibold" style={{ color: COLORS.textPrimary }}>{fmt(salary.salesAmount)} × {salary.commissionRate}% = {fmt(salary.commissionAmount)}</span></div>
+          )}
           <div className="flex justify-between"><span>{t("KPI балл", "KPI bali")}</span><span className="font-semibold" style={{ color: COLORS.textPrimary }}>{salary.kpiScore}/100</span></div>
           <div className="flex justify-between"><span>{t("Расчёт бонуса", "Bonus hisoblash")}</span><span className="font-semibold" style={{ color: COLORS.textPrimary }}>2% × {fmt(salary.salesAmount)} × {salary.kpiScore}/100 = {fmt(salary.bonusAmount)}</span></div>
           {salary.breakdown.fraudDeduction < 0 && (
@@ -893,6 +919,8 @@ function SalaryConfig({ t }: { t: (r: string, u: string) => string }) {
     считалось до появления выбора: то же умолчание, что и на сервере.
   */
   const savedMode = (id: number) => rowOf(id)?.courierPayMode === "percent" ? "percent" : "per_delivery";
+  const savedMeal = (id: number) => Math.round(Number(rowOf(id)?.mealAllowance ?? 0));
+  const savedTravel = (id: number) => Math.round(Number(rowOf(id)?.travelAllowance ?? 0));
 
   /*
     Ставки живут в одной строке commissions, поэтому сохраняются вместе: послав
@@ -913,6 +941,17 @@ function SalaryConfig({ t }: { t: (r: string, u: string) => string }) {
   */
   const saveCourierPercent = (id: number, value: number) =>
     setRateMutation.mutate({ userId: id, commissionRate: value, deliveryRate: savedDelivery(id) });
+
+  /*
+    Обед и дорожные. Как и остальные ставки, шлём вместе с соседними: они
+    лежат в одной строке, и послать одну без другой значило бы понадеяться на
+    то, что ручка бережёт непереданное. Она бережёт, но полагаться на память
+    об этом дороже, чем передать текущее значение.
+  */
+  const saveMeal = (id: number, value: number) =>
+    setRateMutation.mutate({ userId: id, commissionRate: savedCommission(id), deliveryRate: savedDelivery(id), mealAllowance: value, travelAllowance: savedTravel(id) });
+  const saveTravel = (id: number, value: number) =>
+    setRateMutation.mutate({ userId: id, commissionRate: savedCommission(id), deliveryRate: savedDelivery(id), mealAllowance: savedMeal(id), travelAllowance: value });
 
   const saveCourierMode = (id: number, mode: string) =>
     setRateMutation.mutate({
@@ -974,6 +1013,41 @@ function SalaryConfig({ t }: { t: (r: string, u: string) => string }) {
         modeOf={savedMode}
         onMode={saveCourierMode}
       />
+
+      {/*
+        Обед и дорожные.
+
+        Жалоба арендатора: «доставщики берут деньги на обед и дорожные, они
+        тоже должны считаться». Эти деньги выдавались наличными в течение
+        месяца и не попадали никуда — ни в зарплату курьера, ни в расходы
+        организации: в конце месяца ему платили полный расчёт сверх уже
+        выданного, а прибыль показывалась завышенной ровно на эту сумму.
+
+        Суммы задаются ЗА ДЕНЬ: курьер, отработавший половину месяца, обедает
+        половину месяца. Рабочим днём считается день, в который он что-то
+        довёз, — другого следа выхода на работу в системе нет.
+      */}
+      <RateList
+        t={t}
+        people={active("courier")}
+        savingId={savingId}
+        title={t("Обед и дорожные", "Tushlik va yo'l puli")}
+        hint={t(
+          "Суммы за ОДИН рабочий день. Рабочим считается день, в который курьер что-то довёз: пять доставок за день — это один обед, а не пять. Считаются сверх оплаты за доставку и входят в расходы организации.",
+          "BIR ish kuni uchun summalar. Kuryer biror narsa yetkazgan kun ish kuni hisoblanadi. Yetkazish to'lovidan tashqari hisoblanadi.",
+        )}
+        empty={t("Активных курьеров нет", "Faol kuryerlar yo'q")}
+        kinds={[
+          { id: "meal",   label: t("обед/день", "tushlik/kun"), max: MAX_DELIVERY, step: "1000", saved: savedMeal,   onSave: saveMeal },
+          { id: "travel", label: t("дорога/день", "yo'l/kun"),  max: MAX_DELIVERY, step: "1000", saved: savedTravel, onSave: saveTravel },
+        ]}
+      />
+
+      {/*
+        Проценты по товарам — под ставками людей, потому что это их уточнение:
+        сперва «сколько платим человеку», потом «а вот с этих товаров иначе».
+      */}
+      <ProductRates t={t} />
 
       {/*
         Здесь стояло «Комиссии рассчитываются автоматически при просмотре

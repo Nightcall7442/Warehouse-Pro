@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { monthRange } from "./lib/period";
 import { TRPCError } from "@trpc/server";
-import { createRouter, fieldSalesQuery, supervisorQuery, selfKpiQuery, managementQuery, financeQuery, adminQuery } from "./middleware";
+import { createRouter, fieldSalesQuery, supervisorQuery, selfKpiQuery, managementQuery, financeQuery, adminQuery, authedQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { getPeriod } from "./lib/period";
 import { onDate } from "./lib/date-range";
@@ -10,6 +10,7 @@ import { withCache, CacheTTL, cache, CacheKeys } from "./lib/cache";
 import { recordAudit } from "./services/audit-log";
 import { getClientIp } from "./lib/rate-limit";
 import { commissions, salaryPayouts, salesTargets, shops, users } from "@db/schema";
+import { NotificationService } from "./services/NotificationService";
 import { alias } from "drizzle-orm/mysql-core";
 import { eq, and, sql, gte, lte, desc } from "drizzle-orm";
 
@@ -321,6 +322,7 @@ export const kpiRouter = createRouter({
         amount:     salaryPayouts.amount,
         paidAt:     salaryPayouts.paidAt,
         note:       salaryPayouts.note,
+        confirmedAt: salaryPayouts.confirmedAt,
         paidByName: payer.name,
       })
         .from(salaryPayouts)
@@ -388,7 +390,99 @@ export const kpiRouter = createRouter({
         ip:         getClientIp(ctx.req) ?? undefined,
       });
 
+      /*
+        Сказать человеку, что деньги выданы.
+
+        Без этого выплата была событием в одну сторону: руководитель записал,
+        а сотрудник об этом не узнал — и подтверждать ему было нечего. Здесь
+        начинается вторая половина, которую просил арендатор: «сотрудник
+        получает уведомление и подтверждение о получении».
+
+        Ссылка ведёт на его собственный экран показателей: там же лежит расчёт
+        зарплаты, и подтверждать выдачу человек будет рядом с суммой, из
+        которой она сложилась.
+
+        Отправка не в транзакции и падать не должна: запись выплаты уже
+        сделана, и потерять её из-за недоступного уведомления нельзя. Внутри
+        NotificationService ошибки и так гасятся.
+      */
+      await NotificationService.create(db, {
+        tenantId: ctx.tenant.id,
+        userId:   person.id,
+        type:     "payment",
+        title:    input.kind === "advance" ? "Выдан аванс" : "Выдана зарплата",
+        message:  `${input.amount} — подтвердите получение`,
+        link:     "/agent-kpi",
+      });
+
       return { id: Number(result.insertId) };
+    }),
+
+  /*
+    Мои выплаты — то, что человек видит про СЕБЯ.
+
+    kpi.payouts выше отдаёт выплаты всей команды и открыт только руководителю:
+    сколько получает сосед, сотруднику знать незачем. А своё он должен видеть
+    обязательно — иначе подтверждать нечего.
+
+    authedQuery, а не роль: зарплату получают все, включая кладовщика и
+    оператора, а список жёстко сужен до ctx.user.id.
+  */
+  myPayouts: authedQuery
+    .input(z.object({
+      period: z.enum(["week", "month", "quarter"]).default("month"),
+      offset: z.number().int().min(0).max(36).default(0),
+    }).optional())
+    .query(async ({ input, ctx }) => {
+      const db = getDb();
+      const { periodStart, periodEnd } = getPeriod(input?.period ?? "month", input?.offset ?? 0);
+
+      return db.select({
+        id:          salaryPayouts.id,
+        kind:        salaryPayouts.kind,
+        amount:      salaryPayouts.amount,
+        paidAt:      salaryPayouts.paidAt,
+        note:        salaryPayouts.note,
+        confirmedAt: salaryPayouts.confirmedAt,
+      })
+        .from(salaryPayouts)
+        .where(and(
+          eq(salaryPayouts.tenantId, ctx.tenant.id),
+          eq(salaryPayouts.userId, ctx.user.id),
+          gte(salaryPayouts.paidAt, periodStart),
+          lte(salaryPayouts.paidAt, periodEnd),
+        ))
+        .orderBy(desc(salaryPayouts.paidAt));
+    }),
+
+  /*
+    «Деньги получил» — от самого сотрудника.
+
+    Единственное изменение записи выплаты, которое вообще разрешено, и оно
+    ничего не меняет в деньгах: ни суммы, ни вида, ни даты. Поэтому оно не
+    ломает правило «записи только добавляются» — журнал остаётся неизменяемым
+    в той части, ради которой заведён.
+
+    Условие по user_id обязательно: без него любой сотрудник подтверждал бы
+    чужие выплаты, и подпись переставала бы что-либо значить.
+
+    Подтверждать повторно нечего — условие `confirmed_at IS NULL` не даёт
+    переписать время первого подтверждения вторым нажатием. Именно оно, а не
+    сам факт, отвечает на вопрос «когда он подтвердил».
+  */
+  confirmPayout: authedQuery
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+      await db.update(salaryPayouts)
+        .set({ confirmedAt: sql`NOW()` })
+        .where(and(
+          eq(salaryPayouts.id, input.id),
+          eq(salaryPayouts.tenantId, ctx.tenant.id),
+          eq(salaryPayouts.userId, ctx.user.id),
+          sql`${salaryPayouts.confirmedAt} IS NULL`,
+        ));
+      return { success: true };
     }),
 
   /*

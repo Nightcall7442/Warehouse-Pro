@@ -250,7 +250,14 @@ export default function PnL() {
       ["Скидки", current.discount, revenue > 0 ? current.discount / revenue : null, false],
       ["Себестоимость (COGS)", current.cogs, revenue > 0 ? current.cogs / revenue : null, false],
       ["Валовая прибыль", current.grossProfit, current.grossMarginPct / 100, true],
-      ["Расходы на доставку", current.operatingExpenses, revenue > 0 ? current.operatingExpenses / revenue : null, false],
+      /*
+        Расходы двумя строками, а не одной. Зарплата в прибыль не входила
+        вовсе, и, добавив её в прежнюю строку «расходы на доставку», мы
+        получили бы в файле подпись, называющую половину содержимого.
+      */
+      ["Закупочные расходы", current.purchaseExpenses ?? current.operatingExpenses, revenue > 0 ? (current.purchaseExpenses ?? current.operatingExpenses) / revenue : null, false],
+      ["Зарплата (выдано)", current.payrollExpenses ?? 0, revenue > 0 ? (current.payrollExpenses ?? 0) / revenue : null, false],
+      ["Расходы всего", current.operatingExpenses, revenue > 0 ? current.operatingExpenses / revenue : null, false],
       ["Чистая прибыль", current.netProfit, current.netMarginPct / 100, true],
       ["Заказов, шт.", current.orderCount, null, false],
     ];

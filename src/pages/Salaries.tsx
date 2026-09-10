@@ -64,6 +64,16 @@ type Row = {
   salesAmount: number;
   commissionAmount: number;
   bonusAmount: number;
+  /*
+    Курьерские слагаемые. У остальных ролей они нули сами собой — доставок за
+    ними не числится.
+
+    В составе начисления их не было, и три показанные части (оклады, комиссия,
+    премии) не складывались в итог: у организации с курьерами разница уходила
+    в никуда, а «состав» отвечал на вопрос «почему столько» неполной правдой.
+  */
+  deliveryPay: number;
+  allowancePay: number;
   totalSalary: number;
 };
 
@@ -75,6 +85,14 @@ type Payout = {
   amount: string;
   paidAt: string | Date;
   note: string | null;
+  /*
+    Когда сам получатель подтвердил, что деньги у него.
+
+    Пусто — не «не получил», а «ещё не подтвердил»: деньги могли отдать в руки,
+    а телефон человек откроет вечером. Поэтому колонка спокойная, без красного:
+    тревожить ею директора не за что.
+  */
+  confirmedAt: string | Date | null;
   paidByName: string | null;
 };
 
@@ -182,9 +200,11 @@ export default function Salaries() {
         base:       acc.base + Number(r.baseSalary ?? 0),
         commission: acc.commission + Number(r.commissionAmount ?? 0),
         bonus:      acc.bonus + Number(r.bonusAmount ?? 0),
+        delivery:   acc.delivery + Number(r.deliveryPay ?? 0),
+        allowance:  acc.allowance + Number(r.allowancePay ?? 0),
         total:      acc.total + Number(r.totalSalary ?? 0),
       }),
-      { base: 0, commission: 0, bonus: 0, total: 0 },
+      { base: 0, commission: 0, bonus: 0, delivery: 0, allowance: 0, total: 0 },
     );
     // Выплачено — по всем записям периода, включая тех, кого уже нет в
     // списке: деньги из кассы ушли, и прятать их нельзя.
@@ -227,6 +247,8 @@ export default function Salaries() {
         [t("Оклад", "Maosh")]: Number(r.baseSalary ?? 0),
         [t("Комиссия", "Komissiya")]: Number(r.commissionAmount ?? 0),
         [t("Премия", "Mukofot")]: Number(r.bonusAmount ?? 0),
+        [t("За доставки", "Yetkazish uchun")]: Number(r.deliveryPay ?? 0),
+        [t("Обед и дорожные", "Tushlik va yo'l")]: Number(r.allowancePay ?? 0),
         [t("Начислено", "Hisoblangan")]: Number(r.totalSalary ?? 0),
         [t("Выплачено", "To'langan")]: paidByUser.get(r.agentId)?.total ?? 0,
         [t("Остаток", "Qoldiq")]: dueOf(r),
@@ -446,6 +468,17 @@ export default function Salaries() {
           <Part label={t("ОКЛАДЫ", "MAOSHLAR")} value={totals.base} total={totals.total} fmt={fmt} />
           <Part label={t("КОМИССИЯ", "KOMISSIYA")} value={totals.commission} total={totals.total} fmt={fmt} />
           <Part label={t("ПРЕМИИ", "MUKOFOTLAR")} value={totals.bonus} total={totals.total} fmt={fmt} />
+          {/*
+            Курьерские части показываются, только когда они есть: у
+            организации без курьеров две нулевые строки занимали бы место и
+            сообщали бы ровно ничего.
+          */}
+          {totals.delivery > 0 && (
+            <Part label={t("ЗА ДОСТАВКИ", "YETKAZISH UCHUN")} value={totals.delivery} total={totals.total} fmt={fmt} />
+          )}
+          {totals.allowance > 0 && (
+            <Part label={t("ОБЕД И ДОРОЖНЫЕ", "TUSHLIK VA YO'L")} value={totals.allowance} total={totals.total} fmt={fmt} />
+          )}
         </div>
       </div>
 
@@ -743,8 +776,8 @@ export default function Salaries() {
               <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
                 <thead>
                   <tr>
-                    {[t("НОМЕР", "RAQAM"), t("ДАТА", "SANA"), t("КОМУ", "KIMGA"), t("ВИД", "TURI"), t("ВЫДАЛ", "BERDI"), t("СУММА", "SUMMA")].map((h, i) => (
-                      <th key={i} style={{ ...thStyle, textAlign: i === 5 ? "right" : "left" }}>{h}</th>
+                    {[t("НОМЕР", "RAQAM"), t("ДАТА", "SANA"), t("КОМУ", "KIMGA"), t("ВИД", "TURI"), t("ВЫДАЛ", "BERDI"), t("ПОЛУЧЕНО", "OLINDI"), t("СУММА", "SUMMA")].map((h, i) => (
+                      <th key={i} style={{ ...thStyle, textAlign: i === 6 ? "right" : "left" }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -770,6 +803,17 @@ export default function Salaries() {
                       <td style={tdStyle}>{p.userName}</td>
                       <td style={tdStyle}><KindBadge kind={p.kind} lang={lang} /></td>
                       <td style={{ ...tdStyle, color: COLORS.textSecondary }}>{p.paidByName ?? "—"}</td>
+                      {/*
+                        Подтвердил ли получатель. Раньше выплата была событием
+                        в одну сторону: записали, что выдали, — а другой
+                        стороны у записи не было, и спор «мне не платили»
+                        упирался в слово против слова.
+                      */}
+                      <td style={{ ...tdStyle, color: p.confirmedAt ? "var(--color-success-text)" : COLORS.textTertiary }}>
+                        {p.confirmedAt
+                          ? format(asDate(p.confirmedAt), "d MMM", lang === "uz" ? undefined : { locale: ruLocale })
+                          : t("ждём", "kutamiz")}
+                      </td>
                       <td style={{ ...tdStyle, textAlign: "right", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{fmt(Number(p.amount))}</td>
                     </tr>
                   ))}
@@ -778,7 +822,7 @@ export default function Salaries() {
                     попадает под наведение и клик как обычная выплата. */}
                 <tfoot>
                   <tr>
-                    <td colSpan={5} style={{ ...tdStyle, fontWeight: 700, borderBottom: "none" }}>{t("Итого за период", "Davr uchun jami")}</td>
+                    <td colSpan={6} style={{ ...tdStyle, fontWeight: 700, borderBottom: "none" }}>{t("Итого за период", "Davr uchun jami")}</td>
                     <td style={{ ...tdStyle, textAlign: "right", fontWeight: 700, borderBottom: "none", fontVariantNumeric: "tabular-nums" }}>
                       {fmt(payouts.reduce((s, p) => s + Number(p.amount ?? 0), 0))}
                     </td>

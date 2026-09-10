@@ -1,4 +1,4 @@
-import { Truck, PackageCheck, PackageX, RotateCcw, Wallet, Coins } from "lucide-react";
+import { Truck, PackageCheck, PackageX, RotateCcw, Wallet, Coins, Utensils } from "lucide-react";
 
 /**
  * Показатели и зарплата курьера.
@@ -40,6 +40,18 @@ export interface CourierSalaryView {
   deliveredCount: number;
   deliveredAmount: number;
   deliveryPay: number;
+  /*
+    Обед и дорожные — за один рабочий день, и сколько таких дней вышло.
+
+    Эти деньги курьер получал наличными в течение месяца, а в расчёте их не
+    было вовсе: в конце месяца ему платили полный расчёт СВЕРХ уже выданного.
+    Показывать их надо разложенными, иначе человек видит в итоге сумму больше
+    ожидаемой и не понимает, откуда она.
+  */
+  mealAllowance: number;
+  travelAllowance: number;
+  workDays: number;
+  allowancePay: number;
   totalSalary: number;
 }
 
@@ -126,6 +138,15 @@ export function CourierKpiView({ stats, salary, fmt, t }: {
               value={fmt(salary.deliveryPay)}
               sub={rateSet ? formula : t("ставка не назначена", "stavka tayinlanmagan")}
             />
+            {salary.allowancePay > 0 && (
+              <Tile
+                icon={<Utensils size={16} />}
+                tone="muted"
+                label={t("Обед и дорожные", "Tushlik va yo'l")}
+                value={fmt(salary.allowancePay)}
+                sub={t(`${salary.workDays} раб. дн.`, `${salary.workDays} ish kuni`)}
+              />
+            )}
             <Tile icon={<Wallet size={16} />} tone="success" label={t("ИТОГО", "JAMI")} value={fmt(salary.totalSalary)} strong />
           </div>
 
@@ -161,6 +182,17 @@ export function CourierKpiView({ stats, salary, fmt, t }: {
                 Без неё строка «× 5%» повисает: непонятно, от чего процент. */}
             {percent && rateSet && (
               <Row label={t("Сумма довезённого", "Yetkazilgan summa")} value={fmt(salary.deliveredAmount)} muted />
+            )}
+            {/*
+              Обед и дорожные — школьным умножением, как и всё остальное:
+              «22 × 30 000». Одной суммой человек не может её проверить, а речь
+              о деньгах, которые он уже держал в руках по частям.
+            */}
+            {salary.allowancePay > 0 && (
+              <Row
+                label={t("Рабочих дней × (обед + дорожные)", "Ish kunlari × (tushlik + yo'l)")}
+                value={`${salary.workDays} × ${fmt(salary.mealAllowance + salary.travelAllowance)} = ${fmt(salary.allowancePay)}`}
+              />
             )}
             {stats.failed > 0 && (
               <Row

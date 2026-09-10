@@ -358,8 +358,8 @@ function reset() {
   nextId = 100;
   data = {
     commissions: [
-      { id: 1, tenantId: 1, userId: 10, commissionRate: "5.00", deliveryRate: "0.00", courierPayMode: "per_delivery", periodType: "monthly", periodStart: MONTH_START, periodEnd: MONTH_END, salesAmount: "0.00", commissionAmount: "0.00", status: "pending" },
-      { id: 2, tenantId: 1, userId: 11, commissionRate: "4.00", deliveryRate: "0.00", courierPayMode: "per_delivery", periodType: "monthly", periodStart: MONTH_START, periodEnd: MONTH_END, salesAmount: "5000000.00", commissionAmount: "200000.00", status: "paid" },
+      { id: 1, tenantId: 1, userId: 10, commissionRate: "5.00", deliveryRate: "0.00", courierPayMode: "per_delivery", mealAllowance: "0.00", travelAllowance: "0.00", periodType: "monthly", periodStart: MONTH_START, periodEnd: MONTH_END, salesAmount: "0.00", commissionAmount: "0.00", status: "pending" },
+      { id: 2, tenantId: 1, userId: 11, commissionRate: "4.00", deliveryRate: "0.00", courierPayMode: "per_delivery", mealAllowance: "0.00", travelAllowance: "0.00", periodType: "monthly", periodStart: MONTH_START, periodEnd: MONTH_END, salesAmount: "5000000.00", commissionAmount: "200000.00", status: "paid" },
     ],
     users: [
       { id: 1, tenantId: 1, name: "Директор A", role: "ceo" },
@@ -423,7 +423,7 @@ describe("commission: ставка чужому сотруднику", () => {
   it("list не отдаёт имя владельца чужого аккаунта по строке, записанной до правки", async () => {
     // Ровно то, что лежит в базе после эксплуатации: своя строка, чужой user_id.
     data.commissions.push({
-      id: 3, tenantId: 1, userId: 90, commissionRate: "1.00", deliveryRate: "0.00", courierPayMode: "per_delivery", periodType: "monthly",
+      id: 3, tenantId: 1, userId: 90, commissionRate: "1.00", deliveryRate: "0.00", courierPayMode: "per_delivery", mealAllowance: "0.00", travelAllowance: "0.00", periodType: "monthly",
       periodStart: MONTH_START, periodEnd: MONTH_END, salesAmount: "0.00", commissionAmount: "0.00", status: "pending",
     });
 

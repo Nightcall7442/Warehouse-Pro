@@ -7,6 +7,16 @@ interface Totals {
   revenue?: number;
   cogs?: number;
   operatingExpenses?: number;
+  /*
+    Расходы двумя частями: сопутствующее по приходам и фонд оплаты труда.
+
+    Зарплата в прибыль не входила вовсе — жалоба арендатора «зарплаты не
+    считаются в PnL». Теперь входит, и слить её с закупкой в одно число
+    нельзя: директор видел бы «расходы выросли» и не знал бы, выросла закупка
+    или зарплата, — а это два разных решения.
+  */
+  purchaseExpenses?: number;
+  payrollExpenses?: number;
   grossProfit?: number;
   netProfit?: number;
   grossMarginPct?: number;
@@ -96,18 +106,21 @@ function MarginMeter({
 function CompositionBar({
   revenue,
   cogs,
-  expenses,
+  purchase,
+  payroll,
   profit,
   fmt,
   t,
 }: {
   revenue: number;
   cogs: number;
-  expenses: number;
+  purchase: number;
+  payroll: number;
   profit: number;
   fmt: (value: number) => string;
   t: (ru: string, uz: string) => string;
 }) {
+  const expenses = purchase + payroll;
   // При убытке расходы БОЛЬШЕ выручки, и делить их на выручку нельзя: сумма
   // долей перевалит за сто процентов и полоса уедет за карточку. Тогда за
   // основу берётся весь отток, а место, где кончилась выручка, отмечается
@@ -117,18 +130,19 @@ function CompositionBar({
   if (base <= 0) return null;
 
   const costTone = "var(--kpi-orange)";
+  /*
+    Три статьи оттока, а не две. Оттенки одного цвета, светлея: всё это деньги
+    наружу, и родство должно читаться, — отдельный цвет сказал бы, что это
+    разные по природе вещи.
+
+    Нулевые статьи убираются: у организации без приходов пустая засечка
+    «Закупка 0» занимает место в легенде и ничего не сообщает.
+  */
   const segments = [
     { key: "cogs", label: t("Себестоимость", "Tannarx"), value: cogs, color: costTone },
-    {
-      key: "expenses",
-      label: t("Доставка", "Yetkazish"),
-      value: expenses,
-      // Тот же оттенок, но светлее: обе строки — деньги наружу, и родство
-      // должно читаться. Отдельный цвет здесь сказал бы, что это разные по
-      // природе вещи.
-      color: colorMix(costTone, 55),
-    },
-  ];
+    { key: "purchase", label: t("Закупка", "Xarid"), value: purchase, color: colorMix(costTone, 62) },
+    { key: "payroll", label: t("Зарплата", "Ish haqi"), value: payroll, color: colorMix(costTone, 38) },
+  ].filter(seg => seg.value > 0);
   if (profit >= 0) {
     segments.push({
       key: "profit",
@@ -252,6 +266,13 @@ export function PnLHeadline({
   const revenue = current?.revenue ?? 0;
   const cogs = current?.cogs ?? 0;
   const expenses = current?.operatingExpenses ?? 0;
+  /*
+    Разбивка может не прийти — старый ответ сервера в кеше React Query, пока
+    страница не перезапросила. Тогда всё считается закупкой: это в точности
+    прежнее поведение, и полоса не потеряет расходы вовсе.
+  */
+  const payroll = current?.payrollExpenses ?? 0;
+  const purchase = current?.purchaseExpenses ?? Math.max(0, expenses - payroll);
   const net = current?.netProfit ?? 0;
   const delta = deltas?.netProfit ?? null;
   const noSales = (current?.orderCount ?? 0) === 0;
@@ -371,8 +392,8 @@ export function PnLHeadline({
           <p style={{ margin: 0, fontSize: "13px", color: COLORS.textSecondary, fontFamily: F.body }}>
             {expenses > 0
               ? t(
-                  "Продаж за период не было — в минусе только расходы на доставку.",
-                  "Davr ichida sotuv bo'lmagan — faqat yetkazish xarajatlari."
+                  "Продаж за период не было — в минусе только расходы.",
+                  "Davr ichida sotuv bo'lmagan — faqat xarajatlar."
                 )
               : t(
                   "За выбранный период продаж и расходов не было.",
@@ -383,7 +404,8 @@ export function PnLHeadline({
           <CompositionBar
             revenue={revenue}
             cogs={cogs}
-            expenses={expenses}
+            purchase={purchase}
+            payroll={payroll}
             profit={net}
             fmt={fmt}
             t={t}

@@ -88,6 +88,45 @@ describe("кто может выдавать", () => {
   });
 });
 
+/**
+ * Что именно пишет каждый `update(salaryPayouts)` в файле.
+ *
+ * Ищется не «слово set где-то рядом», а тело ближайшего set({ … }) со счётом
+ * скобок: иначе первая же вложенная скобка (sql`…`, вызов функции) обрывала бы
+ * кусок на середине, и страж проверял бы половину списка полей.
+ *
+ * Ничего не нашли — вернётся пусто, и проверка выше не сработает ни на чём.
+ * Это осознанно: файл без единого UPDATE выплат и есть желаемое состояние.
+ */
+function updateSetClauses(src: string): string[] {
+  const out: string[] = [];
+  let from = 0;
+  for (;;) {
+    const at = src.indexOf("update(salaryPayouts)", from);
+    if (at === -1) break;
+    from = at + 1;
+
+    const setAt = src.indexOf(".set({", at);
+    if (setAt === -1) {
+      // UPDATE без set() — это уже странно, и молчать об этом нельзя.
+      out.push("update(salaryPayouts) без set()");
+      continue;
+    }
+    let depth = 0;
+    let i = setAt + ".set(".length;
+    const start = i;
+    for (; i < src.length; i++) {
+      if (src[i] === "{" || src[i] === "(") depth++;
+      else if (src[i] === "}" || src[i] === ")") {
+        depth--;
+        if (depth === 0) break;
+      }
+    }
+    out.push(src.slice(start, i + 1));
+  }
+  return out;
+}
+
 describe("след выдачи", () => {
   it("каждая выдача пишется в журнал", () => {
     // Не просто «слово встречается»: вызов должен стоять отдельной строкой на
@@ -106,12 +145,21 @@ describe("след выдачи", () => {
       Вся ценность журнала держится на том, что записи только добавляются.
       Ошибочную выдачу гасят встречной записью с минусом — поэтому на экране
       отрицательная сумма разрешена, — а не подчисткой задним числом.
+
+      Одно исключение: подтверждение получения (confirmed_at). Оно не трогает
+      ни суммы, ни вида, ни даты выдачи — то есть не меняет ничего из того,
+      ради чего журнал заведён, — и ставит его сам получатель, а не тот, кто
+      выдавал. Поэтому проверяется не «нет ли UPDATE вовсе», а ЧТО именно он
+      пишет: появись в том же set() amount или paidAt, страж сработает.
     */
     const dir = path.resolve(process.cwd(), "api");
     for (const f of fs.readdirSync(dir).filter(x => x.endsWith(".ts"))) {
       const src = read(`api/${f}`);
       expect(src, `появилось удаление выплат в ${f}`).not.toMatch(/delete\(salaryPayouts\)/);
-      expect(src, `появилось изменение выплат в ${f}`).not.toMatch(/update\(salaryPayouts\)/);
+      for (const clause of updateSetClauses(src)) {
+        const fields = [...clause.matchAll(/([A-Za-z_][A-Za-z0-9_]*)\s*:/g)].map(m => m[1]);
+        expect(fields, `выдача меняется в ${f}: ${clause}`).toEqual(["confirmedAt"]);
+      }
     }
   });
 });
@@ -136,6 +184,42 @@ describe("оклад", () => {
     */
     expect(KPI_SERVICE).toContain("untilDate(commissions.periodStart, effectiveOn)");
     expect(KPI_SERVICE).toContain("untilDate(salesTargets.periodStart, effectiveOn)");
+  });
+
+  it("поставленные однажды оклад и ставка переносятся на новые месяцы сами", () => {
+    /*
+      Жалоба арендатора: «каждый месяц вручную ставить зарплату сотрудникам —
+      это плохо». Переносом занимается не отдельная ночная работа, а сам
+      порядок чтения: берётся ПОСЛЕДНЯЯ строка, начавшаяся не позже конца
+      показанного периода.
+
+      Держится это на трёх словах сразу, и любого из них хватит, чтобы всё
+      сломалось молча:
+
+        • untilDate — иначе завтрашняя ставка удорожает вчерашний месяц
+          (это проверено выше);
+        • ORDER BY period_start DESC — без него берётся первая попавшаяся
+          строка, то есть чаще всего самая старая: человек поднял оклад, а
+          расчёт остался на прошлогоднем;
+        • LIMIT 1 — без него берётся [0] из всех строк за всю историю, и
+          порядок решает случай.
+
+      Проверяются оба чтения: у ставки и у оклада правило одно, но написаны
+      они разными запросами, и разъехаться могут поодиночке.
+    */
+    for (const [what, table] of [["ставка", "commissions"], ["оклад", "salesTargets"]] as const) {
+      const at = KPI_SERVICE.indexOf(`untilDate(${table}.periodStart, effectiveOn)`);
+      expect(at, `${what}: чтение не найдено`).toBeGreaterThan(0);
+      /*
+        До конца ЭТОГО запроса, а не «ещё 400 знаков»: следом идёт соседнее
+        чтение со своим .limit(1), и по окну страж находил чужой ограничитель
+        вместо пропавшего. Проверено сломом — молчал.
+      */
+      const tail = KPI_SERVICE.slice(at, KPI_SERVICE.indexOf(";", at) + 1);
+      expect(tail, `${what} перестал переноситься: берётся не последняя строка`)
+        .toContain(`.orderBy(desc(${table}.periodStart))`);
+      expect(tail, `${what}: строк берётся больше одной`).toContain(".limit(1)");
+    }
   });
 });
 

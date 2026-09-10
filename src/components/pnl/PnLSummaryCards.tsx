@@ -1,4 +1,4 @@
-import { Coins, Package, Truck, Wallet } from "lucide-react";
+import { Banknote, Coins, Package, Wallet } from "lucide-react";
 import { KpiCard } from "./KpiCard";
 
 interface Totals {
@@ -78,11 +78,17 @@ export function PnLSummaryCards({ current, previous, deltas, fmt, t }: PnLSummar
         prevLabel={t("было", "edi")}
       />
       <KpiCard
-        label={t("РАСХОДЫ НА ДОСТАВКУ", "YETKAZISH XARAJATI")}
+        /*
+          Было «РАСХОДЫ НА ДОСТАВКУ», и это перестало быть правдой: в число
+          вошёл фонд оплаты труда — оклады, комиссии, оплата курьеров, обед и
+          дорожные. Подпись, называющая половину содержимого, хуже отсутствия
+          подписи: человек читает её как полную и считает по ней.
+        */
+        label={t("РАСХОДЫ", "XARAJATLAR")}
         value={fmt(current?.operatingExpenses ?? 0)}
         delta={deltas?.operatingExpenses ?? null}
         prev={prevOf((p) => p.operatingExpenses)}
-        icon={<Truck size={19} />}
+        icon={<Banknote size={19} />}
         accent="var(--kpi-amber)"
         higherIsBetter={false}
         noBaseLabel={t("нет прошлого периода", "oldingi davr yo'q")}

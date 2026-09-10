@@ -6,6 +6,7 @@ import { calculateFraudMetrics } from "./anti-fraud";
 import {
   returnsInPeriod, returnedByAgent, returnedOf, type ReturnedValue,
 } from "./revenue-returns";
+import { productRates, salesByProduct, commissionOf, overridesUsed } from "./commission-base";
 import { logger } from "../lib/logger";
 import { untilDate } from "../lib/date-range";
 
@@ -65,6 +66,14 @@ export interface SalaryData {
   commissionRate: number;
   salesAmount: number;
   commissionAmount: number;
+  /*
+    По скольким проданным товарам комиссия посчитана НЕ по проценту человека.
+
+    Экран объясняет этим расхождение: процент 5%, продажи 10 млн, а комиссия
+    не 500 тысяч. Без объяснения человек читает это как ошибку расчёта и идёт
+    спорить.
+  */
+  productRateCount: number;
 
   kpiScore: number;
   bonusAmount: number;
@@ -84,6 +93,20 @@ export interface SalaryData {
   /** Сумма довезённых заказов — от неё считается процент. */
   deliveredAmount: number;
   deliveryPay: number;
+  /*
+    Обед и дорожные: суточная ставка × рабочие дни.
+
+    Отдельными числами, а не одной суммой: их выдают разными деньгами и в
+    разговоре с курьером называют по отдельности. Свести их в «суточные»
+    значило бы отвечать на вопрос «а дорожные посчитали?» словами «да, где-то
+    там внутри».
+  */
+  mealAllowance: number;
+  travelAllowance: number;
+  /** В скольких днях периода он выходил возить. */
+  workDays: number;
+  /** (обед + дорожные) × рабочие дни. */
+  allowancePay: number;
 
   totalSalary: number;
 
@@ -94,6 +117,8 @@ export interface SalaryData {
     fraudDeduction: number;
     /** Оплата за доставки: ставка × довезённые заказы. */
     delivery: number;
+    /** Обед и дорожные за отработанные дни. */
+    allowance: number;
   };
 }
 
@@ -127,6 +152,16 @@ export interface CourierStats {
   deliveredAmount: number;
   /** Наличные, привезённые курьером в кассу. */
   cashCollected: number;
+  /*
+    В скольких РАЗНЫХ днях периода он что-то довёз.
+
+    Мера выхода на работу — по ней считаются обед и дорожные. Табеля в системе
+    нет, и заводить его ради двух сумм не стоит: довезённый заказ означает, что
+    в этот день человек работал, а другого следа этому нет.
+
+    Дни, а не заказы: пять доставок за один день — это один обед, а не пять.
+  */
+  workDays: number;
   /** Доля довезённого от всего назначенного, в процентах. */
   successRate: number;
 }
@@ -167,6 +202,12 @@ export async function calculateCourierStats(
     failed: sql<number>`SUM(CASE WHEN ${orders.deliveryStatus} = 'failed' THEN 1 ELSE 0 END)`,
     returned: sql<number>`SUM(CASE WHEN ${orders.deliveryResult} IN ('returned', 'partial_returned') THEN 1 ELSE 0 END)`,
     deliveredAmount: sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'delivered' THEN CAST(${orders.total} AS DECIMAL(15,2)) ELSE 0 END), 0)`,
+    /*
+      Дни, а не заказы: обед у человека один на день, сколько бы он ни отвёз.
+      DATE() от той же даты, по которой отбирается период ниже, — считай мы по
+      оформлению, день выхода на работу разошёлся бы с днём доставки.
+    */
+    workDays: sql<number>`COUNT(DISTINCT CASE WHEN ${orders.status} = 'delivered' THEN DATE(COALESCE(${orders.deliveredAt}, ${orders.createdAt})) END)`,
   }).from(orders)
     .where(and(
       eq(orders.tenantId, tenantId),
@@ -209,6 +250,7 @@ export async function calculateCourierStats(
     returned: Number(counts?.returned ?? 0),
     deliveredAmount: Number(counts?.deliveredAmount ?? 0),
     cashCollected: Number(cash?.total ?? 0),
+    workDays: Number(counts?.workDays ?? 0),
     // Ноль назначенных — это не «ноль процентов успеха», а «мерить нечего».
     successRate: assigned === 0 ? 0 : Number(((delivered / assigned) * 100).toFixed(1)),
   };
@@ -330,6 +372,12 @@ export async function getCourierList(
     failed: sql<number>`SUM(CASE WHEN ${orders.deliveryStatus} = 'failed' THEN 1 ELSE 0 END)`,
     returned: sql<number>`SUM(CASE WHEN ${orders.deliveryResult} IN ('returned', 'partial_returned') THEN 1 ELSE 0 END)`,
     deliveredAmount: sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'delivered' THEN CAST(${orders.total} AS DECIMAL(15,2)) ELSE 0 END), 0)`,
+    /*
+      Дни, а не заказы: обед у человека один на день, сколько бы он ни отвёз.
+      DATE() от той же даты, по которой отбирается период ниже, — считай мы по
+      оформлению, день выхода на работу разошёлся бы с днём доставки.
+    */
+    workDays: sql<number>`COUNT(DISTINCT CASE WHEN ${orders.status} = 'delivered' THEN DATE(COALESCE(${orders.deliveredAt}, ${orders.createdAt})) END)`,
   }).from(orders)
     .where(and(
       eq(orders.tenantId, tenantId),
@@ -374,6 +422,7 @@ export async function getCourierList(
       returned: Number(row?.returned ?? 0),
       deliveredAmount: Number(row?.deliveredAmount ?? 0),
       cashCollected: cashById.get(id) ?? 0,
+      workDays: Number(row?.workDays ?? 0),
       // Ноль назначенных — это не «ноль процентов успеха», а «мерить нечего».
       successRate: assigned === 0 ? 0 : Number(((delivered / assigned) * 100).toFixed(1)),
     };
@@ -734,6 +783,8 @@ export async function calculateSalary(
     commissionRate: sql<string>`commission_rate`,
     deliveryRate: sql<string>`delivery_rate`,
     courierPayMode: sql<string>`courier_pay_mode`,
+    mealAllowance: sql<string>`meal_allowance`,
+    travelAllowance: sql<string>`travel_allowance`,
   }).from(commissions)
     .where(and(
       eq(commissions.tenantId, tenantId),
@@ -746,6 +797,8 @@ export async function calculateSalary(
 
   const commissionRate = Number(commissionRecord?.commissionRate ?? 0);
   const deliveryRate = Number(commissionRecord?.deliveryRate ?? 0);
+  const mealAllowance = Number(commissionRecord?.mealAllowance ?? 0);
+  const travelAllowance = Number(commissionRecord?.travelAllowance ?? 0);
   /*
     Чем платят курьеру. Строки может не быть вовсе — тогда «за штуку», как
     считалось до появления выбора.
@@ -776,7 +829,29 @@ export async function calculateSalary(
   );
 
   const salesAmount = Math.max(0, Number(salesStats?.salesAmount ?? 0) - returnedSales.amount);
-  const commissionAmount = Number((salesAmount * (commissionRate / 100)).toFixed(2));
+
+  /*
+    Комиссия — по ТОВАРАМ, а не одним процентом на всё.
+
+    Жалоба арендатора: у него разные проценты для разных товаров, а система
+    знала один на человека. Ставки по товарам живут в отдельной таблице
+    (services/commission-base.ts), продажи раскладываются по ней же, а
+    остальное считается прежним процентом человека.
+
+    Пока ни одному товару не назначено своей ставки, здесь получается ровно
+    salesAmount × commissionRate / 100 — то самое число, что и раньше. Это не
+    совпадение, а свойство разложения: сумма частей равна salesAmount. На него
+    стоит отдельная проверка, потому что включение раздела не должно менять
+    зарплату тем, кому ничего не меняли.
+  */
+  const rates = await productRates(db, tenantId);
+  const byProduct = rates.size === 0
+    // Ставок нет вовсе — раскладывать незачем: два запроса к order_items и
+    // return_items на каждого человека за ответ, который и так известен.
+    ? new Map<number, number>()
+    : await salesByProduct(db, tenantId, agentId, periodStart, periodEnd, salesAmount);
+  const commissionAmount = commissionOf(byProduct, rates, commissionRate, salesAmount);
+  const productRateCount = overridesUsed(byProduct, rates);
 
   const kpi = preloadedKpi ?? await calculateAgentKpi(db, agentId, tenantId, periodStart, periodEnd);
   const bonusAmount = calculateBonus(kpi.kpiScore, salesAmount);
@@ -829,7 +904,12 @@ export async function calculateSalary(
     свою работу, а заплатит ли магазин сегодня или в долг, курьер не решает.
   */
   const courierRate = courierPayMode === "percent" ? commissionRate : deliveryRate;
-  const courier = isCourier && courierRate > 0
+  /*
+    Суточные могут стоять и без ставки за доставку — например, у курьера на
+    голом окладе, которому оплачивают только обед и проезд. Поэтому условие
+    здесь не «есть ставка», а «есть хоть что-то, что от статистики зависит».
+  */
+  const courier = isCourier && (courierRate > 0 || mealAllowance > 0 || travelAllowance > 0)
     ? await calculateCourierStats(db, agentId, tenantId, periodStart, periodEnd)
     : null;
 
@@ -839,8 +919,23 @@ export async function calculateSalary(
     ? deliveredAmount * (commissionRate / 100)
     : deliveredCount * deliveryRate).toFixed(2));
 
+  /*
+    Обед и дорожные — за отработанные дни.
+
+    Эти деньги курьер и так получал: их выдавали наличными в течение месяца, а
+    в системе их не было нигде. В конце месяца ему платили полный расчёт сверх
+    уже выданного, а прибыль организации показывалась завышенной ровно на эту
+    сумму.
+
+    Рабочие дни берутся у той же статистики, что и доставки, — и только когда
+    ставка хоть одна не нулевая: у курьера без суточных лишний COUNT(DISTINCT)
+    ни к чему.
+  */
+  const workDays = courier?.workDays ?? 0;
+  const allowancePay = Number(((mealAllowance + travelAllowance) * workDays).toFixed(2));
+
   const totalSalary = isCourier
-    ? Math.max(0, baseSalary + deliveryPay)
+    ? Math.max(0, baseSalary + deliveryPay + allowancePay)
     : Math.max(0, baseSalary + commissionAmount + bonusAmount - fraudDeduction);
 
   // Подпись периода — тем же ключом, что и строки за период: иначе человек
@@ -962,6 +1057,7 @@ export async function calculateSalary(
     commissionRate,
     salesAmount,
     commissionAmount,
+    productRateCount,
     kpiScore: kpi.kpiScore,
     bonusAmount,
     courierPayMode,
@@ -969,6 +1065,10 @@ export async function calculateSalary(
     deliveredCount,
     deliveredAmount,
     deliveryPay,
+    mealAllowance,
+    travelAllowance,
+    workDays,
+    allowancePay,
     totalSalary,
     breakdown: {
       base: baseSalary,
@@ -978,6 +1078,7 @@ export async function calculateSalary(
       bonus: isCourier ? 0 : bonusAmount,
       fraudDeduction: isCourier ? 0 : -fraudDeduction,
       delivery: deliveryPay,
+      allowance: allowancePay,
     },
   };
 }

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createRouter, reportsQuery, financeQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { orders, orderItems, products, shops, users, dailyPlans, arrivals, agentTerritories } from "@db/schema";
+import { orders, orderItems, products, shops, users, dailyPlans, arrivals, agentTerritories, salaryPayouts } from "@db/schema";
 import { eq, and, sql, desc , inArray, isNull } from "drizzle-orm";
 import { REVENUE_ORDER_STATUSES, revenueOrderConditions, revenuePeriodConditions, deliveredQty } from "./lib/order-status";
 import { MS_PER_DAY } from "./lib/constants";
@@ -358,6 +358,44 @@ export const analyticsRouter = createRouter({
           ));
 
         /*
+          ── Зарплата — тоже расход ────────────────────────────────────────
+
+          Жалоба арендатора одним предложением: «зарплаты не считаются в
+          P&L». Расходами здесь считались ТОЛЬКО сопутствующие траты по
+          приходам (доставка, растаможка), а фонд оплаты труда — оклады,
+          комиссии агентов, оплата курьеров, обед и дорожные — в прибыль не
+          входил вовсе. У организации, где зарплата обычно вторая по
+          величине статья после закупки, чистая прибыль была завышена на всю
+          её сумму, и «прибыль» на экране означала не то, что человек читал.
+
+          Берётся ВЫДАННОЕ (salary_payouts), а не начисленное. Начисление —
+          намерение: оно пересчитывается при каждом открытии экрана зарплат,
+          меняется вместе с продажами и возвратами и до конца месяца не
+          является числом вовсе. Выданное — свершившийся факт с датой, и
+          прибыль периода должна считаться по фактам, как и всё остальное на
+          этом экране.
+
+          По дате ВЫДАЧИ (paid_at), а не по периоду начисления: деньги ушли
+          из кассы в этот день. Тем же правилом, что и приходы выше, — и
+          именно поэтому аванс попадает в свой месяц, а не в тот, за который
+          выдан.
+
+          Отрицательные суммы складываются как есть: ошибочную выдачу здесь
+          гасят встречной записью, и вычесть её из расходов — ровно то, что
+          нужно.
+        */
+        const payrollRow = await db.select({
+          totalPayroll: sql<string>`COALESCE(SUM(${salaryPayouts.amount}), 0)`,
+          payoutCount: sql<number>`count(*)`,
+        })
+          .from(salaryPayouts)
+          .where(and(
+            eq(salaryPayouts.tenantId, tid),
+            sql`${salaryPayouts.paidAt} >= ${dateFrom}`,
+            sql`${salaryPayouts.paidAt} <= ${dateTo + " 23:59:59"}`,
+          ));
+
+        /*
           Проведённые возвраты уменьшают и выручку, и себестоимость.
 
           Слова «возврат» в этом расчёте не было вовсе: товар возвращался на
@@ -375,7 +413,15 @@ export const analyticsRouter = createRouter({
         const discount = Number(revRow[0]?.totalDiscount ?? 0);
         const orderCount = Number(revRow[0]?.orderCount ?? 0);
         const cogs = Number(cogsRow[0]?.totalCOGS ?? 0) - returned.cost;
-        const operatingExpenses = Number(expenseRow[0]?.totalExpenses ?? 0);
+        /*
+          Закупочные траты и фонд оплаты труда — раздельными числами, а
+          сумма из них. Одним числом директор видел бы «расходы выросли» и не
+          знал, выросла закупка или зарплата, — а это два разных решения.
+        */
+        const purchaseExpenses = Number(expenseRow[0]?.totalExpenses ?? 0);
+        const payrollExpenses = Number(payrollRow[0]?.totalPayroll ?? 0);
+        const payoutCount = Number(payrollRow[0]?.payoutCount ?? 0);
+        const operatingExpenses = purchaseExpenses + payrollExpenses;
         const arrivalCount = Number(expenseRow[0]?.arrivalCount ?? 0);
         const grossProfit = revenue - cogs;
         const grossMarginPct = revenue > 0 ? (grossProfit / revenue) * 100 : 0;
@@ -384,6 +430,7 @@ export const analyticsRouter = createRouter({
 
         return {
           revenue, discount, orderCount, cogs, operatingExpenses,
+          purchaseExpenses, payrollExpenses, payoutCount,
           arrivalCount, grossProfit, grossMarginPct, netProfit, netMarginPct,
         };
       }
