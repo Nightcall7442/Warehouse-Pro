@@ -21,6 +21,7 @@ import { formatQty } from "@/lib/format";
 import { colorMix } from "@/lib/color-mix";
 
 import { SearchInput } from "@/components/SearchInput";
+import { StockTransfers } from "@/components/warehouse/StockTransfers";
 // warehouseMulti.getStock is raw SQL behind db.execute, so tRPC infers its rows
 // as `unknown` — these two mirror the SELECT lists in that procedure. Decimal
 // columns arrive from mysql2 as strings, COUNT() as numbers.
@@ -65,7 +66,7 @@ export default function Warehouse() {
   // `unit` is captured for the adjust dialog, which today renders quantities
   // without a unit label — AdjustModal takes no unit prop yet.
   const [adjusting, setAdjusting] = useState<{ id: number; name: string; stock: number; unit: string; unitWeight: number } | null>(null);
-  const [activeTab, setActiveTab] = useState<"stock" | "deadstock" | "reorder">("stock");
+  const [activeTab, setActiveTab] = useState<"stock" | "deadstock" | "reorder" | "transfers">("stock");
   const [deadStockDays, setDeadStockDays] = useState(30);
   const [showLowStock, setShowLowStock] = useState(false);
 
@@ -160,11 +161,26 @@ export default function Warehouse() {
     { label: t("МАЛО СТОКА", "KAM STOK"), value: lowCount, icon: lowCount > 0 ? AlertCircle : Package, gradient: lowCount > 0 ? "linear-gradient(135deg, var(--color-danger), var(--color-danger))" : "linear-gradient(135deg, var(--color-success), var(--color-success))", sub: lowCount > 0 ? t("товаров ниже порога", "mahsulot chegaradan past") : t("все в норме", "hammasi yaxshi"), onClick: lowCount > 0 ? () => setShowLowStock(true) : undefined },
   ], [summary, valuation, valLoading, deadStockItems, lowCount, t, fmt]);
 
+  /*
+    Склады и перемещения в пути — для вкладки «Перемещения».
+
+    Список складов нужен и самой вкладке (имена вместо номеров в маршруте), и
+    счётчику на ней. Оба запроса лёгкие: складов у арендатора единицы.
+  */
+  const warehousesQ = trpc.warehouseMulti.list.useQuery();
+  const pendingQ = trpc.warehouseMulti.listTransfers.useQuery({ status: "pending", limit: 100 });
+  const pendingTransfers = pendingQ.data?.length ?? 0;
+
   const tabs = useMemo(() => [
     { key: "stock" as const, label: t("Остатки", "Qoldiqlar"), count: summary?.totalSKUs ?? 0 },
     { key: "deadstock" as const, label: t("Мёртвый сток", "O'lik stok"), count: deadStockItems?.length ?? 0 },
     { key: "reorder" as const, label: t("Дозаказ", "Qayta buyurtma"), count: reorderSuggestions?.length ?? 0 },
-  ], [summary, deadStockItems, reorderSuggestions, t]);
+    /*
+      Перемещения между складами. Счётчик — только «в пути»: проведённые
+      никого не ждут, а число на вкладке зовёт что-то сделать.
+    */
+    { key: "transfers" as const, label: t("Перемещения", "Ko'chirishlar"), count: pendingTransfers },
+  ], [summary, deadStockItems, reorderSuggestions, pendingTransfers, t]);
 
   if (isLoadingError) return <QueryErrorFallback onRetry={refetch} />;
 
@@ -463,6 +479,15 @@ export default function Warehouse() {
       )}
 
       {/* ── DEAD STOCK TAB ─────────────────────────────────────────────────── */}
+      {/*
+        Перемещения. Сервер это умел давно — три ручки с блокировками и
+        защитой от двойного проведения, — а кнопки не было ни одной: попасть в
+        них было нельзя ни с одного экрана.
+      */}
+      {activeTab === "transfers" && (
+        <StockTransfers warehouses={warehousesQ.data ?? []} />
+      )}
+
       {activeTab === "deadstock" && (
         <>
           <div className="flex items-center gap-3 flex-wrap">
