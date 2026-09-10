@@ -22,6 +22,7 @@ import { colorMix } from "@/lib/color-mix";
 
 import { SearchInput } from "@/components/SearchInput";
 import { StockTransfers } from "@/components/warehouse/StockTransfers";
+import { DemandForecast } from "@/components/warehouse/DemandForecast";
 // warehouseMulti.getStock is raw SQL behind db.execute, so tRPC infers its rows
 // as `unknown` — these two mirror the SELECT lists in that procedure. Decimal
 // columns arrive from mysql2 as strings, COUNT() as numbers.
@@ -66,7 +67,7 @@ export default function Warehouse() {
   // `unit` is captured for the adjust dialog, which today renders quantities
   // without a unit label — AdjustModal takes no unit prop yet.
   const [adjusting, setAdjusting] = useState<{ id: number; name: string; stock: number; unit: string; unitWeight: number } | null>(null);
-  const [activeTab, setActiveTab] = useState<"stock" | "deadstock" | "reorder" | "transfers">("stock");
+  const [activeTab, setActiveTab] = useState<"stock" | "deadstock" | "reorder" | "forecast" | "transfers">("stock");
   const [deadStockDays, setDeadStockDays] = useState(30);
   const [showLowStock, setShowLowStock] = useState(false);
 
@@ -179,6 +180,13 @@ export default function Warehouse() {
       Перемещения между складами. Счётчик — только «в пути»: проведённые
       никого не ждут, а число на вкладке зовёт что-то сделать.
     */
+    /*
+      Прогноз. Соседняя вкладка «Дозаказ» отвечает «что УЖЕ ниже порога» —
+      состояние на сегодня. Здесь другой вопрос: КОГДА кончится и сколько
+      заказать с учётом времени доставки. Счётчика нет: это не список дел, а
+      взгляд вперёд.
+    */
+    { key: "forecast" as const, label: t("Прогноз", "Prognoz"), count: 0 },
     { key: "transfers" as const, label: t("Перемещения", "Ko'chirishlar"), count: pendingTransfers },
   ], [summary, deadStockItems, reorderSuggestions, pendingTransfers, t]);
 
@@ -484,6 +492,8 @@ export default function Warehouse() {
         защитой от двойного проведения, — а кнопки не было ни одной: попасть в
         них было нельзя ни с одного экрана.
       */}
+      {activeTab === "forecast" && <DemandForecast />}
+
       {activeTab === "transfers" && (
         <StockTransfers warehouses={warehousesQ.data ?? []} />
       )}

@@ -70,6 +70,22 @@ function allProcedures(): Map<string, string> {
   return out;
 }
 
+/**
+ * Убрать комментарии.
+ *
+ * Иначе УПОМИНАНИЕ ручки считается её вызовом. Поймано на себе: я написал в
+ * комментарии, что warehouseReports.reorderAlerts зовёт мобилка, — и проверка
+ * решила, что её зовут экраны. То есть достаточно было НАПИСАТЬ ПРО мёртвую
+ * ручку, чтобы охранник перестал её видеть.
+ *
+ * Две косые после двоеточия не трогаются: это адрес, а не комментарий.
+ */
+function stripComments(code: string): string {
+  return code
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .replace(/(^|[^:])\/\/.*$/gm, "$1");
+}
+
 /** Весь код экранов одной строкой — по нему и ищем вызовы. */
 function webSources(): string {
   const parts: string[] = [];
@@ -78,7 +94,7 @@ function webSources(): string {
       if (entry === "node_modules") continue;
       const full = join(dir, entry);
       if (statSync(full).isDirectory()) walk(full);
-      else if (/\.tsx?$/.test(entry)) parts.push(read(full));
+      else if (/\.tsx?$/.test(entry)) parts.push(stripComments(read(full)));
     }
   };
   walk(SRC_DIR);
@@ -106,7 +122,9 @@ const MOBILE_ONLY = new Set([
   // returns.list / getById / summary ушли отсюда: их зовёт и веб — страница
   // возвратов, которой раньше не было вовсе.
   "returns.create",
-  "salesTarget.myQuota",
+  // salesTarget.upsert нашёлся, когда проверка перестала считать вызовом
+  // упоминание в комментарии: его зовёт мобилка (src/api.ts:1046), а веб — нет.
+  "salesTarget.myQuota", "salesTarget.upsert",
   "settings.brandingAuth",
   "upload.file",
   "user.registerPushToken", "user.removePushToken",
@@ -140,8 +158,27 @@ const MOBILE_ONLY = new Set([
  * assignShop, unassignShop). Мобилка их ЧИТАЕТ давно — агент видит в заказе
  * цену своего магазина, — а завести было нечем. Раздел «Прайс-листы» в
  * настройках.
+ *
+ * 36 → 32: прогноз спроса (stockoutPrediction, reorderRecommendation,
+ * trendingProducts, demandForecast). За ними стояла настоящая служба —
+ * скользящее среднее, экспоненциальное сглаживание, линейный тренд, недельная
+ * сезонность и выбор лучшего метода по ошибке, — и ни одной кнопки. Вкладка
+ * «Прогноз» на странице склада.
+ *
+ * forecast.categoryTrend остаётся мёртвым сознательно: тренд ОДНОЙ категории
+ * отвечает на вопрос, которого никто не задавал — на складе смотрят по
+ * товарам, а в аналитике категории уже разложены. Убирать его или дописывать
+ * экран — решение владельца, а не моё.
+ *
+ * 32 → 33, и это не рост: проверка перестала считать вызовом УПОМИНАНИЕ ручки
+ * в комментарии. Нашлось на себе — я написал в комментарии, что
+ * warehouseReports.reorderAlerts зовёт мобилка, и охранник решил, что её зовут
+ * экраны. Разбор комментариев вскрыл ещё двух, которые всё это время считались
+ * живыми по той же причине: reports.getAgentPerformance и
+ * salesTarget.recalculateActuals. Прежние потолки были оптимистичны на эту
+ * пару.
  */
-const BASELINE = 36;
+const BASELINE = 33;
 
 describe("вся поверхность API кем-то вызывается", () => {
   const procedures = allProcedures();
@@ -151,6 +188,18 @@ describe("вся поверхность API кем-то вызывается", (
     .filter(key => !web.includes(key))
     .filter(key => !MOBILE_ONLY.has(key))
     .sort();
+
+  it("упоминание в комментарии вызовом не считается", () => {
+    /*
+      Стража стражи, и она нашлась на живом примере: комментарий, объясняющий,
+      что ручку зовёт мобилка, делал эту ручку «вызванной» с экрана.
+    */
+    expect(stripComments("// trpc.order.list.useQuery()")).not.toContain("order.list");
+    expect(stripComments("/* см. trpc.order.list */")).not.toContain("order.list");
+    expect(stripComments("const q = trpc.order.list.useQuery();")).toContain("order.list");
+    // Адрес — не комментарий.
+    expect(stripComments('const url = "https://x.dev/order.list";')).toContain("order.list");
+  });
 
   it("разбор нашёл роутеры и ручки, а не пустоту", () => {
     // Проверка, которая ничего не разобрала, зелена всегда.
