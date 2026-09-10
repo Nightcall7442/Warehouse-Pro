@@ -6,6 +6,7 @@ import { HeroStatusCard } from "@/components/billing/HeroStatusCard";
 import { UsageSection } from "@/components/billing/UsageSection";
 import { SubscriptionPlanCard } from "@/components/billing/SubscriptionPlanCard";
 import { PaymentMethodsCard } from "@/components/billing/PaymentMethodsCard";
+import { ExtraLimitsCard } from "@/components/billing/ExtraLimitsCard";
 import { SkeletonBlock } from "@/components/billing/SkeletonBlock";
 
 /**
@@ -96,6 +97,16 @@ export default function BillingPage() {
       />
 
       <UsageSection usage={billing.usage} limits={billing.limits} extra={billing.extra} t={t} />
+
+      {/*
+        Надбавка — СРАЗУ под полосами лимитов и ВЫШЕ выбора тарифа.
+
+        Человек приходит сюда, упершись в предел, и первое, что он видит, —
+        полоса, дошедшая до конца. Ответ «добавьте столько, сколько не
+        хватает» должен стоять там же: если он лежит под списком тарифов,
+        решение принимается раньше, чем читается.
+      */}
+      <ExtraLimitsCard t={t} />
 
       <div>
         <p style={{

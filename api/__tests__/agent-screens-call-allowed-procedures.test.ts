@@ -119,3 +119,110 @@ describe("запросы на пути агента", () => {
     expect(flags.has("useMyShops"), `признак роли не распознан: ${[...flags].join(", ")}`).toBe(true);
   });
 });
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   То же самое для экрана СУПЕРАДМИНА — и та же беда там уже была.
+
+   ── Что нашлось ─────────────────────────────────────────────────────────────
+
+   Блок «Заявки с сайта» стоит на странице Super Admin и зовёт `lead.list` и
+   `lead.markHandled`. Обе были объявлены на adminQuery — «директор арендатора,
+   суперадмин ИСКЛЮЧЁН намеренно» (так и написано в middleware). То есть экран
+   написан, ручки написаны, и ровно между ними лежала одна строка: заявки
+   копились, а видеть их было некому.
+
+   Вторая половина той же ошибки страшнее: у таблицы `leads` нет организации —
+   это заявки с САЙТА, общие для всей платформы. adminQuery означал, что любой
+   директор любого арендатора мог прочитать двести последних: имена, компании,
+   телефоны и комментарии чужих людей.
+
+   Одна неверная строка давала одновременно мёртвый экран у того, кому нужно, и
+   открытую дверь тому, кому нельзя.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/** Экраны, которые открывает ТОЛЬКО суперадмин. */
+const SUPERADMIN_FILES = [
+  "src/pages/SuperAdmin.tsx",
+  "src/components/superadmin/PlatformStats.tsx",
+  "src/components/superadmin/TenantList.tsx",
+  "src/components/superadmin/TenantDetail.tsx",
+  "src/components/superadmin/LeadInbox.tsx",
+  "src/components/superadmin/FeatureUsage.tsx",
+  "src/components/superadmin/SandboxSection.tsx",
+  "src/components/superadmin/CreateTenantModal.tsx",
+];
+
+describe("запросы на экране суперадмина", () => {
+  it("список файлов не разъехался с деревом", () => {
+    for (const f of SUPERADMIN_FILES) {
+      expect(fs.existsSync(path.resolve(ROOT, f)), `нет файла ${f}`).toBe(true);
+    }
+  });
+
+  it("каждый запрос и каждая правка ему разрешены", () => {
+    /*
+      Проверяются и запросы, и мутации: у заявок сломаны были обе — и чтение
+      списка, и отметка «разобрано».
+
+      Личные ручки суперадмина (свой профиль, свой пароль) объявлены на
+      authedQuery — без requireRole вовсе, — и поэтому в PROC_ROLES их нет:
+      они открыты каждому, кто вошёл, и беды не составляют.
+    */
+    const broken: string[] = [];
+    for (const f of SUPERADMIN_FILES) {
+      const src = read(f);
+      for (const m of src.matchAll(/trpc\.(\w+)\.(\w+)\.use(?:Query|Mutation)\(/g)) {
+        const key = `${m[1]}.${m[2]}`;
+        const kind = PROC_KIND[key];
+        const roles = PROC_ROLES[kind];
+        if (!roles || roles.includes("superadmin")) continue;
+        broken.push(`${f}: ${key} (${kind}: ${roles.join("/")})`);
+      }
+    }
+    expect(broken, `суперадмин вызывает закрытые ему ручки:\n  ${broken.join("\n  ")}`).toEqual([]);
+  });
+
+  it("разбор видит ручки суперадмина — иначе проверка выше слепа", () => {
+    /*
+      Без этого «ни одной беды» означало бы лишь то, что ни одной ручки не
+      разобрали. Берём заведомо существующую: список арендаторов.
+    */
+    expect(PROC_KIND["tenant.list"], "не разобрали tenant.list").toBe("superAdminQuery");
+    expect(PROC_ROLES.superAdminQuery, "не разобрали роли суперадмина").toEqual(["superadmin"]);
+    expect(PROC_KIND["lead.list"], "не разобрали lead.list").toBeTruthy();
+  });
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Общие данные платформы не открываются арендатору.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+describe("заявки с сайта — данные платформы, а не арендатора", () => {
+  it("у таблицы заявок нет организации — значит защищает только роль", () => {
+    /*
+      Это и есть причина, по которой роль здесь важнее обычного: у остальных
+      таблиц есть tenant_id, и даже промах в роли не выпустил бы данные за
+      пределы своей организации. Здесь выпустил бы сразу все.
+    */
+    const schema = read("db/schema.ts");
+    const at = schema.indexOf("export const leads = mysqlTable(");
+    expect(at, "таблицы заявок нет").toBeGreaterThan(-1);
+    const body = schema.slice(at, schema.indexOf("export const ", at + 10));
+    expect(body, "у заявок появилась организация — правило ниже надо пересмотреть")
+      .not.toContain("tenantId");
+  });
+
+  it("читать и отмечать их может только суперадмин", () => {
+    for (const proc of ["lead.list", "lead.markHandled"]) {
+      expect(PROC_KIND[proc], `${proc}: ручка пропала`).toBeTruthy();
+      expect(PROC_ROLES[PROC_KIND[proc]], `${proc}: открыт не тому`).toEqual(["superadmin"]);
+    }
+  });
+
+  it("оставить заявку по-прежнему можно без входа", () => {
+    // Иначе форма на лендинге перестала бы работать, а заметили бы это по
+    // тишине в разборе заявок — то есть не сразу.
+    const src = read("api/lead-router.ts");
+    expect(src).toContain("create: publicQuery");
+  });
+});

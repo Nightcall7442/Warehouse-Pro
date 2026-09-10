@@ -1,12 +1,10 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { desc, eq, isNull } from "drizzle-orm";
-import { createRouter, publicQuery, adminQuery } from "./middleware";
+import { createRouter, publicQuery, superAdminQuery } from "./middleware";
 import { checkRateLimit, rateLimitSubject } from "./lib/rate-limit";
-import { sendTelegram } from "./telegram-router";
-import { env } from "./lib/env";
 import { leads } from "@db/schema";
-import { logger } from "./lib/logger";
+import { recordLead } from "./services/leads";
 
 /**
  * Заявки с лендинга.
@@ -28,11 +26,7 @@ import { logger } from "./lib/logger";
  */
 
 /** Телефон Узбекистана и соседей: цифры, плюс, скобки, дефисы, пробелы. */
-const PHONE = /^[+()\d][\d\s()+-]{6,24}$/;
-
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
+export const PHONE = /^[+()\d][\d\s()+-]{6,24}$/;
 
 export const leadRouter = createRouter({
   /** Оставить заявку с лендинга. Доступно без входа. */
@@ -55,44 +49,32 @@ export const leadRouter = createRouter({
         });
       }
 
-      const [inserted] = await ctx.db.insert(leads).values({
-        name:    input.name,
-        company: input.company || null,
-        phone:   input.phone,
-        comment: input.comment || null,
-        source:  input.source || null,
-      });
-      const id = Number(inserted.insertId);
-
-      // Уведомление — попытка, а не условие успеха. Заявка уже сохранена.
-      let notified = false;
-      if (env.telegramAdminChatId) {
-        const lines = [
-          "<b>Новая заявка с сайта</b>",
-          `Имя: ${escapeHtml(input.name)}`,
-          input.company ? `Компания: ${escapeHtml(input.company)}` : null,
-          `Телефон: ${escapeHtml(input.phone)}`,
-          input.comment ? `Комментарий: ${escapeHtml(input.comment)}` : null,
-          input.source ? `Откуда: ${escapeHtml(input.source)}` : null,
-        ].filter(Boolean);
-        notified = await sendTelegram(env.telegramAdminChatId, lines.join("\n"));
-      }
-
-      if (notified) {
-        await ctx.db.update(leads).set({ notified: true }).where(eq(leads.id, id));
-      } else {
-        // Громко в журнал: заявка есть, но её никто не увидел.
-        logger.warn("заявка сохранена, уведомление не ушло", {
-          leadId: id,
-          telegramConfigured: !!env.telegramAdminChatId,
-        });
-      }
-
+      // Порядок «запись → уведомление → отметка» живёт в services/leads.ts:
+      // заявка из подписки принимается тем же путём, и второй копии быть не
+      // должно — она разошлась бы с этой.
+      await recordLead(ctx.db, input);
       return { ok: true };
     }),
 
-  /** Список заявок — для владельца организации. */
-  list: adminQuery
+  /*
+    Разбор заявок — ТОЛЬКО суперадмину.
+
+    Стояло adminQuery, то есть «директор арендатора, суперадмин исключён». Две
+    беды разом:
+
+      • у таблицы leads нет организации — это заявки с САЙТА, общие для всей
+        платформы. Любой директор любого арендатора мог прочитать двести
+        последних: имена, компании, телефоны и комментарии чужих людей,
+        оставивших заявку на лендинге;
+
+      • а суперадмин, чей экран и показывает этот разбор (LeadInbox стоит на
+        странице Super Admin), получал отказ. То есть заявки копились, и не
+        видел их никто.
+
+    Экран был написан, ручка была написана, и ровно между ними лежала эта
+    строка.
+  */
+  list: superAdminQuery
     .input(z.object({ onlyNew: z.boolean().optional() }).optional())
     .query(async ({ input, ctx }) => {
       const rows = await ctx.db.select()
@@ -103,8 +85,8 @@ export const leadRouter = createRouter({
       return rows;
     }),
 
-  /** Отметить заявку разобранной. */
-  markHandled: adminQuery
+  /** Отметить заявку разобранной. Тоже суперадмину — см. разбор выше. */
+  markHandled: superAdminQuery
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ input, ctx }) => {
       await ctx.db.update(leads).set({ handledAt: new Date() }).where(eq(leads.id, input.id));

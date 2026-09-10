@@ -6,6 +6,7 @@ import { tenants, users, orders, products } from "@db/schema";
 import { eq, and, sql, gte } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { PLANS, PLAN_PRICES_UZS, EXTRA_PRICES_UZS, type PlanKey } from "../contracts/constants";
+import { recordLead } from "./services/leads";
 import { logger } from "./lib/logger";
 
 /** Тарифный предел плюс докупленное. Безлимитному прибавлять нечего. */
@@ -94,6 +95,90 @@ export const billingRouter = createRouter({
       })),
     };
   }),
+
+  /* ═════════════════════════════════════════════════════════════════════════
+     Докупить места или позиции сверх тарифа.
+
+     ── Чего не хватало ──────────────────────────────────────────────────────
+
+     Возможность была со всех сторон, кроме той, где стоит человек:
+
+       • лендинг называл цену надбавки («место 35 000, товар 5 000 сум/мес»);
+       • отказ при упоре в предел прямо советовал «или докупите позиции»;
+       • подписка показывала, сколько уже докуплено, и брала за это деньги;
+       • суперадмин умел выставить надбавку (tenant.setExtraLimits).
+
+     И только САМ арендатор попросить не мог ничем. Директор упирался в
+     предел, читал «докупите», шёл в раздел «Подписка» — и не находил там
+     ничего. Дальше он либо звонил (если догадался), либо переходил на
+     старший тариф, который ему не нужен, либо уходил.
+
+     ── Почему заявка, а не мгновенная выдача ────────────────────────────────
+
+     Оплата к продукту не подключена: апгрейд тарифа тоже оформляется
+     заявкой, а не кнопкой «оплатить». Выдать места сразу значило бы отдать
+     их бесплатно. Поэтому здесь то же, что и у тарифа: заявка + звонок.
+
+     Ложится она в общий разбор заявок, а не только в телеграм: бот отключат,
+     а человек, которому обещали перезвонить, останется ждать. Порядок
+     «запись → уведомление → отметка» — общий, в services/leads.ts.
+     ═════════════════════════════════════════════════════════════════════════ */
+  requestExtra: adminQuery
+    .input(z.object({
+      /* Потолок тот же, что у выставления надбавки суперадмином: тысяча.
+         Он не про щедрость, а про промах по клавиатуре — «5000» вместо
+         «500» это двадцать пять миллионов сум в месяц. */
+      users:    z.number().int().min(0).max(1000).default(0),
+      products: z.number().int().min(0).max(1000).default(0),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      if (input.users === 0 && input.products === 0) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Укажите, сколько мест или позиций докупить.",
+        });
+      }
+
+      /*
+        Цена считается ЗДЕСЬ и из того же источника, что и списание
+        (EXTRA_PRICES_UZS). Прислать её с экрана нельзя: тогда сумма в заявке
+        была бы той, которую назвал браузер, а не та, по которой выставят
+        счёт.
+      */
+      const priceMonthly =
+        input.users * EXTRA_PRICES_UZS.user +
+        input.products * EXTRA_PRICES_UZS.product;
+
+      const parts = [
+        input.users    ? `${input.users} мест`      : null,
+        input.products ? `${input.products} позиций` : null,
+      ].filter(Boolean).join(" и ");
+
+      const { notified } = await recordLead(ctx.db, {
+        name:    ctx.user.name,
+        company: ctx.tenant.name,
+        // Телефон организации, а не входящего: перезванивают владельцу.
+        phone:   ctx.tenant.ownerPhone ?? ctx.user.phone ?? ctx.tenant.ownerEmail ?? "не указан",
+        comment:
+          `Докупить сверх тарифа: ${parts}. ` +
+          `Доплата ${priceMonthly.toLocaleString("ru-RU")} сум/мес. ` +
+          `Тариф сейчас: ${PLANS[ctx.tenant.plan as PlanKey]?.name ?? ctx.tenant.plan}.`,
+        source:  "подписка: сверх тарифа",
+      }, "Запрос на надбавку сверх тарифа");
+
+      return {
+        success: true,
+        priceMonthly,
+        /*
+          Ответ честен про то, что произошло. Раньше в этом файле похожая
+          ручка отвечала «оператор свяжется в течение 30 минут» независимо от
+          того, ушло уведомление или нет.
+        */
+        message: notified
+          ? `Заявка отправлена: ${parts}, доплата ${priceMonthly.toLocaleString("ru-RU")} сум/мес. Оператор свяжется с вами.`
+          : `Заявка записана: ${parts}, доплата ${priceMonthly.toLocaleString("ru-RU")} сум/мес. Если не перезвонят в течение дня — позвоните сами.`,
+      };
+    }),
 
   /** Request upgrade — creates a pending request for super-admin to process */
   requestUpgrade: adminQuery
