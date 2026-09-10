@@ -29,6 +29,36 @@ working immediately.
 
 `read` (everything) or `orders` (this endpoint only).
 
+### Sandbox vs production
+
+Two kinds of key exist, and they differ by **which company they belong to**, not
+by which URL you call. The base URL and every endpoint are identical.
+
+| | production | sandbox |
+|---|---|---|
+| key looks like | `wp_live_…` | `wp_test_…` |
+| data | a real customer's orders | invented, ~320 orders over a quarter |
+| response header | `X-Warehouse-Environment: production` | `X-Warehouse-Environment: sandbox` |
+| `GET /health` says | `"environment": "production"` | `"environment": "sandbox"` |
+
+**Start in the sandbox.** Run your paging, your snapshot and your 401/403/429
+handling there — §13 of the specification forbids testing permissions by
+touching live data, and there is nothing in a sandbox to break.
+
+The sandbox holds what you need to exercise the contract honestly: more than
+three pages, every status, a handful of deleted orders (visible only in changes
+mode), a shop with no territory, and orders **both with and without**
+`promised_delivery_at` — so your "is it late?" logic meets a null before it
+meets production.
+
+**Check the header, not your memory of which key you pasted.** A sandbox key
+sitting next to a live one in a config file is how invented numbers reach a real
+report; the numbers themselves look perfectly ordinary. If you publish reports
+automatically, refuse to publish when the header says `sandbox`.
+
+Ask your Warehouse Pro contact for a sandbox key. It is issued once and shown
+once — only its hash is stored.
+
 ### Failure codes
 
 | code | meaning | what the client should do |
@@ -41,7 +71,8 @@ working immediately.
 
 `429` carries both a `Retry-After` header and `retryAfter` in the body.
 
-**Rate limit:** per key, per minute; the value is set on the key (default 60).
+**Rate limit:** per key, per minute; the value is set on the key (default 100;
+sandbox keys are issued at 60, so a 429 is reachable in a test).
 **Page size:** default 100, maximum 200.
 
 ---
@@ -111,6 +142,9 @@ own clock. A minute of drift loses orders.
 Date filters apply to **`created_at`** (and `updated_at` for `updated_since`).
 
 ### 2.4 Response
+
+Every response — including refusals — carries `X-Warehouse-Environment`
+(`production` or `sandbox`).
 
 ```json
 {
