@@ -11,6 +11,7 @@ import { recordAudit } from "./services/audit-log";
 import { getClientIp } from "./lib/rate-limit";
 import { commissions, salaryPayouts, salesTargets, shops, users } from "@db/schema";
 import { NotificationService } from "./services/NotificationService";
+import { sendPushToUser } from "./services/push-service";
 import { alias } from "drizzle-orm/mysql-core";
 import { eq, and, sql, gte, lte, desc } from "drizzle-orm";
 
@@ -406,14 +407,38 @@ export const kpiRouter = createRouter({
         сделана, и потерять её из-за недоступного уведомления нельзя. Внутри
         NotificationService ошибки и так гасятся.
       */
+      const title = input.kind === "advance" ? "Выдан аванс" : "Выдана зарплата";
+
       await NotificationService.create(db, {
         tenantId: ctx.tenant.id,
         userId:   person.id,
         type:     "payment",
-        title:    input.kind === "advance" ? "Выдан аванс" : "Выдана зарплата",
+        title,
         message:  `${input.amount} — подтвердите получение`,
         link:     "/agent-kpi",
       });
+
+      /*
+        И на телефон тоже.
+
+        NotificationService кладёт строку в базу и толкает её в SSE — этого
+        хватает вебу, но не приложению: экрана уведомлений в нём нет, SSE оно
+        не слушает, и строка до человека просто не доходит. А зарплату
+        получают как раз агенты и курьеры, то есть те, у кого веба нет вовсе.
+
+        Толчок ничего не требует от приложения: токен оно регистрирует само
+        (user.registerPushToken), а текст приходит с сервера — пересобирать
+        ради этого нечего.
+
+        Ошибки гасятся: деньги уже выданы и запись сделана, и потерять её
+        из-за недоступного Expo нельзя. Нет токена — sendPushToUser молча
+        выходит.
+      */
+      sendPushToUser(person.id, {
+        title,
+        body: `${input.amount} — подтвердите получение`,
+        data: { type: "salary.paid", kind: input.kind },
+      }).catch(() => {});
 
       return { id: Number(result.insertId) };
     }),
