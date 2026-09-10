@@ -39,11 +39,23 @@ function* walkTypeScript(dir: string): Generator<string> {
 /** The SET clause of each `UPDATE warehouse_stock ... WHERE`, raw-SQL form. */
 function rawUpdateClauses(source: string): string[] {
   const clauses: string[] = [];
-  const re = /UPDATE\s+warehouse_stock\b([\s\S]*?)\bWHERE\b/gi;
+  const upd = /UPDATE\s+warehouse_stock\b([\s\S]*?)\bWHERE\b/gi;
   let m: RegExpExecArray | null;
-  while ((m = re.exec(source)) !== null) clauses.push(m[1]);
+  while ((m = upd.exec(source)) !== null) clauses.push(m[1]);
+
+  /*
+    Приход заводит строку, если её нет, — тот же остаток, другая форма записи.
+    Проверять только UPDATE значило бы оставить дыру ровно там, где голый
+    UPDATE однажды и не совпал ни с одной строкой: возврат принимали, с
+    магазина списывали, а на склад он не попадал.
+  */
+  const ins = /INSERT\s+INTO\s+warehouse_stock\b[\s\S]*?\bON\s+DUPLICATE\s+KEY\s+UPDATE\b([\s\S]*?)`/gi;
+  while ((m = ins.exec(source)) !== null) clauses.push(m[1]);
   return clauses;
 }
+
+/** `available = current_stock - reserved` — единственная допустимая форма. */
+const DERIVED = /\bavailable\s*=\s*current_stock\s*-\s*reserved\b/i;
 
 /** The object literal of each `.update(warehouseStock).set({ ... })`, drizzle form. */
 function builderUpdateClauses(source: string): string[] {
@@ -111,7 +123,7 @@ describe("current_stock = available + reserved", () => {
   });
 
   /**
-   * Двух колонок мало, если одну ограничивают, а другую нет.
+   * Двух колонок мало, пока available хранится как самостоятельное число.
    *
    * Так было в девяти местах — applyStockDelta, обе ветки курьерской доставки,
    * полный и частичный возврат, отмена, удаление заказа и повторный импорт:
@@ -123,70 +135,25 @@ describe("current_stock = available + reserved", () => {
    * получает полное q. Свободный остаток становится больше физического, и
    * система разрешает продать то, чего нет. Ошибки при этом не возникает:
    * строка выглядит правдоподобной, недостача всплывает при инвентаризации.
-   * Ровно это описано в комментарии courier-router.ts:331 — отказ там уже
-   * видели и закрыли один частный случай, оставив причину.
    *
-   * Правило: если в SET есть GREATEST или LEAST, ограниченная величина обязана
-   * войти и во вторую колонку — то есть встретиться в предложении дважды.
-   * Правильная парная колонка у каждой операции своя (у отгрузки одна, у
-   * возврата другая, у частичного возврата третья), поэтому проверка требует
-   * не конкретной формулы, а самого факта: ограничение учтено с обеих сторон.
+   * Прежняя редакция этой проверки требовала, чтобы ограничение было учтено с
+   * обеих сторон — то есть встретилось в предложении дважды. Правило верное, но
+   * оно лечило следствие: available и reserved могли разъехаться потому, что
+   * из трёх колонок независимы только две, а писали все три вручную.
    *
-   * Число ниже — храповик, и оно должно оставаться нулём. Смысл держать его
-   * переменной, а не сравнением с пустым списком: если однажды появится
-   * выражение, которое иначе записать нельзя, послабление придётся выписать
-   * явным числом, а не спрятать в условии.
+   * Теперь available не поддерживается, а ВЫВОДИТСЯ на каждой записи, и правило
+   * стало прямым: `available = current_stock - reserved` обязано быть в каждом
+   * предложении, которое трогает остаток или резерв. Оно строже прежнего —
+   * односторонние ограничения оно запрещает заодно, потому что разъехаться
+   * выведенному значению больше негде.
+   *
+   * Проверяются сырые предложения: две записи двери и приход. Записи через
+   * построитель drizzle — inventory в services/stock.ts и перемещение между
+   * складами в warehouse-multi-router.ts — резерв не трогают вовсе и меняют
+   * current_stock с available на одну и ту же величину; их держит проверка
+   * выше. Свести и их к двери — отдельная работа.
    */
-  const KNOWN_ONE_SIDED_CLAMPS = 0;
-
-  it("ограничение снизу учтено с обеих сторон", () => {
-    const offenders: string[] = [];
-
-    for (const file of walkTypeScript(API_DIR)) {
-      const source = readFileSync(file, "utf8");
-      const rel = relative(API_DIR, file).split("\\").join("/");
-
-      for (const clause of [...rawUpdateClauses(source), ...builderUpdateClauses(source)]) {
-        const clamps = clause.match(/\b(?:GREATEST|LEAST)\s*\(/gi) ?? [];
-        if (clamps.length === 0) continue;
-        if (columnsTouched(clause).length < 2) continue; // это ловит проверка выше
-        // Ограничение, применённое к одной колонке, обязано быть учтено и во
-        // второй — а значит, встретиться в предложении минимум дважды.
-        if (clamps.length < 2) {
-          offenders.push(`${rel} — ${clause.replace(/\s+/g, " ").trim().slice(0, 110)}`);
-        }
-      }
-    }
-
-    expect(
-      offenders.length,
-      offenders.length <= KNOWN_ONE_SIDED_CLAMPS ? "" :
-        `Появилось новое выражение, где ограничение (GREATEST/LEAST) наложено на\n` +
-        `одну колонку остатка, а парная меняется на неограниченную величину.\n` +
-        `Как только ограничение сработает, current_stock = available + reserved\n` +
-        `разъедется молча. Найдено:\n` +
-        offenders.map(o => `  - ${o}`).join("\n"),
-    ).toBeLessThanOrEqual(KNOWN_ONE_SIDED_CLAMPS);
-
-    // Храповик крутится только в одну сторону: починили — уменьшите число.
-    expect(
-      offenders.length,
-      `Односторонних ограничений стало меньше (${offenders.length} вместо ` +
-      `${KNOWN_ONE_SIDED_CLAMPS}) — уменьшите KNOWN_ONE_SIDED_CLAMPS, чтобы ` +
-      `храповик не дал им вернуться.`,
-    ).toBe(KNOWN_ONE_SIDED_CLAMPS);
-  });
-
-  /**
-   * Порядок присвоений в SET — несущий, а не косметика.
-   *
-   * MySQL вычисляет присвоения слева направо и в правых частях видит уже
-   * ОБНОВЛЁННЫЕ значения предыдущих колонок. Поэтому available, считающий
-   * разницу через reserved, обязан стоять ДО reserved: иначе разница
-   * посчитается от самой себя и выйдет нулём — резерв изменится, а доступный
-   * остаток нет.
-   */
-  it("available считается раньше reserved там, где зависит от него", () => {
+  it("available выводится на каждой записи, а не поддерживается вручную", () => {
     const offenders: string[] = [];
 
     for (const file of walkTypeScript(API_DIR)) {
@@ -194,20 +161,71 @@ describe("current_stock = available + reserved", () => {
       const rel = relative(API_DIR, file).split("\\").join("/");
 
       for (const clause of rawUpdateClauses(source)) {
+        // Предложение, не трогающее ни остаток, ни резерв, выводить нечего.
+        if (!/\b(?:current_stock|reserved)\s*=/i.test(clause)) continue;
+        if (DERIVED.test(clause)) continue;
+        offenders.push(`${rel} — ${clause.replace(/\s+/g, " ").trim().slice(0, 110)}`);
+      }
+    }
+
+    expect(
+      offenders,
+      offenders.length === 0 ? "" :
+        `Появилась запись в остаток, где available не выводится из двух других\n` +
+        `колонок. Три числа, из которых независимы только два, разъедутся —\n` +
+        `молча, и всплывёт это инвентаризацией. Пишите через дверь\n` +
+        `(api/services/stock-ledger.ts). Найдено:\n` +
+        offenders.map(o => `  - ${o}`).join("\n"),
+    ).toEqual([]);
+  });
+
+  /**
+   * Порядок присвоений в SET — несущий, а не косметика.
+   *
+   * MySQL вычисляет присвоения слева направо и в правых частях видит уже
+   * ОБНОВЛЁННЫЕ значения предыдущих колонок.
+   *
+   * Раньше это было ловушкой: available правили независимо, и он обязан был
+   * стоять ПЕРВЫМ, чтобы успеть прочитать старый резерв. Перестановка двух
+   * строк тихо ломала деньги, а понять это по коду было нельзя — только по
+   * комментарию заглавными.
+   *
+   * Теперь требование перевернулось и стало очевидным: available выводится,
+   * значит стоит ПОСЛЕДНИМ и читает уже новые current_stock и reserved. Иначе
+   * он их попросту не выведет.
+   */
+  it("available присваивается ПОСЛЕДНИМ — он читает уже обновлённые колонки", () => {
+    const offenders: string[] = [];
+
+    for (const file of walkTypeScript(API_DIR)) {
+      const source = readFileSync(file, "utf8");
+      const rel = relative(API_DIR, file).split("\\").join("/");
+
+      for (const clause of rawUpdateClauses(source)) {
+        if (!DERIVED.test(clause)) continue;
         const availableAt = clause.search(/\bavailable\s*=/i);
-        const reservedAt = clause.search(/\breserved\s*=/i);
-        if (availableAt === -1 || reservedAt === -1) continue;
-
-        // Правая часть available упоминает reserved — значит зависит от него.
-        const availableExpr = clause.slice(availableAt).split("\n")[0];
-        if (!/\breserved\b/i.test(availableExpr)) continue;
-
-        if (availableAt > reservedAt) {
-          offenders.push(`${rel} — available присваивается после reserved, хотя зависит от него`);
+        const sources = [/\bcurrent_stock\s*=/i, /\breserved\s*=/i]
+          .map(re => clause.search(re))
+          .filter(at => at !== -1);
+        if (sources.some(at => at > availableAt)) {
+          offenders.push(`${rel} — available стоит раньше колонок, из которых выводится`);
         }
       }
     }
 
     expect(offenders).toEqual([]);
+  });
+
+  it("правила про available умеют падать", () => {
+    // Проверка, которая не может упасть, не защищает ничего.
+    const derived = "SET current_stock = current_stock + 1, reserved = GREATEST(0, reserved - 1), available = current_stock - reserved";
+    const kept = "SET reserved = GREATEST(0, reserved - 1), available = available + 1";
+    const swapped = "SET available = current_stock - reserved, reserved = GREATEST(0, reserved - 1)";
+
+    expect(DERIVED.test(derived)).toBe(true);
+    expect(DERIVED.test(kept), "правило пропустило самостоятельный available").toBe(false);
+
+    const availableAt = swapped.search(/\bavailable\s*=/i);
+    expect(swapped.search(/\breserved\s*=/i), "перестановка не замечена").toBeGreaterThan(availableAt);
   });
 });

@@ -1,5 +1,5 @@
 import { warehouseStock, products, warehouses } from "@db/schema";
-import { eq, and, sql, inArray } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { sseBus } from "../lib/sse";
 import { recordAudit } from "./audit-log";
 import { recordStockMovement } from "./stock-ledger";
@@ -23,151 +23,20 @@ async function getDefaultWarehouseId(db: DrizzleInstance, tenantId: number): Pro
 }
 
 export const StockService = {
-  async reserve(db: DrizzleInstance, tenantId: number, items: StockItem[], warehouseId?: number) {
-    if (items.length === 0) return { success: true };
+  /*
+    Здесь были reserve, release и deduct.
 
-    const whId = warehouseId ?? await getDefaultWarehouseId(db, tenantId);
+    Три операции, ради которых служба и писалась, — и не вызывал их НИКТО:
+    каждый путь менял остаток сам, сырым SQL, по-своему. Написанный и мёртвый
+    код опаснее отсутствующего: он выглядит как готовое решение, и следующий
+    разработчик либо тратит день, выясняя, почему им не пользуются, либо
+    начинает пользоваться и получает четвёртую версию арифметики.
 
-    await db.transaction(async (tx) => {
-      const productIds = items.map(i => i.productId);
-      const stockRows = await tx.select().from(warehouseStock)
-        .where(and(
-          inArray(warehouseStock.productId, productIds),
-          eq(warehouseStock.tenantId, tenantId),
-          eq(warehouseStock.warehouseId, whId),
-        ))
-        .for("update");
-
-      const stockMap = new Map<number, typeof stockRows[number]>();
-      for (const row of stockRows) stockMap.set(row.productId, row);
-
-      for (const item of items) {
-        const stock = stockMap.get(item.productId);
-        const availableQty = Number(stock?.available ?? 0);
-        if (availableQty < item.quantity) {
-          throw new Error(`Недостаточно товара на складе (доступно: ${availableQty}, запрошено: ${item.quantity})`);
-        }
-      }
-
-      await tx.execute(sql`
-        UPDATE warehouse_stock
-        SET
-          reserved = reserved + CASE ${sql.join(items.map(i =>
-            sql`WHEN product_id = ${i.productId} THEN ${i.quantity}`
-          ), sql`\n`)} ELSE 0 END,
-          available = available - CASE ${sql.join(items.map(i =>
-            sql`WHEN product_id = ${i.productId} THEN ${i.quantity}`
-          ), sql`\n`)} ELSE 0 END
-        WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
-          AND tenant_id = ${tenantId}
-          AND warehouse_id = ${whId}
-      `);
-    });
-
-    return { success: true };
-  },
-
-  async release(db: DrizzleInstance, tenantId: number, items: StockItem[], warehouseId?: number) {
-    if (items.length === 0) return { success: true };
-
-    const whId = warehouseId ?? await getDefaultWarehouseId(db, tenantId);
-
-    await db.transaction(async (tx) => {
-      const productIds = items.map(i => i.productId);
-      const stockRows = await tx.select().from(warehouseStock)
-        .where(and(
-          inArray(warehouseStock.productId, productIds),
-          eq(warehouseStock.tenantId, tenantId),
-          eq(warehouseStock.warehouseId, whId),
-        ))
-        .for("update");
-
-      const stockMap = new Map<number, typeof stockRows[number]>();
-      for (const row of stockRows) stockMap.set(row.productId, row);
-
-      for (const item of items) {
-        const stock = stockMap.get(item.productId);
-        const reservedQty = Number(stock?.reserved ?? 0);
-        if (reservedQty < item.quantity) {
-          throw new Error(`Недостаточно зарезервированного товара (зарезервировано: ${reservedQty}, запрошено: ${item.quantity})`);
-        }
-      }
-
-      await tx.execute(sql`
-        UPDATE warehouse_stock
-        SET
-          reserved = reserved - CASE ${sql.join(items.map(i =>
-            sql`WHEN product_id = ${i.productId} THEN ${i.quantity}`
-          ), sql`\n`)} ELSE 0 END,
-          available = available + CASE ${sql.join(items.map(i =>
-            sql`WHEN product_id = ${i.productId} THEN ${i.quantity}`
-          ), sql`\n`)} ELSE 0 END
-        WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
-          AND tenant_id = ${tenantId}
-          AND warehouse_id = ${whId}
-      `);
-    });
-
-    return { success: true };
-  },
-
-  async deduct(db: DrizzleInstance, tenantId: number, items: StockItem[], warehouseId?: number) {
-    if (items.length === 0) return { success: true };
-
-    const whId = warehouseId ?? await getDefaultWarehouseId(db, tenantId);
-
-    await db.transaction(async (tx) => {
-      const productIds = items.map(i => i.productId);
-      const stockRows = await tx.select().from(warehouseStock)
-        .where(and(
-          inArray(warehouseStock.productId, productIds),
-          eq(warehouseStock.tenantId, tenantId),
-          eq(warehouseStock.warehouseId, whId),
-        ))
-        .for("update");
-
-      const stockMap = new Map<number, typeof stockRows[number]>();
-      for (const row of stockRows) stockMap.set(row.productId, row);
-
-      for (const item of items) {
-        const stock = stockMap.get(item.productId);
-        const currentQty = Number(stock?.currentStock ?? 0);
-        if (currentQty < item.quantity) {
-          throw new Error(`Недостаточно товара на складе (на складе: ${currentQty}, запрошено: ${item.quantity})`);
-        }
-      }
-
-      await tx.execute(sql`
-        UPDATE warehouse_stock
-        SET
-          current_stock = current_stock - CASE ${sql.join(items.map(i =>
-            sql`WHEN product_id = ${i.productId} THEN ${i.quantity}`
-          ), sql`\n`)} ELSE 0 END,
-          reserved = reserved - CASE ${sql.join(items.map(i =>
-            sql`WHEN product_id = ${i.productId} THEN ${i.quantity}`
-          ), sql`\n`)} ELSE 0 END,
-          available = (current_stock - CASE ${sql.join(items.map(i =>
-            sql`WHEN product_id = ${i.productId} THEN ${i.quantity}`
-          ), sql`\n`)} ELSE 0 END) - (reserved - CASE ${sql.join(items.map(i =>
-            sql`WHEN product_id = ${i.productId} THEN ${i.quantity}`
-          ), sql`\n`)} ELSE 0 END)
-        WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
-          AND tenant_id = ${tenantId}
-          AND warehouse_id = ${whId}
-      `);
-
-      for (const item of items) {
-        await recordStockMovement(tx, {
-          tenantId, warehouseId: whId, productId: item.productId,
-          type: "out", quantity: item.quantity,
-          reason: "order_delivery", notes: "Списание по заказу",
-        });
-      }
-    });
-
-    return { success: true };
-  },
-
+    Теперь всё это живёт в api/services/stock-ledger.ts одним примитивом, и
+    зовётся оттуда. Adjust остался: он один и вызывался (ручная корректировка
+    со склада), и делает не то же самое — назначает остаток числом с записью
+    в журнал и проверкой прав.
+  */
   async adjust(
     db: DrizzleInstance,
     tenantId: number,

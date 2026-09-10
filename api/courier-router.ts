@@ -11,7 +11,7 @@ import { sanitizeString } from "./lib/sanitize";
 import { recalcShopDebt } from "./services/shop-debt";
 import { paidForOrder, assertFitsRemainder } from "./services/payment";
 import { productLabel } from "./services/order";
-import { recordStockMovement, releaseStock } from "./services/stock-ledger";
+import { releaseStock, shipStock } from "./services/stock-ledger";
 import { NotificationService } from "./services/NotificationService";
 
 export const courierRouter = createRouter({
@@ -282,27 +282,17 @@ export const courierRouter = createRouter({
             которого на складе нет.
 
             Товар уехал, поэтому current_stock падает на полное количество —
-            это факт. С резерва снимается ровно то, что там лежало, а
-            недостающая часть уходит из available: физически она пришла оттуда.
+            это факт. С резерва снимается ровно то, что там лежало.
 
-            available считается ПЕРВЫМ: MySQL вычисляет SET слева направо и
-            видит уже обновлённые колонки, поэтому reserved обязан стоять
-            последним, иначе LEAST посчитается от нового значения.
+            Свободный остаток дверь выводит сама. Прежде его писали выражением
+            `available − (qty − LEAST(qty, reserved))`, выведенным из инварианта
+            вручную, и каждое место выводило его заново — отсюда и брались
+            расхождения вроде описанного выше.
           */
-          const [result] = await tx.execute(sql`
-            UPDATE warehouse_stock
-            SET available = available - (${qty} - LEAST(${qty}, reserved)),
-                current_stock = current_stock - ${qty},
-                reserved = GREATEST(0, reserved - ${qty})
-            WHERE product_id = ${item.productId} AND tenant_id = ${ctx.tenant.id} AND warehouse_id = ${whId}
-          `);
-          // If no rows affected, stock row doesn't exist — log warning but continue
-          if (result.affectedRows === 0) {
-            console.warn(`[Stock] No stock row for product ${item.productId} in tenant ${ctx.tenant.id}`);
-          }
-          await recordStockMovement(tx, {
-            tenantId: ctx.tenant.id, warehouseId: whId, productId: item.productId,
-            type: "out", quantity: qty, reason: "order_delivery", referenceId: order.id,
+          await shipStock(tx, {
+            tenantId: ctx.tenant.id, warehouseId: whId,
+            items: [{ productId: item.productId, orderedQuantity: qty, deliveredQuantity: qty }],
+            reason: "order_delivery", referenceId: order.id,
             notes: `Доставка ${order.orderNumber}`,
           });
         }
@@ -526,31 +516,25 @@ export const courierRouter = createRouter({
           // Full or partial delivery — deduct stock for ALL items
           for (const item of items) {
             const qty = Number(item.quantity);
-            // Товар физически уехал, поэтому current_stock падает на полное
-            // количество — это факт, а не бухгалтерия. Но снять с резерва
-            // больше, чем там лежит, нельзя: снимается LEAST(qty, reserved), а
-            // недостающая часть уходит из available, потому что физически она
-            // пришла оттуда.
-            //
-            // Было `reserved = GREATEST(0, reserved - qty)` без парной правки
-            // available: при просевшем резерве current_stock падал на qty,
-            // reserved замирал на нуле, available не менялся — и инвариант
-            // current_stock = available + reserved расходился ровно на
-            // недостачу. Это тот самый отказ, что описан выше на строке 331.
-            //
-            // available считается ПЕРВЫМ: MySQL вычисляет SET слева направо и
-            // видит уже обновлённые колонки, поэтому reserved обязан стоять
-            // последним, иначе LEAST посчитается от нового значения.
-            await tx.execute(sql`
-              UPDATE warehouse_stock
-              SET available = available - (${qty} - LEAST(${qty}, reserved)),
-                  current_stock = current_stock - ${qty},
-                  reserved = GREATEST(0, reserved - ${qty})
-              WHERE product_id = ${item.productId} AND tenant_id = ${ctx.tenant.id} AND warehouse_id = ${whId}
-            `);
-            await recordStockMovement(tx, {
-              tenantId: ctx.tenant.id, warehouseId: whId, productId: item.productId,
-              type: "out", quantity: qty, reason: "order_delivery", referenceId: order.id,
+            /*
+              Увезли всё заказанное: со склада уходит столько же, сколько
+              снимается с резерва.
+
+              Здесь была самая живучая из складских бед: `reserved =
+              GREATEST(0, reserved - qty)` без парной правки available. При
+              просевшем резерве current_stock падал на qty, reserved замирал на
+              нуле, а available не менялся — свободный остаток становился больше
+              физического, и система разрешала продать то, чего нет. Молча:
+              строка выглядела правдоподобной, недостача всплывала
+              инвентаризацией. Тот же отказ описан выше на строке 331.
+
+              Теперь available не правится вовсе, а выводится дверью из двух
+              других колонок — разъехаться ему негде.
+            */
+            await shipStock(tx, {
+              tenantId: ctx.tenant.id, warehouseId: whId,
+              items: [{ productId: item.productId, orderedQuantity: qty, deliveredQuantity: qty }],
+              reason: "order_delivery", referenceId: order.id,
               notes: `Доставка ${order.orderNumber}`,
             });
           }
@@ -559,10 +543,7 @@ export const courierRouter = createRouter({
           for (const item of items) {
             const qty = Number(item.quantity);
             // Товар не уезжал, current_stock не меняется — резерв просто
-            // возвращается в свободный остаток. Вернуть можно ровно столько,
-            // сколько там лежало: LEAST(qty, reserved). Прибавляя available
-            // полное qty при просевшем резерве, мы дописывали в свободный
-            // остаток единицы, которых на складе нет.
+            // возвращается в свободный остаток.
             await releaseStock(tx, {
               tenantId: ctx.tenant.id, warehouseId: whId,
               items: [{ productId: item.productId, quantity: qty }],
@@ -606,38 +587,25 @@ export const courierRouter = createRouter({
             newSubtotal += Number(item.unitPrice) * deliveredQty;
 
             if (deliveredQty > 0) {
-              // Deduct delivered stock; the returned portion of the reservation
-              // goes back to available (goods physically returned to the warehouse).
-              // Уехала только доставленная часть, поэтому current_stock падает
-              // на deliveredQty. Резерв снимается весь, но не больше, чем есть:
-              // LEAST(qty, reserved).
-              //
-              // available выводится из инварианта, а не подбирается: чтобы
-              // current_stock = available + reserved сохранилось, нужно
-              //   available' = available − deliveredQty + LEAST(qty, reserved).
-              // Без перекоса это даёт ровно `+ returnedQty`, как и было
-              // задумано; при просевшем резерве — только то, что вернулось на
-              // самом деле, вместо приписки несуществующих единиц.
-              //
-              // available первым: MySQL вычисляет SET слева направо и видит уже
-              // обновлённые колонки.
-              await tx.execute(sql`
-                UPDATE warehouse_stock
-                SET available = available - ${deliveredQty} + LEAST(${qty}, reserved),
-                    current_stock = current_stock - ${deliveredQty},
-                    reserved = GREATEST(0, reserved - ${qty})
-                WHERE product_id = ${item.productId} AND tenant_id = ${ctx.tenant.id} AND warehouse_id = ${whId}
-              `);
-              // Only the delivered part left the warehouse; the rest never did.
-              await recordStockMovement(tx, {
-                tenantId: ctx.tenant.id, warehouseId: whId, productId: item.productId,
-                type: "out", quantity: deliveredQty, reason: "order_delivery", referenceId: order.id,
+              /*
+                Частичная доставка: с резерва снимается всё, что держал заказ,
+                а со склада уходит только увезённое. Невывезенная часть
+                возвращается в свободный остаток сама — дверь считает его от
+                новых значений.
+
+                Раньше это писали выражением
+                `available − deliveredQty + LEAST(qty, reserved)`, выведенным
+                из инварианта вручную, и каждое из четырёх мест выводило его
+                заново.
+              */
+              await shipStock(tx, {
+                tenantId: ctx.tenant.id, warehouseId: whId,
+                items: [{ productId: item.productId, orderedQuantity: qty, deliveredQuantity: deliveredQty }],
+                reason: "order_delivery", referenceId: order.id,
                 notes: `Доставка ${order.orderNumber} (частичный возврат ${returnedQty})`,
               });
             } else {
               // Вернули всё — товар не уезжал, current_stock не меняется.
-              // Возвращается ровно то, что лежит в резерве: LEAST(qty, reserved).
-              // available первым — MySQL вычисляет SET слева направо.
               await releaseStock(tx, {
                 tenantId: ctx.tenant.id, warehouseId: whId,
                 items: [{ productId: item.productId, quantity: qty }],

@@ -9,7 +9,7 @@ import { eq, and, sql } from "drizzle-orm";
 import { cache } from "./lib/cache";
 import { env } from "./lib/env";
 import { s3Client, publicUrl } from "./lib/s3";
-import { recordStockMovement } from "./services/stock-ledger";
+import { recordStockMovement, setStock } from "./services/stock-ledger";
 import { isSafePhotoValue } from "./lib/photo-value";
 // Type-only: exceljs itself stays behind the dynamic imports below so it never
 // lands in the boot bundle.
@@ -493,24 +493,20 @@ export const importRouter = createRouter({
                   // новому количеству, а available = остаток минус обрезанный
                   // резерв.
                   //
-                  // Было `available = GREATEST(0, initialStock - reserved)` при
-                  // нетронутом reserved: если импорт занижал остаток ниже
-                  // резерва, available упирался в ноль, reserved оставался
-                  // прежним, и current_stock = available + reserved переставало
-                  // выполняться — база утверждала, что зарезервировано больше,
-                  // чем есть.
-                  //
-                  // available первым: MySQL вычисляет SET слева направо и видит
-                  // уже обновлённые колонки, а обрезка нужна от старого резерва.
-                  await db.execute(sql`
-                    UPDATE warehouse_stock
-                    SET available = ${row.initialStock} - LEAST(reserved, ${row.initialStock}),
-                        reserved = LEAST(reserved, ${row.initialStock}),
-                        current_stock = ${row.initialStock}
-                    WHERE product_id = ${productId}
-                      AND tenant_id = ${tenantId}
-                      AND warehouse_id = ${defaultWarehouse.id}
-                  `);
+                  /*
+                    Импорт называет ИТОГ, а не движение: остаток присваивается
+                    числом, а резерв обрезается по нему — зарезервировать
+                    больше, чем лежит на полке, нельзя.
+
+                    Прежняя запись правила все три колонки руками и обязана была
+                    ставить available первым, чтобы обрезка успела прочитать
+                    старый резерв. Дверь выводит available от новых значений, и
+                    порядок перестал быть ловушкой.
+                  */
+                  await setStock(db, {
+                    tenantId, warehouseId: defaultWarehouse.id,
+                    productId, quantity: row.initialStock,
+                  });
                 } else {
                   console.error(`[IMPORT] warehouse_stock failed for ${row.code}:`, stockMsg);
                 }

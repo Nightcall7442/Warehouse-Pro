@@ -1,10 +1,9 @@
 import { eq, and, or, desc, sql, isNull, isNotNull, inArray } from "drizzle-orm";
-import { releaseStock, reserveStock } from "./stock-ledger";
+import { applyStockEffect, releaseStock, reserveStock, shipStock } from "./stock-ledger";
 import { alias } from "drizzle-orm/mysql-core";
 import { orders, orderItems, warehouseStock, shops, users, products, warehouses, payments, loadingLists, loadingListOrders, debtReminders, orderAdjustments, territories, returns, returnItems } from "@db/schema";
 import { recalcShopDebt } from "./shop-debt";
 import { OPEN_ORDER_STATUSES, CLOSED_ORDER_STATUSES, ORDER_STATUS_LABELS, LOADING_LIST_STATUS_LABELS, holdsStock, deductsStock } from "../lib/order-status";
-import { recordStockMovement } from "./stock-ledger";
 import { NotificationService } from "./NotificationService";
 import { isReopen, reversesRevenue, assertReopenable, clearDeliveryTrace, dateSecondLife } from "./order-reopen";
 
@@ -353,20 +352,17 @@ async function applyStockDelta(
     // система разрешает продать то, чего нет. Ошибки при этом не будет: строка
     // выглядит правдоподобной, а инвариант не проверяет никто.
     //
-    // Считается фактически применённое изменение: GREATEST(0, reserved + delta)
-    // − reserved. В обычном случае это ровно delta, при ограничении — только
-    // то, что действительно было зарезервировано. available двигается на ту же
-    // величину, и равенство сохраняется.
-    //
     /*
-      Знак дельты решает, какая это операция. Обе живут в двери
-      (api/services/stock-ledger.ts), и порядок присвоений — несущий — сохранён
-      там же: available считается первым, пока reserved ещё старый.
+      Знак дельты решает, какая это операция: положительная откладывает,
+      отрицательная снимает. Ветвление здесь, а не в двери, — она отказывается
+      принимать знак нарочно: иначе один и тот же вызов означал бы
+      противоположные вещи, и знаковая дельта, попавшая туда по ошибке, тихо
+      выполнила бы операцию наоборот.
 
       Прежняя запись `available -= GREATEST(0, reserved + delta) - reserved`
       равна LEAST(|delta|, reserved) при отрицательной дельте и просто |delta|
       при положительной — то есть ровно тому, что делают reserveStock и
-      releaseStock.
+      releaseStock. Свободный остаток дверь выводит сама.
     */
     const items = [{ productId, quantity: Math.abs(delta) }];
     if (delta >= 0) await reserveStock(tx, { tenantId, warehouseId, items });
@@ -388,14 +384,16 @@ async function applyStockDelta(
   // order's status already released its reservation, so they move between
   // "on hand" and "gone" — never through `reserved`. Both counters have to
   // move together, or current_stock stops equalling available + reserved.
-  await tx.execute(sql`
-    UPDATE warehouse_stock
-    SET current_stock = current_stock - ${delta}, available = available - ${delta}
-    WHERE product_id = ${productId} AND tenant_id = ${tenantId} AND warehouse_id = ${warehouseId}
-  `);
-  await recordStockMovement(tx, {
-    tenantId, warehouseId, productId,
-    type: delta > 0 ? "out" : "in", quantity: delta,
+  /*
+    Заказ уже отгружен, его резерв давно снят: единицы идут прямо между «на
+    складе» и «ушло», минуя reserved. Направление задаёт знак дельты, поэтому
+    ветвление здесь, а не в двери: она отказывается принимать знак нарочно —
+    иначе один и тот же вызов означал бы противоположные вещи.
+  */
+  await applyStockEffect(tx, {
+    tenantId, warehouseId,
+    items: [{ productId, quantity: Math.abs(delta) }],
+    shift: { onHand: delta > 0 ? -1 : 1, held: 0 },
     reason: "order_edit",
     notes: "Корректировка состава выполненного заказа",
   });
@@ -880,35 +878,26 @@ async function applyPartialDelivery(
     // to available (matching "open → returned"). Either way `reserved` drops
     // by the full original order quantity.
     if (defaultWh) {
-      // available выводится из инварианта, а не подбирается: чтобы
-      // current_stock = available + reserved сохранилось при снятии резерва не
-      // больше, чем там лежит, нужно
-      //   available' = available − deliveredQty + LEAST(orderedQty, reserved).
-      // Без перекоса это даёт ровно `+ returnedQty`, как и было задумано.
-      //
-      // Прежняя запись прибавляла available полное returnedQty независимо от
-      // того, сколько удалось снять с резерва: при просевшем резерве reserved
-      // замирал на нуле, а свободный остаток получал единицы, которых на складе
-      // нет. available стоит первым — MySQL вычисляет SET слева направо и видит
-      // уже обновлённые колонки.
-      await tx.execute(sql`
-        UPDATE warehouse_stock
-        SET available = available - ${deliveredQty} + LEAST(${orderedQty}, reserved),
-            current_stock = current_stock - ${deliveredQty},
-            reserved = GREATEST(0, reserved - ${orderedQty})
-        WHERE product_id = ${orderItem.productId} AND tenant_id = ${tenantId} AND warehouse_id = ${defaultWh.id}
-      `);
+      /*
+        С резерва снимается всё, что держал заказ, со склада уходит только
+        увезённое, а невывезенная часть возвращается в свободный остаток —
+        дверь выводит его от новых значений, и подбирать выражение
+        `available − увезено + LEAST(отложено, reserved)` больше не нужно.
 
-      // Only the delivered portion left the warehouse. The undelivered part
-      // was reserved but never shipped, so it moves from `reserved` back to
-      // `available` without touching current_stock — no goods travelled, and
-      // recording it would put the ledger out of step with the shelf. Why it
-      // came back is already on the order line (deliveredQuantity /
-      // returnReason) and in the adjustment log.
-      await recordStockMovement(tx, {
-        tenantId, warehouseId: defaultWh.id, productId: orderItem.productId,
-        type: "out", quantity: deliveredQty,
-        reason: "order_delivery", referenceId: order.id,
+        Движение пишет она же и только на увезённое: невывезенное никуда не
+        ехало, и запись о нём развела бы журнал с полкой. Почему часть
+        вернулась, видно на строке заказа (deliveredQuantity / returnReason)
+        и в журнале правок.
+      */
+      await shipStock(tx, {
+        tenantId, warehouseId: defaultWh.id,
+        items: [{
+          productId: orderItem.productId,
+          orderedQuantity: orderedQty,
+          deliveredQuantity: deliveredQty,
+        }],
+        reason: "order_delivery",
+        referenceId: order.id,
         notes: returnedQty > 0
           ? `Доставлено по заказу ${order.orderNumber} (не доставлено ${returnedQty}: ${item.returnReason ?? "причина не указана"})`
           : `Доставлено по заказу ${order.orderNumber}`,
@@ -1706,39 +1695,25 @@ export const OrderService = {
           );
         }
 
-        // Each delta is −1, 0 or +1 per unit, so the sign travels inside the
-        // number and every column is a plain "col = col + delta".
-        await tx.execute(sql`
-          UPDATE warehouse_stock
-          SET current_stock = CASE ${sql.join(items.map(i =>
-                sql`WHEN product_id = ${i.productId} THEN current_stock + ${d.current * effectiveQty(i)}`
-              ), sql`\n`)} ELSE current_stock END,
-              reserved = CASE ${sql.join(items.map(i =>
-                sql`WHEN product_id = ${i.productId} THEN reserved + ${d.reserved * effectiveQty(i)}`
-              ), sql`\n`)} ELSE reserved END,
-              available = CASE ${sql.join(items.map(i =>
-                sql`WHEN product_id = ${i.productId} THEN available + ${d.available * effectiveQty(i)}`
-              ), sql`\n`)} ELSE available END
-          WHERE product_id IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})
-            AND tenant_id = ${tenantId}
-            AND warehouse_id = ${whId}
-        `);
-
-        // Only a change in current_stock is goods actually moving; a status
-        // that merely reserves or frees them shuffles the other two columns
-        // and belongs in no ledger.
-        if (d.current !== 0) {
-          for (const item of items) {
-            await recordStockMovement(tx, {
-              tenantId, warehouseId: whId, productId: item.productId,
-              type: d.current < 0 ? "out" : "in",
-              quantity: effectiveQty(item),
-              reason: d.current < 0 ? "order_delivery" : "order_return",
-              referenceId: orderId,
-              notes: `Заказ: ${order.status} → ${newStatus}`,
-            });
-          }
-        }
+        /*
+          Дверь принимает ДВА числа из трёх: сколько лежит на складе и сколько
+          отложено. Третье — свободный остаток — она выводит сама, и здесь это
+          не потеря, а проверка: у всех переходов d.available в точности равно
+          d.current − d.reserved (см. stockEffect выше), потому что иначе
+          строка перестала бы сходиться. Раньше все три числа писались
+          независимо, и разойтись им было где.
+        */
+        await applyStockEffect(tx, {
+          tenantId, warehouseId: whId,
+          items: items.map(i => ({ productId: i.productId, quantity: effectiveQty(i) })),
+          shift: { onHand: d.current, held: d.reserved },
+          // Движение пишет дверь, и только когда товар правда двигался:
+          // статус, который лишь откладывает или освобождает, перекладывает два
+          // числа и в журнал не идёт.
+          reason: d.current < 0 ? "order_delivery" : "order_return",
+          referenceId: orderId,
+          notes: `Заказ: ${order.status} → ${newStatus}`,
+        });
       }
       /*
         Заказ, закрытый из веба, тоже считается доставленным курьером.

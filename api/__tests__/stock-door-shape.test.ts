@@ -1,7 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
 import type { SQL } from "drizzle-orm";
 import { MySqlDialect } from "drizzle-orm/mysql-core";
-import { receiveStock, reserveStock, releaseStock } from "../services/stock-ledger";
+import {
+  applyStockEffect, receiveStock, releaseStock, reserveStock, setStock, shipStock,
+} from "../services/stock-ledger";
 
 /**
  * Дверь для остатка: свойства запроса и разбор списка.
@@ -50,41 +52,84 @@ function spyTx() {
   return { tx: tx as never, queries };
 }
 
+/** Сколько раз дверь позвала журнал движений. */
+const movements = (tx: unknown) =>
+  (tx as { insert: { mock: { calls: unknown[] } } }).insert.mock.calls.length;
+
 const ONE = [{ productId: 7, quantity: 5 }];
 
 describe("форма запроса", () => {
-  it("available считается ПЕРВЫМ, пока reserved ещё старый", async () => {
+  it("available ВЫВОДИТСЯ последним, а не поддерживается вручную", async () => {
     /*
-      Ровно та ошибка, которую не ловит ни один стенд с поддельной базой.
-      MySQL вычисляет SET слева направо, и правые части видят уже обновлённые
-      колонки: посчитай reserved первым — разница `GREATEST(0, reserved + Δ) −
-      reserved` возьмётся от самой себя и выйдет нулём, а в свободный остаток
-      не вернётся ничего.
+      Сердце всей правки. Раньше available правили как самостоятельное число, и
+      требование к порядку было обратным: он обязан был стоять ПЕРВЫМ и успеть
+      прочитать старый резерв. Перестановка двух строк тихо ломала деньги, и
+      понять это по коду было нельзя — только по комментарию заглавными.
+
+      Теперь available не хранится независимо, а считается от двух других.
+      Требование осталось, но перевернулось и стало очевидным: available идёт
+      ПОСЛЕДНИМ и читает уже обновлённые колонки — иначе он их попросту не
+      выведет. Ошибиться в нём больше негде.
     */
     const { tx, queries } = spyTx();
     await reserveStock(tx, { tenantId: 1, warehouseId: 2, items: ONE });
-    const sql = queries[0].text;
-    const availableAt = sql.indexOf("available =");
-    const reservedAt = sql.indexOf("reserved  =");
-    expect(availableAt, "в запросе нет присвоения available").toBeGreaterThan(0);
+    const text = queries[0].text;
+    expect(text, "available перестал выводиться из двух других")
+      .toContain("available     = current_stock - reserved");
+
+    const currentAt = text.indexOf("current_stock =");
+    const reservedAt = text.indexOf("reserved      =");
+    const availableAt = text.indexOf("available     =");
+    expect(currentAt, "в запросе нет присвоения current_stock").toBeGreaterThan(0);
     expect(reservedAt, "в запросе нет присвоения reserved").toBeGreaterThan(0);
-    expect(availableAt, "присвоения переставлены местами — available считается после reserved")
-      .toBeLessThan(reservedAt);
+    expect(availableAt, "available считается РАНЬШЕ колонок, из которых выводится")
+      .toBeGreaterThan(Math.max(currentAt, reservedAt));
   });
 
-  it("ограничитель применён к ОБЕИМ колонкам", async () => {
+  it("ограничитель остался ровно один — на резерве", async () => {
     /*
-      Наивная запись `reserved = GREATEST(0, reserved + Δ), available -= Δ`
-      разъезжается ровно тогда, когда ограничитель срабатывает: резерв
-      упирается в ноль, а свободное прибавляет всю величину. Остаток становится
-      больше физического, и система разрешает продать то, чего нет.
+      Снять из резерва больше, чем там лежит, нельзя, а отрицательный резерв в
+      боевой базе встречается. available подстраивается сам, потому что от
+      резерва и считается: второй ограничитель означал бы, что два числа снова
+      живут своей жизнью — ровно та беда, из-за которой резерв упирался в ноль,
+      а свободное прибавляло всю величину.
     */
     const { tx, queries } = spyTx();
     await releaseStock(tx, { tenantId: 1, warehouseId: 2, items: ONE });
-    const sql = queries[0].text;
-    expect(sql).toContain("GREATEST(0, reserved +");
-    // Величина сдвига available — фактически применённая, а не заявленная.
-    expect(sql).toMatch(/available = available - \(GREATEST\(0, reserved \+[\s\S]*?\) - reserved\)/);
+    const text = queries[0].text;
+    expect(text).toContain("GREATEST(0, reserved +");
+    expect(text.match(/GREATEST/g) ?? [], "ограничителей стало больше одного").toHaveLength(1);
+  });
+
+  it("вызывающий задаёт два числа из трёх", async () => {
+    const { tx, queries } = spyTx();
+    await shipStock(tx, {
+      tenantId: 1, warehouseId: 2,
+      items: [{ productId: 7, orderedQuantity: 5, deliveredQuantity: 3 }],
+      reason: "order_delivery",
+    });
+    const text = queries[0].text;
+    expect(text).toContain("current_stock = current_stock +");
+    expect(text).toContain("reserved      = GREATEST(0, reserved +");
+    expect(text).toContain("available     = current_stock - reserved");
+  });
+
+  it("отгрузка снимает с резерва заказанное, а со склада — увезённое", async () => {
+    /*
+      При частичной доставке это РАЗНЫЕ числа: заказ держал пять, уехало три.
+      Со склада уходит три, с резерва снимается пять, а две единицы
+      возвращаются в свободный остаток сами — потому что available выводится.
+      Прежде это писали выражением `available − увезено + LEAST(отложено,
+      reserved)`, и каждое из четырёх мест писало его заново.
+    */
+    const { tx, queries } = spyTx();
+    await shipStock(tx, {
+      tenantId: 1, warehouseId: 2,
+      items: [{ productId: 7, orderedQuantity: 5, deliveredQuantity: 3 }],
+      reason: "order_delivery",
+    });
+    expect(queries[0].values, "со склада ушло не увезённое").toContain(-3);
+    expect(queries[0].values, "с резерва снято не заказанное").toContain(-5);
   });
 
   it("резерв и снятие отличаются только знаком", async () => {
@@ -104,9 +149,24 @@ describe("форма запроса", () => {
   });
 
   it("приход заводит строку, если её нет", async () => {
+    /*
+      В возвратах стоял голый UPDATE: на товаре, которого на этом складе ещё не
+      было, он не совпадал ни с одной строкой. Возврат принимали, с магазина
+      списывали, а на склад он не попадал — молча.
+    */
     const { tx, queries } = spyTx();
     await receiveStock(tx, { tenantId: 1, warehouseId: 2, productId: 7, quantity: 5, reason: "arrival" });
     expect(queries[0].text).toContain("ON DUPLICATE KEY UPDATE");
+    expect(queries[0].text, "и здесь available обязан выводиться")
+      .toContain("available     = current_stock - reserved");
+  });
+
+  it("установка числом обрезает резерв по новому остатку", async () => {
+    // Зарезервировать больше, чем лежит на полке, нельзя.
+    const { tx, queries } = spyTx();
+    await setStock(tx, { tenantId: 1, warehouseId: 2, productId: 7, quantity: 4 });
+    expect(queries[0].text).toContain("LEAST(reserved,");
+    expect(queries[0].text).toContain("available     = current_stock - reserved");
   });
 });
 
@@ -134,7 +194,7 @@ describe("разбор списка", () => {
     expect(values, "количества не сложились").toContain(5);
     expect(values, "исходная двойка уехала в запрос отдельной веткой").not.toContain(2);
     expect(values, "исходная тройка уехала в запрос отдельной веткой").not.toContain(3);
-    // Товар назван один раз на ветку CASE плюс один раз в списке IN.
+    // Товар назван по одному разу в каждой из двух веток CASE и один раз в IN.
     expect(values.filter(v => v === 70), "товар размножился по веткам").toHaveLength(3);
   });
 
@@ -158,6 +218,14 @@ describe("разбор списка", () => {
     await expect(releaseStock(tx, {
       tenantId: 1, warehouseId: 2, items: [{ productId: 7, quantity: Number("ерунда") }],
     })).rejects.toThrow(/не число/);
+  });
+
+  it("установка отрицательного остатка — отказ", async () => {
+    const { tx, queries } = spyTx();
+    await expect(setStock(tx, {
+      tenantId: 1, warehouseId: 2, productId: 7, quantity: -1,
+    })).rejects.toThrow(/негодное количество/);
+    expect(queries).toHaveLength(0);
   });
 
   it("ноль отбрасывается молча — он ничего не меняет", async () => {
@@ -184,6 +252,27 @@ describe("разбор списка", () => {
     const { tx } = spyTx();
     await reserveStock(tx, { tenantId: 1, warehouseId: 2, items: ONE });
     await releaseStock(tx, { tenantId: 1, warehouseId: 2, items: ONE });
-    expect((tx as unknown as { insert: { mock: { calls: unknown[] } } }).insert.mock.calls).toHaveLength(0);
+    expect(movements(tx)).toBe(0);
+  });
+
+  it("смена статуса без движения товара тоже не идёт в журнал", async () => {
+    // «Новый → в работе» перекладывает два числа и ничего не двигает.
+    const { tx } = spyTx();
+    await applyStockEffect(tx, {
+      tenantId: 1, warehouseId: 2, items: ONE,
+      shift: { onHand: 0, held: 1 },
+      reason: "order_delivery",
+    });
+    expect(movements(tx)).toBe(0);
+  });
+
+  it("смена статуса с движением товара пишет его в журнал", async () => {
+    const { tx } = spyTx();
+    await applyStockEffect(tx, {
+      tenantId: 1, warehouseId: 2, items: ONE,
+      shift: { onHand: -1, held: -1 },
+      reason: "order_delivery",
+    });
+    expect(movements(tx)).toBe(1);
   });
 });

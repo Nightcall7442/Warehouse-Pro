@@ -77,109 +77,63 @@ export async function recordStockMovement(
 
    ── Что было ────────────────────────────────────────────────────────────────
 
-   warehouse_stock меняют девятнадцать мест сырым SQL в двенадцати файлах.
-   Единой двери нет; StockService.reserve/release/deduct — три операции, ради
-   которых служба и писалась, — не вызывает НИКТО. Каждый путь считает остаток
-   сам, и каждый по-своему: где-то available правится, где-то нет, где-то
-   строку остатка сначала ищут и вставляют, если не нашли, а где-то нет — и
-   тогда движение товара пропадает молча.
+   warehouse_stock меняли девятнадцать мест сырым SQL в двенадцати файлах.
+   Единой двери не было; StockService.reserve/release/deduct — три операции,
+   ради которых служба и писалась, — не вызывал никто. Каждый путь считал
+   остаток сам, и каждый по-своему.
 
-   Отсюда же невозможность учёта по партиям: пристроить его к девятнадцати
-   разным записям значит завести второй источник правды о деньгах.
+   ── Что оказалось на самом деле ─────────────────────────────────────────────
 
-   ── Почему по одной операции ────────────────────────────────────────────────
+   Выглядело это как шесть разных операций с шестью разными формулами: где
+   LEAST(q, reserved), где GREATEST(0, reserved − q), где разница
+   GREATEST(0, reserved + Δ) − reserved. Но все они сохраняют ОДНО И ТО ЖЕ:
 
-   Дверь строится не разом. Каждая операция появляется здесь ВМЕСТЕ со своим
-   вызовом — иначе это будет ещё один StockService: пять функций, ноль
-   вызовов. Ratchet в api/__tests__/arrival-batch-expiry.test.ts держит число
-   оставшихся сырых UPDATE и опускается по мере переноса.
+       available = current_stock − reserved
 
-   ── Почему движение и остаток пишутся вместе ───────────────────────────────
+   То есть available хранится ИЗБЫТОЧНО, а вся гимнастика с ограничителями
+   существовала лишь затем, чтобы поддерживать эту избыточность вручную — в
+   девятнадцати местах, каждое из которых могло ошибиться по-своему. Так и
+   появлялись беды вида «резерв упёрся в ноль, а свободное прибавило всю
+   величину»: это ровно рассинхронизация трёх чисел, из которых независимы
+   только два.
+
+   Поэтому примитив здесь ОДИН. Меняются два числа — сколько лежит на складе и
+   сколько отложено; available не поддерживается, а выводится на каждой записи.
+   Ошибиться в нём больше негде, а строка, уже разъехавшаяся в базе, следующей
+   же записью приходит в согласие.
+
+   ── Порядок присвоений ──────────────────────────────────────────────────────
+
+   MySQL вычисляет SET слева направо, и правые части видят УЖЕ обновлённые
+   колонки. Раньше это было ловушкой: available стоял ПЕРВЫМ и обязан был
+   успеть прочитать старый резерв — перестановка двух строк тихо ломала деньги.
+   Теперь наоборот и очевидно: available стоит ПОСЛЕДНИМ и читает новые
+   current_stock и reserved, иначе он их попросту не выведет.
+
+   ── Почему движение и остаток пишутся вместе ────────────────────────────────
 
    Раньше это были два вызова подряд, и второй можно было забыть: журнал
-   движений тогда расходится с остатком, а разошедшийся журнал не проверяет
-   уже ничего. Здесь их не разнять.
+   движений тогда расходится с остатком, а разошедшийся журнал не проверяет уже
+   ничего. Здесь их не разнять.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/**
- * Товар пришёл на склад.
- *
- * Приход, возврат от магазина, оприходование — всё, что УВЕЛИЧИВАЕТ остаток на
- * складе. Резерв не трогается: отложенное под чужой заказ остаётся отложенным.
- *
- * Строки остатка может ещё не быть — тогда она заводится. Это не мелочь: в
- * возвратах стоял голый UPDATE, и на товаре, которого не было на этом складе,
- * он не совпадал ни с одной строкой. Возврат принимали, товар списывали с
- * магазина, а на склад он не попадал — молча.
- *
- * Одним запросом, а не «поискать и вставить»: INSERT .. ON DUPLICATE KEY
- * UPDATE атомарен на уровне строки, и два одновременных прихода одного товара
- * складываются, а не перетирают друг друга.
- */
-export async function receiveStock(
-  tx: LedgerWriter,
-  entry: {
-    tenantId: number;
-    warehouseId: number;
-    productId: number;
-    /** Сколько пришло. Положительное; ноль ничего не делает. */
-    quantity: number | string;
-    reason: StockMovementReason;
-    referenceId?: number | null;
-    notes?: string | null;
-  },
-): Promise<void> {
-  const qty = Math.abs(Number(entry.quantity));
-  if (!Number.isFinite(qty) || qty === 0) return;
-
-  await tx.execute(sql`
-    INSERT INTO warehouse_stock (tenant_id, warehouse_id, product_id, current_stock, reserved, available)
-    VALUES (${entry.tenantId}, ${entry.warehouseId}, ${entry.productId}, ${qty}, 0, ${qty})
-    ON DUPLICATE KEY UPDATE
-      current_stock = current_stock + ${qty},
-      available     = available + ${qty}
-  `);
-
-  await recordStockMovement(tx, {
-    tenantId: entry.tenantId,
-    warehouseId: entry.warehouseId,
-    productId: entry.productId,
-    type: "in",
-    quantity: qty,
-    reason: entry.reason,
-    referenceId: entry.referenceId ?? null,
-    notes: entry.notes ?? null,
-  });
-}
-
-/** Строка «товар — количество» для резерва и снятия резерва. */
+/** Строка «товар — количество». */
 export interface StockItem {
   productId: number;
   quantity: number | string;
 }
 
 /**
- * Привести список к виду, в котором его можно отдать в один запрос.
+ * Привести список к виду, в котором его можно отдать одним запросом.
  *
- * ── Почему товары СКЛАДЫВАЮТСЯ, а не идут как есть ──────────────────────────
+ * Товары СКЛАДЫВАЮТСЯ: запрос строится через CASE, а `CASE WHEN product_id = 7
+ * THEN 2 WHEN product_id = 7 THEN 3 END` берёт ПЕРВУЮ совпавшую ветку — тройка
+ * потерялась бы молча. `product_id IN (7, 7)` тоже схлопывается.
  *
- * Запрос строится через CASE, и `CASE WHEN product_id = 7 THEN 2 WHEN
- * product_id = 7 THEN 3 END` берёт ПЕРВУЮ совпавшую ветку: тройка теряется
- * молча. `product_id IN (7, 7)` тоже схлопывается. То есть один товар,
- * попавший в список дважды, зарезервировался бы не полностью — без ошибки и
- * без следа. Прежние места писали такой же CASE и имели ту же дыру.
- *
- * ── Почему отрицательное — отказ, а не «сделаем наоборот» ───────────────────
- *
- * Сначала здесь стоял Math.abs. Это худшее из возможных: передай кто-нибудь
- * знаковую дельту (а именно так устроен applyStockDelta в order.ts),
- * reserveStock молча выполнил бы операцию В ОБРАТНУЮ СТОРОНУ. Уменьшение
- * позиции на три превратилось бы в резерв ещё трёх, ошибка в шесть единиц, и
- * ни одного признака сбоя. Направление задаёт имя функции; знак в количестве —
- * это ошибка вызывающего, и о ней надо сказать вслух.
- *
- * NaN — тоже отказ. Раньше он уходил в запрос и ронял его; тихо отбрасывать
- * такую строку значит менять шумный сбой на пропавший резерв.
+ * Отрицательное количество — отказ, а не «сделаем наоборот». Направление задаёт
+ * имя вызываемой функции; знак в количестве — ошибка вызывающего, и о ней надо
+ * сказать вслух. Раньше здесь стоял Math.abs: передай кто-нибудь знаковую
+ * дельту, и операция молча выполнилась бы В ОБРАТНУЮ СТОРОНУ.
  */
 function normalize(items: StockItem[], op: string): Array<{ productId: number; quantity: number }> {
   const merged = new Map<number, number>();
@@ -197,90 +151,260 @@ function normalize(items: StockItem[], op: string): Array<{ productId: number; q
   return [...merged].map(([productId, quantity]) => ({ productId, quantity }));
 }
 
+/** Что меняется на ЕДИНИЦУ товара. */
+export interface StockShift {
+  /** current_stock: +1 пришло, −1 уехало, 0 не двигалось. */
+  onHand: number;
+  /** reserved: +1 отложили, −1 вернули из резерва, 0 не трогали. */
+  held: number;
+}
+
 /**
- * Общая форма для резерва и снятия: сдвиг резерва на знаковую величину.
+ * Единственное место, где меняется остаток.
  *
- * ── Ограничитель применяется к ОБЕИМ колонкам ───────────────────────────────
- *
- * Считается ФАКТИЧЕСКИ применённое изменение: `GREATEST(0, reserved + Δ) −
- * reserved`. В обычном случае это ровно Δ, а при упоре в ноль — только то, что
- * действительно лежало в резерве. available двигается на ту же величину, и
- * тождество available + reserved = current_stock сохраняется.
- *
- * Наивная запись `reserved = GREATEST(0, reserved + Δ), available -= Δ`
- * разъезжается ровно тогда, когда ограничитель срабатывает: резерв упирается в
- * ноль, а свободное прибавляет всю величину. Остаток становится больше
- * физического, и система разрешает продать то, чего нет. Без всякой ошибки.
- *
- * ── ПОРЯДОК ПРИСВОЕНИЙ НЕСУЩИЙ ──────────────────────────────────────────────
- *
- * MySQL вычисляет SET слева направо и в правых частях видит УЖЕ обновлённые
- * колонки. available обязан считаться первым, пока reserved хранит старое
- * значение; поменяй местами — разница посчитается от самой себя и выйдет
- * нулём.
- *
- * Форма взята из order.ts:365 не случайно: там она и была выведена, там же
- * разобрано, почему иначе нельзя. Остальные шесть мест писали её частные
- * случаи (available += LEAST(q, reserved) — это она же при Δ < 0), и теперь
- * все семь считают одним выражением.
+ * Ограничитель остался ровно один — на резерве: снять больше, чем там лежит,
+ * нельзя, а отрицательный резерв в боевой базе встречается. available от него
+ * и считается, поэтому подстраивается сам.
  */
-async function shiftReserved(
+async function shiftStock(
   tx: LedgerWriter,
   tenantId: number,
   warehouseId: number,
-  items: Array<{ productId: number; quantity: number }>,
-  sign: 1 | -1,
+  rows: Array<{ productId: number; onHand: number; held: number }>,
 ): Promise<void> {
-  if (items.length === 0) return;
+  if (rows.length === 0) return;
+  if (rows.every(r => r.onHand === 0 && r.held === 0)) return;
 
-  const delta = sql.join(
-    items.map(i => sql`WHEN product_id = ${i.productId} THEN ${sign * i.quantity}`),
-    sql` `,
-  );
-  const ids = sql.join(items.map(i => sql`${i.productId}`), sql`, `);
+  const ids = sql.join(rows.map(r => sql`${r.productId}`), sql`, `);
+  const onHand = sql.join(rows.map(r => sql`WHEN product_id = ${r.productId} THEN ${r.onHand}`), sql` `);
+  const held = sql.join(rows.map(r => sql`WHEN product_id = ${r.productId} THEN ${r.held}`), sql` `);
 
   await tx.execute(sql`
     UPDATE warehouse_stock
-    SET available = available - (GREATEST(0, reserved + CASE ${delta} ELSE 0 END) - reserved),
-        reserved  = GREATEST(0, reserved + CASE ${delta} ELSE 0 END)
+    SET current_stock = current_stock + CASE ${onHand} ELSE 0 END,
+        reserved      = GREATEST(0, reserved + CASE ${held} ELSE 0 END),
+        available     = current_stock - reserved
     WHERE product_id IN (${ids})
       AND tenant_id = ${tenantId}
       AND warehouse_id = ${warehouseId}
   `);
 }
 
+/** Список товаров с одинаковым сдвигом на единицу. */
+const uniform = (items: Array<{ productId: number; quantity: number }>, shift: StockShift) =>
+  items.map(i => ({ productId: i.productId, onHand: shift.onHand * i.quantity, held: shift.held * i.quantity }));
+
+/**
+ * Товар пришёл на склад: приход, возврат от магазина, оприходование.
+ *
+ * Резерв не трогается — отложенное под чужой заказ остаётся отложенным.
+ *
+ * Строки остатка может ещё не быть, и она заводится. Это не мелочь: в
+ * возвратах стоял голый UPDATE, и на товаре, которого не было на этом складе,
+ * он не совпадал ни с одной строкой. Возврат принимали, с магазина списывали, а
+ * на склад он не попадал — молча. Одним запросом, а не «поискать и вставить»:
+ * INSERT .. ON DUPLICATE KEY UPDATE атомарен на уровне строки, и два
+ * одновременных прихода складываются, а не перетирают друг друга.
+ */
+export async function receiveStock(
+  tx: LedgerWriter,
+  entry: {
+    tenantId: number;
+    warehouseId: number;
+    productId: number;
+    quantity: number | string;
+    reason: StockMovementReason;
+    referenceId?: number | null;
+    notes?: string | null;
+  },
+): Promise<void> {
+  const [item] = normalize([{ productId: entry.productId, quantity: entry.quantity }], "приход");
+  if (!item) return;
+
+  await tx.execute(sql`
+    INSERT INTO warehouse_stock (tenant_id, warehouse_id, product_id, current_stock, reserved, available)
+    VALUES (${entry.tenantId}, ${entry.warehouseId}, ${item.productId}, ${item.quantity}, 0, ${item.quantity})
+    ON DUPLICATE KEY UPDATE
+      current_stock = current_stock + ${item.quantity},
+      available     = current_stock - reserved
+  `);
+
+  await recordStockMovement(tx, {
+    tenantId: entry.tenantId,
+    warehouseId: entry.warehouseId,
+    productId: item.productId,
+    type: "in",
+    quantity: item.quantity,
+    reason: entry.reason,
+    referenceId: entry.referenceId ?? null,
+    notes: entry.notes ?? null,
+  });
+}
+
 /**
  * Отложить товар под заказ.
  *
- * Резерв растёт, свободное падает; сам остаток на складе не меняется — товар
- * никуда не уехал. Поэтому в журнал движений это НЕ пишется: сумма движений
- * должна оставаться тем, что физически вошло и вышло со склада.
+ * Товар никуда не уехал, поэтому current_stock не меняется и в журнал движений
+ * это НЕ пишется: сумма движений обязана оставаться тем, что физически вошло и
+ * вышло со склада.
  *
  * Проверку «хватает ли свободного» дверь не делает намеренно: у вызывающих она
- * разная. Восстановление заказа отказывает с именем товара и числами,
- * оформление отказывает раньше, на сборке корзины. Спрятать её сюда значит
- * заменить осмысленный отказ безымянным. Вызывающий обязан проверить сам — и,
- * если решение принимается по прочитанному значению, прочитать его под
- * блокировкой: дверь берёт только те замки, что берёт сам UPDATE.
+ * разная — восстановление заказа отказывает с именем товара и числами,
+ * оформление отказывает раньше, на сборке корзины. И если решение принимается
+ * по прочитанному значению, читать его надо под блокировкой: дверь берёт только
+ * те замки, что берёт сам UPDATE.
  */
 export async function reserveStock(
   tx: LedgerWriter,
   entry: { tenantId: number; warehouseId: number; items: StockItem[] },
 ): Promise<void> {
-  await shiftReserved(tx, entry.tenantId, entry.warehouseId, normalize(entry.items, "резерв"), 1);
+  const items = normalize(entry.items, "резерв");
+  await shiftStock(tx, entry.tenantId, entry.warehouseId, uniform(items, { onHand: 0, held: 1 }));
 }
 
 /**
  * Вернуть товар из резерва в свободный остаток.
  *
- * Вернуть можно ровно столько, сколько там лежало: при Δ < 0 общая форма даёт
- * `available += min(количество, reserved)`. Прибавляя полное количество при
- * просевшем резерве, мы дописывали бы в свободный остаток единицы, которых на
- * складе нет.
+ * Снять можно ровно столько, сколько там лежало: ограничитель не даёт резерву
+ * уйти ниже нуля, а available выводится от нового резерва — то есть в свободное
+ * вернётся ровно снятое, ни единицей больше.
  */
 export async function releaseStock(
   tx: LedgerWriter,
   entry: { tenantId: number; warehouseId: number; items: StockItem[] },
 ): Promise<void> {
-  await shiftReserved(tx, entry.tenantId, entry.warehouseId, normalize(entry.items, "снятие резерва"), -1);
+  const items = normalize(entry.items, "снятие резерва");
+  await shiftStock(tx, entry.tenantId, entry.warehouseId, uniform(items, { onHand: 0, held: -1 }));
+}
+
+/** Строка отгрузки: сколько держал заказ и сколько уехало на самом деле. */
+export interface ShipItem {
+  productId: number;
+  /** Сколько держал заказ. С резерва снимается это. */
+  orderedQuantity: number | string;
+  /** Сколько уехало со склада. На это падает остаток. */
+  deliveredQuantity: number | string;
+}
+
+/**
+ * Товар уехал к магазину.
+ *
+ * Две величины, и при частичной доставке они РАЗНЫЕ: с резерва снимается всё,
+ * что заказ держал, а со склада уходит только увезённое. Невывезенная часть
+ * возвращается в свободный остаток — и это выходит само собой, потому что
+ * available считается от новых current_stock и reserved. Прежде это писали
+ * выражением `available − увезено + LEAST(отложено, reserved)`, и каждое место
+ * писало его заново.
+ *
+ * Движение пишется на увезённое: в журнал попадает то, что физически покинуло
+ * склад, а не то, что было обещано.
+ */
+export async function shipStock(
+  tx: LedgerWriter,
+  entry: {
+    tenantId: number;
+    warehouseId: number;
+    items: ShipItem[];
+    reason: StockMovementReason;
+    referenceId?: number | null;
+    notes?: string | null;
+  },
+): Promise<void> {
+  const ordered = normalize(entry.items.map(i => ({ productId: i.productId, quantity: i.orderedQuantity })), "отгрузка (отложено)");
+  const delivered = normalize(entry.items.map(i => ({ productId: i.productId, quantity: i.deliveredQuantity })), "отгрузка (увезено)");
+
+  const byProduct = new Map<number, { onHand: number; held: number }>();
+  for (const d of delivered) byProduct.set(d.productId, { onHand: -d.quantity, held: 0 });
+  for (const o of ordered) {
+    const cur = byProduct.get(o.productId) ?? { onHand: 0, held: 0 };
+    byProduct.set(o.productId, { onHand: cur.onHand, held: -o.quantity });
+  }
+
+  await shiftStock(
+    tx, entry.tenantId, entry.warehouseId,
+    [...byProduct].map(([productId, v]) => ({ productId, ...v })),
+  );
+
+  for (const d of delivered) {
+    await recordStockMovement(tx, {
+      tenantId: entry.tenantId,
+      warehouseId: entry.warehouseId,
+      productId: d.productId,
+      type: "out",
+      quantity: d.quantity,
+      reason: entry.reason,
+      referenceId: entry.referenceId ?? null,
+      notes: entry.notes ?? null,
+    });
+  }
+}
+
+/**
+ * Применить последствие смены статуса заказа.
+ *
+ * Статус решает, где лежит товар: «в работе» держит его в резерве, «доставлен»
+ * убирает со склада, «отменён» не держит ничего. Переход применяет РАЗНИЦУ двух
+ * последствий, поэтому работает в любую сторону, включая откат назад.
+ *
+ * Вызывающий обязан заранее проверить, что ни одна колонка не уйдёт в минус, и
+ * отказать с именем товара: тихо подрезать до нуля значило бы потерять единицы
+ * без следа. Ограничитель на резерве здесь всё же есть — он общий для двери и
+ * лечит уже разъехавшуюся строку, а не прикрывает непроверенный вход.
+ */
+export async function applyStockEffect(
+  tx: LedgerWriter,
+  entry: {
+    tenantId: number;
+    warehouseId: number;
+    items: StockItem[];
+    shift: StockShift;
+    reason: StockMovementReason;
+    referenceId?: number | null;
+    notes?: string | null;
+  },
+): Promise<void> {
+  const items = normalize(entry.items, "смена статуса");
+  await shiftStock(tx, entry.tenantId, entry.warehouseId, uniform(items, entry.shift));
+
+  // Движение — только когда товар правда двигался. Статус, который лишь
+  // откладывает или освобождает, перекладывает два числа и в журнал не идёт.
+  if (entry.shift.onHand === 0) return;
+  for (const item of items) {
+    await recordStockMovement(tx, {
+      tenantId: entry.tenantId,
+      warehouseId: entry.warehouseId,
+      productId: item.productId,
+      type: entry.shift.onHand > 0 ? "in" : "out",
+      quantity: item.quantity,
+      reason: entry.reason,
+      referenceId: entry.referenceId ?? null,
+      notes: entry.notes ?? null,
+    });
+  }
+}
+
+/**
+ * Назначить остаток числом — импорт из файла и обмен, где приходит не движение,
+ * а итог.
+ *
+ * Резерв обрезается по новому остатку: зарезервировать больше, чем лежит на
+ * полке, нельзя. available, как и везде, выводится.
+ */
+export async function setStock(
+  tx: LedgerWriter,
+  entry: { tenantId: number; warehouseId: number; productId: number; quantity: number | string },
+): Promise<void> {
+  const q = Number(entry.quantity);
+  if (!Number.isFinite(q) || q < 0) {
+    throw new Error(`установка остатка: негодное количество ${String(entry.quantity)} у товара ${entry.productId}`);
+  }
+  await tx.execute(sql`
+    UPDATE warehouse_stock
+    SET current_stock = ${q},
+        reserved      = LEAST(reserved, ${q}),
+        available     = current_stock - reserved
+    WHERE product_id = ${entry.productId}
+      AND tenant_id = ${entry.tenantId}
+      AND warehouse_id = ${entry.warehouseId}
+  `);
 }

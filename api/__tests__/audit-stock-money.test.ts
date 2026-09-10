@@ -48,12 +48,18 @@ vi.mock("../services/audit-log", () => ({ recordAudit: vi.fn() }));
   двери — модуль подменяется целиком, и забытая функция падает не «остаток не
   сошёлся», а «нет такого экспорта».
 */
-vi.mock("../services/stock-ledger", () => ({
-  recordStockMovement: vi.fn(async () => {}),
-  receiveStock: vi.fn(async () => {}),
-  reserveStock: vi.fn(async () => {}),
-  releaseStock: vi.fn(async () => {}),
-}));
+/*
+  Дверь для остатка заглушена целиком: этот набор проверяет деньги, долг и
+  даты, а не остаток. Список функций берётся из самого модуля — перечислять их
+  руками значит ронять весь набор словами «нет экспорта shipStock» каждый раз,
+  когда у двери появляется новая операция. Именно так этот набор и упал.
+*/
+vi.mock("../services/stock-ledger", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return Object.fromEntries(
+    Object.keys(actual).map(name => [name, vi.fn(async () => {})]),
+  );
+});
 vi.mock("../services/shop-debt", () => ({ recalcShopDebt: vi.fn(async () => {}) }));
 vi.mock("../services/push-service", () => ({
   sendPushToUser: vi.fn(async () => {}),

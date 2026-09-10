@@ -230,81 +230,17 @@ beforeEach(() => {
 import { StockService } from "../stock";
 import { makeConditionEvaluator } from "../../../api/__tests__/helpers/fake-conditions";
 
-describe("StockService.reserve", () => {
-  it("deducts available and increases reserved", async () => {
-    await StockService.reserve(mockDb as any, 1, [{ productId: 1, quantity: 20 }]);
+/*
+  Здесь были наборы для StockService.reserve, .release и .deduct.
 
-    const stock = stockTable.find((s) => s.productId === 1)!;
-    expect(stock.available).toBe("80.00");
-    expect(stock.reserved).toBe("20.00");
-    expect(stock.currentStock).toBe("100.00");
-  });
+  Они проходили годами — и проверяли код, который не вызывал НИКТО: остаток
+  каждый путь менял сам, сырым SQL. Зелёные тесты на мёртвом коде вреднее
+  отсутствующих: по ним кажется, что операция работает и ей пользуются.
 
-  it("reserves multiple products atomically", async () => {
-    await StockService.reserve(mockDb as any, 1, [
-      { productId: 1, quantity: 10 },
-      { productId: 2, quantity: 5 },
-    ]);
-
-    expect(stockTable.find((s) => s.productId === 1)!.available).toBe("90.00");
-    expect(stockTable.find((s) => s.productId === 2)!.available).toBe("35.00");
-  });
-
-  it("throws when available stock is insufficient", async () => {
-    await expect(
-      StockService.reserve(mockDb as any, 1, [{ productId: 1, quantity: 200 }]),
-    ).rejects.toThrow(/Недостаточно товара/);
-
-    expect(stockTable.find((s) => s.productId === 1)!.reserved).toBe("0.00");
-  });
-
-  it("throws when stock row does not exist for product", async () => {
-    await expect(
-      StockService.reserve(mockDb as any, 1, [{ productId: 999, quantity: 1 }]),
-    ).rejects.toThrow(/Недостаточно товара/);
-  });
-});
-
-describe("StockService.release", () => {
-  it("restores available and decreases reserved", async () => {
-    await StockService.release(mockDb as any, 1, [{ productId: 2, quantity: 10 }]);
-
-    const stock = stockTable.find((s) => s.productId === 2)!;
-    expect(stock.reserved).toBe("0.00");
-    expect(stock.available).toBe("50.00");
-  });
-
-  it("releases multiple items", async () => {
-    await StockService.reserve(mockDb as any, 1, [{ productId: 1, quantity: 30 }]);
-    await StockService.release(mockDb as any, 1, [{ productId: 1, quantity: 30 }]);
-
-    const stock = stockTable.find((s) => s.productId === 1)!;
-    expect(stock.reserved).toBe("0.00");
-    expect(stock.available).toBe("100.00");
-  });
-});
-
-describe("StockService.deduct", () => {
-  it("reduces currentStock and reserved on completion", async () => {
-    await StockService.reserve(mockDb as any, 1, [{ productId: 1, quantity: 10 }]);
-    await StockService.deduct(mockDb as any, 1, [{ productId: 1, quantity: 10 }]);
-
-    const stock = stockTable.find((s) => s.productId === 1)!;
-    expect(stock.currentStock).toBe("90.00");
-    expect(stock.reserved).toBe("0.00");
-  });
-
-  it("deducts from multiple products", async () => {
-    await StockService.deduct(mockDb as any, 1, [
-      { productId: 1, quantity: 5 },
-      { productId: 2, quantity: 10 },
-    ]);
-
-    expect(stockTable.find((s) => s.productId === 1)!.currentStock).toBe("95.00");
-    expect(stockTable.find((s) => s.productId === 2)!.currentStock).toBe("40.00");
-  });
-});
-
+  Сами операции переехали в api/services/stock-ledger.ts, и там их проверяют
+  два набора: stock-door-shape (форма запроса, без базы) и real-db/stock-door*
+  (арифметика на настоящей базе). Adjust остался — он один и вызывался.
+*/
 describe("StockService.adjust", () => {
   it("positive adjustment (in) increases currentStock and available", async () => {
     const result = await StockService.adjust(mockDb as any, 1, 1, 50, "in", "Restocked");
