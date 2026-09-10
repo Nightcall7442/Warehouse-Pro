@@ -4,12 +4,13 @@ import { useSearchParams } from "react-router";
 import { useLang } from "@/i18n";
 import { useAuth } from "@/hooks/useAuth";
 import {
-  User, Bell, Building2, SunMoon, Database, Warehouse, Palette, ShieldCheck, Tags,
+  User, Bell, Building2, SunMoon, Database, Warehouse, Palette, ShieldCheck, Tags, KeyRound,
 } from "lucide-react";
 import { ProfileSettings } from "@/components/settings/ProfileSettings";
 import { CompanySettings } from "@/components/settings/CompanySettings";
 import { WarehouseSettings } from "@/components/settings/WarehouseSettings";
 import { PriceListSettings } from "@/components/settings/PriceListSettings";
+import { ApiKeySettings } from "@/components/settings/ApiKeySettings";
 import { TelegramSettings } from "@/components/settings/TelegramSettings";
 import { OneCSettings } from "@/components/settings/OneCSettings";
 import { AppearanceSettings } from "@/components/settings/AppearanceSettings";
@@ -97,6 +98,18 @@ const SECTIONS: Section[] = [
     descRu: "Свои цены для отдельных магазинов. Цену даёт список с бо́льшим приоритетом.",
     descUz: "Alohida do'konlar uchun narxlar. Narxni yuqori ustuvorlikdagi ro'yxat beradi.",
     Comp: PriceListSettings,
+  },
+  {
+    /*
+      Ключи API. Четыре ручки — выпустить, посмотреть, приостановить,
+      отозвать — были написаны и не вызывались ниоткуда: публичное API
+      существовало, а войти в него было нечем.
+    */
+    key: "apikeys", Icon: KeyRound, roles: ["ceo"],
+    titleRu: "Ключи API", titleUz: "API kalitlari",
+    descRu: "Доступ к вашим данным для чужой программы. Ключ виден один раз — потом только выпустить новый.",
+    descUz: "Boshqa dastur uchun ma'lumotlaringizga kirish. Kalit bir marta ko'rinadi.",
+    Comp: ApiKeySettings,
   },
   {
     /*

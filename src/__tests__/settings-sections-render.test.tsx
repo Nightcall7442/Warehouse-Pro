@@ -41,14 +41,22 @@ const trpcStub = vi.hoisted(() => {
       // Директор видит ещё и таблицу «кому что приходит».
       rules: { useQuery: query([]) },
       setRule: { useMutation: mutation },
+      // Проверка настройки и сводка за день — обе ручки теперь зовутся с
+      // экрана, и без заглушки раздел падает на чтении несуществующей.
+      testBroadcast: { useMutation: mutation },
+      dailyDigest: { useQuery: query({ text: "", stats: {} }) },
     },
     onec: {
       health: { useQuery: query({ healthy: false }) },
       status: { useQuery: query({ errors: 0, lastProductSync: null }) },
       syncProducts: { useMutation: mutation },
       testSavedConnection: { useMutation: () => ({ ...mutation(), data: undefined }) },
+      // Секрет вебхука и счётчики обмена.
+      issueWebhookSecret: { useMutation: mutation },
+      metrics: { useQuery: query({}) },
     },
-    user: { updateMe: { useMutation: mutation }, changePassword: { useMutation: mutation } },
+    // logoutAll — выход на всех устройствах, кнопка в разделе «Профиль».
+    user: { updateMe: { useMutation: mutation }, changePassword: { useMutation: mutation }, logoutAll: { useMutation: mutation } },
     auth: { me: { invalidate: vi.fn() } },
     useUtils: () => ({
       settings: { get: { invalidate: vi.fn() } },

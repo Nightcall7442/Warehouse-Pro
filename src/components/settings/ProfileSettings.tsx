@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useLang } from "@/i18n";
 import { notify } from "@/lib/toast";
 import { FieldGroup, Field, FieldRow, SaveBar } from "./ui";
+import { useConfirm } from "@/components/ConfirmDialog";
 
 /**
  * Профиль: имя, телефон, пароль.
@@ -27,6 +28,22 @@ export function ProfileSettings() {
   const { lang } = useLang();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const utils = trpc.useUtils();
+
+  const { confirm, dialog } = useConfirm();
+
+  /*
+    Выход завершает и текущую сессию тоже: сервер поднимает версию ключа у
+    пользователя, а она общая для всех его входов. Поэтому после успеха
+    страница перезагружается — иначе человек остался бы на экране с ключом,
+    которым сервер уже не пользуется, и получал бы отказы на каждый запрос.
+  */
+  const logoutAll = trpc.user.logoutAll.useMutation({
+    onSuccess: () => {
+      notify.success(t("Все входы завершены", "Barcha kirishlar tugatildi"));
+      window.location.href = "/login";
+    },
+    onError: (e) => notify.error(e.message),
+  });
 
   const [form, setForm] = useState({ name: user?.name ?? "", phone: user?.phone ?? "" });
   const [pwForm, setPwForm] = useState({ current: "", next: "", confirm: "" });
@@ -112,6 +129,42 @@ export function ProfileSettings() {
                   "Barcha qurilmalarda, shu jumladan shu yerda ham, qaytadan kirish kerak bo'ladi")}
         />
       </FieldGroup>
+
+      {/*
+        Выход на всех устройствах.
+
+        Ручка была написана и не вызывалась ниоткуда, а нужна она в том самом
+        случае, ради которого и заводится: телефон потеряли, ноутбук остался у
+        бывшего сотрудника, пароль подсмотрели. Сменить пароль — не то же
+        самое: чужая сессия живёт своим ключом и переживает смену.
+      */}
+      <FieldGroup title={t("Безопасность", "Xavfsizlik")}>
+        <p className="text-sm text-secondary mb-4 max-w-prose">
+          {t(
+            "Завершает все входы, кроме этого устройства — если телефон потерян или ноутбук остался у бывшего сотрудника.",
+            "Barcha kirishlarni tugatadi — telefon yo'qolgan yoki noutbuk sobiq xodimda qolgan bo'lsa.",
+          )}
+        </p>
+        <button
+          className="neo-btn"
+          disabled={logoutAll.isPending}
+          onClick={async () => {
+            const ok = await confirm({
+              title: t("Выйти на всех устройствах?", "Barcha qurilmalardan chiqilsinmi?"),
+              message: t(
+                "Все входы будут завершены, включая это устройство — придётся войти заново.",
+                "Barcha kirishlar tugatiladi, shu qurilma ham — qaytadan kirish kerak bo'ladi.",
+              ),
+              confirmText: t("Выйти везде", "Hamma joydan chiqish"),
+              danger: true,
+            });
+            if (ok) logoutAll.mutate();
+          }}
+        >
+          {t("Выйти на всех устройствах", "Barcha qurilmalardan chiqish")}
+        </button>
+      </FieldGroup>
+      {dialog}
     </div>
   );
 }

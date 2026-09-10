@@ -15,6 +15,21 @@ export function TelegramSettings() {
   const { data: status } = trpc.telegram.myStatus.useQuery();
   const { data: deepLink } = trpc.telegram.deepLink.useQuery();
   const utils = trpc.useUtils();
+
+  /*
+    Проверочная рассылка и сводка за день.
+
+    Обе ручки лежали готовыми и не вызывались ниоткуда. Сводка спрашивается
+    только когда её открыли: собирать её на каждый заход в настройки — три
+    групповых запроса ради блока, который никто не смотрит.
+  */
+  const [testText, setTestText] = useState("");
+  const [showDigest, setShowDigest] = useState(false);
+  const digestQ = trpc.telegram.dailyDigest.useQuery(undefined, { enabled: showDigest });
+  const broadcast = trpc.telegram.testBroadcast.useMutation({
+    onSuccess: () => notify.success(t("Отправлено — проверьте телеграм", "Yuborildi — telegramni tekshiring")),
+    onError: (e) => notify.error(e.message),
+  });
   const save   = trpc.telegram.saveChatId.useMutation({
     onSuccess: () => { utils.telegram.myStatus.invalidate(); notify.success(t("Telegram подключён!", "Telegram ulandi!")); },
     onError:   (e) => notify.error(e.message),
@@ -106,6 +121,69 @@ export function TelegramSettings() {
           ))}
         </ul>
       </div>
+
+
+      {/*
+        Проверка и сводка — только директору: обе трогают организацию целиком.
+
+        Обе ручки были написаны и не вызывались ниоткуда. «Проверить» отвечает
+        на единственный вопрос, который человек задаёт после настройки: дошло
+        или нет. Без неё ответ приходил случайным событием через день.
+      */}
+      {user?.role === "ceo" && (
+        <div className="pt-4 space-y-3" style={{ borderTop: "1px solid var(--color-border)" }}>
+          <p className="text-sm font-semibold text-primary">
+            {t("Проверить и посмотреть", "Tekshirish va ko'rish")}
+          </p>
+
+          <div className="flex flex-wrap gap-2">
+            <input
+              className="neo-input flex-1 min-w-[200px]"
+              placeholder={t("Текст проверочного сообщения", "Sinov xabari matni")}
+              value={testText}
+              onChange={e => setTestText(e.target.value)}
+            />
+            <button
+              className="neo-btn"
+              disabled={broadcast.isPending}
+              onClick={() => {
+                const text = testText.trim();
+                if (!text) return notify.error(t("Напишите текст", "Matn yozing"));
+                broadcast.mutate({ message: text });
+              }}
+            >
+              {t("Отправить проверку", "Sinov yuborish")}
+            </button>
+          </div>
+
+          <div>
+            <button className="neo-btn" onClick={() => setShowDigest(v => !v)}>
+              {showDigest
+                ? t("Скрыть сводку за день", "Kunlik hisobotni yashirish")
+                : t("Показать сводку за день", "Kunlik hisobotni ko'rsatish")}
+            </button>
+            {showDigest && (
+              digestQ.isLoadingError ? (
+                <p className="text-sm text-danger mt-2">
+                  {t("Не удалось собрать сводку", "Hisobotni yig'ib bo'lmadi")}
+                </p>
+              ) : digestQ.isLoading ? (
+                <div className="h-20 bg-surface-light animate-pulse rounded-xl mt-2" />
+              ) : (
+                /*
+                  Показывается ровно тот текст, который уходит в телеграм, —
+                  не пересобранный из чисел. Иначе экран говорил бы одно, а
+                  сообщение приходило другое, и проверить это было бы нечем.
+                */
+                <pre className="mt-2 p-3 rounded-xl text-xs whitespace-pre-wrap"
+                  style={{ background: "var(--color-surface-light)", color: "var(--color-text-secondary)" }}>
+                  {digestQ.data?.text}
+                </pre>
+              )
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Кому что приходит — только директору: это настройка организации, а не
           личная. Остальные видят выше, что придёт лично им. */}

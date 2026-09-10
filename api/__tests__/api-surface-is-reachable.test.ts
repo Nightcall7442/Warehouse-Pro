@@ -177,8 +177,20 @@ const MOBILE_ONLY = new Set([
  * живыми по той же причине: reports.getAgentPerformance и
  * salesTarget.recalculateActuals. Прежние потолки были оптимистичны на эту
  * пару.
+ *
+ * 33 → 23: подключено то, что лежало готовым.
+ *   commission.updateStatus — утверждение и выплата комиссии. Пересчёт нарочно
+ *     не трогает утверждённые строки, но поставить это состояние было нечем, и
+ *     каждый пересчёт молча переписывал уже выплаченную сумму;
+ *   apiKey.create/list/revoke/setStatus — публичное API существовало, а войти
+ *     в него было нечем: ключ выдаётся и показывается один раз;
+ *   telegram.testBroadcast / dailyDigest — «дошло или нет» после настройки;
+ *   onec.issueWebhookSecret / metrics — в подсказке предлагалось придумать
+ *     секрет самому и вписать руками в двух местах;
+ *   user.logoutAll — выход на всех устройствах: чужая сессия живёт своим
+ *     ключом и переживает смену пароля.
  */
-const BASELINE = 33;
+const BASELINE = 23;
 
 describe("вся поверхность API кем-то вызывается", () => {
   const procedures = allProcedures();

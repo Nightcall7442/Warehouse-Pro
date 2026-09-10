@@ -1,9 +1,26 @@
+import { useState } from "react";
+import { useConfirm } from "@/components/ConfirmDialog";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { notify } from "@/lib/toast";
 import { Loader2, CheckCircle2, XCircle, RefreshCw, AlertTriangle, Check, X } from "lucide-react";
 
 export function OneCSettings() {
+  /*
+    Секрет вебхука и счётчики обмена — обе ручки лежали без вызова.
+
+    Секрет держится в состоянии, а не перечитывается: сервер отдаёт его
+    ровно один раз, хранит только отпечаток, и повторный запрос вернёт
+    НОВЫЙ, сломав уже настроенную сторону 1С.
+  */
+  const { confirm, dialog } = useConfirm();
+  const [issued, setIssued] = useState<{ secret: string; header: string } | null>(null);
+  const metricsQ = trpc.onec.metrics.useQuery();
+  const issueSecret = trpc.onec.issueWebhookSecret.useMutation({
+    onSuccess: (r) => setIssued({ secret: r.secret, header: r.header }),
+    onError: (e) => notify.error(e.message),
+  });
+
   const { lang } = useLang();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
 
@@ -80,6 +97,89 @@ ONEC_USERNAME=your_user
 ONEC_PASSWORD=your_password
 ONEC_WEBHOOK_SECRET=your_secret`}
             </pre>
+          </div>
+
+          {/*
+            Секрет вебхука.
+
+            Ручка выпуска была написана и не вызывалась ниоткуда, а в
+            подсказке выше стояло «ONEC_WEBHOOK_SECRET=your_secret» — то есть
+            человеку предлагалось придумать секрет самому и вписать руками в
+            двух местах. Секрет — единственное, что отделяет чужую организацию
+            от записи платежей в вашу, и придумывать его руками нельзя.
+
+            Показывается ОДИН раз: на сервере хранится только его отпечаток, и
+            подсмотреть выданный секрет потом неоткуда. Об этом сказано прямо,
+            иначе человек закроет окно и придёт с вопросом.
+          */}
+          <div className="p-4 rounded-lg" style={{ background: "var(--color-surface-light, #f6f4f0)" }}>
+            <p className="text-xs text-secondary mb-2">
+              {t("Секрет для вебхуков 1С", "1C vebhuklari uchun maxfiy kalit")}
+            </p>
+            {issued ? (
+              <>
+                <pre className="p-3 rounded-lg text-xs font-mono overflow-x-auto"
+                  style={{ background: "var(--color-surface, #efedea)" }}>
+{issued.header}: {issued.secret}
+                </pre>
+                <p className="text-xs mt-2" style={{ color: "var(--color-danger-text)" }}>
+                  {t(
+                    "Скопируйте сейчас — второй раз он не покажется: на сервере хранится только отпечаток.",
+                    "Hozir nusxalang — ikkinchi marta ko'rsatilmaydi: serverda faqat izi saqlanadi.",
+                  )}
+                </p>
+              </>
+            ) : (
+              <button className="neo-btn" disabled={issueSecret.isPending}
+                onClick={async () => {
+                  const ok = await confirm({
+                    title: t("Выпустить новый секрет?", "Yangi maxfiy kalit chiqarilsinmi?"),
+                    message: t(
+                      "Прежний перестанет работать сразу — вебхуки 1С будут отклоняться, пока новый не вписан на стороне 1С.",
+                      "Eskisi darhol ishlamay qoladi — yangisi 1C tomonda kiritilmaguncha vebhuklar rad etiladi.",
+                    ),
+                    confirmText: t("Выпустить", "Chiqarish"),
+                    danger: true,
+                  });
+                  if (ok) issueSecret.mutate();
+                }}>
+                {t("Выпустить секрет", "Maxfiy kalit chiqarish")}
+              </button>
+            )}
+          </div>
+
+          {/*
+            Что происходит с обменом. Ручка метрик тоже лежала без вызова, а
+            это единственное место, где видно, идёт обмен или встал.
+          */}
+          <div className="p-4 rounded-lg" style={{ background: "var(--color-surface-light, #f6f4f0)" }}>
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <p className="text-xs text-secondary">
+                {t("Обмен с 1С — счётчики", "1C bilan almashinuv — hisoblagichlar")}
+              </p>
+              <button className="neo-btn" style={{ fontSize: "12px", padding: "4px 10px" }}
+                onClick={() => metricsQ.refetch()}>
+                {t("Обновить", "Yangilash")}
+              </button>
+            </div>
+            {metricsQ.isLoading ? (
+              <div className="h-10 bg-surface animate-pulse rounded" />
+            ) : Object.keys(metricsQ.data ?? {}).length === 0 ? (
+              <p className="text-xs text-tertiary">
+                {t("Обмена ещё не было", "Almashinuv hali bo'lmagan")}
+              </p>
+            ) : (
+              <div className="space-y-1">
+                {Object.entries(metricsQ.data ?? {}).map(([name, m]) => (
+                  <div key={name} className="flex items-center justify-between text-xs">
+                    <span className="text-secondary truncate">{name}</span>
+                    <span className="text-primary font-medium tabular-nums">
+                      {m.lastValue} <span className="text-tertiary">({m.count})</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="p-4 rounded-lg" style={{ background: "var(--color-surface-light, #f6f4f0)" }}>
@@ -287,6 +387,7 @@ ${t("Остатки", "Qoldiqlar")}: https://www.warehouse-pro.uz/api/webhooks/1
           </div>
         </div>
       </div>
+      {dialog}
     </div>
   );
 }

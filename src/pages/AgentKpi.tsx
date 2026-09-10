@@ -13,6 +13,7 @@ import { PremiumSelect } from "@/components/PremiumSelect";
 import { colorMix } from "@/lib/color-mix";
 import { CourierKpiView } from "@/components/kpi/CourierKpiView";
 import { CourierDaysChart } from "@/components/kpi/CourierDaysChart";
+import { CommissionLedger } from "@/components/kpi/CommissionLedger";
 
 interface KpiData {
   agentId: number; agentName: string; period: string;
@@ -995,6 +996,14 @@ function SalaryConfig({ t }: { t: (r: string, u: string) => string }) {
           {t("Пересчитать комиссии за месяц", "Oylik komissiyalarni qayta hisoblash")}
         </button>
       </div>
+
+      {/*
+        Ведомость — под кнопкой пересчёта, потому что это её продолжение:
+        посчитали, посмотрели, утвердили, выплатили. Утверждение и было тем
+        звеном, которого не хватало: пересчёт нарочно не трогает утверждённые
+        строки, а поставить это состояние было нечем — и защита не работала.
+      */}
+      <CommissionLedger t={t} />
     </div>
   );
 }
