@@ -172,13 +172,11 @@ export const tenantRouter = createRouter({
     }),
 
   // ── Текущий тенант ─────────────────────────────────────────────────────────
-  current: adminQuery.query(({ ctx }) => ({
-    id:     ctx.tenant.id,
-    slug:   ctx.tenant.slug,
-    name:   ctx.tenant.name,
-    plan:   ctx.tenant.plan,
-    status: ctx.tenant.status,
-  })),
+  /*
+    Ручка «текущая организация» жила здесь и не вызывалась ниоткуда: те же
+    поля приходят вместе с auth.me, которым экраны и пользуются. Второй ответ
+    на тот же вопрос однажды разойдётся с первым.
+  */
 
   // ── Invite user внутри тенанта ─────────────────────────────────────────────
   inviteUser: adminQuery

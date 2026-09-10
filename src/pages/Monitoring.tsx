@@ -17,6 +17,7 @@ import { SystemStatusBanner } from "@/components/monitoring/SystemStatusBanner";
 import { PerformanceCharts } from "@/components/monitoring/PerformanceCharts";
 import { ErrorLogViewer } from "@/components/monitoring/ErrorLogViewer";
 import { RealTimeMetrics } from "@/components/monitoring/RealTimeMetrics";
+import { RawErrorLog } from "@/components/monitoring/RawErrorLog";
 import { buildMetricGrid } from "@/lib/metric-grid";
 
 const REFRESH_INTERVAL = 3_000;
@@ -327,6 +328,9 @@ export default function Monitoring() {
         onSelectError={setSelectedErrorId}
         onPurgeErrors={() => purgeErrorsMutation.mutate()}
       />
+
+      {/* Сырой журнал — для разбора происшествия, когда группы не отвечают. */}
+      <RawErrorLog onSelectError={setSelectedErrorId} />
 
       {/* Metrics */}
       <RealTimeMetrics metrics={data?.metrics ?? {}} />

@@ -81,58 +81,11 @@ export const forecastRouter = createRouter({
       return getReorderRecommendations(tenantId, lookback, leadTime);
     }),
 
-  /** Category-level demand trend */
-  categoryTrend: supervisorQuery
-    .input(z.object({
-      category: z.string(),
-      period: z.enum(["7d", "30d", "90d"]).default("30d"),
-    }))
-    .query(async ({ input, ctx }) => {
-      const db = getDb();
-      const tenantId = ctx.tenant.id;
-      const days = input.period === "7d" ? 7 : input.period === "90d" ? 90 : 30;
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - days);
-
-      const rows = await db.select({
-        date: sql<string>`DATE(${orders.createdAt})`,
-      /*
-        Проданное и выручка — по ДОСТАВЛЕННОМУ количеству, а не по заказанному.
-
-        Строки заказов, проведённых курьером через частичный возврат ДО правки
-        этого пути, хранят количество и сумму как заказанные: курьерский путь
-        писал только deliveredQuantity. Прогноз спроса строился на них — и
-        предлагал закупать то, что магазины вернули. Три отчёта в
-        analytics-router это уже обходили, прогноз не обходил.
-
-        Сейчас путь курьера строку переписывает, но исторические строки в базе
-        остались, и считать по ним надо всё так же.
-      */
-        quantity: sql<string>`COALESCE(SUM(${deliveredQty()}), 0)`,
-        revenue: sql<string>`COALESCE(SUM(${deliveredQty()} * ${orderItems.unitPrice}), 0)`,
-      })
-        .from(orderItems)
-        .innerJoin(orders, eq(orderItems.orderId, orders.id))
-        .innerJoin(products, and(eq(orderItems.productId, products.id), eq(products.tenantId, ctx.tenant.id)))
-        .where(and(
-          eq(orders.tenantId, tenantId), isNull(orders.deletedAt),
-          inArray(orders.status, REVENUE_ORDER_STATUSES),
-          eq(products.category, input.category),
-          gte(orders.createdAt, startDate),
-        ))
-        .groupBy(sql`DATE(${orders.createdAt})`)
-        .orderBy(sql`DATE(${orders.createdAt})`);
-
-      return {
-        category: input.category,
-        period: input.period,
-        data: rows.map(r => ({
-          date: r.date,
-          quantity: Number(r.quantity),
-          revenue: Number(r.revenue),
-        })),
-      };
-    }),
+  /*
+    Тренд ОДНОЙ категории жил здесь и не вызывался ниоткуда. Вопрос, на
+    который он отвечает, на складе не задают: там смотрят по товарам, а
+    разбивку по категориям уже показывает раздел аналитики.
+  */
 
   /** Top products by demand velocity */
   trendingProducts: supervisorQuery

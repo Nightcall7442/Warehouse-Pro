@@ -305,24 +305,11 @@ describe("kpi.agentKpi", () => {
   });
 });
 
-describe("kpi.supervisorKpi", () => {
-  it("returns KPI data for all agents", async () => {
-    const { kpiRouter } = await import("../kpi-router");
-    const caller = kpiRouter.createCaller(makeCtx(1, 1, "supervisor"));
-    const result = await caller.supervisorKpi({ period: "month" }) as any;
-    expect(Array.isArray(result)).toBe(true);
-    expect(result.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("only includes active agents", async () => {
-    usersTable.push({ id: 99, tenantId: 1, name: "Inactive", role: "agent", status: "inactive" });
-    const { kpiRouter } = await import("../kpi-router");
-    const caller = kpiRouter.createCaller(makeCtx(1, 1, "supervisor"));
-    const result = await caller.supervisorKpi({ period: "month" }) as any;
-    expect(result.every((k: any) => k.agentId !== 99)).toBe(true);
-  });
-});
-
+/*
+  Проверки kpi.supervisorKpi убраны вместе с самой ручкой: свод по всем
+  агентам отдаёт agentList, и он же покрыт ниже. Две ручки на один ответ —
+  это две формулы, которые уже расходились.
+*/
 describe("kpi.salary", () => {
   it("calculates salary with commission", async () => {
     const { kpiRouter } = await import("../kpi-router");

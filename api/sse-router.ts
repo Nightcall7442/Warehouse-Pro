@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, authedQuery, superAdminQuery } from "./middleware";
+import { createRouter, authedQuery } from "./middleware";
 import { sseBus } from "./lib/sse";
 
 export const sseRouter = createRouter({
@@ -10,9 +10,12 @@ export const sseRouter = createRouter({
    * любому вошедшему. Теперь роль соответствует замыслу: это платформенная
    * телеметрия, арендатору она ни о чём не говорит и знать её незачем.
    */
-  stats: superAdminQuery.query(() => {
-    return sseBus.getStats();
-  }),
+  /*
+    Счётчик подключений жил здесь отдельной ручкой и не вызывался ниоткуда —
+    те же два числа отдаёт system.status (он зовёт тот же sseBus.getStats), и
+    именно его показывает страница мониторинга. Две ручки на один ответ — это
+    две правды, которые однажды разойдутся.
+  */
 
   /** Догон событий после переподключения — только адресованных этому человеку. */
   recentEvents: authedQuery

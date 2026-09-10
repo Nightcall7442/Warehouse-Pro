@@ -77,10 +77,10 @@ describe("shopRouter", () => {
     expect(shopRouter.districts).toBeDefined();
   });
 
-  it("has debtReport endpoint", () => {
-    expect(shopRouter.debtReport).toBeDefined();
-  });
-
+  /*
+    Проверка debtReport убрана вместе с ручкой: отчёт по долгам отдаёт
+    analytics.debtReport, его и показывает страница отчётов.
+  */
   it("has territories endpoint", () => {
     expect(shopRouter.territories).toBeDefined();
   });

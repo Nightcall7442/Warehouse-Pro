@@ -63,19 +63,17 @@ export const kpiRouter = createRouter({
         calculateCourierStats(db, courierId, ctx.tenant.id, periodStart, periodEnd));
     }),
 
-  supervisorKpi: supervisorQuery
-    .input(z.object({
-      period: z.enum(["week", "month", "quarter"]).default("month"),
-    }).optional())
-    .query(async ({ input, ctx }) => {
-      const db = getDb();
-      const period = input?.period ?? "month";
-      const { periodStart, periodEnd } = getPeriod(period);
-      const cacheKey = `kpi:supervisor:${ctx.tenant.id}:${period}`;
+  /*
+    Свод KPI по всем агентам жил здесь второй ручкой и не вызывался ниоткуда.
 
-      return withCache(cacheKey, CacheTTL.kpis, () =>
-        calculateAllAgentsKpi(db, ctx.tenant.id, periodStart, periodEnd));
-    }),
+    Отвечает на него agentList, и отвечает ЛУЧШЕ: он собирает показатели
+    групповыми запросами, а этот звал расчёт по каждому агенту отдельно —
+    на два десятка человек это два десятка наборов запросов вместо шести.
+
+    Хуже того, два пути к одному числу — это две формулы, которые уже
+    расходились: балл в списке считался без штрафа за фрод, пока это не
+    свели в kpiScoreOf.
+  */
 
   /*
     managementQuery, а не supervisorQuery: сюда добавлен оператор.

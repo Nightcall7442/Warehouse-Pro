@@ -6,9 +6,10 @@ import { ru as dateRu } from "date-fns/locale";
 import {
   Shield, Filter, ChevronLeft, ChevronRight,
   User, Package, Settings, AlertTriangle, Key,
-  RefreshCw, ArrowUpRight, ArrowDownRight, Minus,
+  RefreshCw, ArrowUpRight, ArrowDownRight, Minus, Download,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { notify } from "@/lib/toast";
 
 // ── Premium design tokens ─────────────────────────────────────────────────────
 const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
@@ -155,6 +156,50 @@ export default function AuditLog() {
 
   const totalPages = data ? Math.ceil(data.total / limit) : 1;
 
+  /*
+    Выгрузка аудита.
+
+    Ручка была написана и не вызывалась ниоткуда, а нужна она ровно в том
+    случае, ради которого журнал и ведут: спор о том, кто что сделал. На экране
+    видно полсотни записей за раз, а разбирают такое по бумаге и целиком.
+
+    CSV собирает СЕРВЕР — здесь его только сохраняют. Пересобирать строку на
+    клиенте значило бы завести второй формат того же журнала, и однажды они
+    разошлись бы: экранный и настоящий.
+
+    Ходит она отдельным запросом, а не подпиской: выгрузка тянет до десяти
+    тысяч строк, и держать их в памяти страницы незачем.
+  */
+  const [exporting, setExporting] = useState(false);
+  const utils = trpc.useUtils();
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const res = await utils.audit.exportCsv.fetch({ action: actionFilter || undefined });
+      if (!res.rows) {
+        notify.info(t("Нечего выгружать", "Yuklab olish uchun hech narsa yo'q"));
+        return;
+      }
+      /*
+        BOM в начале файла — не украшение: без него Excel читает кириллицу в
+        UTF-8 как набор знаков вопроса, и файл выглядит испорченным.
+      */
+      const blob = new Blob(["\uFEFF" + res.csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `audit-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      notify.success(t(`Выгружено записей: ${res.rows}`, `Yozuvlar yuklandi: ${res.rows}`));
+    } catch (e) {
+      notify.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
       {/* Header */}
@@ -168,6 +213,7 @@ export default function AuditLog() {
             {t("История чувствительных действий", "Hassas harakatlar tarixi")}
           </p>
         </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
         <button
           onClick={() => refetch()}
           disabled={isRefetching}
@@ -182,6 +228,21 @@ export default function AuditLog() {
           <RefreshCw size={14} style={{ animation: isRefetching ? "spin 1s linear infinite" : undefined }} />
           {t("Обновить", "Yangilash")}
         </button>
+        <button
+          onClick={handleExport}
+          disabled={exporting}
+          style={{
+            display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
+            fontSize: "13px", fontWeight: 500, fontFamily: F.body, borderRadius: "10px",
+            border: `1px solid ${COLORS.border}`, cursor: "pointer",
+            background: COLORS.surface, color: COLORS.textSecondary,
+            opacity: exporting ? 0.6 : 1,
+          }}
+        >
+          <Download size={14} />
+          {t("Выгрузить CSV", "CSV yuklab olish")}
+        </button>
+        </div>
       </div>
 
       {/* Filters */}

@@ -41,15 +41,11 @@ export const userRouter = createRouter({
       return { data, total: Number(countResult[0]?.count ?? 0), page, pageSize };
     }),
 
-  getById: adminQuery
-    .input(z.object({ id: z.number() }))
-    .query(async ({ input, ctx }) => {
-      const [user] = await getDb().select({ id: users.id, name: users.name, email: users.email,
-        phone: users.phone, role: users.role, status: users.status, createdAt: users.createdAt,
-        lastSignInAt: users.lastSignInAt, avatar: users.avatar, tenantId: users.tenantId })
-        .from(users).where(and(eq(users.id, input.id), eq(users.tenantId, ctx.tenant.id))).limit(1);
-      return user ?? null;
-    }),
+  /*
+    Чтение одного сотрудника по номеру не вызывалось ниоткуда: список
+    user.list отдаёт те же поля, и экраны берут человека из него. Держать
+    вторую выборку тех же колонок значит чинить права доступа дважды.
+  */
 
   me: authedQuery.query(({ ctx }) => ctx.user),
 

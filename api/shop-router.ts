@@ -652,16 +652,8 @@ export const shopRouter = createRouter({
       };
     }),
 
-  // ── Debt Report ─────────────────────────────────────────────────────────────
-  debtReport: supervisorQuery.query(async ({ ctx }) => {
-    return getDb().select({
-      shopName: shops.name,
-      city: shops.city,
-      debt: shops.debt,
-      agentName: users.name,
-    })
-      .from(shops).leftJoin(users, and(eq(shops.agentId, users.id), eq(users.tenantId, ctx.tenant.id)))
-      .where(and(eq(shops.tenantId, ctx.tenant.id), sql`${shops.debt} != 0`))
-      .orderBy(desc(sql`CAST(${shops.debt} AS DECIMAL(15,2))`));
-  }),
-});
+  /*
+    Отчёт по долгам магазинов жил здесь второй ручкой и не вызывался
+    ниоткуда: страница отчётов показывает analytics.debtReport, который
+    отвечает на тот же вопрос.
+  */});

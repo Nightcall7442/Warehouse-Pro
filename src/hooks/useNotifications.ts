@@ -13,6 +13,9 @@ export function useNotifications() {
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const utilsRef = useRef(utils);
+  /* Метка последнего увиденного события — с неё и продолжаем после обрыва. */
+  const lastEventAtRef = useRef(0);
+  const wasConnectedRef = useRef(false);
 
   useEffect(() => {
     utilsRef.current = utils;
@@ -30,6 +33,31 @@ export function useNotifications() {
     }
   }, [countData?.count]);
 
+  /*
+    Одна обработка события на два источника.
+
+    Событие приходит либо живым потоком, либо догоном после обрыва. Разводить
+    это в два разных разбора значило бы чинить найденное здесь дважды — а
+    расходятся такие копии всегда.
+  */
+  const applyEvent = useCallback((data: { type?: string; timestamp?: number; data?: { action?: string } }) => {
+    if (typeof data.timestamp === "number" && data.timestamp > lastEventAtRef.current) {
+      lastEventAtRef.current = data.timestamp;
+    }
+    if (data.type !== "notification.new") return;
+
+    if (data.data?.action === "read") {
+      // Single notification marked read — decrement counter
+      setUnreadCount((prev) => Math.max(0, prev - 1));
+    } else if (data.data?.action === "read_all") {
+      setUnreadCount(0);
+    } else {
+      // New notification — increment counter and refresh list
+      setUnreadCount((prev) => prev + 1);
+      utilsRef.current.notification.list.invalidate();
+    }
+  }, []);
+
   const connect = useCallback(() => {
     if (eventSourceRef.current) return;
 
@@ -38,23 +66,37 @@ export function useNotifications() {
 
     es.onopen = () => {
       setConnected(true);
+
+      /*
+        Догон пропущенного.
+
+        Обрыв связи и пять секунд до переподключения — это дыра, в которую
+        уходили уведомления целиком: счётчик не рос, список не обновлялся, и
+        человек узнавал о заказе, только зайдя на страницу руками. Метро,
+        лифт, переключение с Wi-Fi на мобильную сеть — обрывы обычное дело.
+
+        Ручка sse.recentEvents была написана ровно для этого и не вызывалась
+        ниоткуда: сервер помнил недавние события, а спросить их было некому.
+
+        Первое подключение догонять нечего: обрыва не было, а история сервера
+        общая на организацию — новый вход показал бы чужие события как
+        свежие.
+      */
+      if (!wasConnectedRef.current) {
+        wasConnectedRef.current = true;
+        return;
+      }
+      utilsRef.current.sse.recentEvents
+        .fetch({ since: lastEventAtRef.current })
+        .then((missed) => { for (const e of missed) applyEvent(e); })
+        // Догон — дело поправимое: не вышло, значит следующий обрыв
+        // попробует снова. Ронять поток из-за него нельзя.
+        .catch(() => {});
     };
 
     es.addEventListener("message", (event) => {
       try {
-        const data = JSON.parse(event.data);
-        if (data.type === "notification.new") {
-          if (data.data?.action === "read") {
-            // Single notification marked read — decrement counter
-            setUnreadCount((prev) => Math.max(0, prev - 1));
-          } else if (data.data?.action === "read_all") {
-            setUnreadCount(0);
-          } else {
-            // New notification — increment counter and refresh list
-            setUnreadCount((prev) => prev + 1);
-            utilsRef.current.notification.list.invalidate();
-          }
-        }
+        applyEvent(JSON.parse(event.data));
       } catch {
         // Ignore parse errors (heartbeat, etc.)
       }
@@ -70,7 +112,7 @@ export function useNotifications() {
         connect();
       }, 5000);
     };
-  }, []);
+  }, [applyEvent]);
 
   useEffect(() => {
     connect();

@@ -284,17 +284,12 @@ export const systemRouter = createRouter({
   }),
 
   /** Quick action: DB health check */
-  dbHealth: superAdminQuery.query(async () => {
-    try {
-      const start = Date.now();
-      const db = getDb();
-      await db.execute(sql`SELECT 1`);
-      const ms = Date.now() - start;
-      return { healthy: true, responseMs: ms };
-    } catch (e) {
-      return { healthy: false, error: String(e) };
-    }
-  }),
+  /*
+    Отдельная проверка живости базы жила здесь и не вызывалась ниоткуда: тот
+    же отклик — и вдобавок число соединений — отдаёт system.status, а страница
+    мониторинга показывает именно его. Две ручки на один ответ однажды
+    разойдутся, и человек не будет знать, какой верить.
+  */
 });
 
 function formatUptime(seconds: number): string {

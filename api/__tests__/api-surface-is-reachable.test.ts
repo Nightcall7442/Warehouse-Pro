@@ -189,8 +189,26 @@ const MOBILE_ONLY = new Set([
  *     секрет самому и вписать руками в двух местах;
  *   user.logoutAll — выход на всех устройствах: чужая сессия живёт своим
  *     ключом и переживает смену пароля.
+ *
+ * 23 → 12. Подключено: sse.recentEvents (догон пропущенного после обрыва —
+ * уведомления, пришедшие в те пять секунд, терялись целиком), system.errors
+ * (сырой журнал: группы не отвечают на вопрос «что происходило в 14:32»),
+ * audit.exportCsv (журнал ведут ради спора, а спорят по бумаге).
+ *
+ * И УБРАНО семь ручек, отвечавших на вопрос, уже отвечённый другой ручкой:
+ *   system.dbHealth, sse.stats     — то же отдаёт system.status;
+ *   tenant.current                 — то же приходит с auth.me;
+ *   user.getById                   — те же поля есть в user.list;
+ *   kpi.supervisorKpi              — то же отдаёт agentList, и групповыми
+ *                                    запросами вместо расчёта на каждого;
+ *   reports.getAgentPerformance    — analytics.agentPerformance и kpi.agentList;
+ *   shop.debtReport                — analytics.debtReport;
+ *   forecast.categoryTrend         — вопрос, которого на складе не задают.
+ *
+ * Две ручки на один ответ — это две правды, которые однажды разойдутся: одну
+ * починят, вторую забудут. В этом продукте так уже вышло трижды.
  */
-const BASELINE = 23;
+const BASELINE = 12;
 
 describe("вся поверхность API кем-то вызывается", () => {
   const procedures = allProcedures();

@@ -461,17 +461,10 @@ describe("tenant.register", () => {
   });
 });
 
-describe("tenant.current", () => {
-  it("returns current tenant info", async () => {
-    const { tenantRouter } = await import("../tenant-router");
-    const caller = tenantRouter.createCaller(buildCtx());
-    const result = await caller.current();
-    expect(result.id).toBe(1);
-    expect(result.slug).toBe("acme");
-    expect(result.plan).toBe("trial");
-  });
-});
-
+/*
+  Проверка tenant.current убрана вместе с ручкой: те же поля приходят с
+  auth.me, которым экраны и пользуются.
+*/
 describe("tenant.inviteUser", () => {
   it("creates a new user in the tenant", async () => {
     const { tenantRouter } = await import("../tenant-router");
