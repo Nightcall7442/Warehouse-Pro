@@ -3,6 +3,7 @@ import { useCan } from "@/hooks/useCan";
 import { normalizeDecimalInput } from "@/lib/decimal-input";
 import { FIELD_EDITABLE_ORDER_STATUSES } from "@contracts/constants";
 import { OrderItemsEditor } from "@/components/orders/OrderItemsEditor";
+import { OrderComments } from "@/components/orders/OrderComments";
 import { discountMoneyToPct } from "@/lib/order-discount";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
@@ -734,6 +735,21 @@ export default function OrderDetail() {
           </div>
         </div>
       )}
+
+      {/*
+        Переписка по заказу.
+
+        В вебе она стояла ТОЛЬКО в операторской панели заказа
+        (OrderSlideOver), которая открывается из списка оператора. Агент из
+        своего списка попадает сюда, в карточку, — и переписки о собственном
+        заказе не видел и ответить не мог, хотя обе ручки ему открыты.
+
+        Ровно та же дыра, что была на телефоне: экран есть, дойти нельзя.
+
+        Кому что видно, решает сервер: assertOrderVisible не даёт ни читать,
+        ни писать в чужой заказ.
+      */}
+      {!order.deletedAt && <OrderComments orderId={order.id} />}
 
       {/* ── Courier Assignment ── */}
       {isOperatorOrCeo && (order.status === "new" || order.status === "processing") && (
