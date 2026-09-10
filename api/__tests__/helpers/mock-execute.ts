@@ -110,7 +110,13 @@ export function createExecuteMock<T extends StockRow>(stockTable: T[], options: 
     */
     if (fullSql.includes("stock_batches")) {
       if (/^\s*SELECT/i.test(fullSql)) return Promise.resolve([[], []]);
-      if (/^\s*(?:UPDATE|INSERT)/i.test(fullSql)) return Promise.resolve([{ affectedRows: 0 }]);
+      /*
+        DELETE здесь наравне с UPDATE: опустевшая партия убирается из таблицы,
+        а не остаётся строкой с нулём (см. consumeBatches). На стенде партий
+        нет вовсе, поэтому удалять нечего — но форма ответа обязана быть той
+        же, иначе дверь спотыкается на разборе результата.
+      */
+      if (/^\s*(?:UPDATE|INSERT|DELETE)/i.test(fullSql)) return Promise.resolve([{ affectedRows: 0 }]);
       throw new Error(
         "Подделка склада не узнала запрос к stock_batches:\n" +
         `  ${fullSql.replace(/\s+/g, " ").trim().slice(0, 200)}\n` +

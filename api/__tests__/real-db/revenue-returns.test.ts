@@ -17,7 +17,16 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import { eq } from "drizzle-orm";
 import * as schema from "@db/schema";
-import { returnsInPeriod, totalReturned } from "../../services/revenue-returns";
+/*
+  NOTHING_RETURNED — то же «ничего не вычлось», что и в самой службе.
+
+  Здесь стояло `{ amount: 0, cost: 0 }` вписанное руками, и когда к величине
+  добавился счёт документов (он нужен доле возвратов в KPI: числитель и
+  знаменатель обязаны жить в одном наборе строк), шесть проверок покраснели
+  все разом. Общая величина не даст этому повториться: добавится поле — оно
+  придёт сюда само.
+*/
+import { returnsInPeriod, totalReturned, NOTHING_RETURNED } from "../../services/revenue-returns";
 import {
   hasRealDb, connectRealDb, closeRealDb, truncateAll, seed,
   type ServiceDb, type Seeded,
@@ -91,7 +100,7 @@ describeIf("отбор возвратов, уменьшающих выручку
     await completedReturn(cancelled, "300.00");
 
     const out = totalReturned(await returnsInPeriod(db, s.tenantId, FROM, TO));
-    expect(out).toEqual({ amount: 0, cost: 0 });
+    expect(out).toEqual(NOTHING_RETURNED);
   });
 
   it("возврат по удалённому заказу не вычитается", async () => {
@@ -99,7 +108,7 @@ describeIf("отбор возвратов, уменьшающих выручку
     await completedReturn(removed, "300.00");
 
     const out = totalReturned(await returnsInPeriod(db, s.tenantId, FROM, TO));
-    expect(out).toEqual({ amount: 0, cost: 0 });
+    expect(out).toEqual(NOTHING_RETURNED);
   });
 
   it("непроведённый возврат не вычитается", async () => {
@@ -111,7 +120,7 @@ describeIf("отбор возвратов, уменьшающих выручку
     expect(Number(row.insertId)).toBeGreaterThan(0);
 
     const out = totalReturned(await returnsInPeriod(db, s.tenantId, FROM, TO));
-    expect(out).toEqual({ amount: 0, cost: 0 });
+    expect(out).toEqual(NOTHING_RETURNED);
   });
 
   it("возврат без заказа выручку не уменьшает", async () => {
@@ -119,7 +128,7 @@ describeIf("отбор возвратов, уменьшающих выручку
     await completedReturn(null, "200.00");
 
     const out = totalReturned(await returnsInPeriod(db, s.tenantId, FROM, TO));
-    expect(out).toEqual({ amount: 0, cost: 0 });
+    expect(out).toEqual(NOTHING_RETURNED);
   });
 
   it("возврат за пределами периода не вычитается", async () => {
@@ -127,7 +136,7 @@ describeIf("отбор возвратов, уменьшающих выручку
     await completedReturn(delivered, "300.00");
 
     const out = totalReturned(await returnsInPeriod(db, s.tenantId, "2000-01-01", "2000-12-31"));
-    expect(out).toEqual({ amount: 0, cost: 0 });
+    expect(out).toEqual(NOTHING_RETURNED);
   });
 
   it("чужая организация не подмешивается", async () => {
@@ -145,7 +154,7 @@ describeIf("отбор возвратов, уменьшающих выручку
     } as never);
 
     const out = totalReturned(await returnsInPeriod(db, s.tenantId, FROM, TO));
-    expect(out).toEqual({ amount: 0, cost: 0 });
+    expect(out).toEqual(NOTHING_RETURNED);
   });
 
   it("возврат части заказа вычитает только эту часть", async () => {
