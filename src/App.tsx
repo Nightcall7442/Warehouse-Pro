@@ -57,6 +57,7 @@ const Notifications        = lazyWithRecovery(() => import("./pages/Notification
 const Monitoring           = lazyWithRecovery(() => import("./pages/Monitoring"));
 const Support              = lazyWithRecovery(() => import("./pages/Support"));
 const WarehouseReports     = lazyWithRecovery(() => import("./pages/WarehouseReports"));
+const Returns              = lazyWithRecovery(() => import("./pages/Returns"));
 const AuditLog             = lazyWithRecovery(() => import("./pages/AuditLog"));
 const MerchandiserVisit    = lazyWithRecovery(() => import("./pages/MerchandiserVisit"));
 
@@ -231,6 +232,11 @@ export default function App() {
           <Route path="/super-admin" element={<RoleGuard roles={["superadmin"]}><SuperAdmin /></RoleGuard>} />
           <Route path="/monitoring" element={<RoleGuard roles={["superadmin"]}><Monitoring /></RoleGuard>} />
           <Route path="/warehouse-reports" element={<RoleGuard roles={["ceo","operator"]}><WarehouseReports /></RoleGuard>} />
+          {/*
+            Возвраты разбирает офис: агент их только заводит из мобилки.
+            Роли те же, что у ручки returns.updateStatus (operatorQuery).
+          */}
+          <Route path="/returns" element={<RoleGuard roles={["ceo","operator"]}><Returns /></RoleGuard>} />
           <Route path="/audit-log" element={<RoleGuard roles={["ceo","superadmin"]}><AuditLog /></RoleGuard>} />
 
           {/* CEO only */}

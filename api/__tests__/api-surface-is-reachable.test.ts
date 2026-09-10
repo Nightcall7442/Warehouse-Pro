@@ -101,7 +101,9 @@ const MOBILE_ONLY = new Set([
   "order.cancel", "order.myOrders",
   "priceList.getById", "priceList.getPrice", "priceList.list",
   "product.findByBarcode",
-  "returns.create", "returns.getById", "returns.list", "returns.summary",
+  // returns.list / getById / summary ушли отсюда: их зовёт и веб — страница
+  // возвратов, которой раньше не было вовсе.
+  "returns.create",
   "salesTarget.myQuota",
   "settings.brandingAuth",
   "upload.file",
@@ -119,8 +121,15 @@ const MOBILE_ONLY = new Set([
  * 48 → 47: warehouseReports.productBatches подключён к карточке товара. Он
  * появился вместе с учётом партий и был мёртв ровно один вечер — ровно эта
  * проверка его и нашла, в тот же день, когда была написана.
+ *
+ * 47 → 46: returns.updateStatus. Самая дорогая из мёртвых: это ЕДИНСТВЕННЫЙ
+ * способ вывести возврат из «на рассмотрении», и не звал его никто — страницы
+ * возвратов в вебе не существовало, мобилка их только заводит. То есть
+ * состояние «проведён» было недостижимо через продукт, а на него опираются
+ * долг магазина, прибыль, комиссия, доля возвратов в KPI и рейтинг магазина:
+ * пять расчётов считали правильно то, чего не бывает.
  */
-const BASELINE = 47;
+const BASELINE = 46;
 
 describe("вся поверхность API кем-то вызывается", () => {
   const procedures = allProcedures();

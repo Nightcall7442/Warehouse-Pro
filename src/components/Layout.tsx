@@ -53,6 +53,7 @@ const PAGE_META: Record<string, { title: PageTitle; parent?: PageTitle; parentPa
   "/orders":            { title: { ru: "Заказы",        uz: "Buyurtmalar" } },
   "/orders/new":        { title: { ru: "Новый заказ",   uz: "Yangi buyurtma" }, parent: { ru: "Заказы", uz: "Buyurtmalar" }, parentPath: "/orders" },
   "/warehouse":         { title: { ru: "Склад",         uz: "Ombor" } },
+  "/returns": { title: { ru: "Возвраты", uz: "Qaytarishlar" } },
   "/warehouse-reports": { title: { ru: "Отчёты склада", uz: "Ombor hisobotlari" } },
   "/audit-log":         { title: { ru: "Аудит-лог",     uz: "Audit jurnali" } },
   "/arrivals":          { title: { ru: "Приходы",       uz: "Kirim" } },

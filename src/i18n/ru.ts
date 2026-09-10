@@ -8,6 +8,7 @@ export const ru = {
     products:    "Товары",
     orders:      "Заказы",
     warehouse:   "Склад",
+    returns:     "Возвраты",
     warehouseReports: "Отчёты склада",
     auditLog:    "Аудит-лог",
     arrivals:    "Приходы",

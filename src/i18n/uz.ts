@@ -7,6 +7,7 @@ export const uz = {
     products:    "Mahsulotlar",
     orders:      "Buyurtmalar",
     warehouse:   "Ombor",
+    returns:     "Qaytarishlar",
     warehouseReports: "Ombor hisobotlari",
     auditLog:    "Audit jurnali",
     arrivals:    "Kirim",
