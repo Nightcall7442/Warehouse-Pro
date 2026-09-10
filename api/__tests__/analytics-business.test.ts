@@ -386,27 +386,6 @@ describe("analytics.topProducts", () => {
   });
 });
 
-describe("analytics.cogsSummary", () => {
-  it("calculates total revenue, cost, and discount", async () => {
-    const { analyticsRouter } = await import("../analytics-router");
-    const caller = analyticsRouter.createCaller(buildCeoCtx());
-    const result = await caller.cogsSummary({});
-    expect(result).toBeDefined();
-    expect(Number(result.totalRevenue)).toBeGreaterThanOrEqual(0);
-    expect(Number(result.totalCost)).toBeGreaterThanOrEqual(0);
-    expect(Number(result.totalDiscount)).toBeGreaterThanOrEqual(0);
-  });
-
-  it("returns zeros when no completed orders", async () => {
-    ordersTable = [];
-    const { analyticsRouter } = await import("../analytics-router");
-    const caller = analyticsRouter.createCaller(buildCeoCtx());
-    const result = await caller.cogsSummary({});
-    expect(Number(result.totalRevenue)).toBe(0);
-    expect(Number(result.totalCost)).toBe(0);
-  });
-});
-
 describe("analytics.debtReport", () => {
   it("returns only shops with positive debt", async () => {
     const { analyticsRouter } = await import("../analytics-router");

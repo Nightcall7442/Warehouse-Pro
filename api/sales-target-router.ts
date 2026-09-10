@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { monthRange } from "./lib/period";
-import { createRouter, operatorQuery, authedQuery, supervisorQuery, managementQuery } from "./middleware";
+import { createRouter, authedQuery, supervisorQuery, managementQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { salesTargets, users } from "@db/schema";
 import { eq, and, inArray, sql, desc } from "drizzle-orm";
@@ -72,11 +72,11 @@ export const salesTargetRouter = createRouter({
       /*
         Выполнение считается сейчас, а не читается из колонок actual_*.
 
-        Их заполняет только recalculateActuals, а зовёт её ровно никто: ручка
-        есть, кнопки нет ни в вебе, ни в мобильном. То есть в колонках стояли
-        умолчания — нули. Агент у себя видел «выполнено на 80 %» (myQuota
-        считает вживую), начальник в тот же час видел ноль, и ни один экран не
-        сообщал, что числа разной свежести.
+        Заполнять их было некому: единственная ручка, которая это делала, не
+        вызывалась ниоткуда, и её убрали. То есть в колонках стояли умолчания —
+        нули. Агент у себя видел «выполнено на 80 %» (myQuota считает вживую),
+        начальник в тот же час видел ноль, и ни один экран не сообщал, что
+        числа разной свежести.
 
         Имена полей прежние: мобильное приложение читает их по именам.
       */
@@ -205,52 +205,17 @@ export const salesTargetRouter = createRouter({
     }),
 
   // Recalculate actual amounts from orders + visits
-  recalculateActuals: operatorQuery
-    .input(z.object({
-      periodType: z.enum(["daily", "weekly", "monthly"]),
-      periodStart: z.string(),
-      periodEnd: z.string(),
-    }))
-    .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+  /*
+    Здесь была salesTarget.recalculateActuals — она переписывала снимок
+    выполнения в колонках `actual_*`. Её не звал никто, и читать эти колонки
+    тоже перестали: list, summary и myQuota считают выполнение вживую одним
+    общим счётом (services/sales-target-actuals.ts).
 
-      const targets = await db.select()
-        .from(salesTargets)
-        .where(and(
-          eq(salesTargets.tenantId, ctx.tenant.id),
-          eq(salesTargets.periodType, input.periodType),
-          sql`${salesTargets.periodStart} >= ${input.periodStart}`,
-          sql`${salesTargets.periodEnd} <= ${input.periodEnd}`,
-        ));
-
-      /*
-        Тот же счёт, что и у экранов, — и это главное здесь.
-
-        Раньше эта ручка считала по-своему: два запроса на каждый план, свои
-        границы периода, свой разбор визитов. Экраны читали её колонки, а агент
-        видел третье число, посчитанное в myQuota. Расхождение между тремя
-        расчётами одного и того же нельзя ни объяснить, ни проверить.
-
-        Снимок в колонках больше никем не читается: list и summary считают
-        вживую. Он остаётся как след «на какой момент сходилось» и обновляется
-        одним и тем же счётом — иначе рано или поздно его кто-нибудь прочтёт и
-        получит своё, четвёртое число.
-      */
-      const actuals = await actualsForTargets(db, ctx.tenant.id, targets.map(t => t.id));
-
-      for (const target of targets) {
-        const a = actuals.get(target.id);
-        await db.update(salesTargets)
-          .set({
-            actualAmount: (a?.revenue ?? 0).toFixed(2),
-            actualOrderCount: a?.orderCount ?? 0,
-            actualVisitPct: (a?.visitPct ?? 0).toFixed(2),
-          })
-          .where(eq(salesTargets.id, target.id));
-      }
-
-      return { success: true, updated: targets.length };
-    }),
+    Снимок оставался «следом, на какой момент сходилось». След, который никто
+    не пишет и никто не читает, — это просто устаревающие числа в базе, и
+    первый, кто их прочтёт, получит своё, четвёртое значение. Ровно из-за
+    этого расхождения счёт и свели в одно место.
+  */
 
   /*
     Подсказка норм по трёхмесячной истории.

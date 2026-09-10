@@ -131,33 +131,16 @@ export const analyticsRouter = createRouter({
         .where(and(...conditions)).groupBy(products.id).orderBy(desc(sql`SUM(${deliveredQty()} * ${orderItems.unitPrice})`)).limit(20);
     }),
 
-  cogsSummary: financeQuery
-    .input(z.object({ dateFrom: z.string().optional(), dateTo: z.string().optional() }).optional())
-    .query(async ({ input, ctx }) => {
-      const conditions = revenueOrderConditions(ctx.tenant.id);
-      if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
-      if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`);
+  /*
+    Здесь была analytics.cogsSummary — выручка, себестоимость и скидки за
+    период одним числом каждая. Её никто не звал, и звать её было опасно: те
+    же величины отдаёт pnl ниже, но У НЕЁ вычтены проведённые возвраты, а
+    здесь — нет. Два ответа на один вопрос, и меньший из них правильный.
 
-      // P0-10 FIX: Use separate queries to avoid fan-out from LEFT JOIN order_items
-      const [revenueRow] = await getDb().select({
-        totalRevenue: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
-        totalDiscount: sql<string>`COALESCE(SUM(${orders.discount}), 0)`,
-      }).from(orders).where(and(...conditions));
-
-      const [costRow] = await getDb().select({
-        totalCost: sql<string>`COALESCE(SUM(${deliveredQty()} * ${orderItems.costPrice}), 0)`,
-      })
-        .from(orders)
-        .leftJoin(orderItems, eq(orderItems.orderId, orders.id))
-        .leftJoin(products, and(eq(orderItems.productId, products.id), eq(products.tenantId, ctx.tenant.id)))
-        .where(and(...conditions));
-
-      return {
-        totalRevenue: revenueRow?.totalRevenue ?? "0",
-        totalCost: costRow?.totalCost ?? "0",
-        totalDiscount: revenueRow?.totalDiscount ?? "0",
-      };
-    }),
+    Так уже было со скрытыми заказами: одна цифра на экране считала по ним,
+    другая нет. Удалено, а не исправлено: правильный ответ уже есть, и второй
+    источник той же правды рано или поздно снова с ней разойдётся.
+  */
 
   // ── Per-Shop Revenue Trend ──────────────────────────────────────────────────
   shopRevenueTrend: reportsQuery
@@ -446,7 +429,7 @@ export const analyticsRouter = createRouter({
       };
 
       // Помесячный ряд. Выручка и себестоимость берутся ДВУМЯ запросами и
-      // сшиваются по месяцу в JS — тем же приёмом, что и в cogsSummary выше.
+      // сшиваются по месяцу в JS.
       //
       // Одним запросом было нельзя: присоединение order_items размножает строку
       // заказа по числу позиций, и SUM(orders.total) поверх такого набора

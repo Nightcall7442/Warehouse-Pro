@@ -16,6 +16,7 @@ import { CourierDaysChart } from "@/components/kpi/CourierDaysChart";
 import { CommissionLedger } from "@/components/kpi/CommissionLedger";
 import { ProductRates } from "@/components/kpi/ProductRates";
 import { MyPayouts } from "@/components/kpi/MyPayouts";
+import { GamificationCard } from "@/components/GamificationCard";
 
 interface KpiData {
   agentId: number; agentName: string; period: string;
@@ -327,6 +328,16 @@ function AgentView({ kpi, salary, fmt, t, lang }: { kpi: KpiData; salary?: Salar
         </div>
       )}
 
+      {/*
+        Как я на фоне остальных.
+
+        Свой балл и свою выручку агент видит выше, но «много это или мало» из
+        них не следует: 4 000 000 за неделю — первое место в одной организации
+        и последнее в другой. Карточка и ручка под ней были написаны целиком и
+        не показывались нигде.
+      */}
+      <TeamStanding />
+
       {/* Salary */}
       {salary && <SalarySection salary={salary} fmt={fmt} t={t} />}
 
@@ -363,6 +374,19 @@ function AgentView({ kpi, salary, fmt, t, lang }: { kpi: KpiData; salary?: Salar
       )}
     </>
   );
+}
+
+/**
+ * Недельный список команды — только когда в ней есть с кем себя сравнить.
+ *
+ * У агента-одиночки список из одной строки сообщает «вы первый из одного», а
+ * достижения без соперников превращаются в счётчик собственных заказов,
+ * который стоит строкой выше. Поэтому блока просто нет.
+ */
+function TeamStanding() {
+  const { data } = trpc.agent.gamification.useQuery();
+  if (!data || data.leaderboard.length < 2) return null;
+  return <GamificationCard data={data} />;
 }
 
 // ── Salary Section ─────────────────────────────────────────────────────────────

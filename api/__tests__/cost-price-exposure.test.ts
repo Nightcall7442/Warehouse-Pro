@@ -32,7 +32,12 @@ describe("cost price and margin exposure", () => {
   describe("finance procedures are CEO-only", () => {
     const src = api("analytics-router.ts");
 
-    it.each(["cogsByProduct", "cogsSummary", "pnl", "pnlByPaymentMethod"])(
+    /*
+      cogsSummary ушла из списка вместе с самой ручкой: те же величины отдаёт
+      pnl, но у неё вычтены проведённые возвраты, а у cogsSummary не были —
+      два ответа на один вопрос, и меньший из них правильный.
+    */
+    it.each(["cogsByProduct", "pnl", "pnlByPaymentMethod"])(
       "%s runs under financeQuery",
       (name) => {
         expect(procedure(src, name)).toMatch(new RegExp(`^\\s{2}${name}:\\s*financeQuery`));

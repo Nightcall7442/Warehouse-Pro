@@ -4,7 +4,7 @@ import { format } from "date-fns";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { useConfirm } from "@/components/ConfirmDialog";
-import { ArrowLeft, Users, ShoppingCart, Package, Store, Shield, Lock, BarChart3, Zap, Calendar, Power, Plus, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Users, ShoppingCart, Package, Store, Shield, Lock, BarChart3, Zap, Calendar, Power, Plus, ShieldCheck, Eraser } from "lucide-react";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { labelled, ROLE_LABEL } from "@/lib/entity-labels";
 import { EXTRA_PRICES_UZS } from "@contracts/constants";
@@ -42,6 +42,10 @@ export function TenantDetail({ tenantId, onBack }: TenantDetailProps) {
     «Сохранить» ничего не удваивает.
   */
   const [showExtra, setShowExtra] = useState(false);
+  const [showPurge, setShowPurge] = useState(false);
+  // 90 дней — то же умолчание, что и на сервере: поле открывается с ним, а не
+  // пустым, чтобы никто не убрал журнал за неделю по недосмотру.
+  const [purgeDays, setPurgeDays] = useState(90);
   const [extraUsers, setExtraUsers] = useState(0);
   const [extraProducts, setExtraProducts] = useState(0);
 
@@ -52,6 +56,27 @@ export function TenantDetail({ tenantId, onBack }: TenantDetailProps) {
 
   const extendTrial = trpc.tenant.extendTrial.useMutation({ onSuccess: (r) => { invalidate(); notify.success(`Trial продлён до ${format(new Date(r.trialEndsAt), "dd.MM.yyyy")}`); setShowExt(false); }, onError: (e) => notify.error(e.message) });
   const resetPassword = trpc.tenant.resetOwnerPassword.useMutation({ onSuccess: () => { notify.success("Пароль сброшен"); setResetPwd(null); setNewPwd(""); }, onError: (e) => notify.error(e.message) });
+
+  /*
+    Уборка журнала действий.
+
+    Журнал только растёт: у уведомлений ночная уборка есть, у него — не было
+    ничего. Пишется он на каждое заметное действие каждого сотрудника, и через
+    год у активной организации это самая большая таблица в базе после заказов.
+
+    Ручка была написана и не вызывалась ниоткуда, то есть уборки не
+    существовало.
+
+    Ночной работой это не сделано намеренно: журнал ведут ради спора, и решение
+    «этих записей больше нет» принимает человек, а не расписание. Поэтому здесь
+    руками, с явным сроком и подтверждением.
+  */
+  const purgeAudit = trpc.audit.purge.useMutation({
+    onSuccess: (r) => notify.success(r.deleted > 0
+      ? `Удалено записей: ${r.deleted}`
+      : `Записей старше ${r.retentionDays} дней нет`),
+    onError: (e) => notify.error(e.message),
+  });
 
   if (isLoading) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "40vh" }}><div style={{ width: "32px", height: "32px", borderRadius: "50%", border: `3px solid ${COLORS.border}`, borderTopColor: COLORS.primary, animation: "spin 1s linear infinite" }} /></div>;
   if (!data) return <div style={{ padding: "48px", textAlign: "center", color: COLORS.textTertiary }}>Тенант не найден</div>;
@@ -196,6 +221,38 @@ export function TenantDetail({ tenantId, onBack }: TenantDetailProps) {
           }} style={{ padding: "6px 14px", fontSize: "12px", color: tenant.status === "active" ? COLORS.danger : COLORS.success, borderColor: tenant.status === "active" ? "rgba(220,38,38,0.3)" : "rgba(22,163,74,0.3)" }}>
             <Power size={13} /> {tenant.status === "active" ? "Приостановить" : "Активировать"}
           </BtnSecondary>
+          {showPurge ? (
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <label style={{ fontSize: "12px", color: COLORS.textSecondary }}>Хранить дней</label>
+              <input type="number" min="7" max="3650" value={purgeDays} onChange={e => setPurgeDays(Number(e.target.value))}
+                style={{ width: "80px", padding: "6px 10px", borderRadius: "8px", border: `1px solid ${COLORS.border}`, background: COLORS.surfaceLight, color: COLORS.textPrimary, fontSize: "12px" }} />
+              <BtnPrimary
+                onClick={async () => {
+                  /*
+                    Спрашиваем, потому что вернуть нечего: журнал и есть та
+                    бумага, по которой разбирают спор, и удалённой записи
+                    неоткуда взяться заново.
+                  */
+                  const ok = await confirm({
+                    title: `Убрать журнал старше ${purgeDays} дней?`,
+                    message: `Записи действий "${tenant.name}" старше ${purgeDays} дней будут удалены безвозвратно. Восстановить их будет нечем.`,
+                    confirmText: "Убрать",
+                    danger: true,
+                  });
+                  if (ok) { purgeAudit.mutate({ tenantId, retentionDays: purgeDays }); setShowPurge(false); }
+                }}
+                disabled={purgeAudit.isPending}
+                style={{ padding: "6px 14px", fontSize: "12px" }}
+              >
+                {purgeAudit.isPending ? "…" : "Убрать"}
+              </BtnPrimary>
+              <BtnSecondary onClick={() => setShowPurge(false)} style={{ padding: "6px 10px", fontSize: "12px" }}>✕</BtnSecondary>
+            </div>
+          ) : (
+            <BtnSecondary onClick={() => setShowPurge(true)} style={{ padding: "6px 14px", fontSize: "12px" }}>
+              <Eraser size={13} /> Убрать старый журнал
+            </BtnSecondary>
+          )}
         </div>
       </Section>
 

@@ -22,6 +22,7 @@ import { printUzWaybill, printTorg12, printInvoice } from "@/lib/documents";
 import type { OrderDocData, CompanyInfo } from "@/lib/documents";
 import { notify } from "@/lib/toast";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { OneCExport } from "@/components/orders/OneCExport";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { unitShort } from "@/lib/units";
 import { Input } from "@/components/ui/input";
@@ -306,7 +307,18 @@ export default function OrderDetail() {
         <button onClick={() => navigate("/orders")} className="neo-btn flex items-center gap-2 py-1.5 px-3 text-sm">
           <ArrowLeft size={18}/><span>{lang === "uz" ? "Orqaga" : "Назад"}</span>
         </button>
-        <div className="flex gap-2 relative">
+        <div className="flex gap-2 relative flex-wrap">
+          {/*
+            Выгрузка в 1С. Заказы туда не уезжают сами: расписания для них нет,
+            и единственная ручка, которая это делает, не вызывалась ниоткуда —
+            у организации с настроенным обменом товары приезжали, а заказы не
+            уходили, и увидеть это можно было только по пустой 1С.
+
+            Блок сам решает, показываться ли: обмен не настроен или выгрузка
+            заказов выключена — кнопки нет. Удалённый заказ не выгружаем: в 1С
+            он создал бы проведённый документ, который здесь уже отменён.
+          */}
+          {!order.deletedAt && <OneCExport orderId={order.id} orderNumber={order.orderNumber} />}
           <button onClick={handleExport} className="neo-btn flex items-center gap-2 text-sm py-2">
             <FileDown size={15}/> Excel
           </button>

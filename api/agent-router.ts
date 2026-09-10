@@ -945,29 +945,17 @@ export const agentRouter = createRouter({
       }
     }),
 
-  nearbyShops: fieldSalesQuery
-    .input(z.object({ lat: z.number(), lng: z.number(), radius: z.number().default(5) }))
-    .query(async ({ input, ctx }) => {
-      // Явная проекция вместо select(). Раньше отсюда уезжали ВСЕ колонки, в
-      // том числе photo_url типа mediumtext — фотографии магазинов в base64, до
-      // 2.8 МБ каждая. Их тянули по сети со всех магазинов агента только чтобы
-      // отфильтровать точки по расстоянию, а сами фотографии не использовались
-      // ни здесь, ни на экране. photoRef отдаёт ссылку вместо тела картинки —
-      // тот же приём, что в myShops и availableShops рядом.
-      const agentShops = await getDb().select({
-        id: shops.id, name: shops.name, ownerName: shops.ownerName,
-        phone: shops.phone, address: shops.address, city: shops.city,
-        district: shops.district, status: shops.status,
-        photoUrl: photoRef("shop", shops.id, shops.photoUrl, shops.updatedAt),
-        debt: shops.debt, gpsLat: shops.gpsLat, gpsLng: shops.gpsLng,
-      }).from(shops)
-        .where(and(eq(shops.agentId, ctx.user.id), eq(shops.tenantId, ctx.tenant.id)));
-      return agentShops.filter((shop) => {
-        if (!shop.gpsLat || !shop.gpsLng) return false;
-        const dist = haversineKm(input.lat, input.lng, Number(shop.gpsLat), Number(shop.gpsLng));
-        return dist <= input.radius;
-      });
-    }),
+  /*
+    Здесь была agent.nearbyShops — «мои магазины в радиусе N км от точки».
+
+    Её не звал никто, и звать было незачем: экран «рядом» есть только в
+    мобильном приложении, и он берёт agent.myShops, а расстояние считает у
+    себя — заодно показывая его числом и сортируя по нему. Ручка отдавала тот
+    же список, только урезанный, без расстояния и без порядка.
+
+    Веб такого экрана не имеет и иметь не может: у браузера на рабочем столе
+    нет ни точки, ни смысла в ней.
+  */
 
   // Мобильное приложение: агент смотрит детали любого магазина в тенанте
   getShopById: fieldSalesQuery

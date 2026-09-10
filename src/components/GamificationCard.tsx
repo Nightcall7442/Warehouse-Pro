@@ -1,9 +1,9 @@
 import { memo } from "react";
-import { useNavigate } from "react-router";
 import { useLang } from "@/i18n";
 import { useCurrency } from "@/hooks/useCurrency";
 import { Trophy, Flame, Target, Award, TrendingUp } from "lucide-react";
 import { colorMix } from "@/lib/color-mix";
+import { F } from "@/components/users/types";
 
 interface LeaderboardEntry {
   rank: number;
@@ -37,8 +37,21 @@ interface GamificationData {
 const RANK_COLORS = ["var(--color-warning)", "#9ca3af", "#cd7f32"];
 const RANK_ICONS = ["🥇", "🥈", "🥉"];
 
+/**
+ * Как я на фоне остальных.
+ *
+ * ── Зачем это подключено ────────────────────────────────────────────────────
+ *
+ * Карточка была написана целиком и не показывалась нигде, а ручка под ней
+ * (agent.gamification) не вызывалась ниоткуда: серия рабочих дней, достижения,
+ * недельный список и лучший агент месяца считались на сервере в никуда.
+ *
+ * Вопрос, на который она отвечает, не отвечает ни один живой экран. Свой балл
+ * и свою выручку агент видит рядом, но «много это или мало» из них не следует:
+ * 4 000 000 за неделю — это первое место в одной организации и последнее в
+ * другой. Список рядом стоящих отвечает на это одним взглядом.
+ */
 export const GamificationCard = memo(function GamificationCard({ data }: { data: GamificationData }) {
-  const navigate = useNavigate();
   const { lang } = useLang();
   const { fmt } = useCurrency();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
@@ -47,13 +60,19 @@ export const GamificationCard = memo(function GamificationCard({ data }: { data:
     <div className="neo-card" style={{ padding: "20px" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
-        <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 700, color: "var(--color-text-primary)", margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
+        {/*
+          Шрифт — из палитры, а не литералом: 'DM Sans' здесь стоял именем, и
+          в наборе он один такой на весь проект. Заголовок карточки, набранный
+          не тем шрифтом, читается как кусок чужого продукта.
+        */}
+        <h2 style={{ fontFamily: F.display, fontSize: "15px", fontWeight: 700, color: "var(--color-text-primary)", margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
           <Trophy size={16} style={{ color: "var(--color-warning-text)" }} />
           {t("Достижения", "Yutuqlar")}
         </h2>
-        <button onClick={() => navigate("/agent")} style={{ fontSize: "12px", color: "var(--color-primary)", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>
-          {t("Все", "Barchasi")} →
-        </button>
+        {/*
+          Здесь стояла кнопка «Все →» на /agent. Карточка живёт как раз на
+          экране показателей агента — кнопка вела туда, где человек уже стоит.
+        */}
       </div>
 
       {/* My Stats Row */}
@@ -114,7 +133,10 @@ export const GamificationCard = memo(function GamificationCard({ data }: { data:
             {data.achievements.map(a => (
               <div key={a.id} style={{
                 display: "flex", alignItems: "center", gap: "6px", padding: "6px 10px",
-                borderRadius: "8px", background: "rgba(232,168,48,0.08)", border: "1px solid rgba(232,168,48,0.15)",
+                /* Оттенок из палитры, а не литералом: rgba(232,168,48,…)
+                   остаётся жёлтым и в тёмной теме, и у арендатора с другим
+                   фирменным цветом. */
+                borderRadius: "8px", background: colorMix("var(--color-warning)", 8),
               }}>
                 <span style={{ fontSize: "14px" }}>{a.icon}</span>
                 <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--color-warning-text)" }}>
@@ -136,8 +158,7 @@ export const GamificationCard = memo(function GamificationCard({ data }: { data:
             {data.leaderboard.slice(0, 5).map((entry, i) => (
               <div key={entry.agentId} style={{
                 display: "flex", alignItems: "center", gap: "10px", padding: "8px 12px",
-                borderRadius: "10px", background: i < 3 ? colorMix(RANK_COLORS[i], 3) : "transparent",
-                border: i < 3 ? `1px solid ${colorMix(RANK_COLORS[i], 13)}` : "1px solid transparent",
+                borderRadius: "10px", background: i < 3 ? colorMix(RANK_COLORS[i], 8) : "transparent",
               }}>
                 <div style={{
                   width: "24px", height: "24px", borderRadius: "6px", display: "flex",
@@ -170,8 +191,8 @@ export const GamificationCard = memo(function GamificationCard({ data }: { data:
       {data.topAgent && (
         <div style={{
           marginTop: "12px", padding: "12px", borderRadius: "12px",
-          background: "linear-gradient(135deg, rgba(232,168,48,0.08), rgba(232,168,48,0.02))",
-          border: "1px solid rgba(232,168,48,0.15)", display: "flex", alignItems: "center", gap: "10px",
+          background: colorMix("var(--color-warning)", 8),
+          display: "flex", alignItems: "center", gap: "10px",
         }}>
           <Award size={18} style={{ color: "var(--color-warning-text)" }} />
           <div>
