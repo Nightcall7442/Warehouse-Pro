@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { monthRange } from "./lib/period";
 import { TRPCError } from "@trpc/server";
-import { createRouter, fieldSalesQuery, supervisorQuery, selfKpiQuery, managementQuery, financeQuery, adminQuery, authedQuery } from "./middleware";
+import { createRouter, supervisorQuery, selfKpiQuery, managementQuery, financeQuery, adminQuery, authedQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { getPeriod } from "./lib/period";
 import { onDate } from "./lib/date-range";
@@ -225,7 +225,23 @@ export const kpiRouter = createRouter({
       };
     }),
 
-  salary: fieldSalesQuery
+  /*
+    selfKpiQuery, а не fieldSalesQuery: в этом списке НЕ БЫЛО КУРЬЕРА.
+
+    Экран показателей запрашивает зарплату у всех, кроме начальства, — то есть
+    и у курьера, — а сервер отвечал ему отказом по правам. Блок «Зарплата за
+    период» в CourierKpiView рисуется по `salary &&`, поэтому отказ выглядел
+    не ошибкой, а отсутствием блока: курьер просто не видел своей зарплаты и
+    считал, что её не показывают.
+
+    Вместе с ней он не видел и обеда с дорожными — то есть настройки, ради
+    которой всё и затевалось, для того человека, о котором она.
+
+    Расширение никому не открывает чужого: запрос считает СТРОГО ctx.user.id.
+    Тот же вид процедуры стоит у agentKpi и courierKpi рядом, и по той же
+    причине.
+  */
+  salary: selfKpiQuery
     .input(z.object({
       period: z.enum(["week", "month", "quarter"]).default("month"),
     }).optional())
