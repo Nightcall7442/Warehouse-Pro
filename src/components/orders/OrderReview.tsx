@@ -23,6 +23,16 @@ interface OrderReviewProps {
   items: OrderItem[];
   notes: string;
   onNotesChange: (v: string) => void;
+  /*
+    Когда обещали привезти. Значение из <input type="datetime-local">, то есть
+    местное время без пояса; в момент отправки оно превращается в мгновение.
+
+    Пусто — законно и означает «срок не называли». Подставлять сюда что-либо
+    по умолчанию нельзя: это обещание магазину от лица агента, и придумать его
+    за него значило бы придумать и срыв, когда срок не выдержат.
+  */
+  promisedAt: string;
+  onPromisedAtChange: (v: string) => void;
   discount: string;
   onDiscountChange: (v: string) => void;
   paymentMethod: PaymentMethod;
@@ -31,6 +41,7 @@ interface OrderReviewProps {
 
 export function OrderReview({
   shopName, items, notes, onNotesChange,
+  promisedAt, onPromisedAtChange,
   discount, onDiscountChange,
   paymentMethod, onPaymentMethodChange,
   agents, agentId, onAgentChange,
@@ -155,6 +166,25 @@ export function OrderReview({
           value={notes}
           onChange={e => onNotesChange(e.target.value)}
         />
+      </div>
+
+      {/* Обещанный срок доставки */}
+      <div>
+        <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">
+          {t("КОГДА ОБЕЩАЛИ ПРИВЕЗТИ", "QACHONGA VA'DA QILINDI")}
+        </label>
+        <input
+          type="datetime-local"
+          className="neo-input w-full"
+          value={promisedAt}
+          onChange={e => onPromisedAtChange(e.target.value)}
+        />
+        <p className="text-[11px] text-secondary mt-1.5">
+          {t(
+            "Не называли срок — оставьте пустым. Пустое поле честнее выдуманной даты.",
+            "Muddat aytilmagan bo'lsa — bo'sh qoldiring. Bo'sh maydon o'ylab topilgan sanadan halolroq.",
+          )}
+        </p>
       </div>
 
       {/* Payment Method */}

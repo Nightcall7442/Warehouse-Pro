@@ -104,8 +104,16 @@ describe("генерация номера в продукте", () => {
     // верхнего уровня нельзя, drizzle заворачивает её в свою, и проверка
     // давала false всегда. Ищем теперь сам повтор, а не название константы.
     const src = readFileSync(join(process.cwd(), "api", "services", "order.ts"), "utf8");
+    /*
+      Окно — до конца функции, а не «плюс полторы тысячи знаков». Отмеренное
+      длиной окно однажды уже соврало: добавление одного поля в тот же insert
+      сдвинуло ветку повтора за границу, и страж закричал на изменение, к
+      которому не имел отношения. Отмеряем по смыслу — от взятия номера до
+      конца создания заказа.
+    */
     const from = src.indexOf("nextOrderNumber(tx, tenantId)");
-    const create = src.slice(from, from + 1500);
+    const end = src.indexOf("\n  async ", from);
+    const create = src.slice(from, end > from ? end : undefined);
     expect(create, "распознавание дубликата убрано из ветки повтора").toMatch(/isDuplicateEntry\(err\)/);
     expect(create, "коллизия номера больше не отличается от дубликата по ключу").toMatch(/isIdempotencyDuplicate\(err\)/);
     expect(create, "следующий номер не берётся").toMatch(/№\$\{Number\(number\.slice\(1\)\) \+ 1\}/);

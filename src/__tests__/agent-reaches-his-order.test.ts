@@ -97,6 +97,32 @@ describe("на этом экране есть всё, что агенту отк
     expect(DETAIL, "правка состава открыта на удалённом заказе").toContain("!order?.deletedAt");
   });
 
+  it("обещанный срок доставки", () => {
+    /*
+      Срок называет агент, стоя в магазине, и переносит его тоже он: «сегодня
+      не успеваем, привезём в понедельник» слышит он же. Блок стоял бы в
+      панели оператора — и агент, которому магазин звонит, не мог бы ни
+      увидеть обещание, ни перенести его.
+    */
+    const tag = DETAIL.match(/<PromisedDelivery(?![A-Za-z0-9_])/);
+    expect(tag, "обещанного срока нет в карточке заказа").not.toBeNull();
+    const block = DETAIL.slice(tag!.index!, DETAIL.indexOf("/>", tag!.index!));
+    expect(block, "срок показывается не по этому заказу").toContain("orderId={order.id}");
+    expect(block, "значение срока не передано").toContain("promisedDeliveryAt={order.promisedDeliveryAt}");
+    expect(block, "без времени доставки «позже обещанного» не отличить").toContain("deliveredAt={order.deliveredAt}");
+    expect(block, "право менять срок не передано").toContain("canEdit={canSetPromise}");
+  });
+
+  it("срок переносит автор заказа, а не только офис", () => {
+    // Ровно тот промах, который здесь уже ловили дважды: возможность есть на
+    // сервере, а на экране она открыта одному офису.
+    const at = DETAIL.indexOf("const canSetPromise");
+    expect(at, "правила «кому можно менять срок» нет").toBeGreaterThan(-1);
+    const rule = DETAIL.slice(at, DETAIL.indexOf(";", at));
+    expect(rule, "автору заказа срок менять нельзя").toContain("isAuthor");
+    expect(rule, "срок можно менять на удалённом заказе").toContain("!order?.deletedAt");
+  });
+
   it("удалённый заказ не комментируют", () => {
     // Удаление — штатный способ исправить ошибочно проведённый заказ.
     // Переписка о том, чего больше нет, только сбивает.

@@ -284,3 +284,20 @@ export function allCapabilities(): Record<OperatorCapability, boolean> {
  * в поздних состояниях делают осознанно.
  */
 export const FIELD_EDITABLE_ORDER_STATUSES = ["new", "processing", "pending"] as const;
+
+/* ── Жизненный цикл заказа ─────────────────────────────────────────────────
+
+   Определения переехали сюда из api/lib/order-status.ts, который тянет за
+   собой схему базы и потому в браузер не попадает. Экрану же эти наборы
+   нужны ровно по той же причине, что и FIELD_EDITABLE_ORDER_STATUSES выше:
+   сервер отказывает, а экран решает, показывать ли действие вообще. Копия
+   списка на стороне экрана разъехалась бы с серверной при первой же правке.
+
+   Сервер продолжает читать их через api/lib/order-status.ts — тот их
+   пере-экспортирует, так что все прежние места импорта не тронуты. */
+
+/** Заказ ещё в работе — с товаром ничего окончательного не случилось. */
+export const OPEN_ORDER_STATUSES = ["new", "processing", "shipped", "pending"] as const;
+
+/** Товар из игры вышел, чем бы дело ни кончилось. */
+export const CLOSED_ORDER_STATUSES = ["delivered", "cancelled", "returned"] as const;

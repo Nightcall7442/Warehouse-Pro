@@ -26,6 +26,10 @@ export type OrderDraft = {
   notes: string;
   discount: string;
   paymentMethod: PaymentMethod;
+  /* Обещанный срок доставки, как его ввели: местное время без пояса.
+     Поле необязательное — иначе черновики, сохранённые до его появления,
+     перестали бы восстанавливаться. */
+  promisedAt?: string;
 };
 
 const KEY = "warehouse_pro_order_draft";

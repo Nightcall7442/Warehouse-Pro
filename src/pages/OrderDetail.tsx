@@ -4,6 +4,7 @@ import { normalizeDecimalInput } from "@/lib/decimal-input";
 import { FIELD_EDITABLE_ORDER_STATUSES } from "@contracts/constants";
 import { OrderItemsEditor } from "@/components/orders/OrderItemsEditor";
 import { OrderComments } from "@/components/orders/OrderComments";
+import { PromisedDelivery } from "@/components/orders/PromisedDelivery";
 import { discountMoneyToPct } from "@/lib/order-discount";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
@@ -117,6 +118,16 @@ export default function OrderDetail() {
   const canEditItems = !order?.deletedAt && (
     isOperatorOrCeo || (isAuthor && (FIELD_EDITABLE_ORDER_STATUSES as readonly string[]).includes(order?.status ?? ""))
   );
+
+  /*
+    Срок переносит тот, кто его обещал.
+
+    Условие шире, чем у состава: там «отгружен» уже поздно — курьер везёт
+    собранные коробки. А вот перенести срок по отгруженному заказу как раз
+    нужно: именно в дороге и выясняется, что сегодня не успевают. Ограничение
+    одно — заказ не закрыт, и его проверяет сам блок.
+  */
+  const canSetPromise = !order?.deletedAt && (isOperatorOrCeo || isAuthor);
 
   const { data: adjustments } = trpc.order.getAdjustments.useQuery(
     { orderId: Number(id) },
@@ -524,6 +535,20 @@ export default function OrderDetail() {
             </p>
           </div>
         </div>
+
+        {/*
+          Обещанный срок.
+
+          Стоит сразу за сеткой фактов и до товаров: агент, открывший заказ по
+          звонку магазина «где мой товар», ищет здесь именно его.
+        */}
+        <PromisedDelivery
+          orderId={order.id}
+          promisedDeliveryAt={order.promisedDeliveryAt}
+          status={order.status}
+          deliveredAt={order.deliveredAt}
+          canEdit={canSetPromise}
+        />
 
         <Separator />
 

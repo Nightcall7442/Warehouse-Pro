@@ -45,6 +45,9 @@ interface OrderWizard {
   setItems: (items: OrderItem[]) => void;
   notes: string;
   setNotes: (v: string) => void;
+  /** Обещанный срок доставки, как его ввели: местное время без пояса. */
+  promisedAt: string;
+  setPromisedAt: (v: string) => void;
   discount: string;
   setDiscount: (v: string) => void;
   paymentMethod: PaymentMethod;
@@ -93,6 +96,8 @@ export function NewOrderReviewStep() {
       items={w.items}
       notes={w.notes}
       onNotesChange={w.setNotes}
+      promisedAt={w.promisedAt}
+      onPromisedAtChange={w.setPromisedAt}
       discount={w.discount}
       onDiscountChange={w.setDiscount}
       paymentMethod={w.paymentMethod}
@@ -119,6 +124,15 @@ export default function NewOrder() {
   const [notes,    setNotes]    = useState("");
   const [discount, setDiscount] = useState("0");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
+  /*
+    Когда обещали привезти. Значение поля datetime-local — местное время без
+    пояса; в мгновение оно превращается один раз, при отправке.
+
+    Пусто по умолчанию и остаётся пустым, если агент срок не называл.
+    Подставить сюда «сегодня к вечеру» значило бы пообещать магазину от его
+    имени, а потом посчитать по этому обещанию срыв.
+  */
+  const [promisedAt, setPromisedAt] = useState("");
 
   /*
     Кому засчитать продажу.
@@ -221,6 +235,7 @@ export default function NewOrder() {
     setNotes(draft.notes);
     setDiscount(draft.discount);
     setPaymentMethod(draft.paymentMethod);
+    setPromisedAt(draft.promisedAt ?? "");
     /* eslint-enable react-hooks/set-state-in-effect */
     notify.info(t("Продолжаем набранный заказ", "Boshlangan buyurtma tiklandi"));
     // Только на первый показ: дальше правит человек, и перезаписывать его
@@ -232,10 +247,10 @@ export default function NewOrder() {
   // браузера, отдельно откладывать её незачем.
   useEffect(() => {
     if (!user) return;
-    const draft = { shopId, shopName, items, notes, discount, paymentMethod };
+    const draft = { shopId, shopName, items, notes, discount, paymentMethod, promisedAt };
     if (draftHasWork(draft)) saveDraft(user.id, draft);
     else clearDraft(user.id);
-  }, [user, shopId, shopName, items, notes, discount, paymentMethod]);
+  }, [user, shopId, shopName, items, notes, discount, paymentMethod, promisedAt]);
 
 
   const invalidateOrderCaches = useInvalidateOrderCaches();
@@ -276,6 +291,12 @@ export default function NewOrder() {
       notes:         notes || undefined,
       discount:      discount || "0",
       paymentMethod,
+      /*
+        Местное время поля превращаем в мгновение здесь — один раз и в одном
+        месте. Отправить «2026-09-11T18:00» как есть нельзя: на сервере оно
+        прочиталось бы в его поясе и уехало бы на часы.
+      */
+      promisedDeliveryAt: promisedAt ? new Date(promisedAt).toISOString() : undefined,
     };
 
     if (!navigator.onLine) {
@@ -329,6 +350,7 @@ export default function NewOrder() {
     setShop: (id, name) => { setShopId(id); setShopName(name); },
     items, setItems,
     notes, setNotes,
+    promisedAt, setPromisedAt,
     discount, setDiscount,
     paymentMethod, setPaymentMethod,
     cartOpen, setCartOpen,

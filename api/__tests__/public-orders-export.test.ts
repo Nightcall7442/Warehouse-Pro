@@ -234,15 +234,29 @@ describe("итоги считаются по тому же набору, что 
 });
 
 describe("чего не выдумываем", () => {
-  it("обещанный срок доставки всегда пуст", () => {
+  it("обещанный срок берётся из своего поля, а не из соседнего", () => {
     /*
-      Такого поля в системе нет — ни в базе, ни на экране. Пункт 9 ТЗ на этом
-      держится: без него вывод о просрочке «неизвестно», а 17-G прямо
-      запрещает догадку. Подставить сюда дату доставки значило бы выдать
-      выдумку за обещание, по которому считают срывы.
+      Срок ставит человек — агент, стоя в магазине. Отдаём ровно то, что он
+      поставил, и пусто, если не ставил. Пункт 17-G запрещает догадку, а
+      подстановка сюда даты доставки или «создан плюс сколько-то» превратила
+      бы выдумку в срыв на той стороне: по этому полю считают опоздания.
     */
-    expect(ROUTE).toContain("promised_delivery_at: null");
-    expect(CONTRACT).toContain("promised_delivery_at: null");
+    expect(ROUTE).toContain("promised_delivery_at: iso(r.promisedDeliveryAt)");
+    expect(ROUTE, "поле не выбирается из базы").toContain("promisedDeliveryAt: orders.promisedDeliveryAt");
+
+    // Ни одна соседняя дата не должна оказаться в этом поле.
+    const at = ROUTE.indexOf("promised_delivery_at:");
+    const line = ROUTE.slice(at, ROUTE.indexOf("\n", at));
+    for (const wrong of ["deliveredAt", "createdAt", "updatedAt"]) {
+      expect(line, `обещанный срок подменён полем ${wrong}`).not.toContain(wrong);
+    }
+  });
+
+  it("пустой срок остаётся пустым на всём пути", () => {
+    // Договор наружу обязан допускать null: «не обещали» — законный ответ, и
+    // получатель по нему обязан сказать «неизвестно», а не «в срок».
+    expect(CONTRACT).toContain("promised_delivery_at: string | null");
+    expect(iso(null)).toBeNull();
   });
 
   it("склад берётся настоящий, а не ноль", () => {

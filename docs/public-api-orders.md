@@ -141,7 +141,7 @@ Date filters apply to **`created_at`** (and `updated_at` for `updated_since`).
 
       "courier_id": 44,
       "courier_name": "Suroj",
-      "promised_delivery_at": null,
+      "promised_delivery_at": "2026-09-10T09:00:00.000Z",
       "delivered_at": "2026-09-10T11:02:03.000Z"
     }
   ],
@@ -175,17 +175,20 @@ criterion. `currency` is separate and comes from the organisation's settings.
 **A missing optional value is `null`.** It is never replaced by a guess, a zero
 or an empty string.
 
-### `promised_delivery_at` is always `null`
+### `promised_delivery_at` is set by a person, or it is `null`
 
-This ERP does not store a promised delivery date — there is no column and no
-screen where an agent could set one. Per §9 of the specification, lateness
-without it is *unknown*, and §17-G forbids filling it with a guess. We could
-have returned `delivered_at` or `created_at + N` here; both would be inventions
-that another party would then use to count missed deliveries.
+The sales agent enters it while standing in the shop — it is the date he says
+out loud — and he can move it while the order is open. Nothing sets it
+automatically, and `null` is a normal value meaning **no date was promised**.
 
-If a promised date is needed, it has to become a product feature first — a
-field and a place where a human sets it. That is a separate decision, not an
-integration detail.
+The distinction matters for your side of the integration: per §9, lateness
+without a promise is *unknown*, not "on time". Derive lateness only for orders
+that carry the field. We do not fill it with `delivered_at` or `created_at + N`
+— §17-G forbids the guess, and an invented promise would become an invented
+missed delivery in your report.
+
+Once an order is closed (`delivered`, `cancelled`, `returned`) the promise can
+no longer be changed, so a late delivery cannot be tidied away afterwards.
 
 ### `warehouse_id`
 
@@ -229,8 +232,8 @@ a document that lives apart goes stale silently.
 ```
 
 **`active` means the goods are still in play** — the order is held against the
-warehouse and may yet ship. It does **not** mean late. Lateness is measured
-against a promised date, which this ERP does not have.
+warehouse and may yet ship. It does **not** mean late: lateness is measured
+against `promised_delivery_at`, and only for the orders that carry one.
 
 **`counts_as_revenue`** marks the single status every money report in the
 product treats as a sale: `delivered`. Do not mix revenue with money collected

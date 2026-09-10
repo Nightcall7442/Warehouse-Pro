@@ -28,7 +28,14 @@ describe("заказ достаётся тому, кому назначили", 
   it("agentId из запроса доходит до создания", () => {
     // Главная проверка: раньше это число молча выбрасывалось.
     expect(CREATE).toContain("input.agentId");
-    expect(CREATE).toContain("OrderService.create(ctx.db, ctx.tenant.id, agentId, input)");
+    /*
+      Проверяем два звена по отдельности: кому засчитывается заказ (третий
+      довод — именно agentId, а не ctx.user.id) и что остальной ввод доходит
+      до создания целиком, а не переписывается полем за полем — иначе новое
+      поле терялось бы молча, как когда-то терялся сам agentId.
+    */
+    expect(CREATE).toContain("OrderService.create(ctx.db, ctx.tenant.id, agentId, {");
+    expect(CREATE, "ввод перестал доходить до создания целиком").toContain("...input,");
   });
 
   it("назначать чужого может только тот, кто распоряжается работой", () => {

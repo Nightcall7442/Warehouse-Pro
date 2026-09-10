@@ -189,6 +189,7 @@ ordersV1.get("/", async (c) => {
     total: orders.total,
     createdAt: orders.createdAt,
     updatedAt: orders.updatedAt,
+    promisedDeliveryAt: orders.promisedDeliveryAt,
     deliveredAt: orders.deliveredAt,
     deletedAt: orders.deletedAt,
     shopId: orders.shopId,
@@ -243,8 +244,9 @@ ordersV1.get("/", async (c) => {
 
     courier_id: r.courierId == null ? null : Number(r.courierId),
     courier_name: r.courierName ?? null,
-    // Поля в системе нет — см. разбор в ExportedOrder. Догадку не подставляем.
-    promised_delivery_at: null,
+    /* Ставит человек; пусто — значит не обещали. Догадку сюда не подставляем
+       ни при каких условиях (17-G) — см. разбор в ExportedOrder. */
+    promised_delivery_at: iso(r.promisedDeliveryAt),
     delivered_at: iso(r.deliveredAt),
 
     ...(incremental ? { deleted_at: iso(r.deletedAt) } : {}),
@@ -320,7 +322,7 @@ ordersV1.get("/statuses", (c) => {
     })),
     active_statuses: [...OPEN_ORDER_STATUSES],
     notes: {
-      lateness: "promised_delivery_at is not stored by this ERP and is always null; lateness cannot be derived",
+      lateness: "promised_delivery_at is set by a person and is null when no promise was made; lateness is derivable only for orders that carry it",
       agent_vs_courier: "sales_agent_id and courier_id are different people and may both be set",
       deleted: "deleted orders appear only with updated_since, carrying deleted_at",
     },

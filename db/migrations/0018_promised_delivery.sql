@@ -1,0 +1,1 @@
+ALTER TABLE `orders` ADD `promised_delivery_at` timestamp;

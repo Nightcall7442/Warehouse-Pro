@@ -295,6 +295,24 @@ export const orders = mysqlTable("orders", {
   courierId:   bigint("courier_id", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "set null" }),
   paymentMethod: mysqlEnum("payment_method", ["cash", "card", "transfer", "debt"]).default("cash").notNull(),
   deliveryStatus: mysqlEnum("delivery_status", ["not_assigned", "assigned", "out_for_delivery", "delivered", "failed"]).default("not_assigned").notNull(),
+  /*
+    Когда ОБЕЩАЛИ привезти.
+
+    Заводится под интеграцию с супервайзером BEKDRINKS, но нужна не ей: агент
+    и без всякой интеграции говорит магазину «привезём в пятницу», и до сих пор
+    это жило только в его голове. Срыв обещания измерить было нечем — ни
+    отчётом, ни глазами.
+
+    Мгновение, а не день, и ставит его ЧЕЛОВЕК. Соблазн был хранить дату, а
+    время дорисовывать концом суток — но тогда система сама придумывает, что
+    именно обещали, и по этой выдумке считаются срывы. Экран показывает и дату,
+    и время; хочет человек «до конца дня» — он это и выбирает, видя, что
+    выбирает.
+
+    Пусто — законное состояние и означает «не обещали». Умолчания здесь нет и
+    быть не может: подставленный срок — это чужое обещание от лица агента.
+  */
+  promisedDeliveryAt: timestamp("promised_delivery_at"),
   deliveredAt: timestamp("delivered_at"),
   invoicePrintedAt: timestamp("invoice_printed_at"),
   deliveryResult: varchar("delivery_result", { length: 30 }), // paid, partial_paid, returned, partial_returned

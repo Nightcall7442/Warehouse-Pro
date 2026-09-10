@@ -282,6 +282,13 @@ export const orderRouter = createRouter({
       notes:          z.string().max(500).optional(),
       discount:       discountPercent.default("0.00"),
       paymentMethod:  z.enum(["cash", "card", "transfer", "debt"]).default("cash"),
+      /*
+        Когда обещали привезти. Ставит АГЕНТ, стоя в магазине, — он это и
+        говорит вслух. Не назвал — пусто, и это законно: «не обещали» и
+        «обещали на сегодня» разные вещи, а подставленный срок был бы чужим
+        обещанием от его лица.
+      */
+      promisedDeliveryAt: z.string().datetime().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       try {
@@ -327,7 +334,10 @@ export const orderRouter = createRouter({
           }
         }
 
-        return await OrderService.create(ctx.db, ctx.tenant.id, agentId, input);
+        return await OrderService.create(ctx.db, ctx.tenant.id, agentId, {
+          ...input,
+          promisedDeliveryAt: input.promisedDeliveryAt ? new Date(input.promisedDeliveryAt) : null,
+        });
       } catch (err) {
         const cause = err instanceof Error ? err.cause : undefined;
         console.error("[order.create FAILED]", {
@@ -366,10 +376,58 @@ export const orderRouter = createRouter({
       notes: z.string().max(500).optional(),
       discount: discountPercent.optional(),
       paymentMethod: z.enum(["cash", "card", "transfer", "debt"]).optional(),
+      /*
+        null — «обещание снято», отсутствие поля — «не трогали». Свести их в
+        одно нельзя: без различия убрать ошибочно поставленный срок нечем.
+      */
+      promisedDeliveryAt: z.string().datetime().nullable().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const { id, ...data } = input;
-      return OrderService.update(ctx.db, ctx.tenant.id, id, data);
+      const { id, promisedDeliveryAt, ...rest } = input;
+      return OrderService.update(ctx.db, ctx.tenant.id, id, {
+        ...rest,
+        ...(promisedDeliveryAt === undefined
+          ? {}
+          : { promisedDeliveryAt: promisedDeliveryAt === null ? null : new Date(promisedDeliveryAt) }),
+      });
+    }),
+
+  /*
+    ── Перенести обещанный срок ──────────────────────────────────────────────
+
+    Обещание даёт агент, и переносит его тоже он: «привезём в пятницу» и
+    «перенесли на понедельник» он слышит в одной и той же точке. Через
+    order.update это было бы нельзя — та открыта только офису и заодно правит
+    скидку с оплатой, то есть даёт куда больше, чем нужно.
+
+    Границы те же, что у правки состава: свой заказ (assertOrderVisible) и
+    пока он не закрыт. По доставленному, отменённому и возвращённому обещание
+    менять нечего — срок уже наступил или отменился, и переписать его значило
+    бы задним числом стереть срыв.
+  */
+  setPromisedDelivery: fieldSalesQuery
+    .input(z.object({
+      orderId: z.number().int().positive(),
+      promisedDeliveryAt: z.string().datetime().nullable(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const actor = { id: ctx.user.id, role: ctx.user.role };
+      await assertOrderVisible(ctx.db, ctx.tenant.id, input.orderId, actor, "Менять срок");
+
+      const [row] = await ctx.db.select({ status: orders.status }).from(orders)
+        .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, ctx.tenant.id), isNull(orders.deletedAt)))
+        .limit(1);
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Заказ не найден" });
+      if ((CLOSED_ORDER_STATUSES as readonly string[]).includes(row.status)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Заказ уже закрыт — обещанный срок по нему не меняют.",
+        });
+      }
+
+      return OrderService.update(ctx.db, ctx.tenant.id, input.orderId, {
+        promisedDeliveryAt: input.promisedDeliveryAt === null ? null : new Date(input.promisedDeliveryAt),
+      });
     }),
 
   /*

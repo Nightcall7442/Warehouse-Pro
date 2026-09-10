@@ -31,6 +31,25 @@ import { canSeeAnyOrder, canSettleAnyOrder, canCancelAnyOrder } from "../service
 const SRC = readFileSync(join(process.cwd(), "api", "services", "order.ts"), "utf8").replace(/\r\n/g, "\n");
 const ROUTER = readFileSync(join(process.cwd(), "api", "order-router.ts"), "utf8").replace(/\r\n/g, "\n");
 
+/**
+ * Тело одной процедуры роутера.
+ *
+ * Окно кончается на СЛЕДУЮЩЕЙ процедуре, а не на подобранной строке. Раньше
+ * граница задавалась текстом («\n  }),»), и он не находился никогда:
+ * процедуры кончаются на четырёх пробелах, а не на двух. indexOf возвращал
+ * −1, slice(at, −1) отдавал ВЕСЬ остаток роутера — и стражи молчали на
+ * нарочном сломе, потому что искомое слово находилось в соседней процедуре.
+ * Поймано ровно этим способом: нарочной поломкой.
+ */
+function procBody(name: string): string {
+  const at = ROUTER.indexOf(`\n  ${name}: `);
+  expect(at, `процедура ${name} не найдена`).toBeGreaterThan(-1);
+  const rest = ROUTER.slice(at + 3);
+  const next = rest.search(/\n {2}[A-Za-z_$][\w$]*:\s/);
+  expect(next, `не видно конца процедуры ${name} — окно захватит соседние`).toBeGreaterThan(-1);
+  return rest.slice(0, next);
+}
+
 const FIELD_ROLES = ["agent", "merchandiser", "courier", "finance"];
 const ALL_ROLES = ["ceo", "operator", "supervisor", "superadmin", ...FIELD_ROLES, "новая_роль", ""];
 
@@ -141,9 +160,7 @@ describe("менять и удалять заказ супервайзер не 
     ЗДЕСЬ, в процедуре: сервис их не знает.
   */
   it("updateItems открыт агенту, но только на СВОЙ заказ", () => {
-    const at = ROUTER.indexOf("\n  updateItems: ");
-    expect(at, "процедура updateItems не найдена").toBeGreaterThan(-1);
-    const body = ROUTER.slice(at, ROUTER.indexOf("\n\n  ", at + 10));
+    const body = procBody("updateItems");
     expect(body, "updateItems закрыта полевым — просьба владельца не выполнена").toContain("fieldSalesQuery");
     expect(body, "агент может переписать состав ЧУЖОГО заказа")
       .toContain('assertOrderVisible(ctx.db, ctx.tenant.id, input.id, actor, "Менять состав")');
@@ -155,8 +172,7 @@ describe("менять и удалять заказ супервайзер не 
       строку — накладная разойдётся с тем, что в машине. По «delivered» уже
       посчитан долг магазина, и правка двигает и склад, и деньги задним числом.
     */
-    const at = ROUTER.indexOf("\n  updateItems: ");
-    const body = ROUTER.slice(at, ROUTER.indexOf("\n\n  ", at + 10));
+    const body = procBody("updateItems");
     expect(body, "агент правит состав уже отгруженного заказа")
       .toContain("assertItemsEditableBy(ctx.db, ctx.tenant.id, input.id, actor)");
 
@@ -179,6 +195,41 @@ describe("менять и удалять заказ супервайзер не 
     const fn = SRC.slice(SRC.indexOf("export async function assertItemsEditableBy"));
     expect(fn.slice(0, fn.indexOf("\n}")), "офису тоже закрыли позднюю правку")
       .toContain("if (canSettleAnyOrder(actor.role)) return;");
+  });
+
+  /*
+    Обещанный срок доставки — отдельная ручка по той же причине, по какой
+    правка состава открыта агенту: обещание даёт он, стоя в магазине, и
+    переносит его тоже он. Через order.update это было бы нельзя — та открыта
+    только офису и заодно правит скидку и способ оплаты, то есть даёт куда
+    больше, чем нужно.
+  */
+  it("срок переносит тот, кто обещал, и только на СВОЁМ заказе", () => {
+    const body = procBody("setPromisedDelivery");
+    expect(body, "срок закрыт полевым — обещание даёт агент, а перенести не может")
+      .toContain("fieldSalesQuery");
+    expect(body, "агент переносит срок ЧУЖОГО заказа")
+      .toContain('assertOrderVisible(ctx.db, ctx.tenant.id, input.orderId, actor, "Менять срок")');
+  });
+
+  it("по закрытому заказу срок не переносят", () => {
+    /*
+      Иначе срыв стирается задним числом: заказ довезли на два дня позже
+      обещанного — и обещание переписывают на дату доставки. По этому полю
+      считает опоздания другая сторона, и переписанное прошлое ей уходит как
+      правда.
+    */
+    const body = procBody("setPromisedDelivery");
+    expect(body, "закрытый заказ не отличается от живого").toContain("CLOSED_ORDER_STATUSES");
+    expect(body, "отказ по закрытому заказу пропал").toMatch(/code: "BAD_REQUEST"/);
+    expect(body, "удалённый заказ не исключён").toContain("isNull(orders.deletedAt)");
+  });
+
+  it("пустой срок принимается — это снятое обещание", () => {
+    // Без null ошибочно поставленный срок нечем убрать, и он остаётся
+    // навсегда — вместе с посчитанным по нему срывом.
+    const body = procBody("setPromisedDelivery");
+    expect(body).toContain("z.string().datetime().nullable()");
   });
 });
 

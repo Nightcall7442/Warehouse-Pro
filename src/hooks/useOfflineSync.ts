@@ -132,6 +132,15 @@ export function useOfflineSync(): OfflineSync {
             notes:    order.notes as string | undefined,
             discount: order.discount as string | number | undefined,
             paymentMethod: toPaymentMethod(order.paymentMethod),
+            /*
+              Обещанный срок едет вместе с заказом.
+
+              Здесь поля перечислены руками, и забытое поле пропадает молча:
+              заказ уйдёт, а обещание, названное магазину, до системы не
+              доедет — и никто этого не заметит. На это есть страж
+              offline-queue-carries-every-field.
+            */
+            promisedDeliveryAt: (order.promisedDeliveryAt as string | undefined) || undefined,
             // Ключ повторной отправки берётся сохранённый: без него повтор
             // после обрыва на полпути завёл бы второй такой же заказ.
             idempotencyKey: (order.idempotencyKey as string) || crypto.randomUUID(),

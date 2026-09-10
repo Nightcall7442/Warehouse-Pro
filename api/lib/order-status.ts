@@ -20,11 +20,14 @@ import type { LoadingList, Return } from "@db/schema";
  * `order-status-invariant.test.ts` fail if a literal status list reappears.
  */
 
-/** Still moving through the pipeline — nothing final has happened to the goods. */
-export const OPEN_ORDER_STATUSES = ["new", "processing", "shipped", "pending"] as const;
-
-/** Goods are no longer in play, whatever the outcome. */
-export const CLOSED_ORDER_STATUSES = ["delivered", "cancelled", "returned"] as const;
+/*
+  Открытые и закрытые статусы объявлены в contracts/constants.ts и приходят
+  оттуда: их читает и экран, а этот файл тянет за собой схему базы и в браузер
+  попасть не может. Пере-экспорт здесь — чтобы ни одно из прежних мест
+  импорта не пришлось трогать.
+*/
+export { OPEN_ORDER_STATUSES, CLOSED_ORDER_STATUSES } from "@contracts/constants";
+import { OPEN_ORDER_STATUSES, CLOSED_ORDER_STATUSES } from "@contracts/constants";
 
 /**
  * The sale actually happened: goods handed over, money owed or paid.

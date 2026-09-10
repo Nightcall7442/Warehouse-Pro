@@ -127,6 +127,13 @@
       "when": 1789040441331,
       "tag": "0017_payroll_product_rates",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1789065712427,
+      "tag": "0018_promised_delivery",
+      "breakpoints": true
     }
   ]
 }

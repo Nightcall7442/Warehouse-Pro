@@ -1140,6 +1140,9 @@ export const OrderService = {
       shopId: orders.shopId, agentId: orders.agentId,
       courierId: orders.courierId, deliveryStatus: orders.deliveryStatus,
       deliveredAt: orders.deliveredAt, deletedAt: orders.deletedAt,
+      // Обещанный срок. Пусто — значит срок магазину не называли; это
+      // законное значение, а не «нет данных».
+      promisedDeliveryAt: orders.promisedDeliveryAt,
       paymentMethod: orders.paymentMethod, invoicePrintedAt: orders.invoicePrintedAt,
     }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt), ...scope)).limit(1);
     if (!order) return null;
@@ -1187,7 +1190,7 @@ export const OrderService = {
     return { data, total: Number(countResult[0]?.count ?? 0) };
   },
 
-  async create(db: Db, tenantId: number, agentId: number, input: { shopId: number; warehouseId?: number; items: Array<{ productId: number; quantity: string }>; notes?: string; discount?: string; idempotencyKey?: string; paymentMethod?: "cash" | "card" | "transfer" | "debt" }) {
+  async create(db: Db, tenantId: number, agentId: number, input: { shopId: number; warehouseId?: number; items: Array<{ productId: number; quantity: string }>; notes?: string; discount?: string; idempotencyKey?: string; paymentMethod?: "cash" | "card" | "transfer" | "debt"; promisedDeliveryAt?: Date | null }) {
     // discount is a percentage (0-100) entered by the user — converted to a
     // money amount below and stored as such (orders.discount stays a money
     // column so revenue/P&L reports that SUM it keep meaning "money discounted").
@@ -1325,6 +1328,12 @@ export const OrderService = {
             notes: input.notes,
             idempotencyKey: input.idempotencyKey ?? null,
             paymentMethod: input.paymentMethod ?? "cash",
+            /*
+              Обещанный срок — только если его назвали. Умолчания здесь нет и
+              быть не может: подставленная дата — это чужое обещание от лица
+              агента, и по нему потом считают срывы.
+            */
+            promisedDeliveryAt: input.promisedDeliveryAt ?? null,
           });
           id = Number(result.insertId);
           break;
@@ -1898,7 +1907,16 @@ export const OrderService = {
 
   async update(
     db: Db, tenantId: number, orderId: number,
-    data: { notes?: string; discount?: string; paymentMethod?: "cash" | "card" | "transfer" | "debt" },
+    data: {
+      notes?: string; discount?: string;
+      paymentMethod?: "cash" | "card" | "transfer" | "debt";
+      /*
+        null здесь означает «обещание снято», а undefined — «не трогали».
+        Свести их в одно нельзя: без различия снять ошибочно поставленный срок
+        было бы нечем.
+      */
+      promisedDeliveryAt?: Date | null;
+    },
   ) {
     // discount is a percentage (0-100), same contract as OrderService.create.
     if (data.discount !== undefined) {
@@ -1934,6 +1952,12 @@ export const OrderService = {
         updates.total = newTotal.toFixed(2);
       }
       if (data.paymentMethod !== undefined) updates.paymentMethod = data.paymentMethod;
+      /*
+        Обещанный срок. Проверяется именно на `undefined`, а не на «пусто»:
+        null означает «обещание снято» и обязан дойти до базы, иначе снять
+        ошибочно поставленный срок было бы нечем.
+      */
+      if (data.promisedDeliveryAt !== undefined) updates.promisedDeliveryAt = data.promisedDeliveryAt;
 
       if (Object.keys(updates).length > 0) {
         await tx.update(orders).set(updates).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)));
