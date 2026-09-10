@@ -3,8 +3,42 @@ import { trpc } from "@/providers/trpc";
 import { useTranslate } from "@/i18n";
 import { MapPin, Radio, CheckCircle2, AlertCircle, Loader2, RefreshCw, Navigation } from "lucide-react";
 import { format } from "date-fns";
+import { plural } from "@/lib/plural";
 
 type GpsState = "idle" | "locating" | "success" | "error";
+
+/**
+ * Как часто авто-трекинг шлёт точку.
+ *
+ * Названо числом здесь и подставляется в подпись на экране — чтобы обещание
+ * и поведение не могли разойтись. До этого подпись обещала две минуты, а код
+ * слал по КАЖДОМУ изменению положения (watchPosition): идущий агент отправлял
+ * точку по нескольку раз в минуту.
+ *
+ * Пять минут — столько же, сколько шлёт мобильное приложение. Менять эту
+ * величину надо в обоих местах сразу, иначе супервайзер получит от телефона и
+ * от браузера разную частоту следа.
+ */
+const AUTO_TRACK_MS = 5 * 60 * 1000;
+const AUTO_TRACK_MIN = AUTO_TRACK_MS / 60_000;
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Две разные съёмки — и разница между ними это батарея телефона.
+
+   Ручная: человек нажал кнопку и ждёт точность. Включаем спутниковый приёмник
+   и берём свежую точку.
+
+   Автоматическая: точка нужна супервайзеру, чтобы понимать, где агент. Здесь
+   спутники не нужны вовсе — хватает положения по вышкам и Wi-Fi (это десятки
+   метров в городе), а оно берётся почти даром. И если система УЖЕ знает, где
+   телефон, свежее минуты, берём готовое: тогда съёмки не происходит совсем.
+
+   До этого автоматический режим шёл с enableHighAccuracy и maximumAge: 0 —
+   то есть будил приёмник на каждой отправке и запрещал брать готовое. Именно
+   это и сажало батарею.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const MANUAL_FIX: PositionOptions = { enableHighAccuracy: true, timeout: 10_000, maximumAge: 0 };
+const AUTO_FIX: PositionOptions = { enableHighAccuracy: false, timeout: 30_000, maximumAge: 60_000 };
 
 export default function AgentGps() {
   const t = useTranslate();
@@ -14,13 +48,12 @@ export default function AgentGps() {
   const [error,     setError]     = useState("");
   const [autoTrack, setAutoTrack] = useState(false);
   const [lastSent,  setLastSent]  = useState<Date | null>(null);
-  const watchIdRef = useRef<number | null>(null);
 
   const saveMutation = trpc.agent.saveLocation.useMutation({
     onSuccess: () => setLastSent(new Date()),
   });
 
-  const locate = useCallback(() => {
+  const locate = useCallback((fix: PositionOptions = MANUAL_FIX) => {
     if (!navigator.geolocation) {
       setError(t(
         "GPS недоступен в этом браузере.",
@@ -63,67 +96,78 @@ export default function AgentGps() {
         setError(msg);
         setState("error");
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+      fix,
     );
   }, [saveMutation, t]);
 
-  // Авто-трекинг через watchPosition (батарея-эффективно, реалтайм)
+  /* ═══════════════════════════════════════════════════════════════════════
+     Авто-трекинг.
+
+     ── Что было: бесконечный круг ──────────────────────────────────────────
+
+     Здесь стоял watchPosition, а зависимостями эффекта были
+     `[autoTrack, saveMutation, t]`. `saveMutation` — объект от useMutation, и
+     он НОВЫЙ на каждом рендере. Дальше круг замыкался сам:
+
+       слежение отдало точку → mutate → состояние запроса изменилось →
+       перерисовка → новый saveMutation → эффект сняли и поставили заново →
+       новое слежение отдало точку из кэша немедленно → …
+
+     Браузер бил в agent.saveLocation десятками запросов в минуту, упирался в
+     ограничение частоты (двести мутаций за четверть часа), получал отказ, а
+     отказ ставил состояние ошибки — то есть опять перерисовку и опять новый
+     круг. Со стороны это и выглядело как «цикл ошибок».
+
+     ── Как сделано теперь ──────────────────────────────────────────────────
+
+     Эффект зависит ТОЛЬКО от переключателя. Свежая функция отправки живёт в
+     ref: он меняется молча, и эффект от этого не перезапускается.
+
+     И вместо слежения — обычный таймер на ту величину, которая обещана в
+     подписи. watchPosition для «раз в пять минут» не нужен вовсе: он держит
+     приёмник горячим и сажает батарею ради точек, которые никто не просил.
+     ═══════════════════════════════════════════════════════════════════════ */
+  const tickRef = useRef(locate);
+  // Обновляется отдельным эффектом, а не прямо в отрисовке: ref во время
+  // отрисовки трогать нельзя, и правило проверки это ловит.
+  useEffect(() => { tickRef.current = locate; }, [locate]);
+
   useEffect(() => {
-    if (!autoTrack) {
-      if (watchIdRef.current !== null) {
-        navigator.geolocation.clearWatch(watchIdRef.current);
-        watchIdRef.current = null;
-      }
-      return;
-    }
-    if (!navigator.geolocation) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setError(t(
-        "GPS недоступен в этом браузере.",
-        "Bu brauzerda GPS mavjud emas."
-      ));
-       
-      setState("error");
-      return;
-    }
-     
-    setState("locating");
-     
-    setError("");
-    watchIdRef.current = navigator.geolocation.watchPosition(
-      (pos) => {
-        const { latitude: lat, longitude: lng } = pos.coords;
-        const c = { lat, lng, accuracy: pos.coords.accuracy };
-        setCoords(c);
-        setState("success");
-        saveMutation.mutate({ lat: String(c.lat), lng: String(c.lng), accuracy: String(c.accuracy) });
-      },
-      (err) => {
-        const msg =
-          err.code === 1 ? t(
-            "Доступ к геолокации запрещён. Разрешите доступ в настройках браузера.",
-            "Geolokatsiyaga kirish taqiqlangan. Brauzer sozlamalarida ruxsat bering."
-          ) :
-          err.code === 2 ? t(
-            "Местоположение недоступно. Перейдите на открытое место.",
-            "Joylashuv aniqlanmadi. Ochiq joyga o'ting."
-          ) :
-          t(
-            "Превышено время ожидания GPS. Попробуйте снова.",
-            "GPS vaqti tugadi. Qayta urinib ko'ring."
-          );
-        setError(msg);
-        setState("error");
-      },
-      { enableHighAccuracy: true, maximumAge: 30000, timeout: 15000 }
-    );
-    return () => {
-      if (watchIdRef.current !== null) {
-        navigator.geolocation.clearWatch(watchIdRef.current);
-        watchIdRef.current = null;
-      }
+    if (!autoTrack) return;
+
+    /*
+      Пока вкладка спрятана — не снимаем ничего.
+
+      Браузер в фоне всё равно душит таймеры и замораживает вкладку, так что
+      надёжного следа оттуда не выходит; выходит только расход батареи на
+      попытки. Честнее не притворяться: спрятали — молчим, вернулись —
+      отправляем сразу, чтобы супервайзер увидел свежую точку, а не дыру.
+
+      Настоящий фоновый след даёт мобильное приложение: там этим занимается
+      система, а не вкладка.
+    */
+    let id: ReturnType<typeof setInterval> | null = null;
+
+    const start = () => {
+      if (id !== null) return;
+      // Первую точку — сразу: иначе человек включил трекинг и пять минут не
+      // видит подтверждения, что тот работает.
+      tickRef.current(AUTO_FIX);
+      id = setInterval(() => tickRef.current(AUTO_FIX), AUTO_TRACK_MS);
     };
-  }, [autoTrack, saveMutation, t]);
+    const stop = () => {
+      if (id !== null) { clearInterval(id); id = null; }
+    };
+
+    const onVisibility = () => (document.hidden ? stop() : start());
+    document.addEventListener("visibilitychange", onVisibility);
+    if (!document.hidden) start();
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      stop();
+    };
+  }, [autoTrack]);
 
   const mapsUrl = coords
     ? `https://maps.google.com/?q=${coords.lat},${coords.lng}`
@@ -217,7 +261,7 @@ export default function AgentGps() {
 
       {/* Кнопка отправки */}
       <button
-        onClick={locate}
+        onClick={() => locate(MANUAL_FIX)}
         disabled={state === "locating"}
         className="neo-btn-primary w-full py-4 flex items-center justify-center gap-2 text-base disabled:opacity-50"
       >
@@ -233,7 +277,11 @@ export default function AgentGps() {
             {t("Авто-трекинг", "Avto-kuzatish")}
           </p>
           <p className="text-xs mt-0.5" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
-            {t("Отправлять местоположение каждые 2 минуты", "Har 2 daqiqada joylashuv yuborish")}
+            {/* Число — из той же константы, что и таймер: разойтись им нечем. */}
+            {t(
+              `Отправлять местоположение каждые ${AUTO_TRACK_MIN} ${plural(AUTO_TRACK_MIN, "минуту", "минуты", "минут")}`,
+              `Har ${AUTO_TRACK_MIN} daqiqada joylashuv yuborish`,
+            )}
           </p>
         </div>
         <button
