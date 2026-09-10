@@ -9,6 +9,7 @@ import { decimalOrDefault } from "./lib/zod-decimal";
 import { sseBus } from "./lib/sse";
 import { arrivalSupplyColumns } from "./supplier-router";
 import { isDuplicateOf } from "./lib/db-errors";
+import { dateColumnDay } from "./lib/period";
 
 type ArrivalItemRow = {
   id:           number;
@@ -368,14 +369,16 @@ export const arrivalRouter = createRouter({
           if (lockedArrival.status === "completed") throw new Error("Приход уже завершён");
 
           // Use sql template (not Drizzle select) to avoid selecting non-existent columns
+          // Партия и срок читаются здесь же: приёмка — единственное место, где
+          // они известны, и передать их на остаток можно только отсюда.
           const itemsResult = await tx.execute(
-            sql`SELECT ai.id, ai.arrival_id AS arrivalId, ai.product_id AS productId, ai.quantity, ai.condition, ai.notes, ai.cost_price AS costPrice, ai.selling_price AS sellingPrice FROM arrival_items ai WHERE ai.arrival_id = ${id}`
+            sql`SELECT ai.id, ai.arrival_id AS arrivalId, ai.product_id AS productId, ai.quantity, ai.condition, ai.notes, ai.cost_price AS costPrice, ai.selling_price AS sellingPrice, ai.batch_number AS batchNumber, ai.expires_at AS expiresAt FROM arrival_items ai WHERE ai.arrival_id = ${id}`
           );
           const rows = (itemsResult as unknown[][])[0];
           const rawItems = Array.isArray(rows) ? rows : [];
           // The columns are AS-aliased to camelCase above, so this cast is safe —
           // unlike the `unknown` the raw sql.execute() result carries by default.
-          const items = rawItems as Array<{ id: number; arrivalId: number; productId: number; quantity: string; condition: string; notes: string | null; costPrice: string | null; sellingPrice: string | null }>;
+          const items = rawItems as Array<{ id: number; arrivalId: number; productId: number; quantity: string; condition: string; notes: string | null; costPrice: string | null; sellingPrice: string | null; batchNumber: string | null; expiresAt: Date | string | null }>;
           const badItem = items.find(it => it.productId == null);
           if (badItem) throw new Error(`Позиция прихода #${badItem.id} не привязана к товару`);
 
@@ -415,11 +418,28 @@ export const arrivalRouter = createRouter({
               Движение в журнал пишет она же — раньше это был отдельный вызов
               следом, и его можно было забыть.
             */
+            /*
+              Партия уходит на остаток вместе с количеством.
+
+              До этого срок годности записывался в строку приёмки и там же и
+              оставался: на полке лежало одно число на товар, без памяти о том,
+              какими партиями оно набралось. Ответить, что сгорает через
+              неделю, было нечем — данные на входе есть, учёта нет.
+
+              Строка без номера партии и без срока партией не считается: такой
+              товар ложится в остаток без партии, как и раньше.
+            */
+            const hasBatch = Boolean(item.batchNumber) || Boolean(item.expiresAt);
             await receiveStock(tx, {
               tenantId, warehouseId, productId: item.productId,
               quantity: qty,
               reason: "arrival", referenceId: id,
               notes: `Приход ${arrivalNumber}`,
+              batch: hasBatch ? {
+                batchNumber: item.batchNumber,
+                expiresAt: item.expiresAt == null ? null : dateColumnDay(item.expiresAt),
+                arrivalItemId: item.id,
+              } : null,
             });
 
             /*

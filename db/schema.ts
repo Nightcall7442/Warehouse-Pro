@@ -505,6 +505,96 @@ export const warehouseStock = mysqlTable("warehouse_stock", {
 export type WarehouseStock       = typeof warehouseStock.$inferSelect;
 export type InsertWarehouseStock = typeof warehouseStock.$inferInsert;
 
+/* ============================================
+   STOCK BATCHES — из чего сложился остаток
+
+   ── Зачем ───────────────────────────────────────────────────────────────────
+
+   warehouse_stock хранит ОДНО число на товар и не помнит, какими партиями оно
+   набралось. Пока это так, на вопрос «что сгорает через неделю» ответить
+   нечем: срок годности записан на приёмке, но сколько из той партии ещё лежит
+   на полке — неизвестно.
+
+   Здесь лежит остаток КАЖДОЙ партии. Отсюда берутся и отчёт «сгорает», и
+   порядок списания FEFO: первым уходит то, что раньше портится.
+
+   ── Почему это не второй источник правды ────────────────────────────────────
+
+   Ровно этого и боялись, когда партии записали только на приёмку: параллельный
+   учёт разъезжается с остатком за неделю. Разъезжался бы — пока остаток меняли
+   девятнадцать мест сырым SQL. Теперь его меняет одна дверь
+   (api/services/stock-ledger.ts), и партии двигает она же, тем же вызовом.
+   Забыть их негде.
+
+   ── Почему «меньше либо равно», а не «равно» ────────────────────────────────
+
+   Инвариант: SUM(stock_batches.quantity) <= warehouse_stock.current_stock.
+
+   Не равенство, и это осознанно. Партии есть не у всего:
+
+     • товар, лежавший на складе ДО появления этой таблицы;
+     • бытовая химия и посуда — у них срока годности нет вовсе;
+     • возврат от магазина: какая партия вернулась, никто не записывает, и
+       выдумывать её значило бы приписать товару чужой срок.
+
+   Всё это — «остаток без партии». Он существует, продаётся и виден в
+   warehouse_stock; просто про его срок сказать нечего. Списание берёт сперва
+   партии (по сроку), а остальное — из этого безымянного остатка.
+   ============================================ */
+export const stockBatches = mysqlTable("stock_batches", {
+  id:           serial("id").primaryKey(),
+  tenantId:     bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  warehouseId:  bigint("warehouse_id", { mode: "number", unsigned: true }).notNull().references(() => warehouses.id, { onDelete: "restrict" }),
+  productId:    bigint("product_id", { mode: "number", unsigned: true }).notNull().references(() => products.id, { onDelete: "restrict" }),
+  /*
+    Номер партии и срок — оба необязательны, но хотя бы один обязан быть
+    заполнен: строка без того и другого ничем не отличается от безымянного
+    остатка и только мешала бы FEFO. Проверяет это дверь, а не колонка:
+    сказать об этом надо человеку понятной ошибкой.
+  */
+  batchNumber:  varchar("batch_number", { length: 64 }),
+  expiresAt:    date("expires_at"),
+  /*
+    Ключ партии — те же два поля, склеенные в одну непустую строку.
+
+    Уникальный индекс нельзя построить прямо по batch_number и expires_at:
+    MySQL считает строки с NULL РАЗЛИЧНЫМИ, и партия без номера (только со
+    сроком) заводилась бы заново при каждом приходе. `INSERT .. ON DUPLICATE
+    KEY UPDATE` тогда никогда не срабатывает, и вместо одной партии на полке
+    получается по строке на каждую поставку — FEFO списывал бы из них в
+    случайном порядке, а отчёт «что сгорает» показывал бы один товар пятью
+    строками.
+
+    Собирает ключ дверь (api/services/stock-ledger.ts), она же и единственная,
+    кто сюда пишет.
+  */
+  batchKey:     varchar("batch_key", { length: 96 }).notNull(),
+  /** Сколько от этой партии ещё лежит на складе. */
+  quantity:     decimal("quantity", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  /** Когда партия пришла — порядок списания при одинаковом сроке. */
+  receivedAt:   timestamp("received_at").defaultNow().notNull(),
+  /** Строка приёмки, которой партия заведена. Для разбора, откуда она взялась. */
+  arrivalItemId: bigint("arrival_item_id", { mode: "number", unsigned: true }),
+  updatedAt:    timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
+}, (t) => ({
+  /*
+    Одна строка на партию, а не одна на приход.
+
+    Тот же товар с тем же сроком, привезённый дважды, — это одна партия на
+    полке. Две строки означали бы два ответа на вопрос «сколько осталось», и
+    FEFO списывал бы из них в случайном порядке.
+  */
+  oneRowPerBatch: uniqueIndex("uq_batch_product_warehouse")
+    .on(t.tenantId, t.warehouseId, t.productId, t.batchKey),
+  /** Отчёт «что сгорает» ходит по сроку внутри организации. */
+  expiryIdx: index("idx_batches_tenant_expiry").on(t.tenantId, t.expiresAt),
+  /** Списание FEFO ищет партии одного товара на одном складе. */
+  fefoIdx: index("idx_batches_lookup").on(t.tenantId, t.warehouseId, t.productId),
+}));
+
+export type StockBatch       = typeof stockBatches.$inferSelect;
+export type InsertStockBatch = typeof stockBatches.$inferInsert;
+
 // ============================================
 // STOCK MOVEMENTS
 // ============================================

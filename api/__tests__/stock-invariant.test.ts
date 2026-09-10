@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
 
 /**
  * A stock row satisfies `current_stock = available + reserved` at all times:
@@ -227,5 +227,57 @@ describe("current_stock = available + reserved", () => {
 
     const availableAt = swapped.search(/\bavailable\s*=/i);
     expect(swapped.search(/\breserved\s*=/i), "перестановка не замечена").toBeGreaterThan(availableAt);
+  });
+});
+
+describe("партии двигает та же дверь, что и остаток", () => {
+  /**
+   * Партии откладывали ровно из-за этого.
+   *
+   * Пока остаток меняли девятнадцать мест сырым SQL, параллельный учёт по
+   * партиям разъехался бы с ним за неделю: достаточно ОДНОГО пути, который
+   * про партии забыл. Получился бы второй источник правды о деньгах —
+   * складской остаток говорит одно, отчёт «что сгорает» другое.
+   *
+   * Условие, при котором учёт стал возможен, — не «партии написаны хорошо», а
+   * «остаток меняет одно место». Значит и партии обязано менять то же самое.
+   * Как только их начнёт трогать кто-то ещё, вернётся ровно та беда, из-за
+   * которой всё и ждало.
+   */
+  const BATCH_DOOR = join("services", "stock-ledger.ts");
+  const BATCH_WRITE = /\b(?:UPDATE|INSERT\s+INTO|DELETE\s+FROM)\s+stock_batches\b/i;
+  /** Правка через построитель drizzle: .update(stockBatches) / .insert(stockBatches). */
+  const BATCH_BUILDER = /\.(?:update|insert|delete)\(\s*stockBatches\s*\)/;
+
+  it("никто, кроме двери, партии не правит", () => {
+    const offenders: string[] = [];
+
+    for (const file of walkTypeScript(API_DIR)) {
+      const rel = relative(API_DIR, file).split(sep).join("/");
+      if (rel === BATCH_DOOR.split(sep).join("/")) continue;
+
+      const source = readFileSync(file, "utf8");
+      if (BATCH_WRITE.test(source) || BATCH_BUILDER.test(source)) offenders.push(rel);
+    }
+
+    expect(
+      offenders,
+      offenders.length === 0 ? "" :
+        `Партии остатка правят мимо двери:\n` +
+        offenders.map(f => `  - ${f}`).join("\n") +
+        `\n\nОстаток и партии обязаны двигаться ОДНИМ вызовом ` +
+        `(api/services/stock-ledger.ts). Иначе сумма партий разойдётся с ` +
+        `остатком, и отчёт «что сгорает» позовёт списывать то, чего нет.`,
+    ).toEqual([]);
+  });
+
+  it("проверка умеет падать", () => {
+    // Проверка, которая не может упасть, не защищает ничего.
+    expect(BATCH_WRITE.test("await tx.execute(sql`UPDATE stock_batches SET quantity = 0`)")).toBe(true);
+    expect(BATCH_WRITE.test("INSERT INTO stock_batches (tenant_id) VALUES (1)")).toBe(true);
+    expect(BATCH_BUILDER.test("await tx.update(stockBatches).set({ quantity: '0' })")).toBe(true);
+    // Чтение — можно: отчёты для того и заведены.
+    expect(BATCH_WRITE.test("SELECT * FROM stock_batches WHERE tenant_id = 1")).toBe(false);
+    expect(BATCH_BUILDER.test(".from(stockBatches)")).toBe(false);
   });
 });

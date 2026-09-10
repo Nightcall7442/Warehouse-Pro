@@ -65,6 +65,10 @@ let db: TestDb | null = null;
 /** Таблицы, которые чистятся между тестами. Порядок не важен: ключи сняты. */
 const TABLES = [
   "order_items", "orders", "payments", "notifications", "warehouse_stock",
+  // Партии остатка: по ним считается FEFO и отчёт «что сгорает». Оставленная
+  // чужая партия увела бы списание в другой порядок — молча, потому что
+  // остаток при этом сходится.
+  "stock_batches",
   "stock_movements", "products", "shops", "warehouses", "users", "tenants",
   // Расчёты с контрагентами: платежи, поставки, сами контрагенты, приходы.
   "supplier_payments", "supplies", "suppliers", "arrival_items", "arrivals",

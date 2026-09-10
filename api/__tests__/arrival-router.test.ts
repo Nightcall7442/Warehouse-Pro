@@ -29,7 +29,11 @@ import { makeConditionEvaluator } from "./helpers/fake-conditions";
 
 // ── Fake tables ──────────────────────────────────────────────────────────────
 type FakeArrival = { id: number; tenantId: number; arrivalNumber: string; truckId: string | null; driverName: string | null; driverPhone: string | null; status: string; fuelCost: string; tollCost: string; otherCost: string; totalExpense: string; arrivalDate: Date; arrivalTime: string | null; unloadingTime: string | null; notes: string | null; createdAt: Date; };
-type FakeArrivalItem = { id: number; arrivalId: number; productId: number; quantity: string; costPrice: string; sellingPrice: string; condition: string | null; notes: string | null; };
+/*
+  Партия и срок — необязательные поля строки приёмки. Их здесь не было, и
+  ветку «приёмка передаёт партию на остаток» нечем было даже вызвать.
+*/
+type FakeArrivalItem = { id: number; arrivalId: number; productId: number; quantity: string; costPrice: string; sellingPrice: string; condition: string | null; notes: string | null; batchNumber?: string | null; expiresAt?: string | null; };
 interface FakeWarehouse { id: number; tenantId: number; name: string; isDefault: boolean; status: string; }
 interface FakeStock { id: number; productId: number; tenantId: number; warehouseId: number; currentStock: string; reserved: string; available: string; }
 interface FakeStockMovement { id: number; tenantId: number; productId: number; type: string; quantity: string; referenceType: string | null; referenceId: number | null; notes: string | null; createdAt: Date; }
@@ -42,6 +46,21 @@ let arrivalsTable: FakeArrival[] = [];
 let arrivalItemsTable: FakeArrivalItem[] = [];
 let warehousesTable: FakeWarehouse[] = [];
 let stockTable: FakeStock[] = [];
+/*
+  Партии остатка.
+
+  Их здесь не было, и связка «приёмка → дверь» не проверялась вовсе: нарочная
+  поломка, снявшая передачу партии на остаток, прошла незамеченной. Срок
+  годности записывался в строку приёмки и там же оставался — ровно то
+  состояние, ради выхода из которого учёт и заводили.
+*/
+interface FakeBatch {
+  id: number; tenantId: number; warehouseId: number; productId: number;
+  batchNumber: string | null; expiresAt: string | null; batchKey: string;
+  quantity: string; arrivalItemId: number | null;
+}
+let batchesTable: FakeBatch[] = [];
+let nextBatchId = 1;
 let movementsTable: FakeStockMovement[] = [];
 let productsTable: FakeProduct[] = [];
 let suppliersTable: FakeSupplier[] = [];
@@ -84,6 +103,8 @@ function resetTables() {
   nextArrivalId = 10;
   nextItemId = 10;
   nextStockId = 10;
+  batchesTable = [];
+  nextBatchId = 1;
   nextMovementId = 1;
   nextSupplierId = 10;
   nextSupplyId = 10;
@@ -317,6 +338,40 @@ function makeMockDb() {
         Порядок доводов у двери: организация, склад, товар, количество (в
         строку вставки — дважды), количество (в дописку — дважды).
       */
+      /*
+        Партии — своей веткой и ПЕРВОЙ.
+
+        Порядок доводов у двери: организация, склад, товар, номер партии, срок,
+        ключ, количество, строка приёмки. Ключ собирает сама дверь: уникальный
+        индекс по номеру и сроку в MySQL не работает — строки с NULL считаются
+        различными, и партия без номера заводилась бы заново каждый приход.
+      */
+      if (rawSql.includes("stock_batches")) {
+        if (rawSql.includes("INSERT")) {
+          const [tenantId, warehouseId, productId, batchNumber, expiresAt, batchKey, qty, arrivalItemId] = vals;
+          const key = String(batchKey);
+          const existing = batchesTable.find(
+            b => b.tenantId === Number(tenantId) && b.warehouseId === Number(warehouseId)
+              && b.productId === Number(productId) && b.batchKey === key,
+          );
+          if (existing) {
+            existing.quantity = String(Number(existing.quantity) + Number(qty));
+          } else {
+            batchesTable.push({
+              id: nextBatchId++, tenantId: Number(tenantId), warehouseId: Number(warehouseId),
+              productId: Number(productId),
+              batchNumber: (batchNumber as string | null) ?? null,
+              expiresAt: (expiresAt as string | null) ?? null,
+              batchKey: key, quantity: String(qty),
+              arrivalItemId: arrivalItemId == null ? null : Number(arrivalItemId),
+            });
+          }
+          return Promise.resolve([{ affectedRows: 1 }]);
+        }
+        // Списания при приходе не бывает; форма ответа — как у драйвера.
+        return Promise.resolve([[], []]);
+      }
+
       if (rawSql.includes("ON DUPLICATE KEY") && rawSql.includes("warehouse_stock")) {
         const tenantId = Number(vals[0]);
         const warehouseId = Number(vals[1]);
@@ -937,5 +992,85 @@ describe("удаление прихода и долг поставщику", () 
     const created = await caller.create({ arrivalDate: "2025-02-01" });
     await caller.delete({ id: created.id });
     expect(arrivalsTable.some(a => a.id === created.id)).toBe(false);
+  });
+});
+
+/**
+ * Партия с приёмки доходит до остатка.
+ *
+ * ── Чем это ловится ─────────────────────────────────────────────────────────
+ *
+ * Срок годности записывался в строку приёмки и там же и оставался: на остатке
+ * лежало одно число на товар, без памяти о том, какими партиями оно набралось.
+ * Отчёт «что сгорает» отвечать было нечем.
+ *
+ * Проверка появилась после нарочной поломки: я снял передачу партии на остаток,
+ * и НЕ УПАЛО НИЧЕГО — вся связка «приёмка → дверь» была не покрыта. Стенд
+ * приёмки моделировал остаток, но не партии.
+ */
+describe("приёмка передаёт партию на остаток", () => {
+  it("строка со сроком заводит партию", async () => {
+    arrivalItemsTable = [
+      { id: 70, arrivalId: 1, productId: 1, quantity: "40", costPrice: "50.00", sellingPrice: "80.00", condition: "good", notes: null, batchNumber: "П-7", expiresAt: "2026-03-01" },
+    ];
+    const { arrivalRouter } = await import("../arrival-router");
+    await arrivalRouter.createCaller(makeCtx(1, 1)).update({ id: 1, status: "completed" });
+
+    expect(batchesTable, "партия не доехала до остатка").toHaveLength(1);
+    expect(batchesTable[0]).toMatchObject({
+      tenantId: 1, warehouseId: 1, productId: 1,
+      batchNumber: "П-7", expiresAt: "2026-03-01", quantity: "40",
+      arrivalItemId: 70,
+    });
+  });
+
+  it("строка без партии и без срока партию не заводит", async () => {
+    // Бытовая химия и посуда: срока нет вовсе, и выдумывать его нельзя.
+    arrivalItemsTable = [
+      { id: 71, arrivalId: 1, productId: 1, quantity: "40", costPrice: "50.00", sellingPrice: "80.00", condition: "good", notes: null },
+    ];
+    const { arrivalRouter } = await import("../arrival-router");
+    await arrivalRouter.createCaller(makeCtx(1, 1)).update({ id: 1, status: "completed" });
+
+    expect(batchesTable, "безымянному приходу приписали партию").toHaveLength(0);
+    // Но на остаток товар лёг — партия и остаток это разные вопросы.
+    expect(Number(stockTable.find(s => s.productId === 1 && s.warehouseId === 1)!.currentStock)).toBe(140);
+  });
+
+  it("только срок, без номера — партия всё равно заводится", async () => {
+    // Номер партии поставщик пишет не всегда, а срок — это и есть главное.
+    arrivalItemsTable = [
+      { id: 72, arrivalId: 1, productId: 1, quantity: "5", costPrice: "50.00", sellingPrice: "80.00", condition: "good", notes: null, expiresAt: "2026-05-05" },
+    ];
+    const { arrivalRouter } = await import("../arrival-router");
+    await arrivalRouter.createCaller(makeCtx(1, 1)).update({ id: 1, status: "completed" });
+
+    expect(batchesTable).toHaveLength(1);
+    expect(batchesTable[0].batchNumber).toBeNull();
+    expect(batchesTable[0].batchKey, "ключ партии собран не из срока").toBe("|2026-05-05");
+  });
+
+  it("та же партия во втором приходе складывается, а не двоится", async () => {
+    arrivalItemsTable = [
+      { id: 73, arrivalId: 1, productId: 1, quantity: "10", costPrice: "50.00", sellingPrice: "80.00", condition: "good", notes: null, batchNumber: "П-7", expiresAt: "2026-03-01" },
+      { id: 74, arrivalId: 1, productId: 1, quantity: "15", costPrice: "50.00", sellingPrice: "80.00", condition: "good", notes: null, batchNumber: "П-7", expiresAt: "2026-03-01" },
+    ];
+    const { arrivalRouter } = await import("../arrival-router");
+    await arrivalRouter.createCaller(makeCtx(1, 1)).update({ id: 1, status: "completed" });
+
+    expect(batchesTable, "одна партия завелась двумя строками").toHaveLength(1);
+    expect(batchesTable[0].quantity).toBe("25");
+  });
+
+  it("разные сроки — разные партии", async () => {
+    arrivalItemsTable = [
+      { id: 75, arrivalId: 1, productId: 1, quantity: "10", costPrice: "50.00", sellingPrice: "80.00", condition: "good", notes: null, batchNumber: "П-7", expiresAt: "2026-03-01" },
+      { id: 76, arrivalId: 1, productId: 1, quantity: "15", costPrice: "50.00", sellingPrice: "80.00", condition: "good", notes: null, batchNumber: "П-7", expiresAt: "2026-09-01" },
+    ];
+    const { arrivalRouter } = await import("../arrival-router");
+    await arrivalRouter.createCaller(makeCtx(1, 1)).update({ id: 1, status: "completed" });
+
+    expect(batchesTable).toHaveLength(2);
+    expect(batchesTable.map(b => b.expiresAt).sort()).toEqual(["2026-03-01", "2026-09-01"]);
   });
 });

@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import type { SQL } from "drizzle-orm";
 import { MySqlDialect } from "drizzle-orm/mysql-core";
 import {
-  applyStockEffect, receiveStock, releaseStock, reserveStock, setStock, shipStock,
+  applyStockEffect, batchKeyOf, receiveStock, releaseStock, reserveStock, setStock, shipStock,
 } from "../services/stock-ledger";
 
 /**
@@ -274,5 +274,148 @@ describe("разбор списка", () => {
       reason: "order_delivery",
     });
     expect(movements(tx)).toBe(1);
+  });
+});
+
+describe("партии остатка", () => {
+  /*
+    Партии ждали двери, и это была не отговорка: пока остаток меняли
+    девятнадцать мест сырым SQL, любой параллельный учёт разъезжался бы с ним —
+    достаточно одного пути, который про партии забыл. Теперь путь один, и
+    партии двигает он же, тем же вызовом.
+
+    Арифметику FEFO проверяет real-db/stock-batches-fefo.test.ts: там запросы
+    ИСПОЛНЯЮТСЯ. Здесь — то, что подделкой базы не проверить вовсе: порядок
+    сортировки и блокировка на чтении.
+  */
+  const batchQueries = (queries: Array<{ text: string; values: unknown[] }>) =>
+    queries.filter(q => q.text.includes("stock_batches"));
+
+  const shipOne = async (tenantId = 1, warehouseId = 2, productId = 7) => {
+    const spy = spyTx();
+    await shipStock(spy.tx, {
+      tenantId, warehouseId,
+      items: [{ productId, orderedQuantity: 5, deliveredQuantity: 5 }],
+      reason: "order_delivery",
+    });
+    return spy;
+  };
+
+  it("списание идёт по сроку: раньше сгорит — раньше уйдёт", async () => {
+    /*
+      FEFO, а не FIFO. Партия, привезённая позже, но сгорающая раньше, обязана
+      уйти первой — иначе она досидит до срока и поедет в утиль.
+
+      И главное: `expires_at IS NULL` ПЕРВЫМ полем сортировки. MySQL ставит
+      NULL перед значениями, поэтому без него бессрочные партии уходили бы
+      первыми — ровно наоборот, а сгорающее оставалось бы лежать. Подделкой
+      базы такую перестановку не поймать: она не сортирует вовсе.
+    */
+    const { queries } = await shipOne();
+    const [select] = batchQueries(queries);
+    expect(select, "списание не спрашивает партии вовсе").toBeDefined();
+    expect(select.text.replace(/\s+/g, " "))
+      .toContain("ORDER BY expires_at IS NULL, expires_at, received_at, id");
+  });
+
+  it("партии читаются под блокировкой", async () => {
+    /*
+      Решение «сколько взять из этой партии» принимается по ПРОЧИТАННОМУ
+      остатку. Без FOR UPDATE две одновременные отгрузки читают одно и то же
+      число, обе решают, что партии хватает, и обе с неё списывают: сумма
+      партий уходит ниже остатка и перестаёт с ним сходиться.
+    */
+    const { queries } = await shipOne();
+    expect(batchQueries(queries)[0].text).toContain("FOR UPDATE");
+  });
+
+  it("пустые партии в очередь списания не встают", async () => {
+    // Иначе цикл перебирал бы нули, а отчёт «что сгорает» звал бы человека
+    // списывать то, чего нет.
+    const { queries } = await shipOne();
+    expect(batchQueries(queries)[0].text).toContain("quantity > 0");
+  });
+
+  it("списываются партии своей организации, своего склада и своего товара", async () => {
+    const { queries } = await shipOne(91, 92, 70);
+    const select = batchQueries(queries)[0];
+    expect(select.text).toContain("tenant_id =");
+    expect(select.text).toContain("warehouse_id =");
+    expect(select.text).toContain("product_id =");
+    expect(select.values).toEqual(expect.arrayContaining([91, 92, 70]));
+  });
+
+  it("резерв и снятие резерва партий не касаются", async () => {
+    // Товар никуда не уехал: он на той же полке, просто обещан заказу.
+    const a = spyTx(); await reserveStock(a.tx, { tenantId: 1, warehouseId: 2, items: ONE });
+    const b = spyTx(); await releaseStock(b.tx, { tenantId: 1, warehouseId: 2, items: ONE });
+    expect(batchQueries(a.queries), "резерв полез в партии").toHaveLength(0);
+    expect(batchQueries(b.queries), "снятие резерва полезло в партии").toHaveLength(0);
+  });
+
+  it("приход БЕЗ партии её не заводит", async () => {
+    // Возврат от магазина, оприходование, товар без срока — партии у них нет,
+    // и выдумывать её нельзя: приписанный чужой срок отправит товар в утиль.
+    const { tx, queries } = spyTx();
+    await receiveStock(tx, { tenantId: 1, warehouseId: 2, productId: 7, quantity: 5, reason: "order_return" });
+    expect(batchQueries(queries)).toHaveLength(0);
+  });
+
+  it("приход С партией заводит её одним запросом", async () => {
+    /*
+      Одним INSERT .. ON DUPLICATE KEY UPDATE, а не «поискать и вставить»: на
+      ПЕРВОМ приходе партии искать нечего, заблокировать несуществующую строку
+      нельзя, и два одновременных прихода оба пошли бы вставлять.
+    */
+    const { tx, queries } = spyTx();
+    await receiveStock(tx, {
+      tenantId: 1, warehouseId: 2, productId: 7, quantity: 5, reason: "arrival",
+      batch: { batchNumber: "A", expiresAt: "2026-03-01" },
+    });
+    const [insert] = batchQueries(queries);
+    expect(insert.text).toContain("INSERT INTO stock_batches");
+    expect(insert.text).toContain("ON DUPLICATE KEY UPDATE quantity = quantity +");
+    expect(insert.values).toEqual(expect.arrayContaining(["A", "2026-03-01", "A|2026-03-01", 5]));
+  });
+
+  it("партия без номера и без срока — отказ, а не строка-пустышка", async () => {
+    /*
+      Такая строка ничем не отличается от остатка без партии, но встаёт в
+      очередь списания, ничего о сроке не говоря: FEFO начал бы брать из неё
+      раньше настоящей сгорающей.
+    */
+    const { tx, queries } = spyTx();
+    await expect(receiveStock(tx, {
+      tenantId: 1, warehouseId: 2, productId: 7, quantity: 5, reason: "arrival",
+      batch: { batchNumber: null, expiresAt: null },
+    })).rejects.toThrow(/номер партии или срок годности/);
+    expect(queries, "в базу ушёл запрос при негодном входе").toHaveLength(0);
+  });
+
+  it("ключ партии различает то, что различается", () => {
+    /*
+      Уникальный индекс нельзя построить прямо по номеру и сроку: MySQL считает
+      строки с NULL РАЗЛИЧНЫМИ, и партия без номера заводилась бы заново при
+      каждом приходе — ON DUPLICATE KEY не срабатывал бы никогда.
+    */
+    expect(batchKeyOf({ batchNumber: "A", expiresAt: "2026-03-01" })).toBe("A|2026-03-01");
+    expect(batchKeyOf({ expiresAt: "2026-03-01" })).toBe("|2026-03-01");
+    expect(batchKeyOf({ batchNumber: "A" })).toBe("A|");
+
+    // Разные партии — разные ключи; одинаковые — один.
+    expect(batchKeyOf({ batchNumber: "A", expiresAt: "2026-03-01" }))
+      .not.toBe(batchKeyOf({ batchNumber: "A", expiresAt: "2026-04-01" }));
+    expect(batchKeyOf({ batchNumber: null, expiresAt: "2026-03-01" }))
+      .toBe(batchKeyOf({ expiresAt: "2026-03-01" }));
+  });
+
+  it("установка числом подрезает партии, а не оставляет их выше остатка", async () => {
+    // Инвентаризация приносит итог. Оставить партий больше, чем на полке,
+    // значит звать человека списывать несуществующий товар.
+    const { tx, queries } = spyTx();
+    await setStock(tx, { tenantId: 1, warehouseId: 2, productId: 7, quantity: 4 });
+    const asked = batchQueries(queries);
+    expect(asked, "установка числом партии не проверяет").not.toHaveLength(0);
+    expect(asked[0].text).toContain("SUM(quantity)");
   });
 });

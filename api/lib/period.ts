@@ -72,6 +72,26 @@ export function dayKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+/**
+ * День из значения DATE-колонки, каким его вернул драйвер.
+ *
+ * Драйвер отдаёт такую колонку по-разному: чаще Date, собранным по МЕСТНОМУ
+ * календарю (new Date(год, месяц, число)) — с ним всё просто, — но иногда
+ * строкой «ГГГГ-ММ-ДД».
+ *
+ * И вот строку заворачивать в `new Date(...)` нельзя. «2026-01-15» разбирается
+ * как ПОЛНОЧЬ UTC, а календарные getFullYear/getMonth/getDate читают местное
+ * время: при отрицательном смещении сервера выходит четырнадцатое. Срок
+ * годности, сдвинутый на день назад, — это партия, которую спишут в утиль
+ * раньше времени, и товар, проданный на день позже, чем можно.
+ *
+ * Поэтому строка берётся как есть, а Date — через календарь.
+ */
+export function dateColumnDay(value: Date | string): string {
+  if (typeof value === "string") return value.slice(0, 10);
+  return dayKey(value);
+}
+
 /** Первое и последнее число месяца, в котором лежит `at`. */
 export function monthRange(at: Date = new Date()): { start: string; end: string } {
   return {

@@ -19,6 +19,7 @@ import { SectionNotice } from "@/components/SectionNotice";
 import { CHART_PALETTE } from "@/lib/chartTheme";
 import { unitShort } from "@/lib/units";
 import { notify } from "@/lib/toast";
+import { ExpiringBatches } from "@/components/warehouse/ExpiringBatches";
 
 /*
   Цвета долей берутся из общей палитры, а не собираются здесь.
@@ -360,6 +361,15 @@ export default function WarehouseReports() {
         <KpiCard label={t("Низкие остатки", "Kam qoldiq")} value={String(lowStockTotal)} icon={<AlertTriangle size={20} color="#fff" />} gradient={lowStockTotal > 0 ? "linear-gradient(135deg, var(--kpi-red), var(--kpi-red))" : "linear-gradient(135deg, var(--kpi-green), var(--kpi-green))"} delay={0.4} />
       </div>
       )}
+
+      {/*
+        Сроки годности — выше графиков.
+
+        Это единственный раздел страницы, по которому надо ДЕЙСТВОВАТЬ сегодня:
+        просроченное списывают, горящее двигают. Остальные пять отвечают на
+        вопросы «как идут дела» и терпят до конца недели.
+      */}
+      <ExpiringBatches />
 
       {/* Charts Row 1 */}
       <div className="grid lg:grid-cols-2 gap-4">

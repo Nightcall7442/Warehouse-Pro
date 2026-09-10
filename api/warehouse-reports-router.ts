@@ -4,9 +4,11 @@ import { getDb } from "./queries/connection";
 import {
   warehouseStock, products, stockMovements,
   orderItems, orders, arrivals, arrivalItems,
+  stockBatches, warehouses,
 } from "@db/schema";
-import { eq, and, sql, desc } from "drizzle-orm";
+import { eq, and, sql, desc, gt } from "drizzle-orm";
 import { revenueOrderConditions } from "./lib/order-status";
+import { dayKey } from "./lib/period";
 
 export const warehouseReportsRouter = createRouter({
   /** Stock breakdown by product category */
@@ -242,5 +244,211 @@ export const warehouseReportsRouter = createRouter({
           alertLevel,
         };
       });
+    }),
+  /* ══════════════════════════════════════════════════════════════════════════
+     ЧТО СГОРАЕТ
+
+     ── Зачем ──────────────────────────────────────────────────────────────────
+
+     Срок годности записывался на приёмке и там же и оставался: на остатке
+     лежало одно число на товар, без памяти о том, какими партиями оно
+     набралось. Ответить, что сгорит через неделю, было нечем — данные на входе
+     есть, учёта нет. Кладовщик узнавал об этом, когда шёл списывать.
+
+     Теперь остаток каждой партии живёт в stock_batches, и двигает его та же
+     дверь, что и остаток (api/services/stock-ledger.ts).
+
+     ── Про «уже просрочено» ───────────────────────────────────────────────────
+
+     Просроченное — отдельное состояние, а не «минус три дня» в общем списке:
+     это разные действия. По сгорающему ещё можно что-то сделать — сдвинуть в
+     акцию, отгрузить ближнему магазину. Просроченное списывают. Одним списком
+     человек их путает.
+     ══════════════════════════════════════════════════════════════════════════ */
+  expiring: operatorQuery
+    .input(z.object({
+      /** За сколько дней вперёд смотреть. */
+      withinDays: z.number().int().min(1).max(365).default(30),
+      warehouseId: z.number().int().positive().optional(),
+    }).optional())
+    .query(async ({ input, ctx }) => {
+      const db = getDb();
+      const tenantId = ctx.tenant.id;
+      const withinDays = input?.withinDays ?? 30;
+
+      /*
+        Граница считается по календарю сервера, а не через toISOString.
+
+        Колонка expires_at — DATE, и сравнивается со строкой «ГГГГ-ММ-ДД».
+        Печать через UTC при восточном смещении даёт вчерашний день, и партия,
+        сгорающая сегодня, попала бы в «просроченные». Тот же случай, что с
+        ключом месяца в api/lib/period.ts.
+      */
+      const today = dayKey(new Date());
+      const horizon = new Date();
+      horizon.setDate(horizon.getDate() + withinDays);
+      const until = dayKey(horizon);
+
+      const conditions = [
+        eq(stockBatches.tenantId, tenantId),
+        // Партия с нулевым остатком уже ушла: показать её сгорающей значит
+        // позвать человека списывать то, чего нет.
+        gt(stockBatches.quantity, "0"),
+        sql`${stockBatches.expiresAt} IS NOT NULL`,
+        sql`${stockBatches.expiresAt} <= ${until}`,
+      ];
+      if (input?.warehouseId) conditions.push(eq(stockBatches.warehouseId, input.warehouseId));
+
+      const rows = await db.select({
+        batchId:       stockBatches.id,
+        productId:     stockBatches.productId,
+        productName:   products.name,
+        productCode:   products.code,
+        unit:          products.unit,
+        warehouseId:   stockBatches.warehouseId,
+        warehouseName: warehouses.name,
+        batchNumber:   stockBatches.batchNumber,
+        expiresAt:     stockBatches.expiresAt,
+        quantity:      stockBatches.quantity,
+        // Цена ЗАКУПКИ: столько денег сгорает вместе с товаром. Цена продажи
+        // здесь ни при чём — непроданный товар выручки не приносил.
+        costPrice:     products.costPrice,
+        daysLeft:      sql`DATEDIFF(${stockBatches.expiresAt}, ${today})`.mapWith(Number),
+      })
+        .from(stockBatches)
+        .innerJoin(products, and(eq(stockBatches.productId, products.id), eq(products.tenantId, tenantId)))
+        .leftJoin(warehouses, and(eq(stockBatches.warehouseId, warehouses.id), eq(warehouses.tenantId, tenantId)))
+        .where(and(...conditions))
+        .orderBy(stockBatches.expiresAt)
+        .limit(500);
+
+      return rows.map(r => {
+        const daysLeft = Number(r.daysLeft ?? 0);
+        const quantity = Number(r.quantity ?? 0);
+        return {
+          ...r,
+          quantity,
+          daysLeft,
+          value: Number((quantity * Number(r.costPrice ?? 0)).toFixed(2)),
+          /*
+            Три состояния, а не число дней: по ним принимают РАЗНЫЕ решения.
+            Просроченное — списать, горящее — двигать сегодня, остальное —
+            держать в виду.
+          */
+          state: daysLeft < 0 ? "expired" as const
+               : daysLeft <= 7 ? "urgent" as const
+               : "soon" as const,
+        };
+      });
+    }),
+
+  /** Свод по сгорающему — для плитки, чтобы не тянуть весь список. */
+  expiringSummary: operatorQuery
+    .input(z.object({ withinDays: z.number().int().min(1).max(365).default(30) }).optional())
+    .query(async ({ input, ctx }) => {
+      const db = getDb();
+      const tenantId = ctx.tenant.id;
+      const withinDays = input?.withinDays ?? 30;
+      const today = dayKey(new Date());
+      const horizon = new Date();
+      horizon.setDate(horizon.getDate() + withinDays);
+      const until = dayKey(horizon);
+
+      const [row] = await db.select({
+        expiredCount: sql`COUNT(CASE WHEN ${stockBatches.expiresAt} < ${today} THEN 1 END)`.mapWith(Number),
+        expiredValue: sql`COALESCE(SUM(CASE WHEN ${stockBatches.expiresAt} < ${today} THEN ${stockBatches.quantity} * COALESCE(${products.costPrice}, 0) ELSE 0 END), 0)`.mapWith(Number),
+        urgentCount:  sql`COUNT(CASE WHEN ${stockBatches.expiresAt} >= ${today} AND DATEDIFF(${stockBatches.expiresAt}, ${today}) <= 7 THEN 1 END)`.mapWith(Number),
+        soonCount:    sql`COUNT(CASE WHEN DATEDIFF(${stockBatches.expiresAt}, ${today}) > 7 THEN 1 END)`.mapWith(Number),
+        liveValue:    sql`COALESCE(SUM(CASE WHEN ${stockBatches.expiresAt} >= ${today} THEN ${stockBatches.quantity} * COALESCE(${products.costPrice}, 0) ELSE 0 END), 0)`.mapWith(Number),
+      })
+        .from(stockBatches)
+        .innerJoin(products, and(eq(stockBatches.productId, products.id), eq(products.tenantId, tenantId)))
+        .where(and(
+          eq(stockBatches.tenantId, tenantId),
+          gt(stockBatches.quantity, "0"),
+          sql`${stockBatches.expiresAt} IS NOT NULL`,
+          sql`${stockBatches.expiresAt} <= ${until}`,
+        ));
+
+      return {
+        expiredCount: Number(row?.expiredCount ?? 0),
+        expiredValue: Number(row?.expiredValue ?? 0),
+        urgentCount:  Number(row?.urgentCount ?? 0),
+        soonCount:    Number(row?.soonCount ?? 0),
+        liveValue:    Number(row?.liveValue ?? 0),
+      };
+    }),
+
+  /*
+    Из чего сложился остаток одного товара.
+
+    Открывается из карточки товара: «на складе 240, из них 90 сгорают через
+    неделю». Без этого разреза общее число о риске не говорит ничего.
+
+    Остаток БЕЗ партии показывается отдельной строкой, а не прячется: партии
+    покрывают не всё — товар, лежавший до появления учёта, бытовая химия без
+    срока и вернувшийся от магазина товар партии не имеют. Спрятать разницу
+    значило бы показать на экране меньше, чем лежит на полке.
+  */
+  productBatches: operatorQuery
+    .input(z.object({
+      productId: z.number().int().positive(),
+      warehouseId: z.number().int().positive().optional(),
+    }))
+    .query(async ({ input, ctx }) => {
+      const db = getDb();
+      const tenantId = ctx.tenant.id;
+      const today = dayKey(new Date());
+
+      const conditions = [
+        eq(stockBatches.tenantId, tenantId),
+        eq(stockBatches.productId, input.productId),
+        gt(stockBatches.quantity, "0"),
+      ];
+      if (input.warehouseId) conditions.push(eq(stockBatches.warehouseId, input.warehouseId));
+
+      const batches = await db.select({
+        batchId:     stockBatches.id,
+        warehouseId: stockBatches.warehouseId,
+        batchNumber: stockBatches.batchNumber,
+        expiresAt:   stockBatches.expiresAt,
+        quantity:    stockBatches.quantity,
+        receivedAt:  stockBatches.receivedAt,
+        daysLeft:    sql`CASE WHEN ${stockBatches.expiresAt} IS NULL THEN NULL ELSE DATEDIFF(${stockBatches.expiresAt}, ${today}) END`.mapWith(Number),
+      })
+        .from(stockBatches)
+        .where(and(...conditions))
+        // Тот же порядок, в котором списывает FEFO: человек видит, что уйдёт
+        // первым, ровно так же, как это решит система.
+        .orderBy(sql`${stockBatches.expiresAt} IS NULL`, stockBatches.expiresAt, stockBatches.receivedAt);
+
+      const stockConditions = [
+        eq(warehouseStock.tenantId, tenantId),
+        eq(warehouseStock.productId, input.productId),
+      ];
+      if (input.warehouseId) stockConditions.push(eq(warehouseStock.warehouseId, input.warehouseId));
+
+      const [total] = await db.select({
+        onHand: sql`COALESCE(SUM(${warehouseStock.currentStock}), 0)`.mapWith(Number),
+      }).from(warehouseStock).where(and(...stockConditions));
+
+      const inBatches = batches.reduce((sum, b) => sum + Number(b.quantity), 0);
+      const onHand = Number(total?.onHand ?? 0);
+
+      return {
+        onHand,
+        inBatches: Number(inBatches.toFixed(2)),
+        /*
+          Остаток, про срок которого сказать нечего. Отрицательным он быть не
+          может — дверь не даёт партиям превысить остаток; нижняя граница стоит
+          на случай строк, разъехавшихся до появления этой проверки.
+        */
+        untracked: Number(Math.max(0, onHand - inBatches).toFixed(2)),
+        batches: batches.map(b => ({
+          ...b,
+          quantity: Number(b.quantity),
+          daysLeft: b.daysLeft == null ? null : Number(b.daysLeft),
+        })),
+      };
     }),
 });

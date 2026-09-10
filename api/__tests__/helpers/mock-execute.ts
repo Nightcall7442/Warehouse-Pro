@@ -93,6 +93,32 @@ export function createExecuteMock<T extends StockRow>(stockTable: T[], options: 
       return Promise.resolve();
     }
 
+    /*
+      Партии остатка.
+
+      Эти стенды партий не держат: у них нет ни таблицы, ни строк. Но дверь
+      спрашивает про них на КАЖДОМ списании, и ответ обязан быть правильной
+      формы — пустым списком, а не `undefined`. Иначе разбор результата в двери
+      падает, и весь путь заказа сообщает «rows is not iterable», а виноватым
+      выглядит склад.
+
+      Пустой ответ здесь честен: партий в этих стендах правда нет, и списывать
+      нечего. Арифметику FEFO проверяет набор real-db, где база настоящая.
+
+      Незнакомый запрос к партиям роняет стенд — как и незнакомый запрос к
+      остатку: молча проглотить складскую правку нельзя.
+    */
+    if (fullSql.includes("stock_batches")) {
+      if (/^\s*SELECT/i.test(fullSql)) return Promise.resolve([[], []]);
+      if (/^\s*(?:UPDATE|INSERT)/i.test(fullSql)) return Promise.resolve([{ affectedRows: 0 }]);
+      throw new Error(
+        "Подделка склада не узнала запрос к stock_batches:\n" +
+        `  ${fullSql.replace(/\s+/g, " ").trim().slice(0, 200)}\n` +
+        "Партии двигает та же дверь, что и остаток. Появилась новая форма —\n" +
+        "либо ведите её через дверь, либо научите стенд.",
+      );
+    }
+
     if (!fullSql.includes("warehouse_stock")) return Promise.resolve();
     const norm = fullSql.replace(/\s+/g, " ").trim();
 

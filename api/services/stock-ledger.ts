@@ -188,6 +188,158 @@ async function shiftStock(
       AND tenant_id = ${tenantId}
       AND warehouse_id = ${warehouseId}
   `);
+
+  /*
+    Уехавшее списывается с партий — ТЕМ ЖЕ вызовом.
+
+    Это и есть причина, по которой партии ждали двери. Пока остаток меняли
+    девятнадцать мест, любой параллельный учёт разъехался бы с ним за неделю:
+    достаточно одного пути, который забыл про партии. Здесь забыть негде — путь
+    один, и он же двигает обе таблицы.
+
+    Резерв партий не касается: товар никуда не уехал.
+  */
+  for (const row of rows) {
+    if (row.onHand < 0) {
+      await consumeBatches(tx, tenantId, warehouseId, row.productId, -row.onHand);
+    }
+  }
+}
+
+/**
+ * Строки результата `execute`.
+ *
+ * Драйвер mysql2 отдаёт пару [строки, метаданные]; служебные заглушки в тестах
+ * отдают кто что — иногда сами строки, иногда ничего. Разбор здесь, а не по
+ * месту: `const [list] = res` на заглушке, вернувшей undefined, роняет ВЕСЬ
+ * путь заказа сообщением «rows is not iterable», и виноватым выглядит склад.
+ *
+ * Пустой ответ означает «партий нет», и это не молчание о проблеме: у остатка
+ * без партий их и правда нет. Стенды, которые берутся моделировать склад,
+ * обязаны отвечать на этот запрос сами — за этим следит
+ * api/__tests__/helpers/mock-execute.ts, он на незнакомый запрос к партиям
+ * падает.
+ */
+function resultRows<T>(res: unknown): T[] {
+  if (!Array.isArray(res)) return [];
+  const first = res[0];
+  return (Array.isArray(first) ? first : res) as T[];
+}
+
+/**
+ * Ключ партии: номер и срок, склеенные в одну строку.
+ *
+ * Нужен затем, что уникальный индекс по двум необязательным колонкам в MySQL
+ * не работает — строки с NULL считаются различными, и `ON DUPLICATE KEY UPDATE`
+ * не срабатывает никогда. Подробности в комментарии к таблице.
+ */
+export function batchKeyOf(batch: { batchNumber?: string | null; expiresAt?: string | null }): string {
+  return `${batch.batchNumber ?? ""}|${batch.expiresAt ?? ""}`;
+}
+
+/** Партия, которой пришёл товар. */
+export interface BatchRef {
+  batchNumber?: string | null;
+  /** «ГГГГ-ММ-ДД». */
+  expiresAt?: string | null;
+  arrivalItemId?: number | null;
+}
+
+/**
+ * Списать количество с партий этого товара — сперва с того, что раньше портится.
+ *
+ * ── FEFO, а не FIFO ─────────────────────────────────────────────────────────
+ *
+ * Первым уходит не то, что раньше пришло, а то, что раньше СГОРИТ. На товаре
+ * с одинаковым сроком хранения это одно и то же, а на разном — нет: партия,
+ * привезённая вчера с остатком в две недели, обязана уйти раньше позавчерашней
+ * с остатком в полгода. Иначе первая списывается в утиль, и это прямые деньги.
+ *
+ * Партии без срока идут последними: сгореть они не могут, и торопиться с ними
+ * незачем.
+ *
+ * ── Про «не хватило партий» ─────────────────────────────────────────────────
+ *
+ * Отказа здесь нет намеренно. Партии покрывают не весь остаток: у товара,
+ * лежавшего на складе до появления этой таблицы, у бытовой химии без срока и у
+ * вернувшегося от магазина товара партии нет вовсе. Недостающее уходит из
+ * этого безымянного остатка — он реальный и лежит в warehouse_stock.
+ *
+ * Инвариант при этом сохраняется: SUM(партий) <= current_stock. Отнять с
+ * партий больше, чем там есть, нельзя — GREATEST не даст.
+ */
+async function consumeBatches(
+  tx: LedgerWriter, tenantId: number, warehouseId: number, productId: number, quantity: number,
+): Promise<void> {
+  if (!(quantity > 0)) return;
+
+  /*
+    Блокировка строк на чтении обязательна.
+
+    Решение «сколько взять из этой партии» принимается по ПРОЧИТАННОМУ
+    остатку партии, и без `FOR UPDATE` две одновременные отгрузки читают одно
+    и то же число, обе решают, что партии хватает, и обе с неё списывают. Та
+    же беда, что была с остатком до появления двери, только незаметнее: сумма
+    партий уходит ниже нуля и перестаёт сходиться с current_stock.
+
+    `expires_at IS NULL` первым полем сортировки — это «сначала те, у кого
+    срок есть». MySQL сортирует NULL перед значениями, поэтому без этого
+    условия бессрочные партии уходили бы ПЕРВЫМИ, то есть ровно наоборот.
+  */
+  const rows = await tx.execute(sql`
+    SELECT id, quantity FROM stock_batches
+    WHERE tenant_id = ${tenantId}
+      AND warehouse_id = ${warehouseId}
+      AND product_id = ${productId}
+      AND quantity > 0
+    ORDER BY expires_at IS NULL, expires_at, received_at, id
+    FOR UPDATE
+  `);
+  const list = resultRows<{ id: number; quantity: string }>(rows);
+
+  let left = quantity;
+  for (const batch of list) {
+    if (left <= 0) break;
+    const take = Math.min(Number(batch.quantity), left);
+    if (!(take > 0)) continue;
+    left -= take;
+    await tx.execute(sql`
+      UPDATE stock_batches
+      SET quantity = GREATEST(0, quantity - ${take})
+      WHERE id = ${batch.id} AND tenant_id = ${tenantId}
+    `);
+  }
+}
+
+/**
+ * Завести или пополнить партию.
+ *
+ * Одним запросом, а не «поискать и вставить», по той же причине, что и у
+ * прихода на остаток: заблокировать несуществующую строку нельзя, и два
+ * одновременных прихода одной партии оба пошли бы вставлять.
+ */
+async function receiveBatch(
+  tx: LedgerWriter,
+  entry: { tenantId: number; warehouseId: number; productId: number; quantity: number; batch: BatchRef },
+): Promise<void> {
+  const { batchNumber, expiresAt } = entry.batch;
+  if (!batchNumber && !expiresAt) {
+    throw new Error(
+      `партия товара ${entry.productId}: нужен номер партии или срок годности — ` +
+      `строка без того и другого ничем не отличается от остатка без партии`,
+    );
+  }
+
+  await tx.execute(sql`
+    INSERT INTO stock_batches
+      (tenant_id, warehouse_id, product_id, batch_number, expires_at, batch_key, quantity, arrival_item_id)
+    VALUES (
+      ${entry.tenantId}, ${entry.warehouseId}, ${entry.productId},
+      ${batchNumber ?? null}, ${expiresAt ?? null}, ${batchKeyOf(entry.batch)},
+      ${entry.quantity}, ${entry.batch.arrivalItemId ?? null}
+    )
+    ON DUPLICATE KEY UPDATE quantity = quantity + ${entry.quantity}
+  `);
 }
 
 /** Список товаров с одинаковым сдвигом на единицу. */
@@ -216,10 +368,27 @@ export async function receiveStock(
     reason: StockMovementReason;
     referenceId?: number | null;
     notes?: string | null;
+    /*
+      Партия, если она известна.
+
+      Известна она ровно в одном месте — на приёмке: это единственная дверь,
+      через которую товар появляется на складе с записанной датой. У возврата
+      от магазина её нет и быть не может: какая именно партия вернулась, никто
+      не записывает, а приписать ей чужой срок значило бы соврать в отчёте
+      «что сгорает». Такой товар ложится в остаток без партии.
+    */
+    batch?: BatchRef | null;
   },
 ): Promise<void> {
   const [item] = normalize([{ productId: entry.productId, quantity: entry.quantity }], "приход");
   if (!item) return;
+
+  if (entry.batch) {
+    await receiveBatch(tx, {
+      tenantId: entry.tenantId, warehouseId: entry.warehouseId,
+      productId: item.productId, quantity: item.quantity, batch: entry.batch,
+    });
+  }
 
   await tx.execute(sql`
     INSERT INTO warehouse_stock (tenant_id, warehouse_id, product_id, current_stock, reserved, available)
@@ -407,4 +576,27 @@ export async function setStock(
       AND tenant_id = ${entry.tenantId}
       AND warehouse_id = ${entry.warehouseId}
   `);
+
+  /*
+    Партии подрезаются под новое число.
+
+    Инвентаризация и обмен приносят ИТОГ, а не движение: какая партия убыла,
+    отсюда не видно. Но оставить партий больше, чем лежит на полке, нельзя —
+    отчёт «что сгорает» показывал бы товар, которого нет, и списывать его в
+    утиль поехали бы вручную.
+
+    Лишнее снимается по тому же правилу FEFO. Обратное — пересчёт НАШЁЛ больше,
+    чем числилось, — партиям не приписывается: какой партии принадлежит
+    найденное, неизвестно, и оно ложится в остаток без партии.
+  */
+  const rows = await tx.execute(sql`
+    SELECT COALESCE(SUM(quantity), 0) AS total FROM stock_batches
+    WHERE tenant_id = ${entry.tenantId}
+      AND warehouse_id = ${entry.warehouseId}
+      AND product_id = ${entry.productId}
+  `);
+  const inBatches = Number(resultRows<{ total: unknown }>(rows)[0]?.total ?? 0);
+  if (inBatches > q) {
+    await consumeBatches(tx, entry.tenantId, entry.warehouseId, entry.productId, inBatches - q);
+  }
 }
