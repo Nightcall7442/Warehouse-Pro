@@ -1,13 +1,14 @@
 import { z } from "zod";
-import { randomUUID } from "crypto";
+import { randomUUID, randomBytes, createHash } from "crypto";
 import { TRPCError } from "@trpc/server";
 import { recordAudit } from "./services/audit-log";
 import { createRouter, publicQuery, adminQuery, superAdminQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { tenants, users, settings, orders, products, shops, subscriptions, warehouses } from "@db/schema";
+import { tenants, users, settings, orders, products, shops, subscriptions, warehouses, apiKeys } from "@db/schema";
 import { eq, and, ne, sql, count, sum } from "drizzle-orm";
 import { hashPassword } from "./auth/password";
 import { findTenantBySlug, listTenants } from "./queries/tenants";
+import { seedSandbox, SANDBOX_ORDER_COUNT } from "./services/sandbox";
 import { checkRateLimit, getClientIp, rateLimitSubject } from "./lib/rate-limit";
 import { logger } from "./lib/logger";
 import { checkPlanLimits } from "./lib/plan-limits";
@@ -414,6 +415,131 @@ export const tenantRouter = createRouter({
       });
 
       return { success: true, slug, tenantId: tenantId! };
+    }),
+
+  /* ═════════════════════════════════════════════════════════════════════════
+     Песочница для интеграторов.
+
+     ── Зачем ────────────────────────────────────────────────────────────────
+
+     Чужая сторона, которая подключается к выгрузке, обязана где-то проверить
+     листание, снимок и отказы 401/403/429. Без песочницы она проверяет это на
+     боевых данных настоящего арендатора — с его суммами и телефонами его
+     магазинов на чужом экране. ТЗ BEKDRINKS запрещает это прямым текстом
+     (пункт 13) и требует отдельную среду (16-6).
+
+     ── Что здесь заводится ──────────────────────────────────────────────────
+
+     Отдельная организация с пометкой песочницы, выдуманными данными и своим
+     ключом. Тариф — Exclusive с дальним сроком, потому что выгрузка продаётся
+     как его возможность и иначе ключ получил бы 403 при первом же запросе; за
+     деньги это не считается: подписка заводится вручную и Stripe не трогает.
+
+     ── Чем это не может стать ───────────────────────────────────────────────
+
+     Способом залить выдумку в живого арендатора: seedSandbox отказывается
+     работать где угодно, кроме ПУСТОЙ организации с пометкой песочницы, и
+     ничего не удаляет.
+
+     Ключ отдаётся ОДИН раз — как и обычный. Хранится только его отпечаток,
+     показать повторно нечего.
+     ═════════════════════════════════════════════════════════════════════════ */
+  createSandbox: superAdminQuery
+    .input(z.object({
+      /* Кому её выдаём — попадёт в название, чтобы песочницы не путались
+         между собой, когда интеграторов станет несколько. */
+      partnerName:   z.string().min(2).max(60),
+      ownerEmail:    z.string().email(),
+      ownerPassword: z.string().min(8),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+
+      let slug = slugify(`sandbox ${input.partnerName}`);
+      const base = slug;
+      let attempt = 1;
+      while (await findTenantBySlug(slug)) {
+        if (attempt > 100) throw new TRPCError({ code: "CONFLICT", message: "Не удалось подобрать адрес песочницы." });
+        slug = `${base}-${attempt++}`;
+      }
+
+      const existing = await db.select({ id: users.id }).from(users)
+        .where(eq(users.email, input.ownerEmail)).limit(1);
+      if (existing.length) throw new TRPCError({ code: "CONFLICT", message: "Этот адрес уже занят." });
+
+      const name = `Песочница — ${input.partnerName}`;
+      const passwordHash = await hashPassword(input.ownerPassword);
+      // Год: достаточно на подключение и приёмку, и не «навсегда» — брошенная
+      // песочница перестанет отвечать сама.
+      const expiresAt = new Date(Date.now() + 365 * 86_400_000);
+
+      let tenantId: number;
+      await db.transaction(async (tx) => {
+        const [t] = await tx.insert(tenants).values({
+          slug, name, plan: "exclusive", status: "active",
+          planExpiresAt: expiresAt, ownerEmail: input.ownerEmail,
+          isSandbox: true,
+        });
+        tenantId = Number(t.insertId);
+
+        await tx.insert(users).values({
+          tenantId, name: `${input.partnerName} (интегратор)`, email: input.ownerEmail,
+          passwordHash, role: "ceo", status: "active", lastSignInAt: new Date(),
+        });
+        await tx.insert(settings).values({ tenantId, companyName: name });
+        await tx.insert(subscriptions).values({
+          id: randomUUID(), tenantId, plan: "exclusive",
+          status: "active", currentPeriodEnds: expiresAt,
+        });
+      });
+
+      // Данные — вне сделки: их триста двадцать заказов с позициями, и держать
+      // на это время открытую транзакцию незачем. Если заполнение сорвётся,
+      // останется пустая песочница — то есть ровно то состояние, которое
+      // seedSandbox умеет заполнить повторно.
+      const contents = await seedSandbox(db, tenantId!);
+
+      /*
+        Ключ с приметой «test», а не «live».
+
+        Проверяется он отпечатком, и приставка ни на что не влияет технически.
+        Влияет она на человека: ключ живёт в настройках у чужой стороны, и
+        перепутать там песочницу с боем — это отчёт по выдуманным числам,
+        отправленный заказчику.
+      */
+      const raw = "wp_test_" + randomBytes(24).toString("hex");
+      await db.insert(apiKeys).values({
+        tenantId: tenantId!,
+        name: `Песочница ${input.partnerName}`,
+        keyHash: createHash("sha256").update(raw).digest("hex"),
+        keyPrefix: raw.slice(0, 12),
+        scopes: "read",
+        // Тот же потолок, что у боевого ключа по умолчанию: испытание 429
+        // должно упираться в ту же стену, что и настоящая работа.
+        rateLimit: 60,
+        expiresAt,
+      });
+
+      await recordAudit(db, {
+        tenantId: tenantId!,
+        actorId: ctx.user.id,
+        actorName: ctx.user.name,
+        action: "tenant.sandbox.create",
+        targetType: "tenant",
+        targetId: tenantId!,
+        meta: { slug, partner: input.partnerName, orders: contents.orders },
+      });
+
+      return {
+        tenantId: tenantId!,
+        slug,
+        name,
+        /* Один раз. Дальше показать нечего — хранится только отпечаток. */
+        key: raw,
+        expiresAt,
+        contents,
+        orderCount: SANDBOX_ORDER_COUNT,
+      };
     }),
 
   /** Обновить тариф */

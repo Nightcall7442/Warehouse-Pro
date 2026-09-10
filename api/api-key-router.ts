@@ -9,6 +9,7 @@ import { apiKeys } from "../db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { createHash, randomBytes } from "crypto";
 import { TRPCError } from "@trpc/server";
+import { exportHealth, recentExports } from "./public/export-log";
 
 const SCOPE_LIST = ["read", "write", "orders", "products", "stock", "shops", "webhooks"] as const;
 
@@ -21,7 +22,40 @@ function generateApiKey(): { raw: string; hash: string; prefix: string } {
   return { raw, hash: hashKey(raw), prefix: raw.slice(0, 12) };
 }
 
+/** Ключи ведёт директор или суперадмин — правило файла с самого начала. */
+function assertKeyManager(role: string): void {
+  if (role !== "superadmin" && role !== "ceo") {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Only CEO or SuperAdmin can manage API keys." });
+  }
+}
+
 export const apiKeyRouter = createRouter({
+  /*
+    ── Состояние обмена за сутки ──────────────────────────────────────────
+
+    Отвечает на единственный вопрос, который задают про интеграцию: «она
+    работает?». До этого ответить было нечем — ни следа того, что мы отдали,
+    ни того, чем ответили, и разговор с интегратором сводился к тому, кто
+    увереннее.
+
+    Показываются НАШИ факты: когда последний раз отдали удачно, с какой точки
+    возобновления продолжат и что за отказ был последним. Сошлась ли сверка у
+    получателя и не задвоил ли он строки — знает только он, и выдавать его
+    выводы за свои нельзя.
+  */
+  exportHealth: authedQuery.query(async ({ ctx }) => {
+    assertKeyManager(ctx.user.role);
+    return exportHealth(ctx.user.tenantId);
+  }),
+
+  /** Последние обращения — список для разбора спора о пропаже. */
+  exportLog: authedQuery
+    .input(z.object({ limit: z.number().int().min(1).max(200).default(50) }).optional())
+    .query(async ({ ctx, input }) => {
+      assertKeyManager(ctx.user.role);
+      return recentExports(ctx.user.tenantId, input?.limit ?? 50);
+    }),
+
   /** List all API keys for current tenant */
   list: authedQuery.query(async ({ ctx }) => {
     // The three mutations below check this; the list did not, so every

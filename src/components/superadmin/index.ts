@@ -7,3 +7,4 @@ export { BackupSection } from "./BackupSection";
 export { SupportInbox } from "./SupportInbox";
 export { FeatureUsage } from "./FeatureUsage";
 export { LeadInbox } from "./LeadInbox";
+export { SandboxSection } from "./SandboxSection";

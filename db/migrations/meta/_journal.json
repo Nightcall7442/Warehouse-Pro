@@ -134,6 +134,20 @@
       "when": 1789065712427,
       "tag": "0018_promised_delivery",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "5",
+      "when": 1789068547703,
+      "tag": "0019_sandbox_tenant",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "5",
+      "when": 1789069827474,
+      "tag": "0020_api_export_log",
+      "breakpoints": true
     }
   ]
 }

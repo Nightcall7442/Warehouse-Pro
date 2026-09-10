@@ -16,6 +16,11 @@ import { ordersV1 } from "./public/orders-v1";
 type PublicApiVariables = {
   tenantId: number;
   scopes: string[];
+  /** Организация помечена песочницей — см. разбор у заголовка ответа ниже. */
+  sandbox: boolean;
+  /* Номер ключа — для журнала выгрузок. Сам ключ и его отпечаток дальше
+     middleware не идут: в журнал они попасть не должны ни при какой ошибке. */
+  apiKeyId: number | null;
 };
 
 const app = new Hono<{ Variables: PublicApiVariables }>();
@@ -65,7 +70,7 @@ app.use("*", async (c, next) => {
   //
   // Проверка стоит здесь, в общем middleware, а не в каждом маршруте: новый
   // маршрут ниже закрывается сам, забыть его нельзя.
-  const [tenant] = await db.select({ status: tenants.status, plan: tenants.plan })
+  const [tenant] = await db.select({ status: tenants.status, plan: tenants.plan, isSandbox: tenants.isSandbox })
     .from(tenants).where(eq(tenants.id, key.tenantId)).limit(1);
 
   if (!tenant || tenant.status !== "active") {
@@ -92,6 +97,45 @@ app.use("*", async (c, next) => {
   // Set context
   c.set("tenantId", key.tenantId);
   c.set("scopes", key.scopes.split(","));
+  c.set("sandbox", !!tenant.isSandbox);
+  c.set("apiKeyId", Number(key.id));
+  await next();
+
+  /*
+    ── Каждый ответ песочницы назван песочницей ──────────────────────────────
+
+    Заголовок, а не поле в теле: тело у каждого маршрута своё, а забыть его в
+    одном из них — значит однажды отдать выдуманные числа без пометки.
+    Заголовок ставится здесь, после обработчика, и покрывает всё, включая
+    отказы.
+
+    Зачем вообще: ключ песочницы живёт в настройках у чужой стороны рядом с
+    боевым. Перепутать их — это отчёт заказчику по выдуманным заказам, и
+    заметить подмену по самим числам нельзя: они выглядят как настоящие.
+    Поэтому среда названа в каждом ответе, а не только при выдаче ключа.
+  */
+  c.header("X-Warehouse-Environment", tenant.isSandbox ? "sandbox" : "production");
+});
+
+/*
+  ── Запись сюда не ходит ───────────────────────────────────────────────────
+
+  Пункт 17-F приёмки требует, чтобы в песочнице отвергались попытки записи. В
+  этой выгрузке их отвергать нечем: писать через неё нельзя нигде и никому,
+  все маршруты — чтение. Значит, ответ обязан быть внятным, а не «404, такого
+  адреса нет»: получатель, пробующий POST, должен прочесть, что дело не в
+  адресе.
+
+  Стоит ПЕРЕД маршрутами и ловит любой метод, кроме безопасных: новый маршрут
+  ниже закрывается сам, забыть его нельзя. За тем, что записывающих маршрутов
+  не появилось, следит отдельная проверка (public-api-is-read-only).
+*/
+app.use("*", async (c, next) => {
+  if (c.req.method !== "GET" && c.req.method !== "HEAD") {
+    return c.json({
+      error: "This API is read-only. Orders and stock are changed in Warehouse Pro itself.",
+    }, 405, { Allow: "GET, HEAD" });
+  }
   await next();
 });
 
@@ -230,6 +274,12 @@ app.get("/shops", async (c) => {
 // HEALTH
 // ══════════════════════════════════════════════════════════════════════════════
 
-app.get("/health", (c) => c.json({ status: "ok", version: "v1" }));
+app.get("/health", (c) => c.json({
+  status: "ok",
+  version: "v1",
+  // Та же примета, что и в заголовке: проверка связи — первое, что делает
+  // интегратор, и она должна сразу сказать, куда он попал.
+  environment: c.get("sandbox") ? "sandbox" : "production",
+}));
 
 export default app;

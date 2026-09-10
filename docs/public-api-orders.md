@@ -106,7 +106,7 @@ own clock. A minute of drift loses orders.
 | `status` | comma-separated; an unknown value is a `400`, never a silent empty page |
 | `created_from`, `created_to` | `YYYY-MM-DD` or ISO 8601. **Both bounds inclusive.** A bare date expands: `from` → `00:00:00`, `to` → `23:59:59` |
 | `updated_since` | ISO 8601; switches to changes mode |
-| `warehouse_id` | validated against your company; an unknown id is a `404` |
+| `warehouse_id` | validated against your company; an unknown id is a `404`. Sales happen from the **default warehouse only**, so any other (valid) warehouse legitimately returns **zero rows** — not the whole company |
 
 Date filters apply to **`created_at`** (and `updated_at` for `updated_since`).
 
@@ -270,7 +270,53 @@ incomplete. Keep the last verified state and retry.
 
 ---
 
-## 7. What is not here yet
+## 7. Recovery, retries and idempotency
+
+**The cursor is your checkpoint.** It is stateless and travels with you: we do
+not remember where you were. Persist `next_cursor` after each page you have
+*durably stored*, and resume from it after a dropped connection, a timeout or a
+restart on either side. Resuming from a cursor you already consumed returns the
+same rows again — that is by design, and the reason the merge rule below exists.
+
+**Idempotency is by `order_id`.** Every row carries a stable primary key that
+never changes, including across a delete or a reopen. Upsert by `order_id`;
+never append blindly. In changes mode delivery is *at least once*, so a row can
+legitimately arrive twice.
+
+**Never publish a partial export.** A page either arrives whole with `200` or it
+does not arrive: the response is built in one piece, so a failure mid-query
+becomes a `5xx`, never a truncated `200`. On any error, keep your last verified
+state, retry from your stored cursor, and publish only after the three
+reconciliation checks below pass.
+
+**Retry policy.**
+
+| code | retry? | how |
+|---|---|---|
+| 429 | yes | wait the `Retry-After` seconds, then repeat the same cursor |
+| 5xx | yes | exponential backoff from ~2s, cap ~5 min, repeat the same cursor |
+| 408 / network drop | yes | repeat the same cursor immediately |
+| 401 / 403 | no | stop and alert the operator — retrying cannot help |
+| 402 | no | stop and alert the customer — this is billing |
+| 400 / 404 | no | your request is wrong; fix it |
+
+## 8. What we log on our side
+
+Every call to `GET /orders` is recorded for 30 days: the moment, the mode, the
+cursor you sent, the cursor we returned, the HTTP status, the number of rows and
+the reconciliation totals of that response.
+
+The customer sees this in Warehouse Pro (Settings → API keys → *Обмен за сутки*):
+last successful export, requests and rows in the last 24 hours, the number of
+refusals and the last one, plus the checkpoint you would resume from. That is
+what makes the 24-hour trial (§17-H) answerable from our side.
+
+**What we do not know**, and therefore do not claim: whether your reconciliation
+matched, whether you de-duplicated correctly, and how many rows you dropped on
+your side. Those live in your log; keep them, because together the two halves
+settle any dispute about a missing order.
+
+## 9. What is not here yet
 
 Phase 1 is orders only. Stock, debts and staff results are described in §14 of
 the specification and are a separate agreement. The existing `/stock`,

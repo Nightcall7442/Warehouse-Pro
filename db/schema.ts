@@ -61,6 +61,20 @@ export const tenants = mysqlTable("tenants", {
   extraProducts: int("extra_products").default(0).notNull(),
   ownerEmail:    varchar("owner_email", { length: 320 }),
   ownerPhone:    varchar("owner_phone", { length: 30 }),
+  /*
+    Песочница для интеграторов.
+
+    Организация с выдуманными данными, на которой чужая сторона проверяет
+    выгрузку: листание, снимок, отказы 401/403/429. ТЗ BEKDRINKS требует этого
+    прямо (пункт 13): первые испытания — в отдельной среде, и проверять права
+    правкой боевых данных нельзя.
+
+    Признак живёт у организации, а не у ключа, потому что отвечает на вопрос
+    «чьи это данные», а не «чем их читают». По нему выгрузка помечает КАЖДЫЙ
+    свой ответ заголовком среды: перепутать выдуманные числа с настоящими
+    нельзя, иначе однажды по ним посчитают настоящий отчёт.
+  */
+  isSandbox:     boolean("is_sandbox").default(false).notNull(),
   createdAt:     timestamp("created_at").defaultNow().notNull(),
   updatedAt:     timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
 });
@@ -1460,6 +1474,61 @@ export const apiKeys = mysqlTable("api_keys", {
 
 export type ApiKey       = typeof apiKeys.$inferSelect;
 export type InsertApiKey = typeof apiKeys.$inferInsert;
+
+// ============================================
+// API EXPORT LOG — что и когда мы отдали наружу
+// ============================================
+/*
+  Журнал выгрузок наружу.
+
+  ── Зачем ─────────────────────────────────────────────────────────────────
+
+  Приёмка (пункт 17-H) требует суточного испытания, в котором записаны
+  последняя успешная выгрузка и ошибки. Без журнала на вопрос «мы не получили
+  заказы за вторник» ответить нечем: у нас нет ни следа того, что мы отдали,
+  ни того, чем ответили.
+
+  Это НАША половина правды: что мы отдали и чем ответили. Вторая половина —
+  что получатель разобрал и сошлась ли у него сверка — живёт у него, и
+  выдавать её за свою нельзя.
+
+  ── Что здесь есть и чего нет ─────────────────────────────────────────────
+
+  Есть точка возобновления (курсор), числа сверки (строк, итог, сумма) и
+  ответ. Нет ни одного заказа: журнал обращений не должен становиться второй
+  копией заказов.
+
+  Живёт тридцать дней — уборка в cron/scheduler.ts. Суточное испытание в него
+  укладывается с большим запасом, а расти без конца журналу обращений нельзя.
+*/
+export const apiExportLog = mysqlTable("api_export_log", {
+  id:          serial("id").primaryKey(),
+  tenantId:    bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  /* Ключ может быть отозван позже — тогда здесь остаётся его номер, а самой
+     строки ключа уже нет. Поэтому без внешнего ключа. */
+  apiKeyId:    bigint("api_key_id", { mode: "number", unsigned: true }),
+  endpoint:    varchar("endpoint", { length: 64 }).notNull(),
+  /** snapshot или changes — режим, в котором пришли. */
+  mode:        varchar("mode", { length: 16 }).notNull(),
+  /** Точка возобновления, с которой пришли и которую отдали. */
+  cursorIn:    varchar("cursor_in", { length: 512 }),
+  cursorOut:   varchar("cursor_out", { length: 512 }),
+  httpStatus:  int("http_status").notNull(),
+  /** Строк в ответе. У отказа — ноль. */
+  rows:        int("rows").default(0).notNull(),
+  /** Числа сверки того же ответа: по ним разбирают спор о пропаже. */
+  totalCount:  int("total_count"),
+  amountTotal: decimal("amount_total", { precision: 14, scale: 2 }),
+  durationMs:  int("duration_ms").default(0).notNull(),
+  /** Текст отказа — короткий и без ключа: ключи в журнал не попадают. */
+  error:       varchar("error", { length: 300 }),
+  createdAt:   timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  tenantIdx: index("idx_export_log_tenant").on(t.tenantId, t.createdAt),
+  keyIdx:    index("idx_export_log_key").on(t.apiKeyId, t.createdAt),
+}));
+
+export type ApiExportLog = typeof apiExportLog.$inferSelect;
 
 // ============================================
 // 1C CONFIG — per-tenant 1C Bridge connection settings

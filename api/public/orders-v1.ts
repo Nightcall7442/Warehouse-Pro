@@ -25,6 +25,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 import { Hono } from "hono";
 import { getDb } from "../queries/connection";
+import { recordExport } from "./export-log";
 import { orders, shops, users, territories, warehouses, settings } from "../../db/schema";
 import { eq, and, sql, isNull, inArray, gt, lte, asc } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
@@ -36,7 +37,10 @@ import {
   type ExportedOrder,
 } from "./order-export";
 
-type Vars = { tenantId: number; scopes: string[] };
+/* Что кладёт на запрос проверка ключа (api/public-api.ts). Набор повторён, а
+   не выведен: этот файл — отдельный маршрутизатор, и разойдись они, ошибка
+   будет видна тут же при сборке. */
+type Vars = { tenantId: number; scopes: string[]; sandbox: boolean; apiKeyId: number | null };
 
 export const ordersV1 = new Hono<{ Variables: Vars }>();
 
@@ -78,8 +82,21 @@ function baseConditions(opts: {
   createdTo: string | null;
   updatedSince: string | null;
   includeDeleted: boolean;
+  /*
+    Спросили склад, который существует, но не тот, с которого продают.
+
+    Заказы в этом продукте не привязаны к складу: продают только с основного
+    (решение владельца). Значит, по любому другому складу заказов НЕТ — и
+    честный ответ на такой вопрос пустой, а не «все заказы организации».
+
+    Раньше склад проверялся и не фильтровал: спросив второй склад, получатель
+    получал весь оборот компании и складывал его в отчёт по этому складу. Ни
+    одно число при этом не выглядело подозрительным.
+  */
+  warehouseHasNoOrders: boolean;
 }) {
   const c = [eq(orders.tenantId, opts.tenantId)];
+  if (opts.warehouseHasNoOrders) c.push(sql`1 = 0`);
   if (opts.maxId !== null) c.push(lte(orders.id, opts.maxId));
   if (opts.statuses) c.push(inArray(orders.status, opts.statuses as never));
   if (opts.createdFrom) c.push(sql`${orders.createdAt} >= ${opts.createdFrom}`);
@@ -93,32 +110,64 @@ function baseConditions(opts: {
 ordersV1.get("/", async (c) => {
   const tenantId = c.get("tenantId");
   const scopes = c.get("scopes");
-  if (!(scopes.includes("read") || scopes.includes("orders"))) {
-    return c.json({ error: "Scope 'orders' required" }, 403);
-  }
 
   const db = getDb();
   const q = (name: string) => c.req.query(name) ?? undefined;
+  const startedAt = Date.now();
+  const cursorRaw = q("cursor");
+  const updatedSinceRaw = q("updated_since");
+  const incremental = Boolean(updatedSinceRaw);
+
+  /*
+    ── Каждый выход отмечается в журнале ──────────────────────────────────
+
+    И удачный, и любой отказ. Приёмка (17-H) требует суточного испытания, где
+    записаны последняя успешная выгрузка И ошибки; а разбор спора «мы не
+    получили заказы за вторник» без обеих половин невозможен: удачи покажут,
+    что мы отдали, отказы — почему не отдали.
+
+    Отказ пишется здесь, одной калиткой, а не при каждом `return`: разбросанная
+    по девяти местам запись однажды забывается в одном из них, и в журнале
+    появляется дыра ровно там, где случилось интересное.
+
+    Запись не ждётся (`void`): журнал — подстраховка, и заставлять получателя
+    ждать вставки в него незачем. Упасть она не может — recordExport ловит всё
+    сама.
+  */
+  const fail = (status: 400 | 403 | 404, message: string, extra?: Record<string, unknown>) => {
+    void recordExport({
+      tenantId,
+      apiKeyId: c.get("apiKeyId"),
+      endpoint: "GET /orders",
+      mode: incremental ? "changes" : "snapshot",
+      cursorIn: cursorRaw ?? null,
+      httpStatus: status,
+      durationMs: Date.now() - startedAt,
+      error: message,
+    });
+    return c.json({ error: message, ...extra }, status);
+  };
+
+  if (!(scopes.includes("read") || scopes.includes("orders"))) {
+    return fail(403, "Scope 'orders' required");
+  }
+
   const limit = parseLimit(q("limit"));
 
   // ── Разбор фильтров ────────────────────────────────────────────────────
   const statuses = parseStatuses(q("status"), KNOWN_STATUSES);
   if (statuses === "invalid") {
-    return c.json({
-      error: "Unknown status. See GET /api/v1/orders/statuses",
-      known: KNOWN_STATUSES,
-    }, 400);
+    return fail(400, "Unknown status. See GET /api/v1/orders/statuses", { known: KNOWN_STATUSES });
   }
 
   const createdFrom = parseDayBound(q("created_from"), "from");
   const createdTo = parseDayBound(q("created_to"), "to");
   if ((q("created_from") && !createdFrom) || (q("created_to") && !createdTo)) {
-    return c.json({ error: "created_from / created_to must be YYYY-MM-DD or ISO 8601" }, 400);
+    return fail(400, "created_from / created_to must be YYYY-MM-DD or ISO 8601");
   }
 
-  const updatedSinceRaw = q("updated_since");
   if (updatedSinceRaw && Number.isNaN(Date.parse(updatedSinceRaw))) {
-    return c.json({ error: "updated_since must be ISO 8601" }, 400);
+    return fail(400, "updated_since must be ISO 8601");
   }
 
   /*
@@ -130,22 +179,23 @@ ordersV1.get("/", async (c) => {
   */
   const meta = await tenantMeta(tenantId);
   const askedWarehouse = q("warehouse_id");
+  let warehouseHasNoOrders = false;
   if (askedWarehouse !== undefined) {
     const asked = Number(askedWarehouse);
     const [own] = await db.select({ id: warehouses.id }).from(warehouses)
       .where(and(eq(warehouses.id, asked), eq(warehouses.tenantId, tenantId))).limit(1);
-    if (!own) return c.json({ error: "Unknown warehouse_id for this company" }, 404);
+    if (!own) return fail(404, "Unknown warehouse_id for this company");
+    // Существует, но продают не с него — значит заказов по нему нет.
+    warehouseHasNoOrders = asked !== meta.warehouseId;
   }
 
   // ── Режим и снимок ─────────────────────────────────────────────────────
-  const incremental = Boolean(updatedSinceRaw);
-  const cursorRaw = q("cursor");
   const cursor = cursorRaw ? decodeCursor(cursorRaw) : null;
-  if (cursorRaw && !cursor) return c.json({ error: "Malformed cursor" }, 400);
+  if (cursorRaw && !cursor) return fail(400, "Malformed cursor");
 
   let snapshotId = q("snapshot_id") ?? cursor?.snapshotId ?? "";
   let snapshot = snapshotId ? decodeSnapshot(snapshotId) : null;
-  if (snapshotId && !snapshot) return c.json({ error: "Malformed snapshot_id" }, 400);
+  if (snapshotId && !snapshot) return fail(400, "Malformed snapshot_id");
 
   /*
     Курсор принадлежит своему снимку, и чужой не принимается.
@@ -155,7 +205,7 @@ ordersV1.get("/", async (c) => {
     стороне. ТЗ требует привязки прямым текстом (пункт 10).
   */
   if (cursor && snapshotId && cursor.snapshotId !== snapshotId) {
-    return c.json({ error: "Cursor belongs to another snapshot_id" }, 400);
+    return fail(400, "Cursor belongs to another snapshot_id");
   }
 
   if (!incremental && !snapshot) {
@@ -176,6 +226,7 @@ ordersV1.get("/", async (c) => {
     // Удалённые нужны только режиму изменений — иначе получатель не узнает,
     // что заказ исчез, и продолжит считать по нему долг.
     includeDeleted: incremental,
+    warehouseHasNoOrders,
   });
 
   // ── Страница ───────────────────────────────────────────────────────────
@@ -279,6 +330,28 @@ ordersV1.get("/", async (c) => {
         updatedSince: updatedSinceRaw,
       })
     : null;
+
+  /*
+    Удачная выгрузка — с точкой возобновления и числами сверки.
+
+    Курсор здесь и есть checkpoint: после обрыва связи или перезапуска
+    получатель продолжает с него, и в журнале видно, какой именно мы отдали.
+    Числа сверки рядом, потому что спор всегда о них: «у нас на три заказа
+    меньше» разбирается сравнением его чисел с этими.
+  */
+  void recordExport({
+    tenantId,
+    apiKeyId: c.get("apiKeyId"),
+    endpoint: "GET /orders",
+    mode: incremental ? "changes" : "snapshot",
+    cursorIn: cursorRaw ?? null,
+    cursorOut: nextCursor,
+    httpStatus: 200,
+    rows: data.length,
+    totalCount: Number(totals?.count ?? 0),
+    amountTotal: money(totals?.amount),
+    durationMs: Date.now() - startedAt,
+  });
 
   return c.json({
     // Время сервера — чтобы получатель мог назначить следующий updated_since

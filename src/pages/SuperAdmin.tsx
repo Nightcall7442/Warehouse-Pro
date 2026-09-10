@@ -3,7 +3,7 @@ import { trpc } from "@/providers/trpc";
 import { Zap, RefreshCw, Plus } from "lucide-react";
 import { F, COLORS } from "@/components/superadmin/types";
 import { BtnPrimary, BtnSecondary } from "@/components/superadmin/ui";
-import { PlatformStats, TenantList, TenantDetail, AdminActions, CreateTenantModal, BackupSection, SupportInbox, FeatureUsage, LeadInbox } from "@/components/superadmin";
+import { PlatformStats, TenantList, TenantDetail, AdminActions, CreateTenantModal, BackupSection, SupportInbox, FeatureUsage, LeadInbox, SandboxSection } from "@/components/superadmin";
 
 export default function SuperAdmin() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -63,6 +63,12 @@ export default function SuperAdmin() {
       */}
       <FeatureUsage />
       <TenantList onSelect={id => setSelectedId(id)} />
+      {/*
+        Песочница — ниже списка организаций и выше служебного: заводят её
+        редко, но заводят осознанно, под конкретного партнёра, и место ей
+        рядом с организациями, а не среди личных настроек администратора.
+      */}
+      <SandboxSection />
       <AdminActions />
       <BackupSection />
     </div>

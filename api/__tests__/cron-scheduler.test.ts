@@ -32,9 +32,10 @@ const utc = (h: number, m = 0) => new Date(Date.UTC(2026, 8, 8, h, m, 0));
 describe("когда что запускается", () => {
   const job = (name: string) => _internals.JOBS.find(j => j.name === name)!;
 
-  it("все восемь работ на месте", () => {
+  it("все девять работ на месте", () => {
     expect(_internals.JOBS.map(j => j.name).sort()).toEqual([
-      "admin-digest", "backup", "debt-reminders", "notifications-cleanup", "support-cleanup",
+      "admin-digest", "api-export-log-cleanup", "backup", "debt-reminders",
+      "notifications-cleanup", "support-cleanup",
       "telegram-digest", "telegram-outbox", "trial-reminders",
     ]);
   });
@@ -47,6 +48,8 @@ describe("когда что запускается", () => {
     */
     expect(_internals.isDue(job("support-cleanup"), utc(22, 30))).toBe(true);        // 03:30 Ташкент
     expect(_internals.isDue(job("notifications-cleanup"), utc(22, 40))).toBe(true);  // 03:40 Ташкент
+    // Третья стирающая — журнал выгрузок наружу, тем же правилом и своей минутой.
+    expect(_internals.isDue(job("api-export-log-cleanup"), utc(22, 50))).toBe(true); // 03:50 Ташкент
     expect(_internals.isDue(job("notifications-cleanup"), utc(22, 30))).toBe(false);
   });
 

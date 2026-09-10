@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ExportHealth } from "./ExportHealth";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { useConfirm } from "@/components/ConfirmDialog";
@@ -165,6 +166,15 @@ export function ApiKeySettings() {
           {t("Выпустить ключ", "Kalit chiqarish")}
         </button>
       </FieldGroup>
+
+      {/*
+        Состояние обмена — над списком ключей.
+
+        Про интеграцию спрашивают одно: «она работает?». Ответ на это должен
+        стоять выше, чем список ключей: ключи смотрят, когда что-то делают, а
+        состояние — когда что-то случилось.
+      */}
+      <ExportHealth />
 
       <FieldGroup title={t("Выданные ключи", "Berilgan kalitlar")}>
         {listQ.isLoadingError ? (

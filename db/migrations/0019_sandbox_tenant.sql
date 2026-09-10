@@ -1,0 +1,1 @@
+ALTER TABLE `tenants` ADD `is_sandbox` boolean DEFAULT false NOT NULL;
