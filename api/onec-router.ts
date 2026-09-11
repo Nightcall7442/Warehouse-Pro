@@ -10,6 +10,7 @@ import { eq } from "drizzle-orm";
 import { logger } from "./lib/logger";
 import { getMetricsSummary } from "./lib/metrics";
 import { getSyncStatus } from "./services/onec-status";
+import { seal, open } from "./lib/secret-box";
 
 export const onecRouter = createRouter({
   // ── Setup Wizard ──────────────────────────────────────────────────────────
@@ -36,7 +37,7 @@ export const onecRouter = createRouter({
             .set({
               url: input.url,
               username: input.username,
-              password: input.password,
+              password: seal(input.password),
               syncProducts: input.syncProducts,
               syncOrders: input.syncOrders,
               intervalMinutes: input.intervalMinutes,
@@ -47,7 +48,7 @@ export const onecRouter = createRouter({
             tenantId: ctx.tenant.id,
             url: input.url,
             username: input.username,
-            password: input.password,
+            password: seal(input.password),
             syncProducts: input.syncProducts,
             syncOrders: input.syncOrders,
             intervalMinutes: input.intervalMinutes,
@@ -280,7 +281,7 @@ export const onecRouter = createRouter({
       const bridge = new OneCBridge({
         url: config.url,
         username: config.username,
-        password: config.password,
+        password: open(config.password),
         timeout: 10000,
       });
 
