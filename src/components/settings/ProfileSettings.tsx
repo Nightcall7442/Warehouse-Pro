@@ -48,6 +48,29 @@ export function ProfileSettings() {
   const [form, setForm] = useState({ name: user?.name ?? "", phone: user?.phone ?? "" });
   const [pwForm, setPwForm] = useState({ current: "", next: "", confirm: "" });
 
+  /*
+    Второй фактор. Секрет показывается один раз — при настройке; человек
+    вводит его в приложение-аутентификатор и подтверждает первым кодом.
+    ponytail: QR-кода нет (библиотеки в проекте нет) — ключ вводится руками,
+    все аутентификаторы это умеют («ввести ключ настройки»).
+  */
+  const [totpSetup, setTotpSetup] = useState<{ secret: string; url: string } | null>(null);
+  const [totpCode, setTotpCode] = useState("");
+  const totpStart = trpc.user.totpSetup.useMutation({
+    onSuccess: (r) => setTotpSetup(r),
+    onError: (e) => notify.error(e.message),
+  });
+  const totpEnable = trpc.user.totpEnable.useMutation({
+    onSuccess: () => { setTotpSetup(null); setTotpCode(""); utils.auth.me.invalidate(); notify.success(t("Двухфакторная защита включена", "Ikki bosqichli himoya yoqildi")); },
+    onError: (e) => notify.error(e.message),
+  });
+  const totpDisable = trpc.user.totpDisable.useMutation({
+    onSuccess: () => { setTotpCode(""); utils.auth.me.invalidate(); notify.success(t("Двухфакторная защита выключена", "Ikki bosqichli himoya o'chirildi")); },
+    onError: (e) => notify.error(e.message),
+  });
+  const totpOn = Boolean((user as { totpEnabledAt?: unknown } | null)?.totpEnabledAt);
+  const mustHaveTotp = user?.role === "ceo" || user?.role === "superadmin";
+
   const updateProfile = trpc.user.updateMe.useMutation({
     onSuccess: () => { utils.auth.me.invalidate(); notify.success(t("Профиль обновлён", "Profil yangilandi")); },
     onError:   (e) => notify.error(e.message),
@@ -138,6 +161,57 @@ export function ProfileSettings() {
         бывшего сотрудника, пароль подсмотрели. Сменить пароль — не то же
         самое: чужая сессия живёт своим ключом и переживает смену.
       */}
+      <FieldGroup title={t("Вход с кодом из приложения", "Ilova kodi bilan kirish")}>
+        {totpOn ? (
+          <div className="max-w-sm space-y-3" data-testid="totp-enabled">
+            <p className="text-sm text-secondary max-w-prose">
+              {t("Включено: при входе, кроме пароля, нужен код из приложения-аутентификатора.",
+                 "Yoqilgan: kirishda parol bilan birga autentifikator ilovasidagi kod kerak.")}
+            </p>
+            <Field label={t("Код из приложения — чтобы выключить", "O'chirish uchun ilovadagi kod")}>
+              <input className="neo-input" inputMode="numeric" autoComplete="one-time-code" value={totpCode} onChange={e => setTotpCode(e.target.value)} />
+            </Field>
+            <button className="neo-btn" disabled={totpDisable.isPending || totpCode.length < 6}
+              onClick={() => totpDisable.mutate({ code: totpCode })} data-testid="totp-disable">
+              {t("Выключить", "O'chirish")}
+            </button>
+          </div>
+        ) : totpSetup ? (
+          <div className="max-w-sm space-y-3" data-testid="totp-setup">
+            <p className="text-sm text-secondary max-w-prose">
+              {t("Откройте Google Authenticator (или любой другой), выберите «ввести ключ настройки» и введите ключ ниже. Затем подтвердите первым кодом.",
+                 "Google Authenticator (yoki boshqasini) oching, «sozlash kalitini kiritish»ni tanlang va quyidagi kalitni kiriting. So'ng birinchi kod bilan tasdiqlang.")}
+            </p>
+            <Field label={t("Ключ настройки", "Sozlash kaliti")}>
+              <input className="neo-input" readOnly value={totpSetup.secret} onFocus={e => e.currentTarget.select()} data-testid="totp-secret" />
+            </Field>
+            <a href={totpSetup.url} className="text-sm" style={{ color: "var(--color-primary-text)" }}>
+              {t("Открыть в приложении на телефоне", "Telefondagi ilovada ochish")}
+            </a>
+            <Field label={t("Первый код из приложения", "Ilovadagi birinchi kod")}>
+              <input className="neo-input" inputMode="numeric" autoComplete="one-time-code" value={totpCode} onChange={e => setTotpCode(e.target.value)} data-testid="totp-code" />
+            </Field>
+            <button className="neo-btn-primary" disabled={totpEnable.isPending || totpCode.length < 6}
+              onClick={() => totpEnable.mutate({ code: totpCode })} data-testid="totp-enable">
+              {t("Подтвердить и включить", "Tasdiqlash va yoqish")}
+            </button>
+          </div>
+        ) : (
+          <div className="max-w-sm space-y-3">
+            <p className="text-sm max-w-prose" style={{ color: mustHaveTotp ? "var(--color-warning-text)" : undefined }}>
+              {mustHaveTotp
+                ? t("У директора и администратора платформы вход без второго фактора — главная дыра: пароль подсмотрели — и вся организация открыта. Включите.",
+                    "Direktor va platforma administratori uchun ikkinchi omilsiz kirish — asosiy xavf. Yoqing.")
+                : t("Дополнительная защита входа: пароль плюс код из приложения на телефоне.",
+                    "Kirishning qo'shimcha himoyasi: parol va telefondagi ilova kodi.")}
+            </p>
+            <button className="neo-btn-primary" disabled={totpStart.isPending} onClick={() => totpStart.mutate()} data-testid="totp-start">
+              {t("Включить", "Yoqish")}
+            </button>
+          </div>
+        )}
+      </FieldGroup>
+
       <FieldGroup title={t("Безопасность", "Xavfsizlik")}>
         <p className="text-sm text-secondary mb-4 max-w-prose">
           {t(

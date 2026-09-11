@@ -15,6 +15,8 @@ export async function findUserById(id: number) {
       role: schema.users.role,
       status: schema.users.status,
       tokenVersion: schema.users.tokenVersion,
+      // Секрет второго фактора наружу не идёт — только факт, что он включён.
+      totpEnabledAt: schema.users.totpEnabledAt,
       pushToken: schema.users.pushToken,
       createdAt: schema.users.createdAt,
       updatedAt: schema.users.updatedAt,

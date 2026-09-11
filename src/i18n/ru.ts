@@ -257,6 +257,7 @@ export const ru = {
       submit:        "Войти",
       submitting:    "Вход…",
       forgotPassword:"Забыли пароль?",
+      totpCode: "Код из приложения",
       noAccount:     "Нет аккаунта?",
       createAccount: "Создать",
       error:         "Неверный email или пароль",

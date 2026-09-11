@@ -615,7 +615,9 @@ app.post("/api/login", async (c) => {
     // tenantId необязателен и нужен только для одного случая: адрес и пароль
     // совпали сразу в нескольких организациях. Тогда первый запрос отвечает
     // 409 со списком, а клиент повторяет его с выбранной организацией.
-    const { email, password, tenantId: tenantIdFromBody } = await c.req.json();
+    // code — одноразовый код из приложения-аутентификатора, только у тех,
+    // кто включил двухфакторную защиту (user.totpEnabledAt).
+    const { email, password, tenantId: tenantIdFromBody, code: totpFromBody } = await c.req.json();
     if (!email || !password) return c.json({ error: "Email and password required" }, 400);
 
     // Per account, read after the body so the address is available. Brute force
@@ -705,6 +707,22 @@ app.post("/api/login", async (c) => {
     const tenant = await findTenantById(user.tenantId);
     if (!tenant || tenant.status !== "active") return c.json({ error: GENERIC_AUTH_ERROR }, 401);
 
+    /*
+      Второй фактор. Пароль уже подошёл — только теперь можно сказать, что
+      нужен код: до этого ответ выдал бы, у кого защита включена. Секрет
+      лежит запечатанным (secret-box), как пароль 1С.
+    */
+    if (user.totpEnabledAt && user.totpSecret) {
+      if (!totpFromBody) {
+        return c.json({ error: "Введите код из приложения-аутентификатора", code: "TOTP_REQUIRED" }, 401);
+      }
+      const { verifyTotp } = await import("./lib/totp");
+      const { open } = await import("./lib/secret-box");
+      if (!verifyTotp(open(user.totpSecret), String(totpFromBody))) {
+        return c.json({ error: "Неверный код подтверждения", code: "TOTP_INVALID" }, 401);
+      }
+    }
+
     await updateUserLastSignIn(user.id);
     const token = await signSessionToken({ userId: user.id, tv: user.tokenVersion ?? 0 });
 
@@ -743,6 +761,25 @@ app.post("/api/login", async (c) => {
 });
 
 app.post("/api/logout", async (c) => {
+  /*
+    Выход отзывает ЭТУ сессию, а не только стирает куку. Раньше токен жил
+    свои 30 дней после выхода — из чужого браузера или украденный.
+    Другие устройства человека не трогаются (для этого есть logout-all).
+  */
+  try {
+    const authHeader = c.req.header("authorization");
+    const token = authHeader?.startsWith("Bearer ")
+      ? authHeader.slice(7).trim()
+      : cookie.parse(c.req.header("cookie") ?? "")[Session.cookieName];
+    if (token) {
+      const { verifySessionToken } = await import("./auth/session");
+      const { revokeSession } = await import("./auth/revocation");
+      const claim = await verifySessionToken(token);
+      if (claim?.jti && claim.exp) await revokeSession(claim.jti, claim.exp);
+    }
+  } catch (e) {
+    logger.warn("logout: не удалось отозвать сессию", { error: e instanceof Error ? e.message : String(e) });
+  }
   c.header("set-cookie", cookie.serialize(Session.cookieName, "", {
     httpOnly: true,
     path: "/",
@@ -768,6 +805,8 @@ app.post("/api/refresh-token", async (c) => {
 
     const claim = await verifySessionToken(token);
     if (!claim) return c.json({ error: "Invalid token" }, 401);
+    const { isSessionRevoked } = await import("./auth/revocation");
+    if (claim.jti && await isSessionRevoked(claim.jti)) return c.json({ error: "Token revoked" }, 401);
 
     const db = getDb();
     const [user] = await db.select({ id: users.id, status: users.status, tokenVersion: users.tokenVersion })

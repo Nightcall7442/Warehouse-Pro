@@ -96,6 +96,13 @@ export const users = mysqlTable("users", {
   role:         mysqlEnum("role", ["superadmin", "ceo", "operator", "agent", "supervisor", "merchandiser", "courier"]).default("agent").notNull(),
   status:       mysqlEnum("status", ["active", "inactive"]).default("active").notNull(),
   tokenVersion: int("token_version").default(0).notNull(),
+  /*
+    Второй фактор входа (TOTP). Секрет запечатан secret-box'ом; включён —
+    когда стоит totp_enabled_at: секрет без даты — ещё не подтверждённая
+    настройка, и на входе он не спрашивается.
+  */
+  totpSecret:    varchar("totp_secret", { length: 255 }),
+  totpEnabledAt: timestamp("totp_enabled_at"),
   pushToken:    text("push_token"),
   createdAt:    timestamp("createdAt").defaultNow().notNull(),
   updatedAt:    timestamp("updatedAt").defaultNow().notNull().$onUpdate(() => new Date()),

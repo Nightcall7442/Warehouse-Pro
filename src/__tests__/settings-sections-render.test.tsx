@@ -68,7 +68,11 @@ const trpcStub = vi.hoisted(() => {
       metrics: { useQuery: query({}) },
     },
     // logoutAll — выход на всех устройствах, кнопка в разделе «Профиль».
-    user: { updateMe: { useMutation: mutation }, changePassword: { useMutation: mutation }, logoutAll: { useMutation: mutation } },
+    // totp* — второй фактор, раздел «Вход с кодом из приложения» там же.
+    user: {
+      updateMe: { useMutation: mutation }, changePassword: { useMutation: mutation }, logoutAll: { useMutation: mutation },
+      totpSetup: { useMutation: mutation }, totpEnable: { useMutation: mutation }, totpDisable: { useMutation: mutation },
+    },
     auth: { me: { invalidate: vi.fn() } },
     useUtils: () => ({
       settings: { get: { invalidate: vi.fn() } },

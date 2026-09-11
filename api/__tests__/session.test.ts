@@ -9,7 +9,10 @@ describe("JWT session tokens", () => {
   it("signs and verifies a token", async () => {
     const token   = await signSessionToken({ userId: 42, tv: 0 });
     const payload = await verifySessionToken(token);
-    expect(payload).toEqual({ userId: 42, tv: 0 });
+    // jti и exp — идентификатор сессии для отзыва по выходу и её срок.
+    expect(payload).toMatchObject({ userId: 42, tv: 0 });
+    expect(payload?.jti).toMatch(/^[0-9a-f-]{36}$/);
+    expect(typeof payload?.exp).toBe("number");
   });
 
   it("returns null for an empty string", async () => {

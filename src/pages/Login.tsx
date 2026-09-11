@@ -39,6 +39,9 @@ export default function Login() {
   // подошёл сразу к нескольким, сервер отвечает 409 и называет их — выбрать
   // за человека нельзя, данные в этих организациях разные.
   const [orgChoice, setOrgChoice] = useState<{ message: string; organizations: Organization[] } | null>(null);
+  // Второй фактор: сервер попросил код — показываем поле и шлём тот же вход с кодом.
+  const [needCode, setNeedCode] = useState(false);
+  const [code, setCode] = useState("");
 
   const { user, isLoading } = useAuth();
   const navigate = useNavigate();
@@ -60,11 +63,19 @@ export default function Login() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify(tenantId === undefined ? { email, password } : { email, password, tenantId }),
+        body: JSON.stringify({
+          email, password,
+          ...(tenantId === undefined ? {} : { tenantId }),
+          ...(code ? { code } : {}),
+        }),
       });
       const data = await res.json();
       if (res.status === 409 && data.code === "TENANT_REQUIRED") {
         setOrgChoice({ message: data.error, organizations: data.organizations ?? [] });
+        return;
+      }
+      if (res.status === 401 && data.code === "TOTP_REQUIRED") {
+        setNeedCode(true);
         return;
       }
       if (!res.ok) throw new Error(data.error || "Login failed");
@@ -148,6 +159,24 @@ export default function Login() {
             {t("auth.login.forgotPassword")}
           </Link>
         </div>
+
+        {needCode && (
+          <Field label={t("auth.login.totpCode")}>
+            <span className="auth-icon"><Lock size={16} /></span>
+            <input
+              data-testid="login-totp"
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              className="auth-input"
+              placeholder="123 456"
+              value={code}
+              onChange={e => setCode(e.target.value)}
+              autoFocus
+              disabled={isPending}
+            />
+          </Field>
+        )}
 
         {/* Пароль подошёл к нескольким организациям — выбрать за человека нельзя. */}
         {orgChoice && (
