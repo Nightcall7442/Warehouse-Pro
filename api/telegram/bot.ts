@@ -228,7 +228,18 @@ telegramBot.post("/api/webhooks/telegram", async (c) => {
 
     const message = update.message;
     const chatId = String(message?.chat?.id ?? "");
-    const text = (message?.text ?? "").trim();
+    /*
+      Имя бота отрезается от команды.
+
+      В группе клиент Telegram дописывает его сам: человек набирает «/link»,
+      а приходит «/link@wpapp_bot». Без этой строки разбор кода давал
+      «@wpapp_bot» вместо самого кода — то есть связать группу было НЕЛЬЗЯ,
+      хотя в личной переписке та же команда работала.
+
+      Режется один раз здесь, а не в каждом разборе: иначе следующая команда
+      обязательно забудет это сделать.
+    */
+    const text = (message?.text ?? "").trim().replace(/^(\/[A-Za-z_]+)@[\w]+/, "$1");
     if (!chatId || !text) return c.json({ ok: true });
 
     /*

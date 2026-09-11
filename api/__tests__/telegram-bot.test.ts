@@ -40,6 +40,7 @@ const { isQuiet, nextQuietEnd, tashkentHour, DEFAULT_RULES, recipientRoles } =
   await import("../services/telegram-notify");
 
 const { getDb } = await import("../queries/connection");
+const { detectIntent } = await import("../telegram/texts");
 
 /*
   Комментарии снимаются перед сверкой. Иначе проверка «сырого номера в ссылке
@@ -292,5 +293,87 @@ describe("подписка бота на вебхук", () => {
       подписка была не та.
     */
     expect(REG).toContain("подписка на типы обновлений не та");
+  });
+});
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Слэш-команды: их видно, и они работают в группе.
+   ═══════════════════════════════════════════════════════════════════════════ */
+describe("меню команд", () => {
+  const CMD = strip(readFileSync(join(__dirname, "..", "telegram", "commands.ts"), "utf8"));
+
+  it("ставится при старте", () => {
+    /*
+      Бот и раньше понимал «/остатки» — разбор принимает команды со слэшем. Но
+      узнать об этом было неоткуда: синяя кнопка «Меню» пуста, пока приложение
+      не сказало Telegram, какие команды у него есть. Возможность, о которой
+      нельзя догадаться, — это возможность, которой нет.
+    */
+    expect(BOOT).toContain("registerTelegramCommands");
+    expect(CMD).toContain("setMyCommands");
+  });
+
+  it("у личной переписки и группы разные наборы", () => {
+    /*
+      В группе спрашивать нельзя: остатки и выручку прочитали бы все, кого
+      туда добавили. Поэтому там только связывание.
+    */
+    expect(CMD).toContain('type: "all_private_chats"');
+    expect(CMD).toContain('type: "all_group_chats"');
+
+    const at = CMD.indexOf("GROUP_COMMANDS = [");
+    const group = CMD.slice(at, CMD.indexOf("] as const", at));
+    expect(group).toContain("link");
+    expect(group, "в группе появились команды с числами организации").not.toMatch(/stock|debts|summary|top/);
+  });
+
+  it("каждая команда меню опознаётся разбором", () => {
+    /*
+      Команда в меню, которую бот не понимает, — это кнопка, ведущая в
+      «не понял». Проверяется машиной: список и разбор лежат в разных файлах и
+      разъезжаются молча.
+    */
+    const at = CMD.indexOf("PRIVATE_COMMANDS = [");
+    const list = CMD.slice(at, CMD.indexOf("] as const", at));
+    const names = [...list.matchAll(/command: "(\w+)"/g)].map(m => m[1]);
+    expect(names.length, "личных команд не разобрали").toBeGreaterThan(5);
+
+    for (const name of names) {
+      const intent = detectIntent(`/${name}`);
+      expect(intent, `команда /${name} не опознаётся ботом`).not.toBe("search");
+    }
+  });
+
+  it("все ответы бота названы в меню", () => {
+    // Обратная сторона: умение, которого нет в меню, человек не найдёт.
+    const at = CMD.indexOf("PRIVATE_COMMANDS = [");
+    const list = CMD.slice(at, CMD.indexOf("] as const", at));
+    for (const name of ["stock", "orders", "summary", "top", "debts", "staff", "plans"]) {
+      expect(list, `умение ${name} не названо в меню`).toContain(`"${name}"`);
+    }
+  });
+});
+
+describe("команда с именем бота", () => {
+  it("имя отрезается до разбора", () => {
+    /*
+      В группе клиент Telegram дописывает имя сам: человек набирает «/link», а
+      приходит «/link@wpapp_bot». Без этого разбор кода давал «@wpapp_bot»
+      вместо самого кода — то есть связать группу было НЕЛЬЗЯ, хотя в личной
+      переписке та же команда работала.
+    */
+    // Ищем подстрокой: сама строка кода — это регулярное выражение, и
+    // выражение поверх выражения читать здесь было бы нечем.
+    expect(BOT, "имя бота больше не отрезается от команды").toContain('@[\\w]+/, "$1")');
+  });
+
+  it("разбор намерения переживает имя бота", () => {
+    // Даже если строка выше однажды исчезнет, самые частые команды должны
+    // опознаваться: проверяем то, что зависит только от разбора.
+    expect(detectIntent("/help")).toBe("help");
+    expect(detectIntent("/stock")).toBe("stock");
+    expect(detectIntent("/staff")).toBe("staff");
+    expect(detectIntent("/plans")).toBe("plans");
   });
 });
