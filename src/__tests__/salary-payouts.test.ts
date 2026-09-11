@@ -173,7 +173,8 @@ describe("оклад", () => {
     // Ключ месяца теперь общий (api/lib/period.ts): своя копия арифметики в
     // каждом файле и была причиной расхождения на день.
     expect(SET_SALARY).toContain("const { start: monthStart, end: monthEnd } = monthRange();");
-    expect(SET_SALARY, "месяц ищется не по началу периода").toContain("onDate(salesTargets.periodStart, monthStart)");
+    // Оклад живёт в условиях оплаты (commissions), не в нормах продаж.
+    expect(SET_SALARY, "месяц ищется не по началу периода").toContain("onDate(commissions.periodStart, monthStart)");
   });
 
   it("расчёт берёт оклад и ставку, действовавшие в показанном периоде", () => {
@@ -183,7 +184,8 @@ describe("оклад", () => {
       нему выплатили.
     */
     expect(KPI_SERVICE).toContain("untilDate(commissions.periodStart, effectiveOn)");
-    expect(KPI_SERVICE).toContain("untilDate(salesTargets.periodStart, effectiveOn)");
+    // Оклад читается из той же строки условий оплаты, что и ставка.
+    expect(KPI_SERVICE).toContain("const baseSalary = Number(commissionRecord?.baseSalary ?? 0)");
   });
 
   it("поставленные однажды оклад и ставка переносятся на новые месяцы сами", () => {
@@ -204,10 +206,11 @@ describe("оклад", () => {
         • LIMIT 1 — без него берётся [0] из всех строк за всю историю, и
           порядок решает случай.
 
-      Проверяются оба чтения: у ставки и у оклада правило одно, но написаны
-      они разными запросами, и разъехаться могут поодиночке.
+      Оклад и ставка теперь читаются одним запросом из commissions — одна
+      строка условий оплаты на месяц; прежнее второе чтение из sales_targets
+      смешивало оклад с планом продаж и снято.
     */
-    for (const [what, table] of [["ставка", "commissions"], ["оклад", "salesTargets"]] as const) {
+    for (const [what, table] of [["ставка и оклад", "commissions"]] as const) {
       const at = KPI_SERVICE.indexOf(`untilDate(${table}.periodStart, effectiveOn)`);
       expect(at, `${what}: чтение не найдено`).toBeGreaterThan(0);
       /*

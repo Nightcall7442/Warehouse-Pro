@@ -156,6 +156,8 @@ function makeMockDb() {
     const api: Record<string, unknown> = {
       from(ref: unknown) { currentTable = tableOf(ref); return api; },
       leftJoin() { return api; },
+      // Прайс-лист магазина читается JOIN-ом; у подделки списков нет — пусто = цена карточки.
+      innerJoin() { return api; },
       where(cond: Record<string, unknown>) {
         const filtered = rowsFor(currentTable).filter((r) => evalCond(r, cond));
         return wrap(filtered);

@@ -142,6 +142,7 @@ function makeMockDb() {
     const api = {
       from(ref: unknown) { table = tableOf(ref); return api; },
       leftJoin() { return api; },
+      innerJoin() { return api; },
       where(cond: unknown) {
         const filtered = rowsFor(table).filter((r) => evalCond(r, cond));
         const chain = Object.assign(Promise.resolve(filtered), {
