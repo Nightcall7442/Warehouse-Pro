@@ -85,7 +85,7 @@ flowchart TB
         S["Службы:<br/>заказы, склад, долги, KPI"]
     end
 
-    DB[("MySQL 8<br/>45 таблиц")]
+    DB[("MySQL 9.4<br/>58 таблиц")]
     EXT["1С · Telegram · Stripe"]
 
     W -->|tRPC| H
@@ -253,11 +253,11 @@ npm run db:backup    # снять копию, проверить её и убр�
 │   ├── middleware.ts    арендатор, вход, роли, лимиты
 │   └── boot.ts          точка входа
 ├── db/
-│   ├── schema.ts        45 таблиц (Drizzle)
-│   ├── migrations/      49 миграций
+│   ├── schema.ts        58 таблиц (Drizzle)
+│   ├── migrations/      23 миграции (0000 — основание)
 │   └── seed.ts          демонстрационные данные
 ├── src/                 веб-интерфейс (React)
-│   ├── pages/           42 страницы
+│   ├── pages/           49 страниц
 │   ├── components/      общие части интерфейса
 │   └── i18n/            русский и узбекский
 ├── e2e/                 сквозные проверки (Playwright)

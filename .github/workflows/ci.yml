@@ -65,7 +65,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       mysql:
-        image: mysql:8
+        image: mysql:9.4
         env:
           MYSQL_ROOT_PASSWORD: test
           MYSQL_DATABASE: warehouse_test
@@ -98,7 +98,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       mysql:
-        image: mysql:8
+        image: mysql:9.4
         env:
           MYSQL_ROOT_PASSWORD: test
           MYSQL_DATABASE: warehouse_e2e
