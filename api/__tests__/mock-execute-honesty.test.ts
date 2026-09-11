@@ -158,16 +158,16 @@ describe("подделка склада: арифметика двери", () =>
     stock[0] = { productId: 1, tenantId: 1, currentStock: "100.00", reserved: "40.00", available: "60.00" };
     const execute = createExecuteMock(stock);
 
+    // Форма setStock: INSERT … ON DUPLICATE KEY UPDATE — строку заводит сама.
     await execute(raw(
       [
-        "\n    UPDATE warehouse_stock\n    SET current_stock = ",
-        ",\n        reserved      = LEAST(reserved, ",
-        "),\n        available     = current_stock - reserved\n    WHERE product_id = ",
-        "\n      AND tenant_id = ",
-        "\n      AND warehouse_id = ",
-        "\n  ",
+        "\n    INSERT INTO warehouse_stock (tenant_id, warehouse_id, product_id, current_stock, reserved, available)\n    VALUES (",
+        ", ", ", ", ", ", ", 0, ",
+        ")\n    ON DUPLICATE KEY UPDATE\n      current_stock = ",
+        ",\n      reserved      = LEAST(reserved, ",
+        "),\n      available     = current_stock - reserved\n  ",
       ],
-      25, 25, 1, 1, 1,
+      1, 1, 1, 25, 25, 25, 25,
     ));
 
     expect(stock[0].currentStock).toBe("25.00");
