@@ -384,6 +384,8 @@ export const shopRouter = createRouter({
       territoryId: z.number().nullable().optional(),
       notes:    z.string().optional(),
       status:   z.enum(["active", "inactive"]).optional(),
+      // Пусто или null — снять лимит. Строкой, как все деньги в API.
+      creditLimit: z.preprocess(v => (v === "" ? null : v), z.string().regex(/^\d+(\.\d{1,2})?$/, "Лимит — неотрицательное число").nullable().optional()),
     }))
     .mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;

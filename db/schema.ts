@@ -154,6 +154,16 @@ export const shops = mysqlTable("shops", {
   agentId:   bigint("agent_id", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),
   territoryId: bigint("territory_id", { mode: "number", unsigned: true }).references(() => territories.id),
   debt:      decimal("debt", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  /*
+    Кредитный лимит точки. NULL — без лимита (так у всех до этой правки, и
+    ничьё поведение не меняется, пока директор не впишет число).
+
+    Дебиторка — главный операционный риск дистрибьютора; система умела её
+    посчитать и состарить, но не умела остановить: заказ «в долг» был открыт
+    любому полевому сотруднику без оглядки на долг точки. Агент, мотивированный
+    комиссией с оформленного, отгружал в долг магазину с просрочкой.
+  */
+  creditLimit: decimal("credit_limit", { precision: 12, scale: 2 }),
   status:    mysqlEnum("status", ["active", "inactive"]).default("active").notNull(),
   notes:     text("notes"),
   /**

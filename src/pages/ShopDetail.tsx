@@ -314,6 +314,8 @@ export default function ShopDetail() {
                 { key: "address",   ru: "Адрес",     uz: "Manzil"    },
                 { key: "city",      ru: "Город",     uz: "Shahar"    },
                 { key: "district",  ru: "Район",     uz: "Tuman"     },
+                // Пусто — без лимита: заказ «в долг» сверх лимита отказывается у прилавка.
+                { key: "creditLimit", ru: "Кредитный лимит (пусто — без лимита)", uz: "Kredit limiti (bo'sh — limitsiz)" },
               ].map(f => (
                 <input key={f.key} className="neo-input"
                   placeholder={lang === "uz" ? f.uz : f.ru}

@@ -1,0 +1,1 @@
+ALTER TABLE `shops` ADD `credit_limit` decimal(12,2);

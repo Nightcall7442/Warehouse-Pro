@@ -1247,7 +1247,7 @@ export const OrderService = {
     const items = mergeDuplicateItems(input.items);
 
     // P0-1 FIX: Validate shop belongs to this tenant
-    const [shop] = await db.select({ id: shops.id }).from(shops)
+    const [shop] = await db.select({ id: shops.id, name: shops.name, debt: shops.debt, creditLimit: shops.creditLimit }).from(shops)
       .where(and(eq(shops.id, input.shopId), eq(shops.tenantId, tenantId))).limit(1);
     if (!shop) throw new Error("Магазин не найден в вашей организации");
 
@@ -1310,6 +1310,24 @@ export const OrderService = {
       }
       const discount = subtotal * (discountPercent / 100);
       const total = subtotal - discount;
+
+      /*
+        Кредитный контроль. Заказ «в долг» должен деньгами с момента
+        оформления (services/shop-debt.ts), поэтому проверяется здесь, а не
+        при отгрузке: агент узнаёт отказ у прилавка, а не через два дня от
+        курьера. Долг магазина — выведенное число, пересчитанное последней
+        операцией; читается под той же транзакцией. Лимит пустой — проверки
+        нет, как и было у всех до появления поля.
+      */
+      if (input.paymentMethod === "debt" && shop.creditLimit != null) {
+        const limit = Number(shop.creditLimit);
+        const debt = Number(shop.debt);
+        if (debt + total > limit) {
+          throw new Error(
+            `Кредитный лимит магазина «${shop.name}» ${limit.toFixed(0)} превышен: долг ${debt.toFixed(0)} + заказ ${total.toFixed(0)}. Примите оплату или попросите офис поднять лимит.`,
+          );
+        }
+      }
 
       // Reserve from one explicit warehouse. Without this filter a product with
       // stock rows in several warehouses yielded an arbitrary row for the
