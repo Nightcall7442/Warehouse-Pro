@@ -37,7 +37,9 @@ export default defineConfig({
       },
     }),
     VitePWA({
-      registerType:         "autoUpdate",
+      // prompt, не autoUpdate: autoUpdate вместе со skipWaiting перезагружал
+      // вкладку оператора при каждой выкладке — см. src/components/UpdatePrompt.tsx.
+      registerType:         "prompt",
       includeAssets:        ["icon-192.png", "icon-512.png", "icon-maskable-512.png", "favicon.ico", "apple-touch-icon.png", "offline.html"],
       manifest: {
         name:             "Warehouse Pro",
@@ -86,7 +88,9 @@ export default defineConfig({
         globPatterns:             ["**/*.{js,css,html,json,png,svg,ico}"],
         cleanupOutdatedCaches:    true,
         clientsClaim:             true,
-        skipWaiting:              true,
+        // skipWaiting снят: новая версия ждёт нажатия «Обновить». Сообщение
+        // SKIP_WAITING ей шлёт updateServiceWorker(true) из UpdatePrompt.
+        skipWaiting:              false,
         runtimeCaching: [
           // P0-12 FIX: Do not cache tRPC responses — sensitive tenant/user data must not persist in Cache Storage
           {
