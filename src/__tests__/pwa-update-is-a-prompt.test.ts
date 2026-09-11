@@ -13,6 +13,8 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const read = (p: string) => readFileSync(resolve(__dirname, "../..", p), "utf-8");
+/** Без комментариев: шапка файла описывает прежний reload словами. */
+const stripComments = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\r\n]*/g, "");
 
 describe("обновление приложения по кнопке", () => {
   it("служебный работник в режиме prompt и без skipWaiting", () => {
@@ -23,9 +25,7 @@ describe("обновление приложения по кнопке", () => {
 
   it("UpdatePrompt смонтирован в корне и обновляет только по действию человека", () => {
     expect(read("src/main.tsx")).toContain("<UpdatePrompt />");
-    // Без комментариев: шапка файла описывает прежний reload словами.
-    const cmp = read("src/components/UpdatePrompt.tsx").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^
-]*/g, "");
+    const cmp = stripComments(read("src/components/UpdatePrompt.tsx"));
     expect(cmp).toContain("useRegisterSW");
     expect(cmp).toContain("updateServiceWorker(true)");
     expect(cmp).not.toMatch(/location\.reload/);
