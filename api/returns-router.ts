@@ -21,7 +21,7 @@ export const returnsRouter = createRouter({
       shopId: z.number().optional(),
       orderId: z.number().optional(),
       page: z.number().default(1),
-      pageSize: z.number().default(25),
+      pageSize: z.number().int().min(1).max(10000).default(25),
     }).optional())
     .query(async ({ input, ctx }) => {
       const db = getDb();

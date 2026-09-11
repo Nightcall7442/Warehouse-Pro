@@ -208,7 +208,7 @@ export const systemRouter = createRouter({
 
   errors: superAdminQuery
     .input(z.object({
-      limit: z.number().optional(),
+      limit: z.number().int().min(1).max(1000).optional(),
       offset: z.number().optional(),
       code: z.string().optional(),
       path: z.string().optional(),
