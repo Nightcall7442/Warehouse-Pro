@@ -13,6 +13,15 @@ import { recalcShopDebt } from "./services/shop-debt";
 import { productLabel } from "./services/order";
 
 import { affectedRows } from "./lib/db-rows";
+/**
+ * Куда девать вернувшийся товар, если оператор не сказал. Брак, просрочка и
+ * порча — списать: они и вернулись потому, что продавать их нельзя. Пересорт
+ * и «другое» — на склад.
+ */
+export function defaultDisposition(reason: string): "restock" | "write_off" {
+  return reason === "defect" || reason === "expired" || reason === "damaged" ? "write_off" : "restock";
+}
+
 export const returnsRouter = createRouter({
   // List returns
   list: fieldSalesQuery
@@ -39,6 +48,7 @@ export const returnsRouter = createRouter({
           shopName: shops.name,
           status: returns.status,
           reason: returns.reason,
+          disposition: returns.disposition,
           notes: returns.notes,
           totalAmount: returns.totalAmount,
           createdAt: returns.createdAt,
@@ -69,6 +79,7 @@ export const returnsRouter = createRouter({
         agentName: users.name,
         status: returns.status,
         reason: returns.reason,
+        disposition: returns.disposition,
         notes: returns.notes,
         totalAmount: returns.totalAmount,
         createdAt: returns.createdAt,
@@ -238,6 +249,8 @@ export const returnsRouter = createRouter({
     .input(z.object({
       id: z.number(),
       status: z.enum(["pending", "approved", "rejected", "completed"]),
+      // Только при проведении. Пусто — по причине возврата (defaultDisposition).
+      disposition: z.enum(["restock", "write_off"]).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
@@ -261,7 +274,7 @@ export const returnsRouter = createRouter({
       // warehouse_stock, а не строку возврата, и к моменту её взятия решение
       // «переводим в completed» уже было принято обоими вызовами.
       await db.transaction(async (tx) => {
-      const [ret] = await tx.select({ status: returns.status, totalAmount: returns.totalAmount, shopId: returns.shopId, orderId: returns.orderId })
+      const [ret] = await tx.select({ status: returns.status, totalAmount: returns.totalAmount, shopId: returns.shopId, orderId: returns.orderId, reason: returns.reason })
         .from(returns).where(and(eq(returns.id, input.id), eq(returns.tenantId, tenantId)))
         .for("update")
         .limit(1);
@@ -306,7 +319,10 @@ export const returnsRouter = createRouter({
 
       // Only add stock on "completed" — never before approval
       if (input.status === "completed") {
-        {
+        const disposition = input.disposition ?? defaultDisposition(ret.reason);
+        // Списание: товар вернулся, но на полку не ложится — в остаток и
+        // журнал движений не попадает, у магазина долг всё равно уменьшается.
+        if (disposition === "restock") {
           // Returned goods land in one warehouse. Without this filter the quantity
           // was added to every warehouse holding the product, inflating stock by a
           // multiple of the return for multi-warehouse tenants.
@@ -344,13 +360,15 @@ export const returnsRouter = createRouter({
               notes: "Возврат принят на склад",
             });
           }
+        }
+        {
 
           // Условие по прежнему статусу — вторая половина защиты. Даже если
           // блокировка выше почему-то не сработала, перевести возврат в
           // completed сможет только тот вызов, который застал его approved;
           // второй увидит ноль изменённых строк и откатит свою транзакцию
           // вместе с уже начисленным остатком.
-          const done = affectedRows(await tx.update(returns).set({ status: input.status })
+          const done = affectedRows(await tx.update(returns).set({ status: input.status, disposition })
             .where(and(
               eq(returns.id, input.id),
               eq(returns.tenantId, tenantId),

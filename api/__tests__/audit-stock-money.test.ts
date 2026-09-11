@@ -57,7 +57,8 @@ vi.mock("../services/audit-log", () => ({ recordAudit: vi.fn() }));
 vi.mock("../services/stock-ledger", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return Object.fromEntries(
-    Object.keys(actual).map(name => [name, vi.fn(async () => {})]),
+    // expiredByProduct отвечает картой «товар → просрочено»; пустая — «нет».
+    Object.keys(actual).map(name => [name, vi.fn(async () => (name === "expiredByProduct" ? new Map() : undefined))]),
   );
 });
 vi.mock("../services/shop-debt", () => ({ recalcShopDebt: vi.fn(async () => {}) }));

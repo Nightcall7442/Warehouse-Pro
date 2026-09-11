@@ -449,6 +449,15 @@ export const returns = mysqlTable("returns", {
   returnNumber: varchar("return_number", { length: 50 }).notNull(),
   status:       mysqlEnum("status", ["pending", "approved", "rejected", "completed"]).default("pending").notNull(),
   reason:       mysqlEnum("reason", ["defect", "wrong_item", "expired", "damaged", "other"]).default("other").notNull(),
+  /*
+    Куда делся вернувшийся товар. Решается при проведении, до того — NULL.
+
+    Раньше каждый проведённый возврат клал товар на полку — и просрочка с
+    браком продавались снова следующим же заказом. По умолчанию: брак,
+    просрочка и порча списываются, пересорт и «другое» — на склад; оператор
+    выбирает при проведении.
+  */
+  disposition:  mysqlEnum("disposition", ["restock", "write_off"]),
   notes:        text("notes"),
   totalAmount:  decimal("total_amount", { precision: 12, scale: 2 }).default("0.00").notNull(),
   createdBy:    bigint("created_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),

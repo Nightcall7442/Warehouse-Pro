@@ -1,5 +1,5 @@
 import { eq, and, or, desc, sql, isNull, isNotNull, inArray } from "drizzle-orm";
-import { applyStockEffect, releaseStock, reserveStock, shipStock } from "./stock-ledger";
+import { applyStockEffect, expiredByProduct, releaseStock, reserveStock, shipStock } from "./stock-ledger";
 import { alias } from "drizzle-orm/mysql-core";
 import { orders, orderItems, warehouseStock, shops, users, products, warehouses, payments, debtReminders, orderAdjustments, territories, returns, returnItems } from "@db/schema";
 import { resolvePrices } from "./price-resolver";
@@ -1366,6 +1366,9 @@ export const OrderService = {
 
       const stockMap = new Map<number, typeof stockRows[number]>();
       for (const row of stockRows) stockMap.set(row.productId, row);
+      // Просроченные партии лежат на полке и входят в available, но продать
+      // их нельзя: годное — за их вычетом. Отгрузка их и не возьмёт (дверь).
+      const expired = await expiredByProduct(tx, tenantId, reserveWarehouseId, items.map(i => i.productId));
 
       /*
         Отказ называет товар по имени.
@@ -1386,8 +1389,12 @@ export const OrderService = {
         if (available < 0) {
           throw new Error(`Некорректный остаток на складе: «${name}» (доступно: ${available}). Обратитесь к администратору.`);
         }
-        if (available < Number(item.quantity)) {
-          throw new Error(`«${name}»: на складе ${available}, а в заказе ${item.quantity}`);
+        const rotten = expired.get(item.productId) ?? 0;
+        const sellable = available - rotten;
+        if (sellable < Number(item.quantity)) {
+          throw new Error(rotten > 0
+            ? `«${name}»: на складе ${available}, из них ${rotten} просрочено — годных ${sellable}, а в заказе ${item.quantity}`
+            : `«${name}»: на складе ${available}, а в заказе ${item.quantity}`);
         }
       }
 

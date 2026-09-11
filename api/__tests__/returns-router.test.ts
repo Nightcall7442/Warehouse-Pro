@@ -35,7 +35,7 @@ import { returns, returnItems, orderItems, shops, users, products, orders, wareh
 // Type aliases, not interfaces: the fake db passes these rows around as
 // `Record<string, unknown>` to read columns by name, and only an alias of an
 // object literal gets the implicit index signature that allows.
-type FakeReturn = { id: number; tenantId: number; orderId: number | null; shopId: number; agentId: number; returnNumber: string; reason: string; notes: string | null; status: string; totalAmount: string; createdBy: number; };
+type FakeReturn = { id: number; tenantId: number; orderId: number | null; shopId: number; agentId: number; returnNumber: string; reason: string; notes: string | null; status: string; totalAmount: string; createdBy: number; disposition?: string | null; };
 type FakeReturnItem = { id: number; returnId: number; productId: number; quantity: string; unitPrice: string; subtotal: string; reason: string | null; condition: string | null; };
 type FakeOrder = { id: number; tenantId: number; agentId: number; shopId: number; status: string; total: string; };
 type FakeOrderItem = { id: number; orderId: number; productId: number; quantity: string; unitPrice: string;  deliveredQuantity?: string | null; };
@@ -237,7 +237,8 @@ function makeMockDb() {
         }
       }
       if (sqlStr.includes("shops") && !sqlStr.includes("warehouse_stock")) {
-        const ret = returnsTable.find(r => r.status === "approved");
+        // Пересчёт идёт ПОСЛЕ записи completed — строка уже проведена.
+        const ret = returnsTable.find(r => r.status === "completed");
         if (ret) {
           const shop = shopsTable.find(s => s.id === ret.shopId);
           if (shop) {
@@ -329,7 +330,16 @@ function makeMockDb() {
   };
   db.update = (table: any) => {
     useTable(table);
-    return { set: vi.fn(() => ({ where: vi.fn(() => Promise.resolve({ affectedRows: 1 })) })) };
+    // Возврату правка применяется: статус и решение по товару читаются в
+    // проверках. Остальным таблицам — как и раньше, только «одна строка».
+    return {
+      set: vi.fn((patch: Record<string, unknown>) => ({
+        where: vi.fn(() => {
+          if (table === returns) for (const row of returnsTable) Object.assign(row, patch);
+          return Promise.resolve({ affectedRows: 1 });
+        }),
+      })),
+    };
   };
   db.delete = (table: any) => {
     useTable(table);
@@ -462,22 +472,42 @@ describe("returnsRouter", () => {
       expect(result.success).toBe(true);
     });
 
-    it("transitions approved -> completed and restores stock", async () => {
-      returnsTable.push({ id: 1, tenantId: 1, orderId: null, shopId: 1, agentId: 10, returnNumber: "RET-001", reason: "defect", notes: null, status: "approved", totalAmount: "100.00", createdBy: 10 });
+    /*
+      Куда девать товар — решение при проведении. Брак по умолчанию
+      списывается (на полку не ложится), пересорт — на склад; оператор может
+      сказать иначе явно.
+    */
+    const approvedReturn = (reason: string) => {
+      returnsTable.push({ id: 1, tenantId: 1, orderId: null, shopId: 1, agentId: 10, returnNumber: "RET-001", reason, notes: null, status: "approved", totalAmount: "100.00", createdBy: 10 });
       returnItemsTable.push(
         { id: 1, returnId: 1, productId: 1, quantity: "2.00", unitPrice: "50.00", subtotal: "100.00", reason: null, condition: null },
       );
+      stockTable.push({ productId: 1, tenantId: 1, currentStock: "100.00", reserved: "10.00", available: "90.00" });
+      return returnsRouter.createCaller(buildCtx({ user: { id: 1, role: "operator" } }));
+    };
+    const stockNow = () => stockTable.find(s => s.productId === 1 && s.tenantId === 1)!;
 
-      const initialStock = { productId: 1, tenantId: 1, currentStock: "100.00", reserved: "10.00", available: "90.00" };
-      stockTable.push(initialStock);
+    it("approved -> completed: пересорт возвращается на склад", async () => {
+      const caller = approvedReturn("wrong_item");
+      expect((await caller.updateStatus({ id: 1, status: "completed" })).success).toBe(true);
+      expect(Number(stockNow().currentStock)).toBe(102);
+      expect(Number(stockNow().available)).toBe(92);
+      expect(returnsTable[0].disposition).toBe("restock");
+    });
 
-      const caller = returnsRouter.createCaller(buildCtx({ user: { id: 1, role: "operator" } }));
-      const result = await caller.updateStatus({ id: 1, status: "completed" });
-      expect(result.success).toBe(true);
-      const stock = stockTable.find(s => s.productId === 1 && s.tenantId === 1);
-      expect(stock).toBeDefined();
-      expect(Number(stock!.currentStock)).toBe(102);
-      expect(Number(stock!.available)).toBe(92);
+    it("approved -> completed: брак по умолчанию списывается, полка не меняется", async () => {
+      const caller = approvedReturn("defect");
+      expect((await caller.updateStatus({ id: 1, status: "completed" })).success).toBe(true);
+      expect(Number(stockNow().currentStock)).toBe(100);
+      expect(returnsTable[0].disposition).toBe("write_off");
+      expect(returnsTable[0].status).toBe("completed");
+    });
+
+    it("approved -> completed: оператор может вернуть брак на склад явно", async () => {
+      const caller = approvedReturn("defect");
+      await caller.updateStatus({ id: 1, status: "completed", disposition: "restock" });
+      expect(Number(stockNow().currentStock)).toBe(102);
+      expect(returnsTable[0].disposition).toBe("restock");
     });
 
     it("rejects invalid transition: pending -> completed (skip approved)", async () => {

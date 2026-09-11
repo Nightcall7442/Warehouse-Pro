@@ -1,0 +1,1 @@
+ALTER TABLE `returns` ADD `disposition` enum('restock','write_off');

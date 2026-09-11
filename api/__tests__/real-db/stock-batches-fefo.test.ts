@@ -30,6 +30,17 @@ import {
 
 const describeIf = hasRealDb ? describe : describe.skip;
 
+/**
+ * Сроки — от сегодняшнего дня. Жёсткие даты протухли бы: отгрузка
+ * просроченное больше не берёт, и «сгорает раньше» через год стало бы
+ * «уже сгорела».
+ */
+const inDays = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+const SOON = inDays(60);
+const MID = inDays(120);
+const LATER = inDays(400);
+const GONE = inDays(-1);
+
 describeIf("партии остатка на настоящей базе", () => {
   let db: ServiceDb;
   let s: Seeded;
@@ -76,12 +87,12 @@ describeIf("партии остатка на настоящей базе", () =>
   }
 
   it("приход с партией заводит её, а без партии — нет", async () => {
-    await receive(10, { batchNumber: "A", expiresAt: "2026-12-31" });
+    await receive(10, { batchNumber: "A", expiresAt: LATER });
     await receive(5);
 
     const rows = await batches();
     expect(rows, "безымянный приход завёл себе партию").toHaveLength(1);
-    expect(rows[0]).toEqual({ batch: "A", expires: "2026-12-31", qty: 10 });
+    expect(rows[0]).toEqual({ batch: "A", expires: LATER, qty: 10 });
 
     // Остаток — весь: и партийный, и безымянный.
     const { st, inBatches } = await expectInvariant();
@@ -99,8 +110,8 @@ describeIf("партии остатка на настоящей базе", () =>
       MySQL считает строки с NULL различными, и партия без номера заводилась бы
       заново при каждом приходе.
     */
-    await receive(10, { batchNumber: "A", expiresAt: "2026-12-31" });
-    await receive(7, { batchNumber: "A", expiresAt: "2026-12-31" });
+    await receive(10, { batchNumber: "A", expiresAt: LATER });
+    await receive(7, { batchNumber: "A", expiresAt: LATER });
 
     const rows = await batches();
     expect(rows).toHaveLength(1);
@@ -109,8 +120,8 @@ describeIf("партии остатка на настоящей базе", () =>
 
   it("партия без номера, но со сроком тоже не двоится", async () => {
     // Ровно тот случай, на котором индекс по двум колонкам молча не сработал бы.
-    await receive(4, { expiresAt: "2026-06-01" });
-    await receive(6, { expiresAt: "2026-06-01" });
+    await receive(4, { expiresAt: MID });
+    await receive(6, { expiresAt: MID });
 
     const rows = await batches();
     expect(rows, "партия без номера завелась дважды").toHaveLength(1);
@@ -131,8 +142,8 @@ describeIf("партии остатка на настоящей базе", () =>
       Партия B пришла ПОЗЖЕ, но сгорает раньше. Уйди первой A — B досидит до
       срока и поедет в утиль.
     */
-    await receive(10, { batchNumber: "A", expiresAt: "2026-12-31" });
-    await receive(10, { batchNumber: "B", expiresAt: "2026-03-01" });
+    await receive(10, { batchNumber: "A", expiresAt: LATER });
+    await receive(10, { batchNumber: "B", expiresAt: SOON });
 
     await ship(6);
 
@@ -142,13 +153,13 @@ describeIf("партии остатка на настоящей базе", () =>
   });
 
   it("списание переливается через партию, когда её не хватает", async () => {
-    await receive(5, { batchNumber: "B", expiresAt: "2026-03-01" });
-    await receive(10, { batchNumber: "A", expiresAt: "2026-12-31" });
+    await receive(5, { batchNumber: "B", expiresAt: SOON });
+    await receive(10, { batchNumber: "A", expiresAt: LATER });
 
     await ship(8);
 
     expect(await batches()).toEqual([
-      { batch: "A", expires: "2026-12-31", qty: 7 },
+      { batch: "A", expires: LATER, qty: 7 },
     ]);
     await expectInvariant();
   });
@@ -160,7 +171,7 @@ describeIf("партии остатка на настоящей базе", () =>
       ровно наоборот: сгорающее оставалось бы лежать.
     */
     await receive(10, { batchNumber: "БЕЗ СРОКА" });
-    await receive(10, { batchNumber: "СГОРИТ", expiresAt: "2026-03-01" });
+    await receive(10, { batchNumber: "СГОРИТ", expiresAt: SOON });
 
     await ship(6);
 
@@ -175,7 +186,7 @@ describeIf("партии остатка на настоящей базе", () =>
       товар, лежавший на складе до появления учёта партий.
     */
     await receive(20);                                        // без партии
-    await receive(5, { batchNumber: "A", expiresAt: "2026-03-01" });
+    await receive(5, { batchNumber: "A", expiresAt: SOON });
 
     await ship(12);
 
@@ -187,7 +198,7 @@ describeIf("партии остатка на настоящей базе", () =>
 
   it("резерв и снятие резерва партий не трогают", async () => {
     // Товар никуда не уехал: он лежит на той же полке, просто обещан заказу.
-    await receive(10, { batchNumber: "A", expiresAt: "2026-03-01" });
+    await receive(10, { batchNumber: "A", expiresAt: SOON });
 
     await reserveStock(db as never, {
       tenantId: s.tenantId, warehouseId: s.warehouseId,
@@ -204,7 +215,7 @@ describeIf("партии остатка на настоящей базе", () =>
 
   it("частичная доставка списывает УВЕЗЁННОЕ, а не заказанное", async () => {
     // Невывезенная часть осталась на полке — значит осталась и в партии.
-    await receive(10, { batchNumber: "A", expiresAt: "2026-03-01" });
+    await receive(10, { batchNumber: "A", expiresAt: SOON });
 
     await ship(7, 3);
 
@@ -220,8 +231,8 @@ describeIf("партии остатка на настоящей базе", () =>
 
       Лишнее снимается тем же правилом FEFO.
     */
-    await receive(10, { batchNumber: "A", expiresAt: "2026-12-31" });
-    await receive(10, { batchNumber: "B", expiresAt: "2026-03-01" });
+    await receive(10, { batchNumber: "A", expiresAt: LATER });
+    await receive(10, { batchNumber: "B", expiresAt: SOON });
 
     await setStock(db as never, {
       tenantId: s.tenantId, warehouseId: s.warehouseId, productId: s.productId, quantity: 12,
@@ -237,8 +248,8 @@ describeIf("партии остатка на настоящей базе", () =>
       «лишнее снимается тем же правилом FEFO».
     */
     expect(await batches()).toEqual([
-      { batch: "B", expires: "2026-03-01", qty: 2 },
-      { batch: "A", expires: "2026-12-31", qty: 10 },
+      { batch: "B", expires: SOON, qty: 2 },
+      { batch: "A", expires: LATER, qty: 10 },
     ]);
     const { st, inBatches } = await expectInvariant();
     expect(st.current).toBe(12);
@@ -249,7 +260,7 @@ describeIf("партии остатка на настоящей базе", () =>
   it("пересчёт НАШЁЛ больше — партиям это не приписывается", async () => {
     // Какой партии принадлежит найденное, неизвестно; приписать ей чужой срок
     // значило бы соврать в отчёте.
-    await receive(10, { batchNumber: "A", expiresAt: "2026-03-01" });
+    await receive(10, { batchNumber: "A", expiresAt: SOON });
 
     await setStock(db as never, {
       tenantId: s.tenantId, warehouseId: s.warehouseId, productId: s.productId, quantity: 25,
@@ -266,7 +277,7 @@ describeIf("партии остатка на настоящей базе", () =>
       сгорающей значило бы выдать чужой срок за настоящий — и отправить
       годный товар в утиль.
     */
-    await receive(10, { batchNumber: "A", expiresAt: "2026-03-01" });
+    await receive(10, { batchNumber: "A", expiresAt: SOON });
     await ship(10);
     expect(await batches()).toEqual([]);
 
@@ -281,21 +292,21 @@ describeIf("партии остатка на настоящей базе", () =>
   });
 
   it("партии одного товара не трогают партии другого", async () => {
-    await receive(10, { batchNumber: "A", expiresAt: "2026-03-01" });
+    await receive(10, { batchNumber: "A", expiresAt: SOON });
     await receiveStock(db as never, {
       tenantId: s.tenantId, warehouseId: s.warehouseId, productId: s.secondProductId,
-      quantity: 10, reason: "arrival", batch: { batchNumber: "A", expiresAt: "2026-03-01" },
+      quantity: 10, reason: "arrival", batch: { batchNumber: "A", expiresAt: SOON },
     });
 
     await ship(10);
 
     expect(await batches()).toEqual([]);
     expect(await batches(s.secondProductId), "списали чужой товар")
-      .toEqual([{ batch: "A", expires: "2026-03-01", qty: 10 }]);
+      .toEqual([{ batch: "A", expires: SOON, qty: 10 }]);
   });
 
   it("дробное количество не округляется", async () => {
-    await receive(1.5, { batchNumber: "A", expiresAt: "2026-03-01" });
+    await receive(1.5, { batchNumber: "A", expiresAt: SOON });
     await ship(0.25);
     expect((await batches())[0].qty).toBe(1.25);
   });
@@ -307,13 +318,43 @@ describeIf("партии остатка на настоящей базе", () =>
       один из двух запросов: оба не находят строки, оба идут вставлять.
     */
     await Promise.all([
-      receive(3, { batchNumber: "A", expiresAt: "2026-03-01" }),
-      receive(4, { batchNumber: "A", expiresAt: "2026-03-01" }),
-      receive(5, { batchNumber: "A", expiresAt: "2026-03-01" }),
+      receive(3, { batchNumber: "A", expiresAt: SOON }),
+      receive(4, { batchNumber: "A", expiresAt: SOON }),
+      receive(5, { batchNumber: "A", expiresAt: SOON }),
     ]);
 
     const rows = await batches();
     expect(rows).toHaveLength(1);
     expect(rows[0].qty).toBe(12);
+  });
+
+  it("просроченная партия не уходит в отгрузку, но уходит в списание первой", async () => {
+    /*
+      FEFO без условия по сроку отдавал магазину первой именно сгоревшую
+      партию — «раньше всех портится» она и есть. Годное уходит в отгрузку,
+      просрочка ждёт списания и уходит первой именно в него.
+    */
+    await receive(10, { batchNumber: "GONE", expiresAt: GONE });
+    await receive(10, { batchNumber: "OK", expiresAt: LATER });
+
+    await ship(4);
+    expect((await batches()).map(r => [r.batch, r.qty])).toEqual([["GONE", 10], ["OK", 6]]);
+
+    const { applyStockEffect } = await import("../../services/stock-ledger");
+    await applyStockEffect(db as never, {
+      tenantId: s.tenantId, warehouseId: s.warehouseId,
+      items: [{ productId: s.productId, quantity: 3 }],
+      shift: { onHand: -1, held: 0 }, reason: "manual_adjustment", notes: "утиль",
+    });
+    expect((await batches()).map(r => [r.batch, r.qty])).toEqual([["GONE", 7], ["OK", 6]]);
+    await expectInvariant();
+  });
+
+  it("годное к продаже — без просроченного", async () => {
+    await receive(10, { batchNumber: "GONE", expiresAt: GONE });
+    await receive(5, { batchNumber: "OK", expiresAt: LATER });
+    const { expiredByProduct } = await import("../../services/stock-ledger");
+    const m = await expiredByProduct(db as never, s.tenantId, s.warehouseId, [s.productId]);
+    expect(m.get(s.productId)).toBe(10);
   });
 });

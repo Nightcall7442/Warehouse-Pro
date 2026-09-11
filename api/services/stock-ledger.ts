@@ -171,6 +171,8 @@ async function shiftStock(
   tenantId: number,
   warehouseId: number,
   rows: Array<{ productId: number; onHand: number; held: number }>,
+  /** Списывать ли с просроченных партий. Отгрузка — нет, списание — да и первым. */
+  expiredToo = false,
 ): Promise<void> {
   if (rows.length === 0) return;
   if (rows.every(r => r.onHand === 0 && r.held === 0)) return;
@@ -201,9 +203,35 @@ async function shiftStock(
   */
   for (const row of rows) {
     if (row.onHand < 0) {
-      await consumeBatches(tx, tenantId, warehouseId, row.productId, -row.onHand);
+      await consumeBatches(tx, tenantId, warehouseId, row.productId, -row.onHand, expiredToo);
     }
   }
+}
+
+/**
+ * Сколько единиц товара лежит в ПРОСРОЧЕННЫХ партиях — по товарам.
+ *
+ * Продавать их нельзя, а available их считает: агент оформлял заказ на
+ * товар, который на полке есть, но годного среди него нет. Годное к продаже
+ * — available минус это число; проверка стоит у оформления заказа.
+ */
+export async function expiredByProduct(
+  tx: LedgerWriter, tenantId: number, warehouseId: number, productIds: number[],
+): Promise<Map<number, number>> {
+  const out = new Map<number, number>();
+  if (productIds.length === 0) return out;
+  const rows = await tx.execute(sql`
+    SELECT product_id AS productId, COALESCE(SUM(quantity), 0) AS qty FROM stock_batches
+    WHERE tenant_id = ${tenantId}
+      AND warehouse_id = ${warehouseId}
+      AND product_id IN (${sql.join(productIds.map(id => sql`${id}`), sql`, `)})
+      AND expires_at IS NOT NULL AND expires_at < CURDATE()
+    GROUP BY product_id
+  `);
+  for (const r of resultRows<{ productId: number; qty: string }>(rows)) {
+    out.set(Number(r.productId), Number(r.qty));
+  }
+  return out;
 }
 
 /**
@@ -270,6 +298,7 @@ export interface BatchRef {
  */
 async function consumeBatches(
   tx: LedgerWriter, tenantId: number, warehouseId: number, productId: number, quantity: number,
+  expiredToo = false,
 ): Promise<void> {
   if (!(quantity > 0)) return;
 
@@ -286,12 +315,28 @@ async function consumeBatches(
     срок есть». MySQL сортирует NULL перед значениями, поэтому без этого
     условия бессрочные партии уходили бы ПЕРВЫМИ, то есть ровно наоборот.
   */
-  const rows = await tx.execute(sql`
+  /*
+    Просрочка. Отгрузка её НЕ берёт: FEFO без этого условия отдавал магазину
+    первой именно сгоревшую партию — «раньше всех портится» она и есть.
+    Списание (инвентаризация, бой, утилизация) берёт её первой — за тем и
+    списывают. Годное к продаже у оформления заказа считается без неё
+    (expiredByProduct), поэтому отгрузке годных партий хватает.
+  */
+  const rows = await tx.execute(expiredToo ? sql`
     SELECT id, quantity FROM stock_batches
     WHERE tenant_id = ${tenantId}
       AND warehouse_id = ${warehouseId}
       AND product_id = ${productId}
       AND quantity > 0
+    ORDER BY expires_at IS NULL, expires_at, received_at, id
+    FOR UPDATE
+  ` : sql`
+    SELECT id, quantity FROM stock_batches
+    WHERE tenant_id = ${tenantId}
+      AND warehouse_id = ${warehouseId}
+      AND product_id = ${productId}
+      AND quantity > 0
+      AND (expires_at IS NULL OR expires_at >= CURDATE())
     ORDER BY expires_at IS NULL, expires_at, received_at, id
     FOR UPDATE
   `);
@@ -561,7 +606,8 @@ export async function applyStockEffect(
   },
 ): Promise<void> {
   const items = normalize(entry.items, "смена статуса");
-  await shiftStock(tx, entry.tenantId, entry.warehouseId, uniform(items, entry.shift));
+  // Списание руками — единственный путь, которому просрочка нужна первой.
+  await shiftStock(tx, entry.tenantId, entry.warehouseId, uniform(items, entry.shift), entry.reason === "manual_adjustment");
 
   // Движение — только когда товар правда двигался. Статус, который лишь
   // откладывает или освобождает, перекладывает два числа и в журнал не идёт.
@@ -629,6 +675,6 @@ export async function setStock(
   `);
   const inBatches = Number(resultRows<{ total: unknown }>(rows)[0]?.total ?? 0);
   if (inBatches > q) {
-    await consumeBatches(tx, entry.tenantId, entry.warehouseId, entry.productId, inBatches - q);
+    await consumeBatches(tx, entry.tenantId, entry.warehouseId, entry.productId, inBatches - q, true);
   }
 }
