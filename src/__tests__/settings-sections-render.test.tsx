@@ -54,6 +54,8 @@ const trpcStub = vi.hoisted(() => {
       groupStatus: { useQuery: query({ linked: false, title: null, since: null }) },
       groupCode: { useQuery: query({ code: "g1.2.3.sig", minutes: 15 }) },
       remindToConnect: { useMutation: mutation },
+      // Директор подключает сотрудника по его номеру в Telegram.
+      setUserChatId: { useMutation: mutation },
       unlinkGroup: { useMutation: mutation },
     },
     onec: {

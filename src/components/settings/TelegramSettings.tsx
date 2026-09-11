@@ -27,8 +27,34 @@ export function TelegramSettings() {
   const [testText, setTestText] = useState("");
   const [showDigest, setShowDigest] = useState(false);
   const digestQ = trpc.telegram.dailyDigest.useQuery(undefined, { enabled: showDigest });
+  /*
+    Проверка связи говорит, что вышло НА САМОМ ДЕЛЕ.
+
+    Здесь стояло «Отправлено — проверьте телеграм» независимо от исхода. У
+    организации, где к боту не подключён никто, это означало: не ушло ничего,
+    экран сказал «успешно», и человек шёл искать поломку в Telegram.
+  */
   const broadcast = trpc.telegram.testBroadcast.useMutation({
-    onSuccess: () => notify.success(t("Отправлено — проверьте телеграм", "Yuborildi — telegramni tekshiring")),
+    onSuccess: (r) => {
+      const went = [
+        r.toSelf ? t("вам", "sizga") : null,
+        r.toGroup ? t("в группу", "guruhga") : null,
+      ].filter(Boolean);
+
+      if (went.length > 0) {
+        return notify.success(t(`Отправлено ${went.join(" и ")}`, `Yuborildi: ${went.join(" va ")}`));
+      }
+      if (!r.selfLinked && !r.groupLinked) {
+        return notify.error(t(
+          "Отправлять некуда: ваш Telegram не подключён и группа не связана",
+          "Yuborishga joy yo'q: Telegramingiz ulanmagan va guruh bog'lanmagan",
+        ));
+      }
+      notify.error(t(
+        "Не доставлено. Откройте бота и нажмите «Запустить» — Telegram не даёт боту написать первым",
+        "Yetkazilmadi. Botni ochib «Ishga tushirish»ni bosing",
+      ));
+    },
     onError: (e) => notify.error(e.message),
   });
   const save   = trpc.telegram.saveChatId.useMutation({

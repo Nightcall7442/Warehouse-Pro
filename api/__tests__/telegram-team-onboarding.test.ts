@@ -28,6 +28,24 @@ const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8").replace
 const strip = (code: string) =>
   code.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:])\/\/.*$/gm, "$1");
 
+/*
+  Тело одной процедуры роутера.
+
+  Резать «до `\n  }),`» нельзя: так заканчивается процедура без `.input(...)`,
+  а с ним закрывающая скобка стоит на четырёх пробелах — поиск не находил
+  ничего, `slice(at, -1)` отдавал весь остаток файла, и страж молчал о чём
+  угодно, что нашлось ниже по тексту. Поймано нарочной поломкой.
+
+  Поэтому границей служит начало СЛЕДУЮЩЕГО поля роутера.
+*/
+const procBody = (proc: string): string => {
+  const at = ROUTER.indexOf(`\n  ${proc}: `);
+  if (at < 0) return "";
+  const rest = ROUTER.slice(at + 1);
+  const next = rest.search(/\n {2}[A-Za-z_$][\w$]*:\s/);
+  return next < 0 ? rest : rest.slice(0, next);
+};
+
 const NOTIFY = strip(read("api/services/telegram-notify.ts"));
 const ROUTER = strip(read("api/telegram-router.ts"));
 const BOT = strip(read("api/telegram/bot.ts"));
@@ -231,5 +249,95 @@ describe("бот объясняет себя", () => {
   it("новые ответы названы в помощи", () => {
     expect(TEXTS).toMatch(/Сотрудники<\/b>/);
     expect(TEXTS).toMatch(/Планы<\/b>/);
+  });
+});
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Директор подключает сотрудника сам — и узнаёт, дошло ли.
+   ═══════════════════════════════════════════════════════════════════════════ */
+describe("подключение по номеру Telegram", () => {
+  const body = procBody("setUserChatId");
+
+  it("процедура вообще есть", () => {
+    expect(body, "подключения по номеру нет").not.toBe("");
+  });
+
+  it("открыта только директору", () => {
+    expect(body).toContain("adminQuery");
+  });
+
+  it("сотрудник берётся из СВОЕЙ организации", () => {
+    /*
+      Без этого директор одной организации привязал бы Telegram к сотруднику
+      другой — и тот начал бы получать чужие рабочие уведомления.
+    */
+    expect(body).toContain("eq(users.tenantId, ctx.tenant.id)");
+  });
+
+  it("один чат — один человек", () => {
+    // Иначе уведомления директора начали бы приходить агенту, чей номер
+    // вписали дважды.
+    expect(body).toContain("ne(users.id, input.userId)");
+    expect(body).toContain('code: "CONFLICT"');
+  });
+
+  it("номер — только цифры и только человеческий", () => {
+    /*
+      У групп номера отрицательные. Вписать сюда номер группы значило бы
+      слать личные уведомления в общий чат — ровно то, чего вся эта работа и
+      избегает.
+    */
+    expect(body).toContain(String.raw`regex(/^\d{5,20}$/`);
+  });
+
+  it("сразу проверяет доставку и возвращает исход", () => {
+    /*
+      Telegram запрещает боту писать первым: пока человек не нажал
+      «Запустить», доставка отклоняется. Молчать об этом нельзя — директор
+      решит, что подключил, а человек не получит ничего.
+    */
+    expect(body).toContain("await sendTelegram(");
+    expect(body).toContain("delivered");
+    expect(body).toContain('"not_started"');
+  });
+
+  it("экран говорит, что делать при недоставке", () => {
+    expect(TEAM_UI, "экран молчит про «Запустить»").toMatch(/Запустить/);
+  });
+});
+
+describe("проверка связи не врёт", () => {
+  const body = procBody("testBroadcast");
+
+  it("проверка связи вообще есть", () => {
+    expect(body, "проверки связи нет").not.toBe("");
+  });
+
+  it("идёт тому, кто нажал, и в общий чат", () => {
+    /*
+      Слала роли «агент»: директор, который на кнопку и нажимает, не получал
+      ничего в принципе — он не агент. То есть проверка связи не проверяла
+      связь того, кто её запустил.
+    */
+    expect(body).toContain("eq(users.id, ctx.user.id)");
+    expect(body).toContain("telegramGroups");
+    expect(body, "проверка снова шлётся роли").not.toContain("notifyTenantRole");
+  });
+
+  it("возвращает, что вышло на самом деле", () => {
+    // «Никуда не ушло» — это ответ, а не успех.
+    for (const field of ["toSelf", "toGroup", "selfLinked", "groupLinked"]) {
+      expect(body, `в ответе нет ${field}`).toContain(field);
+    }
+    expect(body, "вернулся безусловный успех").not.toMatch(/return\s*{\s*success:\s*true\s*}/);
+  });
+
+  it("экран разбирает исход, а не пишет «отправлено»", () => {
+    const UI = strip(read("src/components/settings/TelegramSettings.tsx"));
+    expect(UI).toContain("r.toSelf");
+    expect(UI).toContain("r.groupLinked");
+    expect(UI, "экран снова рапортует успехом всегда")
+      .not.toMatch(/onSuccess:\s*\(\)\s*=>\s*notify\.success/);
   });
 });

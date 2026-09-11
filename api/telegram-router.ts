@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { eq, and, sql, isNull } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
+import { eq, and, ne, sql, isNull } from "drizzle-orm";
 import { createRouter, authedQuery, adminQuery, managementQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { users, telegramRules, telegramGroups } from "@db/schema";
@@ -371,13 +372,127 @@ export const telegramRouter = createRouter({
   }),
 
   /** Admin: test message to all agents in tenant */
+  /* ═════════════════════════════════════════════════════════════════════════
+     Проверка связи.
+
+     ── Что было ─────────────────────────────────────────────────────────────
+
+     Кнопка слала сообщение роли «агент» и всегда отвечала «Отправлено —
+     проверьте телеграм». У организации, где к боту не подключён НИКТО, это
+     означало: не ушло ничего, экран сказал «успешно», и человек шёл искать
+     поломку в Telegram.
+
+     Хуже: директор, который на кнопку и нажимает, сообщения не получал в
+     принципе — он не агент. То есть проверка связи не проверяла связь того,
+     кто её запустил.
+
+     ── Как теперь ───────────────────────────────────────────────────────────
+
+     Проверка идёт ТУДА, где её ждёт нажавший: себе и в общий чат, если он
+     связан. И возвращает, что вышло на самом деле, — по каждому адресату
+     отдельно. «Никуда не ушло» — это ответ, а не успех.
+     ═════════════════════════════════════════════════════════════════════════ */
   testBroadcast: adminQuery
-    .input(z.object({ message: z.string().min(1) }))
+    .input(z.object({ message: z.string().min(1).max(500) }))
     .mutation(async ({ input, ctx }) => {
-      // The director types this by hand, not as markup — send the text they
-      // actually wrote rather than letting a stray < swallow the broadcast.
-      await notifyTenantRole(ctx.tenant.id, "agent", tgEscape(input.message));
-      return { success: true };
+      const db = getDb();
+      // Пишет человек руками, не разметкой: шальная скобка иначе съела бы всё
+      // сообщение целиком.
+      const text = tgEscape(input.message);
+
+      const [me] = await db.select({ chatId: users.telegramChatId })
+        .from(users).where(eq(users.id, ctx.user.id)).limit(1);
+      const [group] = await db.select({ chatId: telegramGroups.chatId })
+        .from(telegramGroups).where(eq(telegramGroups.tenantId, ctx.tenant.id)).limit(1);
+
+      const toSelf = me?.chatId ? await sendTelegram(me.chatId, text) : false;
+      const toGroup = group?.chatId ? await sendTelegram(group.chatId, text) : false;
+
+      return {
+        toSelf,
+        toGroup,
+        selfLinked: !!me?.chatId,
+        groupLinked: !!group?.chatId,
+      };
+    }),
+
+  /* ═════════════════════════════════════════════════════════════════════════
+     Директор подключает сотрудника сам — по его номеру в Telegram.
+
+     ── Зачем ────────────────────────────────────────────────────────────────
+
+     Личная ссылка требует, чтобы человек зашёл в приложение и нажал кнопку.
+     Половина смены этого не сделает никогда: агент работает с телефона, в
+     настройки веба не заходит, и «подключись» тонет среди прочего.
+
+     Директор видит номера своих людей в общем чате (Telegram показывает их
+     в списке участников) и заводит их сам, одним полем.
+
+     ── Чего это НЕ делает, и об этом надо сказать ───────────────────────────
+
+     Не заставляет бота написать первым. Telegram запрещает боту начинать
+     разговор: пока человек не нажал «Запустить» в самом боте, доставка
+     отклоняется. Поэтому здесь сразу после записи идёт ПРОБНАЯ отправка, и
+     её исход возвращается как есть: «записали и дошло» или «записали, но
+     человек ещё не запускал бота».
+
+     Молчать об этом нельзя — иначе директор считает, что подключил человека,
+     а тот не получает ничего и не знает, что должен что-то нажать.
+
+     ── Один чат — один человек ──────────────────────────────────────────────
+
+     Тот же запрет, что и при самостоятельной привязке: иначе уведомления
+     директора начали бы приходить агенту, чей номер вписали дважды.
+     ═════════════════════════════════════════════════════════════════════════ */
+  setUserChatId: adminQuery
+    .input(z.object({
+      userId: z.number().int().positive(),
+      /* Пусто — отвязать. Номер пользователя в Telegram всегда положительный;
+         отрицательные принадлежат группам, и человеку такой не подходит. */
+      chatId: z.string().trim().regex(/^\d{5,20}$/, "Номер Telegram — только цифры").or(z.literal("")),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+
+      const [target] = await db.select({ id: users.id, name: users.name })
+        .from(users)
+        .where(and(eq(users.id, input.userId), eq(users.tenantId, ctx.tenant.id)))
+        .limit(1);
+      if (!target) throw new TRPCError({ code: "NOT_FOUND", message: "Сотрудник не найден в вашей организации" });
+
+      if (!input.chatId) {
+        await db.update(users).set({ telegramChatId: null }).where(eq(users.id, input.userId));
+        return { linked: false, delivered: false, reason: "unlinked" as const };
+      }
+
+      const [taken] = await db.select({ id: users.id })
+        .from(users)
+        .where(and(eq(users.telegramChatId, input.chatId), ne(users.id, input.userId)))
+        .limit(1);
+      if (taken) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Этот Telegram уже привязан к другому сотруднику.",
+        });
+      }
+
+      await db.update(users).set({ telegramChatId: input.chatId }).where(eq(users.id, input.userId));
+
+      /*
+        Пробная отправка сразу. Она и есть проверка номера: ошиблись цифрой —
+        Telegram откажет, и директор узнает об этом здесь, а не через неделю
+        по жалобе «мне ничего не приходит».
+      */
+      const delivered = await sendTelegram(
+        input.chatId,
+        `<b>Warehouse Pro</b>\nВаш Telegram подключён к учётной записи: ${tgEscape(target.name)}.\n\nСюда будут приходить рабочие уведомления.`,
+      );
+
+      return {
+        linked: true,
+        delivered,
+        reason: delivered ? ("ok" as const) : ("not_started" as const),
+      };
     }),
 
   /** One-tap Telegram connect via deep link */

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { notify } from "@/lib/toast";
-import { Users, Copy, Check, Loader2, BellRing, Unlink } from "lucide-react";
+import { Users, Copy, Check, Loader2, BellRing, Unlink, Link2, X } from "lucide-react";
 import { labelled, ROLE_LABEL } from "@/lib/entity-labels";
 import { FieldGroup } from "./ui";
 
@@ -49,6 +49,37 @@ export function TelegramTeam() {
           ? t("Напоминать некому — подключены все", "Eslatadigan odam yo'q — hammasi ulangan")
           : t(`Напоминание отправлено: ${r.sent}`, `Eslatma yuborildi: ${r.sent}`),
       ),
+    onError: (e) => notify.error(e.message),
+  });
+
+  /*
+    Подключение сотрудника директором — по его номеру в Telegram.
+
+    Личная ссылка требует, чтобы человек сам зашёл в приложение и нажал
+    кнопку. Половина смены этого не сделает никогда: агент работает с
+    телефона, в настройки веба не заходит. Номера своих людей директор видит
+    в общем чате — Telegram показывает их в списке участников.
+
+    Ответ приходит РАЗНЫЙ, и это важнее удобства: пока человек не нажал
+    «Запустить» в самом боте, Telegram не даёт боту написать первым. Тогда
+    запись остаётся, а доставки нет — и сказать об этом надо сразу, иначе
+    директор считает, что подключил, а человек не получает ничего.
+  */
+  const [editing, setEditing] = useState<number | null>(null);
+  const [idInput, setIdInput] = useState("");
+
+  const setChat = trpc.telegram.setUserChatId.useMutation({
+    onSuccess: (r) => {
+      utils.telegram.teamStatus.invalidate();
+      setEditing(null);
+      setIdInput("");
+      if (!r.linked) return notify.success(t("Отвязано", "Uzildi"));
+      if (r.delivered) return notify.success(t("Подключено — сообщение дошло", "Ulandi — xabar yetdi"));
+      notify.error(t(
+        "Записано, но сообщение не дошло: сотрудник ещё не нажал «Запустить» в боте",
+        "Yozildi, lekin xabar yetmadi: xodim botda «Ishga tushirish»ni bosmagan",
+      ));
+    },
     onError: (e) => notify.error(e.message),
   });
 
@@ -179,19 +210,86 @@ export function TelegramTeam() {
               {rows.map(r => (
                 <div
                   key={r.id}
-                  className="flex items-center justify-between gap-3 rounded-xl px-3 py-2"
+                  className="rounded-xl px-3 py-2"
                   style={{ background: "var(--color-surface-light)" }}
                 >
-                  <div style={{ minWidth: 0 }}>
-                    <p className="text-sm text-primary truncate">{r.name}</p>
-                    <p className="text-xs text-tertiary">{labelled(ROLE_LABEL, r.role, lang)}</p>
+                  <div className="flex items-center justify-between gap-3">
+                    <div style={{ minWidth: 0 }}>
+                      <p className="text-sm text-primary truncate">{r.name}</p>
+                      <p className="text-xs text-tertiary">{labelled(ROLE_LABEL, r.role, lang)}</p>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span
+                        className="text-xs"
+                        style={{ color: r.connected ? "var(--color-success-text)" : "var(--color-text-tertiary)" }}
+                      >
+                        {r.connected ? t("подключён", "ulangan") : t("нет", "yo'q")}
+                      </span>
+                      <button
+                        type="button"
+                        className="neo-btn"
+                        style={{ fontSize: "12px", padding: "5px 9px" }}
+                        aria-label={t(`Telegram сотрудника: ${r.name}`, `Xodim Telegrami: ${r.name}`)}
+                        onClick={() => {
+                          setEditing(editing === r.id ? null : r.id);
+                          setIdInput("");
+                        }}
+                      >
+                        {r.connected ? <X size={13} /> : <Link2 size={13} />}
+                      </button>
+                    </div>
                   </div>
-                  <span
-                    className="text-xs shrink-0"
-                    style={{ color: r.connected ? "var(--color-success-text)" : "var(--color-text-tertiary)" }}
-                  >
-                    {r.connected ? t("подключён", "ulangan") : t("нет", "yo'q")}
-                  </span>
+
+                  {editing === r.id && (
+                    <div className="mt-2 pt-2" style={{ borderTop: "1px solid var(--color-border)" }}>
+                      {r.connected ? (
+                        <button
+                          type="button"
+                          className="neo-btn"
+                          style={{ fontSize: "12px", padding: "6px 12px" }}
+                          disabled={setChat.isPending}
+                          onClick={() => setChat.mutate({ userId: r.id, chatId: "" })}
+                        >
+                          {t("Отвязать Telegram", "Telegramni uzish")}
+                        </button>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <input
+                              className="neo-input"
+                              inputMode="numeric"
+                              placeholder={t("Номер в Telegram, только цифры", "Telegram raqami, faqat raqamlar")}
+                              aria-label={t("Номер в Telegram", "Telegram raqami")}
+                              value={idInput}
+                              onChange={e => setIdInput(e.target.value.replace(/\D/g, ""))}
+                              style={{ flex: "1 1 200px" }}
+                            />
+                            <button
+                              type="button"
+                              className="neo-btn-primary"
+                              style={{ fontSize: "12px", padding: "8px 14px" }}
+                              disabled={setChat.isPending || idInput.length < 5}
+                              onClick={() => setChat.mutate({ userId: r.id, chatId: idInput })}
+                            >
+                              {t("Подключить", "Ulash")}
+                            </button>
+                          </div>
+                          {/*
+                            Сказано прямо, а не мелким шрифтом внизу: без этого
+                            шага доставки не будет, и директор решит, что
+                            сломалось у нас.
+                          */}
+                          <p className="text-xs text-tertiary mt-1.5">
+                            {t(
+                              "Номер видно в списке участников общего чата. Сотрудник должен один раз открыть бота и нажать «Запустить» — до этого Telegram не даёт боту написать первым.",
+                              "Raqam umumiy chat ishtirokchilari ro'yxatida ko'rinadi. Xodim bir marta botni ochib «Ishga tushirish»ni bosishi kerak.",
+                            )}
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
