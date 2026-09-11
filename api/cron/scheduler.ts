@@ -39,8 +39,8 @@ const OFFSET_MS = 5 * 3600 * 1000;
 
 type Job = {
   name: string;
-  /** Час и минута по Ташкенту — для ежедневных. */
-  daily?: { hour: number; minute: number };
+  /** Час и минута по Ташкенту — для ежедневных; weekday (0 = воскресенье) — раз в неделю. */
+  daily?: { hour: number; minute: number; weekday?: number };
   /** Либо просто «раз в столько-то минут». */
   everyMinutes?: number;
   run: () => Promise<unknown>;
@@ -150,6 +150,20 @@ const JOBS: Job[] = [
     daily: { hour: 4, minute: 0 },
     run: async () => (await import("../services/location-retention")).purgeOldLocations(),
   },
+  {
+    /*
+      Репетиция восстановления — раз в неделю, в воскресенье, после ночной
+      копии: разворачивает последнюю загруженную копию в черновую базу и
+      сверяет числа. Копия, которую никто не разворачивал, — надежда, а не копия.
+    */
+    name: "restore-drill",
+    daily: { hour: 5, minute: 0, weekday: 0 },
+    run: async () => {
+      const r = await (await import("./restore-drill")).runRestoreDrill();
+      if (!r.success) throw new Error(r.message);
+      return r;
+    },
+  },
 ];
 
 /** Когда работа выполнялась в последний раз — чтобы не повторяться в ту же минуту. */
@@ -166,6 +180,7 @@ function isDue(job: Job, at: Date): boolean {
     return local.getUTCMinutes() % job.everyMinutes === 0;
   }
   const d = job.daily!;
+  if (d.weekday !== undefined && local.getUTCDay() !== d.weekday) return false;
   return local.getUTCHours() === d.hour && local.getUTCMinutes() === d.minute;
 }
 

@@ -32,12 +32,20 @@ const utc = (h: number, m = 0) => new Date(Date.UTC(2026, 8, 8, h, m, 0));
 describe("когда что запускается", () => {
   const job = (name: string) => _internals.JOBS.find(j => j.name === name)!;
 
-  it("все десять работ на месте", () => {
+  it("все одиннадцать работ на месте", () => {
     expect(_internals.JOBS.map(j => j.name).sort()).toEqual([
       "admin-digest", "agent-locations-cleanup", "api-export-log-cleanup", "backup", "debt-reminders",
-      "notifications-cleanup", "support-cleanup",
+      "notifications-cleanup", "restore-drill", "support-cleanup",
       "telegram-digest", "telegram-outbox", "trial-reminders",
     ]);
+  });
+
+  it("репетиция восстановления — только по воскресеньям, после ночной копии", () => {
+    // 2026-09-13 — воскресенье; 05:00 по Ташкенту = 00:00 UTC.
+    const sun = new Date(Date.UTC(2026, 8, 13, 0, 0, 0));
+    const mon = new Date(Date.UTC(2026, 8, 14, 0, 0, 0));
+    expect(_internals.isDue(job("restore-drill"), sun)).toBe(true);
+    expect(_internals.isDue(job("restore-drill"), mon)).toBe(false);
   });
 
   it("стирающие работы разведены, а не слиты в одну", () => {
