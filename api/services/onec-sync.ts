@@ -4,7 +4,7 @@ import { eq, and, inArray } from "drizzle-orm";
 import { isDuplicateOf } from "../lib/db-errors";
 import { normalizeCategory } from "../lib/category";
 import { getDb } from "../queries/connection";
-import { products, orders, orderItems, warehouseStock, warehouses } from "@db/schema";
+import { products, orders, orderItems, warehouses } from "@db/schema";
 import { getBridgeForTenant } from "../lib/onec-bridge";
 import { OneCMapper } from "./onec-mapper";
 import { mapProduct1C, mapOrder1C, mapUnit } from "./onec-transform";
@@ -12,6 +12,7 @@ import type { Product1C } from "./onec-transform";
 import { logger } from "../lib/logger";
 import { updateSyncStatus } from "./onec-status";
 import { record1CSync } from "../lib/metrics";
+import { setStock } from "./stock-ledger";
 
 export class OneCSyncService {
   async syncProducts(tenantId: number): Promise<{ synced: number; errors: number; blockedByPlan: number }> {
@@ -123,12 +124,7 @@ export class OneCSyncService {
                 .limit(1);
 
               if (defaultWarehouse) {
-                await tx.insert(warehouseStock).values({
-                  tenantId,
-                  warehouseId: defaultWarehouse.id,
-                  productId: id,
-                  currentStock: "0.00", reserved: "0.00", available: "0.00",
-                });
+                await setStock(tx, { tenantId, warehouseId: defaultWarehouse.id, productId: id, quantity: 0 });
               }
 
               await OneCMapper.upsert(tx as unknown as typeof db, tenantId, "product", item.Ref_Key, id);

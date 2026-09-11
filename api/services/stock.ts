@@ -1,8 +1,8 @@
 import { warehouseStock, products, warehouses } from "@db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { sseBus } from "../lib/sse";
 import { recordAudit } from "./audit-log";
-import { recordStockMovement } from "./stock-ledger";
+import { recordStockMovement, receiveStock, applyStockEffect, setStock } from "./stock-ledger";
 import { TRPCError } from "@trpc/server";
 
 type DrizzleInstance = ReturnType<typeof import("../queries/connection").getDb>;
@@ -120,11 +120,17 @@ export const StockService = {
       const availableQty = Number(currentStock?.available ?? 0);
       const reservedQty = Number(currentStock?.reserved ?? 0);
 
+      /*
+        Три ветки ниже шли мимо двери своим SQL: available поддерживался
+        руками, а списание и пересчёт вниз НЕ трогали партии — журнал «что
+        сгорает» показывал товар, которого на полке уже нет. Дверь двигает
+        обе таблицы одним вызовом.
+      */
       if (type === "in") {
-        await tx.update(warehouseStock).set({
-          currentStock: sql`${warehouseStock.currentStock} + ${quantity}`,
-          available: sql`${warehouseStock.available} + ${quantity}`,
-        }).where(stockWhere);
+        await receiveStock(tx, {
+          tenantId, warehouseId: whId, productId, quantity,
+          reason: "manual_adjustment", notes,
+        });
       } else if (type === "out") {
         // Сверка шла с current_stock, а списывать можно только свободный
         // остаток. При current 100 / reserved 100 / available 0 списание 20
@@ -141,10 +147,10 @@ export const StockService = {
             `Недостаточно свободного товара на складе (на складе: ${currentQty}, из них ${reservedQty} зарезервировано под заказы; свободно: ${availableQty}, запрошено: ${quantity})`,
           );
         }
-        await tx.update(warehouseStock).set({
-          currentStock: sql`${warehouseStock.currentStock} - ${quantity}`,
-          available: sql`${warehouseStock.available} - ${quantity}`,
-        }).where(stockWhere);
+        await applyStockEffect(tx, {
+          tenantId, warehouseId: whId, items: [{ productId, quantity }],
+          shift: { onHand: -1, held: 0 }, reason: "manual_adjustment", notes,
+        });
 
         const [updatedStock] = await tx.select({ available: warehouseStock.available })
           .from(warehouseStock).where(stockWhere).limit(1);
@@ -169,25 +175,14 @@ export const StockService = {
           );
         }
         const diff = quantity - currentQty;
-        await tx.update(warehouseStock).set({
-          currentStock: String(quantity),
-          available: sql`${warehouseStock.available} + ${diff}`,
-        }).where(stockWhere);
+        await setStock(tx, { tenantId, warehouseId: whId, productId, quantity });
         adjustmentDiff = diff;
       }
 
-      // For "in"/"out" the caller's `quantity` already is the magnitude that
-      // just moved. For "adjustment" it's the new absolute count, not a
-      // movement size — logging it verbatim overstated every recount (and
-      // fabricated a movement for a recount that confirmed the count was
-      // already correct). Recording the true delta as a signed "in"/"out"
-      // also matches this ledger's own documented meaning of those types.
-      if (type !== "adjustment") {
-        await recordStockMovement(tx, {
-          tenantId, warehouseId: whId, productId,
-          type, quantity, reason: "manual_adjustment", notes,
-        });
-      } else if (adjustmentDiff !== 0) {
+      // Приход и списание записали движение сами (дверь). Пересчёт задаёт
+      // итог, а не движение: в журнал идёт разница, и только ненулевая —
+      // пересчёт, подтвердивший число, движения не выдумывает.
+      if (type === "adjustment" && adjustmentDiff !== 0) {
         await recordStockMovement(tx, {
           tenantId, warehouseId: whId, productId,
           type: adjustmentDiff > 0 ? "in" : "out",

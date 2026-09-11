@@ -227,7 +227,7 @@ function makeDb() {
     transaction: async (fn: (tx: any) => Promise<unknown>) => fn(db),
     execute: (query: any) => {
       const text = ((query?.strings as string[]) ?? []).join("?");
-      if (text.includes("UPDATE warehouse_stock") && text.includes("CASE")) {
+      if (text.includes("warehouse_stock") || text.includes("stock_batches")) {
         return createExecuteMock(stockT as any)(query);
       }
       return Promise.resolve();
@@ -305,7 +305,18 @@ describe("order.getById: чужой заказ не отдаётся полев�
 // 2 и 3. StockService.adjust
 // ═══════════════════════════════════════════════════════════════════════════
 describe("StockService.adjust: чужой товар и остаток в минус", () => {
-  beforeEach(() => {
+  /*
+    Корректировка теперь идёт через дверь (receiveStock / applyStockEffect /
+    setStock), а дверь в этом файле заглушена целиком — ради путей заказа.
+    Здесь ей возвращают настоящие тела: арифметика остатка — то, что этот
+    блок проверяет.
+  */
+  beforeEach(async () => {
+    const door = await vi.importActual<typeof import("../services/stock-ledger")>("../services/stock-ledger");
+    const stubbed = await import("../services/stock-ledger");
+    for (const name of ["receiveStock", "applyStockEffect", "setStock"] as const) {
+      vi.mocked(stubbed[name]).mockImplementation(door[name] as never);
+    }
     warehousesT.push({ id: 1, tenantId: 1, name: "Основной", isDefault: true });
     warehousesT.push({ id: 2, tenantId: 2, name: "Чужой", isDefault: true });
     // Товар 1 — наш, товар 900 — организации 2.
@@ -376,7 +387,7 @@ describe("StockService.adjust: чужой товар и остаток в мин
     const row = stockRow({ currentStock: "100.00", reserved: "100.00", available: "0.00" });
     const { StockService } = await import("../services/stock");
     await StockService.adjust(mockDb, 1, 1, 120, "adjustment", "пересчёт");
-    expect(row.currentStock).toBe("120");
+    expect(row.currentStock).toBe("120.00");
     expect(row.available).toBe("20.00");
     expect(Number(row.currentStock)).toBe(Number(row.available) + Number(row.reserved));
   });

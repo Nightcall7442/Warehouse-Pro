@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import { sql } from "drizzle-orm";
-import { receiveStock } from "../../services/stock-ledger";
+import { receiveStock, setStock } from "../../services/stock-ledger";
 import {
   hasRealDb, connectRealDb, closeRealDb, truncateAll, seed, stockOf, countOf,
   type ServiceDb,
@@ -138,5 +138,42 @@ describe.skipIf(!hasRealDb)("дверь для остатка: receiveStock", ()
     const mine = await stockOf(s.productId);
     expect(mine.current, "приход соседа лёг в наш остаток").toBe(10);
     expect(await countOf("warehouse_stock", `tenant_id = ${s.otherTenantId}`)).toBe(1);
+  });
+});
+
+/**
+ * setStock заводит строку сам: импорт и обмен с 1С называют ИТОГ по товару,
+ * у которого на складе ещё нет записи. Раньше каждый заводил её своим INSERT
+ * мимо двери; теперь INSERT … ON DUPLICATE KEY UPDATE внутри двери.
+ */
+describe.skipIf(!hasRealDb)("дверь для остатка: setStock заводит строку", () => {
+  let db: ServiceDb;
+  let s: Awaited<ReturnType<typeof seed>>;
+
+  beforeAll(async () => { db = await connectRealDb(); }, 120_000);
+  afterAll(async () => { await closeRealDb(); });
+  beforeEach(async () => { await truncateAll(); s = await seed("10.000"); });
+
+  const set = (quantity: number) => setStock(db as never, {
+    tenantId: s.tenantId, warehouseId: s.warehouseId, productId: s.productId, quantity,
+  });
+
+  it("строки нет — заводит с названным числом", async () => {
+    await db.execute(sql`DELETE FROM warehouse_stock WHERE product_id = ${s.productId}`);
+    await set(7);
+    const st = await stockOf(s.productId);
+    expect(st.current).toBe(7);
+    expect(st.available).toBe(7);
+    expect(st.reserved).toBe(0);
+    expect(await countOf("warehouse_stock", `product_id = ${s.productId}`)).toBe(1);
+  });
+
+  it("строка есть — ставит итог и обрезает резерв по нему", async () => {
+    await db.execute(sql`UPDATE warehouse_stock SET reserved = 6, available = 4 WHERE product_id = ${s.productId}`);
+    await set(3);
+    const st = await stockOf(s.productId);
+    expect(st.current).toBe(3);
+    expect(st.reserved).toBe(3);
+    expect(st.available).toBe(0);
   });
 });

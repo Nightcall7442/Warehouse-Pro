@@ -595,14 +595,18 @@ export async function setStock(
   if (!Number.isFinite(q) || q < 0) {
     throw new Error(`установка остатка: негодное количество ${String(entry.quantity)} у товара ${entry.productId}`);
   }
+  /*
+    Строки может не быть: импорт и обмен с 1С называют остаток товара, у
+    которого на этом складе ещё нет записи. Раньше каждый из них заводил её
+    сам своим INSERT и своей арифметикой — то есть мимо двери.
+  */
   await tx.execute(sql`
-    UPDATE warehouse_stock
-    SET current_stock = ${q},
-        reserved      = LEAST(reserved, ${q}),
-        available     = current_stock - reserved
-    WHERE product_id = ${entry.productId}
-      AND tenant_id = ${entry.tenantId}
-      AND warehouse_id = ${entry.warehouseId}
+    INSERT INTO warehouse_stock (tenant_id, warehouse_id, product_id, current_stock, reserved, available)
+    VALUES (${entry.tenantId}, ${entry.warehouseId}, ${entry.productId}, ${q}, 0, ${q})
+    ON DUPLICATE KEY UPDATE
+      current_stock = ${q},
+      reserved      = LEAST(reserved, ${q}),
+      available     = current_stock - reserved
   `);
 
   /*

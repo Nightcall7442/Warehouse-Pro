@@ -299,7 +299,7 @@ describe("warehouse.adjustStock — stock adjustment via API", () => {
     await caller.adjustStock({ productId: 1, quantity: "200", type: "adjustment" });
 
     const stock = stockTable.find(s => s.productId === 1 && s.tenantId === 1)!;
-    expect(stock.currentStock).toBe("200");
+    expect(stock.currentStock).toBe("200.00");
   });
 
   it("creates a stock movement record", async () => {
