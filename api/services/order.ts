@@ -1976,7 +1976,12 @@ export const OrderService = {
         shopId: orders.shopId,
         paymentMethod: orders.paymentMethod,
         deletedAt: orders.deletedAt,
-      }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt))).limit(1);
+      }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt)))
+        // Под замком: субтотал и статус читаются здесь, а пишутся ниже. Без
+        // замка курьер, закрывающий этот же заказ в телефоне, успевал между
+        // чтением и записью — скидка пересчитывалась от старой суммы.
+        .for("update")
+        .limit(1);
       if (!order) throw new Error("Заказ не найден");
 
       const updates: Record<string, unknown> = {};
@@ -2030,7 +2035,14 @@ export const OrderService = {
         id: orders.id, status: orders.status, shopId: orders.shopId,
         subtotal: orders.subtotal, total: orders.total, discount: orders.discount,
         paymentMethod: orders.paymentMethod, deletedAt: orders.deletedAt,
-      }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt))).limit(1);
+      }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt)))
+        // Под замком до выбора режима склада. Без него: T1 (правка состава)
+        // читает status=new, T2 (updateStatus new→delivered) блокирует заказ,
+        // списывает и коммитит; T1 дожидается замков остатка и резервирует
+        // под уже доставленный заказ — магазин должен за 15, уехало 10, пять
+        // единиц висят в reserved без заказа, который бы их объяснял.
+        .for("update")
+        .limit(1);
       if (!order) throw new Error("Заказ не найден");
 
       const mode = stockModeFor(order.status);
