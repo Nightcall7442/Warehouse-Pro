@@ -85,6 +85,16 @@ type Executor = {
  * первая выкладка догона и отказалась стартовать: `support_threads` в базе уже
  * была, ошибка пришла с кодом 1050 внутри обёртки, а проход её не разглядел.
  */
+/**
+ * «Оно уже такое» — ошибка, означающая, что нужное состояние уже достигнуто.
+ * Штатный мигратор в boot.ts на ней НЕ останавливает запуск: так выглядит
+ * файл, применённый наполовину при оборванной выкладке; догон доведёт его.
+ */
+export function isAlreadyThere(e: unknown): boolean {
+  const errno = errnoOf(e);
+  return errno !== null && ALREADY_THERE.has(errno);
+}
+
 function errnoOf(e: unknown): number | null {
   for (let cur: unknown = e, depth = 0; cur && depth < 5; depth++) {
     const errno = (cur as { errno?: unknown }).errno;

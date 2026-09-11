@@ -1335,10 +1335,25 @@ if (env.isProduction) {
      * же, где данные, которые защищает. Redis необязателен и может быть общим
      * для нескольких сред.
      */
-    const { catchUpMigrations } = await import("./lib/migration-catchup");
+    const { catchUpMigrations, isAlreadyThere } = await import("./lib/migration-catchup");
 
     await withMigrationLock(db.$client as never, async () => {
-      await migrate(db, { migrationsFolder: "./db/migrations" });
+      /*
+        Файл из нескольких выражений, оборванный на середине прошлой выкладкой
+        (DDL в MySQL не откатывается), при следующем запуске падает на первом
+        же выражении с «колонка уже есть» — и так на каждом запуске, навсегда.
+        Это не поломка схемы, а полпути к ней: пусть догон ниже доведёт файл,
+        прощая ровно то, что уже сделано. Любая другая ошибка — по-прежнему
+        отказ старта.
+      */
+      try {
+        await migrate(db, { migrationsFolder: "./db/migrations" });
+      } catch (e) {
+        if (!isAlreadyThere(e)) throw e;
+        logger.warn("штатный мигратор споткнулся об «уже есть» — файл применён наполовину; догон доведёт его", {
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
       /*
         Догон — под тем же замком и сразу за штатным мигратором.
 
