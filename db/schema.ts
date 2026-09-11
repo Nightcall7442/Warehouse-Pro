@@ -884,6 +884,16 @@ export const payments = mysqlTable("payments", {
   // данных.
   idempotencyKey: varchar("idempotency_key", { length: 100 }),
   createdBy: bigint("created_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),
+  /*
+    Сторно. Платёж не удаляется и не правится: ошибочно введённая оплата
+    оставалась навсегда — в собранных наличных курьера, в акте сверки, в
+    журнале долгов, — и исправлялась только ручным «новым долгом», который в
+    акте читался как начисление. Сторно — вторая строка того же типа с
+    отрицательной суммой и ссылкой сюда: все суммы по type = 'payment'
+    (долг магазина, касса курьера, ведомость) сходятся сами, а пара строк
+    видна как пара. Одно сторно на платёж — уникальный индекс ниже.
+  */
+  reversalOf: bigint("reversal_of", { mode: "number", unsigned: true }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({
   tenantIdx: index("idx_payments_tenant").on(t.tenantId),
@@ -892,6 +902,7 @@ export const payments = mysqlTable("payments", {
   tenantShopIdx: index("idx_payments_tenant_shop").on(t.tenantId, t.shopId),
   createdAtIdx:  index("idx_payments_created_at").on(t.createdAt),
   idempotencyUq: uniqueIndex("uq_payments_idempotency").on(t.tenantId, t.idempotencyKey),
+  reversalUq: uniqueIndex("uq_payments_reversal_of").on(t.reversalOf),
 }));
 
 export type Payment       = typeof payments.$inferSelect;

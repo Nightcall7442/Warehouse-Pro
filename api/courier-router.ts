@@ -9,7 +9,7 @@ import { logger } from "./lib/logger";
 import { sendPushToUser } from "./services/push-service";
 import { sanitizeString } from "./lib/sanitize";
 import { recalcShopDebt } from "./services/shop-debt";
-import { paidForOrder, assertFitsRemainder } from "./services/payment";
+import { paidForOrder, assertFitsRemainder, splitExcess, recordExcess } from "./services/payment";
 import { productLabel } from "./services/order";
 import { releaseStock, shipStock } from "./services/stock-ledger";
 import { NotificationService } from "./services/NotificationService";
@@ -303,6 +303,7 @@ export const courierRouter = createRouter({
           // то же «уже принято» и оба сочли, что место есть.
           const priorPaid = await paidForOrder(tx, ctx.tenant.id, order.id);
           assertFitsRemainder(Number(order.total), priorPaid, Number(input.cashAmount));
+          const { onOrder, excess } = splitExcess(Number(order.total), priorPaid, Number(input.cashAmount));
 
           await tx.insert(payments).values({
             tenantId: ctx.tenant.id,
@@ -311,11 +312,12 @@ export const courierRouter = createRouter({
             // can attribute it — an untied row reads as a loose shop-level
             // payment and would double-count against the order's own total.
             orderId: order.id,
-            amount: input.cashAmount,
+            amount: onOrder.toFixed(2),
             type: "payment",
             notes: `Доставка ${order.orderNumber} — наличные от курьера`,
             createdBy: courierId,
           });
+          if (excess > 0) await recordExcess(tx, ctx.tenant.id, order.shopId, order.orderNumber, excess, courierId);
         }
 
         // The order is now delivered and the cash (if any) is recorded, so
@@ -725,6 +727,10 @@ export const courierRouter = createRouter({
         */
         const priorPaid = await paidForOrder(tx, ctx.tenant.id, order.id);
         if (paidAmount > 0) assertFitsRemainder(orderTotal, priorPaid, paidAmount);
+        // Излишек сверх остатка — отдельной строкой по магазину, а не в этой:
+        // строка по заказу больше остатка растворялась в GREATEST(0, …).
+        const split = splitExcess(orderTotal, priorPaid, paidAmount);
+        paidAmount = split.onOrder;
 
         // Долг считается от того, что осталось неоплаченным ПО ЗАКАЗУ ЦЕЛИКОМ,
         // а не только по этой доставке.
@@ -766,6 +772,7 @@ export const courierRouter = createRouter({
             notes: input.notes ? sanitizeString(input.notes) : null,
             createdBy: courierId,
           });
+          if (split.excess > 0) await recordExcess(tx, ctx.tenant.id, order.shopId, order.orderNumber, split.excess, ctx.user.id);
         }
 
         // Status and payment are both written; re-derive what the shop owes.

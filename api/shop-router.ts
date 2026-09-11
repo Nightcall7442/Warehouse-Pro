@@ -573,6 +573,16 @@ export const shopRouter = createRouter({
       });
     }),
 
+  /** Сторно платежа — тем же правом, что и приём денег. */
+  reversePayment: operatorQuery.use(can("payments.accept"))
+    .input(z.object({ paymentId: z.number().int().positive(), reason: z.string().min(3).max(300) }))
+    .mutation(async ({ input, ctx }) => {
+      return PaymentService.reverse(ctx.db, ctx.tenant.id, {
+        paymentId: input.paymentId, reason: input.reason,
+        actor: { id: ctx.user.id, name: ctx.user.name, role: ctx.user.role },
+      });
+    }),
+
   uploadPhoto: operatorQuery
     .input(z.object({
       shopId:  z.number(),
