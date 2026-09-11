@@ -803,6 +803,7 @@ export const orderRouter = createRouter({
       method: z.enum(["cash", "card", "transfer"]),
       debtDueDate: z.string().optional(),
       notes: z.string().max(500).optional(),
+      idempotencyKey: z.string().min(8).max(100).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       return OrderService.recordPartialPayment(ctx.db, ctx.tenant.id, { id: ctx.user.id, role: ctx.user.role }, input);
@@ -837,6 +838,7 @@ export const orderRouter = createRouter({
         method: z.enum(["cash", "card", "transfer"]),
         debtDueDate: z.string().optional(),
         notes: z.string().max(500).optional(),
+        idempotencyKey: z.string().min(8).max(100).optional(),
       }),
       photos: z.array(z.string()).optional(),
     }))

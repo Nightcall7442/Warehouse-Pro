@@ -173,6 +173,9 @@ function CollectModal({ debt, onClose, onDone }: { debt: Debt; onClose: () => vo
   const remaining = Number(debt.remaining);
   const [amount, setAmount] = useState(String(remaining));
   const [method, setMethod] = useState<"cash" | "card" | "transfer">("cash");
+  // Один ключ на открытое окно: повтор после обрыва связи или двойное нажатие
+  // шлёт тот же, и сервер записывает платёж один раз (см. PaymentForm.tsx).
+  const [idempotencyKey] = useState(() => crypto.randomUUID());
 
   const record = trpc.order.recordPartialPayment.useMutation({
     onSuccess: () => {
@@ -252,7 +255,7 @@ function CollectModal({ debt, onClose, onDone }: { debt: Debt; onClose: () => vo
         </p>
 
         <button
-          onClick={() => record.mutate({ orderId: debt.orderId, paidAmount: String(value), method })}
+          onClick={() => record.mutate({ orderId: debt.orderId, paidAmount: String(value), method, idempotencyKey })}
           disabled={!valid || record.isPending}
           className="neo-btn-primary tap w-full disabled:opacity-40"
           data-testid="collect-submit"

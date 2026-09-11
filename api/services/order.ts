@@ -687,9 +687,28 @@ async function traceDebtChange(
     logger.error("Не удалось уведомить офис об изменении долга", { orderId: entry.orderId, error: String(err) });
   }
 }
+/** Тип платежа по заказу — один для всех трёх денежных процедур. */
+type OrderPaymentInput = {
+  orderId: number; paidAmount: string; method: "cash" | "card" | "transfer";
+  debtDueDate?: string; notes?: string;
+  /**
+   * Ключ повтора. Клиент делает его один раз при открытии окна оплаты и шлёт
+   * тот же при каждой попытке. Без ключа обрыв связи после commit давал два
+   * платежа: агент вносит 400 из 1 000, ответ теряется, вводит снова — в базе
+   * 800, долг занижен на 400, а наличных на 400 меньше, чем учтено. Ловится
+   * только ручной сверкой кассы. Уникальный индекс uq_payments_idempotency
+   * стоял в базе с самого начала — им пользовался shop.addPayment, а этот
+   * путь нет.
+   */
+  idempotencyKey?: string;
+};
+
+/** Деньги сравниваются в тийинах, а не в double: см. проверку остатка ниже. */
+const tiyin = (x: number) => Math.round(x * 100);
+
 async function applyPartialPayment(
   tx: Tx, tenantId: number, actor: Actor,
-  input: { orderId: number; paidAmount: string; method: "cash" | "card" | "transfer"; debtDueDate?: string; notes?: string },
+  input: OrderPaymentInput,
 ): Promise<void> {
   const userId = actor.id;
   const paid = Number(input.paidAmount);
@@ -727,7 +746,11 @@ async function applyPartialPayment(
     .where(and(eq(payments.orderId, order.id), eq(payments.tenantId, tenantId), eq(payments.type, "payment")));
   const priorPaid = Number(priorPaidRaw);
 
-  if (priorPaid + paid > total) throw new Error("Сумма оплаты не может превышать сумму заказа");
+  // В целых тийинах. В double точный остаток отвергался примерно в 11 %
+  // случаев с копейками (любой заказ с процентной скидкой): 0.1 + 0.2 > 0.3.
+  // Оператор закрывал пачку «все оплачены» — часть заказов уходила
+  // доставленными без записи оплаты.
+  if (tiyin(priorPaid) + tiyin(paid) > tiyin(total)) throw new Error("Сумма оплаты не может превышать сумму заказа");
 
   const debt = total - priorPaid - paid;
 
@@ -751,6 +774,7 @@ async function applyPartialPayment(
     paidAt: new Date(),
     notes: input.notes ?? null,
     createdBy: userId,
+    idempotencyKey: input.idempotencyKey ?? null,
   });
 
   // Create debt reminder if there's remaining debt and a due date
@@ -1005,6 +1029,21 @@ export function isIdempotencyDuplicate(err: unknown): boolean {
   // читать её надо по всей цепочке cause, а не с верхнего уровня. Пока читали
   // с верхнего, эта проверка давала false всегда.
   return isDuplicateOf(err, "uq_orders_idempotency");
+}
+
+/**
+ * Уже ли записан платёж с этим ключом у этой организации.
+ *
+ * Нужен recordDeliveryAndPayment: на повторе первой отказывает доставка
+ * («заказ уже доставлен»), до INSERT платежа дело не доходит, и уникальный
+ * индекс сработать не успевает. Тогда ответ на вопрос «это повтор?» даёт сама
+ * таблица платежей.
+ */
+async function isRepeatOfCompletedDelivery(db: Db, tenantId: number, idempotencyKey: string): Promise<boolean> {
+  const [row] = await db.select({ id: payments.id }).from(payments)
+    .where(and(eq(payments.tenantId, tenantId), eq(payments.idempotencyKey, idempotencyKey)))
+    .limit(1);
+  return !!row;
 }
 
 export const OrderService = {
@@ -2380,15 +2419,19 @@ export const OrderService = {
 
   async recordPartialPayment(
     db: Db, tenantId: number, actor: Actor,
-    input: {
-      orderId: number;
-      paidAmount: string;
-      method: "cash" | "card" | "transfer";
-      debtDueDate?: string;
-      notes?: string;
-    },
+    input: OrderPaymentInput,
   ) {
-    await db.transaction((tx) => applyPartialPayment(tx, tenantId, actor, input));
+    try {
+      await db.transaction((tx) => applyPartialPayment(tx, tenantId, actor, input));
+    } catch (e) {
+      // Повтор той же попытки: транзакция откатилась целиком, лишней строки
+      // нет, долг не тронут. Разбирать код безопасно только при переданном
+      // ключе — без ключа конфликтовать нечему (см. services/payment.ts).
+      if (input.idempotencyKey && isDuplicateOf(e, "uq_payments_idempotency")) {
+        return { success: true, duplicate: true };
+      }
+      throw e;
+    }
     cache.invalidate(CacheKeys.dashboardKpis(tenantId));
 
     /*
@@ -2635,24 +2678,37 @@ export const OrderService = {
     input: {
       orderId: number;
       deliveredItems: Array<{ itemId: number; deliveredQuantity: number; returnReason?: string }>;
-      payment: { paidAmount: string; method: "cash" | "card" | "transfer"; debtDueDate?: string; notes?: string };
+      payment: { paidAmount: string; method: "cash" | "card" | "transfer"; debtDueDate?: string; notes?: string; idempotencyKey?: string };
       photos?: string[];
     },
   ) {
-    await db.transaction(async (tx) => {
-      await applyPartialDelivery(tx, tenantId, actor, {
-        orderId: input.orderId,
-        items: input.deliveredItems,
-        photos: input.photos,
+    try {
+      await db.transaction(async (tx) => {
+        await applyPartialDelivery(tx, tenantId, actor, {
+          orderId: input.orderId,
+          items: input.deliveredItems,
+          photos: input.photos,
+        });
+        await applyPartialPayment(tx, tenantId, actor, {
+          orderId: input.orderId,
+          paidAmount: input.payment.paidAmount,
+          method: input.payment.method,
+          debtDueDate: input.payment.debtDueDate,
+          notes: input.payment.notes,
+          idempotencyKey: input.payment.idempotencyKey,
+        });
       });
-      await applyPartialPayment(tx, tenantId, actor, {
-        orderId: input.orderId,
-        paidAmount: input.payment.paidAmount,
-        method: input.payment.method,
-        debtDueDate: input.payment.debtDueDate,
-        notes: input.payment.notes,
-      });
-    });
+    } catch (e) {
+      // Повтор после потерянного ответа: доставка и оплата уже проведены той
+      // же попыткой, откат — целиком. На повторе applyPartialDelivery может
+      // отказать раньше по статусу, до INSERT платежа, и индекс не сработает
+      // — тогда ответ даёт сама таблица платежей (isRepeatOfCompletedDelivery).
+      if (input.payment.idempotencyKey && (isDuplicateOf(e, "uq_payments_idempotency")
+          || await isRepeatOfCompletedDelivery(db, tenantId, input.payment.idempotencyKey))) {
+        return { success: true, duplicate: true };
+      }
+      throw e;
+    }
 
     cache.invalidate(CacheKeys.dashboardKpis(tenantId));
     return { success: true };

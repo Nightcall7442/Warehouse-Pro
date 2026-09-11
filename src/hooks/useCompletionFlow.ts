@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { useLang } from "@/i18n";
@@ -48,30 +48,31 @@ export function useCompletionFlow({ orderId, onSuccess }: UseCompletionFlowOptio
 
   const saving = recordPartialDelivery.isPending || recordDeliveryAndPayment.isPending || updateStatus.isPending;
 
+  // Ключ повтора платежа. Делается при первой попытке сохранить и живёт до
+  // успеха: обрыв связи после commit и повторное «Сохранить» шлют тот же
+  // ключ, и сервер не записывает оплату второй раз. После успеха — новый.
+  const paymentKey = useRef<string | null>(null);
+
   const handleCompletionSave = useCallback(async (data: CompletionData, pendingStatus: string | null) => {
     const hasReturns = data.items.some(it => it.deliveredQuantity === 0 || it.returnReason);
     const hasPayment = data.paidAmount && Number(data.paidAmount) > 0;
 
+    paymentKey.current ??= crypto.randomUUID();
+    const payment = { paidAmount: data.paidAmount!, method: data.paymentMethod || "cash", notes: data.notes, idempotencyKey: paymentKey.current };
+
     try {
       if (hasReturns && hasPayment) {
-        await recordDeliveryAndPayment.mutateAsync({
-          orderId,
-          deliveredItems: data.items,
-          payment: { paidAmount: data.paidAmount!, method: data.paymentMethod || "cash", notes: data.notes },
-        });
+        await recordDeliveryAndPayment.mutateAsync({ orderId, deliveredItems: data.items, payment });
       } else if (hasReturns) {
         await recordPartialDelivery.mutateAsync({ orderId, items: data.items });
       } else if (hasPayment) {
-        await recordDeliveryAndPayment.mutateAsync({
-          orderId,
-          deliveredItems: data.items,
-          payment: { paidAmount: data.paidAmount!, method: data.paymentMethod || "cash", notes: data.notes },
-        });
+        await recordDeliveryAndPayment.mutateAsync({ orderId, deliveredItems: data.items, payment });
       }
 
       if (pendingStatus) {
         await updateStatus.mutateAsync({ id: orderId, status: pendingStatus as StatusType });
       }
+      paymentKey.current = null;
 
       notify.success(lang === "uz" ? "Buyurtma tugatildi" : "Заказ завершён");
       return true;
