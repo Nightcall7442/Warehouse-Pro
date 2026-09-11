@@ -396,6 +396,8 @@ export const agentRouter = createRouter({
       // Когда точка снята устройством. Приходит у точек, пролежавших в буфере
       // без связи; у отправленных сразу его нет и оно не нужно.
       recordedAt: z.string().datetime().optional(),
+      // Система телефона пометила координаты как подменённые (Android).
+      mocked: z.boolean().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       await getDb().insert(agentLocations).values({
@@ -406,6 +408,7 @@ export const agentRouter = createRouter({
         accuracy: input.accuracy,
         batteryLevel: input.batteryLevel,
         recordedAt: sanitizeRecordedAt(input.recordedAt),
+        mocked: input.mocked === true,
       });
 
       sseBus.emit({

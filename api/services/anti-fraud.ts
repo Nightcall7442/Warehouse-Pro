@@ -9,6 +9,10 @@ export interface FraudCheckResult {
   reasons: string[];
   details: {
     gpsVerified: boolean;
+    /** За день нет ни одной точки: проверить нечем — это не подозрение. */
+    gpsMissing: boolean;
+    /** Есть точки с подменёнными координатами (эмулятор GPS). */
+    gpsMocked: boolean;
     distanceToShop: number;
     visitDuration: number;
     duplicateVisit: boolean;
@@ -33,6 +37,7 @@ interface GpsPing {
   lat: string;
   lng: string;
   createdAt: Date;
+  mocked?: boolean;
 }
 
 /** План визита в том виде, в каком его читает verifyVisit. */
@@ -92,7 +97,7 @@ export async function verifyVisit(
     .limit(1))[0];
 
   if (!plan) {
-    return { isSuspicious: false, fraudScore: 0, reasons: [], details: { gpsVerified: false, distanceToShop: 0, visitDuration: 0, duplicateVisit: false, photoTimingValid: false } };
+    return { isSuspicious: false, fraudScore: 0, reasons: [], details: { gpsVerified: false, gpsMissing: true, gpsMocked: false, distanceToShop: 0, visitDuration: 0, duplicateVisit: false, photoTimingValid: false } };
   }
 
   const shop: VisitShopRow | undefined = prefetched
@@ -116,6 +121,7 @@ export async function verifyVisit(
       lat: agentLocations.lat,
       lng: agentLocations.lng,
       createdAt: agentLocations.createdAt,
+      mocked: agentLocations.mocked,
     }).from(agentLocations)
       .where(and(
         eq(agentLocations.tenantId, tenantId),
@@ -129,7 +135,24 @@ export async function verifyVisit(
   let gpsVerified = false;
   let distanceToShop = 0;
 
-  if (shop?.gpsLat && shop?.gpsLng) {
+  /*
+    Нет GPS ≠ фрод. Пустой день (телефон без разрешения, разряженный, старая
+    сборка) давал minDistance = Infinity → «агент был в Infinityм от
+    магазина», +40 и подозрение, а из подозрения — вычет из зарплаты. Данных
+    нет — проверить нечем; это отдельный признак, не обвинение.
+    Подмена координат — наоборот, единственный признак, который не бывает
+    случайным.
+  */
+  const gpsMissing = gpsPings.length === 0;
+  const gpsMocked = gpsPings.some(p => p.mocked === true);
+  if (gpsMocked) {
+    reasons.push("Подменённые GPS-координаты (эмулятор местоположения)");
+    fraudScore += 50;
+  }
+
+  if (gpsMissing) {
+    reasons.push("Нет GPS-данных за день — визит не проверен");
+  } else if (shop?.gpsLat && shop?.gpsLng) {
     let minDistance = Infinity;
     for (const ping of gpsPings) {
       const dist = haversineDistance(
@@ -152,7 +175,7 @@ export async function verifyVisit(
   }
 
   let visitDuration = 0;
-  if (shop?.gpsLat && shop?.gpsLng) {
+  if (!gpsMissing && shop?.gpsLat && shop?.gpsLng) {
     const pingsAtShop = gpsPings.filter(p => {
       const dist = haversineDistance(
         Number(shop.gpsLat), Number(shop.gpsLng),
@@ -208,6 +231,8 @@ export async function verifyVisit(
     reasons,
     details: {
       gpsVerified,
+      gpsMissing,
+      gpsMocked,
       distanceToShop,
       visitDuration,
       duplicateVisit,
@@ -260,6 +285,7 @@ export async function calculateFraudMetrics(
       lat: agentLocations.lat,
       lng: agentLocations.lng,
       createdAt: agentLocations.createdAt,
+      mocked: agentLocations.mocked,
     }).from(agentLocations)
       .where(and(
         eq(agentLocations.tenantId, tenantId),

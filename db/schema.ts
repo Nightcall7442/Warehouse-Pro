@@ -938,6 +938,13 @@ export const agentLocations = mysqlTable("agent_locations", {
    * в буфере три часа.
    */
   recordedAt: timestamp("recorded_at"),
+  /*
+    Точка снята с подменённых координат — так сказала система телефона
+    (Android отмечает фиктивное местоположение от приложений-эмуляторов).
+    Единственный признак фрода, который нельзя получить честно: отсутствие
+    GPS бывает у всех, подмена — только нарочно.
+  */
+  mocked: boolean("mocked").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({
   tenantIdx: index("idx_locations_tenant").on(t.tenantId),
@@ -1116,6 +1123,16 @@ export const commissions = mysqlTable("commissions", {
     строка условий оплаты человека на месяц.
   */
   baseSalary:      decimal("base_salary",      { precision: 14, scale: 2 }).default("0.00").notNull(),
+  /*
+    Утверждённый вычет за подозрительные визиты — за ЭТОТ период.
+
+    Раньше вычет считался формулой (оклад × доля подозрительных × ½) и
+    вычитался из зарплаты сам, без чьего-либо решения и без строки в
+    ведомости супервайзера: человек недосчитывался денег за день без GPS.
+    Теперь формула даёт ПРЕДЛОЖЕНИЕ, а из зарплаты вычитается только то, что
+    директор утвердил здесь. NULL — не утверждали, вычета нет.
+  */
+  fraudDeduction:  decimal("fraud_deduction",  { precision: 14, scale: 2 }),
   mealAllowance:   decimal("meal_allowance",   { precision: 12, scale: 2 }).default("0.00").notNull(),
   travelAllowance: decimal("travel_allowance", { precision: 12, scale: 2 }).default("0.00").notNull(),
   periodType:   mysqlEnum("period_type", ["monthly", "quarterly"]).default("monthly").notNull(),

@@ -109,9 +109,16 @@ export interface SalaryData {
 
   totalSalary: number;
 
+  /**
+   * Что формула предлагает вычесть за подозрительные визиты. Из зарплаты
+   * уходит только утверждённое директором — оно в breakdown.fraudDeduction.
+   */
+  fraudDeductionProposed: number;
+
   breakdown: {
     base: number;
     commission: number;
+    /** Утверждённый вычет, со знаком минус; 0 — не утверждали. */
     fraudDeduction: number;
     /** Оплата за доставки: ставка × довезённые заказы. */
     delivery: number;
@@ -780,6 +787,8 @@ export async function calculateSalary(
   const [commissionRecord] = await db.select({
     commissionRate: sql<string>`commission_rate`,
     baseSalary: sql<string>`base_salary`,
+    periodStart: commissions.periodStart,
+    fraudDeduction: commissions.fraudDeduction,
     deliveryRate: sql<string>`delivery_rate`,
     courierPayMode: sql<string>`courier_pay_mode`,
     mealAllowance: sql<string>`meal_allowance`,
@@ -875,7 +884,19 @@ export async function calculateSalary(
   // и одна колонка на два смысла путала зарплату с нормой.
   const baseSalary = Number(commissionRecord?.baseSalary ?? 0);
 
-  const fraudDeduction = Number((baseSalary * (kpi.fraudRate / 100) * 0.5).toFixed(2));
+  /*
+    Вычет за подозрительные визиты — предложение, а не автоматика.
+
+    Формула прежняя, но её результат теперь только ПОКАЗЫВАЕТСЯ директору как
+    предлагаемая сумма. Из зарплаты вычитается то, что он утвердил в строке
+    условий за этот же месяц (setFraudDeduction). Строка условий читается
+    «последняя до даты», поэтому утверждение берётся только если строка —
+    именно за этот период: чужой месяц вычитать нельзя.
+  */
+  const fraudDeductionProposed = Number((baseSalary * (kpi.fraudRate / 100) * 0.5).toFixed(2));
+  const termsAreThisPeriod = commissionRecord?.periodStart != null && dayKey(new Date(commissionRecord.periodStart)) === dayKey(periodStart);
+  const fraudDeduction = termsAreThisPeriod && commissionRecord?.fraudDeduction != null
+    ? Number(commissionRecord.fraudDeduction) : 0;
 
   /*
     Курьеру платят за довезённое, а не за оформленное.
@@ -1071,6 +1092,8 @@ export async function calculateSalary(
     workDays,
     allowancePay,
     totalSalary,
+    // Что формула предлагает вычесть; директор решает — см. breakdown ниже.
+    fraudDeductionProposed: isCourier ? 0 : fraudDeductionProposed,
     breakdown: {
       base: baseSalary,
       // У курьера комиссии и вычета нет — не «ноль по ошибке», а не

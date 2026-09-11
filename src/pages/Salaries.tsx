@@ -78,6 +78,9 @@ type Row = {
   deliveryPay: number;
   allowancePay: number;
   totalSalary: number;
+  /** Что формула предлагает вычесть за подозрительные визиты; решает директор. */
+  fraudDeductionProposed: number;
+  breakdown: { fraudDeduction: number };
 };
 
 type Payout = {
@@ -127,6 +130,53 @@ function periodLabel(period: PeriodKind, offset: number, lang: string): string {
   const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7 * offset);
   const start = new Date(end.getFullYear(), end.getMonth(), end.getDate() - 6);
   return `${format(start, "d MMM", loc)} — ${format(end, "d MMM", loc)}`;
+}
+
+/*
+  Вычет за подозрительные визиты — предложение, а не автоматика.
+
+  Формула (оклад × доля подозрительных × ½) раньше вычитала сама и нигде на
+  этом экране не показывалась: «начислено» было уже уменьшено, и никто не
+  видел, за что. Теперь она только предлагает; из зарплаты уходит то, что
+  директор применил здесь. Вычет живёт по месяцам — на неделе и квартале
+  строки нет.
+*/
+function FraudDeductionLine({ row, period, offset, fmt, t }: {
+  row: Row; period: PeriodKind; offset: number; fmt: (v: number) => string; t: (r: string, u: string) => string;
+}) {
+  const utils = trpc.useUtils();
+  const set = trpc.kpi.setFraudDeduction.useMutation({
+    onSuccess: () => utils.kpi.salaryReport.invalidate(),
+    onError: (e) => notify.error(e.message),
+  });
+  if (period !== "month") return null;
+  const applied = -Number(row.breakdown?.fraudDeduction ?? 0);
+  const proposed = Number(row.fraudDeductionProposed ?? 0);
+  if (applied <= 0 && proposed <= 0) return null;
+  const busy = set.isPending;
+  return (
+    <div className="flex items-center gap-2 flex-wrap" style={{ fontSize: "12px", color: applied > 0 ? "var(--color-danger-text)" : "var(--color-warning-text)" }} data-testid={`fraud-line-${row.agentId}`}>
+      {applied > 0 ? (
+        <>
+          <span>{t("вычет за визиты", "tashriflar uchun ushlab qolish")}: −{fmt(applied)}</span>
+          <button type="button" className="neo-btn neo-btn-xs tap" disabled={busy}
+            onClick={() => set.mutate({ userId: row.agentId, offset, amount: null })}
+            data-testid={`fraud-remove-${row.agentId}`}>
+            {t("снять", "olib tashlash")}
+          </button>
+        </>
+      ) : (
+        <>
+          <span>{t("предложен вычет за подозрительные визиты", "shubhali tashriflar uchun ushlab qolish taklifi")}: {fmt(proposed)}</span>
+          <button type="button" className="neo-btn neo-btn-xs tap" disabled={busy}
+            onClick={() => set.mutate({ userId: row.agentId, offset, amount: proposed })}
+            data-testid={`fraud-apply-${row.agentId}`}>
+            {t("применить", "qo'llash")}
+          </button>
+        </>
+      )}
+    </div>
+  );
 }
 
 export default function Salaries() {
@@ -589,6 +639,7 @@ export default function Salaries() {
                               <div className="min-w-0">
                                 <div style={{ fontWeight: 600 }}>{r.agentName}</div>
                                 <RoleBadge role={r.role} lang={lang} rate={Number(r.commissionAmount) > 0 ? r.commissionRate : null} />
+                                <FraudDeductionLine row={r} period={period} offset={offset} fmt={fmt} t={t} />
                               </div>
                             </div>
                           </td>
@@ -702,6 +753,7 @@ export default function Salaries() {
                       </span>
                     )}
                   </div>
+                  <FraudDeductionLine row={r} period={period} offset={offset} fmt={fmt} t={t} />
 
                   <div className="flex items-center justify-between gap-2 mt-3 pt-3 flex-wrap" style={{ borderTop: `1px solid ${COLORS.border}` }}>
                     <div className="flex items-center gap-2" style={{ fontSize: "12px", color: COLORS.textTertiary }}>

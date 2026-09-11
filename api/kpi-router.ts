@@ -538,6 +538,62 @@ export const kpiRouter = createRouter({
     Обе — с ТЕКУЩЕГО месяца, даже если открыт прошлый: задним числом
     менять закрытый период значит переписывать то, по чему уже заплатили.
   */
+  /*
+    Утвердить (или снять) вычет за подозрительные визиты за месяц.
+
+    Сумма пишется в строку условий оплаты за этот месяц; расчёт вычитает
+    только её. Утверждённый или оплаченный период менять нельзя — по нему
+    уже заплатили.
+  */
+  setFraudDeduction: adminQuery
+    .input(z.object({
+      userId: z.number().int().positive(),
+      // Сколько месяцев назад: 0 — текущий, 1 — прошлый.
+      offset: z.number().int().min(0).max(36).default(0),
+      // null — снять вычет.
+      amount: z.number().min(0).max(1e12).nullable(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+      const [person] = await db.select({ id: users.id, name: users.name })
+        .from(users)
+        .where(and(eq(users.id, input.userId), eq(users.tenantId, ctx.tenant.id), sql`${users.role} <> 'superadmin'`))
+        .limit(1);
+      if (!person) throw new TRPCError({ code: "NOT_FOUND", message: "Сотрудник не найден в вашей организации" });
+
+      const now = new Date();
+      const { start: monthStart, end: monthEnd } = monthRange(new Date(now.getFullYear(), now.getMonth() - input.offset, 1));
+      const [terms] = await db.select({ id: commissions.id, status: commissions.status })
+        .from(commissions)
+        .where(and(
+          eq(commissions.tenantId, ctx.tenant.id),
+          eq(commissions.userId, person.id),
+          eq(commissions.periodType, "monthly"),
+          onDate(commissions.periodStart, monthStart),
+        ))
+        .limit(1);
+      if (terms && terms.status !== "pending") {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Период уже закрыт — по нему заплатили" });
+      }
+      const value = input.amount == null ? null : input.amount.toFixed(2);
+      if (terms) {
+        await db.update(commissions).set({ fraudDeduction: value }).where(eq(commissions.id, terms.id));
+      } else if (value != null) {
+        await db.insert(commissions).values({
+          tenantId: ctx.tenant.id, userId: person.id, periodType: "monthly",
+          periodStart: sql`${monthStart}`, periodEnd: sql`${monthEnd}`,
+          fraudDeduction: value,
+        });
+      }
+      cache.invalidate(CacheKeys.commissions(ctx.tenant.id));
+      await recordAudit(db, {
+        tenantId: ctx.tenant.id, actorId: ctx.user.id, actorName: ctx.user.name,
+        action: "salary.fraud_deduction", targetType: "user", targetId: person.id,
+        meta: { userName: person.name, month: monthStart, amount: input.amount },
+      });
+      return { success: true };
+    }),
+
   setSalary: adminQuery
     .input(z.object({
       userId: z.number().int().positive(),
