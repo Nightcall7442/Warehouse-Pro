@@ -15,7 +15,7 @@ export const settingsRouter = createRouter({
         id: settings.id, tenantId: settings.tenantId, companyName: settings.companyName,
       currency: settings.currency, currencySymbol: settings.currencySymbol,
       symbolPosition: settings.symbolPosition, defaultReorderPoint: settings.defaultReorderPoint,
-      lowStockThreshold: settings.lowStockThreshold, companyAddress: settings.companyAddress,
+      lowStockThreshold: settings.lowStockThreshold, maxFieldDiscountPct: settings.maxFieldDiscountPct, companyAddress: settings.companyAddress,
       companyPhone: settings.companyPhone, companyInn: settings.companyInn,
       companyDirector: settings.companyDirector, companyBank: settings.companyBank,
       companyBankAccount: settings.companyBankAccount, companyMfo: settings.companyMfo,
@@ -62,6 +62,8 @@ export const settingsRouter = createRouter({
       symbolPosition:      z.enum(["before", "after"]).optional(),
       defaultReorderPoint: decimalOrDefault("0.00").optional(),
       lowStockThreshold:   decimalOrDefault("50.00").optional(),
+      // Пусто — порога нет. Строкой, как все числа настроек.
+      maxFieldDiscountPct: z.preprocess(v => (v === "" ? null : v), z.string().regex(/^\d{1,3}(\.\d{1,2})?$/, "Порог — процент от 0 до 100").refine(v => Number(v) <= 100, "Порог — процент от 0 до 100").nullable().optional()),
       companyAddress:      z.string().nullable().optional(),
       companyPhone:        z.string().max(50).nullable().optional(),
       companyInn:          z.string().nullable().optional(),

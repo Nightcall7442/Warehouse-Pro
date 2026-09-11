@@ -604,6 +604,27 @@ function ownerScope(actor: Actor) {
 
 /** Кто выполняет операцию: идентификатор для записи авторства и роль для прав. */
 type Actor = { id: number; role: string };
+/** Кто делает правку — для журнала действий. Необязателен: крон и вебхуки без человека. */
+type AuditActor = { id: number; role: string; name?: string };
+
+/**
+ * След правки заказа, меняющей выручку или долг.
+ *
+ * Удаление, восстановление, правка скидки и способа оплаты, переписывание
+ * строк — операции, которые убирают доставленный долговой заказ из
+ * дебиторки или меняют его сумму, — не оставляли ни записи в журнале, ни
+ * автора. Долг магазина можно было уменьшить или стереть без ответа «кто и
+ * когда». Пишется ПОСЛЕ транзакции: журнал не должен уметь отменить правку.
+ */
+async function traceOrderChange(
+  db: Db, tenantId: number, orderId: number, action: string, actor: AuditActor | undefined, meta: Record<string, unknown>,
+): Promise<void> {
+  const { recordAudit } = await import("./audit-log");
+  await recordAudit(db, {
+    tenantId, actorId: actor?.id, actorName: actor?.name, action, targetType: "order", targetId: orderId,
+    meta: { ...meta, actorRole: actor?.role },
+  });
+}
 
 /*
   След от того, кто уменьшил долг магазина.
@@ -1910,7 +1931,8 @@ export const OrderService = {
     return { success: true };
   },
 
-  async delete(db: Db, tenantId: number, orderId: number) {
+  async delete(db: Db, tenantId: number, orderId: number, actor?: AuditActor) {
+    let deletedMeta: Record<string, unknown> = {};
     await db.transaction(async (tx) => {
       // Locked for the same reason as cancel() above: without it, two
       // concurrent deletes both pass the `deletedAt IS NULL` check and each
@@ -1924,6 +1946,7 @@ export const OrderService = {
         paymentMethod: orders.paymentMethod,
       }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt))).for("update").limit(1);
       if (!order) throw new Error("Заказ не найден или уже удалён");
+      deletedMeta = { status: order.status, total: order.total, paymentMethod: order.paymentMethod, shopId: order.shopId };
 
       // Release reserved stock if order is new or processing
       if (holdsStock(order.status)) {
@@ -1965,6 +1988,7 @@ export const OrderService = {
     });
 
     cache.invalidate(CacheKeys.dashboardKpis(Number(tenantId)));
+    await traceOrderChange(db, tenantId, orderId, "order.delete", actor, deletedMeta);
 
     return { success: true };
   },
@@ -1981,6 +2005,7 @@ export const OrderService = {
       */
       promisedDeliveryAt?: Date | null;
     },
+    actor?: AuditActor,
   ) {
     // discount is a percentage (0-100), same contract as OrderService.create.
     if (data.discount !== undefined) {
@@ -2037,6 +2062,13 @@ export const OrderService = {
     });
 
     cache.invalidate(CacheKeys.dashboardKpis(Number(tenantId)));
+    // Только денежные поля: заметки и срок доставки долга не меняют.
+    if (data.discount !== undefined || data.paymentMethod !== undefined) {
+      await traceOrderChange(db, tenantId, orderId, "order.update", actor, {
+        ...(data.discount !== undefined ? { discountPct: Number(data.discount) } : {}),
+        ...(data.paymentMethod !== undefined ? { paymentMethod: data.paymentMethod } : {}),
+      });
+    }
 
     return { success: true };
   },
@@ -2054,7 +2086,10 @@ export const OrderService = {
   async updateItems(
     db: Db, tenantId: number, orderId: number,
     data: { items: Array<{ itemId?: number; productId?: number; quantity: number; unitPrice?: string }> },
+    actor?: AuditActor,
   ) {
+    // TS сужает let-переменную до never после замыкания; объект с полями обходит это.
+    const totals: { before?: string; after?: string } = {};
     await db.transaction(async (tx) => {
       const [order] = await tx.select({
         id: orders.id, status: orders.status, shopId: orders.shopId,
@@ -2223,6 +2258,7 @@ export const OrderService = {
       const discountPct = Number(order.subtotal) > 0 ? (Number(order.discount) / Number(order.subtotal)) * 100 : 0;
       const newDiscount = newSubtotal * (discountPct / 100);
       const newTotal = newSubtotal - newDiscount;
+      totals.before = String(order.total); totals.after = newTotal.toFixed(2);
 
       await tx.update(orders).set({
         subtotal: newSubtotal.toFixed(2),
@@ -2234,10 +2270,11 @@ export const OrderService = {
     });
 
     cache.invalidate(CacheKeys.dashboardKpis(Number(tenantId)));
+    await traceOrderChange(db, tenantId, orderId, "order.update_items", actor, { totalBefore: totals.before, totalAfter: totals.after, lines: data.items.length });
     return { success: true };
   },
 
-  async restore(db: Db, tenantId: number, orderId: number) {
+  async restore(db: Db, tenantId: number, orderId: number, actor?: AuditActor) {
     await db.transaction(async (tx) => {
       // Читаем заказ ВНУТРИ транзакции и под блокировкой — первым же запросом.
       //
@@ -2315,6 +2352,7 @@ export const OrderService = {
     });
 
     cache.invalidate(CacheKeys.dashboardKpis(Number(tenantId)));
+    await traceOrderChange(db, tenantId, orderId, "order.restore", actor, {});
 
     return { success: true };
   },

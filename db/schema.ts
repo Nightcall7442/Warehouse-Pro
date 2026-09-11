@@ -1247,6 +1247,16 @@ export const settings = mysqlTable("settings", {
   currencySymbol:      varchar("currency_symbol", { length: 10 }).default("сум").notNull(),
   defaultReorderPoint: decimal("default_reorder_point", { precision: 10, scale: 2 }).default("0.00").notNull(),
   lowStockThreshold:   decimal("low_stock_threshold", { precision: 10, scale: 2 }).default("50.00").notNull(),
+  /*
+    Порог скидки для полевых ролей (агент, мерчандайзер, супервайзер), в
+    процентах. NULL — порога нет, как было у всех: заказ со скидкой до 100 %
+    мог оформить любой полевой сотрудник без согласования и без записи в
+    журнал — классическая схема «своему магазину со скидкой», при которой
+    склад и долг сходятся, а P&L показывает падение маржи без объяснения.
+    Скидка выше порога — отказ у прилавка; заказ со скидкой выше порога
+    оформляет офис (ceo, operator), и это остаётся в журнале действий.
+  */
+  maxFieldDiscountPct: decimal("max_field_discount_pct", { precision: 5, scale: 2 }),
   symbolPosition:      mysqlEnum("symbol_position", ["before", "after"]).default("after").notNull(),
   // UZ: address for official documents (printed on invoices)
   companyAddress:      text("company_address"),

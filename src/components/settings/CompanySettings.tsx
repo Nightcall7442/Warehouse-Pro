@@ -41,11 +41,14 @@ type CompanyForm = {
   companyMfo: string;
   currency: string;
   logoUrl: string;
+  /** Порог скидки полевых ролей, %. Пусто — порога нет. */
+  maxFieldDiscountPct: string;
 };
 
 const EMPTY: CompanyForm = {
   companyName: "", companyAddress: "", companyInn: "", companyDirector: "", companyPhone: "",
   companyBank: "", companyBankAccount: "", companyMfo: "", currency: "UZS", logoUrl: "",
+  maxFieldDiscountPct: "",
 };
 
 /** Загрузка отвергает файл больше этого; подпись под кнопкой берёт число отсюда же. */
@@ -173,6 +176,17 @@ export function CompanySettings() {
           </Field>
           <Field label={t("МФО", "MFO")}>
             <input className="neo-input font-data" inputMode="numeric" value={form.companyMfo} onChange={set("companyMfo")} />
+          </Field>
+        </FieldRow>
+      </FieldGroup>
+
+      <FieldGroup>
+        <FieldRow>
+          {/* Пусто — порога нет: агент, мерчандайзер и супервайзер могут дать любую
+              скидку, как и раньше. Число — скидка выше него отказывается у прилавка,
+              оформить такой заказ может только офис, и это остаётся в журнале. */}
+          <Field label={t("Порог скидки для полевых сотрудников, % (пусто — без порога)", "Dala xodimlari uchun chegirma chegarasi, % (bo'sh — chegarasiz)")}>
+            <input className="neo-input font-data" inputMode="decimal" placeholder="10" value={form.maxFieldDiscountPct} onChange={set("maxFieldDiscountPct")} />
           </Field>
         </FieldRow>
       </FieldGroup>
